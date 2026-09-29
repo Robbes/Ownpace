@@ -2988,8 +2988,8 @@ it says which and logs nothing; fix it and run it again with `--resume`.
 3. **The daily duties** (*Live's daily duties*, below): the units are in place,
    so `sudo loginctl enable-linger "$USER"`, then
    `systemctl --user enable --now ownpace-box-duties.timer`, one
-   `systemctl --user start ownpace-box-duties.service`, and the journal: all
-   four duties pass.
+   `systemctl --user start ownpace-box-duties.service`, and the journal: every
+   duty passes.
 4. **Rehearse the next deploy.** Open a hold on the support screen with a Dutch
    sentence, wait five minutes, then `./deploy/compose/deploy-live.sh --dry-run <tag>`:
    every refusal passes, it says reversible (the same tag), and nothing moves.
@@ -3009,7 +3009,7 @@ run replaces it in its last three, and past its deadline no successor can be
 minted), and `trigger-version.sh drill` dumps the Trigger.dev database and
 proves the dump loads. CI never touches live (workplan 0132 T1g), so live has
 [`box-duties.sh`](../deploy/compose/box-duties.sh), run once a day from
-`~/ownpace-live` by a systemd timer (0132 T7). It does six duties, each one
+`~/ownpace-live` by a systemd timer (0132 T7). It does seven duties, each one
 whatever the one before it did:
 
 | Duty | What it runs | What it does |
@@ -3020,8 +3020,9 @@ whatever the one before it did:
 | `organisations` | `setup-zitadel.sh --count-organisations` | 0135 T3's count on live's identity provider, read-only. A count that is not one fails the duty. |
 | `site` | `www-live.sh check` | Read-only (0139 T10). Fails when a container of live's project has the compose service `www`, where a `www.yml` command without `-p` puts the site; and, when live's `.env` says `WWW_LIVE=true`, when `ownpace-live-www` is not running and healthy (*`www.ownpace.eu`: live's copy*). |
 | `strays` | `idp-strays.sh --remove --at-most 20` | Removes the sign-in accounts nobody let in, older than 30 days, as privacy §9 says (0135 T8; the runbook's *Sign-in accounts nobody let in*). More than 20 at once removes none and fails the duty: run `./deploy/compose/idp-strays.sh` from `~/ownpace-live` to see them, then `--remove` by hand if they are right. Its lines name an account's id, never its address. |
+| `searches` | `support-read-prune.sh --delete` | Deletes the support screens' reads recorded with no organisation (a search by address, a download of the audit log, the organisation list, the invoices kept after an erasure, a log page not filtered to one organisation) 12 months after they were recorded, as privacy §4.5 and §9 say (0139 T6; the runbook's *Searches and downloads on the support screens*). As the database's owner, since the app cannot delete from that log; it stops, deleting nothing, and fails the duty when that connection does not pass row security. It prints a count. |
 
-It exits 0 when all six pass, 1 naming every duty that failed, and 2 when it
+It exits 0 when all seven pass, 1 naming every duty that failed, and 2 when it
 refused before any duty: a `.env` without live's marker (the OTA stack's duties
 are the gate's), a project the reader refuses, or an argument. A duty that runs
 past 20 minutes (`BOX_DUTY_TIMEOUT`, in seconds) is a failed duty. Ctrl-C in a
@@ -3043,10 +3044,10 @@ and reaches Docker. Both are in
 ```ini
 # ownpace-box-duties.service — live's daily duties (workplan 0132 T7): the
 # provisioning token's clock, the Trigger.dev drill, the exposure check, the
-# organisation count, the site's (0139 T10) and the accounts nobody let in
-# (0135 T8). A user unit, started by
-# ownpace-box-duties.timer; the install steps are in docs/managed-bring-up.md,
-# "Live's daily duties".
+# organisation count, the site's (0139 T10), the accounts nobody let in
+# (0135 T8) and the support screens' searches kept a year (0139 T6). A user
+# unit, started by ownpace-box-duties.timer; the install steps are in
+# docs/managed-bring-up.md, "Live's daily duties".
 [Unit]
 Description=ownpace-live: the duties the nightly gate does for the OTA stack
 
@@ -3055,9 +3056,9 @@ Type=oneshot
 WorkingDirectory=%h/ownpace-live
 ExecStart=%h/ownpace-live/deploy/compose/box-duties.sh
 SyslogIdentifier=ownpace-box-duties
-# Six duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
+# Seven duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
 # which failed.
-TimeoutStartSec=130min
+TimeoutStartSec=150min
 ```
 
 ```ini

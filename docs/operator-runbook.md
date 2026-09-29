@@ -670,6 +670,42 @@ On live it runs once a day, as `--remove --at-most 20`, among the daily duties
 removes none and fails the duty `strays`: list them, and if they are right,
 remove them by hand with `--remove`.
 
+## Searches and downloads on the support screens
+
+Every support-screen read is a `support_read` row (managed migration 0009), and
+an erasure deletes the ones that name the erased organisation. The ones that
+name none stay: a search by address (`people`), a download of the audit log
+(`audit_export`), the organisation list (`tenants`), the invoices kept after an
+erasure (`retained_invoices`), a log page not filtered to one organisation
+(`log`). Privacy §4.5 and §9 delete them 12 months after they were recorded (the
+owner's privacy-search-records (a); workplan 0139 T6). From the stack's
+checkout:
+
+```bash
+./deploy/compose/support-read-prune.sh            # counts them; deletes nothing
+./deploy/compose/support-read-prune.sh --delete   # deletes them
+```
+
+It deletes the rows with no organisation (`tenant_id IS NULL`) recorded more
+than 12 months ago, and nothing else: a row that names an organisation goes with
+that organisation's erasure, whatever its screen. It runs `psql` as the
+database's owner in the stack's own Postgres container, because the app cannot
+delete from this log: 0009 grants `app_user` `SELECT` and `INSERT` on it and
+revokes `UPDATE` and `DELETE`, and its row security is forced with no policy for
+`DELETE`. As `app_user`, a `DELETE` answers `permission denied for table
+support_read`. Forced row security applies to the table's owner too, so an
+owner that is neither a superuser nor `BYPASSRLS` would delete nothing and say
+"deleted 0" every day: before it counts or deletes, the script asks, in the same
+call, and stops with *"does not pass row security"* if not. Today's
+`POSTGRES_USER` is a superuser. It prints a count, never an operator, a query or
+an organisation.
+
+On live it runs once a day, as `--delete`, among the daily duties
+(`docs/managed-bring-up.md`, *Live's daily duties*), as the duty `searches`.
+When that duty fails, its words are in the journal
+(`journalctl --user -u ownpace-box-duties -n 200 --no-pager`); run the script
+without `--delete` once the cause is fixed.
+
 ## Tenant offboarding (GDPR right to erasure, §17)
 
 > ⚠️ **This section was rewritten 2026-08-18 (workplan 0085).** It previously

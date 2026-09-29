@@ -1,9 +1,9 @@
 # ownpace-box-duties.service — live's daily duties (workplan 0132 T7): the
 # provisioning token's clock, the Trigger.dev drill, the exposure check, the
-# organisation count, the site's (0139 T10) and the accounts nobody let in
-# (0135 T8). A user unit, started by
-# ownpace-box-duties.timer; the install steps are in docs/managed-bring-up.md,
-# "Live's daily duties".
+# organisation count, the site's (0139 T10), the accounts nobody let in
+# (0135 T8) and the support screens' searches kept a year (0139 T6). A user
+# unit, started by ownpace-box-duties.timer; the install steps are in
+# docs/managed-bring-up.md, "Live's daily duties".
 [Unit]
 Description=ownpace-live: the duties the nightly gate does for the OTA stack
 
@@ -12,6 +12,6 @@ Type=oneshot
 WorkingDirectory=%h/ownpace-live
 ExecStart=%h/ownpace-live/deploy/compose/box-duties.sh
 SyslogIdentifier=ownpace-box-duties
-# Six duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
+# Seven duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
 # which failed.
-TimeoutStartSec=130min
+TimeoutStartSec=150min

@@ -10,7 +10,7 @@
 # `trigger-version.sh drill` dumps the Trigger.dev database and proves the
 # dump loads. Live never meets CI (T1g), so nothing did either for it.
 #
-# This runs six duties, from live's checkout (`~/ownpace-live`), once a day on
+# This runs seven duties, from live's checkout (`~/ownpace-live`), once a day on
 # a systemd timer (the units are in deploy/compose/systemd/, the install steps
 # in docs/managed-bring-up.md, "Live's daily duties"):
 #
@@ -44,12 +44,20 @@
 #                  privacy §9 promises. More than 20 in one run removes none and
 #                  fails the duty, so a person looks at them first. Its lines
 #                  name an account's id, never its address.
+#   searches       support-read-prune.sh --delete (0139 T6): the support
+#                  screens' reads recorded with no organisation (among them a
+#                  search by address and a download of the audit log), deleted
+#                  12 months after they were recorded, which privacy §4.5 and
+#                  §9 promise. Over the database owner's connection, since the
+#                  app cannot delete from that log; it stops, deleting nothing,
+#                  if that connection does not pass row security. It prints a
+#                  count, never a query.
 #
 # EACH DUTY RUNS WHATEVER THE ONE BEFORE IT DID. The token goes first, so the
 # count asks with a token that is alive. A duty that fails, is missing from the
 # checkout, or runs past BOX_DUTY_TIMEOUT seconds (default 1200) is recorded,
 # and the next one starts. At the end the script names every duty that failed
-# and exits 1; all six passing is exit 0. Nobody is told when it fails
+# and exits 1; all seven passing is exit 0. Nobody is told when it fails
 # (0142 is where that changes); the journal has it.
 #
 # STOPPED IS STOPPED. `timeout` puts the duty in a process group of its own,
@@ -231,7 +239,7 @@ run_duty() {
   return 0
 }
 
-say "${COMPOSE_PROJECT}: six duties, each one run whatever the one before it did"
+say "${COMPOSE_PROJECT}: seven duties, each one run whatever the one before it did"
 
 run_duty token "live's provisioning token, its clock only" \
   "${SCRIPT_DIR}/setup-zitadel.sh" --token-only
@@ -245,10 +253,12 @@ run_duty site "live's copy of the public site, read-only: no www service in live
   "${SCRIPT_DIR}/www-live.sh" check
 run_duty strays "sign-in accounts nobody let in, older than 30 days, removed; more than 20 at once removes none" \
   "${SCRIPT_DIR}/idp-strays.sh" --remove --at-most 20
+run_duty searches "support-screen reads with no organisation, older than 12 months, deleted over the owner's connection" \
+  "${SCRIPT_DIR}/support-read-prune.sh" --delete
 
 if [ "${#FAILED[@]}" -gt 0 ]; then
   names="${FAILED[*]}"
-  fail_line "FAILED: ${names// /, } (${#FAILED[@]} of 6 duties). Each one's own words are above."
+  fail_line "FAILED: ${names// /, } (${#FAILED[@]} of 7 duties). Each one's own words are above."
   exit 1
 fi
-say "all 6 duties passed"
+say "all 7 duties passed"

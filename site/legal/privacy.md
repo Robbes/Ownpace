@@ -923,8 +923,12 @@ target. We show you the target before anything is written.
        owner's privacy-sharing-list (b)): deleting a migration does not yet delete its
        share_grant rows. A small code change; until it lands, the list stays until erasure.
      - A search by address and a download of the log, "deleted 12 months after"
-       (privacy-search-records (a)): nothing deletes them yet. A small job with the machine's
-       daily duties; the app still cannot change the log.
+       (privacy-search-records (a)): built, not yet run: deploy/compose/support-read-prune.sh
+       (0139 T6), the duty `searches` in box-duties.sh, over the owner's connection, since the
+       app still cannot change the log. True on live once live's daily duties run. It deletes
+       every read recorded with no organisation 12 months after it: besides these two, the
+       organisation list, the invoices kept after an erasure and a log page not filtered to one
+       organisation.
      - The sign-in service's history, "as long as we run this sign-in service"
        (privacy-signin-history (a), the owner: "still needs to be checked"): NOT CHECKED. Remove
        a test account on the test stack (Zitadel v4.19.2) and look at what stays. If the earlier
