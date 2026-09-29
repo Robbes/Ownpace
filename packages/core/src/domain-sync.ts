@@ -58,6 +58,88 @@ export type { PassMetrics };
 const ABORT_AFTER_CONSECUTIVE_FAILURES = 25;
 
 /**
+ * How many of a collection's items the ledger is asked about at once, ahead of
+ * the pass reaching them (2026-09-29; `ledgerReadAhead` below says why).
+ *
+ * Larger than any concurrency a pass runs at, which the read-ahead relies on:
+ * items are taken in order, so the items in flight lie in the current window
+ * or the one before it. Small enough that one statement stays small (500 keys
+ * of 64 characters) and that a window's rows are read at most minutes before
+ * the pass acts on them.
+ */
+export const LEDGER_READ_AHEAD = 500;
+
+/**
+ * THE ITEMS AHEAD, ASKED ABOUT A WINDOW AT A TIME (2026-09-29).
+ *
+ * The pass asks the ledger about every item it lists, and a source with no
+ * change feed (Dropbox) lists every item it holds on every pass, the ones
+ * already copied included. On a managed stack each `find` is a transaction of
+ * its own, so that walk cost a round trip per item: on the owner's Dropbox,
+ * the first new file came 2.1, 2.6, 3.1 and 3.8 minutes into four successive
+ * passes, about 11 ms for each file already copied, and it would have grown to
+ * about 11 minutes of every pass by the end of the first copy, and stayed there.
+ *
+ * So when the ledger can answer for many keys at once (`Ledger.findMany`),
+ * the first item of each window of `size` asks for the whole window, and the
+ * others wait on that answer. The answer is a HINT, and only one use is made
+ * of it: an item it shows as a quiet skip (`quietSkip`) is skipped on its
+ * word. Every other item, including one it shows no row for, is asked about on
+ * its own as before, so every write this loop makes is still decided on a row
+ * read just before it.
+ *
+ * A window that cannot be read is no window: its items are asked about one at
+ * a time. An item from a window the pass has already left (items are taken in
+ * order, so only a caller out of order could ask) gets no hint rather than a
+ * second read of that window.
+ */
+export function ledgerReadAhead<Item>(
+  items: ReadonlyArray<Item>,
+  keyOf: (item: Item) => string | undefined,
+  read: (keys: ReadonlyArray<string>) => Promise<ReadonlyMap<string, LedgerRecord>>,
+  size: number = LEDGER_READ_AHEAD,
+): { get(index: number, key: string): Promise<LedgerRecord | undefined> } {
+  let current: { readonly window: number; readonly rows: Promise<ReadonlyMap<string, LedgerRecord> | undefined> } | undefined;
+  const load = (window: number): Promise<ReadonlyMap<string, LedgerRecord> | undefined> => {
+    const keys: string[] = [];
+    for (const item of items.slice(window * size, (window + 1) * size)) {
+      const key = keyOf(item);
+      if (key !== undefined) keys.push(key);
+    }
+    return read(keys).catch(() => undefined);
+  };
+  return {
+    get(index, key) {
+      const window = Math.floor(index / size);
+      if (current === undefined || window > current.window) current = { window, rows: load(window) };
+      if (window !== current.window) return Promise.resolve(undefined);
+      return current.rows.then((rows) => rows?.get(key));
+    },
+  };
+}
+
+/**
+ * True when a row read ahead may decide this item alone: the item is already
+ * copied, unchanged, where it was, and nothing about it waits to be written
+ * down. Exactly the rows on which the loop below does nothing but count a skip:
+ * no absence or reported deletion to clear, no recorded move to close, and
+ * `classifyKnownItem` says `skip`. Anything else is asked about afresh.
+ */
+export function quietSkip(
+  row: LedgerRecord,
+  sourceVersion: string | undefined,
+  collection: string,
+): boolean {
+  return (
+    !row.absentPasses &&
+    row.deletionReportedAt === undefined &&
+    row.deletionTrashedAt === undefined &&
+    row.movedToCollection === undefined &&
+    classifyKnownItem(row, sourceVersion, collection) === 'skip'
+  );
+}
+
+/**
  * Wall-clock breakdown of one domain pass.
  *
  * ALWAYS COLLECTED, printed only at LOG_LEVEL=debug. It was collected only at
@@ -1318,7 +1400,14 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       fullyEnumerated = false;
     }
 
-    await mapWithConcurrency(items, concurrency, async (item) => {
+    // The ledger asked about this collection's items a window at a time, where
+    // it can be (`ledgerReadAhead`); asked one item at a time where it cannot.
+    const findMany = ledger.findMany?.bind(ledger);
+    const ahead = findMany
+      ? ledgerReadAhead(items, naturalKey, (keys) => findMany(tenantId, mappingId, domain, keys))
+      : undefined;
+
+    await mapWithConcurrency(items, concurrency, async (item, index) => {
       // Paused: the rest of this folder's items are tomorrow's work. Not
       // scanned, not failed — they were never looked at. (Items already in
       // flight when the pause lands still finish; the overshoot is bounded
@@ -1393,6 +1482,14 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       if (naturalKeyHash !== undefined) {
         // Captured so the closure keeps the narrowing from the guard above.
         const key = naturalKeyHash;
+        // Already copied, unchanged and where it was, on the word of the row
+        // read with its window: counted and left, with nothing written, as the
+        // `skip` branch below would. Anything else is asked about afresh.
+        const readAhead = ahead ? await timed(phases, 'ledgerReadMs', () => ahead.get(index, key)) : undefined;
+        if (readAhead && quietSkip(readAhead, version, collectionPath)) {
+          skipped += 1;
+          return;
+        }
         const known = await timed(phases, 'ledgerReadMs', () =>
           ledger.find(tenantId, mappingId, domain, key),
         );
