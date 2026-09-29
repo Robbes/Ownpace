@@ -118,6 +118,15 @@ export function gdataRefusalWords(body: string): string {
   return GDATA_ERRORS.test(body) ? joined(text(body, 'code'), text(body, 'internalReason')) : '';
 }
 
+/**
+ * Google's GData code alone (`accessNotConfigured`, `rateLimitExceeded`), or
+ * `''` when the body is not one. The machine-readable half, for a caller that
+ * decides by it rather than prints it (workplan 0143 T10).
+ */
+export function gdataRefusalCode(body: string): string {
+  return GDATA_ERRORS.test(body) ? text(body, 'code') : '';
+}
+
 /** Sabre's refusal in its own words, or `''` when the body is not one (0136 T3). */
 export function sabreRefusalWords(body: string): string {
   const prefix = SABRE_NS.exec(body)?.[1];

@@ -321,12 +321,28 @@ export class ThrottleLimiter {
     let attempt = 0;
 
     while (attempt <= this.config.maxRetries) {
+      // ONE SLOT PER ATTEMPT, HELD FOR THE REQUEST ALONE (workplan 0143 T10).
+      //
+      // Every retry used to take a new slot without giving the last one back,
+      // so a 429 or a transient error cost the pass one of its
+      // `maxConcurrent` slots for good. After four of them (the default),
+      // `waitForSlot` waited for a slot nothing would free, until the pass's
+      // deadline stopped it. A slot now goes back as soon as its request has
+      // answered or thrown: a retry waits out its pause holding nothing, and
+      // the requests that were not throttled keep moving meanwhile.
+      //
+      // `held` also keeps a failed `waitForSlot` from being released twice.
+      // It gives its own slot back before it throws.
+      let held = false;
       try {
         // Wait for rate limit and concurrency slot
         await this.waitForSlot(tenantId, provider);
+        held = true;
 
         // Execute the request
         const response = await requestFn();
+        this.releaseSlot();
+        held = false;
 
         // Check for rate limited response
         if (response.status === 429 || response.status === 503) {
@@ -347,23 +363,21 @@ export class ThrottleLimiter {
         }
 
         // Success
-        this.releaseSlot();
         return response;
 
       } catch (error) {
+        if (held) this.releaseSlot();
         lastError = error instanceof Error ? error : new Error(String(error));
-        
+
         // Don't retry on non-transient errors
         if (error instanceof Error && !this.isTransientError(error)) {
-          this.releaseSlot();
           throw error;
         }
 
         attempt++;
-        
+
         if (attempt > this.config.maxRetries) {
           this.stats.exceededMaxRetries++;
-          this.releaseSlot();
           throw lastError;
         }
 
@@ -376,8 +390,8 @@ export class ThrottleLimiter {
       }
     }
 
-    // Should never reach here, but TypeScript needs a return
-    this.releaseSlot();
+    // Should never reach here, but TypeScript needs a return. No slot is held
+    // here: every attempt gave its own back.
     throw lastError;
   }
 

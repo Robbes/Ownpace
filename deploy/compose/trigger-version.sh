@@ -16,6 +16,20 @@
 # has restored is a hope rather than a backup — `drill` proves the round trip
 # into a THROWAWAY database, which the managed gate runs on every pass.
 #
+# ON LIVE, NO DRILL, AND A BACKUP ONLY INTO THE COPY BEFORE AN UPDATE (workplan
+# 0139; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28). The
+# drill runs on the test stack, in the gate. On live it kept a daily dump of
+# this database, the newest seven, and the privacy policy promises one copy,
+# made right before an update and deleted once the update is proven, never
+# past day 7. So on a .env that is or may be live's (stack_may_be_live),
+# `drill` is refused, and `backup`, `backups` and `restore` use the copy's
+# directory, `~/.persistent/<project>/copy-before-update/`
+# (copy-before-update.sh names it), whose rules delete what is there. A
+# MANAGED_BACKUP_DIR naming another directory is refused there, and so is
+# that directory when it is a symbolic link (the backstop does not follow
+# one), before any docker call. copy-before-update.sh runs `backup before-<tag>` as part of the
+# copy before an update that moves the Trigger.dev pin.
+#
 # Usage:
 #   trigger-version.sh list                 what is running, pinned, available
 #   trigger-version.sh backup [label]       dump triggerdb, verified
@@ -32,6 +46,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=deploy/compose/env-read.sh
 . "${SCRIPT_DIR}/env-read.sh"
+# Live's marker, named once.
+# shellcheck source=deploy/compose/stack-kind.sh
+. "${SCRIPT_DIR}/stack-kind.sh"
+# The copy's one directory, named once (it only defines, when sourced).
+# shellcheck source=deploy/compose/copy-before-update.sh
+. "${SCRIPT_DIR}/copy-before-update.sh"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")
@@ -70,6 +90,22 @@ say() { echo "[trigger-version] $*" >&2; }
 die() { echo "[trigger-version] FATAL: $*" >&2; exit 1; }
 
 need() { command -v "$1" >/dev/null || die "$1 is required — install it and re-run"; }
+
+# On live: the copy's directory, and nothing from the shell sends a dump
+# elsewhere (the header says why). Asked before any subcommand runs.
+ON_LIVE=''
+if stack_may_be_live "$ENV_FILE"; then
+  ON_LIVE=1
+  if [ -n "${MANAGED_BACKUP_DIR:-}" ] &&
+    [ "$(realpath -m -- "$MANAGED_BACKUP_DIR")" != "$(realpath -m -- "$(copy_before_update_dir)")" ]; then
+    die "on live a dump of ${DB_NAME} goes into $(copy_before_update_dir), the one directory of the copy before an update, and MANAGED_BACKUP_DIR names another. Unset it (workplan 0139). Nothing was dumped."
+  fi
+  BACKUP_DIR="$(copy_before_update_dir)"
+  # A link there is refused: the backstop does not follow one.
+  [ ! -L "$BACKUP_DIR" ] || die "$(copy_before_update_link_refusal)"
+  # What goes there holds the plane's API keys: this account's alone.
+  umask 077
+fi
 
 # The tag the REPO pins, read from the compose default rather than from a
 # second copy of the number. managed.env.example and apps/worker must agree
@@ -238,6 +274,7 @@ cmd_backup() {
     die "no container named ${DB_CONTAINER}. Is the stack up?
     ${COMPOSE[*]} ps trigger-db"
   mkdir -p "$BACKUP_DIR"
+  [ -z "$ON_LIVE" ] || chmod 700 "$BACKUP_DIR"
   # UTC, sortable, and the label is sanitised because it lands in a filename.
   stamp="$(date -u +%Y%m%dT%H%M%SZ)"
   label="$(printf '%s' "$label" | tr -c 'A-Za-z0-9._-' '-' | sed 's/^-*//;s/-*$//')"
@@ -299,6 +336,7 @@ latest_backup() {
 # `restore` is the only thing that does that, and it asks first.
 cmd_drill() {
   local dump drill_db="${DB_NAME}_drill" live_tables drill_tables live_rows drill_rows
+  [ -z "$ON_LIVE" ] || die "the drill runs on the test stack only, in the nightly gate. On live it would keep a daily copy of ${DB_NAME}, and live keeps one copy, made right before an update (workplan 0139, rec-drill (a)). Nothing was dumped."
   dump="$(cmd_backup drill | tail -1)"
 
   q() { docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d "$1" -tAc "$2"; }

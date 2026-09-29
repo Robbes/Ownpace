@@ -144,11 +144,14 @@
     from the copy; the copy is never kept past day 7. rec-drill (a),
     2026-09-28: the daily restore drill of the task runner's database runs
     on the test stack only, and on live a copy is taken before each upgrade
-    of the task runner, under the same rule. So §6 keeps one exception. NOT
-    YET BUILT: the script and directory for the copy, its delete step, the
-    daily backstop, dump-idp.sh writing there, and the drill off live's
-    daily duties. Until then live keeps 7 daily dumps of the task runner's
-    database, and §6 is not yet true. Privacy §9 names the same rule.
+    of the task runner, under the same rule. So §6 keeps one exception.
+    BUILT (0139 T6, 2026-09-28, review fixes 2026-09-29): the script and
+    directory for the copy, its delete step, the daily backstop, dump-idp.sh
+    writing there, the drill off live's daily duties, and a rollback that
+    erases again what was erased after the copy. §6 is true on live once
+    live runs a tag that carries it, with the daily duties' timer installed;
+    until then that tag keeps 7 daily dumps of the task runner's database.
+    Privacy §9 names the same rule.
   - Reaching testers if the environment is lost (§6). ANSWERED:
     privacy-tester-list (a), 2026-09-28: the request notices and our answers
     in the support mailbox are the list of testers. No separate list.
