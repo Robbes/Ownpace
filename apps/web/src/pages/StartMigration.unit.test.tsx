@@ -15,6 +15,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DISCOVERY_DOMAINS, lifecycleCounts, type Person } from '@openmig/shared';
 import StartMigration from './StartMigration.tsx';
+import { grantLinkApi } from '../services/grant-link-service.ts';
 import { addMigrationToPerson, createPerson, fetchPeople } from '../services/operating-service.ts';
 import {
   connectionsApi,
@@ -26,6 +27,10 @@ import {
   type Mapping,
 } from '../services/mapping-service.ts';
 
+vi.mock('../services/grant-link-service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/grant-link-service.ts')>()),
+  grantLinkApi: { list: vi.fn(), issue: vi.fn(), revoke: vi.fn() },
+}));
 vi.mock('../services/operating-service', () => ({
   fetchPeople: vi.fn(),
   createPerson: vi.fn(),
@@ -616,5 +621,126 @@ describe('Check, then start (screen 6)', () => {
     expect(createMock).toHaveBeenCalledWith(expect.objectContaining({ targetType: 'nextcloud' }));
     // The person was made once.
     expect(personMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('someone else connects their own accounts, by a link where one reaches (T4, 0108)', () => {
+  const createMock = vi.mocked(mappingApi.create);
+  const linksMock = vi.mocked(grantLinkApi.list);
+  const SOVERIN = account({ id: 'c-soverin', role: 'target', kind: 'soverin', displayName: 'Anna Soverin', knownValues: { username: 'anna@soverin.net' } });
+
+  beforeEach(() => {
+    vi.mocked(createPerson).mockResolvedValue({ ...ANNA, id: 'p-new' });
+    vi.mocked(addMigrationToPerson).mockResolvedValue({ ...ANNA, id: 'p-new' });
+    createMock.mockResolvedValue({ id: 'm-cal' } as never);
+    vi.mocked(mappingApi.discover).mockResolvedValue({} as never);
+    vi.mocked(mappingApi.get).mockResolvedValue({
+      id: 'm-cal', tenantId: 't1', name: 'm-cal', sourceType: 'google', targetType: 'soverin', status: 'paused',
+      mode: 'mirror', syncConfig: { domains: ['calendar', 'contact'] }, sourceConfig: {}, targetConfig: {},
+      domainStatus: [], createdAt: '2026-09-29T08:00:00Z', updatedAt: '2026-09-29T08:00:00Z',
+    } as never);
+    vi.mocked(mappingApi.getDiscovery).mockResolvedValue({
+      mappingId: 'm-cal', discovered: true,
+      domains: [
+        { domain: 'calendar', collections: 2, items: 2000, discoveredAt: '2026-09-29T08:05:00Z' },
+        { domain: 'contact', collections: 1, items: 612, discoveredAt: '2026-09-29T08:05:00Z' },
+      ],
+    } as never);
+    vi.mocked(scopeManifestApi.get).mockResolvedValue({ version: 'v1', migrates: [], partial: [], doesNotMigrate: [] });
+    linksMock.mockResolvedValue([]);
+  });
+
+  /** A new person whose accounts they sign in to themselves, leaving the given tiles. */
+  async function someoneElse(user: ReturnType<typeof userEvent.setup>, tiles: string[]) {
+    await user.type(await screen.findByLabelText('Name'), 'Anna Jansen');
+    await user.click(screen.getByRole('radio', { name: 'They do, with a link' }));
+    await user.click(next());
+    for (const tile of tiles) await user.click(screen.getByRole('checkbox', { name: new RegExp(`^${tile}`) }));
+    await user.click(next());
+    await screen.findByRole('heading', { level: 2, name: 'What moves?' });
+  }
+
+  it('asks who signs in, and says a link reaches Google alone', async () => {
+    renderAt();
+    expect(await screen.findByRole('radio', { name: 'I do' })).toBeChecked();
+    expect(screen.getByText(/They connect a Google account themselves/)).toBeInTheDocument();
+  });
+
+  it('asks for their Google address in place of a sign-in, and signs in together where no link reaches', async () => {
+    addMock.mockResolvedValue({ ok: false, id: 'c-google', reason: 'No credential yet' });
+    const user = userEvent.setup();
+    renderAt();
+    await someoneElse(user, ['Google']);
+    await onTo(user, 'Connect your accounts');
+    // Calendars, contacts and tasks by link; mail and files, whose scopes
+    // this deployment has not declared, together (the narrow default).
+    expect(await screen.findByText('Anna Jansen connects it themselves, with a link you make on the last screen.')).toBeInTheDocument();
+    expect(screen.getByText('No link reaches Gmail: sign in together with Anna Jansen.')).toBeInTheDocument();
+    expect(screen.getByText('No link reaches Google Drive: sign in together with Anna Jansen.')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Connect with Google' })).toHaveLength(2);
+
+    const save = screen.getByRole('button', { name: 'Save the address' });
+    expect(save).toHaveAccessibleDescription('Type their address first.');
+    await user.type(screen.getByLabelText('Their address at Google'), 'anna@gmail.com');
+    await user.click(save);
+    expect(addMock).toHaveBeenCalledWith({
+      role: 'source',
+      type: 'google',
+      displayName: 'Anna Jansen · Google account',
+      values: { username: 'anna@gmail.com' },
+    });
+    expect(await screen.findByText('By link: anna@gmail.com')).toBeInTheDocument();
+  });
+
+  it('chooses none of the saved accounts for somebody else, since one may be the starter’s own', async () => {
+    listMock.mockResolvedValue([account({ knownValues: { username: 'me@example.nl' } })]);
+    const user = userEvent.setup();
+    renderAt();
+    await someoneElse(user, ['Another mail provider']);
+    await onTo(user, 'Connect your accounts');
+    expect(await screen.findByRole('radio', { name: 'Anna mail (me@example.nl)' })).not.toBeChecked();
+    expect(next()).toBeDisabled();
+  });
+
+  async function toCheckByLink(user: ReturnType<typeof userEvent.setup>) {
+    listMock.mockResolvedValue([SOVERIN]);
+    addMock.mockResolvedValue({ ok: false, id: 'c-google', reason: 'No credential yet' });
+    await someoneElse(user, ['Google']);
+    const google = screen.getByRole('group', { name: 'From Google' });
+    for (const face of ['Email', 'Files', 'Tasks Experimental']) {
+      await user.click(within(google).getByRole('checkbox', { name: face }));
+    }
+    await onTo(user, 'Connect your accounts');
+    await user.type(await screen.findByLabelText('Their address at Google'), 'anna@gmail.com');
+    await user.click(screen.getByRole('button', { name: 'Save the address' }));
+    await screen.findByText('By link: anna@gmail.com');
+    await onTo(user, 'Where does it go?');
+    await user.click(next());
+    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+  }
+
+  it('offers the link to send in place of the count, and Start waits for their grant', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await toCheckByLink(user);
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceType: 'google', sourceConnectionId: 'c-google', sourceConfig: { username: 'anna@gmail.com' } }),
+    );
+    expect(await screen.findByText(/Waiting for Anna Jansen to connect/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Create grant link/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
+    expect(screen.getByText(/You can close this page: Anna Jansen's page keeps these migrations/)).toBeInTheDocument();
+  });
+
+  it('shows the count once their link was used, and Start goes', async () => {
+    linksMock.mockResolvedValue([
+      { id: 'l1', purpose: 'grant', state: 'used', createdAt: '2026-09-29T08:00:00Z', createdBy: 'owner', expiresAt: '2026-10-06T08:00:00Z', usedAt: '2026-09-29T08:10:00Z', revokedAt: null },
+    ]);
+    const user = userEvent.setup();
+    renderAt();
+    await toCheckByLink(user);
+    await screen.findByText('2000');
+    expect(screen.queryByText(/Waiting for Anna Jansen to connect/)).not.toBeInTheDocument();
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Start' })).toBeEnabled());
   });
 });

@@ -67,6 +67,7 @@ import {
   carrierOf,
   connectionsFor,
   destinationsFor,
+  grantableByLink,
   migrationsFor,
   offers,
   photosThrough,
@@ -79,6 +80,8 @@ import {
 import { MigrationCountSection, useMigrationCount } from '../components/ConfirmMigration.tsx';
 import { needsAcknowledgement } from '../components/confirm/native-refusals.tsx';
 import ScopeManifestPanel from '../components/confirm/ScopeManifestPanel.tsx';
+import { GrantLinkSection } from '../components/MappingLinksPanel.tsx';
+import { grantLinkApi } from '../services/grant-link-service.ts';
 import { AccountForm } from '../components/AccountForm.tsx';
 import ProviderTile, { providerName } from '../components/ProviderTile.tsx';
 import { DataTypeIcon, DataTypeLabel } from '../components/icons/data-type-icons.tsx';
@@ -111,6 +114,12 @@ export interface Who {
   /** An existing person's id; null for somebody new, named by `name`. */
   readonly personId: string | null;
   readonly name: string;
+  /**
+   * The accounts are somebody else's (T4, *Who is it for?*): where a grant
+   * link can reach them, they connect them themselves, and the one starting
+   * never holds that password (0108).
+   */
+  readonly someoneElse: boolean;
 }
 
 /**
@@ -121,6 +130,11 @@ export interface Signed {
   readonly connectionId: string;
   /** The card it was added with (`gmail`, `soverin`): what a create names as its type. */
   readonly card: string;
+  /**
+   * Whether it can read now: its last check passed. An account saved by its
+   * address alone, for somebody else to connect by a link, cannot yet.
+   */
+  readonly ready: boolean;
   /** Whose data it is: the address a create names (`sourceConfig.username`). */
   readonly username: string;
   /**
@@ -146,6 +160,7 @@ const pickPerMapping = (values: Readonly<Record<string, string>> | undefined): R
 const signedFrom = (c: ConnectionSummary): Signed => ({
   connectionId: c.id,
   card: wizardTypeForConnectionKind(c.kind),
+  ready: c.status === 'connected',
   username: c.knownValues?.username ?? '',
   perMapping: pickPerMapping(c.knownValues),
 });
@@ -170,8 +185,18 @@ export interface Accounts {
   readonly failed: boolean;
   /** Whose accounts they are, for the name each new one is saved under. */
   readonly personName: string;
-  /** The saved account chosen for a side and card (`source:gmail`), `'new'`, or nothing yet. */
-  readonly choice: (key: string, saved: ReadonlyArray<ConnectionSummary>) => string | undefined;
+  /**
+   * The saved account chosen for a side and card (`source:gmail`), `'new'`, or
+   * nothing yet. For somebody else's accounts nothing saved is the default:
+   * a saved one may well be the person's own who is starting (`noDefault`).
+   */
+  readonly choice: (
+    key: string,
+    saved: ReadonlyArray<ConnectionSummary>,
+    noDefault?: boolean,
+  ) => string | undefined;
+  /** An account saved by its address alone, for its owner to connect by a link: kept as chosen. */
+  readonly keep: (key: string, connectionId: string, username: string) => void;
   readonly choose: (key: string, choice: string) => void;
   readonly values: (key: string, initial: Readonly<Record<string, string>>) => Record<string, string>;
   readonly onValues: (
@@ -246,14 +271,23 @@ const StartMigration: React.FC = () => {
     staleTime: Infinity,
   });
   const served: ServedFacts = React.useMemo(() => {
-    const facts: { google?: DiscoveryDomain[]; microsoft?: DiscoveryDomain[] } = {};
+    const facts: {
+      google?: DiscoveryDomain[];
+      microsoft?: DiscoveryDomain[];
+      googleClient?: 'deployment' | 'connection';
+    } = {};
     if (providerAccounts?.google) facts.google = providerAccounts.google.domains;
+    if (providerAccounts?.google?.client) facts.googleClient = providerAccounts.google.client;
     if (providerAccounts?.microsoft) facts.microsoft = providerAccounts.microsoft.domains;
     return facts;
   }, [providerAccounts]);
 
   const [step, setStep] = React.useState<Step>('who');
-  const [who, setWho] = React.useState<Who>({ personId: searchParams.get('person'), name: '' });
+  const [who, setWho] = React.useState<Who>({
+    personId: searchParams.get('person'),
+    name: '',
+    someoneElse: false,
+  });
   const [providers, setProviders] = React.useState<ReadonlyArray<StartProvider>>([]);
   const [ticked, setTicked] = React.useState<Partial<Record<StartProvider, ReadonlyArray<DiscoveryDomain>>>>({});
   const [nativeFormats, setNativeFormats] = React.useState<NativeFilePolicyByKind>(LEAVE_ALL_BEHIND);
@@ -268,9 +302,9 @@ const StartMigration: React.FC = () => {
   const peopleRead = peopleQuery.isSuccess;
   React.useEffect(() => {
     if (peopleRead && who.personId !== null && !people.some((p) => p.id === who.personId)) {
-      setWho({ personId: null, name: '' });
+      setWho({ personId: null, name: '', someoneElse: who.someoneElse });
     }
-  }, [peopleRead, people, who.personId]);
+  }, [peopleRead, people, who.personId, who.someoneElse]);
 
   /** What each ticked provider moves: what was ticked, or everything it offers until it is touched. */
   const movesFrom = (provider: StartProvider): ReadonlyArray<DiscoveryDomain> =>
@@ -284,7 +318,11 @@ const StartMigration: React.FC = () => {
   );
   /** The source accounts chosen, per card; undefined until each is. */
   const sourceOf = (need: ConnectionNeed): Signed | undefined =>
-    accounts.signed(accounts.choice(`source:${need.card}`, savedSources(accounts.saved, need.card)));
+    accounts.signed(
+      accounts.choice(`source:${need.card}`, savedSources(accounts.saved, need.card), who.someoneElse),
+    );
+  /** Whether the person connects this card themselves, by a grant link (0108). */
+  const byLink = (card: string): boolean => who.someoneElse && grantableByLink(card, served);
   /** Every data type that travels, once, in the order a person reads them. */
   const types: ReadonlyArray<DiscoveryDomain> = TYPE_ORDER.filter((d) => needs.some((n) => n.types.includes(d)));
   const destinationOf = (type: DiscoveryDomain): string =>
@@ -505,12 +543,16 @@ const StartMigration: React.FC = () => {
               byHand={byHand}
             />
           )}
-          {step === 'connect' && <ConnectStep needs={needs} accounts={accounts} />}
+          {step === 'connect' && (
+            <ConnectStep needs={needs} accounts={accounts} someoneElse={who.someoneElse} byLink={byLink} />
+          )}
           {step === 'check' && (
             <CheckStep
               planned={planned}
               made={made}
               titles={titles}
+              personName={personName}
+              awaitsGrant={(m) => byLink(m.sourceCard) && accounts.signed(m.sourceConnectionId)?.ready !== true}
               onStarted={() => {
                 void queryClient.invalidateQueries({ queryKey: ['people'] });
                 void navigate(made.personId === undefined ? '/mappings' : `/people/${made.personId}`);
@@ -603,7 +645,7 @@ export const WhoStep: React.FC<{
       <input
         id={nameId}
         value={who.name}
-        onChange={(e) => onWho({ personId: null, name: e.target.value })}
+        onChange={(e) => onWho({ ...who, personId: null, name: e.target.value })}
         maxLength={200}
         autoComplete="off"
         className="mt-1 w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg"
@@ -631,7 +673,7 @@ export const WhoStep: React.FC<{
                   type="radio"
                   name="start-who"
                   checked={who.personId === p.id}
-                  onChange={() => onWho({ personId: p.id, name: '' })}
+                  onChange={() => onWho({ ...who, personId: p.id, name: '' })}
                   className="h-4 w-4"
                 />
                 <span className="text-gray-900">{p.displayName}</span>
@@ -642,7 +684,7 @@ export const WhoStep: React.FC<{
                 type="radio"
                 name="start-who"
                 checked={who.personId === null}
-                onChange={() => onWho({ personId: null, name: who.name })}
+                onChange={() => onWho({ ...who, personId: null })}
                 className="h-4 w-4"
               />
               <span className="text-gray-900">{t('start.who.someoneNew')}</span>
@@ -651,6 +693,34 @@ export const WhoStep: React.FC<{
           {who.personId === null && <div className="mt-2 pl-7">{nameField}</div>}
         </fieldset>
       )}
+      {/* WHOSE ACCOUNTS (T4): somebody else connects what a link can reach
+          themselves, so the one starting never holds that password (0108). */}
+      <fieldset>
+        <legend className="sr-only">{t('start.who.whose')}</legend>
+        <div className="space-y-1">
+          <label className="flex min-h-[44px] items-center gap-3 cursor-pointer">
+            <input
+              type="radio"
+              name="start-whose"
+              checked={!who.someoneElse}
+              onChange={() => onWho({ ...who, someoneElse: false })}
+              className="h-4 w-4"
+            />
+            <span className="text-gray-900">{t('start.who.myself')}</span>
+          </label>
+          <label className="flex min-h-[44px] items-center gap-3 cursor-pointer">
+            <input
+              type="radio"
+              name="start-whose"
+              checked={who.someoneElse}
+              onChange={() => onWho({ ...who, someoneElse: true })}
+              className="h-4 w-4"
+            />
+            <span className="text-gray-900">{t('start.who.someoneElse')}</span>
+          </label>
+          <p className="pl-7 text-sm text-gray-600">{t('start.who.someoneElse.line')}</p>
+        </div>
+      </fieldset>
     </div>
   );
 };
@@ -908,7 +978,23 @@ function useAccounts(personName: string): Accounts {
     loading: connections.isPending,
     failed: connections.isError,
     personName,
-    choice: (key, list) => chosen[key] ?? (connections.isPending ? undefined : defaultChoice(list)),
+    choice: (key, list, noDefault = false) =>
+      chosen[key] ??
+      (connections.isPending ? undefined : noDefault ? (list.length === 0 ? 'new' : undefined) : defaultChoice(list)),
+    keep: (key, connectionId, username) => {
+      setAddedHere((prev) => ({
+        ...prev,
+        [connectionId]: {
+          connectionId,
+          card: key.slice(key.indexOf(':') + 1),
+          ready: false,
+          username,
+          perMapping: {},
+        },
+      }));
+      setChosen((prev) => ({ ...prev, [key]: connectionId }));
+      void queryClient.invalidateQueries({ queryKey: ['connections'] });
+    },
     choose: (key, choice) => setChosen((prev) => ({ ...prev, [key]: choice })),
     values: (key, initial) => typed[key] ?? { ...initial },
     onValues: (key, initial) => (action) =>
@@ -934,6 +1020,7 @@ function useAccounts(personName: string): Accounts {
           connectionId: added.id,
           // The key is `source:<card>` or `target:<card>`.
           card: key.slice(key.indexOf(':') + 1),
+          ready: true,
           username: values.username?.trim() ?? '',
           perMapping: pickPerMapping(values),
         },
@@ -981,7 +1068,11 @@ function useAccountLabel(): (c: ConnectionSummary) => string {
 export const ConnectStep: React.FC<{
   needs: ReadonlyArray<ConnectionNeed>;
   accounts: Accounts;
-}> = ({ needs, accounts }) => {
+  /** The accounts are somebody else's: nothing saved is chosen for them by default. */
+  someoneElse?: boolean;
+  /** Which cards the person connects themselves, by a grant link. */
+  byLink?: (card: string) => boolean;
+}> = ({ needs, accounts, someoneElse = false, byLink = () => false }) => {
   const { t } = useLocale();
   const google = needs.filter((n) => n.provider === 'google');
   if (accounts.loading) return <p className="text-sm text-gray-500">{t('common.loading')}</p>;
@@ -996,21 +1087,29 @@ export const ConnectStep: React.FC<{
         <p className="text-sm text-gray-700">{t('start.connect.googleApart', { n: google.length })}</p>
       )}
       <ul className="space-y-4">
-        {needs.map((need) => (
-          <NeedRow key={need.card} need={need} accounts={accounts} />
-        ))}
+        {needs.map((need) =>
+          byLink(need.card) ? (
+            <LinkedNeedRow key={need.card} need={need} accounts={accounts} />
+          ) : (
+            <NeedRow key={need.card} need={need} accounts={accounts} someoneElse={someoneElse} />
+          ),
+        )}
       </ul>
     </div>
   );
 };
 
-const NeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts }> = ({ need, accounts }) => {
+const NeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts; someoneElse?: boolean }> = ({
+  need,
+  accounts,
+  someoneElse = false,
+}) => {
   const { t, locale } = useLocale();
   const { list } = useFormatters();
   const accountLabel = useAccountLabel();
   const key = `source:${need.card}`;
   const saved = savedSources(accounts.saved, need.card);
-  const choice = accounts.choice(key, saved);
+  const choice = accounts.choice(key, saved, someoneElse);
   const signed = accounts.signed(choice);
   const name = providerDisplayName(need.card);
   // *Another mail provider* is the IMAP card, named as step 2 named it.
@@ -1033,6 +1132,12 @@ const NeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts }> = ({ need,
           types: list(need.types.map((d) => t(DOMAIN_STRING_KEY[d]).toLocaleLowerCase(locale))),
         })}
       </p>
+      {someoneElse && (
+        // No link reaches this provider: said, rather than promised.
+        <p className="mt-1 text-sm text-gray-700">
+          {t('start.connect.together', { provider: title, person: accounts.personName })}
+        </p>
+      )}
       {saved.length > 0 && (
         <fieldset className="mt-3">
           <legend className="sr-only">{t('start.connect.which', { provider: title })}</legend>
@@ -1089,6 +1194,137 @@ const NeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts }> = ({ need,
             >
               {t('start.connect.tryAgain')}
             </button>
+          )}
+        </div>
+      )}
+    </li>
+  );
+};
+
+/**
+ * Screen 4 for an account somebody else connects themselves (T4, 0108): only
+ * its address, saved with no credential, so the migration can name whose it
+ * is. They grant it from a link on the last screen, and the one starting
+ * never holds that password. A saved account is offered, never chosen: one
+ * may be the starter's own.
+ */
+const LinkedNeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts }> = ({ need, accounts }) => {
+  const { t, locale } = useLocale();
+  const { list } = useFormatters();
+  const accountLabel = useAccountLabel();
+  const addressId = React.useId();
+  const reasonId = React.useId();
+  const key = `source:${need.card}`;
+  const saved = savedSources(accounts.saved, need.card);
+  const choice = accounts.choice(key, saved, true);
+  const signed = accounts.signed(choice);
+  const name = providerDisplayName(need.card);
+  const [address, setAddress] = React.useState('');
+  const [saving, setSaving] = React.useState(false);
+  const [refused, setRefused] = React.useState<string | null>(null);
+  const typed = address.trim();
+  const save = async () => {
+    setSaving(true);
+    setRefused(null);
+    try {
+      // Saved even though its check cannot pass: there is nothing to check
+      // with until they grant it. The migration reuses it, and the grant
+      // lands on the migration (0108).
+      const added = await connectionsApi.add({
+        role: 'source',
+        type: need.card,
+        displayName: `${accounts.personName} · ${name}`,
+        values: { username: typed },
+      });
+      accounts.keep(key, added.id, typed);
+    } catch (error) {
+      setRefused(serverMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <li className="rounded-lg border border-gray-200 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-medium text-gray-900">
+          <ProviderTile type={need.card} role="source" size={28} />
+        </span>
+        {signed && (
+          <span className="text-sm text-gray-700">
+            {t('start.connect.byLinkFor', { account: signed.username || name })}
+          </span>
+        )}
+      </div>
+      <p className="mt-1 text-sm text-gray-600">
+        {t('start.connect.asks', {
+          types: list(need.types.map((d) => t(DOMAIN_STRING_KEY[d]).toLocaleLowerCase(locale))),
+        })}
+      </p>
+      <p className="mt-1 text-sm text-gray-700">{t('start.connect.byLink', { person: accounts.personName })}</p>
+      {saved.length > 0 && (
+        <fieldset className="mt-3">
+          <legend className="sr-only">{t('start.connect.which', { provider: name })}</legend>
+          <div className="space-y-1">
+            {saved.map((c) => (
+              <label key={c.id} className="flex min-h-[44px] cursor-pointer items-center gap-3">
+                <input
+                  type="radio"
+                  name={`start-${key}`}
+                  checked={choice === c.id}
+                  onChange={() => accounts.choose(key, c.id)}
+                  className="h-4 w-4"
+                />
+                <span className="text-gray-900">{accountLabel(c)}</span>
+              </label>
+            ))}
+            <label className="flex min-h-[44px] cursor-pointer items-center gap-3">
+              <input
+                type="radio"
+                name={`start-${key}`}
+                checked={choice === 'new'}
+                onChange={() => accounts.choose(key, 'new')}
+                className="h-4 w-4"
+              />
+              <span className="text-gray-900">{t('start.connect.another')}</span>
+            </label>
+          </div>
+        </fieldset>
+      )}
+      {choice === 'new' && (
+        <div className="mt-3">
+          <label htmlFor={addressId} className="block text-sm font-medium text-gray-700">
+            {t('start.connect.theirAddress', { provider: providerName(need.card, 'source') })}
+          </label>
+          <div className="mt-1 flex flex-wrap items-start gap-3">
+            <input
+              id={addressId}
+              type="email"
+              autoComplete="off"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              className="input min-h-[44px] w-full max-w-sm"
+            />
+            <div className="flex flex-col">
+              <button
+                type="button"
+                onClick={() => void save()}
+                disabled={saving || !typed.includes('@')}
+                aria-describedby={typed.includes('@') ? undefined : reasonId}
+                className="min-h-[44px] px-5 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {t('start.connect.saveAddress')}
+              </button>
+              {!typed.includes('@') && (
+                <p id={reasonId} className="mt-1 text-sm text-gray-600">
+                  {t('start.connect.addressNeeded')}
+                </p>
+              )}
+            </div>
+          </div>
+          {refused !== null && (
+            <p role="alert" className="mt-2 text-sm text-red-800">
+              {refused}
+            </p>
           )}
         </div>
       )}
@@ -1242,7 +1478,11 @@ export const CheckStep: React.FC<{
   made: Made;
   titles: Readonly<Record<string, string>>;
   onStarted: () => void;
-}> = ({ planned, made, titles, onStarted }) => {
+  /** Whose accounts they are, for the words that wait on them. */
+  personName?: string;
+  /** A migration whose account its person connects by a link, and has not yet. */
+  awaitsGrant?: (m: PlannedMigration) => boolean;
+}> = ({ planned, made, titles, onStarted, personName = '', awaitsGrant = () => false }) => {
   const { t } = useLocale();
   const queryClient = useQueryClient();
   const waitsId = React.useId();
@@ -1257,8 +1497,11 @@ export const CheckStep: React.FC<{
 
   const made_ = planned.flatMap((m) => {
     const one = made.migrations[pairKey(m)];
-    return one?.id === undefined ? [] : [{ key: pairKey(m), id: one.id, notAdded: one.notAdded }];
+    return one?.id === undefined
+      ? []
+      : [{ key: pairKey(m), id: one.id, notAdded: one.notAdded, byLink: awaitsGrant(m) }];
   });
+  const anyByLink = made_.some((m) => m.byLink);
   const allReady = made_.every((m) => ready[m.id] === true);
 
   // The manifest's rows true of every source here, and of no other (0153 T1 (a)).
@@ -1295,16 +1538,31 @@ export const CheckStep: React.FC<{
   return (
     <div className="space-y-6">
       <p className="text-sm text-gray-700">{t('start.check.intro')}</p>
-      {made_.map((m) => (
-        <MigrationCheck
-          key={m.id}
-          mappingId={m.id}
-          title={titles[m.key] ?? ''}
-          onReady={onReady}
-          {...(m.notAdded === undefined ? {} : { notAdded: m.notAdded })}
-          {...(startFailed[m.id] === undefined ? {} : { failed: startFailed[m.id] })}
-        />
-      ))}
+      {made_.map((m) => {
+        const check = (
+          <MigrationCheck
+            key={m.id}
+            mappingId={m.id}
+            title={titles[m.key] ?? ''}
+            onReady={onReady}
+            {...(m.notAdded === undefined ? {} : { notAdded: m.notAdded })}
+            {...(startFailed[m.id] === undefined ? {} : { failed: startFailed[m.id] })}
+          />
+        );
+        return m.byLink ? (
+          <AwaitingGrant
+            key={m.id}
+            mappingId={m.id}
+            title={titles[m.key] ?? ''}
+            personName={personName}
+            onReady={onReady}
+          >
+            {check}
+          </AwaitingGrant>
+        ) : (
+          check
+        );
+      })}
       {scoped && <ScopeManifestPanel manifest={scoped} />}
       {manifest.isError && (
         <p className="text-sm text-red-600" role="alert">
@@ -1326,7 +1584,44 @@ export const CheckStep: React.FC<{
             {t('start.check.waits')}
           </p>
         )}
+        {!allReady && anyByLink && (
+          <p className="mt-1 text-sm text-gray-600">{t('start.check.later', { person: personName })}</p>
+        )}
       </div>
+    </div>
+  );
+};
+
+/**
+ * A migration whose account its person connects themselves (0108): until a
+ * grant link is used, the link to send in place of its count, and Start
+ * waits. The links are asked for again every ten seconds, so the count
+ * appears here once they have granted it.
+ */
+const AwaitingGrant: React.FC<{
+  mappingId: string;
+  title: string;
+  personName: string;
+  onReady: (mappingId: string, ready: boolean) => void;
+  children: React.ReactNode;
+}> = ({ mappingId, title, personName, onReady, children }) => {
+  const { t } = useLocale();
+  const links = useQuery({
+    queryKey: ['grant-links', mappingId],
+    queryFn: () => grantLinkApi.list(mappingId),
+    refetchInterval: 10_000,
+    retry: false,
+  });
+  const granted = links.data?.some((l) => l.purpose === 'grant' && l.state === 'used') ?? false;
+  React.useEffect(() => {
+    if (!granted) onReady(mappingId, false);
+  }, [granted, mappingId, onReady]);
+  if (granted) return <>{children}</>;
+  return (
+    <div className="rounded-lg border border-gray-200 p-4">
+      <h3 className="text-sm font-medium text-gray-700">{title}</h3>
+      <p className="mt-1 text-sm text-gray-900">{t('start.check.waitsFor', { person: personName })}</p>
+      <GrantLinkSection mappingId={mappingId} links={links.data} loadFailed={links.isError} />
     </div>
   );
 };
