@@ -777,6 +777,68 @@ It also stops a sign-in already in progress. It records nothing in `audit_log`, 
 ticket that you did it. It does not take back access already given: only the person can, from
 their progress page (**Withdraw access**), or in their Google account.
 
+## Acceptance: who accepted which version
+
+While the deployment runs the Alpha (`OWNPACE_STAGE=alpha`, which live sets)
+and no text is still a draft, every person who signs in accepts the Alpha
+conditions, the privacy policy and the terms before anything else, and the
+service records it (workplan 0139 T3; terms §1, Alpha conditions §2, privacy
+§4.4). One row per person, text and version, per organisation, with the
+language the screen showed and the time, in `legal_acceptance` (managed
+migration 0032). Until a person has accepted the current versions, adding a
+connection, giving one a new key, creating a migration and issuing a grant link
+answer 409 `conditions_not_accepted`, so none of their access is stored before
+it. Without the setting nobody is asked and nothing is refused.
+
+**While any text is a draft, nobody is asked either** (`LEGAL_DRAFTS` in
+`packages/managed/src/legal-versions.ts`). A draft's number is the one its final
+text will carry, so an acceptance of it would be recorded as the final's. On
+2026-09-29 the privacy policy 1.2 and the terms 1.3 are drafts, so live asks
+nobody until the owner's final-text pull request drops the draft words and sets
+`LEGAL_DRAFTS` to match. The API says which at start, in its log:
+
+```bash
+docker compose -f deploy/compose/managed.yml logs api | grep -F '[api] ' | grep -iE 'accept|draft'
+```
+
+`[api] OWNPACE_STAGE=alpha, but privacy 1.2 and terms 1.3 are drafts: nobody is
+asked …` means nobody is asked yet; `[api] asking every member to accept …`
+means they are. Nothing is logged with the setting off.
+
+```bash
+docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrate -d openmigrate -c \
+  "SELECT a.accepted_at, a.tenant_id, m.email, a.document, a.version, a.language
+     FROM legal_acceptance a
+     LEFT JOIN tenant_member m ON m.tenant_id = a.tenant_id AND m.user_id = a.subject
+    ORDER BY a.accepted_at DESC LIMIT 50;"
+```
+
+- **The versions asked for** are `LEGAL_VERSIONS` in
+  `packages/managed/src/legal-versions.ts`, the numbers on the texts' *Version*
+  lines. `scripts/a-version-the-tester-accepted.unit.test.ts` fails when a
+  text's number, or whether it is a draft, differs from the constant, and when
+  a final text's words change under the same number (`ACCEPTED_WORDS`), so a
+  changed text gets a new number, in one commit with the constant. After that
+  deploy, every tester meets the screen again, and their doors refuse until
+  they accept; the old rows stay beside the new ones.
+- **The screen** comes up on load only in a web bundle built with
+  `VITE_OWNPACE_STAGE=alpha` (live's). Any bundle brings it up when a door
+  answers 409 `conditions_not_accepted`, so a version that changes while
+  somebody has the app open is asked for at their next press, without a
+  reload.
+- **Nothing on the request path can change or delete a row**: `app_user` may
+  only insert and read, and an insert must name a member of that organisation.
+  Do not edit one as the owner either: it is the record of what somebody
+  agreed to.
+- **A member who leaves** keeps their rows: removing the membership deletes
+  nothing here, the organisation keeps who agreed to what until its data is
+  erased (privacy §9's row), and a member invited back is not asked again for
+  a version they accepted there.
+- **Erasure**: the rows go with the organisation (`PURGED_TABLES`), because
+  privacy §9 keeps the account, which §4.4 says includes this record, until the
+  data is erased. Whether to keep the record after erasure instead is 0139 open
+  question 4, not answered yet.
+
 ## Sign-in accounts nobody let in
 
 Anybody can create an account at the sign-in page: organisation registration is

@@ -147,7 +147,7 @@
     *verhuizing*.
   - §4.4: the account also records which versions of the three texts a
     person accepted, and when (terms-acceptance-route (b): the in-app screen,
-    0139 T3, not built).
+    0139 T3, built 2026-09-28; see beside §4.4).
   - §4.5: our server logs record the visitor's IP address, which NetBird
     passes on, and NetBird keeps its own log (ops-trust-proxy (b); needs
     TRUST_PROXY and both nginx logs, see beside §4.5). Searches by address and
@@ -435,8 +435,7 @@
     sharing list deleted with its migration (privacy-sharing-list (b)); the
     12-month clean-up of searches and downloads (privacy-search-records (a));
     0135 T8's daily script for sign-in accounts nobody let in, before the
-    first tester (ops-unadmitted-signin-cleanup (a)); the acceptance screen,
-    0139 T3 (terms-acceptance-route (b)); the share mail's privacy line
+    first tester (ops-unadmitted-signin-cleanup (a)); the share mail's privacy line
     (privacy-share-mail-notice (a)); the app's three sentences
     (ops-app-sentences (a)); the read-log query in the operator runbook
     (privacy-read-log-copy (a)).
@@ -590,15 +589,23 @@ sign-in page, but it opens nothing until we let that person in. The sign-in serv
 you, such as a sign-in code or a link to reset your password, goes through our mail provider
 (§7).
 
-<!-- NOT YET BUILT: the record of which versions a person accepted, and when, is the in-app
-     acceptance screen, 0139 T3 (the owner, 2026-09-28, terms-acceptance-route (b): "accepting
-     fits in there and should record what time/version the accepted of what document"). The
-     first invitation waits for it. -->
+<!-- BUILT 2026-09-28 (0139 T3; the owner, terms-acceptance-route (b): "accepting fits in there
+     and should record what time/version the accepted of what document"): after sign-in the app
+     shows the Alpha conditions, this policy and the terms with their versions, and records, per
+     organisation, which version of each a person accepted, the language and the time
+     (legal_acceptance, managed migration 0032). Asked while live's OWNPACE_STAGE=alpha and no text
+     is still a draft (LEGAL_DRAFTS: a draft's number is the one its final text carries, so nobody
+     accepts a draft); nothing is connected before it. Kept with the account and erased with it; a
+     member who leaves keeps their rows until the organisation's data is erased (§9's row; 0139
+     open question 4, the proposal, until the owner answers). "In which language" below was added
+     on 2026-09-29 (review of 0139 T3), because the record keeps it; for the owner's review with
+     the rest of this draft. -->
 
 **Your account with us.** Your email address, the identifier our sign-in service gives you, the
 organisation you belong to (in the app, your household's space is called an organisation), your
 role in it (during the Alpha, owner or admin), when you were invited and when you joined, and
-which versions of the Alpha conditions, the terms and this policy you accepted, and when.
+which versions of the Alpha conditions, the terms and this policy you accepted, in which language,
+and when.
 
 **During the Alpha, your Google address.** If you want to connect a Google account, you give us
 its address, and we enter it in the list of test users that Google keeps for our app (§6).
@@ -972,6 +979,7 @@ target. We show you the target before anything is written.
 | The migration ledger (§4.2), and what each migration keeps beside it, such as the list of what was shared (§4.6) | Until you delete the migration; then deleted with it. Otherwise until your data is erased. |
 | Preflight counts | With the migration they were counted for: until you delete it, or your data is erased. |
 | What belongs to your organisation rather than to one migration: its members and invitations, the distribution lists a migration found, and the audit log of who did what, and when | Until your data is erased, also after you delete the migration that found them. |
+| Which versions of the Alpha conditions, the terms and this policy each member accepted, in which language, and when (§4.4) | Until your data is erased, also after that member has left your organisation, so that it stays on record who agreed to what. |
 | The people you migrate for: each one's name, and an email address if you gave one (§4.6) | Until you delete that person, or your data is erased. Deleting a migration does not delete the person. |
 | The record of each pass: when it ran, and what it counted | During the Alpha: until your data is erased. |
 | A pass's log lines | 60 days. |

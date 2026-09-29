@@ -28,10 +28,11 @@
  *     process), never from a list typed here. With the setting given, every
  *     link is on that site, so a module that ignores it fails;
  *  2. every legal page the build renders has an address, and a page it does
- *     not render is not a link. Today that leaves out the alpha conditions
- *     (text from T2) and the sub-processor list (text from T5), which T10
- *     renders: the module names them as not built yet, and this fails the day
- *     the build renders one and the module does not link it;
+ *     not render is not a link. Today that leaves out the sub-processor list
+ *     (text from T5), which T10 renders: the module names it as not built
+ *     yet, and this fails the day the build renders it and the module does
+ *     not link it. The alpha conditions (text from T2) are rendered since T3's
+ *     acceptance screen links them (2026-09-28);
  *  3. `managed.yml` passes the setting to the web build, the Dockerfile
  *     declares it, and the compose `.env` example documents it. A value the
  *     module would refuse stops the web build (`vite.config.ts`), because the
@@ -126,14 +127,14 @@ function legalPagesBuilt(): Map<string, Set<string>> {
 }
 
 describe('the build is read, so the checks below compare real files', () => {
-  it('renders the privacy policy and the terms, in English and in Dutch', () => {
+  it('renders the privacy policy, the terms and the alpha conditions, in English and in Dutch', () => {
     // The vacuity check. If the child stopped returning pages, or SOURCE lost
     // its legal entries, every rule below would pass over an empty set.
     const legal = legalPagesBuilt();
     expect([...legal.keys()].sort()).toEqual(['en', 'nl']);
     for (const [locale, keys] of legal) {
       expect([...keys].sort(), `the ${locale} legal pages`).toEqual(
-        expect.arrayContaining(['privacy', 'terms']),
+        expect.arrayContaining(['privacy', 'terms', 'alpha']),
       );
     }
     expect(built().pages.length).toBeGreaterThan(4);
@@ -197,11 +198,13 @@ describe('it links every legal page the build renders, and nothing else', () => 
     }
   });
 
-  it('keeps the alpha conditions and the sub-processor list out until the build writes them', async () => {
+  it('keeps the sub-processor list out until the build writes it', async () => {
     const m = await loadModule();
     const notYet = Object.keys(m.NOT_BUILT_YET);
-    // Named, so T10 finds the slot. Only the build decides when they move.
-    expect(notYet.sort()).toEqual(['conditions', 'subprocessors']);
+    // Named, so T10 finds the slot. Only the build decides when it moves. The
+    // alpha conditions moved on 2026-09-28: the build renders them, because
+    // T3's acceptance screen links them.
+    expect(notYet.sort()).toEqual(['subprocessors']);
     for (const page of notYet) {
       expect(m.LEGAL_PAGES as readonly string[]).not.toContain(page);
       for (const [locale, keys] of legalPagesBuilt()) {

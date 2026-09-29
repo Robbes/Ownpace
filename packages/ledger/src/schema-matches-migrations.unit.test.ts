@@ -175,6 +175,16 @@ const NARROWER_ON_PURPOSE: Record<string, { privileges: string[]; why: string }>
       'baseline default-grants them, so a narrower GRANT alone would change nothing). The one ' +
       'deleter is the erasure purge, through the owner connection (PURGED_TABLES).',
   },
+  legal_acceptance: {
+    privileges: ['INSERT', 'SELECT'],
+    why:
+      'Which version of the Alpha conditions, the privacy policy and the terms a person ' +
+      'accepted, and when (workplan 0139 T3, managed migration 0032). A record of consent that ' +
+      'could be rewritten afterwards proves nothing, so the request path appends and reads, and ' +
+      'UPDATE and DELETE are REVOKED from the default the baseline grants; the policies allow ' +
+      'nothing else either. A new version is a new row. The one deleter is the erasure purge, ' +
+      'through the owner connection (PURGED_TABLES).',
+  },
   platform_operator: {
     privileges: ['SELECT'],
     why:
@@ -223,6 +233,7 @@ describe('the Drizzle schema and the migrations describe the same database', () 
       'tenant_closure',
       'person',
       'person_migration',
+      'legal_acceptance',
     ]) {
       expect(names.has(table), `${table} is created by the migrations but no ` +
         'schema module in this guard declares it, so nothing checks it for drift').toBe(true);
