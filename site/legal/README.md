@@ -345,18 +345,29 @@ a comment beside the sentence, in both languages, where the text rests on it. **
 
 - *Nothing uses your access after closing* (privacy §9, terms §11, Alpha conditions §10, the
   DPA's Annex A; terms briefing, precondition B): partly done. Since #1320 (`d7868276`, merged
-  2026-09-28), on this branch since `main` was merged into it in `c1413b53`, nothing new starts
-  for a closed organisation: the sync tick starts no pass, a pass already queued halts before
-  its credentials are built, the credential builders refuse, and every door that would start
-  work or use the access answers 409 `account_closed`. Its members can still sign in, read and
-  export until the purge. Work already running when the account closes is not all stopped. The
-  close asks the orchestrator to cancel only the runs whose row names the orchestrator's run,
-  which only a sync pass records, and a request that fails is only logged
-  (`apps/api/src/close-account.ts`). A sync pass the cancel did not stop, or a discovery, reads
-  to the end of the data type it is on. A verification or a confirmation already running reads
-  the accounts to its end, with the readers it built before the close. To build: those runs
-  record the orchestrator's reference and the close cancels them too, or they check the close
-  between steps. Or the owner rewords the sentence to what the code does.
+  2026-09-28), nothing new starts for a closed organisation: the sync tick starts no pass, a
+  pass already queued halts before its credentials are built, the credential builders refuse,
+  and every door that would start work or use the access answers 409 `account_closed`. Its
+  members can still sign in, read and export until the purge. **Work already running when the
+  account closes: built 2026-09-29, reviewed and fixed the same day** (0139 T7) on branch
+  `claude/ownpace-public-readiness-y7orc6-the-close-stops-what-is-running`, **not merged**. A
+  verification, a confirmation and a discovery already running check the close between their
+  steps and stop: a verification before each listing of a target and before each sample it
+  downloads (it records no verdict, and its run says the organisation was closed), a
+  confirmation before each item it reads on the target (its run closes `cancelled`, the close
+  named, what it confirmed before stays, and the confirmed list says the close stopped it), a
+  discovery before each collection it lists (the close is that data type's error, and no
+  partial count stands). The step in flight when the close lands finishes, whether a listing
+  with all its pages, one download or one item; no other begins after it. **Still not true:**
+  the close asks the orchestrator to cancel only the runs whose row names the orchestrator's
+  run, which only a sync pass records, and a request that fails is only logged
+  (`apps/api/src/close-account.ts`); a sync pass the cancel did not stop reads to the end of
+  the data type it is on, and stops before the next. A discovery of a file source first walks
+  the whole folder tree, a request per folder on Google Drive, Box and Dropbox, and asks only
+  after it, so a close during that walk lets the walk finish. The daily shared-address
+  discovery and drift check read the list of open organisations once, when they start, so an
+  organisation closed while one runs is still read in that run. Until those stop too, or the
+  owner rewords the sentence to what the code does, precondition B is not fully done.
 - *The copy made right before an update, never longer than 7 days* (privacy §9, Alpha
   conditions §6; rec-copies (a)): built (0139 T6, 2026-09-28, review fixes 2026-09-29).
   `deploy/compose/copy-before-update.sh`, one directory,

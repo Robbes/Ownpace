@@ -1,6 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 import type { DomainDiscovery, DiscoveryCollection, SyncCursor } from '@openmig/shared';
+import { refuseOnceClosed, type OrganisationIsOpen } from './while-the-organisation-is-open.ts';
 
 /**
  * Pre-sync discovery (workplan 0013 T1).
@@ -54,6 +55,22 @@ export interface DiscoverOptions<F, I> {
    * leaving it behind, and they cannot approve a number nobody produced.
    */
   readonly isExcluded?: (folder: F) => string | undefined;
+  /**
+   * Is the organisation still open? (workplan 0139 T7) Asked before each
+   * collection is listed. The source was built before the count began, so a
+   * close while it runs is not seen by the builders that refuse one. Once the
+   * answer is no, the count throws the close's own refusal: the listing in
+   * flight finishes, no other collection is listed, and no partial count is
+   * returned to stand for the whole. Absent means nobody asks.
+   *
+   * NOT asked during `listFolders`, which comes first. For a mailbox that is
+   * one listing of its folders; a file source walks its whole folder tree
+   * there, a request per folder (Google Drive, Box, Dropbox), and a close
+   * during that walk lets it run to its end before the first question stops
+   * the count (the review of 2026-09-29). Asking inside the walk is each
+   * connector's own change, and is not made.
+   */
+  readonly organisationIsOpen?: OrganisationIsOpen;
 }
 
 /** What the destination already holds, and how much of it we will adopt. */
@@ -133,6 +150,8 @@ export async function discoverSource<F, I>(
     // owner is being asked to approve leaving it behind, and they cannot approve
     // a number nobody produced.
     const excluded = options.isExcluded?.(folder);
+    // Each collection is one read of the account: asked about before it.
+    await refuseOnceClosed(options.organisationIsOpen);
     // Metadata-only: listSince returns item descriptors; bodies come from fetch(), never called here.
     const { items: folderItems, unkeyable } = await source.listSince(folder);
     const folderGeneratedId = unkeyable ?? 0;

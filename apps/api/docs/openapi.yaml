@@ -4370,12 +4370,19 @@ paths:
                         before any pass every row reads `unchecked`, and after a
                         pass that could not reach the destination every row reads
                         `unchecked` too — the rows alone cannot tell those apart.
+                        `stopped` is a pass the close of this organisation
+                        stopped while it ran (workplan 0139 T7): not a failure,
+                        and not finished, with `because` saying why.
                       properties:
                         state:
                           type: string
-                          enum: [never-run, running, done, failed]
+                          enum: [never-run, running, done, failed, stopped]
                         startedAt: { type: string, format: date-time }
                         finishedAt: { type: string, format: date-time }
+                        because:
+                          type: string
+                          enum: [organisation-closed]
+                          description: With `stopped`, why the pass stopped.
                     pausedAt:
                       type: object
                       description: |

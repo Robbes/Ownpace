@@ -144,7 +144,8 @@ export async function walkConfirmedRows(
  * `succeeded` run carrying a `budgetPause` in its stats is NOT a failure —
  * 0090 T4's rule, that a scheduled stop is a stop and not an error — and it
  * becomes the sentence `budgetPauseToReason` already writes for the customer,
- * rather than a pile of bytes only an engineer can read.
+ * rather than a pile of bytes only an engineer can read. Nor is a run the
+ * close stopped (`stopped`, workplan 0139 T7).
  */
 export async function latestConfirmationPass(
   scope: ConfirmedListScope,
@@ -180,13 +181,24 @@ export async function latestConfirmationPass(
     return { lastPass: { state: 'running', startedAt } };
   }
   const finishedAt = (row.finishedAt ?? row.startedAt).toISOString();
+  const stats = (row.stats ?? {}) as { budgetPause?: unknown; stoppedBecause?: unknown };
+  const pause = stats.budgetPause;
+  const reason = isBudgetPause(pause) ? budgetPauseToReason(pause) : undefined;
+
+  // Stopped by the close (workplan 0139 T7, the pass's rule 5): `cancelled`,
+  // with the close named in its stats. Not a failure, and it says so, to the
+  // members who can still read this list until the purge and after a reopen.
+  // A `cancelled` row without that reason is not this, and stays `failed`.
+  if (row.status === 'cancelled' && stats.stoppedBecause === 'organisation_closed') {
+    return {
+      lastPass: { state: 'stopped', startedAt, finishedAt, because: 'organisation-closed' },
+      ...(reason ? { pausedAt: reason } : {}),
+    };
+  }
   if (row.status !== 'succeeded') {
     return { lastPass: { state: 'failed', startedAt, finishedAt } };
   }
 
-  const stats = (row.stats ?? {}) as { budgetPause?: unknown };
-  const pause = stats.budgetPause;
-  const reason = isBudgetPause(pause) ? budgetPauseToReason(pause) : undefined;
   return {
     lastPass: { state: 'done', startedAt, finishedAt },
     ...(reason ? { pausedAt: reason } : {}),

@@ -39,6 +39,19 @@
  * credential is built (`organisation_closed`), and a task that builds readers
  * is refused by the builders.
  *
+ * AND WHAT IT DOES NOT SEE, WHICH STOPS ITSELF (workplan 0139 T7). Only a sync
+ * pass records the orchestrator's reference on its row. A verification (its
+ * row is `verification_run`), a confirmation (a `run` row with none) and a
+ * discovery (no row at all) had built their readers before the close and read
+ * on to their end. Each now asks whether the organisation is still open
+ * between its steps (`organisationStillOpen`): a verification before each
+ * listing of a target and each sample it downloads, a confirmation before each
+ * item it reads, a discovery before each collection. The step in flight
+ * finishes and no other begins; a file source's walk of its folder tree comes
+ * before the discovery's first question and runs to its end. A sync pass the
+ * cancel did not reach still reads to the end of the data type it is on, and
+ * stops before the next.
+ *
  * `closeTenant` MUST run in the organisation's context. `tenant` is under
  * FORCE ROW LEVEL SECURITY with an UPDATE policy on `app.current_tenant`, so
  * outside it the UPDATE matches nothing and the close reports an organisation

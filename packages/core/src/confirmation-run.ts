@@ -52,6 +52,28 @@
 //    go into `finishRun`'s stats and come back on the result, so the person who
 //    pressed the button is told the limit, how much of it went, and when it
 //    resets — not left watching a pass that mysteriously did half an account.
+//
+// ## The fifth rule, added with the close (workplan 0139 T7)
+//
+// 5. **A pass whose organisation is closed while it runs reads nothing more.**
+//    Terms §11 promises that from the moment an account is closed nothing
+//    uses the access it gave. The readers were built before the close, so the
+//    builders' refusal never reached a pass already running, and the close
+//    cancels only the runs whose row names the orchestrator's run, which this
+//    one's does not. So the pass asks the caller's `organisationIsOpen` before
+//    each item it reads the target for: the item in flight when the close
+//    lands finishes and is recorded (rule 3), and no other item is read. The
+//    rest keep their NULL answer, UNASKED, as after a budget pause. Only
+//    before an item `needsTargetRead` says is read: the others are decided
+//    from the ledger alone, and a question before each of them would guard no
+//    read and cost a transaction apiece, on the appliance its one connection
+//    (the review of 2026-09-29).
+//
+//    The run row closes `cancelled`, the ledger's word for it, with
+//    `stoppedBecause: 'organisation_closed'` and the data type it stopped
+//    before in its stats. Not `failed`: nothing failed. Not `succeeded`: it
+//    did not finish. Nothing is thrown, so the plane does not retry a run the
+//    builders would only refuse again.
 
 import type {
   ConfirmableItem,
@@ -61,6 +83,7 @@ import type {
 import { confirmEach, tally, type ConfirmationTally } from './confirmation-pass.ts';
 import {
   log,
+  needsTargetRead,
   type BudgetPause,
   type ByteBudgetState,
   type DiscoveryDomain,
@@ -68,6 +91,7 @@ import {
   type MappingId,
   type TenantId,
 } from '@openmig/shared';
+import type { OrganisationIsOpen } from './while-the-organisation-is-open.ts';
 
 /**
  * One item to decide about, and the id a finding is recorded against.
@@ -154,6 +178,13 @@ export interface ConfirmationRunResult {
    * not have to guess about a list they delete their originals on.
    */
   readonly budgetPause?: BudgetPause;
+  /**
+   * Set when the organisation was closed while the pass ran (rule 5): the pass
+   * read nothing more, and the run row closed `cancelled`.
+   */
+  readonly stoppedBecause?: 'organisation_closed';
+  /** The data type whose next item the pass did not read, with `stoppedBecause`. */
+  readonly stoppedBefore?: DiscoveryDomain;
 }
 
 /**
@@ -180,6 +211,12 @@ export async function runConfirmationPass(args: {
    * and would be a dangerous one for a server that has none.
    */
   meter?: DownloadMeter;
+  /**
+   * Is the organisation still open? (rule 5, workplan 0139 T7) Asked before
+   * each item the pass reads the target for, and before no other. Absent
+   * means nobody asks: the appliance's one organisation is always open.
+   */
+  organisationIsOpen?: OrganisationIsOpen;
 }): Promise<ConfirmationRunResult> {
   const runId = await args.runs.startRun({
     tenantId: args.tenantId,
@@ -239,22 +276,61 @@ export async function runConfirmationPass(args: {
     return true;
   };
 
+  /**
+   * Set the moment the organisation reads closed, and never cleared (rule 5):
+   * the data type whose next item was not handed to the target.
+   */
+  let stoppedBefore: DiscoveryDomain | undefined;
+  const isOpen = args.organisationIsOpen;
+
+  /**
+   * One data type's rows, each one the target is read for handed on only while
+   * the organisation is open.
+   *
+   * Asked HERE, as the next row is pulled, because that is the moment before
+   * the target is asked about it: `confirmEach` reads the target for a row
+   * before it yields, so a question asked in the loop body below would come
+   * after the read it means to prevent. The ledger's row is read first; the
+   * ledger is not the account. A row whose status `needsTargetRead` waives is
+   * decided from the ledger alone (`confirmFinding`), so it passes unasked.
+   */
+  async function* whileOpen(
+    domain: DiscoveryDomain,
+    rows: AsyncIterable<ConfirmableRowRef>,
+  ): AsyncIterable<ConfirmableRowRef> {
+    for await (const row of rows) {
+      if (isOpen && needsTargetRead(row.status) && !(await isOpen())) {
+        stoppedBefore = domain;
+        log.info(
+          `[confirm] pass stopped before its next ${domain} item: this organisation was closed. ` +
+            `Nothing failed, and nothing reads the access it gave. The items already confirmed keep ` +
+            `their answers; the rest are left UNASKED.`,
+        );
+        return;
+      }
+      yield row;
+    }
+  }
+
   // EVERYTHING INSIDE THE TRY, so rule 1 holds for a throw anywhere — the
   // reader, the ledger, or the stream itself.
   try {
     for (const domain of args.domains) {
-      if (budgetPause) break;
+      if (budgetPause || stoppedBefore) break;
       const reader = args.readerFor(domain);
       if (!reader) continue;
       // Whether THIS domain's reads cost bytes: the ceiling is only asked
       // about where it can be reached.
       const spends = reader.hashOnTarget !== undefined;
       if (await outOfBytes(spends)) break;
-      const items = args.ledger.itemsToConfirm({
-        tenantId: args.tenantId,
-        mappingId: args.mappingId,
+      const items = whileOpen(
         domain,
-      });
+        args.ledger.itemsToConfirm({
+          tenantId: args.tenantId,
+          mappingId: args.mappingId,
+          domain,
+        }),
+      );
       for await (const found of confirmEach(domain, items, reader)) {
         // By the time `confirmEach` yields, the target has ALREADY been asked
         // about this item and its bytes are already spent. So it is counted and
@@ -313,6 +389,27 @@ export async function runConfirmationPass(args: {
   }
 
   const counted = tally(rows);
+  if (stoppedBefore !== undefined) {
+    // Rule 5: cancelled by the close, with how far it got and why it stopped.
+    await args.runs.finishRun(runId, 'cancelled', {
+      itemsProcessed: counted.total,
+      errors: 0,
+      recorded,
+      verified: counted.verified,
+      byState: counted.byState,
+      stoppedBecause: 'organisation_closed',
+      stoppedBefore,
+      ...(budgetPause ? { budgetPause } : {}),
+    });
+    return {
+      runId,
+      tally: counted,
+      recorded,
+      stoppedBecause: 'organisation_closed',
+      stoppedBefore,
+      ...(budgetPause ? { budgetPause } : {}),
+    };
+  }
   // `succeeded`, pause or no pause: 0090 T4's rule is that a scheduled stop is
   // not a failure, and calling it one here would put a red run on the page of
   // somebody whose account is fine and whose budget is merely spent. The pause
