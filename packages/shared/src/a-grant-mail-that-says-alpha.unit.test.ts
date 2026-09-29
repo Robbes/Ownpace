@@ -5,8 +5,9 @@
  *
  * The access-granted mail is the first thing a tester reads from the service,
  * before any page. During the alpha it says what the pages say: a small invited
- * group, nothing charged, nothing backed up, an alpha that can end, and keep
- * the old account until what arrived has been checked. In the language the
+ * group, nothing charged, an alpha that can end, no backups apart from one copy
+ * before each update, kept up to 7 days, and keep the old account until what
+ * arrived has been checked. In the language the
  * request was made in (ADR-0013).
  *
  * Off unless the deployment sets it. The API reads `OWNPACE_STAGE` and marks
@@ -27,15 +28,20 @@ const GRANTED = {
   email: 'stranger@example.test',
 } as const;
 
-/** The note's words, 0131 T1's draft; they must match 0139's conditions once those exist. */
+/**
+ * The note's words: 0131 T1's, with the copy before an update since 0139 T4
+ * (ops-app-sentences (a)), as the Alpha conditions §6 and privacy §9 say it.
+ */
 const SAID = {
   en:
-    'Alpha: a small invited group is trying this service out. Nothing is charged, nothing is ' +
-    'backed up, and the alpha can end. Keep your old account until you have checked what arrived.',
+    'Alpha: a small invited group is trying this service out. Nothing is charged, and the alpha ' +
+    'can end. There are no backups, apart from one copy before each update, kept up to 7 days. ' +
+    'Keep your old account until you have checked what arrived.',
   nl:
     'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit. Er wordt niets in rekening ' +
-    'gebracht, er worden geen back-ups gemaakt en de alfa kan stoppen. Houd uw oude account tot ' +
-    'u hebt gecontroleerd wat er is aangekomen.',
+    'gebracht en de alfa kan stoppen. Er worden geen back-ups gemaakt, op één kopie vlak voor ' +
+    'elke update na, die hoogstens 7 dagen wordt bewaard. Houd uw oude account tot u hebt ' +
+    'gecontroleerd wat er is aangekomen.',
 } as const;
 
 describe('the access-granted mail during the alpha', () => {

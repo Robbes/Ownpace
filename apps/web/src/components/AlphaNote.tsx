@@ -16,8 +16,9 @@
  * and `role="alert"` would be read out on every page a screen reader opens.
  *
  * The words are the access-granted mail's, sentence for sentence
- * (`grantedAlpha` in @openmig/shared's notifications.ts), and must match 0139's
- * alpha conditions once those exist. They are three dictionary keys because
+ * (`grantedAlpha` in @openmig/shared's notifications.ts), and match the Alpha
+ * conditions: the copy before an update, kept up to 7 days, is their §6 (0139
+ * T4, ops-app-sentences (a)). They are three dictionary keys because
  * each had to fit the copy budget's generic fifteen words, which the owner
  * dropped on 2026-09-25; they read as one paragraph.
  */

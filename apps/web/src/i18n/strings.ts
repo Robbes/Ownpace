@@ -1962,13 +1962,16 @@ const en = {
   // remembered, so nothing restarts it.
   'pause.hold.why':
     'Nothing is wrong with your migration and nothing is lost. Migrations already running finish normally, and scheduled copying starts again by itself once the update is done, from exactly where it stopped. Any copying you tried to start during the pause did not start: start it again after the update.',
-  // The alpha note (workplan 0131 T1): three sentences, one paragraph, the
+  // The alpha note (workplan 0131 T1): four sentences, one paragraph, the
   // same words as the access-granted mail (`grantedAlpha` in @openmig/shared's
   // notifications.ts; `an-alpha-said-out-loud.unit.test.tsx` holds the two
-  // together). Split only so each fits the copy budget; they render as one
-  // paragraph, and must match 0139's alpha conditions once those exist.
+  // together). Split into three keys; they render as one paragraph. The copy
+  // before an update is the Alpha conditions §6 and privacy §9 (0139 T4,
+  // ops-app-sentences (a); it said "nothing is backed up" until then).
+  // `what-the-app-says.unit.test.tsx`.
   'alpha.note.lead': 'Alpha: a small invited group is trying this service out.',
-  'alpha.note.terms': 'Nothing is charged, nothing is backed up, and the alpha can end.',
+  'alpha.note.terms':
+    'Nothing is charged, and the alpha can end. There are no backups, apart from one copy before each update, kept up to 7 days.',
   'alpha.note.keep': 'Keep your old account until you have checked what arrived.',
   // Nothing charged (workplan 0131 T3): the first sentence of the Billing
   // line that takes the subtitle's place, and the last sentence of the
@@ -2788,7 +2791,10 @@ const en = {
   'access.sentDetail': 'You will hear back by email.',
   'access.failed': 'We could not send that:',
   'access.failedFallback': 'the request did not complete.',
-  'access.privacy': 'We keep what you type only to answer you; asking creates no account.',
+  // Privacy §4.4's two purposes, decided and answered (0139 T4,
+  // ops-app-sentences (a); it said "only to answer you" until then).
+  'access.privacy':
+    'We keep what you type to decide on your request and to answer you; asking creates no account.',
   'access.backToSignIn': 'Already have an account? Sign in',
 } as const;
 
@@ -4279,11 +4285,11 @@ const nl: Record<keyof typeof en, string> = {
   'pause.hold.since': 'Gepauzeerd sinds',
   'pause.hold.why':
     'Er is niets mis met uw migratie en er gaat niets verloren. Migraties die al liepen worden normaal afgerond, en het geplande kopiëren start vanzelf weer zodra de update klaar is, precies waar het stopte. Kopiëren dat u tijdens de pauze probeerde te starten, is niet gestart: start het na de update opnieuw.',
-  // 0131 T1's words. `alpha.note.terms` is sixteen words here, and stays so: a
-  // safety sentence is not shortened (0118).
+  // 0131 T1's words, with de kopie vlak voor een update sinds 0139 T4 (zie het
+  // Engelse blok). Een veiligheidszin wordt niet ingekort (0118).
   'alpha.note.lead': 'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit.',
   'alpha.note.terms':
-    'Er wordt niets in rekening gebracht, er worden geen back-ups gemaakt en de alfa kan stoppen.',
+    'Er wordt niets in rekening gebracht en de alfa kan stoppen. Er worden geen back-ups gemaakt, op één kopie vlak voor elke update na, die hoogstens 7 dagen wordt bewaard.',
   'alpha.note.keep': 'Houd uw oude account tot u hebt gecontroleerd wat er is aangekomen.',
   'alpha.nothingCharged': 'Tijdens de alfa wordt niets in rekening gebracht.',
   // 0144 §3 T6's woorden; zie het Engelse blok.
@@ -4986,7 +4992,7 @@ const nl: Record<keyof typeof en, string> = {
   'access.failed': 'Wij konden dat niet versturen:',
   'access.failedFallback': 'de aanvraag is niet voltooid.',
   'access.privacy':
-    'Wij bewaren wat u invult alleen om te antwoorden; een aanvraag maakt geen account aan.',
+    'Wij bewaren wat u invult om over uw aanvraag te beslissen en u te antwoorden; een aanvraag maakt geen account aan.',
   'access.backToSignIn': 'Heeft u al een account? Aanmelden',
 };
 

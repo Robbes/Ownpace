@@ -63,7 +63,7 @@ import { serverFault } from './server-fault.ts';
 import { buildIdentity } from '@openmig/core';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 import { runManagedMigrations } from '@openmig/managed';
-import { log, setAppEventSink, setAuditExportSink } from '@openmig/shared';
+import { log, privacyPolicyUrl, setAppEventSink, setAuditExportSink } from '@openmig/shared';
 import { setAuditKeyDriver } from './audit-key.ts';
 import { acceptanceAtStart } from './conditions-not-accepted.ts';
 
@@ -351,6 +351,11 @@ if (process.env.NODE_ENV !== 'test') {
   log.info(
     `[api] refusing hosts inside this service's network; admitted by name: ${reachable.admitted.join(', ') || 'none'}`,
   );
+  // Where the mail to people items were shared with links the privacy policy
+  // (0139 T4): LEGAL_SITE_URL, which managed.yml fills from the web build's
+  // VITE_LEGAL_SITE_URL. A value the link cannot use stops the start here,
+  // naming both, rather than failing each press afterwards.
+  log.info(`[api] the share mail links the privacy policy at ${privacyPolicyUrl('en', process.env)}`);
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     throw new Error('DATABASE_URL is required');

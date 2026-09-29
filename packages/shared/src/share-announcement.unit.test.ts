@@ -85,13 +85,13 @@ describe('renderShareAnnouncement — Template 6', () => {
 
   it('carries the note, the items and the once-sentence, in both languages', () => {
     for (const locale of ['en', 'nl'] as const) {
-      const message = renderShareAnnouncement(digest, locale, 'Everything now lives at Team Cloud.');
+      const message = renderShareAnnouncement(digest, locale, 'Everything now lives at Team Cloud.', null);
       expect(message.subject).toBe(SHARE_ANNOUNCEMENT_SUBJECTS[locale]);
       expect(message.body).toContain('Everything now lives at Team Cloud.');
       expect(message.body).toContain('Projects/budget.xlsx (writer)');
     }
-    expect(renderShareAnnouncement(digest, 'en', 'x').body).toContain('You receive this message once');
-    expect(renderShareAnnouncement(digest, 'nl', 'x').body).toContain('U ontvangt dit bericht eenmalig');
+    expect(renderShareAnnouncement(digest, 'en', 'x', null).body).toContain('You receive this message once');
+    expect(renderShareAnnouncement(digest, 'nl', 'x', null).body).toContain('U ontvangt dit bericht eenmalig');
   });
 
   it('the doc shows what the code sends — Template 6 subjects pinned to the templates file', async () => {
