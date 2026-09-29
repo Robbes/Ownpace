@@ -63,6 +63,180 @@ Status block has the whole record; in short:
   and failed on `96e737df`'s code (24 of 24, 7 of 11, 4 of 54, 3 of 3); 21 mutations each turned one
   red. The counts and the gates are in 0132's entry.
 
+**2026-09-29, later: T5, the demo's Nextcloud left on after all**, a third commit on branch
+`claude/ownpace-public-readiness-y7orc6-nothing-phones-home`, not merged; `main` merged in first.
+Nothing has run on the machine.
+
+- **Why.** E2E (managed) #215, the branch's run, failed in *Bring the stack up*: right after the
+  demo's Nextcloud was recreated with the hook below, seed-dav's first calendar PUT answered HTTP
+  500 (`ERROR: calendar PUT 1 returned 500`, no response body in the log). #216 on `main`
+  recreated the same container without the hook, and seed-dav passed. The hook is the one
+  difference. What in it broke the write, one of `updatechecker`, `appstoreenabled` and
+  `has_internet_connection`, or its run before Apache at every start, is not known: the values
+  it wrote in #215 are most likely still in `config.php` on the demo's volume, which the gate
+  keeps between runs, so #216 may have passed with them in place. Nobody has looked on the
+  machine.
+- **What changed.** `deploy/compose/nextcloud-no-phone-home.sh` is removed, with its mounts in
+  `managed.yml` and `dev.yml`. The demo's Nextcloud's three settings are **not** switched off in
+  this change. This Nextcloud is the demo's DAV target on the OTA stack and the development one:
+  it holds fixtures, never a tester's data, and it is not on live. Everything else the branch
+  switches off stays: Trigger.dev's two PostHog halves and Prisma's checkpoint, Zitadel's service
+  ping, ClickHouse's crash reports, MinIO's release check and Mailpit's.
+- **The guard** (`scripts/a-service-that-phones-home.unit.test.ts`, 38 tests). The hook's cases
+  are gone: reading it, checking it mounted and tracked as 100755, and the two runs against a
+  stand-in `php`. Nextcloud's two rows moved from *switched* to a third list, *left on*, which
+  the guard's rule now names: each row says what it sends and why it is left on, is pinned to
+  `nextcloud:34-apache`, and holds it where no tester is (the bring-up starts it only with
+  `--with-demo`, both live scripts refuse that, and no managed script names `dev.yml`), the first
+  pass's check, back with a case of its own. No other row changed. Three mutations, each red and
+  restored: `nextcloud` in the bring-up's default services, `deploy-live.sh` not refusing
+  `--with-demo`, and `dev.yml`'s Nextcloud in no list.
+- **Proved.** The guard: 38 passed. `pnpm exec vitest run --project unit scripts/`: 209 files, 3966 tests pass.
+- **Docs**: `docs/managed-bring-up.md`, *Nothing phones home* (Nextcloud's row says *None yet*,
+  *What is left on, and where* says why, and the hook's command and check are gone);
+  `docs/operator-runbook.md`, *Upgrade*, step 5; the comments above both Nextcloud services.
+- ⏳ **Follow-up**: switch the three off on the demo's and the development Nextcloud, with a check
+  in the same change that the demo's DAV writes still work (seed-dav's calendar PUT at least),
+  run on the OTA stack before it merges.
+
+**2026-09-29: T5, the review's fixes to "nothing phones home"**, a second commit on branch
+`claude/ownpace-public-readiness-y7orc6-nothing-phones-home`, not merged. Nothing has run on the
+machine; the compose files are read, and Nextcloud's hook run against a stand-in, by the guard.
+
+- **Prisma's checkpoint, missed on the first pass.** The webapp's entrypoint runs
+  `prisma migrate deploy` at every start (`docker/scripts/entrypoint.sh` at v4.5.16; prisma
+  6.14.0, a runtime dependency), and the Prisma CLI sends a checkpoint to `checkpoint.prisma.io`
+  for every command it runs: version, OS, architecture, Node, CI, the command, hashes of the
+  project's and the CLI's paths, the schema's providers and a stored random signature
+  (`packages/cli/src/CLI.ts`, `utils/checkpoint.ts`; checkpoint-client 1.1.33, which forks the
+  sender whatever its cache says). `CHECKPOINT_DISABLE: "1"` on `trigger-api`, the only thing
+  either checks. The entrypoint's other children do not call out: pnpm 10.33.2 checks for its own
+  update only on `install` and `add` (`pnpm/src/main.ts`), goose v3.27.1 has no network use of
+  its own, and the dashboard agent's migration is plain drizzle-orm. The server's PostHog also
+  identified the user (id, email, name) at every sign-in (`postAuth.server.ts`), not only at
+  creation; the docs said less than it sent.
+- **Nextcloud switched, not left on** *(taken out again the same day, in the entry above: with
+  the hook, the demo's first CalDAV write answered 500 in E2E (managed) #215, so the three are
+  not switched off in this change)*. The demo's Nextcloud comes up with the OTA stack every
+  night (the gate's `--with-demo`), so "demo and development only" was no reason, and "`occ`
+  settings this file cannot set" was wrong. A `before-starting` hook the image runs as www-data
+  before Apache at every start set `updatechecker`, `appstoreenabled` and
+  `has_internet_connection` to the boolean false, in `managed.yml` and `dev.yml`;
+  `has_internet_connection` is what the announcements feed, the connectivity check and the
+  lookup-server upload read (`stable34`). Not the reviewer's `*.config.php` mounted into
+  `config/`: that makes the directory non-empty before the first install, and the image's
+  entrypoint (`34/apache/entrypoint.sh`, `directory_empty`) then skips copying its own config
+  files, `smtp.config.php` (the catcher, 0103) among them.
+- **Left on, and put to the owner: the demo's Stalwart** (v0.16.10, `docker run` from
+  `setup-stalwart.sh`, on the OTA stack every night and in the self-host end-to-end run). In
+  normal mode it downloads its WebUI from GitHub on first start and every 30 days, its spam-filter
+  rules from GitHub, and an ASN and country database from jsDelivr daily
+  (`crates/common/src/manager/defaults.rs`, `SpamSettings` in `structs_impl.rs`). Downloads, not
+  reports about anybody; they are objects in its datastore, so switching them off is new objects
+  in the provisioning plan, which nothing here could run. ⏳ **Owner:** switch them off on the
+  demo's Stalwart, a change to be run and watched on the OTA stack, or keep them as downloads on
+  a stack that holds demo fixtures and never a tester's data.
+- **The guard, tightened** (`scripts/a-service-that-phones-home.unit.test.ts`, 40 tests). A key
+  with no value (`POSTHOG_PROJECT_KEY:`) reads as passed through from the shell or `.env`; YAML
+  merge keys are applied as Compose applies them; every file ClickHouse merges from `config.d` or
+  `conf.d` is read, wherever it is mounted from, `.yaml`, `.yml` and `.conf` included, and a mount
+  it cannot read fails; the webapp is held to `WEBAPP_KEYS`, every key it may be given with the
+  reason it reaches no third party, rather than to a list of third parties; a switched service may
+  not take `env_file`, `extends` or an overlay; Nextcloud's hook is read, checked tracked as
+  100755, and run against a stand-in `php` *(those cases went with the hook, above)*; Stalwart's pin and the doc that names its fetches are
+  held. The bring-up check on `nextcloud` went with the *left on* list it served. Written first:
+  6 failed, 34 passed (40) on the first pass's tree. Each regression the review found passes the
+  first guard (33 of 33) and fails this one; 18 mutations, 17 red and restored, the 18th
+  (`nextcloud` added to the bring-up's services) now moot, since Nextcloud is switched wherever it
+  starts *(back, with the left-on list, above)*.
+- **Docs**: `docs/managed-bring-up.md`, *Nothing phones home* (Prisma's row, Nextcloud's row and
+  why a hook, *both rewritten above*, Stalwart named, the sign-in identify, and the command for a running stack: the pull
+  sequence recreates `trigger-api` and `clickhouse`, not the identity provider, the object store,
+  the catcher or Nextcloud); `docs/operator-runbook.md`, *Upgrade*, step 5; `setup-stalwart.sh`'s
+  header.
+- **Merged with main** after #1317: main's Status block and T5 row kept, these entries and the T5 row's addition put on top.
+
+**2026-09-28: T5, nothing phones home (privacy §8; ops-telemetry (a), the owner: *"Switch it off
+everywhere"*)**, built on branch `claude/ownpace-public-readiness-y7orc6-nothing-phones-home`, not
+merged. Nothing has run on the machine; the compose file is read by a guard, not started.
+
+- **The spec**, from `site/legal/README.md` on #1317, *To build or to do*: *"Telemetry off (privacy
+  §8's negative; ops-telemetry (a)): `TRIGGER_TELEMETRY_DISABLED` for live and the test stack
+  (`managed.yml`), and the sign-in service, ClickHouse and MinIO checked and switched off too."*
+  Live runs the same `managed.yml` as the OTA stack, with no override file, so one change covers
+  both, and no row of 0132 changes.
+- **What each sent, read from upstream's source at the pinned version** (raw files from
+  `raw.githubusercontent.com`; the docs sites were not needed). Trigger.dev v4.5.16: the server's
+  PostHog on user, organisation and project creation, with the user's email and name
+  (`telemetry.server.ts`; *and at every sign-in, and Prisma's checkpoint beside it: corrected
+  2026-09-29, above*), and the dashboard's PostHog in the browser, identifying the signed-in
+  user by id and email (`usePostHog.ts`), under Trigger.dev's own project key
+  (`POSTHOG_PROJECT_KEY`'s default in `env.server.ts`). **`TRIGGER_TELEMETRY_DISABLED` stops only
+  the first**: nothing else reads it, and the browser's half starts whenever the key is not empty.
+  The supervisor (`apps/supervisor/src/env.ts`) has no analytics. Zitadel v4.19.2: a daily
+  *service ping* to `zitadel.com`, with each instance's id, creation date and domains and the
+  count of users, organisations and projects, **on by default** (`cmd/defaults.yaml`); it is in
+  every v4 release (read at v4.0.0, v4.6.2, v4.17.1), so the OTA stack's provider has sent it
+  since it first started, as far as the machine let it out. `Telemetry.Enabled` ships false.
+  ClickHouse 26.2.19.43: crash and logical-error reports to `crash.clickhouse.com`, **on in the
+  `config.xml` the image ships**, off in the code's default. MinIO 2025.5.24: a release check to
+  `dl.min.io` at every start, its User-Agent carrying OS, architecture, version and CPU;
+  call-home ships off. Mailpit v1.31.1 (the test stack's catcher): a release check to GitHub when
+  its page asks for the server's info.
+- **The switches**, each a literal in `managed.yml`, so no `.env` can empty one:
+  `TRIGGER_TELEMETRY_DISABLED: "1"` and `POSTHOG_PROJECT_KEY: ""` on `trigger-api`;
+  `ZITADEL_SERVICEPING_ENABLED` and `ZITADEL_TELEMETRY_ENABLED` `"false"`; a new
+  `deploy/compose/clickhouse-no-crash-reports.xml` in ClickHouse's `config.d`; `MINIO_UPDATE` and
+  `MINIO_CALLHOME_ENABLE` `"off"`; `MP_DISABLE_VERSION_CHECK: "true"`.
+- **Every other service, and why it needs no switch**, is a row of the guard: PostgreSQL,
+  PgBouncer, Redis, the registry, the Docker socket proxy, the supervisor, busybox, nginx, the
+  status page, our own API, web app and appliance; Caddy's `tls internal` is held as a switch,
+  since without it Caddy asks a public certificate authority. *(Corrected 2026-09-29, above:
+  the demo's Stalwart is read and put to the owner. Nextcloud was switched off by a hook, which
+  was taken out again the same day, so it is left on, as here, until a follow-up.)*
+  **Left on:** Nextcloud's update
+  check, app store and connectivity check, in `managed.yml` (the demo) and `dev.yml`. They are
+  `occ` settings inside the instance; it holds fixtures and never a tester's data, and it starts
+  only with `--with-demo`, which both live scripts refuse. Switching them off on the demo is the
+  owner's call, a change to the demo's setup. Outside every compose file and not read: the demo's
+  Stalwart (`docker run`).
+- **Guard**: `scripts/a-service-that-phones-home.unit.test.ts`, written first. On the unchanged
+  tree: 5 failed, 28 passed (33), the five switched services, each naming its missing switch. After
+  the change: 33 passed. A switched row names the image its default was read at, so a new pin
+  fails it until somebody re-reads that version's defaults. 14 mutations, each red and restored:
+  each switch removed, emptied into `.env` or turned on, the ClickHouse mount removed, Zitadel's
+  pin moved, a new unclassified service, Nextcloud in the default bring-up, `deploy-live.sh` no
+  longer refusing `--with-demo`, a Caddy site without `tls internal`, a webapp third-party key, and
+  an overlay setting a switch.
+- **Proved.** `npx vitest run --project unit scripts`: 206 files, 3759 tests pass (a first run
+  under load lost `package-appliance.unit.test.ts`'s four running-payload cases to a refused
+  connection; alone it passes, 29 of 29). `pnpm -s typecheck` and eslint on the guard are clean.
+- **Docs**: `docs/managed-bring-up.md`, *Nothing phones home* (the table, what is left on, and the
+  check on a running stack); `docs/operator-runbook.md`, *Upgrade*, step 5.
+- **Not done here.** Privacy §8's comment and the README's *Telemetry off* item on #1317 still
+  say it is not true on live: it becomes true when live stands up, or deploys, from a tag that
+  contains this, and the check in *Nothing phones home* is what shows it.
+
+**2026-09-29: T6's daily script and T7's step, reviewed and fixed in 0135 T8**, not merged, on
+branch `claude/ownpace-public-readiness-y7orc6-accounts-kept-that-were-let-in`. Recorded here from
+0135's Status.
+
+- **An account that was let in is kept.** The Team page's removal now records `member.removed` in
+  `audit_log`, as `operator.sh leave` already did. `idp-strays.sh` keeps every subject so recorded,
+  so the daily run no longer takes a removed member's used account for one *"that we never let
+  in"* (privacy §9's row).
+- **For the owner** (T6, below; 0135 open question 13): a removed member's sign-in account is kept
+  until the organisation is erased, or removed after N days. The owner decides, and privacy §9 then
+  names it. Until then it is kept.
+- **Nothing is removed while the database names nobody:** `--remove` and T7's
+  `--subject … --remove` refuse while `platform_operator` has no row. Only our own organisation's
+  accounts with no role at the provider are weighed, and the provider's listing is read to its end
+  or the run refuses.
+- **A second commit, from that fix's review** (0135 Status, *later*): a role at the provider is
+  read as the provider counts it, the Team page's record names the row it deleted, and a count
+  below the accounts given is refused. After a reset of live's database that keeps the provider's
+  accounts, the runbook turns the daily duties off until the members are back.
+
 **2026-09-29, latest: T3's review, fixed**, same branch, with `main` merged in at `774b8310`
 (the runbook took a section on each side, both kept) and again at `ab7ffc3c` (the Dashboard
 went on `main`, and the gate's import stayed; this Status block took an entry on each side).
@@ -2239,8 +2413,8 @@ longer starts by pausing the nightly gate, which never touches live.
 | T2 The alpha conditions, in Dutch and English | 🔨 **1.0 edited in place 2026-09-28** with the owner's answers, on draft PR #1317, not merged: §2 (terms §12's 30 days give way to 7; acceptance in the app), §4 (a breach that affects your data; terms §10 still applies), §5 (updates not announced), §6 (the copy until the update is shown to work, never past 7 days), §9 and §10 (a family member's Google address; access as the app keeps it), §11 (erased 7 days after not accepting); alpha-version-number (a) keeps 1.0 until the first acceptance; the briefing rewritten (alpha-briefing-comment (a)); not rendered — *was:* drafted 2026-09-28, reviewed by the owner the same day, version 1.0, the lawyer's pass deferred (T1); 📋 **Decided 2026-09-24** (D1, D2) | §3. Free, a few weeks, no obligations, no backups, no availability promise, how it ends. The owner wrote them in the plan; an agent drafted them at the owner's word. |
 | T3 Acceptance recorded, with version and time, at first sign-in | 🔨 **Built 2026-09-28, review fixed 2026-09-29** on branch `claude/ownpace-public-readiness-y7orc6-a-text-accepted-with-its-version`, not merged. Since the review: nobody is asked while any text is a draft (`LEGAL_DRAFTS`; 409 `acceptance_not_asked`), so live asks nobody until the release with the final texts, and a final text's words are pinned to its number (`ACCEPTED_WORDS`); issuing a grant link asks too; *Not now* ends the sign-in service's session; a door's refusal brings the screen up at once; only a bundle built for the Alpha asks on load; a member who leaves keeps their record until erasure. As built on 2026-09-28: `legal_acceptance` (managed 0032, appended and read, never changed), `LEGAL_VERSIONS` held to the texts by `scripts/a-version-the-tester-accepted.unit.test.ts`, `GET /api/me`'s `acceptance` and `POST /api/me/acceptance` (409 `version_not_current`), 409 `conditions_not_accepted` on adding a connection, a new key and creating a migration, the screen in front of every signed-in page, the conditions rendered by the site build, all while `OWNPACE_STAGE=alpha`; purged with the organisation (open question 4 still open); Alpha §11's syncs waiting for the new conditions not built — *was:* 📋 **Decided 2026-09-28** (terms-acceptance-route (b), *"Build the in-app screen first"*); not built. The first invitation waits for it and its tests. The owner: *"People that are accepted in the Alpha do need to create a login for the app, accepting fits in there and should record what time/version the accepted of what document."* Terms §1, the Alpha conditions §2 and §11 and privacy §4.4 now describe it — *was:* 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. The same screen asks again for the new conditions after the Alpha (Alpha §11). Open question 4 (the record after erasure) is still open. |
 | T4 A notice wherever a tester's data is collected | 📋 **Proposed**; two pieces 📋 **Decided 2026-09-28**, not built: the app's own sentences reworded in both languages (ops-app-sentences (a): the grant mail, the Alpha note, the request form), and a privacy line and a link in the mail to people items were shared with (privacy-share-mail-notice (a)), both before the first tester | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form, the share mail (`packages/shared/src/share-announcement.ts`). The grant page's addresses were fixed in #1137, merged 2026-09-24. |
-| T5 The sub-processors named | 🔨 **Text done 2026-09-28** in the drafts, on draft PR #1317, not merged: privacy §7's table is the complete list and says so (rec-subprocessors-url (a)); NetBird GmbH, its terms and agreement accepted on 2026-08-01 and the agreement covering the proxy and its log (dpa-netbird-agreement (a); the owner, 2026-09-28), carries connections on through a WireGuard tunnel and keeps its own log of each request; Proton AG in Switzerland, with Art. 45 GDPR and Decision 2000/518/EC cited (privacy-switzerland-wording (b)); no hosting row, because no company houses the machine (subprocessors-machine-housed (a)); `subprocessors.md` unpublished until the first business customer; NetBird's own sub-processors read from its trust center 2026-09-28 (18 entries, none with a location); NetBird's sign-in (SSO), on for the hosts NetBird serves (*"No pin, but SSO on"*), to go off on every `ownpace.eu` host before the first invitation, the owner's choice (*"Off everywhere at launch"*), a precondition (privacy's to-do on NetBird, (d)), whose check 🔨 is built on branch `claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird`, not merged (2026-09-28, review fixes 2026-09-29): the exposure probe fails while NetBird's sign-in answers any of the four (item 8), and switching it off, then a dispatch that passes, are the owner's; ⏳ **Owner**, not before the first invitation: NetBird asked where its proxy and log run, at which provider, and whether its own sub-processors receive either, the *Where* staying *Germany (EU)* by the owner's choice until it answers ((c)), and asked in writing whether the Alpha or a paid tier behind the proxy is commercial use under its terms §3.1, answered before the first paid tier at the latest ((e)); the agreement's sub-processors, their announcement, the right to object and the 7 days for the lawyer's pass ((b)) — *was:* NetBird's acceptance date, its agreement read, where its proxy and log run and at which provider, and whether its own sub-processors receive either still for the owner; before that, the text drafted 2026-09-28 with the entity name, the agreement, the proxy's location and whether a company houses the machine all to confirm | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
-| T6 What is kept, and for how long, made true | 🔨 **The copy before an update, and the drill off live, built 2026-09-28, review fixes 2026-09-29** (rec-copies (a), rec-drill (a)) on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, **not merged**: `copy-before-update.sh`, taken by `deploy-live.sh` right before its checkout (only while the daily duties' timer runs), deleted by the owner once the update is proven and by the daily duties after 6 days less an hour, a rollback that erases again what was erased after the copy (`since`), and no drill on live; `privacy.md`'s and `privacy.nl.md`'s comments, `README.md`'s two items and `alpha.md`'s briefing say so; 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 🔨 **built 2026-09-27**, merged as #1255; every period 📋 **Decided 2026-09-28** from the owner's answers and in privacy §9's draft: the copy before an update (rec-copies (a)), the drill off live (rec-drill (a)), support-screen searches and downloads 12 months (privacy-search-records (a): 🔨 built 2026-09-29 as `box-duties.sh`'s duty `searches`, `support-read-prune.sh --delete`, not merged, and running once live's timer is installed), the sharing list with its migration (privacy-sharing-list (b)), sent mail until resolved and then 6 months (privacy-sent-mail-copies (b)), the background tasks' records until the end of the Alpha (privacy-task-records (a)), the sign-in history checked first (privacy-signin-history (a)), accounts nobody let in removed by a daily script (ops-unadmitted-signin-cleanup (a), 0135 T8: ✅ built, merged 2026-09-29 as #1344 and #1345, and running once live's timer is installed), server logs with Docker's default (ops-log-driver (a), 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird`, not merged, 2026-09-28 and 2026-09-29: the journald step out of the managed guides, the breach procedure reading container output from Docker, and `stand-up-live.sh` refusing another driver; the check on the machine the owner's); the code for each of the rest 📋 **Proposed**, not built — *was:* the wording drafted 2026-09-28; the rest's code proposed | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. `site/legal/README.md`, *Before the draft markers come off*, lists what each needs. |
+| T5 The sub-processors named | 🔨 **Text done 2026-09-28** in the drafts, on draft PR #1317, not merged: privacy §7's table is the complete list and says so (rec-subprocessors-url (a)); NetBird GmbH, its terms and agreement accepted on 2026-08-01 and the agreement covering the proxy and its log (dpa-netbird-agreement (a); the owner, 2026-09-28), carries connections on through a WireGuard tunnel and keeps its own log of each request; Proton AG in Switzerland, with Art. 45 GDPR and Decision 2000/518/EC cited (privacy-switzerland-wording (b)); no hosting row, because no company houses the machine (subprocessors-machine-housed (a)); `subprocessors.md` unpublished until the first business customer; NetBird's own sub-processors read from its trust center 2026-09-28 (18 entries, none with a location); NetBird's sign-in (SSO), on for the hosts NetBird serves (*"No pin, but SSO on"*), to go off on every `ownpace.eu` host before the first invitation, the owner's choice (*"Off everywhere at launch"*), a precondition (privacy's to-do on NetBird, (d)), whose check 🔨 is built on branch `claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird`, not merged (2026-09-28, review fixes 2026-09-29): the exposure probe fails while NetBird's sign-in answers any of the four (item 8), and switching it off, then a dispatch that passes, are the owner's; ⏳ **Owner**, not before the first invitation: NetBird asked where its proxy and log run, at which provider, and whether its own sub-processors receive either, the *Where* staying *Germany (EU)* by the owner's choice until it answers ((c)), and asked in writing whether the Alpha or a paid tier behind the proxy is commercial use under its terms §3.1, answered before the first paid tier at the latest ((e)); the agreement's sub-processors, their announcement, the right to object and the 7 days for the lawyer's pass ((b)) — *was:* NetBird's acceptance date, its agreement read, where its proxy and log run and at which provider, and whether its own sub-processors receive either still for the owner; before that, the text drafted 2026-09-28 with the entity name, the agreement, the proxy's location and whether a company houses the machine all to confirm; **nothing else receives anything** 🔨 **built 2026-09-28, review fixes 2026-09-29** on branch `claude/ownpace-public-readiness-y7orc6-nothing-phones-home`, **not merged** (ops-telemetry (a)): Trigger.dev's two PostHog halves and the Prisma checkpoint its entrypoint sent, Zitadel's daily service ping, ClickHouse's crash reports, MinIO's release check and Mailpit's switched off; the demo's Nextcloud's update check, app store and connectivity check **not** switched off in this change (2026-09-29, later: a hook that did made the demo's first CalDAV write answer 500 in E2E (managed) #215, and #216 on `main`, which recreated the same container without it, passed; it holds fixtures only and is not on live; ⏳ a follow-up switches them off with a check that the demo's DAV writes still work); the demo's Stalwart's GitHub and jsDelivr downloads named, ⏳ **Owner** to switch or keep; `scripts/a-service-that-phones-home.unit.test.ts` — *was:* Nextcloud's switched off by a hook, and before that the demo's Nextcloud left on | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
+| T6 What is kept, and for how long, made true | 🔨 **The copy before an update, and the drill off live, built 2026-09-28, review fixes 2026-09-29** (rec-copies (a), rec-drill (a)) on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, **not merged**: `copy-before-update.sh`, taken by `deploy-live.sh` right before its checkout (only while the daily duties' timer runs), deleted by the owner once the update is proven and by the daily duties after 6 days less an hour, a rollback that erases again what was erased after the copy (`since`), and no drill on live; `privacy.md`'s and `privacy.nl.md`'s comments, `README.md`'s two items and `alpha.md`'s briefing say so; 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 🔨 **built 2026-09-27**, merged as #1255; every period 📋 **Decided 2026-09-28** from the owner's answers and in privacy §9's draft: the copy before an update (rec-copies (a)), the drill off live (rec-drill (a)), support-screen searches and downloads 12 months (privacy-search-records (a): 🔨 built 2026-09-29 as `box-duties.sh`'s duty `searches`, `support-read-prune.sh --delete`, not merged, and running once live's timer is installed), the sharing list with its migration (privacy-sharing-list (b)), sent mail until resolved and then 6 months (privacy-sent-mail-copies (b)), the background tasks' records until the end of the Alpha (privacy-task-records (a)), the sign-in history checked first (privacy-signin-history (a)), accounts nobody let in removed by a daily script (ops-unadmitted-signin-cleanup (a), 0135 T8: ✅ built, merged 2026-09-29 as #1344 and #1345, and running once live's timer is installed; reviewed and 🔨 fixed 2026-09-29, not merged: an account that was let in is kept, and a removed member's account in the end is the owner's, 0135 open question 13), server logs with Docker's default (ops-log-driver (a), 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird`, not merged, 2026-09-28 and 2026-09-29: the journald step out of the managed guides, the breach procedure reading container output from Docker, and `stand-up-live.sh` refusing another driver; the check on the machine the owner's); the code for each of the rest 📋 **Proposed**, not built — *was:* the wording drafted 2026-09-28; the rest's code proposed | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. `site/legal/README.md`, *Before the draft markers come off*, lists what each needs. |
 | T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`; the identity provider's account ✅ **since 0135 T8 (a), merged 2026-09-29 as #1344** (0131 §6, M3's step 7): `idp-strays.sh --subject <sub> --remove` in the runbook's *Tenant offboarding*, refused while the account still belongs somewhere — *was:* by hand until 0135 T8; *nothing uses your access after closing* is not fully true yet: since #1320 (`d7868276`, merged 2026-09-28), on this branch since `main` was merged into it in `c1413b53`, nothing new starts for a closed organisation, but work already running is not all stopped, and a verification or a confirmation reads to its end (terms briefing, precondition B); a tester who does not accept the new conditions after the Alpha is closed that day and erased 7 days later (alpha-s11-erasure-window (b)), which `operator.sh close <tenant> 7` already does — *was:* (a) built; terms §11 and privacy §9 describing the close in the drafts of 2026-09-28 | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
 | T9 SECURITY.md covers the hosted service, with one channel | ✅ **done** in #1257, merged 2026-09-27 (`12cb40fb`): `SECURITY.md`'s scope, versions and five days, and `security.txt` from the site build; privacy §11 names the form, then support@, in both languages in the draft of 2026-09-28 (not committed), so the guard, which asks for one channel, can ask for both, in order — *was:* 🔨 **Written 2026-09-27, not merged**; 📋 **Decided 2026-09-27** (open question 5): the advisory form with `support@ownpace.eu` as fallback, five working days, `main` and live's release | §3. Scope, supported versions, a response target, `security.txt`. |
@@ -2802,6 +2976,9 @@ questions 2 and 3), and the lawyer checks the words.
   days), that there are no backups during the alpha (0134 T1), and the identity provider's step
   (T7, 0135 T8). It also names how long an account at the identity provider that nobody let in
   is kept: 0135 T8 proposes 30 days, and 0135 open question 6 asks the owner.
+- **A removed member's sign-in account** (0135 open question 13, 2026-09-29): kept until the
+  organisation is erased, or removed after N days. The owner decides, and privacy §9 then names
+  it. Until then 0135 T8's daily run keeps it, because the removal is recorded in `audit_log`.
 - **The task runner's stores.** 0134 T1 reads what each task returns and what a failed run's
   error can carry. The task events (ClickHouse) and large payloads (MinIO) that `managed.yml`
   describes are not backups, but they can outlive an erasure, and 0134 hands that finding to this

@@ -1,0 +1,32 @@
+<!-- ClickHouse's crash reports, turned off (workplan 0139, 2026-09-28).
+
+     Privacy §8 names every party that receives anything, and the owner chose,
+     for ops-telemetry: "Switch it off everywhere". ClickHouse was one of the
+     parties nobody had named.
+
+     The config.xml this image ships (programs/server/config.xml at
+     v26.2.19.43-stable) sets
+
+         <send_crash_reports>
+             <enabled>true</enabled>
+             <send_logical_errors>true</send_logical_errors>
+             <endpoint>https://crash.clickhouse.com/</endpoint>
+
+     so on a crash, and on a logical error, the server posts a report to
+     ClickHouse, Inc. The code's own default is off: src/Daemon/CrashWriter.cpp
+     reads send_crash_reports.enabled with `false`, and BaseDaemon.cpp reads
+     send_logical_errors the same way. It is the shipped file that turns both
+     on, so a file in config.d, merged over it, turns both off again.
+
+     A file of its own rather than a line in clickhouse-override.xml, which is
+     upstream's tuning verbatim and says so.
+
+     `scripts/a-service-that-phones-home.unit.test.ts` reads this file through
+     managed.yml's mount, and fails when either value is anything but false, or
+     when a second mounted file also speaks of crash reports. -->
+<clickhouse>
+    <send_crash_reports>
+        <enabled>false</enabled>
+        <send_logical_errors>false</send_logical_errors>
+    </send_crash_reports>
+</clickhouse>

@@ -17,6 +17,8 @@ import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middle
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { eq, and, count } from 'drizzle-orm';
 import * as schema from '@openmig/managed/schema-managed';
+import { PgLedger } from '@openmig/ledger';
+import type { TenantId } from '@openmig/shared';
 import {
   demotesLastOwner,
   removesLastOwner,
@@ -26,6 +28,18 @@ import {
 import { serverFault } from '../../server-fault.ts';
 
 const router = Router();
+
+/**
+ * What a member's removal is recorded under in `audit_log`, as `operator.sh
+ * leave` records its own (`MEMBERSHIP_REMOVED_ACTION`, `scripts/operator.ts`).
+ *
+ * The removal deletes the member row, so this record is what is left to say
+ * the person was let in. `deploy/compose/idp-strays.sh` reads it and keeps
+ * their sign-in account: privacy §9's 30 days are for an account "that we
+ * never let in" (workplan 0135 T8). `a-member-removed-is-recorded.unit.test.ts`
+ * holds the route, `operator.ts` and the script to one spelling.
+ */
+export const MEMBER_REMOVED_ACTION = 'member.removed';
 
 // Lazy pool initialization - created on first use, not at module load
 let _dbPool: ReturnType<typeof getDbPool> | null = null;
@@ -469,14 +483,41 @@ router.delete(
         }
       }
 
+      // The removal and its record, in one transaction: a record that cannot
+      // be written rolls the removal back, never a removal left unrecorded.
+      // The detail names the subject, which is what the record is for, and no
+      // address (0137 T4). It names the row as the delete found it, not as the
+      // read above did: an invitee's first sign-in (claimRequestedMembership,
+      // auth.ts) turns the same row from a `pending:` placeholder into their
+      // subject in between, and a record of the placeholder would leave the
+      // strays duty taking their account for one nobody let in (0135 T8).
       await withTenantDb(tenantId, getSharedPool(), async (db) => {
-        await db.delete(schema.tenantMember)
+        const [gone] = await db.delete(schema.tenantMember)
           .where(
             and(
               eq(schema.tenantMember.id, memberId),
               eq(schema.tenantMember.tenantId, tenantId),
             )
-          );
+          )
+          .returning({
+            id: schema.tenantMember.id,
+            userId: schema.tenantMember.userId,
+            role: schema.tenantMember.role,
+            status: schema.tenantMember.status,
+          });
+        if (!gone) return;
+        await new PgLedger(db).recordAuditEvent(tenantId as TenantId, {
+          actor: req.userId ?? 'unknown',
+          action: MEMBER_REMOVED_ACTION,
+          entity: 'member',
+          detail: {
+            memberId: gone.id,
+            userId: gone.userId,
+            role: gone.role,
+            status: gone.status,
+            via: 'the Team page',
+          },
+        });
       });
 
       res.status(204).send();
