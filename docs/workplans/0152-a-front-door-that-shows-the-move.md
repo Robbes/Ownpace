@@ -4,6 +4,15 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-29, morning: the owner's answers (asked by the writing session).**
+
+- **T0 for D6 on the site's own pages:** #1339's Dutch is approved as written (*"Yes"*), as its
+  own entry below says.
+- **Open question 4: English at the root.** `/` stays English, and Dutch stays under `/nl/`.
+- **T6 (g), the ADR-0014 amendment:** the writing session drafts it for the owner's acceptance
+  (*"Yes"*, once it was checked that none had landed overnight). T6 (d)–(f) and T7 still wait on
+  the amendment's acceptance and on 0111's yearly invoice.
+
 **2026-09-28, night: D6 on the site's own pages, and T6 (a)'s guard (R8 step 2, by the writing
 session at the owner's word *"continue on the rest"*).**
 
@@ -669,6 +678,6 @@ They are references for layout, order and wording, not specifications to the pix
    *an IMAP/DAV provider* until then.
 3. ~~**Colours of the initial tiles (D4).**~~ **Answered by D4's own wording,** *"our own neutral
    monogram tiles"*: neutral, in the site's palette (`tiles.svg`).
-4. **The Dutch site at the root.** The alpha is Dutch (0131 D1), and `/` serves English. Should
-   the alpha build serve Dutch at `/`, with English under `/en/`? That moves every URL. The
-   recommendation is not now: keep `/` and make the language switch more visible on phones (T2).
+4. ~~**The Dutch site at the root.**~~ **Answered 2026-09-29: English at the root** (*"English at
+   root"*). `/` keeps serving English and Dutch stays under `/nl/`, so no URL moves; T2 makes the
+   language switch more visible on phones.
