@@ -9,8 +9,9 @@
   file section for section, and the Dutch is the text testers read first
   (workplan 0139 D2). Drafted on 2026-09-28 at the owner's request, from the
   sentences workplans 0131, 0134, 0137 and 0139 drafted and the owner's
-  answers of that day; the owner reads it before you do. Not rendered by the
-  site build and not linked from anywhere yet (0139 T10).
+  answers of that day; the owner reads it before you do. Rendered by the site
+  build since 0139 T3 (outside the site's nav), whose acceptance screen links
+  it; published once live serves the site (0139 T10).
 
   These conditions sit beside the terms 1.3 and the privacy policy 1.2, both
   drafts in the same pull request. On 2026-09-28 the owner answered all 71
@@ -104,12 +105,15 @@
   - How a tester accepts (§2, §11). ANSWERED: terms-acceptance-route (b),
     2026-09-28. The owner: "People that are accepted in the Alpha do need to
     create a login for the app, accepting fits in there and should record
-    what time/version the accepted of what document." NOT YET BUILT: the
-    screen is 0139 T3, proposed. It must show these conditions with the
-    terms and the privacy policy, record the version of each and the time,
-    and ask again when new conditions follow the Alpha (§11). The first
-    invitation waits for it. The texts must also be on the site, and the
-    site build does not render these conditions yet (0139 T10). Left for the
+    what time/version the accepted of what document." BUILT 2026-09-28: the
+    screen is 0139 T3. It shows these conditions with the terms and the
+    privacy policy, records the version of each, the language and the time,
+    and asks again whenever a version changes, so the new conditions after
+    the Alpha are asked for the same way (§11) once they replace these in
+    the app's list. Not built: §11's "your migrations carry on ... only once
+    you have accepted them"; until then the account is closed by hand on
+    the day, as §11 says. The site build renders these conditions since
+    0139 T3; the texts must still be served (0139 T10). Left for the
     lawyer: terms question 12.
   - Credentials after a finished migration (§10). ANSWERED: 0139 open
     question 3 (a), "keep until deleted or closes", and rec-alpha-10 (a),

@@ -10,6 +10,7 @@
  * managed creation wizard on the edition whose config is read-only BY DESIGN
  * (standing decision 6). Per-mapping routes stay shared — real in both.
  */
+import type { ReactNode } from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -56,6 +57,13 @@ vi.mock('./stores/auth-store', () => {
     },
   };
 });
+
+// The acceptance screen in front of the signed-in pages (0139 T3) asks the
+// API whether anything is due; its own file holds that. Here it lets the page
+// through, so what is under test stays the route table.
+vi.mock('./components/AcceptanceGate', () => ({
+  default: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
 
 // Markers, not screens: mounting is the thing under test.
 vi.mock('./pages/AccessRequests', () => ({ default: () => <div>screen:access-requests</div> }));

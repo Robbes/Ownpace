@@ -1080,9 +1080,12 @@ services:
       ZAMMAD_GROUP: ${ZAMMAD_GROUP:-}
       REPORT_MAIL_TO: ${REPORT_MAIL_TO:-}
       # THE ALPHA (workplan 0131 T1): `alpha` makes the access-granted mail say
-      # so, read by `accessGrantedEvent` in apps/api/src/access-notify.ts. The
-      # web build below takes the same setting as VITE_OWNPACE_STAGE. Empty is
-      # off, which is every deployment but the one testers use.
+      # so, read by `accessGrantedEvent` in apps/api/src/access-notify.ts, and
+      # asks every tester to accept the Alpha conditions, the privacy policy
+      # and the terms before any access is stored, once no text is still a
+      # draft (0139 T3, apps/api/src/conditions-not-accepted.ts). The web build below takes
+      # the same setting as VITE_OWNPACE_STAGE. Empty is off, which is every
+      # deployment but the one testers use.
       # `scripts/an-alpha-both-halves-know-about.unit.test.ts`.
       OWNPACE_STAGE: ${OWNPACE_STAGE:-}
       # THE RULE FOR A HOST A TENANT GIVES US (workplan 0136 T1, T2): the API
@@ -1143,7 +1146,9 @@ services:
         # THE ALPHA NOTE (workplan 0131 T1), from the same OWNPACE_STAGE the api
         # service reads above: a build arg because /login and /request-access
         # have no session to ask with. Vite exposes only VITE_ names, hence the
-        # prefix. Empty is off; changing it means rebuilding this image.
+        # prefix. With `alpha` the bundle also asks, on load, whether the texts
+        # wait to be accepted (0139 T3). Empty is off; changing it means
+        # rebuilding this image.
         VITE_OWNPACE_STAGE: ${OWNPACE_STAGE:-}
         # The address a tester writes to (workplan 0144 T6 (a)). Empty shows nothing new.
         VITE_SUPPORT_EMAIL: ${VITE_SUPPORT_EMAIL:-}

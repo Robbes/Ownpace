@@ -4,6 +4,21 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-29, night: T1's measurements took the gate's fourth-level check red, and the check
+now reads a count as a count.** On branch `claude/ownpace-public-readiness-y7orc6-a-count-is-not-a-fourth-level`.
+
+- **What failed.** E2E (managed) #216 on `main` (`74b70906`): *the migration screen's shape:
+  top-level keys='domains,migration', item-level names=1*. Since #1335 a completed pass writes
+  its `PassMetrics` to `last_pass_metrics`, which the operator's screen for one migration (level
+  3, 0110) shows, and `PassMetrics` has always carried `items`, a count. The check looked for a
+  key named `items` anywhere, whatever it held. Durations and counts are what §17 allows there,
+  and nothing item-level reached the screen.
+- **Fixed in the gate.** `smoke-managed.sh` looks for the item-level names where they hold
+  anything but a number (a fourth level would add a list, an object or a string), and prints
+  the names it found. `scripts/a-count-the-gate-took-for-a-fourth-level.unit.test.ts` runs the
+  gate's own jq on #216's answer (red on `74b70906`: 1 for 0) and on four fourth levels; four
+  mutations, each red.
+
 **2026-09-29, night: Start waits for the count, 15 minutes at most (T3 (d), D10; 0131 §6, group
 M8)**, merged as #1351 (`9f89bbd`).
 

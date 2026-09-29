@@ -4472,23 +4472,40 @@ if [ -n "${STACK_ISSUER:-}" ]; then
     # So the boundary is asked two ways, and neither can go vacuous:
     #
     #   THE SHAPE — exactly two keys at the top, and no item-level name
-    #   anywhere in the body. This is the one that cannot be satisfied by
-    #   accident: a level four would have to introduce a key to hold it.
+    #   anywhere in the body holding anything but a number. This is the one
+    #   that cannot be satisfied by accident: a level four would have to
+    #   introduce a key to hold it, and what it holds is a list, an object or
+    #   a string. A number holds no subject, href or hash: E2E (managed) #216
+    #   failed on `items`, the count `last_pass_metrics` has carried since a
+    #   completed pass writes it (#1335), and a count is what §17 allows there.
+    #   The names found are printed, so a failure says which.
     #
     #   A NEEDLE THAT EXISTS — this tenant's own `natural_key_hash`, which IS
     #   what identifies an item in this schema. Absent from the answer, or the
     #   run fails; and an empty needle fails rather than matching everything.
+    #
+    # `l4_named` and `l4_found` are one program with a different last step
+    # (scripts/a-count-the-gate-took-for-a-fourth-level.unit.test.ts holds them
+    # to it, and runs both on #216's answer and on a fourth level's).
     l4_top="$(jq -r 'keys | join(",")' <<<"$l3_body" 2>/dev/null || echo '?')"
-    l4_named="$(jq -r '[paths | .[] | select(type == "string")] | unique
+    l4_named="$(jq -r '[paths as $p | select(($p[-1] | type) == "string")
+                         | select((getpath($p) | type) != "number") | $p[-1]] | unique
                        | map(select(. == "items" or . == "item" or . == "natural_key"
                                     or . == "natural_key_hash" or . == "source_ref"
                                     or . == "target_ref" or . == "href" or . == "subject"
                                     or . == "summary" or . == "collection"))
                        | length' <<<"$l3_body" 2>/dev/null || echo '?')"
+    l4_found="$(jq -r '[paths as $p | select(($p[-1] | type) == "string")
+                         | select((getpath($p) | type) != "number") | $p[-1]] | unique
+                       | map(select(. == "items" or . == "item" or . == "natural_key"
+                                    or . == "natural_key_hash" or . == "source_ref"
+                                    or . == "target_ref" or . == "href" or . == "subject"
+                                    or . == "summary" or . == "collection"))
+                       | join(",")' <<<"$l3_body" 2>/dev/null || echo '?')"
     if [ "$l4_top" = "domains,migration" ] && [ "$l4_named" = "0" ]; then
       echo "and no fourth level: the migration screen carries ${l4_top}, and no item-level field"
     else
-      echo "the migration screen's shape: top-level keys='${l4_top}', item-level names=${l4_named}"
+      echo "the migration screen's shape: top-level keys='${l4_top}', item-level names=${l4_named} (${l4_found:-none})"
       echo "    Level 3 is the last one on purpose. A screen that lists items is a screen that"
       echo "    shows subject lines, and a fourth level has to introduce a key to hold them."
       fail_at

@@ -51,7 +51,7 @@ placeholder is left in a text the site renders.
 |---|---|---|
 | `privacy.md`, `privacy.nl.md` | `1.2 (draft — not yet published)`, `1.2 (concept — nog niet gepubliceerd)`; 2026-09-28 | For the owner's review, with the owner's answers applied. No placeholder |
 | `terms.md`, `terms.nl.md` | `1.3 (draft — not yet published)`, `1.3 (concept — nog niet gepubliceerd)`; 2026-09-28 | For the owner's review, with the owner's answers applied. No placeholder |
-| `alpha.md`, `alpha.nl.md` | `1.0`; 2026-09-28 | The owner's text for the Alpha, taken as final without the lawyer's pass. Edited in place with the owner's answers, because nobody has accepted it yet: it stays 1.0 (alpha-version-number (a)), and every change after the first acceptance gets a new number. No placeholder. Not rendered yet (below) |
+| `alpha.md`, `alpha.nl.md` | `1.0`; 2026-09-28 | The owner's text for the Alpha, taken as final without the lawyer's pass. Edited in place with the owner's answers, because nobody has accepted it yet: it stays 1.0 (alpha-version-number (a)), and every change after the first acceptance gets a new number. No placeholder. Rendered since 0139 T3, outside the site's nav, at `/alpha.html` and `/nl/alpha.html` (below) |
 | `subprocessors.md` | `0.2 (draft — not yet published)`; 2026-09-28 | English only. Unpublished until the first business customer: during the Alpha, privacy §7's table is the complete list (rec-subprocessors-url (a)). Not rendered (below) |
 | `dpa.md` | No *Version* line: its *Status* line says `draft v0.2`; 2026-09-28 | English only, on purpose. Unpublished until the first business customer, and corrected in one pass before then (dpa-unpublished-until-business (a)). Not part of the Alpha, which admits households only (0139 open question 6) |
 
@@ -291,18 +291,56 @@ the text: after the lawyer's pass (0139 T1), or without it, as the owner did for
 conditions (1.0, 2026-09-28). `node site/build.mjs --public --check` then prints
 `0 legal page(s) marked draft` and exits 0.
 
+**The same pull request sets `LEGAL_DRAFTS`** in `packages/managed/src/legal-versions.ts` to
+match, and pins the final words in `ACCEPTED_WORDS`
+(`scripts/a-version-the-tester-accepted.unit.test.ts` fails until both agree with the texts). The
+app asks nobody to accept anything while any text is a draft, because a draft's number is the one
+its final text carries: an acceptance of draft 1.2 would be recorded as one of final 1.2 (0139 T3,
+review of 2026-09-29). **From then on, a text that changes gets a new number**, in both languages
+and in `LEGAL_VERSIONS`, and every tester is asked again; the guard fails when a final text's words
+change under the same number. This is the owner's rule for the Alpha conditions
+(alpha-version-number (a)), applied to all three.
+
 **Before the draft markers come off**, some sentences need code, machine or owner steps that are
 not done yet. The owner decided each on 2026-09-28 (the answer's id is in brackets). Each is also
 a comment beside the sentence, in both languages, where the text rests on it. **Done:**
 
 - *Problem reports by mail* (privacy §4.5): merged as #1318 (`0c019ab8`, 0130 T5), and on this
   branch. True on live once live's `.env` has no `ZAMMAD_URL`.
+- *Acceptance, with version and time* (terms §1, Alpha conditions §2, privacy §4.4;
+  terms-acceptance-route (b)): the in-app screen, 0139 T3, built 2026-09-28. While the deployment
+  runs the Alpha (`OWNPACE_STAGE=alpha`, which live sets), the app shows the Alpha conditions, the
+  privacy policy and the terms, each linked in the reader's language with its version, after
+  sign-in and before any other page; records one row per text with the version, the language and
+  the time (`legal_acceptance`, managed migration 0032); asks again whenever a version changes;
+  and refuses to store any access (adding a connection, giving one a new key, creating a
+  migration, issuing a grant link) until the current versions are accepted. The app's numbers are
+  `LEGAL_VERSIONS` in `packages/managed/src/legal-versions.ts`, and
+  `scripts/a-version-the-tester-accepted.unit.test.ts` fails when a text's *Version* line and
+  that number differ: **a new number here is a text every tester accepts again, so change both in
+  one commit.** **Nobody is asked while any text is a draft** (`LEGAL_DRAFTS`, review of
+  2026-09-29): on live, asking starts with the release that carries the final texts (*To build or
+  to do*, below). The record is kept with the account and erased with it, and a member who leaves
+  keeps theirs until then (privacy §9's row; 0139 open question 4, the proposal until the owner
+  answers). Not built: Alpha conditions §11's *"your migrations carry on under the new conditions
+  only once you have accepted them"*, for after the Alpha.
 
 **To build or to do**, before the first invitation unless it says otherwise:
 
-- *Acceptance, with version and time* (terms §1, Alpha conditions §2 and §11, privacy §4.4;
-  terms-acceptance-route (b)): the in-app screen, 0139 T3. The first invitation waits for it and
-  its tests.
+- *Acceptance starts with the final texts* (terms §1, Alpha conditions §2, privacy §4.4; 0139
+  T3): the owner's final-text pull request drops the draft words from privacy 1.2 and terms 1.3,
+  sets `LEGAL_DRAFTS` to match, and pins their words in `ACCEPTED_WORDS` (*What a final Version
+  line looks like*, above). Until that release is on live, live asks nobody, so the first
+  invitation waits for it. The API's start log says which.
+- *The language on the record* (privacy §4.4; review of 2026-09-29): the record keeps the
+  language each text was accepted in, and the draft of §4.4 now says so in both languages
+  (*"in which language"* / *"in welke taal"*), as does the screen. For the owner's review with
+  the rest of the draft; if the owner prefers the sentence without it, the column goes instead
+  (`legal_acceptance.language`, managed 0032).
+- *A member who leaves* (privacy §9's new row; 0139 open question 4): the acceptance record of a
+  member who is removed stays with the organisation until its data is erased. For the owner's
+  review with the rest of the draft.
+
 - *Nothing uses your access after closing* (privacy §9, terms §11, Alpha conditions §10, the
   DPA's Annex A; terms briefing, precondition B): partly done. Since #1320 (`d7868276`, merged
   2026-09-28), on this branch since `main` was merged into it in `c1413b53`, nothing new starts
@@ -339,8 +377,14 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   0135 T8's script, `idp-strays.sh`, run with the machine's daily duties. Built; it runs once
   live's timer is installed.
 - *Searches and downloads on the support screens, 12 months* (privacy §4.5, §9;
-  privacy-search-records (a)): a daily duty deletes those log records older than 12 months, over
-  the owner's connection, because the app cannot delete from that log. Not built.
+  privacy-search-records (a)): a daily duty deletes those log records older than 12 months, over the
+  owner's connection at the machine: `app_user`, the role every request runs as, cannot delete from
+  that log, and after 0138 T3 step 2 the tasks' system role can, for the purge of an erased
+  organisation, but its grant lets it pick rows by organisation, never by age. Built (0139 T6):
+  `box-duties.sh` runs `support-read-prune.sh --delete` on live once a day as the duty `searches`;
+  it runs once live's timer is installed. It deletes every read recorded with no organisation at 12
+  months: besides a search and a download, the organisation list, the invoices kept after an
+  erasure, and a log page not filtered to one organisation.
 - *The sharing list goes with its migration* (privacy §4.6, §9; privacy-sharing-list (b)): built
   (0139 T6, 2026-09-29) on branch
   `claude/ownpace-public-readiness-y7orc6-the-sharing-list-goes-with-its-migration`, not merged.
@@ -498,10 +542,11 @@ commit.
   were drafted on 2026-09-28 as version 0.1, at the owner's request, for the owner's reading and
   the lawyer's pass. The owner reviewed them the same day and set their *Version* line to 1.0,
   with no draft marker. The owner's answers of the same day changed §2, §4, §5, §6, §9, §10 and
-  §11, and the text stays 1.0 until the first tester accepts it (alpha-version-number (a)). They
-  are not rendered by the site build and not linked from the app
-  (`NOT_BUILT_YET` in `apps/web/src/services/legal-links.ts`). 0139 T10 renders them, and a
-  `--public` build refuses them while their *Version* line says draft.
+  §11, and the text stays 1.0 until the first tester accepts it (alpha-version-number (a)). The
+  site build renders them since 0139 T3, outside the site's nav, and the app's acceptance screen
+  links them (`LEGAL_PAGES` in `apps/web/src/services/legal-links.ts`); a `--public` build refuses
+  them while their *Version* line says draft. They are published once live serves the site
+  (0139 T10).
 - **The DPA and the sub-processor list, as published pages** (0086 T5, 0139 T10). Drafts exist —
   [`dpa.md`](./dpa.md) and [`subprocessors.md`](./subprocessors.md), first written 2026-08-30
   and revised 2026-09-28, both at 0.2 — but they are not rendered by the site build, not linked

@@ -1904,6 +1904,31 @@ GIT_SHA=$(git rev-parse --short HEAD) \
 Open the sign-in page: the note is under the title. Empty, or any value but
 `alpha`, is no note and no paragraph. The appliance never shows it.
 
+**The same setting asks for acceptance** (workplan 0139 T3), **once no text is
+still a draft**. With `alpha`, every tester who signs in meets one screen before
+any other page: the Alpha conditions, the privacy policy and the terms, each
+linked in their language with its version, and one button. The API records the
+version of each text they accepted, the language and the time, and until they
+have, it refuses to store any access they give (adding a connection, a new key,
+a new migration, a grant link: 409 `conditions_not_accepted`). The screen comes
+back whenever a text's version changes, at the next load or the next door
+pressed. Both halves take the setting: the API's refusals and records, and the
+web bundle, which asks `GET /api/me` on load only when built with it, so
+rebuild `web` as well as recreating `api`.
+
+While any text is a draft (`LEGAL_DRAFTS` in
+`packages/managed/src/legal-versions.ts`), nobody is asked, nothing is refused
+and nothing is recorded, as with the setting off: a draft's number is the one
+its final text will carry, so an acceptance of the draft would be recorded as
+one of the final text. On 2026-09-29 the privacy policy 1.2 and the terms 1.3
+are drafts, so deploying this to live asks nobody yet; it starts asking with
+the release that carries the owner's final texts. The API's start log says
+which (`[api] OWNPACE_STAGE=alpha, but … are drafts: nobody is asked …`). The
+links point at the site `VITE_LEGAL_SITE_URL` names, so the texts must be
+served there before the first invitation (0139 T10). Who accepted what is under
+*Acceptance* in the
+[operator runbook](./operator-runbook.md#acceptance-who-accepted-which-version).
+
 The second line is the alpha's other half: the days the erasure sentence says a
 copy may still hold a closing organisation's data. The alpha takes no backups,
 apart from one copy of live's databases made right before each update and kept
@@ -3014,7 +3039,7 @@ it says which and logs nothing; fix it and run it again with `--resume`.
    so `sudo loginctl enable-linger "$USER"`, then
    `systemctl --user enable --now ownpace-box-duties.timer`, one
    `systemctl --user start ownpace-box-duties.service`, and the journal: all
-   six duties pass.
+   seven duties pass.
 4. **Rehearse the next deploy.** Open a hold on the support screen with a Dutch
    sentence, wait five minutes, then `./deploy/compose/deploy-live.sh --dry-run <tag>`:
    every refusal passes, it says reversible (the same tag), and nothing moves.
@@ -3039,7 +3064,7 @@ them:** it runs on the test stack only, in the gate (workplan 0139, the
 owner's answer rec-drill (a) of 2026-09-28). On live it kept a daily dump of
 the task runner's database, and live keeps one copy of its databases, made
 right before an update; `trigger-version.sh` refuses `drill` there. It does
-six duties, each one whatever the one before it did:
+seven duties, each one whatever the one before it did:
 
 | Duty | What it runs | What it does |
 |---|---|---|
@@ -3048,9 +3073,10 @@ six duties, each one whatever the one before it did:
 | `exposure` | `exposure-check.sh` | Every port any container on the machine publishes, both stacks (0132 T3). Needs `EXPOSURE_ALLOW` in live's `.env`. |
 | `organisations` | `setup-zitadel.sh --count-organisations` | 0135 T3's count on live's identity provider, read-only. A count that is not one fails the duty. |
 | `site` | `www-live.sh check` | Read-only (0139 T10). Fails when a container of live's project has the compose service `www`, where a `www.yml` command without `-p` puts the site; and, when live's `.env` says `WWW_LIVE=true`, when `ownpace-live-www` is not running and healthy (*`www.ownpace.eu`: live's copy*). |
-| `strays` | `idp-strays.sh --remove --at-most 20` | Removes the sign-in accounts nobody let in, older than 30 days, as privacy §9 says (0135 T8; the runbook's *Sign-in accounts nobody let in*). More than 20 at once removes none and fails the duty: run `./deploy/compose/idp-strays.sh` from `~/ownpace-live` to see them, then `--remove` by hand if they are right. Its lines name an account's id, never its address. |
+| `strays` | `idp-strays.sh --remove --at-most 20` | Removes the sign-in accounts nobody let in, older than 30 days, as privacy §9 says (0135 T8; the runbook's *Sign-in accounts nobody let in*). An account that was let in and removed since stays, and so does one of another organisation at the provider or with a role there. More than 20 at once removes none and fails the duty: run `./deploy/compose/idp-strays.sh` from `~/ownpace-live` to see them, then `--remove` by hand if they are right. A database with no operator row (*Become the operator*, above) removes none and fails the duty too. One that has its operator row back and not its members, after a reset or restore that kept the provider's accounts, is not seen: turn the duties off before such a reset and on again once the members are back (the runbook says how). Its lines name an account's id, never its address. |
+| `searches` | `support-read-prune.sh --delete` | Deletes the support screens' reads recorded with no organisation (a search by address, a download of the audit log, the organisation list, the invoices kept after an erasure, a log page not filtered to one organisation) 12 months after they were recorded, as privacy §4.5 and §9 say (0139 T6; the runbook's *Searches and downloads on the support screens*). As the database's owner: `app_user` cannot delete from that log, and the tasks' system role (0138 T3 step 2) can, for the purge of an erased organisation, but its grant (`SELECT` on `tenant_id`, and `DELETE`) lets it pick rows by organisation, never by age. It stops, deleting nothing, and fails the duty when that connection does not pass row security. It prints a count. |
 
-It exits 0 when all six pass, 1 naming every duty that failed, and 2 when it
+It exits 0 when all seven pass, 1 naming every duty that failed, and 2 when it
 refused before any duty: a `.env` without live's marker (the OTA stack's duties
 are the gate's), a project the reader refuses, or an argument. A duty that runs
 past 20 minutes (`BOX_DUTY_TIMEOUT`, in seconds) is a failed duty. Ctrl-C in a
@@ -3072,10 +3098,10 @@ and reaches Docker. Both are in
 ```ini
 # ownpace-box-duties.service — live's daily duties (workplan 0132 T7): the
 # provisioning token's clock, the backstop of the copy before an update
-# (0139), the exposure check, the organisation count, the site's (0139 T10)
-# and the accounts nobody let in (0135 T8). A user unit, started by
-# ownpace-box-duties.timer; the install steps are in docs/managed-bring-up.md,
-# "Live's daily duties".
+# (0139), the exposure check, the organisation count, the site's (0139 T10),
+# the accounts nobody let in (0135 T8) and the support screens' searches kept
+# a year (0139 T6). A user unit, started by ownpace-box-duties.timer; the
+# install steps are in docs/managed-bring-up.md, "Live's daily duties".
 [Unit]
 Description=ownpace-live: the duties the nightly gate does for the OTA stack
 
@@ -3084,9 +3110,9 @@ Type=oneshot
 WorkingDirectory=%h/ownpace-live
 ExecStart=%h/ownpace-live/deploy/compose/box-duties.sh
 SyslogIdentifier=ownpace-box-duties
-# Six duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
+# Seven duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
 # which failed.
-TimeoutStartSec=130min
+TimeoutStartSec=150min
 ```
 
 ```ini

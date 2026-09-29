@@ -53,6 +53,7 @@ import type { TokenRevoker } from '@openmig/shared';
 import { cutoverBeginRefusal, prepareTransition } from '@openmig/core/cutover-state';
 import { enqueueUnlessHeld } from '../../enqueue-unless-held.ts';
 import { refusedAsClosed } from '../../closed-organisation.ts';
+import { refusedUntilAccepted } from '../../conditions-not-accepted.ts';
 import type {
   DropboxNativeFilePolicies,
   GoogleNativeFilePolicy,
@@ -2268,6 +2269,10 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
     // A closed organisation takes no new migration, and stores no new
     // credential (0085 T2): refused before anything is written.
     if (await refusedAsClosed(res, tenantId, getSharedPool())) return;
+    // Nor does anybody who has not accepted the current texts, while the
+    // deployment asks (0139 T3): this door stores the source's and the
+    // destination's access.
+    if (await refusedUntilAccepted(res, tenantId, req.userId, getSharedPool())) return;
 
     // The deployment's cap on unfinished migrations (0143 T2a), read per
     // request like every other deployment setting here. A value it cannot read

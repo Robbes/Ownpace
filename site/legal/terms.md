@@ -42,11 +42,13 @@
      from this site. The owner chose this route (terms-acceptance-route (b)):
      "People that are accepted in the Alpha do need to create a login for the
      app, accepting fits in there and should record what time/version the
-     accepted of what document." The screen is 0139 T3: proposed, not built.
-     Connecting an account is refused until the tester has accepted. The
-     first invitation waits for that code and its tests. The texts must also
-     be served: live's WWW_LIVE is false, and the site build does not yet
-     render the Alpha conditions (T10). Today neither exists.
+     accepted of what document." The screen is 0139 T3, built 2026-09-28:
+     while live's OWNPACE_STAGE=alpha, the app shows the three texts with
+     their versions after sign-in, records the version of each, the language
+     and the time, and refuses to store any access (adding a connection,
+     giving one a new key, creating a migration) until the current versions
+     are accepted. The site build renders the Alpha conditions since then.
+     Still to do: the texts must be served (live's WWW_LIVE is false).
   B. Not fully done: §11's "From the moment your account is closed, nothing
      uses the access you gave us.", which the Alpha conditions §10, privacy
      §9 and the DPA's Annex A promise too. Since #1320 (d7868276, 0085 T2,

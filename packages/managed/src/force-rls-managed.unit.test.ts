@@ -72,6 +72,7 @@ const MANAGED_RLS_TABLES = [
   'bytes_moved',
   'grant_link_allowance',
   'invoice',
+  'legal_acceptance',
   'occupancy_peak',
   'payment_method',
   'person',
