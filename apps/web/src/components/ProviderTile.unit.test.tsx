@@ -11,6 +11,8 @@
  *   like `gmail`, and `o365` is M;
  * - the tile is `aria-hidden` and the name is written, so a screen reader
  *   reads the name once and never the letter;
+ * - a line of words names the company a person leaves (`providerName`):
+ *   Gmail and a Google Drive connection are both "Google";
  * - the two colours are the site's (`site/build.mjs`) and the drawing's
  *   (`docs/design/0152-0154/tiles.svg`).
  */
@@ -21,7 +23,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { connectableTypes } from '@openmig/shared';
-import ProviderTile, { TILE_MINT, TILE_TEAL, tileLetter, type TileRole } from './ProviderTile.tsx';
+import ProviderTile, { TILE_MINT, TILE_TEAL, providerName, tileLetter, type TileRole } from './ProviderTile.tsx';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const read = (...path: string[]) => readFileSync(join(REPO_ROOT, ...path), 'utf8');
@@ -78,6 +80,25 @@ describe('the provider tile', () => {
     expect(container.querySelector('[data-tile="source"]')!.className).toContain(`bg-[${TILE_TEAL}]`);
     expect(container.querySelector('[data-tile="target"]')!.className).toContain(`bg-[${TILE_MINT}]`);
     expect(container.querySelector('[data-tile="target"]')!.className).toContain(`text-[${TILE_TEAL}]`);
+  });
+
+  it.each([
+    ['gmail', 'source', 'Google'],
+    ['google_drive', 'source', 'Google'],
+    ['google_calendar', 'source', 'Google'],
+    ['o365', 'source', 'Microsoft 365'],
+    ['apple', 'source', 'Apple iCloud'],
+    ['dropbox', 'source', 'Dropbox'],
+    ['imap', 'source', 'IMAP'],
+    ['soverin', 'target', 'Soverin'],
+    ['nextcloud', 'target', 'Nextcloud'],
+  ] as [string, TileRole, string][])('names %s as a %s "%s" in a line of words', (type, role, name) => {
+    expect(providerName(type, role)).toBe(name);
+  });
+
+  it('names a company only where a person leaves it, and a type it does not know as itself', () => {
+    expect(providerName('gmail', 'target')).toBe('Gmail');
+    expect(providerName('no-such-type', 'source')).toBe('no-such-type');
   });
 
   it('uses the same two colours as the site and the drawing', () => {

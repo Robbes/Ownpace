@@ -4,6 +4,51 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, night, later: T8 (b) built, the accounts removed every day on live (0131 §6, group
+M3, before its step 7)** on branch `claude/mailbox-sync-errors-c2xsw2-accounts-removed-daily`,
+stacked on (a)'s branch below, not merged.
+
+- **Built.** `box-duties.sh` has a sixth duty, `strays`: `idp-strays.sh --remove --at-most 20`,
+  after the token's clock, so it asks with a live token. `--at-most N` is new in the script: more
+  than N at once removes none and fails, so a day with more strays than a day brings (a wave of
+  registrations, or a fault that makes everybody look like one) waits for a person to look. 20 is
+  a number of this session's; the owner may set another. The service's `TimeoutStartSec` grows
+  from 110 to 130 minutes, for six duties of at most 20 minutes each, and the timer's window
+  check still holds (the next nightly firing is ten hours after the timer).
+- **Proved** by the script's guard (35 cases now: `--at-most` refuses above its number, removes
+  up to it, and refuses a number that is not one before any call) and the duties' guard
+  (`a-duty-the-gate-used-to-do`: six duties, in order, each named when it fails, and a new check
+  that `TimeoutStartSec` covers every duty at its longest).
+- **Owner steps once merged,** on live: copy the two units again and reload, as *Live's daily
+  duties* in `docs/managed-bring-up.md` installs them (the unit changed), and run
+  `./deploy/compose/idp-strays.sh` once by hand, to see what the first daily run will remove.
+  `site/legal/README.md` now says the script is built; privacy §9's row still waits for live's
+  first run.
+
+**2026-09-28, night: T8 (a) built, the script for accounts nobody let in (0131 §6, group M3,
+before its step 7)** on branch `claude/mailbox-sync-errors-c2xsw2-an-account-nobody-let-in`, not
+merged.
+
+- **Built.** `deploy/compose/idp-strays.sh` lists the accounts at the stack's identity provider
+  that match all five conditions of T8's rule (§3), and removes them with `--remove`.
+  `--subject <sub> --remove` removes one account at any age, for the runbook's *Tenant
+  offboarding*, and refuses while the subject is still a member anywhere, an operator, or holds
+  an open request or invitation. The provider's own members (the first human, the organisation's
+  managers) are never listed, nor is a machine user, nor an account whose creation date it cannot
+  read. The runbook gains *Sign-in accounts nobody let in* and the offboarding step.
+- **What makes it refuse, removing nothing:** a database read that fails, a listing in a shape it
+  does not know, a token the provider refuses or cannot be read, an instance with no members, and
+  a database that names people none of whom has an account at this provider. Each would make
+  everybody look like a stranger. A removal's line names the account's id, never its address,
+  so a log of a daily run keeps no address of an account it removed.
+- **Proved** by `scripts/an-account-nobody-let-in.unit.test.ts` (28 cases, `docker` and `curl`
+  stubbed), which fails on today's code; 29 of 29 mutations caught, among them the refusal's
+  precedence and the case of an address on either side.
+- **Left of T8:** (b), `--remove` among live's daily duties, which the owner chose (above, in
+  §3). Until it lands, the owner runs the script by hand, and privacy §9's 30 days wait for it
+  (`site/legal/README.md`). Unverified as before: whether removing a user also removes the
+  personal data in its earlier events at the provider.
+
 **2026-09-28, evening: open question 6 answered, and T8's rule completed.** Asked in 0139 whether
 30 days is the period for accounts nobody let in, the owner answered: *"30 days is ok, but those
 are free no further used accounts?"* Privacy 1.2's §9 carries it, in the drafts on draft PR
@@ -282,7 +327,7 @@ Names used from here on: **live** is the identity provider of `ownpace-live`, at
 | T5 Privacy and terms links on the registration and sign-in pages | 📋 **Proposed**; lands with 0139's publication (D5) | §3. The instance privacy policy, from `.env`, read back. Live's first. |
 | T6 Dutch and English, in Ownpace's own words | 📋 **Decided 2026-09-24** (D4) for the languages, and (a) the languages ✅ **done** in #1286, merged 2026-09-28 (`a0897c0`); 📋 **Proposed** for the brand | §3. Only `nl` and `en` allowed, a default from `.env`, and the verification and reset mails rewritten. Logo, colours and the organisation's name follow; live's fresh instance can carry the name from its first start. |
 | T7 A watch on the pinned identity provider | ✅ **the pin moved to v4.19.1** in #1285, merged 2026-09-28 (`f839929`) (open question 11: go); the watch 📋 **decided 2026-09-28**: (a) the owner's GitHub subscription and (b) a weekly job, seven days (open question 5); (b) ✅ **done** in #1288, merged 2026-09-28 (`07dd8ff`); its first run found v4.19.2 (open question 12); the pin ✅ **moved to v4.19.2** in #1292, 2026-09-28, after the owner's dump with `dump-idp.sh`; E2E (managed) #210 applied it to the OTA instance (open question 12: go) — *was:* 📋 **Proposed**; the three releases after the pin read 2026-09-28: v4.18.0 fixes GHSA-4hgj-wm6c-q7p2 in login v1, which this stack serves (open question 11) | §3. Read the three newer releases now, choose a watch, set a response window, and take a dump before an upgrade. |
-| T8 Accounts nobody let in, and erasure that reaches the identity provider | 📋 **Proposed**; the retention period 📋 **Decided 2026-09-28**, 30 days (open question 6), and the rule gains a fifth condition, an open invitation — *was:* the retention period is the owner's (→ 0139) | §3. A retention rule, an operator script in `deploy/compose`, and a runbook step. |
+| T8 Accounts nobody let in, and erasure that reaches the identity provider | 🔨 **(a) built 2026-09-28** on its branch, not merged: `idp-strays.sh`, and the runbook's two steps; (b) 🔨 **built 2026-09-28** on its own branch, stacked on (a)'s: the daily run on live, the owner's choice (0139), once live's timer is installed; the retention period 📋 **Decided 2026-09-28**, 30 days (open question 6), and the rule gains a fifth condition, an open invitation — *was:* 📋 **Proposed**; the retention period is the owner's (→ 0139) | §3. A retention rule, an operator script in `deploy/compose`, and a runbook step. |
 
 ## 1. What there is today
 
@@ -946,11 +991,15 @@ the same stack's database; live's matter first, because testers register there. 
    the members of the instance and of the organisation are never listed.
 
 `--remove` deletes the listed accounts with `DELETE /v2/users/{id}`, which the smoke already
-uses, after printing them. Nothing runs on a timer.
+uses, after printing them. This plan first said nothing runs it on a timer. The owner chose a
+daily run on 2026-09-28 (0139, ops-unadmitted-signin-cleanup (a): *"A daily script, built before
+the first tester"*), so T8 has two steps: (a) the script, and (b) `--remove --at-most 20` among
+live's daily duties (`box-duties.sh`, 0132 T7). More than 20 at once removes none and fails the
+duty, so a day with more strays than a day brings waits for a person to look.
 
 **Erasure.** The runbook's *Tenant offboarding* gets one more step. After the purge, for each
 member subject that belongs to no other organisation and is not an operator, the identity
-provider's account is removed, with `idp-strays.sh --subject <sub>` or in the console. 0131 T4
+provider's account is removed, with `idp-strays.sh --subject <sub> --remove` or in the console. 0131 T4
 (a) uses the same step when the alpha ends.
 
 **Unverified.** Zitadel stores every change as an event. Whether removing a user also removes the

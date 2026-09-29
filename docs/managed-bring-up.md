@@ -3022,7 +3022,7 @@ run replaces it in its last three, and past its deadline no successor can be
 minted), and `trigger-version.sh drill` dumps the Trigger.dev database and
 proves the dump loads. CI never touches live (workplan 0132 T1g), so live has
 [`box-duties.sh`](../deploy/compose/box-duties.sh), run once a day from
-`~/ownpace-live` by a systemd timer (0132 T7). It does five duties, each one
+`~/ownpace-live` by a systemd timer (0132 T7). It does six duties, each one
 whatever the one before it did:
 
 | Duty | What it runs | What it does |
@@ -3032,8 +3032,9 @@ whatever the one before it did:
 | `exposure` | `exposure-check.sh` | Every port any container on the machine publishes, both stacks (0132 T3). Needs `EXPOSURE_ALLOW` in live's `.env`. |
 | `organisations` | `setup-zitadel.sh --count-organisations` | 0135 T3's count on live's identity provider, read-only. A count that is not one fails the duty. |
 | `site` | `www-live.sh check` | Read-only (0139 T10). Fails when a container of live's project has the compose service `www`, where a `www.yml` command without `-p` puts the site; and, when live's `.env` says `WWW_LIVE=true`, when `ownpace-live-www` is not running and healthy (*`www.ownpace.eu`: live's copy*). |
+| `strays` | `idp-strays.sh --remove --at-most 20` | Removes the sign-in accounts nobody let in, older than 30 days, as privacy §9 says (0135 T8; the runbook's *Sign-in accounts nobody let in*). More than 20 at once removes none and fails the duty: run `./deploy/compose/idp-strays.sh` from `~/ownpace-live` to see them, then `--remove` by hand if they are right. Its lines name an account's id, never its address. |
 
-It exits 0 when all five pass, 1 naming every duty that failed, and 2 when it
+It exits 0 when all six pass, 1 naming every duty that failed, and 2 when it
 refused before any duty: a `.env` without live's marker (the OTA stack's duties
 are the gate's), a project the reader refuses, or an argument. A duty that runs
 past 20 minutes (`BOX_DUTY_TIMEOUT`, in seconds) is a failed duty. Ctrl-C in a
@@ -3055,7 +3056,8 @@ and reaches Docker. Both are in
 ```ini
 # ownpace-box-duties.service — live's daily duties (workplan 0132 T7): the
 # provisioning token's clock, the Trigger.dev drill, the exposure check, the
-# organisation count and the site's (0139 T10). A user unit, started by
+# organisation count, the site's (0139 T10) and the accounts nobody let in
+# (0135 T8). A user unit, started by
 # ownpace-box-duties.timer; the install steps are in docs/managed-bring-up.md,
 # "Live's daily duties".
 [Unit]
@@ -3066,9 +3068,9 @@ Type=oneshot
 WorkingDirectory=%h/ownpace-live
 ExecStart=%h/ownpace-live/deploy/compose/box-duties.sh
 SyslogIdentifier=ownpace-box-duties
-# Five duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
+# Six duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
 # which failed.
-TimeoutStartSec=110min
+TimeoutStartSec=130min
 ```
 
 ```ini
