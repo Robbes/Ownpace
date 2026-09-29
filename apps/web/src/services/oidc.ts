@@ -258,6 +258,15 @@ export async function signOutUrl(
 }
 
 /**
+ * Leave for the issuer's end-session address (`signOutUrl`'s answer), so its
+ * session ends too. A function of its own so the sign-out's tests can see it
+ * called: a browser's `location` cannot be replaced.
+ */
+export function leaveForIssuer(url: string): void {
+  browser.location.assign(url);
+}
+
+/**
  * Finish sign-in: check the state, exchange the code, return the ID token.
  *
  * **THE ID TOKEN, NOT THE ACCESS TOKEN, AND THAT IS NOT A SLIP.** The API needs

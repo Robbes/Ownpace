@@ -66,6 +66,7 @@ import {
   type TestConnectionResult,
 } from '../services/mapping-service.ts';
 import { duplicateMapping, serverMessage, tooManyTests } from '../services/api.ts';
+import { conditionsRefusal } from '../services/acceptance.ts';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
 import {
   ConnectReason,
@@ -1189,7 +1190,9 @@ const CreateMapping: React.FC = () => {
             ok: false,
             // The limit on tests (0136 T3) is ours, so it is said in the
             // reader's language; anything else is the server's sentence.
-            reason: tooManyTests(settled.reason) ? t('probe.tooManyTests') : serverMessage(settled.reason),
+            reason: tooManyTests(settled.reason)
+              ? t('probe.tooManyTests')
+              : (conditionsRefusal(settled.reason, t) ?? serverMessage(settled.reason)),
           };
 
     // One side at a time now that each has its own step (workplan 0070):
@@ -3028,7 +3031,9 @@ const CreateMapping: React.FC = () => {
           ) : (
             <div>
               <p className="font-medium">{t('createMapping.createFailed')}</p>
-              <p className="mt-1">{serverMessage(createMutation.error)}</p>
+              <p className="mt-1">
+                {conditionsRefusal(createMutation.error, t) ?? serverMessage(createMutation.error)}
+              </p>
             </div>
           )}
         </div>
