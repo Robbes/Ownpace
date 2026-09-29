@@ -433,6 +433,18 @@ footer.site .build { font-size: 0.8rem; opacity: 0.7; }
 /** Every page, in every locale, so the switcher and hreflang can be built. */
 const PAGE_KEYS = ['home', 'how', 'pricing', 'calculator', 'privacy', 'terms'];
 
+/**
+ * Pages rendered in every locale like the ones above, with a file of their own
+ * in each (`files` in `copy.mjs`, so the switcher and hreflang still work), and
+ * left out of the nav.
+ *
+ * The Alpha conditions (workplan 0139 T2) are for the few people taking part:
+ * the app links them where it asks a tester to accept them with the terms and
+ * the privacy policy (0139 T3), and so do the texts that name them. A link in
+ * every visitor's nav would offer conditions to people who cannot take part.
+ */
+const OUTSIDE_NAV = ['alpha'];
+
 const urlFor = (locale, key) => {
   const file = COPY[locale].files[key];
   return `${localeRoot(locale)}/${file === 'index.html' ? '' : file}`;
@@ -883,8 +895,8 @@ function calculatorPage(locale) {
  * documents (workplan 0139 T10).
  */
 export const SOURCE = {
-  en: { how: 'pages/en/how-it-works.md', pricing: 'pages/en/pricing.md', privacy: 'legal/privacy.md', terms: 'legal/terms.md' },
-  nl: { how: 'pages/nl/hoe-het-werkt.md', pricing: 'pages/nl/prijzen.md', privacy: 'legal/privacy.nl.md', terms: 'legal/terms.nl.md' },
+  en: { how: 'pages/en/how-it-works.md', pricing: 'pages/en/pricing.md', privacy: 'legal/privacy.md', terms: 'legal/terms.md', alpha: 'legal/alpha.md' },
+  nl: { how: 'pages/nl/hoe-het-werkt.md', pricing: 'pages/nl/prijzen.md', privacy: 'legal/privacy.nl.md', terms: 'legal/terms.nl.md', alpha: 'legal/alpha.nl.md' },
 };
 
 const META = {
@@ -895,6 +907,7 @@ const META = {
     calculator: ['Estimate your migration — Ownpace', 'Five questions, an indicative band, and the tier it lands on — derived, never picked. No account, no email, nothing stored.'],
     privacy: ['Privacy policy — Ownpace', 'What Ownpace holds, why, for how long, and what it never does.'],
     terms: ['Terms of service — Ownpace', 'The terms for the managed Ownpace service.'],
+    alpha: ['Alpha conditions — Ownpace', 'The conditions for taking part in the Alpha of the managed Ownpace service.'],
   },
   nl: {
     home: ['Ownpace — verhuis uw gegevens in uw eigen tempo', 'Verhuis uw e-mail, contacten, agenda en bestanden van Google of Microsoft naar een Europese aanbieder, doorlopend, en stap over wanneer u er klaar voor bent.'],
@@ -903,6 +916,7 @@ const META = {
     calculator: ['Schat uw verhuizing — Ownpace', 'Vijf vragen, een indicatieve bandbreedte, en het pakket waar dat op uitkomt — afgeleid, nooit gekozen. Geen account, geen e-mail, niets wordt bewaard.'],
     privacy: ['Privacyverklaring — Ownpace', 'Wat Ownpace bewaart, waarom, hoe lang, en wat het nooit doet.'],
     terms: ['Servicevoorwaarden — Ownpace', 'De voorwaarden voor de beheerde Ownpace-dienst.'],
+    alpha: ['Voorwaarden voor de Alpha — Ownpace', 'De voorwaarden voor deelname aan de Alpha van de beheerde Ownpace-dienst.'],
   },
 };
 
@@ -910,7 +924,7 @@ function build() {
   const rendered = [];
   for (const locale of LOCALES) {
     const c = COPY[locale];
-    for (const key of PAGE_KEYS) {
+    for (const key of [...PAGE_KEYS, ...OUTSIDE_NAV]) {
       const [title, description] = META[locale][key];
       let body;
       if (key === 'home') {

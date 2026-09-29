@@ -25,12 +25,13 @@
  *
  * ## Not links yet
  *
- * The alpha conditions and the sub-processor list are not rendered by the site
- * build yet, so they have no address here, and a screen cannot link them. Their
- * text comes from 0139 T2 and T5; rendering them is 0139 T10's, with T2's guard
- * for the conditions. `NOT_BUILT_YET` names them. When the build renders one,
- * move it into `LEGAL_PAGES` with its file per language; the guard fails until
- * then.
+ * The sub-processor list is not rendered by the site build yet, so it has no
+ * address here, and a screen cannot link it. Its text comes from 0139 T5;
+ * rendering it is 0139 T10's. `NOT_BUILT_YET` names it. When the build renders
+ * it, move it into `LEGAL_PAGES` with its file per language; the guard fails
+ * until then. The alpha conditions (text from 0139 T2) moved on 2026-09-28:
+ * the build renders them, outside the site's nav, because the acceptance screen
+ * (0139 T3) links them beside the privacy policy and the terms.
  *
  * ## A value the links cannot use is refused
  *
@@ -56,7 +57,7 @@ export interface LegalSiteEnv {
 export const DEFAULT_LEGAL_SITE_URL = 'https://www.ownpace.eu';
 
 /** The legal pages the site build writes today, by the build's own page keys. */
-export const LEGAL_PAGES = ['privacy', 'terms'] as const;
+export const LEGAL_PAGES = ['privacy', 'terms', 'alpha'] as const;
 export type LegalPage = (typeof LEGAL_PAGES)[number];
 
 /**
@@ -64,7 +65,6 @@ export type LegalPage = (typeof LEGAL_PAGES)[number];
  * write them. Each names where its text comes from and who renders it.
  */
 export const NOT_BUILT_YET = {
-  conditions: 'the alpha conditions: text from 0139 T2 (site/legal/alpha.md), rendered by 0139 T10',
   subprocessors:
     'the sub-processor list: text from 0139 T5 (site/legal/subprocessors.md), rendered by 0139 T10',
 } as const;
@@ -72,8 +72,8 @@ export type LegalPageNotBuiltYet = keyof typeof NOT_BUILT_YET;
 
 /** Each page's file on the site, per language, as the site build names it. */
 export const LEGAL_FILES: Readonly<Record<Locale, Readonly<Record<LegalPage, string>>>> = {
-  en: { privacy: 'privacy.html', terms: 'terms.html' },
-  nl: { privacy: 'nl/privacy.html', terms: 'nl/voorwaarden.html' },
+  en: { privacy: 'privacy.html', terms: 'terms.html', alpha: 'alpha.html' },
+  nl: { privacy: 'nl/privacy.html', terms: 'nl/voorwaarden.html', alpha: 'nl/alpha.html' },
 };
 
 /**

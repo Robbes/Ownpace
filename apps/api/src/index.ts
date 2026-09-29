@@ -64,6 +64,7 @@ import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 import { runManagedMigrations } from '@openmig/managed';
 import { log, setAppEventSink, setAuditExportSink } from '@openmig/shared';
 import { setAuditKeyDriver } from './audit-key.ts';
+import { acceptanceAtStart } from './conditions-not-accepted.ts';
 
 // Re-export for backwards compatibility
 export type { AuthenticatedRequest, JwtPayload };
@@ -332,6 +333,11 @@ if (process.env.NODE_ENV !== 'test') {
   log.info(
     `[api] at most ${maxMigrationsPerOrganisationFromEnv(process.env.MAX_MIGRATIONS_PER_ORGANISATION)} unfinished migrations per organisation`,
   );
+  // Whether this deployment asks for the texts to be accepted (0139 T3): said
+  // at start, because with OWNPACE_STAGE=alpha and a text still a draft it
+  // asks nobody, and nothing else would show that it does not.
+  const acceptanceLine = acceptanceAtStart();
+  if (acceptanceLine) log.info(acceptanceLine);
   // The rule for a host a tenant gives us (workplan 0136 T1, T2): a connection
   // to an address inside this service's own network is refused, in every
   // managed process, but for the names OWNPACE_REACHABLE_HOSTS admits (the demo

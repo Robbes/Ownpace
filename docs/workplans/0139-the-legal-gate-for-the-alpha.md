@@ -69,6 +69,290 @@ close between steps."* This builds the second. Nothing has run on a machine.
   describe the state before this branch: the legal texts are not changed here. `site/legal/README.md`'s
   item and T7's row say what holds.
 
+**2026-09-29, later: T5, the demo's Nextcloud left on after all**, a third commit on branch
+`claude/ownpace-public-readiness-y7orc6-nothing-phones-home`, not merged; `main` merged in first.
+Nothing has run on the machine.
+
+- **Why.** E2E (managed) #215, the branch's run, failed in *Bring the stack up*: right after the
+  demo's Nextcloud was recreated with the hook below, seed-dav's first calendar PUT answered HTTP
+  500 (`ERROR: calendar PUT 1 returned 500`, no response body in the log). #216 on `main`
+  recreated the same container without the hook, and seed-dav passed. The hook is the one
+  difference. What in it broke the write, one of `updatechecker`, `appstoreenabled` and
+  `has_internet_connection`, or its run before Apache at every start, is not known: the values
+  it wrote in #215 are most likely still in `config.php` on the demo's volume, which the gate
+  keeps between runs, so #216 may have passed with them in place. Nobody has looked on the
+  machine.
+- **What changed.** `deploy/compose/nextcloud-no-phone-home.sh` is removed, with its mounts in
+  `managed.yml` and `dev.yml`. The demo's Nextcloud's three settings are **not** switched off in
+  this change. This Nextcloud is the demo's DAV target on the OTA stack and the development one:
+  it holds fixtures, never a tester's data, and it is not on live. Everything else the branch
+  switches off stays: Trigger.dev's two PostHog halves and Prisma's checkpoint, Zitadel's service
+  ping, ClickHouse's crash reports, MinIO's release check and Mailpit's.
+- **The guard** (`scripts/a-service-that-phones-home.unit.test.ts`, 38 tests). The hook's cases
+  are gone: reading it, checking it mounted and tracked as 100755, and the two runs against a
+  stand-in `php`. Nextcloud's two rows moved from *switched* to a third list, *left on*, which
+  the guard's rule now names: each row says what it sends and why it is left on, is pinned to
+  `nextcloud:34-apache`, and holds it where no tester is (the bring-up starts it only with
+  `--with-demo`, both live scripts refuse that, and no managed script names `dev.yml`), the first
+  pass's check, back with a case of its own. No other row changed. Three mutations, each red and
+  restored: `nextcloud` in the bring-up's default services, `deploy-live.sh` not refusing
+  `--with-demo`, and `dev.yml`'s Nextcloud in no list.
+- **Proved.** The guard: 38 passed. `pnpm exec vitest run --project unit scripts/`: 209 files, 3966 tests pass.
+- **Docs**: `docs/managed-bring-up.md`, *Nothing phones home* (Nextcloud's row says *None yet*,
+  *What is left on, and where* says why, and the hook's command and check are gone);
+  `docs/operator-runbook.md`, *Upgrade*, step 5; the comments above both Nextcloud services.
+- ⏳ **Follow-up**: switch the three off on the demo's and the development Nextcloud, with a check
+  in the same change that the demo's DAV writes still work (seed-dav's calendar PUT at least),
+  run on the OTA stack before it merges.
+
+**2026-09-29: T5, the review's fixes to "nothing phones home"**, a second commit on branch
+`claude/ownpace-public-readiness-y7orc6-nothing-phones-home`, not merged. Nothing has run on the
+machine; the compose files are read, and Nextcloud's hook run against a stand-in, by the guard.
+
+- **Prisma's checkpoint, missed on the first pass.** The webapp's entrypoint runs
+  `prisma migrate deploy` at every start (`docker/scripts/entrypoint.sh` at v4.5.16; prisma
+  6.14.0, a runtime dependency), and the Prisma CLI sends a checkpoint to `checkpoint.prisma.io`
+  for every command it runs: version, OS, architecture, Node, CI, the command, hashes of the
+  project's and the CLI's paths, the schema's providers and a stored random signature
+  (`packages/cli/src/CLI.ts`, `utils/checkpoint.ts`; checkpoint-client 1.1.33, which forks the
+  sender whatever its cache says). `CHECKPOINT_DISABLE: "1"` on `trigger-api`, the only thing
+  either checks. The entrypoint's other children do not call out: pnpm 10.33.2 checks for its own
+  update only on `install` and `add` (`pnpm/src/main.ts`), goose v3.27.1 has no network use of
+  its own, and the dashboard agent's migration is plain drizzle-orm. The server's PostHog also
+  identified the user (id, email, name) at every sign-in (`postAuth.server.ts`), not only at
+  creation; the docs said less than it sent.
+- **Nextcloud switched, not left on** *(taken out again the same day, in the entry above: with
+  the hook, the demo's first CalDAV write answered 500 in E2E (managed) #215, so the three are
+  not switched off in this change)*. The demo's Nextcloud comes up with the OTA stack every
+  night (the gate's `--with-demo`), so "demo and development only" was no reason, and "`occ`
+  settings this file cannot set" was wrong. A `before-starting` hook the image runs as www-data
+  before Apache at every start set `updatechecker`, `appstoreenabled` and
+  `has_internet_connection` to the boolean false, in `managed.yml` and `dev.yml`;
+  `has_internet_connection` is what the announcements feed, the connectivity check and the
+  lookup-server upload read (`stable34`). Not the reviewer's `*.config.php` mounted into
+  `config/`: that makes the directory non-empty before the first install, and the image's
+  entrypoint (`34/apache/entrypoint.sh`, `directory_empty`) then skips copying its own config
+  files, `smtp.config.php` (the catcher, 0103) among them.
+- **Left on, and put to the owner: the demo's Stalwart** (v0.16.10, `docker run` from
+  `setup-stalwart.sh`, on the OTA stack every night and in the self-host end-to-end run). In
+  normal mode it downloads its WebUI from GitHub on first start and every 30 days, its spam-filter
+  rules from GitHub, and an ASN and country database from jsDelivr daily
+  (`crates/common/src/manager/defaults.rs`, `SpamSettings` in `structs_impl.rs`). Downloads, not
+  reports about anybody; they are objects in its datastore, so switching them off is new objects
+  in the provisioning plan, which nothing here could run. ⏳ **Owner:** switch them off on the
+  demo's Stalwart, a change to be run and watched on the OTA stack, or keep them as downloads on
+  a stack that holds demo fixtures and never a tester's data.
+- **The guard, tightened** (`scripts/a-service-that-phones-home.unit.test.ts`, 40 tests). A key
+  with no value (`POSTHOG_PROJECT_KEY:`) reads as passed through from the shell or `.env`; YAML
+  merge keys are applied as Compose applies them; every file ClickHouse merges from `config.d` or
+  `conf.d` is read, wherever it is mounted from, `.yaml`, `.yml` and `.conf` included, and a mount
+  it cannot read fails; the webapp is held to `WEBAPP_KEYS`, every key it may be given with the
+  reason it reaches no third party, rather than to a list of third parties; a switched service may
+  not take `env_file`, `extends` or an overlay; Nextcloud's hook is read, checked tracked as
+  100755, and run against a stand-in `php` *(those cases went with the hook, above)*; Stalwart's pin and the doc that names its fetches are
+  held. The bring-up check on `nextcloud` went with the *left on* list it served. Written first:
+  6 failed, 34 passed (40) on the first pass's tree. Each regression the review found passes the
+  first guard (33 of 33) and fails this one; 18 mutations, 17 red and restored, the 18th
+  (`nextcloud` added to the bring-up's services) now moot, since Nextcloud is switched wherever it
+  starts *(back, with the left-on list, above)*.
+- **Docs**: `docs/managed-bring-up.md`, *Nothing phones home* (Prisma's row, Nextcloud's row and
+  why a hook, *both rewritten above*, Stalwart named, the sign-in identify, and the command for a running stack: the pull
+  sequence recreates `trigger-api` and `clickhouse`, not the identity provider, the object store,
+  the catcher or Nextcloud); `docs/operator-runbook.md`, *Upgrade*, step 5; `setup-stalwart.sh`'s
+  header.
+- **Merged with main** after #1317: main's Status block and T5 row kept, these entries and the T5 row's addition put on top.
+
+**2026-09-28: T5, nothing phones home (privacy §8; ops-telemetry (a), the owner: *"Switch it off
+everywhere"*)**, built on branch `claude/ownpace-public-readiness-y7orc6-nothing-phones-home`, not
+merged. Nothing has run on the machine; the compose file is read by a guard, not started.
+
+- **The spec**, from `site/legal/README.md` on #1317, *To build or to do*: *"Telemetry off (privacy
+  §8's negative; ops-telemetry (a)): `TRIGGER_TELEMETRY_DISABLED` for live and the test stack
+  (`managed.yml`), and the sign-in service, ClickHouse and MinIO checked and switched off too."*
+  Live runs the same `managed.yml` as the OTA stack, with no override file, so one change covers
+  both, and no row of 0132 changes.
+- **What each sent, read from upstream's source at the pinned version** (raw files from
+  `raw.githubusercontent.com`; the docs sites were not needed). Trigger.dev v4.5.16: the server's
+  PostHog on user, organisation and project creation, with the user's email and name
+  (`telemetry.server.ts`; *and at every sign-in, and Prisma's checkpoint beside it: corrected
+  2026-09-29, above*), and the dashboard's PostHog in the browser, identifying the signed-in
+  user by id and email (`usePostHog.ts`), under Trigger.dev's own project key
+  (`POSTHOG_PROJECT_KEY`'s default in `env.server.ts`). **`TRIGGER_TELEMETRY_DISABLED` stops only
+  the first**: nothing else reads it, and the browser's half starts whenever the key is not empty.
+  The supervisor (`apps/supervisor/src/env.ts`) has no analytics. Zitadel v4.19.2: a daily
+  *service ping* to `zitadel.com`, with each instance's id, creation date and domains and the
+  count of users, organisations and projects, **on by default** (`cmd/defaults.yaml`); it is in
+  every v4 release (read at v4.0.0, v4.6.2, v4.17.1), so the OTA stack's provider has sent it
+  since it first started, as far as the machine let it out. `Telemetry.Enabled` ships false.
+  ClickHouse 26.2.19.43: crash and logical-error reports to `crash.clickhouse.com`, **on in the
+  `config.xml` the image ships**, off in the code's default. MinIO 2025.5.24: a release check to
+  `dl.min.io` at every start, its User-Agent carrying OS, architecture, version and CPU;
+  call-home ships off. Mailpit v1.31.1 (the test stack's catcher): a release check to GitHub when
+  its page asks for the server's info.
+- **The switches**, each a literal in `managed.yml`, so no `.env` can empty one:
+  `TRIGGER_TELEMETRY_DISABLED: "1"` and `POSTHOG_PROJECT_KEY: ""` on `trigger-api`;
+  `ZITADEL_SERVICEPING_ENABLED` and `ZITADEL_TELEMETRY_ENABLED` `"false"`; a new
+  `deploy/compose/clickhouse-no-crash-reports.xml` in ClickHouse's `config.d`; `MINIO_UPDATE` and
+  `MINIO_CALLHOME_ENABLE` `"off"`; `MP_DISABLE_VERSION_CHECK: "true"`.
+- **Every other service, and why it needs no switch**, is a row of the guard: PostgreSQL,
+  PgBouncer, Redis, the registry, the Docker socket proxy, the supervisor, busybox, nginx, the
+  status page, our own API, web app and appliance; Caddy's `tls internal` is held as a switch,
+  since without it Caddy asks a public certificate authority. *(Corrected 2026-09-29, above:
+  the demo's Stalwart is read and put to the owner. Nextcloud was switched off by a hook, which
+  was taken out again the same day, so it is left on, as here, until a follow-up.)*
+  **Left on:** Nextcloud's update
+  check, app store and connectivity check, in `managed.yml` (the demo) and `dev.yml`. They are
+  `occ` settings inside the instance; it holds fixtures and never a tester's data, and it starts
+  only with `--with-demo`, which both live scripts refuse. Switching them off on the demo is the
+  owner's call, a change to the demo's setup. Outside every compose file and not read: the demo's
+  Stalwart (`docker run`).
+- **Guard**: `scripts/a-service-that-phones-home.unit.test.ts`, written first. On the unchanged
+  tree: 5 failed, 28 passed (33), the five switched services, each naming its missing switch. After
+  the change: 33 passed. A switched row names the image its default was read at, so a new pin
+  fails it until somebody re-reads that version's defaults. 14 mutations, each red and restored:
+  each switch removed, emptied into `.env` or turned on, the ClickHouse mount removed, Zitadel's
+  pin moved, a new unclassified service, Nextcloud in the default bring-up, `deploy-live.sh` no
+  longer refusing `--with-demo`, a Caddy site without `tls internal`, a webapp third-party key, and
+  an overlay setting a switch.
+- **Proved.** `npx vitest run --project unit scripts`: 206 files, 3759 tests pass (a first run
+  under load lost `package-appliance.unit.test.ts`'s four running-payload cases to a refused
+  connection; alone it passes, 29 of 29). `pnpm -s typecheck` and eslint on the guard are clean.
+- **Docs**: `docs/managed-bring-up.md`, *Nothing phones home* (the table, what is left on, and the
+  check on a running stack); `docs/operator-runbook.md`, *Upgrade*, step 5.
+- **Not done here.** Privacy §8's comment and the README's *Telemetry off* item on #1317 still
+  say it is not true on live: it becomes true when live stands up, or deploys, from a tag that
+  contains this, and the check in *Nothing phones home* is what shows it.
+
+**2026-09-29: T6's daily script and T7's step, reviewed and fixed in 0135 T8**, not merged, on
+branch `claude/ownpace-public-readiness-y7orc6-accounts-kept-that-were-let-in`. Recorded here from
+0135's Status.
+
+- **An account that was let in is kept.** The Team page's removal now records `member.removed` in
+  `audit_log`, as `operator.sh leave` already did. `idp-strays.sh` keeps every subject so recorded,
+  so the daily run no longer takes a removed member's used account for one *"that we never let
+  in"* (privacy §9's row).
+- **For the owner** (T6, below; 0135 open question 13): a removed member's sign-in account is kept
+  until the organisation is erased, or removed after N days. The owner decides, and privacy §9 then
+  names it. Until then it is kept.
+- **Nothing is removed while the database names nobody:** `--remove` and T7's
+  `--subject … --remove` refuse while `platform_operator` has no row. Only our own organisation's
+  accounts with no role at the provider are weighed, and the provider's listing is read to its end
+  or the run refuses.
+- **A second commit, from that fix's review** (0135 Status, *later*): a role at the provider is
+  read as the provider counts it, the Team page's record names the row it deleted, and a count
+  below the accounts given is refused. After a reset of live's database that keeps the provider's
+  accounts, the runbook turns the daily duties off until the members are back.
+
+**2026-09-29, latest: T3's review, fixed**, same branch, with `main` merged in at `774b8310`
+(the runbook took a section on each side, both kept) and again at `ab7ffc3c` (the Dashboard
+went on `main`, and the gate's import stayed; this Status block took an entry on each side).
+Fourteen findings; every one applied, none rejected. Guards first, each shown failing before the change (counts below).
+
+- **Nobody accepts a draft** (major). Privacy 1.2 and terms 1.3 are drafts, and the owner's
+  final-text pull request keeps the number (`site/legal/README.md`, *What a final Version line
+  looks like*). An acceptance of draft 1.2 would have been recorded as one of final 1.2, whose
+  words may still change, and never asked again; and live already runs `OWNPACE_STAGE=alpha`,
+  so the first deploy would have asked testers to accept texts the public site refuses to
+  publish. Option (b) of the review: `LEGAL_DRAFTS` in `legal-versions.ts` says which texts are
+  drafts, held to the *Version* lines by the site build's own `DRAFT_WORDS`, and while any is,
+  `acceptanceAsked` is false: `GET /api/me` reports nothing, no door refuses, and
+  `POST /api/me/acceptance` records nothing (409 `acceptance_not_asked`, new, in the spec), as
+  with the switch off. The API's start log says which: `[api] OWNPACE_STAGE=alpha, but privacy
+  1.2 and terms 1.3 are drafts: nobody is asked …`. So **live may take this commit before the
+  draft markers come off; it asks nobody until the release that carries the final texts**, and
+  the first invitation waits for that release (the legal README's *To build or to do*). Option
+  (a), a `1.2-draft` number, was not taken: the screen links the published site, which serves no
+  draft, so a tester would have been asked to accept a text they could not read.
+- **A final text keeps its words under its number.** `ACCEPTED_WORDS` in the version guard pins
+  a digest of each final text (outside HTML comments, white space collapsed) under its number:
+  the Alpha conditions 1.0 in both languages today. A final text whose words change under the
+  same number fails, and the message says to give it a new number, unless no text has been
+  asked for yet (some text still a draft). The legal README and the runbook say the same: the
+  final-text pull request sets `LEGAL_DRAFTS` and pins the words; after that, a change is a new
+  number.
+- **Not now signs out of the sign-in service too** (major, found twice). The nav's sign-out,
+  which ends the issuer's session as well (2026-09-01), moved into `components/SignOut.tsx`
+  (`useSignOut`), and both buttons use it; `oidc.ts` gained `leaveForIssuer` so the guard can
+  see the end-session address followed. Dutch *"Nu niet, uitloggen"*, as the nav says.
+- **A door's refusal brings the screen up at once** (major). The client's response interceptor
+  reports a 409 `conditions_not_accepted` (`services/conditions-refused.ts`); the gate reads
+  again and shows the screen, keeping the page underneath (`display: none`, still mounted), so
+  a half-filled form is there after accepting. Every door shows the refusal in the reader's
+  language (`acceptance.refused`, `conditionsRefusal`: the connection forms, the wizard's test
+  and create, the grant-link panel). The API's sentence now holds wherever it is read: *"Nothing
+  was stored: accept … first. The app shows them now; if it does not, reload the page. Then try
+  again."*
+- **Only a bundle built for the Alpha asks on load** (minor, found twice). The gate asks
+  `GET /api/me` on load only where `VITE_OWNPACE_STAGE=alpha` (`isAlpha`, held in step with the
+  API by `an-alpha-both-halves-know-about`); any other managed bundle renders its pages as
+  before, with no wait and no page withheld when that read fails, and starts asking at the first
+  door that refuses. So *"with the switch off, nothing changes"* is true of the web app too.
+- **A grant link waits for the texts** (minor). `POST /api/migrations/{mappingId}/links` asks
+  `refusedUntilAccepted` for a grant link (not a progress link, which grants nothing), before
+  anything is read or written; pinned in the sweep's `CHECKS_BY_FILE`, and `grant-ending.ts`'s
+  excuse now names that check rather than the migration's creation. The spec's 409 for the
+  route names `ConditionsNotAccepted`.
+- **A member who leaves** (minor): decided as the organisation's record, like the audit log.
+  Removing a member deletes nothing in `legal_acceptance` (no key to `tenant_member`, on
+  purpose), the rows go with the organisation's erasure, and a member invited back is not asked
+  again for a version they accepted there. Privacy §9 has a row for it in both languages (for
+  the owner's review), and open question 4, `docs/rls-guide.md`, the runbook, the migration's
+  and `offboarding.ts`'s comments say so; `legal-acceptance-under-rls` has two cases for it.
+- **The screen itself** (minor): Dutch *aanvaarden* throughout, the texts' own word; the heading
+  *"The texts have changed"* / *"De teksten zijn gewijzigd"* and a *"new version"* / *"nieuwe
+  versie"* marker inside each changed text's link; a `main` landmark; the failures it can meet
+  (a fault on our side with its reference kept, no answer, 403) in the reader's language
+  (`acceptanceFailure`); 409 `acceptance_not_asked` reads again and gives way to the page.
+- **The language on the record** (minor): privacy §4.4 says *"in which language"* / *"in welke
+  taal"* in both drafts, and so does the screen; listed in the legal README's work list for the
+  owner's review.
+- **The UI smoke** walks the refusal path now: the bundle it builds is not an Alpha one, so it
+  asks nothing on load, and the case answers the migrations list's read with the refusal, meets
+  the screen (links, `main`), accepts, and gets the page back.
+
+Proved. Written first and red on the branch head before the change: the version guard 7 of 23;
+the credential sweep 8 of 23; `link-routes.unit` 1 of 34; the web guard 13 of 24; the
+integration guard 4 of 15 on a throwaway Postgres (`scripts/local-pg.sh`, own port). The two
+member-removal cases pin a decision the code already kept, so they passed at once; mutation 16
+below shows they bite. After the change: `pnpm typecheck` clean; ESLint on
+the changed files, no problem; `vitest --project unit` over `apps/api`, `packages/managed`,
+the ledger's schema guard and the appliance's leakage guard, 148 files and 1958 tests; over
+`scripts` and `site`, 211 files and 3898 tests; `--project unit-browser` over `apps/web`, 125
+files and 2332 tests; on the throwaway Postgres, the acceptance guard with `me`,
+`connections-usage`, `connection-delete-revokes`, `create-mapping`, `a-migration-past-the-cap`,
+`access-requests`, `a-report-under-row-security`, `members` and `operator-links`, 10 files and 87
+tests; `pnpm test:ui` 20 of 20 (a first run lost one case, *SENDS API REQUESTS SAME-ORIGIN*, to
+requests of the sign-in's landing page aborted by the harness's own next navigation,
+`net::ERR_ABORTED`, on a loaded machine, as the entry below saw once; the rerun passed whole).
+The indexes regenerated with `--write`; the workplan, lessons and ADR `--check`s pass. Again
+after `main` was merged in at `ab7ffc3c`: `pnpm typecheck` clean; ESLint on the merged files, no
+problem; `--project unit` over the same four and `scripts` and `site`, 355 files and 5791 tests;
+`--project unit-browser` over `apps/web`, 127 files and 2428 tests; `pnpm test:ui` 24 of 24; on
+the throwaway Postgres, the acceptance guard with `me`, `create-mapping`, `members` and
+`operator-links`, 5 files and 66 tests.
+
+Sixteen mutations, each red (`mutate2.py` in the session's scratchpad, one change at a time,
+the file restored after each):
+
+| # | Mutation | Guard | Red |
+|---|---|---|---|
+| 1 | `LEGAL_DRAFTS.privacy` false while `privacy.md` says draft | `scripts/a-version-the-tester-accepted` | 2 of 23 |
+| 2 | `acceptanceAsked` ignores the drafts | `no-credential-stored-before-the-conditions` | 4 of 23 |
+| 3 | `POST /api/me/acceptance` records while nobody is asked | the same | 2 of 23 |
+| 4 | the grant-link check taken out | the same, and `link-routes.unit` | 3 of 57 |
+| 5 | a word of the final `alpha.md` changed under 1.0 | `scripts/a-version-the-tester-accepted` | 1 of 23 |
+| 6 | the sign-out leaves the issuer's session | the web guard | 1 of 24 |
+| 7 | every managed bundle asks on load | the web guard | 2 of 24 |
+| 8 | the client does not report the refusal | the web guard | 2 of 24 |
+| 9 | the page unmounted behind the screen | the web guard | 1 of 24 |
+| 10 | the changed text not marked | the web guard | 2 of 24 |
+| 11 | a failure shown in the server's English | the web guard | 1 of 24 |
+| 12 | the screen no `main` landmark (`role="none"`) | the web guard | 1 of 24 |
+| 13 | the Dutch button *accepteren* | the web guard | 3 of 24 |
+| 14 | the doors' refusal back in the server's words | the web guard | 1 of 24 |
+| 15 | the spec without `AcceptanceNotAsked` | `no-credential-stored-before-the-conditions` | 1 of 23 |
+| 16 | a trigger deleting a removed member's rows | `legal-acceptance-under-rls` | 2 of 16 |
+
 **2026-09-29: review fixes to the copy before an update (T6)**, on the same branch,
 `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, not merged. Nothing has run
 on the machine; the scripts have run only against the stand-ins in their guards, and the
@@ -281,6 +565,113 @@ group M3, its step 7)**, merged as #1344 (`0bcbc25`) and #1345 (`a4885a5`). Reco
   keeps its draft marker until live's first run.
 - **Still open,** as 0135 T8 says: whether removing a user at the provider also removes the
   personal data in that user's earlier events.
+
+**2026-09-28, later still: T3 built, a text accepted with its version, before the first connection**,
+on branch `claude/ownpace-public-readiness-y7orc6-a-text-accepted-with-its-version`, from `main`
+at `bf0cbb19` (the texts of #1317: privacy 1.2, terms 1.3, the Alpha conditions 1.0), not
+merged. The owner decided it the same day (terms-acceptance-route (b), *"Build the in-app screen
+first"*): *"People that are accepted in the Alpha do need to create a login for the app,
+accepting fits in there and should record what time/version the accepted of what document."*
+
+- **The record.** `legal_acceptance`, managed migration 0032: organisation, subject (the
+  signed-in person as `tenant_member.user_id` holds them), document (`alpha`, `privacy`,
+  `terms`), version, language (`nl`, `en`) and `accepted_at`. One row per person, text and
+  version (a unique key), so a new version is a new row beside the old one and a repeat adds
+  nothing and keeps the first time. Row security forced; a SELECT policy and an INSERT policy on
+  the tenant, and the insert must name a member of that tenant; `app_user` has INSERT and SELECT
+  and UPDATE and DELETE are revoked from the baseline's default, with no policy for either, so
+  not even an organisation's own row can be changed or deleted on the request path. CHECKs hold
+  the document, the language and a bare version number.
+- **The versions.** `LEGAL_VERSIONS` in `packages/managed/src/legal-versions.ts` (`alpha` 1.0,
+  `privacy` 1.2, `terms` 1.3), because the app may not import `site/legal/`.
+  `scripts/a-version-the-tester-accepted.unit.test.ts` holds them to the *Version* lines of the
+  six files, read with the site build's own `versionLineOf`. A draft line compares by its number:
+  `1.2 (draft — not yet published)` is 1.2, since the draft words say whether the site may
+  publish the text, which the site build refuses on its own.
+- **The routes.** `GET /api/me` carries `acceptance` (`due`, and each text with its current
+  version and whether it was accepted) while the deployment asks and an organisation is current.
+  `POST /api/me/acceptance` takes `{ versions: { alpha, privacy, terms }, language }`, every text
+  named and nothing else (400 otherwise); any version but the current one answers 409
+  `version_not_current` with the stale texts and the current versions, and writes nothing.
+  Accepted, it answers what `GET /api/me` now says and how many rows it wrote.
+- **The doors.** Every door that stores a credential answers 409 `conditions_not_accepted`,
+  naming the texts still to accept with their versions, in English and Dutch, before it probes
+  or writes anything, until the person pressing it has accepted the current versions in that
+  organisation: adding a connection, giving one a new key (`PUT /api/connections/{id}/
+  credentials`), and creating a migration. One helper, `refusedUntilAccepted`
+  (`apps/api/src/conditions-not-accepted.ts`), asked after the close's. Found by where the API
+  seals a credential (`SecretStore.encryptCredentials`); two such places do not ask, each with
+  its reason in the sweep: a grant link's consent (`grant-ending.ts`), whose holder is no party to
+  the terms (§1) and whose migration was created behind the check, and the operator's seed. A
+  member's own OAuth callbacks store nothing; the token goes back to the wizard, which stores it
+  through one of the three doors. `apps/api/src/no-credential-stored-before-the-conditions.unit.
+  test.ts` pins the checks per file and counts every seal, as `an-organisation-closed-at-every-
+  door` does for the close, so a door added later fails until it asks or says why not.
+- **The switch.** The alpha's own, `OWNPACE_STAGE=alpha` (0131 T1), read per request by the
+  same rule (`alphaFrom`). The texts a tester accepts are the Alpha's, the deployment that runs
+  the Alpha is the one that asks, and live sets it (`docs/managed-bring-up.md` step 6 of live's
+  stand-up); every other deployment asks nobody, and nothing changes there. No new setting. The
+  appliance never has any of it: no `apps/api`, and `@openmig/managed` is outside its import
+  graph. When the Alpha ends, the new conditions replace the Alpha's in `LEGAL_VERSIONS`
+  (Alpha §11 asks for them in the app too), and that change decides what the switch becomes
+  (0086).
+- **The screen.** `AcceptanceGate` stands in front of every signed-in page while `GET /api/me`
+  says acceptance is due, so it comes after sign-in and before any other page, comes back when a
+  version changes, and meets an invited member (0099) after they join. `pages/Acceptance.tsx`:
+  the three texts, each linked in the reader's language with its version (the language switch is
+  on the page), one button that sends the versions it showed and the language, *Not now* that
+  signs out, focus on the heading, links that say they open a new tab. A version that changed
+  while the screen was open is read again, not accepted; a read that failed is said with *Try
+  again*, never taken for "nothing due". EN and NL strings (`acceptance.*`). It asks
+  `GET /api/me` once per page load; right after a sign-in or a join it takes the answer that
+  page just read (`rememberSignIn`), so the page it lands on shows the screen or itself at once.
+- **T10's piece of it: the conditions rendered.** The links are the site's pages, from
+  `legal-links.ts`, and the site build did not render the Alpha conditions, so it does now, in
+  both languages, at `/alpha.html` and `/nl/alpha.html`, outside the nav (`OUTSIDE_NAV` in
+  `site/build.mjs`), and `alpha` moved from `NOT_BUILT_YET` into `LEGAL_PAGES`. Serving the site
+  on live (`WWW_LIVE`) is still T10's.
+- **Erasure.** Named in `PURGED_TABLES`, before `tenant_member`: privacy §4.4 puts the record in
+  *your account with us*, and §9 keeps the account until the data is erased and erases it then.
+  Open question 4 is still the owner's; the code follows the text and T3's proposal.
+- **Not built.** Alpha §11's *"Your migrations carry on under the new conditions only once you
+  have accepted them in the app"*: nothing stops a running sync for acceptance; §11 closes the
+  account by hand on the day, which `operator.sh close <tenant> 7` does. And 0138 T3 step 2's
+  system role, when it takes the purge off the owner, must be able to delete these rows as it
+  must `vat_consultation`'s (no DELETE policy for anybody on the request path).
+- **Docs.** The T3 and T10 rows below; `site/legal/README.md` (*Acceptance* moved to *Done*, the
+  table's row for `alpha.md`, *What is deliberately not here yet*); the comments beside privacy
+  §4.4 (both languages), the privacy and terms briefings, and the Alpha briefing and header (both
+  languages), with no rendered sentence changed; `docs/rls-guide.md` (46 forced tables, 18 in
+  the managed chain, the policy paragraph); `docs/operator-runbook.md` (*Acceptance: who accepted
+  which version*); `docs/managed-bring-up.md` §8g; `managed.env.example` and `managed.yml`'s
+  comment on `OWNPACE_STAGE`; the OpenAPI spec (`/api/me`'s `acceptance`, `/api/me/acceptance`,
+  and the 409 of the three doors).
+- **Proved.** The guards were written first and each failed before the change: `scripts/a-version-
+  the-tester-accepted` 9 of 10; `legal-acceptance-under-rls` did not load (no module); `force-rls-
+  managed` 1 of 5; `offboarding.unit` 18 of 18 (its fixture seeds the table), and once the table
+  existed without its list entry the fate guard (mutation 12 below); `schema-matches-migrations`
+  2 of 9; `no-credential-stored-before-the-conditions` 11 of 17 and 3 skipped (the three presses
+  with the switch off passed, as they must); `a-policy-link-that-answers` 2 of 20; the web guard
+  did not load (no gate); the integration guard 9 of 11 on a throwaway Postgres
+  (`scripts/local-pg.sh`). After it: `pnpm typecheck` clean; ESLint on the changed files, no
+  problem; `vitest --project unit` over `apps/api`, `packages/managed`, the ledger's schema guard,
+  the appliance's leakage guard and the two index guards, 150 files and 2179 tests; over
+  `scripts` and `site`, 210 files and 3854 tests (the three `lessons` cases once `LESSONS.md` was
+  regenerated); `--project unit-browser` over `apps/web`, 125 files and 2319 tests; on the
+  throwaway Postgres, the new integration guard with `me`, `connections-usage`, `connection-
+  delete-revokes`, `create-mapping`, `a-migration-past-the-cap`, `access-requests`, `a-report-
+  under-row-security` and `tenant-pricing`, 9 files and 65 tests; `pnpm test:ui`, 20 of 20 with a
+  new case that walks the built bundle through the screen and back (one earlier run lost one case
+  to a request of the previous page aborted by the harness's own navigation, on a loaded machine;
+  the next two runs passed whole). Fifteen mutations, each red: the check taken out of the new-key
+  door; an old version accepted; UPDATE granted; row security not forced; row security off; the
+  privacy constant at 1.1; the screen shown when nothing is due; the screen not shown when due;
+  the Dutch alpha link at the English page; the switch always on; the switch always off; the table
+  left out of `PURGED_TABLES`; a new route sealing a credential without the check; the member
+  check taken out of the insert policy; and the unique key widened by the language. The indexes
+  regenerated with `--write`, and the workplan, lessons and ADR `--check`s pass.
+
+**2026-09-28, later: the owner's NetBird answers: accepted 2026-08-01, the agreement covers the
 
 **2026-09-28: the copy before an update, and the drill off live (T6; the owner's answers
 rec-copies (a) and rec-drill (a))**, built on branch
@@ -1231,6 +1622,7 @@ the same with 1.3 for the terms. The Alpha conditions (1.0, the owner's) are not
      still names one. *(Since: #1318, `0c019ab8`, merged 2026-09-28 and on this branch; true on
      live once live's `.env` has no `ZAMMAD_URL`.)*
   4. *Acceptance shown and recorded before the first connection* (terms §1): T3, proposed.
+     *(Since: built 2026-09-28, the Status block's entry of that day; not merged.)*
   5. *(Removed by the review fixes above: owner or admin only is on `main`, a1625f08, #1294,
      0137 T7. Before the first invitation, `operator.sh check role-below-admin` runs on live.)*
   6. *(Resolved by the review fixes above: terms §13 keeps v1.2's language rule, which the note
@@ -2021,14 +2413,14 @@ longer starts by pausing the nightly gate, which never touches live.
 | T0 The owner's facts: the placeholders and the names | ✅ **Placeholders done 2026-09-28** in the drafts, on draft PR #1317, not merged: from the owner's 71 answers, `«VAT_NUMBER»` filled (fact-vat (a)), `«REGISTERED_ADDRESS»` left out of the rendered texts for the Alpha (rec-address (c); it returns before the first paid tier) and kept in `dpa.md`'s parties, `«PRIVACY_HISTORY_URL»` filled (rec-privacy-history-url (a)), and `«SUBPROCESSORS_URL»` gone from privacy §7 (rec-subprocessors-url (a)); fact 1: NetBird GmbH's terms and data-processing agreement accepted on 2026-08-01, the agreement covering the proxy and its log (dpa-netbird-agreement (a); the owner's answers of 2026-09-28), NetBird's own sources read 2026-09-28, the proxy and its log kept at *Germany (EU)* by the owner's choice while the owner asks NetBird, and NetBird's sign-in (SSO), on for the hosts NetBird serves (*"No pin, but SSO on"*), to go off on every `ownpace.eu` host before the first invitation, the owner's choice (*"Off everywhere at launch"*), a precondition; fact 4 answered: email and password only (ops-social-signin (a)); no company houses the machine (subprocessors-machine-housed (a)) — *was:* ⏳ **Owner**, four placeholders open (`«REGISTERED_ADDRESS»`, `«VAT_NUMBER»`, `«SUBPROCESSORS_URL»`, `«PRIVACY_HISTORY_URL»`), and fact 4 without an answer | §3. No placeholder is left in a rendered text. `«REGISTERED_ADDRESS»` stays in `dpa.md`, and `«SUBPROCESSORS_URL»` in `dpa.md` and `subprocessors.md`, until the first business customer (`site/legal/README.md`). Values never go in this plan, only dates. |
 | T1 A lawyer's pass before the first invitation | ⏳ **Owner**, deferred 2026-09-27 (*"legal: keep as is for now"*); the texts 🔨 **follow the owner's 71 answers of 2026-09-28**, on draft PR #1317, not merged: privacy 1.2 and terms 1.3 still drafts, the Alpha conditions 1.0 edited in place, `dpa.md` and `subprocessors.md` 0.2. The briefings mark each answered question and keep what is left for the lawyer (among them BW 3:15d without the address, the forum and language clauses, the paid-tier checks, Google's role for the test list, the legal bases); 📋 **Decided 2026-09-24** (D1) — *was:* revised 2026-09-28 for the owner's review, points 1, 2, 5 and 10 of §3 T1's list waiting on the owner or the lawyer | §3. The briefings at the top of `privacy.md`, `terms.md`, `alpha.md` and `dpa.md` are the brief. |
 | T2 The alpha conditions, in Dutch and English | 🔨 **1.0 edited in place 2026-09-28** with the owner's answers, on draft PR #1317, not merged: §2 (terms §12's 30 days give way to 7; acceptance in the app), §4 (a breach that affects your data; terms §10 still applies), §5 (updates not announced), §6 (the copy until the update is shown to work, never past 7 days), §9 and §10 (a family member's Google address; access as the app keeps it), §11 (erased 7 days after not accepting); alpha-version-number (a) keeps 1.0 until the first acceptance; the briefing rewritten (alpha-briefing-comment (a)); not rendered — *was:* drafted 2026-09-28, reviewed by the owner the same day, version 1.0, the lawyer's pass deferred (T1); 📋 **Decided 2026-09-24** (D1, D2) | §3. Free, a few weeks, no obligations, no backups, no availability promise, how it ends. The owner wrote them in the plan; an agent drafted them at the owner's word. |
-| T3 Acceptance recorded, with version and time, at first sign-in | 📋 **Decided 2026-09-28** (terms-acceptance-route (b), *"Build the in-app screen first"*); not built. The first invitation waits for it and its tests. The owner: *"People that are accepted in the Alpha do need to create a login for the app, accepting fits in there and should record what time/version the accepted of what document."* Terms §1, the Alpha conditions §2 and §11 and privacy §4.4 now describe it — *was:* 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. The same screen asks again for the new conditions after the Alpha (Alpha §11). Open question 4 (the record after erasure) is still open. |
+| T3 Acceptance recorded, with version and time, at first sign-in | 🔨 **Built 2026-09-28, review fixed 2026-09-29** on branch `claude/ownpace-public-readiness-y7orc6-a-text-accepted-with-its-version`, not merged. Since the review: nobody is asked while any text is a draft (`LEGAL_DRAFTS`; 409 `acceptance_not_asked`), so live asks nobody until the release with the final texts, and a final text's words are pinned to its number (`ACCEPTED_WORDS`); issuing a grant link asks too; *Not now* ends the sign-in service's session; a door's refusal brings the screen up at once; only a bundle built for the Alpha asks on load; a member who leaves keeps their record until erasure. As built on 2026-09-28: `legal_acceptance` (managed 0032, appended and read, never changed), `LEGAL_VERSIONS` held to the texts by `scripts/a-version-the-tester-accepted.unit.test.ts`, `GET /api/me`'s `acceptance` and `POST /api/me/acceptance` (409 `version_not_current`), 409 `conditions_not_accepted` on adding a connection, a new key and creating a migration, the screen in front of every signed-in page, the conditions rendered by the site build, all while `OWNPACE_STAGE=alpha`; purged with the organisation (open question 4 still open); Alpha §11's syncs waiting for the new conditions not built — *was:* 📋 **Decided 2026-09-28** (terms-acceptance-route (b), *"Build the in-app screen first"*); not built. The first invitation waits for it and its tests. The owner: *"People that are accepted in the Alpha do need to create a login for the app, accepting fits in there and should record what time/version the accepted of what document."* Terms §1, the Alpha conditions §2 and §11 and privacy §4.4 now describe it — *was:* 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. The same screen asks again for the new conditions after the Alpha (Alpha §11). Open question 4 (the record after erasure) is still open. |
 | T4 A notice wherever a tester's data is collected | 📋 **Proposed**; two pieces 📋 **Decided 2026-09-28**, not built: the app's own sentences reworded in both languages (ops-app-sentences (a): the grant mail, the Alpha note, the request form), and a privacy line and a link in the mail to people items were shared with (privacy-share-mail-notice (a)), both before the first tester | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form, the share mail (`packages/shared/src/share-announcement.ts`). The grant page's addresses were fixed in #1137, merged 2026-09-24. |
-| T5 The sub-processors named | 🔨 **Text done 2026-09-28** in the drafts, on draft PR #1317, not merged: privacy §7's table is the complete list and says so (rec-subprocessors-url (a)); NetBird GmbH, its terms and agreement accepted on 2026-08-01 and the agreement covering the proxy and its log (dpa-netbird-agreement (a); the owner, 2026-09-28), carries connections on through a WireGuard tunnel and keeps its own log of each request; Proton AG in Switzerland, with Art. 45 GDPR and Decision 2000/518/EC cited (privacy-switzerland-wording (b)); no hosting row, because no company houses the machine (subprocessors-machine-housed (a)); `subprocessors.md` unpublished until the first business customer; NetBird's own sub-processors read from its trust center 2026-09-28 (18 entries, none with a location); NetBird's sign-in (SSO), on for the hosts NetBird serves (*"No pin, but SSO on"*), to go off on every `ownpace.eu` host before the first invitation, the owner's choice (*"Off everywhere at launch"*), a precondition (privacy's to-do on NetBird, (d)); ⏳ **Owner**, not before the first invitation: NetBird asked where its proxy and log run, at which provider, and whether its own sub-processors receive either, the *Where* staying *Germany (EU)* by the owner's choice until it answers ((c)), and asked in writing whether the Alpha or a paid tier behind the proxy is commercial use under its terms §3.1, answered before the first paid tier at the latest ((e)); the agreement's sub-processors, their announcement, the right to object and the 7 days for the lawyer's pass ((b)) — *was:* NetBird's acceptance date, its agreement read, where its proxy and log run and at which provider, and whether its own sub-processors receive either still for the owner; before that, the text drafted 2026-09-28 with the entity name, the agreement, the proxy's location and whether a company houses the machine all to confirm | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
-| T6 What is kept, and for how long, made true | 🔨 **The copy before an update, and the drill off live, built 2026-09-28, review fixes 2026-09-29** (rec-copies (a), rec-drill (a)) on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, **not merged**: `copy-before-update.sh`, taken by `deploy-live.sh` right before its checkout (only while the daily duties' timer runs), deleted by the owner once the update is proven and by the daily duties after 6 days less an hour, a rollback that erases again what was erased after the copy (`since`), and no drill on live; `privacy.md`'s and `privacy.nl.md`'s comments, `README.md`'s two items and `alpha.md`'s briefing say so; 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 🔨 **built 2026-09-27**, merged as #1255; every period 📋 **Decided 2026-09-28** from the owner's answers and in privacy §9's draft: the copy before an update (rec-copies (a)), the drill off live (rec-drill (a)), support-screen searches and downloads 12 months (privacy-search-records (a): 🔨 built 2026-09-29 as `box-duties.sh`'s duty `searches`, `support-read-prune.sh --delete`, not merged, and running once live's timer is installed), the sharing list with its migration (privacy-sharing-list (b)), sent mail until resolved and then 6 months (privacy-sent-mail-copies (b)), the background tasks' records until the end of the Alpha (privacy-task-records (a)), the sign-in history checked first (privacy-signin-history (a)), accounts nobody let in removed by a daily script (ops-unadmitted-signin-cleanup (a), 0135 T8: ✅ built, merged 2026-09-29 as #1344 and #1345, and running once live's timer is installed), server logs with Docker's default (ops-log-driver (a)); the code for each of the rest 📋 **Proposed**, not built — *was:* the wording drafted 2026-09-28; the rest's code proposed | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. `site/legal/README.md`, *Before the draft markers come off*, lists what each needs. |
+| T5 The sub-processors named | 🔨 **Text done 2026-09-28** in the drafts, on draft PR #1317, not merged: privacy §7's table is the complete list and says so (rec-subprocessors-url (a)); NetBird GmbH, its terms and agreement accepted on 2026-08-01 and the agreement covering the proxy and its log (dpa-netbird-agreement (a); the owner, 2026-09-28), carries connections on through a WireGuard tunnel and keeps its own log of each request; Proton AG in Switzerland, with Art. 45 GDPR and Decision 2000/518/EC cited (privacy-switzerland-wording (b)); no hosting row, because no company houses the machine (subprocessors-machine-housed (a)); `subprocessors.md` unpublished until the first business customer; NetBird's own sub-processors read from its trust center 2026-09-28 (18 entries, none with a location); NetBird's sign-in (SSO), on for the hosts NetBird serves (*"No pin, but SSO on"*), to go off on every `ownpace.eu` host before the first invitation, the owner's choice (*"Off everywhere at launch"*), a precondition (privacy's to-do on NetBird, (d)); ⏳ **Owner**, not before the first invitation: NetBird asked where its proxy and log run, at which provider, and whether its own sub-processors receive either, the *Where* staying *Germany (EU)* by the owner's choice until it answers ((c)), and asked in writing whether the Alpha or a paid tier behind the proxy is commercial use under its terms §3.1, answered before the first paid tier at the latest ((e)); the agreement's sub-processors, their announcement, the right to object and the 7 days for the lawyer's pass ((b)) — *was:* NetBird's acceptance date, its agreement read, where its proxy and log run and at which provider, and whether its own sub-processors receive either still for the owner; before that, the text drafted 2026-09-28 with the entity name, the agreement, the proxy's location and whether a company houses the machine all to confirm; **nothing else receives anything** 🔨 **built 2026-09-28, review fixes 2026-09-29** on branch `claude/ownpace-public-readiness-y7orc6-nothing-phones-home`, **not merged** (ops-telemetry (a)): Trigger.dev's two PostHog halves and the Prisma checkpoint its entrypoint sent, Zitadel's daily service ping, ClickHouse's crash reports, MinIO's release check and Mailpit's switched off; the demo's Nextcloud's update check, app store and connectivity check **not** switched off in this change (2026-09-29, later: a hook that did made the demo's first CalDAV write answer 500 in E2E (managed) #215, and #216 on `main`, which recreated the same container without it, passed; it holds fixtures only and is not on live; ⏳ a follow-up switches them off with a check that the demo's DAV writes still work); the demo's Stalwart's GitHub and jsDelivr downloads named, ⏳ **Owner** to switch or keep; `scripts/a-service-that-phones-home.unit.test.ts` — *was:* Nextcloud's switched off by a hook, and before that the demo's Nextcloud left on | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
+| T6 What is kept, and for how long, made true | 🔨 **The copy before an update, and the drill off live, built 2026-09-28, review fixes 2026-09-29** (rec-copies (a), rec-drill (a)) on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, **not merged**: `copy-before-update.sh`, taken by `deploy-live.sh` right before its checkout (only while the daily duties' timer runs), deleted by the owner once the update is proven and by the daily duties after 6 days less an hour, a rollback that erases again what was erased after the copy (`since`), and no drill on live; `privacy.md`'s and `privacy.nl.md`'s comments, `README.md`'s two items and `alpha.md`'s briefing say so; 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 🔨 **built 2026-09-27**, merged as #1255; every period 📋 **Decided 2026-09-28** from the owner's answers and in privacy §9's draft: the copy before an update (rec-copies (a)), the drill off live (rec-drill (a)), support-screen searches and downloads 12 months (privacy-search-records (a): 🔨 built 2026-09-29 as `box-duties.sh`'s duty `searches`, `support-read-prune.sh --delete`, not merged, and running once live's timer is installed), the sharing list with its migration (privacy-sharing-list (b)), sent mail until resolved and then 6 months (privacy-sent-mail-copies (b)), the background tasks' records until the end of the Alpha (privacy-task-records (a)), the sign-in history checked first (privacy-signin-history (a)), accounts nobody let in removed by a daily script (ops-unadmitted-signin-cleanup (a), 0135 T8: ✅ built, merged 2026-09-29 as #1344 and #1345, and running once live's timer is installed; reviewed and 🔨 fixed 2026-09-29, not merged: an account that was let in is kept, and a removed member's account in the end is the owner's, 0135 open question 13), server logs with Docker's default (ops-log-driver (a)); the code for each of the rest 📋 **Proposed**, not built — *was:* the wording drafted 2026-09-28; the rest's code proposed | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. `site/legal/README.md`, *Before the draft markers come off*, lists what each needs. |
 | T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`; the identity provider's account ✅ **since 0135 T8 (a), merged 2026-09-29 as #1344** (0131 §6, M3's step 7): `idp-strays.sh --subject <sub> --remove` in the runbook's *Tenant offboarding*, refused while the account still belongs somewhere — *was:* by hand until 0135 T8; *nothing uses your access after closing* is not fully true yet: since #1320 (`d7868276`, merged 2026-09-28) nothing new starts for a closed organisation; 🔨 **work already running stops, built 2026-09-29** on branch `claude/ownpace-public-readiness-y7orc6-the-close-stops-what-is-running`, **not merged**: a verification, a confirmation and a discovery check the close between their steps (each read of a target, each item, each collection) and stop; still not true: a sync pass the cancel did not stop reads to the end of its data type, and the daily shared-address discovery and drift check still read an organisation closed while they run (terms briefing, precondition B) — *was:* work already running not all stopped, a verification or a confirmation reading to its end; a tester who does not accept the new conditions after the Alpha is closed that day and erased 7 days later (alpha-s11-erasure-window (b)), which `operator.sh close <tenant> 7` already does — *was:* (a) built; terms §11 and privacy §9 describing the close in the drafts of 2026-09-28 | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
 | T9 SECURITY.md covers the hosted service, with one channel | ✅ **done** in #1257, merged 2026-09-27 (`12cb40fb`): `SECURITY.md`'s scope, versions and five days, and `security.txt` from the site build; privacy §11 names the form, then support@, in both languages in the draft of 2026-09-28 (not committed), so the guard, which asks for one channel, can ask for both, in order — *was:* 🔨 **Written 2026-09-27, not merged**; 📋 **Decided 2026-09-27** (open question 5): the advisory form with `support@ownpace.eu` as fallback, five working days, `main` and live's release | §3. Scope, supported versions, a response target, `security.txt`. |
-| T10 The texts published where a tester can read them, with no placeholder left | (a) the link module ✅ **done** in #1270, merged 2026-09-28 (`a8ed15b5`): `VITE_LEGAL_SITE_URL` and `legal-links.ts`, the grant page on it; publishing with `--public` on the reference machine (T0 fact 6, answered 2026-09-28) 🔨 **built 2026-09-28** on branch `claude/ownpace-public-readiness-y7orc6-the-site-deployed-with-live`, **not merged**: `deploy-live.sh` builds the tag's site and serves it as `ownpace-live-www` when live's `.env` says `WWW_LIVE=true`, and `box-duties.sh` watches it. That build is `--public`, so indexable: the step follows the owner's answer to open question 1, (a), of 2026-09-28, *"public site: yes, search engine index."* (recorded under the question by #1293, merged 2026-09-28). Live's `WWW_LIVE` stays `false` until the texts are final: with it `true` a deploy refuses before anything moves; (b) the site's second copy, #1275, merged separately (`4b93e061`), which the tag must hold; still 📋 **Proposed**: rendering the conditions, and `subprocessors.md` only when the first business customer arrives (rec-subprocessors-url (a), 2026-09-28; privacy §7's table is the complete list until then); (c) `--no-drafts` not needed, by that answer — *was:* (a) ✅ done in #1270; still 📋 **Proposed**: rendering the conditions and `subprocessors.md`, publishing with `--public` where T0 fact 6 says, (b) the site's second copy (draft #1275, the owner's call) and (c) `--no-drafts` | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders and draft version lines, served where T0 says, and one setting for every link the app makes to them. |
+| T10 The texts published where a tester can read them, with no placeholder left | (a) the link module ✅ **done** in #1270, merged 2026-09-28 (`a8ed15b5`): `VITE_LEGAL_SITE_URL` and `legal-links.ts`, the grant page on it; publishing with `--public` on the reference machine (T0 fact 6, answered 2026-09-28) 🔨 **built 2026-09-28** on branch `claude/ownpace-public-readiness-y7orc6-the-site-deployed-with-live`, **not merged**: `deploy-live.sh` builds the tag's site and serves it as `ownpace-live-www` when live's `.env` says `WWW_LIVE=true`, and `box-duties.sh` watches it. That build is `--public`, so indexable: the step follows the owner's answer to open question 1, (a), of 2026-09-28, *"public site: yes, search engine index."* (recorded under the question by #1293, merged 2026-09-28). Live's `WWW_LIVE` stays `false` until the texts are final: with it `true` a deploy refuses before anything moves; (b) the site's second copy, #1275, merged separately (`4b93e061`), which the tag must hold; the conditions 🔨 **rendered 2026-09-28** by T3, which links them, at `/alpha.html` and `/nl/alpha.html` outside the nav, not merged; still 📋 **Proposed**: `subprocessors.md` only when the first business customer arrives (rec-subprocessors-url (a), 2026-09-28; privacy §7's table is the complete list until then); (c) `--no-drafts` not needed, by that answer — *was:* (a) ✅ done in #1270; still 📋 **Proposed**: rendering the conditions and `subprocessors.md`, publishing with `--public` where T0 fact 6 says, (b) the site's second copy (draft #1275, the owner's call) and (c) `--no-drafts` | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders and draft version lines, served where T0 says, and one setting for every link the app makes to them. |
 | T11 A family member's permission, recorded | 📋 **Proposed**; waits on T1. Privacy §12 now says a grant link for a child under 16 is completed by the parent together with the child (privacy-children-grant-link (a), 2026-09-28) | §3. Only if the lawyer confirms the household model the terms describe. |
 
 ## 1. What there is today
@@ -2452,7 +2844,10 @@ and `terms` only; `alpha` joins its list. *(2026-09-28: both done, and a case ch
 line in every document, the same number in both languages. The half that the build renders them
 waits for T10.)*
 
-### T3 — acceptance recorded, with version and time, at first sign-in (proposed)
+### T3 — acceptance recorded, with version and time, at first sign-in (decided 2026-09-28; built, not merged)
+
+*(Built 2026-09-28 as this section says; the Status block's entry of that day says how, and what
+is not built.)*
 
 **What the tester sees.** After the first sign-in, and before any other page, there is one screen:
 the alpha conditions, the privacy policy and the terms, each linked in the reader's language, and
@@ -2484,7 +2879,13 @@ without a change to the guard. Whether the paid service later turns it on for ev
 question.
 
 **Erasure.** The new table must be named in `PURGED_TABLES` or `RETAINED_TABLES`. The proposal is
-to purge it with the organisation (open question 4).
+to purge it with the organisation (open question 4). A member who leaves keeps their rows until
+then, as the organisation's record (review of 2026-09-29).
+
+**Drafts.** Nobody is asked while any of the three texts is a draft (review of 2026-09-29): a
+draft's number is the one its final text carries, so an acceptance of the draft would be
+recorded as one of the final text. `LEGAL_DRAFTS` says which, held to the *Version* lines, and a
+final text's words are pinned to its number.
 
 **Guards.** Each fails today:
 
@@ -2577,6 +2978,9 @@ questions 2 and 3), and the lawyer checks the words.
   days), that there are no backups during the alpha (0134 T1), and the identity provider's step
   (T7, 0135 T8). It also names how long an account at the identity provider that nobody let in
   is kept: 0135 T8 proposes 30 days, and 0135 open question 6 asks the owner.
+- **A removed member's sign-in account** (0135 open question 13, 2026-09-29): kept until the
+  organisation is erased, or removed after N days. The owner decides, and privacy §9 then names
+  it. Until then 0135 T8's daily run keeps it, because the removal is recorded in `audit_log`.
 - **The task runner's stores.** 0134 T1 reads what each task returns and what a failed run's
   error can carry. The task events (ClickHouse) and large payloads (MinIO) that `managed.yml`
   describes are not backups, but they can outlive an erasure, and 0134 hands that finding to this
@@ -2835,6 +3239,15 @@ the lawyer's pass.
    closes."* The alpha conditions' §10 say so; privacy §9's row follows in the lawyer's pass (T1).
 4. **The acceptance record after erasure (T3).** Purged with the organisation, which is
    recommended, or retained with a stated reason?
+   *(2026-09-28: T3 is built with the recommendation, `legal_acceptance` in `PURGED_TABLES`,
+   which is also what privacy §4.4 and §9 say today. Still the owner's to answer; keeping it
+   would move it to `RETAINED_TABLES` with the reason, and change §9.)*
+   *(2026-09-29, the review: and a member who leaves the organisation? Built as the proposal:
+   their rows stay with the organisation until its data is erased, like the audit log, and a
+   member invited back is not asked again for a version they accepted there. Privacy §9's new
+   row says so in both languages, for the owner's review. The other way, deleting them through
+   the owner's connection when the member is removed, is one statement in the removal and a
+   change to that row.)*
 5. **The vulnerability channel (T9).** The advisory form with support@ as fallback, as
    recommended, the advisory form alone, or an address alone? And the response target?
    **Answered 2026-09-27**, *"yes all three"*: the advisory form with `support@ownpace.eu` as
