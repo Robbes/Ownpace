@@ -4,20 +4,6 @@
 
 ## Status — 2026-09-29 (update this block at the end of every session)
 
-**2026-09-29, morning: one link per person, decided and planned (T5 (b); ADR-0035 amended).**
-The owner, asked after the walk of *Someone else* sent Anna two links for one Google account:
-*"yes, a per-person link instead of the per-migration links. Perhapse replace it, or do we still
-need the per-migration-link?"*
-
-- **ADR-0035's amendment** records the decision, the design, and the answer to the question as a
-  proposal: replace, keeping per-migration links already sent until they expire, and a migration
-  with no person gets one first. It also proposes *start when granted*.
-- **T5 (b)** plans the build in four slices: the managed-only `person_link` row and its doors;
-  the grant page per person, asked and bound per Google account; the progress page per person,
-  with taking a grant back per account; and the owner's side.
-- **Found while mapping it:** the ledger's `mapping_link` cannot point at `person`, which is
-  managed-only (ADR-0036), so the person's link is a managed row of its own.
-
 **2026-09-29: the wizard offers a saved Microsoft 365 or Apple account again.** On branch
 `claude/funny-wright-upyuqr`; not merged. This closes the fault 0131 T1 and 0148 T9 found and
 left. The wizard (*Add one migration by hand*) kept its own copy of the server's
@@ -105,6 +91,20 @@ place, could become the one-candidate default, and was posted as the source of a
   - a walk in Chromium over a fixture API, in English, Dutch and at phone width, found two
     faults, both fixed: mail was listed after files, and *Another mail provider* was
     capitalised mid-sentence.
+
+**2026-09-29, morning: one link per person, decided and planned (T5 (b); ADR-0035 amended).**
+The owner, asked after the walk of *Someone else* sent Anna two links for one Google account:
+*"yes, a per-person link instead of the per-migration links. Perhapse replace it, or do we still
+need the per-migration-link?"*
+
+- **ADR-0035's amendment** records the decision, the design, and the answer to the question as a
+  proposal: replace, keeping per-migration links already sent until they expire, and a migration
+  with no person gets one first. It also proposes *start when granted*.
+- **T5 (b)** plans the build in four slices: the managed-only `person_link` row and its doors;
+  the grant page per person, asked and bound per Google account; the progress page per person,
+  with taking a grant back per account; and the owner's side.
+- **Found while mapping it:** the ledger's `mapping_link` cannot point at `person`, which is
+  managed-only (ADR-0036), so the person's link is a managed row of its own.
 
 **2026-09-29, morning: the owner's answers to the writing session's eleven questions, and two
 words changed with them** (0131 §6, R8).
