@@ -43,12 +43,14 @@ describe('isSyncDue (0022 T1)', () => {
     ).toBe(true);
   });
 
-  it('an every-minute schedule is due each minute boundary', () => {
+  it('a schedule is due at its next boundary, and not a moment before', () => {
+    // This asked the same of `* * * * *` until 0143 T2b: a schedule faster
+    // than 15 minutes now runs at that floor (a-pass-a-minute.unit.test.ts).
     expect(
-      isSyncDue('* * * * *', T('2026-08-01T12:00:30Z'), T('2026-08-01T12:00:59Z'))
+      isSyncDue('*/15 * * * *', T('2026-08-01T12:00:30Z'), T('2026-08-01T12:14:59Z'))
     ).toBe(false);
     expect(
-      isSyncDue('* * * * *', T('2026-08-01T12:00:30Z'), T('2026-08-01T12:01:00Z'))
+      isSyncDue('*/15 * * * *', T('2026-08-01T12:00:30Z'), T('2026-08-01T12:15:00Z'))
     ).toBe(true);
   });
 
