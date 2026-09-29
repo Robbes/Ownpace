@@ -43,8 +43,8 @@ place, could become the one-candidate default, and was posted as the source of a
   - *Check, then start* offers each such migration's grant link in place of its count, and the
     count appears once the link is used. *Start* waits, and the person's page keeps the
     migrations meanwhile.
-- **Not yet:** grant and progress links *per person* on the person's page (T5) wait for 0108's
-  links per person; each migration's page keeps its own.
+- **Not yet:** grant and progress links *per person* (T5 (b), ADR-0035's amendment); until they
+  are built, each migration's page keeps its own.
 - **Proved by** `StartMigration.unit.test.tsx` (33 cases) and `start-plan.unit.test.ts` (25),
   and by a walk in Chromium over a fixture API that answers a Google account with no token as
   the create door does (`error`). The walk goes in English and Dutch from *They do, with a link*,
@@ -56,6 +56,20 @@ place, could become the one-candidate default, and was posted as the source of a
   per-migration links"*. The walk shows why: Anna's one Google account took two links, one per
   migration. Designed next, with ADR-0035's amendment.
 - Not yet against a real Google grant: the path runs through 0108's own routes, unchanged.
+
+**2026-09-29, morning: T7 (f), the wizard's step labels are not struck through** (0131 §6, R8).
+
+- The line between two steps in the wizard's header is now the step's last flex item. It was
+  drawn absolutely from 4rem to the step's right edge, so it ran through every label longer
+  than a word. It now fills only what the circle and the label leave.
+- On a phone four whole labels do not fit, and with the line out of the way they pushed the page
+  117 pixels sideways at 360 pixels. Below Tailwind's `sm` the labels are read, not shown, and
+  the heading under the row (*Stap 1 van 4: Bron*) names the step.
+- Proved in a real browser (`test/ui/managed-ui.ui.test.ts`, *the wizard's progress row*), in
+  English at 1280 pixels and in Dutch at 1280, 768, 640 and 360. No line box crosses a label
+  box, and the page does not scroll sideways. With the old positioning and the same markers,
+  the three cases it had then (English at 1280, Dutch at 1280 and 360) failed on *the line
+  crosses "Source"* and *"Bron"*.
 
 **2026-09-29, morning: T4 with T7, *Start a migration* (the owner's *"Yes"*, 0131 §6), in #1378.**
 

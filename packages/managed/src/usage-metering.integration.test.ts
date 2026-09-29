@@ -233,7 +233,7 @@ describe('Usage Metering - Integration', () => {
       expect(result.egressBytes).toBe(2000);
     });
 
-    it('should handle null lastSyncedAt (exclude from counts)', async () => {
+    it('should exclude an item not yet copied (pending), whatever its dates', async () => {
       await createFixture(TEST_TENANT_ID, TEST_MAPPING_ID);
 
       await db.insert(itemTable).values([
@@ -257,7 +257,7 @@ describe('Usage Metering - Integration', () => {
           naturalKeyHash: 'hash-not-synced',
           sizeBytes: 5000n,
           status: 'pending',
-          lastSyncedAt: null, // Not synced yet
+          lastSyncedAt: null, // Not copied yet: its status, not this NULL, keeps it out
         },
       ]);
 

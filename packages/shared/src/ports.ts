@@ -1257,6 +1257,25 @@ export interface Ledger {
     naturalKeyHash: string,
   ): Promise<LedgerRecord | undefined>;
   /**
+   * Look up many records at once, by natural key (2026-09-29). The map holds
+   * the rows that exist; a key with no row is simply absent from it.
+   *
+   * For the pass's read-ahead (`domain-sync.ts`), which asks about the items a
+   * listing is about to reach, a window at a time. On a managed stack every
+   * `find` is a transaction of its own, so a source with no change feed, which
+   * walks every item it already copied on every pass, spent a round trip per
+   * item: about 11 ms each on the owner's Dropbox, four minutes of a pass at
+   * 13,000 files and growing with every file copied.
+   *
+   * Optional: a ledger without it is asked one key at a time, as before.
+   */
+  findMany?(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    itemType: DiscoveryDomain,
+    naturalKeyHashes: ReadonlyArray<string>,
+  ): Promise<ReadonlyMap<string, LedgerRecord>>;
+  /**
    * Record a mapping if absent. If a row with the same
    * (tenantId, mappingId, itemType, naturalKeyHash) exists, return it unchanged (no-op);
    * otherwise insert and return the new row.
