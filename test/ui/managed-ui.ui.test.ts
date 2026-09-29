@@ -56,7 +56,7 @@ import { createServer, type Server } from 'node:http';
 import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium, type Browser, type Page } from 'playwright-core';
+import { chromium, type Browser, type Page, type Request } from 'playwright-core';
 
 const REPO = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const DIST = join(REPO, 'apps/web/dist');
@@ -371,7 +371,41 @@ async function open(
   page.on('console', (m) => {
     if (m.type() === 'error') errors.push(`console.error: ${m.text()}`);
   });
-  page.on('requestfailed', (r) => badResponses.push(`${r.url()} (${r.failure()?.errorText})`));
+  // THE SIGN-IN'S LANDING PAGE IS LET SETTLE before the goto below leaves it.
+  // Leaving a page aborts whatever it still had in flight, and the landing page
+  // starts its requests a moment after its address changes, which is all
+  // waitForURL waits for: the goto then aborted them, in this test's own
+  // navigation, in a third to a half of the runs once 0139 T3's gate moved the
+  // timing. So the landing page gets what goto gives the page it loads, 500 ms
+  // with nothing in flight (settled(), below), and an abort of what it asked
+  // for is still let through, should one start in the last moment. An answer
+  // of 400 or more, or any other failure, from the landing page still counts.
+  const landing = new Set<Request>();
+  let signingIn = opts.signedIn !== false;
+  let inFlight = 0;
+  let lastChange = Date.now();
+  page.on('request', (r) => {
+    if (signingIn) landing.add(r);
+    inFlight += 1;
+    lastChange = Date.now();
+  });
+  page.on('requestfinished', () => {
+    inFlight -= 1;
+    lastChange = Date.now();
+  });
+  page.on('requestfailed', (r) => {
+    inFlight -= 1;
+    lastChange = Date.now();
+    const failure = r.failure()?.errorText;
+    if (landing.has(r) && failure === 'net::ERR_ABORTED') return;
+    badResponses.push(`${r.url()} (${failure})`);
+  });
+  const settled = async (): Promise<void> => {
+    const until = Date.now() + 15_000;
+    while ((inFlight > 0 || Date.now() - lastChange < 500) && Date.now() < until) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  };
   page.on('response', (r) => {
     if (r.status() >= 400) badResponses.push(`${r.url()} -> ${r.status()}`);
   });
@@ -391,8 +425,10 @@ async function open(
     await page.fill('#token', TOKEN);
     await page.click('form button[type=submit]');
     await page.waitForURL((u) => !u.pathname.endsWith('/login'), { timeout: 15_000 });
+    await settled();
   }
 
+  signingIn = false;
   await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle', timeout: 30_000 });
   return { page, errors, badResponses, origins, text: async () => (await page.textContent('body')) ?? '' };
 }
