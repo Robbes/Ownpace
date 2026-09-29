@@ -268,7 +268,9 @@ uploads neither. What changed:
   grow. Written in `pgbouncer.ini`. Not measured through a real PgBouncer, and Postgres's
   `max_connections` (the image's 100) was not measured against three pairs either: at their
   ceilings, 3 × 30 plus the direct connections is near it; in practice the owner's pair now serves
-  no task.
+  no task. On the OTA stack the direct connections include the demo Nextcloud's since 2026-09-29,
+  when the owner moved its database into this Postgres (a `nextcloud` role and database, made by
+  hand, which nothing here creates, changes or drops).
 - **The smoke** gains a section before its verdict: the role is what the migration made it, and
   the sync tick, on the system role now, beat within the readiness route's five minutes. The E2E
   (managed) workflow needs no change: its secrets step runs `ensure-env-secrets.sh` and persists
