@@ -196,6 +196,8 @@ const LiveProgress: React.FC<{ domains: readonly LiveProgressRow[] }> = ({ domai
                     <SendItToUs
                       category={d.lastErrorCategory}
                       {...(d.lastErrorReference ? { reference: d.lastErrorReference } : {})}
+                      dataType={d.domain}
+                      {...(d.failedSide ? { side: d.failedSide } : {})}
                     />
                   </>
                 )}

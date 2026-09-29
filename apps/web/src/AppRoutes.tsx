@@ -17,6 +17,7 @@ import { Routes, Route, Navigate } from 'react-router';
 import { useAuthStore } from './stores/auth-store.ts';
 import Layout from './components/Layout.tsx';
 import Mappings from './pages/Mappings.tsx';
+import Person from './pages/Person.tsx';
 import MappingDetail from './pages/MappingDetail.tsx';
 import CreateMapping from './pages/CreateMapping.tsx';
 import ConfirmMapping from './pages/ConfirmMapping.tsx';
@@ -250,6 +251,16 @@ const AppRoutes: React.FC = () => {
           element={
             <ManagedOnly>
               <Mappings />
+            </ManagedOnly>
+          }
+        />
+        {/* A page per person (0153 T5). `/people`, not `/moves`: that is the
+            appliance's moved-items queue. Managed only, as Migrations is. */}
+        <Route
+          path="people/:personId"
+          element={
+            <ManagedOnly>
+              <Person />
             </ManagedOnly>
           }
         />

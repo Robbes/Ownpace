@@ -65,13 +65,15 @@ export class PgRateBudget implements RateBudget {
    *   - the four Graph sources pass `this.config.tenantId` — the ENTRA tenant,
    *     which for a multi-tenant app registration is the literal `common`;
    *   - the three DAV sources pass the literal string `'dav'`;
-   *   - the mail sources never call the shared budget at all, only
-   *     `handleRateLimited`.
+   *   - the mail sources never called the shared budget at all, only
+   *     `handleRateLimited`. Graph mail does since workplan 0143 T10: it
+   *     takes a slot before every request, like the other Graph faces. The
+   *     IMAP sources send no HTTP requests for a budget to count.
    *
    * So `${tenantId}::uuid` had never once been handed a uuid, and this budget
    * had never written a row in production. It stayed invisible because the
-   * only path that built a `PgRateBudget` was the mail one, whose sources do
-   * not reach it — until the four non-mail faces were given a limiter and
+   * only path that built a `PgRateBudget` was the mail one, whose sources did
+   * not reach it then — until the four non-mail faces were given a limiter and
    * every domain of a Microsoft preflight died on `invalid input syntax for
    * type uuid: "common"`.
    *

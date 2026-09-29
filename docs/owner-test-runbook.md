@@ -474,8 +474,9 @@ one of them.
      per e-mail naar support@ownpace.eu."* / *"Goes to the Ownpace support team, by email to
      support@ownpace.eu."*, and the fold *Wat we meesturen* / *What we send with this* opens on
      the lines the report will carry, in English: `Page`, `Organisation`, `Build`, `Role`,
-     `Organisation status`, `Migration`, `Service hold`, `Scheduler`, `Browser`. Opened from a
-     migration's page, it also has the migration's `Grant`, `Grant link`, `Data type …` and
+     `Organisation status`, `Migration`, `Service hold`, `Scheduler`, `Browser`, then
+     `Screen language` (*Dutch* for A, *English* for B), `Time zone` and `Window width`. Opened
+     from a migration's page, it also has the migration's `Grant`, `Grant link`, `Data type …` and
      account lines. No line names an address, a folder, a subject or a provider's error text.
    - The report is in `support@ownpace.eu` within a few minutes. Its Subject is *Ownpace:* and
      the first line of the description. Under the description come the same lines the fold

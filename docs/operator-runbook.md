@@ -436,7 +436,9 @@ the one option that is not.
 ## Backup & restore (§22.1)
 
 `ownpace-live`, the stack testers use, takes no backups during the alpha
-([workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md), D1). This
+([workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md), D1), apart
+from one copy made right before each update, kept until the update is proven and never past
+day 7: [The copy before an update](#the-copy-before-an-update-ownpace-live), below. This
 recipe is for a deployment that does. What losing live's machine costs, and what you do then, is
 in [If the machine is lost during the alpha](#if-the-machine-is-lost-during-the-alpha).
 
@@ -467,7 +469,10 @@ docker compose -f managed.yml exec -T postgres \
 ```
 
 It dumps the provider's database and the server's roles into `~/ownpace-dumps/<project>/`,
-readable by you alone, and reads the dump back with the server's own `pg_restore --list`. Beside
+readable by you alone, and reads the dump back with the server's own `pg_restore --list`.
+On `ownpace-live` it writes into the copy before an update's directory and nowhere else, and
+refuses a `--dir` naming another: the copy `deploy-live.sh` takes already holds that dump
+(workplan 0139). Beside
 them it writes a note: the image that was running, a fingerprint of the master key the dump needs,
 and the commands that go back to it. It stops and changes nothing (workplan 0135 T7). On the same
 server, going back replaces the database only: its roles are still there, and restoring them would
@@ -482,6 +487,135 @@ Notes:
   credentials and `ZITADEL_MASTERKEY` the provider's data. Keep a copy off the host, apart from the
   dumps. Restore with the api and zitadel stopped, roles first. This procedure has not been drilled
   for the managed edition (the appliance's has: `test/e2e/selfhost-backup-restore.e2e.test.ts`).
+
+### The copy before an update (ownpace-live)
+
+What the privacy policy (§9) and the Alpha conditions (§6) promise: one copy, made right before
+each update, kept *"until that update is shown to work, and never longer than 7 days"* (the
+owner's answers rec-copies (a) and rec-drill (a), 2026-09-28;
+[workplan 0139](./workplans/0139-the-legal-gate-for-the-alpha.md)). One script,
+[`copy-before-update.sh`](../deploy/compose/copy-before-update.sh), and one directory,
+`~/.persistent/ownpace-live/copy-before-update`, readable by you alone. It is a directory, not
+a link: every script that writes or deletes there refuses a symbolic link, because the backstop
+would not follow one (mount a larger disk at that path if you need the room).
+
+- **Taken** by `deploy-live.sh`, right before its checkout, with the hold on and nothing in
+  flight (`copy-before-update.sh take <tag>`): the app's database, the sign-in service's
+  database and the roles (through `dump-idp.sh`), and, when the tag moves the Trigger.dev pin,
+  the task runner's database (`trigger-version.sh backup before-<tag>`), each read back. The
+  note `copy-before-update.txt` names when it was taken, the tag it was taken before, the
+  release that ran (`from=`) and every file. A copy whose update is not proven yet is kept
+  instead of a second one: it is of what ran before. It refuses while the daily duties' timer
+  (`ownpace-box-duties.timer`) is not active, since nothing would delete what it took; and it
+  refuses a kept copy the next daily run deletes, so that no update is left without a copy:
+  prove the previous update and delete its copy, or roll back from it, first. The rollback's own
+  deploy, of the note's `from=`, goes ahead.
+- **Deleted once the update is proven**, by you, from `~/ownpace-live`:
+  `./deploy/compose/copy-before-update.sh delete`. It refuses unless the last line `deploys.log`
+  has since the copy was taken says the deploy took (a deploy that did not take after one that
+  did leaves nothing proven), the hold that covered that deploy is lifted, and a pass that
+  started after it succeeded.
+- **Deleted after day 6 whatever happens**, by the daily duties' `copies`
+  (`copy-before-update.sh expire`), once it is older than 6 days less an hour, so it is never
+  kept past day 7 even when a run starts late. A dump made there by hand goes by its own age,
+  alone. The run before the one that deletes the copy fails in the journal, to say today is the
+  last day to roll back.
+- **The drill is not live's.** It runs on the test stack only, in the gate; on live
+  `trigger-version.sh` refuses `drill`, and its `backup` writes into this directory only, as
+  `dump-idp.sh` does.
+
+**Rolling back from it, by day 6**, when the update is not proven and will not be. From
+`~/ownpace-live`, the copy's directory as `C=~/.persistent/ownpace-live/copy-before-update`.
+A rollback replaces the databases with the copy's, and so undoes what testers erased or
+deleted after it: an organisation closed after the copy comes back open, one erased comes back
+whole, the erasure records written since are lost, and a deleted connection with the credential
+it held, a deleted migration, person or membership, a withdrawn grant's token and a removed
+sign-in account all come back. Privacy §9 and the Alpha conditions §6 and §10 promise those are
+gone. Steps 4, 6 and 10 do each of them again; do not skip them.
+
+1. **The hold on, the drain done.** Start the hold again if you lifted it, and wait for
+   `0 pass(es) still in flight` in the tick's log. Anything else testers did since the update is
+   lost with the database; their migrations adopt what the targets hold on their next pass.
+2. **Read the note:** `cat "$C/copy-before-update.txt"`. `from=` is the release that ran
+   before, the one to go back to; the files are listed below it.
+3. **Stop everything that connects to the databases:**
+   `docker compose -f deploy/compose/managed.yml stop api zitadel pgbouncer trigger-supervisor`,
+   and `trigger-api` too when the copy holds the task runner's database. A database with a
+   session still open cannot be replaced: `pg_restore` stops at its `DROP DATABASE` with
+   *"is being accessed by other users"*. Stop whatever that names, and run the step again.
+4. **Write down what changed since the copy**, while the app's database is still the one after
+   it: `./deploy/compose/copy-before-update.sh since`. It reads (every statement a SELECT) every
+   organisation with its status and closure, every erasure record, the ids of every connection,
+   migration, person and membership, and each withdrawn grant, and writes them into the copy's
+   directory as `since-the-copy-<stamp>.sql`: SQL that does again, in the restored database,
+   what was erased, closed, reopened or deleted after the copy. It holds ids and dates, no name,
+   address or credential, and goes with the copy.
+5. **The app's database**, replaced by the copy's, as it was dumped, with its owner and grants:
+
+   ```bash
+   docker exec -i ownpace-live-db sh -c 'pg_restore -U "$POSTGRES_USER" -d postgres --clean --if-exists --create' \
+     < "$C"/openmigrate-ownpace-live-<stamp>.dump
+   ```
+
+6. **What changed since, done again**, in the restored app database, before anything starts:
+
+   ```bash
+   docker exec -i ownpace-live-db sh -c 'psql -X -q -At -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d openmigrate' \
+     < "$C"/since-the-copy-<stamp>.sql
+   ```
+
+   One transaction: an error stops it and nothing it did stays, and it refuses a database none
+   of whose organisations it lists. An organisation erased after the copy comes back closed and
+   due at once, for the hourly purge; every other organisation's status and closure are as they
+   were before the rollback; the erasure records are all of them; connections, migrations,
+   people and memberships deleted after the copy are deleted again; a grant withdrawn after it
+   loses its token again. It prints how many organisations the purge will erase again, and
+   then one `./deploy/compose/idp-strays.sh --subject <sub> --remove` line for each sign-in
+   account to remove again: keep them for step 10.
+7. **The sign-in service's database**, the same way as step 5, with the
+   `zitadel-ownpace-live-<stamp>.dump` beside it: step 3 of the note `dump-idp.sh` wrote there
+   (`zitadel-ownpace-live-<stamp>.txt`). The roles only on a new server: on the same one they
+   are still there, and restoring them would set the provider's database password back.
+8. **The task runner's database**, only when the copy has a `triggerdb-<stamp>-before-<tag>.sql.gz`:
+
+   ```bash
+   ./deploy/compose/trigger-version.sh restore "$C"/triggerdb-<stamp>-before-<tag>.sql.gz --yes
+   ```
+
+9. **Deploy the release that ran before**, the note's `from=`, the hold still on:
+   `./deploy/compose/deploy-live.sh <that tag>`. It says one-way, keeps the copy (its update
+   is not proven; on the copy's last day it lets this deploy through, and no other), brings
+   every service up at that release and runs its checks. The restored database still carries
+   the hold that was on when the copy was taken.
+10. **The erasures and the sign-in accounts again, within the hour.** The hourly purge
+    (`managed-purge-closed`, at :23, whatever the hold) erases the organisations step 6 closed.
+    Ask, as the owner, until this answers `0`:
+
+    ```bash
+    docker exec -i ownpace-live-db sh -c 'psql -X -At -U "$POSTGRES_USER" -d openmigrate' <<'SQL'
+    SELECT count(*) FROM tenant t JOIN tenant_closure c ON c.tenant_id = t.id
+     WHERE t.status = 'closed' AND c.purge_after <= now();
+    SQL
+    ```
+
+    Then run each `idp-strays.sh --subject <sub> --remove` line step 6 printed (it
+    refuses an account that still belongs somewhere, and says so), and
+    `./deploy/compose/idp-strays.sh`, then `--remove`, for the accounts nobody let in that the
+    restore brought back (*Sign-in accounts nobody let in*, below). An account you removed by
+    hand in the provider's console after the copy: remove it again the same way.
+11. **Lift the hold, watch a pass complete**, then `./deploy/compose/copy-before-update.sh
+    delete`: the rollback is the update the copy now proves.
+
+Step 5's command was rehearsed on 2026-09-28 against Postgres 16 with both migration chains
+applied, after a simulated update (a column, a table and a row added): with a session still
+open it stopped at the `DROP DATABASE`; with none, the database came back as dumped, without
+the three, with its owner and `app_user`'s grants. The sign-in service's way back was rehearsed
+the same way for `dump-idp.sh` (its header). Steps 4 and 6 are rehearsed in
+`scripts/one-copy-before-each-update.unit.test.ts` on two PGlite databases with both chains
+applied, the copy's and the one after it: an organisation closed, one reopened, one erased, a
+connection, a migration, a person and a membership deleted, and a grant withdrawn after the
+copy, each done again in a fresh copy of the first. The whole sequence has not been run on a
+stack.
 
 ## If the machine is lost during the alpha
 
@@ -816,7 +950,7 @@ The response is what you tell the customer. It carries **two dates**:
 | --- | --- |
 | `purgeAfter` | when the **live service** stops holding their data |
 | `backupsExpireAt` | when the last backup that could still contain it ages out — **this is when the erasure completes** |
-| `backupRetentionDays` | this deployment's retention, from `BACKUP_RETENTION_DAYS` (default **7**, which assumes backups exist; `ownpace-live` sets **7**, the most days a dump of its databases taken before a deploy is kept; the owner takes and deletes that dump by hand, since no script does yet, workplan 0134) |
+| `backupRetentionDays` | this deployment's retention, from `BACKUP_RETENTION_DAYS` (default **7**, which assumes backups exist; `ownpace-live` sets **7**, the most days the copy of its databases made before an update is kept: `deploy-live.sh` takes it, you delete it once the update is proven, and the daily duties delete it after day 6, [The copy before an update](#the-copy-before-an-update-ownpace-live), workplans 0134 and 0139) |
 | `erasureCompletesText` | the same promise as a sentence, `en` and `nl` |
 | `windowDays` | the window they chose |
 | `canReopenUntil` | until when `POST /api/tenants/:tenantId/reopen` works: `purgeAfter`, or `null` for a window of `0` |
@@ -838,12 +972,11 @@ Nothing in this repository backs up the application database yet (see
 use, takes none during the alpha and sets `7` (the owner's answer of
 2026-09-28 to
 [workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md)'s
-open question 1): its databases are dumped before each deploy, with the
-commands under *Backup & restore*, and each dump is deleted after at most
-seven days. Both are the owner's steps for now. `deploy-live.sh` takes no dump
-(0132 T6 step 4 comes before it), and nothing deletes one, so delete each dump
-by its seventh day, whether or not a deploy followed. The automatic copy and
-its deletion are not built yet.
+open question 1): one copy of its databases is made right before each update,
+by `deploy-live.sh`, and deleted once the update is proven, or after six days
+less an hour by the daily duties, so never past day 7
+([The copy before an update](#the-copy-before-an-update-ownpace-live); workplan
+0139).
 If your backups are kept for a month, a deployment left on the default promises
 a date it cannot honour. `0` is a valid answer for a deployment that takes no
 backups, and produces different wording rather than the same date twice. The
