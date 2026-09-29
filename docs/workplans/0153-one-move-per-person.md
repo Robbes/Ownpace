@@ -4,6 +4,20 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-29, morning: T7 (f), the wizard's step labels are not struck through** (0131 §6, R8).
+
+- The line between two steps in the wizard's header is now the step's last flex item. It was
+  drawn absolutely from 4rem to the step's right edge, so it ran through every label longer
+  than a word. It now fills only what the circle and the label leave.
+- On a phone four whole labels do not fit, and with the line out of the way they pushed the page
+  117 pixels sideways at 360 pixels. Below Tailwind's `sm` the labels are read, not shown, and
+  the heading under the row (*Stap 1 van 4: Bron*) names the step.
+- Proved in a real browser (`test/ui/managed-ui.ui.test.ts`, *the wizard's progress row*), in
+  English at 1280 pixels and in Dutch at 1280, 768, 640 and 360. No line box crosses a label
+  box, and the page does not scroll sideways. With the old positioning and the same markers,
+  the three cases it had then (English at 1280, Dutch at 1280 and 360) failed on *the line
+  crosses "Source"* and *"Bron"*.
+
 **2026-09-29, morning: the owner's answers to the writing session's eleven questions, and two
 words changed with them** (0131 §6, R8).
 

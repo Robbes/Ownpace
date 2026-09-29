@@ -642,6 +642,72 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
   });
 });
 
+describe("the wizard's progress row (0153 T7 (f))", () => {
+  // The line between two steps was drawn absolutely from 4rem to the step's
+  // right edge, so it ran through every label longer than a word. Only a
+  // layout engine can see that: jsdom has no boxes. Measured at a laptop's
+  // width in both languages, where the labels show, and down to a phone's,
+  // where four of them do not fit and the row must still not push the page.
+  const cases = [
+    { locale: 'en', width: 1280 },
+    { locale: 'nl', width: 1280 },
+    { locale: 'nl', width: 768 },
+    { locale: 'nl', width: 640 },
+    { locale: 'nl', width: 360 },
+  ] as const;
+  // What the wizard's first step reads on opening, answered as an account
+  // with nothing saved yet. Removed after, so no other case sees them.
+  const wizardReads: Record<string, unknown> = {
+    'GET /api/connections': { connections: [] },
+    'GET /api/provider-accounts': { google: { domains: ['calendar', 'contact', 'task'], client: 'deployment' } },
+    'GET /api/provider-clients': { google: 'deployment' },
+  };
+  for (const { locale, width } of cases) {
+    it(`draws the line between the labels, never through them (${locale}, ${width}px)`, async () => {
+      Object.assign(FIXTURES, wizardReads);
+      try {
+        const l = await open('/mappings/new', { locale });
+        await l.page.setViewportSize({ width, height: 800 });
+        await l.page.waitForSelector('[data-step-label]');
+
+        const boxes = async (selector: string) =>
+          l.page.$$eval(selector, (els) =>
+            els.map((el) => {
+              const r = el.getBoundingClientRect();
+              return { text: (el.textContent ?? '').trim(), left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+            }),
+          );
+        const labels = await boxes('[data-step-label]');
+        const lines = await boxes('[data-step-line]');
+        expect(labels).toHaveLength(4);
+        expect(lines, 'one line between each two steps').toHaveLength(3);
+        // Every step is still named to a screen reader where its label is not
+        // shown (wizard.step.*).
+        expect(labels.map((b) => b.text)).toEqual(
+          locale === 'nl' ? ['Bron', 'Doel', 'Migratie', 'Controleren'] : ['Source', 'Target', 'Migration', 'Review'],
+        );
+
+        for (const line of lines) {
+          expect(line.right - line.left, 'the line is drawn at all').toBeGreaterThan(0);
+          for (const label of labels) {
+            const crosses =
+              line.left < label.right && line.right > label.left && line.top < label.bottom && line.bottom > label.top;
+            expect(crosses, `the line crosses "${label.text}"`).toBe(false);
+          }
+        }
+        const overflow = await l.page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        );
+        expect(overflow, 'the row pushes the page sideways').toBeLessThanOrEqual(0);
+        expectClean(l, `the wizard (${locale}, ${width}px)`);
+        await l.page.close();
+      } finally {
+        for (const key of Object.keys(wizardReads)) delete FIXTURES[key];
+      }
+    });
+  }
+});
+
 describe('the build stamp', () => {
   it('shows the version the server reports, in a real browser', async () => {
     // The one thing the unit tests structurally cannot check: that the element

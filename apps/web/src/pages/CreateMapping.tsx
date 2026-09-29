@@ -2947,11 +2947,19 @@ const CreateMapping: React.FC = () => {
 
       {/* Progress Steps */}
       <nav aria-label={t('wizard.progress')}>
+        {/* THE LINE RUNS BETWEEN THE LABELS, NOT THROUGH THEM (0153 T7 (f)).
+            It was drawn absolutely from 4rem to the step's right edge, so it
+            crossed every label longer than a word: the audit measured the
+            strike. It is now the step's last flex item, and fills only what
+            the circle and the label leave. Four whole labels do not fit a
+            phone, so there they are read, not shown: the heading under the
+            row names the step. */}
         <ol className="flex items-center">
           {steps.map((step, index) => (
-            <li key={step.id} className={`relative ${index !== steps.length - 1 ? 'flex-1' : ''}`}>
+            <li key={step.id} className={`flex items-center ${index !== steps.length - 1 ? 'flex-1' : ''}`}>
               <div
-                className={`flex items-center ${
+                data-step-label
+                className={`flex shrink-0 items-center ${
                   index <= currentStep ? 'text-blue-600' : 'text-gray-400'
                 }`}
               >
@@ -2970,14 +2978,13 @@ const CreateMapping: React.FC = () => {
                     <step.icon className="w-5 h-5" />
                   )}
                 </div>
-                <span className="ml-2 text-sm font-medium">{t(step.nameKey)}</span>
+                <span className="sr-only text-sm font-medium sm:not-sr-only sm:ml-2">{t(step.nameKey)}</span>
               </div>
               {index !== steps.length - 1 && (
                 <div
-                  className={`absolute top-4 left-0 right-0 h-0.5 ${
-                    index < currentStep ? 'bg-blue-600' : 'bg-gray-200'
-                  }`}
-                  style={{ left: '4rem' }}
+                  data-step-line
+                  aria-hidden="true"
+                  className={`mx-3 h-0.5 min-w-4 flex-1 ${index < currentStep ? 'bg-blue-600' : 'bg-gray-200'}`}
                 />
               )}
             </li>
