@@ -261,7 +261,8 @@ const Layout: React.FC = () => {
   const navigation: { name: string; href: string; icon: LucideIcon; also?: readonly string[] }[] = [
     ...(member
       ? [
-          { name: t('nav.mappings'), href: '/mappings', icon: FolderGit2 },
+          // A person's page (0153 T5) is part of Migrations, so it lights it.
+          { name: t('nav.mappings'), href: '/mappings', icon: FolderGit2, also: ['/people'] },
           // What waits on the person, across every queue: each migration's
           // line, and the decisions that belong to no migration (T6 (b)'s
           // *Needs you*, one word where there were three).

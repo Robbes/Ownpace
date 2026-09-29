@@ -68,6 +68,7 @@ vi.mock('./components/AcceptanceGate', () => ({
 // Markers, not screens: mounting is the thing under test.
 vi.mock('./pages/AccessRequests', () => ({ default: () => <div>screen:access-requests</div> }));
 vi.mock('./pages/Mappings', () => ({ default: () => <div>screen:mappings</div> }));
+vi.mock('./pages/Person', () => ({ default: () => <div>screen:person</div> }));
 vi.mock('./pages/MappingDetail', () => ({ default: () => <div>screen:mapping-detail</div> }));
 vi.mock('./pages/CreateMapping', () => ({ default: () => <div>screen:create-mapping</div> }));
 vi.mock('./pages/ConfirmMapping', () => ({ default: () => <div>screen:confirm-mapping</div> }));
@@ -131,6 +132,8 @@ describe('appliance builds redirect managed-only URLs to /confirm', () => {
   const managedOnly: Record<string, string> = {
     '/dashboard': 'screen:mappings',
     '/mappings': 'screen:mappings',
+    // A person's page (0153 T5) is managed-only, as Migrations is.
+    '/people/p-anna': 'screen:person',
     '/mappings/new': 'screen:create-mapping',
     // The green light drives the managed discover/start API; the appliance's
     // own /confirm is that edition's equivalent — exactly where this lands.
@@ -317,6 +320,11 @@ describe('where the bare host lands you', () => {
     whoFlag.tenantCount = 1;
     renderAt('/');
     expect(await screen.findByText('screen:mappings')).toBeInTheDocument();
+  });
+
+  it("opens a person's page on managed (0153 T5)", async () => {
+    renderAt('/people/p-anna');
+    expect(await screen.findByText('screen:person')).toBeInTheDocument();
   });
 
   it('sends an old /dashboard link to Migrations, so a bookmark still lands (0153 T3 (b))', async () => {
