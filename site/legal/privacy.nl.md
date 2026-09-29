@@ -168,9 +168,9 @@ e-mailaanbieder (§7).
      organisation, which version of each a person accepted, the language and the time
      (legal_acceptance, managed migration 0032). Asked while live's OWNPACE_STAGE=alpha and no text
      is still a draft (LEGAL_DRAFTS: a draft's number is the one its final text carries, so nobody
-     accepts a draft); nothing is connected before it. Kept with the account and erased with it; a
-     member who leaves keeps their rows until the organisation's data is erased (§9's row; 0139
-     open question 4, the proposal, until the owner answers). "In welke taal" below was added on
+     accepts a draft); nothing is connected before it. Kept with the account and erased with it
+     (0139 open question 4, answered 2026-09-29, the owner: "Ok"); a member who leaves keeps their
+     rows until the organisation's data is erased (§9's row). "In welke taal" below was added on
      2026-09-29 (review of 0139 T3), because the record keeps it; for the owner's review with the
      rest of this draft. -->
 

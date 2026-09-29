@@ -442,7 +442,7 @@ describe('purging a tenant', () => {
     expect(rows[0]?.purged_counts?.person).toBe(1);
     expect(rows[0]?.purged_counts?.person_migration).toBe(1);
     // What the member accepted goes with their account (privacy §9; 0139 T3,
-    // open question 4's proposal), and the receipt counts it.
+    // open question 4, answered 2026-09-29), and the receipt counts it.
     expect(rows[0]?.purged_counts?.legal_acceptance).toBe(2);
     expect(rows[0]?.retained_invoice_ids).toHaveLength(1);
     expect(result.retainedInvoiceIds).toHaveLength(1);
