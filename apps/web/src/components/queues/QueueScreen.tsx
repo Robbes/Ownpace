@@ -142,7 +142,6 @@ export function QueueScreen<T extends QueueEnvelope>({
         <div>
           <p className="font-medium">{t('queue.loadFailed')}</p>
           <p className="mt-1">{serverMessage(error)}</p>
-          <p className="mt-1">{t('queue.loadFailedNotEmpty')}</p>
         </div>
       </div>
     );

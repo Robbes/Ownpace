@@ -6,11 +6,13 @@
  * stays stale after an unauthorized response.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { z } from 'zod';
 import { z as zm } from 'zod/mini';
 import apiClient, { onUnauthorized, serverMessage, unreadableAnswer } from './api.ts';
 import { publishLocale } from '../i18n/active-locale.ts';
+import { forgetUnreadableAnswers } from './unreadable-answer.ts';
+import { forgetRecentErrors, recentErrors } from './recent-errors.ts';
 import type { AxiosAdapter } from 'axios';
 import { useAuthStore } from '../stores/auth-store.ts';
 
@@ -97,9 +99,11 @@ describe('serverMessage', () => {
  *
  * A zod error's message is the JSON of its issues, and every screen showing
  * `serverMessage(err)` under a failed read of a parsed answer showed that
- * JSON. It is ours to word, in the reader's language, with the first issue's
- * code and path kept for support. The page-level cases, on the reported
- * Migrations list, are in `pages/an-answer-the-page-could-not-read.unit.test.tsx`.
+ * JSON. It is ours to word, in the reader's language (the owner's sentence,
+ * 2026-09-29), with a reference the server is told once, with the first
+ * issue's code and where it sat (the owner's "Log it"). The page-level cases,
+ * on the reported Migrations list, are in
+ * `pages/an-answer-the-page-could-not-read.unit.test.tsx`.
  */
 describe('serverMessage — an answer the page could not read', () => {
   const refusal = (schema: z.ZodType, value: unknown): unknown => {
@@ -109,15 +113,36 @@ describe('serverMessage — an answer the page could not read', () => {
   };
   const DOMAINS = z.object({ domains: z.array(z.enum(['email', 'calendar', 'contact'])) }).array();
   const reported = () => refusal(DOMAINS, [{ domains: ['email'] }, { domains: ['email', 'contacts'] }]);
+  const EN =
+    /^The server answered in a form this page does not know\. Reload the page; if it stays like this, report it to support, and mention: reference ([0-9a-f]{8})\.$/;
+  const NL =
+    /^De server antwoordde in een vorm die deze pagina niet kent\. Laad de pagina opnieuw; blijft het zo, meld het en geef daarbij het volgende door: referentie ([0-9a-f]{8})\.$/;
 
-  afterEach(() => publishLocale('en'));
+  const sent = vi.fn(async (_url: string, _init?: RequestInit) => new Response(null, { status: 204 }));
+  /** Every report sent, as the server receives it. */
+  const reports = () => sent.mock.calls.map(([url, init]) => ({ url, body: JSON.parse(String(init?.body)) }));
+  /** The reports leave after the render, not during it. */
+  const leave = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-  it('says a sentence and the path in English, and no JSON', () => {
+  beforeEach(() => {
+    sent.mockClear();
+    vi.stubGlobal('fetch', sent);
+    forgetUnreadableAnswers();
+    forgetRecentErrors();
+    Object.defineProperty(globalThis, 'location', {
+      value: { href: '', pathname: '/people/0e320000-e29b-41d4-a716-446655440001' },
+      writable: true,
+      configurable: true,
+    });
+  });
+  afterEach(() => {
+    publishLocale('en');
+    vi.unstubAllGlobals();
+  });
+
+  it('says the owner’s sentence in English with a reference, and no JSON', () => {
     const said = serverMessage(reported());
-    expect(said).toBe(
-      'The server answered in a form this page does not know. Reload the page; if it stays like this, ' +
-        'report it to support, and mention: invalid_value at 1.domains.1.',
-    );
+    expect(said).toMatch(EN);
     expect(said).not.toContain('"code":');
     expect(said).not.toContain('[');
   });
@@ -125,19 +150,60 @@ describe('serverMessage — an answer the page could not read', () => {
   it('says it in Dutch when the screen is in Dutch', () => {
     publishLocale('nl');
     const said = serverMessage(reported());
-    expect(said).toBe(
-      'De server antwoordde in een vorm die deze pagina niet kent. Laad de pagina opnieuw; blijft het zo, ' +
-        'meld het en geef daarbij het volgende door: invalid_value bij 1.domains.1.',
-    );
+    expect(said).toMatch(NL);
     expect(said).not.toContain('"code":');
   });
 
-  it('says so when the whole answer was the wrong shape, with no path to give', () => {
-    // A proxy's HTML page answered with a 200 is refused at the root.
-    expect(serverMessage(refusal(DOMAINS, '<html>502</html>'))).toBe(
-      'The server answered in a form this page does not know. Reload the page; if it stays like this, ' +
-        'report it to support, and mention: invalid_type, in the whole answer.',
-    );
+  it('tells the server once, under the reference on screen, with the code, where, the page and the build', async () => {
+    const reference = EN.exec(serverMessage(reported()))![1];
+    await leave();
+
+    expect(reports()).toEqual([
+      {
+        url: '/api/unreadable-answers',
+        body: {
+          reference,
+          code: 'invalid_value',
+          path: '1.domains.1',
+          page: '/people/:id',
+          build: { version: expect.any(String), commit: expect.any(String) },
+        },
+      },
+    ]);
+  });
+
+  it('keeps one number for one failure, as a screen that polls meets it again', async () => {
+    const first = serverMessage(reported());
+    const again = serverMessage(reported());
+    await leave();
+
+    expect(again).toBe(first);
+    expect(sent).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives another failure its own number, and forgets them all on signing out', async () => {
+    const one = EN.exec(serverMessage(reported()))![1];
+    const other = EN.exec(serverMessage(refusal(DOMAINS, '<html>502</html>')))![1];
+    await leave();
+    expect(other).not.toBe(one);
+    // A proxy's HTML page answered with a 200 is refused as a whole.
+    expect(reports().map((r) => r.body.path)).toEqual(['1.domains.1', '']);
+
+    forgetUnreadableAnswers();
+    expect(EN.exec(serverMessage(reported()))![1]).not.toBe(one);
+  });
+
+  it('hands the reference to a problem report, as a fault of ours', () => {
+    const reference = EN.exec(serverMessage(reported()))![1];
+    expect(recentErrors()).toEqual([{ reference, code: 'answer_unreadable' }]);
+  });
+
+  it('says the sentence all the same when the server cannot be told', async () => {
+    sent.mockImplementation(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+    expect(serverMessage(reported())).toMatch(EN);
+    await leave();
   });
 
   it('recognises a zod error from the core and mini builds too', () => {
@@ -147,8 +213,8 @@ describe('serverMessage — an answer the page could not read', () => {
   });
 
   it('is not an unreadable answer when the server refused with its own words', () => {
-    // The Axios refusal keeps the server's sentence; the case above this
-    // block holds that for every shape it reads.
+    // The Axios refusal keeps the server's sentence; the cases above this
+    // block hold that for every shape it reads.
     const axiosRefusal = Object.assign(new Error('Request failed with status code 400'), {
       isAxiosError: true,
       response: { data: { error: 'Validation error', details: [{ message: 'Name is required.' }] } },
@@ -157,6 +223,7 @@ describe('serverMessage — an answer the page could not read', () => {
     expect(serverMessage(axiosRefusal)).toBe('Name is required.');
     expect(unreadableAnswer(new Error('plain'))).toBeNull();
     expect(serverMessage(new Error('plain'))).toBe('plain');
+    expect(sent).not.toHaveBeenCalled();
   });
 });
 

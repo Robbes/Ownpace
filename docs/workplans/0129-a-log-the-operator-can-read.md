@@ -2,7 +2,13 @@
 
 > **In one line:** A searchable operator Log page on both editions over `audit_log` and an `app_event` table of errors and warnings, 30-day retention for `app_event` and container output, and pseudonymised OpenTelemetry audit lines with a resumable `audit-export` download.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-29 (update this block at the end of every session)
+
+**2026-09-29: the web app's own failures join the log** (workplan 0145, the owner's "Log it").
+A page that could not read one of its server's answers shows its reader a reference and sends
+it; both editions record `web.answer_unreadable` under it, metadata only as T1 has it, and
+write the detail on one line of their output with both builds. The rest of this plan is
+unchanged; 0145's Status block has the build and its evidence.
 
 **2026-09-23: opened from the owner's answers.** The owner asked for *"an logging page, for the
 operator, logging can be viewd and searched, keep is basic. I want retention of 1 month. And i

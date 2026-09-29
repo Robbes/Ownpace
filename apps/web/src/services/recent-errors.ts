@@ -26,7 +26,9 @@
  *
  * A fault here is an answer from 500 up whose body names a reference: a
  * refusal (4xx) is the person's to read, not a fault of ours, and a request
- * that got no answer has no reference to give.
+ * that got no answer has no reference to give. Or an answer the page could not
+ * read, under the reference the page showed with it
+ * ({@link rememberUnreadableAnswer}, workplan 0145).
  */
 
 import { APP_EVENT_REFERENCE } from '@openmig/shared';
@@ -67,6 +69,23 @@ export function rememberFault(err: unknown, now: number = Date.now()): void {
   const reference = REFERENCE_IN_SENTENCE.exec(said)?.[1];
   if (!reference || !APP_EVENT_REFERENCE.test(reference)) return;
   const code = typeof error === 'string' && CODE.test(error) ? error : 'unknown';
+  keep(reference, code, now);
+}
+
+/** The code an answer the page could not read is kept under. */
+export const UNREADABLE_ANSWER_CODE = 'answer_unreadable';
+
+/**
+ * Keep the reference an answer the page could not read was shown with
+ * (workplan 0145): a fault of ours as well, and one the page numbered rather
+ * than the server (`unreadable-answer.ts`), so a report carries it too.
+ */
+export function rememberUnreadableAnswer(reference: string, now: number = Date.now()): void {
+  if (APP_EVENT_REFERENCE.test(reference)) keep(reference, UNREADABLE_ANSWER_CODE, now);
+}
+
+/** Newest first, each reference once, the newest {@link RECENT_ERRORS_KEPT}. */
+function keep(reference: string, code: string, now: number): void {
   const again = kept.findIndex((e) => e.reference === reference);
   if (again !== -1) kept.splice(again, 1);
   kept.unshift({ reference, code, at: now });

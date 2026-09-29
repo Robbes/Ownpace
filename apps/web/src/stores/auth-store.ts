@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { forgetRecentErrors } from '../services/recent-errors.ts';
+import { forgetUnreadableAnswers } from '../services/unreadable-answer.ts';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -55,13 +56,16 @@ export const useAuthStore = create<AuthState>()(
       operator: false,
       tenantCount: 0,
       login: (token, user, tenantId, operator = false, tenantCount = 0) => {
-        // The faults a report may name are one session's (workplan 0130 T6).
+        // The faults a report may name are one session's (workplan 0130 T6),
+        // and so are the unreadable answers numbered in it (0145).
         forgetRecentErrors();
+        forgetUnreadableAnswers();
         localStorage.setItem('auth_token', token);
         set({ isAuthenticated: true, user, tenantId, token, operator, tenantCount });
       },
       logout: () => {
         forgetRecentErrors();
+        forgetUnreadableAnswers();
         localStorage.removeItem('auth_token');
         set({
           isAuthenticated: false,

@@ -4,68 +4,110 @@
 
 ## Status — 2026-09-29 (update this block at the end of every session)
 
-**2026-09-29, fix: T6's unreadable answer, on the signed-in pages too, on branch
-`claude/affectionate-mayer-xqkjdh`, not merged.** T6 made the grant and view pages say
+**2026-09-29, fix: T6's unreadable answer, on the signed-in pages too, and kept in the log, on
+branch `claude/affectionate-mayer-xqkjdh`, not merged.** T6 made the grant and view pages say
 `link.unreadable` where they showed zod's JSON. The signed-in pages still showed it. A service
 that checks an answer with `Schema.parse(response.data)` throws a zod error when the API answers
 a shape the schema refuses, and `serverMessage` returned that error's message, which in zod 4 is
 the pretty-printed JSON of its issues. Seen on Migrations while taking screenshots with a fixture
 that sent `"contacts"` for `"contact"`. In production it is what somebody sees when the API and
-the web app disagree after a partial deploy.
+the web app disagree after a partial deploy, or when a tab stays open across a deploy.
 
-- **`serverMessage` words it, in the reader's language.** `unreadableAnswer` (beside it in
-  `apps/web/src/services/api.ts`) recognises any zod error (`z.core.$ZodError`, classic or mini)
-  and returns the first issue's code and path. `serverMessage` says `answer.unreadable`, whose
-  `{detail}` is `answer.unreadable.at` (*invalid_value at 2.domains.2.*), or
-  `answer.unreadable.whole` when the whole answer was refused (*invalid_type, in the whole
-  answer.*). In the owner's words (below), EN: *"The server answered in a form this page does not
-  know. Reload the page; if it stays like this, report it to support, and mention: invalid_value
-  at 2.domains.2."* NL: *"De server antwoordde in een vorm die deze pagina niet kent. Laad de
-  pagina opnieuw; blijft het zo, meld het en geef daarbij het volgende door: invalid_value bij
-  2.domains.2."* The failure is still shown as one (hard rule 9): which words, not whether.
+- **`serverMessage` words it, in the reader's language, with a reference.** `unreadableAnswer`
+  (beside it in `apps/web/src/services/api.ts`) recognises any zod error (`z.core.$ZodError`,
+  classic or mini) and returns the first issue's code and where it sat, as the log keeps it
+  (`issuePathForLog`). `serverMessage` says `answer.unreadable`, in the owner's words (below).
+  EN: *"The server answered in a form this page does not know. Reload the page; if it stays like
+  this, report it to support, and mention: reference 2df02918."* NL: *"De server antwoordde in
+  een vorm die deze pagina niet kent. Laad de pagina opnieuw; blijft het zo, meld het en geef
+  daarbij het volgende door: referentie 2df02918."* The failure is still shown as one (hard rule
+  9): which words, not whether.
+- **The page tells its server, once (the owner's "Log it").** `apps/web/src/services/unreadable-answer.ts`
+  numbers the failure (`getRandomValues`, since `randomUUID` needs HTTPS and the appliance is
+  often opened over plain HTTP), keeps one number per failure (same code, place and page) for as
+  long as it is shown and five minutes after, so a polling screen neither reports again nor
+  changes its number, and sends the report by `fetch` after the render, never through
+  `apiClient`'s interceptors: a report that fails changes nothing on screen. The number also
+  joins the faults a problem report carries (`recent-errors.ts`, code `answer_unreadable`), and
+  signing in or out forgets them, as it forgets the faults. The report holds the code, where in
+  the answer (positions and field names from code, `*` for a key taken from data), the page with
+  every id as `:id`, and the page's build.
+- **Both editions keep it as they keep a fault of their own** (`serverFault`, 0129): managed at
+  `POST /api/unreadable-answers` (`apps/api/src/routes/unreadable-answers.ts`; signed in, thirty
+  an hour per person, documented in `openapi.yaml`), the appliance at `POST /unreadable-answers`
+  (behind its cross-site refusal). Each records `web.answer_unreadable` under the page's
+  reference, in the person's organisation on managed, for the log page, and writes one line in
+  its output: *"[web] a page could not read an answer [ref 1a2b3c4d]: invalid_value at
+  2.domains.2, on /mappings; page build 0.3.1 abc1234, server build 0.3.2 def5678 (they
+  differ)"*. What a body may say is `parseUnreadableAnswer` in `@openmig/shared`: each field in
+  its own shape, anything else dropped, only the reference required. The operator's steps are in
+  `docs/incident-runbook.md`; the log page's description (`managed-bring-up.md`) and the
+  appliance's (`selfhost-quickstart.md`) name the event. The managed gate does not send one
+  (`scripts/gate-coverage.unit.test.ts` says why: a nightly false error in the owner's log).
 - **How the words reach the language.** `serverMessage` has some sixty callers and no `t`.
   `LocaleProvider` publishes its locale to `apps/web/src/i18n/active-locale.ts` as it renders,
   and `tActive` reads it. Outside a provider it is English, as `useLocale` is. `fill` moved to
   `i18n/fill.ts` so both substitute placeholders the same way.
-- **Sixteen renders in nine files that bypassed `serverMessage` now use it**: Finish (four), the queue screen
-  (two), the apply-deletions panel (two), a failure group, the pause on a migration's page, the
-  completion report download, Sharing (three), Moves and Deletions. Each showed a zod error's
-  `message` raw. For a non-request error `serverMessage` still returns the message, and for a
-  request it prefers the server's own sentence, as everywhere else.
+- **Sixteen renders in nine files that bypassed `serverMessage` now use it**: Finish (four), the
+  queue screen (two), the apply-deletions panel (two), a failure group, the pause on a
+  migration's page, the completion report download, Sharing (three), Moves and Deletions. Each
+  showed a zod error's `message` raw. For a non-request error `serverMessage` still returns the
+  message, and for a request it prefers the server's own sentence, as everywhere else.
 - **Not changed**: Team (`Tenants.tsx`) and Needs you (`Decisions.tsx`) word their failed reads
   from the dictionary and never showed the JSON. The sign-in pages read nothing through zod.
 
 The guards, each run against a mutation:
 
-- `apps/web/src/pages/an-answer-the-page-could-not-read.unit.test.tsx`, five cases: the
+- `apps/web/src/pages/an-answer-the-page-could-not-read.unit.test.tsx`, seven cases: the
   reported list through the real `MappingListItemSchema`, on Migrations and on a queue, in `en`
-  and `nl`. The sentence and path show, no `"code":` does, and the lead still says the list was
-  not read, with no empty state.
-- `apps/web/src/services/api.unit.test.ts`, five cases: English, Dutch, a root refusal, a
-  zod-mini error, and an Axios refusal that keeps the server's words.
-- Mutations: no zod branch (8 failed); the locale ignored (the 3 Dutch cases failed); the queue
-  screen's raw message back (2 failed).
-- Gates: `pnpm exec vitest run --project unit-browser --maxWorkers=4` 133 files, 2535 tests;
-  `pnpm exec vitest run --project unit scripts/` 212 files, 4049 tests; `pnpm typecheck` and
-  `pnpm lint` exit 0.
+  and `nl`: the sentence and a reference show, no `"code":` or `invalid_value` does, the lead
+  still says the list was not read with no empty state, and one report goes to
+  `/api/unreadable-answers` under the number on screen. The same failure met again keeps its
+  number and sends nothing more; a report that cannot be sent changes nothing on screen.
+- `apps/web/src/services/api.unit.test.ts`, nine cases: English, Dutch, the report's body, one
+  number per failure, another failure's own number and the forgetting, the problem report's
+  recent errors, a failed send, a zod-mini error, and an Axios refusal that keeps the server's
+  words and sends nothing.
+- `packages/shared/src/unreadable-answer.unit.test.ts`, fourteen: the path and page as the log
+  keeps them, fields of another shape dropped (an address, a link's token, a line break that
+  would forge a log line), and the line, including a hand-built server's `unknown` commit not
+  read as a different build.
+- `apps/api/src/routes/an-answer-a-page-could-not-read.unit.test.ts`, five: kept under the
+  reference in the person's organisation with its line, nothing dropped reaches the line, a
+  report without a reference refused, signed in only, thirty an hour per person.
+- `apps/selfhost/src/a-log-the-appliance-serves.unit.test.ts`, three more, on a real appliance
+  over PGlite: a report sent is found on its `/log` by the reference; one without a reference is
+  refused; a cross-site one is refused. `a-button-only-one-edition-answers` holds the route.
+- Mutations: no zod branch (8 failed); the locale ignored (3); the queue screen's raw message
+  back (2); the report never sent (8); a new number on every render (2); the route without
+  sign-in (3) or without its limit (1); any path taken by the parse (3); the appliance without
+  its route (3).
+- Gates: `pnpm exec vitest run --project unit-browser --maxWorkers=4` 133 files, 2541 tests;
+  `pnpm exec vitest run --project unit packages/shared apps/api apps/selfhost scripts` 466
+  files, 7317 tests; `pnpm typecheck` and `pnpm lint` exit 0.
 
 **The owner's reading, 2026-09-29**, of screens from the branch's build at phone width, served
 with example answers (the reported `"contacts"` list; a proxy's page answered with a 200; an
-older API that does not send the `continuous` count):
+older API that does not send the `continuous` count), in two rounds:
 
-- **The wording**, as quoted above. NL: *"blijft het zo, meld het dan. Voor de ondersteuning:"*
-  became *"blijft het zo, meld het en geef daarbij het volgende door:"*. EN: *"report it"* became
-  *"report it to support, and mention:"*. The two detail keys lost their *For support: / Voor de
-  ondersteuning:* prefix, since the sentence now leads into them.
-- **`mappings.loadFailedNotEmpty` is removed** (*"Niet hetzelfde als geen migraties; er kunnen er
-  bestaan die niet gelezen konden worden."*), from the Migrations page and the dictionary. The
-  red box keeps its lead, *"De migratielijst kon niet worden geladen."*, and the reason under it,
-  and the page still shows no empty state. `queue.loadFailedNotEmpty` and
-  `billing.loadFailedNotEmpty` say the same on the queues and on Billing, and are unchanged: the
-  owner saw only the Migrations line.
-- **Open, the owner's question:** could such an answer also be logged, and the log alert
-  operations? Nothing carries it today. The app-event log (0129, `/support/log`) holds only the
-  server's own errors, and alerts (0142) come only from the status page's rows.
+- **The wording.** NL: *"blijft het zo, meld het dan. Voor de ondersteuning:"* became *"blijft
+  het zo, meld het en geef daarbij het volgende door:"*. EN: *"report it"* became *"report it to
+  support, and mention:"*.
+- **The three lines that said a failed read is not an empty list are removed**, from the screens
+  and the dictionary: `mappings.loadFailedNotEmpty` (*"Niet hetzelfde als geen migraties; …"*),
+  `queue.loadFailedNotEmpty` (*"Dit is niet hetzelfde als een lege wachtrij; …"*) and
+  `billing.loadFailedNotEmpty` (*"Niet hetzelfde als geen gegevens; …"*). Each red box keeps its
+  lead and its reason, and no page shows an empty state under a failed read.
+- **"1. Log it."** Built as above. The screen shows the reference in place of the code and
+  place, which the log line carries.
+- **"The alerting is for later."** Open: nothing alerts on `web.answer_unreadable`; alerts
+  (0142) still come only from the status page's rows.
+- **Open, the owner's question:** could the release catch a web app and an API from two builds
+  at deployment, and prevent this altogether? `deploy-live.sh` step 7 asks `/api/version`, which
+  the web image's nginx hands to the API, so it proves the API's build and never the web app's,
+  whose build is baked into its JavaScript (`vite.config.ts`). The check can be closed for a
+  deploy by publishing the web app's build where the script can read it. No deploy check reaches
+  a tab left open across a deploy: that page keeps its old code until it is reloaded.
 
 **2026-09-28, build: T5 with T7 (a), on branch
 `claude/ownpace-public-readiness-y7orc6-a-consent-window-opened-by-the-press`, not merged.** This

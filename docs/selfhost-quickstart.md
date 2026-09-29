@@ -534,6 +534,13 @@ Filter by level, migration, event, kind of error, reference or time. A filtered
 view is a link you can keep. It is the same page the managed service's operator
 gets under Support. Here it is yours, so nothing records that you read it.
 
+When a screen says *The server answered in a form this page does not know* with
+a reference, the page and the appliance disagree about an answer, most likely
+because the page was open while the appliance was updated: reload it. The
+reference finds a `web.answer_unreadable` row here, and the appliance's own
+output has the detail on the line with the same `[ref …]`, including both
+builds.
+
 ## How long the logs are kept
 
 Two kinds, kept two ways:

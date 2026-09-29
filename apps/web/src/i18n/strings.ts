@@ -131,8 +131,6 @@ const en = {
   'confirm.progress.lastSynced': 'last synced',
   'verify.checkedAt': 'Checked',
   'queue.loadFailed': 'Could not load this queue.',
-  'queue.loadFailedNotEmpty':
-    'This is not the same as an empty queue; unread items may be waiting.',
   'queue.noMappings': 'No migrations configured.',
   'discovery.scanning': 'Scanning your source (read-only)…',
   // Named rather than counted, and present tense: the reader is watching this
@@ -1199,13 +1197,12 @@ const en = {
     'Something went wrong on this page. Try again later; if it keeps happening, please tell the person who sent you the link.',
   // An answer the page's schema refused, on a signed-in page (reported
   // 2026-09-29): `serverMessage` says this where it used to show zod's JSON,
-  // most likely after the API and the web app were updated apart. {detail} is
-  // one of the two lines under it: the code and path, verbatim, for support.
-  // The owner's wording, both languages (2026-09-29).
+  // most likely after the API and the web app were updated apart. {reference}
+  // is the one the server keeps the report under, with where the answer did
+  // not fit (`unreadable-answer.ts`). The owner's wording, both languages
+  // (2026-09-29), and the owner's "Log it" for the reference.
   'answer.unreadable':
-    'The server answered in a form this page does not know. Reload the page; if it stays like this, report it to support, and mention: {detail}',
-  'answer.unreadable.at': '{code} at {path}.',
-  'answer.unreadable.whole': '{code}, in the whole answer.',
+    'The server answered in a form this page does not know. Reload the page; if it stays like this, report it to support, and mention: reference {reference}.',
   // The progress page (workplan 0122). The SAME reader as the grant page above
   // — no account, no jargon, second person — asking a different question:
   // has my mail arrived yet. So the states are sentences rather than the
@@ -1483,8 +1480,6 @@ const en = {
   'billing.adminOnly':
     'Billing is available to owners and admins only; ask one for usage or invoice details.',
   'billing.invoicesLoadFailed': 'Could not load the invoices.',
-  'billing.loadFailedNotEmpty':
-    'Not the same as having none; data may exist that could not be read.',
   'billing.party.title': 'Invoice details',
   'billing.party.intro': 'Who invoices are addressed to.',
   'billing.party.missing':
@@ -3009,8 +3004,6 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.progress.lastSynced': 'laatst gesynchroniseerd',
   'verify.checkedAt': 'Geverifieerd',
   'queue.loadFailed': 'Deze wachtrij kon niet worden geladen.',
-  'queue.loadFailedNotEmpty':
-    'Dit is niet hetzelfde als een lege wachtrij; er kunnen ongelezen items wachten.',
   'queue.noMappings': 'Geen migraties geconfigureerd.',
   'discovery.scanning': 'Uw bron wordt gescand (alleen-lezen)…',
   'discovery.stillCounting': 'Nog aan het tellen: {domains}. Deze pagina werkt zichzelf bij.',
@@ -3798,9 +3791,7 @@ const nl: Record<keyof typeof en, string> = {
   'link.unreadable':
     'Er ging iets mis op deze pagina. Probeer het later opnieuw; blijft het misgaan, laat het dan de persoon weten die u de link stuurde.',
   'answer.unreadable':
-    'De server antwoordde in een vorm die deze pagina niet kent. Laad de pagina opnieuw; blijft het zo, meld het en geef daarbij het volgende door: {detail}',
-  'answer.unreadable.at': '{code} bij {path}.',
-  'answer.unreadable.whole': '{code}, in het hele antwoord.',
+    'De server antwoordde in een vorm die deze pagina niet kent. Laad de pagina opnieuw; blijft het zo, meld het en geef daarbij het volgende door: referentie {reference}.',
   'view.title': 'Uw migratie',
   'view.loading': 'Een moment…',
   'view.who': '{organisation} migreert uw account naar een nieuwe provider.',
@@ -4044,8 +4035,6 @@ const nl: Record<keyof typeof en, string> = {
   'billing.adminOnly':
     'Facturatie is alleen voor eigenaren en beheerders; vraag een van hen naar gebruiks- of factuurgegevens.',
   'billing.invoicesLoadFailed': 'De facturen konden niet worden geladen.',
-  'billing.loadFailedNotEmpty':
-    'Niet hetzelfde als geen gegevens; er kunnen gegevens bestaan die niet gelezen konden worden.',
   'billing.party.title': 'Factuurgegevens',
   'billing.party.intro': 'Aan wie facturen worden gericht.',
   'billing.party.missing':
