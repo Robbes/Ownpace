@@ -183,6 +183,21 @@ describe('Which account are you leaving? (screen 2)', () => {
     expect(screen.getByRole('checkbox', { name: 'Another mail provider' })).toBeInTheDocument();
   });
 
+  it('folds the why inside its own tile, and opening it does not tick the tile', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await user.type(await screen.findByLabelText('Name'), 'Anna Jansen');
+    await user.click(next());
+    const box = screen.getByRole('checkbox', { name: 'Box Experimental' });
+    const tile = box.closest('label')!.parentElement!;
+    const why = within(tile).getByText('Why?');
+    // The border drawn around the tile is the box that holds the fold too.
+    expect(tile.className).toContain('border-2');
+    await user.click(why);
+    expect(box).not.toBeChecked();
+    expect(why.closest('label')).toBeNull();
+  });
+
   it('sends an export archive and a server by its protocol to the wizard, with the person', async () => {
     const user = userEvent.setup();
     peopleMock.mockResolvedValue({ people: [ANNA], unassigned: [] });

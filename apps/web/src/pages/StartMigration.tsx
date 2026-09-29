@@ -678,19 +678,29 @@ export const FromStep: React.FC<{
             const on = providers.includes(provider);
             const experimental = sourceCardIsExperimental(provider);
             return (
-              <div key={provider} className="flex flex-col">
-                <label
-                  className={`flex flex-1 min-h-[44px] cursor-pointer items-center justify-between gap-3 rounded-lg border-2 p-3 focus-within:ring-2 focus-within:ring-blue-500 ${
-                    on ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
+              // THE WHY FOLDS INSIDE THE TILE, BELOW ITS NAME (the owner,
+              // 2026-09-29: "should it go in each ticker box that has that
+              // label?"). Inside the tile's border, so it reads as that tile's,
+              // and outside its <label>, so opening it does not tick the tile
+              // (0145 T2: a fold inside a control is pressed with it).
+              <div
+                key={provider}
+                className={`flex flex-col rounded-lg border-2 focus-within:ring-2 focus-within:ring-blue-500 ${
+                  on ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <label className="flex flex-1 min-h-[44px] cursor-pointer items-center justify-between gap-3 p-3">
                   <span className="flex items-center gap-1 font-medium text-gray-900">
                     <ProviderTile type={provider} role="source" size={48} name={label(provider)} />
                     {experimental && <ExperimentalTag />}
                   </span>
                   <input type="checkbox" checked={on} onChange={() => toggle(provider)} className="h-5 w-5 shrink-0" />
                 </label>
-                {experimental && <ExperimentalWhy />}
+                {experimental && (
+                  <div className="px-3 pb-2">
+                    <ExperimentalWhy />
+                  </div>
+                )}
               </div>
             );
           })}
