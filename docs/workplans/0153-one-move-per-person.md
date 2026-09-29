@@ -5,7 +5,7 @@
 ## Status — 2026-09-28 (update this block at the end of every session)
 
 **2026-09-28, night: T6 (c)'s two guards, and what they found (0131 §6, R8, built beside R at
-the owner's word *"continue on the rest"*)**, in #1347, stacked on #1346.
+the owner's word *"continue on the rest"*)**, in #1347, stacked on #1343.
 
 - **Attributes are read.** `hardcoded-text.unit.test.ts` refuses a literal with a word in it in a
   `placeholder`, an `aria-label`, a `title` or an `alt`. A single word counts. An address, a host,
