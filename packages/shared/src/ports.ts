@@ -2724,13 +2724,14 @@ export interface PassMetrics {
   /** Listing the source's collections, once, before the first is opened. */
   readonly listCollectionsMs?: number;
   /**
-   * Making each collection ready on the target (`ensureCollection`). On a
-   * WebDAV target the first one also walks what the target already holds.
+   * Making collections ready on the target (`ensureCollection`): each one the
+   * pass has no cursor for, before its listing, and each one with a cursor
+   * when the first item in it is written (2026-09-29).
    */
   readonly collectionSetupMs?: number;
   /** Listing each collection's items on the source, and its keys where a second listing is asked for. */
   readonly collectionListingMs?: number;
-  /** How many collections the pass opened: made ready on the target and listed. */
+  /** How many collections the pass listed. */
   readonly collectionsOpened?: number;
   /** From the pass's start to its first write that created or updated an item. Absent when none did. */
   readonly firstWriteAfterMs?: number;

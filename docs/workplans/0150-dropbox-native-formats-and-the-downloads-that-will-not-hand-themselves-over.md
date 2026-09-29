@@ -4,6 +4,33 @@
 
 ## Status — 2026-09-29 (update this block at the end of every session)
 
+**2026-09-29, morning: #1340 proven on the owner's migration, and the next wall on another: a
+folder made ready on every pass (T1)**, on branch
+`claude/mailbox-sync-errors-c2xsw2-a-folder-made-ready-once`, not merged. From the owner's
+readings on the OTA stack, counts and times only.
+
+- **#1340 proven live.** Every Dropbox pass still runs its 50 minutes, since the first copy is not
+  done, and each gets far further. Items handled per pass, before the fix reached the stack (20:30
+  to 02:03): 1,574, 1,940, 2,209, 2,555, 2,842, 4,228. After (03:00 to 06:00): 6,705, 9,906,
+  13,040, 15,720. No errors.
+- **Found on the owner's Microsoft migration.** A pass that found nothing new spent 14.0 of its
+  15.7 minutes in `collectionSetupMs` and handled 0 items. `runDomainSync` made every collection
+  ready on the target before listing it, on every pass, and on a WebDAV target that lists the
+  collection's parent directory there. So a pass with nothing to copy still asked the target about
+  every folder the migration has.
+- **What changed.** A collection with a cursor was made ready by the pass that stored that cursor,
+  so it is made ready again only when an item in it is written: once, on the first write, however
+  many are written at the same time. A collection without a cursor, new or never read through, is
+  made ready before its listing, as before, so an empty source folder is still made on the target
+  the first time a pass sees it. A refusal to make a known collection ready fails that
+  collection's items, each recorded, where it used to fail the pass before its listing.
+  `collectionSetupMs` and `collectionsOpened` say what they count now.
+- **Proved** by `packages/core/src/a-folder-made-ready-once.unit.test.ts` (6 cases, 4 failing on
+  `main`, through the real `runDomainSync` with the memory stores). 5 of 5 mutations caught.
+- **What to expect once deployed:** a pass that finds nothing new spends seconds in
+  `collectionSetupMs` instead of 14 minutes. The Dropbox migration gains the same once its first
+  copy is done, and its folders already copied stop costing a listing each on every pass now.
+
 **2026-09-29, morning: D10's two lines kept.** Asked to confirm the start screen's two lines,
 *"You can start once the count is in, or after 15 minutes at most."* and *"The count did not
 finish within 15 minutes. You can start anyway: …"*, the owner answered *"Yes"*. Both stay as
