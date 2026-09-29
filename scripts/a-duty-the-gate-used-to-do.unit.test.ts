@@ -23,7 +23,9 @@
  * holds a `www` service, where a bare `docker compose -f www.yml` in live's
  * checkout puts the site and one `--remove-orphans` removes live or the site,
  * and, when live's `.env` switches the site on, when `ownpace-live-www` is not
- * running and healthy.
+ * running and healthy. And a sixth, `strays` (0135 T8): `idp-strays.sh
+ * --remove --at-most 20`, which removes the sign-in accounts nobody let in,
+ * older than 30 days, and removes none when more than 20 would go.
  *
  * WHAT IS ASSERTED.
  *
@@ -44,7 +46,7 @@
  *   seen, and the table's own comment says so.
  *
  *   `box-duties.sh`, run in a staged checkout with the scripts it calls
- *   replaced by stubs beside it: all five duties run, in order, whatever the
+ *   replaced by stubs beside it: all six duties run, in order, whatever the
  *   one before did; the exit is non-zero and names every duty that failed and
  *   no other; a missing script or a duty that hangs past its time is a failed
  *   duty, and the next one still runs; a Ctrl-C (SIGINT to the script's
@@ -184,9 +186,14 @@ const NOT_MAINTENANCE: Record<string, string> = {
 
 /**
  * The duties that are not a gate step: T3's check and 0135 T3's count (T7),
- * and the site's (0139 T10).
+ * the site's (0139 T10), and the accounts nobody let in (0135 T8).
  */
-const MORE_DUTIES = ['exposure-check.sh', 'setup-zitadel.sh --count-organisations', 'www-live.sh check'];
+const MORE_DUTIES = [
+  'exposure-check.sh',
+  'setup-zitadel.sh --count-organisations',
+  'www-live.sh check',
+  'idp-strays.sh --remove --at-most 20',
+];
 
 interface Invocation {
   step: string;
@@ -294,7 +301,7 @@ describe("the rule: which of the gate's commands maintain the stack", () => {
   });
 });
 
-describe('box-duties.sh runs every maintenance command, in its form for live, and the duties T7 and 0139 T10 add', () => {
+describe('box-duties.sh runs every maintenance command, in its form for live, and the duties T7, 0139 T10 and 0135 T8 add', () => {
   const text = readIfThere(DUTIES_REL);
   const lines = code(text).split('\n');
 
@@ -327,7 +334,7 @@ describe('box-duties.sh runs every maintenance command, in its form for live, an
 // box-duties.sh, with the scripts it runs replaced by stubs
 // ===========================================================================
 
-const DUTY_NAMES = ['token', 'drill', 'exposure', 'organisations', 'site'] as const;
+const DUTY_NAMES = ['token', 'drill', 'exposure', 'organisations', 'site', 'strays'] as const;
 type Duty = (typeof DUTY_NAMES)[number];
 
 /** This machine, in a live `.env`: a mesh address, a front address, and a secret. */
@@ -368,6 +375,7 @@ const DUTY_STUB = [
   '  "exposure-check.sh") duty=exposure ;;',
   '  "setup-zitadel.sh --count-organisations") duty=organisations ;;',
   '  "www-live.sh check") duty=site ;;',
+  '  "idp-strays.sh --remove --at-most 20") duty=strays ;;',
   '  *) duty="unknown" ;;',
   'esac',
   'printf "%s|%s|%s|%s|%s\\n" "$asked" "${MANAGED_BACKUP_DIR-unset}" "${MANAGED_ENV_PERSIST_DIR-unset}" "${TRIGGER_DB_CONTAINER-unset}" "$(umask)" >>"$STUB_LOG"',
@@ -395,7 +403,7 @@ function stage(dotEnv: string = LIVE_ENV): Stage {
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
   }
   chmodSync(join(compose, 'box-duties.sh'), 0o755);
-  for (const f of ['setup-zitadel.sh', 'trigger-version.sh', 'exposure-check.sh', 'www-live.sh']) {
+  for (const f of ['setup-zitadel.sh', 'trigger-version.sh', 'exposure-check.sh', 'www-live.sh', 'idp-strays.sh']) {
     writeExec(join(compose, f), DUTY_STUB);
   }
   writeFileSync(join(compose, '.env'), dotEnv);
@@ -437,14 +445,15 @@ const IN_ORDER = [
   'exposure-check.sh',
   'setup-zitadel.sh --count-organisations',
   'www-live.sh check',
+  'idp-strays.sh --remove --at-most 20',
 ];
 
 describe('box-duties.sh runs every duty, and names every one that failed', () => {
-  it('runs the five duties in order, token first so the count uses a live token, and passes when all pass', () => {
+  it('runs the six duties in order, token first so the count and the strays use a live token, and passes when all pass', () => {
     const r = runDuties(stage());
     expect(r.status, r.out).toBe(0);
     expect(r.asked.map((a) => a[0])).toEqual(IN_ORDER);
-    expect(r.out).toMatch(/all 5 duties passed/);
+    expect(r.out).toMatch(/all 6 duties passed/);
     expect(failed(r.out)).toEqual([]);
   });
 
@@ -461,7 +470,7 @@ describe('box-duties.sh runs every duty, and names every one that failed', () =>
     expect(failed(two.out)).toEqual(['token', 'exposure']);
     const all = runDuties(stage(), { STUB_FAIL: DUTY_NAMES.join(',') });
     expect(all.status).toBe(1);
-    expect(all.asked).toHaveLength(5);
+    expect(all.asked).toHaveLength(6);
     expect(failed(all.out)).toEqual([...DUTY_NAMES]);
   });
 
@@ -796,7 +805,7 @@ describe("the site's duty, run for real: www-live.sh check (0139 T10)", () => {
     const r = runDuties(s, { PATH: `${s.bin}:${process.env.PATH ?? ''}`, STUB_LIVE_WWW: 'ownpace-live' });
     expect(r.status, r.out).toBe(1);
     expect(failed(r.out)).toEqual(['site']);
-    expect(r.out).toMatch(/\(1 of 5 duties\)/);
+    expect(r.out).toMatch(/\(1 of 6 duties\)/);
     // The stubbed duties, in order; the site's duty asked docker itself.
     expect(r.asked.map((a) => a[0] ?? '').filter((a) => !a.startsWith('docker '))).toEqual(
       IN_ORDER.filter((a) => a !== 'www-live.sh check'),
@@ -1039,8 +1048,10 @@ describe('the default run is the one it was', () => {
 describe('end to end: the organisation count fails its duty, and only it', () => {
   function liveWithRealSetup(orgs: unknown) {
     const p = provider({ expiresInDays: 5, orgs });
-    // The real setup-zitadel.sh; the drill, the exposure check and the site's duty stubbed.
-    for (const f of ['trigger-version.sh', 'exposure-check.sh', 'www-live.sh']) writeExec(join(p.compose, f), DUTY_STUB);
+    // The real setup-zitadel.sh; the drill, the exposure check, the site's duty and the strays stubbed.
+    for (const f of ['trigger-version.sh', 'exposure-check.sh', 'www-live.sh', 'idp-strays.sh']) {
+      writeExec(join(p.compose, f), DUTY_STUB);
+    }
     if (!existsSync(join(p.compose, 'box-duties.sh'))) throw new Error(`${DUTIES_REL} does not exist`);
     const log = join(p.root, 'stub.log');
     writeFileSync(log, '');
@@ -1066,7 +1077,7 @@ describe('end to end: the organisation count fails its duty, and only it', () =>
   it('one organisation: every duty passes', () => {
     const r = liveWithRealSetup(ONE_ORG);
     expect(r.status, r.out).toBe(0);
-    expect(r.out).toMatch(/all 5 duties passed/);
+    expect(r.out).toMatch(/all 6 duties passed/);
     expect(r.calls.filter((c) => c.includes('/projects')), 'a duty reconciled the project').toEqual([]);
   });
 });
@@ -1144,6 +1155,10 @@ describe('the timer: daily, from live, away from the appliance nightly', () => {
     const lasts = /^TimeoutStartSec=(.+)$/m.exec(service)?.[1] ?? '';
     const runFor = spanMinutes(lasts);
     expect(Number.isFinite(runFor) && runFor > 0, `TimeoutStartSec=${lasts} is not a bounded time span`).toBe(true);
+    // Every duty at its longest (BOX_DUTY_TIMEOUT's default, 20 minutes), or the unit stops a run mid-duty.
+    expect(runFor, `TimeoutStartSec=${lasts} is shorter than ${DUTY_NAMES.length} duties of 20 minutes`).toBeGreaterThan(
+      DUTY_NAMES.length * 20,
+    );
     for (const start of nightly) {
       const hhmm = `${Math.floor(start / 60)}:${String(start % 60).padStart(2, '0')}`;
       const after = (minute - start + 24 * 60) % (24 * 60);

@@ -58,9 +58,9 @@ vi.mock('./stores/auth-store', () => {
 });
 
 // Markers, not screens: mounting is the thing under test.
-vi.mock('./pages/Dashboard', () => ({ default: () => <div>screen:dashboard</div> }));
 vi.mock('./pages/AccessRequests', () => ({ default: () => <div>screen:access-requests</div> }));
 vi.mock('./pages/Mappings', () => ({ default: () => <div>screen:mappings</div> }));
+vi.mock('./pages/Person', () => ({ default: () => <div>screen:person</div> }));
 vi.mock('./pages/MappingDetail', () => ({ default: () => <div>screen:mapping-detail</div> }));
 vi.mock('./pages/CreateMapping', () => ({ default: () => <div>screen:create-mapping</div> }));
 vi.mock('./pages/ConfirmMapping', () => ({ default: () => <div>screen:confirm-mapping</div> }));
@@ -122,8 +122,10 @@ beforeEach(() => {
 
 describe('appliance builds redirect managed-only URLs to /confirm', () => {
   const managedOnly: Record<string, string> = {
-    '/dashboard': 'screen:dashboard',
+    '/dashboard': 'screen:mappings',
     '/mappings': 'screen:mappings',
+    // A person's page (0153 T5) is managed-only, as Migrations is.
+    '/people/p-anna': 'screen:person',
     '/mappings/new': 'screen:create-mapping',
     // The green light drives the managed discover/start API; the appliance's
     // own /confirm is that edition's equivalent — exactly where this lands.
@@ -163,7 +165,7 @@ describe('the managed-only screens still mount on managed', () => {
   });
 });
 
-describe('managed builds redirect appliance-only URLs to /dashboard', () => {
+describe('managed builds redirect appliance-only URLs to /mappings, the landing page', () => {
   const selfhostOnly: Record<string, string> = {
     '/confirm': 'screen:confirm',
     '/deletions': 'screen:deletions',
@@ -177,10 +179,10 @@ describe('managed builds redirect appliance-only URLs to /dashboard', () => {
   };
 
   for (const [path, marker] of Object.entries(selfhostOnly)) {
-    it(`${path} lands on the Dashboard, and ${marker} never mounts`, async () => {
+    it(`${path} lands on Migrations, and ${marker} never mounts`, async () => {
       renderAt(path);
 
-      expect(await screen.findByText('screen:dashboard')).toBeInTheDocument();
+      expect(await screen.findByText('screen:mappings')).toBeInTheDocument();
       expect(screen.queryByText(marker)).not.toBeInTheDocument();
     });
   }
@@ -268,7 +270,7 @@ describe('a wrong address is a 404, signed in or not', () => {
     authFlag.authenticated = false;
     renderAt('/dashboard');
     expect(screen.getByText('screen:login')).toBeInTheDocument();
-    expect(screen.queryByText('screen:dashboard')).not.toBeInTheDocument();
+    expect(screen.queryByText('screen:mappings')).not.toBeInTheDocument();
   });
 });
 
@@ -296,19 +298,29 @@ describe('where the bare host lands you', () => {
         'screen they can be given — and since the membership 403 no longer ends\n' +
         'their session, they now SIT on the broken one rather than bouncing.',
     ).toBeInTheDocument();
-    expect(screen.queryByText('screen:dashboard')).not.toBeInTheDocument();
+    expect(screen.queryByText('screen:mappings')).not.toBeInTheDocument();
   });
 
-  it('still takes an ordinary member to the dashboard', async () => {
+  it('still takes an ordinary member to Migrations, the landing page since the Dashboard went (0153 T3 (b))', async () => {
     // The other half: the axis is "no organisation", never "is an operator".
     renderAt('/');
-    expect(await screen.findByText('screen:dashboard')).toBeInTheDocument();
+    expect(await screen.findByText('screen:mappings')).toBeInTheDocument();
   });
 
-  it('takes an operator who DOES belong somewhere to the dashboard', async () => {
+  it('takes an operator who DOES belong somewhere to Migrations', async () => {
     whoFlag.operator = true;
     whoFlag.tenantCount = 1;
     renderAt('/');
-    expect(await screen.findByText('screen:dashboard')).toBeInTheDocument();
+    expect(await screen.findByText('screen:mappings')).toBeInTheDocument();
+  });
+
+  it("opens a person's page on managed (0153 T5)", async () => {
+    renderAt('/people/p-anna');
+    expect(await screen.findByText('screen:person')).toBeInTheDocument();
+  });
+
+  it('sends an old /dashboard link to Migrations, so a bookmark still lands (0153 T3 (b))', async () => {
+    renderAt('/dashboard');
+    expect(await screen.findByText('screen:mappings')).toBeInTheDocument();
   });
 });

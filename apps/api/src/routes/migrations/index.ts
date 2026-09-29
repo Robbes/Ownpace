@@ -73,6 +73,7 @@ import {
   probeSourceConnection,
   probeTargetConnection,
 } from '@openmig/orchestration/probe-connection';
+import { SCHEDULE_FLOOR_MINUTES, shortestGapMinutes } from '@openmig/orchestration/sync-due';
 // The §11.2 decision queues and the decisions on them (ADR-0026). Mounted on
 // this same router so they sit under /api/migrations/:mappingId/... alongside
 // discovery and start, which is where the appliance's equivalents live too.
@@ -99,7 +100,6 @@ import {
   DISTRIBUTION_D_NOT_A_MAPPING,
   targetDomainRefusal,
   parseTargetFolderPrefix,
-  parseThrottleConfig,
   sourceDomainRefusal,
   providerAccountDomains,
   googleDeploymentClient,
@@ -809,10 +809,12 @@ export function sourceConfigOverride(
  * that goes wrong. The rule itself decides nothing here; it decides in
  * `shared`, where both editions call it.
  *
- * ONLY the fields this route can act on. `name` and `schedule` are permitted
- * by the table and are not collected, because this route does not write them
- * yet: collecting them would put them through a refusal check they pass and
- * change nothing, which reads like support they do not have.
+ * ONLY the fields this route can act on. `schedule` is collected since the
+ * route writes it (the owner, 2026-09-28): the table permits it, and asking
+ * keeps the table the one place that says so. `name` is permitted by the table
+ * and is not collected, because this route does not write it yet: collecting
+ * it would put it through a refusal check it passes and change nothing, which
+ * reads like support it does not have.
  *
  * A field is proposed when it is PRESENT, not when it differs from what is
  * stored. "May this change at all" is a property of the field, so a body
@@ -821,13 +823,17 @@ export function sourceConfigOverride(
  * refuse, which is a second answer to a question the table already answers.
  */
 export function proposedRevisions(
-  body: Pick<z.infer<typeof UpdateMappingSchema>, 'sourceType' | 'targetType' | 'sourceConfig' | 'targetConfig'>,
+  body: Pick<
+    z.infer<typeof UpdateMappingSchema>,
+    'sourceType' | 'targetType' | 'sourceConfig' | 'targetConfig' | 'syncConfig'
+  >,
 ): readonly RevisableField[] {
   const proposed: RevisableField[] = [];
   if (body.sourceType !== undefined) proposed.push('source.type');
   if (body.targetType !== undefined) proposed.push('target.type');
   if (body.sourceConfig?.rootFolderId !== undefined) proposed.push('source.rootFolderId');
   if (body.targetConfig?.username !== undefined) proposed.push('target.account');
+  if (body.syncConfig?.schedule !== undefined) proposed.push('schedule');
   return proposed;
 }
 
@@ -1697,19 +1703,7 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
       });
     }
   }
-  if (body.throttleConfig !== undefined) {
-    // The appliance's parser, verbatim (hard rule 5): a garbage field is
-    // refused here in the same words a mapping file gets.
-    try {
-      parseThrottleConfig(body.throttleConfig);
-    } catch (err) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['throttleConfig'],
-        message: err instanceof ConfigError ? err.message : String(err),
-      });
-    }
-  }
+  refuseTestersThrottle(ctx, body.throttleConfig);
   // WHERE the target is, demanded per type (2026-09-07). `nextcloud` is the
   // one target whose address is a URL: host and port cannot be right for it,
   // so its door does not ask for them and this must not either. Every other
@@ -1774,20 +1768,43 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
         'contacts need no mail server.',
     });
   }
-  if (body.syncConfig.schedule !== undefined) {
-    const cronProblem = describeCronScheduleProblem(body.syncConfig.schedule);
-    if (cronProblem) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['syncConfig', 'schedule'],
-        message:
-          `The sync schedule is not a valid cron expression: ${cronProblem}. ` +
-          'The scheduler could not evaluate it and would fall back to syncing every ' +
-          '15 minutes, silently ignoring the cadence you stated — so it is refused here instead.',
-      });
-    }
-  }
+  if (body.syncConfig.schedule !== undefined) refuseUnreadableSchedule(ctx, body.syncConfig.schedule);
 });
+
+/**
+ * A schedule the tick cannot evaluate, or one faster than the floor, refused
+ * on the box it was typed in.
+ *
+ * One function for both doors, create and update, so a cadence refused at
+ * create is not one the migration page can store afterwards, in other words.
+ * The floor (workplan 0143 T2b) is the tick's own number, from the module the
+ * tick reads schedules with, so the doors and the tick cannot disagree on it.
+ */
+function refuseUnreadableSchedule(ctx: IssueSink, schedule: string): void {
+  const cronProblem = describeCronScheduleProblem(schedule);
+  if (cronProblem) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['syncConfig', 'schedule'],
+      message:
+        `The sync schedule is not a valid cron expression: ${cronProblem}. ` +
+        'The scheduler could not evaluate it and would fall back to syncing every ' +
+        '15 minutes, silently ignoring the cadence you stated — so it is refused here instead.',
+    });
+    return;
+  }
+  const gap = shortestGapMinutes(schedule);
+  if (gap < SCHEDULE_FLOOR_MINUTES) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['syncConfig', 'schedule'],
+      message:
+        `A migration syncs at most every ${SCHEDULE_FLOOR_MINUTES} minutes, and this schedule ` +
+        `would start a pass every ${gap === 1 ? 'minute' : `${gap} minutes`}. ` +
+        `Choose ${SCHEDULE_FLOOR_MINUTES} minutes or longer.`,
+    });
+  }
+}
 
 /** Exported for the retraction guard too: the update path must refuse the
  *  withdrawn modes with the same words as create (sync-mode.unit.test.ts).
@@ -1812,22 +1829,49 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
  * fire.
  *
  * Widening what PARSES is not widening what is WRITTEN. The handler writes
- * status, mode, pattern and the export policy; every other field goes through
- * `mayRevise` first, which is the point of the table. The comment above says
+ * status, mode, pattern, the export policy and the schedule; every other field
+ * goes through `mayRevise` first, which is the point of the table. The comment above says
  * "a partial body may legitimately omit" fields — this makes that true of the
  * nested objects too, which is what it always meant.
  *
- * `syncConfig` is deliberately left alone: this route does not write a schedule
- * yet, and loosening a shape nothing reads would be a change with no caller.
+ * AND `syncConfig` CARRIES THE SCHEDULE ONLY (the owner, 2026-09-28: the
+ * schedule can be changed on the migration page). Create's shape defaults
+ * `domains` to `['email']`, and zod 4 applies that default inside `.partial()`
+ * too, so every update body parsed to a `syncConfig` claiming email, whatever
+ * it sent, and the route echoed it back. A data type is added through
+ * `POST …/domains`, never through this route, so `domains` is not read here.
  */
 export const UpdateMappingSchema = CreateMappingBase.partial()
   .extend({
     sourceConfig: CreateMappingBase.shape.sourceConfig.partial().optional(),
     targetConfig: CreateMappingBase.shape.targetConfig.partial().optional(),
+    syncConfig: z.object({ schedule: z.string().optional() }).optional(),
   })
   .superRefine((body, ctx) => {
     if (body.sourceConfig) refuseUnreadableExportFormat(ctx, body.sourceConfig);
+    if (body.syncConfig?.schedule !== undefined) refuseUnreadableSchedule(ctx, body.syncConfig.schedule);
+    refuseTestersThrottle(ctx, body.throttleConfig);
   });
+
+/**
+ * HOW FAST A MIGRATION MAY ASK ITS PROVIDERS IS THE OPERATOR'S (workplan 0143
+ * T2c). The appliance's owner sets `throttleConfig` for their own machine; on
+ * managed, one organisation's value spends a budget every organisation shares
+ * (the rate budget per tenant, the machine's passes) and can raise a
+ * provider's own ceiling past the point where it locks the account. The web
+ * app never sends it, so no tester loses anything. Refused on both doors, so
+ * no body carries it silently.
+ */
+function refuseTestersThrottle(ctx: IssueSink, throttleConfig: unknown): void {
+  if (throttleConfig === undefined) return;
+  ctx.addIssue({
+    code: 'custom',
+    path: ['throttleConfig'],
+    message:
+      'How fast a migration may ask its providers is set by the operator of this service, not by ' +
+      'the organisation: leave throttleConfig out. Each migration gets the rate its providers allow.',
+  });
+}
 
 /**
  * Prove a connection before creating anything (workplan 0046).
@@ -2464,11 +2508,10 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
             // Parsed, not raw: '/Gmail/' stores as 'Gmail', and '' as NULL —
             // the same normalisation the appliance's config loader applies.
             targetFolderPrefix: parseTargetFolderPrefix(body.targetFolderPrefix) ?? null,
-            // Stored as the PARSED shape, so what a pass reads back is exactly
-            // what the shared parser accepted (migration 0017).
-            throttleConfig: body.throttleConfig
-              ? parseThrottleConfig(body.throttleConfig)
-              : null,
+            // Never the tester's (0143 T2c): refused at the door, so there is
+            // nothing to store. A row written before that is clamped where a
+            // pass reads it (`tenantThrottleLimiter`).
+            throttleConfig: null,
             /**
              * When a connection is SHARED, this mapping's own answers to
              * "whose data, and where" (migration 0021). Only recorded when
@@ -2866,6 +2909,13 @@ router.put(
       }
       if ('pattern' in body && body.pattern) {
         updateData.pattern = body.pattern as 'shared_s' | 'distribution_d' | undefined;
+      }
+      // THE SCHEDULE (the owner, 2026-09-28: it can be changed on the
+      // migration page). Read by the tick on every firing (`isSyncDue`), from
+      // the last pass's start, so the next pass follows it without anything
+      // else to reschedule. Already refused above if the tick could not read it.
+      if (body.syncConfig?.schedule !== undefined) {
+        updateData.schedule = body.syncConfig.schedule;
       }
 
       /**

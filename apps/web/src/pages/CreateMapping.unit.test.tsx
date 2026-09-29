@@ -18,9 +18,12 @@
  *     the reasons render in the shared contract's words (0037 T4).
  *  7. A dirty wizard prompts before unload and before Cancel (0037 T5).
  *  8. oauth2/graph sources say on screen what the fields actually do (T6).
+ *  9. Opened from a person's card (`?person=`), the new migration is added to
+ *     that person before the green light, and a refused add goes on to the
+ *     green light carrying the server's words (0153 T3).
  */
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AxiosError, AxiosHeaders } from 'axios';
@@ -33,8 +36,15 @@ import {
   connectionsApi,
 } from '../services/mapping-service.ts';
 import type { ProviderAccountFacts } from '../services/mapping-service.ts';
+import { addMigrationToPerson } from '../services/operating-service.ts';
 import { LocaleProvider } from '../i18n/index.tsx';
 import { STRINGS } from '../i18n/strings.ts';
+
+// Only the add to a person is replaced: the rest of the module is the real one.
+vi.mock('../services/operating-service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/operating-service.ts')>()),
+  addMigrationToPerson: vi.fn(),
+}));
 
 vi.mock('../services/mapping-service', () => ({
   mappingApi: {
@@ -153,6 +163,85 @@ const axios400 = (message: string): AxiosError => {
   };
   return err;
 };
+
+describe("CreateMapping — opened from a person's card (0153 T3)", () => {
+  const personAddMock = vi.mocked(addMigrationToPerson);
+  const created = {
+    id: 'mapping-new',
+    tenantId: 't1',
+    name: 'Acme mail',
+    sourceType: 'imap',
+    targetType: 'jmap',
+    status: 'paused',
+    mode: 'mirror',
+    syncConfig: { domains: ['email'] },
+    createdAt: '2026-08-09T12:00:00.000Z',
+    updatedAt: '2026-08-09T12:00:00.000Z',
+  } as Awaited<ReturnType<typeof mappingApi.create>>;
+
+  /** The green light's route, saying what the wizard brought it. */
+  const ConfirmMarker = () => <div>confirm-route {JSON.stringify(useLocation().state)}</div>;
+
+  const renderAt = (path: string) =>
+    render(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}
+      >
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path="/mappings/new" element={<CreateMapping />} />
+            <Route path="/mappings/:mappingId/confirm" element={<ConfirmMarker />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+  beforeEach(() => {
+    createMock.mockReset();
+    personAddMock.mockReset();
+    createMock.mockResolvedValue(created);
+  });
+
+  it('adds the new migration to the person before the green light', async () => {
+    personAddMock.mockResolvedValue({} as never);
+    renderAt('/mappings/new?person=p-anna');
+    walkToReview();
+    fireEvent.click(screen.getByRole('button', { name: /Create Migration/ }));
+
+    await waitFor(() => expect(personAddMock).toHaveBeenCalledWith('p-anna', 'mapping-new'));
+    expect(await screen.findByText('confirm-route null')).toBeInTheDocument();
+  });
+
+  it("goes on to the green light when the add is refused, carrying the server's words", async () => {
+    const refusal = new AxiosError('Request failed with status code 404');
+    refusal.response = {
+      status: 404,
+      statusText: 'Not Found',
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+      data: { error: 'person_not_found', message: 'There is no such person in this organisation.' },
+    };
+    personAddMock.mockRejectedValue(refusal);
+    renderAt('/mappings/new?person=p-gone');
+    walkToReview();
+    fireEvent.click(screen.getByRole('button', { name: /Create Migration/ }));
+
+    expect(
+      await screen.findByText(
+        'confirm-route {"notAddedToPerson":"There is no such person in this organisation."}',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('adds it to nobody when opened without a person', async () => {
+    renderAt('/mappings/new');
+    walkToReview();
+    fireEvent.click(screen.getByRole('button', { name: /Create Migration/ }));
+
+    expect(await screen.findByText('confirm-route null')).toBeInTheDocument();
+    expect(personAddMock).not.toHaveBeenCalled();
+  });
+});
 
 describe('CreateMapping — the wizard reaches submit and says what failed', () => {
   beforeEach(() => {
@@ -348,7 +437,7 @@ describe('CreateMapping — choices that cannot work are constrained (0037 T4)',
     fireEvent.click(nextButton());
 
     // The migration step carries the name, the data types and the schedule.
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), {
       target: { value: 'Acme mail' },
     });
   };
@@ -646,7 +735,7 @@ describe('CreateMapping — oauth2/graph collect the app registration (0037 T6, 
     fireEvent.click(nextButton());
 
     // Migration: a name; email is preselected and jmap takes it.
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), {
       target: { value: 'Acme O365' },
     });
     fireEvent.click(nextButton());
@@ -667,6 +756,82 @@ describe('CreateMapping — oauth2/graph collect the app registration (0037 T6, 
     });
     // No host/port smuggled along for a source that never asked for them.
     expect(createMock.mock.calls[0]![0].sourceConfig).not.toHaveProperty('host');
+  });
+});
+
+/**
+ * GMAIL'S APP PASSWORD IS DRAWN (workplan 0153 T1 (b)).
+ *
+ * The descriptor declared it (0089 T7), the create door accepts it in place
+ * of the OAuth trio, and the Google guide tells a personal account how to
+ * make one. The wizard never drew it: its field map had no entry, and a field
+ * with none is skipped. So the one road for a person without a consent screen
+ * ended at a form without the box.
+ */
+describe('CreateMapping — Gmail\'s app password (0153 T1 (b))', () => {
+  beforeEach(() => {
+    createMock.mockReset();
+  });
+
+  it('draws it on the Gmail card, and on no other Google card', () => {
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+    expect(screen.getByPlaceholderText('xxxx xxxx xxxx xxxx')).toHaveAttribute('type', 'password');
+    expect(screen.getByText('App password')).toBeInTheDocument();
+    expect(screen.getByText('Personal Google accounts only; leave empty to use OAuth.')).toBeInTheDocument();
+
+    // An app password is an IMAP credential: Drive, Calendar, Contacts and
+    // the account card are not reached over IMAP.
+    for (const card of [/^Google Drive/, /^Google Calendar/, /^Google account/]) {
+      fireEvent.click(screen.getByRole('button', { name: card }));
+      expect(screen.queryByPlaceholderText('xxxx xxxx xxxx xxxx'), `${card} draws an app password`).toBeNull();
+    }
+  });
+
+  it('lets a personal account through with an address and an app password, and sends the password alone', async () => {
+    createMock.mockResolvedValue({ id: 'map-gmail-app' } as never);
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+    fireEvent.change(screen.getByPlaceholderText('user@example.com'), { target: { value: 'anna@gmail.com' } });
+    expect(nextButton()).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText('xxxx xxxx xxxx xxxx'), {
+      target: { value: ' abcd efgh ijkl mnop ' },
+    });
+    // The trio is no longer asked for: the app password steps round it.
+    expect(nextButton()).toBeEnabled();
+    fireEvent.click(nextButton());
+
+    fireEvent.change(targetHostBox(), { target: { value: 'stalwart.acme.example' } });
+    fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
+      target: { value: 'target@acme.example' },
+    });
+    fireEvent.change(document.querySelectorAll('input[type="password"]')[0]!, {
+      target: { value: 'target-password' },
+    });
+    fireEvent.click(nextButton());
+    fireEvent.change(screen.getByPlaceholderText(STRINGS.en['wizard.migrationName.placeholder']), {
+      target: { value: 'Anna mail' },
+    });
+    fireEvent.click(nextButton());
+    fireEvent.click(screen.getByRole('button', { name: /Create Migration/ }));
+
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+    const body = createMock.mock.calls[0]![0] as { sourceType: string; sourceConfig: Record<string, unknown> };
+    expect(body.sourceType).toBe('gmail');
+    expect(body.sourceConfig['appPassword']).toBe('abcd efgh ijkl mnop');
+  });
+
+  it('never remembers it in the draft, as it remembers no secret', async () => {
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+    fireEvent.change(screen.getByPlaceholderText('user@example.com'), { target: { value: 'anna@gmail.com' } });
+    fireEvent.change(screen.getByPlaceholderText('xxxx xxxx xxxx xxxx'), {
+      target: { value: 'abcd efgh ijkl mnop' },
+    });
+    // The draft is written: it holds the card and the address...
+    await waitFor(() => expect(globalThis.sessionStorage.getItem('wizard.draft.v1')).toContain('anna@gmail.com'));
+    // ...and not the password.
+    expect(globalThis.sessionStorage.getItem('wizard.draft.v1')).not.toContain('abcd efgh');
   });
 });
 
@@ -723,7 +888,7 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
 
     // Step 3 — The migration itself: a name, what to move (file is pinned and
     // the mail-shaped types cannot be picked), how often.
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), {
       target: { value: 'Acme files' },
     });
     fireEvent.click(nextButton());
@@ -856,7 +1021,7 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     fireEvent.change(targetHostBox(), { target: { value: 'nextcloud.acme.example' } });
     satisfyTargetStep();
     fireEvent.click(nextButton());
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), {
       target: { value: 'Acme files' },
     });
     fireEvent.click(nextButton());
@@ -890,7 +1055,7 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     fireEvent.change(targetHostBox(), { target: { value: 'nextcloud.acme.example' } });
     satisfyTargetStep();
     fireEvent.click(nextButton());
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), { target: { value: 'x' } });
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), { target: { value: 'x' } });
     fireEvent.click(nextButton());
     fireEvent.click(nextButton());
 
@@ -919,7 +1084,7 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     });
     satisfyTargetStep();
     fireEvent.click(nextButton());
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), { target: { value: 'x' } });
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), { target: { value: 'x' } });
 
     // The Email card is disabled on the migration step: the SOURCE rules it
     // out even though the jmap target would carry it — a Drive credential
@@ -955,7 +1120,7 @@ describe('CreateMapping — a Dropbox source chooses its Paper docs’ format (w
     fireEvent.change(targetHostBox(), { target: { value: 'nextcloud.acme.example' } });
     satisfyTargetStep();
     fireEvent.click(nextButton());
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), { target: { value: 'Acme papers' } });
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), { target: { value: 'Acme papers' } });
     fireEvent.click(nextButton());
     fireEvent.click(nextButton());
     await waitFor(() => expect(createMock).toHaveBeenCalled());
@@ -1045,7 +1210,7 @@ describe('CreateMapping — a Gmail source (workplan 0044)', () => {
 
     // Step 3 — The migration itself: a name, what to move (email is pinned),
     // how often.
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), {
       target: { value: 'Acme mail' },
     });
     fireEvent.click(nextButton());
@@ -1082,7 +1247,7 @@ describe('CreateMapping — a Gmail source (workplan 0044)', () => {
     });
     satisfyTargetStep();
     fireEvent.click(nextButton());
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), { target: { value: 'x' } });
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), { target: { value: 'x' } });
 
     // Files is ruled out by the SOURCE even though the target (jmap) carries
     // it: the mail-scoped credential cannot read a Drive.
@@ -1133,7 +1298,7 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
     satisfyTargetStep();
     fireEvent.click(nextButton());
 
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), {
       target: { value: 'Acme Google' },
     });
     fireEvent.click(nextButton());
@@ -1319,7 +1484,7 @@ describe('CreateMapping — the export chooser follows the FILES (owner 2026-09-
     fireEvent.change(targetHostBox(), { target: { value: 'nextcloud.acme.example' } });
     satisfyTargetStep();
     fireEvent.click(nextButton());
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), {
       target: { value: 'Acme Google files' },
     });
     fireEvent.click(nextButton());
@@ -1371,7 +1536,7 @@ describe('CreateMapping — the export chooser follows the FILES (owner 2026-09-
     fireEvent.change(targetHostBox(), { target: { value: 'dav.acme.example' } });
     satisfyTargetStep();
     fireEvent.click(nextButton());
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), {
       target: { value: 'Acme Google calendar' },
     });
     fireEvent.click(nextButton());

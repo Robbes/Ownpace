@@ -1,30 +1,54 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
- * The Mappings list against hard rule 9 (0033 T2).
+ * MIGRATIONS, ONE CARD PER PERSON (workplan 0153 T3; ADR-0050, amended by the
+ * owner on 2026-09-28), and what the list has always held:
  *
- * Before this test existed, a failed list read fell through
- * `mappings?.length === 0` (undefined ≠ 0) into the table branch and rendered
- * an empty table with headers — "no mappings" said about a list we could not
- * read, on the managed operator's main screen. That masking is what hid the
- * T1 schema break. The pattern pinned here is Confirm.unit.test.tsx's: the
- * failure text renders, the empty-state text does NOT.
+ *  - a failed read is never an empty list (hard rule 9, 0033 T2), of the
+ *    migrations or of the people;
+ *  - a person's card: their name, one stage (the least advanced, the owner's
+ *    *"One stage per person"*), where from and where to, what needs them, and
+ *    a line per data type with its stage in words (0154 T1);
+ *  - a migration with nobody can be added to a person in one press, and a
+ *    person can be added;
+ *  - every migration keeps its controls: a refused sync says so at the
+ *    migration (0033 T3), a draft leads to its green light (0037 T2), Delete
+ *    takes two presses (0037 T5), a pause tells the migration's own page
+ *    (2026-09-17);
+ *  - `?status=` filters, and says so (0074).
  */
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AxiosError, AxiosHeaders } from 'axios';
+import { lifecycleCounts, type MappingAttention, type Person, type PersonMigration } from '@openmig/shared';
 import Mappings from './Mappings.tsx';
 import { mappingApi, type MappingListItem } from '../services/mapping-service.ts';
+import {
+  addMigrationToPerson,
+  createPerson,
+  fetchAttention,
+  fetchPeople,
+} from '../services/operating-service.ts';
 
 vi.mock('../services/mapping-service', () => ({
   mappingApi: { list: vi.fn(), triggerSync: vi.fn(), delete: vi.fn(), pause: vi.fn() },
+}));
+vi.mock('../services/operating-service', () => ({
+  fetchPeople: vi.fn(),
+  fetchAttention: vi.fn(),
+  createPerson: vi.fn(),
+  addMigrationToPerson: vi.fn(),
 }));
 
 const listMock = vi.mocked(mappingApi.list);
 const syncMock = vi.mocked(mappingApi.triggerSync);
 const deleteMock = vi.mocked(mappingApi.delete);
 const pauseMock = vi.mocked(mappingApi.pause);
+const peopleMock = vi.mocked(fetchPeople);
+const attentionMock = vi.mocked(fetchAttention);
+const createPersonMock = vi.mocked(createPerson);
+const addMock = vi.mocked(addMigrationToPerson);
 
 const renderMappings = (path = '/mappings', queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false } },
@@ -53,33 +77,50 @@ const sampleMapping = (over: Partial<MappingListItem> = {}): MappingListItem => 
   ...over,
 });
 
-/** An axios-shaped rejection carrying a JSON error body, the way the real
- *  apiClient delivers a 500 — err.message is the generic transport wrapper,
- *  the server's sentence lives in response.data.
- *
- *  The body is `{error, reason}` because that is what `serverFault` sends
- *  (workplan 0081): a stable code, and one sentence carrying the reference
- *  that finds the stack in the log. It used to be `{error: 'Internal server
- *  error', message}`, and a fixture left on the old shape would keep passing
- *  while proving nothing about what the API actually answers. */
-const axios500 = (reason: string): AxiosError => {
-  const err = new AxiosError('Request failed with status code 500');
+const person = (id: string, displayName: string | null, migrations: PersonMigration[], implicit = false): Person => ({
+  id,
+  implicit,
+  displayName,
+  email: null,
+  createdAt: implicit ? null : '2026-09-28T10:00:00.000Z',
+  migrations,
+  counts: lifecycleCounts(migrations),
+});
+
+const quiet = (mappingId: string, over: Partial<MappingAttention> = {}): MappingAttention => ({
+  mappingId,
+  pendingDecisions: 0,
+  deletionsWaiting: 0,
+  movesWaiting: 0,
+  failuresWaiting: 0,
+  readyForCutover: false,
+  autoApplied: 0,
+  sharingOpen: 0,
+  ...over,
+});
+
+/** An axios-shaped rejection carrying the JSON body `serverFault` sends (0081). */
+const axiosError = (status: number, data: Record<string, string>): AxiosError => {
+  const err = new AxiosError(`Request failed with status code ${status}`);
   err.response = {
-    status: 500,
-    statusText: 'Internal Server Error',
+    status,
+    statusText: 'Error',
     headers: {},
     config: { headers: new AxiosHeaders() },
-    data: { error: 'list_failed', reason },
+    data,
   };
   return err;
 };
+const axios500 = (reason: string) => axiosError(500, { error: 'list_failed', reason });
 
-describe('Mappings — failed read ≠ empty list (hard rule 9)', () => {
-  beforeEach(() => {
-    listMock.mockReset();
-  });
+beforeEach(() => {
+  vi.resetAllMocks();
+  peopleMock.mockResolvedValue({ people: [], unassigned: [] });
+  attentionMock.mockResolvedValue({ mappings: [] });
+});
 
-  it('renders the SERVER message on a failed read, and never the empty state or the table', async () => {
+describe('Migrations — a failed read is never an empty list (hard rule 9)', () => {
+  it('renders the SERVER message when the migrations cannot be read, and no card or empty state', async () => {
     listMock.mockRejectedValue(
       axios500(
         'Something went wrong listing your migrations — this is a fault on our side, not ' +
@@ -89,19 +130,159 @@ describe('Mappings — failed read ≠ empty list (hard rule 9)', () => {
 
     renderMappings();
 
-    // The server's own sentence, not axios's wrapper — and the reference with
-    // it, which is the only thing connecting this red box to the stack in the log.
     expect(await screen.findByText(/Something went wrong listing your migrations/)).toBeInTheDocument();
     expect(screen.getByText(/Reference 1a2b3c4d/)).toBeInTheDocument();
     expect(screen.getByText('Could not load the migrations list.')).toBeInTheDocument();
-    // Mutation check: removing the error branch would fall through to one of
-    // these — both must be absent.
     expect(screen.queryByText('No migrations yet')).not.toBeInTheDocument();
+    expect(screen.queryByText('Not with a person yet')).not.toBeInTheDocument();
     expect(screen.queryByText('Name')).not.toBeInTheDocument();
     expect(screen.queryByText('Request failed with status code 500')).not.toBeInTheDocument();
   });
 
-  it('renders the four real lifecycle states as badges when the read succeeds', async () => {
+  it('says so when the people cannot be read, rather than showing everybody as nobody', async () => {
+    listMock.mockResolvedValue([sampleMapping({ id: 'm1', name: 'Inbox' })]);
+    peopleMock.mockRejectedValue(axios500('Something went wrong listing the people you are moving. Reference 9f8e7d6c.'));
+
+    renderMappings();
+
+    expect(await screen.findByText('Could not load who each migration is for.')).toBeInTheDocument();
+    expect(screen.getByText(/Reference 9f8e7d6c/)).toBeInTheDocument();
+    expect(screen.queryByText('Not with a person yet')).not.toBeInTheDocument();
+    expect(screen.queryByText('Inbox')).not.toBeInTheDocument();
+  });
+
+  it('still shows the true empty state when there is nobody and nothing, with Start a migration', async () => {
+    listMock.mockResolvedValue([]);
+
+    renderMappings();
+
+    expect(await screen.findByText('No migrations yet')).toBeInTheDocument();
+    expect(screen.getByText('Start one: who it is for, where from, what, and where to.')).toBeInTheDocument();
+    for (const link of screen.getAllByRole('link', { name: 'Start a migration' })) {
+      expect(link).toHaveAttribute('href', '/mappings/new');
+    }
+    expect(screen.queryByText('Could not load the migrations list.')).not.toBeInTheDocument();
+  });
+});
+
+describe('Migrations — one card per person (0153 T3)', () => {
+  const MAIL = sampleMapping({
+    id: 'm-mail',
+    name: 'Anna — Gmail to Soverin',
+    sourceType: 'gmail',
+    targetType: 'soverin',
+    domains: ['email'],
+    lastSyncAt: new Date(Date.now() - 120_000).toISOString(),
+  });
+  const FILES = sampleMapping({
+    id: 'm-files',
+    name: 'Anna — Dropbox to Nextcloud',
+    sourceType: 'dropbox',
+    targetType: 'nextcloud',
+    domains: ['file'],
+  });
+  const ANNA = person('p-anna', 'Anna', [
+    { id: 'm-mail', status: 'active' },
+    { id: 'm-files', status: 'active' },
+  ]);
+
+  it("shows the person's name, one stage (the least advanced), and where from and where to", async () => {
+    listMock.mockResolvedValue([MAIL, FILES]);
+    peopleMock.mockResolvedValue({ people: [ANNA], unassigned: [] });
+
+    renderMappings();
+
+    const card = await screen.findByRole('region', { name: 'Anna' });
+    expect(within(card).getByText('From Google and Dropbox to Soverin and Nextcloud')).toBeInTheDocument();
+    // Mail is kept in step, Files is copying: the card says what holds them back.
+    const heading = within(card).getByRole('heading', { name: 'Anna' }).parentElement!;
+    expect(within(heading).getByText('Copying')).toBeInTheDocument();
+    // A line per data type, each with its own stage.
+    expect(within(card).getByText('Email')).toBeInTheDocument();
+    expect(within(card).getByText('Files')).toBeInTheDocument();
+    expect(within(card).getByText('Kept in step')).toBeInTheDocument();
+    expect(within(card).getAllByText('Copying')).toHaveLength(2);
+  });
+
+  it('counts what needs the person and leads to it, and the top line counts people', async () => {
+    listMock.mockResolvedValue([MAIL, FILES]);
+    peopleMock.mockResolvedValue({ people: [ANNA], unassigned: [] });
+    attentionMock.mockResolvedValue({
+      mappings: [quiet('m-mail', { failuresWaiting: 2 }), quiet('m-files', { deletionsWaiting: 1 })],
+    });
+
+    renderMappings();
+
+    const count = await screen.findByRole('link', { name: 'Needs you: 3 →' });
+    // To the person's own page, where their steps are (0153 T5).
+    expect(count).toHaveAttribute('href', '/people/p-anna#before-you-switch');
+    expect(screen.getByRole('link', { name: 'Anna' })).toHaveAttribute('href', '/people/p-anna');
+    expect(screen.getByText(/1 person/)).toBeInTheDocument();
+    expect(screen.getByText(/1 needs you/)).toBeInTheDocument();
+  });
+
+  it("counts a grace period nobody chose, and not the organisation's decisions, which are nobody's card", async () => {
+    listMock.mockResolvedValue([MAIL, FILES]);
+    peopleMock.mockResolvedValue({ people: [ANNA], unassigned: [] });
+    attentionMock.mockResolvedValue({
+      mappings: [
+        quiet('m-mail', { pendingDecisions: 4, graceEnded: ['email'] }),
+        quiet('m-files', { movesWaiting: 1, readyForCutover: true }),
+      ],
+    });
+
+    renderMappings();
+
+    expect(await screen.findByRole('link', { name: 'Needs you: 2 →' })).toBeInTheDocument();
+  });
+
+  it('says it could not count, never zero, when what needs the person cannot be read', async () => {
+    listMock.mockResolvedValue([MAIL, FILES]);
+    peopleMock.mockResolvedValue({ people: [ANNA], unassigned: [] });
+    attentionMock.mockRejectedValue(axios500('Something went wrong. Reference 11112222.'));
+
+    renderMappings();
+
+    expect(await screen.findByText('Could not count what needs you.')).toBeInTheDocument();
+    expect(screen.queryByText(/Needs you:/)).not.toBeInTheDocument();
+  });
+
+  it("offers Add a migration for the person, which the wizard adds to them", async () => {
+    listMock.mockResolvedValue([MAIL]);
+    peopleMock.mockResolvedValue({ people: [person('p-anna', 'Anna', [{ id: 'm-mail', status: 'active' }])], unassigned: [] });
+
+    renderMappings();
+
+    const add = await screen.findByRole('link', { name: 'Add a migration' });
+    expect(add).toHaveAttribute('href', '/mappings/new?person=p-anna');
+  });
+
+  it('says what a person with no migrations has: nothing yet', async () => {
+    listMock.mockResolvedValue([]);
+    peopleMock.mockResolvedValue({ people: [person('p-bram', 'Bram', [])], unassigned: [] });
+
+    renderMappings();
+
+    const card = await screen.findByRole('region', { name: 'Bram' });
+    expect(within(card).getByText('Nothing for this person yet.')).toBeInTheDocument();
+    expect(screen.queryByText('No migrations yet')).not.toBeInTheDocument();
+  });
+
+  it("names the appliance's one person, and offers no person to add or create", async () => {
+    listMock.mockResolvedValue([MAIL]);
+    peopleMock.mockResolvedValue({
+      people: [person('implicit', null, [{ id: 'm-mail', status: 'active' }], true)],
+      unassigned: [],
+    });
+
+    renderMappings();
+
+    expect(await screen.findByRole('region', { name: 'Your migrations' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Add a migration' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Add a person')).not.toBeInTheDocument();
+  });
+
+  it('shows stages in words, never the raw lifecycle', async () => {
     listMock.mockResolvedValue([
       sampleMapping({ id: 'a', status: 'active', name: 'A' }),
       sampleMapping({ id: 'b', status: 'paused', name: 'B' }),
@@ -111,181 +292,195 @@ describe('Mappings — failed read ≠ empty list (hard rule 9)', () => {
 
     renderMappings();
 
-    // The canonical translated words (StateChip, 0035 T1) — never the raw enum.
-    expect(await screen.findByText('In cutover')).toBeInTheDocument();
+    expect(await screen.findByText('Copying')).toBeInTheDocument();
+    expect(screen.getByText('Not started')).toBeInTheDocument();
+    expect(screen.getByText('Switching')).toBeInTheDocument();
     expect(screen.getByText('Done')).toBeInTheDocument();
-    expect(screen.getByText('Active')).toBeInTheDocument();
-    expect(screen.getByText('Paused')).toBeInTheDocument();
-    expect(screen.queryByText('No migrations yet')).not.toBeInTheDocument();
-  });
-
-  it('still shows the true empty state when the tenant has no mappings', async () => {
-    listMock.mockResolvedValue([]);
-
-    renderMappings();
-
-    expect(await screen.findByText('No migrations yet')).toBeInTheDocument();
-    expect(screen.queryByText('Could not load the migrations list.')).not.toBeInTheDocument();
+    expect(screen.queryByText('active')).not.toBeInTheDocument();
   });
 });
 
-describe('Mappings — a refused sync says so at the row (0033 T3)', () => {
-  beforeEach(() => {
-    listMock.mockReset();
-    syncMock.mockReset();
+describe('Migrations — a migration with nobody, and a new person (ADR-0050 rule 2)', () => {
+  it('lists it under Not with a person yet, and adds it to a person in one press', async () => {
+    listMock.mockResolvedValue([sampleMapping({ id: 'm2', name: 'Old one' })]);
+    peopleMock.mockResolvedValue({
+      people: [person('p-anna', 'Anna', [])],
+      unassigned: [{ id: 'm2', status: 'active' }],
+    });
+    addMock.mockResolvedValue(person('p-anna', 'Anna', [{ id: 'm2', status: 'active' }]));
+
+    renderMappings();
+
+    const section = await screen.findByRole('region', { name: 'Not with a person yet' });
+    expect(within(section).getByText('Old one')).toBeInTheDocument();
+    expect(within(section).getByLabelText('Add to')).toHaveValue('p-anna');
+    fireEvent.click(within(section).getByRole('button', { name: 'Add' }));
+
+    await waitFor(() => expect(addMock).toHaveBeenCalledWith('p-anna', 'm2'));
   });
 
-  it("renders the server's refusal verbatim under the row; the old code console.error'd it away", async () => {
-    // A cutover-state row: its Play still posts a sync the server may refuse.
-    // (The PAUSED row no longer has a Play at all — see the 0037 T2 test.)
+  it("renders the server's refusal when adding fails, and keeps the migration where it was", async () => {
+    listMock.mockResolvedValue([sampleMapping({ id: 'm2', name: 'Old one' })]);
+    peopleMock.mockResolvedValue({ people: [person('p-anna', 'Anna', [])], unassigned: [{ id: 'm2', status: 'active' }] });
+    addMock.mockRejectedValue(
+      axiosError(409, {
+        error: 'with_another_person',
+        message: 'This migration is already somebody else’s. A migration belongs to one person at most.',
+      }),
+    );
+
+    renderMappings();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add' }));
+
+    expect(await screen.findByText('The migration was not added.')).toBeInTheDocument();
+    expect(screen.getByText(/belongs to one person at most/)).toBeInTheDocument();
+    expect(screen.getByText('Old one')).toBeInTheDocument();
+  });
+
+  it('adds a person with a name, and no address when none is typed', async () => {
+    listMock.mockResolvedValue([sampleMapping({ id: 'm2', name: 'Old one' })]);
+    createPersonMock.mockResolvedValue(person('p-bram', 'Bram', []));
+
+    renderMappings();
+
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Bram' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add person' }));
+
+    await waitFor(() => expect(createPersonMock).toHaveBeenCalledWith({ displayName: 'Bram', email: null }));
+  });
+
+  it("renders the server's refusal when a person cannot be added", async () => {
+    listMock.mockResolvedValue([]);
+    peopleMock.mockResolvedValue({ people: [person('p-anna', 'Anna', [])], unassigned: [] });
+    createPersonMock.mockRejectedValue(
+      axiosError(400, { error: 'Validation error', message: 'That is not an email address.' }),
+    );
+
+    renderMappings();
+
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Bram' } });
+    fireEvent.change(screen.getByLabelText('Email address, for a grant link (optional)'), {
+      target: { value: 'bram@example.org' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Add person' }));
+
+    expect(await screen.findByText('The person was not added.')).toBeInTheDocument();
+    expect(screen.getByText('That is not an email address.')).toBeInTheDocument();
+  });
+});
+
+describe('Migrations — every migration keeps its controls', () => {
+  it("renders the server's refusal of a sync under the migration (0033 T3)", async () => {
     listMock.mockResolvedValue([sampleMapping({ id: 'c1', status: 'cutover', name: 'Cutting over' })]);
-    const err = new AxiosError('Request failed with status code 409');
-    err.response = {
-      status: 409,
-      statusText: 'Conflict',
-      headers: {},
-      config: { headers: new AxiosHeaders() },
-      data: {
+    syncMock.mockRejectedValue(
+      axiosError(409, {
         error: 'Conflict',
         message: 'Mapping is in cutover — the final sync is managed by the cutover task.',
-      },
-    };
-    syncMock.mockRejectedValue(err);
+      }),
+    );
 
     renderMappings();
 
     fireEvent.click(await screen.findByTitle('Start sync'));
 
-    expect(
-      await screen.findByText(/Mapping is in cutover — the final sync/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Mapping is in cutover — the final sync/)).toBeInTheDocument();
     expect(screen.getByText('The sync request did not complete.')).toBeInTheDocument();
     expect(screen.queryByText('Request failed with status code 409')).not.toBeInTheDocument();
   });
-});
 
-describe('Mappings — a paused row leads to the confirm screen, not to a 409 (0037 T2)', () => {
-  beforeEach(() => {
-    listMock.mockReset();
-    syncMock.mockReset();
-  });
-
-  it('renders "Review and start" linking to /mappings/:id/confirm and no Play button', async () => {
+  it('leads a draft to Review and start, and offers no sync that would be refused (0037 T2)', async () => {
     listMock.mockResolvedValue([sampleMapping({ id: 'p1', status: 'paused', name: 'Paused one' })]);
 
     renderMappings();
 
     const link = await screen.findByRole('link', { name: 'Review and start' });
     expect(link).toHaveAttribute('href', '/mappings/p1/confirm');
-    // The 409-destined Play is gone from paused rows.
     expect(screen.queryByTitle('Start sync')).not.toBeInTheDocument();
     expect(syncMock).not.toHaveBeenCalled();
   });
 
+  it('opens the migration from anywhere on it, and a control never doubles as the way in (2026-08-11)', async () => {
+    listMock.mockResolvedValue([sampleMapping({ id: 'm1', status: 'active', name: 'Inbox' })]);
+    pauseMock.mockResolvedValue(undefined as never);
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={['/mappings']}>
+          <Routes>
+            <Route path="/mappings" element={<Mappings />} />
+            <Route path="/mappings/:id" element={<p>the migration page</p>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(await screen.findByTitle('Pause'));
+    await waitFor(() => expect(pauseMock).toHaveBeenCalledWith('m1'));
+    expect(screen.queryByText('the migration page')).not.toBeInTheDocument();
+
+    // Its stage: inside the migration, outside every button and link, where
+    // the owner clicked a row and nothing happened.
+    fireEvent.click(screen.getByText('Copying'));
+    expect(await screen.findByText('the migration page')).toBeInTheDocument();
+  });
+
   it('names the pencil that opens a migration, which a screen reader otherwise calls "link"', async () => {
-    // lucide marks an icon with no a11y prop aria-hidden, so a link holding
-    // only the icon had an empty accessible name (WCAG 4.1.2).
     listMock.mockResolvedValue([sampleMapping({ id: 'm1', name: 'Inbox' })]);
     renderMappings();
 
     const open = await screen.findByRole('link', { name: 'Open' });
     expect(open).toHaveAttribute('href', '/mappings/m1');
   });
-});
 
-describe('Mappings — Delete arms with the mapping name and works (0037 T5)', () => {
-  beforeEach(() => {
-    listMock.mockReset();
-    syncMock.mockReset();
-    deleteMock.mockReset();
-  });
-
-  /**
-   * The Delete button has to be REACHABLE, not merely present (workplan 0073).
-   *
-   * The table wrapper was `overflow-hidden` around five nowrap columns wider
-   * than a phone, so the actions column was clipped with no way to scroll to
-   * it: on Android the owner could not delete a migration at all, and every
-   * test below passed the whole time because jsdom renders the button
-   * regardless of whether a human could touch it.
-   *
-   * jsdom has no layout, so a scroll cannot be simulated — asserting the
-   * container permits horizontal overflow is the most this tier can say. It is
-   * a weak test for a real defect, and it is here because the alternative is
-   * nothing: the same defect already shipped once as 0068 T9.
-   */
-  it('lets a narrow screen reach the actions column (0073)', async () => {
+  it('keeps the actions reachable on a phone: they wrap, and nothing clips them (0073)', async () => {
     listMock.mockResolvedValue([sampleMapping({ id: 'm1', name: 'Inbox' })]);
     renderMappings();
 
-    const table = (await screen.findByRole('table')).parentElement!;
-    expect(
-      table.className,
-      'the actions column is clipped off-screen on a phone, Delete included',
-    ).toContain('overflow-x-auto');
-    expect(table.className).not.toContain('overflow-hidden');
+    let el: HTMLElement | null = (await screen.findByTitle('Delete')).parentElement;
+    expect(el!.className, 'the actions do not wrap onto a line of their own').toContain('flex-wrap');
+    for (; el; el = el.parentElement) {
+      expect(el.className ?? '', 'an ancestor clips the actions off-screen').not.toContain('overflow-hidden');
+    }
   });
 
-  /**
-   * ASKING TWICE, NOT ASKING FOR DICTATION (owner, 2026-09-03).
-   *
-   * This test used to type the migration's name into a box, because the
-   * confirm button compared the typed text to `mapping.name` byte for byte.
-   * The owner met the failure that gate makes possible: *"i think i typed it
-   * over, but it was not recognized, so i cant delete my migration"* — a
-   * name carrying a character a placeholder cannot show (a trailing space is
-   * enough) locks the button with no sentence saying why, and a confirmation
-   * that can refuse a correct answer is not a safety measure.
-   *
-   * The weight was misplaced as well as brittle. Typing a name belongs to
-   * things that cannot be got back; this deletes rows in OUR database, and
-   * every FK to `mailbox_mapping` cascades to more of ours. Nothing reaches
-   * the source or the target — this product writes to a provider inside a
-   * sync or a gated apply, never from a screen. So: two presses, and the
-   * sentence between them says exactly that.
-   */
+  it('pauses, and marks the migration’s own cached page for re-reading (2026-09-17)', async () => {
+    listMock.mockResolvedValue([sampleMapping({ id: 'm1', status: 'active', name: 'Inbox' })]);
+    pauseMock.mockResolvedValue(undefined as never);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(['mapping', 'm1'], { id: 'm1', status: 'active' });
+
+    renderMappings('/mappings', queryClient);
+    fireEvent.click(await screen.findByTitle('Pause'));
+
+    await waitFor(() => expect(pauseMock).toHaveBeenCalledWith('m1'));
+    await waitFor(() => expect(queryClient.getQueryState(['mapping', 'm1'])?.isInvalidated).toBe(true));
+  });
+});
+
+describe('Migrations — Delete takes two presses, and says what it does (0037 T5)', () => {
   it('arms on the first press and deletes on the second — no name to type', async () => {
     listMock.mockResolvedValue([sampleMapping({ id: 'm1', name: 'Inbox' })]);
     deleteMock.mockResolvedValue(undefined);
 
     renderMappings();
 
-    // One press arms; nothing has been asked of the server yet.
     fireEvent.click(await screen.findByTitle('Delete'));
     expect(deleteMock).not.toHaveBeenCalled();
-
-    // The sentence names what goes AND what is not touched, because that is
-    // what makes one press enough.
     expect(screen.getByText(/settings and record/)).toBeInTheDocument();
-    expect(
-      screen.getByText(/nothing at your source or destination is touched/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/nothing at your source or destination is touched/)).toBeInTheDocument();
     expect(screen.queryByText(/Type the migration name/)).not.toBeInTheDocument();
-    expect(screen.queryByPlaceholderText('Inbox')).not.toBeInTheDocument();
 
     const confirmButton = screen.getByRole('button', { name: 'Delete migration' });
     expect(confirmButton).toBeEnabled();
     fireEvent.click(confirmButton);
 
     await waitFor(() => expect(deleteMock).toHaveBeenCalledWith('m1'));
-    // The arming row closes after a successful delete.
     await waitFor(() =>
       expect(screen.queryByRole('button', { name: 'Delete migration' })).not.toBeInTheDocument(),
     );
   });
 
-  /**
-   * WHAT SETTING IT UP AGAIN DOES (owner, 2026-09-23).
-   *
-   * The fold used to end "copies nothing twice", and the owner asked the
-   * question that invites: delete a finished migration, set the same one up
-   * later, and is everything duplicated? It is not, but that was the only half
-   * it said. A new migration ADOPTS what it finds already there, and an
-   * adopted item never follows its source again; a copy deleted or moved on
-   * the new side matches nothing and is copied back. Someone choosing between
-   * delete and pause needs both halves before the second press.
-   */
-  it('says what setting the same migration up again does, and what pausing keeps', async () => {
+  it('says what setting the same migration up again does, and what pausing keeps (2026-09-23)', async () => {
     listMock.mockResolvedValue([sampleMapping({ id: 'm1', name: 'Inbox' })]);
     renderMappings();
 
@@ -295,12 +490,9 @@ describe('Mappings — Delete arms with the mapping name and works (0037 T5)', (
     expect(screen.getByText(/no longer updated when it changes at the source/)).toBeInTheDocument();
     expect(screen.getByText(/deleted or moved on the new side comes back/)).toBeInTheDocument();
     expect(screen.getByText(/pause the migration instead/)).toBeInTheDocument();
-    expect(screen.queryByText(/copies nothing twice/)).not.toBeInTheDocument();
   });
 
-  it('a name no placeholder could show still deletes — the owner\u2019s own wall', async () => {
-    // A trailing space is invisible in a text box and was, until today,
-    // enough to make a migration undeletable through the product.
+  it('a name no placeholder could show still deletes — the owner’s own wall', async () => {
     listMock.mockResolvedValue([sampleMapping({ id: 'm1', name: 'Inbox ' })]);
     deleteMock.mockResolvedValue(undefined);
 
@@ -322,22 +514,16 @@ describe('Mappings — Delete arms with the mapping name and works (0037 T5)', (
     expect(deleteMock).not.toHaveBeenCalled();
   });
 
-  it('a refused delete renders the server words and keeps the row', async () => {
+  it('a refused delete renders the server words and keeps the migration', async () => {
     listMock.mockResolvedValue([sampleMapping({ id: 'm1', name: 'Inbox' })]);
-    const err = new AxiosError('Request failed with status code 500');
-    err.response = {
-      status: 500,
-      statusText: 'Internal Server Error',
-      headers: {},
-      config: { headers: new AxiosHeaders() },
-      data: {
+    deleteMock.mockRejectedValue(
+      axiosError(500, {
         error: 'delete_failed',
         reason:
           'Something went wrong deleting this migration — this is a fault on our side, not ' +
           'something your input caused. Reference 1a2b3c4d; quoting it finds the detail in the server log.',
-      },
-    };
-    deleteMock.mockRejectedValue(err);
+      }),
+    );
 
     renderMappings();
 
@@ -346,31 +532,16 @@ describe('Mappings — Delete arms with the mapping name and works (0037 T5)', (
 
     expect(await screen.findByText('The migration was not deleted.')).toBeInTheDocument();
     expect(screen.getByText(/Something went wrong deleting this migration/)).toBeInTheDocument();
-    expect(screen.getByText(/Reference 1a2b3c4d/)).toBeInTheDocument();
-    // The mapping is still listed — nothing pretended to succeed.
     expect(screen.getByText('Inbox')).toBeInTheDocument();
   });
 });
 
-
 /**
- * `?status=` — where the dashboard's counts land (workplan 0074).
- *
- * The five tiles counted the lifecycle states and were plain `<div>`s. The
- * obvious question a count raises is *which ones?*, and clicking it did
- * nothing at all, which is the whole of the owner's report.
- *
- * The filter is a URL rather than component state so it survives a refresh and
- * can be shared — and it is VISIBLE, because a list quietly showing a subset
- * is how somebody comes to report a missing migration.
+ * `?status=` — where the dashboard's counts land (workplan 0074). A URL, so it
+ * survives a refresh; VISIBLE, because a list quietly showing a subset is how
+ * somebody comes to report a missing migration.
  */
-describe('Mappings — filtering by lifecycle state (0074)', () => {
-  beforeEach(() => {
-    listMock.mockReset();
-    syncMock.mockReset();
-    deleteMock.mockReset();
-  });
-
+describe('Migrations — filtering by lifecycle state (0074)', () => {
   const three = () => [
     sampleMapping({ id: 'a', status: 'active', name: 'Active one' }),
     sampleMapping({ id: 'b', status: 'paused', name: 'Paused one' }),
@@ -393,8 +564,24 @@ describe('Mappings — filtering by lifecycle state (0074)', () => {
     expect(await screen.findByText('Paused one')).toBeInTheDocument();
     expect(screen.queryByText('Active one')).toBeNull();
     expect(screen.queryByText('Finished one')).toBeNull();
-    // Visible and named — otherwise the next person reports a missing row.
     expect(screen.getByText(/Showing only:/)).toBeInTheDocument();
+  });
+
+  it('filters inside a card, and hides a card with nothing left', async () => {
+    listMock.mockResolvedValue(three());
+    peopleMock.mockResolvedValue({
+      people: [
+        person('p-anna', 'Anna', [{ id: 'a', status: 'active' }, { id: 'b', status: 'paused' }]),
+        person('p-bram', 'Bram', [{ id: 'c', status: 'done' }]),
+      ],
+      unassigned: [],
+    });
+    renderMappings('/mappings?status=paused');
+
+    const card = await screen.findByRole('region', { name: 'Anna' });
+    expect(within(card).getByText('Paused one')).toBeInTheDocument();
+    expect(within(card).queryByText('Active one')).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Bram' })).toBeNull();
   });
 
   it('can be cleared back to the whole list', async () => {
@@ -408,47 +595,11 @@ describe('Mappings — filtering by lifecycle state (0074)', () => {
   });
 
   it('filters to NOTHING for a status nothing has, rather than showing everything', async () => {
-    // An empty list under a banner naming the filter is an answer. A full list
-    // under a filter that silently did not apply is a lie.
     listMock.mockResolvedValue(three());
     renderMappings('/mappings?status=cutover');
 
     expect(await screen.findByText(/Showing only:/)).toBeInTheDocument();
     expect(screen.queryByText('Active one')).toBeNull();
     expect(screen.queryByText('Paused one')).toBeNull();
-  });
-});
-
-describe('Mappings — pausing here tells the migration’s own page too (owner, 2026-09-17)', () => {
-  beforeEach(() => {
-    listMock.mockReset();
-    pauseMock.mockReset();
-    pauseMock.mockResolvedValue(undefined as never);
-  });
-
-  it('marks the migration’s own cached page for re-reading, not just this list', async () => {
-    /**
-     * The owner met this the other way round — *"in the Migrations view it
-     * shows Status 'Active' in green. But when i click on it ... i read
-     * 'Paused'"* — and the cause is the same on both sides: `App.tsx` gives
-     * every query a five-minute `staleTime`, so a lifecycle change on one
-     * screen leaves the other answering from before it.
-     *
-     * This row's Pause refreshed the list and nothing else, so `['mapping',
-     * id]` would have gone on saying `active`, with a Pause button offered on
-     * an already-paused migration.
-     */
-    listMock.mockResolvedValue([sampleMapping({ id: 'm1', status: 'active', name: 'Inbox' })]);
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    // What a visit to the migration's own page left behind, before the pause.
-    queryClient.setQueryData(['mapping', 'm1'], { id: 'm1', status: 'active' });
-
-    renderMappings('/mappings', queryClient);
-    fireEvent.click(await screen.findByTitle('Pause'));
-
-    await waitFor(() => expect(pauseMock).toHaveBeenCalledWith('m1'));
-    await waitFor(() =>
-      expect(queryClient.getQueryState(['mapping', 'm1'])?.isInvalidated).toBe(true),
-    );
   });
 });
