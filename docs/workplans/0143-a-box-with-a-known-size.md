@@ -4,6 +4,43 @@
 
 ## Status — 2026-09-29 (update this block at the end of every session)
 
+**2026-09-29, morning: T1 step 3's plane half built, the plane a little above the tick (0131 §6,
+group M4; open question 9)**, on branch `claude/mailbox-sync-errors-c2xsw2-a-plane-a-little-above-the-cap`,
+not merged. Rebased on 2026-10-03 onto `main` with session R's #1358 and T8 (#1404), which change
+`bootstrap-managed.sh` too, as 0131 §6's rule asks; it merges after an E2E (managed) run on `main`
+with T8 has passed, so a bring-up that breaks has one change to look at.
+
+- **What was open.** The tick holds a stack to `MAX_PASSES_IN_FLIGHT` passes, but a self-hosted
+  plane runs up to 300 at once, and a run the plane has not started is not in the tick's count.
+- **Found in upstream's source (Trigger.dev v4.5.16), before building.** The run queue does not
+  read `"RuntimeEnvironment"."maximumConcurrencyLimit"`. It reads a Redis key, which the webapp
+  fills from that column when a deploy registers its worker (`updateEnvConcurrencyLimits`, from
+  `createBackgroundWorker` and `finalizeDeployment`). So a limit written after a deploy waits for
+  the next one, and the bring-up must set it before the deploy.
+- **Built:**
+  - `deploy/compose/plane-limit.sh` sets the deploying environment of the stack's own project
+    (`TRIGGER_PROJECT_REF`, `TRIGGER_ENV`) to `MAX_PASSES_IN_FLIGHT` plus two, blank read as 3:
+    5 on the OTA stack and 8 on live. It asks the schema first, refuses a cap that is not a whole
+    number of at least 1 and a ref that is not one before any statement, fails when the update
+    finds no environment, and reads the number back. `--check` only reads.
+  - `bootstrap-managed.sh`'s tasks phase runs it after `set-task-env.sh` and before
+    `deploy-tasks.sh`, so every bring-up, the gate's and live's deploy included, sets it and the
+    deploy carries it into the queue.
+  - `managed.env.example`, `docs/performance.md` and the incident runbook say that a change to
+    the cap is followed by `bootstrap-managed.sh --only tasks`, which sets the limit and deploys.
+- **Proved:**
+  - `scripts/a-plane-a-little-above-the-cap.unit.test.ts` (17 cases, all failing on `main`,
+    where the script does not exist): the real script with a stub psql that writes down every
+    statement. 10 of 10 mutations caught.
+  - On a throwaway PostgreSQL 16 database with `Project` and `RuntimeEnvironment` tables of the
+    same columns: the blank cap wrote 5 to `prod` and left `dev` at 300, live's 6 wrote 8,
+    `--check` failed on 5 where 8 was asked, and a wrong project ref and a cap of `two` were
+    refused.
+- **Not proved here:** the plane obeying it. The gate's first run after the merge sets 5 on the
+  OTA stack and deploys, and `plane-limit.sh --check` reads it back there. The smoke's own runs
+  then share those 5 with the stack's passes, so a smoke step that waits longer is this limit at
+  work.
+
 **2026-09-29, night: T8 built, `pg_stat_statements` on (0143 §4: before T9, if it is ready)**;
 merged 2026-10-03, after session R's #1358, which changed `bootstrap-managed.sh` too (the moment
 the owner left to this session).
@@ -740,7 +777,7 @@ unproved until then:
 | Task | Status | Notes |
 |---|---|---|
 | T0 The alpha's numbers | 📋 **Provisional numbers accepted 2026-09-27** (open question 1): 2 passes per organisation, 5 migrations, waves of about five, and the largest file 10 GB, which the owner raised from 2 GB the same evening (T4); ✅ **the overall cap decided 2026-09-28**: `small-1x`, live 6, the OTA stack 3 (open question 7), and 20 GB for the stacks beside a GPU process held to 100 GB (open question 8); ⏳ **Owner**: that GPU process held to 100 GB before live — *was:* ⏳ **Owner** for the overall cap on the machine, the machine reads taken 2026-09-28 (open question 7) | §3. **Alpha minimum.** Five provisional numbers before T9, and final ones after it. They are written in this block. |
-| T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6); step 1 read in upstream's source 2026-09-28: presets are enforced, and every task runs on `small-1x`, half a CPU and 512 MB; step 3's tick half ✅ **done** in #1296, merged 2026-09-28 (`67b3e9e`): 3 passes at once on a stack unless its `.env` says otherwise, and 2 per organisation, longest-waiting first; live's `.env` sets 6 since 2026-09-28 (the owner); step 2 ✅ **done** in #1338, merged 2026-09-28 (`2aeaadf`): every task names `small-1x`; the plane's limit 📋 **decided 2026-09-29** (open question 9): the cap plus two, 8 on live and 5 on the OTA stack, to be built — *was:* ⏳ **Owner** | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
+| T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6); step 1 read in upstream's source 2026-09-28: presets are enforced, and every task runs on `small-1x`, half a CPU and 512 MB; step 3's tick half ✅ **done** in #1296, merged 2026-09-28 (`67b3e9e`): 3 passes at once on a stack unless its `.env` says otherwise, and 2 per organisation, longest-waiting first; live's `.env` sets 6 since 2026-09-28 (the owner); step 2 ✅ **done** in #1338, merged 2026-09-28 (`2aeaadf`): every task names `small-1x`; the plane's limit 🔨 **built 2026-09-29** on its branch, not merged: `plane-limit.sh`, the cap plus two (8 on live, 5 on the OTA stack), set before the task deploy and read back (open question 9) — *was:* ⏳ **Owner** | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
 | T2 What one organisation can make the machine do | 🔨 **T2a built 2026-09-27**, merged as #1258: five unfinished migrations per organisation, the deployment's number; **T2d's runbook step written 2026-09-27**, merged as #1252, in 0142 T6's runbook; **T2b built 2026-09-29**, merged as #1348 (`97bac8c`): no schedule faster than 15 minutes, on either door, and a stored one runs at that floor; **T2c built 2026-09-29**, merged as #1350 (`6282dd9`): `throttleConfig` refused on both managed doors, a stored one held to the defaults, and Gmail's download ceiling never raised on either edition; T2d's built hold 📋 **Proposed** — *was:* T2b and T2c 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
 | T3 A streamed file reaches a JMAP target | 🔨 **T3a built 2026-09-27**, merged as #1243: the refusal names the file, its size and WebDAV; **T3b built 2026-09-29**, merged as #1355 (`2ce6546`): the stream sent as the upload, and a file over the server's `maxSizeUpload` refused up front, naming it; 0141 T8's nightly leg next — *was:* T3b 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
 | T4 A file no pass can carry is refused up front, with a sentence | 🔨 **(a) built 2026-09-27**, merged as #1259: 10 GB, the owner's number, and a category of its own, `too_large`; the attempts after the alpha 📋 **Proposed** — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** A stated largest file, refused before a byte moves, and parked for a person rather than retried. The kill loop for smaller files that are still too slow comes after. |
