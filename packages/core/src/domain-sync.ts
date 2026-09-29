@@ -31,6 +31,7 @@ import {
 } from '@openmig/shared';
 import { log, isLevelEnabled, type DiscardedListing, type PassMetrics } from '@openmig/shared';
 import { newAppEvent, recordAppEvent } from '@openmig/shared';
+import { classifyFailure, type FailureCategory, type UnreadCollection } from '@openmig/shared';
 import type {
   BudgetPause,
   ByteBudgetState,
@@ -40,7 +41,7 @@ import type {
 } from '@openmig/shared';
 import type { DiscoveryDomain } from '@openmig/shared';
 
-export type { PassMetrics };
+export type { PassMetrics, UnreadCollection };
 
 /**
  * Consecutive item failures that stop the pass.
@@ -68,6 +69,37 @@ const ABORT_AFTER_CONSECUTIVE_FAILURES = 25;
  * the pass acts on them.
  */
 export const LEDGER_READ_AHEAD = 500;
+
+/**
+ * How many collections in a row may fail to list before the pass reads the
+ * failure as the SOURCE's rather than one folder's, and ends as it always did
+ * (2026-09-29; 0055 T3 (e), the owner's "2a").
+ *
+ * One folder that will not list is skipped and named (`unreadCollections`).
+ * An expired credential, a source that is down or a network that is gone fails
+ * every folder alike, and skipping each of them would turn "reconnect" into a
+ * list of folder notes. Three in a row is past any plausible run of bad
+ * folders, and the source's own retries have already been spent on each. A
+ * pass whose every listing failed ends the same way, however few there were.
+ */
+export const ABORT_AFTER_CONSECUTIVE_UNREAD_COLLECTIONS = 3;
+
+/**
+ * The failures that are the CONNECTION's rather than a folder's, which end
+ * the pass at the first collection they reach instead of being skipped.
+ *
+ * A credential that has expired fails every folder alike, and its way out is
+ * "reconnect", which a list of folder notes would hide. A source that asked
+ * us to slow down, or whose day's allowance is spent, has already been waited
+ * on as long as its limiter may, and asking about the next folder at once is
+ * what it asked us not to do (hard rule 4). A network error is left to the
+ * run of three: a timeout can be one very large folder's.
+ */
+const ENDS_THE_PASS_AT_ONCE: ReadonlySet<FailureCategory> = new Set([
+  'auth_expired',
+  'rate_limited',
+  'quota_exceeded',
+]);
 
 /**
  * THE ITEMS AHEAD, ASKED ABOUT A WINDOW AT A TIME (2026-09-29).
@@ -780,6 +812,22 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
 /** Summary of a domain sync pass. */
 export interface DomainSyncResult {
   /**
+   * Collections this pass could not list, even after the source's own
+   * retries, and so skipped (2026-09-29; 0055 T3 (e), the owner's "2a").
+   *
+   * One folder the source will not list used to end the domain's pass, and
+   * every folder after it waited an hour for the next one. Now the pass
+   * carries on with the others and says which it could not read. Nothing in a
+   * skipped collection is concluded: it joins the collections the pass did
+   * not finish, so no item in it is counted absent, no removal report is
+   * resolved, and its cursor stays where it was. The next pass asks for it
+   * again. A failure that is the whole source's rather than one folder's
+   * still ends the pass (`ABORT_AFTER_CONSECUTIVE_UNREAD_COLLECTIONS`).
+   *
+   * Absent when every collection the pass opened was listed.
+   */
+  readonly unreadCollections?: ReadonlyArray<UnreadCollection>;
+  /**
    * Bin entries the source could not turn into a natural key, with the
    * source's own explanation.
    *
@@ -1219,6 +1267,12 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   const startedAtMs = now();
   /** Collections listed for this domain that the pass never got to. */
   let collectionsNotReached = 0;
+  /** Collections whose listing failed this pass (`DomainSyncResult.unreadCollections`). */
+  const unreadCollections: UnreadCollection[] = [];
+  /** The first of those failures, which ends the pass when no listing succeeded. */
+  let firstUnreadError: unknown;
+  let unreadInARow = 0;
+  let listedOne = false;
   /**
    * THE COLLECTIONS THIS PASS DID NOT FINISH: never opened, or stopped inside.
    *
@@ -1354,9 +1408,53 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     if (prev === undefined) await collectionIdOf();
     phases.collectionsOpened += 1;
 
-    const { items, nextCursor, removed, listedElsewhere } = await timed(phases, 'collectionListingMs', () =>
-      listSince(folder, prev),
-    );
+    // A COLLECTION THE SOURCE WILL NOT LIST IS SKIPPED, NOT THE PASS
+    // (2026-09-29; 0055 T3 (e), the owner's "2a"). The source has spent its own
+    // retries by the time this throws. The collection joins those the pass did
+    // not finish, which is what keeps every conclusion about it away: no item
+    // in it is counted absent, no removal report is resolved, and its cursor is
+    // not touched. Three in a row, or none listed at all, is the source failing
+    // and not a folder, and ends the pass as before.
+    let listing: Awaited<ReturnType<typeof listSince>>;
+    try {
+      listing = await timed(phases, 'collectionListingMs', () => listSince(folder, prev));
+    } catch (err) {
+      const message = (err as Error)?.message ?? String(err);
+      const category = classifyFailure(message, 'source', statedFailureCategoryOf(err));
+      if (ENDS_THE_PASS_AT_ONCE.has(category)) throw err;
+      unreadInARow += 1;
+      if (unreadInARow >= ABORT_AFTER_CONSECUTIVE_UNREAD_COLLECTIONS) throw err;
+      firstUnreadError ??= err;
+      // Without the collection's name: the operator's log is metadata, and the
+      // name reaches the customer's own status line through the result.
+      const event = newAppEvent({
+        level: 'warn',
+        event: `sync.${domain}.collection-unread`,
+        tenantId,
+        mappingId,
+      });
+      log.warn(
+        `[sync] ${domain}: a collection could not be listed, so this pass skips it and asks for it ` +
+          `again on the next; nothing in it is concluded meanwhile [ref ${event.reference}]: ${message}`,
+      );
+      await recordAppEvent(event);
+      unreadCollections.push({
+        collection: collectionPath,
+        // What the owner calls it. A mail folder's and a file folder's path is
+        // already its name, and says which of two "Archive" folders it is; a
+        // calendar's or an address book's path is an address, and its name is
+        // what the owner gave it.
+        name: domain === 'email' || domain === 'file' ? collectionPath : (folder.name ?? collectionPath),
+        error: message,
+        category,
+        reference: event.reference,
+      });
+      unfinishedCollections.add(collectionPath);
+      continue;
+    }
+    unreadInARow = 0;
+    listedOne = true;
+    const { items, nextCursor, removed, listedElsewhere } = listing;
     const seenHere = seenByCollection.get(collectionPath) ?? new Set<string>();
     seenByCollection.set(collectionPath, seenHere);
 
@@ -2178,6 +2276,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     }
   }
 
+  // EVERY LISTING THIS PASS TRIED FAILED: the source, not a folder, however
+  // few there were, and the pass ends as it did before the owner's "2a". A
+  // mailbox of two folders that both refuse is not two folder notes.
+  if (unreadCollections.length > 0 && !listedOne) throw firstUnreadError;
+
   // What the SOURCE said outright, which likewise can only be resolved once
   // every folder has been listed — a UID moved between two collections is a
   // removal from one and an arrival in the other.
@@ -2460,6 +2563,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     deletions: reportedDeletions,
     drift,
     ...(unplaceableDiscards ? { unplaceableDiscards } : {}),
+    ...(unreadCollections.length > 0 ? { unreadCollections } : {}),
     ...(budgetPause ? { budgetPause } : {}),
     // `collectionsNotReached` only when the pass stopped BEFORE the last
     // collection. Absent is not zero: zero would report a domain that got
