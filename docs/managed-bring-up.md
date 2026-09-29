@@ -2278,6 +2278,134 @@ None of this is a defect to fix on the box. It is what a mesh is for. When
 one of these has to work, the piece that needs it moves to a host with a
 public address, and the mesh keeps everything that never needed one.
 
+## Nothing phones home
+
+The privacy policy names every party that receives anything (§7, §8), and for
+the question *ops-telemetry* the owner chose, on 2026-09-28, *"Switch it off
+everywhere"* (workplan 0139). Six images in `managed.yml` reported to, or
+asked, their makers by default until then. Five are switched off here; the
+demo's Nextcloud is not yet (*What is left on, and where*, below). Each switch
+is written in the compose file itself, never read from `.env`, so it is the
+same on the OTA stack and on live, and no machine's `.env` can empty it. Live
+runs `managed.yml` and `www.yml` and no other compose file: `stand-up-live.sh`
+refuses a `COMPOSE_FILE` in the shell.
+
+| Service | What it sent by default | The switch | Read at |
+|---|---|---|---|
+| `trigger-api` | PostHog from the server at every sign-in (the user's id, email and name) and when a user, an organisation or a project is created; and PostHog in the dashboard's browser, which identifies the signed-in user by id and email, under Trigger.dev's own project key | `TRIGGER_TELEMETRY_DISABLED: "1"` stops the server's half only. `POSTHOG_PROJECT_KEY: ""` stops the browser's: the key defaults to Trigger.dev's, and the dashboard starts PostHog whenever it is not empty | `apps/webapp/app/services/telemetry.server.ts`, `services/postAuth.server.ts`, `app/root.tsx`, `app/hooks/usePostHog.ts`, `app/env.server.ts` at v4.5.16 |
+| `trigger-api`, its entrypoint | Prisma's checkpoint to `checkpoint.prisma.io` at every start, from the `prisma migrate deploy` the entrypoint runs: the version, OS, architecture, Node, CI, the command, hashes of the project's and the CLI's paths, the schema's providers and a stored random signature | `CHECKPOINT_DISABLE: "1"`, the only thing the CLI and its client check | `docker/scripts/entrypoint.sh` at v4.5.16; `packages/cli/src/CLI.ts` and `utils/checkpoint.ts` at prisma 6.14.0; checkpoint-client 1.1.33 |
+| `zitadel` | A "service ping" once a day to `zitadel.com`: the version, each instance's id, creation date and domains, and its count of users, organisations and projects | `ZITADEL_SERVICEPING_ENABLED: "false"`; `ZITADEL_TELEMETRY_ENABLED: "false"` too, which ships off | `cmd/defaults.yaml` at v4.19.2 (*"It's enabled by default"*) |
+| `clickhouse` | A report on every crash and logical error to `crash.clickhouse.com` | `clickhouse-no-crash-reports.xml`, mounted into `config.d`, sets both off; the `config.xml` the image ships sets them on. It is the only file ClickHouse merges that speaks of crash reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d` and `conf.d`, in sorted order, so a later one would win | `programs/server/config.xml`, `src/Daemon/CrashWriter.cpp`, `src/Common/Config/ConfigProcessor.cpp` at `v26.2.19.43-stable` |
+| `minio` | A release check to `dl.min.io` at every start, its User-Agent carrying the OS, architecture, version and CPU | `MINIO_UPDATE: "off"`; `MINIO_CALLHOME_ENABLE: "off"` too, which ships off | `cmd/server-main.go`, `cmd/update.go`, `internal/config/callhome/callhome.go` at `RELEASE.2025-05-24T17-08-30Z` |
+| `mailpit` (the test stack's catcher; live runs none) | A release check to GitHub whenever its page asks for the server's info | `MP_DISABLE_VERSION_CHECK: "true"` | `internal/stats/stats.go`, `cmd/root.go` at v1.31.1 |
+| `nextcloud` (the demo's DAV target, on the OTA stack every night; and `dev.yml`'s) | Its version, PHP version and install time to `updates.nextcloud.com`, the app store at `apps.nextcloud.com`, the announcements feed at `pushfeed.nextcloud.com`, and a connectivity check to four public sites | **None yet.** `updatechecker`, `appstoreenabled` and `has_internet_connection` stay on, Nextcloud's defaults; see *What is left on, and where*, below | `config/config.sample.php` and `apps/settings/lib/SetupChecks/InternetConnectivity.php` at `stable34`; `lib/Cron/Crawler.php` in nextcloud_announcements at `stable34` |
+
+The entrypoint's other children do not call out: pnpm 10.33.2 checks for its
+own update only on `install` and `add`, goose v3.27.1 has no network use of its
+own, and the dashboard agent's migration is plain drizzle-orm.
+
+`trigger-tls` has no telemetry; its one default that leaves the machine is
+automatic HTTPS, which asks a public certificate authority, and
+`trigger-tls.Caddyfile` says `tls internal`. The rest need no switch:
+PostgreSQL, PgBouncer, Redis, the registry (its trace exporter's default is
+its own container), the Docker socket proxy, the supervisor (its traces go to
+the webapp's own `/otel`), busybox, nginx, the status page (its requests are
+the probes `gatus.yaml` lists), and our own API, web app and appliance.
+
+**What is left on, and where.** The demo's Nextcloud, in `managed.yml`, and
+the development one in `dev.yml`: their three settings are **not** switched off
+in this change. A hook that set them false before Apache started, at every
+start, was tried on 2026-09-29, and with it the demo's first CalDAV write
+answered 500 in E2E (managed) #215, the branch's run; #216 on main, which
+recreated the same container without the hook, passed. What broke the write,
+one of the three settings or the hook's run itself, is not known: the values
+the hook wrote in #215 are most likely still in `config.php` on the demo's
+volume, which the gate keeps between runs, and nothing here takes them out or
+has looked. This Nextcloud holds fixtures, never a tester's data, and it is
+not on live: the bring-up starts it only with `--with-demo`, which both live
+scripts refuse. A follow-up switches the three off with a check that the
+demo's DAV writes still work. Not by a `*.config.php` mounted into `config/`:
+that makes the directory non-empty before the first install, and the image's
+entrypoint then skips copying its own config files, `smtp.config.php` among
+them, which is what points the demo's Nextcloud at the catcher (0103). And as
+booleans: `--value=false` alone stores the string `"false"`, which PHP reads as
+true.
+
+The demo's Stalwart (v0.16.10), which
+`setup-stalwart.sh` starts with `docker run`, outside every compose file, on
+the OTA stack every night and in the self-host end-to-end run. In normal mode
+it downloads its WebUI from `github.com/stalwartlabs/webui/releases/latest` on
+first start and every 30 days, its spam-filter rules from
+`github.com/stalwartlabs/spam-filter/releases/latest`, and an ASN and country
+database from `cdn.jsdelivr.net` daily (`crates/common/src/manager/defaults.rs`,
+and `SpamSettings` in `crates/registry/src/schema/structs_impl.rs`, at
+v0.16.10). They are downloads rather than reports about anybody. They are
+objects in its database, not in `config.json`, so switching them off is new
+objects in the provisioning plan, a change that has to be run and watched on
+the machine (`docs/stalwart-integration-fix.md`); it is put to the owner in
+workplan 0139. The deploy CLI, which runs on the host, was read only this far:
+at 4.5.16 its `src/telemetry/tracing.ts` is gone, and no exporter of its own
+was found. The integration tests' throwaway Nextcloud and Stalwart, which
+Testcontainers starts on a CI runner, are not switched.
+
+`scripts/a-service-that-phones-home.unit.test.ts` puts every service of every
+compose file under `deploy/` in one of three lists (switched, no switch, or left
+on, each with its reason) and fails on a service in none. A switched or
+left-on row names the image its default was read at, and fails when the file
+pins another. It holds the webapp to a list of the keys it may be given, each
+with the reason it reaches no third party, reads every file ClickHouse merges,
+holds the left-on Nextcloud to the demo's bring-up, which neither live script
+starts, and pins the Stalwart named above. So **a new pin of
+Trigger.dev, Zitadel, ClickHouse, MinIO, Mailpit or Nextcloud starts with
+re-reading what the new version sends by default** (Zitadel's ping arrived with
+v4; for Trigger.dev, the entrypoint's children as well as the webapp), then
+moving the row. `trigger-version.sh pin` moves the Trigger.dev tag and does not
+do this for you.
+
+**When it takes effect.** The OTA stack's identity provider has sent the ping
+since it first started, as far as the machine let it out: every v4 release
+carries it. A switch is read when its container starts, so a stack has it once
+Compose has recreated those containers: the OTA stack at its next nightly
+bring-up, and live at its stand-up and every deploy from a tag that contains
+this change, since both run `bootstrap-managed.sh`, which brings each of them
+up by name. The pull sequence in *Updating a running deployment* does **not**
+do all of it: it brings up `api` and `web`, whose dependencies take in
+`trigger-api` and `clickhouse` but not the identity provider, the object store
+or the catcher, which keep their old environment until the next bring-up. By
+hand, on a stack that is already up, from its checkout:
+
+```bash
+docker compose -f deploy/compose/managed.yml up -d trigger-api clickhouse zitadel minio
+# Only where it already runs: the catcher.
+docker compose -f deploy/compose/managed.yml up -d mailpit
+```
+
+To see it on a running stack, from its checkout:
+
+```bash
+# The environment each container was started with, one variable a line.
+env_of() { docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' \
+  "$(docker compose -f deploy/compose/managed.yml ps -q "$1")"; }
+
+env_of trigger-api | grep -E '^(TRIGGER_TELEMETRY_DISABLED|POSTHOG_PROJECT_KEY|CHECKPOINT_DISABLE)='
+#   TRIGGER_TELEMETRY_DISABLED=1
+#   POSTHOG_PROJECT_KEY=
+#   CHECKPOINT_DISABLE=1
+env_of zitadel | grep -E '^ZITADEL_(SERVICEPING|TELEMETRY)_ENABLED='
+#   both =false
+env_of minio | grep -E '^MINIO_(UPDATE|CALLHOME_ENABLE)='
+#   both =off
+env_of mailpit | grep -E '^MP_DISABLE_VERSION_CHECK='     # where the catcher runs
+#   MP_DISABLE_VERSION_CHECK=true
+
+# ClickHouse writes the configuration it merged, config.d included:
+docker compose -f deploy/compose/managed.yml exec clickhouse \
+  sed -n '/<send_crash_reports>/,/<\/send_crash_reports>/p' /var/lib/clickhouse/preprocessed_configs/config.xml
+#   <enabled>false</enabled> and <send_logical_errors>false</send_logical_errors>
+```
+
+The webapp also logs `Telemetry disabled` when it builds its telemetry client.
+
 ## Mail: caught, not delivered
 
 Every mail this stack sends goes to **Mailpit**, a catcher on the compose
