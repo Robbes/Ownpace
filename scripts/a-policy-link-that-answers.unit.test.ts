@@ -50,7 +50,8 @@
  *     loads at build time) and this one does not import the shared index, so
  *     the privacy page's file is written in both. For every value, the mail's
  *     address must be the web's, and a file the build writes; a value the web
- *     refuses, the API refuses too.
+ *     refuses, the API refuses too, and at its start (`apps/api/src/index.ts`,
+ *     before it listens), so the operator meets the refusal there.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -381,6 +382,22 @@ describe("the mail's link to the privacy policy (0139 T4)", () => {
     expect(() => mail.privacyPolicyUrl('en', { [MAIL_SETTING]: value })).toThrow(MAIL_SETTING);
     // The operator sets the .env key, not the api's name for it.
     expect(() => mail.privacyPolicyUrl('en', { [MAIL_SETTING]: value })).toThrow(SETTING);
+  });
+
+  it('the api makes the address at start, before it listens, so a value it cannot use stops the start', () => {
+    // The refusal above only stops the start if the start asks. Several texts
+    // say it does (this plan, the module's header, managed.yml, the .env
+    // example); nothing held them to it until the review of 0139 T4. Asked
+    // synchronously in the start block, before the migrations' promise, whose
+    // catch would report the throw as a failed migration.
+    const index = read('apps/api/src/index.ts');
+    const boot = index.slice(index.indexOf("if (process.env.NODE_ENV !== 'test') {"));
+    expect(boot, 'the start-up block was not found').toContain('app.listen(');
+    const at = boot.search(/\bprivacyPolicyUrl\('(?:en|nl)', process\.env\)/);
+    expect(at, `the api's start does not make the privacy address, so a bad ${MAIL_SETTING} starts`).toBeGreaterThan(0);
+    expect(at, 'the address is made after the migrations start').toBeLessThan(boot.indexOf('runMigrations('));
+    expect(at).toBeLessThan(boot.indexOf('app.listen('));
+    expect(index).toMatch(/import \{[^}]*\bprivacyPolicyUrl\b[^}]*\} from '@openmig\/shared';/);
   });
 
   it('managed.yml hands the api the same .env key the web build takes', () => {

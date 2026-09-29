@@ -94,10 +94,16 @@ describe('the mail to people items were shared with (Template 6)', () => {
     nl: 'https://legal.example.test/nl/privacy.html',
   } as const;
 
-  /** What the sentence must name, per language: who, what is kept, and where to read more. */
+  /**
+   * What the sentence must name, per language: who, what is kept, and where to
+   * read why and for how long. The last two are what Art. 14 asks for beyond
+   * the who and the what, and the sentence points to the policy for them; a
+   * sentence that said only "see the privacy policy" would no longer say why
+   * the reader should (review of 0139 T4, 2026-09-29).
+   */
   const SUBSTANCE = {
-    en: [/\bOwnpace\b/, /your address/, /names of these items/, /privacy policy/],
-    nl: [/\bOwnpace\b/, /uw adres/, /namen van deze items/, /privacyverklaring/],
+    en: [/\bOwnpace\b/, /your address/, /names of these items/, /\bwhy\b/, /\bhow long\b/, /privacy policy/],
+    nl: [/\bOwnpace\b/, /uw adres/, /namen van deze items/, /\bwaarom\b/, /\bhoelang\b/, /privacyverklaring/],
   } as const;
 
   it.each(LOCALES)('names who keeps what, and why and for how long is in the policy, in %s', (locale) => {
@@ -141,10 +147,30 @@ describe('the mail to people items were shared with (Template 6)', () => {
     const flat = doc.replace(/\s+/g, ' ');
     const template6 = flat.slice(flat.indexOf('## Template 6'), flat.indexOf('## Usage Guidelines'));
     expect(template6.length).toBeGreaterThan(100);
+    /** The placeholder for the policy's address, which follows the sentence as it does in the mail. */
+    const ADDRESS = { en: "[the privacy policy's address", nl: '[het adres van de privacyverklaring' } as const;
+    /**
+     * The mark right before the sentence that the whole paragraph is the
+     * managed service's: an appliance's mail has neither the sentence nor the
+     * address, so a mark on the address alone would say it keeps the sentence.
+     */
+    const MANAGED_ONLY = {
+      en: /\[Only on the managed service\b[^\]]*\]$/,
+      nl: /\[Alleen bij de beheerde dienst\b[^\]]*\]$/,
+    } as const;
     for (const locale of LOCALES) {
       const sentence = SHARE_ANNOUNCEMENT_PRIVACY?.[locale];
       expect(sentence, 'share-announcement.ts exports no privacy sentence').toBeTypeOf('string');
       expect(template6, `Template 6 (${locale}) lacks the privacy line the mail sends`).toContain(sentence);
+      // The line is only half the notice: without the address the reader is
+      // pointed at a policy nobody told them where to find (review of 0139 T4).
+      expect(template6, `Template 6 (${locale}) lacks the policy's address after the privacy line`).toContain(
+        `${sentence} ${ADDRESS[locale]}`,
+      );
+      expect(
+        template6.slice(0, template6.indexOf(sentence)).trimEnd(),
+        `Template 6 (${locale}) does not mark the privacy paragraph, whole, as the managed service's`,
+      ).toMatch(MANAGED_ONLY[locale]);
     }
   });
 });
