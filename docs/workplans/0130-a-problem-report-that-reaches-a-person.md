@@ -1,8 +1,400 @@
 # Workplan 0130 — A problem report that reaches a person
 
-> **In one line:** Report a problem on managed: `POST /api/problem-reports` files a ticket on the owner's Zammad, or mails the support mailbox without one (the alpha); linked from the `unknown` failure remedy with its reference; the same for *Report this link*; plus privacy wording.
+> **In one line:** Report a problem on managed: `POST /api/problem-reports` files a Zammad ticket, or mails the support mailbox (the alpha), with facts from our records and the browser shown before sending; linked from the `unknown` failure remedy; the same for *Report this link*; plus privacy wording.
 
 ## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28: main's legal revision merged in (#1317).** main now carries privacy policy v1.2,
+still marked draft. Its §4.5 has a *Reporting a problem* paragraph of its own, and its §9 a row for
+support mail and problem reports, kept until resolved and then 6 months. The paragraph and the row
+this branch added (Part A, below) conflicted with them, in EN and NL. They were resolved on main's
+text. §9 keeps only main's row, which states the same rule. main's paragraph now lists Part A's
+facts where it said *your organisation's identifier, the app's version*: the sign-in address, so
+that we can answer, and *these facts, which the form lists before you send* / *deze feiten, die het
+formulier opsomt voordat u verstuurt*. Those are the page, the error's reference and kind, the
+organisation's identifier and status, the role, the version of the service, the state of the
+migration and of each data type in it, whether access was given through a link, the two accounts'
+providers and last test, the hold and the scheduler, and the browser's name. Its link sentence
+names that link's facts: the organisation and the migration, who made the link, the two accounts,
+and whether access was given. It ends with this branch's bold sentence: a report holds content, a
+subject, a folder name or a provider's error text only if the person puts it there. main's
+screenshot warning and *without the secret part of a link* stay. The version lines are untouched.
+Part B's facts follow the browser's name in the same sentence, as its entry below says.
+
+**2026-09-28: T6 Part B, the review's two findings fixed.** On the same branch, not merged. No
+shipped code changed; both findings were behaviour that was right and unguarded:
+
+- **The app's build line is guarded by its commit, not only its version.** The root version stays
+  `0.2.0-alpha.1` across every deploy from main, so a page left open from an older deploy shows
+  the server's version and another commit, which is when the line matters. The API guard now
+  stamps the server's commit (`OPENMIG_COMMIT`) for these cases: the same version and the same
+  commit, seven characters against forty and forty against forty, write no line; the same version
+  and another commit write `App build in the browser: v<version> · <7 hex>, not the server's`; a
+  page's commit beside a server whose commit is `unknown`, stamped so or not stamped at all, writes
+  no line, since there is nothing to compare it with, while another version still does, with the
+  page's commit. Part B's *"the app's build always written"* below was a mutation in one direction
+  only.
+- **The failure line's links are guarded on every screen that draws one.** Part B guarded
+  `SendItToUs` itself and the progress strip; *"the link without the migration"* below was a
+  mutation of `reportHref`, and Connections, the failure queue's items and its groups passed
+  their facts unguarded. The web guard now draws Connections with two standing failures, one with
+  one data type and its side (`dataType`, `side` and `migration` in its link) and one with two
+  data types and no side (`migration` alone), and the failure queue of a migration with two failed
+  items of one group (each item's link with its `dataType`, the group's with `dataType` and
+  `migration`), each through its real service and the stand-in network.
+
+Guards: the API's `a-report-that-carries-what-the-browser-knows` (36, was 33) and the web app's
+(19, was 17). 13 mutations, all killed: in the API, no commit compared (`otherCommit` always
+false), a page's commit compared with a server's `unknown`, the commits compared whole rather than
+by their first seven characters, the whole commit written, and `unknown` taken for a commit; in the
+web app, Connections passing none of the three, no migration, no side, or a data type out of two;
+the failed item without its data type; and the group without both, without its migration, or
+without its data type. The reviewer had shown the first two and the Connections, item and group
+removals surviving the guards as they were.
+
+**2026-09-28: T6 Part B, what the browser knows.** The second of the owner's *"Both parts"*. On
+the same branch, on top of Part A, not merged:
+
+- **The facts only the browser has**, sent as one small object, `browser`, with the report and,
+  as JSON in the query, with the preview, so the fold shows what is sent: the screen's language
+  (`Screen language: Dutch`), the IANA time zone (`Time zone: Europe/Amsterdam`, which turns
+  "at 14:02" into the log's UTC), the window's width in CSS pixels (`Window width: 390 px`: the
+  proposal's *screen width*, taken as the width the page is laid out at, which is what a layout
+  bug follows), the web app's build (`App build in the browser: v… · …, not the server's`,
+  written only when its version, or both commits, differ from the API's own `/version`), the
+  failure line the form came from (`Failure line: email, target side, migration <id>`), and a
+  `Recent error: <reference>, <code>` line for each fault the page met in the five minutes
+  before the form was opened, at most three, newest first.
+- **Checked by the server, and never a reason to refuse** (`apps/api/src/report-browser-facts.ts`).
+  Zod, one schema per key of a fixed list (`BROWSER_FACT_KEYS`): the language `en` or `nl`; a
+  time zone of at most 64 characters, letters, digits, `_+-` and up to two `/`; a whole width
+  from 1 to 20 000; a version of at most 40 characters without spaces; a commit of 7 to 40 hex; a
+  data type of `DISCOVERY_DOMAINS`, a side of `FAILURE_SIDES`, a migration id in the UUID shape;
+  recent errors a list of one to three, each an 8-hex reference and a code in `serverFault`'s
+  shape. Anything else is dropped without a word: an unknown key (an entry's too), a value too
+  long or of the wrong shape, a longer list, a preview query longer than 2000 characters or not
+  a JSON object. `reportFactLines` writes the lines after `Browser:`, under six new labels of
+  `REPORT_FACT_LABELS`, so the fold, the mail and the Zammad article carry them alike.
+- **The recent faults, kept as two words** (`apps/web/src/services/recent-errors.ts`). A
+  *"Something went wrong"* answers with its reference inside a sentence, which the person had to
+  copy. Both of the app's session clients (`api.ts` and the operating screens' in
+  `operating-service.ts`) hand every error to `rememberFault`, which reads the answer's status and
+  body and nothing else: an answer from 500 up whose `reason` or `message` names `Reference
+  <8 hex>` is kept as that reference, its `error` code (`unknown` when it is not in the code's
+  shape) and when. Never the error: what axios rejects with holds the request, whose headers carry
+  the sign-in token and whose address can carry a query. In memory, the newest three, each once,
+  and forgotten on sign-out and on sign-in (`auth-store.ts`). The form reads them once, with the
+  time zone, width and build, when it opens, so the preview and the report say the same and the
+  five minutes count to when the person came to report.
+- **The failure line passes what it knows.** `SendItToUs` takes a data type, a side and a
+  migration, and puts them in the form's address as `dataType`, `side` and `migration`: the
+  progress strip its line's data type and side, Connections its standing failure's migration, its
+  side, and its data type when there is one, the failed item its data type, a failure group its
+  data type and migration. The form keeps each only in its own shape.
+- **The fold** lists them among the service's lines; when those cannot be had, in the reader's
+  own words under the form's own list: *the language of this screen: English* / *de taal van dit
+  scherm: Nederlands*, the time zone, *the width of this window* / *de breedte van dit venster*,
+  this page's version *if the service runs another* / *als de dienst een andere draait*, the
+  failure's data type (in the reader's word for it), its side, its migration, and *the reference
+  of an error from the last 5 minutes* / *de referentie van een fout uit de afgelopen 5 minuten*.
+- **Privacy §4.5**, EN and NL, same place in the same sentence, version lines untouched: after
+  the browser's name, *what your browser tells the form* / *wat uw browser het formulier vertelt*,
+  each of the above named. `openapi.yaml` (the `browser` query parameter and body field, a
+  `BrowserFacts` schema), step 8f of `docs/managed-bring-up.md` and Stage 8 step 7 of
+  `docs/owner-test-runbook.md` say so.
+
+Guards: `apps/api/src/a-report-that-carries-what-the-browser-knows.unit.test.ts` (33), through
+the real route: every fact as its line after `Browser:`, the same in the preview (asked with
+JSON), the mail and the Zammad article; English, a failure line with only what it had, the app's
+build only when it is not the server's, nothing when nothing was sent; every line under a label
+of the list; the fixed key list; a canary token planted as an unknown key, in a config's
+`Authorization` header, in an address's query and in a recent error's extra key reaching neither
+the mail nor the preview; eighteen values dropped one by one, each beside a fact that is kept (a
+language it does not have, a time zone too long, with a newline and a header after it, or with
+markup, a width that is text, too wide or not whole, a version too long or with a space, a commit
+that is not one, a data type, side or migration id that is not one, a recent error's reference,
+code or length, a list too long, a list that is an object); the whole object dropped when it is
+text, a list, a number or null, in the body and the query; a preview query over 2000 characters
+dropped while every fact at its longest fits; a report never refused for what the browser said.
+`apps/web/src/pages/a-report-that-carries-what-the-browser-knows.unit.test.tsx` (17), through the
+app's real axios clients and interceptors with a stand-in network: a failed request carrying the
+canary as its sign-in token, a header, its address's query, its parameters and body, and the
+answer's other field and header, leaves the reference and code and nothing else, in what the ring
+hands out and in what it holds; the operating client's faults too; nothing of a 400, a 500
+without a reference, an HTML 502 or a request with no answer; a code it cannot read kept as
+`unknown`; the newest three, each once; forgotten on sign-out and sign-in; offered to a form
+opened 4:59 after the fault and not to one opened 5:01 after, in the preview and the report; the
+canary in neither the preview, the report nor the fold, with the preview's lines and without;
+the facts the same in the preview and the report; a data type, side or migration in the address
+that is not one dropped; the fold's own list in English and Dutch; the strings' EN and NL pairs;
+and the failure line's links. Red on the branch head: neither file loads (no
+`report-browser-facts.ts`, no `recent-errors.ts`); with empty stand-ins, 27 of 33 and 15 of 17
+failed, the ones passing being those that hold something is dropped or forgotten, which a head
+that takes nothing does vacuously. Existing guards adapted to the new object in the body and the
+query, and the new `dataType` in the strip's link: the web `a-report-that-reaches-a-person`,
+`a-report-that-says-what-it-sends` and `a-failure-that-says-send-it-to-us`.
+`scripts/a-screenshot-the-front-door-lets-through.unit.test.ts` counts every browser fact at its
+longest in the largest report, and holds that none of them is dropped there. 22 mutations, all
+killed: the API client, or the operating client, not remembering a fault; the ring keeping the
+request (killed once the guard read what the ring holds, not only what it hands out) or handing
+out whole entries; ten minutes counted as recent; a 4xx counted as a fault; sign-out keeping
+them; a code kept as it came; no dedupe (killed once the sequence repeated the newest); the side
+taken from the address unchecked; the link without the migration; the preview asked without the
+facts; the fold's own list without the recent error; a Dutch string left in English; and in the
+API every key copied, a time zone of any characters, recent errors unbounded, the preview's JSON
+unbounded, the app's build always written, the lines without the browser's, a code of any text,
+and a width of any number.
+
+**2026-09-28: T6 Part A, the review's seven findings fixed.** On the same branch, not merged:
+
+- **The preview no longer hands out the operator's address.** With `REPORT_MAIL_TO` empty,
+  reports go to `NOTIFY_TO`, the operator's own list, and `GET /preview` gave that list to every
+  signed-in member, a viewer too. Now `reportMailConfigFrom` records whether `to` is the support
+  mailbox (`supportMailbox`, true only when `REPORT_MAIL_TO` names it), and the preview answers
+  `{ kind: 'mail' }` without addresses otherwise; the form then says *"Goes to the Ownpace support
+  team."* / *"Gaat naar het supportteam van Ownpace."*. `openapi.yaml` and step 8f of
+  `docs/managed-bring-up.md` say so.
+- **Privacy §4.5, EN and NL,** names the sign-in address among what a report from the app carries,
+  *so we can reply* / *zodat we kunnen antwoorden* (the mail's `Reply to` line, its Reply-To, and a
+  Zammad ticket's customer), and says *these facts* / *deze feiten* where it said *facts from our
+  records*: the page, the build and the browser are not records. Version lines untouched.
+- **The fold** says *"…exactly as our support team reads them, in English"* only above the
+  service's lines, which are marked `lang="en"` (WCAG 3.1.2, for a Dutch screen reader); when
+  they cannot be had, the form's own list has an introduction of its own (`report.facts.known`).
+  *From our records* is gone from the fold's sentences.
+- **Step 8f** no longer says the form showed every line: it showed the fact lines, `Page` to
+  `Browser`, unless the preview could not be read, and `Reply to` and `Report reference` are added
+  on sending.
+
+Guards: the API's `a-report-that-says-what-it-sends` (23, was 20) adds a migration whose grant was
+withdrawn with a token still stored, with a revoked and an expired grant link, a newer used one
+and a newest progress link (*Grant: withdrawn on …*, *Grant link: used*); a malformed
+`last_error_reference`, planted with the column's CHECK (0061) dropped for that case, written
+*reference unrecognised* and never itself; and `REPORT_MAIL_TO` empty, blank or absent giving a
+viewer `{ kind: 'mail' }`, no address, while the report still goes to `NOTIFY_TO`.
+`a-report-that-reaches-support-by-mail` expects the new field. The web guard (22, was 16) waits
+for the service's first line before comparing, with the preview answering 30 ms late: before the
+fix the Dutch case compared the form's own list to the lines and failed; it checks `lang="en"`,
+the fallback's own introduction in both languages, and the address left out when the service
+names none. Real Postgres (`local-pg.sh`, 16): the integration file, 2 of 2. 15 mutations, all
+killed: the grant link always `live`, the oldest grant link, a progress link counted, a token
+winning over a withdrawal, the reference passed through unvetted (the five that survived the
+review), the preview handing out `NOTIFY_TO`, `supportMailbox` set by an empty `REPORT_MAIL_TO`,
+never naming the support mailbox; and in the web app the lines without `lang`, `lang="en"` on the
+Dutch fallback, the English promise above the fallback, a recipient without addresses refused, a
+"by email to" with no address, *from our records* back in the fold, and the fold's introduction
+dropped.
+
+**2026-09-28: a report that says what it sends (T6, Part A).** A report carried the page, the
+error's reference and category, the organisation's id and the build, and support's first answer
+was always a question. The proposal (what a report could carry by itself, and why not an
+automatic screenshot) went to the owner, who chose *"Both parts"*, kept report mails *"Until
+resolved + 6 months"*, and for facts that cannot be read chose *"Send anyway"*. This is Part A,
+the facts from our records; Part B, the browser's facts and the recent error's reference, is not
+built. Built on branch `claude/ownpace-public-readiness-y7orc6-a-screenshot-anyone-can-make`, on
+top of the screenshot work below, not merged:
+
+- **Facts from our records, read on the server** (`apps/api/src/report-facts.ts`), in one
+  `withTenantDb` transaction in the reporter's organisation, as `app_user`, never from the
+  browser: the organisation's status, and its closing and removal dates when it is closed; the
+  migration the page names (`/mappings/<id>`), when it is one of this organisation's: its state,
+  whether access was given through a link or withdrawn (asked in SQL as whether there is a
+  grant, so the token never leaves the database), its newest grant link's state, and each data
+  type's state, error category, side and reference; the providers of its two accounts and their
+  status as the last test left it; whether the report's reference is a current failure, and of
+  which data type on which migration; the service hold, on or off and since when (never the
+  operator's message); and whether the scheduler's tick ran in the last five minutes. From the
+  request: the role, from the membership row, and the browser, the `User-Agent` header on one
+  line and capped at 300 characters. Another organisation's migration id, which anybody can
+  type into the address bar, reads as *not one of this organisation's*, as an id that exists
+  nowhere does. Every value is one of its column's own words or it is written `unrecognised`:
+  `last_error_category` has no CHECK in the database.
+- **What is never read:** a provider's error text, items and their names, folders, what an
+  organisation or a migrated person typed (names, addresses, hosts, the organisation's name and
+  settings), credentials and tokens, and the hold's message. Each read names its columns, and
+  `REPORT_FACT_FIELDS` is the whole list of what the facts can hold.
+- **One function writes the lines** (`reportFactLines` in `problem-report.ts`): `Page`,
+  `Reference`, `Category`, `Organisation`, `Build`, then `Role`, `Organisation status`,
+  `Migration`, `Grant`, `Grant link`, a `Data type …` line each, `Source account`, `Destination
+  account`, `Reference match`, `Service hold`, `Scheduler`, `Browser`. The mail and the Zammad
+  article carry them; `REPORT_FACT_LABELS` lists every label a line can start with.
+- **`GET /api/problem-reports/preview`**, signed in, for the reporter's own organisation, sixty
+  an hour per person: where the report goes (`{ kind: 'mail', addresses }` from `REPORT_MAIL_TO`,
+  or `{ kind: 'helpdesk' }`) and the lines. On sending, the route reads the facts again and takes
+  none from the body. In `apps/api/docs/openapi.yaml`.
+- **Facts that cannot be read do not stop a report.** It goes with `Facts: could not be read [ref
+  …]` in place of the records' lines (the role, the page and the browser still go), and the error
+  is recorded as `report.facts-unread` under that reference. A read that takes more than five
+  seconds (`REPORT_FACTS_DEADLINE_MS`) is treated the same: the person is waiting, and a report
+  is for exactly the moment the database is the problem.
+- **The form.** Above Send it says where the report goes: *"Goes to the Ownpace support team,
+  by email to support@ownpace.eu."* / *"Gaat naar het supportteam van Ownpace, per e-mail naar
+  support@ownpace.eu."*, with the address the service answers, every address when there are
+  several; *"Goes to the Ownpace support team's helpdesk."* / *"Gaat naar de helpdesk van het
+  supportteam van Ownpace."* with a Zammad; and *"Goes to the Ownpace support team."* when the
+  preview could not be had. Then *Replies go to …* as before, and a closed fold, *What we send
+  with this* / *Wat we meesturen*: what you write and the screenshot, and every line from the
+  preview, verbatim and in English, as the support team reads them (ADR-0024's prose boundary);
+  the fold says so in Dutch too. This closes the gap the research found in T5: the form never
+  listed the organisation or the build, and said only "us". When the preview fails, the fold
+  lists the page, reference and category the form knows and says the rest is read on sending
+  and goes with it. The *Sent with your report* box and its key are gone.
+- **The link form** says what it already sends, text only, no new facts: *"Sent with it, from our
+  records: which link this is; the organisation and the migration it belongs to, with the state
+  of the migration; the address of whoever made the link; the account the migration copies from
+  and the account it copies to; and whether you have given access."* and its Dutch.
+- **The privacy policy (T4),** EN and NL, same structure, version lines untouched: §4.5 gains a
+  paragraph on reports (both doors; during the Alpha by email to support@ownpace.eu, a mailbox at
+  Proton, through the mail provider in §7; what a report from the app and one from a link carry;
+  content only if the person puts it in their words or the screenshot), and §9 a row, *Support
+  mail and reports: until your question or problem is resolved, then 6 months more* / *Supportmail
+  en meldingen: tot uw vraag of probleem is opgelost, en daarna nog 6 maanden*. §7's relay row,
+  §8's "no third country" beside Proton in Switzerland, and alpha §10's erasure list are
+  unchanged and stay with the lawyer (0133, 0139).
+- **Docs.** Step 8f of `docs/managed-bring-up.md` lists the new lines and the unread line; Stage 8
+  step 7 of `docs/owner-test-runbook.md` expects the recipient sentence, the fold, and the same
+  lines in the mail.
+
+Guards: `apps/api/src/a-report-that-says-what-it-sends.unit.test.ts` (20), through the real route
+on PGlite as `app_user` with both chains: the facts read with every column of every table filled
+in hold exactly `REPORT_FACT_FIELDS`, and every line starts with a label of `REPORT_FACT_LABELS`;
+the exact lines for a migration with a failing data type, a withdrawn grant, a grant never given,
+no migration on the page, a closed organisation, a hold and a stopped scheduler; the role from the
+session and not the query, the browser on one line and capped; canaries planted in a provider's
+error text, an item's name and folder, an account's name, address, host and token, the
+organisation's name and phone, the migration's name, a category nobody wrote and the other
+organisation's rows reach neither the preview nor the mail; another organisation's migration id
+and its failure's reference give nothing of it; the preview's lines are the mail's and the Zammad
+article's; sending reads again (a migration paused between preview and send says paused) and takes
+no role, lines or facts from the body; facts that throw or hang still send, with the line and one
+`report.facts-unread` event; and the preview's sign-in, refusals, redaction, 503 and limit. And
+`apps/api/src/routes/a-report-that-says-what-it-sends.integration.test.ts` (2), on real Postgres
+through the API as wired (`APP_DATABASE_URL`, `app_user`, no test seam), run here on
+`scripts/local-pg.sh`'s PostgreSQL 16: A's own migration and failure give their facts, B's give
+nothing, and no planted text reaches the answer. `apps/web/src/pages/a-report-that-says-what-it-sends.unit.test.tsx`
+(16): every line in the fold, in English and Dutch, closed until opened and above Send; the
+preview asked with the page, reference and category; the fallback and an answer of the wrong
+shape; the recipient sentence for mail, several addresses, the helpdesk and no answer, and no
+address in any string; the report's body unchanged; the link form's sentence names the
+organisation, migration, account, maker and access in both languages. Red on the branch head: the
+API file does not load (no `report-facts.ts`); with an empty stand-in module, 19 of 20 failed, the
+one passing being the field list held against the stand-in's own empty list. The web file: 16 of
+16. The integration file: 2 of 2 (404). Existing guards adapted: `a-report-that-reaches-a-person`
+and `a-report-that-reaches-support-by-mail` in the API hand the route a quiet reader (their subject
+is where a report goes), the web `a-report-that-reaches-a-person` opens the fold, and
+`a-link-that-can-be-reported` and the UI smoke (`test/ui/managed-ui.ui.test.ts`, with a preview
+fixture, run in Chromium, 12 of 12) read the new sentences. 0137's `a-role-that-promises-less-than-it-allows`, which lists every
+read of the caller's role under `apps/api/src/routes` as a door only an owner may pass, now names
+the report's two reads (`GET /preview` and `POST /`) as not a door: the role is written into the
+facts and neither route decides anything by it; the owner-only acts, and the Team page's admin
+line, are unchanged. 27
+mutations: 25 killed, 2 survived by design. Killed: a whole status row spread into each data type
+(by the field list alone: the lines are written from named fields, so the provider's text never
+reached a line); the category passed through unvetted; another organisation's id read as a
+migration with defaults; the page's migration never found; the role taken from the body on
+sending; the mail, and the Zammad article, sent without the facts; facts that fail stopping the
+report; no deadline; the browser line not kept to one line, and not capped; the preview not
+limited, and without the server's facts; the closing dates left out; the hold always off; a grant
+always given; the reference match not asked; no unread line when the facts fail; and in the web
+app the fold open, the lines ignored, the recipient without its address, an answer of any shape
+shown, and the preview asked without the reference. **Survived, by design:** the organisation
+filter taken off the reference match, and off the migration's read. Row security is the second
+net and still refused the other organisation's rows, on PGlite and on Postgres. With the filters
+off *and* the read on a connection row security does not bind (PGlite's owner connection; on
+Postgres the API's pool pointed at the owner), the other-organisation case fails in both files,
+so the guard sees a leak once both nets are gone.
+
+**2026-09-28: a screenshot anyone can make.** Of two proposals for the form's screenshot, the
+owner answered *"yes, build 1 and 2"*. The form asked for a screenshot and said nothing of how to
+make one, and took one only as a file to choose, while Windows+Shift+S, Print Screen, a
+Chromebook's Ctrl+Show windows and a Mac's Control+Shift+Command+4 all put the picture on the
+clipboard. Built on branch `claude/ownpace-public-readiness-y7orc6-a-screenshot-anyone-can-make`,
+on top of the 8 MB branch below (#1319, itself on T5's #1318), not merged:
+
+- **A closed fold under the field**, *How do I make a screenshot?* / *Hoe maak ik een
+  schermafbeelding?*, with one line each for Windows (Windows+Shift+S, then paste; or Print Screen,
+  which on Windows 11 gives the same choice, then paste), Mac (Shift+Command+4, then the file from
+  the desktop; or Control+Shift+Command+4 to copy it, then paste), iPhone or iPad (the side or top
+  button and volume up; on a model with a Home button, the side or top button and the Home button;
+  then the picture from Photos), Android (power and volume down, on most phones) and Chromebook
+  (Ctrl+Show windows, then paste), and a last line: look at the picture before sending it, since it
+  shows everything that was on the screen. Each shortcut was checked against its vendor's help page
+  as a web search returned it (Microsoft's Snipping Tool page, Apple's pages for Mac, iPhone and
+  iPad, Google's Android and Chromebook pages, and the Dutch Chromebook page for *Vensters
+  weergeven*); the pages themselves could not be fetched from the session. The owner's iPhone line
+  was *side or top button + volume up*, which Apple gives for models without a Home button only, so
+  the line names the Home button as well.
+- **Paste and drop.** A picture pasted anywhere on the page (Ctrl+V, Command+V), or dropped on it,
+  becomes the screenshot through the same type and 5 MB checks as a chosen file, so a GIF or a
+  picture over 5 MB is refused with the same sentences. A paste that carries text, into a place
+  that takes text, is left to the text, even when a picture comes with it as it does in a copy from
+  Word or Excel; a picture pasted into the description with no text beside it is attached. A drop
+  that misses the field is taken too, rather than left to the browser, which would open the picture
+  in place of the form and what the person wrote.
+- **What is attached is said**, *Attached: image.png (182 B).* / *Bijgevoegd: …*, as a status a
+  screen reader announces, with *Remove the screenshot* / *Schermafbeelding verwijderen* beside it,
+  which empties the chooser and gives it the focus. A picture that came by paste or drop empties
+  the chooser too, so it never shows a file other than the one attached.
+- **A *Paste screenshot* button** (*Schermafbeelding plakken*), only where the browser has
+  `navigator.clipboard.read`, which reads the clipboard when it is pressed. A clipboard with no
+  picture on it, and a browser that will not let the page read it, are each said; the keyboard's
+  paste still works.
+- The hint under the field now says a picture can be chosen, dropped or pasted. The link-report
+  form has no screenshot and is unchanged.
+
+Guard: `apps/web/src/pages/a-screenshot-anyone-can-make.unit.test.tsx` (40, 50 after the review,
+English and Dutch): the fold, closed and under the field, its six lines and the keys each names; a
+pasted PNG and a pasted JPEG attach and are sent; a picture pasted into the description attaches;
+text pasted into the description stays there and attaches nothing, also with a picture beside it; a
+pasted GIF and a pasted picture over 5 MB are refused with the existing sentences; a dropped PNG
+attaches and is sent, and a dropped PDF is refused; a chosen file is named; Remove works for a
+chosen and a pasted picture; and the Paste button, absent without `navigator.clipboard.read`,
+attaches, refuses a GIF, and says an empty clipboard and a refused read. Red on the branch head: 36
+of 40 failed, and the four that passed are the text-paste cases, which hold only once pictures are
+pasted. 18 mutations, all killed: the fold open, not a fold, or a line short; a paste taking a PNG
+only; the text swallowed two ways; a paste, and the Paste button, skipping the checks; no drop;
+Remove not removing, not emptying the chooser, or not giving the focus back; the Paste button where
+it cannot work; a refused read called an empty clipboard; the attached line not a status; a paste
+heard in the description only; the Dutch Mac line in English; the iPhone line without the Home
+button.
+
+Seen in a browser as well, not only in jsdom: the built bundle in headless Chromium, with the
+clipboard filled by `navigator.clipboard.write`. Ctrl+V with nothing focused attached the picture;
+text pasted into the description stayed text, also with a picture beside it; a picture pasted into
+the description attached and left its text alone; the Paste button attached, and said *There is no
+picture on the clipboard* for text; a real `DataTransfer` dropped on the chooser attached and was
+what the report sent, and the field turned blue while it was dragged over; Remove gave the chooser
+the focus. Firefox and Safari were not tried: Stage 8 step 7 of `docs/owner-test-runbook.md` now
+has A paste the screenshot and B choose or drop it, and records the browser. 8f of
+`docs/managed-bring-up.md` names the three ways.
+
+The review the same day found the guard weaker than it read, and one line of the fold out of date.
+**The drops:** the tests dropped on the chooser itself and never asked whether the page cancelled
+the drag or the drop, so the guard stayed green with either `preventDefault` gone, with no
+`dragover` listener at all, and with drops taken only inside the field. In a browser, each of those
+leaves a drop anywhere but the chooser to the browser, which opens the picture in place of the form
+and what was written. The drops now land on the field's hint and, in a new case, on the page outside
+the field, and each asserts that the drag and the drop were cancelled (`fireEvent` answers false
+only then); a refused PDF is cancelled too. **Four more behaviours were claimed and not held**, and
+each now has a case: a picture pasted after a chosen file is the one the status names, and the
+chooser is empty; once the page has gone, a drag, a drop and a paste on what follows are no longer
+cancelled (and were while it was shown); a picture the browser gives only in `files`, or only in
+`items`, attaches; and the fake clipboard now refuses a `read` called without the clipboard as its
+`this`, as a browser does (WebIDL's *Illegal invocation*): a page that took `read` off the
+clipboard, and in a browser said *could not read the clipboard* on every press, passed before. **The
+Windows line:** on an up-to-date Windows 11, Print Screen opens the same snipping bar as
+Windows+Shift+S (a setting under Accessibility, Keyboard, on by default), and it copies the whole
+screen only on Windows 10 or with that setting off; the line said only the latter. It now reads *Or
+press Print Screen (on Windows 11 you get the same choice), then paste* / *Of druk op Print Screen
+(in Windows 11 krijgt u dan dezelfde keuze) en plak hem daarna*, and the guard holds both to name
+Windows 11. This came from web search results on Microsoft's own Q&A pages; neither
+support.microsoft.com nor learn.microsoft.com could be fetched from the session, so the claim above
+that each line was checked against its vendor's page holds for the other lines as a search returned
+them, and did not catch this one. `ReportProblem.tsx` is unchanged: all 50 pass on it as it was. 14
+more mutations, all killed: `preventDefault` gone from the drag, the drop and the paste; no
+`dragover` listener; drops only inside the field; `read` detached from the clipboard; a paste
+leaving the chooser's file; no listener removed, the drop's alone, the paste's alone; `files` alone
+and `items` alone read; the Windows 11 clause gone from the English and from the Dutch.
 
 **2026-09-28: a screenshot the front door lets through.** On managed, a report with a
 screenshot above about 750 KB never reached the API. The web image's nginx proxies `/api/` and
@@ -233,8 +625,9 @@ form is the second half. Guards: `a-failure-with-its-reference` in ledger (6), o
 | T1 A report form in the app | ✅ **Built 2026-09-23** (D2) | §3. What the person writes, the page they are on, the error they see, and a screenshot if they add one. |
 | T2 The report becomes a Zammad ticket | ✅ **Built 2026-09-23** (D1) | §3. Created by the API on the owner's own Zammad, so a reply reaches the person by email. |
 | T3 The failure line that says "send it to us" opens the form | ✅ **Built 2026-09-23** (D2) | §3. With the failure's category and reference already filled in, wherever the `unknown` remedy is shown to a customer. |
-| T4 The privacy policy names support requests | 📋 **Proposed** | §3. What is sent, where it is kept, for how long. Link reports too (0108 T8 (d)): what the person wrote and, if they want an answer, a reply address, from somebody who has no account. During the alpha, reports go by mail (T5): through the Proton relay (0133) into the support mailbox, and the paragraph must say so. |
+| T4 The privacy policy names support requests | 🔨 **Drafted 2026-09-28**; §4.5's paragraph and §9's row are on main with the legal revision (#1317), still marked draft; T6's facts in that paragraph on this branch, not merged; in the drafts for the lawyer's pass | §3. What is sent, where it is kept, for how long. Link reports too (0108 T8 (d)): what the person wrote and, if they want an answer, a reply address, from somebody who has no account. During the alpha, reports go by mail (T5): through the Proton relay (0133) into the support mailbox, and the paragraph must say so. Written with T6: privacy §4.5's paragraph on reports and §9's row, until resolved and then 6 months (the owner, 2026-09-28), EN and NL; main's legal revision (#1317) carries both, and T6 adds its facts to that paragraph. §7, §8 and alpha §10 stay with the lawyer. |
 | T5 Without a Zammad, a report goes to the support mailbox by mail | 🔨 **Built 2026-09-28**, not merged (the owner, 2026-09-28: *"b"*) | Status entry of the day. `REPORT_MAIL_TO` (else `NOTIFY_TO`) through the API's own relay, the signed-in reporter as Reply-To and on a `Reply to:` line, the screenshot attached; the form's answer names a report reference, not a ticket. Link reports too, with no Reply-To. At most 50 report mails a day, since the relay is the identity provider's too (0133). A Zammad, when set, still wins. |
+| T6 A report says what it sends: facts from our records (Part A) and the browser (Part B) | 🔨 **Built 2026-09-28**, not merged (the owner, 2026-09-28: *"Both parts"*, *"Send anyway"*) | Status entries of the day. Part A: the role, the organisation's status, the migration on the page, the reference's match, the hold, the scheduler, the two accounts' providers and the browser, read on the server under row security; `GET /api/problem-reports/preview` shows the same lines in the form's fold before sending, with the recipient above Send; the report goes without them, with a reference, when they cannot be read. Part B: the screen's language, the time zone, the window's width, the web app's build when it is not the server's, the failure line's data type, side and migration, and the references of the faults of the last five minutes (kept in the browser as reference and code only, never the request, which carries the sign-in token), sent as one object the API checks key by key and drops the rest of. |
 
 ## 1. What there is today
 

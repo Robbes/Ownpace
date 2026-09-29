@@ -10,7 +10,14 @@
 # `trigger-version.sh drill` dumps the Trigger.dev database and proves the
 # dump loads. Live never meets CI (T1g), so nothing did either for it.
 #
-# This runs five duties, from live's checkout (`~/ownpace-live`), once a day on
+# THE DRILL IS NOT LIVE'S (workplan 0139; the owner's answer rec-drill (a),
+# 2026-09-28). It stays on the test stack, in the gate. Here it kept a daily
+# dump of live's task runner database, the newest seven, and live keeps one
+# copy of its databases, made right before an update and deleted once the
+# update is proven, never past day 7 (the privacy policy's §9). That copy's
+# backstop is the second duty instead.
+#
+# This runs six duties, from live's checkout (`~/ownpace-live`), once a day on
 # a systemd timer (the units are in deploy/compose/systemd/, the install steps
 # in docs/managed-bring-up.md, "Live's daily duties"):
 #
@@ -18,14 +25,21 @@
 #                  else. The full script also reconciles the provider's
 #                  configuration, which 0135 hardens, and a timer must not do
 #                  that behind the owner's back.
-#   drill          trigger-version.sh drill on live's plane, for as long as 0134
-#                  keeps it. It dumps the orchestration plane's database (its
-#                  account, project and API keys, deployments, run records and
-#                  the encrypted task environment), not the application's. The
-#                  dumps go under ~/.persistent/<project>/trigger-backups, the
-#                  default T1 derives, and they are SECRET-BEARING: this script
-#                  never prints what is in them, and makes every file the duties
-#                  write readable by this account alone (umask 077).
+#   copies         copy-before-update.sh expire (workplan 0139, rec-copies
+#                  (a)): the copy made before an update, in
+#                  ~/.persistent/<project>/copy-before-update, is deleted once
+#                  it is older than 6 days less an hour, proven or not, and a
+#                  dump by hand there once it is, so a copy is never kept past
+#                  day 7: the hour is for this run starting late, after the
+#                  token duty's up to 20 minutes. The run before the one that
+#                  deletes it keeps it and fails the duty, saying to roll back
+#                  from it or delete it. It reads no database. The copy is
+#                  SECRET-BEARING (testers' data, the provider's password
+#                  hashes): this script never prints what is in it, and makes
+#                  every file the duties write readable by this account alone
+#                  (umask 077). Without this timer active,
+#                  copy-before-update.sh take refuses, so no deploy takes a
+#                  copy nothing would delete.
 #   exposure       exposure-check.sh (0132 T3 (b)): every port any container on
 #                  the machine publishes, both stacks at once. Outside the
 #                  appliance nightly's hours, whose dev Nextcloud publishes on
@@ -39,18 +53,23 @@
 #                  site; and, when live's .env says WWW_LIVE=true, when
 #                  live's copy of www.ownpace.eu (the project <project>-www)
 #                  is not running and healthy.
+#   strays         idp-strays.sh --remove --at-most 20 (0135 T8): the sign-in
+#                  accounts nobody let in, older than 30 days, removed, which
+#                  privacy §9 promises. More than 20 in one run removes none and
+#                  fails the duty, so a person looks at them first. Its lines
+#                  name an account's id, never its address.
 #
 # EACH DUTY RUNS WHATEVER THE ONE BEFORE IT DID. The token goes first, so the
 # count asks with a token that is alive. A duty that fails, is missing from the
 # checkout, or runs past BOX_DUTY_TIMEOUT seconds (default 1200) is recorded,
 # and the next one starts. At the end the script names every duty that failed
-# and exits 1; all five passing is exit 0. Nobody is told when it fails
+# and exits 1; all six passing is exit 0. Nobody is told when it fails
 # (0142 is where that changes); the journal has it.
 #
 # STOPPED IS STOPPED. `timeout` puts the duty in a process group of its own,
 # so a terminal's Ctrl-C, which goes to the foreground group, reaches this
 # script and never the duty. Left there, the duty ran on and the next duty
-# started, the drill on live's database among them. So a SIGINT or SIGTERM to
+# started, the backstop on live's copy among them. So a SIGINT or SIGTERM to
 # this script sends SIGTERM to the running duty's group (timeout gives it ten
 # seconds, then kills it), waits for it and for its last words, says which
 # duty was interrupted, and exits 130 or 143 without starting another.
@@ -65,9 +84,9 @@
 #
 # LIVE'S DUTIES ONLY. It refuses, before any duty, a `.env` that does not carry
 # live's marker exactly (stack_is_live, stack-kind.sh). The OTA stack's duties
-# are the gate's, every night: from its checkout this would drill it a second
-# time, into a second set of secret-bearing dumps, and fail a count 0135 T3
-# says only warns there. And the reader of the project (compose_project) must
+# are the gate's, every night: from its checkout this would fail a count 0135
+# T3 says only warns there, and the copy's backstop refuses the OTA stack's
+# .env itself. And the reader of the project (compose_project) must
 # agree, so a shell that exported the other stack's name is refused too.
 #
 # NOTHING SECRET, NO ADDRESS. It prints duty names, the project and what each
@@ -134,14 +153,14 @@ stack_is_live "$ENV_FILE" ||
 COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")" ||
   refuse "the project this checkout drives could not be settled (the reason is above)"
 
-# THE DRILL'S DUMPS GO WHERE T1 DERIVES THEM. trigger-version.sh takes its dump
-# directory from MANAGED_BACKUP_DIR or MANAGED_ENV_PERSIST_DIR, and its
-# container from TRIGGER_DB_CONTAINER, before its default. A shell that set one
-# for the OTA stack would send live's secret-bearing dumps into the OTA stack's
-# directory, where its drill prunes them, or drill the OTA stack's database.
+# NO DUTY TAKES A DIRECTORY OR A CONTAINER FROM THE SHELL. The deploy scripts
+# read MANAGED_BACKUP_DIR, MANAGED_ENV_PERSIST_DIR and TRIGGER_DB_CONTAINER
+# before their defaults, and a shell that set one for the OTA stack would point
+# a duty at the OTA stack's files or database. The copy's backstop does not
+# read them, and no duty is handed them.
 unset MANAGED_BACKUP_DIR MANAGED_ENV_PERSIST_DIR TRIGGER_DB_CONTAINER
 
-# The dumps are secret-bearing, and so is the .env the token's clock writes.
+# The copy is secret-bearing, and so is the .env the token's clock writes.
 umask 077
 
 # One pipe from a duty to the address filter, in a directory only this account
@@ -226,22 +245,24 @@ run_duty() {
   return 0
 }
 
-say "${COMPOSE_PROJECT}: five duties, each one run whatever the one before it did"
+say "${COMPOSE_PROJECT}: six duties, each one run whatever the one before it did"
 
 run_duty token "live's provisioning token, its clock only" \
   "${SCRIPT_DIR}/setup-zitadel.sh" --token-only
-run_duty drill "the Trigger.dev database, dumped and restored into a throwaway (the dumps are secret-bearing: ~/.persistent/${COMPOSE_PROJECT}/trigger-backups)" \
-  "${SCRIPT_DIR}/trigger-version.sh" drill
+run_duty copies "the copy made before an update, deleted once older than 6 days less an hour, whether or not its update was proven; its last day fails (~/.persistent/${COMPOSE_PROJECT}/copy-before-update)" \
+  "${SCRIPT_DIR}/copy-before-update.sh" expire
 run_duty exposure "every port this machine publishes, both stacks" \
   "${SCRIPT_DIR}/exposure-check.sh"
 run_duty organisations "the organisations on live's identity provider, read-only; more than one fails" \
   "${SCRIPT_DIR}/setup-zitadel.sh" --count-organisations
 run_duty site "live's copy of the public site, read-only: no www service in live's project, and the site's own project healthy when WWW_LIVE is true" \
   "${SCRIPT_DIR}/www-live.sh" check
+run_duty strays "sign-in accounts nobody let in, older than 30 days, removed; more than 20 at once removes none" \
+  "${SCRIPT_DIR}/idp-strays.sh" --remove --at-most 20
 
 if [ "${#FAILED[@]}" -gt 0 ]; then
   names="${FAILED[*]}"
-  fail_line "FAILED: ${names// /, } (${#FAILED[@]} of 5 duties). Each one's own words are above."
+  fail_line "FAILED: ${names// /, } (${#FAILED[@]} of 6 duties). Each one's own words are above."
   exit 1
 fi
-say "all 5 duties passed"
+say "all 6 duties passed"

@@ -17,16 +17,8 @@
 import React from 'react';
 import { Link, useParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  AlertTriangle,
-  ClipboardCheck,
-  Flag,
-  ListChecks,
-  MoveRight,
-  Pause,
-  Share2,
-  Trash2,
-} from 'lucide-react';
+import { Pause } from 'lucide-react';
+import { SCREENS } from './hub-screens.ts';
 import { isSelfHost } from '../services/edition.ts';
 
 /**
@@ -59,11 +51,11 @@ import { useT, useFormatters } from '../i18n/index.tsx';
 import RunsPanel from '../components/RunsPanel.tsx';
 import MappingLinksPanel from '../components/MappingLinksPanel.tsx';
 import ExportPolicyPanel from '../components/ExportPolicyPanel.tsx';
+import SchedulePanel from '../components/SchedulePanel.tsx';
 import MigrationKindsPanel from '../components/MigrationKindsPanel.tsx';
 import CompletionReportDownload from '../components/CompletionReportDownload.tsx';
 import LiveProgress from '../components/LiveProgress.tsx';
 import StateChip from '../components/StateChip.tsx';
-import type { StringKey } from '../i18n/index.tsx';
 
 /**
  * ONE SIDE OF THE LINE: the connection's name, AND THE ACCOUNT IT SIGNS IN AS
@@ -92,28 +84,6 @@ function sideLabel(
   return account === undefined || account === '' ? head : `${head} (${account})`;
 }
 
-const SCREENS: ReadonlyArray<{
-  nameKey: StringKey;
-  path: string;
-  icon: typeof Trash2;
-  blurbKey: StringKey;
-}> = [
-  { nameKey: 'hub.deletions.name', path: 'deletions', icon: Trash2, blurbKey: 'hub.deletions.blurb' },
-  { nameKey: 'hub.moves.name', path: 'moves', icon: MoveRight, blurbKey: 'hub.moves.blurb' },
-  { nameKey: 'hub.failures.name', path: 'failures', icon: AlertTriangle, blurbKey: 'hub.failures.blurb' },
-  { nameKey: 'hub.sharing.name', path: 'sharing', icon: Share2, blurbKey: 'hub.sharing.blurb' },
-  { nameKey: 'hub.check.name', path: 'verify', icon: ListChecks, blurbKey: 'hub.check.blurb' },
-  // The confirmed list sits beside Check and after it, deliberately: Check
-  // asks whether the migration is complete, this one hands over the account
-  // item by item. It is the last screen before somebody empties the old one.
-  {
-    nameKey: 'hub.confirmed.name',
-    path: 'confirmed',
-    icon: ClipboardCheck,
-    blurbKey: 'hub.confirmed.blurb',
-  },
-  { nameKey: 'hub.finish.name', path: 'finish', icon: Flag, blurbKey: 'hub.finish.blurb' },
-];
 
 const MappingDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -308,6 +278,13 @@ const MappingDetail: React.FC = () => {
           current={detail.data.sourceConfig}
         />
       )}
+
+      {/* HOW OFTEN THIS MIGRATION SYNCS (the owner, 2026-09-28: the schedule
+          can be changed here, where it was fixed when the migration was
+          made). Managed only, like the panel above: it renders on the detail
+          read, which the appliance does not serve, and the appliance's
+          schedule is its owner's mapping file. */}
+      {detail.data && <SchedulePanel mappingId={id} current={detail.data.syncConfig.schedule} />}
 
       {/* WHAT THIS MIGRATION COPIES, what it may still gain (0125 T6), and
           each data type's Stop and Resume (0128 T4, slice 3c). Beside the

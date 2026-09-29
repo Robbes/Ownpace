@@ -138,6 +138,13 @@
   - §4.2, §4.6, §9: the list of what was shared belongs to its migration and
     goes when that migration is deleted (privacy-sharing-list (b); the code
     change is not built, see beside §9).
+  - §4.6, §9: the people you migrate for (ADR-0050; managed migration 0031,
+    merged in #1332): a name, and an address when one is given, kept until
+    that person is deleted or the data erased (PURGED_TABLES in
+    offboarding.ts). Deleting a migration leaves the person. The owner
+    approved the English sentence on 2026-09-28. The Dutch says *migratie*,
+    the owner's word (0152 D6); the rest of the Dutch texts still say
+    *verhuizing*.
   - §4.4: the account also records which versions of the three texts a
     person accepted, and when (terms-acceptance-route (b): the in-app screen,
     0139 T3, not built).
@@ -613,15 +620,24 @@ sign-in codes, progress summaries and the notices you ask us to send.
      True on live once live runs without ZAMMAD_URL (README, "Before the draft markers come
      off"). -->
 
-**Reporting a problem.** During the Alpha, *Report a problem* in the app's menu sends your
-report as an email to support@ownpace.eu, through our mail provider (§7). The mail holds what
-you wrote, the page you were on (without the secret part of a link), the reference and kind of
-an error if there was one, your organisation's identifier, the app's version, and your sign-in
-address, so that we can answer you. If you add a screenshot, it goes too. A screenshot shows
-whatever was on your screen, such as subjects, names and addresses, so look at it before you
-send it. *Report this link*, on a page reached through a grant link or a progress link, sends
-what the person wrote and the facts of that link the same way, such as who made it and for
-which accounts, and an address only if they give one.
+**Reporting a problem.** During the Alpha, *Report a problem* in the app's menu sends your report
+as an email to support@ownpace.eu, through our mail provider (§7). The mail holds what you wrote
+and your sign-in address, so that we can answer you, and these facts, which the form lists before
+you send: the page you were on (without the secret part of a link), the reference and kind of an
+error if there was one, your organisation's identifier and status, your role, the version of the
+service, the state of the migration on that page and of each data type in it, whether access was
+given through a link, which providers its two accounts are with and whether their last test passed,
+whether the service is on hold or its scheduler has stopped, the name your browser gives itself,
+and what your browser tells the form: the language of the screen, your time zone, the width of the
+window, the version of the app in your browser when it is not the service's, the data type, side
+and migration of the error line you came from, and the reference of an error the app met in the
+five minutes before you opened the form. If you add a screenshot, it goes too. A screenshot shows
+whatever was on your screen, such as subjects, names and addresses, so look at it before you send
+it. *Report this link*, on a page reached through a grant link or a progress link, sends what the
+person wrote and the facts of that link the same way: the organisation and the migration, who made
+the link, the two accounts, and whether access was given; and an address only if they give one.
+**A report contains the content of your mail, files or calendars, a subject, a folder name or a
+provider's error text only if you put it in what you write or in the screenshot.**
 
 <!-- NOT YET TRUE ON main (the owner, 2026-09-28, ops-trust-proxy (b): keep visitors' addresses
      in all our logs). NetBird ends TLS in front of the machine, so the app and the website see
@@ -677,6 +693,9 @@ necessary, and aggregated figures that identify nobody.
 
 A migration touches people who never signed up with us. This is what we hold about them.
 
+- **The people you migrate for.** To group a person's migrations you give them a name, and if you
+  like an email address for their grant links. We keep both until you delete that person or your
+  data is erased.
 - **A family member whose account you migrate.** If you send them a grant link, they sign in at
   their own provider and give Ownpace access themselves, from a page that says who asked, from
   which account and to where. We keep that access (encrypted, §4.1), the address of their
@@ -900,15 +919,23 @@ target. We show you the target before anything is written.
        True once the close stops those too, or once the row says what the code does.
      - The copy made right before an update (rec-copies (a)): one copy per update, deleted once
        the update is proven (deploy-live.sh logged it as "took", one pass completed, the hold is
-       lifted), and never past day 7; not proven by day 6 means rolling back from the copy. Not
-       built: one script and one directory for the copy, a delete step, a daily 6-day backstop,
-       and dump-idp.sh writing into that directory or refusing on live. Until then the copy is
-       taken and deleted by hand, and dump-idp.sh keeps every dump ("none is ever
-       overwritten").
-     - Records of the background tasks: the drill sentence is gone (rec-drill (a)), but
-       box-duties.sh still runs `trigger-version.sh drill` on live, keeping 7 dumps, until that
-       duty is taken off live. "Until the end of the Alpha" (privacy-task-records (a)) is one
-       step in the end-of-Alpha routine, not written yet.
+       lifted), and never past day 7; not proven by day 6 means rolling back from the copy.
+       Built (0139 T6, 2026-09-28, review fixes 2026-09-29): deploy/compose/
+       copy-before-update.sh and one directory, ~/.persistent/ownpace-live/copy-before-update,
+       taken by deploy-live.sh right before its checkout, a delete step that refuses an
+       unproven update, a daily backstop in box-duties.sh that deletes it once older than 6
+       days less an hour, and dump-idp.sh and trigger-version.sh writing only there on live.
+       The rollback first writes down what was erased, closed or deleted after the copy
+       (copy-before-update.sh since) and does it again in the restored database, so "Data
+       erased from the service can remain in it for at most 7 days" holds through a rollback
+       too. True on live once live runs a tag that carries it and the daily duties' timer runs
+       (take refuses without it); the rollback has not been run on a stack.
+     - Records of the background tasks: the drill sentence is gone (rec-drill (a)), and
+       the drill is off live's duties (0139 T6): box-duties.sh's second duty is the copy's
+       backstop, and trigger-version.sh refuses drill on live. True on live once live runs a
+       tag that carries it; until then the tag it runs keeps 7 daily dumps.
+       "Until the end of the Alpha" (privacy-task-records (a)) is one step in the end-of-Alpha
+       routine, not written yet.
      - The list of what was shared, "goes when you delete the migration" (§4.2, §4.6; the
        owner's privacy-sharing-list (b)): deleting a migration does not yet delete its
        share_grant rows. A small code change; until it lands, the list stays until erasure.
@@ -939,6 +966,7 @@ target. We show you the target before anything is written.
 | The migration ledger (§4.2), and what each migration keeps beside it, such as the list of what was shared (§4.6) | Until you delete the migration; then deleted with it. Otherwise until your data is erased. |
 | Preflight counts | With the migration they were counted for: until you delete it, or your data is erased. |
 | What belongs to your organisation rather than to one migration: its members and invitations, the distribution lists a migration found, and the audit log of who did what, and when | Until your data is erased, also after you delete the migration that found them. |
+| The people you migrate for: each one's name, and an email address if you gave one (§4.6) | Until you delete that person, or your data is erased. Deleting a migration does not delete the person. |
 | The record of each pass: when it ran, and what it counted | During the Alpha: until your data is erased. |
 | A pass's log lines | 60 days. |
 | The app's own errors and warnings (a category and a reference, no text) | 30 days. |

@@ -8,6 +8,9 @@
  * ConfirmMigration.unit.test.tsx — here the component is a marker, because
  * the thing under test is that a PAUSED mapping's green light now survives a
  * refresh: create → refresh → this URL still renders the confirm screen.
+ *
+ * And a migration started from a person's card whose add to that person was
+ * refused: the page says so in the server's words (0153 T3, hard rule 9).
  */
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
@@ -45,5 +48,36 @@ describe('ConfirmMapping — the green light has an address', () => {
 
     fireEvent.click(screen.getByText('fake-start'));
     expect(screen.getByText('mappings-list')).toBeInTheDocument();
+  });
+});
+
+describe('ConfirmMapping — a migration its person did not get (0153 T3)', () => {
+  const renderWithState = (state: unknown) =>
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/mappings/m-new/confirm', state }]}>
+        <Routes>
+          <Route path="/mappings/:mappingId/confirm" element={<ConfirmMapping />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+  it("says the add was refused, in the server's words, above the green light", () => {
+    renderWithState({ notAddedToPerson: 'There is no such person in this organisation.' });
+
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toContain('The migration was made, but not added to the person.');
+    expect(alert.textContent).toContain('There is no such person in this organisation.');
+    expect(alert.textContent).toContain('Migrations lists it under Not with a person yet, where one press adds it.');
+    expect(screen.getByText('confirm-screen-for:m-new')).toBeInTheDocument();
+  });
+
+  it('says nothing about a person when the wizard brought no refusal', () => {
+    renderAt('/mappings/m-new/confirm');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('says nothing about a person for a state that carries no words', () => {
+    renderWithState({ notAddedToPerson: 42 });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

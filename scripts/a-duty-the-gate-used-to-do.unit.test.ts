@@ -16,14 +16,24 @@
  * token could leave its window, and past its deadline no successor can be
  * minted, because minting needs the token that died.
  *
- * `deploy/compose/box-duties.sh` does them for live, from `~/ownpace-live`, on
- * a daily systemd timer, with the two more T7 names: T3's exposure check and
- * 0135 T3's organisation count, which fails the duty above one. And a fifth,
- * `site` (0139 T10): `www-live.sh check`, which fails when live's project
- * holds a `www` service, where a bare `docker compose -f www.yml` in live's
- * checkout puts the site and one `--remove-orphans` removes live or the site,
- * and, when live's `.env` switches the site on, when `ownpace-live-www` is not
- * running and healthy.
+ * `deploy/compose/box-duties.sh` does the token's clock for live, from
+ * `~/ownpace-live`, on a daily systemd timer, with the two more T7 names: T3's
+ * exposure check and 0135 T3's organisation count, which fails the duty above
+ * one. And `site` (0139 T10): `www-live.sh check`, which fails when live's
+ * project holds a `www` service, where a bare `docker compose -f www.yml` in
+ * live's checkout puts the site and one `--remove-orphans` removes live or the
+ * site, and, when live's `.env` switches the site on, when `ownpace-live-www`
+ * is not running and healthy. And `strays` (0135 T8): `idp-strays.sh
+ * --remove --at-most 20`, which removes the sign-in accounts nobody let in,
+ * older than 30 days, and removes none when more than 20 would go.
+ *
+ * THE DRILL IS NOT LIVE'S (workplan 0139; the owner's answer rec-drill (a),
+ * 2026-09-28): it stays on the test stack, in the gate. On live it kept a daily
+ * dump of the task runner's database, seven of them, which the privacy
+ * policy's §9 does not allow: live keeps one copy, made right before an update
+ * and gone once the update is proven, never past day 7. So live's second duty
+ * is that copy's backstop, `copies`: `copy-before-update.sh expire`, which
+ * deletes a copy older than 6 days less an hour, and fails the run before.
  *
  * WHAT IS ASSERTED.
  *
@@ -36,29 +46,33 @@
  *   is not maintenance (the gate's own plumbing, the deploy of `main`, the
  *   tests, the evidence). An unclassified command fails, so a new step is
  *   classified by whoever adds it. Today the maintenance commands are
- *   `setup-zitadel.sh` and `trigger-version.sh drill`, and each has a form for
- *   live that `box-duties.sh` must run: `setup-zitadel.sh --token-only` (only
- *   the clock, since the rest reconciles the provider's configuration, which a
- *   timer must not do behind the owner's back) and `trigger-version.sh drill`.
- *   The rule reads scripts; a duty written inline in a `run:` block is not
- *   seen, and the table's own comment says so.
+ *   `setup-zitadel.sh` and `trigger-version.sh drill`. The first has a form
+ *   for live that `box-duties.sh` must run: `setup-zitadel.sh --token-only`
+ *   (only the clock, since the rest reconciles the provider's configuration,
+ *   which a timer must not do behind the owner's back). The drill has none,
+ *   and the table says why: `box-duties.sh` must not name `trigger-version.sh`
+ *   at all, and the drill it used to run never runs. The rule reads scripts;
+ *   a duty written inline in a `run:` block is not seen, and the table's own
+ *   comment says so.
  *
  *   `box-duties.sh`, run in a staged checkout with the scripts it calls
- *   replaced by stubs beside it: all five duties run, in order, whatever the
+ *   replaced by stubs beside it: all six duties run, in order, whatever the
  *   one before did; the exit is non-zero and names every duty that failed and
  *   no other; a missing script or a duty that hangs past its time is a failed
  *   duty, and the next one still runs; a Ctrl-C (SIGINT to the script's
  *   process group, as a terminal sends it) or a SIGTERM during a duty stops
  *   that duty, whose process group `timeout` keeps apart from the terminal's,
- *   asks no later one and exits non-zero; `--token-only` and `drill` are what it
- *   passes; it refuses, before any duty, a `.env` that is not live's
- *   (`stack_is_live`), a project the reader refuses, and an argument; the
- *   drill never takes its dump directory or container from the shell; files
- *   the duties write are the owner's alone (umask 077, the dumps are
- *   secret-bearing); a failure line carries the journal's error priority under
+ *   asks no later one and exits non-zero; `--token-only` and `expire` are what
+ *   it passes; it refuses, before any duty, a `.env` that is not live's
+ *   (`stack_is_live`), a project the reader refuses, and an argument; no duty
+ *   takes a dump directory or container from the shell; files the duties write
+ *   are the owner's alone (umask 077); a failure line carries the journal's
+ *   error priority under
  *   systemd; and this machine's addresses in a duty's output are replaced, on
  *   its stderr as on its stdout (every FATAL of `setup-zitadel.sh` and all of
- *   `trigger-version.sh`'s words are on stderr).
+ *   `trigger-version.sh`'s words are on stderr). And end to end, with the
+ *   real `copy-before-update.sh`: a copy older than 6 days is gone after a
+ *   run, and one on day 6 fails `copies`, and only it.
  *
  *   `setup-zitadel.sh`'s two new modes, run for real against a stand-in
  *   identity provider (`curl` and `docker` stubs on PATH). `--token-only` asks
@@ -100,6 +114,7 @@ import {
   mkdirSync,
   mkdtempSync,
   openSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -157,7 +172,7 @@ function writeExec(path: string, lines: string[]): void {
  * cannot be rebuilt. The rule reads scripts under `deploy/compose/`; a duty
  * written inline in a `run:` block is not seen by it.
  */
-const MAINTENANCE: Record<string, { live: string; why: string }> = {
+const MAINTENANCE: Record<string, { live: string | null; why: string }> = {
   'setup-zitadel.sh': {
     live: 'setup-zitadel.sh --token-only',
     why:
@@ -165,8 +180,12 @@ const MAINTENANCE: Record<string, { live: string; why: string }> = {
       "For live only the clock runs; the rest reconciles the provider's configuration, which a timer must not do (0135).",
   },
   'trigger-version.sh drill': {
-    live: 'trigger-version.sh drill',
-    why: 'the Trigger.dev database dumped and restored into a throwaway: the backup of what nobody can rebuild unattended, proved',
+    // The test stack only (workplan 0139, rec-drill (a), 2026-09-28): on live
+    // it kept a daily dump of the task runner's database, which the privacy
+    // policy's §9 does not allow. Live's copy of that database is part of the
+    // copy before a Trigger.dev upgrade (copy-before-update.sh --trigger).
+    live: null,
+    why: 'the Trigger.dev database dumped and restored into a throwaway, on the test stack; never on live, which keeps no daily copy',
   },
 };
 
@@ -183,10 +202,17 @@ const NOT_MAINTENANCE: Record<string, string> = {
 };
 
 /**
- * The duties that are not a gate step: T3's check and 0135 T3's count (T7),
- * and the site's (0139 T10).
+ * The duties that are not a gate step: the copy's backstop (0139,
+ * rec-copies (a)), T3's check and 0135 T3's count (T7), the site's (0139
+ * T10), and the accounts nobody let in (0135 T8).
  */
-const MORE_DUTIES = ['exposure-check.sh', 'setup-zitadel.sh --count-organisations', 'www-live.sh check'];
+const MORE_DUTIES = [
+  'copy-before-update.sh expire',
+  'exposure-check.sh',
+  'setup-zitadel.sh --count-organisations',
+  'www-live.sh check',
+  'idp-strays.sh --remove --at-most 20',
+];
 
 interface Invocation {
   step: string;
@@ -294,7 +320,7 @@ describe("the rule: which of the gate's commands maintain the stack", () => {
   });
 });
 
-describe('box-duties.sh runs every maintenance command, in its form for live, and the duties T7 and 0139 T10 add', () => {
+describe('box-duties.sh runs every maintenance command that has a form for live, and the duties T7, 0139 and 0135 T8 add', () => {
   const text = readIfThere(DUTIES_REL);
   const lines = code(text).split('\n');
 
@@ -302,7 +328,7 @@ describe('box-duties.sh runs every maintenance command, in its form for live, an
     expect(existsSync(DUTIES), `${DUTIES_REL} is 0132 T7's script, and it is not there`).toBe(true);
   });
 
-  const forms = [...Object.values(MAINTENANCE).map((m) => m.live), ...MORE_DUTIES];
+  const forms = [...Object.values(MAINTENANCE).flatMap((m) => (m.live ? [m.live] : [])), ...MORE_DUTIES];
   it.each(forms)('runs `%s` from beside itself', (form) => {
     const [script = '', ...args] = form.split(' ');
     const re = new RegExp(`\\$\\{SCRIPT_DIR\\}/${esc(script)}"?${args.map((a) => `\\s+${esc(a)}`).join('')}(?![\\w-])`);
@@ -310,6 +336,17 @@ describe('box-duties.sh runs every maintenance command, in its form for live, an
       lines.filter((l) => re.test(l)),
       `${DUTIES_REL} does not run "\${SCRIPT_DIR}/${script}"${args.length ? ` ${args.join(' ')}` : ''}`,
     ).not.toEqual([]);
+  });
+
+  it('no drill duty on live: it names trigger-version.sh nowhere in its code, and no maintenance command without a form for live', () => {
+    expect(code(text), 'box-duties.sh runs trigger-version.sh: the drill is the test stack\'s (0139, rec-drill (a))').not.toMatch(
+      /trigger-version\.sh/,
+    );
+    for (const [key, m] of Object.entries(MAINTENANCE)) {
+      if (m.live) continue;
+      const [script = ''] = key.split(' ');
+      expect(code(text), `${DUTIES_REL} runs ${key}, which has no form for live`).not.toContain(script);
+    }
   });
 
   it('reads the .env and live\'s marker the way the other scripts do, and never traces itself', () => {
@@ -327,7 +364,7 @@ describe('box-duties.sh runs every maintenance command, in its form for live, an
 // box-duties.sh, with the scripts it runs replaced by stubs
 // ===========================================================================
 
-const DUTY_NAMES = ['token', 'drill', 'exposure', 'organisations', 'site'] as const;
+const DUTY_NAMES = ['token', 'copies', 'exposure', 'organisations', 'site', 'strays'] as const;
 type Duty = (typeof DUTY_NAMES)[number];
 
 /** This machine, in a live `.env`: a mesh address, a front address, and a secret. */
@@ -355,7 +392,7 @@ const OTA_ENV = LIVE_ENV.split('\n')
 
 /**
  * A stand-in for a script box-duties.sh runs. It records what it was asked,
- * the drill's three overrides and the umask, says one address on stdout and
+ * the three overrides no duty may see and the umask, says one address on stdout and
  * the other on stderr, fails or hangs when the test says so, and notes in
  * STUB_DONE that it ran to its end.
  */
@@ -364,10 +401,12 @@ const DUTY_STUB = [
   'asked="$(basename "$0")${1:+ $*}"',
   'case "$asked" in',
   '  "setup-zitadel.sh --token-only") duty=token ;;',
+  '  "copy-before-update.sh expire") duty=copies ;;',
   '  "trigger-version.sh drill") duty=drill ;;',
   '  "exposure-check.sh") duty=exposure ;;',
   '  "setup-zitadel.sh --count-organisations") duty=organisations ;;',
   '  "www-live.sh check") duty=site ;;',
+  '  "idp-strays.sh --remove --at-most 20") duty=strays ;;',
   '  *) duty="unknown" ;;',
   'esac',
   'printf "%s|%s|%s|%s|%s\\n" "$asked" "${MANAGED_BACKUP_DIR-unset}" "${MANAGED_ENV_PERSIST_DIR-unset}" "${TRIGGER_DB_CONTAINER-unset}" "$(umask)" >>"$STUB_LOG"',
@@ -395,7 +434,8 @@ function stage(dotEnv: string = LIVE_ENV): Stage {
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
   }
   chmodSync(join(compose, 'box-duties.sh'), 0o755);
-  for (const f of ['setup-zitadel.sh', 'trigger-version.sh', 'exposure-check.sh', 'www-live.sh']) {
+  // trigger-version.sh too, so that a drill run by mistake is seen, not missed.
+  for (const f of ['setup-zitadel.sh', 'trigger-version.sh', 'copy-before-update.sh', 'exposure-check.sh', 'www-live.sh', 'idp-strays.sh']) {
     writeExec(join(compose, f), DUTY_STUB);
   }
   writeFileSync(join(compose, '.env'), dotEnv);
@@ -433,18 +473,19 @@ function failed(out: string): string[] {
 
 const IN_ORDER = [
   'setup-zitadel.sh --token-only',
-  'trigger-version.sh drill',
+  'copy-before-update.sh expire',
   'exposure-check.sh',
   'setup-zitadel.sh --count-organisations',
   'www-live.sh check',
+  'idp-strays.sh --remove --at-most 20',
 ];
 
 describe('box-duties.sh runs every duty, and names every one that failed', () => {
-  it('runs the five duties in order, token first so the count uses a live token, and passes when all pass', () => {
+  it('runs the six duties in order, token first so the count and the strays use a live token, and passes when all pass', () => {
     const r = runDuties(stage());
     expect(r.status, r.out).toBe(0);
     expect(r.asked.map((a) => a[0])).toEqual(IN_ORDER);
-    expect(r.out).toMatch(/all 5 duties passed/);
+    expect(r.out).toMatch(/all 6 duties passed/);
     expect(failed(r.out)).toEqual([]);
   });
 
@@ -461,7 +502,7 @@ describe('box-duties.sh runs every duty, and names every one that failed', () =>
     expect(failed(two.out)).toEqual(['token', 'exposure']);
     const all = runDuties(stage(), { STUB_FAIL: DUTY_NAMES.join(',') });
     expect(all.status).toBe(1);
-    expect(all.asked).toHaveLength(5);
+    expect(all.asked).toHaveLength(6);
     expect(failed(all.out)).toEqual([...DUTY_NAMES]);
   });
 
@@ -477,10 +518,10 @@ describe('box-duties.sh runs every duty, and names every one that failed', () =>
   });
 
   it('a duty that hangs past its time is a failed duty, and the next one runs', () => {
-    const r = runDuties(stage(), { STUB_HANG: 'drill', BOX_DUTY_TIMEOUT: '1' });
+    const r = runDuties(stage(), { STUB_HANG: 'copies', BOX_DUTY_TIMEOUT: '1' });
     expect(r.status, r.out).toBe(1);
-    expect(failed(r.out)).toEqual(['drill']);
-    expect(r.out).toMatch(/drill: timed out after 1s/);
+    expect(failed(r.out)).toEqual(['copies']);
+    expect(r.out).toMatch(/copies: timed out after 1s/);
     expect(r.asked.map((a) => a[0])).toEqual(IN_ORDER);
   });
 
@@ -488,7 +529,7 @@ describe('box-duties.sh runs every duty, and names every one that failed', () =>
   // box-duties.sh and its filter. `timeout` (without --foreground) moves the
   // duty into a process group of its own, so the signal never reaches it: left
   // alone, the duty runs on, the filter dies, the duty's next line is a
-  // SIGPIPE, and the next duty starts, the drill on live's database among
+  // SIGPIPE, and the next duty starts, the backstop on live's copy among
   // them. A SIGTERM to the script alone (a `kill` by hand) is the same.
   // Stand in for the terminal with a process group of the test's own.
   it.each([
@@ -576,7 +617,7 @@ describe('box-duties.sh runs every duty, and names every one that failed', () =>
           PATH: process.env.PATH ?? '/usr/bin:/bin',
           HOME: s.root,
           STUB_LOG: s.log,
-          STUB_FAIL: 'drill',
+          STUB_FAIL: 'copies',
           JOURNAL_STREAM: `${dev}:${ino}`,
         },
         cwd: s.root,
@@ -585,17 +626,17 @@ describe('box-duties.sh runs every duty, and names every one that failed', () =>
       });
       const journal = readFileSync(errFile, 'utf8');
       expect(r.status, journal).toBe(1);
-      expect(journal).toMatch(/^<3>\[box-duties\] FAILED: drill \(/m);
-      expect(journal).toMatch(/^<3>\[box-duties\] drill: failed/m);
+      expect(journal).toMatch(/^<3>\[box-duties\] FAILED: copies \(/m);
+      expect(journal).toMatch(/^<3>\[box-duties\] copies: failed/m);
     } finally {
       closeSync(fd);
     }
     // A shell that inherited the variable, with a terminal (here a pipe) on stderr.
-    const inherited = runDuties(stage(), { STUB_FAIL: 'drill', JOURNAL_STREAM: `${dev}:${ino}` });
+    const inherited = runDuties(stage(), { STUB_FAIL: 'copies', JOURNAL_STREAM: `${dev}:${ino}` });
     expect(inherited.out).not.toMatch(/^<\d>/m);
-    const terminal = runDuties(stage(), { STUB_FAIL: 'drill' });
+    const terminal = runDuties(stage(), { STUB_FAIL: 'copies' });
     expect(terminal.out).not.toMatch(/^<\d>/m);
-    expect(failed(terminal.out)).toEqual(['drill']);
+    expect(failed(terminal.out)).toEqual(['copies']);
   });
 });
 
@@ -635,18 +676,25 @@ describe('box-duties.sh keeps to live, and to what it may print', () => {
     expect(arg.asked).toEqual([]);
   });
 
-  it("the drill's dumps go where T1 derives them: never to a directory or container the shell names", () => {
+  it('no duty takes a directory or a container from the shell: the backstop looks where the copy is', () => {
     const r = runDuties(stage(), {
       MANAGED_BACKUP_DIR: '/elsewhere/trigger-backups',
       MANAGED_ENV_PERSIST_DIR: '/elsewhere',
       TRIGGER_DB_CONTAINER: 'another-stacks-database',
     });
     expect(r.status, r.out).toBe(0);
-    const drill = r.asked.find((a) => a[0] === 'trigger-version.sh drill');
-    expect(drill?.slice(1, 4)).toEqual(['unset', 'unset', 'unset']);
+    expect(r.asked).toHaveLength(6);
+    for (const a of r.asked) expect(a.slice(1, 4), a[0]).toEqual(['unset', 'unset', 'unset']);
   });
 
-  it('what the duties write is the owner\'s alone: the dumps are secret-bearing', () => {
+  it('no duty runs the drill on live: the test stack drills, live keeps no daily copy (0139, rec-drill (a))', () => {
+    const r = runDuties(stage());
+    expect(r.status, r.out).toBe(0);
+    expect(r.asked.map((a) => a[0] ?? '').filter((a) => a.startsWith('trigger-version.sh')), r.out).toEqual([]);
+    expect(r.out).not.toMatch(/\bdrill\b/);
+  });
+
+  it('what the duties write is the owner\'s alone: the copy is secret-bearing', () => {
     const r = runDuties(stage(), { STUB_FAIL: '' });
     for (const a of r.asked) expect(a[4], a[0]).toBe('0077');
   });
@@ -667,6 +715,57 @@ describe('box-duties.sh keeps to live, and to what it may print', () => {
     // Replaced, not dropped: the stdout line and the stderr line both arrive.
     expect(r.out, "the duty's stdout line did not arrive, filtered").toContain('<WEB_BIND>');
     expect(r.out, "the duty's stderr line did not arrive, filtered").toContain('<STATUS_BIND>');
+  });
+});
+
+// ===========================================================================
+// The copy's backstop, run for real: copy-before-update.sh expire (0139)
+// ===========================================================================
+
+describe("the copy's backstop, run for real: nothing older than 6 days survives a run (0139, rec-copies (a))", () => {
+  const DAY_MS = 86_400_000;
+  function withCopy(ageMs: number) {
+    const s = stage();
+    if (!existsSync(join(COMPOSE_DIR, 'copy-before-update.sh'))) throw new Error('deploy/compose/copy-before-update.sh does not exist');
+    copyFileSync(join(COMPOSE_DIR, 'copy-before-update.sh'), join(s.compose, 'copy-before-update.sh'));
+    chmodSync(join(s.compose, 'copy-before-update.sh'), 0o755);
+    // HOME is the stage's root: the copy is where live keeps it.
+    const dir = join(s.root, '.persistent', 'ownpace-live', 'copy-before-update');
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const taken = new Date(Date.now() - ageMs);
+    const iso = taken.toISOString().replace(/\.\d{3}Z$/, 'Z');
+    writeFileSync(join(dir, 'openmigrate-ownpace-live-20260920T101500Z.dump'), 'PGDMP a copy\n', { mode: 0o600 });
+    writeFileSync(
+      join(dir, 'copy-before-update.txt'),
+      `taken=${iso}\ntaken_epoch=${Math.floor(taken.getTime() / 1000)}\nbefore=v0.2.0-alpha.2\nfrom=v0.2.0-alpha.1\n\nA copy.\n`,
+      { mode: 0o600 },
+    );
+    return { s, dir };
+  }
+  const left = (dir: string) => (existsSync(dir) ? readdirSync(dir) : []);
+
+  it('a copy older than 6 days is gone after the run, and every duty passes', () => {
+    const { s, dir } = withCopy(6 * DAY_MS + 3_600_000);
+    const r = runDuties(s);
+    expect(r.status, r.out).toBe(0);
+    expect(left(dir)).toEqual([]);
+    expect(r.out).toMatch(/all 6 duties passed/);
+  });
+
+  it('a copy on day 6 stays, and fails copies, and only it, saying to roll back or delete', () => {
+    const { s, dir } = withCopy(5 * DAY_MS + 3_600_000);
+    const r = runDuties(s);
+    expect(r.status, r.out).toBe(1);
+    expect(failed(r.out)).toEqual(['copies']);
+    expect(left(dir)).toHaveLength(2);
+    expect(r.out).toMatch(/roll back/);
+  });
+
+  it('a copy of a day stays, and every duty passes', () => {
+    const { s, dir } = withCopy(DAY_MS);
+    const r = runDuties(s);
+    expect(r.status, r.out).toBe(0);
+    expect(left(dir)).toHaveLength(2);
   });
 });
 
@@ -796,7 +895,7 @@ describe("the site's duty, run for real: www-live.sh check (0139 T10)", () => {
     const r = runDuties(s, { PATH: `${s.bin}:${process.env.PATH ?? ''}`, STUB_LIVE_WWW: 'ownpace-live' });
     expect(r.status, r.out).toBe(1);
     expect(failed(r.out)).toEqual(['site']);
-    expect(r.out).toMatch(/\(1 of 5 duties\)/);
+    expect(r.out).toMatch(/\(1 of 6 duties\)/);
     // The stubbed duties, in order; the site's duty asked docker itself.
     expect(r.asked.map((a) => a[0] ?? '').filter((a) => !a.startsWith('docker '))).toEqual(
       IN_ORDER.filter((a) => a !== 'www-live.sh check'),
@@ -1039,8 +1138,10 @@ describe('the default run is the one it was', () => {
 describe('end to end: the organisation count fails its duty, and only it', () => {
   function liveWithRealSetup(orgs: unknown) {
     const p = provider({ expiresInDays: 5, orgs });
-    // The real setup-zitadel.sh; the drill, the exposure check and the site's duty stubbed.
-    for (const f of ['trigger-version.sh', 'exposure-check.sh', 'www-live.sh']) writeExec(join(p.compose, f), DUTY_STUB);
+    // The real setup-zitadel.sh; the backstop, the exposure check, the site's duty and the strays stubbed.
+    for (const f of ['trigger-version.sh', 'copy-before-update.sh', 'exposure-check.sh', 'www-live.sh', 'idp-strays.sh']) {
+      writeExec(join(p.compose, f), DUTY_STUB);
+    }
     if (!existsSync(join(p.compose, 'box-duties.sh'))) throw new Error(`${DUTIES_REL} does not exist`);
     const log = join(p.root, 'stub.log');
     writeFileSync(log, '');
@@ -1066,7 +1167,7 @@ describe('end to end: the organisation count fails its duty, and only it', () =>
   it('one organisation: every duty passes', () => {
     const r = liveWithRealSetup(ONE_ORG);
     expect(r.status, r.out).toBe(0);
-    expect(r.out).toMatch(/all 5 duties passed/);
+    expect(r.out).toMatch(/all 6 duties passed/);
     expect(r.calls.filter((c) => c.includes('/projects')), 'a duty reconciled the project').toEqual([]);
   });
 });
@@ -1144,6 +1245,10 @@ describe('the timer: daily, from live, away from the appliance nightly', () => {
     const lasts = /^TimeoutStartSec=(.+)$/m.exec(service)?.[1] ?? '';
     const runFor = spanMinutes(lasts);
     expect(Number.isFinite(runFor) && runFor > 0, `TimeoutStartSec=${lasts} is not a bounded time span`).toBe(true);
+    // Every duty at its longest (BOX_DUTY_TIMEOUT's default, 20 minutes), or the unit stops a run mid-duty.
+    expect(runFor, `TimeoutStartSec=${lasts} is shorter than ${DUTY_NAMES.length} duties of 20 minutes`).toBeGreaterThan(
+      DUTY_NAMES.length * 20,
+    );
     for (const start of nightly) {
       const hhmm = `${Math.floor(start / 60)}:${String(start % 60).padStart(2, '0')}`;
       const after = (minute - start + 24 * 60) % (24 * 60);

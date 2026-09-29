@@ -4,6 +4,24 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-29, night: T4's person half is built, on 0153 T5's page (#1353).** A
+person's page lists the hub's seven steps as one ordered list, each summed across the person's
+migrations, with its count and its state in words (*Done*, *Needs you*, *Not yet*). On a
+queue's step each migration's link carries that migration's own count (*Anna mail (2)*), so the
+person sees which one the work is in. A count that could not be read says so and claims no
+state. The rules are `apps/web/src/services/cutover-steps.ts`,
+tested case by case. **Not yet:** a migration's own page still shows the seven as cards, and
+the Check row cannot tell *not run* from *not passed* until the list carries the check (T2).
+
+**2026-09-28, night: two of the owner's answers (asked by the writing session).**
+
+- **Open question 3, T1 (d): *"One stage per person"*.** A person's card shows one stage: the
+  least advanced of their migrations, by `leastAdvancedStage`, as proposed and drawn. Each data
+  type's row keeps its own.
+- **Open question 1, T7: *"One per person"*.** The first-copy email is a kind in 0030's channel,
+  sent once per person when their last migration finishes its first complete pass, naming each
+  data type. T7 is decided, and waits for the person's page (0153 T5) like the rest.
+
 **2026-09-28, night: T1 (a), the stages in words, built beside R (0131 §6, R8's split)**,
 merged in #1326. Nothing renders them yet: T1 (b) to (d) and the pages that show them (0153
 T3, T5) are R's.
@@ -62,10 +80,10 @@ of a move after it. The evening's answer puts everything before.
 | T1 One line that says where a person's migrations are | 🟡 **(a) merged in #1326; (b) to (d) proposed; before the first invitation** | §3. A stage in plain words, derived from the states the server already reports. One sentence, and what needs the person. On the person's card, their page and each migration. Drawing: `wf-person-page.svg`. |
 | T2 Totals: *of about how many* | 📋 **Proposed; before the first invitation** | §3. Synced counts set against what discovery found, as a share and in bytes. *About*, because the source keeps changing. |
 | T3 Time left, as a range with its reason | 📋 **Proposed; before the first invitation** | §3. (a) Before Start, from the counts and the limits the product already knows (Gmail's 2.5 GB a day). (b) During the copy, from the rate of recent passes. Never a single number, and nothing when it cannot know. |
-| T4 The cutover steps with counts and state | 📋 **Proposed; before the first invitation** | §3. The seven cards become one ordered list. Each has its count and *done*, *needs you* or *not yet*, summed for the move across its migrations. |
+| T4 The cutover steps with counts and state | 🟡 **The person's half built on 0153 T5's page (#1353); the migration page's half next; before the first invitation** | §3. The seven cards become one ordered list. Each has its count and *done*, *needs you* or *not yet*, summed for the move across its migrations. |
 | T5 The report of what arrived, as a page | 📋 **Proposed; before the first invitation** | §3. The completion report is rendered in the app, per migration and per move, and downloadable. The word *Markdown* leaves the button. |
 | T6 Internals out of the way | 📋 **Proposed; before the first invitation** | §3. The UUID, the kinds, the doubled address and the item hashes fold away. *Left as they are* says what it means. |
-| T7 An email when the first copy is in | ⏳ **Owner's choice; before the first invitation if yes** | §3. A milestone mail, *"Your mail is in your new system and is kept in step until you switch."* It is a new kind for 0030's email-only channel, so the owner decides. |
+| T7 An email when the first copy is in | 📋 **Decided by the owner 2026-09-28: one per person; before the first invitation** | §3. A milestone mail, *"Your mail is in your new system and is kept in step until you switch."* It is a new kind for 0030's email-only channel, so the owner decides. |
 | T8 The person's own progress page says the same | 📋 **Proposed; before the first invitation** | §3. `/view/:link` shows T1's line, T2's totals and T3's range, in the person's language (0145 T6). |
 
 ## 1. What there is today
@@ -324,8 +342,9 @@ All of it comes before the first invitation. Session R builds it with 0153, as g
 ## Open questions
 
 1. **T7.** Does a first-copy email join the channel? If so, once per move, as proposed, or once
-   per migration?
+   per migration? **Answered 2026-09-28: once per person** (*"One per person"*).
 2. **T3 (a).** Should the review screen show the range for providers with no published ceiling as
    *"we will know after the first hour"*, as proposed, or show nothing until then?
 3. **T1 (d).** A move's stage is its least-advanced migration's, as proposed. Or should the card
-   show one stage per data type and no stage for the move?
+   show one stage per data type and no stage for the move? **Answered 2026-09-28: one stage per
+   person, the least advanced** (*"One stage per person"*).

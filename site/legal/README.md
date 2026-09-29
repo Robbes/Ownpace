@@ -190,8 +190,11 @@ comments still name them, to say what filled them.
   for each, and sends each a verification mail through Proton; hence a period. **Decided
   2026-09-28** (ops-unadmitted-signin-cleanup (a), *"A daily script, built before the first
   tester"*): 0135 T8's script (`idp-strays.sh`) removes them, run with the machine's daily
-  duties. It is **not built**; privacy §9's 30 days stay as drafted, and the first tester waits
-  for the script. T8's rule also spares an address with an open invitation (0135, 2026-09-28).
+  duties. It is **built** (0135 T8 (a) and (b)): `box-duties.sh` runs `idp-strays.sh --remove
+  --at-most 20` on live once a day, once live's timer is installed (`docs/managed-bring-up.md`,
+  *Live's daily duties*), and more than 20 at once waits for a person. Privacy §9's 30 days stay
+  as drafted, and the first tester waits for live's first run. T8's rule also spares an address
+  with an open invitation (0135, 2026-09-28).
 - `«LOG_RETENTION»`: filled 2026-09-28 in privacy 1.2 (§9, *Server logs*) with a criterion, not
   a number: until the part of the service that wrote them is replaced (the app and this website
   at each update of the service; the sign-in service when its version or settings change; a
@@ -315,19 +318,26 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   record the orchestrator's reference and the close cancels them too, or they check the close
   between steps. Or the owner rewords the sentence to what the code does.
 - *The copy made right before an update, never longer than 7 days* (privacy §9, Alpha
-  conditions §6; rec-copies (a)): one copy right before each update: the app's database, the
-  sign-in service's database and the roles, and the task runner's database before a Trigger.dev
-  upgrade. It is deleted once the update is proven (`deploy-live.sh` logged it as taken, one pass
-  completed, and the hold lifted), and never kept past day 7; if the update is not proven by day
-  6, roll back from the copy. To build: one script and one directory for the copy, a delete
-  step, a daily backstop that deletes anything older than 6 days, and `dump-idp.sh` writing into
-  the same place or refusing on live.
-- *No daily copies of the task runner's database on live* (privacy §9; rec-drill (a)): the drill
-  comes off live's duties in `box-duties.sh` and stays on the test stack.
-  `trigger-version.sh backup` becomes part of the copy before a Trigger.dev upgrade on live, under
-  the rule above. Privacy §9 no longer names the drill.
+  conditions §6; rec-copies (a)): built (0139 T6, 2026-09-28, review fixes 2026-09-29).
+  `deploy/compose/copy-before-update.sh`, one directory,
+  `~/.persistent/ownpace-live/copy-before-update`: `deploy-live.sh` takes the copy right before
+  its checkout (the app's database, the sign-in service's database and the roles, and the task
+  runner's database before a Trigger.dev upgrade); `copy-before-update.sh delete` removes it
+  once the update is proven (the last deploy since the copy took, its hold lifted, a pass since
+  completed) and refuses before; the daily duties delete it once it is older than 6 days less
+  an hour; `dump-idp.sh` and `trigger-version.sh` write only there on live. A rollback by day 6
+  starts with `copy-before-update.sh since`, which does again after the restore what was
+  erased, closed or deleted after the copy (the operator runbook, *The copy before an update*).
+  **Still to do:** live runs a tag that carries it, with the daily duties' timer installed
+  (`take` refuses without it); the rollback run once on the test stack.
+- *No daily copies of the task runner's database on live* (privacy §9; rec-drill (a)): built on
+  the same branch. The drill is off live's duties in `box-duties.sh` (its duty is the copy's
+  backstop, `copies`) and stays on the test stack; `trigger-version.sh` refuses `drill` on live,
+  and its `backup` is part of the copy before a Trigger.dev upgrade there, under the rule above.
+  Privacy §9 no longer names the drill. **Still to do:** live runs a tag that carries it.
 - *A sign-in account nobody let in, 30 days* (privacy §9; ops-unadmitted-signin-cleanup (a)):
-  0135 T8's script, `idp-strays.sh`, run with the machine's daily duties. Not built.
+  0135 T8's script, `idp-strays.sh`, run with the machine's daily duties. Built; it runs once
+  live's timer is installed.
 - *Searches and downloads on the support screens, 12 months* (privacy §4.5, §9;
   privacy-search-records (a)): a daily duty deletes those log records older than 12 months, over
   the owner's connection, because the app cannot delete from that log. Not built.

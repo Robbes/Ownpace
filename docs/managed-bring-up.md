@@ -1748,8 +1748,10 @@ customer-facing version of all of this.
 "Report a problem", beside Sign out, sends a customer's report to a person
 (workplan 0130): what they wrote, the page they were on (without any link
 secret), the reference and kind of error on their screen, and a screenshot if
-they add one. It goes one of two ways. While neither is set up, the link is not
-shown at all.
+they add one: a PNG or JPEG of up to 5 MB, chosen as a file, dropped on the
+field or pasted anywhere on the page (Ctrl+V or Command+V), with a fold under
+the field that says how to make one on each kind of device. It goes one of two
+ways. While neither is set up, the link is not shown at all.
 
 **By mail, to your support mailbox** (the owner's choice for the alpha,
 2026-09-28). This needs nothing but the mail settings the API already sends
@@ -1765,11 +1767,29 @@ rules as every other mail the API sends: from `NOTIFY_FROM`, to
 `REPORT_MAIL_TO`, titled *Ownpace: <the first line they wrote>*. The body is
 what they wrote and then the facts, one per line: `Page`, `Reference` and
 `Category` when there is one (the error on their screen, which the log page
-finds), `Organisation`, `Build`, `Reply to` (the customer's sign-in address) and
-`Report reference`, the report's own. Its **Reply-To** is that sign-in address
-too, so pressing Reply should answer them. With `NOTIFY_FROM` and
-`REPORT_MAIL_TO` both `support@ownpace.eu`, as on live, the mail goes from the
-mailbox to itself, and a mail client may answer such a mail to its own address;
+finds), `Organisation`, `Build`, then what the API reads from its own records
+in the customer's organisation (workplan 0130 T6): `Role`, `Organisation
+status`, the migration on the page with `Grant`, `Grant link`, a `Data type …`
+line for each data type and the two accounts' providers, `Reference match`,
+`Service hold`, `Scheduler` and `Browser`; then what the customer's browser
+said of itself (0130 T6, Part B), each line only when it was said in its own
+shape: `Screen language`, `Time zone` (to turn their "at 14:02" into the log's
+UTC), `Window width`, `App build in the browser` (only when it is not the
+server's build: an old page in front of a newer server), `Failure line` (the
+data type, side and migration of the failure line they came from) and a
+`Recent error` line, reference and code, for each "Something went wrong" the
+page met in the five minutes before they opened the form, which the log page
+finds by that reference; then `Reply to` (the customer's sign-in address) and
+`Report reference`, the report's own. The form showed the customer the fact
+lines, `Page` to the last of the browser's, under *What we send with this*
+before they sent it, unless that preview could not be read; `Reply to` and
+`Report reference` are added on sending. When the database could not be read,
+the report still arrives, with `Facts: could not be read [ref …]` in place of
+the records' lines; the log page finds that reference as `report.facts-unread`.
+Its **Reply-To** is that sign-in address too, so pressing Reply should answer
+them. With `NOTIFY_FROM` and `REPORT_MAIL_TO` both `support@ownpace.eu`, as on
+live, the mail goes from the mailbox to itself, and a mail client may answer
+such a mail to its own address;
 check the To field before you send, and if it shows the support address, write
 to the body's `Reply to` address instead. The screenshot is attached, after the
 same check of its first bytes a Zammad ticket gets. There is no ticket number,
@@ -1777,6 +1797,9 @@ so the customer is told the *report reference* instead, and that the reply
 comes by email; search the mailbox for it when they quote it (the log page
 does not know it). An empty `REPORT_MAIL_TO` sends reports to `NOTIFY_TO`, so
 on a stack still pointed at Mailpit the form works and Mailpit catches them.
+The form then says only *Goes to the Ownpace support team.*, without an
+address: `NOTIFY_TO` is your own list, and every signed-in member can open the
+form. Only an address `REPORT_MAIL_TO` names is shown to them.
 
 **The relay is shared.** On live, the API's relay login is the one the identity
 provider sends its sign-in codes with (workplan 0133). So at most 50 report
@@ -1882,13 +1905,16 @@ Open the sign-in page: the note is under the title. Empty, or any value but
 `alpha`, is no note and no paragraph. The appliance never shows it.
 
 The second line is the alpha's other half: the days the erasure sentence says a
-copy may still hold a closing organisation's data. The alpha takes no backups.
-Live's databases are dumped before each deploy, and each dump is deleted after
-at most seven days (workplan 0134 open question 1 (b), the owner's answer of
-2026-09-28), so live sets `7`. **Both are your steps for now:** `deploy-live.sh`
-takes no dump (0132 T6 step 4 is yours, before it), and nothing deletes one, so
-delete each dump by its seventh day, whether or not a deploy followed. The
-automatic copy and its deletion are not built yet. A stack that keeps no copy
+copy may still hold a closing organisation's data. The alpha takes no backups,
+apart from one copy of live's databases made right before each update and kept
+until that update is proven, never longer than seven days (workplan 0134 open
+question 1 (b), and workplan 0139, the owner's answer rec-copies (a), both of
+2026-09-28), so live sets `7`. `deploy-live.sh` takes the copy
+(`copy-before-update.sh take`, *`ownpace-live`: a release tag, with
+`deploy-live.sh`*), you delete it once the update is proven
+(`./deploy/compose/copy-before-update.sh delete`), and the daily duties delete
+it once it is older than six days less an hour whatever happens (*Live's daily
+duties*), so it is never kept past its seventh day. A stack that keeps no copy
 at all sets `0`, and the sentence then names none; a blank reads as seven days
 whether or not a copy exists. With `OWNPACE_STAGE=alpha` the API refuses to
 start while it is blank, and the refusal names it. `stand-up-live.sh` refuses
@@ -2870,8 +2896,9 @@ No script can do these. The script checks each one before it changes anything.
    such a line. `BACKUP_RETENTION_DAYS=7` is the most days a dump of live's
    databases taken before a deploy is kept, which the erasure sentence names
    (workplan 0134 open question 1 (b)); the script refuses it empty, `0`, or
-   anything but a whole number above 0. Taking that dump and deleting it by its
-   seventh day are yours: nothing does either yet (§8g).
+   anything but a whole number above 0. `deploy-live.sh` takes that copy before
+   each update, and it is deleted once the update is proven, or after six days
+   less an hour by the daily duties (§8g; workplan 0139).
 
    **Mail goes through a real relay from the first day** (workplan 0133): live
    runs no catcher, and the sign-up's verification code is the first mail it
@@ -2987,7 +3014,7 @@ it says which and logs nothing; fix it and run it again with `--resume`.
    so `sudo loginctl enable-linger "$USER"`, then
    `systemctl --user enable --now ownpace-box-duties.timer`, one
    `systemctl --user start ownpace-box-duties.service`, and the journal: all
-   four duties pass.
+   six duties pass.
 4. **Rehearse the next deploy.** Open a hold on the support screen with a Dutch
    sentence, wait five minutes, then `./deploy/compose/deploy-live.sh --dry-run <tag>`:
    every refusal passes, it says reversible (the same tag), and nothing moves.
@@ -3007,18 +3034,23 @@ run replaces it in its last three, and past its deadline no successor can be
 minted), and `trigger-version.sh drill` dumps the Trigger.dev database and
 proves the dump loads. CI never touches live (workplan 0132 T1g), so live has
 [`box-duties.sh`](../deploy/compose/box-duties.sh), run once a day from
-`~/ownpace-live` by a systemd timer (0132 T7). It does five duties, each one
-whatever the one before it did:
+`~/ownpace-live` by a systemd timer (0132 T7). **The drill is not one of
+them:** it runs on the test stack only, in the gate (workplan 0139, the
+owner's answer rec-drill (a) of 2026-09-28). On live it kept a daily dump of
+the task runner's database, and live keeps one copy of its databases, made
+right before an update; `trigger-version.sh` refuses `drill` there. It does
+six duties, each one whatever the one before it did:
 
 | Duty | What it runs | What it does |
 |---|---|---|
 | `token` | `setup-zitadel.sh --token-only` | The token's clock and nothing else: no secrets generated, the provider not started or reconfigured. It writes `ZITADEL_PAT_EXPIRY`, as every run does. |
-| `drill` | `trigger-version.sh drill` | Dumps live's Trigger.dev database, restores it into a throwaway and compares. The dumps go to `~/.persistent/ownpace-live/trigger-backups` and are **secret-bearing** (the plane's API keys and the encrypted task environment); the script makes them readable by this account only. |
+| `copies` | `copy-before-update.sh expire` | The backstop of the copy made before an update (workplan 0139), in `~/.persistent/ownpace-live/copy-before-update`: deleted once it is older than six days less an hour, whether or not its update was proven, so it is never kept past day 7, even when this run starts late; a dump made there by hand goes by its own age. The run before the one that deletes it keeps it and fails the duty, saying to roll back from it today or to delete it (the operator runbook's *The copy before an update*). It reads no database. The copy is **secret-bearing** (testers' data, the provider's password hashes); the scripts make it readable by this account only. |
 | `exposure` | `exposure-check.sh` | Every port any container on the machine publishes, both stacks (0132 T3). Needs `EXPOSURE_ALLOW` in live's `.env`. |
 | `organisations` | `setup-zitadel.sh --count-organisations` | 0135 T3's count on live's identity provider, read-only. A count that is not one fails the duty. |
 | `site` | `www-live.sh check` | Read-only (0139 T10). Fails when a container of live's project has the compose service `www`, where a `www.yml` command without `-p` puts the site; and, when live's `.env` says `WWW_LIVE=true`, when `ownpace-live-www` is not running and healthy (*`www.ownpace.eu`: live's copy*). |
+| `strays` | `idp-strays.sh --remove --at-most 20` | Removes the sign-in accounts nobody let in, older than 30 days, as privacy §9 says (0135 T8; the runbook's *Sign-in accounts nobody let in*). More than 20 at once removes none and fails the duty: run `./deploy/compose/idp-strays.sh` from `~/ownpace-live` to see them, then `--remove` by hand if they are right. Its lines name an account's id, never its address. |
 
-It exits 0 when all five pass, 1 naming every duty that failed, and 2 when it
+It exits 0 when all six pass, 1 naming every duty that failed, and 2 when it
 refused before any duty: a `.env` without live's marker (the OTA stack's duties
 are the gate's), a project the reader refuses, or an argument. A duty that runs
 past 20 minutes (`BOX_DUTY_TIMEOUT`, in seconds) is a failed duty. Ctrl-C in a
@@ -3039,8 +3071,9 @@ and reaches Docker. Both are in
 
 ```ini
 # ownpace-box-duties.service — live's daily duties (workplan 0132 T7): the
-# provisioning token's clock, the Trigger.dev drill, the exposure check, the
-# organisation count and the site's (0139 T10). A user unit, started by
+# provisioning token's clock, the backstop of the copy before an update
+# (0139), the exposure check, the organisation count, the site's (0139 T10)
+# and the accounts nobody let in (0135 T8). A user unit, started by
 # ownpace-box-duties.timer; the install steps are in docs/managed-bring-up.md,
 # "Live's daily duties".
 [Unit]
@@ -3051,9 +3084,9 @@ Type=oneshot
 WorkingDirectory=%h/ownpace-live
 ExecStart=%h/ownpace-live/deploy/compose/box-duties.sh
 SyslogIdentifier=ownpace-box-duties
-# Five duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
+# Six duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
 # which failed.
-TimeoutStartSec=110min
+TimeoutStartSec=130min
 ```
 
 ```ini
@@ -3106,16 +3139,19 @@ journalctl --user -u ownpace-box-duties -n 200 --no-pager
 - **A run after a stop.** `Persistent=true` runs a missed day at the next
   start, which may fall inside the appliance nightly's hours; its dev
   Nextcloud then fails `exposure`, by name.
-- **A rollback after a Trigger.dev upgrade.** Once the timer runs, restore the
-  backup taken before the upgrade by its file name, never with `--latest`:
-  `trigger-version.sh restore ~/.persistent/ownpace-live/trigger-backups/triggerdb-<stamp>-before-<version>.sql.gz --yes`.
-  The webapp migrates its schema on boot, one way, so the first drill after
-  the upgrade dumps the migrated schema, and `--latest` is that dump. The drill
-  also keeps only the newest seven dumps (`TRIGGER_BACKUP_KEEP`), a labelled
-  one included, so seven days after the upgrade the `before-` backup is gone:
-  before the upgrade, copy it out of `trigger-backups/` with `cp -p` into a
-  directory only this account can read. It is as secret-bearing as the rest.
+- **A rollback after a Trigger.dev upgrade.** `deploy-live.sh` takes the
+  task runner's database into the copy before an update whose tag moves the
+  Trigger.dev pin (`copy-before-update.sh take --trigger`). Restore it from
+  there by its file name, as the operator runbook's *The copy before an
+  update* says:
+  `trigger-version.sh restore ~/.persistent/ownpace-live/copy-before-update/triggerdb-<stamp>-before-<tag>.sql.gz --yes`.
+  On live `trigger-version.sh` writes and reads that directory only, and the
+  copy's rules delete what is there.
 - **Turning it off:** `systemctl --user disable --now ownpace-box-duties.timer`.
+  Then nothing deletes the copy before an update, so `copy-before-update.sh
+  take` refuses and no deploy moves live until the timer is active again. A
+  copy already there stays until you delete it or the timer runs again:
+  delete it by its seventh day yourself (workplan 0134 T0).
 
 ## When it goes wrong
 
@@ -3217,23 +3253,48 @@ thing. One script moves it:
    in the checkout, and nothing is logged. With `WWW_LIVE=true` it does build
    one thing: the tag's site, from git's objects, in a directory of its own
    that it removes, to learn whether the deploy's own build would refuse it
-   (*`www.ownpace.eu`: live's copy*). **If it says one-way** and you want a
-   way back that is not a fix and a new tag, dump live's database now, with
-   the hold still on (the operator runbook's *Backup & restore*). Nothing
-   takes a dump for you.
-   First check that live's `BACKUP_RETENTION_DAYS` is N and not `0` (§8g).
-   Keep the dump until the next deploy succeeds and never longer than N days,
-   and nothing deletes it for you either: delete it by its N-th day, whether
-   or not a deploy followed (workplan 0134 T0 step 4).
+   (*`www.ownpace.eu`: live's copy*). It also asks `copy-before-update.sh take
+   --dry-run`, and refuses when the copy of an earlier update that is proven
+   is still there (delete that first, step 6), when a kept copy is on its last
+   day (the next daily run deletes it: prove its update and delete it, or roll
+   back from it), and when the daily duties' timer is not active (nothing
+   would delete the copy). **If it says one-way,** the way back that is not a
+   fix and a new tag is the copy the deploy takes.
 4. From `~/ownpace-live`:
 
    ```bash
    ./deploy/compose/deploy-live.sh <tag>
    ```
 
+   Right before its checkout it takes **the copy before the update**, into
+   `~/.persistent/ownpace-live/copy-before-update`: the app's database, the
+   sign-in service's database and the roles, and the task runner's database
+   when the tag moves the Trigger.dev pin, each read back (workplan 0139). A
+   copy whose update is not proven yet (a deploy that did not take, run
+   again) is kept instead, since it is of what ran before. No copy, no deploy:
+   without the daily duties' timer active, or with a kept copy the next daily
+   run deletes, it refuses before anything moves. A tag without
+   `deploy-live.sh`, `exposure-check.sh`, `box-duties.sh`, `stack-kind.sh` and
+   `copy-before-update.sh` is refused too, as `stand-up-live.sh` refuses it: live
+   would lose its daily duties and the copy's backstop.
 5. **Read what it printed, then lift the hold yourself.** The tick's next
    summary shows passes started, and one of your own migrations should complete
    a pass on the new tasks.
+6. **Delete the copy once the update is proven.** From `~/ownpace-live`:
+
+   ```bash
+   ./deploy/compose/copy-before-update.sh delete
+   ```
+
+   It refuses unless the last line `deploys.log` has since the copy was taken
+   says the deploy took (one that did not take after it leaves nothing
+   proven), the hold that covered it is lifted, and a pass that started after
+   it succeeded, each read from live's database. **Not proven by day 6: roll
+   back from the copy that day** (the operator runbook's *The copy before an
+   update*, which starts with `copy-before-update.sh since`, so that what
+   testers erased or deleted after the copy is erased and deleted again). The
+   daily duties delete it once it is older than six days less an hour
+   whatever happens, and fail the day before to remind you.
 
 What `deploy-live.sh` does, in order. It refuses, before the checkout or the
 stack changes, each with its own message: `--with-demo`; a `.env` without live's
@@ -3243,10 +3304,12 @@ marker (`STACK_KIND=production`, `stack-kind.sh`) or without `WEB_URL`;
 working tree that is not clean; a ref that is not a tag, a tag not on origin, a
 lightweight tag, a tag not named `v…`, and a tag whose commit's root
 `package.json` version is not the tag without its `v` (it names both, and says
-*"live runs releases: name a release tag"*); a database it cannot read; no open
-hold; a pass still in flight; a hold less than five minutes old, since a pass
-queued just before it is in no count until it starts; and a deploy log it cannot
-append to. Then it runs `git fetch --tags origin` and
+*"live runs releases: name a release tag"*); a tag without the five scripts
+live is deployed, checked and kept by (`release-tag.sh`'s list); a database it
+cannot read; no open hold; a pass still in flight; a hold less than five minutes old, since a pass
+queued just before it is in no count until it starts; a deploy log it cannot
+append to; and a copy before the update that `copy-before-update.sh take`
+could not take or refused. Then it runs `git fetch --tags origin` and
 `git checkout --detach <tag>`, `pnpm install --frozen-lockfile`, and
 `bootstrap-managed.sh --from data`, never with `--with-demo`; the bring-up
 builds the images with the tag's commit as `GIT_SHA`. Then the checks, at the
@@ -3267,12 +3330,13 @@ live's `.env` to every address any container on it is published on on purpose
 (*Checking every publish on the machine at once*, under *Which address a port
 answers on*), or it fails for each of them. And the tag must be cut from a
 commit that has `deploy/compose/exposure-check.sh`; the script runs the tag's
-own copy, and a tag without one cannot pass.
+own copy, and refuses a tag without one before anything moves.
 
 **`--dry-run`** runs everything up to the checkout (every refusal above, the tag
-fetch, and one-way or reversible, by the same comparison) and then stops, exit
-0: no checkout, no install, no bring-up, none of the checks after it, and no
-line in the deploy log, which it does not even create. With `WWW_LIVE=true`
+fetch, one-way or reversible, by the same comparison, and `copy-before-update.sh
+take --dry-run`, which writes nothing) and then stops, exit 0: no checkout, no
+copy, no install, no bring-up, none of the checks after it, and no line in the
+deploy log, which it does not even create. With `WWW_LIVE=true`
 the site's refusals are among those it runs, and so is their test build of the
 tag's site, in a directory of its own that it removes; nothing is built in the
 checkout. A refusal exits 1, as in the deploy. Step 3 above is what it is for.
@@ -3508,9 +3572,12 @@ the SDK alone, passed all seventeen checks and broke the managed gate.
 ./deploy/compose/trigger-version.sh restore --latest --yes   # DESTRUCTIVE rollback
 ```
 
-On a stack whose drill runs every day, `--latest` is the last drill's dump,
-taken after the upgrade migrated the schema: on live, restore the `before-`
-backup by its file name (*Live's daily duties*).
+On the OTA stack, whose drill runs every night, `--latest` is the last drill's
+dump, taken after the upgrade migrated the schema: restore the `before-` backup
+by its file name. On live there is no drill (workplan 0139): `backup`,
+`backups` and `restore` use the directory of the copy before an update, and the
+copy `deploy-live.sh` takes before a tag that moves the pin holds that dump
+(*Live's daily duties*).
 
 `list` probes the registry by manifest rather than reading its tag list: ghcr's
 `/tags/list` is neither newest-first nor complete in one page — with `n=1000`
@@ -3827,10 +3894,10 @@ then `up -d`. Every service reads them, so nothing in `managed.yml` is edited.
   database is not built.) A stack without backups sets
   `BACKUP_RETENTION_DAYS=0`, so the erasure sentence names none.
   `ownpace-live`, the stack testers use, takes none during the alpha and sets
-  `7`: its databases are dumped before each deploy and each dump is deleted
-  after at most seven days (workplan 0134 open question 1 (b)), both by hand
-  for now. `deploy-live.sh` takes no dump and nothing deletes one; the
-  automatic copy and its deletion are not built yet (§8g).
+  `7`: one copy of its databases is made right before each update, by
+  `deploy-live.sh`, and deleted once the update is proven, or after six days
+  less an hour by the daily duties (workplan 0134 open question 1 (b), workplan
+  0139; §8g).
   [Workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md)
   is that decision. It parks building the backups (its T5) until before the
   first paying customer, or the end of the alpha, whichever comes first.

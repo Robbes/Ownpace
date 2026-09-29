@@ -22,8 +22,7 @@ const en = {
   'notFound.heading': 'Nothing here.',
   'notFound.lede':
     'No screen has that address; renamed or never there, your migrations are untouched.',
-  'notFound.back': 'Back to the dashboard',
-  'nav.dashboard': 'Dashboard',
+  'notFound.back': 'Back to the start',
   'nav.mappings': 'Migrations',
   'nav.back': 'Back',
   'nav.menu': 'Menu',
@@ -34,7 +33,7 @@ const en = {
   'nav.check': 'Check',
   'nav.finish': 'Finish',
   'nav.log': 'Log',
-  'nav.tenants': 'Tenants',
+  'nav.tenants': 'Team',
   'nav.billing': 'Billing',
   'nav.signOut': 'Sign out',
   // "Report a problem" (workplan 0130): what the person writes, and what goes
@@ -45,18 +44,76 @@ const en = {
   'report.description': 'What happened?',
   'report.descriptionHint': 'What you were doing, what you expected, and what you saw instead.',
   'report.screenshot': 'Screenshot (optional)',
-  'report.screenshotHint': 'PNG or JPEG, up to 5 MB. It shows your screen: check it first.',
+  'report.screenshotHint':
+    'PNG or JPEG, up to 5 MB: choose one, drop it here, or paste it anywhere on this page. ' +
+    'It shows your screen: check it first.',
   'report.screenshotTooBig': 'That picture is larger than 5 MB.',
   'report.screenshotType': 'Choose a PNG or a JPEG.',
+  // How to make one, a closed fold under the field (the owner, 2026-09-28):
+  // one line for each kind of device, from each vendor's own help page, and
+  // what to look at before sending it. Print Screen copies the whole screen on
+  // Windows 10; on Windows 11 it opens the same snipping bar as Windows+Shift+S,
+  // unless its keyboard setting is turned off.
+  'report.screenshotHelp': 'How do I make a screenshot?',
+  'report.screenshotHelp.windows':
+    'Windows: press Windows+Shift+S, choose the part of the screen, then paste it here with Ctrl+V. ' +
+    'Or press Print Screen (on Windows 11 you get the same choice), then paste.',
+  'report.screenshotHelp.mac':
+    'Mac: press Shift+Command+4, drag over the part you want, then choose the picture from your desktop. ' +
+    'Or press Control+Shift+Command+4 to copy it instead, and paste it here with Command+V.',
+  'report.screenshotHelp.iphone':
+    'iPhone or iPad: press the side or top button and volume up at the same time (on a model with a ' +
+    'Home button: the side or top button and the Home button). Then choose the picture from Photos.',
+  'report.screenshotHelp.android':
+    'Android: press power and volume down at the same time, on most phones. Then choose the picture from your photos.',
+  'report.screenshotHelp.chromebook': 'Chromebook: press Ctrl+Show windows, then paste it here with Ctrl+V.',
+  'report.screenshotHelp.check':
+    'Before you send it, look at it: the picture shows everything that was on your screen, so check that ' +
+    'nothing on it is something you would rather not send.',
+  // What is attached, however it came: chosen, pasted or dropped.
+  'report.screenshotAttached': 'Attached: {name} ({size}).',
+  'report.screenshotRemove': 'Remove the screenshot',
+  // Only where the browser can read a picture from the clipboard.
+  'report.screenshotPaste': 'Paste screenshot',
+  'report.screenshotPasteEmpty':
+    'There is no picture on the clipboard. Make a screenshot first, then press Paste screenshot again.',
+  'report.screenshotPasteFailed':
+    'This browser could not read the clipboard. Paste with Ctrl+V instead, or with Command+V on a Mac.',
   'report.tooLarge': 'The screenshot is too large to send: choose a smaller one and send the report again.',
   'report.timedOut':
     'No answer came within {minutes} minutes, so this page cannot tell whether your report arrived. ' +
     'What you wrote is still here. If you send it again, a smaller screenshot goes faster.',
-  'report.sentWith': 'Sent with your report:',
+  // Where a report goes and what goes with it (workplan 0130 T6). The lines in
+  // the fold are the server's own, shown as they are sent, in English; these
+  // are the words around them. `report.facts.more` stands above those lines
+  // only; when they cannot be had, `report.facts.known` stands above what the
+  // form itself knows, in the reader's language.
+  'report.goesTo': 'Goes to the Ownpace support team.',
+  'report.goesTo.mail': 'Goes to the Ownpace support team, by email to {address}.',
+  'report.goesTo.helpdesk': "Goes to the Ownpace support team's helpdesk.",
+  'report.facts': 'What we send with this',
+  'report.facts.more':
+    'What you write, and your screenshot if you add one. With them go these lines, exactly as our support team reads them, in English:',
+  'report.facts.known': 'What you write, and your screenshot if you add one. With them go:',
+  'report.facts.reading': 'Looking up the rest…',
+  'report.facts.unshown':
+    'The rest could not be shown just now. When you send the report, we look it up again, and it goes with the report.',
   'report.page': 'the page you were on: {page}',
   'report.reference': 'the reference on your screen: {reference}',
   'report.category': 'the kind of error: {category}',
   'report.replyTo': 'Replies go to {email}.',
+  // What the browser says of itself (workplan 0130 T6, Part B), as the form
+  // lists it when the service's lines cannot be had. The server writes each
+  // as a line of its own, in English, when they can.
+  'report.browser.language': 'the language of this screen: English',
+  'report.browser.timeZone': 'your time zone: {timeZone}',
+  'report.browser.width': 'the width of this window: {width} pixels',
+  'report.browser.appBuild': "this page's version, {build}, if the service runs another",
+  'report.browser.dataType': 'the data type of the failure you came from: {dataType}',
+  'report.browser.side.source': 'that it happened on the source side',
+  'report.browser.side.target': 'that it happened on the destination side',
+  'report.browser.migration': 'the migration it belongs to: {migration}',
+  'report.browser.recentError': 'the reference of an error from the last {minutes} minutes: {reference} ({code})',
   'report.send': 'Send the report',
   'report.sending': 'Sending…',
   'report.sent': 'Sent. Your report is number {ticket}, and we will reply to {email}.',
@@ -152,6 +209,7 @@ const en = {
   'scope.migrates': 'Migrates',
   'scope.partial': 'Partial',
   'scope.doesNotMigrate': 'Does not migrate',
+  'scope.title': 'What migrates, and what does not',
   'login.title': 'Sign in to Ownpace',
   'login.tagline': 'Sovereign data migration for families and SMBs',
   'login.tokenLabel': 'Access token',
@@ -640,6 +698,19 @@ const en = {
     'The next pass tries {count} Paper doc(s) left behind so far again, in this format.',
   'settings.exportPolicy.paper.refusedBefore.why':
     'Under a format a Paper doc arrives under a new name (Notes.paper.md), so it is new to the migration. The next pass copies each one, and the line recorded under its old name closes by itself, because the doc is no longer listed by it. A doc Dropbox does not offer in this format stays on the Failures screen once, saying so. Saving changes nothing by itself: the pass does it. Other documents Dropbox keeps in a format of its own stay behind.',
+  // HOW OFTEN A MIGRATION SYNCS, changed on its own page (the owner,
+  // 2026-09-28). The four cadences are the wizard's own words.
+  'settings.schedule': 'Sync schedule',
+  'settings.schedule.default': 'Now: every 15 minutes, because this migration has no schedule of its own.',
+  'settings.schedule.own': 'Now: {schedule}, set outside this page.',
+  'settings.schedule.hint': 'A pass runs at most 50 minutes; the next follows the schedule.',
+  'settings.schedule.hint.why':
+    'A large first copy takes many passes. On a daily schedule it copies for 50 minutes a day. Hourly or every 15 minutes it copies with hardly a break, because a new pass never starts while one is still running.',
+  'settings.schedule.save': 'Save this schedule',
+  'settings.schedule.saving': 'Saving…',
+  'settings.schedule.saved': 'Saved. The next pass follows it.',
+  'settings.schedule.refused': 'This could not be changed:',
+  'settings.schedule.failed': 'That did not save:',
   // WHAT THIS MIGRATION COPIES, and what it may still gain (workplan 0125 T6).
   // Adding only: the page never offers to take a data type off.
   'settings.kinds': 'Data types this migration copies',
@@ -671,11 +742,11 @@ const en = {
   'settings.kinds.stop.failed': 'That did not change:',
   'wizard.step.migration': 'Migration',
   'wizard.testConnections.reused': 'Already saved; this only checks it still works.',
-  'wizard.connectionName': 'Connection name',
+  'wizard.connectionName': 'Name for this account',
   'wizard.connectionName.taken':
     'This name is already taken; it saves, but two alike are hard to tell apart.',
   'wizard.testConnections.kept':
-    'The details were kept: correct them and try again, or return later under Connections.',
+    'The details were kept: correct them and try again, or return later under Accounts.',
   'wizard.testConnections': 'Test and save connections',
   'wizard.testing': 'Testing…',
   'wizard.testConnections.hint': 'Signs in to both sides read-only and saves each side that works.',
@@ -731,6 +802,8 @@ const en = {
     'Pre-filled from {provider}’s published settings, read {seen}. Test checks them.',
   'wizard.useSsl': 'Use SSL/TLS',
   'wizard.migrationName': 'Migration Name',
+  'wizard.migrationName.placeholder': 'For example: Anna’s mail',
+  'wizard.progress': 'Progress',
   'wizard.credentials': 'Credentials',
   // WHAT THE STAR MEANS, said once (2026-09-07). Eight labels used to carry
   // "(optional)" and the rest carried nothing, which read as "these eight are
@@ -763,7 +836,7 @@ const en = {
   'wizard.schedule.daily': 'Daily',
   'wizard.schedule.daily.hint': 'Every day at 2 AM',
   'wizard.schedule.sixHourly': 'Every 6 hours',
-  'wizard.schedule.sixHourly.hint': 'Six times per day',
+  'wizard.schedule.sixHourly.hint': 'Four times a day',
   'wizard.schedule.quarterHourly': 'Every 15 minutes',
   'wizard.schedule.quarterHourly.hint': 'Frequent sync',
   'wizard.readyToCreate': 'Ready to create migration',
@@ -826,8 +899,6 @@ const en = {
   'billing.invoice': 'Invoice',
   'billing.period': 'Period:',
   'billing.paymentMethods': 'Payment Methods',
-  'dashboard.total': 'Total Migrations',
-  'dashboard.errorLoading': 'Error loading dashboard',
   // The channel's state, shown only when it is OFF (0043 T3). "On" is not worth
   // a banner; "off" is the state somebody has to act on, and until now it was
   // visible only in a container log line written once at boot.
@@ -835,24 +906,12 @@ const en = {
   'notifications.offHint':
     'Nobody is emailed when this migration needs a decision; configure SMTP to turn that on.',
   'notifications.offReason': 'Reason given by the server:',
-  'dashboard.recentActivity': 'Recent Activity',
-  'dashboard.noActivity': 'No activity yet',
-  'dashboard.noActivityHint': 'Create your first migration to start syncing data',
-  'dashboard.createMigration': 'Create Migration',
-  'dashboard.view': 'View →',
-  'dashboard.quickActions': 'Quick Actions',
-  'dashboard.newMigration': 'New Migration',
-  'dashboard.newMigrationHint': 'Create a new data migration',
-  'dashboard.viewAll': 'View All Migrations',
-  'dashboard.viewAllHint': 'Manage your migrations',
-  'dashboard.team': 'Team',
-  'dashboard.teamHint': 'Manage who has access',
   'mappings.title': 'Migrations',
   'mappings.subtitle': 'Manage your data migration configurations',
-  'mappings.new': 'New Migration',
+  'mappings.new': 'Start a migration',
   'mappings.empty.title': 'No migrations yet',
-  'mappings.empty.hint': 'Create your first migration to start syncing data between systems',
-  'mappings.empty.cta': 'Create Your First Migration',
+  'mappings.empty.hint': 'Start one: who it is for, where from, what, and where to.',
+  'mappings.empty.cta': 'Start a migration',
   'mappings.th.name': 'Name',
   'mappings.th.sourceTarget': 'Source → Target',
   'mappings.th.status': 'Status',
@@ -1173,7 +1232,8 @@ const en = {
   'linkReport.description': 'What makes you doubt this link?',
   'linkReport.replyTo': 'Your email address (optional)',
   'linkReport.replyTo.hint': 'Only if you want an answer; we use it for nothing else.',
-  'linkReport.sentWith': 'Sent with it: which link this is, so we can find who sent it.',
+  'linkReport.sentWith':
+    'Sent with it, from our records: which link this is; the organisation and the migration it belongs to, with the state of the migration; the address of whoever made the link; the account the migration copies from and the account it copies to; and whether you have given access.',
   'linkReport.send': 'Send the report',
   'linkReport.sending': 'Sending…',
   'linkReport.sent': 'Sent. Your report is number {ticket}, and we will reply to {email}.',
@@ -1313,12 +1373,63 @@ const en = {
   'mappings.loadFailedNotEmpty':
     'Not the same as having no migrations; some may exist that could not be read.',
   'mappings.syncFailed': 'The sync request did not complete.',
+  // The people being moved (ADR-0050, 0153 T3). A person on screen is their
+  // name; the grouping has no noun (D6). "Needs you" is the approved family
+  // (0153 T6 (b)).
+  'people.count.one': '1 person',
+  'people.count.many': '{n} people',
+  'people.needYou.one': '1 needs you',
+  'people.needYou.many': '{n} need you',
+  'people.fromTo': 'From {from} to {to}',
+  'people.needsYou': 'Needs you: {n}',
+  'people.needsUnknown': 'Could not count what needs you.',
+  'people.implicit': 'Your migrations',
+  'people.addMigration': 'Add a migration',
+  'people.noneYet': 'Nothing for this person yet.',
+  'people.lastPass': 'Last pass {when}',
+  'people.noPassYet': 'No pass yet',
+  'people.loadFailed': 'Could not load who each migration is for.',
+  'people.unassigned.title': 'Not with a person yet',
+  'people.unassigned.hint': 'Add each to the person it is for; it joins their card.',
+  'people.addTo': 'Add to',
+  'people.addTo.submit': 'Add',
+  'people.addTo.failed': 'The migration was not added.',
+  'people.notAdded': 'The migration was made, but not added to the person.',
+  'people.notAdded.where': 'Migrations lists it under Not with a person yet, where one press adds it.',
+  'people.new.title': 'Add a person',
+  'people.new.name': 'Name',
+  'people.new.email': 'Email address, for a grant link (optional)',
+  'people.new.submit': 'Add person',
+  'people.new.failed': 'The person was not added.',
+  // A person's page (0153 T5): their migrations, and the steps before they
+  // switch as one list (0154 T4). The steps keep the hub's names (hub.*).
+  'person.back': '← Migrations',
+  'person.notFound': 'There is no such person here.',
+  'person.loadFailed': 'Could not load this person.',
+  'person.details': 'Details',
+  'person.steps.title': 'Before you switch',
+  'person.steps.hint': 'Each step, summed across this person’s migrations.',
+  'person.state.done': 'Done',
+  'person.state.needsYou': 'Needs you',
+  'person.state.notYet': 'Not yet',
+  'person.step.none': 'None',
+  'person.step.unread': 'Could not be read',
+  // A migration's own link under a queue's step, when its count could not be read.
+  'person.step.linkUnread': '{name} (could not be read)',
+  'person.step.deletions': '{n} to decide',
+  'person.step.moves': '{n} reported',
+  'person.step.failures.one': '1 could not be copied',
+  'person.step.failures.many': '{n} could not be copied',
+  'person.step.sharing': '{n} to go through',
+  'person.step.check.passed': 'Passed',
+  'person.step.check.partly': 'Passed for {n} of {total}',
+  'person.step.check.notYet': 'Not passed yet',
+  'person.step.confirmed.notYet': 'After the check',
+  'person.step.confirmed.done': 'Ready to read',
+  'person.step.finish.notYet': 'Switch mail delivery, then end',
+  'person.step.finish.done': 'Finished',
   'createMapping.createFailed':
     'Not created; your entries are still here, so fix what the message names and retry.',
-  'dashboard.runsReadFailed': 'Could not read the run history:',
-  'dashboard.noRunsYet': 'No passes yet',
-  'dashboard.runItems': 'items',
-  'dashboard.runErrors': 'errors',
   'billing.usageLoadFailed': 'Could not load the usage numbers.',
   'billing.pay': 'Pay',
   'billing.payFailed': 'The payment could not be started.',
@@ -1385,6 +1496,12 @@ const en = {
   // it does (`ConfirmMigration.tsx`); nothing else here is there to press.
   'confirm.countError': 'Counting did not start:',
   'confirm.countAgain': 'This screen counts again by itself once copying resumes.',
+  // Start waits for the count it would be pressed on, fifteen minutes at most
+  // (the owner, 2026-09-28), and then opens without it, saying so
+  // (`ConfirmMigration.tsx`, `stillCounting`).
+  'confirm.startWaits': 'You can start once the count is in, or after 15 minutes at most.',
+  'confirm.countUnfinished':
+    'The count did not finish within 15 minutes. You can start anyway: anything that cannot be copied is listed on the migration’s page once it is found.',
   // The manifest that could not be read (0153 T1 (a)): the reason follows,
   // verbatim, so this is the frame and not the finding.
   'confirm.manifestError': 'The list of what migrates could not be read:',
@@ -1409,7 +1526,7 @@ const en = {
   // Reconnect), so the sentence leaves the choice to the row and says nothing
   // about passwords.
   'failure.authExpired':
-    'The connection to this account has expired. On the Connections page, press Reconnect or Replace credentials, whichever its row shows, and this will carry on from where it stopped \u2014 nothing is lost.',
+    'The connection to this account has expired. On the Accounts page, press Reconnect or Replace credentials, whichever its row shows, and this will carry on from where it stopped \u2014 nothing is lost.',
   'failure.rateLimited':
     'The provider asked us to slow down. Nothing is wrong: this pauses and resumes on its own.',
   'failure.quotaExceeded':
@@ -2060,8 +2177,8 @@ const en = {
   'memberStatus.invited': 'Invited',
   'memberStatus.suspended': 'Suspended',
   'memberStatus.removed': 'Removed',
-  'nav.decisions': 'Attention',
-  'attention.title': 'What needs you',
+  'nav.decisions': 'Needs you',
+  'attention.title': 'Per migration',
   'attention.intro': 'One line per migration, and a link to each thing waiting.',
   'attention.empty': 'Nothing is waiting. Every migration is running by itself.',
   'attention.emptyNoneRunning': 'Nothing is waiting, and no migration is running.',
@@ -2121,7 +2238,8 @@ const en = {
     'Distribution lists are recreated on the target by hand; no target offers a way.',
   'sharedAddresses.runbook.download': 'Get the step-by-step list',
   'sharedAddresses.runbook.failed': 'The steps could not be fetched.',
-  'decisions.title': 'Needs a decision',
+  'decisions.title': 'Needs you',
+  'decisions.waiting': 'Needs a decision',
   'decisions.intro':
     'Changes the sync noticed that only you can decide about. Nothing happens until you answer.',
   'decisions.readError': 'Could not read the decision queue.',
@@ -2151,9 +2269,12 @@ const en = {
   'decisionStatus.resolved': 'Decided',
   'decisionStatus.auto_resolved': 'Decided by preset',
   'decisionStatus.dismissed': 'Dismissed',
-  'nav.connections': 'Connections',
+  'nav.connections': 'Accounts',
   'nav.setup': 'Setup checklist',
   'nav.docs': 'Setup guides',
+  'nav.help': 'Help',
+  'nav.needsYou.count.one': '1 waiting on you',
+  'nav.needsYou.count.many': '{n} waiting on you',
   'wizard.reuseSource': 'Reuse a saved source connection',
   'wizard.reuseTarget': 'Reuse a saved target connection',
   'wizard.reuseNone': 'Enter new credentials',
@@ -2205,15 +2326,15 @@ const en = {
   'connections.rotate.why':
     'If the check fails, nothing changes and your migrations keep whatever was working.',
   'connections.rotate.save': 'Check and replace',
-  'connections.add': 'Add a connection',
+  'connections.add': 'Add an account',
   'connections.addAndTest': 'Add and test',
   'connections.added': 'Added',
   'connections.role': 'Source or target?',
   'connections.type': 'Provider',
-  'connections.name': 'Connection name',
-  'connections.title': 'Connections',
+  'connections.name': 'Name for this account',
+  'connections.title': 'Accounts',
   'connections.intro': 'The accounts your migrations sign in with. Test checks them read-only.',
-  'connections.none': 'No connections yet. Creating your first migration adds them.',
+  'connections.none': 'No accounts yet. Starting your first migration adds them.',
   'connections.sources': 'Sources',
   'connections.targets': 'Targets',
   'connections.test': 'Test',
@@ -2234,7 +2355,7 @@ const en = {
   'connections.standing.whichSide':
     'Signs in with this and one other connection; Test this one to find out which.',
   // And when the pass could tell (second slice): no guessing left to do.
-  'connections.standing.thisSide': 'It failed on this connection.',
+  'connections.standing.thisSide': 'It failed on this account.',
   // What a probe FOUND, rendered from its outcome code (workplan 0080).
   // Ours, so translated; the provider's own refusal is never in here — it
   // renders verbatim, because that string is what you paste into their
@@ -2365,7 +2486,7 @@ const en = {
   'setup.intro':
     'Steps to take in the provider’s console; ticks are saved for your whole organisation.',
   'setup.backToWizard': '← Back to the wizard',
-  'setup.backToConnections': '← Back to connections',
+  'setup.backToConnections': '← Back to accounts',
   'setup.fullGuide': 'Read the full setup guide',
   'setup.settled': 'settled',
   'setup.stillOpen': 'still to do',
@@ -2567,8 +2688,7 @@ const nl: Record<keyof typeof en, string> = {
   'notFound.heading': 'Hier staat niets.',
   'notFound.lede':
     'Geen scherm heeft dit adres; hernoemd of nooit bestaan, uw migraties zijn ongemoeid.',
-  'notFound.back': 'Terug naar het overzicht',
-  'nav.dashboard': 'Overzicht',
+  'notFound.back': 'Terug naar het begin',
   'nav.mappings': 'Migraties',
   'nav.back': 'Terug',
   'nav.menu': 'Menu',
@@ -2579,7 +2699,7 @@ const nl: Record<keyof typeof en, string> = {
   'nav.check': 'Verificatie',
   'nav.finish': 'Afronden',
   'nav.log': 'Logboek',
-  'nav.tenants': 'Organisaties',
+  'nav.tenants': 'Team',
   'nav.billing': 'Facturering',
   'nav.signOut': 'Uitloggen',
   'nav.reportProblem': 'Een probleem melden',
@@ -2588,18 +2708,61 @@ const nl: Record<keyof typeof en, string> = {
   'report.description': 'Wat gebeurde er?',
   'report.descriptionHint': 'Wat u deed, wat u verwachtte, en wat u in plaats daarvan zag.',
   'report.screenshot': 'Schermafbeelding (optioneel)',
-  'report.screenshotHint': 'PNG of JPEG, tot 5 MB. Hij toont uw scherm: bekijk hem eerst.',
+  'report.screenshotHint':
+    'PNG of JPEG, tot 5 MB: kies er een, sleep hem hierheen of plak hem ergens op deze pagina. ' +
+    'Hij toont uw scherm: bekijk hem eerst.',
   'report.screenshotTooBig': 'Die afbeelding is groter dan 5 MB.',
   'report.screenshotType': 'Kies een PNG of een JPEG.',
+  'report.screenshotHelp': 'Hoe maak ik een schermafbeelding?',
+  'report.screenshotHelp.windows':
+    'Windows: druk op Windows+Shift+S, kies het deel van het scherm en plak hem hier met Ctrl+V. ' +
+    'Of druk op Print Screen (in Windows 11 krijgt u dan dezelfde keuze) en plak hem daarna.',
+  'report.screenshotHelp.mac':
+    'Mac: druk op Shift+Command+4, sleep over het deel dat u wilt en kies de afbeelding daarna op uw bureaublad. ' +
+    'Of druk op Control+Shift+Command+4 om hem te kopiëren, en plak hem hier met Command+V.',
+  'report.screenshotHelp.iphone':
+    'iPhone of iPad: druk tegelijk op de zij- of bovenknop en volume omhoog (op een model met een ' +
+    "thuisknop: de zij- of bovenknop en de thuisknop). Kies de afbeelding daarna in Foto's.",
+  'report.screenshotHelp.android':
+    "Android: druk tegelijk op de aan/uit-knop en volume omlaag, op de meeste telefoons. Kies de afbeelding daarna uit uw foto's.",
+  'report.screenshotHelp.chromebook': 'Chromebook: druk op Ctrl+Vensters weergeven en plak hem hier met Ctrl+V.',
+  'report.screenshotHelp.check':
+    'Bekijk hem voordat u hem verstuurt: de afbeelding toont alles wat er op uw scherm stond, dus kijk of ' +
+    'er niets op staat wat u liever niet meestuurt.',
+  'report.screenshotAttached': 'Bijgevoegd: {name} ({size}).',
+  'report.screenshotRemove': 'Schermafbeelding verwijderen',
+  'report.screenshotPaste': 'Schermafbeelding plakken',
+  'report.screenshotPasteEmpty':
+    'Er staat geen afbeelding op het klembord. Maak eerst een schermafbeelding en druk dan opnieuw op Schermafbeelding plakken.',
+  'report.screenshotPasteFailed':
+    'Deze browser kon het klembord niet lezen. Plak dan met Ctrl+V, of met Command+V op een Mac.',
   'report.tooLarge': 'De schermafbeelding is te groot om te versturen: kies een kleinere en verstuur de melding opnieuw.',
   'report.timedOut':
     'Binnen {minutes} minuten kwam er geen antwoord, dus deze pagina weet niet of uw melding is aangekomen. ' +
     'Wat u schreef staat er nog. Verstuurt u de melding opnieuw, dan gaat een kleinere schermafbeelding sneller.',
-  'report.sentWith': 'Wordt met uw melding meegestuurd:',
+  'report.goesTo': 'Gaat naar het supportteam van Ownpace.',
+  'report.goesTo.mail': 'Gaat naar het supportteam van Ownpace, per e-mail naar {address}.',
+  'report.goesTo.helpdesk': 'Gaat naar de helpdesk van het supportteam van Ownpace.',
+  'report.facts': 'Wat we meesturen',
+  'report.facts.more':
+    'Wat u schrijft, en uw schermafbeelding als u die toevoegt. Daarbij gaan deze regels mee, precies zoals ons supportteam ze leest, in het Engels:',
+  'report.facts.known': 'Wat u schrijft, en uw schermafbeelding als u die toevoegt. Daarbij gaan mee:',
+  'report.facts.reading': 'De rest zoeken we op…',
+  'report.facts.unshown':
+    'De rest kon nu niet worden getoond. Als u de melding verstuurt, zoeken we die opnieuw op, en die gaat met de melding mee.',
   'report.page': 'de pagina waarop u was: {page}',
   'report.reference': 'de referentie op uw scherm: {reference}',
   'report.category': 'het soort fout: {category}',
   'report.replyTo': 'Antwoorden gaan naar {email}.',
+  'report.browser.language': 'de taal van dit scherm: Nederlands',
+  'report.browser.timeZone': 'uw tijdzone: {timeZone}',
+  'report.browser.width': 'de breedte van dit venster: {width} pixels',
+  'report.browser.appBuild': 'de versie van deze pagina, {build}, als de dienst een andere draait',
+  'report.browser.dataType': 'het gegevenstype van de fout waar u vandaan kwam: {dataType}',
+  'report.browser.side.source': 'dat het aan de bronkant gebeurde',
+  'report.browser.side.target': 'dat het aan de doelkant gebeurde',
+  'report.browser.migration': 'de migratie waar die bij hoort: {migration}',
+  'report.browser.recentError': 'de referentie van een fout uit de afgelopen {minutes} minuten: {reference} ({code})',
   'report.send': 'Melding versturen',
   'report.sending': 'Versturen…',
   'report.sent': 'Verstuurd. Uw melding heeft nummer {ticket}, en we antwoorden naar {email}.',
@@ -2610,7 +2773,7 @@ const nl: Record<keyof typeof en, string> = {
   'asof.updated': 'Bijgewerkt',
   'asof.refresh': 'Vernieuwen',
   'failure.authExpired':
-    'De verbinding met dit account is verlopen. Druk op de pagina Verbindingen op Opnieuw verbinden of Inloggegevens vervangen, welke van de twee er bij dit account staat; daarna gaat dit verder waar het gestopt is \u2014 er gaat niets verloren.',
+    'De verbinding met dit account is verlopen. Druk op de pagina Accounts op Opnieuw verbinden of Inloggegevens vervangen, welke van de twee er bij dit account staat; daarna gaat dit verder waar het gestopt is \u2014 er gaat niets verloren.',
   'failure.rateLimited':
     'De provider vroeg ons om rustiger aan te doen. Er is niets mis: dit pauzeert en hervat vanzelf.',
   'failure.quotaExceeded':
@@ -2861,6 +3024,7 @@ const nl: Record<keyof typeof en, string> = {
   'scope.migrates': 'Migreert',
   'scope.partial': 'Gedeeltelijk',
   'scope.doesNotMigrate': 'Migreert niet',
+  'scope.title': 'Wat migreert, en wat niet',
   'login.title': 'Aanmelden bij Ownpace',
   'login.tagline': 'Soevereine datamigratie voor gezinnen en mkb',
   'login.tokenLabel': 'Toegangstoken',
@@ -3139,6 +3303,17 @@ const nl: Record<keyof typeof en, string> = {
     'De volgende ronde probeert {count} Paper-document(en) die tot nu toe bleven staan opnieuw, in dit formaat.',
   'settings.exportPolicy.paper.refusedBefore.why':
     'Onder een formaat komt een Paper-document aan onder een nieuwe naam (Notities.paper.md), dus het is nieuw voor de migratie. De volgende ronde kopieert elk document, en de regel die onder de oude naam is vastgelegd, sluit vanzelf, omdat het document niet meer onder die naam voorkomt. Een document dat Dropbox niet in dit formaat aanbiedt, staat één keer bij Mislukkingen, met die reden. Opslaan verandert zelf niets: de ronde doet het. Andere documenten die Dropbox in een eigen formaat bewaart, blijven staan.',
+  'settings.schedule': 'Synchronisatieschema',
+  'settings.schedule.default': 'Nu: elk kwartier, omdat deze migratie geen eigen schema heeft.',
+  'settings.schedule.own': 'Nu: {schedule}, buiten deze pagina ingesteld.',
+  'settings.schedule.hint': 'Een ronde duurt hoogstens 50 minuten; de volgende volgt het schema.',
+  'settings.schedule.hint.why':
+    'Een grote eerste kopie kost veel rondes. Met een dagelijks schema wordt er 50 minuten per dag gekopieerd. Met elk uur of elk kwartier gaat het kopiëren vrijwel zonder pauze door, omdat een nieuwe ronde nooit start terwijl er nog een loopt.',
+  'settings.schedule.save': 'Dit schema opslaan',
+  'settings.schedule.saving': 'Opslaan…',
+  'settings.schedule.saved': 'Opgeslagen. De volgende ronde volgt het.',
+  'settings.schedule.refused': 'Dit kon niet worden gewijzigd:',
+  'settings.schedule.failed': 'Dat is niet opgeslagen:',
   'settings.kinds': 'Gegevenstypen die deze migratie kopieert',
   'settings.kinds.add': '{kind} toevoegen',
   'settings.kinds.adding': 'Toevoegen…',
@@ -3211,11 +3386,11 @@ const nl: Record<keyof typeof en, string> = {
     'Een export is een weergave die Dropbox maakt, niet het Paper-document zelf: fijne opmaak kan verschuiven, en wat u op het nieuwe systeem wijzigt, gaat niet terug naar Dropbox. U kunt het formaat later wijzigen; al gekopieerde documenten houden het formaat waarin ze aankwamen.',
   'wizard.step.migration': 'Migratie',
   'wizard.testConnections.reused': 'Al bewaard; dit controleert alleen of hij nog werkt.',
-  'wizard.connectionName': 'Naam van de verbinding',
+  'wizard.connectionName': 'Naam voor dit account',
   'wizard.connectionName.taken':
     'Deze naam bestaat al; hij wordt bewaard, maar twee gelijke namen zijn lastig te onderscheiden.',
   'wizard.testConnections.kept':
-    'De gegevens zijn bewaard: corrigeer ze en probeer opnieuw, of kom later terug via Verbindingen.',
+    'De gegevens zijn bewaard: corrigeer ze en probeer opnieuw, of kom later terug via Accounts.',
   'wizard.testConnections': 'Verbindingen testen en bewaren',
   'wizard.testing': 'Testen…',
   'wizard.testConnections.hint':
@@ -3258,6 +3433,8 @@ const nl: Record<keyof typeof en, string> = {
     'Vooraf ingevuld met de gepubliceerde instellingen van {provider}, gelezen op {seen}. Test controleert ze.',
   'wizard.useSsl': 'SSL/TLS gebruiken',
   'wizard.migrationName': 'Naam van de migratie',
+  'wizard.migrationName.placeholder': 'Bijvoorbeeld: mail van Anna',
+  'wizard.progress': 'Voortgang',
   'wizard.credentials': 'Inloggegevens',
   'form.requiredLegend': 'Velden met * zijn verplicht.',
   'wizard.sourceUsername': 'Gebruikersnaam',
@@ -3278,7 +3455,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.schedule.daily': 'Dagelijks',
   'wizard.schedule.daily.hint': 'Elke dag om 02:00',
   'wizard.schedule.sixHourly': 'Elke 6 uur',
-  'wizard.schedule.sixHourly.hint': 'Zes keer per dag',
+  'wizard.schedule.sixHourly.hint': 'Vier keer per dag',
   'wizard.schedule.quarterHourly': 'Elk kwartier',
   'wizard.schedule.quarterHourly.hint': 'Frequente synchronisatie',
   'wizard.readyToCreate': 'Klaar om de migratie aan te maken',
@@ -3321,11 +3498,11 @@ const nl: Record<keyof typeof en, string> = {
   'billing.tierSetup': 'inrichting',
   'billing.tierPerMonth': 'per maand',
   'billing.tierFree': 'Gratis: op dit pakket wordt niets gefactureerd',
-  'billing.tierDecidedByPaths': 'Bepaald door hoeveel verhuizingen tegelijk liepen.',
+  'billing.tierDecidedByPaths': 'Bepaald door hoeveel migraties tegelijk liepen.',
   'billing.tierDecidedByData': 'Bepaald door hoeveel gegevens er verplaatst zijn.',
   'billing.tierDecidedByBoth':
     'Bepaald door zowel wat er tegelijk liep als hoeveel er verplaatst is.',
-  'billing.tierPeakPaths': 'Meeste verhuizingen tegelijk',
+  'billing.tierPeakPaths': 'Meeste migraties tegelijk',
   'billing.tierDataMoved': 'Verplaatst, alle maanden',
   'billing.tierBeyondTable':
     'Voorbij de gepubliceerde tabel — neem contact op, dan prijzen we het goed.',
@@ -3335,30 +3512,16 @@ const nl: Record<keyof typeof en, string> = {
   'billing.invoice': 'Factuur',
   'billing.period': 'Periode:',
   'billing.paymentMethods': 'Betaalmethoden',
-  'dashboard.total': 'Totaal migraties',
-  'dashboard.errorLoading': 'Het dashboard kon niet worden geladen',
   'notifications.off': 'E-mailmeldingen staan uit',
   'notifications.offHint':
     'Niemand wordt gemaild als deze migratie een beslissing nodig heeft; stel SMTP in.',
   'notifications.offReason': 'Reden van de server:',
-  'dashboard.recentActivity': 'Recente activiteit',
-  'dashboard.noActivity': 'Nog geen activiteit',
-  'dashboard.noActivityHint': 'Maak uw eerste migratie aan om gegevens te synchroniseren',
-  'dashboard.createMigration': 'Migratie aanmaken',
-  'dashboard.view': 'Bekijken →',
-  'dashboard.quickActions': 'Snelle acties',
-  'dashboard.newMigration': 'Nieuwe migratie',
-  'dashboard.newMigrationHint': 'Maak een nieuwe datamigratie aan',
-  'dashboard.viewAll': 'Alle migraties bekijken',
-  'dashboard.viewAllHint': 'Beheer uw migraties',
-  'dashboard.team': 'Team',
-  'dashboard.teamHint': 'Beheer wie toegang heeft',
   'mappings.title': 'Migraties',
   'mappings.subtitle': 'Beheer uw datamigratieconfiguraties',
-  'mappings.new': 'Nieuwe migratie',
+  'mappings.new': 'Migratie starten',
   'mappings.empty.title': 'Nog geen migraties',
-  'mappings.empty.hint': 'Maak uw eerste migratie aan om gegevens tussen systemen te synchroniseren',
-  'mappings.empty.cta': 'Maak uw eerste migratie aan',
+  'mappings.empty.hint': 'Start er een: voor wie, van waar, wat en waarheen.',
+  'mappings.empty.cta': 'Migratie starten',
   'mappings.th.name': 'Naam',
   'mappings.th.sourceTarget': 'Bron → Doel',
   'mappings.th.status': 'Status',
@@ -3529,7 +3692,7 @@ const nl: Record<keyof typeof en, string> = {
   'viewLink.expiredNudge': 'Hun pagina werkt niet meer. Maak een nieuwe als zij hem nog nodig hebben.',
   'grant.title': 'Verbind uw account',
   'grant.loading': 'Een moment…',
-  'grant.asking': '{organisation} verhuist uw account naar een nieuwe provider en heeft uw toestemming nodig om te lezen wat erin zit.',
+  'grant.asking': '{organisation} migreert uw account naar een nieuwe provider en heeft uw toestemming nodig om te lezen wat erin zit.',
   'grant.reads': 'U staat op het punt toegang te geven tot {reads}.',
   'grant.reads.email': 'uw e-mail: berichten, mappen en labels',
   'grant.reads.calendar': 'uw agenda’s en de afspraken erin',
@@ -3565,7 +3728,7 @@ const nl: Record<keyof typeof en, string> = {
     'Er ging iets mis op deze pagina. Probeer het later opnieuw; blijft het misgaan, laat het dan de persoon weten die u de link stuurde.',
   'view.title': 'Uw migratie',
   'view.loading': 'Een moment…',
-  'view.who': '{organisation} verhuist uw account naar een nieuwe provider.',
+  'view.who': '{organisation} migreert uw account naar een nieuwe provider.',
   'view.state.active': 'Uw spullen worden nu overgezet.',
   'view.state.paused': 'Het kopiëren ligt op dit moment stil.',
   'view.state.cutover': 'Uw nieuwe account is nu het account in gebruik.',
@@ -3622,7 +3785,8 @@ const nl: Record<keyof typeof en, string> = {
   'linkReport.description': 'Waarom twijfelt u aan deze link?',
   'linkReport.replyTo': 'Uw e-mailadres (niet verplicht)',
   'linkReport.replyTo.hint': 'Alleen als u antwoord wilt; we gebruiken het nergens anders voor.',
-  'linkReport.sentWith': 'Meegestuurd: welke link dit is, zodat we de afzender kunnen vinden.',
+  'linkReport.sentWith':
+    'Meegestuurd, uit onze gegevens: welke link dit is; de organisatie en de migratie waar hij bij hoort, met de stand van de migratie; het adres van wie de link heeft gemaakt; het account waaruit de migratie kopieert en het account waarnaar; en of u toegang hebt gegeven.',
   'linkReport.send': 'Melding versturen',
   'linkReport.sending': 'Versturen…',
   'linkReport.sent': 'Verstuurd. Uw melding heeft nummer {ticket}, en we antwoorden naar {email}.',
@@ -3745,12 +3909,57 @@ const nl: Record<keyof typeof en, string> = {
   'mappings.loadFailedNotEmpty':
     'Niet hetzelfde als geen migraties; er kunnen er bestaan die niet gelezen konden worden.',
   'mappings.syncFailed': 'Het synchronisatieverzoek is niet voltooid.',
+  'people.count.one': '1 persoon',
+  'people.count.many': '{n} personen',
+  'people.needYou.one': '1 wacht op u',
+  'people.needYou.many': '{n} wachten op u',
+  'people.fromTo': 'Van {from} naar {to}',
+  'people.needsYou': 'Wacht op u: {n}',
+  'people.needsUnknown': 'Kon niet tellen wat op u wacht.',
+  'people.implicit': 'Uw migraties',
+  'people.addMigration': 'Migratie toevoegen',
+  'people.noneYet': 'Nog niets voor deze persoon.',
+  'people.lastPass': 'Laatste ronde {when}',
+  'people.noPassYet': 'Nog geen ronde',
+  'people.loadFailed': 'Kon niet laden bij wie elke migratie hoort.',
+  'people.unassigned.title': 'Nog niet bij een persoon',
+  'people.unassigned.hint': 'Voeg elke migratie toe aan de persoon voor wie ze is.',
+  'people.addTo': 'Toevoegen aan',
+  'people.addTo.submit': 'Toevoegen',
+  'people.addTo.failed': 'De migratie is niet toegevoegd.',
+  'people.notAdded': 'De migratie is gemaakt, maar niet aan de persoon toegevoegd.',
+  'people.notAdded.where': 'Migraties toont haar onder Nog niet bij een persoon, waar één klik haar toevoegt.',
+  'people.new.title': 'Persoon toevoegen',
+  'people.new.name': 'Naam',
+  'people.new.email': 'E-mailadres, voor een toegangslink (optioneel)',
+  'people.new.submit': 'Persoon toevoegen',
+  'people.new.failed': 'De persoon is niet toegevoegd.',
+  'person.back': '← Migraties',
+  'person.notFound': 'Deze persoon bestaat hier niet.',
+  'person.loadFailed': 'Kon deze persoon niet laden.',
+  'person.details': 'Details',
+  'person.steps.title': 'Voordat u overstapt',
+  'person.steps.hint': 'Elke stap, opgeteld over de migraties van deze persoon.',
+  'person.state.done': 'Klaar',
+  'person.state.needsYou': 'Wacht op u',
+  'person.state.notYet': 'Nog niet',
+  'person.step.none': 'Geen',
+  'person.step.unread': 'Kon niet worden gelezen',
+  'person.step.linkUnread': '{name} (kon niet worden gelezen)',
+  'person.step.deletions': '{n} om te beslissen',
+  'person.step.moves': '{n} gemeld',
+  'person.step.failures.one': '1 kon niet worden gekopieerd',
+  'person.step.failures.many': '{n} konden niet worden gekopieerd',
+  'person.step.sharing': '{n} om door te lopen',
+  'person.step.check.passed': 'Geslaagd',
+  'person.step.check.partly': 'Geslaagd voor {n} van {total}',
+  'person.step.check.notYet': 'Nog niet geslaagd',
+  'person.step.confirmed.notYet': 'Na de verificatie',
+  'person.step.confirmed.done': 'Klaar om te lezen',
+  'person.step.finish.notYet': 'Zet de e-mailbezorging om en rond dan af',
+  'person.step.finish.done': 'Afgerond',
   'createMapping.createFailed':
     'Niet aangemaakt; uw invoer staat er nog. Herstel wat de melding noemt en probeer opnieuw.',
-  'dashboard.runsReadFailed': 'De uitvoeringsgeschiedenis kon niet worden gelezen:',
-  'dashboard.noRunsYet': 'Nog geen rondes',
-  'dashboard.runItems': 'items',
-  'dashboard.runErrors': 'fouten',
   'billing.usageLoadFailed': 'De verbruikscijfers konden niet worden geladen.',
   'billing.pay': 'Betalen',
   'billing.payFailed': 'De betaling kon niet worden gestart.',
@@ -3814,6 +4023,9 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.startErrorFallback': 'het verzoek is mislukt',
   'confirm.countError': 'Het tellen is niet gestart:',
   'confirm.countAgain': 'Dit scherm telt vanzelf opnieuw zodra het kopiëren weer begint.',
+  'confirm.startWaits': 'U kunt starten zodra de telling binnen is, of uiterlijk na 15 minuten.',
+  'confirm.countUnfinished':
+    'De telling was na 15 minuten niet klaar. U kunt toch starten: wat niet gekopieerd kan worden, staat op de pagina van de migratie zodra het gevonden is.',
   'confirm.manifestError': 'De lijst van wat er migreert kon niet worden gelezen:',
   'confirm.openConsole': 'Open de migratieconsole',
   'confirm.whatMigrates': 'Wat migreert er',
@@ -4143,8 +4355,8 @@ const nl: Record<keyof typeof en, string> = {
   'memberStatus.invited': 'Uitgenodigd',
   'memberStatus.suspended': 'Geschorst',
   'memberStatus.removed': 'Verwijderd',
-  'nav.decisions': 'Aandacht',
-  'attention.title': 'Wat uw aandacht vraagt',
+  'nav.decisions': 'Wacht op u',
+  'attention.title': 'Per migratie',
   'attention.intro': 'Eén regel per migratie, met een link naar alles wat wacht.',
   'attention.empty': 'Er wacht niets. Elke migratie loopt vanzelf door.',
   'attention.emptyNoneRunning': 'Er wacht niets en er loopt geen migratie.',
@@ -4174,9 +4386,9 @@ const nl: Record<keyof typeof en, string> = {
   'decisions.presets.readOnly': 'Een eigenaar of beheerder stelt dit in.',
   'permissions.heading': 'Zet de rechten over voordat u de e-mailbezorging omzet',
   'permissions.body':
-    'Deelrechten verhuizen niet mee met de mail; werk de lijst door vóór het omzetten.',
+    'Deelrechten gaan niet mee met de mail; werk de lijst door vóór het omzetten.',
   'permissions.body.more':
-    'Wie wiens agenda kon zien, wie toegang had tot welke gedeelde bestanden: dat verhuist niet mee. Haal de lijst op, werk hem door op het nieuwe systeem, en doe dat vóór het omzetten van de bezorging; rechten die daarna worden toegevoegd, ontbraken zolang dat duurde. Bovenaan de lijst staat wat er niet gelezen kon worden.',
+    'Wie wiens agenda kon zien, wie toegang had tot welke gedeelde bestanden: dat gaat niet mee. Haal de lijst op, werk hem door op het nieuwe systeem, en doe dat vóór het omzetten van de bezorging; rechten die daarna worden toegevoegd, ontbraken zolang dat duurde. Bovenaan de lijst staat wat er niet gelezen kon worden.',
   'permissions.blindSpot':
     'Twee blinde vlekken: FullAccess of Send-As op een postvak, en delen op OneDrive en SharePoint.',
   'permissions.blindSpot.more':
@@ -4198,7 +4410,8 @@ const nl: Record<keyof typeof en, string> = {
     'Distributielijsten maakt u met de hand opnieuw aan; geen bestemming doet dat voor u.',
   'sharedAddresses.runbook.download': 'Haal de stappenlijst op',
   'sharedAddresses.runbook.failed': 'De stappen konden niet worden opgehaald.',
-  'decisions.title': 'Vraagt om een beslissing',
+  'decisions.title': 'Wacht op u',
+  'decisions.waiting': 'Vraagt om een beslissing',
   'decisions.intro':
     'Veranderingen die de synchronisatie opmerkte en waarover alleen u beslist; niets gebeurt tot u antwoordt.',
   'decisions.readError': 'De beslissingswachtrij kon niet worden gelezen.',
@@ -4224,9 +4437,12 @@ const nl: Record<keyof typeof en, string> = {
   'decisionStatus.resolved': 'Beslist',
   'decisionStatus.auto_resolved': 'Beslist door vast antwoord',
   'decisionStatus.dismissed': 'Terzijde gelegd',
-  'nav.connections': 'Verbindingen',
+  'nav.connections': 'Accounts',
   'nav.setup': 'Instelchecklist',
   'nav.docs': 'Handleidingen',
+  'nav.help': 'Help',
+  'nav.needsYou.count.one': '1 wacht op u',
+  'nav.needsYou.count.many': '{n} wachten op u',
   'wizard.reuseSource': 'Bewaarde bronverbinding hergebruiken',
   'wizard.reuseTarget': 'Bewaarde doelverbinding hergebruiken',
   'wizard.reuseNone': 'Nieuwe inloggegevens invoeren',
@@ -4275,16 +4491,16 @@ const nl: Record<keyof typeof en, string> = {
   'connections.rotate.why':
     'Mislukt de controle, dan verandert er niets en houden uw migraties wat werkte.',
   'connections.rotate.save': 'Controleren en vervangen',
-  'connections.add': 'Verbinding toevoegen',
+  'connections.add': 'Account toevoegen',
   'connections.addAndTest': 'Toevoegen en testen',
   'connections.added': 'Toegevoegd',
   'connections.role': 'Bron of doel?',
   'connections.type': 'Aanbieder',
-  'connections.name': 'Naam van de verbinding',
-  'connections.title': 'Verbindingen',
+  'connections.name': 'Naam voor dit account',
+  'connections.title': 'Accounts',
   'connections.intro':
     'De accounts waarmee uw migraties inloggen. Test controleert ze alleen-lezen.',
-  'connections.none': 'Nog geen verbindingen. Bij het aanmaken van uw eerste migratie worden ze toegevoegd.',
+  'connections.none': 'Nog geen accounts. Bij het starten van uw eerste migratie worden ze toegevoegd.',
   'connections.sources': 'Bronnen',
   'connections.targets': 'Doelen',
   'connections.test': 'Testen',
@@ -4296,7 +4512,7 @@ const nl: Record<keyof typeof en, string> = {
   'connections.standing.stopped': 'is {when} gestopt ({domains}):',
   'connections.standing.whichSide':
     'Logt in met deze en één andere verbinding; test deze om te weten welke.',
-  'connections.standing.thisSide': 'Het ging mis op deze verbinding.',
+  'connections.standing.thisSide': 'Het ging mis bij dit account.',
   'probe.connected': 'Verbonden.',
   'probe.connectedSession': 'Verbonden. Het JMAP-sessiedocument antwoordde.',
   'probe.targetStatus': 'De server op {url} antwoordde {status}.',
@@ -4377,7 +4593,7 @@ const nl: Record<keyof typeof en, string> = {
   'setup.intro':
     'Stappen in de console van de aanbieder; vinkjes worden voor uw hele organisatie bewaard.',
   'setup.backToWizard': '← Terug naar de wizard',
-  'setup.backToConnections': '← Terug naar verbindingen',
+  'setup.backToConnections': '← Terug naar accounts',
   'setup.fullGuide': 'Lees de volledige handleiding',
   'setup.settled': 'afgehandeld',
   'setup.stillOpen': 'nog te doen',
@@ -4534,13 +4750,13 @@ const nl: Record<keyof typeof en, string> = {
   // ---- Asking for access (workplan 0093) ----
   'access.title': 'Toegang aanvragen',
   'access.intro':
-    'Voorlopig op uitnodiging: vertel ons wat u wilt verhuizen, dan komen we per e-mail terug.',
+    'Voorlopig op uitnodiging: vertel ons wat u wilt migreren, dan komen we per e-mail terug.',
   'access.email': 'E-mailadres',
   'access.emailHint': 'Hier antwoorden wij. Er gaat verder niets naartoe.',
   'access.name': 'Uw naam',
   'access.organisation': 'Organisatie',
   'access.optional': 'optioneel',
-  'access.note': 'Wat gaat u verhuizen?',
+  'access.note': 'Wat wilt u migreren?',
   'access.noteHint': 'Ongeveer hoeveel postbussen, en waarvandaan; één zin is genoeg.',
   'access.tier': 'Welk pakket lijkt te passen?',
   'access.tierHint':

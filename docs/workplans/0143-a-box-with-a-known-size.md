@@ -4,6 +4,147 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-29, night: T10 built, what the providers let every tester do together (0131 §6, group
+M4, after T3b)** on branch `claude/mailbox-sync-errors-c2xsw2-what-every-tester-shares`, not
+merged. T10's first two bullets; the budget for the whole deployment and streaming mail bodies
+stay parked on their own triggers.
+
+- **What was open.**
+  - Graph mail took no slot from the organisation's `PgRateBudget`. It only asked the limiter how
+    long to wait after a 429, and then asked again without end.
+  - The Google Drive source waited out no 429, and neither did the CalDAV and CardDAV sources that
+    read Google's calendars and contacts. A rate limit failed the item, or the whole listing, on
+    first sight.
+  - **Found on the way:** `executeWithThrottling` kept a concurrency slot for every 429, 503 or
+    transient error it retried. After `maxConcurrent` of them (4 by default), the next request
+    waited for a slot nothing would free, until the pass's deadline stopped it. Every Graph face
+    and the Tasks source retry through it, and mail was about to.
+- **Built:**
+  - `executeWithThrottling` (`packages/shared/src/throttling.ts`) gives each attempt's slot back
+    as soon as its request has answered or thrown, and never gives one back twice when the shared
+    budget refuses.
+  - `graph-mail-source.ts` sends every request through `executeWithThrottling`, on Graph's row
+    (`graph.microsoft.com`), as the other Graph faces do; `pg-rate-budget.ts`'s comment says so. A
+    throttled request is retried up to the limiter's `maxRetries`, then fails as `rate_limited`.
+  - `packages/connectors/src/rate-limit-once.ts` states the Tasks source's rule once, and the
+    Drive, CalDAV, CardDAV and Tasks sources read it. A 429 or 503, or Google's 403
+    `rateLimitExceeded` or `userRateLimitExceeded` (its JSON reason, or its GData code), is waited
+    out once: what `Retry-After` asks, otherwise one second. A server that asks for longer than a
+    minute is believed, not slept through: its answer goes back as it came, and a later pass takes
+    the item. The 429 and 503 half holds for every server a DAV source reads.
+  - `classifyFailure` reads Google's two reasons as `rate_limited`, ahead of the quota words:
+    Google's limit per minute says *"Quota exceeded for quota metric 'Queries' and limit 'Queries
+    per minute per user'"*.
+  - The Drive source keeps Google's refusal whole before it renders it. Its first 300 characters
+    could end before the reason.
+- **Proved** by:
+  - `packages/shared/src/a-retry-that-gives-its-slot-back.unit.test.ts` (5 cases, all failing on
+    `main`);
+  - `packages/connectors/src/a-rate-limit-every-tester-shares.unit.test.ts` (16 cases): mail draws
+    from the budget for every request and attempt, on Graph's row, with Graph's own
+    `Retry-After`, and gives up after the limiter's retries; each DAV source waits out a 429 and
+    Google's 403 once, reports one that holds as `rate_limited`, asks a refusal once and does not
+    sleep through an hour. 9 fail on `main`; the rest guard against asking too often, and the
+    helper's own rule;
+  - `google-drive-source.unit.test.ts` (7 new cases, 6 failing on `main`);
+  - `failure-category.unit.test.ts` (4 new cases, 3 failing on `main`).
+
+  The cases run on a fake clock, so a wait that should not happen fails at once instead of
+  hanging the file. 20 of 20 mutations caught.
+- **Found, not fixed:** `isTransientError` lowercases a message and then looks for `ECONN`,
+  `ETIMEDOUT` and `EPIPE` in capitals, so the limiter never retries a request that failed with
+  those codes. Retrying them changes every Graph face, so it is its own change.
+- **Not measured.** None of Google's rate-limit answers has been observed here; they are read
+  from Google's published error tables. T9's and the alpha's `rate_limited` counts are the
+  evidence the parked bullets wait for.
+
+**2026-09-29, night: T3b built, a streamed file reaches a JMAP target (0131 §6, group M4, after
+T2b and T2c)**, merged as #1355 (`2ce6546`).
+
+- **What was open.** A source reads a file larger than 8 MB as a stream (`FileBody`), and
+  `JmapFileTarget` could not send one, so it refused every such file (T3a), on the target the
+  alpha calls primary.
+- **Built,** in `packages/connectors/src/jmap-file-target.ts`:
+  - The upload sends the stream as the request body, shaped like
+    `WebDAVTargetWriter.uploadStreamed`: opened afresh for each attempt (the rate-limit retry takes
+    a factory for a stream), with `Content-Length` from `body.sizeBytes`, and
+    `STREAMED_REQUEST_INIT`, so fetch keeps no copy of what it sends.
+  - `connect()` reads the session's `maxSizeUpload` (the core capability). A file larger than it,
+    streamed or not, is refused before a byte is read or a folder is made, with a sentence that
+    names the file, its size and the server's limit (`tooLargeForThisJmapServer`). It is stated as
+    `target_refused` and waits for a person, because trying again gives the same answer. A server
+    whose session states no limit decides for itself, as before.
+  - T3a's refusal at 8 MB is gone. A file with neither bytes nor a body is still refused as having
+    no content.
+- **Proved** by `packages/connectors/src/a-jmap-file-nothing-holds.unit.test.ts` (8 cases): a
+  32 MB body from a stub source arrives byte for byte (by digest), with its length, sent as a
+  stream with `redirect: 'error'`; a 429 opens it afresh; a rewrite sends it the same way; a file
+  over `maxSizeUpload` is refused before any read, upload or folder, on create and on rewrite, and
+  one exactly at the limit is taken. All 8 fail on the old target. T3a's two cases in
+  `jmap-file-target.unit.test.ts` asked for the refusal T3b removes; the block keeps the
+  no-content cases. 11 of 11 mutations caught.
+- **Docs:** the feature matrix, both JMAP guides and `docs/performance.md` say what is now true.
+- **Next:** 0141 T8's nightly leg, which proves it against a real Stalwart, and what the demo
+  Stalwart's session states as its limit.
+
+**2026-09-29, night: T2c built, how fast a migration asks its providers is the operator's (0131 §6,
+group M4, after its step 3)**, merged as #1350 (`6282dd9`).
+
+- **What was open.** The managed create door took a `throttleConfig` from the organisation and
+  stored it; a pass then built the organisation's shared rate budget at the stored rate, as it
+  was, and a configured download ceiling could raise Gmail's past the point where Google locks the
+  account (and a configured 0 left a Gmail account with no meter at all). The web app never sends
+  it, so no tester loses anything.
+- **Built.**
+  - Both managed doors refuse `throttleConfig` in one sentence (`refuseTestersThrottle`, create's
+    and update's refinement): the setting is the operator's. Create stores none.
+  - `operatorsThrottle` in `build-deps-from-mapping.ts` holds a row stored before that to
+    `DEFAULT_THROTTLE_CONFIG`'s `requestsPerSecond` and `maxConcurrent`, where every pass reads it
+    (`tenantThrottleLimiter`): lowering is kept, raising is not. The limiter alone already only
+    lowered them; the shared budget did not.
+  - `imapDownloadPlan`, the one place both editions decide the meter: a configured value can lower
+    Gmail's ceiling, never raise it, and 0, a negative number or NaN gives Gmail its own ceiling
+    instead of no meter. Any other host is as before.
+- **Proved** by `a-throttle-the-tester-set` in orchestration (the clamp, and the rate the shared
+  budget is built with), the case T2c names in `byte-budget.unit.test.ts`, and
+  `create-coherence.unit.test.ts`, whose throttle cases change with the rule: a clean config is
+  now refused on managed, on both doors. 7 of 7 mutations caught.
+
+**2026-09-29, night: T2b built, no schedule faster than 15 minutes (0131 §6, group M4, after its
+step 3)**, merged as #1348 (`97bac8c`).
+
+- **Why now.** Since 0125 T8 (#1333) the schedule can also be changed after creation, so both doors
+  write one. The screens offer four cadences, the fastest every 15 minutes, but the API stored any
+  expression the tick could read: `* * * * *` asked for a pass a minute.
+- **Built.** `shortestGapMinutes` and `SCHEDULE_FLOOR_MINUTES` (15) in
+  `packages/orchestration/src/sync-due.ts`, beside the tick's own reading (T2b's text says why not
+  `packages/shared`). `refuseUnreadableSchedule`, which create and update share, refuses a faster
+  schedule with a sentence that names the floor and what the schedule asked for. `isSyncDue` runs
+  a stored faster schedule at the floor: the next pass waits 15 minutes after the last one
+  started. Every other schedule is read exactly as before, the default included. The appliance is
+  untouched.
+- **Proved** by `a-pass-a-minute` in orchestration (the gaps croner gives, and a stored
+  `* * * * *` starting four passes an hour instead of sixty) and in the API's migration routes
+  (both doors refuse `* * * * *`, `*/5` and `0,10` in the same words, and pass the four cadences
+  the screens offer and slower ones). One case of 0022 T1's `sync-due` test asked that an
+  every-minute schedule be due each minute. It now asks the same boundary of a 15-minute schedule,
+  and says why.
+
+**2026-09-28, late: T1 step 2 built, every task names its machine (0131 §6, group M4, step 6)**,
+merged as #1338.
+
+- **What the kill left of the question.** The owner's first Dropbox pass on the fixed build (0150,
+  Status) peaked at 307 MiB of 512 on `small-1x`, copying a 409 MB file, and sat at 120 to 160 MiB
+  while it was not copying. So `small-1x`, chosen in open question 7, holds a file pass with about
+  200 MiB to spare. Mail's worst case (§3: four bodies held whole) is not measured; T9 measures it.
+- **Built.** `trigger.config.ts` names `small-1x` as every task's machine, and `run-delta-sync`
+  and `run-discovery` name it again, each beside what it was measured at. Nothing changes on the
+  plane, which gave every task `small-1x` already. What changes is that it is chosen, where the
+  plane reads it, and a change to it is a change to the caps' arithmetic.
+- **Proved** by `apps/worker/src/jobs/a-machine-every-task-names.unit.test.ts` (3 cases), which
+  fails on today's code. The SDK's own types refuse a preset that does not exist.
+- **Left of T1:** the plane's limit, back with the owner (open question 9).
+
 **2026-09-28, night: the Dropbox kill code read (0150 T1).** The owner's Dropbox passes were killed
 for memory (SIGKILL on `small-1x`) while copying. The cause was a defect, not the preset: Node's
 `fetch` held every uploaded file above 8 MB whole. It is fixed in 0150's branch
@@ -552,16 +693,16 @@ unproved until then:
 | Task | Status | Notes |
 |---|---|---|
 | T0 The alpha's numbers | 📋 **Provisional numbers accepted 2026-09-27** (open question 1): 2 passes per organisation, 5 migrations, waves of about five, and the largest file 10 GB, which the owner raised from 2 GB the same evening (T4); ✅ **the overall cap decided 2026-09-28**: `small-1x`, live 6, the OTA stack 3 (open question 7), and 20 GB for the stacks beside a GPU process held to 100 GB (open question 8); ⏳ **Owner**: that GPU process held to 100 GB before live — *was:* ⏳ **Owner** for the overall cap on the machine, the machine reads taken 2026-09-28 (open question 7) | §3. **Alpha minimum.** Five provisional numbers before T9, and final ones after it. They are written in this block. |
-| T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6); step 1 read in upstream's source 2026-09-28: presets are enforced, and every task runs on `small-1x`, half a CPU and 512 MB; step 3's tick half ✅ **done** in #1296, merged 2026-09-28 (`67b3e9e`): 3 passes at once on a stack unless its `.env` says otherwise, and 2 per organisation, longest-waiting first; live's `.env` sets 6 since 2026-09-28 (the owner) | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
-| T2 What one organisation can make the machine do | 🔨 **T2a built 2026-09-27**, merged as #1258: five unfinished migrations per organisation, the deployment's number; **T2d's runbook step written 2026-09-27**, merged as #1252, in 0142 T6's runbook; T2b, T2c and T2d's built hold 📋 **Proposed** — *was:* 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
-| T3 A streamed file reaches a JMAP target | 🔨 **T3a built 2026-09-27**, merged as #1243: the refusal names the file, its size and WebDAV; T3b 📋 **Proposed** — *was:* 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
+| T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6); step 1 read in upstream's source 2026-09-28: presets are enforced, and every task runs on `small-1x`, half a CPU and 512 MB; step 3's tick half ✅ **done** in #1296, merged 2026-09-28 (`67b3e9e`): 3 passes at once on a stack unless its `.env` says otherwise, and 2 per organisation, longest-waiting first; live's `.env` sets 6 since 2026-09-28 (the owner); step 2 🔨 **built 2026-09-28** on its branch: every task names `small-1x`; the plane's limit ⏳ **Owner** (open question 9) | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
+| T2 What one organisation can make the machine do | 🔨 **T2a built 2026-09-27**, merged as #1258: five unfinished migrations per organisation, the deployment's number; **T2d's runbook step written 2026-09-27**, merged as #1252, in 0142 T6's runbook; **T2b built 2026-09-29**, merged as #1348 (`97bac8c`): no schedule faster than 15 minutes, on either door, and a stored one runs at that floor; **T2c built 2026-09-29**, merged as #1350 (`6282dd9`): `throttleConfig` refused on both managed doors, a stored one held to the defaults, and Gmail's download ceiling never raised on either edition; T2d's built hold 📋 **Proposed** — *was:* T2b and T2c 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
+| T3 A streamed file reaches a JMAP target | 🔨 **T3a built 2026-09-27**, merged as #1243: the refusal names the file, its size and WebDAV; **T3b built 2026-09-29**, merged as #1355 (`2ce6546`): the stream sent as the upload, and a file over the server's `maxSizeUpload` refused up front, naming it; 0141 T8's nightly leg next — *was:* T3b 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
 | T4 A file no pass can carry is refused up front, with a sentence | 🔨 **(a) built 2026-09-27**, merged as #1259: 10 GB, the owner's number, and a category of its own, `too_large`; the attempts after the alpha 📋 **Proposed** — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** A stated largest file, refused before a byte moves, and parked for a person rather than retried. The kill loop for smaller files that are still too slow comes after. |
 | T5 Every data type of a migration gets a turn in a pass | ✅ **done** in #1262, merged 2026-09-27: (c), small first, then a fair share of what is left — *was:* 📋 **Decided 2026-09-27: (c)** (open question 3) | §3. After the first invitation. It has to be built **before a tester with a large Microsoft 365 mailbox and more than mail ticked** is granted. Small data types go first, and each type gets a fair share of what is left. |
 | T6 Runs of organisations that are never invoiced | 🅿️ **Parked (trigger: the alpha runs past the 60-day run window, or its organisations carry on after it)** | §3. Nothing an alpha of a few weeks writes is old enough to prune, even with the rule changed. |
 | T7 What the task plane keeps, and for how long | 📋 **Proposed** | §3. After the first invitation, sooner if T9's runway is short. Registry clean-up on both planes, task-event and run-record retention, host image and build-cache pruning, and the ClickHouse volume the OTA stack left behind. |
 | T8 `pg_stat_statements` on | 📋 **Proposed** | §3. Before T9 if it is ready. Not a condition of the first invitation. Utility statements are not tracked, so a password change is never recorded. |
 | T9 One measured rehearsal of the alpha's shape | ✅ **The script done** in #1235, merged 2026-09-27 — *was:* 📋 Proposed. ⏳ **Owner** (the sitting) | §3. **Alpha minimum.** Twenty organisations × M migrations against the demo servers, on the OTA stack with live standing beside it, plus one large drive and one large mailbox of the owner's own. Memory, containers, pool waits, statements and disk are recorded for the whole machine. The numbers set T0's final values and the invite ceiling. |
-| T10 What the providers let every tester do together | 📋 **Proposed** | §3. After the first invitation. Graph mail joins the shared budget, and the Google Drive and Google DAV faces wait out a 429. 0141 hands this item to this plan. |
+| T10 What the providers let every tester do together | 🔨 **Built 2026-09-29** on its branch, not merged: Graph mail spends against the shared budget, a retried request gives its slot back, and the Drive and Google DAV faces wait out a 429 or Google's 403 once; the budget for the whole deployment and streaming mail bodies stay parked — *was:* 📋 **Proposed** | §3. After the first invitation. Graph mail joins the shared budget, and the Google Drive and Google DAV faces wait out a 429. 0141 hands this item to this plan. |
 
 ## 1. What there is today
 
@@ -663,7 +804,9 @@ alone, or could not be checked from the repository, it says so.
   `0 2 * * *` when none is picked. The tick's fallback for a migration without a schedule is every
   15 minutes, at a minute offset of its own (`defaultScheduleFor`, beside
   `DEFAULT_SYNC_SCHEDULE = '*/15 * * * *'` in `packages/orchestration/src/sync-due.ts`). The update
-  route does not write a schedule, so the cadence is fixed at creation.
+  route did not write a schedule, so the cadence was fixed at creation. Since 2026-09-28 the
+  migration page changes it (0125 T8), through the update route, which accepts what create
+  accepts.
 - **Throttle.** The create route accepts `throttleConfig: z.record(z.string(), z.unknown())` and
   stores it through `parseThrottleConfig` (`packages/shared/src/config.ts`), which checks only that
   each value is an integer (`reqInt`). Zero and negative values pass. The stored
@@ -1044,10 +1187,15 @@ line. It gives the formula above, and T9's measured figure for both stacks' resi
 
 **T2b, a minimum schedule interval.**
 
-- A shared helper, `shortestGapMinutes(expression)` in `packages/shared/src/cron-schedule.ts`,
-  computes the shortest gap between runs over a week with croner, which the tick already uses.
+- A shared helper, `shortestGapMinutes(expression)`, computes the shortest gap between runs over a
+  week with croner, which the tick already uses. Built in `packages/orchestration/src/sync-due.ts`,
+  beside the tick's own reading of a schedule, rather than in `packages/shared`, which has no
+  croner: the doors and the tick then read one floor from one module.
 - The managed create route refuses a schedule whose gap is under the floor. The floor is 15
-  minutes, the wizard's fastest cadence. The sentence names the floor.
+  minutes, the wizard's fastest cadence. The sentence names the floor. Since 0125 T8 the update
+  route writes a schedule too, and both doors refuse through one function,
+  `refuseUnreadableSchedule` in `apps/api/src/routes/migrations/index.ts`: the floor goes there,
+  and holds on both.
 - The tick treats a stored schedule that is faster than the floor as the floor, so rows created
   before the check do not keep a pass a minute.
 - The appliance is untouched. Its cadence is its owner's call on its owner's machine.
@@ -1513,3 +1661,12 @@ As with the other rows, the owner may instead accept a gap in writing, dated, wi
    7's caps the two stacks need about 18 GB with headroom. How much may that process keep once
    live runs? *Recommended:* at most about 100 GB, so the stacks keep about 20 GB. *Answered
    2026-09-28: "yes, stack needs 20GB, rest will only use 100GB".*
+9. **The plane's limit, a little above the tick's cap (T1 step 3's plane half), 2026-09-28.** Open
+   question 7 set each environment's limit at the tick's cap, 6 on live and 3 on the OTA stack.
+   The limit counts every run, and the docker supervisor keeps a waiting run's slot (T1 step 1):
+   the tick itself, a cutover waiting on its final sync, a count, a verification. At exactly the
+   cap, a stack full of passes holds back the tick and everything else. *Recommended:* the cap
+   plus two, 8 on live and 5 on the OTA stack: one for the tick, one for a cutover waiting on its
+   pass. At most 1 GB more on each stack, when both extra slots are held at once, which open
+   question 8's 20 GB still covers. Set in each stack's `triggerdb` and read back on every
+   bring-up, as open question 7 said. Or other numbers.

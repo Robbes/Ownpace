@@ -115,6 +115,17 @@ describe('imapDownloadPlan', () => {
     });
   });
 
+  it("never raises Gmail's ceiling, whatever is configured (0143 T2c)", () => {
+    // Raising it only gets the account locked, on either edition.
+    expect(imapDownloadPlan('imap.gmail.com', 10_000_000_000)?.bytesPerDay).toBe(2_500_000_000);
+    expect(imapDownloadPlan('imap.gmail.com', 1_000_000_000)?.bytesPerDay).toBe(1_000_000_000);
+    // Zero or nonsense is no configured value: Gmail keeps its own ceiling,
+    // where it used to get no meter at all.
+    expect(imapDownloadPlan('imap.gmail.com', 0)?.bytesPerDay).toBe(2_500_000_000);
+    expect(imapDownloadPlan('imap.gmail.com', -1)?.bytesPerDay).toBe(2_500_000_000);
+    expect(imapDownloadPlan('imap.gmail.com', Number.NaN)?.bytesPerDay).toBe(2_500_000_000);
+  });
+
   it('reads a nonsense configured value as no meter, never as a zero ceiling', () => {
     // A bytesPerDay of 0 would refuse every byte on the first fetch — a
     // misconfiguration must not read as "stop immediately".

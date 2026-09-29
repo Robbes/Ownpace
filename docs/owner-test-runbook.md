@@ -457,16 +457,30 @@ one of them.
 7. **Report a problem.** Look in the menu for *Een probleem melden* / *Report a problem*.
    Live has no helpdesk: a report goes by mail to `support@ownpace.eu`, through the relay the
    sign-in codes use (0130 T5, 0133 T0), once live's `.env` has `REPORT_MAIL_TO` (step 8f of
-   [`managed-bring-up.md`](./managed-bring-up.md)). Open the entry, describe anything, add a
-   screenshot (*Schermafbeelding* / *Screenshot*, a PNG or JPEG), and press *Melding versturen* /
-   *Send the report*.
+   [`managed-bring-up.md`](./managed-bring-up.md)). Open the entry and describe anything. Add a
+   screenshot (*Schermafbeelding* / *Screenshot*, a PNG or JPEG) two ways, one each: A makes one
+   the way the fold under the field says (*Hoe maak ik een schermafbeelding?*) and pastes it on the
+   page with Ctrl+V or Command+V; B chooses a picture file, or drops one on the field. Then press
+   *Melding versturen* / *Send the report*.
    **Expect:**
+   - Before it is sent, the field names the picture it will send, *"Bijgevoegd: …"* for A and
+     *"Attached: …"* for B, with *Schermafbeelding verwijderen* / *Remove the screenshot* beside
+     it.
    - The menu has the entry. The page answers *"Verstuurd naar ons supportteam, met
      meldingskenmerk …"* for A and *"Sent to our support team, with report reference …"* for B,
      and then *"We antwoorden per e-mail naar …"* / *"We will reply by email to …"* with the
      address the tester signed in with. Write down the report reference.
+   - Before it is sent, above the button, the page says *"Gaat naar het supportteam van Ownpace,
+     per e-mail naar support@ownpace.eu."* / *"Goes to the Ownpace support team, by email to
+     support@ownpace.eu."*, and the fold *Wat we meesturen* / *What we send with this* opens on
+     the lines the report will carry, in English: `Page`, `Organisation`, `Build`, `Role`,
+     `Organisation status`, `Migration`, `Service hold`, `Scheduler`, `Browser`, then
+     `Screen language` (*Dutch* for A, *English* for B), `Time zone` and `Window width`. Opened
+     from a migration's page, it also has the migration's `Grant`, `Grant link`, `Data type …` and
+     account lines. No line names an address, a folder, a subject or a provider's error text.
    - The report is in `support@ownpace.eu` within a few minutes. Its Subject is *Ownpace:* and
-     the first line of the description. Its body ends with a `Reply to:` line naming the tester's
+     the first line of the description. Under the description come the same lines the fold
+     showed, in the same order, and the body ends with a `Reply to:` line naming the tester's
      sign-in address and a `Report reference:` line with the reference the page gave. The
      screenshot is attached.
    - **The reply check** (0131, the row for 0130). The mail goes from `support@ownpace.eu` to
@@ -485,9 +499,9 @@ one of them.
    report is number …"*. On a stack with neither a Zammad nor the API's mail, the menu has no
    entry, and a tester's route is the address in the alpha conditions (0131 T5).
 
-   Write down which answer the page gave, whether the mail arrived with its screenshot and the
-   same reference, and whether Reply's To field showed the tester's address or the support
-   address.
+   Write down which answer the page gave, the browser and whether A's paste attached the picture,
+   whether the mail arrived with its screenshot and the same reference, and whether Reply's To
+   field showed the tester's address or the support address.
 8. **The permission list.** On the Finish page (`/mappings/<id>/finish`), press *Haal de
    rechtenlijst op* / *Get the permission list*, and read the file it downloads.
    **Expect:** every sentence in it is true of that source. For A's Google account, the

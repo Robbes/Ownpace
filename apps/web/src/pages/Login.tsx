@@ -207,11 +207,11 @@ const Login: React.FC = () => {
         );
         // THE SAME LANDING AuthCallback CHOOSES, and for the same reason: a
         // platform operator belongs to no organisation by design, so the
-        // dashboard's first request 403s. This door was left sending them
+        // landing page's first request 403s. This door was left sending them
         // there — the refusal above only covers a NON-operator with no
         // organisation — so the one person who can answer the queue reached it
         // by being thrown out of a screen that was never theirs.
-        void navigate(me.tenants.length === 0 ? '/access-requests' : '/dashboard');
+        void navigate(me.tenants.length === 0 ? '/access-requests' : '/mappings');
       } catch (err: unknown) {
         // The API's own sentence — "Invalid token" and "Token expired" are
         // different problems with different remedies, and on a stack with an
@@ -242,7 +242,7 @@ const Login: React.FC = () => {
           value={token}
           onChange={(e) => setToken(e.target.value)}
           className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-mono"
-          placeholder="eyJhbGciOi..."
+          placeholder="eyJhbGciOi..." // i18n-exempt: a token's opening characters, not words
         />
       </div>
 

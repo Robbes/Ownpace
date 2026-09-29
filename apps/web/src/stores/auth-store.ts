@@ -1,6 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { forgetRecentErrors } from '../services/recent-errors.ts';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -54,10 +55,13 @@ export const useAuthStore = create<AuthState>()(
       operator: false,
       tenantCount: 0,
       login: (token, user, tenantId, operator = false, tenantCount = 0) => {
+        // The faults a report may name are one session's (workplan 0130 T6).
+        forgetRecentErrors();
         localStorage.setItem('auth_token', token);
         set({ isAuthenticated: true, user, tenantId, token, operator, tenantCount });
       },
       logout: () => {
+        forgetRecentErrors();
         localStorage.removeItem('auth_token');
         set({
           isAuthenticated: false,

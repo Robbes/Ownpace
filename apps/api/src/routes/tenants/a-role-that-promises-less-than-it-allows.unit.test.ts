@@ -320,6 +320,10 @@ describe('what only an owner can do, as the admin line says', () => {
         // Granting owner, by invitation or by a role change.
         "reads the caller's role: tenants/members.ts POST / (grantsOwnerWithoutPermission)",
         "reads the caller's role: tenants/members.ts PATCH /:memberId (grantsOwnerWithoutPermission)",
+        // Not a door: a problem report writes the caller's role into its facts
+        // (0130 T6), and neither route decides anything by it.
+        "reads the caller's role: problem-reports.ts GET /preview (serverFacts)",
+        "reads the caller's role: problem-reports.ts POST / (serverFacts)",
       ].sort(),
     );
   });

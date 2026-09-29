@@ -30,9 +30,10 @@
  * **7 days is the owner's number for when backups exist** (owner, 2026-08-18).
  * Nothing in this repository backs up the managed application database yet,
  * and `ownpace-live`, the stack testers use, takes no backups during the alpha.
- * It sets 7 all the same: its databases are dumped before each deploy and each
- * dump is deleted after at most 7 days (workplan 0134 open question 1 (b),
- * 2026-09-28), both by the owner for now. On a stack without backups a blank
+ * It sets 7 all the same: one copy of its databases is made right before each
+ * update and deleted once the update is proven, never past day 7 (workplan
+ * 0134 open question 1 (b), workplan 0139, 2026-09-28;
+ * `deploy/compose/copy-before-update.sh`). On a stack without backups a blank
  * value names backups that do not exist, so the API warns about a blank value
  * at start-up in production, and refuses to start with one when the alpha
  * setting is on (`describeBackupRetentionProblem` in

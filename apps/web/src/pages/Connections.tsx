@@ -29,6 +29,7 @@ import {
   type CredentialField,
   type FailureCategory,
 } from '@openmig/shared';
+import { connectionKindName } from '../components/ProviderTile.tsx';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
 import { ChoiceField } from '../components/ChoiceField.tsx';
 import { isSelfHost } from '../services/edition.ts';
@@ -325,9 +326,11 @@ const Row: React.FC<{
       <div className="flex flex-wrap items-center gap-3">
         <StatusIcon status={connection.status} />
         <span className="font-medium text-gray-900">{connection.displayName}</span>
-        <span className="text-xs text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">
-          {connection.kind}
-        </span>
+        {connectionKindName(connection.kind) && (
+          <span className="text-xs text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">
+            {connectionKindName(connection.kind)}
+          </span>
+        )}
         <span className="text-sm text-gray-500">
           {connection.usedByMigrations === 0
             ? t('connections.usedBy.none')
@@ -401,7 +404,13 @@ const Row: React.FC<{
                 when: relativeToNow(f.asOf),
                 domains: f.domains.map((d) => t(DOMAIN_STRING_KEY[d])).join(', '),
               })}{' '}
-              {t(FAILURE_KEY[f.category])} <SendItToUs category={f.category} />
+              {t(FAILURE_KEY[f.category])}{' '}
+              <SendItToUs
+                category={f.category}
+                migrationId={f.mappingId}
+                {...(f.side ? { side: f.side } : {})}
+                {...(f.domains.length === 1 ? { dataType: f.domains[0] } : {})}
+              />
               {ASK_TEST.has(f.category) && (
                 <> {t(f.side ? 'connections.standing.thisSide' : 'connections.standing.whichSide')}</>
               )}

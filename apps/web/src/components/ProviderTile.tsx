@@ -64,6 +64,45 @@ export function tileLetter(typeOrKind: string, role: TileRole): string | undefin
   return Object.prototype.hasOwnProperty.call(letters, type) ? letters[type] : undefined;
 }
 
+/**
+ * The company a person leaves, where one company has several products: a card's
+ * line says *From Google and Dropbox*, not *From Gmail, Google Drive and
+ * Dropbox* (0153 T3 (a)). Every other type, and every destination, is named as
+ * `providerDisplayName` names it.
+ */
+const SOURCE_COMPANY: Readonly<Record<string, string>> = {
+  google: 'Google',
+  gmail: 'Google',
+  'google-drive': 'Google',
+  'google-calendar': 'Google',
+  'google-contacts': 'Google',
+  microsoft: 'Microsoft 365',
+  oauth2: 'Microsoft 365',
+  graph: 'Microsoft 365',
+  apple: 'Apple iCloud',
+};
+
+/**
+ * A stored connection kind's name, for a row that has only the kind (0153 T6
+ * (a), (c)): `gmail` is *Gmail* and `google_drive` is *Google Drive*, never the
+ * kind itself. `o365` is *Microsoft 365*, whichever of its two cards saved it.
+ * A kind no card saves any more (`proton` and `selfhosted_mail`, from before
+ * the cards) has none, and its row shows the account's own name alone.
+ */
+export function connectionKindName(kind: string): string | undefined {
+  if (kind === 'o365') return 'Microsoft 365';
+  const type = wizardTypeForConnectionKind(kind);
+  const name = providerDisplayName(type);
+  return name === type ? undefined : name;
+}
+
+/** What a line of words calls a type or a connection kind on this side. */
+export function providerName(typeOrKind: string, role: TileRole): string {
+  const type = wizardTypeForConnectionKind(typeOrKind);
+  if (role === 'source' && Object.prototype.hasOwnProperty.call(SOURCE_COMPANY, type)) return SOURCE_COMPANY[type]!;
+  return providerDisplayName(type);
+}
+
 /** Corner radius 22% of the size, the letter 45% of it, as the drawing says. */
 const SIZE_CLASS: Readonly<Record<TileSize, string>> = {
   48: 'w-12 h-12 rounded-[11px] text-[22px]',
