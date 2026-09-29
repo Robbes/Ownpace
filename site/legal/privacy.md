@@ -143,8 +143,8 @@
     that person is deleted or the data erased (PURGED_TABLES in
     offboarding.ts). Deleting a migration leaves the person. The owner
     approved the English sentence on 2026-09-28. The Dutch says *migratie*,
-    the owner's word (0152 D6); the rest of the Dutch texts still say
-    *verhuizing*.
+    the owner's word (0152 D6), and since 2026-09-29 the Dutch texts say it
+    throughout (the privacy policy, the terms and the Alpha conditions).
   - §4.4: the account also records which versions of the three texts a
     person accepted, and when (terms-acceptance-route (b): the in-app screen,
     0139 T3, built 2026-09-28; see beside §4.4).

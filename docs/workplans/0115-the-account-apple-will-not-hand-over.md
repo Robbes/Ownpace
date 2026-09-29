@@ -4,6 +4,17 @@
 
 ## Status — 2026-09-04
 
+### The create door refuses files from Apple — 2026-09-29
+
+Found while mapping 0153 T4, whose *What moves?* must not offer Files for Apple.
+`SOURCE_TYPE_DOMAINS` had no `apple` row, so `sourceDomainRefusal('apple', ['file'])` answered
+nothing: an Apple source with Files ticked passed the create door and the wizard, and could only
+fail at its first pass. The row now reads `PROVIDER_ACCOUNT_DOMAINS.apple`, as Google's and
+Microsoft's do, so the four faces are all there is. The refusal names Apple's app-specific
+password rather than an OAuth credential, and says why: Apple offers no way into iCloud Drive for
+anyone outside Apple. `target-domains.unit.test.ts` holds it; it failed first on the old table
+(`expected undefined`).
+
 ### T5 landed — 2026-09-04
 
 The fields shipped in T2; what was missing was the **refusal**, and a probe at all.

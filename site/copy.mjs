@@ -203,7 +203,7 @@ export const COPY = {
     },
     files: { home: 'index.html', how: 'hoe-het-werkt.html', pricing: 'prijzen.html', calculator: 'schatting.html', privacy: 'privacy.html', terms: 'voorwaarden.html', alpha: 'alpha.html' },
     skip: 'Naar de inhoud',
-    footerTag: 'verhuis uw eigen gegevens, in uw eigen tempo.',
+    footerTag: 'neem uw gegevens mee, in uw eigen tempo.',
     footerOss:
       'Open source onder de Apache License 2.0. Draai het zelf, of laat ons het draaien.',
     footerStatus: 'Status',
@@ -211,7 +211,7 @@ export const COPY = {
       title: 'Pagina niet gevonden',
       heading: '404 \u2014 Hier staat niets. Zelfs geen kopie!',
       lede:
-        'Wij verhuizen gegevens in uw eigen tempo, maar deze pagina is nooit meegegaan. Misschien is hij hernoemd, misschien heeft hij nooit bestaan \u2014 hoe dan ook, er is niets van u verloren gegaan.',
+        'Wij migreren gegevens in uw eigen tempo, maar deze pagina is nooit meegegaan. Misschien is hij hernoemd, misschien heeft hij nooit bestaan \u2014 hoe dan ook, er is niets van u verloren gegaan.',
       back: 'Terug naar de startpagina',
       status: 'Wilt u weten of er iets stuk is?',
     },
@@ -221,14 +221,14 @@ export const COPY = {
     ctaOrder: 'Toegang aanvragen',
     ctaPricing: 'Bekijk wat het kost',
     ctaAllTiers: 'Alle vijf de pakketten, volledig',
-    ctaHow: 'Hoe een verhuizing verloopt',
+    ctaHow: 'Hoe een migratie verloopt',
     heroFine: (from) =>
       `Vanaf ${from} voor de eerste maand. Prijzen staan er volledig op — geen offerte, geen verkoopgesprek.`,
     heroFree: (name, data) =>
-      `${name} is gratis: één verhuizing tegelijk, tot ${data}. Alle prijzen staan er volledig op — geen offerte, geen verkoopgesprek.`,
+      `${name} is gratis: één migratie tegelijk, tot ${data}. Alle prijzen staan er volledig op — geen offerte, geen verkoopgesprek.`,
     diffTitle: 'Wat dit anders maakt',
     diff: [
-      ['Het is een verhuizing, geen kopie',
+      ['Het is een migratie, geen kopie',
        'De meeste migratietools draaien één kopieerklus en geven u het resultaat. Ownpace blijft draaien: elke wijziging in uw oude account komt aan in het nieuwe, zolang u wilt, tot u overstapt.'],
       ['Aan de bron wordt nooit iets verwijderd',
        'Nooit. Uw oude account is uw vangnet en blijft intact, wat er ook gebeurt. Dat is geen belofte over onze bedoelingen — de software heeft simpelweg geen manier om iets bij een bron te verwijderen.'],
@@ -242,23 +242,23 @@ export const COPY = {
     wont: [
       ['Het synchroniseert niet terug',
        'Gegevens gaan van oud naar nieuw. Uw oude account verandert nooit, en juist daarom blijft het een veilige plek om op terug te vallen.'],
-      ['Het kan niet alles perfect verhuizen',
+      ['Het kan niet alles perfect migreren',
        'Aanbieders verschillen, en sommige dingen overleven de oversteek niet. Wat niet mee kan, krijgt u stuk voor stuk te horen, met de reden — het verdwijnt nooit stilletjes.'],
       ['Het is geen back-updienst',
-       'Zodra u overstapt, is de verhuizing klaar. Daarna een kopie bijhouden is een nieuwe verhuizing die u zelf instelt, en die wordt ook zo geprijsd.'],
+       'Zodra u overstapt, is de migratie klaar. Daarna een kopie bijhouden is een nieuwe migratie die u zelf instelt, en die wordt ook zo geprijsd.'],
     ],
     costTitle: 'Wat het kost',
     costLede:
-      'Twee getallen bepalen uw prijs: hoeveel dingen u <strong>tegelijk</strong> verhuist, en hoeveel gegevens u in totaal hebt verhuisd. U zit op het hoogste van die twee, en een verhuizing afronden verlaagt uw rekening vanzelf.',
+      'Twee getallen bepalen uw prijs: hoeveel migraties er <strong>tegelijk</strong> lopen, en hoeveel gegevens u in totaal hebt gemigreerd. U zit op het hoogste van die twee, en een migratie afronden verlaagt uw rekening vanzelf.',
     costPick: (name, first, monthly, paths, data) =>
-      `De meeste mensen willen <strong>${name}</strong> — ${first} voor de eerste maand, daarna ${monthly} per maand, voor ${paths} verhuizingen tegelijk en ${data}.`,
+      `De meeste mensen willen <strong>${name}</strong> — ${first} voor de eerste maand, daarna ${monthly} per maand, voor ${paths} migraties tegelijk en ${data}.`,
     tierFirstMonth: 'eerste maand',
     tierThen: 'per maand daarna',
     vatIncluded: 'Alle prijzen zijn inclusief btw.',
-    tierPaths: (n) => `<strong>${n}</strong> verhuizing${n === 1 ? '' : 'en'} tegelijk`,
-    tierData: (s) => `<strong>${s}</strong> aan verhuisde gegevens`,
+    tierPaths: (n) => `<strong>${n}</strong> migratie${n === 1 ? '' : 's'} tegelijk`,
+    tierData: (s) => `<strong>${s}</strong> aan gemigreerde gegevens`,
     tierSetup: (m) => `${m} van die eerste maand is eenmalige inrichting`,
-    tierThree: (m) => `${m} voor een verhuizing van drie maanden`,
+    tierThree: (m) => `${m} voor een migratie van drie maanden`,
     tierStart: (name) => `Begin met ${name}`,
     tierBadge: 'Meest gekozen',
     tierFree: 'Gratis',
@@ -266,9 +266,9 @@ export const COPY = {
     tierNoInvoice: 'Geen factuur',
     tierNoInvoiceWhy: 'geen kaart, geen factuurgegevens',
     tierFreeEdge: (next) =>
-      `Een tweede verhuizing tegelijk, of meer gegevens, brengt u naar ${next} — en we vragen het u eerst.`,
+      `Een tweede migratie tegelijk, of meer gegevens, brengt u naar ${next} — en we vragen het u eerst.`,
     beyond: (paths, data, what) =>
-      `Boven ${paths} verhuizingen tegelijk of ${data} geldt: <a href="{MAILTO}">${what.toLowerCase()}</a> — dat is het enige dat niet gepubliceerd staat, omdat we voorbij het einde van de schaal echt naar uw situatie moeten kijken.`,
+      `Boven ${paths} migraties tegelijk of ${data} geldt: <a href="{MAILTO}">${what.toLowerCase()}</a> — dat is het enige dat niet gepubliceerd staat, omdat we voorbij het einde van de schaal echt naar uw situatie moeten kijken.`,
     draftBanner:
       'Dit is een concept. Stukken die er zo «UITZIEN» zijn nog niet ingevuld.',
     translationNote:
@@ -277,11 +277,11 @@ export const COPY = {
       title: 'Wat zou het bij u kosten?',
       lede:
         'Beantwoord vijf vragen en deze pagina leidt het pakket af — u kiest er nooit zelf een. Alles is indicatief: dit zijn onze aannames totdat de gratis voorcontrole uw echte accounts meet, en elk getal hieronder kunt u aanpassen.',
-      whoLegend: 'Wie verhuist er?',
+      whoLegend: 'Voor wie is het?',
       who: { individual: 'Alleen ik', family: 'Mijn huishouden (4 personen)', sme: 'Mijn bedrijf (10 werkplekken)' },
       fromLegend: 'Weg bij?',
       from: { google: 'Google', microsoft: 'Microsoft', dropbox: 'Dropbox', apple: 'Apple', other: 'Ergens anders' },
-      whatLegend: 'Wat verhuist er?',
+      whatLegend: 'Wat wilt u migreren?',
       what: { mail: 'E-mail', contacts: 'Contacten', calendar: 'Agenda', files: 'Bestanden', photos: 'Foto’s' },
       howMuchLegend: 'Hoeveel is het?',
       howMuchHint:
@@ -291,31 +291,31 @@ export const COPY = {
       untilLegend: 'Tot wanneer?',
       until: { m1: '1 maand', m3: '3 maanden', m6: '6 maanden', ready: 'Wanneer ik er klaar voor ben' },
       untilHint:
-        'De duur is een keuze, geen voorspelling: de verhuizing houdt uw kopie bij tot u overstapt, en het terugkerende deel van de prijs beëindigt u zelf.',
+        'De duur is een keuze, geen voorspelling: de migratie houdt uw kopie bij tot u overstapt, en het terugkerende deel van de prijs beëindigt u zelf.',
       kept:
-        'De gratis preflight die volgt bewaart aantallen, omvang en totalen per map — nooit een inventaris van uw items — en bewaart ze bij uw verhuizing, nooit langer dan uw account.',
-      pathsNone: 'Vink aan wat er verhuist en de telling verschijnt hier.',
-      pathsOne: '{0} — dat is één verhuizing.',
-      pathsMany: '{0}, voor {1} — dat zijn {2} verhuizingen tegelijk.',
+        'De gratis preflight die volgt bewaart aantallen, omvang en totalen per map — nooit een inventaris van uw items — en bewaart ze bij uw migratie, nooit langer dan uw account.',
+      pathsNone: 'Vink aan wat u wilt migreren en de telling verschijnt hier.',
+      pathsOne: '{0} — dat is één migratie.',
+      pathsMany: '{0}, voor {1} — dat zijn {2} migraties tegelijk.',
       forWho: { individual: 'één persoon', family: 'vier personen', sme: 'tien werkplekken' },
-      axisPaths: 'Verhuizingen tegelijk',
-      axisData: 'Te verhuizen gegevens',
+      axisPaths: 'Migraties tegelijk',
+      axisData: 'Te migreren gegevens',
       axisDecides: 'deze bepaalt',
       bandLine: 'ruwweg {0}–{1} GB — een band van ±50%, want dit zijn zelf opgegeven getallen, geen gemeten',
       tierLine: 'Dat komt uit op {0}.',
       tierDerived:
-        'Afgeleid uit uw antwoorden, nooit gekozen — en het blijft afleiden: rond verhuizingen af en het pakket zakt vanzelf.',
+        'Afgeleid uit uw antwoorden, nooit gekozen — en het blijft afleiden: rond migraties af en het pakket zakt vanzelf.',
       tierSetup: '{0} eenmalige inrichting',
       tierFree: 'Gratis: geen inrichtingskosten, niets per maand en geen factuur.',
-      tierFreeEdge: 'Een tweede verhuizing tegelijk, of meer dan {0}, brengt u naar {1} — en we vragen het u eerst.',
+      tierFreeEdge: 'Een tweede migratie tegelijk, of meer dan {0}, brengt u naar {1} — en we vragen het u eerst.',
       tierMonthly: '{0} per maand',
       tierFirstMonth: '{0} voor de eerste maand, inrichting inbegrepen',
-      tierThree: '{0} voor een verhuizing van drie maanden in totaal',
+      tierThree: '{0} voor een migratie van drie maanden in totaal',
       stepUpRule: 'Later een pakket omhoog? Dan betaalt u alleen het verschil in inrichting.',
       beyondLine:
         'Voorbij de gepubliceerde schaal. Hier kijken we eerst naar uw werkelijke situatie — neem contact op.',
       billDown:
-        'Verhuizingen afronden verlaagt uw rekening vanzelf, automatisch. De gegevens-as zakt nooit, dus de omvang van wat u verhuisde legt een bodem onder het pakket — óf een bijkoop geeft u een hele extra band aan ruimte en u blijft waar u zit.',
+        'Migraties afronden verlaagt uw rekening vanzelf, automatisch. De gegevens-as zakt nooit, dus de omvang van wat u migreerde legt een bodem onder het pakket — óf een bijkoop geeft u een hele extra band aan ruimte en u blijft waar u zit.',
       topUpLine:
         'Op {0}: {1} eenmalig koopt nog eens {2} aan gegevensruimte, tegen hetzelfde maandbedrag. In plaats daarvan omhoog naar {3} kost nu {4} en {5} per maand extra.',
       topUpBreakEven:

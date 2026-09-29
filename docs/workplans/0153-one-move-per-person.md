@@ -4,6 +4,25 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-29, morning: the owner's answers to the writing session's eleven questions, and two
+words changed with them** (0131 §6, R8).
+
+- **T6's words:**
+  - the share announcement, to people who only had files shared with them, says *gemigreerd*,
+    not *verplaatst* (*"Gemigreerd"*): *Met u gedeelde bestanden zijn gemigreerd*, and in the
+    body *Ze zijn naar een ander platform gemigreerd*. The human copy in
+    `docs/cutover-communication-templates.md` follows, and the glossary's *migration* row says
+    it;
+  - the Dutch menu entry is *Hulp*, not *Help* (*"Hulp or Ondersteuning (Support)"*). *Hulp* is
+    the word the sidebar already uses (*Hulp: {address}*); *Ondersteuning* would read as a
+    support desk, which is the operator's *Support* page;
+  - the Team page keeps *Team & organisatie* under the menu's *Team* (*"Keep"*);
+  - the new words of #1347, #1349 and #1353 stand (*"Ok"*).
+- **Who builds the rest (*"Yes, but check first if it did not already land during tonight"*):**
+  the writing session takes T4 with T7 and the rest of T5, R8 steps 6 and 7. Checked on `main`
+  at `5f74ebc`: T4 and T7 are still proposed, and no branch or open pull request of R's or M's
+  touches them. 0131 §6 records the split.
+
 **2026-09-29, night: T5's first slice, a page per person (0131 §6, R8 step 7, built beside R at
 the owner's word *"continue on the rest"*)**, in #1353, stacked on #1349.
 
