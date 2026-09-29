@@ -36,9 +36,9 @@ services:
     networks: [dev-network]
 
   # Secondary DAV target: files (WebDAV) + CalDAV/CardDAV. SQLite keeps dev light.
-  # Its update check, app store and connectivity check stay on, as Nextcloud
-  # ships them: a development target, which no managed bring-up starts
-  # (scripts/a-service-that-phones-home.unit.test.ts, workplan 0139).
+  # Its update check, app store, announcements feed and connectivity check are
+  # switched off by the same hook as managed.yml's (workplan 0139,
+  # scripts/a-service-that-phones-home.unit.test.ts).
   nextcloud:
     image: nextcloud:34-apache            # official multi-arch (arm64); base: Debian 13 "Trixie" via php image
     container_name: ownpace-dev-nextcloud # fixed name so provisioning scripts can `docker exec` it deterministically
@@ -51,6 +51,10 @@ services:
       # Overridable, same pattern as postgres above — the e2e workflow picks a free
       # port at runtime instead of assuming a fixed one is available on the runner.
       - "${DEV_NEXTCLOUD_PORT:-8082}:80"
+    volumes:
+      # Run by the image before Apache, at every start: updatechecker,
+      # appstoreenabled and has_internet_connection false. See its header.
+      - ./nextcloud-no-phone-home.sh:/docker-entrypoint-hooks.d/before-starting/ownpace-no-phone-home.sh:ro
     networks: [dev-network]
 
 networks:

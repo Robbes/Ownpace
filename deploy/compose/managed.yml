@@ -269,27 +269,38 @@ services:
       # Misc
       PORT: 3000
       APP_LOG_LEVEL: info
-      # NOTHING GOES TO TRIGGER.DEV'S ANALYTICS (privacy §8; the owner,
-      # 2026-09-28, ops-telemetry (a): "Switch it off everywhere"; workplan
-      # 0139). Two halves, read at v4.5.16, and upstream documents one:
+      # NOTHING GOES TO TRIGGER.DEV'S ANALYTICS, OR PRISMA'S (privacy §8; the
+      # owner, 2026-09-28, ops-telemetry (a): "Switch it off everywhere";
+      # workplan 0139). Three reports, read at v4.5.16, and upstream documents
+      # one switch:
       #
       # - TRIGGER_TELEMETRY_DISABLED stops the SERVER's PostHog client
-      #   (app/services/telemetry.server.ts): a user created, with email and
-      #   name, and each organisation and project. Any value will do, upstream
+      #   (app/services/telemetry.server.ts): the user identified by id, email
+      #   and name at every sign-in (services/postAuth.server.ts), and each
+      #   user, organisation and project created. Any value will do, upstream
       #   says not an empty one.
       # - It does not stop the DASHBOARD's. The root loader hands the browser
       #   POSTHOG_PROJECT_KEY, which defaults to Trigger.dev's own project key
       #   (app/env.server.ts), and app/hooks/usePostHog.ts starts PostHog and
       #   identifies the signed-in user by id and email whenever it is not
       #   empty. The empty string is the one value that stops it.
+      # - Nor PRISMA's. The entrypoint above runs `prisma migrate deploy` at
+      #   every start (docker/scripts/entrypoint.sh; prisma 6.14.0), and the
+      #   Prisma CLI sends a checkpoint to checkpoint.prisma.io for every
+      #   command it runs: version, OS, architecture, Node, CI, the command,
+      #   hashes of the project's and the CLI's paths, the schema's providers
+      #   and a stored random signature (packages/cli/src/CLI.ts,
+      #   utils/checkpoint.ts; checkpoint-client 1.1.33). CHECKPOINT_DISABLE is
+      #   the only thing either checks.
       #
       # Written here rather than read from .env, so no machine's .env can empty
-      # them. Every other third party the webapp knows (Sentry, Loops, Attio,
-      # Kapa, Plain, BetterStack, S2, Slack, a mail provider, a model provider)
-      # is off because nothing here sets its key.
+      # them. Every other key this service sets is in the guard's WEBAPP_KEYS,
+      # each with the reason it reaches no third party, and a key that is not
+      # fails it until somebody has read what it does at the pinned version.
       # `scripts/a-service-that-phones-home.unit.test.ts` holds all of it.
       TRIGGER_TELEMETRY_DISABLED: "1"
       POSTHOG_PROJECT_KEY: ""
+      CHECKPOINT_DISABLE: "1"
     ports:
       # Plain HTTP, and the deploy CLI and its image build ask it on 127.0.0.1
       # (API_ORIGIN above), so TRIGGER_BIND stays empty on a real box. See the
@@ -1462,13 +1473,11 @@ services:
       timeout: 5s
       retries: 5
 
-  # The one service here that still reports home, and it never runs on live
-  # (workplan 0139, 2026-09-28): Nextcloud's update check, app store and
-  # connectivity check are on by default (config.sample.php at stable34), and
-  # are `occ` settings inside the instance rather than anything this file can
-  # set. It holds the demo's fixtures and never a tester's data, and it starts
-  # only with --with-demo, which both live scripts refuse.
-  # `scripts/a-service-that-phones-home.unit.test.ts` holds that last part.
+  # The demo's DAV target, brought up with the OTA stack every night
+  # (--with-demo, which both live scripts refuse). Its update check, app store,
+  # announcements feed and connectivity check are on by default
+  # (config.sample.php at stable34), and are switched off by the hook mounted
+  # below (workplan 0139, 2026-09-29).
   nextcloud:
     image: nextcloud:34-apache
     container_name: ${COMPOSE_PROJECT_NAME}-nextcloud
@@ -1543,6 +1552,15 @@ services:
       # `opcache.jit=1255`, so anything sorting before it is read and then
       # overwritten, silently doing nothing.
       - ./nextcloud-php.ini:/usr/local/etc/php/conf.d/zz-ownpace-no-jit.ini:ro
+      # NOTHING TO NEXTCLOUD'S SERVERS (workplan 0139, 2026-09-29). The image
+      # runs this before Apache, at every start, and it sets updatechecker,
+      # appstoreenabled and has_internet_connection to false in config.php.
+      # A hook rather than a *.config.php mounted into config/: that would make
+      # config/ non-empty before the first install, and the entrypoint would
+      # then skip copying the image's own config files, smtp.config.php
+      # (SMTP_HOST above) among them. The script's header has the detail;
+      # `scripts/a-service-that-phones-home.unit.test.ts` reads and runs it.
+      - ./nextcloud-no-phone-home.sh:/docker-entrypoint-hooks.d/before-starting/ownpace-no-phone-home.sh:ro
     # The one probe here that is not an inference: `setup-nextcloud-users.sh`
     # has been running `docker exec <nextcloud> curl … http://localhost/status.php`
     # against this image on the Spark since the demo existed, so both the binary

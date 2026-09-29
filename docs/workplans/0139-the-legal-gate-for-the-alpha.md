@@ -2,7 +2,64 @@
 
 > **In one line:** Legal gate for the alpha: `site/legal` placeholders filled and published, a lawyer's pass, alpha conditions, acceptance recorded at first sign-in, notices where data is collected, sub-processors, retention, account closure, breach procedure, `SECURITY.md`.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-09-29 (update this block at the end of every session)
+
+**2026-09-29: T5, the review's fixes to "nothing phones home"**, a second commit on branch
+`claude/ownpace-public-readiness-y7orc6-nothing-phones-home`, not merged. Nothing has run on the
+machine; the compose files are read, and Nextcloud's hook run against a stand-in, by the guard.
+
+- **Prisma's checkpoint, missed on the first pass.** The webapp's entrypoint runs
+  `prisma migrate deploy` at every start (`docker/scripts/entrypoint.sh` at v4.5.16; prisma
+  6.14.0, a runtime dependency), and the Prisma CLI sends a checkpoint to `checkpoint.prisma.io`
+  for every command it runs: version, OS, architecture, Node, CI, the command, hashes of the
+  project's and the CLI's paths, the schema's providers and a stored random signature
+  (`packages/cli/src/CLI.ts`, `utils/checkpoint.ts`; checkpoint-client 1.1.33, which forks the
+  sender whatever its cache says). `CHECKPOINT_DISABLE: "1"` on `trigger-api`, the only thing
+  either checks. The entrypoint's other children do not call out: pnpm 10.33.2 checks for its own
+  update only on `install` and `add` (`pnpm/src/main.ts`), goose v3.27.1 has no network use of
+  its own, and the dashboard agent's migration is plain drizzle-orm. The server's PostHog also
+  identified the user (id, email, name) at every sign-in (`postAuth.server.ts`), not only at
+  creation; the docs said less than it sent.
+- **Nextcloud switched, not left on.** The demo's Nextcloud comes up with the OTA stack every
+  night (the gate's `--with-demo`), so "demo and development only" was no reason, and "`occ`
+  settings this file cannot set" was wrong. `deploy/compose/nextcloud-no-phone-home.sh`, a
+  `before-starting` hook the image runs as www-data before Apache at every start, sets
+  `updatechecker`, `appstoreenabled` and `has_internet_connection` to the boolean false, in
+  `managed.yml` and `dev.yml`; `has_internet_connection` is what the announcements feed, the
+  connectivity check and the lookup-server upload read (`stable34`). Not the reviewer's
+  `*.config.php` mounted into `config/`: that makes the directory non-empty before the first
+  install, and the image's entrypoint (`34/apache/entrypoint.sh`, `directory_empty`) then skips
+  copying its own config files, `smtp.config.php` (the catcher, 0103) among them.
+- **Left on, and put to the owner: the demo's Stalwart** (v0.16.10, `docker run` from
+  `setup-stalwart.sh`, on the OTA stack every night and in the self-host end-to-end run). In
+  normal mode it downloads its WebUI from GitHub on first start and every 30 days, its spam-filter
+  rules from GitHub, and an ASN and country database from jsDelivr daily
+  (`crates/common/src/manager/defaults.rs`, `SpamSettings` in `structs_impl.rs`). Downloads, not
+  reports about anybody; they are objects in its datastore, so switching them off is new objects
+  in the provisioning plan, which nothing here could run. ⏳ **Owner:** switch them off on the
+  demo's Stalwart, a change to be run and watched on the OTA stack, or keep them as downloads on
+  a stack that holds demo fixtures and never a tester's data.
+- **The guard, tightened** (`scripts/a-service-that-phones-home.unit.test.ts`, 40 tests). A key
+  with no value (`POSTHOG_PROJECT_KEY:`) reads as passed through from the shell or `.env`; YAML
+  merge keys are applied as Compose applies them; every file ClickHouse merges from `config.d` or
+  `conf.d` is read, wherever it is mounted from, `.yaml`, `.yml` and `.conf` included, and a mount
+  it cannot read fails; the webapp is held to `WEBAPP_KEYS`, every key it may be given with the
+  reason it reaches no third party, rather than to a list of third parties; a switched service may
+  not take `env_file`, `extends` or an overlay; Nextcloud's hook is read, checked tracked as
+  100755, and run against a stand-in `php`; Stalwart's pin and the doc that names its fetches are
+  held. The bring-up check on `nextcloud` went with the *left on* list it served. Written first:
+  6 failed, 34 passed (40) on the first pass's tree. Each regression the review found passes the
+  first guard (33 of 33) and fails this one; 18 mutations, 17 red and restored, the 18th
+  (`nextcloud` added to the bring-up's services) now moot, since Nextcloud is switched wherever it
+  starts.
+- **Docs**: `docs/managed-bring-up.md`, *Nothing phones home* (Prisma's row, Nextcloud's row and
+  why a hook, Stalwart named, the sign-in identify, and the command for a running stack: the pull
+  sequence recreates `trigger-api` and `clickhouse`, not the identity provider, the object store,
+  the catcher or Nextcloud); `docs/operator-runbook.md`, *Upgrade*, step 5; `setup-stalwart.sh`'s
+  header.
+- **Not done here.** The branch is on 96e737df, behind main, and conflicts with main in this file
+  only (#1317, df74a08f, rewrote this Status block and the T5 row); bringing it up to date is the
+  orchestrator's call, and regenerating `docs/LESSONS.md` and the workplan index goes with it.
 
 **2026-09-28: T5, nothing phones home (privacy §8; ops-telemetry (a), the owner: *"Switch it off
 everywhere"*)**, built on branch `claude/ownpace-public-readiness-y7orc6-nothing-phones-home`, not
@@ -16,7 +73,8 @@ merged. Nothing has run on the machine; the compose file is read by a guard, not
 - **What each sent, read from upstream's source at the pinned version** (raw files from
   `raw.githubusercontent.com`; the docs sites were not needed). Trigger.dev v4.5.16: the server's
   PostHog on user, organisation and project creation, with the user's email and name
-  (`telemetry.server.ts`), and the dashboard's PostHog in the browser, identifying the signed-in
+  (`telemetry.server.ts`; *and at every sign-in, and Prisma's checkpoint beside it: corrected
+  2026-09-29, above*), and the dashboard's PostHog in the browser, identifying the signed-in
   user by id and email (`usePostHog.ts`), under Trigger.dev's own project key
   (`POSTHOG_PROJECT_KEY`'s default in `env.server.ts`). **`TRIGGER_TELEMETRY_DISABLED` stops only
   the first**: nothing else reads it, and the browser's half starts whenever the key is not empty.
@@ -38,7 +96,9 @@ merged. Nothing has run on the machine; the compose file is read by a guard, not
 - **Every other service, and why it needs no switch**, is a row of the guard: PostgreSQL,
   PgBouncer, Redis, the registry, the Docker socket proxy, the supervisor, busybox, nginx, the
   status page, our own API, web app and appliance; Caddy's `tls internal` is held as a switch,
-  since without it Caddy asks a public certificate authority. **Left on:** Nextcloud's update
+  since without it Caddy asks a public certificate authority. *(Corrected 2026-09-29, above:
+  Nextcloud is switched off by a hook, and the demo's Stalwart is read and put to the owner.)*
+  **Left on:** Nextcloud's update
   check, app store and connectivity check, in `managed.yml` (the demo) and `dev.yml`. They are
   `occ` settings inside the instance; it holds fixtures and never a tester's data, and it starts
   only with `--with-demo`, which both live scripts refuse. Switching them off on the demo is the
@@ -757,7 +817,7 @@ longer starts by pausing the nightly gate, which never touches live.
 | T2 The alpha conditions, in Dutch and English | 🔨 **Drafted 2026-09-28** at the owner's word, on branch `claude/ownpace-public-readiness-y7orc6-alpha-conditions-in-concept`, **not merged**: `site/legal/alpha.nl.md` and `alpha.md`, not rendered; **reviewed by the owner 2026-09-28**, version 1.0, the lawyer's pass deferred (T1) — *was:* version 0.1 concept, ⏳ **Owner** reads it, then the lawyer (T1); 📋 **Decided 2026-09-24** (D1, D2) | §3. Free, a few weeks, no obligations, no backups, no availability promise, how it ends. The owner wrote them in the plan; an agent drafted them at the owner's word. |
 | T3 Acceptance recorded, with version and time, at first sign-in | 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. |
 | T4 A notice wherever a tester's data is collected | 📋 **Proposed** | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form. The grant page's addresses were fixed in #1137, merged 2026-09-24. |
-| T5 The sub-processors named | ⏳ **Owner** for the names; 📋 **Proposed** for the text; **nothing else receives anything** 🔨 **built 2026-09-28** on branch `claude/ownpace-public-readiness-y7orc6-nothing-phones-home`, **not merged** (ops-telemetry (a)): Trigger.dev's two PostHog halves, Zitadel's daily service ping, ClickHouse's crash reports, MinIO's release check and Mailpit's switched off in `managed.yml`; the demo's Nextcloud left on, off live; `scripts/a-service-that-phones-home.unit.test.ts` | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). And no image in the stack reporting to its makers, which privacy §8's negative rests on. |
+| T5 The sub-processors named | ⏳ **Owner** for the names; 📋 **Proposed** for the text; **nothing else receives anything** 🔨 **built 2026-09-28, review fixes 2026-09-29** on branch `claude/ownpace-public-readiness-y7orc6-nothing-phones-home`, **not merged** (ops-telemetry (a)): Trigger.dev's two PostHog halves and the Prisma checkpoint its entrypoint sent, Zitadel's daily service ping, ClickHouse's crash reports, MinIO's release check, Mailpit's and Nextcloud's (a hook, in `managed.yml` and `dev.yml`) switched off; the demo's Stalwart's GitHub and jsDelivr downloads named, ⏳ **Owner** to switch or keep; `scripts/a-service-that-phones-home.unit.test.ts` — *was:* the demo's Nextcloud left on | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). And no image in the stack reporting to its makers, which privacy §8's negative rests on. |
 | T6 What is kept, and for how long, made true | 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 📋 **Decided 2026-09-27** (open question 2 (a)) and 🔨 **built 2026-09-27**, merged as #1255 (declined ones deleted 30 days after the decision); the rest 📋 **Proposed** | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. A code change or a wording change for each. |
 | T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; *was:* 📋 **Proposed** | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
