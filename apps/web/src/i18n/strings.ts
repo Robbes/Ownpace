@@ -1426,6 +1426,12 @@ const en = {
   // it does (`ConfirmMigration.tsx`); nothing else here is there to press.
   'confirm.countError': 'Counting did not start:',
   'confirm.countAgain': 'This screen counts again by itself once copying resumes.',
+  // Start waits for the count it would be pressed on, fifteen minutes at most
+  // (the owner, 2026-09-28), and then opens without it, saying so
+  // (`ConfirmMigration.tsx`, `stillCounting`).
+  'confirm.startWaits': 'You can start once the count is in, or after 15 minutes at most.',
+  'confirm.countUnfinished':
+    'The count did not finish within 15 minutes. You can start anyway: anything that cannot be copied is listed on the migration’s page once it is found.',
   // The manifest that could not be read (0153 T1 (a)): the reason follows,
   // verbatim, so this is the frame and not the finding.
   'confirm.manifestError': 'The list of what migrates could not be read:',
@@ -3891,6 +3897,9 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.startErrorFallback': 'het verzoek is mislukt',
   'confirm.countError': 'Het tellen is niet gestart:',
   'confirm.countAgain': 'Dit scherm telt vanzelf opnieuw zodra het kopiëren weer begint.',
+  'confirm.startWaits': 'U kunt starten zodra de telling binnen is, of uiterlijk na 15 minuten.',
+  'confirm.countUnfinished':
+    'De telling was na 15 minuten niet klaar. U kunt toch starten: wat niet gekopieerd kan worden, staat op de pagina van de migratie zodra het gevonden is.',
   'confirm.manifestError': 'De lijst van wat er migreert kon niet worden gelezen:',
   'confirm.openConsole': 'Open de migratieconsole',
   'confirm.whatMigrates': 'Wat migreert er',
