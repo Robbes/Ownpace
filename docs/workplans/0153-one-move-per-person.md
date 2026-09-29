@@ -52,7 +52,7 @@
   - the wizard retires once `CreateMapping.reachability.unit.test.tsx` passes through the flow
     (D5).
 - **Proved by:**
-  - `StartMigration.unit.test.tsx` (26 cases) and `start-plan.unit.test.ts` (21). They cover
+  - `StartMigration.unit.test.tsx` (27 cases) and `start-plan.unit.test.ts` (21). They cover
     each screen's focus and reasons, the tags, the saved-account default, a failed check's
     *Try again*, Soverin's fold, Nextcloud's address, and the set-up's payloads. A refused
     set-up asks again only for what was not made, and one *Start* for two migrations lands on
