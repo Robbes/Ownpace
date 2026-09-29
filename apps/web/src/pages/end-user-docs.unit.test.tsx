@@ -51,6 +51,7 @@ import {
 } from '@openmig/shared';
 import { STRINGS, LOCALES, type Locale, type StringKey } from '../i18n/strings.ts';
 import { SOURCE_CARDS, TARGET_CARDS, type FrontDoorCard } from '../components/front-door-cards.ts';
+import { SOURCE_FORM_FIELD, TARGET_FORM_FIELD } from './CreateMapping.tsx';
 
 /** Every served guide, `docs/guides/<locale>/<slug>.md`, as `Docs.tsx` inlines them. */
 const GUIDES = import.meta.glob('../../../../docs/guides/*/*.md', {
@@ -824,5 +825,44 @@ describe('the wizard names its own button, not a command', () => {
     // Named as a control, so the label does not run into the verbs around it.
     expect(more).toContain(locale === 'en' ? `the ${label} button` : `de knop ${label}`);
     expect(more).not.toMatch(/command|commando/i);
+  });
+});
+
+/**
+ * A GUIDE NAMES ONLY A FIELD THE WIZARD DRAWS (workplan 0153 T1 (b)).
+ *
+ * The cases above ask that a guide name every field the wizard requires.
+ * Nothing asked the other way round, and it went wrong: the Google guide told
+ * a personal account to make an app password and type it into the Gmail card,
+ * and the wizard never drew that box. The descriptor declared it; the
+ * wizard's field map had no entry, so the field was skipped without a word.
+ *
+ * So for every card, a descriptor field whose label its guide's section names,
+ * in any language the guide is written in, must be one the wizard draws: one
+ * `SOURCE_FORM_FIELD` or `TARGET_FORM_FIELD` maps.
+ */
+describe('no card section names a field the wizard does not draw (0153 T1 (b))', () => {
+  const guideText = (locale: Locale, slug: string) =>
+    Object.entries(GUIDES).find(([p]) => nameOf(p) === `${locale}/${slug}`)?.[1];
+
+  it.each(EVERY_CARD.map(({ role, card }) => ({ role, id: card.id, card })))('$role $id', ({ role, id, card }) => {
+    const { slug, section } = guideOf(card);
+    const drawn: Readonly<Record<string, unknown>> = role === 'source' ? SOURCE_FORM_FIELD : TARGET_FORM_FIELD;
+    const fields = credentialFieldsFor(role, id);
+    for (const locale of LOCALES) {
+      const body = guideText(locale, slug);
+      if (body === undefined) continue;
+      const text = sectionOf(body, section) ?? '';
+      const notDrawn = fields
+        .filter((f) => labelKeysOf(fields, f).some((key) => text.includes(STRINGS[locale][key as StringKey])))
+        .filter((f) => !Object.prototype.hasOwnProperty.call(drawn, f.key))
+        .map((f) => f.key);
+      expect(
+        notDrawn,
+        `${locale}/${slug}.md's section {#${section}} names ${notDrawn.join(', ')}, which the wizard ` +
+          `does not draw on the ${role} card '${id}'. Draw it (the field map in CreateMapping.tsx), ` +
+          `or take it out of the guide.`,
+      ).toEqual([]);
+    }
   });
 });

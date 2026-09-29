@@ -29,7 +29,7 @@ You can also add a JMAP connection in advance, under **Connections** → **Add a
 
 - **Email**: the folders and the messages in them. Folders the target does not have yet are created.
 - **Contacts**.
-- **Files**, with one limit: a file larger than 8 MB does not reach a JMAP target yet. The migration reports such a file as failed, under **Failures**, and carries on with the rest. To take larger files along, send the files to a WebDAV target ([the DAV guide](dav.md)) or a Nextcloud ([the Nextcloud guide](nextcloud.md)).
+- **Files**, with one limit: the largest file the JMAP server takes in one upload. The server states that limit itself. The migration reports a larger file as failed, under **Failures**, with the server's limit, and carries on with the rest. To take such a file along, raise the server's upload limit, or send the files to a WebDAV target ([the DAV guide](dav.md)) or a Nextcloud ([the Nextcloud guide](nextcloud.md)).
 - **Calendar** and **Tasks** do not go to a JMAP target. Recurring events cannot yet travel over JMAP intact: a series would arrive as single events. So this service writes calendars and task lists over CalDAV. On the migration step they are off, with the line **Not available over the selected target protocol.** For calendars and tasks, create a second migration to a CalDAV target.
 - A migration may run again and again: what is already in the target is recognised and not copied a second time.
 

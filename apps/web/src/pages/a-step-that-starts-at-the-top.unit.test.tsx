@@ -288,8 +288,8 @@ const Page: FC = () => {
     <div>
       <Link to="/mappings">to-mappings</Link>
       <Link to="/mappings/new">to-wizard</Link>
-      <Link to="/dashboard?filter=failed">to-same-page-query</Link>
-      <Link to="/dashboard#later">to-same-page-section</Link>
+      <Link to="/connections?filter=failed">to-same-page-query</Link>
+      <Link to="/connections#later">to-same-page-section</Link>
       <Link to="/docs/google#connect">to-a-section</Link>
       <Link to="/docs/google#no-such-section">to-a-missing-section</Link>
       <button onClick={() => void navigate(-1)}>history-back</button>
@@ -298,7 +298,7 @@ const Page: FC = () => {
   );
 };
 
-const renderLayout = (path = '/dashboard') =>
+const renderLayout = (path = '/connections') =>
   renderAt(
     path,
     <Route path="/" element={<Layout />}>
@@ -310,7 +310,7 @@ const renderLayout = (path = '/dashboard') =>
 
 describe('a new page starts at the top', () => {
   it('a link to another page scrolls to the top, at once', () => {
-    renderLayout('/dashboard');
+    renderLayout('/connections');
     expect(scrollsToTheTop()).toBe(0);
 
     fireEvent.click(screen.getByRole('link', { name: 'to-mappings' }));
@@ -320,12 +320,12 @@ describe('a new page starts at the top', () => {
   });
 
   it('Back and Forward leave the scroll to the browser', () => {
-    renderLayout('/dashboard');
+    renderLayout('/connections');
     fireEvent.click(screen.getByRole('link', { name: 'to-mappings' }));
     expect(scrollsToTheTop()).toBe(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'history-back' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Accounts' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'history-forward' }));
     expect(screen.getByRole('heading', { level: 1, name: 'Migrations' })).toBeInTheDocument();
 
@@ -333,7 +333,7 @@ describe('a new page starts at the top', () => {
   });
 
   it('a new query or a new section on the same page is not a new page', () => {
-    renderLayout('/dashboard');
+    renderLayout('/connections');
     fireEvent.click(screen.getByRole('link', { name: 'to-same-page-query' }));
     fireEvent.click(screen.getByRole('link', { name: 'to-same-page-section' }));
 
@@ -344,7 +344,7 @@ describe('a new page starts at the top', () => {
     // The real guide page, whose `GuideArticle` scrolls to `#section` in a
     // passive effect. The layout's scroll is a layout effect, so it comes
     // first and the section wins: the reader lands on the section.
-    renderLayout('/dashboard');
+    renderLayout('/connections');
     fireEvent.click(screen.getByRole('link', { name: 'to-a-section' }));
 
     expect(document.getElementById('connect')).not.toBeNull();
@@ -354,7 +354,7 @@ describe('a new page starts at the top', () => {
   it('a link to a section the guide does not have lands at the top, not at the old offset', () => {
     // A renamed or mistyped anchor: nothing scrolls to the section, so the
     // new page would otherwise open where the old one was left.
-    renderLayout('/dashboard');
+    renderLayout('/connections');
     fireEvent.click(screen.getByRole('link', { name: 'to-a-missing-section' }));
 
     expect(document.getElementById('connect')).not.toBeNull();
@@ -364,7 +364,7 @@ describe('a new page starts at the top', () => {
 
 describe('with the phone menu (0145 T1)', () => {
   it('a link in the drawer scrolls the new page to the top and closes the drawer as before', () => {
-    renderLayout('/dashboard');
+    renderLayout('/connections');
     const menu = screen.getByRole('button', { name: 'Menu' });
     fireEvent.click(menu);
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }));
@@ -379,7 +379,7 @@ describe('with the phone menu (0145 T1)', () => {
   it('the step heading neither takes focus from the menu nor takes it back', () => {
     // Into the wizard by a link, as a person arrives: a new page, sent to the
     // top once.
-    renderLayout('/dashboard');
+    renderLayout('/connections');
     fireEvent.click(screen.getByRole('link', { name: 'to-wizard' }));
     expect(scrollsToTheTop()).toBe(1);
     passSourceStep();

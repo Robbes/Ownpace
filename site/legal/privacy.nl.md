@@ -197,14 +197,20 @@ dienst verstuurt, zoals inlogcodes, voortgangsoverzichten en de berichten die u 
 
 **Een probleem melden.** Tijdens de Alpha stuurt *Een probleem melden* in het menu van de app uw
 melding als e-mail naar support@ownpace.eu, via onze e-mailaanbieder (§7). De mail bevat wat u
-schreef, de pagina waarop u was (zonder het geheime deel van een link), de referentie en soort
-van een fout als die er was, het kenmerk van uw organisatie, de versie van de app, en uw
-inlogadres, zodat we u kunnen antwoorden. Voegt u een schermafbeelding toe, dan gaat die mee.
-Een schermafbeelding toont wat er op uw scherm stond, zoals onderwerpregels, namen en adressen:
-bekijk haar dus voordat u verstuurt. *Deze link melden*, op een pagina die iemand via een
-toegangslink of een voortgangslink bereikte, stuurt op dezelfde manier wat die persoon schreef en
-de gegevens van die link, zoals wie hem maakte en voor welke accounts, en alleen een adres als
-die persoon er een opgeeft.
+schreef en uw inlogadres, zodat we u kunnen antwoorden, en deze feiten, die het formulier opsomt
+voordat u verstuurt: de pagina waarop u was (zonder het geheime deel van een link), de referentie
+en soort van een fout als die er was, het kenmerk en de status van uw organisatie, uw rol, de
+versie van de dienst, de stand van de migratie op die pagina en van elk gegevenstype daarin, of er
+via een link toegang is gegeven, bij welke aanbieders de twee accounts ervan zijn en of hun laatste
+test slaagde, of de dienst is gepauzeerd of de planner stilstaat, en de naam die uw browser
+zichzelf geeft. Voegt u een schermafbeelding toe, dan gaat die mee. Een schermafbeelding toont wat
+er op uw scherm stond, zoals onderwerpregels, namen en adressen: bekijk haar dus voordat u
+verstuurt. *Deze link melden*, op een pagina die iemand via een toegangslink of een voortgangslink
+bereikte, stuurt op dezelfde manier wat die persoon schreef en de gegevens van die link: de
+organisatie en de migratie, wie hem maakte, de twee accounts, en of er toegang is gegeven; en
+alleen een adres als die persoon er een opgeeft. **Een melding bevat de inhoud van uw mail,
+bestanden of agenda's, een onderwerpregel, een mapnaam of een foutmelding van een aanbieder alleen
+als u die zelf in uw tekst of op de schermafbeelding zet.**
 
 <!-- NOT YET TRUE ON live (the owner, 2026-09-28, ops-trust-proxy (b): keep visitors' addresses
      in all our logs). NetBird ends TLS in front of the machine, so the app and the website see

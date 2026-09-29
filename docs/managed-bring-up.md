@@ -1766,8 +1766,10 @@ customer-facing version of all of this.
 "Report a problem", beside Sign out, sends a customer's report to a person
 (workplan 0130): what they wrote, the page they were on (without any link
 secret), the reference and kind of error on their screen, and a screenshot if
-they add one. It goes one of two ways. While neither is set up, the link is not
-shown at all.
+they add one: a PNG or JPEG of up to 5 MB, chosen as a file, dropped on the
+field or pasted anywhere on the page (Ctrl+V or Command+V), with a fold under
+the field that says how to make one on each kind of device. It goes one of two
+ways. While neither is set up, the link is not shown at all.
 
 **By mail, to your support mailbox** (the owner's choice for the alpha,
 2026-09-28). This needs nothing but the mail settings the API already sends
@@ -1783,11 +1785,21 @@ rules as every other mail the API sends: from `NOTIFY_FROM`, to
 `REPORT_MAIL_TO`, titled *Ownpace: <the first line they wrote>*. The body is
 what they wrote and then the facts, one per line: `Page`, `Reference` and
 `Category` when there is one (the error on their screen, which the log page
-finds), `Organisation`, `Build`, `Reply to` (the customer's sign-in address) and
-`Report reference`, the report's own. Its **Reply-To** is that sign-in address
-too, so pressing Reply should answer them. With `NOTIFY_FROM` and
-`REPORT_MAIL_TO` both `support@ownpace.eu`, as on live, the mail goes from the
-mailbox to itself, and a mail client may answer such a mail to its own address;
+finds), `Organisation`, `Build`, then what the API reads from its own records
+in the customer's organisation (workplan 0130 T6): `Role`, `Organisation
+status`, the migration on the page with `Grant`, `Grant link`, a `Data type …`
+line for each data type and the two accounts' providers, `Reference match`,
+`Service hold`, `Scheduler` and `Browser`; then `Reply to` (the customer's
+sign-in address) and `Report reference`, the report's own. The form showed the
+customer the fact lines, `Page` to `Browser`, under *What we send with this*
+before they sent it, unless that preview could not be read; `Reply to` and
+`Report reference` are added on sending. When the database could not be read,
+the report still arrives, with `Facts: could not be read [ref …]` in place of
+the records' lines; the log page finds that reference as `report.facts-unread`.
+Its **Reply-To** is that sign-in address too, so pressing Reply should answer
+them. With `NOTIFY_FROM` and `REPORT_MAIL_TO` both `support@ownpace.eu`, as on
+live, the mail goes from the mailbox to itself, and a mail client may answer
+such a mail to its own address;
 check the To field before you send, and if it shows the support address, write
 to the body's `Reply to` address instead. The screenshot is attached, after the
 same check of its first bytes a Zammad ticket gets. There is no ticket number,
@@ -1795,6 +1807,9 @@ so the customer is told the *report reference* instead, and that the reply
 comes by email; search the mailbox for it when they quote it (the log page
 does not know it). An empty `REPORT_MAIL_TO` sends reports to `NOTIFY_TO`, so
 on a stack still pointed at Mailpit the form works and Mailpit catches them.
+The form then says only *Goes to the Ownpace support team.*, without an
+address: `NOTIFY_TO` is your own list, and every signed-in member can open the
+form. Only an address `REPORT_MAIL_TO` names is shown to them.
 
 **The relay is shared.** On live, the API's relay login is the one the identity
 provider sends its sign-in codes with (workplan 0133). So at most 50 report
@@ -3099,7 +3114,7 @@ run replaces it in its last three, and past its deadline no successor can be
 minted), and `trigger-version.sh drill` dumps the Trigger.dev database and
 proves the dump loads. CI never touches live (workplan 0132 T1g), so live has
 [`box-duties.sh`](../deploy/compose/box-duties.sh), run once a day from
-`~/ownpace-live` by a systemd timer (0132 T7). It does five duties, each one
+`~/ownpace-live` by a systemd timer (0132 T7). It does six duties, each one
 whatever the one before it did:
 
 | Duty | What it runs | What it does |
@@ -3109,8 +3124,9 @@ whatever the one before it did:
 | `exposure` | `exposure-check.sh` | Every port any container on the machine publishes, both stacks (0132 T3). Needs `EXPOSURE_ALLOW` in live's `.env`. |
 | `organisations` | `setup-zitadel.sh --count-organisations` | 0135 T3's count on live's identity provider, read-only. A count that is not one fails the duty. |
 | `site` | `www-live.sh check` | Read-only (0139 T10). Fails when a container of live's project has the compose service `www`, where a `www.yml` command without `-p` puts the site; and, when live's `.env` says `WWW_LIVE=true`, when `ownpace-live-www` is not running and healthy (*`www.ownpace.eu`: live's copy*). |
+| `strays` | `idp-strays.sh --remove --at-most 20` | Removes the sign-in accounts nobody let in, older than 30 days, as privacy §9 says (0135 T8; the runbook's *Sign-in accounts nobody let in*). More than 20 at once removes none and fails the duty: run `./deploy/compose/idp-strays.sh` from `~/ownpace-live` to see them, then `--remove` by hand if they are right. Its lines name an account's id, never its address. |
 
-It exits 0 when all five pass, 1 naming every duty that failed, and 2 when it
+It exits 0 when all six pass, 1 naming every duty that failed, and 2 when it
 refused before any duty: a `.env` without live's marker (the OTA stack's duties
 are the gate's), a project the reader refuses, or an argument. A duty that runs
 past 20 minutes (`BOX_DUTY_TIMEOUT`, in seconds) is a failed duty. Ctrl-C in a
@@ -3132,7 +3148,8 @@ and reaches Docker. Both are in
 ```ini
 # ownpace-box-duties.service — live's daily duties (workplan 0132 T7): the
 # provisioning token's clock, the Trigger.dev drill, the exposure check, the
-# organisation count and the site's (0139 T10). A user unit, started by
+# organisation count, the site's (0139 T10) and the accounts nobody let in
+# (0135 T8). A user unit, started by
 # ownpace-box-duties.timer; the install steps are in docs/managed-bring-up.md,
 # "Live's daily duties".
 [Unit]
@@ -3143,9 +3160,9 @@ Type=oneshot
 WorkingDirectory=%h/ownpace-live
 ExecStart=%h/ownpace-live/deploy/compose/box-duties.sh
 SyslogIdentifier=ownpace-box-duties
-# Five duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
+# Six duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
 # which failed.
-TimeoutStartSec=110min
+TimeoutStartSec=130min
 ```
 
 ```ini

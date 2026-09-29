@@ -260,10 +260,16 @@ export const GMAIL_IMAP_DOWNLOAD_BYTES_PER_DAY = 2_500_000_000;
  * `imap.gmail.com`, so a plain `imap` connection pointed at Gmail is metered
  * exactly like the `gmail` kind, and a self-hosted Dovecot at any other host
  * gets NO invented cap — a ceiling for a server that has none would be this
- * plan's own way of making migrations mysteriously slow. A configured
- * per-mapping value (`throttleConfig.downloadBytesPerDay`, migration 0017's
- * surface) always wins, for any host — including setting headroom under
- * Gmail's, which the fixed-window note on `ByteBudget` recommends.
+ * plan's own way of making migrations mysteriously slow.
+ *
+ * A configured per-mapping value (`throttleConfig.downloadBytesPerDay`,
+ * migration 0017's surface) is the ceiling for any other host. For Gmail it
+ * can only LOWER Google's, never raise it (workplan 0143 T2c): headroom under
+ * Gmail's is what the fixed-window note on `ByteBudget` recommends, and a
+ * ceiling above it only gets the account locked, on either edition. Zero, a
+ * negative number or NaN is no configured value at all: Gmail keeps its own
+ * ceiling, and any other host has none, since a ceiling of zero would refuse
+ * every byte.
  */
 export function imapDownloadPlan(
   host: string | undefined,
@@ -272,8 +278,12 @@ export function imapDownloadPlan(
   if (!host) return undefined;
   const h = host.trim().toLowerCase();
   const gmail = h === 'imap.gmail.com';
-  const ceiling = configuredBytesPerDay ?? (gmail ? GMAIL_IMAP_DOWNLOAD_BYTES_PER_DAY : undefined);
-  if (!(typeof ceiling === 'number' && ceiling > 0)) return undefined;
+  const configured =
+    typeof configuredBytesPerDay === 'number' && configuredBytesPerDay > 0 ? configuredBytesPerDay : undefined;
+  const ceiling = gmail
+    ? Math.min(configured ?? GMAIL_IMAP_DOWNLOAD_BYTES_PER_DAY, GMAIL_IMAP_DOWNLOAD_BYTES_PER_DAY)
+    : configured;
+  if (ceiling === undefined) return undefined;
   return { provider: gmail ? 'gmail-imap' : `imap:${h}`, bytesPerDay: ceiling };
 }
 

@@ -122,6 +122,16 @@ const FIXTURES: Record<string, unknown> = {
    * this entry came to be written.
    */
   [`GET /api/problem-reports/available`]: { available: true },
+  /**
+   * WHAT A REPORT FROM THIS PAGE WOULD CARRY (workplan 0130 T6), asked by the
+   * form once it knows the service takes reports: where it goes, and its
+   * lines of facts, which the form shows verbatim in its fold. The lines are
+   * the API's to write; two stand for them here.
+   */
+  [`GET /api/problem-reports/preview`]: {
+    to: { kind: 'mail', addresses: ['support@example.invalid'] },
+    lines: ['Page: /mappings', 'Role: owner'],
+  },
   // The build stamp in the sidebar asks the server what IT is running
   // (services/build-identity.ts). Answered from the ROOT package.json rather
   // than a literal, for the same reason every other consumer reads it there:
@@ -540,6 +550,51 @@ describe('the migrations list', () => {
   });
 });
 
+describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
+  it('signs a member in to Migrations, with the menu the drawing shows', async () => {
+    // Through the front door, as `open` does, but without its second goto:
+    // where the sign-in itself lands is the thing under test.
+    const page = await browser.newPage({ locale: 'en-GB' });
+    await page.addInitScript(() => window.localStorage.setItem('openmig.locale', 'en'));
+    await page.goto(`${BASE}/login`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await page.fill('#token', TOKEN);
+    await page.click('form button[type=submit]');
+    await page.waitForURL((u) => u.pathname === '/mappings', { timeout: 15_000 });
+    await page.waitForSelector('[data-migration]');
+
+    const links = await page.$$eval('nav a', (as) => as.map((a) => (a.textContent ?? '').trim()));
+    expect(links.slice(0, 5)).toEqual(['Migrations', 'Needs you', 'Accounts', 'Help', 'Team']);
+    expect(links, 'the Dashboard went (D7)').not.toContain('Dashboard');
+    await page.close();
+  });
+
+  it('counts beside Needs you what waits, in the menu (0153 T3 (c))', async () => {
+    const saved = FIXTURES['GET /api/attention'] as { mappings: Record<string, unknown>[] };
+    FIXTURES['GET /api/attention'] = {
+      mappings: [{ ...saved.mappings[0], failuresWaiting: 2, pendingDecisions: 1 }],
+    };
+    try {
+      const l = await open('/mappings');
+      await l.page.waitForSelector('#nav-needs-you-count');
+      expect(await l.page.textContent('#nav-needs-you-count')).toContain('3 waiting on you');
+      const described = await l.page.getAttribute('nav a[href="/decisions"]', 'aria-describedby');
+      expect(described, 'the count is not the link\'s description').toBe('nav-needs-you-count');
+      expectClean(l, 'the menu with a count');
+      await l.page.close();
+    } finally {
+      FIXTURES['GET /api/attention'] = saved;
+    }
+  });
+
+  it('sends an old /dashboard link to Migrations, so a bookmark still lands', async () => {
+    const l = await open('/dashboard');
+    await l.page.waitForURL((u) => u.pathname === '/mappings', { timeout: 10_000 });
+    await l.page.waitForSelector('[data-migration]');
+    expectClean(l, 'an old /dashboard link');
+    await l.page.close();
+  });
+});
+
 describe('the build stamp', () => {
   it('shows the version the server reports, in a real browser', async () => {
     // The one thing the unit tests structurally cannot check: that the element
@@ -575,9 +630,13 @@ describe('Report a problem (workplan 0130)', () => {
     await l.page.waitForURL((u) => u.pathname === '/report', { timeout: 10_000 });
 
     expect(new URL(l.page.url()).searchParams.get('from')).toBe('/mappings');
-    // Said before anything is sent: what goes with the report, and the page.
-    await l.page.locator('text=Sent with your report:').waitFor({ timeout: 10_000 }); // report.sentWith
-    expect(await l.text()).toContain('the page you were on: /mappings'); // report.page
+    // Said before anything is sent: where it goes, and, in the fold, every
+    // line that goes with it, the page first.
+    await l.page
+      .locator('text=Goes to the Ownpace support team, by email to support@example.invalid.') // report.goesTo.mail
+      .waitFor({ timeout: 10_000 });
+    await l.page.locator('summary', { hasText: 'What we send with this' }).click(); // report.facts
+    await l.page.locator('li', { hasText: 'Page: /mappings' }).waitFor({ state: 'visible', timeout: 10_000 });
     expectClean(l, 'the report form');
     await l.page.close();
   });
@@ -659,14 +718,14 @@ describe('signed in as a platform operator', () => {
       }
       // And not one of the six that would refuse them. Exact strings: "Setup
       // checklist" and "Setup guides" differ by one word, and a substring
-      // match cannot tell them apart.
+      // match cannot tell them apart. The member's words since 0153 T3 (c).
       for (const hidden of [
-        'Dashboard',
         'Migrations',
-        'Connections',
+        'Needs you',
+        'Accounts',
+        'Help',
         'Setup checklist',
-        'Attention',
-        'Tenants',
+        'Team',
       ]) {
         expect(
           links,

@@ -137,6 +137,11 @@ describe('ConfirmMigration (0013 T6)', () => {
     // What the owner met on 2026-09-22: twenty Google files that would not be
     // copied, a screen that said so, and a Start button that did not wait to
     // find out whether anybody had read it.
+    //
+    // A migration that carries files, as its count says: Start also waits for
+    // every data type's count (a-start-pressed-before-the-count), and one
+    // carrying mail as well would still be waiting for the mail's.
+    vi.mocked(mappingApi.get).mockResolvedValueOnce({ ...mapping('paused'), syncConfig: { domains: ['file'] } });
     vi.mocked(mappingApi.getDiscovery).mockResolvedValueOnce({
       mappingId: 'm1',
       discovered: true,

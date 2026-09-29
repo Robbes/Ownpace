@@ -73,6 +73,7 @@ import {
   probeSourceConnection,
   probeTargetConnection,
 } from '@openmig/orchestration/probe-connection';
+import { SCHEDULE_FLOOR_MINUTES, shortestGapMinutes } from '@openmig/orchestration/sync-due';
 // The §11.2 decision queues and the decisions on them (ADR-0026). Mounted on
 // this same router so they sit under /api/migrations/:mappingId/... alongside
 // discovery and start, which is where the appliance's equivalents live too.
@@ -99,7 +100,6 @@ import {
   DISTRIBUTION_D_NOT_A_MAPPING,
   targetDomainRefusal,
   parseTargetFolderPrefix,
-  parseThrottleConfig,
   sourceDomainRefusal,
   providerAccountDomains,
   googleDeploymentClient,
@@ -1703,19 +1703,7 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
       });
     }
   }
-  if (body.throttleConfig !== undefined) {
-    // The appliance's parser, verbatim (hard rule 5): a garbage field is
-    // refused here in the same words a mapping file gets.
-    try {
-      parseThrottleConfig(body.throttleConfig);
-    } catch (err) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['throttleConfig'],
-        message: err instanceof ConfigError ? err.message : String(err),
-      });
-    }
-  }
+  refuseTestersThrottle(ctx, body.throttleConfig);
   // WHERE the target is, demanded per type (2026-09-07). `nextcloud` is the
   // one target whose address is a URL: host and port cannot be right for it,
   // so its door does not ask for them and this must not either. Every other
@@ -1784,22 +1772,38 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
 });
 
 /**
- * A schedule the tick cannot evaluate, refused on the box it was typed in.
+ * A schedule the tick cannot evaluate, or one faster than the floor, refused
+ * on the box it was typed in.
  *
  * One function for both doors, create and update, so a cadence refused at
  * create is not one the migration page can store afterwards, in other words.
+ * The floor (workplan 0143 T2b) is the tick's own number, from the module the
+ * tick reads schedules with, so the doors and the tick cannot disagree on it.
  */
 function refuseUnreadableSchedule(ctx: IssueSink, schedule: string): void {
   const cronProblem = describeCronScheduleProblem(schedule);
-  if (!cronProblem) return;
-  ctx.addIssue({
-    code: 'custom',
-    path: ['syncConfig', 'schedule'],
-    message:
-      `The sync schedule is not a valid cron expression: ${cronProblem}. ` +
-      'The scheduler could not evaluate it and would fall back to syncing every ' +
-      '15 minutes, silently ignoring the cadence you stated — so it is refused here instead.',
-  });
+  if (cronProblem) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['syncConfig', 'schedule'],
+      message:
+        `The sync schedule is not a valid cron expression: ${cronProblem}. ` +
+        'The scheduler could not evaluate it and would fall back to syncing every ' +
+        '15 minutes, silently ignoring the cadence you stated — so it is refused here instead.',
+    });
+    return;
+  }
+  const gap = shortestGapMinutes(schedule);
+  if (gap < SCHEDULE_FLOOR_MINUTES) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['syncConfig', 'schedule'],
+      message:
+        `A migration syncs at most every ${SCHEDULE_FLOOR_MINUTES} minutes, and this schedule ` +
+        `would start a pass every ${gap === 1 ? 'minute' : `${gap} minutes`}. ` +
+        `Choose ${SCHEDULE_FLOOR_MINUTES} minutes or longer.`,
+    });
+  }
 }
 
 /** Exported for the retraction guard too: the update path must refuse the
@@ -1846,7 +1850,28 @@ export const UpdateMappingSchema = CreateMappingBase.partial()
   .superRefine((body, ctx) => {
     if (body.sourceConfig) refuseUnreadableExportFormat(ctx, body.sourceConfig);
     if (body.syncConfig?.schedule !== undefined) refuseUnreadableSchedule(ctx, body.syncConfig.schedule);
+    refuseTestersThrottle(ctx, body.throttleConfig);
   });
+
+/**
+ * HOW FAST A MIGRATION MAY ASK ITS PROVIDERS IS THE OPERATOR'S (workplan 0143
+ * T2c). The appliance's owner sets `throttleConfig` for their own machine; on
+ * managed, one organisation's value spends a budget every organisation shares
+ * (the rate budget per tenant, the machine's passes) and can raise a
+ * provider's own ceiling past the point where it locks the account. The web
+ * app never sends it, so no tester loses anything. Refused on both doors, so
+ * no body carries it silently.
+ */
+function refuseTestersThrottle(ctx: IssueSink, throttleConfig: unknown): void {
+  if (throttleConfig === undefined) return;
+  ctx.addIssue({
+    code: 'custom',
+    path: ['throttleConfig'],
+    message:
+      'How fast a migration may ask its providers is set by the operator of this service, not by ' +
+      'the organisation: leave throttleConfig out. Each migration gets the rate its providers allow.',
+  });
+}
 
 /**
  * Prove a connection before creating anything (workplan 0046).
@@ -2483,11 +2508,10 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
             // Parsed, not raw: '/Gmail/' stores as 'Gmail', and '' as NULL —
             // the same normalisation the appliance's config loader applies.
             targetFolderPrefix: parseTargetFolderPrefix(body.targetFolderPrefix) ?? null,
-            // Stored as the PARSED shape, so what a pass reads back is exactly
-            // what the shared parser accepted (migration 0017).
-            throttleConfig: body.throttleConfig
-              ? parseThrottleConfig(body.throttleConfig)
-              : null,
+            // Never the tester's (0143 T2c): refused at the door, so there is
+            // nothing to store. A row written before that is clamped where a
+            // pass reads it (`tenantThrottleLimiter`).
+            throttleConfig: null,
             /**
              * When a connection is SHARED, this mapping's own answers to
              * "whose data, and where" (migration 0021). Only recorded when

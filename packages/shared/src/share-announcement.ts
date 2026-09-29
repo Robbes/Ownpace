@@ -86,7 +86,7 @@ export function assembleShareAnnouncements(
  */
 const SUBJECTS: Record<NotificationLocale, string> = {
   en: 'Files shared with you have moved',
-  nl: 'Met u gedeelde bestanden zijn verhuisd',
+  nl: 'Met u gedeelde bestanden zijn verplaatst',
 };
 
 export function renderShareAnnouncement(
@@ -98,7 +98,7 @@ export function renderShareAnnouncement(
   const body =
     locale === 'nl'
       ? `De onderstaande bestanden of mappen waren met u gedeeld. Ze zijn naar een ` +
-        `ander platform verhuisd, en uw toegang is meeverhuisd.\n\n` +
+        `ander platform verplaatst, en uw toegang is meegegaan.\n\n` +
         `${note}\n\n` +
         `Wat er met u gedeeld is:\n${items}\n\n` +
         `U ontvangt dit bericht eenmalig, omdat de locatie is veranderd. Werkt een ` +
