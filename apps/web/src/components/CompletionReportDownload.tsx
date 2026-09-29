@@ -11,6 +11,7 @@
 import React from 'react';
 import { useT } from '../i18n/index.tsx';
 import { fetchCompletionReport } from '../services/operating-service.ts';
+import { serverMessage } from '../services/api.ts';
 
 export const CompletionReportDownload: React.FC<{ mappingId: string }> = ({ mappingId }) => {
   const t = useT();
@@ -39,7 +40,7 @@ export const CompletionReportDownload: React.FC<{ mappingId: string }> = ({ mapp
             .catch((err: unknown) => {
               // The reason, inline and verbatim — a download button that
               // silently does nothing is a support ticket (rule 9).
-              setFailed(err instanceof Error ? err.message : String(err));
+              setFailed(serverMessage(err));
             })
             .finally(() => setBusy(false));
         }}

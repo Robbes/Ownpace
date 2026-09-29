@@ -57,6 +57,7 @@ import { DOMAIN_STRING_KEY } from '../../i18n/domain-words.ts';
 // called one thing.
 import { remedyKey } from '../../i18n/failure-key.ts';
 import { SendItToUs } from '../SendItToUs.tsx';
+import { serverMessage } from '../../services/api.ts';
 
 /**
  * The server's match, applied to the rows already on screen.
@@ -237,7 +238,7 @@ export const FailureGroupPanel: React.FC<{
           on,
           result: {
             state: 'refused',
-            text: err instanceof Error ? err.message : t('common.requestFailed'),
+            text: err instanceof Error ? serverMessage(err) : t('common.requestFailed'),
           },
         });
       });

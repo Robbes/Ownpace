@@ -26,6 +26,16 @@
  *   the strays duty sends finds the subject on the owner's connection, as the
  *   script reads it; as `app_user`, row security shows one organisation's
  *   rows at a time, which is why the script reads as the owner;
+ * - that statement gives each removal's time, the record's own `at`, in whole
+ *   seconds since 1970: the script keeps the account until 7 days after the
+ *   newest removal (0135 open question 13, answered 2026-09-29), and
+ *   `operator.sh leave` names the subject under the key the statement reads;
+ * - the statement the runbook's Tenant offboarding has the operator run before
+ *   a purge names the organisation's members and the subjects removed from
+ *   it, once each: the purge deletes the organisation's `audit_log` rows, and
+ *   with them the record of a removal less than 7 days old, which would leave
+ *   that account 30 days from its creation, or for ever with none (review of
+ *   2026-09-29);
  * - a removal the route refuses records nothing;
  * - the removal and its record are one transaction: a record that cannot be
  *   written leaves the member in place.
@@ -115,6 +125,19 @@ function theStraysDutysStatement(): string {
   return line[1]!;
 }
 
+/**
+ * The statement the runbook's Tenant offboarding has the operator run before
+ * a purge, for the subjects whose accounts to remove with `--subject` after it.
+ */
+function theOffboardingStatement(): string {
+  const runbook = readFileSync(join(REPO, 'docs', 'operator-runbook.md'), 'utf8');
+  const from = runbook.indexOf('**Their sign-in accounts.**');
+  if (from < 0) throw new Error("the runbook's Tenant offboarding has no paragraph on their sign-in accounts");
+  const statement = /<<'SQL'\n([\s\S]*?)\nSQL\n/.exec(runbook.slice(from, runbook.indexOf('\n## ', from)))?.[1];
+  if (!statement) throw new Error("the runbook's Tenant offboarding gives no statement for the subjects to note before the purge");
+  return statement;
+}
+
 let ownerId = '';
 let formerId = '';
 
@@ -167,6 +190,19 @@ describe('a member removed on the Team page is recorded', () => {
     const asTheOwner = (await rows(statement)).map((r) => Object.values(r)[0]);
     expect(asTheOwner).toContain(FORMER);
 
+    // Its second column is when, by the record's own `at`, in whole seconds
+    // since 1970: the script keeps the account until 7 days after the newest
+    // removal (0135 open question 13). Moved back 8 days, it reads 8 days ago,
+    // so it is the row's time and not the statement's.
+    const when = async () =>
+      (await rows(statement)).map((r) => Object.values(r)).filter(([subject]) => subject === FORMER).map(([, at]) => Number(at));
+    const [now] = await when();
+    expect(Number.isInteger(now), `the time is not whole seconds: ${String(now)}`).toBe(true);
+    expect(Math.abs(now! - Date.now() / 1000)).toBeLessThan(120);
+    await rows(`UPDATE audit_log SET at = at - interval '8 days' WHERE tenant_id = $1 AND action = 'member.removed'`, [TENANT]);
+    const [then] = await when();
+    expect(Math.abs(then! - (Date.now() / 1000 - 8 * 86_400))).toBeLessThan(120);
+
     // As `app_user`, row security shows one organisation's rows at a time,
     // and none of another's: a question across every organisation has to be
     // asked as the database's owner, which is how the script asks it.
@@ -179,6 +215,56 @@ describe('a member removed on the Team page is recorded', () => {
     } finally {
       await conn.query('ROLLBACK');
       await conn.release();
+    }
+  });
+
+  it('and operator.sh leave names the subject under the key the statement reads it by', () => {
+    // `operator.sh leave` records its own removal (`removeMembership`,
+    // `scripts/operator.ts`), for a subject whose memberships it read by
+    // `user_id`. Without the subject where the statement looks, its removal
+    // would name nobody, and the account would be weighed as one nobody let in.
+    const key = /detail->>'(\w+)'/.exec(theStraysDutysStatement())?.[1];
+    expect(key, 'the statement reads no key of detail').toBe('userId');
+    const source = readFileSync(join(REPO, 'apps', 'api', 'src', 'scripts', 'operator.ts'), 'utf8');
+    const from = source.indexOf('async function removeMembership(');
+    expect(from, 'removeMembership is gone from operator.ts').toBeGreaterThan(-1);
+    const body = source.slice(from, source.indexOf('\n}\n', from));
+    expect(body).toContain('MEMBERSHIP_REMOVED_ACTION,');
+    expect(body).toMatch(new RegExp(`\\b${key!}: subject,`));
+  });
+
+  it("and the runbook's Tenant offboarding notes them before a purge takes the record", async () => {
+    // Closed with a window of 0, an organisation is purged at the next hourly
+    // run, and the purge deletes its audit rows: a member removed less than 7
+    // days before has no record left, and the daily run would keep their
+    // account 30 days from its creation. So the operator notes the subjects
+    // first, as the owner, and removes each with --subject after the purge.
+    await request(app).delete(`/api/tenants/${TENANT}/members/${formerId}`).expect(204);
+    // Removed twice, and an invitation whose placeholder is no account.
+    await rows(
+      `INSERT INTO audit_log (tenant_id, actor, action, entity, detail)
+       VALUES ($1, $2, 'member.removed', 'member', jsonb_build_object('userId', $3::text))`,
+      [TENANT, OWNER.userId, FORMER],
+    );
+    await rows(
+      `INSERT INTO tenant_member (tenant_id, user_id, email, role, status, origin, invited_at)
+       VALUES ($1, 'pending:5f620000-e29b-41d4-a716-446655441804', 'invitee@acme.test', 'member', 'invited', 'requested', now())`,
+      [TENANT],
+    );
+    // Another organisation's removal is not this one's to note.
+    await rows(`INSERT INTO tenant (id, name) VALUES ($1, 'Elsewhere') ON CONFLICT (id) DO NOTHING`, [OTHER_TENANT]);
+    await rows(
+      `INSERT INTO audit_log (tenant_id, actor, action, entity, detail)
+       VALUES ($1, 'sub-someone', 'member.removed', 'member', '{"userId":"sub-elsewhere-0135"}')`,
+      [OTHER_TENANT],
+    );
+    try {
+      const statement = theOffboardingStatement();
+      expect(statement).toContain(`action = '${MEMBER_REMOVED_ACTION}'`);
+      const noted = (await rows(statement.replaceAll('<tenant-id>', TENANT))).map((r) => Object.values(r)[0]);
+      expect(noted.sort()).toEqual([ADMIN.userId, OWNER.userId, FORMER].sort());
+    } finally {
+      await rows('DELETE FROM audit_log WHERE tenant_id = $1', [OTHER_TENANT]);
     }
   });
 

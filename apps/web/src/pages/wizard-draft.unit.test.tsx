@@ -122,7 +122,7 @@ describe('the wizard draft', () => {
     fireEvent.change(screen.getByPlaceholderText('imap.example.com'), {
       target: { value: 'mail.acme.example' },
     });
-    fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
+    fireEvent.change(screen.getAllByPlaceholderText('someone@example.com')[0]!, {
       target: { value: 'anna@acme.example' },
     });
     typeEverySecret(0);
@@ -133,7 +133,7 @@ describe('the wizard draft', () => {
     fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
       target: { value: 'stalwart.acme.example' },
     });
-    fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
+    fireEvent.change(screen.getAllByPlaceholderText('someone@example.com')[0]!, {
       target: { value: 'anna@acme.net' },
     });
     typeEverySecret(4);

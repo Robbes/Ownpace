@@ -116,6 +116,23 @@ terminates TLS for the public names, not with a service. The page runs on the sa
    organisations, what was done, and what testers were told. The hold keeps its own history (who
    started it, who lifted it and what it said) for platform-wide holds.
 
+## When a tester quotes a reference from "a form this page does not know"
+
+The sentence is *The server answered in a form this page does not know* (*De server antwoordde in
+een vorm die deze pagina niet kent*): a page could not read one of the API's answers (workplan
+0145). The page told the API itself, so the row is there before anybody reports it.
+
+1. **Find it.** Type the reference into **Reference** on `/support/log`: the row is
+   `web.answer_unreadable`, in the tester's organisation.
+2. **Read the line.** `docker compose logs api | grep -F '[ref <reference>]'` shows the issue, where
+   in the answer it sat, the page, and both builds, with *(they differ)* when the page's build is
+   not the API's.
+3. **If they differ,** the page and the API are from two releases: a tab left open across a
+   deploy, which a reload ends and the sentence already asks for, or a deploy that moved one image
+   and not the other, which the build stamp in the sidebar shows as two versions.
+4. **If they are the same,** the API answered something its own web app refuses, which is a bug.
+   The code, the place and the page are what to reproduce it with.
+
 ## See also
 
 - [`status-page.md`](./status-page.md): what the page can and cannot tell.

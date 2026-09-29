@@ -34,10 +34,12 @@ const router = Router();
  * leave` records its own (`MEMBERSHIP_REMOVED_ACTION`, `scripts/operator.ts`).
  *
  * The removal deletes the member row, so this record is what is left to say
- * the person was let in. `deploy/compose/idp-strays.sh` reads it and keeps
- * their sign-in account: privacy §9's 30 days are for an account "that we
- * never let in" (workplan 0135 T8). `a-member-removed-is-recorded.unit.test.ts`
- * holds the route, `operator.ts` and the script to one spelling.
+ * the person was let in, and when. `deploy/compose/idp-strays.sh` reads it and
+ * keeps their sign-in account until 7 days after the newest such record, then
+ * removes it (workplan 0135 T8 and open question 13): privacy §9's 30 days
+ * from creation are for an account "that we never let in".
+ * `a-member-removed-is-recorded.unit.test.ts` holds the route, `operator.ts`
+ * and the script to one spelling.
  */
 export const MEMBER_REMOVED_ACTION = 'member.removed';
 

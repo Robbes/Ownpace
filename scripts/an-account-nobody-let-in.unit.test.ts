@@ -16,15 +16,27 @@
  *   among them, are never listed; nor is a machine user, or an account whose
  *   age it cannot read. Every page of the listing is read.
  *
- *   An account that was let in is kept (2026-09-29). A member removed on the
+ *   An account that was let in and removed since is kept 7 days after the
+ *   removal, then weighed like the rest (2026-09-29). A member removed on the
  *   Team page (`apps/api/src/routes/tenants/members.ts`) or by `operator.sh
  *   leave` has no member row left, and the script took their used account for
  *   one nobody let in. Privacy §9's 30 days are for an account "that we never
  *   let in" (`site/legal/privacy.md`), and the owner's answer was "unused, yes"
  *   (`site/legal/README.md`). Both removals record `member.removed` in
- *   `audit_log` with the subject, and the script keeps every subject so
- *   recorded. `apps/api/src/routes/tenants/a-member-removed-is-recorded.unit.test.ts`
- *   holds the route's half.
+ *   `audit_log` with the subject, and the row's own time, `at`, says when.
+ *   The script kept every subject so recorded until the organisation was
+ *   erased; the owner then answered 0135 open question 13 (2026-09-29):
+ *   "Samen number of days", and, asked the same as which rule, "7 days", the
+ *   erasure window. So the account is kept while its NEWEST removal is younger
+ *   than 7 days, and goes once that removal is 7 days old, however young the
+ *   account is and whether or not its creation date can be read, unless it is
+ *   a member again, an operator, has an open request or invitation, belongs to
+ *   another organisation or holds a role at the provider. A record of removals
+ *   in a shape it does not know refuses. An organisation's purge deletes the
+ *   record, and the account is then weighed like one nobody let in, which is
+ *   why the runbook's Tenant offboarding removes it with `--subject`.
+ *   `apps/api/src/routes/tenants/a-member-removed-is-recorded.unit.test.ts`
+ *   holds the route's half, and the statement's answer on a real database.
  *
  *   Only our own organisation's accounts. An account whose
  *   `details.resourceOwner` is not `GET /management/v1/orgs/me`'s id is
@@ -55,7 +67,7 @@
  *
  *   One account, at any age (`--subject`), for an organisation that has been
  *   erased; refused while it is still a member anywhere, was removed from an
- *   organisation that still exists, is an operator, has an open request or
+ *   organisation less than 7 days ago, is an operator, has an open request or
  *   invitation, belongs to another organisation or holds a role at the
  *   provider. A subject that is not an id never reaches a URL.
  *
@@ -210,12 +222,20 @@ function account({ userId, email, days, machine, org }: Account): Record<string,
     : { userId, details, username: email, preferredLoginName: email, human: { email: { email, isVerified: true } } };
 }
 
+/** One `audit_log` row `member.removed`: the subject in `detail.userId`, and how long ago (`at`), in days. */
+interface Removal {
+  userId: string;
+  days: number;
+}
+
 interface World {
   accounts?: Account[];
   /** `tenant_member.user_id`, every status. */
   members?: string[];
-  /** `detail.userId` of `audit_log` rows `member.removed`: people let in and removed since. */
-  removed?: string[];
+  /** The `audit_log` rows `member.removed`: people let in and removed since, one row per removal. */
+  removed?: Removal[];
+  /** What the statement for the removals answers, line for line, in place of `removed`. */
+  removedLines?: string[];
   operators?: string[];
   /** Addresses on open access requests. */
   requests?: string[];
@@ -257,7 +277,12 @@ function run(world: World, opts: { args?: string[]; stub?: Record<string, string
   writeFileSync(join(compose, '.env'), 'POSTGRES_USER=openmigrate\n');
   const lines = (xs: string[] = []) => xs.map((x) => `${x}\n`).join('');
   writeFileSync(join(data, 'members'), lines(world.members));
-  writeFileSync(join(data, 'removed'), lines(world.removed));
+  // As psql -At prints the statement's two columns: the subject, and the
+  // removal's time in whole seconds since 1970. Rounded down, so a removal
+  // is never younger than its case says: rounded up, "8 days ago" read as 7
+  // whenever the script ran within the same second.
+  const removals = (world.removed ?? []).map(({ userId, days }) => `${userId}|${Math.floor((Date.now() - days * DAY) / 1000)}`);
+  writeFileSync(join(data, 'removed'), lines(world.removedLines ?? removals));
   writeFileSync(join(data, 'operators'), lines(world.operators));
   writeFileSync(join(data, 'requests'), lines(world.requests));
   writeFileSync(join(data, 'invited'), lines(world.invited));
@@ -379,7 +404,7 @@ describe('whom it lists', () => {
     const r = run(aStackWithEveryReason());
     expect(r.docker.filter((l) => l.startsWith('sql '))).toEqual([
       `sql ${PROJECT}-db | SELECT DISTINCT user_id FROM tenant_member`,
-      `sql ${PROJECT}-db | SELECT DISTINCT detail->>'userId' FROM audit_log WHERE action = 'member.removed'`,
+      `sql ${PROJECT}-db | SELECT detail->>'userId', extract(epoch FROM at)::bigint FROM audit_log WHERE action = 'member.removed'`,
       `sql ${PROJECT}-db | SELECT user_id FROM platform_operator`,
       `sql ${PROJECT}-db | SELECT DISTINCT email FROM access_request WHERE state = 'open'`,
       `sql ${PROJECT}-db | SELECT DISTINCT email FROM tenant_member WHERE status = 'invited'`,
@@ -387,37 +412,211 @@ describe('whom it lists', () => {
   });
 });
 
-describe('an account that was let in is kept, also after its membership is gone', () => {
+describe("a removed member's account: kept 7 days after the removal, then weighed like the rest", () => {
   // The Team page's removal and `operator.sh leave` delete the member row and
-  // record `member.removed` in audit_log with the subject. Privacy §9's 30 days
-  // are for an account "that we never let in"; the owner's question was
-  // whether these are unused accounts, answered "unused, yes"
-  // (site/legal/README.md). What becomes of a removed member's account is the
-  // owner's open question (0135); until it is answered, it is kept.
-  const withARemovedMember = (): World => {
+  // record `member.removed` in audit_log: the subject in `detail.userId`, the
+  // time in the row's own `at`. Privacy §9's 30 days are for an account "that
+  // we never let in"; such an account was let in. Until 2026-09-29 it was kept
+  // for as long as the record was there, which was until the organisation was
+  // erased. The owner's answer to 0135 open question 13 (2026-09-29): "Samen
+  // number of days", and, asked the same as which rule, "7 days", the erasure
+  // window. The NEWEST removal counts, and the date the account was created
+  // plays no part: removed 8 days ago, it goes, though it was created 10 days
+  // ago, or has no creation date the script can read. Every other reason to
+  // keep an account still keeps it.
+  const HOUR = 1 / 24;
+  /**
+   * Account 20, created `created` days ago ('undated': the provider gives no
+   * creation date), removed once per entry of `removed`, that many days ago.
+   */
+  const withARemovedMember = (removed: number[], created: number | 'undated' = 120): World => {
     const world = aStackWithEveryReason();
-    world.accounts!.push({ userId: '20', email: 'former@example.test', days: 120 });
-    world.removed = ['20', 'pending:an-invitation-withdrawn'];
+    world.accounts!.push({ userId: '20', email: 'former@example.test', days: created === 'undated' ? undefined : created });
+    world.removed = [
+      ...removed.map((days) => ({ userId: '20', days })),
+      // An invitation withdrawn: its placeholder names no account.
+      { userId: 'pending:an-invitation-withdrawn', days: 30 },
+    ];
     return world;
   };
 
-  it('keeps an account whose removal from an organisation is recorded, and says why', () => {
-    const r = run(withARemovedMember(), { args: ['--remove', '--at-most', '20'] });
+  it.each([
+    ['6 days ago', 6],
+    ['7 days less an hour ago', 7 - HOUR],
+  ])('keeps it while its removal is younger than 7 days (%s), and says why', (_when, days) => {
+    const r = run(withARemovedMember([days]), { args: ['--remove', '--at-most', '20'] });
     expect(r.status, r.err).toBe(0);
     expect(r.deleted).toEqual(['10']);
     expect(r.out).toContain('10 accounts at the provider, 1 nobody let in and older than 30 days.');
-    expect(r.out).toContain('1 let in and removed since');
+    expect(r.out).toContain('1 removed from an organisation less than 7 days ago');
   });
 
-  it('refuses --subject for it, naming the reason', () => {
-    const r = run(withARemovedMember(), { args: ['--subject', '20', '--remove'] });
-    expect(r.status).toBe(1);
-    expect(r.err).toContain('account 20 is left alone: it was let in, and removed from an organisation here since.');
+  it.each([
+    ['7 days and an hour ago', 7 + HOUR],
+    ['8 days ago', 8],
+  ])('removes it once its removal is 7 days old (%s), and counts it apart', (_when, days) => {
+    const r = run(withARemovedMember([days]), { args: ['--remove', '--at-most', '20'] });
+    expect(r.status, r.err).toBe(0);
+    expect(r.deleted).toEqual(['10', '20']);
+    expect(r.out).toContain(
+      '10 accounts at the provider, 1 nobody let in and older than 30 days, ' +
+        'and 1 removed from an organisation 7 or more days ago.',
+    );
+    expect(r.out).toContain('removed 2 of 2.');
+  });
+
+  it('lists it with the age of its removal, and without --remove removes nothing', () => {
+    const r = run(withARemovedMember([8]));
+    expect(r.status, r.err).toBe(0);
+    expect(r.out).toMatch(
+      /^ {2}20 {2}former@example\.test {2}created \d{4}-\d{2}-\d{2}, 120 days ago, removed from an organisation 8 days ago$/m,
+    );
+    expect(r.out).toContain('nothing was removed. To remove these 2: ./deploy/compose/idp-strays.sh --remove');
     expect(r.deleted).toEqual([]);
   });
 
+  it('removes it 7 days after the removal however young the account is: created 10 days ago, removed 8', () => {
+    // The 30 days are for an account nobody let in, counted from its creation.
+    // For one that was let in, the owner's 7 days count from the removal.
+    const r = run(withARemovedMember([8], 10), { args: ['--remove', '--at-most', '20'] });
+    expect(r.status, r.err).toBe(0);
+    expect(r.deleted).toEqual(['10', '20']);
+  });
+
+  // An account whose creation date cannot be read is left alone when nobody
+  // let it in: its 30 days cannot be counted. A removed member's 7 days count
+  // from the removal, so the date plays no part there either (review of
+  // 2026-09-29: reverting that rule left every case green).
+  it('removes it 7 days after the removal though the provider gives no creation date, and its line says so', () => {
+    const r = run(withARemovedMember([8], 'undated'), { args: ['--remove', '--at-most', '20'] });
+    expect(r.status, r.err).toBe(0);
+    expect(r.deleted).toEqual(['10', '20']);
+    expect(r.out).toMatch(/^ {2}removed 20, no creation date$/m);
+    expect(r.out).toContain('removed 2 of 2.');
+  });
+
+  it('lists it, with no creation date and removed 8 days ago, without an empty date on its line', () => {
+    const r = run(withARemovedMember([8], 'undated'));
+    expect(r.status, r.err).toBe(0);
+    expect(r.out).toMatch(/^ {2}20 {2}former@example\.test {2}no creation date, removed from an organisation 8 days ago$/m);
+    expect(r.deleted).toEqual([]);
+  });
+
+  it('keeps it, with no creation date, while its removal is younger than 7 days, and counts it as removed', () => {
+    const r = run(withARemovedMember([3], 'undated'), { args: ['--remove', '--at-most', '20'] });
+    expect(r.status, r.err).toBe(0);
+    expect(r.deleted).toEqual(['10']);
+    expect(r.out).toContain('1 removed from an organisation less than 7 days ago');
+    // Account 16's, and not account 20's as well.
+    expect(r.out).toContain(', 1 with no creation date.');
+  });
+
+  // The purge of an organisation deletes its audit rows, and with them the
+  // record of a member removed from it. Closed with a window of 0, it can be
+  // erased less than 7 days after the removal; the daily run then weighs the
+  // account like one nobody let in, 30 days from its creation. The runbook's
+  // Tenant offboarding has the operator note such subjects before the purge
+  // and remove each with --subject after it (review of 2026-09-29).
+  it.each([
+    ['4 days old', 4 as number | 'undated', '2 younger than 30 days'],
+    ['with no creation date', 'undated' as number | 'undated', '2 with no creation date'],
+  ])("after its organisation's erasure the record is gone: the daily run keeps an account %s, and --subject removes it", (_what, created, said) => {
+    const daily = run(withARemovedMember([], created), { args: ['--remove', '--at-most', '20'] });
+    expect(daily.status, daily.err).toBe(0);
+    expect(daily.deleted).toEqual(['10']);
+    expect(daily.out).toContain(said);
+    const one = run(withARemovedMember([], created), { args: ['--subject', '20', '--remove'] });
+    expect(one.status, one.err).toBe(0);
+    expect(one.deleted).toEqual(['20']);
+  });
+
+  it.each([
+    ['the newest first', [2, 20]],
+    ['the oldest first', [20, 2]],
+  ])('counts from the newest removal: two rows, the newest 2 days ago, kept (%s)', (_order, removed) => {
+    const r = run(withARemovedMember(removed), { args: ['--remove', '--at-most', '20'] });
+    expect(r.status, r.err).toBe(0);
+    expect(r.deleted).toEqual(['10']);
+    expect(r.out).toContain('1 removed from an organisation less than 7 days ago');
+  });
+
+  it('removes it when both of two removals are 7 days old or more', () => {
+    const r = run(withARemovedMember([8, 20]), { args: ['--remove', '--at-most', '20'] });
+    expect(r.status, r.err).toBe(0);
+    expect(r.deleted).toEqual(['10', '20']);
+  });
+
+  // Every other reason to keep an account still holds, 8 days after the removal.
+  const keptFor: Array<[string, Partial<World>, string]> = [
+    ['it is a member elsewhere now', { members: ['11', '20', 'pending:an-invitation'] }, '2 members of an organisation'],
+    ['it is an operator', { operators: ['12', '20'] }, '2 operators'],
+    ['an access request carries its address', { requests: ['ASKED@example.test', 'Former@Example.test'] }, '2 with an open access request'],
+    ['an invitation is addressed to it', { invited: ['INVITED@example.test', 'FORMER@example.test'] }, '2 with an open invitation'],
+    ['it holds a membership at the provider', { memberships: ['20'] }, '1 with a membership or a grant at the provider'],
+    ['it holds a grant at the provider', { grants: ['20'] }, '1 with a membership or a grant at the provider'],
+  ];
+  it.each(keptFor)('keeps it, removed 8 days ago, when %s', (_why, world, said) => {
+    const r = run({ ...withARemovedMember([8]), ...world }, { args: ['--remove', '--at-most', '20'] });
+    expect(r.status, r.err).toBe(0);
+    expect(r.deleted).toEqual(['10']);
+    expect(r.out).toContain(said);
+  });
+
+  it('keeps it, removed 8 days ago, when it belongs to another organisation at the provider', () => {
+    const world = withARemovedMember([8]);
+    world.accounts = world.accounts!.map((a) => (a.userId === '20' ? { ...a, org: '200' } : a));
+    const r = run(world, { args: ['--remove', '--at-most', '20'] });
+    expect(r.status, r.err).toBe(0);
+    expect(r.deleted).toEqual(['10']);
+    expect(r.out).toContain('1 of another organisation at the provider');
+  });
+
+  it('--at-most counts it with the rest', () => {
+    const r = run(withARemovedMember([8]), { args: ['--remove', '--at-most', '1'] });
+    expect(r.status).toBe(1);
+    expect(r.err).toContain('2 accounts would be removed, more than the 1 this run may remove (--at-most).');
+    expect(r.deleted).toEqual([]);
+  });
+
+  it('refuses --subject while its removal is younger than 7 days, naming how long ago', () => {
+    const r = run(withARemovedMember([3]), { args: ['--subject', '20', '--remove'] });
+    expect(r.status).toBe(1);
+    expect(r.err).toContain(
+      'account 20 is left alone: it was removed from an organisation here 3 days ago, and is kept until 7 days after that.',
+    );
+    expect(r.deleted).toEqual([]);
+  });
+
+  it('--subject removes it once its removal is 7 days old', () => {
+    const r = run(withARemovedMember([8]), { args: ['--subject', '20', '--remove'] });
+    expect(r.status, r.err).toBe(0);
+    expect(r.deleted).toEqual(['20']);
+  });
+
+  it('reads past a removal that names no subject: it names no account', () => {
+    const world = withARemovedMember([]);
+    world.removedLines = [`|${Math.floor((Date.now() - 8 * DAY) / 1000)}`, `20|${Math.floor((Date.now() - 2 * DAY) / 1000)}`];
+    const r = run(world, { args: ['--remove', '--at-most', '20'] });
+    expect(r.status, r.err).toBe(0);
+    expect(r.deleted).toEqual(['10']);
+  });
+
+  it.each([
+    ['a subject with no time', '20'],
+    ['a time that is not whole seconds', '20|2026-09-21 08:00:00+00'],
+    ['a line with no subject column', '1790000000'],
+  ])('refuses a record of removals in a shape it does not know (%s), before it asks the provider anything', (_what, line) => {
+    const world = withARemovedMember([]);
+    world.removedLines = [line];
+    const r = run(world, { args: ['--remove', '--at-most', '20'] });
+    expect(r.status).toBe(1);
+    expect(r.err).toContain('the record of removals came back in a shape this does not know');
+    expect(r.err).toContain('nothing was removed.');
+    expect(r.calls).toEqual([]);
+  });
+
   it('refuses, before it asks the provider anything, when the record of removals cannot be read', () => {
-    const r = run(withARemovedMember(), { args: ['--remove'], stub: { STUB_DB_FAIL: 'removed' } });
+    const r = run(withARemovedMember([2]), { args: ['--remove'], stub: { STUB_DB_FAIL: 'removed' } });
     expect(r.status).toBe(1);
     expect(r.err).toContain('could not be read');
     expect(r.err).toContain('nothing was removed.');

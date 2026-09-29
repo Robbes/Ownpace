@@ -155,6 +155,18 @@ function hashMatches(candidate: string, stored: string): boolean {
 }
 
 /**
+ * The three mechanics above, by name, for the one other link there is: a
+ * person's (managed `person-link-store.ts`, ADR-0035's amendment of
+ * 2026-09-29). Its table lives in the managed chain because `person` does, and
+ * its secret is made, hashed and compared exactly as this file does it, here,
+ * so the two can never drift apart.
+ */
+export const mintLinkSecret = (): string => randomBytes(32).toString('base64url');
+export const hashLinkSecret = (secret: string): string => sha256Hex(secret);
+export const linkSecretMatches = (secret: string, storedHash: string): boolean =>
+  hashMatches(sha256Hex(secret), storedHash);
+
+/**
  * Mint a link for one mapping. Runs inside the OWNER's tenant context, so the
  * ordinary tenant policies apply to the insert.
  *
@@ -175,7 +187,7 @@ export async function issueMappingLink(
   const id = randomUUID();
   // 32 bytes of randomness. base64url so the token survives a URL, an email
   // client and a copy-paste without an encoding step anywhere.
-  const secret = randomBytes(32).toString('base64url');
+  const secret = mintLinkSecret();
   await db.insert(mappingLink).values({
     id,
     tenantId: input.tenantId,

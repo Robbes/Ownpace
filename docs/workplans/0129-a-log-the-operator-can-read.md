@@ -4,6 +4,12 @@
 
 ## Status — 2026-09-29 (update this block at the end of every session)
 
+**2026-09-29: the web app's own failures join the log** (workplan 0145, the owner's "Log it").
+A page that could not read one of its server's answers shows its reader a reference and sends
+it; both editions record `web.answer_unreadable` under it, metadata only as T1 has it, and
+write the detail on one line of their output with both builds. The rest of this plan is
+unchanged; 0145's Status block has the build and its evidence.
+
 **2026-09-29: T3's managed half withdrawn (the owner, 2026-09-28, ops-log-driver (a), *"Docker's
 default, as the text says"*)**, on branch `claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird`, not merged. Privacy §9 now keeps server logs
 *"until the part of the service that wrote them is replaced"*, with no fixed period, which is what

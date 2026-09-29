@@ -137,10 +137,10 @@ app.use(express.json());
 app.use('/api/migrations', linkRoutes);
 
 /** A statement as the owner, outside any route: for a fixture, never for an assertion's subject. */
-async function asOwner(sql: string, params: unknown[] = []): Promise<void> {
+async function asOwner(sql: string, params: unknown[] = []): Promise<unknown[]> {
   const conn = await driver.acquire();
   try {
-    await conn.query(sql, params);
+    return (await conn.query(sql, params)).rows;
   } finally {
     await conn.release();
   }
@@ -659,6 +659,7 @@ describe('as many live grant links as the tier runs migrations (0108 T8 (d))', (
   beforeEach(async () => {
     caller = { tenantId: LIMIT_TENANT, userId: 'pat', userRole: 'owner' };
     await asOwner('DELETE FROM mapping_link WHERE tenant_id = $1', [LIMIT_TENANT]);
+    await asOwner('DELETE FROM person WHERE tenant_id = $1', [LIMIT_TENANT]);
     await asOwner('DELETE FROM grant_link_allowance WHERE tenant_id = $1', [LIMIT_TENANT]);
     await asOwner('DELETE FROM occupancy_peak WHERE tenant_id = $1', [LIMIT_TENANT]);
   });
@@ -676,6 +677,28 @@ describe('as many live grant links as the tier runs migrations (0108 T8 (d))', (
         'Revoke one that is no longer needed, or wait until one is used or expires.',
     );
     expect(await rowsFor(LIMIT_MAPPING)).toHaveLength(1);
+  });
+
+  it("counts a person's live grant link in the same limit, once (ADR-0035's amendment of 2026-09-29)", async () => {
+    // A person's link covers all of their migrations and counts once. It is
+    // written here as the table holds it; issuing one is 0153 T5 (b)'s next
+    // slice, with the page that opens it.
+    const [person] = await asOwner(
+      `INSERT INTO person (tenant_id, display_name) VALUES ($1, 'Anna') RETURNING id`,
+      [LIMIT_TENANT],
+    );
+    const [link] = await asOwner(
+      `INSERT INTO person_link (tenant_id, person_id, purpose, secret_hash, created_by, expires_at)
+       VALUES ($1, $2, 'grant', repeat('0', 64), 'pat', now() + interval '7 days') RETURNING id`,
+      [LIMIT_TENANT, (person as { id: string }).id],
+    );
+
+    const refused = await issue();
+    expect(refused.status).toBe(409);
+    expect(refused.body).toMatchObject({ error: 'grant_links_at_limit', live: 1, limit: 1 });
+
+    await asOwner('UPDATE person_link SET revoked_at = now() WHERE id = $1', [(link as { id: string }).id]);
+    expect((await issue()).status).toBe(201);
   });
 
   it('never refuses a progress link: it grants nothing', async () => {

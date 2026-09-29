@@ -116,6 +116,7 @@ const MOUNTS: ReadonlyArray<{ prefix: string; files: string[]; mountedIn?: strin
   // "Report a problem" (workplan 0130). Mounted ahead of the global JSON
   // parser, with a larger limit of its own, for the screenshot.
   { prefix: '/api/problem-reports', files: ['src/routes/problem-reports.ts'] },
+  { prefix: '/api/unreadable-answers', files: ['src/routes/unreadable-answers.ts'] },
 ];
 
 const METHODS = ['get', 'post', 'put', 'patch', 'delete'] as const;

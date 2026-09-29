@@ -708,6 +708,12 @@ N days), and the alpha can end."*; NL *"Er wordt niets in rekening gebracht, er 
 back-ups gemaakt (alleen een kopie vóór elke update, hoogstens N dagen bewaard) en de alfa kan
 stoppen."* Not built: `alpha.note.terms` in `strings.ts` and `access_granted` in
 `notifications.ts` still say the first form.
+*(2026-09-29: reworded in 0139 T4 (ops-app-sentences (a)); 0139's Status block says where that
+stands. The note and the grant mail's alpha paragraph now say EN *"Nothing is charged, and the
+alpha can end. There are no backups, apart from one copy before each update, kept up to 7
+days."*; NL *"Er wordt niets in rekening gebracht en de alfa kan stoppen. Er worden geen
+back-ups gemaakt, op één kopie vlak voor elke update na, die hoogstens 7 dagen wordt
+bewaard."*)*
 
 Once 0139 publishes the alpha conditions, the note links to them in the reader's language. Beside
 them it links 0144 T1's tester guide, and the access-granted mail's sentence carries the same

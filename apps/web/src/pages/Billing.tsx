@@ -32,17 +32,12 @@ import { isAlpha } from '../components/AlphaNote.tsx';
 /** A failed read said as such (hard rule 9 / 0033 T2) — before this, a failed
  *  usage read rendered "No usage data available yet" and a failed invoices
  *  read rendered a silent blank, both on the screen where numbers are money. */
-const ReadFailed: React.FC<{ heading: string; error: unknown; footnote: string }> = ({
-  heading,
-  error,
-  footnote,
-}) => (
+const ReadFailed: React.FC<{ heading: string; error: unknown }> = ({ heading, error }) => (
   <div className="flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
     <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
     <div>
       <p className="font-medium">{heading}</p>
       <p className="mt-1">{serverMessage(error)}</p>
-      <p className="mt-1">{footnote}</p>
     </div>
   </div>
 );
@@ -221,7 +216,6 @@ const InvoiceDetailsCard: React.FC<{ free: boolean }> = ({ free }) => {
           <ReadFailed
             heading={t('billing.party.loadFailed')}
             error={error}
-            footnote={t('billing.loadFailedNotEmpty')}
           />
         ) : isLoading ? (
           <div className="flex items-center justify-center py-8">
@@ -569,7 +563,6 @@ const Billing: React.FC = () => {
           <ReadFailed
             heading={t('billing.usageLoadFailed')}
             error={usageError}
-            footnote={t('billing.loadFailedNotEmpty')}
           />
         ) : usage ? (
           <div className="space-y-4">
@@ -707,7 +700,6 @@ const Billing: React.FC = () => {
             <ReadFailed
               heading={t('billing.invoicesLoadFailed')}
               error={invoicesError}
-              footnote={t('billing.loadFailedNotEmpty')}
             />
           ) : invoices?.invoices?.length === 0 ? (
             <p className="text-gray-500 text-center py-8">{t('billing.noInvoices')}</p>
@@ -775,7 +767,6 @@ const Billing: React.FC = () => {
             <ReadFailed
               heading={t('billing.paymentMethodsLoadFailed')}
               error={methodsError}
-              footnote={t('billing.loadFailedNotEmpty')}
             />
           ) : methods?.paymentMethods?.length === 0 ? (
             <p className="text-gray-500 text-center py-8">{t('billing.noPaymentMethods')}</p>

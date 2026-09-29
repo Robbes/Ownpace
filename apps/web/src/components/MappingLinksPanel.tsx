@@ -324,6 +324,16 @@ const LinkSection: React.FC<{
   );
 };
 
+/**
+ * The grant section alone, for *Start a migration*'s last screen (0153 T4):
+ * the same machinery, for a migration whose person connects it themselves.
+ */
+export const GrantLinkSection: React.FC<{
+  mappingId: string;
+  links: GrantLink[] | undefined;
+  loadFailed: boolean;
+}> = (props) => <LinkSection {...props} purpose="grant" />;
+
 const MappingLinksPanel: React.FC<{ mappingId: string }> = ({ mappingId }) => {
   const links = useQuery({
     queryKey: ['grant-links', mappingId],

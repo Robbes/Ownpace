@@ -108,6 +108,7 @@ import {
   ENV_GOOGLE_CREDENTIAL_NAMES,
 } from '@openmig/orchestration/drive-source-factory';
 import { renderMetrics, METRICS_CONTENT_TYPE, setAppEventSink, parseLogFilters, setAuditExportSink, AUDIT_PSEUDONYM_PURPOSE, auditCursorAfter, auditExportLine, parseAuditExportQuery, pseudonymizer } from '@openmig/shared';
+import { UNREADABLE_ANSWER_EVENT, parseUnreadableAnswer, recordAppEvent, unreadableAnswerLogLine } from '@openmig/shared';
 import { isCrossSiteWrite } from './cross-site.ts';
 import { answersTo, describeAllowlist, hostAllowlistFrom, namedHost } from './host-allowlist.ts';
 import {
@@ -1559,6 +1560,32 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       if (req.method === 'GET' && req.url === '/version') {
         return sendJson(res, 200, buildIdentity());
       }
+      // An answer a page could not read, told by the page once (workplan 0145,
+      // the owner's "Log it"). Kept as managed keeps it
+      // (`apps/api/src/routes/unreadable-answers.ts`): on the log page under the
+      // reference the page showed, with the detail on one line of this output.
+      // Behind the cross-site refusal above, like every write here.
+      if (req.method === 'POST' && req.url === '/unreadable-answers') {
+        let body: unknown;
+        try {
+          body = await readJson(req);
+        } catch {
+          body = undefined;
+        }
+        const report = parseUnreadableAnswer(body);
+        if (!report) {
+          return sendJson(res, 400, {
+            error: 'invalid_report',
+            reason: 'A report of an unreadable answer needs the reference the page showed: eight hex characters.',
+          });
+        }
+        log.error(unreadableAnswerLogLine(report, buildIdentity()));
+        // Not awaited: `recordAppEvent` never throws, and the page does not wait.
+        void recordAppEvent({ level: 'error', event: UNREADABLE_ANSWER_EVENT, reference: report.reference });
+        res.writeHead(204);
+        res.end();
+        return;
+      }
       // Prometheus scrape target (§18 names Grafana/LGTM; §19 wants per-tenant
       // dashboards). Plain text, not JSON, and deliberately unauthenticated in
       // the same way /healthz is: the appliance binds to localhost by default
@@ -2488,6 +2515,9 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
                 return false;
               }
             },
+            // No privacy line (0139 T4): the owner sends this from their own
+            // box, and the managed service's privacy policy is not theirs.
+            privacyPolicy: null,
             onError: (message, err) => log.error(message, err),
           },
           { note, locale, confirmResend: body.confirmResend === true },

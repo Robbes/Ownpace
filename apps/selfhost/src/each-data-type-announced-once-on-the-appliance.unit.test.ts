@@ -193,6 +193,9 @@ describe('each data type’s shares carried by hand, announced once, at its own 
       const resent = await announce(base, { confirmResend: true });
       expect(resent.body).toMatchObject({ resend: true, sent: ['anna@example.invalid', 'cas@example.invalid'] });
       expect(SENT).toHaveLength(2);
+      // No privacy line (0139 T4): the owner sends this from their own box,
+      // and the managed service's privacy policy is not theirs.
+      for (const m of SENT) expect(m.body).not.toMatch(/privacy|ownpace\.eu/i);
     });
 
     const audit = await asTheDatabase(

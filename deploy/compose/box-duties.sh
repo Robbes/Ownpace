@@ -54,10 +54,12 @@
 #                  live's copy of www.ownpace.eu (the project <project>-www)
 #                  is not running and healthy.
 #   strays         idp-strays.sh --remove --at-most 20 (0135 T8): the sign-in
-#                  accounts nobody let in, older than 30 days, removed, which
-#                  privacy §9 promises. More than 20 in one run removes none and
-#                  fails the duty, so a person looks at them first. Its lines
-#                  name an account's id, never its address.
+#                  accounts nobody let in, older than 30 days, removed, and
+#                  those of members removed from an organisation 7 or more days
+#                  ago (0135 open question 13), which privacy §9 promises. More
+#                  than 20 in one run removes none and fails the duty, so a
+#                  person looks at them first. Its lines name an account's id,
+#                  never its address.
 #   searches       support-read-prune.sh --delete (0139 T6): the support
 #                  screens' reads recorded with no organisation (among them a
 #                  search by address and a download of the audit log), deleted
@@ -268,7 +270,7 @@ run_duty organisations "the organisations on live's identity provider, read-only
   "${SCRIPT_DIR}/setup-zitadel.sh" --count-organisations
 run_duty site "live's copy of the public site, read-only: no www service in live's project, and the site's own project healthy when WWW_LIVE is true" \
   "${SCRIPT_DIR}/www-live.sh" check
-run_duty strays "sign-in accounts nobody let in, older than 30 days, removed; more than 20 at once removes none" \
+run_duty strays "sign-in accounts nobody let in, older than 30 days, and those of members removed 7 or more days ago, removed; more than 20 at once removes none" \
   "${SCRIPT_DIR}/idp-strays.sh" --remove --at-most 20
 run_duty searches "support-screen reads with no organisation, older than 12 months, deleted over the owner's connection" \
   "${SCRIPT_DIR}/support-read-prune.sh" --delete
