@@ -502,7 +502,7 @@ describe('replacing credentials', () => {
 
     fireEvent.click(await screen.findByText('Reconnect'));
 
-    expect(screen.getByPlaceholderText('user@example.com')).toBeTruthy();
+    expect(screen.getByPlaceholderText('someone@example.com')).toBeTruthy();
     expect(screen.getByPlaceholderText('1//…')).toBeTruthy();
   });
 
@@ -843,7 +843,7 @@ describe('adding a connection through the front door', () => {
     expect(fold).toContainElement(screen.getByPlaceholderText('…apps.googleusercontent.com'));
     expect(fold).toContainElement(screen.getByPlaceholderText('••••••••'));
     // The address stays in plain view — it is what the fold is not about.
-    expect(screen.getByPlaceholderText('user@example.com').closest('details')).toBeNull();
+    expect(screen.getByPlaceholderText('someone@example.com').closest('details')).toBeNull();
   });
 
   it('offers Connect with Google where the deployment carries the client, and the token it hands back lands inside the fold', async () => {
@@ -861,7 +861,7 @@ describe('adding a connection through the front door', () => {
       add.mockResolvedValue({ ok: true, id: 'c1', detail: 'reachable' });
       await open();
       fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
-      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
         target: { value: 'owner@gmail.com' },
       });
       const button = await screen.findByRole('button', { name: /Connect with Google/ });
@@ -908,7 +908,7 @@ describe('adding a connection through the front door', () => {
     try {
       await open();
       fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
-      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
         target: { value: 'owner@gmail.com' },
       });
       const button = await screen.findByRole('button', { name: /Connect with Google/ });
@@ -940,7 +940,7 @@ describe('adding a connection through the front door', () => {
     try {
       await open();
       fireEvent.click(screen.getByRole('button', { name: /^Microsoft 365 account/ }));
-      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
         target: { value: 'someone@contoso.example' },
       });
       await screen.findByText('What this account will serve');
@@ -985,7 +985,7 @@ describe('adding a connection through the front door', () => {
     try {
       await open();
       fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
-      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
         target: { value: 'owner@gmail.com' },
       });
       await screen.findByText('What this account will serve');
@@ -1017,7 +1017,7 @@ describe('adding a connection through the front door', () => {
     try {
       await open();
       fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
-      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
         target: { value: 'owner@gmail.com' },
       });
       const button = screen.getByRole('button', { name: /Connect with Google/ });
@@ -1071,7 +1071,7 @@ describe('adding a connection through the front door', () => {
     try {
       await open();
       fireEvent.click(screen.getByRole('button', { name: /^Microsoft 365 account/ }));
-      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
         target: { value: 'someone@contoso.example' },
       });
       const button = await screen.findByRole('button', { name: /Connect with Microsoft/ });
@@ -1117,7 +1117,7 @@ describe('adding a connection through the front door', () => {
       add.mockResolvedValue({ ok: true, id: 'c2', detail: 'reachable' });
       await open();
       fireEvent.click(screen.getByRole('button', { name: /^Dropbox/ }));
-      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
         target: { value: 'owner@example.invalid' },
       });
       const button = await screen.findByRole('button', { name: /Connect with Dropbox/ });
@@ -1190,7 +1190,7 @@ describe('adding a connection through the front door', () => {
       add.mockResolvedValue({ ok: true, id: 'c9', detail: 'reachable' });
       await open();
       fireEvent.click(screen.getByRole('button', { name: /^Dropbox/ }));
-      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
         target: { value: 'owner@example.invalid' },
       });
       const consent = await screen.findByRole('button', { name: /Connect with Dropbox/ });
@@ -1224,7 +1224,7 @@ describe('adding a connection through the front door', () => {
     try {
       await open();
       fireEvent.click(screen.getByRole('button', { name: /^Dropbox/ }));
-      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
         target: { value: 'owner@example.invalid' },
       });
       const button = screen.getByRole('button', { name: /Connect with Dropbox/ });
@@ -1261,7 +1261,7 @@ describe('adding a connection through the front door', () => {
     await act(async () => {});
     expect(button).toBeDisabled();
     expect(reasonUnder(button)).toHaveTextContent('Enter the account address first');
-    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+    fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
       target: { value: 'owner@example.invalid' },
     });
     await waitFor(() => expect(button).toBeEnabled());
@@ -1300,7 +1300,7 @@ describe('adding a connection through the front door', () => {
     fireEvent.change(screen.getByLabelText(STRINGS.en['connections.name']), {
       target: { value: 'My Soverin' },
     });
-    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+    fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
       target: { value: 'owner@example.invalid' },
     });
     fireEvent.change(screen.getByPlaceholderText('••••••••'), {
@@ -1729,7 +1729,7 @@ describe('the consent asks for its ending in the page’s language (0145 T6)', (
       renderInDutch();
       fireEvent.click(await screen.findByText(STRINGS.nl['connections.add']));
       fireEvent.click(screen.getByRole('button', { name: card }));
-      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
         target: { value: 'owner@example.invalid' },
       });
       const button = await screen.findByRole('button', { name: new RegExp(`^${STRINGS.nl[connect]}`) });

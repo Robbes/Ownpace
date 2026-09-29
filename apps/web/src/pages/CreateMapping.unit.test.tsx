@@ -128,7 +128,7 @@ const renderWizard = () => {
  * set the provider config can no longer leave step one.
  */
 const satisfySourceStep = () => {
-  const user = screen.queryAllByPlaceholderText('user@example.com')[0];
+  const user = screen.queryAllByPlaceholderText('someone@example.com')[0];
   if (user) fireEvent.change(user, { target: { value: 'source@acme.example' } });
   // BY PLACEHOLDER, NOT BY TYPE (2026-09-07): a test that pressed the
   // show/hide toggle first left the box `type="text"`, so a type selector
@@ -144,7 +144,7 @@ const satisfySourceStep = () => {
 
 /** As satisfySourceStep, for the target side's own account and password. */
 const satisfyTargetStep = () => {
-  const user = screen.queryAllByPlaceholderText('user@example.com')[0];
+  const user = screen.queryAllByPlaceholderText('someone@example.com')[0];
   if (user) fireEvent.change(user, { target: { value: 'target@acme.example' } });
   const pw = document.querySelectorAll('input[type="password"]')[0];
   if (pw) fireEvent.change(pw, { target: { value: 'target-password' } });
@@ -326,7 +326,7 @@ describe('CreateMapping — field-level honesty on the credentials and review st
    * asserts the same properties on each, where each actually lives.
    */
   const assertCredentialPair = () => {
-    const username = screen.getByPlaceholderText('user@example.com');
+    const username = screen.getByPlaceholderText('someone@example.com');
     expect(username).toHaveAttribute('autocomplete', 'username');
 
     const secret = screen.getByPlaceholderText('••••••••');
@@ -415,7 +415,7 @@ describe('CreateMapping — choices that cannot work are constrained (0037 T4)',
     fireEvent.change(screen.getByPlaceholderText('imap.example.com'), {
       target: { value: 'mail.old-provider.example' },
     });
-    fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
+    fireEvent.change(screen.getAllByPlaceholderText('someone@example.com')[0]!, {
       target: { value: 'source@acme.example' },
     });
     fireEvent.change(document.querySelectorAll('input[type="password"]')[0]!, {
@@ -428,7 +428,7 @@ describe('CreateMapping — choices that cannot work are constrained (0037 T4)',
     fireEvent.change(targetHostBox(), {
       target: { value: 'dav.acme.example' },
     });
-    fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
+    fireEvent.change(screen.getAllByPlaceholderText('someone@example.com')[0]!, {
       target: { value: 'target@acme.example' },
     });
     fireEvent.change(document.querySelectorAll('input[type="password"]')[0]!, {
@@ -476,7 +476,7 @@ describe('CreateMapping — choices that cannot work are constrained (0037 T4)',
     // nothing to untick.
     fireEvent.click(screen.getByRole('button', { name: /Back/ }));
     fireEvent.click(screen.getByRole('button', { name: /^CardDAV/ }));
-    fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
+    fireEvent.change(screen.getAllByPlaceholderText('someone@example.com')[0]!, {
       target: { value: 'target@acme.example' },
     });
     fireEvent.change(document.querySelectorAll('input[type="password"]')[0]!, {
@@ -685,7 +685,7 @@ describe('CreateMapping — oauth2/graph collect the app registration (0037 T6, 
     expect(screen.getByRole('status').textContent).toContain('Username');
     expect(screen.getByRole('status').textContent).toContain('Client secret');
 
-    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+    fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
       target: { value: 'mailbox@acme.example' },
     });
     fireEvent.change(screen.getByPlaceholderText('••••••••'), {
@@ -710,7 +710,7 @@ describe('CreateMapping — oauth2/graph collect the app registration (0037 T6, 
     fireEvent.change(screen.getByPlaceholderText('00000000-0000-0000-0000-000000000000'), {
       target: { value: 'app-client-id' },
     });
-    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+    fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
       target: { value: 'mailbox@acme.example' },
     });
 
@@ -792,7 +792,7 @@ describe('CreateMapping — Gmail\'s app password (0153 T1 (b))', () => {
     createMock.mockResolvedValue({ id: 'map-gmail-app' } as never);
     renderWizard();
     fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
-    fireEvent.change(screen.getByPlaceholderText('user@example.com'), { target: { value: 'anna@gmail.com' } });
+    fireEvent.change(screen.getByPlaceholderText('someone@example.com'), { target: { value: 'anna@gmail.com' } });
     expect(nextButton()).toBeDisabled();
     fireEvent.change(screen.getByPlaceholderText('xxxx xxxx xxxx xxxx'), {
       target: { value: ' abcd efgh ijkl mnop ' },
@@ -802,7 +802,7 @@ describe('CreateMapping — Gmail\'s app password (0153 T1 (b))', () => {
     fireEvent.click(nextButton());
 
     fireEvent.change(targetHostBox(), { target: { value: 'stalwart.acme.example' } });
-    fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
+    fireEvent.change(screen.getAllByPlaceholderText('someone@example.com')[0]!, {
       target: { value: 'target@acme.example' },
     });
     fireEvent.change(document.querySelectorAll('input[type="password"]')[0]!, {
@@ -824,7 +824,7 @@ describe('CreateMapping — Gmail\'s app password (0153 T1 (b))', () => {
   it('never remembers it in the draft, as it remembers no secret', async () => {
     renderWizard();
     fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
-    fireEvent.change(screen.getByPlaceholderText('user@example.com'), { target: { value: 'anna@gmail.com' } });
+    fireEvent.change(screen.getByPlaceholderText('someone@example.com'), { target: { value: 'anna@gmail.com' } });
     fireEvent.change(screen.getByPlaceholderText('xxxx xxxx xxxx xxxx'), {
       target: { value: 'abcd efgh ijkl mnop' },
     });
@@ -861,7 +861,7 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     });
     // Its credentials gate HERE now (workplan 0070), on the source's own step.
     expect(nextButton()).toBeDisabled();
-    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+    fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
       target: { value: 'owner@acme.example' },
     });
     fireEvent.change(screen.getByPlaceholderText('••••••••'), {
@@ -878,7 +878,7 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     fireEvent.change(targetHostBox(), {
       target: { value: 'nextcloud.acme.example' },
     });
-    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+    fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
       target: { value: 'files@acme.example' },
     });
     fireEvent.change(screen.getByPlaceholderText('••••••••'), {
@@ -1187,7 +1187,7 @@ describe('CreateMapping — a Gmail source (workplan 0044)', () => {
     // Gmail's credentials gate HERE now (workplan 0070) — the mailbox this
     // migration moves, the OAuth client's secret, and the mail-scoped token.
     expect(nextButton()).toBeDisabled();
-    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+    fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
       target: { value: 'owner@gmail.com' },
     });
     fireEvent.change(screen.getByPlaceholderText('••••••••'), {
@@ -1278,7 +1278,7 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
     fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
       target: { value: 'cid.apps.googleusercontent.com' },
     });
-    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+    fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
       target: { value: 'owner@example.invalid' },
     });
     fireEvent.change(screen.getByPlaceholderText('••••••••'), {
@@ -1341,7 +1341,7 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
     try {
       renderWizard();
       pickAccount();
-      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
         target: { value: 'owner@example.invalid' },
       });
       fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
@@ -1379,7 +1379,7 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
     // Untick all three on the migration step, then come back: an empty tick
     // set is reachable, and the server refuses it with a sentence. The button
     // says the same thing sooner, rather than spending a round trip to be told.
-    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+    fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
       target: { value: 'owner@example.invalid' },
     });
     fireEvent.change(screen.getByPlaceholderText('1//…'), { target: { value: '1//granted' } });
@@ -1601,7 +1601,7 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
       renderWizard();
       pickGmail();
       // The address first (2026-09-02): the consent saves and tests in one go.
-      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
         target: { value: 'owner@gmail.com' },
       });
       // The answer comes over the wire; until it does the pair is demanded.
@@ -1621,7 +1621,7 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
       // with an asterisk above the fold asked for what the button supplies.
       expect(fold).toContainElement(screen.getByPlaceholderText('1//…'));
       // The address stays in plain view — it is what the fold is not about.
-      expect(screen.getByPlaceholderText('user@example.com').closest('details')).toBeNull();
+      expect(screen.getByPlaceholderText('someone@example.com').closest('details')).toBeNull();
 
       fireEvent.click(connectButton());
       await waitFor(() => expect(authorizeMock).toHaveBeenCalled());
@@ -1657,7 +1657,7 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
       renderWizard();
       fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
       await waitFor(() => expect(screen.getByText('What this account will serve')).toBeTruthy());
-      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
         target: { value: 'owner@gmail.com' },
       });
       // The deployment's ceiling arrives pre-ticked (calendar, contacts and
@@ -1697,7 +1697,7 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
   it('takes the pair only as a whole: one half typed asks for the other, never for the deployment to complete it', async () => {
     renderWizard();
     pickGmail();
-    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+    fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
       target: { value: 'owner@gmail.com' },
     });
     await waitFor(() => expect(connectButton()).toBeEnabled());
@@ -1707,7 +1707,7 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
     });
     expect(connectButton()).toBeDisabled();
     expect(reasonUnder(connectButton())).toHaveTextContent('or neither');
-    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+    fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
       target: { value: 'owner@gmail.com' },
     });
     fireEvent.change(screen.getByPlaceholderText('1//…'), {
@@ -1793,7 +1793,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
     try {
       renderWizard();
       pickDropbox();
-      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
         target: { value: 'owner@example.invalid' },
       });
       await waitFor(() => expect(connectButton()).toBeEnabled());
@@ -1805,7 +1805,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
       expect(fold).toContainElement(screen.getByPlaceholderText('••••••••'));
       expect(fold).toContainElement(screen.getByPlaceholderText('1//…'));
       // The account stays in plain view — it is what the fold is not about.
-      expect(screen.getByPlaceholderText('user@example.com').closest('details')).toBeNull();
+      expect(screen.getByPlaceholderText('someone@example.com').closest('details')).toBeNull();
 
       fireEvent.click(connectButton());
       await waitFor(() => expect(dropboxAuthorize).toHaveBeenCalled());
@@ -1838,7 +1838,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
   it('takes the pair only as a whole: one half typed asks for the other, and Next waits with it', async () => {
     renderWizard();
     pickDropbox();
-    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+    fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
       target: { value: 'owner@example.invalid' },
     });
     await waitFor(() => expect(connectButton()).toBeEnabled());
@@ -1846,7 +1846,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
     fireEvent.change(screen.getByLabelText(/App key/), { target: { value: 'dbx-app-key' } });
     expect(connectButton()).toBeDisabled();
     expect(reasonUnder(connectButton())).toHaveTextContent('or neither');
-    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+    fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
       target: { value: 'owner@example.invalid' },
     });
     fireEvent.change(screen.getByPlaceholderText('1//…'), { target: { value: 'dbx-refresh' } });
@@ -1893,7 +1893,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
       expect(reasonUnder(connectButton())).toHaveTextContent('Enter the account address first'),
     );
     expect(connectButton()).toBeDisabled();
-    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+    fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
       target: { value: 'owner@example.invalid' },
     });
     await waitFor(() => expect(connectButton()).toBeEnabled());
@@ -1908,7 +1908,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
     } as never);
     renderWizard();
     pickDropbox();
-    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+    fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
       target: { value: 'owner@example.invalid' },
     });
     fireEvent.change(screen.getByPlaceholderText('1//…'), { target: { value: 'dbx-refresh' } });
@@ -1921,7 +1921,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
   const pressTest = async () => {
     renderWizard();
     pickDropbox();
-    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+    fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
       target: { value: 'owner@example.invalid' },
     });
     fireEvent.change(screen.getByPlaceholderText('1//…'), { target: { value: 'dbx-refresh' } });
@@ -2046,7 +2046,7 @@ describe('CreateMapping — the consent asks for its ending in the page’s lang
     try {
       renderInDutch();
       fireEvent.click(screen.getByRole('button', { name: card }));
-      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
         target: { value: 'owner@example.invalid' },
       });
       const button = await screen.findByRole('button', { name: new RegExp(`^${STRINGS.nl[connect]}`) });

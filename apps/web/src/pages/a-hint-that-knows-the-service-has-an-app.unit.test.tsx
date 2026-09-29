@@ -173,7 +173,7 @@ describe('the redirect line under the button (0148 T2 (a))', () => {
     try {
       renderWizard('en');
       fireEvent.click(screen.getByRole('button', { name: /^Dropbox/ }));
-      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
         target: { value: 'owner@example.invalid' },
       });
       await waitFor(() => expect(connect()).toBeEnabled());
@@ -193,7 +193,7 @@ describe('the redirect line under the button (0148 T2 (a))', () => {
     try {
       renderWizard('en');
       fireEvent.click(screen.getByRole('button', { name: /^Dropbox/ }));
-      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
         target: { value: 'owner@example.invalid' },
       });
       fireEvent.change(screen.getByLabelText(/App key/), { target: { value: 'own-key' } });
