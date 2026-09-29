@@ -167,7 +167,13 @@ describe('what we send with this', () => {
     await screen.findByText(EN['report.facts']);
     await waitFor(() =>
       expect(getMock).toHaveBeenCalledWith('/problem-reports/preview', {
-        params: { page: `/mappings/${MAPPING}/failures`, reference: 'a1b2c3d4', category: 'auth_expired' },
+        params: {
+          page: `/mappings/${MAPPING}/failures`,
+          reference: 'a1b2c3d4',
+          category: 'auth_expired',
+          // What the browser says of itself, as JSON (Part B).
+          browser: expect.stringContaining('"language":"en"') as unknown,
+        },
       }),
     );
   });
@@ -296,6 +302,9 @@ describe('where it goes, said above Send', () => {
       page: `/mappings/${MAPPING}/failures`,
       reference: 'a1b2c3d4',
       category: 'auth_expired',
+      // What the browser says of itself (Part B): the facts the preview was
+      // asked with, and none of the lines it answered.
+      browser: JSON.parse((getMock.mock.calls.find((c) => c[0] === '/problem-reports/preview')![1] as { params: { browser: string } }).params.browser) as unknown,
     });
   });
 });

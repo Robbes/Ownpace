@@ -1,6 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '../stores/auth-store.ts';
+import { rememberFault } from './recent-errors.ts';
 
 /**
  * Clear all auth state on an unauthorized response. The token is mirrored in the
@@ -87,6 +88,10 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    // A fault's reference and code, for a report from the next five minutes
+    // (workplan 0130 T6, Part B). Only those two words: this error holds the
+    // request, and the request holds the sign-in token (`recent-errors.ts`).
+    rememberFault(error);
     if (error.response?.status === 401) {
       // Token expired or invalid — clear ALL auth state and redirect to login.
       onUnauthorized();
