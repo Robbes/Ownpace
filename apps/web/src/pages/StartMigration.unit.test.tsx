@@ -139,6 +139,14 @@ describe('Who is it for? (screen 1)', () => {
     expect(next()).toBeEnabled();
   });
 
+  it('chooses nobody for a ?person= that names nobody, and asks for a name', async () => {
+    peopleMock.mockResolvedValue({ people: [ANNA], unassigned: [] });
+    renderAt('/start?person=p-gone');
+    expect(await screen.findByRole('radio', { name: 'Someone new' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Anna Jansen' })).not.toBeChecked();
+    expect(next()).toHaveAccessibleDescription('Type a name first.');
+  });
+
   it('still takes a new name when the people could not be read, and says so', async () => {
     peopleMock.mockRejectedValue(new Error('down'));
     renderAt();
@@ -329,6 +337,16 @@ describe('Connect your accounts (screen 4)', () => {
     expect(screen.getByRole('button', { name: 'Check the sign-in' })).toBeEnabled();
     expect(screen.getByRole('textbox', { name: /^Username/ })).toHaveValue('anna@example.nl');
     expect(next()).toBeDisabled();
+  });
+
+  it('says the saved accounts could not be read, and still offers a new one', async () => {
+    listMock.mockRejectedValue(new Error('down'));
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Another mail provider']);
+    await onTo(user, 'Connect your accounts');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Your saved accounts could not be read.');
+    expect(screen.getByRole('button', { name: 'Check the sign-in' })).toBeInTheDocument();
   });
 
   it('asks Google’s account for the ticked faces with no ticks of its own, and Gmail and Drive apart', async () => {

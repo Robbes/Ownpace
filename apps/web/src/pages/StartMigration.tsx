@@ -166,6 +166,8 @@ function defaultChoice(saved: ReadonlyArray<ConnectionSummary>): string | undefi
 export interface Accounts {
   readonly saved: ReadonlyArray<ConnectionSummary>;
   readonly loading: boolean;
+  /** The saved accounts could not be read: said on screen, and a new account still works (hard rule 9). */
+  readonly failed: boolean;
   /** Whose accounts they are, for the name each new one is saved under. */
   readonly personName: string;
   /** The saved account chosen for a side and card (`source:gmail`), `'new'`, or nothing yet. */
@@ -181,7 +183,7 @@ export interface Accounts {
   /** A form's answer: kept where its check passed, offered again where it did not. */
   readonly onAdded: (key: string, added: TestConnectionResult & { id: string }, values: Record<string, string>) => void;
   /** The account a failed check left, for *Try again*. */
-  readonly failed: (key: string) => string | undefined;
+  readonly failedCheck: (key: string) => string | undefined;
   readonly tryAgain: (key: string) => void;
   readonly formKey: (key: string) => number;
 }
@@ -261,6 +263,14 @@ const StartMigration: React.FC = () => {
   const people: ReadonlyArray<Person> = (peopleQuery.data?.people ?? []).filter(
     (p) => !p.implicit && p.displayName !== null,
   );
+  // A `?person=` that names nobody on Migrations (gone, or somebody else's)
+  // chooses nobody: the screen asks for a name rather than going on with none.
+  const peopleRead = peopleQuery.isSuccess;
+  React.useEffect(() => {
+    if (peopleRead && who.personId !== null && !people.some((p) => p.id === who.personId)) {
+      setWho({ personId: null, name: '' });
+    }
+  }, [peopleRead, people, who.personId]);
 
   /** What each ticked provider moves: what was ticked, or everything it offers until it is touched. */
   const movesFrom = (provider: StartProvider): ReadonlyArray<DiscoveryDomain> =>
@@ -886,6 +896,7 @@ function useAccounts(personName: string): Accounts {
   return {
     saved,
     loading: connections.isPending,
+    failed: connections.isError,
     personName,
     choice: (key, list) => chosen[key] ?? (connections.isPending ? undefined : defaultChoice(list)),
     choose: (key, choice) => setChosen((prev) => ({ ...prev, [key]: choice })),
@@ -920,7 +931,7 @@ function useAccounts(personName: string): Accounts {
       setChosen((prev) => ({ ...prev, [key]: added.id }));
       void queryClient.invalidateQueries({ queryKey: ['connections'] });
     },
-    failed: (key) => failedHere[key],
+    failedCheck: (key) => failedHere[key],
     tryAgain: (key) => {
       const id = failedHere[key];
       setFailedHere((prev) => {
@@ -966,6 +977,11 @@ export const ConnectStep: React.FC<{
   if (accounts.loading) return <p className="text-sm text-gray-500">{t('common.loading')}</p>;
   return (
     <div className="space-y-4">
+      {accounts.failed && (
+        <p role="alert" className="text-sm text-red-800">
+          {t('start.accountsFailed')}
+        </p>
+      )}
       {google.length > 1 && (
         <p className="text-sm text-gray-700">{t('start.connect.googleApart', { n: google.length })}</p>
       )}
@@ -1055,7 +1071,7 @@ const NeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts }> = ({ need,
             onDisplayName={() => undefined}
             onAdded={(added) => accounts.onAdded(key, added, accounts.values(key, initial))}
           />
-          {accounts.failed(key) !== undefined && (
+          {accounts.failedCheck(key) !== undefined && (
             <button
               type="button"
               onClick={() => accounts.tryAgain(key)}
@@ -1105,6 +1121,11 @@ export const ToStep: React.FC<{
   ];
   return (
     <div className="space-y-6">
+      {accounts.failed && (
+        <p role="alert" className="text-sm text-red-800">
+          {t('start.accountsFailed')}
+        </p>
+      )}
       <ul className="space-y-3">
         {types.map((type) => {
           const saved = savedTargets(accounts.saved, type);
@@ -1186,7 +1207,7 @@ const NewDestination: React.FC<{
           if (added.ok) onAdded(added.id);
         }}
       />
-      {accounts.failed(key) !== undefined && (
+      {accounts.failedCheck(key) !== undefined && (
         <button
           type="button"
           onClick={() => accounts.tryAgain(key)}
