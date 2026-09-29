@@ -3477,11 +3477,11 @@ const nl: Record<keyof typeof en, string> = {
   'billing.tierSetup': 'inrichting',
   'billing.tierPerMonth': 'per maand',
   'billing.tierFree': 'Gratis: op dit pakket wordt niets gefactureerd',
-  'billing.tierDecidedByPaths': 'Bepaald door hoeveel verhuizingen tegelijk liepen.',
+  'billing.tierDecidedByPaths': 'Bepaald door hoeveel migraties tegelijk liepen.',
   'billing.tierDecidedByData': 'Bepaald door hoeveel gegevens er verplaatst zijn.',
   'billing.tierDecidedByBoth':
     'Bepaald door zowel wat er tegelijk liep als hoeveel er verplaatst is.',
-  'billing.tierPeakPaths': 'Meeste verhuizingen tegelijk',
+  'billing.tierPeakPaths': 'Meeste migraties tegelijk',
   'billing.tierDataMoved': 'Verplaatst, alle maanden',
   'billing.tierBeyondTable':
     'Voorbij de gepubliceerde tabel — neem contact op, dan prijzen we het goed.',
@@ -3671,7 +3671,7 @@ const nl: Record<keyof typeof en, string> = {
   'viewLink.expiredNudge': 'Hun pagina werkt niet meer. Maak een nieuwe als zij hem nog nodig hebben.',
   'grant.title': 'Verbind uw account',
   'grant.loading': 'Een moment…',
-  'grant.asking': '{organisation} verhuist uw account naar een nieuwe provider en heeft uw toestemming nodig om te lezen wat erin zit.',
+  'grant.asking': '{organisation} migreert uw account naar een nieuwe provider en heeft uw toestemming nodig om te lezen wat erin zit.',
   'grant.reads': 'U staat op het punt toegang te geven tot {reads}.',
   'grant.reads.email': 'uw e-mail: berichten, mappen en labels',
   'grant.reads.calendar': 'uw agenda’s en de afspraken erin',
@@ -3707,7 +3707,7 @@ const nl: Record<keyof typeof en, string> = {
     'Er ging iets mis op deze pagina. Probeer het later opnieuw; blijft het misgaan, laat het dan de persoon weten die u de link stuurde.',
   'view.title': 'Uw migratie',
   'view.loading': 'Een moment…',
-  'view.who': '{organisation} verhuist uw account naar een nieuwe provider.',
+  'view.who': '{organisation} migreert uw account naar een nieuwe provider.',
   'view.state.active': 'Uw spullen worden nu overgezet.',
   'view.state.paused': 'Het kopiëren ligt op dit moment stil.',
   'view.state.cutover': 'Uw nieuwe account is nu het account in gebruik.',
@@ -4365,9 +4365,9 @@ const nl: Record<keyof typeof en, string> = {
   'decisions.presets.readOnly': 'Een eigenaar of beheerder stelt dit in.',
   'permissions.heading': 'Zet de rechten over voordat u de e-mailbezorging omzet',
   'permissions.body':
-    'Deelrechten verhuizen niet mee met de mail; werk de lijst door vóór het omzetten.',
+    'Deelrechten gaan niet mee met de mail; werk de lijst door vóór het omzetten.',
   'permissions.body.more':
-    'Wie wiens agenda kon zien, wie toegang had tot welke gedeelde bestanden: dat verhuist niet mee. Haal de lijst op, werk hem door op het nieuwe systeem, en doe dat vóór het omzetten van de bezorging; rechten die daarna worden toegevoegd, ontbraken zolang dat duurde. Bovenaan de lijst staat wat er niet gelezen kon worden.',
+    'Wie wiens agenda kon zien, wie toegang had tot welke gedeelde bestanden: dat gaat niet mee. Haal de lijst op, werk hem door op het nieuwe systeem, en doe dat vóór het omzetten van de bezorging; rechten die daarna worden toegevoegd, ontbraken zolang dat duurde. Bovenaan de lijst staat wat er niet gelezen kon worden.',
   'permissions.blindSpot':
     'Twee blinde vlekken: FullAccess of Send-As op een postvak, en delen op OneDrive en SharePoint.',
   'permissions.blindSpot.more':
@@ -4729,13 +4729,13 @@ const nl: Record<keyof typeof en, string> = {
   // ---- Asking for access (workplan 0093) ----
   'access.title': 'Toegang aanvragen',
   'access.intro':
-    'Voorlopig op uitnodiging: vertel ons wat u wilt verhuizen, dan komen we per e-mail terug.',
+    'Voorlopig op uitnodiging: vertel ons wat u wilt migreren, dan komen we per e-mail terug.',
   'access.email': 'E-mailadres',
   'access.emailHint': 'Hier antwoorden wij. Er gaat verder niets naartoe.',
   'access.name': 'Uw naam',
   'access.organisation': 'Organisatie',
   'access.optional': 'optioneel',
-  'access.note': 'Wat gaat u verhuizen?',
+  'access.note': 'Wat wilt u migreren?',
   'access.noteHint': 'Ongeveer hoeveel postbussen, en waarvandaan; één zin is genoeg.',
   'access.tier': 'Welk pakket lijkt te passen?',
   'access.tierHint':
