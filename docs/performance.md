@@ -86,8 +86,8 @@ stack* section here.
    message; for large attachments, stream source→target to cut peak memory. Needs a streaming variant of
    `SourceConnector.fetch` / `TargetWriter.upsertEmail`. Files: done for the file sources and the
    WebDAV target in workplan 0120: a body above `STREAM_FILES_LARGER_THAN_BYTES` (8 MB,
-   `packages/shared/src/file-body.ts`) streams. The JMAP file target does not yet read a streamed
-   body. Mail (`RawMessage.rfc822`) still buffers the whole message.
+   `packages/shared/src/file-body.ts`) streams, and the JMAP file target sends it on as a stream
+   since workplan 0143 T3b. Mail (`RawMessage.rfc822`) still buffers the whole message.
 7. **Streaming `listSince` (contract change)** — return items as an async iterable instead of a
    materialized array, so very large folders do not hold all item metadata at once.
 8. **Parallel reindex** — consume `TargetReindexer.listEntries` with bounded concurrency (serial iterator
