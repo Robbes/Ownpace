@@ -27,6 +27,36 @@ place, could become the one-candidate default, and was posted as the source of a
   passes 53 files (1568 tests), `tsc -p apps/web/tsconfig.json` is clean, and the `scripts`
   guards pass 212 files.
 
+**2026-09-29, morning: T4's *Someone else*, by a grant link where one reaches (0108).**
+
+- **Who signs in to the accounts?** *I do*, or *They do, with a link* (*Ik* / *Zij zelf, met een
+  link*). The words differ from the person list's *Someone new* / *Iemand anders* (the owner's
+  correction of *Iemand nieuws*), so the Dutch never offers *Iemand anders* twice with two
+  meanings.
+- **For somebody else:**
+  - *Connect your accounts* asks only for their address where a link reaches
+    (`grantableByLink`): Google's cards, through the deployment's own client, with Gmail and
+    Drive only where the restricted scopes are declared. The account is saved with no
+    credential, the migration reuses it, and the grant lands on the migration;
+  - where no link reaches, the screen says so and they sign in together;
+  - no saved account is chosen by default, since one may be the starter's own;
+  - *Check, then start* offers each such migration's grant link in place of its count, and the
+    count appears once the link is used. *Start* waits, and the person's page keeps the
+    migrations meanwhile.
+- **Not yet:** grant and progress links *per person* (T5 (b), ADR-0035's amendment); until they
+  are built, each migration's page keeps its own.
+- **Proved by** `StartMigration.unit.test.tsx` (33 cases) and `start-plan.unit.test.ts` (25),
+  and by a walk in Chromium over a fixture API that answers a Google account with no token as
+  the create door does (`error`). The walk goes in English and Dutch from *They do, with a link*,
+  through Anna's address and two grant links, one per migration, used, to *Start* and her page.
+  It found the closing line promising that each migration starts by itself once connected, which
+  nothing does, in Dutch that read Anna as a woman (*haar account*). The line now says to start
+  each one from its *Details*.
+- **The owner's answer on the links (2026-09-29):** *"yes, a per-person link instead of the
+  per-migration links"*. The walk shows why: Anna's one Google account took two links, one per
+  migration. Designed next, with ADR-0035's amendment.
+- Not yet against a real Google grant: the path runs through 0108's own routes, unchanged.
+
 **2026-09-29, morning: T7 (f), the wizard's step labels are not struck through** (0131 §6, R8).
 
 - The line between two steps in the wizard's header is now the step's last flex item. It was
