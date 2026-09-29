@@ -48,8 +48,9 @@ set -euo pipefail
 #
 #   SYSTEM_DATABASE_URL    the system role, ownpace_system, through the
 #                          pooler, at the IN-NETWORK address: no superuser, no
-#                          role or database of its own, BYPASSRLS, the grants
-#                          its statements need (managed migration 0032). The
+#                          role or database of its own, no membership either
+#                          way, BYPASSRLS, the grants its statements need
+#                          (managed migration 0032). The
 #                          three scheduled jobs that span organisations whole
 #                          connect with it, the three split jobs read their
 #                          list of organisations with it, and the tasks read
@@ -59,7 +60,10 @@ set -euo pipefail
 #                          and each organisation's rows in the split jobs (T2)
 #
 #   NOT the database owner's DATABASE_URL (nor DIRECT_DATABASE_URL): no task
-#   reads either, and set-task-env.sh deletes both from the store
+#   reads either, and `set-task-env.sh --forget-owner-names` deletes both from
+#   the store. The bring-up runs it only AFTER this script has gone through:
+#   the tasks deployed before 0138 T3 step 2 read DATABASE_URL, so a deploy
+#   that fails here leaves them the URL they read
 #   SECRET_ENCRYPTION_KEY  (same 32-byte key as api/worker)
 #   OAUTH2_* / SMTP_* / NOTIFY_* (optional, as configured)
 #

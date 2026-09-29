@@ -1928,14 +1928,15 @@ GIT_SHA=$(git rev-parse --short HEAD) \
 
 Open the sign-in page: the line is above the status link.
 
-### 9. `tasks` — the system role, the task environment, then the deploy
+### 9. `tasks` — the system role, the task environment, the deploy, then the owner names forgotten
 
 ```bash
 ./deploy/compose/bootstrap-managed.sh --only tasks
 # which is, in this order:
-#   the system role asked, and its password set (below)
-#   ./deploy/compose/set-task-env.sh
+#   the system role asked, its password set and its settings cleared (below)
+#   ./deploy/compose/set-task-env.sh                        # asks about the role again, then uploads
 #   ./deploy/compose/deploy-tasks.sh
+#   ./deploy/compose/set-task-env.sh --forget-owner-names   # only after a deploy that went through
 ```
 
 **The system role first** (workplan 0138 T3 step 2). The Trigger.dev jobs that
@@ -1946,18 +1947,20 @@ applies it when it starts, in the `app` phase) with no password, no superuser
 bit, no right to create a role or a database, and `BYPASSRLS`. Before anything
 is uploaded, the phase asks Postgres what the role is now, and **refuses to go
 on** if it is a superuser, may create roles or databases, replicates, belongs to
-any role, or lacks `BYPASSRLS` or `LOGIN`: every run of every task receives
-its URL. Then it sets `.env`'s `SYSTEM_DB_PASSWORD` (which
+any role, has any role belonging to it, or lacks `BYPASSRLS` or `LOGIN`: every
+run of every task receives its URL. Then it sets `.env`'s `SYSTEM_DB_PASSWORD` (which
 `ensure-env-secrets.sh` generated in phase 2; on a `.env` from before this
 change, brought up from a later phase, as `deploy-live.sh` does with
 `--from data`, the phase runs `ensure-env-secrets.sh` itself, which fills in a
 missing secret and never replaces one) on the role, over the database's
-socket, without the value on a command line or in a log, and proves it opens
-over the stack's network and through the pooler. It does this on every run, so
-`.env` is the one place the password lives. See
-[The system role](#the-system-role) for a refusal and for changing the
-password. Running `set-task-env.sh` by hand, alone, uploads whatever
-`SYSTEM_DB_PASSWORD` says whether or not the role has it yet: on a stack
+socket, without the value on a command line or in a log, clears every setting
+left on the role in the same transaction, and proves it opens over the stack's
+network and through the pooler. It does this on every run, so `.env` is the one
+place the password lives. See [The system role](#the-system-role) for a
+refusal and for changing the password. Running `set-task-env.sh` by hand,
+alone, asks Postgres the same question about the role and refuses on the same
+answers, but it does not set the password: it uploads whatever
+`SYSTEM_DB_PASSWORD` says whether or not the role has it yet, so on a stack
 brought up before this change, run the phase instead.
 
 **Deploying to a non-production environment.** One Trigger instance can serve a test stack and a
@@ -1974,8 +1977,13 @@ key, its own deployed task version and its own runs. To move a stack onto one of
 3. **Restart the api** so it picks up the new key:
    `docker compose -f deploy/compose/managed.yml up -d api`
 4. **Re-upload the task environment variables**, which are stored per environment and do not
-   follow the key: `./deploy/compose/set-task-env.sh`
+   follow the key: `./deploy/compose/set-task-env.sh` (it asks Postgres about the system role
+   first, as the bring-up does, and uploads nothing on a wrong answer)
 5. **Re-deploy the tasks**: `./deploy/compose/deploy-tasks.sh`
+6. **Forget the owner's names there**, once the deploy has gone through:
+   `./deploy/compose/set-task-env.sh --forget-owner-names`. An environment that was used before
+   workplan 0138 T3 step 2 may still hold `DATABASE_URL`; this deletes it, and fails when the
+   list still holds it. `./deploy/compose/bootstrap-managed.sh --only tasks` does steps 4 to 6.
 
 Steps 1 and 2 must name the **same** environment. If they disagree, nothing errors — the deploy
 succeeds, the enqueue succeeds, and the runs simply never meet a deployed task, leaving a queue
@@ -2005,11 +2013,13 @@ and read only their list of organisations with `SYSTEM_DATABASE_URL` (workplan
 every task that opens `openTaskPools` reads its audit key with it (T3 step 2).
 It also uploads `OWNPACE_REACHABLE_HOSTS`, and deletes it from the plane when
 `.env` leaves it empty, so the tasks admit exactly the names the API does.
-**It uploads nothing of the database owner's**, and deletes the two names the
-owner went up under, `DATABASE_URL` (until 0138 T3 step 2) and
-`DIRECT_DATABASE_URL` (until step 1), after the upload has gone through; the
-list it prints afterwards (`upload OK — env now holds:`) is the check, and it
-fails when either is still there. See
+**It uploads nothing of the database owner's.** The two names the owner went
+up under, `DATABASE_URL` (until 0138 T3 step 2) and `DIRECT_DATABASE_URL`
+(until step 1), are deleted by its forget run, `set-task-env.sh
+--forget-owner-names`, which the phase makes only after `deploy-tasks.sh` has
+gone through, so a deploy that fails leaves the tasks still deployed the URL
+they read; the list that run prints (`owner names forgotten — env now holds:`)
+is the check, and it fails when either is still there. See
 [the owner's names in the task environment](#the-owners-names-in-the-task-environment).
 
 `deploy-tasks.sh` re-checks the architecture and refuses on a mismatch, then
@@ -3383,28 +3393,36 @@ A code-only pull does not need it.
 
 ### The owner's names in the task environment
 
-Since workplan 0138 T3 step 2, `set-task-env.sh` deletes `DATABASE_URL` and
-`DIRECT_DATABASE_URL` from the plane's store every time it runs, after its
-upload has gone through, prints what each delete answered, and reads the list
-back: **when the store still holds either name it fails**, with
-`[set-task-env] FAILED: the task environment still holds …`. Both are the
-database owner, a superuser, and no task reads either. The first run after the
-pull that brought step 2 does the one-off deletion by itself, on each plane it
-runs against: the OTA stack's (the nightly gate, or `--only tasks` by hand in
-`~/ownpace-managed`), and live's (`deploy-live.sh` of the first tag that carries
-it). Nothing to do by hand unless it fails.
+Since workplan 0138 T3 step 2, `set-task-env.sh --forget-owner-names` deletes
+`DATABASE_URL` and `DIRECT_DATABASE_URL` from the plane's store, prints what
+each delete answered, and reads the list back: **when the store still holds
+either name it fails**, with `[set-task-env] FAILED: the task environment still
+holds …`. Both are the database owner, a superuser, and no task deployed since
+step 2 reads either. That run uploads nothing. The bring-up's `tasks` phase
+makes it last, **after `deploy-tasks.sh` has gone through**: the tasks deployed
+before step 2 read `DATABASE_URL` (every per-tenant task for its audit key, and
+the tick, retention and the purge when they load), so the name stays in the
+store until tasks that do not read it are in their place. The first bring-up
+after the pull that brought step 2 does the one-off deletion by itself, on each
+plane it runs against: the OTA stack's (the nightly gate, or `--only tasks` by
+hand in `~/ownpace-managed`), and live's (`deploy-live.sh` of the first tag
+that carries it). Nothing to do by hand unless it fails. The upload run
+(`set-task-env.sh` with no argument) deletes neither name, and says so when the
+store still holds one.
 
-**Between that upload and the end of the deploy that follows it**, the tasks
-deployed before step 2 still read `DATABASE_URL` and find it gone: a run they
-start in those minutes refuses at its start, the sync tick's every minute among
-them, and the status page may show the scheduler late. The bring-up runs the
-two back to back; on live the deploy runs under the hold. After the deploy
-nothing reads the name.
+**If the deploy fails** (the build, the registry push, the plane), the bring-up
+stops there and the forget run does not happen: the tasks still deployed keep
+the owner's URL they read and go on running, and the store still holds
+`DATABASE_URL`. Fix what the deploy said, then run the phase again
+(`./deploy/compose/bootstrap-managed.sh --only tasks`), which uploads, deploys
+and then forgets. Do not run the forget run by hand before a deploy of step 2's
+tasks has gone through: every run of the old tasks would then refuse at its
+start, the sync tick's every minute among them.
 
-**If it fails**, the delete could not remove a row the store keeps, most often
-one written under an encryption key the store no longer has. Delete by hand,
-from that stack's checkout, as the section below does for one name, and read
-the list:
+**If the forget run fails**, the delete could not remove a row the store keeps,
+most often one written under an encryption key the store no longer has. Delete
+by hand, from that stack's checkout, as the section below does for one name,
+and read the list:
 
 ```bash
 (
@@ -3432,19 +3450,40 @@ security does not bind, and **not a superuser**. The bring-up's `tasks` phase
 asks for it every run (phase 9, above). Two things can stop it:
 
 - **`REFUSED, before its password is set or its URL uploaded: ownpace_system: …`**
-  names every way the role is no longer what the migration made it. Somebody
-  changed it with the owner's rights; put it back, over the database's socket,
-  and run the phase again:
+  (or, from `set-task-env.sh`, **`[set-task-env] REFUSED, nothing uploaded: …`**,
+  the same question asked before its own upload) names every way the role is no
+  longer what the migration made it. Somebody changed it with the owner's
+  rights; put it back, over the database's socket, and run the phase again:
 
   ```bash
   docker compose -f deploy/compose/managed.yml exec -T postgres sh -c \
     'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -c "ALTER ROLE ownpace_system LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB NOREPLICATION BYPASSRLS"'
   ```
 
-  and for *"it belongs to N role(s)"*, `REVOKE <that role> FROM ownpace_system`
-  for each (`\du ownpace_system` lists them). Its table grants are not asked
-  here; `a-system-role-that-is-not-the-owner` holds them against the migration's
-  list on a throwaway database.
+  Membership counts both ways. For *"it belongs to N role(s)"*,
+  `REVOKE <that role> FROM ownpace_system` for each; for *"N role(s) belong to
+  it"*, `REVOKE ownpace_system FROM <that role>` for each: a role that belongs
+  to it takes its `BYPASSRLS` with `SET ROLE`, so `app_user` there would read
+  every organisation's rows. `\du` shows only the first direction (the roles
+  `ownpace_system` is a member of); this lists both:
+
+  ```bash
+  docker compose -f deploy/compose/managed.yml exec -T postgres sh -c \
+    'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT m.roleid::regrole || '"'"' is lent to '"'"' || m.member::regrole FROM pg_auth_members m WHERE '"'"'ownpace_system'"'"'::regrole IN (m.roleid, m.member)"'
+  ```
+
+  Its table grants are not asked here; `a-system-role-that-is-not-the-owner`
+  holds them against the migration's list on a throwaway database, a grant to
+  PUBLIC counted as one of its own. **Never grant anything to PUBLIC in this
+  database**: with `BYPASSRLS`, that is a grant to this role, past row security.
+- **A setting left on the role.** Any role may change its own settings and its
+  own password, and every run holds this role's URL: a run that had been taken
+  over could leave `default_transaction_read_only = on` on it, after which the
+  tick, retention, the purge and the audit key fail on every write. The phase
+  clears every setting on the role (for every database, and for this one) in
+  the same transaction as it sets the password, on every run, and the smoke
+  fails when one is left. A setting found there is worth asking about: nothing
+  of ours sets one.
 - **`ownpace_system is not a role in this database`**: the migrations have not
   run. The api applies them when it starts; run the `app` phase, then `tasks`.
 
@@ -3453,12 +3492,14 @@ only characters a URL carries as they are, which the phase checks), then
 `./deploy/compose/bootstrap-managed.sh --only tasks`: it sets the value on the
 role and uploads the URL made from it, then deploys. Runs started between the
 two refuse to connect for those seconds. `rotate-db-passwords.sh` rotates the
-owner and `app_user`, not this role.
+owner and `app_user`, not this role. A run can change the role's password
+itself, as any role can; the next bring-up sets `.env`'s again.
 
 ### Once, after the pull that stopped uploading `DIRECT_DATABASE_URL`
 
-*Since 0138 T3 step 2 `set-task-env.sh` deletes this name itself on every run
-(above); what follows is the by-hand way it was deleted before, and the check.*
+*Since 0138 T3 step 2 `set-task-env.sh --forget-owner-names`, which the
+bring-up runs after every deploy, deletes this name itself (above); what
+follows is the by-hand way it was deleted before, and the check.*
 
 Workplan 0138 T3 step 1 took `DIRECT_DATABASE_URL` out of what `set-task-env.sh`
 uploads. It is the database owner, a superuser, straight to Postgres past the

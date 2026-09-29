@@ -800,7 +800,9 @@ do_rotate() {
     say "  If MinIO refuses the new pair on its old volume, what is lost is its packets store: old large run payloads."
   fi
   say "NEXT, the one step: E2E (managed) on main. It restores this .env, recreates every container whose settings changed,"
-  say "  uploads DATABASE_URL and APP_DATABASE_URL to Trigger.dev again, and its smoke proves a task still connects."
+  say "  uploads SYSTEM_DATABASE_URL and APP_DATABASE_URL to Trigger.dev again (the owner's URL no longer goes to the tasks,"
+  say "  and this script does not rotate the system role's password: the bring-up sets .env's SYSTEM_DB_PASSWORD on every run),"
+  say "  and its smoke proves a task still connects."
   if [ -n "$GATE_ASKS_GH" ] && (cd "$REPO_ROOT" && gh workflow run e2e-managed.yml --ref main) >/dev/null 2>&1; then
     say "  Dispatched it (gh workflow run e2e-managed.yml --ref main)."
   else

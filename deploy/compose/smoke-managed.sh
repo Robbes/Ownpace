@@ -5653,20 +5653,23 @@ fi
 # list and every task's audit key: SYSTEM_DATABASE_URL, which set-task-env.sh
 # uploads in place of the owner's DATABASE_URL, deleted from the store. The
 # bring-up asked Postgres, before it uploaded the URL, that the role is no
-# superuser and may create no role, and refused otherwise; this asks again at
-# the end of the run, when every task this deploy put on the plane has had its
-# turn, and asks whether the one job that runs every minute is still running:
+# superuser, may create no role, belongs to no role and has no role belonging
+# to it, and refused otherwise, and cleared every setting on the role when it
+# set the password; this asks again at the end of the run, when every task
+# this deploy put on the plane has had its turn (a setting a run left on the
+# role, `default_transaction_read_only = on` say, shows here as a count), and
+# asks whether the one job that runs every minute is still running:
 # the tick writes its beat at the end of every run it completes, as the system
 # role now, and a role missing a grant the tick needs stops the beat
 # (a-system-role-that-is-not-the-owner proves the grants on a throwaway
 # database; this is the stack). Five minutes is the readiness route's own
 # threshold (GET /api/ready/scheduler, TICK_LATE_AFTER_MS).
 note "the jobs across organisations, as the system role (0138 T3 step 2)"
-system_role="$(q "SELECT r.rolsuper || '|' || r.rolcreaterole || '|' || r.rolcreatedb || '|' || r.rolreplication || '|' || r.rolbypassrls || '|' || r.rolcanlogin || '|' || (SELECT count(*) FROM pg_auth_members m WHERE m.member = r.oid) FROM pg_roles r WHERE r.rolname = 'ownpace_system'" 2>&1 | tail -n1)"
-if [ "$system_role" = "false|false|false|false|true|true|0" ]; then
-  echo "ownpace_system: no superuser, may create no role or database, does not replicate, BYPASSRLS, logs in, a member of no role"
+system_role="$(q "SELECT r.rolsuper || '|' || r.rolcreaterole || '|' || r.rolcreatedb || '|' || r.rolreplication || '|' || r.rolbypassrls || '|' || r.rolcanlogin || '|' || (SELECT count(*) FROM pg_auth_members m WHERE m.member = r.oid) || '|' || (SELECT count(*) FROM pg_auth_members m WHERE m.roleid = r.oid) || '|' || (SELECT count(*) FROM pg_db_role_setting s WHERE s.setrole = r.oid AND s.setdatabase IN (0, (SELECT d.oid FROM pg_database d WHERE d.datname = current_database()))) FROM pg_roles r WHERE r.rolname = 'ownpace_system'" 2>&1 | tail -n1)"
+if [ "$system_role" = "false|false|false|false|true|true|0|0|0" ]; then
+  echo "ownpace_system: no superuser, may create no role or database, does not replicate, BYPASSRLS, logs in, a member of no role and no role a member of it, no setting left on it"
 else
-  fail_at "ownpace_system is not the role managed migration 0032 made it: '${system_role:-<no such role>}' (superuser|createrole|createdb|replication|bypassrls|login|memberships; expected false|false|false|false|true|true|0)"
+  fail_at "ownpace_system is not the role managed migration 0032 made it: '${system_role:-<no such role>}' (superuser|createrole|createdb|replication|bypassrls|login|roles it belongs to|roles that belong to it|settings on it; expected false|false|false|false|true|true|0|0|0)"
 fi
 tick_beat="$(q "SELECT CASE WHEN now() - beat_at < interval '5 minutes' THEN 'fresh' ELSE 'stale since ' || beat_at::text END FROM sync_tick_beat WHERE task = 'managed-sync-tick'" 2>&1 | tail -n1)"
 if [ "$tick_beat" = "fresh" ]; then

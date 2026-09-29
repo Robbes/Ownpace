@@ -19,9 +19,11 @@
 #      builds the API and web images with GIT_SHA from `git rev-parse HEAD`,
 #      which is now the tag's commit; it uploads the task environment and
 #      deploys the tasks, after asking Postgres that the system role the jobs
-#      across organisations connect as is no superuser and may create no role
-#      (workplan 0138 T3 step 2), and refusing if it is or may. Without the
-#      demo it skips its smoke, and step 7 stands in for it.
+#      across organisations connect as is no superuser, may create no role and
+#      shares no membership either way (workplan 0138 T3 step 2), and refusing
+#      if it is, may or does; the owner's names leave the task environment
+#      only after that deploy has gone through. Without the demo it skips its
+#      smoke, and step 7 stands in for it.
 #   7. asks the app at the origin in WEB_URL: /api/version names the tag's
 #      commit AND its version (0146 T5), /api/ready answers 200,
 #      /api/auth/mode answers `managed`; and runs exposure-check.sh

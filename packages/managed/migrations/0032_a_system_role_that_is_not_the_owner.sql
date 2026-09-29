@@ -29,7 +29,12 @@
 --                  (`auth_query` looks every role up in Postgres).
 --   NOSUPERUSER    no program on the server, no file of the server's, and row
 --                  security stops being skipped for any reason but the next.
---   NOCREATEROLE   it can make no role and change none, itself included.
+--   NOCREATEROLE   it can make no role, change no other, and give nobody a
+--                  place in itself. It can still change its own password and
+--                  its own settings, as any role can (`ALTER ROLE
+--                  ownpace_system SET default_transaction_read_only = on`
+--                  would stop every write the jobs make): the bring-up sets
+--                  the password again and clears every setting on every run.
 --   NOCREATEDB     it can make no database.
 --   NOREPLICATION  it can stream nothing.
 --   BYPASSRLS      REQUIRED, and the one thing it shares with the owner. The
@@ -48,12 +53,18 @@
 --                  the nightly gate, `deploy-live.sh` and `stand-up-live.sh`
 --                  all run) sets it with ALTER ROLE over the database's socket
 --                  on every run, after it has asked Postgres that this role is
---                  still no superuser, may create no role or database and
---                  belongs to no role, and refused to go on if it is or may.
---                  Until then it cannot log in with any password at all.
+--                  still no superuser, may create no role or database, belongs
+--                  to no role and has no role belonging to it, and refused to
+--                  go on if it is or may. `set-task-env.sh` asks the same
+--                  before every upload of its URL, the bring-up's or one run
+--                  by hand. Until the password is set it cannot log in with
+--                  any password at all.
 --
--- It is a member of no role and no role is granted to it: a member of the
--- owner could `SET ROLE` to it and be a superuser again.
+-- It is a member of no role, and no role is a member of it. Both ways matter:
+-- a member of the owner could `SET ROLE` to it and be a superuser again, and
+-- a role that is a member of THIS one (`GRANT ownpace_system TO app_user`)
+-- could `SET ROLE ownpace_system` and read every organisation's rows past row
+-- security. The bring-up refuses either.
 --
 -- ## What it may do, and nothing more
 --
@@ -61,7 +72,13 @@
 -- a job only picks rows by a column and never reads them. No default
 -- privileges: a table added later is not the role's until a migration says
 -- so, and the integration guard runs each job's own `run` as this role, so a
--- statement it lacks a grant for fails there.
+-- statement it lacks a grant for fails there. The guard also compares what
+-- the role may ACTUALLY do with this list, a grant to PUBLIC included: with
+-- BYPASSRLS, `GRANT SELECT ON <a tenant table> TO PUBLIC`, which reads as
+-- harmless under row security for `app_user`, is every organisation's rows
+-- for this role. On the database it has what PUBLIC has on every database,
+-- CONNECT and TEMPORARY: it can make a temporary table, which lives and dies
+-- with its own session, and no permanent one.
 --
 --   Read, and deleted by the purge: what the tick reads across organisations
 --   (the mappings, their runs, statuses, cutovers, paths and scope, and each
@@ -71,7 +88,9 @@
 --   Deleted, and read only by the column that picks the rows: every other
 --   table the purge empties (`PURGED_TABLES`, `packages/managed/src/
 --   offboarding.ts`), so the role reads nobody's mail ledger, audit trail,
---   decisions, members, budgets or VAT log.
+--   decisions, members, budgets, VAT log, or the people being moved and
+--   which migration is whose (`person`, `person_migration`, managed
+--   migration 0031).
 --   The rest, each for its one job: the hold and the beat (the tick); the
 --   invoices' period and status (retention) and their detaching, with the
 --   buyer's name (the purge); declined access requests by their decision
@@ -160,7 +179,9 @@ GRANT SELECT (tenant_id), DELETE ON TABLE
   public.audit_log,
   public.rate_budget,
   public.byte_budget,
-  public.support_read
+  public.support_read,
+  public.person_migration,
+  public.person
   TO ownpace_system;
 -- The buyer's name, which the purge stamps on the invoices it keeps.
 GRANT SELECT (tenant_id, name), DELETE ON TABLE public.billing_party TO ownpace_system;

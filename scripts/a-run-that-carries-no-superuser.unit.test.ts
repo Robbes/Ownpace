@@ -35,9 +35,24 @@
  * and nothing else, so leaving a name out of the upload does not take it out
  * of the store: a plane that held `DIRECT_DATABASE_URL` kept it after step 1
  * until the owner deleted it by hand. Step 2 deletes both of the owner's names
- * itself, after the upload has gone through (a failed upload leaves the old
- * tasks the URL they read), and then refuses when the list the store answers
- * still holds either: the list, not what a delete answered, is the check.
+ * itself, in a run of its own, `set-task-env.sh --forget-owner-names`, which
+ * uploads nothing, and which the bring-up runs only after `deploy-tasks.sh`
+ * has put tasks that read the system role's URL in place: a deploy that fails
+ * leaves the tasks still deployed the owner's URL they read. That run refuses
+ * when the list the store answers still holds either: the list, not what a
+ * delete answered, is the check. The upload run deletes neither, and says so
+ * when one is still stored.
+ *
+ * THE SCRIPT RUNS, as well as being read. The reading below judges every value
+ * the upload could carry; whether a list still holding the owner's name fails
+ * the run, whether the upload run deletes anything of the owner's, and whether
+ * an unfit system role stops the upload, are questions about what the script
+ * DOES, and a reading of them passed with the exit that makes the refusal a
+ * refusal deleted (0138 T3 step 2 review). So the whole script runs in a copy
+ * of its directory, against a stand-in `@trigger.dev/sdk` that records every
+ * call and answers `list` with what a case says, and a stand-in `docker` that
+ * answers the system role question (`db_roles_system_fit`, which the upload
+ * run asks itself before its URL goes up).
  *
  * WHAT IS CHECKED. The upload block is read whole, and a part of it this cannot
  * read is a failure, not a skip: every line of the `variables` literal and of
@@ -58,12 +73,16 @@
  * optional list's NAMES are checked, the values in `.env` are not. Whether the
  * role the URL names is what the migration made it: the bring-up asks Postgres
  * that before this script runs (`db_roles_system_fit`,
- * `a-superuser-the-bring-up-would-have-uploaded`). And the store itself: no
- * test here can see a running stack's, which is why the script reads it back.
+ * `a-superuser-the-bring-up-would-have-uploaded`, and this script asks it
+ * again). And the store itself: no test here can see a running stack's, which
+ * is why the script reads it back.
  */
 
-import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { describe, it, expect, afterAll } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -96,7 +115,7 @@ const DATABASE_URL_UPLOADS: Record<string, string> = {
 };
 
 /** What the node block reads to know where to upload. None of it is uploaded. */
-const CONTROL = ['TRIGGER_PROJECT_REF', 'TRIGGER_ENV', 'FORCE_REWRITE'];
+const CONTROL = ['TRIGGER_PROJECT_REF', 'TRIGGER_ENV', 'FORCE_REWRITE', 'FORGET_OWNER_NAMES'];
 
 /**
  * The names 0138 T4 counts as a database URL: the pattern of its `IS_DB_URL`,
@@ -319,23 +338,22 @@ function read(script: string): Reading {
         'Leaving a name out of the upload does not take it out of the store (T3 step 1); each is deleted.',
     );
   const loop = /for \(const name of OWNER_NAMES\) \{\n\s*try \{\n\s*await envvars\.del\(ref, slug, name\);/.exec(block);
-  const upload = block.indexOf('await envvars.upload(');
   if (!loop)
     flag('deletes', 'no `for (const name of OWNER_NAMES)` loop deletes each name with envvars.del(ref, slug, name).');
-  else if (upload === -1 || loop.index < upload)
-    flag(
-      'deletes',
-      'the owner names are deleted before the upload. A failed upload would then leave the old tasks without\n' +
-        'the URL they read, and the new ones without theirs: delete after the upload has gone through.',
-    );
+  // The list's verdict: `kept`, the owner names it still holds, and a branch
+  // that fails the run when there is one. Its own block, closed at its own
+  // indentation, holds the exit: an exit elsewhere (the `.catch` at the end has
+  // one) is not this one.
+  const kept = /^( *)const kept = names\.filter\(\(name\) => OWNER_NAMES\.includes\(name\)\);\n\1if \(kept\.length > 0\) \{\n([\s\S]*?)\n\1\}/m.exec(
+    block,
+  );
   const listed = block.indexOf('await envvars.list(');
-  const checked = block.indexOf('OWNER_NAMES.includes(', listed);
-  if (listed === -1 || checked === -1 || block.indexOf('process.exit(1)', checked) === -1)
+  if (!kept || listed === -1 || listed > kept.index || !/^\s*process\.exit\(1\);$/m.test(kept[2]!))
     flag(
       'deletes',
-      'the list the store answers after the upload is not checked for the owner names, with exit 1 when\n' +
-        'one is left. A delete that answers "not found" is not proof the plane never held the name\n' +
-        '(reset-trigger.sh records it once): the list is the check.',
+      'the list the store answers after the delete is not checked for the owner names, with exit 1 in the\n' +
+        '`if (kept.length > 0)` branch when one is left. A delete that answers "not found" is not proof the\n' +
+        'plane never held the name (reset-trigger.sh records it once): the list is the check.',
     );
 
   for (const name of optional) {
@@ -410,7 +428,7 @@ describe('a task run carries no owner connection it does not need', () => {
     expect(found('system'), found('system').join('\n\n')).toEqual([]);
   });
 
-  it('deletes the stored DATABASE_URL and DIRECT_DATABASE_URL after the upload, and reads the list back', () => {
+  it('deletes the stored DATABASE_URL and DIRECT_DATABASE_URL, and fails on the list read back', () => {
     expect(found('deletes'), found('deletes').join('\n\n')).toEqual([]);
   });
 
@@ -442,7 +460,8 @@ const ASSIGN = (add: string) => afterLine('TASK_APP_DATABASE_URL="postgresql://'
 const SYSTEM_URL_ASSIGNED = 'TASK_SYSTEM_DATABASE_URL="postgresql://ownpace_system:${SYSTEM_DB_PASSWORD}@';
 const OWNER_DATABASE_URL =
   'TASK_DATABASE_URL="postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD:-openmigrate_password}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}"';
-const UPLOAD_LINE = '  await envvars.upload(ref, slug, { variables, override: true });\n';
+/** The exit in the list's verdict, with the line before it. */
+const KEPT_EXIT = '\n      process.exit(1);\n';
 /** Take out the line that starts with `starting`, at the start of a line. */
 const dropLine = (starting: string) => (s: string) => {
   const at = s.indexOf(`\n${starting}`);
@@ -562,20 +581,17 @@ const COMES_BACK: Array<[string, (s: string) => string, Rule[]]> = [
   ],
   [
     'the owner names listed, and nothing deleted',
-    (s) => s.replace('      await envvars.del(ref, slug, name);\n      console.log("[set-task-env] deleted", name + ": ', '      console.log("[set-task-env] would delete", name + ": '),
-    ['deletes'],
-  ],
-  [
-    'the owner names deleted before the upload',
-    (s) =>
-      s
-        .replace(UPLOAD_LINE, '')
-        .replace('  const list = await envvars.list(ref, slug);\n', `${UPLOAD_LINE}  const list = await envvars.list(ref, slug);\n`),
+    (s) => s.replace('        await envvars.del(ref, slug, name);\n        console.log("[set-task-env] deleted", name + ": ', '        console.log("[set-task-env] would delete", name + ": '),
     ['deletes'],
   ],
   [
     'the list read back and not checked',
-    (s) => s.replace('.filter((name) => OWNER_NAMES.includes(name))', '.filter(() => false)'),
+    (s) => s.replace('const kept = names.filter((name) => OWNER_NAMES.includes(name));', 'const kept = names.filter(() => false);'),
+    ['deletes'],
+  ],
+  [
+    'a name still stored made a warning: the exit taken out of the branch, the catch keeping its own',
+    (s) => s.replace(KEPT_EXIT, '\n'),
     ['deletes'],
   ],
   [
@@ -604,5 +620,218 @@ describe('each way back that review found around the first version is caught', (
     expect(mutated, 'the mutation no longer applies to the script: update its anchor').not.toBe(SCRIPT);
     const raised = new Set(read(mutated).findings.map((f) => f.rule));
     for (const rule of rules) expect([...raised], `expected the ${rule} rule to fire`).toContain(rule);
+  });
+});
+
+/* ------------------------------------------------------------------------ */
+/* The script, run.                                                          */
+/* ------------------------------------------------------------------------ */
+
+const COMPOSE_DIR = join(REPO_ROOT, 'deploy', 'compose');
+const tempDirs: string[] = [];
+afterAll(() => {
+  for (const d of tempDirs) rmSync(d, { recursive: true, force: true });
+});
+
+/** The system role question's fit answer, as `db_roles_system_fit` reads it (db-roles.sh). */
+const FIT_ANSWER = 'f|f|f|f|t|t|0|0';
+
+/**
+ * The stand-in SDK: every call recorded as a JSON line, `list` answering the
+ * names STAND_IN_LIST gives, `del` throwing when STAND_IN_DEL_THROWS is set.
+ */
+const SDK_STAND_IN = `
+const fs = require("fs");
+const log = (e) => fs.appendFileSync(process.env.STAND_IN_LOG + "/sdk", JSON.stringify(e) + "\\n");
+module.exports.envvars = {
+  upload: async (ref, slug, body) => {
+    log({ call: "upload", names: Object.keys(body.variables).sort(), system: body.variables.SYSTEM_DATABASE_URL });
+  },
+  del: async (ref, slug, name) => {
+    log({ call: "del", name });
+    if (process.env.STAND_IN_DEL_THROWS) throw new Error("not found");
+  },
+  list: async () => {
+    log({ call: "list" });
+    return (process.env.STAND_IN_LIST || "").split(",").filter(Boolean).map((name) => ({ name }));
+  },
+};
+`;
+
+interface ScriptRun {
+  status: number | null;
+  out: string;
+  sdk: Array<{ call: string; name?: string; names?: string[]; system?: string }>;
+  docker: string;
+  password: string;
+}
+
+/**
+ * set-task-env.sh (or a changed copy of it), run from a copy of its directory
+ * with the files it sources, a `.env` of generated values, the stand-in SDK
+ * under apps/worker, and stand-ins for `curl` (the webapp answers) and `docker`
+ * (the system role question answers STAND_IN_FIT_ANSWER, exit STAND_IN_DOCKER_EXIT).
+ */
+function runScript(args: string[], answers: Record<string, string> = {}, script = SCRIPT): ScriptRun {
+  const root = mkdtempSync(join(tmpdir(), 'set-task-env-'));
+  tempDirs.push(root);
+  const compose = join(root, 'deploy', 'compose');
+  mkdirSync(compose, { recursive: true });
+  for (const f of ['check-env-agreement.sh', 'trigger-cli-lib.sh', 'env-read.sh', 'own-addresses.sh', 'stack-kind.sh', 'db-roles.sh', 'managed.yml']) {
+    copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
+  }
+  writeFileSync(join(compose, 'set-task-env.sh'), script);
+  chmodSync(join(compose, 'set-task-env.sh'), 0o755);
+  const password = randomBytes(12).toString('hex');
+  writeFileSync(
+    join(compose, '.env'),
+    [
+      'TRIGGER_PROJECT_REF=proj_stand_in',
+      `TRIGGER_SECRET_KEY=tr_prod_${randomBytes(8).toString('hex')}`,
+      `SECRET_ENCRYPTION_KEY=${randomBytes(16).toString('hex')}`,
+      `SYSTEM_DB_PASSWORD=${password}`,
+      'POSTGRES_USER=ownpace_owner',
+      'POSTGRES_DB=ownpace',
+      '',
+    ].join('\n'),
+  );
+  const sdk = join(root, 'apps', 'worker', 'node_modules', '@trigger.dev', 'sdk');
+  mkdirSync(sdk, { recursive: true });
+  writeFileSync(join(sdk, 'package.json'), '{ "name": "@trigger.dev/sdk", "main": "index.js" }\n');
+  writeFileSync(join(sdk, 'index.js'), SDK_STAND_IN);
+  const bin = join(root, 'bin');
+  mkdirSync(bin);
+  writeFileSync(join(bin, 'curl'), '#!/usr/bin/env bash\nexit 0\n');
+  writeFileSync(
+    join(bin, 'docker'),
+    [
+      '#!/usr/bin/env bash',
+      'printf "%s\\n" "$*" >>"$STAND_IN_LOG/docker"',
+      'cat >/dev/null',
+      'printf "%s" "${STAND_IN_FIT_ANSWER-}"',
+      'exit "${STAND_IN_DOCKER_EXIT:-0}"',
+      '',
+    ].join('\n'),
+  );
+  chmodSync(join(bin, 'curl'), 0o755);
+  chmodSync(join(bin, 'docker'), 0o755);
+  const r = spawnSync('bash', [join(compose, 'set-task-env.sh'), ...args], {
+    env: {
+      PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`,
+      HOME: root,
+      STAND_IN_LOG: root,
+      STAND_IN_FIT_ANSWER: FIT_ANSWER,
+      ...answers,
+    },
+    encoding: 'utf8',
+    timeout: 60_000,
+  });
+  const logged = (f: string) => (existsSync(join(root, f)) ? readFileSync(join(root, f), 'utf8') : '');
+  return {
+    status: r.status,
+    out: `${r.stdout}${r.stderr}`,
+    sdk: logged('sdk')
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as ScriptRun['sdk'][number]),
+    docker: logged('docker'),
+    password,
+  };
+}
+
+const ownerDeletes = (run: ScriptRun) =>
+  run.sdk.filter((c) => c.call === 'del' && c.name !== undefined && OWNER_NAMES[c.name] !== undefined).map((c) => c.name);
+
+describe('the upload run: asks about the system role, uploads its URL, and deletes nothing of the owner\'s', () => {
+  it("uploads the system role's URL and the application role's, never an owner name, and leaves a stored one for the forget run", () => {
+    const run = runScript([], { STAND_IN_LIST: 'APP_DATABASE_URL,DATABASE_URL,SECRET_ENCRYPTION_KEY,SYSTEM_DATABASE_URL' });
+    expect(run.status, run.out).toBe(0);
+    const upload = run.sdk.filter((c) => c.call === 'upload');
+    expect(upload).toHaveLength(1);
+    expect(upload[0]!.names).toEqual(expect.arrayContaining(['SYSTEM_DATABASE_URL', 'APP_DATABASE_URL', 'SECRET_ENCRYPTION_KEY']));
+    for (const name of Object.keys(OWNER_NAMES)) expect(upload[0]!.names).not.toContain(name);
+    expect(upload[0]!.system).toBe(`postgresql://${SYSTEM_ROLE}:${run.password}@pgbouncer:6432/ownpace`);
+    // The tasks deployed before this one may still read it: the forget run, after the deploy, deletes it.
+    expect(ownerDeletes(run)).toEqual([]);
+    expect(run.out).toMatch(/still holds DATABASE_URL[\s\S]*--forget-owner-names/);
+  });
+
+  it('asks the system role question, over the socket as the owner, before anything goes up', () => {
+    const run = runScript([]);
+    expect(run.status, run.out).toBe(0);
+    expect(run.docker).toMatch(/exec -T postgres psql .*-U ownpace_owner .*-v system_role=ownpace_system/);
+  });
+
+  it.each([
+    ['a superuser', `t${FIT_ANSWER.slice(1)}`, /REFUSED[\s\S]*superuser/],
+    ['a role another belongs to', `${FIT_ANSWER.slice(0, -1)}1`, /REFUSED[\s\S]*belong to it/],
+    ['no role at all', '', /REFUSED[\s\S]*is not a role/],
+  ])('refuses %s, and nothing is uploaded or deleted', (_label, answer, why) => {
+    const run = runScript([], { STAND_IN_FIT_ANSWER: answer });
+    expect(run.status, run.out).not.toBe(0);
+    expect(run.out).toMatch(why);
+    expect(run.sdk).toEqual([]);
+  });
+
+  it('refuses when the question could not be asked, and nothing is uploaded', () => {
+    const run = runScript([], { STAND_IN_FIT_ANSWER: 'psql: error: connection to server failed', STAND_IN_DOCKER_EXIT: '2' });
+    expect(run.status, run.out).not.toBe(0);
+    expect(run.sdk).toEqual([]);
+  });
+
+  it('refuses an argument it does not know, before anything', () => {
+    const run = runScript(['--forget-owner-name']);
+    expect(run.status, run.out).not.toBe(0);
+    expect(run.sdk).toEqual([]);
+    expect(run.docker).toBe('');
+  });
+});
+
+describe('the forget run: deletes the owner names, uploads nothing, and fails on a list that still holds one', () => {
+  it('deletes both, reads the list, and passes when neither is left', () => {
+    const run = runScript(['--forget-owner-names'], { STAND_IN_LIST: 'APP_DATABASE_URL,SYSTEM_DATABASE_URL' });
+    expect(run.status, run.out).toBe(0);
+    expect(run.sdk.map((c) => c.call)).toEqual(['del', 'del', 'list']);
+    expect(ownerDeletes(run).sort()).toEqual(Object.keys(OWNER_NAMES).sort());
+    // It uploads nothing, so it needs no question about the role whose URL it does not send.
+    expect(run.docker).toBe('');
+  });
+
+  it('passes when a delete answers "not found" and the list agrees', () => {
+    const run = runScript(['--forget-owner-names'], { STAND_IN_DEL_THROWS: '1', STAND_IN_LIST: 'SYSTEM_DATABASE_URL' });
+    expect(run.status, run.out).toBe(0);
+  });
+
+  it.each(Object.keys(OWNER_NAMES).map((n) => [n]))('FAILS when the list still holds %s, whatever the delete answered', (name) => {
+    const run = runScript(['--forget-owner-names'], { STAND_IN_LIST: `SYSTEM_DATABASE_URL,${name}` });
+    expect(run.status, run.out).toBe(1);
+    expect(run.out).toMatch(new RegExp(`FAILED: the task environment still holds ${name}`));
+  });
+});
+
+describe('each way around the run that review found is seen by running it', () => {
+  // Each change below, made to the script, shows in a run as the cases above
+  // would see it: so each of those cases goes red on it.
+  it('the exit taken out of the list check: a name still stored passes as a warning', () => {
+    const mutated = SCRIPT.replace(KEPT_EXIT, '\n');
+    expect(mutated, 'the mutation no longer applies to the script: update its anchor').not.toBe(SCRIPT);
+    const run = runScript(['--forget-owner-names'], { STAND_IN_LIST: 'DATABASE_URL' }, mutated);
+    expect(run.status, run.out).toBe(0);
+  });
+
+  it('the forget run done in the upload run too: the upload run deletes an owner name', () => {
+    const mutated = SCRIPT.replace('if (process.env.FORGET_OWNER_NAMES === "1") {', 'if (true) {');
+    expect(mutated).not.toBe(SCRIPT);
+    const run = runScript([], {}, mutated);
+    // What the upload-run case above asserts, seen failing: an owner name deleted, and nothing uploaded.
+    expect(ownerDeletes(run).length).toBeGreaterThan(0);
+    expect(run.sdk.filter((c) => c.call === 'upload')).toEqual([]);
+  });
+
+  it("the system role's verdict ignored: an unfit role's URL goes up", () => {
+    const mutated = SCRIPT.replace('db_roles_system_fit || rc=$?', 'db_roles_system_fit || true');
+    expect(mutated).not.toBe(SCRIPT);
+    const run = runScript([], { STAND_IN_FIT_ANSWER: `t${FIT_ANSWER.slice(1)}` }, mutated);
+    expect(run.sdk.filter((c) => c.call === 'upload')).toHaveLength(1);
   });
 });

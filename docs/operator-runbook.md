@@ -71,22 +71,29 @@ the **system role, `ownpace_system`** (workplan 0138 T3 step 2). RLS is enforced
   by the scripts that act at the machine: `bootstrap-managed.sh` (migrations, and setting the
   system role's password), `seed-managed.sh` (the demo tenants) and `operator.sh` (appointments,
   memberships, `check`/`clean`). **No Trigger.dev task holds it** since 0138 T3 step 2:
-  `set-task-env.sh` uploads no URL composed from it and deletes the owner's names from the task
-  environment. `docs/rls-guide.md` §2 carries the full table, and a guard fails if a script
+  `set-task-env.sh` uploads no URL composed from it, and its forget run
+  (`set-task-env.sh --forget-owner-names`, which the bring-up makes after `deploy-tasks.sh` has
+  gone through) deletes the owner's names from the task environment. `docs/rls-guide.md` §2 carries the full table, and a guard fails if a script
   composes an owner URL without appearing in it.
 - `APP_DATABASE_URL` → the **`app_user`** role. The API connects through this for tenant data, so
   row-level security is in force on its request path (workplan 0011 T1). If you ever point the
   app at the owner URL, tenant isolation silently disappears — don't.
 - `SYSTEM_DATABASE_URL` → the **system role, `ownpace_system`**, for the Trigger.dev jobs that span
   organisations and nothing else. It is **not a superuser**, may create no role or database, does
-  not replicate and belongs to no role; it has **`BYPASSRLS`**, which their questions across
-  organisations need (with no organisation set, a role row security binds reads no row), and the
-  grants their statements need and no others (the migration lists them). Managed migration 0032
-  creates it with no password; `ensure-env-secrets.sh` generates `SYSTEM_DB_PASSWORD` into `.env`,
-  and the bring-up (`bootstrap-managed.sh`, its `tasks` phase) asks Postgres that the role is
-  still what the migration made it, **refuses to go on** if it is a superuser, may create roles or
-  databases, replicates, belongs to a role, or lacks `BYPASSRLS` or `LOGIN`, then sets the
-  password on it and proves it opens over the network and through the pooler, on every run.
+  not replicate, belongs to no role **and has no role belonging to it** (a role that belonged to
+  it, `app_user` say, could `SET ROLE ownpace_system` and read every organisation's rows); it has
+  **`BYPASSRLS`**, which their questions across organisations need (with no organisation set, a
+  role row security binds reads no row), and the grants their statements need and no others (the
+  migration lists them). **Never grant anything in this database to PUBLIC**: with `BYPASSRLS`, a
+  grant to PUBLIC is a grant to this role, past row security, and the integration guard counts
+  it. Managed migration 0032 creates it with no password; `ensure-env-secrets.sh` generates
+  `SYSTEM_DB_PASSWORD` into `.env`, and the bring-up (`bootstrap-managed.sh`, its `tasks` phase)
+  asks Postgres that the role is still what the migration made it, **refuses to go on** if it is
+  a superuser, may create roles or databases, replicates, belongs to a role, has a role belonging
+  to it, or lacks `BYPASSRLS` or `LOGIN`, then sets the password on it, clears every setting left
+  on it (a role may change its own settings and its own password, and every run holds its URL),
+  and proves it opens over the network and through the pooler, on every run. `set-task-env.sh`
+  asks the same question before every upload, run by the bring-up or by hand.
 - **The deployed Trigger.dev tasks: the eight per-tenant ones connect as `app_user`, three
   scheduled jobs read each organisation as `app_user`, and the three that span organisations whole
   connect as the system role.** `set-task-env.sh` uploads two URLs, `SYSTEM_DATABASE_URL` and

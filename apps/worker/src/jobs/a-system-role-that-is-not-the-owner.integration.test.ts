@@ -25,17 +25,28 @@
  *
  * On a throwaway Postgres with both chains applied, this asserts:
  *
- *   1. the role: exactly those attributes, a member of no role, and exactly
- *      the grants below, table by table and column by column, and nothing on
- *      any schema, database or function but the one schema's `USAGE`;
+ *   1. the role: exactly those attributes, a member of no role and no role
+ *      a member of it (either way one `SET ROLE` joins the owner's rights to
+ *      its `BYPASSRLS`), and exactly the grants below, table by table and
+ *      column by column. Twice: as the grants written to its name, and as
+ *      what it may actually do, which counts a grant to PUBLIC or through a
+ *      role as well; a `GRANT SELECT ON decision TO PUBLIC` reads as harmless
+ *      under row security for `app_user` and hands this role every
+ *      organisation's rows. Nothing on any schema, function or default but
+ *      the one schema's `USAGE`, no SECURITY DEFINER function it may call, and
+ *      on the database only PUBLIC's CONNECT and TEMPORARY (a temporary table
+ *      lives and dies with its session). The bring-up's own question
+ *      (`db-roles.sh`) and the smoke's, asked of this database, answer fit;
+ *      and a setting the role leaves on itself, which an ordinary role may,
+ *      is gone after the statements the bring-up sets its password with;
  *   2. each job's statements run as it: the tick's `run` (held, and then
  *      free), retention's and the purge's, on the pools the jobs build from
  *      `SYSTEM_DATABASE_URL`, each doing what it did on the owner's, and the
  *      list, the audit key and the operator's log page;
  *   3. it is refused what it was not given: creating a role or a database,
- *      `SET ROLE` to the owner, the server's files and programs, a column or
- *      a table it was not granted, a write it was not granted, and making a
- *      table.
+ *      `SET ROLE` to the owner, letting another role take its rights, the
+ *      server's files and programs, a column or a table it was not granted, a
+ *      write it was not granted, and making a permanent table.
  *
  * HOW THE JOBS RUN HERE. The three modules build their pool from
  * `SYSTEM_DATABASE_URL` when they are imported, as they do in a run, so this
@@ -62,6 +73,9 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Client, Pool } from 'pg';
 import { sql } from 'drizzle-orm';
 import { createPgDb, deploymentKeyFor, pgDriver } from '@openmig/ledger';
@@ -144,6 +158,22 @@ const A_INVOICE = `${P}43`;
 const A_DECLINED = `${P}44`;
 const A_OLD_EVENT = `${P}45`;
 const C_REQUEST = `${P}46`;
+const C_PERSON = `${P}37`;
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+const readRepo = (rel: string): string => readFileSync(join(REPO_ROOT, rel), 'utf8');
+
+/** A statement db-roles.sh sends, by the name it reads it into (`read -r -d '' NAME <<'SQL'`). */
+function dbRolesSql(name: string): string {
+  const text = readRepo('deploy/compose/db-roles.sh');
+  const m = new RegExp(`read -r -d '' ${name} <<'SQL' \\|\\| true\n([\\s\\S]*?)\nSQL\n`).exec(text);
+  if (!m) throw new Error(`deploy/compose/db-roles.sh reads no ${name}`);
+  return m[1]!;
+}
+
+/** One row as psql -At prints it: `t`/`f`, numbers as digits, `|` between. */
+const asPsqlPrints = (row: unknown[]): string =>
+  row.map((v) => (typeof v === 'boolean' ? (v ? 't' : 'f') : String(v))).join('|');
 
 /**
  * What the role is granted, and all it is granted: a privilege on the whole
@@ -214,6 +244,10 @@ const EXPECTED: Record<string, readonly string[]> = {
   rate_budget: PURGED_ONLY(),
   byte_budget: PURGED_ONLY(),
   support_read: PURGED_ONLY(),
+  // The people being moved (managed migration 0031, ADR-0050), erased with
+  // their organisation: a name and an address the role never reads.
+  person_migration: PURGED_ONLY(),
+  person: PURGED_ONLY(),
 };
 
 /** What the role holds beyond tables: its schema's USAGE, and nothing else anywhere. */
@@ -293,9 +327,33 @@ describe('the role: no superuser, no role or database of its own, a member of no
       rolreplication: false,
       rolbypassrls: true,
     });
-    const [members] = await ownerRows<{ n: number }>(sql`
-      SELECT count(*)::int AS n FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.member WHERE r.rolname = ${SYSTEM_ROLE}`);
-    expect(members!.n, 'a member of another role takes its rights with SET ROLE').toBe(0);
+  });
+
+  it('is a member of no role, and no role is a member of it: SET ROLE joins nobody\'s rights to its BYPASSRLS', async () => {
+    const [ways] = await ownerRows<{ belongs_to: number; members: number }>(sql`
+      SELECT (SELECT count(*)::int FROM pg_auth_members m WHERE m.member = ${SYSTEM_ROLE}::regrole) AS belongs_to,
+             (SELECT count(*)::int FROM pg_auth_members m WHERE m.roleid = ${SYSTEM_ROLE}::regrole) AS members`);
+    // A member of another role takes that role's rights with SET ROLE: the owner's, a superuser's.
+    expect(ways!.belongs_to, `${SYSTEM_ROLE} belongs to a role`).toBe(0);
+    // A role that is a member of it takes ITS rights the same way: app_user, the API's own request
+    // role, would read every organisation's rows past row security with one SET ROLE.
+    expect(ways!.members, `a role is a member of ${SYSTEM_ROLE}`).toBe(0);
+  });
+
+  it("the bring-up's own question and the smoke's, asked of this database, answer fit", async () => {
+    // db-roles.sh's db_roles_system_fit, as psql -At prints its one line: superuser, create role,
+    // create database, replication, BYPASSRLS, login, roles it belongs to, roles that belong to it.
+    const fitSql = dbRolesSql('DB_ROLES_SYSTEM_FIT_SQL').replaceAll(":'system_role'", `'${SYSTEM_ROLE}'`);
+    const fit = await owner.$pool.query({ text: fitSql, rowMode: 'array' });
+    expect(fit.rows.map((r: unknown[]) => asPsqlPrints(r))).toEqual(['f|f|f|f|t|t|0|0']);
+    // smoke-managed.sh's, at the end of the nightly run, and the answer it passes.
+    const smoke = readRepo('deploy/compose/smoke-managed.sh');
+    const asked = /^system_role="\$\(q "([^"]+)" 2>&1 \| tail -n1\)"$/m.exec(smoke);
+    const passes = /^if \[ "\$system_role" = "([^"]+)" \]; then$/m.exec(smoke);
+    expect(asked, 'smoke-managed.sh no longer asks the system role question in the shape this reads').not.toBeNull();
+    expect(passes, 'smoke-managed.sh no longer compares the answer in the shape this reads').not.toBeNull();
+    const [answer] = rowsOf<{ line: string }>(await owner.$pool.query(`SELECT (${asked![1]}) AS line`));
+    expect(answer!.line).toBe(passes![1]);
   });
 
   it('logs in as itself, and is no superuser there', async () => {
@@ -330,6 +388,73 @@ describe('the role: no superuser, no role or database of its own, a member of no
     const heldSorted = Object.fromEntries(Object.entries(held).map(([t, p]) => [t, order(p)]));
     const expected = Object.fromEntries(Object.entries(EXPECTED).map(([t, p]) => [t, order(p)]));
     expect(heldSorted).toEqual(expected);
+  });
+
+  it('may do exactly that, whoever granted it: PUBLIC and any role included, table by table and column by column', async () => {
+    // What it may actually do, not the rows written to its name: a grant to PUBLIC, or to a role it
+    // belongs to, is a privilege it holds too, and with BYPASSRLS every organisation's rows come with it.
+    const v17 = Number((await ownerRows<{ v: string }>(sql`SELECT current_setting('server_version_num') AS v`))[0]!.v) >= 170000;
+    const privileges = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER', ...(v17 ? ['MAINTAIN'] : [])];
+    const relations = sql`
+      SELECT c.oid, CASE WHEN n.nspname = 'public' THEN c.relname ELSE n.nspname || '.' || c.relname END AS tbl
+        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+       WHERE c.relkind IN ('r', 'p', 'v', 'm', 'f')
+         AND n.nspname NOT IN ('pg_catalog', 'information_schema') AND left(n.nspname, 3) <> 'pg_'`;
+    const tables = await ownerRows<{ tbl: string; priv: string }>(sql`
+      SELECT r.tbl, p.priv FROM (${relations}) r
+        CROSS JOIN unnest(ARRAY[${sql.raw(privileges.map((p) => `'${p}'`).join(', '))}]) AS p(priv)
+       WHERE has_table_privilege(${SYSTEM_ROLE}, r.oid, p.priv)`);
+    const columns = await ownerRows<{ tbl: string; col: string; priv: string }>(sql`
+      SELECT r.tbl, a.attname AS col, p.priv FROM (${relations}) r
+        JOIN pg_attribute a ON a.attrelid = r.oid AND a.attnum > 0 AND NOT a.attisdropped
+        CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'REFERENCES']) AS p(priv)
+       WHERE NOT has_table_privilege(${SYSTEM_ROLE}, r.oid, p.priv)
+         AND has_column_privilege(${SYSTEM_ROLE}, r.oid, a.attnum, p.priv)`);
+    const held: Record<string, string[]> = {};
+    for (const t of tables) (held[t.tbl] ??= []).push(t.priv);
+    const byColumn = new Map<string, string[]>();
+    for (const c of columns) {
+      const key = `${c.tbl}\u0000${c.priv}`;
+      byColumn.set(key, [...(byColumn.get(key) ?? []), c.col]);
+    }
+    for (const [key, cols] of byColumn) {
+      const [tbl, priv] = key.split('\u0000') as [string, string];
+      (held[tbl] ??= []).push(`${priv}(${cols.sort().join(',')})`);
+    }
+    const order = (privs: readonly string[]) => [...privs].sort();
+    const heldSorted = Object.fromEntries(Object.entries(held).map(([t, p]) => [t, order(p)]));
+    const expected = Object.fromEntries(Object.entries(EXPECTED).map(([t, p]) => [t, order(p)]));
+    expect(heldSorted).toEqual(expected);
+  });
+
+  it('may do nothing else anywhere: no SECURITY DEFINER function, no sequence, no schema to create in, no default for PUBLIC', async () => {
+    const elsewhere = await ownerRows<{ what: string }>(sql`
+      SELECT 'function ' || p.oid::regprocedure::text || ': EXECUTE, as its owner' AS what
+        FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+       WHERE p.prosecdef AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+         AND has_function_privilege(${SYSTEM_ROLE}, p.oid, 'EXECUTE')
+      UNION ALL
+      SELECT 'sequence ' || c.relname || ': ' || p.priv
+        FROM pg_class c CROSS JOIN unnest(ARRAY['USAGE', 'SELECT', 'UPDATE']) AS p(priv)
+       WHERE c.relkind = 'S' AND has_sequence_privilege(${SYSTEM_ROLE}, c.oid, p.priv)
+      UNION ALL
+      SELECT 'schema ' || n.nspname || ': ' || p.priv
+        FROM pg_namespace n CROSS JOIN unnest(ARRAY['USAGE', 'CREATE']) AS p(priv)
+       WHERE has_schema_privilege(${SYSTEM_ROLE}, n.oid, p.priv)
+         AND NOT (p.priv = 'USAGE' AND n.nspname IN ('pg_catalog', 'information_schema'))
+      UNION ALL
+      SELECT 'database ' || current_database() || ': ' || p.priv
+        FROM unnest(ARRAY['CONNECT', 'TEMPORARY', 'CREATE']) AS p(priv)
+       WHERE has_database_privilege(${SYSTEM_ROLE}, current_database(), p.priv)
+      UNION ALL
+      SELECT 'default privileges for ' || CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE a.grantee::regrole::text END
+             || ' on ' || d.defaclobjtype::text || ': ' || a.privilege_type
+        FROM pg_default_acl d CROSS JOIN LATERAL aclexplode(d.defaclacl) a
+       WHERE a.grantee = 0 OR a.grantee = ${SYSTEM_ROLE}::regrole`);
+    const db = (await ownerRows<{ db: string }>(sql`SELECT current_database() AS db`))[0]!.db;
+    // The database's CONNECT and TEMPORARY are PUBLIC's, as Postgres makes every database: it may
+    // connect, and make a table that lives and dies with its own session. Never CREATE.
+    expect(elsewhere.map((e) => e.what).sort()).toEqual([`database ${db}: CONNECT`, `database ${db}: TEMPORARY`, 'schema public: USAGE']);
   });
 
   it('holds nothing on any schema, database, function or default but its schema\'s USAGE', async () => {
@@ -392,7 +517,8 @@ describe('it is refused what it was not given', () => {
     ["taking a role that reads the server's files", 'SET ROLE pg_read_server_files', /permission denied to set role/],
     ["reading the server's files", "SELECT pg_read_file('PG_VERSION')", /permission denied/],
     ['running a program on the server', "COPY (SELECT 1) TO PROGRAM 'true'", /permission denied|must be superuser|pg_execute_server_program/],
-    ['making a table', 'CREATE TABLE x0138f_table (i int)', /permission denied/],
+    ['making a permanent table', 'CREATE TABLE x0138f_table (i int)', /permission denied/],
+    ['letting another role take its rights', `GRANT ${SYSTEM_ROLE} TO app_user`, /permission denied|must have admin option/],
     ["reading a purged table's rows", 'SELECT natural_key FROM item LIMIT 1', /permission denied/],
     ["reading a member's address", 'SELECT email FROM tenant_member LIMIT 1', /permission denied/],
     ["reading a request's name", 'SELECT name, email FROM access_request LIMIT 1', /permission denied/],
@@ -601,6 +727,14 @@ describe('the purge of a closed organisation runs as the system role', () => {
       INSERT INTO item (tenant_id, mapping_id, domain, collection, natural_key, natural_key_hash, status) VALUES
         (${C}, ${C_MAPPING}, 'email', 'INBOX', 'c-1', 'h-0138f-c-1', 'copied')`);
     await owner.execute(sql`INSERT INTO audit_log (tenant_id, action) VALUES (${C}, 'mapping.created')`);
+    // The person C's migration is for (managed migration 0031): a name and an address to erase.
+    await owner.execute(sql`
+      INSERT INTO person (id, tenant_id, display_name, email) VALUES
+        (${C_PERSON}, ${C}, 'C the person moved', 'moved@c.system-role.example.invalid')
+      ON CONFLICT (id) DO NOTHING`);
+    await owner.execute(sql`
+      INSERT INTO person_migration (mapping_id, person_id, tenant_id) VALUES (${C_MAPPING}, ${C_PERSON}, ${C})
+      ON CONFLICT (mapping_id) DO NOTHING`);
     await owner.execute(sql`
       INSERT INTO tenant_member (tenant_id, user_id, email, role, status) VALUES
         (${C}, 'user-0138f-c-owner', 'owner@c.system-role.example.invalid', 'owner', 'active')
@@ -645,10 +779,72 @@ describe('the purge of a closed organisation runs as the system role', () => {
     expect(receipt!.counts.item).toBe(1);
     expect(receipt!.counts.run).toBe(2);
     expect(receipt!.counts.tenant).toBe(1);
+    expect(receipt!.counts.person).toBe(1);
+    expect(receipt!.counts.person_migration).toBe(1);
   });
 
   it('and A and B are as they were', async () => {
     const left = await ownerRows<{ id: string }>(sql`SELECT id FROM tenant WHERE id IN (${A}, ${B}) ORDER BY id`);
     expect(left.map((t) => t.id)).toEqual([A, B]);
+  });
+});
+
+describe('a setting the role leaves on itself is gone after the bring-up sets its password', () => {
+  /**
+   * An ordinary role may change its own password and its own settings, and
+   * every run holds this role's URL. A run that had been taken over could leave
+   * `default_transaction_read_only = on` on it, for every database or for this
+   * one: from then on the tick, retention, the purge and the audit key fail on
+   * every write, and resetting the password does not clear it. So the
+   * statements the bring-up sets the password with (`db-roles.sh`,
+   * DB_ROLES_SYSTEM_SET_SQL) reset both, and the smoke asks that none is left.
+   * Run here as the owner, the psql variables written in.
+   */
+  const db = async () => (await ownerRows<{ db: string }>(sql`SELECT current_database() AS db`))[0]!.db;
+  const settings = async () =>
+    (
+      await ownerRows<{ n: number }>(sql`
+        SELECT count(*)::int AS n FROM pg_db_role_setting
+         WHERE setrole = ${SYSTEM_ROLE}::regrole
+           AND setdatabase IN (0, (SELECT oid FROM pg_database WHERE datname = current_database()))`)
+    )[0]!.n;
+
+  afterAll(async () => {
+    const name = await db();
+    await owner.execute(sql.raw(`ALTER ROLE ${SYSTEM_ROLE} RESET ALL`));
+    await owner.execute(sql.raw(`ALTER ROLE ${SYSTEM_ROLE} IN DATABASE "${name}" RESET ALL`));
+  });
+
+  it('may leave one, which stops its writes', async () => {
+    const name = await db();
+    const client = new Client({ connectionString: systemUrl() });
+    await client.connect();
+    try {
+      await client.query(`ALTER ROLE ${SYSTEM_ROLE} SET default_transaction_read_only = on`);
+      await client.query(`ALTER ROLE ${SYSTEM_ROLE} IN DATABASE "${name}" SET statement_timeout = 1`);
+    } finally {
+      await client.end();
+    }
+    expect(await settings()).toBe(2);
+    const late = new Client({ connectionString: systemUrl() });
+    await late.connect();
+    try {
+      await expect(late.query("INSERT INTO app_event (level, event, reference) VALUES ('warn', 'task.x', '0138f0e4')")).rejects.toThrow(
+        /read-only transaction|statement timeout/,
+      );
+    } finally {
+      await late.end();
+    }
+  });
+
+  it("and the bring-up's statements clear both", async () => {
+    const name = await db();
+    const resets = dbRolesSql('DB_ROLES_SYSTEM_SET_SQL')
+      .split('\n')
+      .filter((line) => /RESET ALL;\s*$/.test(line))
+      .map((line) => line.replaceAll(':"system_role"', `"${SYSTEM_ROLE}"`).replaceAll(':"DBNAME"', `"${name}"`));
+    expect(resets, 'DB_ROLES_SYSTEM_SET_SQL resets no setting').not.toEqual([]);
+    for (const statement of resets) await owner.execute(sql.raw(statement));
+    expect(await settings()).toBe(0);
   });
 });

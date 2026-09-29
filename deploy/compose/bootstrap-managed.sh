@@ -1793,16 +1793,21 @@ phase_app() {
 # anything but a fit role stops the bring-up before a password is set and
 # before set-task-env.sh uploads the URL: a superuser, a role that may create
 # roles or databases or replicate, a member of any role (whose rights it takes
-# with SET ROLE), one without BYPASSRLS (the jobs would find no organisation
-# and call it a quiet night) or without LOGIN, or none at all. Then .env's
-# SYSTEM_DB_PASSWORD, which ensure-env-secrets.sh generated, is set on it over
-# the database's socket, and proven where the tasks connect: over the stack's
-# network and through the pooler. Every run sets it again, so .env is the one
-# place it lives, as it is for the other secrets there.
+# with SET ROLE), a role any other is a member of (which takes ITS rights the
+# same way: app_user would read every organisation's rows), one without
+# BYPASSRLS (the jobs would find no organisation and call it a quiet night) or
+# without LOGIN, or none at all. Then .env's SYSTEM_DB_PASSWORD, which
+# ensure-env-secrets.sh generated, is set on it over the database's socket,
+# every setting on the role is cleared in the same transaction (an ordinary
+# role may set its own, and every run holds its URL), and the password is
+# proven where the tasks connect: over the stack's network and through the
+# pooler. Every run sets it again, so .env is the one place it lives, as it is
+# for the other secrets there.
 #
-# scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts runs the
-# question against a stand-in, and holds this order: fit, set, prove, then the
-# upload.
+# scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts RUNS this
+# function and phase_tasks below, as written here, against stand-ins, and holds
+# this order: fit, set, prove, the upload, the deploy, the owner names
+# forgotten; and that an unfit role or an unasked question stops it first.
 system_role_ready() {
   local pw rc=0 role channel asked why verdict
   pw="$(env_get SYSTEM_DB_PASSWORD)"
@@ -1829,7 +1834,7 @@ system_role_ready() {
     1) die "REFUSED, before its password is set or its URL uploaded: ${DB_ROLES_WHY}. Every run of every task would receive this role's URL (workplan 0138 T3 step 2). Put it back as managed migration 0032 made it (docs/managed-bring-up.md, 'The system role'), then run this again." ;;
     *) die "could not ask Postgres what ${DB_ROLES_SYSTEM} may do, so its URL is not uploaded: ${DB_ROLES_WHY}" ;;
   esac
-  note "${DB_ROLES_SYSTEM}: no superuser, may create no role or database, a member of no role, BYPASSRLS (workplan 0138 T3 step 2)"
+  note "${DB_ROLES_SYSTEM}: no superuser, may create no role or database, a member of no role and no role a member of it, BYPASSRLS (workplan 0138 T3 step 2)"
   db_roles_system_set "$pw" || die "could not set ${DB_ROLES_SYSTEM}'s password: ${DB_ROLES_WHY}"
   rc=0
   db_roles_system_prove "$pw" || rc=$?
@@ -1841,12 +1846,12 @@ system_role_ready() {
     done <<<"$DB_ROLES_PROOF"
     die "${DB_ROLES_SYSTEM} does not open with SYSTEM_DB_PASSWORD where the tasks connect (above); its URL is not uploaded."
   fi
-  note "${DB_ROLES_SYSTEM} opens with SYSTEM_DB_PASSWORD over the network and through the pooler"
+  note "${DB_ROLES_SYSTEM} opens with SYSTEM_DB_PASSWORD over the network and through the pooler, with no setting left on it"
 }
 
 # ---------------------------------------------------------------------------
 phase_tasks() {
-  say tasks "the system role, task environment variables, then the deploy"
+  say tasks "the system role, task environment variables, the deploy, then the owner names forgotten"
   load_env
   [ -n "$(env_get TRIGGER_PROJECT_REF)" ] ||
     die "TRIGGER_PROJECT_REF is not set — the 'account' phase has not been completed."
@@ -1860,6 +1865,13 @@ phase_tasks() {
   # against no database and fails in a way that reads like a broken task.
   "${SCRIPT_DIR}/set-task-env.sh"
   "${SCRIPT_DIR}/deploy-tasks.sh"
+  # The names the database owner went up under (DATABASE_URL until 0138 T3
+  # step 2, DIRECT_DATABASE_URL until step 1), deleted from the store only now,
+  # after a deploy that went through: the tasks deployed before step 2 read
+  # DATABASE_URL, and a deploy that fails (a build, the registry, the plane)
+  # stops the bring-up above, leaving those tasks the URL they still read.
+  # This run uploads nothing, and fails when the list still holds either.
+  "${SCRIPT_DIR}/set-task-env.sh" --forget-owner-names
 }
 
 # ---------------------------------------------------------------------------

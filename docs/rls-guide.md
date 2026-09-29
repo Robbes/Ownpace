@@ -41,10 +41,12 @@
 > task's audit key connect as the system role, `ownpace_system`
 > (`SYSTEM_DATABASE_URL`, managed migration 0032): `BYPASSRLS`, which their
 > questions across organisations need, and the grants their statements need,
-> and no superuser, no role or database of its own, a member of no role.
-> `set-task-env.sh` uploads its URL and deletes the owner's `DATABASE_URL` and
-> `DIRECT_DATABASE_URL` from the task environment, and the bring-up refuses to
-> upload it when Postgres says the role is a superuser or may create roles (§2).
+> and no superuser, no role or database of its own, a member of no role and
+> no role a member of it. `set-task-env.sh` uploads its URL, and, in a run of
+> its own after the tasks are deployed, deletes the owner's `DATABASE_URL` and
+> `DIRECT_DATABASE_URL` from the task environment; the bring-up and
+> `set-task-env.sh` itself refuse to upload the URL when Postgres says the role
+> is a superuser, may create roles, or shares a membership either way (§2).
 
 ## What RLS buys here
 
@@ -85,7 +87,7 @@ organisations, and the same question as `app_user` counted one.
 | The same tasks' audit key: `openTaskPools`'s second pool, on `SYSTEM_DATABASE_URL` | the system role, `ownpace_system` (not a superuser; 0138 T3 step 2, the owner until then); one connection, closed a second after its last use | not needed: it reads `deployment_key` only, which holds no tenant's rows and which ledger migration 0062 closes to `app_user`; managed migration 0032 grants it to the system role. It is the API's audit key pool, in a task |
 | **The three scheduled jobs split in two** (`managed-digest`, `managed-drift-detect`, `managed-group-discovery`, 0138 T2), everything they read or write for one organisation: the tenant pool `openTaskPools` builds, opened in the run and ended in `afterwards` | `app_user`, since 0138 T2 (2026-09-28). Each organisation's reads and writes run in its own scope: the digest's organisation row (name and notification settings), recipients, migrations, their queues through the ledger, pending decisions, last send and the audit row recording this one; the drift detector's coverage, Microsoft sources, dismissed decisions, standing preset and the decisions it raises and closes; group discovery's source connections, the groups it records and the decisions it raises. `withTenant` for a job's own reads, `tenantScopedDb` for the ledger, decision, preset and group stores. The operator's log page's events go to the same pool (`app_event`, insert only), the audit lines to the key's pool below | **in force**. `apps/worker/src/jobs/a-job-that-reads-each-organisation-as-itself.integration.test.ts` runs each job's per-organisation half on the pools it opens, as `app_user`, for two organisations |
 | The same three jobs' one question across organisations: `activeOrganisations` (`task-pools.ts`), on `SYSTEM_DATABASE_URL` | the system role, `ownpace_system` (the owner until 0138 T3 step 2); one connection, closed before it answers | not needed: one statement, the ids of the active organisations (`SELECT id FROM tenant WHERE status = 'active'`), no other column and no other table. It first asks whether its connection sees every organisation, and refuses when it does not: on `app_user`, with no organisation set, `tenant` answers no row, and a job handed that empty list would visit nobody and call it a quiet morning; the system role sees them because it has `BYPASSRLS`. Until T2 each of the three read its list and every organisation's rows on its own owner pool, and group discovery's list was every source connection across organisations, with its config |
-| **The three scheduled Trigger.dev jobs** that span organisations whole (`managed-sync-tick`, `managed-retention`, `managed-purge-closed`) | the system role, `ownpace_system`, since 0138 T3 step 2: each builds its pool from `SYSTEM_DATABASE_URL` and refuses without it, never `DATABASE_URL`. `LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB NOREPLICATION BYPASSRLS`, a member of no role, and the grants their statements need (managed migration 0032): what the tick reads across organisations, what retention prunes, and what the purge reads, updates and deletes, each table the purge only empties readable by its `tenant_id` alone. The tick reads every organisation's `tenant.status` in one statement to start no pass for a closed one (`AN_OPEN_ORGANISATION_WHERE`, 0085 T2), which on `app_user` would find no organisation open. Until step 2 the owner, a superuser | **not in force**, by design: `BYPASSRLS` reads past the policies on the tables it is granted, and the separation between organisations rests on each query's own tenant filter. What step 2 changed is that no run holds a superuser's credential: no program on the server, no file of the server's, no role changed, no table made or altered, and no table read that the jobs do not ask for |
+| **The three scheduled Trigger.dev jobs** that span organisations whole (`managed-sync-tick`, `managed-retention`, `managed-purge-closed`) | the system role, `ownpace_system`, since 0138 T3 step 2: each builds its pool from `SYSTEM_DATABASE_URL` and refuses without it, never `DATABASE_URL`. `LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB NOREPLICATION BYPASSRLS`, a member of no role and no role a member of it, and the grants their statements need (managed migration 0032): what the tick reads across organisations, what retention prunes, and what the purge reads, updates and deletes, each table the purge only empties readable by its `tenant_id` alone. The tick reads every organisation's `tenant.status` in one statement to start no pass for a closed one (`AN_OPEN_ORGANISATION_WHERE`, 0085 T2), which on `app_user` would find no organisation open. Until step 2 the owner, a superuser | **not in force**, by design: `BYPASSRLS` reads past the policies on the tables it is granted, and the separation between organisations rests on each query's own tenant filter. What step 2 changed is that no run holds a superuser's credential: no program on the server, no file of the server's, no other role changed, no permanent table made or altered (a temporary one, which lives and dies with its session, as PUBLIC may on every database), and no table read that the jobs do not ask for, whoever the grant was written to, PUBLIC included |
 | The appliance's `withTenant` scopes (`apps/selfhost/src/index.ts`) | the bundled image's owner or PGlite's `postgres`, dropping to `app_user` with `SET LOCAL ROLE` | **in force** |
 | The appliance's `PgLedger` and `PgCursorStore`, over `persistenceBackend.db` | the bundled image's owner or PGlite's `postgres`, both superusers | not in force; the appliance holds one organisation, so there is nothing to separate |
 | The scripts in §2's table | the owner | not in force, by nature: they act across tenants at the machine |
@@ -262,8 +264,10 @@ tasks read and write tenant data through it since 0138 T1 step 2, and the three
 split jobs every organisation's rows since 0138 T2. Until T3 step 1 it also
 uploaded `DIRECT_DATABASE_URL`, the owner straight to `postgres:5432`, and
 until step 2 `DATABASE_URL`, the owner through the pooler; it deletes both from
-the store now, after its upload, and fails when the list it reads back still
-holds either (`docs/managed-bring-up.md`, "The owner's names in the task
+the store now, in a run of its own (`set-task-env.sh --forget-owner-names`)
+that the bring-up makes only after `deploy-tasks.sh` has put the new tasks in
+place, so a deploy that fails leaves the old tasks the URL they read, and that
+run fails when the list it reads back still holds either (`docs/managed-bring-up.md`, "The owner's names in the task
 environment").
 
 - `SYSTEM_DATABASE_URL` → **the system role, `ownpace_system`** (0138 T3 step
@@ -271,22 +275,36 @@ environment").
   else**: the sync tick, retention and the purge of closed organisations for
   everything, the split jobs' list of organisations, and every task's audit key.
   `LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB NOREPLICATION BYPASSRLS`, a member
-  of no role. **`BYPASSRLS` is required**: their questions cross organisations
+  of no role, **and no role a member of it**: a role it belonged to would lend
+  it that role's rights with `SET ROLE`, and a role that belonged to it
+  (`GRANT ownpace_system TO app_user`) would take its `BYPASSRLS` the same way,
+  so the API's own request role would read every organisation's rows. **`BYPASSRLS` is required**: their questions cross organisations
   (which mappings are due, who is closed and past their window, which runs to
   prune), and on a role row security binds, with no organisation set, every
   row-secured table answers nothing, so each job would do nothing and say so as
   a quiet night. It reads past the policies on the tables it is granted, and
   its grants are the statements those jobs send, each table the purge only
   empties readable by its `tenant_id` alone; no default privileges, so a table
-  added later is not its own until a migration says so. It is not the owner:
-  no program on the server, none of the server's files, no role created or
-  changed, no table made or altered. The migration gives it no password;
-  `ensure-env-secrets.sh` generates `SYSTEM_DB_PASSWORD`, and the bring-up's
-  `tasks` phase asks Postgres, before every upload, whether the role is a
-  superuser, may create roles or databases, replicates, belongs to a role, or
-  lacks `BYPASSRLS` or `LOGIN`, **refuses to go on if it is, may or does**,
-  then sets the password and proves it opens where the tasks connect
-  (`db_roles_system_fit`, `deploy/compose/db-roles.sh`). Every run still
+  added later is not its own until a migration says so. **A grant to PUBLIC is
+  one of its grants too**: with `BYPASSRLS`, `GRANT SELECT ON <a tenant table>
+  TO PUBLIC`, which reads as harmless under row security for `app_user`, hands
+  it every organisation's rows, and so does a `SECURITY DEFINER` function left
+  with PUBLIC's default `EXECUTE`. The integration guard compares what it may
+  actually do with its list. It is not the owner: no program on the server,
+  none of the server's files, no other role created or changed, no permanent
+  table made or altered (PUBLIC's `TEMPORARY` on the database lets it make a
+  temporary one, which lives and dies with its own session). It can still
+  change its own password and its own settings, as any role can; the bring-up
+  sets the one and clears the other on every run. The migration gives it no
+  password; `ensure-env-secrets.sh` generates `SYSTEM_DB_PASSWORD`, and the
+  bring-up's `tasks` phase asks Postgres whether the role is a superuser, may
+  create roles or databases, replicates, belongs to a role, has a role
+  belonging to it, or lacks `BYPASSRLS` or `LOGIN`, **refuses to go on if it
+  is, may or does**, then sets the password, clears every setting on the role,
+  and proves it opens where the tasks connect (`db_roles_system_fit`,
+  `db_roles_system_set`, `deploy/compose/db-roles.sh`); `set-task-env.sh` asks
+  the same question before every upload, the bring-up's or one run by hand, and
+  uploads nothing on a wrong answer. Every run still
   receives this URL, because Trigger.dev stores variables per environment; a
   run that had been taken over could read past the policies with it. 0138's T3
   step 3, parked until the service admits people the owner has not let in,
@@ -518,14 +536,21 @@ testcontainers):**
 - `apps/worker/src/jobs/a-system-role-that-is-not-the-owner.integration.test.ts`
   — the system role (0138 T3 step 2): exactly its attributes (`LOGIN`, no
   superuser, no `CREATEROLE`, `CREATEDB` or `REPLICATION`, `BYPASSRLS`), a
-  member of no role, and exactly its grants, table by table and column by
-  column, against a list of its own, and nothing on any schema, database or
-  function but its schema's `USAGE`; logged in as it, the tick's `run` (under
-  a hold and free), retention's and the purge's run to their ends against two
-  active organisations and one closed past its window, the list, the audit key
-  and the log page; and it is refused a role, a database, `SET ROLE` to the
-  owner, the server's files and programs, a table of its own, the columns and
-  tables it was not granted, and every write it was not granted.
+  member of no role and no role a member of it, and exactly its grants, table
+  by table and column by column, against a list of its own, twice: as written
+  to its name, and as what it may actually do (`has_table_privilege`,
+  `has_column_privilege`), which counts a grant to PUBLIC; no `SECURITY
+  DEFINER` function it may call, no sequence, no schema to create in, no
+  default privileges for PUBLIC, and on the database only PUBLIC's `CONNECT`
+  and `TEMPORARY`; the bring-up's own question and the smoke's, asked of the
+  database, answer fit; a setting the role leaves on itself is gone after the
+  bring-up's statements; logged in as it, the tick's `run` (under a hold and
+  free), retention's and the purge's run to their ends against two active
+  organisations and one closed past its window (its person and the migration
+  that is theirs erased with it), the list, the audit key and the log page;
+  and it is refused a role, a database, `SET ROLE` to the owner, a member of
+  its own, the server's files and programs, a permanent table of its own, the
+  columns and tables it was not granted, and every write it was not granted.
 - The API route suites (`apps/api/src/routes/**/*.integration.test.ts`) run
   every request through `withTenant` + the membership gate; each seeds the
   memberships its tokens imply (`apps/api/src/__tests__/seed-membership.ts`),

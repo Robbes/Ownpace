@@ -46,17 +46,28 @@
 # audit key connect as it through SYSTEM_DATABASE_URL, which set-task-env.sh
 # uploads to every run. The migration made it with no password and nothing a
 # superuser has but BYPASSRLS; what the database holds now is asked, not
-# assumed, every time its URL is about to go up:
+# assumed, every time its URL is about to go up: by the bring-up's tasks phase
+# before it sets the password, and by set-task-env.sh before every upload, the
+# bring-up's or one run by hand.
 #
 #   db_roles_system_fit
 #       asks the catalog, over the socket as the owner, for the role's
-#       attributes and the roles it belongs to: 0 fit (a login role that is
-#       no superuser, may create no role or database, does not replicate,
-#       belongs to no role, and has BYPASSRLS), 1 unfit or missing
-#       (DB_ROLES_WHY names every reason), 2 could not ask.
+#       attributes, the roles it belongs to and the roles that belong to it:
+#       0 fit (a login role that is no superuser, may create no role or
+#       database, does not replicate, belongs to no role, has no role
+#       belonging to it, and has BYPASSRLS), 1 unfit or missing (DB_ROLES_WHY
+#       names every reason), 2 could not ask. Membership counts both ways: a
+#       role it belongs to lends it that role's rights with SET ROLE, and a
+#       role that belongs to it (`GRANT ownpace_system TO app_user`) takes its
+#       BYPASSRLS and grants the same way.
 #   db_roles_system_set <password>
 #       ALTER ROLE with .env's SYSTEM_DB_PASSWORD, over the socket as the
-#       owner, the value passed by name as db_roles_set passes its two.
+#       owner, the value passed by name as db_roles_set passes its two; and,
+#       in the same transaction, every setting on the role cleared, for every
+#       database and for this one. An ordinary role may change its own
+#       password and its own settings, and every run holds its URL: a run
+#       taken over could leave `default_transaction_read_only = on` on it,
+#       which stops every write the jobs make and survives a new password.
 #   db_roles_system_prove <password>
 #       the role opens with it over the network AND through the pooler,
 #       where the tasks connect: 0, 1 (refused) or 2 (could not be asked).
@@ -113,24 +124,36 @@ DB_ROLES_SYSTEM='ownpace_system'
 
 # The question db_roles_system_fit asks: one line, `|`-separated, in this
 # order: superuser, create role, create database, replication, BYPASSRLS,
-# login, and how many roles it is a member of. No line: no such role. The
-# name goes by a psql variable, never into the text.
+# login, how many roles it is a member of, and how many roles are members of
+# it. No line: no such role. The name goes by a psql variable, never into the
+# text. a-system-role-that-is-not-the-owner (integration) asks it of a real
+# database.
 read -r -d '' DB_ROLES_SYSTEM_FIT_SQL <<'SQL' || true
 SELECT r.rolsuper, r.rolcreaterole, r.rolcreatedb, r.rolreplication, r.rolbypassrls, r.rolcanlogin,
-       (SELECT count(*) FROM pg_auth_members m WHERE m.member = r.oid)
+       (SELECT count(*) FROM pg_auth_members m WHERE m.member = r.oid),
+       (SELECT count(*) FROM pg_auth_members m WHERE m.roleid = r.oid)
   FROM pg_roles r
  WHERE r.rolname = :'system_role';
 SQL
 
-# The statement db_roles_system_set sends: the value by a psql variable, read
+# The statements db_roles_system_set sends: the value by a psql variable, read
 # inside the container from the environment Compose was told to pass on by
-# name, and the statement kept out of the database's log, failed or not.
+# name, and the statements kept out of the database's log, failed or not. With
+# the password, in one transaction, every setting on the role: the ones for
+# every database, and the ones for this one (DBNAME, psql's own variable for
+# the database it is connected to), which RESET ALL without IN DATABASE leaves
+# in place. a-system-role-that-is-not-the-owner (integration) runs the two
+# RESET lines against a real database after the role has set both kinds.
 read -r -d '' DB_ROLES_SYSTEM_SET_SQL <<'SQL' || true
 SET log_statement = 'none';
 SET log_min_duration_statement = -1;
 SET log_min_error_statement = panic;
+BEGIN;
 \set system_pw `printf '%s' "$DB_ROLES_NEW_SYSTEM_PASSWORD"`
 ALTER ROLE :"system_role" PASSWORD :'system_pw';
+ALTER ROLE :"system_role" RESET ALL;
+ALTER ROLE :"system_role" IN DATABASE :"DBNAME" RESET ALL;
+COMMIT;
 SQL
 
 db_roles_init() { # db_roles_init <env-file>
@@ -260,7 +283,7 @@ db_roles_prove() { # db_roles_prove <owner-password> <app-password>
 # The system role, asked of the catalog before its password is set and its URL
 # uploaded: every reason it is unfit, at once, in DB_ROLES_WHY.
 db_roles_system_fit() { # 0 fit, 1 unfit or missing, 2 could not ask
-  local out rc super createrole createdb replication bypass login members joined reason
+  local out rc super createrole createdb replication bypass login members held joined reason
   local -a unfit=()
   DB_ROLES_WHY=''
   out=$("${COMPOSE[@]}" exec -T postgres psql -X -q -At -F '|' -U "$DB_ROLES_OWNER" -d "$DB_ROLES_DB" \
@@ -273,12 +296,13 @@ db_roles_system_fit() { # 0 fit, 1 unfit or missing, 2 could not ask
     DB_ROLES_WHY="${DB_ROLES_SYSTEM} is not a role in this database: managed migration 0032 creates it, and the api applies the migrations when it starts (the app phase)"
     return 1
   fi
-  IFS='|' read -r super createrole createdb replication bypass login members <<<"$out"
+  IFS='|' read -r super createrole createdb replication bypass login members held <<<"$out"
   [ "$super" = f ] || unfit+=('it is a superuser, whom row security never binds and who may run programs on the database server')
   [ "$createrole" = f ] || unfit+=('it may create roles, and so change its own')
   [ "$createdb" = f ] || unfit+=('it may create databases')
   [ "$replication" = f ] || unfit+=('it may replicate the whole cluster')
   [ "$members" = 0 ] || unfit+=("it belongs to ${members} role(s), whose rights it takes with SET ROLE")
+  [ "$held" = 0 ] || unfit+=("${held:-an unknown number of} role(s) belong to it, and take its BYPASSRLS and grants with SET ROLE: every organisation's rows")
   [ "$bypass" = t ] || unfit+=('it lacks BYPASSRLS, so the jobs across organisations would find no organisation and call it a quiet night')
   [ "$login" = t ] || unfit+=('it cannot log in')
   [ "${#unfit[@]}" -eq 0 ] && return 0
@@ -288,7 +312,8 @@ db_roles_system_fit() { # 0 fit, 1 unfit or missing, 2 could not ask
   return 1
 }
 
-# The system role's password, set the way db_roles_set sets the other two.
+# The system role's password, set the way db_roles_set sets the other two,
+# and every setting on the role cleared with it.
 db_roles_system_set() { # db_roles_system_set <password>
   local out rc
   DB_ROLES_WHY=''

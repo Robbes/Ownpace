@@ -17,8 +17,13 @@
 #                        itself), with .env's SYSTEM_DB_PASSWORD, which
 #                        ensure-env-secrets.sh generates and the bring-up sets
 #                        on the role (bootstrap-managed.sh, its `tasks`
-#                        phase, after asking Postgres that the role is no
-#                        superuser and may create no role). The three
+#                        phase). Before it goes up, THIS SCRIPT asks Postgres
+#                        what the role is now (db_roles_system_fit,
+#                        db-roles.sh), on every run, the bring-up's and one
+#                        run by hand, and uploads nothing when it is a
+#                        superuser, may create roles or databases, replicates,
+#                        belongs to a role or has a role belonging to it, lacks
+#                        BYPASSRLS or LOGIN, or is not there. The three
 #                        scheduled jobs that span organisations whole (the
 #                        sync tick, retention, the purge) connect with it; the
 #                        digest, the drift detector and group discovery read
@@ -81,26 +86,34 @@
 # anywhere but the list below, or if the system role's URL is composed from
 # anything but its name and SYSTEM_DB_PASSWORD. It cannot see what .env holds.
 #
-# AND THE STORE FORGETS THEM, BECAUSE THIS DELETES THEM. Leaving a name out of
-# the upload does NOT take it out of the store: `upload` sends the variables
-# it is given and nothing else (the SDK posts them to the environment's import
-# endpoint), and a plane that held DIRECT_DATABASE_URL kept it after step 1
-# until the owner deleted it by hand. So after the upload has gone through
-# (a failed upload leaves the old tasks the URL they read), this deletes both
-# of the owner's names, prints what each delete answered, and reads the list
-# back: when the store still holds either, it fails. A delete that answers
-# "not found" is not proof the plane never held the name (reset-trigger.sh
-# records a case where it was not); the list is the check. It also keeps a
+# AND THE STORE FORGETS THEM, IN A RUN OF THEIR OWN:
+#
+#   ./deploy/compose/set-task-env.sh --forget-owner-names
+#
+# Leaving a name out of the upload does NOT take it out of the store: `upload`
+# sends the variables it is given and nothing else (the SDK posts them to the
+# environment's import endpoint), and a plane that held DIRECT_DATABASE_URL
+# kept it after step 1 until the owner deleted it by hand. So this run deletes
+# both of the owner's names, prints what each delete answered, and reads the
+# list back: when the store still holds either, it FAILS. A delete that
+# answers "not found" is not proof the plane never held the name
+# (reset-trigger.sh records a case where it was not); the list is the check.
+# It uploads nothing, and asks nothing about the system role. It also keeps a
 # later key rotation whole: FORCE_REWRITE below rewrites only what this
 # uploads, and a leftover on the old key would be the one unreadable secret
 # that stops every run.
 #
-# ON THE FIRST RUN AFTER STEP 2 LANDS, the tasks deployed before it still read
-# DATABASE_URL, and this deletes it before deploy-tasks.sh has put the new
-# tasks in their place: from here to the end of that deploy, a run the old
-# tasks start refuses at its start (the tick's, every minute, among them).
-# The bring-up runs the two back to back, and a live deploy runs under the
-# hold; afterwards nothing reads the name.
+# WHY A RUN OF ITS OWN, AFTER THE DEPLOY. The tasks deployed before step 2
+# read DATABASE_URL: every per-tenant task opens openTaskPools, which needed
+# it for the audit key's pool, and the tick, retention and the purge read it
+# when they are imported. Deleted before deploy-tasks.sh has put the new tasks
+# in their place, and a deploy that then fails (the build, the registry, the
+# plane) would leave the old tasks deployed with nothing to connect to, every
+# run refusing at its start until a later deploy went through. So the
+# bring-up's `tasks` phase runs this script, then deploy-tasks.sh, and only
+# after a deploy that went through, this script again with
+# --forget-owner-names. The upload run deletes neither name, and says so when
+# the list still holds one. By hand, the same order: upload, deploy, forget.
 #
 # `override: true` on purpose: this file is the source of truth, and a stale
 # dashboard value silently winning over a rotated .env is exactly the failure
@@ -141,12 +154,28 @@
 #
 # Requirements: .env populated (TRIGGER_PROJECT_REF + TRIGGER_SECRET_KEY come
 # from the one-time dashboard setup — deploy-tasks.sh's header documents it),
-# and `pnpm install` done (uses apps/worker's own @trigger.dev/sdk).
+# `pnpm install` done (uses apps/worker's own @trigger.dev/sdk), and, for the
+# upload, the stack's postgres up (the system role question is asked over its
+# socket).
+#
+# scripts/a-run-that-carries-no-superuser.unit.test.ts reads what this uploads
+# and RUNS it, both ways, against a stand-in SDK and a stand-in docker.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ENV_FILE="${SET_TASK_ENV_FILE:-${SCRIPT_DIR}/.env}"
+
+FORGET_OWNER_NAMES=0
+for arg in "$@"; do
+  case "$arg" in
+    --forget-owner-names) FORGET_OWNER_NAMES=1 ;;
+    *)
+      echo "[set-task-env] FATAL: unknown argument '${arg}'. The one it takes is --forget-owner-names (see the header)." >&2
+      exit 1
+      ;;
+  esac
+done
 # shellcheck source=trigger-cli-lib.sh
 . "${SCRIPT_DIR}/trigger-cli-lib.sh"
 
@@ -206,6 +235,41 @@ TASK_APP_DATABASE_URL="postgresql://${APP_DB_USER:-app_user}:${APP_DB_PASSWORD:-
 # would be a password in a public repository.
 TASK_SYSTEM_DATABASE_URL="postgresql://ownpace_system:${SYSTEM_DB_PASSWORD}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}"
 
+# THE SYSTEM ROLE, ASKED BEFORE ITS URL GOES UP (workplan 0138 T3 step 2).
+# Every run of every task receives this URL. The bring-up asks the same
+# question before it sets the role's password; this asks again because this
+# script is also run on its own (a key rotation, a move to another
+# environment), and a role somebody made a superuser, or a member of another
+# role, or gave a member, since the last bring-up would otherwise go up
+# unasked. Over the database's socket, as the owner; nothing is uploaded when
+# the answer is anything but fit. The forget run uploads nothing and asks
+# nothing.
+if [ "$FORGET_OWNER_NAMES" -eq 0 ]; then
+  COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")
+  # shellcheck source=deploy/compose/db-roles.sh
+  . "${SCRIPT_DIR}/db-roles.sh"
+  db_roles_init "$ENV_FILE" || {
+    echo "[set-task-env] FATAL: the checkout's compose project could not be read (above). Nothing was uploaded." >&2
+    exit 1
+  }
+  rc=0
+  db_roles_system_fit || rc=$?
+  case "$rc" in
+    0) echo "[set-task-env] ${DB_ROLES_SYSTEM}: no superuser, may create no role or database, a member of no role and no role a member of it, BYPASSRLS" ;;
+    1)
+      echo "[set-task-env] REFUSED, nothing uploaded: ${DB_ROLES_WHY}." >&2
+      echo "[set-task-env] Every run of every task would receive this role's URL (workplan 0138 T3 step 2). Put it back as" >&2
+      echo "[set-task-env] managed migration 0032 made it (docs/managed-bring-up.md, 'The system role'), then run this again." >&2
+      exit 1
+      ;;
+    *)
+      echo "[set-task-env] FATAL: could not ask Postgres what ${DB_ROLES_SYSTEM} may do, so nothing was uploaded: ${DB_ROLES_WHY}" >&2
+      echo "[set-task-env] Is the stack's postgres up?  docker compose -f deploy/compose/managed.yml ps postgres" >&2
+      exit 1
+      ;;
+  esac
+fi
+
 # WAIT FOR THE WEBAPP BEFORE UPLOADING TO IT.
 #
 # The instruction this script follows a rotation with is "recreate trigger-api,
@@ -238,7 +302,11 @@ for attempt in $(seq 1 30); do
   sleep 2
 done
 
-echo "[set-task-env] uploading task env vars to project ${TRIGGER_PROJECT_REF} env '${TRIGGER_ENV}'"
+if [ "$FORGET_OWNER_NAMES" -eq 1 ]; then
+  echo "[set-task-env] forgetting the owner names in project ${TRIGGER_PROJECT_REF} env '${TRIGGER_ENV}' (uploading nothing)"
+else
+  echo "[set-task-env] uploading task env vars to project ${TRIGGER_PROJECT_REF} env '${TRIGGER_ENV}'"
+fi
 
 cd "$REPO_ROOT/apps/worker"
 TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
@@ -276,11 +344,41 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   LOG_LEVEL="${LOG_LEVEL:-}" \
   OWNPACE_REACHABLE_HOSTS="${OWNPACE_REACHABLE_HOSTS:-}" \
   FORCE_REWRITE="${SET_TASK_ENV_FORCE_REWRITE:-0}" \
+  FORGET_OWNER_NAMES="$FORGET_OWNER_NAMES" \
   node -e '
 const { envvars } = require("@trigger.dev/sdk");
 (async () => {
   const ref = process.env.TRIGGER_PROJECT_REF;
   const slug = process.env.TRIGGER_ENV;
+  // The names the database owner went up under: DATABASE_URL until workplan
+  // 0138 T3 step 2, DIRECT_DATABASE_URL until its step 1. No task reads
+  // either now. A name left out of the upload stays in the store, so the
+  // forget run deletes each, prints what the delete answered, and reads the
+  // list back: the list is the check (see the header).
+  const OWNER_NAMES = ["DATABASE_URL", "DIRECT_DATABASE_URL"];
+  if (process.env.FORGET_OWNER_NAMES === "1") {
+    for (const name of OWNER_NAMES) {
+      try {
+        await envvars.del(ref, slug, name);
+        console.log("[set-task-env] deleted", name + ": the database owner, which no run holds (workplan 0138 T3)");
+      } catch (e) {
+        console.log("[set-task-env] could not delete", name + ":", e && e.message ? e.message : e);
+      }
+    }
+    const list = await envvars.list(ref, slug);
+    const names = list.map((v) => v.name).sort();
+    const kept = names.filter((name) => OWNER_NAMES.includes(name));
+    if (kept.length > 0) {
+      console.error(
+        "[set-task-env] FAILED: the task environment still holds " + kept.join(" and ") +
+          ", the database owner, which every run would receive. Delete it by hand" +
+          " (docs/managed-bring-up.md, the owner names in the task environment) and run this again."
+      );
+      process.exit(1);
+    }
+    console.log("[set-task-env] owner names forgotten — env now holds:", names.join(", "));
+    return;
+  }
   const variables = {
     SYSTEM_DATABASE_URL: process.env.TASK_SYSTEM_DATABASE_URL,
     APP_DATABASE_URL: process.env.TASK_APP_DATABASE_URL,
@@ -376,36 +474,27 @@ const { envvars } = require("@trigger.dev/sdk");
     }
   }
   await envvars.upload(ref, slug, { variables, override: true });
-  // The names the database owner went up under, deleted from the store after
-  // the upload has gone through: DATABASE_URL until workplan 0138 T3 step 2,
-  // DIRECT_DATABASE_URL until its step 1. No task reads either. A name left
-  // out of the upload stays in the store, so each is deleted here, and what
-  // the delete answered is printed; the list below is the check.
-  const OWNER_NAMES = ["DATABASE_URL", "DIRECT_DATABASE_URL"];
-  for (const name of OWNER_NAMES) {
-    try {
-      await envvars.del(ref, slug, name);
-      console.log("[set-task-env] deleted", name + ": the database owner, which no run holds (workplan 0138 T3)");
-    } catch (e) {
-      console.log("[set-task-env] could not delete", name + ":", e && e.message ? e.message : e);
-    }
-  }
   const list = await envvars.list(ref, slug);
   const names = list.map((v) => v.name).sort();
   console.log("[set-task-env] upload OK — env now holds:", names.join(", "));
-  const kept = names.filter((name) => OWNER_NAMES.includes(name));
-  if (kept.length > 0) {
-    console.error(
-      "[set-task-env] FAILED: the task environment still holds " + kept.join(" and ") +
-        ", the database owner, which every run would receive. Delete it by hand" +
-        " (docs/managed-bring-up.md, the owner names in the task environment) and run this again."
+  // Not deleted here: the tasks still deployed may read it until
+  // deploy-tasks.sh has replaced them (see the header).
+  const stillStored = names.filter((name) => OWNER_NAMES.includes(name));
+  if (stillStored.length > 0) {
+    console.log(
+      "[set-task-env] the task environment still holds " + stillStored.join(" and ") +
+        ", the database owner. Once deploy-tasks.sh has put tasks that read SYSTEM_DATABASE_URL in place," +
+        " run set-task-env.sh --forget-owner-names (the tasks phase of the bring-up does)."
     );
-    process.exit(1);
   }
 })().catch((e) => {
   console.error("[set-task-env] FAILED:", e && e.message ? e.message : e);
   process.exit(1);
 });
 '
-echo "[set-task-env] done. Running tasks pick the values up on their NEXT run"
-echo "[set-task-env] (task env is read at run start; no redeploy needed)."
+if [ "$FORGET_OWNER_NAMES" -eq 1 ]; then
+  echo "[set-task-env] done. No run receives the owner's names from here on."
+else
+  echo "[set-task-env] done. Running tasks pick the values up on their NEXT run"
+  echo "[set-task-env] (task env is read at run start; no redeploy needed)."
+fi

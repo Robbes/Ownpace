@@ -57,8 +57,10 @@ TRIGGER_SECRET_KEY=tr_prod_...
   other three scheduled jobs (the sync tick, retention, the purge) connect
   with `SYSTEM_DATABASE_URL`: a role that bypasses row security, which their
   questions across organisations need, and is not a superuser, may create no
-  role or database, and holds the grants its statements need and no others
-  (managed migration 0032; workplan 0138, `docs/rls-guide.md`).
+  role or database, belongs to no role and has no role belonging to it, and
+  holds the grants its statements need and no others, a grant to PUBLIC
+  counted among them (managed migration 0032; workplan 0138,
+  `docs/rls-guide.md`).
 
 ## Deploy
 

@@ -2,7 +2,165 @@
 
 > **In one line:** Trigger.dev tasks reading tenant data as `app_user` under row security instead of the superuser owner via `DATABASE_URL`, owner reach kept to cross-tenant jobs, `DIRECT_DATABASE_URL` dropped from `set-task-env.sh`, a pool guard, docs corrected.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-09-29 (update this block at the end of every session)
+
+**2026-09-29 (placed first, the latest): review fixes for T3 step 2, same branch, not merged.**
+Review found one blocking thing, four major and seven minor. Each is fixed here, in one commit
+after a merge of `main` (fc10672d) into the branch; none was rejected.
+
+- **`main` merged in, and the purge's two new tables granted (blocking).** #1332 (0153 T2) added
+  `person_migration` and `person` to `PURGED_TABLES`; `0032` granted neither, so every hourly purge,
+  as `ownpace_system`, would have rolled back at `DELETE FROM person_migration`, permission
+  denied, and no erasure would have completed. Both are in `0032`'s purge-only list now
+  (`SELECT (tenant_id), DELETE`, 29 tables becoming 31) and in the integration guard's `EXPECTED`,
+  and its purge case seeds C a person and the migration that is theirs and counts both in the
+  receipt. **Red first, on the merged tree with the guard as it was: 2 of 32** (*DELETE on every
+  table the purge empties*: "person_migration is in PURGED_TABLES and has no grant listed here";
+  the purge: "permission denied for table person_migration", rolled back).
+- **Into `0032`, not a new `0033` (major, the plan's half of it).** The migrator records a
+  migration by its file name and never runs it again, so amending one that a stack has applied
+  changes nothing there. `0032` has run on no stack: this branch was never pushed (`git ls-remote
+  origin` lists no ref for it), so no E2E (managed) run could have applied it, and the only
+  databases that ran it were throwaway ones. So it is amended in place. **Dispatch no E2E
+  (managed) for this branch until it is about to merge**: a stack that applies `0032` refuses to
+  start `main`'s API at the next nightly (*"Database schema version 0032… is newer than this build
+  understands"*, which review replayed with `runMigrations`). Merge it before a nightly, then let
+  that nightly or a dispatch on `main` run it.
+- **Membership, both ways (major).** Every check asked which roles `ownpace_system` belongs to and
+  none which roles belong to it: a later `GRANT ownpace_system TO app_user` passed them all, and
+  `app_user`, the API's own request role, could then `SET ROLE ownpace_system` and read every
+  organisation's rows (review: 0 before, 4 after, on its database). The bring-up's question
+  (`DB_ROLES_SYSTEM_FIT_SQL`) answers an eighth field, the roles that belong to it, and refuses one
+  ("*N role(s) belong to it, and take its BYPASSRLS and grants with SET ROLE*"); the smoke asks it
+  too; the integration guard asserts both directions, runs the bring-up's own question and the
+  smoke's against the database and holds each to its fit answer, and adds a refusal: the role
+  cannot `GRANT ownpace_system TO app_user` itself. The migration's header, rls-guide, SECURITY,
+  the runbook and `managed-bring-up.md` (*The system role*, whose `\du` and `REVOKE` covered one
+  direction: now both, with a query that lists both) say so.
+- **What it may actually do, PUBLIC included (major).** The grant checks read access-list entries
+  written to the role's name, and a grant to PUBLIC is one the role holds too: with `BYPASSRLS`,
+  `GRANT SELECT ON decision TO PUBLIC`, harmless-looking under row security for `app_user`, handed
+  it every organisation's decisions with the guard green. The guard now also compares, for every
+  relation outside the system schemas, `has_table_privilege` for every privilege (`MAINTAIN` on 17
+  and later) and `has_column_privilege` for the rest with `EXPECTED`; and asserts no `SECURITY
+  DEFINER` function it may call, no sequence, `CREATE` on no schema, no default privileges for
+  PUBLIC or for it, and on the database exactly PUBLIC's `CONNECT` and `TEMPORARY`. The written-to-
+  its-name comparison stays, for the exact list.
+- **The bring-up's order and verdict are run, not read (major).** The guard found
+  `system_role_ready` in `phase_tasks`'s text, comments included, and `1) die` somewhere after the
+  question; commenting the call out, skipping it on a variable, or answering the question and
+  ignoring the answer all stayed green. `a-superuser-the-bring-up-would-have-uploaded` now takes
+  `phase_tasks`, `system_role_ready`, `say`, `note`, `die` and `env_get` out of
+  `bootstrap-managed.sh` as written and runs them under `set -euo pipefail`, with `db-roles.sh`,
+  `set-task-env.sh`, `deploy-tasks.sh` and `ensure-env-secrets.sh` as stand-ins that record what
+  ran: a fit role runs *fit, set, prove, upload, deploy, forget*, in that order; an unfit role or
+  an unasked question stops at *fit*; a password that did not set or does not open stops before the
+  upload; an upload or a deploy that fails stops there, the forget not run; a password a URL does
+  not carry stops before the question. And the phase's statements, comments dropped, are held to
+  what they are, which is what a skip keyed on a variable the run does not set changes.
+- **The owner's names forgotten only after a deploy that went through (minor).** `set-task-env.sh`
+  deleted `DATABASE_URL` before `deploy-tasks.sh` ran, and a failed deploy would have left the old
+  tasks, which read it, with nothing to connect to. It is two runs now: the upload (which deletes
+  nothing of the owner's and says when a name is still stored) and `set-task-env.sh
+  --forget-owner-names` (which uploads nothing, deletes both names, reads the list back and fails
+  when either is left), and `phase_tasks` runs the forget last, after the deploy. The header,
+  `deploy-tasks.sh`'s, `deploy-live.sh`'s, `stand-up-live.sh`'s, `managed-bring-up.md` (phase 9,
+  the non-production recipe's new step 6, *The owner's names in the task environment*, with what a
+  failed deploy leaves and how to go on), rls-guide and the runbook say so.
+- **A setting left on the role (minor).** An ordinary role may change its own password and its own
+  settings, per database too (asked: both accepted as `ownpace_system`), and `RESET ALL` without
+  `IN DATABASE` leaves the per-database ones. `db_roles_system_set` sends, in one transaction with
+  the password, `ALTER ROLE … RESET ALL` and `ALTER ROLE … IN DATABASE :"DBNAME" RESET ALL`; the
+  smoke's question counts the settings left (a ninth field); the integration guard has the role
+  set both kinds on itself, sees its writes refused, runs the bring-up's two `RESET` lines and
+  finds none left. `0032`'s header no longer says `NOCREATEROLE` stops it changing itself. On the
+  cluster: with `default_transaction_read_only = on` set on the role, the old smoke's question
+  answered `false|false|false|false|true|true|0`, its pass; the new one answers `…|0|0|1`, a
+  failure, and `…|0|0|0` after the reset.
+- **`rotate-db-passwords.sh`'s closing line (minor)** said the gate uploads `DATABASE_URL`; it says
+  `SYSTEM_DATABASE_URL` and `APP_DATABASE_URL`, that the owner's URL no longer goes to the tasks,
+  and that the script does not rotate the system role's password.
+- **The list's verdict held to its own branch, and run (minor).** The rule found `process.exit(1)`
+  anywhere after the list's check, and the `.catch` at the end always has one, so the exit in the
+  `if (kept.length > 0)` branch could go and a stored `DATABASE_URL` pass as a warning. The rule
+  now reads that branch, closed at its own indentation; and the whole script runs, in a copy of its
+  directory, against a stand-in `@trigger.dev/sdk` recording every call and a stand-in `docker`
+  answering the role question: the upload run uploads the system role's URL composed from `.env`,
+  deletes nothing of the owner's, and refuses (nothing uploaded) a superuser, a role another
+  belongs to, no role, or a question it could not ask; the forget run deletes both names, uploads
+  nothing, asks nothing, passes on a clean list and **exits 1** when the list still holds either;
+  an unknown argument is refused before anything.
+- **No fallback the rule cannot see (minor).** Rule 8 saw only spelled-out names: a new
+  `direct-url.ts` export returning `env.DATABASE_URL`, imported by a job through `@openmig/ledger`,
+  or `` process.env[`${p}DATABASE_URL`] `` beside the visible read, stayed green. `AT_THE_MACHINE`
+  files now export exactly what is listed (`direct-url.ts` its two helpers, the CLI nothing); an
+  `ON_THE_SYSTEM_ROLE` file imports nothing from them; and reads the environment only by names it
+  spells (no computed key on `process.env` or an `env`, no `process.env` handed on, spread or
+  enumerated; a parameter's default is allowed).
+- **`set-task-env.sh` asks too (minor).** The sentence that the role is *"asked, not assumed, every
+  time its URL is about to go up"* was true of the bring-up alone, and the repository tells
+  operators to run the script alone (a key rotation, another environment). The upload run now
+  sources `db-roles.sh` and asks `db_roles_system_fit` over the socket before anything goes up,
+  and uploads nothing on any answer but fit. The forget run uploads nothing and asks nothing.
+- **"No table" was "no permanent table" (minor).** Through PUBLIC's `TEMPORARY` on the database the
+  role can make a temporary table (review made one). The documents say *no permanent table*, and
+  the guard's database check names `CONNECT` and `TEMPORARY` as the two PUBLIC gives it. Not done:
+  revoking `TEMPORARY` from PUBLIC. A temporary table lives and dies with the session that made
+  it, reads nothing the role could not, and the revoke would be a database-level change the
+  migration chain does not make anywhere else, taken from `app_user` and every tool too.
+
+**Guards written first, and how they failed.** On the merged tree before any fix: the integration
+guard as it was, 2 of 32 (above); the integration guard as rewritten, **5 of 39** (the bring-up's
+question and the smoke's, the grants, what it may do, the purge, and the settings' reset); unit,
+the three rewritten files, **18 of 225** (T3's 13, among them the whole-script runs; the
+bring-up's 5, among them the run of the phase; T4's new cases pass on this code, and the table
+below shows each red on what review wrote). After the fix: the integration guard **39 of 39**;
+unit, the five guard files, **248 of 248**.
+
+**Each gap review found, green on the old guard and red on the new.** The old guards are
+2da5c8ac's, run in a scratch copy of that tree (unit) or, for the integration guard, 2da5c8ac's
+file with `person` and `person_migration` added to `EXPECTED` (the merge's two lines, so it can
+pass at all), on a fresh database of the merged chains plus the later migration named. Every
+mutation restored after its run and the tree compared.
+
+| # | Mutation (review's name where it had one) | Old guard | New guard |
+|---|---|---|---|
+| R1 | A later migration: `GRANT ownpace_system TO app_user` | integration 32 of 32 passed | 2 failed (membership both ways; the bring-up's question) |
+| R2 | A later migration: `GRANT SELECT ON public.decision TO PUBLIC` | 32 of 32 passed | 1 failed (what it may do) |
+| R3 | A later `SECURITY DEFINER` function, PUBLIC's `EXECUTE` left | 32 of 32 passed | 1 failed (nothing else anywhere) |
+| R4 | `ALTER DEFAULT PRIVILEGES … GRANT SELECT ON TABLES TO PUBLIC` | 32 of 32 passed | 1 failed (nothing else anywhere) |
+| B1 | `system_role_ready` commented out in `phase_tasks` | unit 212 of 212 passed | 11 failed |
+| B2 | `[ "${SKIP_SYSTEM_ROLE_CHECK:-0}" = 1 ] \|\| system_role_ready` | 212 of 212 passed | 1 failed (the phase's statements) |
+| B3 | The question answered and ignored (`\|\| note …`) | 212 of 212 passed | 2 failed (an unfit role, an unasked question) |
+| S3 | The exit taken out of the list's verdict, *FAILED* made *WARNING* | 212 of 212 passed | 5 failed (the rule; the forget run on either name left; two mutation anchors) |
+| U1 | A new `direct-url.ts` export read by retention through `@openmig/ledger` | 212 of 212 passed | 3 failed (exports closed; import; `process.env` handed on) |
+| U2 | `` process.env[`${p}DATABASE_URL`] `` behind the tick's visible read | 212 of 212 passed | 1 failed (names it spells) |
+| F3 | The forget run before the deploy | — | unit 3 failed |
+| F4 | The settings' `RESET` lines taken out | — | unit 1, integration 1 failed |
+| F6 | The bring-up's question one way only again | — | unit 1, integration 1 failed |
+| F6s | The smoke's question one way only again | — | integration 1 failed |
+| F11 | `set-task-env.sh`'s question skipped | — | unit 6 failed |
+
+Documents in the same commit: `0032`'s header, `docs/rls-guide.md`, `SECURITY.md`, `README.md`,
+the SAD v1.12 (§16, §17.1), `docs/operator-runbook.md`, `docs/managed-bring-up.md` (phase 9, the
+non-production recipe, *The owner's names in the task environment*, *The system role*),
+`managed.env.example` and `.env.example`, the worker README, and the headers of
+`set-task-env.sh`, `db-roles.sh`, `bootstrap-managed.sh`, `smoke-managed.sh`, `deploy-tasks.sh`,
+`deploy-live.sh` and `stand-up-live.sh`. `pgbouncer.ini` did not change.
+
+Gates, run last, on the tree as committed: `pnpm -s typecheck` green; eslint on the four changed
+`.ts` files clean; `vitest run --project unit scripts apps/worker packages/managed
+packages/ledger`, **324 files, 5113 tests, all passed** (and the ten files that read `README.md`
+or file modes again after the last `README.md` edit, 246 passed); on a throwaway Postgres 16
+rebuilt by `scripts/local-pg.sh` with both chains (`LOCAL_PG_DIR=/tmp/ownpace-local-pg-0138e`,
+port 55448), the ten integration files the last entry ran, **123 tests, all passed**. The first
+run of those ten had `run-rollback` fail all 8 of its cases at its first insert, *"Key
+(mapping_id)=(7a160000-…d1) is not present in table mailbox_mapping"*: the file alone then passed
+8 of 8, and all ten again on a fresh cluster passed 123 of 123; nothing in this change touches
+that file's tenant, which no other file shares. The workplan index, `LESSONS.md` and
+`OPERATIVE.md` current; `commit-convention.mjs` over the branch. The cluster was removed after.
+Not run: Atlas's migration lint (no Docker here; CI's `migration-lint` runs it), shellcheck (not
+installed; `bash -n` on every changed script). Nothing was exercised against a running stack.
 
 **2026-09-28, later still (placed first, the latest): T3 step 2 built: the jobs across
 organisations connect as a system role that is not the owner,** on branch
@@ -1592,7 +1750,7 @@ step 2's entry still listed, is T6, done in #1303.
 | T0 The alpha's answer: build first, or accept in writing | 📋 **Decided 2026-09-28** (open question 1): (a), T1 to T4 built before the first invitation | §4 and open question 1. 0131 T5's row for this plan. The recommendation was (b): accept in writing for the alpha, with T5's first step, T3's first step and T4 in place before the first invitation. |
 | T1 Per-tenant tasks read and write as the application role | Step 1 ✅ **done** in #1302, merged 2026-09-28 (c33b441c; parts 2 to 4). Step 2 🔨 **built 2026-09-28**, not merged (parts 1 and 5, the switch). Both before the first invitation (T0 (a), 2026-09-28) | §3. Eight jobs, the builders that opened their own ledger from `DATABASE_URL` (step 1 hands them the job's pool), the stores that filtered by their own `WHERE` (step 1 scopes them), and the audit sink's key (step 2 reads it on a pool of one of its own). Step 2: the eight jobs and the standalone worker take their pools from `openTaskPools` (`task-pools.ts`), `app_user` on `APP_DATABASE_URL`, with no fallback. Wall time before and after: the owner compares three E2E (managed) runs, #209, #211 and the first with step 2 (Status, 2026-09-28, later still). |
 | T2 The owner's reach kept to the jobs that span tenants | 🔨 **built 2026-09-28**, not merged; before the first invitation (T0 (a), 2026-09-28) | §3. The sync tick, retention and the purge keep the owner's connection. The digest, the drift detector and group discovery are split (open question 3, answered 2026-09-28): the list of active organisations, ids only, on `DATABASE_URL` through `activeOrganisations` (`task-pools.ts`), and each organisation read and written in its own scope on `openTaskPools`'s tenant pool, `app_user`. Guards: `a-pass-that-opened-the-owners-pool` (its `SPLIT` kind) and `a-job-that-reads-each-organisation-as-itself` (integration). No grant was missing. |
-| T3 No superuser in a run's environment | Step 1 ✅ **done** in #1222, merged 2026-09-27. Step 2 🔨 **built 2026-09-28**, not merged; before the first invitation (T0 (a), 2026-09-28). Its bring-up deletes step 1's stored value too, so the owner's one-off is done wherever it runs | §3. Step 1: stop uploading `DIRECT_DATABASE_URL`, which no task reads. Step 2: the sync tick, retention, the purge, the split jobs' list and every task's audit key connect as `ownpace_system` (`SYSTEM_DATABASE_URL`, managed migration 0032): `BYPASSRLS`, no superuser, no role or database of its own, a member of no role, column-exact grants; `set-task-env.sh` uploads it and deletes `DATABASE_URL` and `DIRECT_DATABASE_URL`; the bring-up refuses an unfit role before the upload. Guards: T3's and T4's (rule 8), `a-superuser-the-bring-up-would-have-uploaded`, `a-system-role-that-is-not-the-owner` (integration). Step 3: 🅿️ **Parked (trigger: the service admits people the owner has not let in personally)**. |
+| T3 No superuser in a run's environment | Step 1 ✅ **done** in #1222, merged 2026-09-27. Step 2 🔨 **built 2026-09-28, review fixed 2026-09-29** (`main` merged in, 0032 amended before any stack ran it), not merged; before the first invitation (T0 (a), 2026-09-28). Its bring-up deletes step 1's stored value too, so the owner's one-off is done wherever it runs. Dispatch no E2E (managed) for it until it is about to merge | §3. Step 1: stop uploading `DIRECT_DATABASE_URL`, which no task reads. Step 2: the sync tick, retention, the purge, the split jobs' list and every task's audit key connect as `ownpace_system` (`SYSTEM_DATABASE_URL`, managed migration 0032): `BYPASSRLS`, no superuser, no role or database of its own, a member of no role and no role a member of it, column-exact grants (31 purge-only tables, `person` and `person_migration` among them), a grant to PUBLIC counted as its own; `set-task-env.sh` asks about the role before every upload and uploads its URL, and its forget run, after a deploy that went through, deletes `DATABASE_URL` and `DIRECT_DATABASE_URL`; the bring-up refuses an unfit role before the upload and clears every setting on it with its password. Guards: T3's and T4's (rule 8), `a-superuser-the-bring-up-would-have-uploaded` (runs the phase), `a-system-role-that-is-not-the-owner` (integration). Step 3: 🅿️ **Parked (trigger: the service admits people the owner has not let in personally)**. |
 | T4 A guard that fails when a per-tenant job opens the owner's pool | ✅ **done** in #1222, merged 2026-09-27, as a ratchet; the ratchet emptied and deleted by T1 step 2 (2026-09-28, not merged) | §3. A closed list of the files that may read a database URL other than `APP_DATABASE_URL`. Under T0's option (b) it landed first as a ratchet: T1 step 1 took the three orchestration files off `KNOWN_REMOVED_BY_T1` (11 to 8), step 2 took the eight jobs and deleted the list, and added `task-pools.ts` to `CROSS_TENANT` for the audit key alone, with rules that every task file is per-tenant or cross-tenant and every per-tenant one takes its pools from `openTaskPools`. |
 | T5 The documents say which connection the tasks use | ✅ **Step 1 done** in #1218, merged 2026-09-27. Step 2 📋 **Proposed**, after T1 to T3 | §3. Step 1: what is true today, and an owner pool in the API that §1 missed (Status, 2026-09-27). Step 2: what T1 to T3 built. The legal texts' sentence goes to 0139. |
 | T6 The permission report reads as the application role | ✅ **done** in #1303, merged 2026-09-28 (683525c8) | §3. `apps/api/src/routes/permissions.ts`, which the report and the sharing rescan use, on `getDbPool()` inside `withTenant`. Guards: `a-report-under-row-security` (integration, as `app_user`, two organisations) and `a-route-that-opened-the-owners-pool`. Found by T5 step 1 (Status, 2026-09-27). |
@@ -1929,11 +2087,13 @@ database server, read its files, change roles or alter the schema. What it does 
 receives this URL, because variables are per environment. T4 makes sure no per-tenant job reads
 it. A run that had been taken over still could.
 
-*Built 2026-09-28 (Status, the entry at the top), not merged.* The role is `ownpace_system`, its
-URL `SYSTEM_DATABASE_URL`; the grants are per column where a job only picks rows; the script also
-deletes `DIRECT_DATABASE_URL` and fails when the store still holds either name; and the bring-up
-asks about create database, replication, membership, `BYPASSRLS` and `LOGIN` besides superuser and
-create role.
+*Built 2026-09-28, review fixed 2026-09-29 (Status, the two entries at the top), not merged.* The
+role is `ownpace_system`, its URL `SYSTEM_DATABASE_URL`; the grants are per column where a job only
+picks rows; the script also deletes `DIRECT_DATABASE_URL`, in a run of its own after the deploy,
+and fails when the store still holds either name; the bring-up asks about create database,
+replication, membership both ways, `BYPASSRLS` and `LOGIN` besides superuser and create role, and
+`set-task-env.sh` asks the same before every upload; and every setting on the role is cleared
+with its password.
 
 **Step 3 (parked): no cross-tenant credential in a run at all.** The questions T2's jobs ask
 become functions owned by the owner (`SECURITY DEFINER`), with `EXECUTE` granted to `app_user`,

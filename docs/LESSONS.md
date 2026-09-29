@@ -662,12 +662,14 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/check-env-agreement.sh`
 
+- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [two-readings-of-one-env-file](../scripts/two-readings-of-one-env-file.unit.test.ts) — ONE .env, READ THREE DIFFERENT WAYS, AND THE THIRD WAS NOBODY'S JOB.
 
 ### `deploy/compose/db-roles.sh`
 
+- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
 
@@ -684,6 +686,7 @@ reading a file drops off its entry by itself.
 - [a-bundle-built-from-a-stale-install](../scripts/a-bundle-built-from-a-stale-install.unit.test.ts) — A BUNDLE BUILT FROM A STALE INSTALL (workplan 0150 T8; the owner, 2026-09-28: *"yes, make deploy-tasks.sh run pnpm install"*).
 - [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
+- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
@@ -732,6 +735,7 @@ reading a file drops off its entry by itself.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
+- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-way-back-before-every-upgrade](../scripts/a-way-back-before-every-upgrade.unit.test.ts) — A WAY BACK BEFORE EVERY UPGRADE: the dump an identity provider upgrade needs was four commands pasted from a chat (workplan 0135 T7, *Before an upgrade*).
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
@@ -843,6 +847,7 @@ reading a file drops off its entry by itself.
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
+- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 - [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts) — A SITE ANOTHER STACK'S TEARDOWN DELETED.
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
@@ -893,6 +898,7 @@ reading a file drops off its entry by itself.
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
+- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 
@@ -1034,6 +1040,7 @@ reading a file drops off its entry by itself.
 - [a-gate-that-leaves-the-alpha-alone](../scripts/a-gate-that-leaves-the-alpha-alone.unit.test.ts) — A GATE THAT LEAVES THE ALPHA ALONE: the nightly managed gate wrote into whichever persisted `.env` a repository variable named, and would have written into live's (workplan 0132 T1g, D7).
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
+- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-way-back-before-every-upgrade](../scripts/a-way-back-before-every-upgrade.unit.test.ts) — A WAY BACK BEFORE EVERY UPGRADE: the dump an identity provider upgrade needs was four commands pasted from a chat (workplan 0135 T7, *Before an upgrade*).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
@@ -1051,6 +1058,7 @@ reading a file drops off its entry by itself.
 
 - [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
+- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
 
@@ -3395,7 +3403,15 @@ A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 
 Reads:
 
+- `deploy/compose/check-env-agreement.sh`
+- `deploy/compose/db-roles.sh`
+- `deploy/compose/deploy-tasks.sh`
+- `deploy/compose/env-read.sh`
+- `deploy/compose/managed.yml`
+- `deploy/compose/own-addresses.sh`
 - `deploy/compose/set-task-env.sh`
+- `deploy/compose/stack-kind.sh`
+- `deploy/compose/trigger-cli-lib.sh`
 - `docs/rls-guide.md`
 - `packages/managed/migrations/0032_a_system_role_that_is_not_the_owner.sql`
 - `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts`
