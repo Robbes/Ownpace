@@ -15,20 +15,29 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DISCOVERY_DOMAINS, lifecycleCounts, type Person } from '@openmig/shared';
 import StartMigration from './StartMigration.tsx';
-import { fetchPeople } from '../services/operating-service.ts';
+import { addMigrationToPerson, createPerson, fetchPeople } from '../services/operating-service.ts';
 import {
   connectionsApi,
+  mappingApi,
   providerAccountsApi,
   providerClientsApi,
+  scopeManifestApi,
   type ConnectionSummary,
+  type Mapping,
 } from '../services/mapping-service.ts';
 
-vi.mock('../services/operating-service', () => ({ fetchPeople: vi.fn() }));
+vi.mock('../services/operating-service', () => ({
+  fetchPeople: vi.fn(),
+  createPerson: vi.fn(),
+  addMigrationToPerson: vi.fn(),
+}));
 vi.mock('../services/mapping-service', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/mapping-service.ts')>()),
   providerAccountsApi: { get: vi.fn() },
   providerClientsApi: { get: vi.fn() },
   connectionsApi: { list: vi.fn(), add: vi.fn(), remove: vi.fn() },
+  mappingApi: { create: vi.fn(), start: vi.fn(), discover: vi.fn(), getDiscovery: vi.fn(), get: vi.fn() },
+  scopeManifestApi: { get: vi.fn() },
 }));
 
 const peopleMock = vi.mocked(fetchPeople);
@@ -71,6 +80,7 @@ const renderAt = (path = '/start') =>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path="/start" element={<StartMigration />} />
+          <Route path="/people/:personId" element={<p>The person’s page</p>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -411,5 +421,138 @@ describe('Where does it go? (screen 5)', () => {
     expect(screen.getByRole('combobox', { name: 'Where files goes' })).toHaveDisplayValue('Anna Nextcloud');
     expect(screen.queryByRole('heading', { level: 3 })).not.toBeInTheDocument();
     expect(next()).toBeEnabled();
+  });
+});
+
+describe('Check, then start (screen 6)', () => {
+  /** Mail from another provider to Soverin and files from Dropbox to Nextcloud, every account saved. */
+  const SAVED = [
+    account({ id: 'c-mail', knownValues: { username: 'anna@example.nl' } }),
+    account({ id: 'c-dropbox', kind: 'dropbox', displayName: 'Anna Dropbox', knownValues: { username: 'anna@example.nl' } }),
+    account({ id: 'c-soverin', role: 'target', kind: 'soverin', displayName: 'Anna Soverin', knownValues: { username: 'anna@soverin.net' } }),
+    account({ id: 'c-cloud', role: 'target', kind: 'nextcloud', displayName: 'Anna Nextcloud', knownValues: { username: 'anna' } }),
+  ];
+  const createMock = vi.mocked(mappingApi.create);
+  const startMock = vi.mocked(mappingApi.start);
+  const personMock = vi.mocked(createPerson);
+  const addToPersonMock = vi.mocked(addMigrationToPerson);
+
+  const detail = (id: string, domains: Mapping['syncConfig']['domains']): Mapping =>
+    ({
+      id,
+      tenantId: 't1',
+      name: id,
+      sourceType: 'imap',
+      targetType: 'soverin',
+      status: 'paused',
+      mode: 'mirror',
+      syncConfig: { domains },
+      sourceConfig: {},
+      targetConfig: {},
+      domainStatus: [],
+      createdAt: '2026-09-29T08:00:00Z',
+      updatedAt: '2026-09-29T08:00:00Z',
+    }) as unknown as Mapping;
+
+  beforeEach(() => {
+    listMock.mockResolvedValue(SAVED);
+    personMock.mockResolvedValue({ ...ANNA, id: 'p-new' });
+    addToPersonMock.mockResolvedValue({ ...ANNA, id: 'p-new' });
+    createMock.mockImplementation(async (input) => ({ id: input.targetType === 'soverin' ? 'm-mail' : 'm-files' }) as never);
+    vi.mocked(mappingApi.discover).mockResolvedValue({} as never);
+    vi.mocked(mappingApi.get).mockImplementation(async (id: string) =>
+      detail(id, id === 'm-mail' ? ['email'] : ['file']),
+    );
+    vi.mocked(mappingApi.getDiscovery).mockImplementation(async (id: string) => ({
+      mappingId: id,
+      discovered: true,
+      domains: [
+        {
+          domain: id === 'm-mail' ? 'email' : 'file',
+          collections: 1,
+          items: 10,
+          bytes: 1024,
+          discoveredAt: '2026-09-29T08:05:00Z',
+        },
+      ],
+    }) as never);
+    vi.mocked(scopeManifestApi.get).mockResolvedValue({ version: 'v1', migrates: [], partial: [], doesNotMigrate: [] });
+    startMock.mockResolvedValue({ id: 'm', status: 'active' } as never);
+  });
+
+  async function toCheck(user: ReturnType<typeof userEvent.setup>) {
+    await toWhatMoves(user, ['Dropbox', 'Another mail provider']);
+    await onTo(user, 'Connect your accounts');
+    await screen.findAllByText('Connected as anna@example.nl');
+    await onTo(user, 'Where does it go?');
+    await user.click(next());
+  }
+
+  it('sets up one paused migration per pair of accounts, for the new person, as it leaves Where does it go?', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await toCheck(user);
+    expect(await screen.findByRole('heading', { level: 2, name: 'Check, then start' })).toHaveFocus();
+    expect(personMock).toHaveBeenCalledWith({ displayName: 'Anna Jansen', email: null });
+    expect(createMock).toHaveBeenCalledTimes(2);
+    expect(createMock).toHaveBeenCalledWith({
+      name: 'Anna Jansen — example.nl to Soverin',
+      sourceType: 'imap',
+      targetType: 'soverin',
+      sourceConnectionId: 'c-mail',
+      targetConnectionId: 'c-soverin',
+      sourceConfig: { username: 'anna@example.nl' },
+      targetConfig: { username: 'anna@soverin.net', password: '' },
+      syncConfig: { domains: ['email'], schedule: '0 2 * * *' },
+    });
+    // Dropbox's Paper docs in the format chosen on *What moves?*.
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Anna Jansen — Dropbox to Nextcloud',
+        sourceType: 'dropbox',
+        sourceConfig: { username: 'anna@example.nl', nativeFilePolicies: { paper: 'markdown' } },
+        syncConfig: { domains: ['file'], schedule: '0 2 * * *' },
+      }),
+    );
+    expect(addToPersonMock).toHaveBeenCalledWith('p-new', 'm-mail');
+    expect(addToPersonMock).toHaveBeenCalledWith('p-new', 'm-files');
+    expect(screen.getByText('Set up and paused: nothing is copied before Start.')).toBeInTheDocument();
+    // What is made cannot be unmade by going back.
+    expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
+  });
+
+  it('starts every migration with one press once each count is in, and lands on the person’s page', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await toCheck(user);
+    await screen.findByRole('heading', { level: 3, name: 'Email: example.nl → Soverin' });
+    expect(screen.getByRole('heading', { level: 3, name: 'Files: Dropbox → Nextcloud' })).toBeInTheDocument();
+    const start = screen.getByRole('button', { name: 'Start' });
+    await vi.waitFor(() => expect(start).toBeEnabled());
+    await user.click(start);
+    expect(startMock).toHaveBeenCalledWith('m-mail');
+    expect(startMock).toHaveBeenCalledWith('m-files');
+    expect(await screen.findByText('The person’s page')).toBeInTheDocument();
+  });
+
+  it('says a refused set-up under Next, and asks again only for what was not made', async () => {
+    createMock.mockImplementation(async (input) => {
+      if (input.targetType === 'nextcloud') throw new Error('The Nextcloud said no');
+      return { id: 'm-mail' } as never;
+    });
+    const user = userEvent.setup();
+    renderAt();
+    await toCheck(user);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Not set up: Files: Dropbox → Nextcloud.');
+    expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
+
+    createMock.mockClear();
+    createMock.mockResolvedValue({ id: 'm-files' } as never);
+    await user.click(next());
+    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    expect(createMock).toHaveBeenCalledTimes(1);
+    expect(createMock).toHaveBeenCalledWith(expect.objectContaining({ targetType: 'nextcloud' }));
+    // The person was made once.
+    expect(personMock).toHaveBeenCalledTimes(1);
   });
 });

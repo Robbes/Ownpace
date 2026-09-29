@@ -29,13 +29,15 @@
  * Each screen starts at the top with focus on its heading (0145 T3 (a)).
  */
 import React from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ARCHIVE_PROVIDER_NAMES,
   ARCHIVE_PROVIDER_ORIGINS,
   TARGET_TYPE_DOMAINS,
   providerDefaultsFor,
+  scopeFamilyOf,
+  scopeManifestFor,
   providerDisplayName,
   sourceCardIsExperimental,
   sourceFaceIsExperimental,
@@ -43,15 +45,21 @@ import {
   type DiscoveryDomain,
   type DropboxPaperPolicy,
   type Person,
+  type ScopeFamily,
   type WizardTargetType,
 } from '@openmig/shared';
-import { fetchPeople } from '../services/operating-service.ts';
+import { addMigrationToPerson, createPerson, fetchPeople } from '../services/operating-service.ts';
 import {
   connectionsApi,
+  mappingApi,
   providerAccountsApi,
+  scopeManifestApi,
   type ConnectionSummary,
+  type CreateMappingInput,
   type TestConnectionResult,
 } from '../services/mapping-service.ts';
+import { serverMessage } from '../services/api.ts';
+import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
 import {
   START_PROVIDERS,
   TYPE_ORDER,
@@ -59,12 +67,18 @@ import {
   carrierOf,
   connectionsFor,
   destinationsFor,
+  migrationsFor,
   offers,
   photosThrough,
   type ConnectionNeed,
+  type PlannedMigration,
+  type Route,
   type ServedFacts,
   type StartProvider,
 } from '../services/start-plan.ts';
+import { MigrationCountSection, useMigrationCount } from '../components/ConfirmMigration.tsx';
+import { needsAcknowledgement } from '../components/confirm/native-refusals.tsx';
+import ScopeManifestPanel from '../components/confirm/ScopeManifestPanel.tsx';
 import { AccountForm } from '../components/AccountForm.tsx';
 import ProviderTile, { providerName } from '../components/ProviderTile.tsx';
 import { DataTypeIcon, DataTypeLabel } from '../components/icons/data-type-icons.tsx';
@@ -105,6 +119,8 @@ export interface Who {
  */
 export interface Signed {
   readonly connectionId: string;
+  /** The card it was added with (`gmail`, `soverin`): what a create names as its type. */
+  readonly card: string;
   /** Whose data it is: the address a create names (`sourceConfig.username`). */
   readonly username: string;
   /**
@@ -129,6 +145,7 @@ const pickPerMapping = (values: Readonly<Record<string, string>> | undefined): R
 /** A saved account, as a migration's create names it. */
 const signedFrom = (c: ConnectionSummary): Signed => ({
   connectionId: c.id,
+  card: wizardTypeForConnectionKind(c.kind),
   username: c.knownValues?.username ?? '',
   perMapping: pickPerMapping(c.knownValues),
 });
@@ -169,6 +186,24 @@ export interface Accounts {
   readonly formKey: (key: string) => number;
 }
 
+/** A migration the set-up made, with the server's words where a part of it was refused. */
+export interface MadeMigration {
+  readonly id?: string;
+  /** Why the create was refused: nothing was made for this pair. */
+  readonly failed?: string;
+  /** Made, but not added to the person: Migrations lists it as nobody's yet. */
+  readonly notAdded?: string;
+}
+
+/** What the set-up made: the person, and each migration by its pair of accounts. */
+export interface Made {
+  readonly personId: string | undefined;
+  readonly migrations: Readonly<Record<string, MadeMigration>>;
+}
+
+/** One pair of accounts: the key a planned migration is made and found under. */
+const pairKey = (m: PlannedMigration): string => `${m.sourceConnectionId}→${m.targetConnectionId}`;
+
 /**
  * The tile's name, where the flow says it otherwise than the card: *Another
  * mail provider* is the IMAP card, named for what a person has rather than
@@ -188,7 +223,10 @@ const motionWelcome = (): boolean =>
   window.matchMedia('(prefers-reduced-motion: no-preference)').matches;
 
 const StartMigration: React.FC = () => {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const { list } = useFormatters();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const peopleQuery = useQuery({ queryKey: ['people'], queryFn: fetchPeople });
   // What this deployment serves per provider account, as the wizard reads it.
@@ -237,6 +275,150 @@ const StartMigration: React.FC = () => {
   const destinationOf = (type: DiscoveryDomain): string =>
     destination[type] ?? defaultDestination(type, accounts.saved);
 
+  /** Every data type's journey, once each account is chosen (T4, *Underneath*). */
+  const routes: ReadonlyArray<Route> = needs.flatMap((need) => {
+    const from = sourceOf(need);
+    if (from === undefined) return [];
+    return need.types.flatMap((type): Route[] => {
+      const to = accounts.signed(destinationOf(type));
+      if (to === undefined) return [];
+      return [
+        {
+          type,
+          provider: need.provider,
+          sourceCard: need.card,
+          sourceConnectionId: from.connectionId,
+          sourceUsername: from.username,
+          targetCard: to.card as WizardTargetType,
+          targetConnectionId: to.connectionId,
+          ...(to.username ? { targetUsername: to.username } : {}),
+        },
+      ];
+    });
+  });
+  const planned = migrationsFor(routes);
+
+  // THE WORDS FOR A MIGRATION: *"{person} — {provider} to {destination}"*
+  // (T4, *Underneath*), and on the check screen its data types, from and to.
+  // Another mail provider is named by its address's domain, which says more
+  // than "IMAP" does.
+  const typeWords = (types: ReadonlyArray<DiscoveryDomain>) =>
+    list(types.map((d) => t(DOMAIN_STRING_KEY[d]).toLocaleLowerCase(locale)));
+  const fromWord = (m: PlannedMigration) =>
+    m.provider === 'imap'
+      ? m.sourceUsername.split('@')[1] || t('start.from.otherMail')
+      : providerName(m.sourceCard, 'source');
+  const toWord = (m: PlannedMigration) => providerName(m.targetCard, 'target');
+  const names: Readonly<Record<string, string>> = (() => {
+    const base = planned.map((m) =>
+      t('start.migrationName', { person: personName, provider: fromWord(m), destination: toWord(m) }),
+    );
+    // Two migrations of one person between the same two providers (Google's
+    // account and its Gmail, say) say which data types each carries.
+    return Object.fromEntries(
+      planned.map((m, i) => [
+        pairKey(m),
+        base.filter((b) => b === base[i]).length > 1 ? `${base[i]} (${typeWords(m.types)})` : base[i]!,
+      ]),
+    );
+  })();
+  const titles: Readonly<Record<string, string>> = Object.fromEntries(
+    planned.map((m) => {
+      const types = typeWords(m.types);
+      return [
+        pairKey(m),
+        t('start.check.route', {
+          types: types.charAt(0).toLocaleUpperCase(locale) + types.slice(1),
+          from: fromWord(m),
+          to: toWord(m),
+        }),
+      ];
+    }),
+  );
+
+  /**
+   * WHAT A MIGRATION IS MADE WITH: the two accounts chosen, whose data it is,
+   * what a reused account must say again (Box's subject, a root folder), the
+   * formats chosen on *What moves?*, and the default schedule, daily at 02:00
+   * (T4, *Underneath*).
+   */
+  const inputFor = (m: PlannedMigration): CreateMappingInput => {
+    const files = m.types.includes('file');
+    return {
+      name: names[pairKey(m)] ?? '',
+      sourceType: m.sourceCard as CreateMappingInput['sourceType'],
+      targetType: m.targetCard,
+      sourceConnectionId: m.sourceConnectionId,
+      targetConnectionId: m.targetConnectionId,
+      sourceConfig: {
+        username: m.sourceUsername,
+        ...(accounts.signed(m.sourceConnectionId)?.perMapping ?? {}),
+        ...(files && (m.sourceCard === 'google' || m.sourceCard === 'google-drive')
+          ? { nativeFilePolicies: { ...nativeFormats } }
+          : {}),
+        ...(files && m.sourceCard === 'dropbox' ? { nativeFilePolicies: { paper: paperFormat } } : {}),
+      },
+      targetConfig: { username: m.targetUsername ?? '', password: '' },
+      syncConfig: { domains: [...m.types], schedule: '0 2 * * *' },
+    };
+  };
+
+  const [made, setMade] = React.useState<Made>({ personId: undefined, migrations: {} });
+  const [settingUp, setSettingUp] = React.useState(false);
+  const [personFailed, setPersonFailed] = React.useState<string | null>(null);
+  /** Once anything is made, going back would make it twice: the way back closes. */
+  const madeAny = Object.values(made.migrations).some((m) => m.id !== undefined);
+
+  /**
+   * SET UP, PAUSED (T4, *Review and start*): the person, if new, then one
+   * migration per pair of accounts, each added to the person. Nothing copies
+   * before *Start*: a migration is made paused. Pressed again after a refusal,
+   * only what is not made yet is asked for.
+   */
+  const setUp = async () => {
+    setSettingUp(true);
+    setPersonFailed(null);
+    const migrations: Record<string, MadeMigration> = { ...made.migrations };
+    try {
+      let personId = made.personId ?? who.personId ?? undefined;
+      if (personId === undefined) {
+        try {
+          personId = (await createPerson({ displayName: who.name.trim(), email: null })).id;
+        } catch (error) {
+          setPersonFailed(serverMessage(error));
+          return;
+        }
+        setMade((prev) => ({ ...prev, personId }));
+      }
+      for (const m of planned) {
+        const key = pairKey(m);
+        if (migrations[key]?.id !== undefined) continue;
+        try {
+          const { id } = await mappingApi.create(inputFor(m));
+          let notAdded: string | undefined;
+          try {
+            await addMigrationToPerson(personId, id);
+          } catch (error) {
+            notAdded = serverMessage(error);
+          }
+          migrations[key] = notAdded === undefined ? { id } : { id, notAdded };
+        } catch (error) {
+          migrations[key] = { failed: serverMessage(error) };
+        }
+      }
+      setMade({ personId, migrations });
+      void queryClient.invalidateQueries({ queryKey: ['people'] });
+      void queryClient.invalidateQueries({ queryKey: ['mappings'] });
+      if (planned.every((m) => migrations[pairKey(m)]?.id !== undefined)) setStep('check');
+    } finally {
+      setSettingUp(false);
+    }
+  };
+  const setUpFailures = planned.flatMap((m) => {
+    const failed = made.migrations[pairKey(m)]?.failed;
+    return failed === undefined ? [] : [{ key: pairKey(m), title: titles[pairKey(m)] ?? '', failed }];
+  });
+
   // A NEW SCREEN STARTS AT THE TOP, with focus on its heading (0145 T3 (a)).
   // Not on the first render: opening the page is `Layout`'s to scroll.
   const headingRef = React.useRef<HTMLHeadingElement>(null);
@@ -268,8 +450,7 @@ const StartMigration: React.FC = () => {
           ? t('start.to.needAll')
           : undefined;
       default:
-        // The screens after *What moves?* arrive in the pull requests that build them.
-        return t('start.notYet');
+        return undefined;
     }
   })();
 
@@ -310,6 +491,17 @@ const StartMigration: React.FC = () => {
             />
           )}
           {step === 'connect' && <ConnectStep needs={needs} accounts={accounts} />}
+          {step === 'check' && (
+            <CheckStep
+              planned={planned}
+              made={made}
+              titles={titles}
+              onStarted={() => {
+                void queryClient.invalidateQueries({ queryKey: ['people'] });
+                void navigate(made.personId === undefined ? '/mappings' : `/people/${made.personId}`);
+              }}
+            />
+          )}
           {step === 'to' && (
             <ToStep
               types={types}
@@ -333,7 +525,7 @@ const StartMigration: React.FC = () => {
       </section>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
-        {back !== undefined ? (
+        {back !== undefined && !madeAny ? (
           <button
             type="button"
             onClick={() => setStep(back)}
@@ -348,18 +540,30 @@ const StartMigration: React.FC = () => {
           <div className="flex flex-col items-end">
             <button
               type="button"
-              onClick={() => setStep(next)}
-              disabled={notYet !== undefined}
+              // Leaving *Where does it go?* sets the migrations up, paused.
+              onClick={() => (step === 'to' ? void setUp() : setStep(next))}
+              disabled={notYet !== undefined || settingUp}
               aria-describedby={notYet === undefined ? undefined : reasonId}
               className="min-h-[44px] px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {t('wizard.next')}
+              {settingUp ? t('start.to.settingUp') : t('wizard.next')}
             </button>
             {notYet !== undefined && (
               <p id={reasonId} className="mt-2 text-sm text-gray-600">
                 {notYet}
               </p>
             )}
+            {step === 'to' && personFailed !== null && (
+              <p role="alert" className="mt-2 text-sm text-red-800">
+                <span className="font-medium">{t('people.new.failed')}</span> {personFailed}
+              </p>
+            )}
+            {step === 'to' &&
+              setUpFailures.map((f) => (
+                <p key={f.key} role="alert" className="mt-2 text-sm text-red-800">
+                  <span className="font-medium">{t('start.to.failed', { migration: f.title })}</span> {f.failed}
+                </p>
+              ))}
           </div>
         )}
       </div>
@@ -656,10 +860,8 @@ export function defaultDestination(type: DiscoveryDomain, saved: ReadonlyArray<C
 }
 
 /** The card behind a destination choice: a saved account's kind, or the card a new one is added with. */
-const cardOfDestination = (choice: string, saved: ReadonlyArray<ConnectionSummary>): WizardTargetType | undefined =>
-  (choice.startsWith('new:') ? choice.slice(4) : saved.find((c) => c.id === choice)?.kind) as
-    | WizardTargetType
-    | undefined;
+const cardOfDestination = (choice: string, accounts: Accounts): WizardTargetType | undefined =>
+  (choice.startsWith('new:') ? choice.slice(4) : accounts.signed(choice)?.card) as WizardTargetType | undefined;
 
 /** The accounts, their forms and what was chosen, for screens 4 and 5. */
 function useAccounts(personName: string): Accounts {
@@ -699,6 +901,8 @@ function useAccounts(personName: string): Accounts {
         ...prev,
         [added.id]: {
           connectionId: added.id,
+          // The key is `source:<card>` or `target:<card>`.
+          card: key.slice(key.indexOf(':') + 1),
           username: values.username?.trim() ?? '',
           perMapping: pickPerMapping(values),
         },
@@ -876,7 +1080,7 @@ export const ToStep: React.FC<{
   const chosenCards = [
     ...new Set(
       types.flatMap((type) => {
-        const card = cardOfDestination(destinationOf(type), accounts.saved);
+        const card = cardOfDestination(destinationOf(type), accounts);
         return card === undefined ? [] : [card];
       }),
     ),
@@ -982,6 +1186,151 @@ const NewDestination: React.FC<{
         </button>
       )}
     </section>
+  );
+};
+
+/**
+ * Screen 6: one screen, and it is the green light (T4, 0013, 0037). Each
+ * migration's count with the tick for files a format would refuse, the scope
+ * manifest's rows true of these sources, and one *Start*, which waits for
+ * every count and every tick. Nothing copies before it; after it, the
+ * person's page (T5).
+ */
+export const CheckStep: React.FC<{
+  planned: ReadonlyArray<PlannedMigration>;
+  made: Made;
+  titles: Readonly<Record<string, string>>;
+  onStarted: () => void;
+}> = ({ planned, made, titles, onStarted }) => {
+  const { t } = useLocale();
+  const queryClient = useQueryClient();
+  const waitsId = React.useId();
+  const [ready, setReady] = React.useState<Readonly<Record<string, boolean>>>({});
+  const onReady = React.useCallback(
+    (id: string, now: boolean) => setReady((prev) => (prev[id] === now ? prev : { ...prev, [id]: now })),
+    [],
+  );
+  const [starting, setStarting] = React.useState(false);
+  const [started, setStarted] = React.useState<ReadonlySet<string>>(new Set());
+  const [startFailed, setStartFailed] = React.useState<Readonly<Record<string, string>>>({});
+
+  const made_ = planned.flatMap((m) => {
+    const one = made.migrations[pairKey(m)];
+    return one?.id === undefined ? [] : [{ key: pairKey(m), id: one.id, notAdded: one.notAdded }];
+  });
+  const allReady = made_.every((m) => ready[m.id] === true);
+
+  // The manifest's rows true of every source here, and of no other (0153 T1 (a)).
+  const manifest = useQuery({ queryKey: ['scope-manifest'], queryFn: () => scopeManifestApi.get() });
+  const families = [
+    ...new Set(planned.flatMap((m): ScopeFamily[] => {
+      const family = scopeFamilyOf(m.sourceCard);
+      return family === undefined ? [] : [family];
+    })),
+  ];
+  const scoped = manifest.data && scopeManifestFor(manifest.data, families);
+
+  /** Start each migration not yet started; a refusal is said beside its own count, and the rest go on. */
+  const start = async () => {
+    setStarting(true);
+    const now = new Set(started);
+    const failed: Record<string, string> = {};
+    for (const m of made_) {
+      if (now.has(m.id)) continue;
+      try {
+        await mappingApi.start(m.id);
+        now.add(m.id);
+        await forgetMappingLifecycle(queryClient, m.id);
+      } catch (error) {
+        failed[m.id] = serverMessage(error);
+      }
+    }
+    setStarted(now);
+    setStartFailed(failed);
+    setStarting(false);
+    if (Object.keys(failed).length === 0) onStarted();
+  };
+
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-gray-700">{t('start.check.intro')}</p>
+      {made_.map((m) => (
+        <MigrationCheck
+          key={m.id}
+          mappingId={m.id}
+          title={titles[m.key] ?? ''}
+          onReady={onReady}
+          {...(m.notAdded === undefined ? {} : { notAdded: m.notAdded })}
+          {...(startFailed[m.id] === undefined ? {} : { failed: startFailed[m.id] })}
+        />
+      ))}
+      {scoped && <ScopeManifestPanel manifest={scoped} />}
+      {manifest.isError && (
+        <p className="text-sm text-red-600" role="alert">
+          {t('confirm.manifestError')} {serverMessage(manifest.error)}
+        </p>
+      )}
+      <div className="flex flex-col items-end">
+        <button
+          type="button"
+          onClick={() => void start()}
+          disabled={starting || !allReady}
+          aria-describedby={allReady ? undefined : waitsId}
+          className="min-h-[44px] px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {starting ? t('confirm.starting') : t('start.check.start')}
+        </button>
+        {!allReady && (
+          <p id={waitsId} className="mt-2 text-sm text-gray-600">
+            {t('start.check.waits')}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/** One migration's part of the green light: its count, and whether Start may go. */
+const MigrationCheck: React.FC<{
+  mappingId: string;
+  title: string;
+  notAdded?: string;
+  failed?: string;
+  onReady: (mappingId: string, ready: boolean) => void;
+}> = ({ mappingId, title, notAdded, failed, onReady }) => {
+  const { t } = useLocale();
+  const count = useMigrationCount(mappingId);
+  const [acked, setAcked] = React.useState(false);
+  const ready = !count.stillCounting && (!needsAcknowledgement(count.domains) || acked);
+  React.useEffect(() => onReady(mappingId, ready), [mappingId, ready, onReady]);
+  return (
+    <div className="rounded-lg border border-gray-200 p-4">
+      {notAdded !== undefined && (
+        <div role="alert" className="mb-3 text-sm text-amber-900">
+          <p>
+            <span className="font-medium">{t('people.notAdded')}</span> {notAdded}
+          </p>
+          <p className="mt-1">{t('people.notAdded.where')}</p>
+        </div>
+      )}
+      <MigrationCountSection
+        count={count}
+        acked={acked}
+        onAcked={setAcked}
+        heading={title}
+        ackId={`start-ack-${mappingId}`}
+      />
+      {count.countUnfinished && (
+        <p className="mt-2 text-sm text-amber-700" role="note">
+          {t('confirm.countUnfinished')}
+        </p>
+      )}
+      {failed !== undefined && (
+        <p className="mt-2 text-sm text-red-600" role="alert">
+          {t('confirm.startError')} {failed}
+        </p>
+      )}
+    </div>
   );
 };
 
