@@ -16,7 +16,7 @@
  * throws in croner at scheduler registration.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { CreateMappingSchema, sourceConfigOverride } from './index.ts';
+import { CreateMappingSchema, UpdateMappingSchema, sourceConfigOverride } from './index.ts';
 
 function body(over: Record<string, unknown> = {}) {
   return {
@@ -380,19 +380,28 @@ describe('targetFolderPrefix — refused in the shared parser\'s words (hard rul
   });
 });
 
-describe("throttleConfig — refused in the shared parser's words (hard rule 5)", () => {
-  it('accepts a clean config and the omitted default', () => {
-    expect(
-      CreateMappingSchema.safeParse(
-        body({ throttleConfig: { maxConcurrent: 2, requestsPerSecond: 5 } }),
-      ).success,
-    ).toBe(true);
+describe("throttleConfig — the operator's, refused on managed (0143 T2c)", () => {
+  // Until 0143 T2c this door accepted a clean config and refused a garbage
+  // one in the appliance parser's words. On managed the setting is not the
+  // organisation's: one tester's value spends a budget every organisation
+  // shares. The appliance still reads it from its owner's mapping file.
+  it('refuses a clean config, saying whose setting it is', () => {
+    const msg = refusalText(body({ throttleConfig: { maxConcurrent: 2, requestsPerSecond: 5 } }));
+    expect(msg).toContain('set by the operator of this service');
+  });
+
+  it('refuses a garbage one the same way, and still accepts a body without one', () => {
+    expect(refusalText(body({ throttleConfig: { maxConcurrent: 'fast' } }))).toContain(
+      'set by the operator of this service',
+    );
     expect(CreateMappingSchema.safeParse(body()).success).toBe(true);
   });
 
-  it('refuses a non-integer field with the field named — the appliance sentence', () => {
-    const msg = refusalText(body({ throttleConfig: { maxConcurrent: 'fast' } }));
-    expect(msg).toContain('maxConcurrent');
+  it('is refused on the update door too, rather than taken and ignored', () => {
+    const result = UpdateMappingSchema.safeParse({ throttleConfig: { requestsPerSecond: 50 } });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((i) => i.message).join(' ')).toContain('set by the operator of this service');
+    expect(UpdateMappingSchema.safeParse({ status: 'paused' }).success).toBe(true);
   });
 });
 
