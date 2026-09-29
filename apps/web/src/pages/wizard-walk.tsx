@@ -95,7 +95,7 @@ export const walkToReview = (locale: Locale = 'en'): void => {
 
   // Step 3 — The migration itself: a name, what to move (email preselected)
   // and how often (empty = the default cadence).
-  fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+  fireEvent.change(screen.getByPlaceholderText(STRINGS[locale]['wizard.migrationName.placeholder']), {
     target: { value: 'Acme mail' },
   });
   fireEvent.click(nextButton(locale));

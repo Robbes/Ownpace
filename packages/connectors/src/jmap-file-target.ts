@@ -63,6 +63,7 @@
 
 import { loadJmapSession } from './jmap-session.ts';
 import type {
+  FileBody,
   FileTargetWriter,
   FileFolder,
   RawFileItem,
@@ -80,27 +81,47 @@ import {
   fileContentHash,
   reconstructFileNodePath,
   fileNodeIndex,
-  STREAM_FILES_LARGER_THAN_BYTES,
+  markNeedsDecision,
+  STREAMED_REQUEST_INIT,
+  withFailureCategory,
 } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
 import { createHash } from 'node:crypto';
 
+/** A size as a file manager writes it: one decimal, in KB, MB or GB. */
+function sizeText(bytes: number): string {
+  const KB = 1024;
+  const MB = 1024 * KB;
+  const GB = 1024 * MB;
+  if (bytes >= GB) return `${(bytes / GB).toFixed(1)} GB`;
+  if (bytes >= MB) return `${(bytes / MB).toFixed(1)} MB`;
+  return `${(bytes / KB).toFixed(1)} KB`;
+}
+
 /**
- * The refusal for a file a source handed over as a stream (workplan 0143 T3a).
+ * The refusal for a file larger than this JMAP server takes in one upload
+ * (workplan 0143 T3b).
  *
- * A source reads a file larger than `STREAM_FILES_LARGER_THAN_BYTES` as a
- * stream (`raw.body`) rather than into memory, and this target cannot write a
- * stream yet (0143 T3b). It said *"No content for …"*, which reads as a file
- * with nothing in it, so a tester was told nothing they could act on. It says
- * which file, how large, what this target cannot do, and where it can go.
+ * The server says how large an upload it accepts, `maxSizeUpload` in its
+ * session's core capability, and would refuse a larger one after the whole
+ * file had been read from the source and sent. So the file is refused here,
+ * before a byte is read: which file, how large, the server's own limit, that
+ * nothing happened, and what would let it through. It is the target's answer
+ * (`target_refused`), and trying again gives the same one, so it waits for a
+ * person rather than being tried again every pass.
+ *
+ * Until T3b a file the source handed over as a stream was refused here at
+ * 8 MB, whatever the server took (T3a): this target could not send a stream.
  */
-export function tooLargeForJmapYet(path: string, sizeBytes: number): Error {
-  const mb = (bytes: number): string => (bytes / (1024 * 1024)).toFixed(1);
-  return new Error(
-    `${path} is ${mb(sizeBytes)} MB. A JMAP target cannot take a file larger than ` +
-      `${Math.round(STREAM_FILES_LARGER_THAN_BYTES / (1024 * 1024))} MB yet. Nothing was copied and nothing was ` +
-      'changed; every other file continues. A WebDAV target, such as Nextcloud, can take it.',
+export function tooLargeForThisJmapServer(path: string, sizeBytes: number, maxSizeUpload: number): Error {
+  const error = new Error(
+    `${path} is ${sizeText(sizeBytes)}. This JMAP server takes files up to ${sizeText(maxSizeUpload)} ` +
+      'in one upload, so it would refuse this one. Nothing was copied and nothing was changed; every ' +
+      "other file continues. Raise the server's upload limit, or copy this file to a WebDAV target, " +
+      'such as Nextcloud.',
   );
+  markNeedsDecision(error);
+  return withFailureCategory('target_refused', error);
 }
 
 /** See `jmap-target.ts` — same server, same reasoning, same numbers. */
@@ -159,6 +180,8 @@ interface JmapSession {
   readonly accounts?: Record<string, { id?: string; name?: string; email?: string }>;
   readonly primaryAccounts?: Record<string, string>;
   readonly downloadUrl?: string;
+  /** RFC 8620 §2: the core capability carries the largest upload, in octets. */
+  readonly capabilities?: Record<string, { readonly maxSizeUpload?: unknown } | undefined>;
 }
 
 /**
@@ -183,6 +206,12 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
   private apiUrl: string | null = null;
   private authHeader: string | null = null;
   private downloadUrlTemplate: string | null = null;
+  /**
+   * The largest file this server takes in one upload, as its session says
+   * (`maxSizeUpload`). Unset when the session does not say: the server then
+   * decides, and its refusal is the failure (0143 T3b).
+   */
+  private maxSizeUpload: number | undefined;
   private connectPromise: Promise<void> | null = null;
   /**
    * The account's file tree as of the first read this pass.
@@ -247,6 +276,14 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
     // reason `apiUrl` is not.
     this.downloadUrlTemplate = typeof session.downloadUrl === 'string' ? session.downloadUrl : null;
 
+    // Read from the session, never assumed: what one server takes is not what
+    // another does, and the demo Stalwart's is whatever it is configured to.
+    const maxSizeUpload = session.capabilities?.['urn:ietf:params:jmap:core']?.maxSizeUpload;
+    this.maxSizeUpload =
+      typeof maxSizeUpload === 'number' && Number.isFinite(maxSizeUpload) && maxSizeUpload > 0
+        ? maxSizeUpload
+        : undefined;
+
     // Resolve the account by MATCHING the configured address, never by taking
     // the first one. Writing a customer's files into somebody else's account
     // is the worst thing this file could do, and it is one loose
@@ -281,10 +318,18 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
    * rather than turned into a failed item. See `jmap-target.ts` for the
    * measurements behind the numbers; a 429 is the server asking for a pause,
    * and the only correct response to that is to pause.
+   *
+   * A request whose body is a STREAM is handed over as a factory, called once
+   * per attempt (0143 T3b): a stream is spent by the first send, and sending
+   * it again would fail the retry rather than make it. `FileBody.open()` gives
+   * each attempt a fresh read from the start.
    */
-  private async fetchWithRateLimitRetry(url: string, init: RequestInit): Promise<Response> {
+  private async fetchWithRateLimitRetry(
+    url: string,
+    init: RequestInit | (() => Promise<RequestInit>),
+  ): Promise<Response> {
     for (let attempt = 0; ; attempt++) {
-      const response = await tenantFetch(url, init);
+      const response = await tenantFetch(url, typeof init === 'function' ? await init() : init);
       const rateLimited = response.status === 429 || response.status === 503;
       if (!rateLimited || attempt >= RATE_LIMIT_ATTEMPTS - 1) return response;
 
@@ -609,11 +654,11 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
       return { targetId: existing, created: false, adopted: true };
     }
 
+    // Before any folder is made for it: a file the server would refuse leaves
+    // nothing behind on the target.
+    this.refuseAboveServerLimit(naturalKey, raw);
     const parentNodeId = await this.ensureDirectoryPath(parentPathOf(naturalKey));
-    const content = raw.content;
-    if (!content) {
-      // A large file arrives as a stream, which this target cannot write yet.
-      if (raw.body) throw tooLargeForJmapYet(naturalKey, raw.body.sizeBytes);
+    if (!raw.content && !raw.body) {
       // A file with no bytes is not the same thing as an empty file, and the
       // sync loop already refuses to hand one over (`runFileSync`'s fetchRaw).
       // Writing a zero-byte node in its place would be a silent empty copy of
@@ -623,7 +668,7 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
       );
     }
 
-    const blobId = await this.uploadContent(content, raw.item.mimeType);
+    const blobId = await this.upload(raw);
     const response = await this.apiRequest<NodeSetResponse>('FileNode/set', {
       accountId: this.accountId,
       create: {
@@ -717,13 +762,12 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
       }
     }
 
-    const content = raw.content;
-    if (!content) {
-      if (raw.body) throw tooLargeForJmapYet(naturalKey, raw.body.sizeBytes);
+    if (!raw.content && !raw.body) {
       throw new Error(`No content for ${naturalKey}; refusing to blank the node on the target.`);
     }
+    this.refuseAboveServerLimit(naturalKey, raw);
 
-    const blobId = await this.uploadContent(content, raw.item.mimeType);
+    const blobId = await this.upload(raw);
     const response = await this.apiRequest<NodeSetResponse>('FileNode/set', {
       accountId: this.accountId,
       update: {
@@ -756,30 +800,50 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
     };
   }
 
-  /** Upload the bytes so `FileNode/set` has a blob to attach. */
-  private async uploadContent(content: Uint8Array, mimeType?: string): Promise<string> {
+  /**
+   * A file larger than this server takes in one upload is refused before a
+   * byte is read (0143 T3b). See `tooLargeForThisJmapServer`.
+   */
+  private refuseAboveServerLimit(naturalKey: string, raw: RawFileItem): void {
+    const sizeBytes = raw.content?.byteLength ?? raw.body?.sizeBytes;
+    if (sizeBytes !== undefined && this.maxSizeUpload !== undefined && sizeBytes > this.maxSizeUpload) {
+      throw tooLargeForThisJmapServer(naturalKey, sizeBytes, this.maxSizeUpload);
+    }
+  }
+
+  /**
+   * Upload the file's bytes so `FileNode/set` has a blob to attach: the bytes
+   * the source read, or, for a file it handed over as a stream, the stream
+   * (0143 T3b).
+   */
+  private async upload(raw: RawFileItem): Promise<string> {
     if (!this.apiUrl || !this.authHeader) throw new Error('Not connected to JMAP server');
     // Built from the resolved apiUrl, not the session's `uploadUrl`, for the
     // same reason `connect()` ignores `apiUrl`: the advertised host is
     // unroutable on Stalwart.
     const url = `${this.apiUrl}/upload/${encodeURIComponent(this.accountId!)}`;
-    const response = await this.fetchWithRateLimitRetry(url, {
-      method: 'POST',
-      headers: {
-        Authorization: this.authHeader,
-        'Content-Type': mimeType || 'application/octet-stream',
-      },
-      // Sliced to this view's own bytes before being wrapped, exactly as the
-      // mail writer does. A Uint8Array can be a WINDOW onto a larger buffer
-      // (`subarray` and several decoders produce those), and handing the
-      // underlying buffer over would upload bytes belonging to another file.
-      body: new Blob([
-        content.buffer.slice(
-          content.byteOffset,
-          content.byteOffset + content.byteLength,
-        ) as ArrayBuffer,
-      ]),
-    });
+    const headers = {
+      Authorization: this.authHeader,
+      'Content-Type': raw.item.mimeType || 'application/octet-stream',
+    };
+    const content = raw.content;
+    const response = content
+      ? await this.fetchWithRateLimitRetry(url, {
+          method: 'POST',
+          headers,
+          // Sliced to this view's own bytes before being wrapped, exactly as
+          // the mail writer does. A Uint8Array can be a WINDOW onto a larger
+          // buffer (`subarray` and several decoders produce those), and
+          // handing the underlying buffer over would upload bytes belonging
+          // to another file.
+          body: new Blob([
+            content.buffer.slice(
+              content.byteOffset,
+              content.byteOffset + content.byteLength,
+            ) as ArrayBuffer,
+          ]),
+        })
+      : await this.uploadStreamed(url, headers, raw.body!);
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
       throw new Error(`File blob upload failed: HTTP ${response.status} - ${detail.slice(0, 300)}`);
@@ -790,6 +854,34 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
     // read — Stalwart re-issues the handle once the blob is attached to a
     // node (spike, 2026-08-06), so the uploaded id stops being the store's.
     return blobId;
+  }
+
+  /**
+   * A FILE THE SOURCE HANDED OVER AS A STREAM, UPLOADED AS ONE (0143 T3b).
+   *
+   * A source reads a file larger than `STREAM_FILES_LARGER_THAN_BYTES` as a
+   * `FileBody`, so that no pass holds a whole large file, and this target
+   * refused every such file (T3a). Now the stream goes out as the request
+   * body, shaped like `WebDAVTargetWriter.uploadStreamed`: opened afresh for
+   * each attempt, with the length the source promised, in one request.
+   *
+   * `Content-Length` is that promise. Without it the upload goes out chunked,
+   * which a server may refuse or store with a size it cannot know in advance.
+   * `STREAMED_REQUEST_INIT` is what a stream body needs from `fetch`: without
+   * `redirect: 'error'` fetch keeps a copy of every byte it sends, which is
+   * the whole file again.
+   */
+  private async uploadStreamed(
+    url: string,
+    headers: Record<string, string>,
+    body: FileBody,
+  ): Promise<Response> {
+    return this.fetchWithRateLimitRetry(url, async () => ({
+      method: 'POST',
+      headers: { ...headers, 'Content-Length': String(body.sizeBytes) },
+      body: await body.open(),
+      ...STREAMED_REQUEST_INIT,
+    }));
   }
 
   // ---------------------------------------------------------------------

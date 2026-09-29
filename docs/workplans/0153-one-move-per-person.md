@@ -4,6 +4,54 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-29, night: T1 (b), Gmail's app password is drawn (0131 §6, R8 step 1, built beside R at
+the owner's word *"continue on the rest"*)**, in #1349, stacked on #1347.
+
+- **Confirmed on a render:** the Gmail card drew *Username, Client ID, Client secret, Refresh
+  token, Service account key* and *Connection name*, and no *App password*. The descriptor had
+  declared it since 0089 T7, and the create door accepts it in place of the OAuth trio. But the
+  wizard's field map had no entry for it, and a field with none is skipped without a word. The
+  Google guide told a personal account to make one and type it in.
+- **Drawn, as the plan recommends:**
+  - on the Gmail card only, last, with its hint;
+  - typing one steps round the trio, as a pasted service-account key does;
+  - the probe and the saved account carry it, and the create payload sends it alone;
+  - it is never in the remembered draft, like every secret.
+- **The guide cannot name an undrawn field again.** `end-user-docs.unit.test.tsx` now fails
+  when a card's guide section names a field the wizard does not draw. With the map entry taken
+  out, it names `en/google.md`'s `{#gmail}` and `appPassword`.
+- **Accounts, in the wizard too:** the field that names a saved account says *Name for this
+  account* / *Naam voor dit account*, as the Accounts page does since #1343.
+- **Proved by** `CreateMapping.unit.test.tsx` (3 new cases). With the map entry taken out, all
+  three fail.
+
+**2026-09-28, night: T6 (c)'s two guards, and what they found (0131 §6, R8, built beside R at
+the owner's word *"continue on the rest"*)**, in #1347, stacked on #1343.
+
+- **Attributes are read.** `hardcoded-text.unit.test.ts` refuses a literal with a word in it in a
+  `placeholder`, an `aria-label`, a `title` or an `alt`. A single word counts. An address, a host,
+  a path, a URL or a token passes. It found four:
+  - the wizard's name box said *My Migration* in both languages. It now gives an example:
+    *For example: Anna's mail* / *Bijvoorbeeld: mail van Anna*;
+  - its steps were announced as *Progress*. They are now *Progress* / *Voortgang*;
+  - two regions were announced by their slugs, *discovery-counts* and *scope-manifest*. The
+    first is named by its own heading, and the second *What migrates, and what does not* /
+    *Wat migreert, en wat niet*.
+
+  The sign-in's token example stays as it is, marked as a technical literal.
+- **No connection kind is rendered as text.** `a-kind-shown-where-a-name-belongs.unit.test.tsx`
+  refuses `{x.kind}`, `{x.sourceType}` or `{x.targetType}` as a JSX child. It found three:
+  - the Accounts row's badge;
+  - the wizard's list of saved accounts, *Anna's mail (gmail)*;
+  - its review step, which said the source was `oauth2`.
+
+  Each now says the name. `connectionKindName` names a stored kind, and `o365` is *Microsoft
+  365* whichever card saved it. The operator's support table keeps the kind, marked as needed
+  there. The guard also holds every kind the ledger's `connection_kind_check` allows to a name,
+  apart from the two kinds from before the cards.
+- **Proved by** mutation: with *Progress* written back as a literal, the attribute case names
+  its line, and with `{connection.kind}` back on the Accounts row, the kind guard names it.
+
 **2026-09-28, night: the menu counts beside *Needs you* what waits (T3 (c); 0131 §6, R8 step 4,
 built beside R at the owner's word *"continue on the rest"*)**, in #1346, stacked on #1343.
 
@@ -57,6 +105,26 @@ owner's word *"continue on the rest"*)**, in #1343, stacked on #1341.
     menu, and an old `/dashboard` link lands there too.
 - **Next:** the count beside *Needs you* in the menu (T3 (c)), which reads what waits on every
   page.
+
+**2026-09-28, night: the product's Dutch says *migratie* (T6 (b), 0152 D6; 0131 §6, R8, built
+beside R at the owner's word *"continue on the rest"*)**, in #1342.
+
+- **Every Dutch sentence that said a form of *verhuizen*** is rewritten: eight strings in the web
+  dictionary (billing, the grant pages, sharing rights, the access form), the share
+  announcement mail's subject and body with their human copy, and a sentence on the erasure
+  page.
+  - The product's own words became *migratie* and *migreren*.
+  - Files that moved to another platform are *verplaatst*.
+  - What does not come along *gaat niet mee*.
+- **Two guards.**
+  - `i18n.unit.test.tsx` refuses `/verhui[sz]/i` in the Dutch dictionary and names the key,
+    as T6 (b) asks.
+  - `scripts/a-word-the-owner-retired.unit.test.ts` reads every app's and package's source,
+    and `docs/cutover-communication-templates.md`, because a mail's Dutch is not in the
+    dictionary.
+
+  With one sentence each put back, both fail and name it.
+- **The glossary** says it first, in *migration*'s row.
 
 **2026-09-28, night: the Migrations page lists people (T3's first half, with T6's words; 0131
 §6, R8 step 4, built beside R at the owner's word *"continue on the rest"*)**, in #1341.
@@ -263,12 +331,12 @@ person, and a flow that fills it.
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner's words and the ADR | ✅ **Words decided 2026-09-28 (D6, D7); ADR-0050 accepted 2026-09-28 (#1327)** | §3. Dutch says *migratie*, never *verhuizing*. A person's card carries their name. *Accounts*, not *Connections*. The code says `person` (ADR-0050's amendment); `move` was its first name. |
-| T1 Four faults the audit found | 🟡 **(a) in #1315 and (d) in #1316, each proved by its guard; (b) and (c) proposed; all before the first invitation** | §3. (a) Review & confirm listed every source's limits on managed. (b) The Gmail app password the guide names is not in the wizard. (c) The Microsoft consent is sent before the data types are chosen: T4 fixes it by construction (the owner, 2026-09-28: no press). (d) A raw state word on Finish. |
+| T1 Four faults the audit found | 🟡 **(a) in #1315 and (d) in #1316, each proved by its guard; (b) drawn and guarded (#1349); (c) is T4's, by construction; all before the first invitation** | §3. (a) Review & confirm listed every source's limits on managed. (b) The Gmail app password the guide names is not in the wizard. (c) The Microsoft consent is sent before the data types are chosen: T4 fixes it by construction (the owner, 2026-09-28: no press). (d) A raw state word on Finish. |
 | T2 ADR-0050: a move is a person's migrations | ✅ **ADR-0050 accepted 2026-09-28 (#1327), amended the same night: *person*. The tables and `/api/people` built, with the appliance's implicit person (#1332)** | §3. A `person` row and `person_migration` in `packages/managed/migrations` (0031). The appliance answers one implicit person. The billed unit (a path) and the migration (a mapping) do not change. Deleting a person deletes no migration. |
 | T3 The Migrations page lists people | 🟡 **Built in two halves: the page lists people (#1341); it is the landing page, the Dashboard is gone, and the menu is the drawing's (#1343). The menu counts beside *Needs you* what waits (#1346). The progress line and *Ready to switch* wait on 0154 T2. Before the first invitation** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
 | T4 *Start a migration*: who, from where, what, to where | 📋 **Proposed; before the first invitation** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
 | T5 A page per person | 📋 **Proposed; before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
-| T6 Words a family reads | 🟡 **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, before the first invitation** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |
+| T6 Words a family reads | 🟡 **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, before the first invitation. The Dutch says *migratie* everywhere the product speaks, with two guards (#1342). (c)'s two guards built (#1347)** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |
 | T7 Defaults a family can pass | 📋 **Proposed; before the first invitation, inside T4** | §3. Buttons that look like buttons, with the reason in text. A Soverin sign-in in two visible fields. A Nextcloud address, not a DAV URL. Business-only fields only on the business path. The limit blamed on the side that has it. Tiles and icons: `tiles.svg`, `icons.svg`. |
 | T8 The appliance shows its person's page | 📋 **Proposed; before the first invitation (D5)** | §3. The same page, fed by the appliance's one implicit grouping. No list or create screen (0034 stands). |
 

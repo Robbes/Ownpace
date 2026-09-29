@@ -83,7 +83,21 @@ const en = {
   'report.timedOut':
     'No answer came within {minutes} minutes, so this page cannot tell whether your report arrived. ' +
     'What you wrote is still here. If you send it again, a smaller screenshot goes faster.',
-  'report.sentWith': 'Sent with your report:',
+  // Where a report goes and what goes with it (workplan 0130 T6). The lines in
+  // the fold are the server's own, shown as they are sent, in English; these
+  // are the words around them. `report.facts.more` stands above those lines
+  // only; when they cannot be had, `report.facts.known` stands above what the
+  // form itself knows, in the reader's language.
+  'report.goesTo': 'Goes to the Ownpace support team.',
+  'report.goesTo.mail': 'Goes to the Ownpace support team, by email to {address}.',
+  'report.goesTo.helpdesk': "Goes to the Ownpace support team's helpdesk.",
+  'report.facts': 'What we send with this',
+  'report.facts.more':
+    'What you write, and your screenshot if you add one. With them go these lines, exactly as our support team reads them, in English:',
+  'report.facts.known': 'What you write, and your screenshot if you add one. With them go:',
+  'report.facts.reading': 'Looking up the rest…',
+  'report.facts.unshown':
+    'The rest could not be shown just now. When you send the report, we look it up again, and it goes with the report.',
   'report.page': 'the page you were on: {page}',
   'report.reference': 'the reference on your screen: {reference}',
   'report.category': 'the kind of error: {category}',
@@ -183,6 +197,7 @@ const en = {
   'scope.migrates': 'Migrates',
   'scope.partial': 'Partial',
   'scope.doesNotMigrate': 'Does not migrate',
+  'scope.title': 'What migrates, and what does not',
   'login.title': 'Sign in to Ownpace',
   'login.tagline': 'Sovereign data migration for families and SMBs',
   'login.tokenLabel': 'Access token',
@@ -715,7 +730,7 @@ const en = {
   'settings.kinds.stop.failed': 'That did not change:',
   'wizard.step.migration': 'Migration',
   'wizard.testConnections.reused': 'Already saved; this only checks it still works.',
-  'wizard.connectionName': 'Connection name',
+  'wizard.connectionName': 'Name for this account',
   'wizard.connectionName.taken':
     'This name is already taken; it saves, but two alike are hard to tell apart.',
   'wizard.testConnections.kept':
@@ -775,6 +790,8 @@ const en = {
     'Pre-filled from {provider}’s published settings, read {seen}. Test checks them.',
   'wizard.useSsl': 'Use SSL/TLS',
   'wizard.migrationName': 'Migration Name',
+  'wizard.migrationName.placeholder': 'For example: Anna’s mail',
+  'wizard.progress': 'Progress',
   'wizard.credentials': 'Credentials',
   // WHAT THE STAR MEANS, said once (2026-09-07). Eight labels used to carry
   // "(optional)" and the rest carried nothing, which read as "these eight are
@@ -1203,7 +1220,8 @@ const en = {
   'linkReport.description': 'What makes you doubt this link?',
   'linkReport.replyTo': 'Your email address (optional)',
   'linkReport.replyTo.hint': 'Only if you want an answer; we use it for nothing else.',
-  'linkReport.sentWith': 'Sent with it: which link this is, so we can find who sent it.',
+  'linkReport.sentWith':
+    'Sent with it, from our records: which link this is; the organisation and the migration it belongs to, with the state of the migration; the address of whoever made the link; the account the migration copies from and the account it copies to; and whether you have given access.',
   'linkReport.send': 'Send the report',
   'linkReport.sending': 'Sending…',
   'linkReport.sent': 'Sent. Your report is number {ticket}, and we will reply to {email}.',
@@ -2683,7 +2701,16 @@ const nl: Record<keyof typeof en, string> = {
   'report.timedOut':
     'Binnen {minutes} minuten kwam er geen antwoord, dus deze pagina weet niet of uw melding is aangekomen. ' +
     'Wat u schreef staat er nog. Verstuurt u de melding opnieuw, dan gaat een kleinere schermafbeelding sneller.',
-  'report.sentWith': 'Wordt met uw melding meegestuurd:',
+  'report.goesTo': 'Gaat naar het supportteam van Ownpace.',
+  'report.goesTo.mail': 'Gaat naar het supportteam van Ownpace, per e-mail naar {address}.',
+  'report.goesTo.helpdesk': 'Gaat naar de helpdesk van het supportteam van Ownpace.',
+  'report.facts': 'Wat we meesturen',
+  'report.facts.more':
+    'Wat u schrijft, en uw schermafbeelding als u die toevoegt. Daarbij gaan deze regels mee, precies zoals ons supportteam ze leest, in het Engels:',
+  'report.facts.known': 'Wat u schrijft, en uw schermafbeelding als u die toevoegt. Daarbij gaan mee:',
+  'report.facts.reading': 'De rest zoeken we op…',
+  'report.facts.unshown':
+    'De rest kon nu niet worden getoond. Als u de melding verstuurt, zoeken we die opnieuw op, en die gaat met de melding mee.',
   'report.page': 'de pagina waarop u was: {page}',
   'report.reference': 'de referentie op uw scherm: {reference}',
   'report.category': 'het soort fout: {category}',
@@ -2949,6 +2976,7 @@ const nl: Record<keyof typeof en, string> = {
   'scope.migrates': 'Migreert',
   'scope.partial': 'Gedeeltelijk',
   'scope.doesNotMigrate': 'Migreert niet',
+  'scope.title': 'Wat migreert, en wat niet',
   'login.title': 'Aanmelden bij Ownpace',
   'login.tagline': 'Soevereine datamigratie voor gezinnen en mkb',
   'login.tokenLabel': 'Toegangstoken',
@@ -3310,7 +3338,7 @@ const nl: Record<keyof typeof en, string> = {
     'Een export is een weergave die Dropbox maakt, niet het Paper-document zelf: fijne opmaak kan verschuiven, en wat u op het nieuwe systeem wijzigt, gaat niet terug naar Dropbox. U kunt het formaat later wijzigen; al gekopieerde documenten houden het formaat waarin ze aankwamen.',
   'wizard.step.migration': 'Migratie',
   'wizard.testConnections.reused': 'Al bewaard; dit controleert alleen of hij nog werkt.',
-  'wizard.connectionName': 'Naam van de verbinding',
+  'wizard.connectionName': 'Naam voor dit account',
   'wizard.connectionName.taken':
     'Deze naam bestaat al; hij wordt bewaard, maar twee gelijke namen zijn lastig te onderscheiden.',
   'wizard.testConnections.kept':
@@ -3357,6 +3385,8 @@ const nl: Record<keyof typeof en, string> = {
     'Vooraf ingevuld met de gepubliceerde instellingen van {provider}, gelezen op {seen}. Test controleert ze.',
   'wizard.useSsl': 'SSL/TLS gebruiken',
   'wizard.migrationName': 'Naam van de migratie',
+  'wizard.migrationName.placeholder': 'Bijvoorbeeld: mail van Anna',
+  'wizard.progress': 'Voortgang',
   'wizard.credentials': 'Inloggegevens',
   'form.requiredLegend': 'Velden met * zijn verplicht.',
   'wizard.sourceUsername': 'Gebruikersnaam',
@@ -3420,11 +3450,11 @@ const nl: Record<keyof typeof en, string> = {
   'billing.tierSetup': 'inrichting',
   'billing.tierPerMonth': 'per maand',
   'billing.tierFree': 'Gratis: op dit pakket wordt niets gefactureerd',
-  'billing.tierDecidedByPaths': 'Bepaald door hoeveel verhuizingen tegelijk liepen.',
+  'billing.tierDecidedByPaths': 'Bepaald door hoeveel migraties tegelijk liepen.',
   'billing.tierDecidedByData': 'Bepaald door hoeveel gegevens er verplaatst zijn.',
   'billing.tierDecidedByBoth':
     'Bepaald door zowel wat er tegelijk liep als hoeveel er verplaatst is.',
-  'billing.tierPeakPaths': 'Meeste verhuizingen tegelijk',
+  'billing.tierPeakPaths': 'Meeste migraties tegelijk',
   'billing.tierDataMoved': 'Verplaatst, alle maanden',
   'billing.tierBeyondTable':
     'Voorbij de gepubliceerde tabel — neem contact op, dan prijzen we het goed.',
@@ -3614,7 +3644,7 @@ const nl: Record<keyof typeof en, string> = {
   'viewLink.expiredNudge': 'Hun pagina werkt niet meer. Maak een nieuwe als zij hem nog nodig hebben.',
   'grant.title': 'Verbind uw account',
   'grant.loading': 'Een moment…',
-  'grant.asking': '{organisation} verhuist uw account naar een nieuwe provider en heeft uw toestemming nodig om te lezen wat erin zit.',
+  'grant.asking': '{organisation} migreert uw account naar een nieuwe provider en heeft uw toestemming nodig om te lezen wat erin zit.',
   'grant.reads': 'U staat op het punt toegang te geven tot {reads}.',
   'grant.reads.email': 'uw e-mail: berichten, mappen en labels',
   'grant.reads.calendar': 'uw agenda’s en de afspraken erin',
@@ -3650,7 +3680,7 @@ const nl: Record<keyof typeof en, string> = {
     'Er ging iets mis op deze pagina. Probeer het later opnieuw; blijft het misgaan, laat het dan de persoon weten die u de link stuurde.',
   'view.title': 'Uw migratie',
   'view.loading': 'Een moment…',
-  'view.who': '{organisation} verhuist uw account naar een nieuwe provider.',
+  'view.who': '{organisation} migreert uw account naar een nieuwe provider.',
   'view.state.active': 'Uw spullen worden nu overgezet.',
   'view.state.paused': 'Het kopiëren ligt op dit moment stil.',
   'view.state.cutover': 'Uw nieuwe account is nu het account in gebruik.',
@@ -3707,7 +3737,8 @@ const nl: Record<keyof typeof en, string> = {
   'linkReport.description': 'Waarom twijfelt u aan deze link?',
   'linkReport.replyTo': 'Uw e-mailadres (niet verplicht)',
   'linkReport.replyTo.hint': 'Alleen als u antwoord wilt; we gebruiken het nergens anders voor.',
-  'linkReport.sentWith': 'Meegestuurd: welke link dit is, zodat we de afzender kunnen vinden.',
+  'linkReport.sentWith':
+    'Meegestuurd, uit onze gegevens: welke link dit is; de organisatie en de migratie waar hij bij hoort, met de stand van de migratie; het adres van wie de link heeft gemaakt; het account waaruit de migratie kopieert en het account waarnaar; en of u toegang hebt gegeven.',
   'linkReport.send': 'Melding versturen',
   'linkReport.sending': 'Versturen…',
   'linkReport.sent': 'Verstuurd. Uw melding heeft nummer {ticket}, en we antwoorden naar {email}.',
@@ -4283,9 +4314,9 @@ const nl: Record<keyof typeof en, string> = {
   'decisions.presets.readOnly': 'Een eigenaar of beheerder stelt dit in.',
   'permissions.heading': 'Zet de rechten over voordat u de e-mailbezorging omzet',
   'permissions.body':
-    'Deelrechten verhuizen niet mee met de mail; werk de lijst door vóór het omzetten.',
+    'Deelrechten gaan niet mee met de mail; werk de lijst door vóór het omzetten.',
   'permissions.body.more':
-    'Wie wiens agenda kon zien, wie toegang had tot welke gedeelde bestanden: dat verhuist niet mee. Haal de lijst op, werk hem door op het nieuwe systeem, en doe dat vóór het omzetten van de bezorging; rechten die daarna worden toegevoegd, ontbraken zolang dat duurde. Bovenaan de lijst staat wat er niet gelezen kon worden.',
+    'Wie wiens agenda kon zien, wie toegang had tot welke gedeelde bestanden: dat gaat niet mee. Haal de lijst op, werk hem door op het nieuwe systeem, en doe dat vóór het omzetten van de bezorging; rechten die daarna worden toegevoegd, ontbraken zolang dat duurde. Bovenaan de lijst staat wat er niet gelezen kon worden.',
   'permissions.blindSpot':
     'Twee blinde vlekken: FullAccess of Send-As op een postvak, en delen op OneDrive en SharePoint.',
   'permissions.blindSpot.more':
@@ -4647,13 +4678,13 @@ const nl: Record<keyof typeof en, string> = {
   // ---- Asking for access (workplan 0093) ----
   'access.title': 'Toegang aanvragen',
   'access.intro':
-    'Voorlopig op uitnodiging: vertel ons wat u wilt verhuizen, dan komen we per e-mail terug.',
+    'Voorlopig op uitnodiging: vertel ons wat u wilt migreren, dan komen we per e-mail terug.',
   'access.email': 'E-mailadres',
   'access.emailHint': 'Hier antwoorden wij. Er gaat verder niets naartoe.',
   'access.name': 'Uw naam',
   'access.organisation': 'Organisatie',
   'access.optional': 'optioneel',
-  'access.note': 'Wat gaat u verhuizen?',
+  'access.note': 'Wat wilt u migreren?',
   'access.noteHint': 'Ongeveer hoeveel postbussen, en waarvandaan; één zin is genoeg.',
   'access.tier': 'Welk pakket lijkt te passen?',
   'access.tierHint':
