@@ -2,7 +2,30 @@
 
 > **In one line:** The Migrations page lists people: one flow (who, from where, what, to where) takes a person from one or more old accounts to a new home and creates their migrations underneath, and protocols, kinds and ids stay off screen until needed. Four faults the audit found go first.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-09-29 (update this block at the end of every session)
+
+**2026-09-29: the wizard offers a saved Microsoft 365 or Apple account again.** On branch
+`claude/funny-wright-upyuqr`; not merged. This closes the fault 0131 T1 and 0148 T9 found and
+left. The wizard (*Add one migration by hand*) kept its own copy of the server's
+`sourceKindFor`, `sourceKindOf`, and every type it did not list fell to `o365`. It did not list
+`microsoft` (0114) or `apple` (0115). A saved account of either kind was never offered on the
+source step, so the person stored it twice. A saved *Via IMAP* or *Graph* row was offered in its
+place, could become the one-candidate default, and was posted as the source of a `microsoft` or
+`apple` migration, which the create route's reuse check refuses.
+
+- **The picker reads each saved row's kind back through `wizardTypeForConnectionKind`**, the
+  inverse the server's round-trip test pins, as T4's *Start a migration* flow already does. A
+  kind added later reads back as its own card. A card with no saved row of its kind offers
+  nothing, never a wrong row. The one exception is `oauth2`: `oauth2` and `graph` both store as
+  `o365`, and the inverse answers `graph`, so `oauth2` reads its rows as `graph`
+  (`storedSourceType` in `CreateMapping.tsx`).
+- **Proved by** `CreateMapping.reachability.unit.test.tsx`, *offers each card only the rows its
+  kind stores as*. It stores one `o365`, one `microsoft` and one `apple` row, then picks each of
+  the four cards. Each card must offer only its own row and start on it. Before the fix, the
+  Microsoft 365 account and Apple account cases fail, each offered the `o365` row. With the
+  `oauth2` case removed, *Via IMAP* fails. `vitest --project unit-browser apps/web/src/pages`
+  passes 53 files (1568 tests), `tsc -p apps/web/tsconfig.json` is clean, and the `scripts`
+  guards pass 212 files.
 
 **2026-09-29, morning: the owner's answers to the writing session's eleven questions, and two
 words changed with them** (0131 §6, R8).
