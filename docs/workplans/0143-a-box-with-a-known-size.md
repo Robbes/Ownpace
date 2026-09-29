@@ -63,8 +63,7 @@ deployment and streaming mail bodies stay parked on their own triggers.
 - **Found, and fixed in a change of its own:** `isTransientError` lowercased a message and then
   looked for `ECONN`, `ETIMEDOUT` and `EPIPE` in capitals, so the limiter never retried a request
   that failed with those codes, and undici's `fetch failed` carries its code on its `cause`,
-  where no word search looked. Fixed on branch
-  `claude/mailbox-sync-errors-c2xsw2-a-network-error-the-limiter-retries`, not merged: the codes
+  where no word search looked. Fixed in #1364, merged 2026-09-29 (`b036920`): the codes
   are read on the error and on its cause, and the words in lower case
   (`packages/shared/src/a-network-error-the-limiter-retries.unit.test.ts`, 11 cases, 8 failing
   on `main`).
