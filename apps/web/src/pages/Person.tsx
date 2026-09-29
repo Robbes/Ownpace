@@ -211,13 +211,23 @@ const Person: React.FC = () => {
           ))
         )}
         {!person.implicit && (
-          <Link
-            to={`/mappings/new?person=${encodeURIComponent(person.id)}`}
-            className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:underline"
-          >
-            <Plus className="w-4 h-4" />
-            {t('people.addMigration')}
-          </Link>
+          // *Start a migration* for this person, and the four-step wizard
+          // beside it, by hand, until the flow carries every card (0153 T4).
+          <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2">
+            <Link
+              to={`/start?person=${encodeURIComponent(person.id)}`}
+              className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:underline"
+            >
+              <Plus className="w-4 h-4" />
+              {t('people.addMigration')}
+            </Link>
+            <Link
+              to={`/mappings/new?person=${encodeURIComponent(person.id)}`}
+              className="text-sm text-blue-700 hover:underline"
+            >
+              {t('start.byHand')}
+            </Link>
+          </div>
         )}
       </section>
 

@@ -7,9 +7,9 @@ import {
   needsAcknowledgement,
 } from './confirm/native-refusals.tsx';
 import ScopeManifestPanel from './confirm/ScopeManifestPanel.tsx';
-import { scopeFamilyOfConnectionKind, scopeManifestFor } from '@openmig/shared';
+import { scopeFamilyOfConnectionKind, scopeManifestFor, type DiscoveryDomain } from '@openmig/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { mappingApi, scopeManifestApi } from '../services/mapping-service.ts';
+import { mappingApi, scopeManifestApi, type DiscoveryResponse } from '../services/mapping-service.ts';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
 import { serverMessage } from '../services/api.ts';
 import { fetchPlatformPause } from '../services/platform-service.ts';
@@ -80,10 +80,32 @@ export function countedSinceChange<T extends { readonly discoveredAt: string; re
   return domains.filter((d) => d.lastError !== undefined || Date.parse(d.discoveredAt) >= since);
 }
 
+/** One migration's count, as a green light reads it (`useMigrationCount`). */
+export interface MigrationCount {
+  /** The rows that answer the count this screen asked for (`countedSinceChange`). */
+  readonly domains: ReadonlyArray<DiscoveryResponse['domains'][number]>;
+  /** The data types the migration carries: what the count waits for. Undefined until the migration answers. */
+  readonly expected: ReadonlyArray<DiscoveryDomain> | undefined;
+  /** The source's connection kind, as the detail route answers it: whose manifest rows are true. */
+  readonly sourceKind: string | undefined;
+  /** The server's words for a refused count; null while nothing was refused. */
+  readonly countRefused: string | null;
+  /** Whether the operator holds the platform, read only while a count stands refused. */
+  readonly held: boolean | undefined;
+  /** The polling stopped at its ceiling. */
+  readonly gaveUp: boolean;
+  /** A count this screen waits for is still coming: Start waits too. */
+  readonly stillCounting: boolean;
+  /** The polling stopped before every count landed. */
+  readonly countUnfinished: boolean;
+}
+
 /**
- * Pre-sync confirm screen (workplan 0013 T6). Kicks off read-only discovery, polls the per-domain
- * counts, shows them next to the §11.2 scope manifest, and offers the "Start migration" green light
- * that activates the (paused) mapping.
+ * THE COUNT BEHIND A GREEN LIGHT (workplan 0013 T6). Kicks off read-only
+ * discovery for one migration and polls the per-domain counts until every
+ * data type it carries has answered. The confirm screen below holds one;
+ * *Start a migration* holds one per migration it made, under one Start
+ * (0153 T4).
  *
  * ## Polling stopped at the FIRST domain, not the last (2026-09-07)
  *
@@ -109,9 +131,7 @@ export function countedSinceChange<T extends { readonly discoveredAt: string; re
  *
  * See `countedSinceChange`.
  */
-export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps): React.ReactElement {
-  const t = useT();
-  const countsHeadingId = React.useId();
+export function useMigrationCount(mappingId: string): MigrationCount {
   const queryClient = useQueryClient();
   const startedAt = React.useRef(Date.now());
   const [gaveUp, setGaveUp] = React.useState(false);
@@ -181,8 +201,6 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
   const expected = mapping.data?.syncConfig.domains;
   const changedAt = mapping.data?.updatedAt;
 
-  const [refusedAcked, setRefusedAcked] = React.useState(false);
-
   const discovery = useQuery({
     queryKey: ['discovery', mappingId],
     queryFn: () => mappingApi.getDiscovery(mappingId),
@@ -202,52 +220,6 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
         countedSinceChange(query.state.data?.domains ?? [], changedAt).map((d) => d.domain),
       );
       return expected.every((d) => landed.has(d)) ? false : every;
-    },
-  });
-
-  const manifest = useQuery({
-    queryKey: ['scope-manifest'],
-    queryFn: () => scopeManifestApi.get(),
-  });
-
-  // WHOSE PROMISES TO SHOW. The manifest is one public document and the server
-  // serves all of it; which rows are TRUE here depends on what this migration
-  // is leaving, and this screen already knows — it reads the mapping above for
-  // `syncConfig.domains`. Until 2026-09-22 it showed every row to everybody,
-  // so a Google migration was confirmed under a list naming SharePoint, Teams
-  // and Planner and mentioning Drive nowhere.
-  //
-  // An unrecognised source narrows to the rows true of every source rather
-  // than falling back to a provider: the lookup returns undefined and the
-  // filter is given nothing, which under-tells instead of mis-telling.
-  //
-  // THE KIND, NOT THE TYPE (workplan 0153 T1 (a)). The detail route answers
-  // `sourceType` with the source CONNECTION KIND (`google_drive`, `o365`),
-  // not the mapping file's type (`google-drive`) that `scopeFamilyOf` reads
-  // on the appliance's own page. Asked in the wrong vocabulary, a Drive
-  // migration had no family and was shown every provider's rows.
-  const family = scopeFamilyOfConnectionKind(mapping.data?.sourceType ?? '');
-  const scoped =
-    manifest.data && scopeManifestFor(manifest.data, family ? [family] : []);
-
-  const startMutation = useMutation({
-    mutationFn: () => mappingApi.start(mappingId),
-    /**
-     * THE CACHE GOES BEFORE THE NAVIGATION (owner, 2026-09-17).
-     *
-     * Pressing this makes the migration `active`, and until today it told
-     * nothing: the migration's own page kept answering `paused` from the copy
-     * it had fetched before the press — for five minutes, by `App.tsx`'s
-     * `staleTime` — with *Review and start* beside it. The list, fetched
-     * after the navigation, said `active`. Two answers, and the stale one
-     * offered to start a migration that was already running.
-     *
-     * Awaited, so the page the navigation lands on reads the server rather
-     * than the cache it is about to be handed.
-     */
-    onSuccess: async () => {
-      await forgetMappingLifecycle(queryClient, mappingId);
-      onStarted();
     },
   });
 
@@ -276,6 +248,128 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
   const stillCounting =
     countRefused === null && !gaveUp && (expected !== undefined ? !everyCountLanded : mapping.isPending);
   const countUnfinished = countRefused === null && gaveUp && !everyCountLanded;
+  return {
+    domains,
+    expected,
+    sourceKind: mapping.data?.sourceType,
+    countRefused,
+    held,
+    gaveUp,
+    stillCounting,
+    countUnfinished,
+  };
+}
+
+/**
+ * One migration's part of a green light: its counts, a refused count's
+ * reason, and the tick for files a format would refuse, beside the count it
+ * acknowledges. The confirm screen draws one; *Start a migration* one per
+ * migration, each with its own heading and its own tick-box.
+ */
+export function MigrationCountSection({
+  count,
+  acked,
+  onAcked,
+  heading,
+  ackId,
+}: {
+  readonly count: MigrationCount;
+  readonly acked: boolean;
+  readonly onAcked: (next: boolean) => void;
+  /** What the section is called; the confirm screen's own words when left out. */
+  readonly heading?: string;
+  /** Distinguishes the tick-boxes where a page draws one per migration. */
+  readonly ackId?: string;
+}): React.ReactElement {
+  const t = useT();
+  const countsHeadingId = React.useId();
+  const { domains, expected, countRefused, held, gaveUp } = count;
+  return (
+    <section aria-labelledby={countsHeadingId}>
+      <h3 id={countsHeadingId} className="text-sm font-medium text-gray-700 mb-2">{heading ?? t('confirm.foundInSource')}</h3>
+      {/* With nothing landed, the counts say *Scanning your source*, which a
+          refused count makes untrue. A count begun a moment before the hold
+          still lands (the door refused the join, not the count), so rows
+          that arrive are shown with the refusal under them. */}
+      {(countRefused === null || domains.length > 0) && (
+        <DiscoveryCounts domains={domains} expected={expected} slow={gaveUp} />
+      )}
+      {countRefused !== null && (
+        <p className="text-sm text-red-600" role="alert">
+          {t('confirm.countError')} {countRefused}
+          {held === true && <> {t('confirm.countAgain')}</>}
+        </p>
+      )}
+      {/* Beside the count it acknowledges, not in a dialog after the press:
+          the thing being confirmed is a number on this screen. */}
+      <RefusedNativeAcknowledgement
+        domains={domains}
+        checked={acked}
+        onChange={onAcked}
+        {...(ackId === undefined ? {} : { id: ackId })}
+      />
+    </section>
+  );
+}
+
+/**
+ * Pre-sync confirm screen (workplan 0013 T6): one migration's count
+ * (`useMigrationCount`), shown next to the §11.2 scope manifest, and the
+ * "Start migration" green light that activates the (paused) mapping.
+ */
+export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps): React.ReactElement {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const count = useMigrationCount(mappingId);
+  const { domains, stillCounting, countUnfinished } = count;
+  const [refusedAcked, setRefusedAcked] = React.useState(false);
+
+  const manifest = useQuery({
+    queryKey: ['scope-manifest'],
+    queryFn: () => scopeManifestApi.get(),
+  });
+
+  // WHOSE PROMISES TO SHOW. The manifest is one public document and the server
+  // serves all of it; which rows are TRUE here depends on what this migration
+  // is leaving, and this screen already knows — it reads the mapping above for
+  // `syncConfig.domains`. Until 2026-09-22 it showed every row to everybody,
+  // so a Google migration was confirmed under a list naming SharePoint, Teams
+  // and Planner and mentioning Drive nowhere.
+  //
+  // An unrecognised source narrows to the rows true of every source rather
+  // than falling back to a provider: the lookup returns undefined and the
+  // filter is given nothing, which under-tells instead of mis-telling.
+  //
+  // THE KIND, NOT THE TYPE (workplan 0153 T1 (a)). The detail route answers
+  // `sourceType` with the source CONNECTION KIND (`google_drive`, `o365`),
+  // not the mapping file's type (`google-drive`) that `scopeFamilyOf` reads
+  // on the appliance's own page. Asked in the wrong vocabulary, a Drive
+  // migration had no family and was shown every provider's rows.
+  const family = scopeFamilyOfConnectionKind(count.sourceKind ?? '');
+  const scoped =
+    manifest.data && scopeManifestFor(manifest.data, family ? [family] : []);
+
+  const startMutation = useMutation({
+    mutationFn: () => mappingApi.start(mappingId),
+    /**
+     * THE CACHE GOES BEFORE THE NAVIGATION (owner, 2026-09-17).
+     *
+     * Pressing this makes the migration `active`, and until today it told
+     * nothing: the migration's own page kept answering `paused` from the copy
+     * it had fetched before the press — for five minutes, by `App.tsx`'s
+     * `staleTime` — with *Review and start* beside it. The list, fetched
+     * after the navigation, said `active`. Two answers, and the stale one
+     * offered to start a migration that was already running.
+     *
+     * Awaited, so the page the navigation lands on reads the server rather
+     * than the cache it is about to be handed.
+     */
+    onSuccess: async () => {
+      await forgetMappingLifecycle(queryClient, mappingId);
+      onStarted();
+    },
+  });
+
   const startWaitsId = React.useId();
 
   return (
@@ -292,29 +386,7 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
       </div>
 
       {/* Discovery counts — shared with the appliance's confirm screen. */}
-      <section aria-labelledby={countsHeadingId}>
-        <h3 id={countsHeadingId} className="text-sm font-medium text-gray-700 mb-2">{t('confirm.foundInSource')}</h3>
-        {/* With nothing landed, the counts say *Scanning your source*, which a
-            refused count makes untrue. A count begun a moment before the hold
-            still lands (the door refused the join, not the count), so rows
-            that arrive are shown with the refusal under them. */}
-        {(countRefused === null || domains.length > 0) && (
-          <DiscoveryCounts domains={domains} expected={expected} slow={gaveUp} />
-        )}
-        {countRefused !== null && (
-          <p className="text-sm text-red-600" role="alert">
-            {t('confirm.countError')} {countRefused}
-            {held === true && <> {t('confirm.countAgain')}</>}
-          </p>
-        )}
-        {/* Beside the count it acknowledges, not in a dialog after the press:
-            the thing being confirmed is a number on this screen. */}
-        <RefusedNativeAcknowledgement
-          domains={domains}
-          checked={refusedAcked}
-          onChange={setRefusedAcked}
-        />
-      </section>
+      <MigrationCountSection count={count} acked={refusedAcked} onAcked={setRefusedAcked} />
 
       {/* Scope manifest (§11.2) */}
       {scoped && <ScopeManifestPanel manifest={scoped} />}

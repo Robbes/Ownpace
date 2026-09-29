@@ -137,6 +137,36 @@ export class PgLedger implements Ledger {
   }
 
   /**
+   * `find` for a window of keys, in one statement (the port says why). The
+   * same four conditions as `find`, with the key as a list. A key that matches
+   * more than one row keeps the first, as `find`'s `limit(1)` would.
+   */
+  async findMany(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    itemType: DiscoveryDomain,
+    naturalKeyHashes: ReadonlyArray<string>,
+  ): Promise<ReadonlyMap<string, LedgerRecord>> {
+    const found = new Map<string, LedgerRecord>();
+    if (naturalKeyHashes.length === 0) return found;
+    const rows = await this.db
+      .select()
+      .from(schemaPg.item)
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          inArray(schemaPg.item.naturalKeyHash, [...new Set(naturalKeyHashes)]),
+          eq(schemaPg.item.domain, itemType),
+        ),
+      );
+    for (const row of rows) {
+      if (!found.has(row.naturalKeyHash)) found.set(row.naturalKeyHash, this.mapRowToRecord(row));
+    }
+    return found;
+  }
+
+  /**
    * The row a source href belongs to.
    *
    * A plain column and a plain equality test. The first version of this read a

@@ -21,11 +21,11 @@
  *    request path may change or delete a row, not even its own: no grant, and
  *    no policy;
  *  - a member who leaves keeps their record, as the organisation's, until the
- *    organisation's data is erased (review of 2026-09-29; 0139 open question
- *    4, the proposal until the owner answers; privacy §9). Removing the
- *    membership leaves the rows, and a member invited back is not asked again
- *    for a version they already accepted there. Only the erasure purge
- *    deletes them (`PURGED_TABLES`).
+ *    organisation's data is erased (review of 2026-09-29; erased with the
+ *    organisation, 0139 open question 4, answered 2026-09-29; privacy §9).
+ *    Removing the membership leaves the rows, and a member invited back is
+ *    not asked again for a version they already accepted there. Only the
+ *    erasure purge deletes them (`PURGED_TABLES`).
  *
  * PGlite as `app_user`, both chains. The subjects are invented.
  */

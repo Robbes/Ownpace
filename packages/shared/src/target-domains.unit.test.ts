@@ -164,6 +164,21 @@ describe('sourceDomainRefusal — the source-side matrix', () => {
     expect(sourceDomainRefusal('google-drive', ['file', 'email'], four)).toContain('Google Drive');
   });
 
+  it('an Apple account gives no files, and says why in its own credential (workplan 0115)', () => {
+    // Apple publishes no way into iCloud Drive, so its four faces are all
+    // there is — and a create with Files ticked is refused at the door rather
+    // than failing at its first pass.
+    expect(sourceTypeDomains('apple')).toEqual(['email', 'calendar', 'contact', 'task']);
+    expect(sourceDomainRefusal('apple', ['email', 'calendar', 'contact', 'task'])).toBeNull();
+    const msg = sourceDomainRefusal('apple', ['email', 'file']);
+    expect(msg).toContain('Apple');
+    expect(msg).toContain("'file'");
+    expect(msg).toContain('iCloud Drive');
+    // An app-specific password, not an OAuth credential: Apple has no consent.
+    expect(msg).toContain('app-specific password');
+    expect(msg).not.toContain('OAuth');
+  });
+
   it('gmail + file names the mail scope, in its own honest sentence (workplan 0044)', () => {
     // Not Drive's sentence with the name swapped: Gmail's credential is scoped
     // to a mailbox, not an API, and the refusal says which consent it carries.

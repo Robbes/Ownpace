@@ -16,7 +16,7 @@
 
 **Geldt voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`, en deze website.
 **Versie:** 1.2 (concept — nog niet gepubliceerd)
-**Laatst bijgewerkt:** 2026-09-28
+**Laatst bijgewerkt:** 2026-09-29
 
 > **Draait u Ownpace zelf**, dan geldt deze verklaring niet voor u en valt er voor ons niets
 > te verklaren: de software draait op uw eigen infrastructuur, uw gegevens bereiken ons nooit,
@@ -47,9 +47,9 @@ AVG stelt voor verzoeken over uw rechten.
 
 ## 2. Wat Ownpace doet, want dat bepaalt al het onderstaande
 
-Ownpace verhuist uw e-mail, contacten, agenda's en bestanden van de ene aanbieder naar de
+Ownpace migreert uw e-mail, contacten, agenda's en bestanden van de ene aanbieder naar de
 andere, en houdt de kopie bij tot u besluit over te stappen. Het leest uw bronaccount, schrijft
-naar uw doelaccount, en houdt bij wat het heeft verhuisd zodat een tweede ronde niets
+naar uw doelaccount, en houdt bij wat het heeft gemigreerd zodat een tweede ronde niets
 dupliceert.
 
 **Wij zijn geen opslagdienst.** Uw berichten en bestanden gaan via Ownpace naar het doel dat u
@@ -62,28 +62,28 @@ staat in §4.2.
 Voor **uw account bij ons** — inloggen, facturatie, contact met support — zijn wij de
 **verwerkingsverantwoordelijke**, wie u ook bent.
 
-Voor de **inhoud van uw verhuizing** — uw e-mail, bestanden, contacten en agenda-items — hangt
-het ervan af wie er verhuist:
+Voor de **inhoud van uw migratie** — uw e-mail, bestanden, contacten en agenda-items — hangt
+het ervan af wie er migreert:
 
 - **Bent u een organisatie**, dan bent u de **verwerkingsverantwoordelijke** en zijn wij uw
   **verwerker**. Wij handelen op uw gedocumenteerde instructies, en die instructies zijn de
-  verhuizingen die u instelt. Onze verwerkersovereenkomst maakt deel uit van uw overeenkomst —
+  migraties die u instelt. Onze verwerkersovereenkomst maakt deel uit van uw overeenkomst —
   **op aanvraag beschikbaar** via support@ownpace.eu tot die hier gepubliceerd is.
-- **Bent u een particulier** die de eigen accounts of die van het gezin verhuist, dan betekent
+- **Bent u een particulier** die de eigen accounts of die van het gezin migreert, dan betekent
   de huishoudelijke uitzondering van de AVG (art. 2 lid 2 sub c) dat *u* geen plichten als
-  verwerkingsverantwoordelijke hebt voor wat u verhuist — en die uitzondering strekt zich
-  niet uit tot ons (overweging 18). Voor de inhoud van uw verhuizing treden wij daarom op als
+  verwerkingsverantwoordelijke hebt voor wat u migreert — en die uitzondering strekt zich
+  niet uit tot ons (overweging 18). Voor de inhoud van uw migratie treden wij daarom op als
   **verwerkingsverantwoordelijke**, op grond van de overeenkomst tussen ons (art. 6 lid 1
   sub b), en draagt deze verklaring de toezeggingen die een zakelijke klant uit een
-  verwerkersovereenkomst zou halen: we verwerken de inhoud uitsluitend om de verhuizing uit te
+  verwerkersovereenkomst zou halen: we verwerken de inhoud uitsluitend om de migratie uit te
   voeren die u instelde (§5), de subverwerkerslijst in §7 en de bewaartermijnen in §9 gelden
   onverkort voor u, en de beloften van §2 blijven staan.
 
 **Tijdens de Alpha** doen alleen huishoudens mee (§1 van de Voorwaarden voor de Alpha). Voor de
-inhoud van uw verhuizing geldt dus het tweede geval, en er speelt geen verwerkersovereenkomst.
+inhoud van uw migratie geldt dus het tweede geval, en er speelt geen verwerkersovereenkomst.
 
 Een mailbox bevat ook **andere mensen** — de correspondenten die u schreven, en de mensen in uw
-contacten en agenda's — en bij een verhuizing kan een gezinslid betrokken zijn, of mensen met
+contacten en agenda's — en bij een migratie kan een gezinslid betrokken zijn, of mensen met
 wie u bestanden deelde. Zij hebben nooit een overeenkomst met ons gesloten. Wat wij bewaren dat
 hen raakt is wat §4 beschrijft (§4.6 somt het op) en niets meer, het wordt beschermd door
 dezelfde §7–§9, en de rechten in §10 zijn ook de hunne, zonder dat daar een account voor nodig
@@ -100,7 +100,7 @@ Wat nodig is om de bron te lezen en naar het doel te schrijven: een OAuth-vernie
 een gebruikersnaam met een app-wachtwoord, of een serviceaccountsleutel. **Versleuteld
 opgeslagen met AES-256-GCM**, onder een sleutel die apart van de database wordt bewaard: in de
 eigen configuratie van de dienst, en in de instellingen van de achtergrondtaken die de
-verhuizingen uitvoeren, allebei op dezelfde machine.
+migraties uitvoeren, allebei op dezelfde machine.
 
 We vragen de smalste toegang die elke aanbieder biedt. Waar een aanbieder niets smals biedt —
 het IMAP-eindpunt van Google accepteert alleen een toestemming die neerkomt op volledige toegang
@@ -108,11 +108,11 @@ tot uw mail — zeggen we dat, in plaats van iets anders te suggereren. De conne
 e-mail, contacten, agenda's en bestanden lezen, **kunnen helemaal niet naar de bron schrijven**.
 
 U kunt onze toegang op elk moment bij uw aanbieder intrekken, zonder het ons te vragen, en dan
-stopt de verhuizing.
+stopt de migratie.
 
-### 4.2 Het verhuisregister — metagegevens, geen inhoud
+### 4.2 Het migratieregister — metagegevens, geen inhoud
 
-Voor elk item dat we verhuizen bewaren we een regel met: een kenmerk dat de bron er zelf aan gaf
+Voor elk item dat we migreren bewaren we een regel met: een kenmerk dat de bron er zelf aan gaf
 (voor e-mail de `Message-ID`-header; voor een bestand het pad; voor een afspraak of een contact
 de UID), een hash van dat kenmerk, een hash van de inhoud, de omvang in bytes, de map, agenda of
 het adresboek waarin het staat, de kenmerken die de bron en het doel ervoor gebruiken,
@@ -128,9 +128,9 @@ metagegevens die op zichzelf veelzeggend kunnen zijn — onderwerpregels, namen,
 bestandsnamen, de fouttekst van de aanbieder, en hashes die van inhoud zijn afgeleid — en dat
 zeggen we liever ronduit dan het te omschrijven als "technische gegevens".
 
-Bij elke verhuizing bewaren we daarnaast welke mappen ze koppelt, hoe ver elke ronde kwam, de
+Bij elke migratie bewaren we daarnaast welke mappen ze koppelt, hoe ver elke ronde kwam, de
 beslissingen die u over items nam, de uitkomsten van haar controles, en de lijst van wat er
-gedeeld was (§4.6). Bij uw organisatie bewaren we de distributielijsten die een verhuizing vond,
+gedeeld was (§4.6). Bij uw organisatie bewaren we de distributielijsten die een migratie vond,
 met de adressen van hun leden.
 
 ### 4.3 Wat een preflight bewaart
@@ -138,7 +138,7 @@ met de adressen van hun leden.
 Een gratis preflight leest uw bron om te tellen wat er staat. Daarvan worden **aantallen,
 omvang en totalen per map** bewaard — geen inventaris van afzonderlijke items — en de reden van
 de aanbieder als iets niet te tellen was. Kenmerken van items komen pas in het register terecht
-wanneer een echte verhuizing begint. De tellingen horen bij de verhuizing waarvoor ze zijn
+wanneer een echte migratie begint. De tellingen horen bij de migratie waarvoor ze zijn
 geteld: ze blijven daarbij bewaard en verdwijnen wanneer u die verwijdert of uw gegevens worden
 gewist (§9).
 
@@ -168,9 +168,9 @@ e-mailaanbieder (§7).
      organisation, which version of each a person accepted, the language and the time
      (legal_acceptance, managed migration 0032). Asked while live's OWNPACE_STAGE=alpha and no text
      is still a draft (LEGAL_DRAFTS: a draft's number is the one its final text carries, so nobody
-     accepts a draft); nothing is connected before it. Kept with the account and erased with it; a
-     member who leaves keeps their rows until the organisation's data is erased (§9's row; 0139
-     open question 4, the proposal, until the owner answers). "In welke taal" below was added on
+     accepts a draft); nothing is connected before it. Kept with the account and erased with it
+     (0139 open question 4, answered 2026-09-29, the owner: "Ok"); a member who leaves keeps their
+     rows until the organisation's data is erased (§9's row). "In welke taal" below was added on
      2026-09-29 (review of 0139 T3), because the record keeps it; for the owner's review with the
      rest of this draft. -->
 
@@ -184,8 +184,8 @@ aanvaard, in welke taal, en wanneer.
 adres daarvan, en zetten wij het op de lijst van testgebruikers die Google voor onze app
 bijhoudt (§6).
 
-**Facturen** en de gebruikscijfers eronder — hoeveel verhuizingen tegelijk liepen, en hoeveel
-gegevens er zijn verhuisd. **Tijdens de Alpha wordt niets in rekening gebracht**: er zijn geen
+**Facturen** en de gebruikscijfers eronder — hoeveel migraties tegelijk liepen, en hoeveel
+gegevens er zijn gemigreerd. **Tijdens de Alpha wordt niets in rekening gebracht**: er zijn geen
 facturen, en u legt geen betaalwijze vast. Zodra er betalingen zijn, lopen die via onze
 betaaldienstverlener (§7); **wij vragen of bewaren uw kaartnummer niet**. Vult u op de pagina
 *Facturering* toch factuurgegevens in — een naam, een adres, een btw-nummer — dan bewaren we die
@@ -223,21 +223,25 @@ de twee accounts, en of er toegang is gegeven; en alleen een adres als die perso
 of een foutmelding van een aanbieder alleen als u die zelf in uw tekst of op de schermafbeelding
 zet.**
 
-<!-- NOT YET TRUE ON main (the owner, 2026-09-28, ops-trust-proxy (b): keep visitors' addresses
+<!-- NOT YET TRUE ON live (the owner, 2026-09-28, ops-trust-proxy (b): keep visitors' addresses
      in all our logs). NetBird ends TLS in front of the machine, so the app and the website see
-     NetBird as the caller. The visitor's address reaches our logs only once: live sets
-     TRUST_PROXY (the number of proxies in front of the API: NetBird and the web container's
-     nginx), so the API reads the address NetBird passes on; the app's nginx
-     (apps/web/nginx.conf.template, format ownpace_combined, $remote_addr) takes the real client
-     address from NetBird's header; and the website's nginx (deploy/compose/www-nginx.conf, no
-     log_format of its own) does the same. Check a log line of each on live (0132 T3 (d)). -->
+     NetBird as the caller, and NetBird passes the visitor's address on in X-Forwarded-For.
+     Built on branch claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird
+     (0132 T3 (d), 2026-09-28 and 2026-09-29): the app's nginx (apps/web/nginx.conf.template,
+     format ownpace_combined) and the website's (deploy/compose/www-nginx.conf, format
+     ownpace_site, where the image's default applied before) record that header as a field of
+     their own, last, after NetBird's address; recorded, not believed. Live sets TRUST_PROXY=2
+     (the proxies in front of the API: NetBird and the web container's nginx; 3 if NetBird's
+     cluster adds one), which stand-up-live.sh requires, so the API reads the address NetBird
+     passes on. True on live once live stands with it, and checked with a log line of each there
+     (0132 T3 (d)). -->
 
 **Serverlogs** leggen vast dát er verzoeken waren, voor de app en voor deze website: het
 tijdstip, uw IP-adres, dat NetBird aan ons doorgeeft (§7), de gevraagde pagina (zonder het
 geheime deel van een link), de pagina waar u vandaan kwam, wat uw browser over zichzelf zegt, en
 foutcodes. NetBird houdt daarnaast een eigen log bij van elk verzoek; §7 zegt wat daarin staat.
 Logs zijn zo geschreven dat **toegangsgegevens en berichtinhoud er niet in voorkomen**. Vrij van
-namen zijn ze niet. Mislukt een stap van een verhuizing, dan komt de fouttekst van de aanbieder
+namen zijn ze niet. Mislukt een stap van een migratie, dan komt de fouttekst van de aanbieder
 zelf in het log van het proces dat de fout tegenkwam, naast een referentie, zodat we u ermee
 kunnen helpen; die tekst kan een map, een bestand of een adres noemen. En een aanvraag voor
 toegang wordt gelogd met het e-mailadres dat erin staat, net als ons besluit erover.
@@ -246,9 +250,9 @@ toegang wordt gelogd met het e-mailadres dat erin staat, net als ons besluit ero
 ondersteunen, kunnen de mensen aan onze kant die de dienst draaien — tijdens de Alpha één
 persoon — op onze supportschermen **dienstmetadata** over uw account inzien: de naam en status
 van uw organisatie; de adressen en rollen van haar leden, en het kenmerk dat onze inlogdienst
-ieder van hen geeft; de namen van uw koppelingen en verhuizingen (een koppeling heet naar de
+ieder van hen geeft; de namen van uw koppelingen en migraties (een koppeling heet naar de
 gebruikersnaam of het adres van het account, tenzij u haar anders noemt); de toestand en
-foutcategorie van elke verhuizing; factuuroverzichten; hoeveel items op een beslissing van u
+foutcategorie van elke migratie; factuuroverzichten; hoeveel items op een beslissing van u
 wachten; en het logboek van uw organisatie, met wie wat deed en wanneer, zonder de details. Ze
 kunnen ook opzoeken bij welke organisatie een adres hoort, en het logboek van wie wat deed
 downloaden, met de details, waarin elk adres en elke bestandsnaam door een pseudoniem is
@@ -277,18 +281,18 @@ herkenbaar is.
 
 ### 4.6 Mensen die geen klant van ons zijn
 
-Een verhuizing raakt mensen die zich nooit bij ons hebben aangemeld. Dit bewaren we over hen.
+Een migratie raakt mensen die zich nooit bij ons hebben aangemeld. Dit bewaren we over hen.
 
 - **De mensen voor wie u migreert.** Om iemands migraties bij elkaar te houden, geeft u die persoon
   een naam, en als u wilt een e-mailadres voor de toegangslinks. We bewaren beide tot u die persoon
   verwijdert of uw gegevens worden gewist.
-- **Een gezinslid van wie u het account verhuist.** Stuurt u die persoon een toegangslink, dan
+- **Een gezinslid van wie u het account migreert.** Stuurt u die persoon een toegangslink, dan
   logt die zelf in bij de eigen aanbieder en geeft die Ownpace zelf toegang, vanaf een pagina
   die zegt wie het vroeg, van welk account en naar waar. Wij bewaren die toegang (versleuteld,
   §4.1), het adres van dat account, en wanneer de link werd gemaakt, gebruikt en beëindigd. Die
   persoon kan de toegang op elk moment intrekken. Op de eigen voortgangspagina verwijdert dat haar
   hier, en trekt het haar ook in bij de aanbieder, waar die dat toestaat. Bij de aanbieder maakt
-  het wat wij bewaren onbruikbaar, en verwijderen we haar wanneer u de verhuizing verwijdert of uw
+  het wat wij bewaren onbruikbaar, en verwijderen we haar wanneer u de migratie verwijdert of uw
   gegevens worden gewist. Om een Google-account te koppelen, moet het adres ook op de lijst van
   testgebruikers bij Google staan (§6).
 - **Mensen met wie u bestanden, mappen of agenda's deelde.** Laat u de app uw delingen
@@ -298,7 +302,7 @@ Een verhuizing raakt mensen die zich nooit bij ons hebben aangemeld. Dit bewaren
   support@ownpace.eu per soort item dat met hen gedeeld was, zoals agenda's of bestanden, zodra u
   voor die soort bent overgestapt, met uw toelichting en de namen van de items; en nog eens
   alleen als u die opnieuw laat versturen. Van elk van die e-mails blijft een kopie in onze
-  supportmailbox staan, zo lang als §9 zegt (§4.5). De lijst verdwijnt wanneer u de verhuizing
+  supportmailbox staan, zo lang als §9 zegt (§4.5). De lijst verdwijnt wanneer u de migratie
   verwijdert waar die bij hoort, of wanneer uw gegevens worden gewist.
 - **Mensen die u uitnodigt** in uw organisatie: hun adres, hun rol, en of ze lid werden.
 - **Mensen die een link melden** die ze kregen: zie §4.5.
@@ -310,11 +314,11 @@ Een verhuizing raakt mensen die zich nooit bij ons hebben aangemeld. Dit bewaren
 
 | Wat | Doel | Grondslag |
 |---|---|---|
-| Toegangsgegevens, register, preflight-tellingen | De verhuizing uitvoeren die u hebt gevraagd | Overeenkomst, inclusief stappen die u vooraf vraagt (art. 6 lid 1 sub b) — op uw instructie als verwerker voor een organisatie; als verwerkingsverantwoordelijke bij een gezinsverhuizing (§3) |
+| Toegangsgegevens, register, preflight-tellingen | De migratie uitvoeren die u hebt gevraagd | Overeenkomst, inclusief stappen die u vooraf vraagt (art. 6 lid 1 sub b) — op uw instructie als verwerker voor een organisatie; als verwerkingsverantwoordelijke bij een migratie voor uw gezin (§3) |
 | Uw aanvraag voor toegang | Besluiten of we u toelaten, en u dat laten weten | Stappen die u vóór een overeenkomst vraagt (art. 6 lid 1 sub b) |
 | Uw account en inlogaccount, facturen, gebruikscijfers | De dienst leveren, u veilig laten inloggen, en factureren | Overeenkomst (art. 6 lid 1 sub b); wettelijke plicht voor het bewaren van facturen (art. 6 lid 1 sub c). Tijdens de Alpha geen facturen |
 | Uw Google-adres op de lijst van testgebruikers bij Google (Alpha) | Google de koppeling laten toestaan waar u om vraagt | Overeenkomst (art. 6 lid 1 sub b) |
-| Gegevens van andere mensen (§4.6): in wat u verhuist, de toegang en het adres van een gezinslid, de mensen die u uitnodigt, en de mail aan mensen met wie u items deelde | De verhuizing uitvoeren die u vroeg, de mensen binnenlaten die u uitnodigt, en mensen op uw verzoek laten weten waar hun gedeelde items zijn | Gerechtvaardigd belang (art. 6 lid 1 sub f): het uwe, bij het verhuizen van de e-mail en bestanden van uw huishouden, en het onze, bij het uitvoeren daarvan; de grenzen in §4 en §9 beschermen het hunne |
+| Gegevens van andere mensen (§4.6): in wat u migreert, de toegang en het adres van een gezinslid, de mensen die u uitnodigt, en de mail aan mensen met wie u items deelde | De migratie uitvoeren die u vroeg, de mensen binnenlaten die u uitnodigt, en mensen op uw verzoek laten weten waar hun gedeelde items zijn | Gerechtvaardigd belang (art. 6 lid 1 sub f): het uwe, bij het migreren van de e-mail en bestanden van uw huishouden, en het onze, bij het uitvoeren daarvan; de grenzen in §4 en §9 beschermen het hunne |
 | Het auditlog van wie wat deed in uw organisatie, en wanneer | U, en ons, laten zien wat er in uw organisatie is gedaan en door wie | Gerechtvaardigd belang (art. 6 lid 1 sub f) |
 | De kopie vlak voor een update | Een mislukte update terugdraaien, zodat uw gegevens heel blijven | Gerechtvaardigd belang (art. 6 lid 1 sub f) |
 | Serverlogs, van de app en van deze website | De dienst veilig en werkend houden | Gerechtvaardigd belang (art. 6 lid 1 sub f) |
@@ -339,11 +343,11 @@ Het gebruik door Ownpace van informatie die via Google-API's is ontvangen, voldo
 [Google API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy),
 inclusief de **Limited Use**-eisen. Concreet, in onze eigen woorden:
 
-- We gebruiken Google-gebruikersgegevens **uitsluitend** om de verhuizing uit te voeren die u
+- We gebruiken Google-gebruikersgegevens **uitsluitend** om de migratie uit te voeren die u
   hebt ingesteld — uw bronaccount lezen en wegschrijven naar het doel dat u koos — en om u de
   voortgang te tonen.
 - We **dragen** Google-gebruikersgegevens **niet over** aan wie dan ook, behalve aan het
-  verhuisdoel dat u zelf hebt gekozen; aan mensen aan wie u ons zelf vraagt te laten weten waar
+  migratiedoel dat u zelf hebt gekozen; aan mensen aan wie u ons zelf vraagt te laten weten waar
   een gedeeld item is gebleven (§4.6); aan NetBird GmbH, die uw verbindingen naar ons
   doorgeeft, en aan de aanbieder die de mail van de dienst vervoert (§7), elk alleen daarvoor; en
   waar de wet dat verplicht.
@@ -446,7 +450,7 @@ machine die we zelf beheren, in Nederland.
 | NetBird GmbH | Uw verbindingen met app.ownpace.eu, id.ownpace.eu, status.ownpace.eu en www.ownpace.eu doorgeven naar onze machine. Het beëindigt de versleuteling (TLS) van die verbindingen, dus wat erdoorheen gaat, zoals wat u typt als u inlogt en wat de app u toont, gaat er leesbaar doorheen. Het stuurt ze door naar onze machine via een versleutelde tunnel (WireGuard). Het houdt 7 dagen een eigen log bij van elk verzoek: het tijdstip, het IP-adres en een locatie die daaruit is afgeleid, de gevraagde pagina, ook het geheime deel van een link, hoeveel er elke kant op ging, en de status van het antwoord en hoe lang het duurde | Duitsland (EU) |
 | Proton AG | De mail van de dienst versturen, zoals inlogcodes, ons antwoord op uw aanvraag voor toegang, voortgangsoverzichten, en de berichten die u ons laat sturen. Onze supportmailbox bewaren, support@ownpace.eu, waar uw mail aan ons en tijdens de Alpha ook probleemmeldingen binnenkomen, en waar een kopie van elke mail van de dienst wordt bewaard (§4.5) | Zwitserland, buiten de EU (§8) |
 
-Deze tabel is de volledige lijst van onze subverwerkers. Verhuist de dienst na de Alpha naar een
+Deze tabel is de volledige lijst van onze subverwerkers. Gaat de dienst na de Alpha over naar een
 hostingaanbieder, dan noemen we die hier, en laten we het u weten, voordat er gegevens van u
 naartoe gaan (§11 van de Voorwaarden voor de Alpha). Zakelijke klanten worden geïnformeerd
 voordat een subverwerker wordt toegevoegd, met het recht van bezwaar zoals vastgelegd in de
@@ -460,9 +464,9 @@ gebracht, dus Mollie ontvangt niets over u.
 
 **Binnen uw organisatie** is wat de dienst bewaart zichtbaar voor de eigenaar en de beheerders;
 de Voorwaarden voor de Alpha vragen u niemand uit te nodigen (§8 daar). Een voortgangslink toont
-wie hem heeft de aantallen en statussen van één verhuizing, nooit de inhoud.
+wie hem heeft de aantallen en statussen van één migratie, nooit de inhoud.
 
-**De bron en het doel van uw verhuizing zijn geen subverwerkers van ons** — dat zijn uw eigen
+**De bron en het doel van uw migratie zijn geen subverwerkers van ons** — dat zijn uw eigen
 accounts, en uw relatie met die aanbieders is de uwe.
 
 Buiten wat deze verklaring noemt, geven we uw gegevens alleen aan anderen door waar de wet ons
@@ -490,9 +494,9 @@ staat uw mailbox, of die van iemand aan wie u ons laat schrijven, bij een Amerik
 dan wordt onze mail daar afgeleverd.
 
 Dat is geen formaliteit maar de kern van het product: wie weggaat bij een Amerikaanse aanbieder,
-heeft weinig aan een verhuistool die zelf in de VS draait. Daarom draait de onze daar niet.
+heeft weinig aan een migratietool die zelf in de VS draait. Daarom draait de onze daar niet.
 
-Ligt het **doel** van uw verhuizing buiten de EU, dan gaan uw gegevens daarheen omdat u dat doel
+Ligt het **doel** van uw migratie buiten de EU, dan gaan uw gegevens daarheen omdat u dat doel
 koos. We laten u het doel zien voordat er iets wordt weggeschreven.
 
 ## 9. Hoe lang we het bewaren
@@ -530,7 +534,7 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
        tag that carries it; until then the tag it runs keeps 7 daily dumps.
        "Uiterlijk tot het einde van de Alpha" (privacy-task-records (a)) is one step in the
        end-of-Alpha routine, not written yet.
-     - De lijst van wat er gedeeld was, "verdwijnt wanneer u de verhuizing verwijdert" (§4.2,
+     - De lijst van wat er gedeeld was, "verdwijnt wanneer u de migratie verwijdert" (§4.2,
        §4.6; the owner's privacy-sharing-list (b)): deleting a migration does not yet delete its
        share_grant rows. A small code change; until it lands, the list stays until erasure.
      - Een zoekopdracht op adres en een download van het logboek, "12 maanden na het
@@ -562,10 +566,10 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
 
 | Wat | Bewaard |
 |---|---|
-| Toegangsgegevens | Tot u ze verwijdert. De toegang van een koppeling verdwijnt wanneer u die koppeling verwijdert; de app staat dat toe zodra geen verhuizing haar meer gebruikt. Toegang die een gezinslid via een toegangslink gaf, verdwijnt wanneer u die verhuizing verwijdert, of wanneer die persoon haar op de eigen voortgangspagina intrekt. Een afgeronde verhuizing houdt de toegang die u ons gaf, zodat u hem kunt hervatten. Sluit u uw account, dan gebruikt niets die toegang meer, en wordt alles vernietigd wanneer uw gegevens worden gewist. Telkens trekken we de toegang ook in bij de aanbieder, waar die dat toestaat. |
-| Het verhuisregister (§4.2), en wat elke verhuizing daarnaast bewaart, zoals de lijst van wat er gedeeld was (§4.6) | Tot u de verhuizing verwijdert; dan mee verwijderd. Anders tot uw gegevens worden gewist. |
-| Preflight-tellingen | Bij de verhuizing waarvoor ze zijn geteld: tot u die verwijdert, of tot uw gegevens worden gewist. |
-| Wat bij uw organisatie hoort en niet bij één verhuizing: de leden en uitnodigingen, de distributielijsten die een verhuizing vond, en het auditlog van wie wat deed en wanneer | Tot uw gegevens worden gewist, ook nadat u de verhuizing verwijdert die ze vond. |
+| Toegangsgegevens | Tot u ze verwijdert. De toegang van een koppeling verdwijnt wanneer u die koppeling verwijdert; de app staat dat toe zodra geen migratie haar meer gebruikt. Toegang die een gezinslid via een toegangslink gaf, verdwijnt wanneer u die migratie verwijdert, of wanneer die persoon haar op de eigen voortgangspagina intrekt. Een afgeronde migratie houdt de toegang die u ons gaf, zodat u hem kunt hervatten. Sluit u uw account, dan gebruikt niets die toegang meer, en wordt alles vernietigd wanneer uw gegevens worden gewist. Telkens trekken we de toegang ook in bij de aanbieder, waar die dat toestaat. |
+| Het migratieregister (§4.2), en wat elke migratie daarnaast bewaart, zoals de lijst van wat er gedeeld was (§4.6) | Tot u de migratie verwijdert; dan mee verwijderd. Anders tot uw gegevens worden gewist. |
+| Preflight-tellingen | Bij de migratie waarvoor ze zijn geteld: tot u die verwijdert, of tot uw gegevens worden gewist. |
+| Wat bij uw organisatie hoort en niet bij één migratie: de leden en uitnodigingen, de distributielijsten die een migratie vond, en het auditlog van wie wat deed en wanneer | Tot uw gegevens worden gewist, ook nadat u de migratie verwijdert die ze vond. |
 | Welke versies van de Voorwaarden voor de Alpha, de servicevoorwaarden en deze verklaring elk lid heeft aanvaard, in welke taal, en wanneer (§4.4) | Tot uw gegevens worden gewist, ook nadat dat lid uw organisatie heeft verlaten, zodat vastgelegd blijft wie waarmee heeft ingestemd. |
 | De mensen voor wie u migreert: ieders naam, en een e-mailadres als u dat gaf (§4.6) | Tot u die persoon verwijdert, of tot uw gegevens worden gewist. Het verwijderen van een migratie verwijdert de persoon niet. |
 | Het overzicht van elke ronde: wanneer die liep, en wat die telde | Tijdens de Alpha: tot uw gegevens worden gewist. |
@@ -578,7 +582,7 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
 | Supportmail en probleemmeldingen, en de kopieën van de eigen mail van de dienst in dezelfde mailbox (§4.5) | Tot de vraag of het probleem is afgehandeld, en daarna nog 6 maanden. Hetzelfde geldt voor de kopieën van de eigen mail van de dienst. Dan verwijderd uit de mailbox. |
 | De vastlegging van wat wij bij uw account inzagen (§4.5) | Tot uw gegevens worden gewist. Wat zonder organisatie wordt vastgelegd, blijft daarna staan: een zoekopdracht op adres, en een download van het logboek van wie wat deed. Die worden 12 maanden na het vastleggen verwijderd. |
 | De kopie vlak voor een update | Tot vaststaat dat de update waarvoor ze is gemaakt werkt, en nooit langer dan 7 dagen. Ze bevat de database van de dienst en die van onze inlogdienst; vóór een upgrade van het systeem dat de achtergrondtaken uitvoert, ook de database daarvan. Zo'n kopie is er alleen om een mislukte update terug te draaien, en verlaat de hostingomgeving niet. Gegevens die uit de dienst zijn gewist, kunnen nog hoogstens 7 dagen in die kopie staan. |
-| Vastleggingen van de achtergrondtaken die uw verhuizingen uitvoeren (kenmerken, aantallen, en bij een fout een categorie en een referentie; geen namen, adressen of inhoud, op de reden na die een van ons typt wanneer een overstap wordt teruggedraaid) | Uiterlijk tot het einde van de Alpha: dan beginnen de achtergrondtaken met een lege geschiedenis. Ze worden niet verwijderd wanneer uw gegevens worden gewist. |
+| Vastleggingen van de achtergrondtaken die uw migraties uitvoeren (kenmerken, aantallen, en bij een fout een categorie en een referentie; geen namen, adressen of inhoud, op de reden na die een van ons typt wanneer een overstap wordt teruggedraaid) | Uiterlijk tot het einde van de Alpha: dan beginnen de achtergrondtaken met een lege geschiedenis. Ze worden niet verwijderd wanneer uw gegevens worden gewist. |
 | Serverlogs (§4.5) | Tot het onderdeel van de dienst dat ze schreef wordt vervangen: voor de app en deze website bij elke update van de dienst; voor onze inlogdienst wanneer de versie of de instellingen ervan veranderen; voor een achtergrondtaak wanneer die klaar is. Er is geen vaste termijn. |
 | Facturen en de gebruikscijfers eronder | **7 jaar**, omdat de Nederlandse belastingwet dat vereist. Tijdens de Alpha wordt niets in rekening gebracht: er zijn dan geen facturen, en de gebruikscijfers verdwijnen wanneer uw gegevens worden gewist. |
 
@@ -598,12 +602,12 @@ van toestemming waar toestemming de grondslag is. Schrijf naar **support@ownpace
 brengen er niets voor in rekening en vragen niet waarom. We kunnen u vragen te bevestigen dat
 een verzoek van u komt, bijvoorbeeld door te schrijven vanaf het adres van uw account. Deze
 rechten gelden jegens ons overal waar §3 ons verwerkingsverantwoordelijke maakt — en de mensen
-in een verhuisde mailbox, en iedereen die §4.6 noemt, die nooit een account hadden, kunnen naar
+in een gemigreerde mailbox, en iedereen die §4.6 noemt, die nooit een account hadden, kunnen naar
 hetzelfde adres schrijven.
 
 **Uw recht van bezwaar.** Waar we op een gerechtvaardigd belang steunen (§5) — onze logs, het
 auditlog, de vastlegging van wat wij bij uw account inzagen, de kopie vlak voor een update, en
-de gegevens van andere mensen in een verhuizing — kunt u op elk moment bezwaar maken, om redenen
+de gegevens van andere mensen in een migratie — kunt u op elk moment bezwaar maken, om redenen
 die met uw situatie te maken hebben. We stoppen dan, tenzij we dwingende gerechtvaardigde
 gronden hebben die zwaarder wegen dan uw belangen, rechten en vrijheden, of de gegevens nodig
 hebben voor een rechtsvordering.
@@ -625,7 +629,7 @@ met TLS, en het certificaat van de aanbieder wordt gecontroleerd, tenzij u zelf 
 voor een account dat u koppelt met een servernaam; die verbinding is dan misschien niet
 versleuteld. Organisaties worden in de database zelf van elkaar gescheiden via row-level
 security (beveiliging per rij), voor de verzoeken van de app en voor de achtergrondtaken die de
-verhuizingen uitvoeren. Onze supportschermen lezen via views die daar bewust buiten vallen, en
+migraties uitvoeren. Onze supportschermen lezen via views die daar bewust buiten vallen, en
 elk van die views controleert dat de lezer een van de mensen is die de dienst draaien (§4.5).
 De geplande taken die over organisaties heen lopen, werken er nog niet onder; daar houdt het
 eigen filter van elke query op uw organisatie ze gescheiden. Logs zijn zo geschreven dat
@@ -651,9 +655,9 @@ anderen tot hun accounts. We zullen u niet bedreigen omdat u het meldt.
 ## 12. Kinderen
 
 De dienst richt zich niet op kinderen onder de 16 en we maken niet bewust accounts voor hen
-aan. Een gezinsverhuizing die een ouder instelt kan uiteraard het account van een kind
-verhuizen — dat is het huishoudelijke geval dat §3 beschrijft, en de ouder blijft degene die
-de verhuizing instelt. Een toegangslink voor een kind onder de 16 rondt de ouder samen met het
+aan. Een ouder die een migratie voor het gezin instelt, kan daarin uiteraard het account van een kind
+meenemen — dat is het huishoudelijke geval dat §3 beschrijft, en de ouder blijft degene die
+de migratie instelt. Een toegangslink voor een kind onder de 16 rondt de ouder samen met het
 kind af. Het Google-adres van het kind komt op verzoek van de ouder op de lijst van
 testgebruikers bij Google (§6).
 
@@ -667,5 +671,5 @@ gepubliceerd; hun versieregel zegt dat. Het versienummer en de datum bovenaan de
 zien welke versie geldt.
 
 Tijdens de Alpha bepalen de Voorwaarden voor de Alpha (§11 daar) hoe u hoort wat erna komt, ook
-een verhuizing naar een andere hostingaanbieder: minstens 7 dagen van tevoren, per e-mail. Er
+een overgang naar een andere hostingaanbieder: minstens 7 dagen van tevoren, per e-mail. Er
 gaan geen gegevens van u naartoe als u de nieuwe voorwaarden niet aanvaardt.

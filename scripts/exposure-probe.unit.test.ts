@@ -103,6 +103,9 @@ function fakeIo(fake: Fake): { io: ProbeIo; lines: string[]; tried: string[]; tl
       );
     },
     issuer: async () => fake.issuer ?? { issuer: 'https://id.ownpace.eu' },
+    // Each name answers itself: what NetBird's sign-in does instead is
+    // a-sign-in-in-front-of-the-front-door's.
+    page: async () => ({ status: 200, netbird: false }),
     print: (line) => lines.push(line),
   };
   return { io, lines, tried, tlsAsked };

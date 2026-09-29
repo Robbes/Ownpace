@@ -1456,6 +1456,186 @@ both taken, the owner's answer, and a second review's four, all taken.
   `deploy/compose/stack-kind.sh` names `rotate-db-passwords.sh` among the scripts that tell the
   stacks apart and among `stack_may_be_live`'s refusals, which it did not.
 
+**2026-09-28: T3 (d)'s code half, and (c) asks for NetBird's sign-in (0139's work list)**, built on
+branch `claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird`, not merged, from
+`main` at `96e737df`. Three items of `site/legal/README.md`'s *To build or to do* (#1317, merged to
+`main` after this branch's base): *"Visitors' IP addresses in our own logs (privacy §4.5;
+ops-trust-proxy (b)): `TRUST_PROXY` in live's `.env`, and both nginx configurations
+(`apps/web/nginx.conf.template`, `deploy/compose/www-nginx.conf`) recording the address NetBird
+passes on."*; *"Server logs until the part that wrote them is replaced (privacy §9;
+ops-log-driver (a), the owner: "needs checking"): the owner runs `docker info --format
+'{{.LoggingDriver}}'` on the machine and undoes a journald setting if there is one; the journald
+step comes out of `docs/managed-bring-up.md`."*; and *No NetBird sign-in in front of the
+service*: *"To check: from outside the NetBird network, a request to each of the four hosts is
+answered by the app, the sign-in service, the status page or the website itself, not by NetBird's
+sign-in page."* Nothing has run on the machine, and live does not stand.
+
+- **What NetBird does, from its source.** Its reverse proxy ends TLS and connects to the machine
+  through the tunnel from its own mesh address (`netbirdio/docs` at `33d1b212`,
+  `manage/reverse-proxy/service-configuration.mdx`). Unless the connection it received came from a
+  proxy it trusts itself, it drops the visitor's `X-Forwarded-For` and sets it, and `X-Real-IP`, to
+  the address the visitor connected from (`netbirdio/netbird` at `002755c4`,
+  `proxy/internal/proxy/reverseproxy.go`, `setUntrustedForwardingHeaders`). With SSO its only
+  method, a visitor gets a 302 to the identity provider; with a password or a PIN, NetBird's own
+  page with 401, whose assets are under `/__netbird__/` (`proxy/internal/auth/middleware.go`,
+  `authenticateWithSchemes`; `proxy/web/web.go`). A request over the tunnel from a peer of the
+  account may pass SSO with no page at all (`forwardWithTunnelPeer`).
+- **Both nginx logs.** The app's `ownpace_combined` gains `"$http_x_forwarded_for"` as its last
+  field, after `combined`'s, which keep their places. The website's `www-nginx.conf` had no
+  `access_log` or `log_format`, so the image's default applied; it now names `ownpace_site`,
+  `combined` with the same last field, on `/var/log/nginx/access.log`, the image's link to the
+  container's output. The header is recorded, not believed: no `set_real_ip_from`, whose range
+  would be written in the repository. Run on nginx 1.24 here with both files as the image includes
+  them: `nginx -t` passes for each, a request carrying `X-Forwarded-For` logs it last on each, the
+  app's line still reads `/grant/:link?...`, and the image-style `main` log above them got nothing.
+- **`TRUST_PROXY=2` for live.** NetBird's proxy and the web container's nginx, which appends
+  NetBird's address. `docs/managed-bring-up.md`'s live settings (step 6) set it and say why;
+  `managed.env.example` and `managed.yml` say it beside the key; `stand-up-live.sh` refuses live's
+  `.env` without a count of at least 2 (empty names the web container for everybody, 1 NetBird,
+  `true` believes any caller). The example keeps it empty, as `a-limit-the-api-was-never-handed`
+  requires, and the OTA stack's is not changed.
+- **(d)'s check, written.** *One log line of each on live*: from outside the NetBird network, one
+  request to `https://app.ownpace.eu/api/version` with `X-Forwarded-For: 192.0.2.1` and one to the
+  site, then the API's, the web's and the site's line: the address the request came from first in
+  the API's and last in both nginx lines, `192.0.2.1` nowhere. Another of NetBird's addresses in the
+  API's line means 3; `192.0.2.1` anywhere means no count is right, written here before the first
+  invitation. `docs/managed-bring-up.md`, *After the script*, step 6, with the commands; the stand-up
+  script's closing list names it; T3's *The path, written down* has the source. *(Read apart since
+  2026-09-29, the entry below: the forged value in nginx's field alone means NetBird appends, and
+  2 is still right.)*
+- **(c) asks for NetBird's sign-in.** `scripts/exposure-probe.mjs` asks `app.`, `id.`, `status.`
+  and `www.ownpace.eu` for the page a visitor asks first (`/`, and the discovery document for
+  `id.`), without following a redirect. It passes a 2xx or a redirect that stays on the name, and
+  fails a redirect to another host (named by its host, never its query, never when an address),
+  NetBird's own page, a 401, 403 or other status, and no answer. `www.` only on live's front, and
+  its silence fails only with `site_name` `required`; NetBird's sign-in fails there either way. The
+  bring-up's owner's steps (step 5) and the stand-up script's closing list say to switch the
+  sign-in off on all four before the first invitation.
+- **The journald step out.** `docs/managed-bring-up.md` told the operator to set
+  `{"log-driver": "journald"}` and `MaxRetentionSec=1month`, and listed *"the journald log
+  driver"* in live's owner's steps. Both now say Docker's default (`json-file`, or `local`), which
+  removes a container's output with the container, give `docker info --format
+  '{{.LoggingDriver}}'`, and say how to undo a journald setting. `docs/operator-runbook.md` gains
+  *Whose address a log line names, and how long it stays*. The appliance's guide keeps its month.
+- **Guards, and how they failed first.** Written before the change and run on `96e737df`'s code:
+  `scripts/a-sign-in-in-front-of-the-front-door.unit.test.ts`, 24 cases, all 24 red (the probe had
+  no `SIGN_IN_PAGES` and no `page`); `scripts/a-visitor-every-log-called-netbird.unit.test.ts`, 11
+  cases, 7 red (the four that passed: the app already wrote to the container's output in its own
+  format, neither file trusted a range, and Express's own answer for 1 and 0);
+  `scripts/a-journal-that-outlived-the-container.unit.test.ts`, 54 cases, 4 red (the bring-up's
+  sweep and its three checks; the other docs and both compose files were already clean); three new
+  cases in `a-first-bring-up-of-live` (`TRUST_PROXY` empty, 1, `true`), all red. That guard's
+  full bring-up case also expects the two new closing steps, red without either sentence (M20,
+  M21 below). `a-month-of-container-output` keeps the appliance's half; `exposure-probe`'s fake
+  network answers `page`. `scripts/lessons.mjs` indexes `.conf` files, so `www-nginx.conf` has an
+  entry in `docs/LESSONS.md`.
+- **Twenty-one mutations, each red, each restored.** The app's field removed; the site's
+  `access_log` removed; the site's field removed; a `set_real_ip_from` with a range; the bring-up's
+  `TRUST_PROXY=1`; an off-host redirect taken for the service; NetBird's page marker ignored;
+  `www.` never asked; `www.` asked wherever it points; the whole Location printed; the real
+  network following redirects; `www.`'s silence failed whatever `site_name` says; no answer
+  passed; a 401 passed; the journald step back; the owner's steps without the check; a journald
+  `logging` block on the API in `managed.yml`; the stand-up letting 1 through; the stand-up not
+  checking `TRUST_PROXY`; the closing list without NetBird's sign-in (M20, which first survived a
+  test filter that ran the wrong cases and went red with the right one); without the log check
+  (M21).
+- **For the owner, before the first invitation.** In NetBird, no SSO, password, PIN or header
+  authentication and no NetBird-Only Access on `app.`, `id.`, `status.` and `www.ownpace.eu`;
+  then the probe, dispatched, passes them (0139, item 8). On the machine, `docker info --format
+  '{{.LoggingDriver}}'` prints `json-file` or `local`. `TRUST_PROXY=2` in live's `.env`, and (d)'s
+  check once live stands.
+- **Not in this change.** The comment beside privacy §4.5 on `main` (#1317) says the app's nginx
+  *"takes the real client address from NetBird's header"*; it records the header as a field of its
+  own instead, and that comment follows when this merges with `main`. The sign-in service's and the
+  status page's own logs are not in the README's item and are not changed. The OTA stack keeps an
+  empty `TRUST_PROXY`.
+
+**2026-09-29: review fixes to T3 (d)'s code half and (c)'s sign-in check, on the same branch, not
+merged.** Eleven findings, three major and eight minor, all taken. `main` was merged into the branch
+first (`b8629512`), because #1317 had merged after the branch's base and 0139's Status block
+conflicted: both new entries kept. Nothing has run on the machine, and live does not stand.
+
+- **The API names the visitor only because the app's nginx appends to the header, and nothing
+  held that line** (major). `location /api/`'s `proxy_set_header X-Forwarded-For
+  $proxy_add_x_forwarded_for;` could become `$remote_addr`, which hands the API NetBird's address
+  alone, so with 2 it names NetBird for every visitor, and every guard stayed green: the Express
+  check ran on a hand-written header. `a-visitor-every-log-called-netbird` now reads the block,
+  asserts that one directive, and builds the header Express is given from it.
+- **A visitor's public address in the gate's public job log** (major). Both nginx lines end with
+  the visitor's own address now, and `bootstrap-managed.sh`'s `explain_failure` prints the web
+  container's first and last lines on a failure, through `own_address_redact`, which hid only this
+  machine's addresses and the mesh's range. `own-addresses.sh`'s program now also replaces an
+  access line's last field with `<client-ip>`, whatever it holds but the `-` of a request without
+  the header, IPv4, IPv6 or a chain; `redact-evidence.sh` uses the same program. Only that field: a
+  public-looking address elsewhere, such as a browser's version, is left. The visitor guard makes
+  a line from each file's own `log_format` and holds it to the filter; the public-log guard and the
+  redactor's own test carry access lines.
+- **The journal still read as a source of container output** (major). The breach procedure's step
+  2 copied the containers' output with `journalctl`, and the bring-up's audit section pointed a
+  collector at the journal; with Docker's default the journal holds none of it, so a responder
+  copied nothing and lost the evidence at the next deploy. Step 2 now copies each stack's output
+  with `docker compose ... logs --no-color --timestamps` first, before any deploy, restart or
+  recreate; the audit section says a collector reads Docker's output, and a task run's goes with
+  its container; `docs/operator-runbook.md` says how to keep a container's output past a deploy.
+- **The journald sweep, widened** (minor). It matched three phrases in `docs/*.md`; `sudo dockerd
+  --log-driver=journald`, *"Set the daemon log-driver to journald"* and `{"log-driver":
+  "journald"}` in the stand-up's closing list all passed. It now takes each sentence, whitespace
+  folded, and fails one that names journald and the log driver together unless it says to take the
+  `"log-driver"` line out, in the managed guides and in `deploy/compose/*.sh`; and it fails a
+  `journalctl` in a managed guide that asks for no unit or identifier of its own, or for a
+  container's field. **`stand-up-live.sh` now asks the machine**: `docker info --format
+  '{{.LoggingDriver}}'` must print `json-file` or `local`, before anything changes, with the way
+  to undo it in the refusal; a daemon that does not say is refused too.
+- **0129 still said managed container output is kept 30 days** (minor). A dated entry in 0129's
+  Status, its T3 row and a note in its §1: the managed half withdrawn, the appliance keeps its
+  month.
+- **`local` is not Docker's default, and it has a size limit** (minor). The bring-up, the runbook
+  and 0139's row say `json-file` is the default, with no limit of age or size, and that `local`
+  rotates by size (about 100 MB per container by default), so lines can go sooner, never later.
+- **(d)'s reading rule went further than Express** (minor). The forged value in nginx's last field
+  alone means NetBird appends to the header, and 2 is still right; the API's line and the nginx
+  lines are now read apart, in the guide's step 6 and in T3 below, and the website's request
+  carries the forged header too, which the visitor guard checks.
+- **`TRUST_PROXY` had no upper limit** (minor). A count above the proxies there believes the
+  leftmost entry, which the caller writes. `stand-up-live.sh` takes 2 or 3 and nothing else.
+- **The sign-in guard has 24 cases, not 25** (minor). Corrected in the entry above and in 0139's.
+- **Two edges of the sign-in check** (minor). A redirect on the same name into `/__netbird__/`
+  failed, but its words said *"to another host"* and no case held it (removing the check left
+  every guard green); it now fails as NetBird's own page. A redirect with no `Location` was taken
+  for the service answering itself; it now fails as not the service.
+- **The legal texts, after the merge** (minor). The comment beside privacy §4.5, in both files,
+  says what is built instead of *"takes the real client address from NetBird's header"*; §9's
+  comment on server logs and `site/legal/README.md`'s *«LOG_RETENTION»* row say the step is out;
+  the README's three items and 0139's item 8 say what is built and what is still the owner's.
+- **Guards, and how they failed first.** Written before the fix and run on the branch after the
+  merge: `a-visitor-every-log-called-netbird` 21 cases, 7 red (the six lines through the filter,
+  and the website's request without the forged header);
+  `a-public-log-that-named-the-machine-it-ran-on` 18 cases, 5 red (every path a filtered log
+  takes); `redact-evidence` 12 cases, 1 red;
+  `a-journal-that-outlived-the-container` 142 cases, 6 red (the two `journalctl`s, the owner's
+  step that no longer fits the stricter sweep, the breach procedure's and the audit section's
+  sources, `json-file` named the default); `a-sign-in-in-front-of-the-front-door` 27 cases, 3 red;
+  `a-first-bring-up-of-live` 167 cases, 6 red (three drivers, a daemon that does not say, and
+  `TRUST_PROXY` 4 and 22). 28 of 387 red. The `/api/` directive's case passed, since the line was
+  right; each guard gap was shown the other way: the review's regression applied, the old guard
+  green and the new one red, eleven times (the `/api/` header as `$remote_addr`, 11 of 11 green
+  and 3 of 21 red; the visitor rule left out, 18 of 18 and 11 of 11 green, 5 of 18 and 1 of 12
+  red; the breach procedure's `journalctl` back, and the audit section's; J1, J2 and J3, each 54
+  of 54 green and red on the new; the same-name redirect into `/__netbird__/` taken for the
+  service, 24 of 24 green and 2 of 27 red, and no `Location` taken for it; the website's request
+  without the forged header).
+- **Eighteen mutations, each red, each restored.** The visitor rule left out (12 red); the rule
+  IPv4 only (8); `/api/`'s header as `$remote_addr` (3) and as `$http_x_forwarded_for`, which
+  Express alone would have passed (3); the stand-up taking any count of 2 or more (2), journald (1),
+  and a daemon that does not say (1); a 3xx with no `Location` passed (1); a same-name redirect
+  into `/__netbird__/` passed (2); its old words (2); the breach procedure's `journalctl` back (1);
+  the breach procedure without the website's output (1); the audit section's `journalctl` back (2);
+  J1, J2, J3 (1 each); the website's request without the forged header (1); `local` called a
+  default again (1).
+- **Still the owner's, unchanged:** NetBird's sign-in off on the four names, then a dispatch of the
+  probe that passes; `docker info --format '{{.LoggingDriver}}'` on the machine; and (d)'s check
+  once live stands.
+
 
 | Task | Status | Notes |
 |---|---|---|
@@ -1468,7 +1648,7 @@ both taken, the owner's answer, and a second review's four, all taken.
 | T1f Every port that need not be reachable bound to 127.0.0.1, in both stacks | ✅ **done** in #1236, merged 2026-09-27 (`528d1308`), with T3 (a); the task build's way to the API on loopback followed in #1253 (`5ee41045`) — *was:* 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27), with T3 (a); 📋 **Decided 2026-09-24** (D7) | §3, T3. Containers reach ports the host publishes through the Docker gateway, so each stack can reach the other's. **Merge precondition in the Status block: the OTA stack's binds are set first, and the site is recreated by hand after.** |
 | T1g Live is deployed by hand from a tag; CI never touches it | The code half ✅ **done** in #1265, merged 2026-09-28 (`c292fffb`); live's own deploys are T6 (a) — *was:* 🔨 the code half built on branch `claude/ownpace-public-readiness-y7orc6-a-gate-that-leaves-the-alpha-alone`, not merged (2026-09-27); 📋 **Decided 2026-09-24** (D7); the code 📋 **Proposed** | §3. The OTA stack keeps following `main` nightly. The procedure is T6; tags are 0146's. The marker's name, `STACK_KIND=production`, is defined once in `deploy/compose/stack-kind.sh` (2026-09-27, with 0143 T9's script), and this task's refusals source it. Built: the gate's refusal (`refuse-live-env.sh`, in the restore, before its first copy), the reader's refusal of live's marker on the OTA project, and the runbook's and release checklist's wording; the Status block says how. |
 | T2 Database passwords the repository does not contain | The rotation script ✅ **done** in #1307, merged 2026-09-28 (`83eb73ed`): `rotate-db-passwords.sh` (`--check`, `--sync`, `--rotate [--with-trigger-stores]`) with `db-roles.sh`, approved by the owner (2026-09-28); on the OTA stack the change itself (T0 step 2) is the owner's to run. The `trigger-db` part 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-first-bring-up-of-live`, not merged (2026-09-28): `TRIGGER_DB_PASSWORD`, read by `managed.yml` and falling back to today's literal, set only by the stand-up script on a new volume. The bring-up's code, (b) and the refusals of shipped values 📋 **Proposed** — *was:* 📋 **Decided 2026-09-24** (D2, D3) on the machine; the code 📋 **Proposed** | §3. Now chiefly the OTA stack, whose roles hold the shipped values: `ALTER ROLE`, because `.env` does not reach a role that already exists. On live the owner sets them in its `.env` before its first bring-up (D8, T1b). The bring-up sets the roles from `.env`, and refuses shipped values on a real address. |
-| T3 "Not reachable from the internet", checked | (b) the exposure check and (c) the outside probe ✅ **done** in #1271, merged 2026-09-28 (`6088f469`), not yet run on the machine or dispatched; (a) the binds ✅ **done** in #1236, merged 2026-09-27, with #1253; (d) the path a tester's request takes 📋 **Proposed**, waits for live to stand (T1b to T1e) — *was:* (b) and (c) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-port-nobody-meant-to-open`, not merged (2026-09-28); 📋 **Proposed** (D2, D4, D7); (a) the binds 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. Before the first check and probe the owner sets `EXPOSURE_ALLOW` in each stack's `.env` to every address any container on the machine is published on (both stacks' `*_BIND` values, the site's `WWW_BIND`, the demo's `STALWART_BIND`; commas, no space), and the repository variable `EXPOSURE_PROBE_LIVE_PORTS`. |
+| T3 "Not reachable from the internet", checked | (b) the exposure check and (c) the outside probe ✅ **done** in #1271, merged 2026-09-28 (`6088f469`), not yet run on the machine or dispatched; (a) the binds ✅ **done** in #1236, merged 2026-09-27, with #1253; (d) the path a tester's request takes 🔨 **its code half built** on branch `claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird`, not merged (2026-09-28, review fixes 2026-09-29): live's `TRUST_PROXY=2` (the stand-up takes 2 or 3 and nothing else), both nginx logs record the address NetBird passes on, the gate's public log filters it out, and the check *one log line of each on live* written, its lines read apart; the check itself waits for live to stand (T1b to T1e); (c) asks the four names for NetBird's sign-in on the same branch (0139, item 8) — *was:* (d) 📋 **Proposed**, waits for live to stand (T1b to T1e); *earlier:* (b) and (c) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-port-nobody-meant-to-open`, not merged (2026-09-28); 📋 **Proposed** (D2, D4, D7); (a) the binds 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. Before the first check and probe the owner sets `EXPOSURE_ALLOW` in each stack's `.env` to every address any container on the machine is published on (both stacks' `*_BIND` values, the site's `WWW_BIND`, the demo's `STALWART_BIND`; commas, no space), and the repository variable `EXPOSURE_PROBE_LIVE_PORTS`. |
 | T4 A stack that does not say it is production does not start | 📋 **Proposed** | §3. `managed.yml`'s `development` default becomes a required value. Live sets `production` at T1b. |
 | T5 No demo in the alpha, and the values that left the machine replaced | ✅ **Closed for live 2026-09-24** (D7), and the refusal of `--with-demo` on live 🔨 **built** on branch `claude/ownpace-public-readiness-y7orc6-a-first-bring-up-of-live`, not merged (2026-09-28); 🅿️ **Parked for the OTA stack (trigger: 0026 row 24's own, the OTA stack stops being a demo)** — *was:* the refusal 📋 **Proposed** | §3 and §4. Live never had the demo or its values, so there is nothing to replace. `bootstrap-managed.sh` refuses `--with-demo` on a `.env` that is, or could be, live's (`stack_may_be_live`). Routes (a) and (b) are kept for the OTA stack. |
 | T6 One way to deploy live, from a tag | Step 4, the copy before the update, 🔨 **built 2026-09-28** into `deploy-live.sh` with `copy-before-update.sh` (0139, rec-copies (a)), review fixes 2026-09-29 (a tag without the scripts live is kept by refused, the rollback's `since`), on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, **not merged**; (a) `deploy-live.sh` ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), with 0146 T5 (a), not yet run on live; (b) ✅ **done** in #1232, merged 2026-09-27: every enqueue in the API goes through one function that answers 409 with the hold's sentence; the three web gaps (b) left ✅ **done** in #1284, merged 2026-09-28 (`f7a7a270`). The procedure's steps on the machine are the owner's, once live stands (T1b) and 0146 has cut a release tag — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); (b) ✅ **done** in #1232, merged 2026-09-27; the procedure and (a), `deploy-live.sh`, 📋 **Proposed** (D1, D5, D7) | §3. Hold, drain, a tag, bring-up without the demo, checks, lift. Replaces three procedures that disagree. With 0146. (a) is the deploy script, (b) the hold at every door. The Status block (2026-09-28) says how (a) was built. |
@@ -2437,6 +2617,12 @@ which sits on the internet and is on neither the mesh nor the private network.
 - **Its port list** is derived from `managed.yml`, `www.yml` and `setup-managed-demo.sh`, never
   typed by hand. Live's port values live in its `.env`, which the probe cannot read, so the owner
   stores them as a repository variable. They are port numbers, not secrets.
+- **No NetBird sign-in in front of the four names** (added 2026-09-28; 0139, item 8; the owner,
+  *"Off everywhere at launch"*). It asks `app.`, `id.`, `status.` and `www.ownpace.eu` for the page
+  a visitor asks first, without following a redirect, and fails a name that answers with a redirect
+  to another host (NetBird's SSO), NetBird's own page (its password or PIN page loads
+  `/__netbird__/`), anything else that is not the service, or nothing. `www.` only on live's front,
+  as below. From outside because a request over the tunnel may pass NetBird's SSO unseen.
 - **Dispatch only, not scheduled.** A public repository's job logs are public, and a failing probe
   names an open port. So it runs when the owner is there to act on the result (open question 6).
 - **The guard.** `scripts/a-probe-that-knows-every-port.unit.test.ts` fails when `managed.yml` or
@@ -2453,6 +2639,32 @@ handed to the API by `managed.yml` since #1137, merged 2026-09-24) can only be a
 ingress replaces a client's own `X-Forwarded-For` rather than passing it on. One request with a
 forged header, read back in live's access log, answers the question. The sentence in the Google
 verification document is then corrected to match.
+
+**What NetBird's source says, and the check on live (2026-09-28, the owner's ops-trust-proxy (b),
+*"Keep visitors' addresses in all our logs"*).** NetBird's reverse proxy ends TLS and connects to
+the machine through the WireGuard tunnel from its own mesh address (`netbirdio/docs` at
+`33d1b212`, `manage/reverse-proxy/service-configuration.mdx`). Unless the connection it received
+came from a proxy NetBird itself trusts, it drops the visitor's `X-Forwarded-For` and sets it, and
+`X-Real-IP`, to the address the visitor connected from (`netbirdio/netbird` at `002755c4`,
+`proxy/internal/proxy/reverseproxy.go`, `setUntrustedForwardingHeaders`). So the path is: the
+visitor, NetBird's proxy, the web image's nginx (which logs NetBird's mesh address as
+`$remote_addr` and appends it to the header), the API. Live's `TRUST_PROXY` is 2, and
+`stand-up-live.sh` refuses less; both nginx logs record the header NetBird sets as their last
+field, whatever `TRUST_PROXY` says. Whether NetBird's cluster puts a proxy of its own in front,
+which its source cannot say, is what **(d)'s check** settles, once live stands: from outside the
+NetBird network, one request to `https://app.ownpace.eu/api/version` and one to
+`https://www.ownpace.eu/`, each with `X-Forwarded-For: 192.0.2.1`; then **one log line of each on
+live**, the API's and the two nginx lines read apart (corrected 2026-09-29: the first reading
+took `192.0.2.1` anywhere for a count no value could fix, which is wrong if NetBird appends). The
+nginx lines' last field is what NetBird passed on: the address the request came from alone means
+NetBird replaces the header, as its source says; `192.0.2.1, ` before it means NetBird appends,
+which leaves 2 right, since Express counts from the right, and is written here because the field
+then also holds what a visitor claimed. The API's line names the caller the API believes: the
+address the request came from means `TRUST_PROXY` is right; another of NetBird's addresses means
+3; `192.0.2.1` means the API believes what a visitor wrote, written here before the first
+invitation. The commands are `docs/managed-bring-up.md`'s, *After the script*, step 6.
+`stand-up-live.sh` takes 2 or 3 and nothing else (2026-09-29): a count above the proxies there
+believes the leftmost entry, which the caller writes.
 
 ### T4 — a stack that does not say it is production does not start
 
