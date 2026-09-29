@@ -45,6 +45,13 @@ describe('the dictionary', () => {
     }
   });
 
+  it('says no form of verhuizen in Dutch: the owner chose migratie (0152 D6, 0153 T6 (b))', () => {
+    const saying = Object.entries(STRINGS.nl)
+      .filter(([, value]) => /verhui[sz]/i.test(value))
+      .map(([key]) => key);
+    expect(saying, 'Dutch strings that still say a form of verhuizen').toEqual([]);
+  });
+
   it('the shared destructive-path warning exists in both languages and they differ', () => {
     expect(APPLY_FLAG_WARNING_NL.trim()).not.toBe('');
     expect(APPLY_FLAG_WARNING_NL).not.toBe(APPLY_FLAG_WARNING);
