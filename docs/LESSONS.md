@@ -293,6 +293,14 @@ reading a file drops off its entry by itself.
 
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
 
+### `apps/api/src/routes/tenants/a-member-removed-is-recorded.unit.test.ts`
+
+- [an-account-nobody-let-in](../scripts/an-account-nobody-let-in.unit.test.ts) — AN ACCOUNT NOBODY LET IN (workplan 0135 T8).
+
+### `apps/api/src/routes/tenants/members.ts`
+
+- [an-account-nobody-let-in](../scripts/an-account-nobody-let-in.unit.test.ts) — AN ACCOUNT NOBODY LET IN (workplan 0135 T8).
+
 ### `apps/api/src/routes/view.ts`
 
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
@@ -2074,6 +2082,7 @@ reading a file drops off its entry by itself.
 
 ### `site/legal/README.md`
 
+- [an-account-nobody-let-in](../scripts/an-account-nobody-let-in.unit.test.ts) — AN ACCOUNT NOBODY LET IN (workplan 0135 T8).
 - [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 
 ### `site/legal/alpha.md`
@@ -2086,6 +2095,7 @@ reading a file drops off its entry by itself.
 
 ### `site/legal/privacy.md`
 
+- [an-account-nobody-let-in](../scripts/an-account-nobody-let-in.unit.test.ts) — AN ACCOUNT NOBODY LET IN (workplan 0135 T8).
 - [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 
@@ -3733,10 +3743,14 @@ AN ACCOUNT NOBODY LET IN (workplan 0135 T8).
 
 Reads:
 
+- `apps/api/src/routes/tenants/a-member-removed-is-recorded.unit.test.ts`
+- `apps/api/src/routes/tenants/members.ts`
 - `deploy/compose/env-read.sh`
 - `deploy/compose/idp-strays.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/stack-kind.sh`
+- `site/legal/README.md`
+- `site/legal/privacy.md`
 
 ### [an-address-that-was-not-an-example](../scripts/an-address-that-was-not-an-example.unit.test.ts)
 
