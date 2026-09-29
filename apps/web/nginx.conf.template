@@ -33,9 +33,23 @@ map $ownpace_log_referer_path $ownpace_log_referer {
 }
 # nginx's `combined`, with the request line and the Referer in their loggable
 # forms: the same fields in the same places.
+#
+# AND THE VISITOR, LAST, AS A FIELD OF ITS OWN (the owner, 2026-09-28,
+# ops-trust-proxy (b): "Keep visitors' addresses in all our logs"; privacy
+# §4.5). Behind NetBird, $remote_addr is NetBird's proxy, for every visitor: it
+# ends TLS and connects to this machine from its own address on the mesh. The
+# visitor's address comes in X-Forwarded-For, which NetBird's proxy sets to the
+# address the visitor connected from, dropping whatever the visitor sent
+# (netbirdio/netbird at 002755c4, proxy/internal/proxy/reverseproxy.go,
+# setUntrustedForwardingHeaders). Recorded here as it arrives, not believed:
+# no set_real_ip_from, whose trusted range would be an address written in
+# this file. The API reads the same header through TRUST_PROXY (live: 2,
+# NetBird and this nginx, which appends NetBird's address below). "-" when a
+# request came without one, as one from the machine itself does.
+# scripts/a-visitor-every-log-called-netbird.unit.test.ts.
 log_format ownpace_combined '$remote_addr - $remote_user [$time_local] '
   '"$request_method $ownpace_log_uri $server_protocol" $status $body_bytes_sent '
-  '"$ownpace_log_referer" "$http_user_agent"';
+  '"$ownpace_log_referer" "$http_user_agent" "$http_x_forwarded_for"';
 
 server {
   listen 80;
@@ -69,6 +83,11 @@ server {
     proxy_pass $api_upstream;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
+    # The header NetBird set (the visitor), then the address this request came
+    # from (NetBird's): what live's TRUST_PROXY=2 counts back through, so the
+    # API names the visitor. $remote_addr here would hand it NetBird's alone,
+    # for every visitor. scripts/a-visitor-every-log-called-netbird.unit.test.ts
+    # builds the header Express is given from this line.
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_read_timeout 300s;
