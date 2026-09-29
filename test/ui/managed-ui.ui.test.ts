@@ -576,6 +576,17 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
     }
   });
 
+  it("opens a person's page from their card, with their steps before they switch (0153 T5)", async () => {
+    const l = await open('/mappings');
+    await l.page.getByRole('link', { name: 'Anna', exact: true }).click();
+    await l.page.waitForURL(`**/people/${PERSON}`, { timeout: 10_000 });
+    await l.page.getByRole('heading', { name: 'Before you switch' }).waitFor({ timeout: 10_000 });
+    expect(await l.page.getByRole('heading', { level: 1, name: 'Anna' }).count()).toBe(1);
+    expect(await l.page.locator('[data-step]').count()).toBe(7);
+    expectClean(l, "a person's page");
+    await l.page.close();
+  });
+
   it('sends an old /dashboard link to Migrations, so a bookmark still lands', async () => {
     const l = await open('/dashboard');
     await l.page.waitForURL((u) => u.pathname === '/mappings', { timeout: 10_000 });
