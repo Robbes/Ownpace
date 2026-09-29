@@ -55,6 +55,7 @@ import { conditionsRefusal } from '../services/acceptance.ts';
 import {
   LINK_LIFETIMES,
   grantLinkApi,
+  personLinkApi,
   type GrantLink,
   type IssuedGrantLink,
   type MappingLinkPurpose,
@@ -122,16 +123,49 @@ const WORDS: Record<
   },
 };
 
+/**
+ * Where a section's links live: a migration's (`/migrations/:id/links`) or a
+ * person's (`/people/:id/links`, ADR-0035's amendment of 2026-09-29). The
+ * section is the same machinery either way; only the doors differ.
+ */
+interface LinkDoors {
+  readonly queryKey: readonly unknown[];
+  issue(purpose: MappingLinkPurpose, expiryDays: number): Promise<IssuedGrantLink>;
+  revoke(linkId: string): Promise<void>;
+}
+
+const migrationDoors = (mappingId: string): LinkDoors => ({
+  queryKey: ['grant-links', mappingId],
+  issue: (purpose, expiryDays) => grantLinkApi.issue(mappingId, purpose, expiryDays),
+  revoke: (linkId) => grantLinkApi.revoke(mappingId, linkId),
+});
+
+const personDoors = (personId: string): LinkDoors => ({
+  queryKey: ['person-links', personId],
+  // A person's link is a grant link until their progress page exists.
+  issue: (_purpose, expiryDays) => personLinkApi.issue(personId, expiryDays),
+  revoke: (linkId) => personLinkApi.revoke(personId, linkId),
+});
+
+/** A person's grant link says what it covers: all of their accounts, once each. */
+const PERSON_WORDS: (typeof WORDS)['grant'] = {
+  ...WORDS.grant,
+  title: 'personLink.title',
+  blurb: 'personLink.blurb',
+  empty: 'personLink.empty',
+};
+
 const LinkSection: React.FC<{
-  mappingId: string;
+  doors: LinkDoors;
   purpose: MappingLinkPurpose;
   links: GrantLink[] | undefined;
   loadFailed: boolean;
-}> = ({ mappingId, purpose, links, loadFailed }) => {
+  words?: (typeof WORDS)[MappingLinkPurpose];
+}> = ({ doors, purpose, links, loadFailed, words: ownWords }) => {
   const t = useT();
   const { dateTime } = useFormatters();
   const queryClient = useQueryClient();
-  const words = WORDS[purpose];
+  const words = ownWords ?? WORDS[purpose];
   const lifetimes = LINK_LIFETIMES[purpose];
 
   const [expiryDays, setExpiryDays] = React.useState<number>(lifetimes.fallback);
@@ -148,9 +182,9 @@ const LinkSection: React.FC<{
     setIssueError('');
     setCopied(false);
     try {
-      const link = await grantLinkApi.issue(mappingId, purpose, expiryDays);
+      const link = await doors.issue(purpose, expiryDays);
       setIssued(link);
-      await queryClient.invalidateQueries({ queryKey: ['grant-links', mappingId] });
+      await queryClient.invalidateQueries({ queryKey: doors.queryKey });
     } catch (err) {
       // Verbatim. Every refusal this route answers with names what to
       // configure; a generic "could not create link" would throw that away.
@@ -187,8 +221,8 @@ const LinkSection: React.FC<{
     setArmedRevoke(null);
     setRowErrors((errors) => ({ ...errors, [link.id]: '' }));
     try {
-      await grantLinkApi.revoke(mappingId, link.id);
-      await queryClient.invalidateQueries({ queryKey: ['grant-links', mappingId] });
+      await doors.revoke(link.id);
+      await queryClient.invalidateQueries({ queryKey: doors.queryKey });
     } catch (err) {
       setRowErrors((errors) => ({ ...errors, [link.id]: serverMessage(err) }));
     }
@@ -325,14 +359,17 @@ const LinkSection: React.FC<{
 };
 
 /**
- * The grant section alone, for *Start a migration*'s last screen (0153 T4):
- * the same machinery, for a migration whose person connects it themselves.
+ * A PERSON'S grant link (ADR-0035, amended 2026-09-29; workplan 0153 T5 (b)):
+ * one link for all of their migrations, on their page and on *Start a
+ * migration*'s last screen.
  */
-export const GrantLinkSection: React.FC<{
-  mappingId: string;
+export const PersonGrantLinkSection: React.FC<{
+  personId: string;
   links: GrantLink[] | undefined;
   loadFailed: boolean;
-}> = (props) => <LinkSection {...props} purpose="grant" />;
+}> = ({ personId, ...props }) => (
+  <LinkSection {...props} doors={personDoors(personId)} purpose="grant" words={PERSON_WORDS} />
+);
 
 const MappingLinksPanel: React.FC<{ mappingId: string }> = ({ mappingId }) => {
   const links = useQuery({
@@ -354,13 +391,13 @@ const MappingLinksPanel: React.FC<{ mappingId: string }> = ({ mappingId }) => {
   return (
     <>
       <LinkSection
-        mappingId={mappingId}
+        doors={migrationDoors(mappingId)}
         purpose="grant"
         links={links.data}
         loadFailed={links.error != null}
       />
       <LinkSection
-        mappingId={mappingId}
+        doors={migrationDoors(mappingId)}
         purpose="view"
         links={links.data}
         loadFailed={links.error != null}
