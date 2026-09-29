@@ -7,7 +7,8 @@
  * receives anything (§7, §8); on 2026-09-28 the owner chose, for the question
  * ops-telemetry, *"Switch it off everywhere"* (workplan 0139). Six images in
  * `managed.yml` reported to, or asked, their makers by default until then, each
- * read at the version this repository pins:
+ * read at the version this repository pins; five are switched off, and
+ * Nextcloud is not yet:
  *
  *  - TRIGGER.DEV'S WEBAPP (v4.5.16), three ways. Its server's PostHog identified
  *    the user by id, email and name at every sign-in (`services/postAuth.server.ts`
@@ -71,14 +72,11 @@
  *    (`nextcloud_announcements` `lib/Cron/Crawler.php`,
  *    `apps/settings/lib/SetupChecks/InternetConnectivity.php`,
  *    `apps/lookup_server_connector/lib/BackgroundJobs/RetryJob.php`). The
- *    switches are `config.php` values, set by a hook the image runs before
- *    Apache starts (`/docker-entrypoint-hooks.d/before-starting`, the image's
- *    `entrypoint.sh`): a file mounted into `config/` instead would make that
- *    directory non-empty before the first install, and the entrypoint then
- *    skips copying the image's own config files, `smtp.config.php` among them.
+ *    three are `config.php` values inside the instance, and they are LEFT ON
+ *    for now; see below.
  *
  * THE RULE. Every service in every compose file under `deploy/` is in exactly
- * one of two lists below, keyed by file and service, and the lists name no
+ * one of three lists below, keyed by file and service, and the lists name no
  * service that is not there:
  *
  *  - SWITCHED: it has a default that reports home, and the switch that stops it
@@ -93,13 +91,26 @@
  *  - NO SWITCH: nothing in it reports home, and the row says why. It records the
  *    image's repository, so a different piece of software under the same service
  *    name is a new question.
+ *  - LEFT ON: it reports home and is not switched off yet. The row says what it
+ *    sends and why it is left on, records the image it was read at, and its
+ *    check is what keeps it where no tester is.
  *
  * A service with neither `image` nor `build` is an overlay of the service of the
  * same name in another file beside it; what runs is that service's image, and an
  * overlay may set none of the switches below. The files are read with YAML merge
  * keys applied, as Compose applies them, so a `<<: *anchor` hides nothing.
  *
- * WHAT IS LEFT ON, AND WHERE: the demo's Stalwart (v0.16.10), which
+ * WHAT IS LEFT ON, AND WHERE. The demo's and the development Nextcloud, its
+ * three settings above. A hook that set them false before Apache started was
+ * built on 2026-09-29, and with it the demo's first CalDAV write answered 500
+ * in E2E (managed) #215, the branch's run; #216 on main, which recreated the
+ * same container without the hook, passed. What broke the write, one of the
+ * three or the hook's run itself, is not known. The instance holds fixtures,
+ * never a tester's data, and it is not on live: the LEFT_ON rows hold that. A
+ * follow-up switches them off with a check that the demo's DAV writes still
+ * work.
+ *
+ * And the demo's Stalwart (v0.16.10), which
  * `setup-stalwart.sh` starts with `docker run`, outside every compose file, on
  * the OTA stack every night and in the self-host end-to-end run. In normal mode
  * it fetches its WebUI from `github.com/stalwartlabs/webui/releases/latest` on
@@ -128,8 +139,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -460,57 +470,6 @@ export function caddyProblems(caddyfile: string): string[] {
   return problems;
 }
 
-/** Nextcloud's three switches, each a `config.php` boolean read at `stable34`. */
-export const NEXTCLOUD_SWITCHES = Object.freeze(['updatechecker', 'appstoreenabled', 'has_internet_connection']);
-/** Where the image runs a hook before Apache starts, after its install or upgrade (`entrypoint.sh`, `run_path before-starting`). */
-const NEXTCLOUD_HOOKS = '/docker-entrypoint-hooks.d/before-starting/';
-const NEXTCLOUD_HOOK_SOURCE = 'deploy/compose/nextcloud-no-phone-home.sh';
-
-/**
- * The hook sets each switch once, to the boolean false, with `occ`. A string
- * "false" is true to PHP (`getSystemValueBool` casts it), and the connectivity
- * check compares with `=== false`.
- */
-export function nextcloudHookProblems(script: string): string[] {
-  const lines = script
-    .split('\n')
-    .map((l) => l.replace(/(^|\s)#.*$/, '').trim())
-    .filter(Boolean);
-  const problems: string[] = [];
-  if (!lines.includes('set -euo pipefail')) {
-    problems.push('the hook does not say `set -euo pipefail`, so an occ that fails would not stop the container');
-  }
-  for (const key of NEXTCLOUD_SWITCHES) {
-    const sets = lines.filter((l) => new RegExp(`\\bconfig:system:set\\s+${key}(\\s|$)`).test(l));
-    if (sets.length === 0) problems.push(`${key} is not set, so Nextcloud's own true applies`);
-    else if (sets.length > 1) problems.push(`${key} is set ${sets.length} times; once, to false`);
-    else if (!/^(php\s+\S*occ|occ)\s+config:system:set\s/.test(sets[0]!)) problems.push(`${key}: "${sets[0]}" is not an occ call`);
-    else if (!/\s--type=boolean(\s|$)/.test(sets[0]!) || !/\s--value=false(\s|$)/.test(sets[0]!)) {
-      problems.push(`${key}: "${sets[0]}"; it must be --type=boolean --value=false`);
-    }
-  }
-  return problems;
-}
-
-/** The Nextcloud service runs the hook: mounted from this repository, executable and tracked so, and the image's own entrypoint and command. */
-function nextcloudProblems(svc: Service, entry: Entry): string[] {
-  const problems: string[] = [];
-  if (svc.entrypoint !== undefined) problems.push("an entrypoint is set, and only the image's own runs the hooks");
-  if (svc.command !== undefined) {
-    const first = Array.isArray(svc.command) ? String(svc.command[0]) : String(svc.command).trim().split(/\s+/)[0];
-    if (!/^apache/.test(first ?? '')) problems.push(`the command is ${first}, and the image runs its hooks only before Apache`);
-  }
-  const hooks = mountsOf(svc).filter((m) => m.target.startsWith(NEXTCLOUD_HOOKS) && m.target.endsWith('.sh'));
-  if (hooks.length !== 1) return [...problems, `${hooks.length} hooks are mounted into ${NEXTCLOUD_HOOKS}; one, ${NEXTCLOUD_HOOK_SOURCE}`];
-  const path = normalize(join(dirname(entry.file), hooks[0]!.source));
-  if (path !== NEXTCLOUD_HOOK_SOURCE) return [...problems, `the hook mounted is ${path}, not ${NEXTCLOUD_HOOK_SOURCE}`];
-  if (!existsSync(join(REPO_ROOT, path))) return [...problems, `${path} is not there`];
-  if ((statSync(join(REPO_ROOT, path)).mode & 0o111) === 0) problems.push(`${path} is not executable, and the image skips a hook that is not`);
-  const staged = spawnSync('git', ['ls-files', '-s', path], { cwd: REPO_ROOT, encoding: 'utf8' }).stdout;
-  if (!staged.startsWith('100755 ')) problems.push(`${path} is not in git as 100755 (${staged.split(' ')[0] || 'untracked'}), so a checkout would mount it without its executable bit`);
-  return [...problems, ...nextcloudHookProblems(read(path))];
-}
-
 interface Row {
   /** Exactly the `image:` the file writes, as the default was read at; `build` for our own. */
   readonly readAt: string;
@@ -535,7 +494,8 @@ const STALWART = 'stalwartlabs/stalwart:v0.16.10';
 const NEXTCLOUD_PHONES =
   'its version and PHP version to updates.nextcloud.com, the app store at apps.nextcloud.com, the announcements feed and a ' +
   'connectivity check to four public sites (config.sample.php, Crawler.php, InternetConnectivity.php at stable34); ' +
-  'nextcloud-no-phone-home.sh, a before-starting hook, sets updatechecker, appstoreenabled and has_internet_connection false';
+  'updatechecker, appstoreenabled and has_internet_connection are not switched off yet: a hook that set them false made ' +
+  "the demo's first CalDAV write answer 500 in E2E (managed) #215, and it holds fixtures, never a tester's data";
 
 export const SWITCHED: Readonly<Record<string, Row>> = {
   'deploy/compose/managed.yml:trigger-api': {
@@ -574,16 +534,6 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
     readAt: MAILPIT,
     why: "a release check to GitHub when its web page asks for the server's info (internal/stats/stats.go at v1.31.1)",
     holds: (svc) => exactly(environmentOf(svc), 'MP_DISABLE_VERSION_CHECK', 'true'),
-  },
-  'deploy/compose/managed.yml:nextcloud': {
-    readAt: NEXTCLOUD,
-    why: `${NEXTCLOUD_PHONES}; the demo's DAV target, on the OTA stack every night`,
-    holds: nextcloudProblems,
-  },
-  'deploy/compose/dev.yml:nextcloud': {
-    readAt: NEXTCLOUD,
-    why: `${NEXTCLOUD_PHONES}; the development and self-host end-to-end DAV target`,
-    holds: nextcloudProblems,
   },
   'deploy/compose/managed.yml:trigger-tls': {
     readAt: 'caddy:2-alpine',
@@ -648,6 +598,57 @@ export const NO_SWITCH: Readonly<Record<string, Row>> = {
   },
 };
 
+/** The scripts that bring live up or deploy to it; neither may start the demo. */
+const LIVE_SCRIPTS = Object.freeze(['stand-up-live.sh', 'deploy-live.sh']);
+
+/**
+ * The bring-up starts Nextcloud only for the demo, and neither live script lets
+ * the demo start. `bootstrap` is `bootstrap-managed.sh`; `live` maps each of
+ * `LIVE_SCRIPTS` to its text.
+ */
+export function bringUpProblems(bootstrap: string, live: Readonly<Record<string, string>>): string[] {
+  const problems: string[] = [];
+  const list = /\n {2}local services=\(\n([\s\S]*?)\n {2}\)\n/.exec(bootstrap)?.[1];
+  if (list === undefined) problems.push("bootstrap-managed.sh's phase_app has no `local services=(` list to read");
+  else if (/\bnextcloud\b/.test(list.replace(/#.*$/gm, ''))) problems.push("nextcloud is in bootstrap-managed.sh's default services, so every stack starts it");
+  if (!bootstrap.includes('[ "$WITH_DEMO" -eq 1 ] && services+=(nextcloud)')) {
+    problems.push('bootstrap-managed.sh no longer adds nextcloud only with --with-demo');
+  }
+  for (const script of LIVE_SCRIPTS) {
+    if (!/if \[ "\$arg" = --with-demo \]; then\n\s+refuse /.test(live[script] ?? '')) {
+      problems.push(`${script} no longer refuses --with-demo, so live could start the demo's Nextcloud`);
+    }
+  }
+  return problems;
+}
+
+/** The scripts that bring a managed stack up; none may name `dev.yml`, whose Nextcloud is left on. */
+const MANAGED_SCRIPTS = Object.freeze(['bootstrap-managed.sh', ...LIVE_SCRIPTS]);
+
+/**
+ * Known to report home, and not switched off yet. Each row's check keeps it
+ * where no tester is; moving it to SWITCHED is the way out of this list.
+ */
+export const LEFT_ON: Readonly<Record<string, Row>> = {
+  'deploy/compose/managed.yml:nextcloud': {
+    readAt: NEXTCLOUD,
+    why: `${NEXTCLOUD_PHONES}; the demo's DAV target, on the OTA stack every night, started only with --with-demo, which both live scripts refuse`,
+    holds: () =>
+      bringUpProblems(
+        read('deploy/compose/bootstrap-managed.sh'),
+        Object.fromEntries(LIVE_SCRIPTS.map((s) => [s, read(`deploy/compose/${s}`)])),
+      ),
+  },
+  'deploy/compose/dev.yml:nextcloud': {
+    readAt: NEXTCLOUD,
+    why: `${NEXTCLOUD_PHONES}; the development and self-host end-to-end DAV target, which no managed bring-up starts`,
+    holds: () =>
+      MANAGED_SCRIPTS.filter((s) => read(`deploy/compose/${s}`).includes('dev.yml')).map(
+        (s) => `${s} names dev.yml, so a managed stack could start the development Nextcloud`,
+      ),
+  },
+};
+
 /** Every key any switch reads, so an overlay cannot set one back. */
 const SWITCH_KEYS = [
   'TRIGGER_TELEMETRY_DISABLED',
@@ -699,16 +700,16 @@ describe('the reading is not vacuous', () => {
 
   it('every row names a service that is there', () => {
     const keys = new Set(running.map((e) => e.key));
-    const stale = [...Object.keys(SWITCHED), ...Object.keys(NO_SWITCH)].filter((k) => !keys.has(k));
+    const stale = [...Object.keys(SWITCHED), ...Object.keys(NO_SWITCH), ...Object.keys(LEFT_ON)].filter((k) => !keys.has(k));
     expect(stale, 'a row for a service no compose file has; remove it, or fix its key').toEqual([]);
   });
 });
 
 describe('every service is in exactly one list, and says why', () => {
-  it('each running service is switched or needs no switch, with its reason', () => {
+  it('each running service is switched, needs no switch, or is left on, with its reason', () => {
     const verdicts = running.map((e) => ({
       key: e.key,
-      lists: [SWITCHED, NO_SWITCH].filter((t) => e.key in t).length,
+      lists: [SWITCHED, NO_SWITCH, LEFT_ON].filter((t) => e.key in t).length,
     }));
     expect(
       verdicts.filter((v) => v.lists !== 1).map((v) => `${v.key} is in ${v.lists} lists`),
@@ -717,7 +718,7 @@ describe('every service is in exactly one list, and says why', () => {
   });
 
   it('each reason is a reason', () => {
-    for (const [key, row] of Object.entries({ ...SWITCHED, ...NO_SWITCH })) {
+    for (const [key, row] of Object.entries({ ...SWITCHED, ...NO_SWITCH, ...LEFT_ON })) {
       expect(row.why.length, `${key} gives no reason`).toBeGreaterThan(30);
     }
   });
@@ -746,6 +747,17 @@ describe('a service that needs no switch is still that software, and the fact ho
       expect(entry, `${key} is gone`).toBeDefined();
       expect(repositoryOf(imageOf(entry.service)), `${key} is other software now; read what it sends by default`).toBe(row.readAt);
       expect(row.holds?.(entry.service, entry) ?? [], key).toEqual([]);
+    });
+  }
+});
+
+describe('what is left on is left on where no tester is', () => {
+  for (const [key, row] of Object.entries(LEFT_ON)) {
+    it(key, () => {
+      const entry = running.find((e) => e.key === key)!;
+      expect(entry, `${key} is gone`).toBeDefined();
+      expect(imageOf(entry.service), `${key}'s defaults were read at ${row.readAt}; re-read them at the new pin`).toBe(row.readAt);
+      expect(row.holds!(entry.service, entry), `${key}: ${row.why}`).toEqual([]);
     });
   }
 });
@@ -887,25 +899,6 @@ describe('the checks refuse what a regression would write', () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  it('Nextcloud: a switch missing, true, a string, twice, or without set -e', () => {
-    const good = [
-      '#!/bin/bash',
-      'set -euo pipefail',
-      'occ() { php /var/www/html/occ "$@"; }',
-      'occ config:system:set updatechecker --type=boolean --value=false',
-      'occ config:system:set appstoreenabled --type=boolean --value=false',
-      'occ config:system:set has_internet_connection --type=boolean --value=false',
-      '',
-    ].join('\n');
-    expect(nextcloudHookProblems(good)).toEqual([]);
-    expect(nextcloudHookProblems(good.replace('occ config:system:set appstoreenabled', '# occ config:system:set appstoreenabled'))).toHaveLength(1);
-    expect(nextcloudHookProblems(good.replace('updatechecker --type=boolean --value=false', 'updatechecker --type=boolean --value=true'))).toHaveLength(1);
-    expect(nextcloudHookProblems(good.replace('has_internet_connection --type=boolean --value=false', 'has_internet_connection --value=false'))).toHaveLength(1);
-    expect(nextcloudHookProblems(`${good}occ config:system:set updatechecker --type=boolean --value=true\n`)).toHaveLength(1);
-    expect(nextcloudHookProblems(good.replace('set -euo pipefail', ''))).toHaveLength(1);
-    expect(nextcloudHookProblems(good.replace('occ config:system:set updatechecker', 'echo config:system:set updatechecker'))).toHaveLength(1);
-  });
-
   it('Caddy: a site without `tls internal`, and ACME', () => {
     const good = '{\n\tdefault_sni {$H}\n}\n\n{$H}:3443 {\n\ttls internal\n\treverse_proxy x:3000\n}\n';
     expect(caddyProblems(good)).toEqual([]);
@@ -914,36 +907,24 @@ describe('the checks refuse what a regression would write', () => {
     expect(caddyProblems(`${good}\nsecond.example:443 {\n\treverse_proxy y:80\n}\n`)).toHaveLength(1);
     expect(caddyProblems(good.replace('default_sni {$H}', 'email ops@example.invalid'))).toHaveLength(1);
   });
-});
 
-describe("Nextcloud's hook, run against a stand-in php", () => {
-  function runHook(phpExit: number): { status: number | null; calls: string[]; stderr: string } {
-    const dir = mkdtempSync(join(tmpdir(), 'nextcloud-hook-'));
-    const bin = join(dir, 'bin');
-    mkdirSync(bin);
-    const log = join(dir, 'calls');
-    writeFileSync(log, '');
-    writeFileSync(join(bin, 'php'), `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> "$CALLS"\nexit ${phpExit}\n`);
-    chmodSync(join(bin, 'php'), 0o755);
-    const env = { ...(process.env as Record<string, string>), PATH: `${bin}:${process.env.PATH ?? ''}`, CALLS: log };
-    // As the image runs it: the file itself, by its shebang.
-    const r = spawnSync(join(REPO_ROOT, NEXTCLOUD_HOOK_SOURCE), [], { encoding: 'utf8', env });
-    const calls = existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(Boolean) : [];
-    rmSync(dir, { recursive: true, force: true });
-    return { status: r.status, calls, stderr: r.stderr };
-  }
-
-  it('sets the three switches to the boolean false through occ, and exits 0', () => {
-    const r = runHook(0);
-    expect(r.status, r.stderr).toBe(0);
-    expect(r.calls).toEqual(
-      NEXTCLOUD_SWITCHES.map((k) => `/var/www/html/occ config:system:set ${k} --type=boolean --value=false`),
-    );
-  });
-
-  it('stops at the first occ that fails, so the container does not start with a switch unset', () => {
-    const r = runHook(1);
-    expect(r.status).not.toBe(0);
-    expect(r.calls).toHaveLength(1);
+  it('Nextcloud left on: in the default bring-up, not only with --with-demo, or a live script that lets the demo start', () => {
+    const bootstrap = [
+      'phase_app() {',
+      '  local services=(',
+      '    postgres api web',
+      '    # nextcloud is added below, for the demo only',
+      '  )',
+      '  [ "$WITH_DEMO" -eq 1 ] && services+=(nextcloud)',
+      '}',
+      '',
+    ].join('\n');
+    const refuses = 'for arg in "$@"; do\n  if [ "$arg" = --with-demo ]; then\n    refuse "--with-demo."\n  fi\ndone\n';
+    const live = { 'stand-up-live.sh': refuses, 'deploy-live.sh': refuses };
+    expect(bringUpProblems(bootstrap, live)).toEqual([]);
+    expect(bringUpProblems(bootstrap.replace('postgres api web', 'postgres api web nextcloud'), live)).toHaveLength(1);
+    expect(bringUpProblems(bootstrap.replace('  [ "$WITH_DEMO" -eq 1 ] && services+=(nextcloud)\n', ''), live)).toHaveLength(1);
+    expect(bringUpProblems(bootstrap, { ...live, 'deploy-live.sh': refuses.replace('--with-demo ]', '--demo ]') })).toHaveLength(1);
+    expect(bringUpProblems(bootstrap, { 'stand-up-live.sh': refuses })).toHaveLength(1);
   });
 });

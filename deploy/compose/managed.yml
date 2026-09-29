@@ -1477,8 +1477,10 @@ services:
   # The demo's DAV target, brought up with the OTA stack every night
   # (--with-demo, which both live scripts refuse). Its update check, app store,
   # announcements feed and connectivity check are on by default
-  # (config.sample.php at stable34), and are switched off by the hook mounted
-  # below (workplan 0139, 2026-09-29).
+  # (config.sample.php at stable34), and are NOT switched off yet: a hook that
+  # set them false made the demo's first CalDAV write answer 500 (workplan
+  # 0139, 2026-09-29). It holds fixtures, never a tester's data.
+  # `scripts/a-service-that-phones-home.unit.test.ts` lists it as left on.
   nextcloud:
     image: nextcloud:34-apache
     container_name: ${COMPOSE_PROJECT_NAME}-nextcloud
@@ -1553,15 +1555,6 @@ services:
       # `opcache.jit=1255`, so anything sorting before it is read and then
       # overwritten, silently doing nothing.
       - ./nextcloud-php.ini:/usr/local/etc/php/conf.d/zz-ownpace-no-jit.ini:ro
-      # NOTHING TO NEXTCLOUD'S SERVERS (workplan 0139, 2026-09-29). The image
-      # runs this before Apache, at every start, and it sets updatechecker,
-      # appstoreenabled and has_internet_connection to false in config.php.
-      # A hook rather than a *.config.php mounted into config/: that would make
-      # config/ non-empty before the first install, and the entrypoint would
-      # then skip copying the image's own config files, smtp.config.php
-      # (SMTP_HOST above) among them. The script's header has the detail;
-      # `scripts/a-service-that-phones-home.unit.test.ts` reads and runs it.
-      - ./nextcloud-no-phone-home.sh:/docker-entrypoint-hooks.d/before-starting/ownpace-no-phone-home.sh:ro
     # The one probe here that is not an inference: `setup-nextcloud-users.sh`
     # has been running `docker exec <nextcloud> curl … http://localhost/status.php`
     # against this image on the Spark since the demo existed, so both the binary
