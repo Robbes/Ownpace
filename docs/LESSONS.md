@@ -378,6 +378,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/web/src/AppRoutes.tsx`
 
+- [a-version-you-can-see-before-you-sign-in](../scripts/a-version-you-can-see-before-you-sign-in.unit.test.ts) — THE BUILD STAMP WAS ON EVERY PAGE EXCEPT THE ONES YOU CAN SEE.
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 
 ### `apps/web/src/a-permission-described-as-it-is.unit.test.tsx`
@@ -3669,6 +3670,10 @@ Reads:
 ### [a-version-you-can-see-before-you-sign-in](../scripts/a-version-you-can-see-before-you-sign-in.unit.test.ts)
 
 THE BUILD STAMP WAS ON EVERY PAGE EXCEPT THE ONES YOU CAN SEE.
+
+Reads:
+
+- `apps/web/src/AppRoutes.tsx`
 
 ### [a-way-back-before-every-upgrade](../scripts/a-way-back-before-every-upgrade.unit.test.ts)
 
