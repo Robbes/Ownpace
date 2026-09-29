@@ -2333,7 +2333,8 @@ true.
 
 The demo's Stalwart (v0.16.10), which
 `setup-stalwart.sh` starts with `docker run`, outside every compose file, on
-the OTA stack every night and in the self-host end-to-end run. In normal mode
+the OTA stack every night, in the self-host end-to-end run, and on a
+developer's machine beside `deploy/compose/dev.yml`. In normal mode
 it downloads its WebUI from `github.com/stalwartlabs/webui/releases/latest` on
 first start and every 30 days, its spam-filter rules from
 `github.com/stalwartlabs/spam-filter/releases/latest`, and an ASN and country
@@ -2342,13 +2343,19 @@ and `SpamSettings` in `crates/registry/src/schema/structs_impl.rs`, at
 v0.16.10). They are downloads rather than reports about anybody. They are
 objects in its database, not in `config.json`, so switching them off is new
 objects in the provisioning plan, a change that has to be run and watched on
-the machine (`docs/stalwart-integration-fix.md`). **Left on, the owner's
-choice of 2026-09-29** (workplan 0139). Asked whether to switch them off or
+the machine (`docs/stalwart-integration-fix.md`). **Left on, as the owner
+preferred on 2026-09-29** (workplan 0139). Asked whether to switch them off or
 keep them, the owner wrote *"Do we need it. And where? Perhaps not in live but
-yes in OTA?"*, and that is where this Stalwart already runs: on a managed stack
-only the bring-up's `--with-demo` starts it, which both live scripts refuse,
-and it holds demo fixtures only. So it stays as it is on the OTA stack and in
-the self-host end-to-end run, and never runs on live.
+yes in OTA?"* The Stalwart itself is needed: it is the demo's mail source and
+target, which the nightly gate migrates between. Its three downloads are not:
+nothing here uses its WebUI, spam-filter rules or ASN database (accounts are
+provisioned with `stalwart-cli`, and no SMTP port is published). Where: the
+places above, which hold fixtures only, and not live. The scripted bring-up
+starts it only in its demo phase and only with `--with-demo`, which
+`deploy-live.sh` and `stand-up-live.sh` refuse, and `bootstrap-managed.sh`
+refuses on live's `.env` (`scripts/a-demo-on-a-real-address.unit.test.ts`).
+Run by hand, `setup-managed-demo.sh` is not refused on live's `.env` yet; that
+refusal is a follow-up in workplan 0139. So the downloads stay on, as they are.
 
 The deploy CLI, which runs on the host, was read only this far: at 4.5.16 its
 `src/telemetry/tracing.ts` is gone, and no exporter of its own was found. The
