@@ -265,6 +265,9 @@ herkenbaar is.
 
 Een verhuizing raakt mensen die zich nooit bij ons hebben aangemeld. Dit bewaren we over hen.
 
+- **De mensen voor wie u migreert.** Om iemands migraties bij elkaar te houden, geeft u die persoon
+  een naam, en als u wilt een e-mailadres voor de toegangslinks. We bewaren beide tot u die persoon
+  verwijdert of uw gegevens worden gewist.
 - **Een gezinslid van wie u het account verhuist.** Stuurt u die persoon een toegangslink, dan
   logt die zelf in bij de eigen aanbieder en geeft die Ownpace zelf toegang, vanaf een pagina
   die zegt wie het vroeg, van welk account en naar waar. Wij bewaren die toegang (versleuteld,
@@ -535,6 +538,7 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
 | Het verhuisregister (§4.2), en wat elke verhuizing daarnaast bewaart, zoals de lijst van wat er gedeeld was (§4.6) | Tot u de verhuizing verwijdert; dan mee verwijderd. Anders tot uw gegevens worden gewist. |
 | Preflight-tellingen | Bij de verhuizing waarvoor ze zijn geteld: tot u die verwijdert, of tot uw gegevens worden gewist. |
 | Wat bij uw organisatie hoort en niet bij één verhuizing: de leden en uitnodigingen, de distributielijsten die een verhuizing vond, en het auditlog van wie wat deed en wanneer | Tot uw gegevens worden gewist, ook nadat u de verhuizing verwijdert die ze vond. |
+| De mensen voor wie u migreert: ieders naam, en een e-mailadres als u dat gaf (§4.6) | Tot u die persoon verwijdert, of tot uw gegevens worden gewist. Het verwijderen van een migratie verwijdert de persoon niet. |
 | Het overzicht van elke ronde: wanneer die liep, en wat die telde | Tijdens de Alpha: tot uw gegevens worden gewist. |
 | De logregels van een ronde | 60 dagen. |
 | De eigen fouten en waarschuwingen van de app (een categorie en een referentie, geen tekst) | 30 dagen. |

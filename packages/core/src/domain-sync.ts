@@ -96,17 +96,47 @@ interface PhaseTiming {
   ledgerReadMs: number;
   ledgerWriteMs: number;
   hashMs: number;
+  /**
+   * THE WORK DONE PER COLLECTION, which had no clock (2026-09-28): a Dropbox
+   * pass copied nothing for 40 of its 50 minutes and nothing said where they
+   * went. Wall time, since collections are taken one after another.
+   */
+  listCollectionsMs: number;
+  collectionSetupMs: number;
+  collectionListingMs: number;
+  collectionsOpened: number;
+  /** `Date.now()` at the first write that created or updated an item. */
+  firstWriteAt?: number;
   startedAt: number;
 }
 
 function startPhaseTiming(): PhaseTiming {
-  return { fetchMs: 0, upsertMs: 0, ledgerReadMs: 0, ledgerWriteMs: 0, hashMs: 0, startedAt: Date.now() };
+  return {
+    fetchMs: 0,
+    upsertMs: 0,
+    ledgerReadMs: 0,
+    ledgerWriteMs: 0,
+    hashMs: 0,
+    listCollectionsMs: 0,
+    collectionSetupMs: 0,
+    collectionListingMs: 0,
+    collectionsOpened: 0,
+    startedAt: Date.now(),
+  };
 }
 
 /** Time `fn` into `bucket` when timing is on; call it untouched when off. */
 async function timed<T>(
   phases: PhaseTiming,
-  bucket: 'fetchMs' | 'upsertMs' | 'ledgerReadMs' | 'ledgerWriteMs' | 'hashMs',
+  bucket:
+    | 'fetchMs'
+    | 'upsertMs'
+    | 'ledgerReadMs'
+    | 'ledgerWriteMs'
+    | 'hashMs'
+    | 'listCollectionsMs'
+    | 'collectionSetupMs'
+    | 'collectionListingMs',
   fn: () => Promise<T>,
 ): Promise<T> {
   const t0 = performance.now();
@@ -129,6 +159,11 @@ function summarise(phases: PhaseTiming, scanned: number): PassMetrics {
     ledgerMs: phases.ledgerReadMs + phases.ledgerWriteMs,
     hashMs: phases.hashMs,
     overlap: busy / wallMs,
+    listCollectionsMs: phases.listCollectionsMs,
+    collectionSetupMs: phases.collectionSetupMs,
+    collectionListingMs: phases.collectionListingMs,
+    collectionsOpened: phases.collectionsOpened,
+    ...(phases.firstWriteAt !== undefined ? { firstWriteAfterMs: phases.firstWriteAt - phases.startedAt } : {}),
   };
 }
 
@@ -148,6 +183,10 @@ function reportPhases(phases: PhaseTiming, domain: string, scanned: number): voi
       `ledger-read ${(phases.ledgerReadMs / 1000).toFixed(1)}s | ` +
       `ledger-write ${(phases.ledgerWriteMs / 1000).toFixed(1)}s | ` +
       `hash ${(phases.hashMs / 1000).toFixed(1)}s | ` +
+      `collections: list ${(phases.listCollectionsMs / 1000).toFixed(1)}s, ` +
+      `${phases.collectionsOpened} opened, set up ${(phases.collectionSetupMs / 1000).toFixed(1)}s, ` +
+      `listed ${(phases.collectionListingMs / 1000).toFixed(1)}s | ` +
+      `first write ${phases.firstWriteAt === undefined ? 'none' : `${((phases.firstWriteAt - phases.startedAt) / 1000).toFixed(1)}s in`} | ` +
       // The number that matters most: how much work was actually in flight at
       // once. Near `concurrency` means the pool is working and some phase is
       // genuinely slow; near 1 means we are serial and the pool is a lie.
@@ -1167,7 +1206,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   stopIfPastDeadline();
 
   const listedNothing = paused();
-  const folders = listedNothing ? [] : await listFolders();
+  const folders = listedNothing ? [] : await timed(phases, 'listCollectionsMs', () => listFolders());
   // Stopped before listing a single folder: nothing was looked at, so nothing
   // may be concluded from what was not seen.
   if (listedNothing) fullyEnumerated = false;
@@ -1181,7 +1220,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       unfinishedCollections.add(collectionPathOf(folder));
       continue;
     }
-    const collectionId = await ensureCollection(folder);
+    const collectionId = await timed(phases, 'collectionSetupMs', () => ensureCollection(folder));
+    phases.collectionsOpened += 1;
     // Hoisted: this is the source collection PATH (as opposed to `collectionId`,
     // the target's handle for it), and it is now needed three times — for the
     // cursor, for the ledger row, and for move detection.
@@ -1202,7 +1242,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // cheaper price than two subtly different names for the same collection.
     const collectionPath = collectionPathOf(folder);
     const prev = cursors ? await cursors.get(tenantId, mappingId, collectionPath) : undefined;
-    const { items, nextCursor, removed, listedElsewhere } = await listSince(folder, prev);
+    const { items, nextCursor, removed, listedElsewhere } = await timed(phases, 'collectionListingMs', () =>
+      listSince(folder, prev),
+    );
     const seenHere = seenByCollection.get(collectionPath) ?? new Set<string>();
     seenByCollection.set(collectionPath, seenHere);
 
@@ -1224,7 +1266,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // cursor-limited pass still knows what is THERE and not only what changed.
     if (listCollectionKeys) {
       try {
-        for (const k of await listCollectionKeys(folder)) seenHere.add(k);
+        for (const k of await timed(phases, 'collectionListingMs', () => listCollectionKeys(folder))) {
+          seenHere.add(k);
+        }
       } catch (err) {
         // Degrade the DETECTOR, not the pass. This listing moves no data — it
         // only decides whether we can distinguish a move from a deletion — and
@@ -1711,6 +1755,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         );
 
         consecutiveFailures = 0;
+        if ((rewriteOf || result.created) && phases.firstWriteAt === undefined) phases.firstWriteAt = Date.now();
         if (rewriteOf) updated += 1;
         else if (result.created) {
           created += 1;
