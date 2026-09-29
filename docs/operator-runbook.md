@@ -849,8 +849,8 @@ docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrat
   a version they accepted there.
 - **Erasure**: the rows go with the organisation (`PURGED_TABLES`), because
   privacy §9 keeps the account, which §4.4 says includes this record, until the
-  data is erased. Whether to keep the record after erasure instead is 0139 open
-  question 4, not answered yet.
+  data is erased. That is the owner's answer to 0139 open question 4, on
+  2026-09-29: nothing of it is kept after an erasure.
 
 ## Sign-in accounts nobody let in
 

@@ -2342,11 +2342,18 @@ and `SpamSettings` in `crates/registry/src/schema/structs_impl.rs`, at
 v0.16.10). They are downloads rather than reports about anybody. They are
 objects in its database, not in `config.json`, so switching them off is new
 objects in the provisioning plan, a change that has to be run and watched on
-the machine (`docs/stalwart-integration-fix.md`); it is put to the owner in
-workplan 0139. The deploy CLI, which runs on the host, was read only this far:
-at 4.5.16 its `src/telemetry/tracing.ts` is gone, and no exporter of its own
-was found. The integration tests' throwaway Nextcloud and Stalwart, which
-Testcontainers starts on a CI runner, are not switched.
+the machine (`docs/stalwart-integration-fix.md`). **Left on, the owner's
+choice of 2026-09-29** (workplan 0139). Asked whether to switch them off or
+keep them, the owner wrote *"Do we need it. And where? Perhaps not in live but
+yes in OTA?"*, and that is where this Stalwart already runs: on a managed stack
+only the bring-up's `--with-demo` starts it, which both live scripts refuse,
+and it holds demo fixtures only. So it stays as it is on the OTA stack and in
+the self-host end-to-end run, and never runs on live.
+
+The deploy CLI, which runs on the host, was read only this far: at 4.5.16 its
+`src/telemetry/tracing.ts` is gone, and no exporter of its own was found. The
+integration tests' throwaway Nextcloud and Stalwart, which Testcontainers
+starts on a CI runner, are not switched.
 
 `scripts/a-service-that-phones-home.unit.test.ts` puts every service of every
 compose file under `deploy/` in one of three lists (switched, no switch, or left

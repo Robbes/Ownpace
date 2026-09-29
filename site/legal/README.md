@@ -321,9 +321,9 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   one commit.** **Nobody is asked while any text is a draft** (`LEGAL_DRAFTS`, review of
   2026-09-29): on live, asking starts with the release that carries the final texts (*To build or
   to do*, below). The record is kept with the account and erased with it, and a member who leaves
-  keeps theirs until then (privacy §9's row; 0139 open question 4, the proposal until the owner
-  answers). Not built: Alpha conditions §11's *"your migrations carry on under the new conditions
-  only once you have accepted them"*, for after the Alpha.
+  keeps theirs until then (privacy §9's row; 0139 open question 4, answered 2026-09-29: erased
+  with the organisation). Not built: Alpha conditions §11's *"your migrations carry on under the
+  new conditions only once you have accepted them"*, for after the Alpha.
 
 **To build or to do**, before the first invitation unless it says otherwise:
 

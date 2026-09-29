@@ -53,9 +53,11 @@ set -euo pipefail
 #                                affects stalwart-cli; the readiness check below always goes
 #                                through `docker exec`, so it needs no such override.
 #
-# WHAT THIS STALWART FETCHES FROM OUTSIDE, LEFT ON AND PUT TO THE OWNER (workplan 0139,
-# 2026-09-29; the owner's ops-telemetry answer was "Switch it off everywhere"). In normal
-# mode (phase 2), v0.16.10 inserts three defaults into its database
+# WHAT THIS STALWART FETCHES FROM OUTSIDE, LEFT ON: THE OWNER'S CHOICE OF 2026-09-29 (workplan
+# 0139). The owner's ops-telemetry answer was "Switch it off everywhere"; asked about these
+# three, the owner wrote "Do we need it. And where? Perhaps not in live but yes in OTA?", and
+# they stay where this Stalwart already runs (below). In normal mode (phase 2), v0.16.10
+# inserts three defaults into its database
 # (crates/common/src/manager/defaults.rs, SpamSettings in
 # crates/registry/src/schema/structs_impl.rs):
 #   - its WebUI, downloaded from github.com/stalwartlabs/webui/releases/latest on first
@@ -66,7 +68,11 @@ set -euo pipefail
 # and jsDelivr's CDN). They are objects in the datastore, never config.json
 # (docs/stalwart-integration-fix.md), and switching them off means new objects in the
 # provisioning plan, which nothing here could run and prove. This runs on the OTA stack
-# every night (the demo) and in the self-host end-to-end run.
+# every night (the demo) and in the self-host end-to-end run, and never on live: on a
+# managed stack only bootstrap-managed.sh's --with-demo starts it (setup-managed-demo.sh),
+# which deploy-live.sh refuses, and so does bootstrap-managed.sh on live's .env. It holds
+# demo fixtures only. So the downloads stay on there, as they are, and this Stalwart stays
+# off live.
 # `scripts/a-service-that-phones-home.unit.test.ts` pins the version they were read at, and
 # docs/managed-bring-up.md, "Nothing phones home", names them.
 
