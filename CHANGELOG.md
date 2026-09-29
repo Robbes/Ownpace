@@ -4,6 +4,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Fixed
+
+- **A pause is heard inside a running pass** (workplan 0022 T2, 2026-09-29): pressing Pause,
+  taking a grant back, closing the organisation or stopping one data type now stops a pass
+  that is already copying within about fifteen seconds, after what it is copying at that
+  moment, on both editions. It used to wait for the pass's own deadline, up to fifty minutes.
+
 ## [0.2.0-alpha.1] - 2026-09-29
 
 This section lists changes only up to mid-August 2026: the newest date it

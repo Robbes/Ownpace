@@ -1059,9 +1059,10 @@ so a reopen needs nothing restored.
 - **No new pass.** The sync tick starts nothing for a closed organisation, in
   any state its migrations are in: active, in the continuous lane, a cutover
   still in its grace period, or a data type kept in the lane.
-- **A pass under way stops** before its next data type, before it builds any
-  credential, and its run log says the organisation was closed (the halt
-  `organisation_closed`). It ends without an error, so the plane does not retry
+- **A pass under way stops** within about fifteen seconds of the close, once
+  the items it is copying at that moment are written; one between data types
+  stops before it builds any credential. Its run log says the organisation was
+  closed (the halt `organisation_closed`). It ends without an error, so the plane does not retry
   it. This is what stops a pass the tick queued in the minute before the close,
   and a retry. The close asks the orchestrator to cancel only the runs whose
   rows say `running` or `queued` (`passesStopped`), and a pass has a row only

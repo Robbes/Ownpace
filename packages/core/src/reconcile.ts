@@ -248,6 +248,9 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     // sees created: 0 with no reason would read a pause as a stall.
     ...(result.budgetPause ? { budgetPause: result.budgetPause } : {}),
     ...(result.deadlinePause ? { deadlinePause: result.deadlinePause } : {}),
+    // And the stop it was told to make (2026-09-29). Dropped here, a mail pass
+    // the owner paused would reach its dispatcher looking finished.
+    ...(result.haltPause ? { haltPause: result.haltPause } : {}),
   };
 };
 

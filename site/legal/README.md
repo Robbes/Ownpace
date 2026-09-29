@@ -352,9 +352,11 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   export until the purge. Work already running when the account closes is not all stopped. The
   close asks the orchestrator to cancel only the runs whose row names the orchestrator's run,
   which only a sync pass records, and a request that fails is only logged
-  (`apps/api/src/close-account.ts`). A sync pass the cancel did not stop, or a discovery, reads
-  to the end of the data type it is on. A verification or a confirmation already running reads
-  the accounts to its end, with the readers it built before the close. To build: those runs
+  (`apps/api/src/close-account.ts`). A sync pass the cancel did not stop hears the close from
+  inside the data type it is on and stops within about fifteen seconds, after what it is
+  copying at that moment (2026-09-29); a discovery still reads to the end of the data type it
+  is on. A verification or a confirmation already running reads the accounts to its end, with
+  the readers it built before the close. To build: those runs
   record the orchestrator's reference and the close cancels them too, or they check the close
   between steps. Or the owner rewords the sentence to what the code does.
 - *The copy made right before an update, never longer than 7 days* (privacy §9, Alpha

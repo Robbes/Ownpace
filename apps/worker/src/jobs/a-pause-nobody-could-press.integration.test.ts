@@ -15,6 +15,13 @@
  * can be quietly wrong: the predicate it applies, and the rows it is allowed
  * to see.
  *
+ * AND INSIDE ONE (2026-09-29). Between domains was not enough: a Pause
+ * pressed during a file pass waited for that pass's own deadline, up to fifty
+ * minutes, while the writes went on. Each data type's pass is now handed
+ * `whyThisDataTypeStops` and asks it from inside, by its own clock; the last
+ * block below runs it under the same role and the same row security, for each
+ * of the doors that stop a pass.
+ *
  * **Why a database and not a fake.** The read has no `tenant_id` in its WHERE
  * clause — it is scoped by RLS, through `withTenant`. A fake `db` would answer
  * whatever it was told and prove nothing about either half. So the seed runs
@@ -33,7 +40,7 @@ import { sql } from 'drizzle-orm';
 import { Pool } from 'pg';
 import { createPgDb } from '@openmig/ledger';
 import { PASS_RUNNING_STATES, runsPasses, asTenantId, asMappingId } from '@openmig/shared';
-import { mappingStillRuns, whyThePassStops } from './stopping-a-pass.ts';
+import { mappingStillRuns, whyThePassStops, whyThisDataTypeStops } from './stopping-a-pass.ts';
 
 const PG_CONNECTION_STRING = process.env.TEST_DATABASE_URL;
 if (!PG_CONNECTION_STRING) {
@@ -176,4 +183,61 @@ describe('a pass finds out that it was paused', () => {
       await mappingStillRuns(workerPool, asTenantId(OTHER_TENANT), asMappingId(MAPPING)),
     ).toBe(false);
   });
+
+  it('answers a running pass, from inside a data type, why it must stop (2026-09-29)', async () => {
+    // The question a data type's pass asks every PASS_REREAD_EVERY_MS: the
+    // between-types answer, as one reason or null. Asked as app_user, so the
+    // rows it reads are the rows row security lets the pass see.
+    const ask = (domain: string) =>
+      whyThisDataTypeStops(workerPool, asTenantId(TENANT), asMappingId(MAPPING), domain);
+    await setStatus('active');
+    expect(await ask('file')).toBeNull();
+
+    await setStatus('paused');
+    try {
+      expect(await ask('file')).toBe('no_longer_runs');
+    } finally {
+      await setStatus('active');
+    }
+
+    await owner.execute(sql`UPDATE mailbox_mapping SET grant_withdrawn_at = now() WHERE id = ${MAPPING}`);
+    try {
+      expect(await ask('file')).toBe('grant_withdrawn');
+    } finally {
+      await owner.execute(sql`UPDATE mailbox_mapping SET grant_withdrawn_at = NULL WHERE id = ${MAPPING}`);
+    }
+
+    await owner.execute(sql`UPDATE tenant SET status = 'closed' WHERE id = ${TENANT}`);
+    try {
+      expect(await ask('file')).toBe('organisation_closed');
+    } finally {
+      await owner.execute(sql`UPDATE tenant SET status = 'active' WHERE id = ${TENANT}`);
+    }
+
+    // Its owner stopped this data type alone: the file pass stops, the mail
+    // pass beside it goes on.
+    await owner.execute(sql`
+      INSERT INTO scope_selection (tenant_id, mapping_id, domain, included)
+      VALUES (${TENANT}, ${MAPPING}, 'file', true), (${TENANT}, ${MAPPING}, 'email', true)
+      ON CONFLICT DO NOTHING`);
+    await owner.execute(sql`
+      INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state, first_activated_at, stopped_at)
+      VALUES (${TENANT}, ${MAPPING}, 'file', 'active', now(), now()),
+             (${TENANT}, ${MAPPING}, 'email', 'active', now(), NULL)
+      ON CONFLICT DO NOTHING`);
+    try {
+      expect(await ask('file')).toBe('stopped_by_its_owner');
+      expect(await ask('email')).toBeNull();
+    } finally {
+      await owner.execute(sql`DELETE FROM path_lifecycle WHERE mapping_id = ${MAPPING}`);
+      await owner.execute(sql`DELETE FROM scope_selection WHERE mapping_id = ${MAPPING}`);
+    }
+    expect(await ask('file')).toBeNull();
+
+    // And another tenant's migration is no migration at all.
+    expect(await whyThisDataTypeStops(workerPool, asTenantId(OTHER_TENANT), asMappingId(MAPPING), 'file')).toBe(
+      'no_longer_runs',
+    );
+  });
 });
+

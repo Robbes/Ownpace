@@ -46,7 +46,10 @@ import {
   contactNaturalKeyHash,
   fileNaturalKeyHash,
   budgetPauseToReason,
+  HALT_IN_WORDS,
   type BudgetPause,
+  type HaltPause,
+  type PassStopReason,
 } from '@openmig/shared';
 import type { TargetReindexer } from '@openmig/shared';
 import { buildDeps, buildDomainDeps, type LedgerOptions } from './build-deps.ts';
@@ -173,6 +176,13 @@ export interface DomainSyncResult {
   error?: string;
   /** Where this pass's wall time went; absent for a domain that did not run. */
   metrics?: PassMetrics;
+  /**
+   * Set when this data type's pass was told to stop while it copied
+   * (2026-09-29): the migration paused or finished, or this data type stopped
+   * by its owner. Not an error, and not a finish: its counts are what it did
+   * copy, and the next firing continues from its cursors.
+   */
+  haltedBecause?: PassStopReason;
 }
 
 
@@ -396,6 +406,18 @@ export async function recordSwitchedOff(
  * worker hands nothing, and runs every data type its configuration enables, as
  * it always has: it has never refused a pass for the migration's state, and
  * gains no refusal here.
+ *
+ * `whyItStops` is the migration's answer asked AGAIN, per data type, once the
+ * firing is under way (2026-09-29): null to go on, or why this data type must
+ * stop. `runsNow` and `phaseOf` are read once, before the firing, and a firing
+ * on a first copy can run for days; a Finish, a pause set by hand or a data
+ * type its owner stopped then waited for all of it. So it is asked before each
+ * data type, before anything is built for it — the appliance's
+ * `passStepBefore`, which it never had — and handed to each data type's pass,
+ * which asks it from inside at most once every `PASS_REREAD_EVERY_MS`. The
+ * appliance hands `stopReasonOf(stepFrom(readPathPhases(…), domain))`, the
+ * decision the managed pass makes. The standalone worker hands nothing: it
+ * reads its migration once, from a file, and no Pause reaches it.
  */
 export async function runAllDomains(
   config: MappingConfig,
@@ -403,6 +425,7 @@ export async function runAllDomains(
   phaseOf: PathPhaseOf,
   ledger: LedgerOptions,
   runsNow: (domain: DiscoveryDomain) => boolean = () => true,
+  whyItStops?: (domain: DiscoveryDomain) => Promise<PassStopReason | null>,
 ): Promise<DomainSyncResult[]> {
   const results: DomainSyncResult[] = [];
   const domains = domainsFromConfig(config);
@@ -413,6 +436,12 @@ export async function runAllDomains(
   // Each data type's own phase, from the database and never from the config,
   // spread onto that data type's deps below (0117 D4, 0128 T5).
   const authority = (domain: DiscoveryDomain) => sourceAuthorityFor(phaseOf(domain).phase);
+
+  // The question the loop asks from inside a data type's pass, about that data
+  // type (2026-09-29), spread onto its deps beside `authority`. Nothing at all
+  // when nobody handed one in, so the loop reads no clock for it.
+  const askedWhy = (domain: DiscoveryDomain) =>
+    whyItStops ? { whyItStops: () => whyItStops(domain) } : {};
 
   // Every domain gets a status row and a decision, enabled or not, before any
   // work starts — so a caller polling status never sees a domain that simply
@@ -463,8 +492,6 @@ export async function runAllDomains(
   };
 
   async function runOneDomain(domain: DiscoveryDomain): Promise<void> {
-    await statusStore.markInProgress(tenantId, mappingId, domain);
-
     // Collected per domain rather than read back off the end of the shared
     // array: with lanes in flight at once, `results[results.length - 1]` is no
     // longer this domain's result.
@@ -485,18 +512,42 @@ export async function runAllDomains(
      * The pass deadline is NOT read here, and that is not an omission: it is
      * the runner's kill this appliance does not have, so no pass here has a
      * deadline to reach.
+     *
+     * The stop a pass was TOLD to make is (2026-09-29): every branch below
+     * hands its pass the question (`askedWhy`) and carries its answer out, as
+     * it carries the ceiling, and a data type that heard it is neither
+     * completed nor paused.
      */
     let budgetPause: BudgetPause | undefined;
+    let haltPause: HaltPause | undefined;
 
     try {
+      // ASKED FIRST, before anything is built for this data type (2026-09-29):
+      // the appliance's between-types re-read. Its firing's reading above is
+      // as old as the firing, and a data type after a long first copy of mail
+      // may start hours later. Not started is not failed: its status row keeps
+      // what its last pass wrote, as a data type moved past above keeps it.
+      // Inside the `try`, so a question that could not be answered is this
+      // data type's failure, recorded below, and not a lane that silently
+      // stops running the data types after it (hard rule 9).
+      const before = whyItStops ? await whyItStops(domain) : null;
+      if (before) {
+        log.info(`[Worker] ${domain}: not started — ${HALT_IN_WORDS[before]}; nothing failed`);
+        return;
+      }
+
+      await statusStore.markInProgress(tenantId, mappingId, domain);
+
       // Each builder opens a Postgres pool; always release it after the pass
       // (finally) so a long-running scheduler never leaks a pool per domain.
       if (domain === 'email') {
-        const deps = { ...(await buildDeps(config, ledger)), ...authority(domain) };
+        const deps = { ...(await buildDeps(config, ledger)), ...authority(domain), ...askedWhy(domain) };
         try {
           const result = await runShadowPass(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
           budgetPause = result.budgetPause;
+          // And the stop it was told to make, the same way (see haltPause above).
+          haltPause = result.haltPause;
           // `updated` carried like every other branch below. Mail delegates to
           // the same `runDomainSync`, so it reports one; this was the only
           // branch that dropped it, and the appliance's run log printed what
@@ -516,11 +567,13 @@ export async function runAllDomains(
           await deps.close();
         }
       } else if (domain === 'calendar') {
-        const deps = { ...buildDomainDeps(config, 'calendar', ledger), ...authority(domain) };
+        const deps = { ...buildDomainDeps(config, 'calendar', ledger), ...authority(domain), ...askedWhy(domain) };
         try {
           const result = await runCalendarSync(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
           budgetPause = result.budgetPause;
+          // And the stop it was told to make, the same way (see haltPause above).
+          haltPause = result.haltPause;
           outcome = {
             domain,
             collectionsListed: result.collectionsListed,
@@ -541,11 +594,13 @@ export async function runAllDomains(
           await deps.close();
         }
       } else if (domain === 'contact') {
-        const deps = { ...buildDomainDeps(config, 'contact', ledger), ...authority(domain) };
+        const deps = { ...buildDomainDeps(config, 'contact', ledger), ...authority(domain), ...askedWhy(domain) };
         try {
           const result = await runContactSync(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
           budgetPause = result.budgetPause;
+          // And the stop it was told to make, the same way (see haltPause above).
+          haltPause = result.haltPause;
           outcome = {
             domain,
             collectionsListed: result.collectionsListed,
@@ -582,11 +637,13 @@ export async function runAllDomains(
         // `else` is never a compile error either. It is the meaner of the two,
         // because an absent branch omits work while a catch-all does the wrong
         // work and says it went fine.
-        const deps = { ...buildDomainDeps(config, 'task', ledger), ...authority(domain) };
+        const deps = { ...buildDomainDeps(config, 'task', ledger), ...authority(domain), ...askedWhy(domain) };
         try {
           const result = await runTaskSync(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
           budgetPause = result.budgetPause;
+          // And the stop it was told to make, the same way (see haltPause above).
+          haltPause = result.haltPause;
           outcome = {
             domain,
             collectionsListed: result.collectionsListed,
@@ -606,7 +663,7 @@ export async function runAllDomains(
           await deps.close();
         }
       } else if (domain === 'file') {
-        const deps = { ...buildDomainDeps(config, 'file', ledger), ...authority(domain) };
+        const deps = { ...buildDomainDeps(config, 'file', ledger), ...authority(domain), ...askedWhy(domain) };
         // Captured BEFORE the pass: ADR-0031's survived-a-pass gate compares
         // each relocation's recording date against this, so a move this very
         // pass records is never auto-applied by the same pass that made it.
@@ -620,6 +677,8 @@ export async function runAllDomains(
           });
           // The day's ceiling, carried out of the branch (see budgetPause above).
           budgetPause = result.budgetPause;
+          // And the stop it was told to make, the same way (see haltPause above).
+          haltPause = result.haltPause;
           outcome = {
             domain,
             collectionsListed: result.collectionsListed,
@@ -640,7 +699,11 @@ export async function runAllDomains(
           // pass, only when the mapping opted in, and only through the same
           // applyRelocation a human's button presses — the function narrates
           // itself in the log, which is the appliance's durable record.
-          if (config.autoApplyRelocations === true) {
+          //
+          // Never after a pass that was told to stop (2026-09-29): applying a
+          // relocation removes the old copy on the target, the very kind of
+          // write a pause or a stop forbids.
+          if (config.autoApplyRelocations === true && !haltPause) {
             await autoApplyRelocations(
               {
                 tenantId,
@@ -675,8 +738,23 @@ export async function runAllDomains(
         );
       }
 
+      if (haltPause) outcome = { ...outcome, haltedBecause: haltPause.reason };
       results.push(outcome);
-      if (budgetPause) {
+      if (haltPause) {
+        // Stopped because it was told to, not finished, and not paused in the
+        // status row's sense either: that reason is a ceiling or a hold the
+        // owner needs telling about, and this one is their own act or their
+        // migration's. The row keeps `in_progress`, as a stopped pass's does.
+        log.info(
+          `[Worker] ${domain}: stopped while copying after ${haltPause.ranForMs}ms, because ` +
+            `${HALT_IN_WORDS[haltPause.reason]}` +
+            (haltPause.collectionsNotReached
+              ? `, with ${haltPause.collectionsNotReached} collection(s) not reached`
+              : '') +
+            '. Nothing failed and nothing is owed a retry; the cursors stayed where they are ' +
+            'and the next pass continues from them when it runs again.',
+        );
+      } else if (budgetPause) {
         // Stopped, not finished. See `budgetPause` above for why this branch
         // exists at all. The pass metrics are still recorded — they measure
         // the work this pass DID, which is real however it ended — but the
@@ -698,14 +776,20 @@ export async function runAllDomains(
       // `adopted` is reported alongside the rest: a pass that created nothing
       // because the destination already held the data reads very differently
       // from one that created nothing because we had already migrated it.
+      // "stopped" rather than "complete" for a pass that stopped, as the managed
+      // runner says "paused": a line that calls a stopped data type complete is
+      // the untruth the status row above was kept from telling.
+      const stopped = haltPause !== undefined || budgetPause !== undefined;
       log.info(
-        `[Worker] ${domain} sync complete: scanned=${outcome.scanned}, created=${outcome.created}, ` +
+        `[Worker] ${domain} sync ${stopped ? 'stopped' : 'complete'}: scanned=${outcome.scanned}, created=${outcome.created}, ` +
           `updated=${outcome.updated ?? 0}, adopted=${outcome.adopted}, skipped=${outcome.skipped}` +
           // A DOMAIN THAT LISTED COLLECTIONS AND SCANNED NOTHING SAYS SO, here
           // too. `scanned=0` alone reads the same for an empty source and for
           // five calendars none of whose items could be listed — which is the
           // silence a wedged calendar domain lived in for days (2026-09-11).
-          ((outcome.collectionsListed ?? 0) > 0 && outcome.scanned === 0
+          // Not for a pass that stopped before its first item: it did not find
+          // nothing, it did not look.
+          (!stopped && (outcome.collectionsListed ?? 0) > 0 && outcome.scanned === 0
             ? ` — ${outcome.collectionsListed} collection(s) listed and NOT ONE ITEM scanned in ` +
               `any of them; an empty source lists no collections, so this is not that`
             : ''),

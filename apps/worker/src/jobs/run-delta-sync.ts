@@ -25,10 +25,18 @@ import {
   itemsHandled,
   passCounts,
 } from '@openmig/core';
-import { budgetPauseToReason } from '@openmig/shared';
-import { passStepBefore, type PassHalt, type PassSkip } from './stopping-a-pass.ts';
+import { budgetPauseToReason, HALT_IN_WORDS } from '@openmig/shared';
+import { passStepBefore, whyThisDataTypeStops, type PassHalt, type PassSkip } from './stopping-a-pass.ts';
 import { leavesAReference, planeErrorFor } from './what-a-run-leaves.ts';
-import type { TenantId, MappingId, BudgetPause, DeadlinePause, PassMetrics } from '@openmig/shared';
+import type {
+  TenantId,
+  MappingId,
+  BudgetPause,
+  DeadlinePause,
+  HaltPause,
+  PassClock,
+  PassMetrics,
+} from '@openmig/shared';
 import type { DeltaSyncOutput, DomainOutcome } from './final-sync.ts';
 import { buildDepsFromMapping, buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { enabledDomains, describeAbsentDomains } from '@openmig/orchestration/enabled-domains';
@@ -390,11 +398,16 @@ export const runDeltaSync = schemaTask({
         //
         // The tick never enqueues a paused mapping, but a run already in the
         // queue — or already copying — knows nothing of the PATCH that paused
-        // it. Re-read between domains, so a pause pressed during the contact
-        // pass is honoured before the file pass starts rather than an hour
-        // later when this run's deadline arrives. Between domains and not
-        // per item: each domain pass already stops itself at its own
-        // deadline, and the tick will not start another.
+        // it. Re-read here, between domains, before anything is built for the
+        // next one; and INSIDE each domain's pass as well, by its own clock,
+        // through `passStops.whyItStops` below.
+        //
+        // This comment used to end "between domains and not per item: each
+        // domain pass already stops itself at its own deadline". That was the
+        // defect (2026-09-29): the owner pressed Pause during a file pass and
+        // it went on writing into the target for most of an hour, because its
+        // own deadline was fifty minutes out. A deadline bounds how long a pass
+        // may run; it says nothing about whether it still should.
         //
         // AND THE PERSON MAY HAVE TAKEN THEIR GRANT BACK (0108 T8 (c)): the
         // same re-read, and a line of its own, because what brings the
@@ -476,6 +489,19 @@ export const runDeltaSync = schemaTask({
           const typesLeft = domains.length - domains.indexOf(domain);
           const typeDeadline = domainDeadline(deadline, Date.now(), typesLeft);
 
+          // WHEN IT STOPS, AND WHETHER IT HAS BEEN TOLD TO (2026-09-29): its
+          // deadline, and the question the re-read above answers, asked again
+          // from inside this data type's pass at most once every
+          // PASS_REREAD_EVERY_MS. So a Pause, a grant taken back, a closed
+          // organisation or this data type stopped by its owner stops the pass
+          // after what it is copying at that moment, not at its deadline.
+          // Spread into every pass below as one object, so a data type cannot
+          // be handed its deadline without its question.
+          const passStops: PassClock = {
+            deadline: typeDeadline,
+            whyItStops: () => whyThisDataTypeStops(pool, tenantId, mappingId, domain),
+          };
+
           // Whether this domain rescans from scratch — per domain, so "redo the
           // tasks" does not re-read a mailbox that was already right.
           const fullScan = scansFromTheBeginning(domain);
@@ -497,6 +523,7 @@ export const runDeltaSync = schemaTask({
             firstCopyBytes?: number;
             budgetPause?: BudgetPause;
             deadlinePause?: DeadlinePause;
+            haltPause?: HaltPause;
             /** Where the pass spent its time; kept in `run.stats` (see `domainMetrics`). */
             metrics?: PassMetrics;
           };
@@ -508,7 +535,7 @@ export const runDeltaSync = schemaTask({
             try {
               const pass = await runShadowPass({
                 ...deps,
-                deadline: typeDeadline,
+                ...passStops,
                 ...(fullScan ? { cursors: undefined } : {}),
               });
               result = {
@@ -526,6 +553,7 @@ export const runDeltaSync = schemaTask({
                 skipped: pass.skipped,
                 ...(pass.budgetPause ? { budgetPause: pass.budgetPause } : {}),
                 ...(pass.deadlinePause ? { deadlinePause: pass.deadlinePause } : {}),
+                ...(pass.haltPause ? { haltPause: pass.haltPause } : {}),
                 ...(pass.firstCopyBytes !== undefined
                   ? { firstCopyBytes: pass.firstCopyBytes }
                   : {}),
@@ -536,12 +564,12 @@ export const runDeltaSync = schemaTask({
           } else if (domain === 'calendar') {
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'calendar');
             try {
-              result = await runCalendarSync({ ...deps, deadline: typeDeadline, ...(fullScan ? { cursors: undefined } : {}) });
+              result = await runCalendarSync({ ...deps, ...passStops, ...(fullScan ? { cursors: undefined } : {}) });
             } finally { await deps.close(); }
           } else if (domain === 'contact') {
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'contact');
             try {
-              result = await runContactSync({ ...deps, deadline: typeDeadline, ...(fullScan ? { cursors: undefined } : {}) });
+              result = await runContactSync({ ...deps, ...passStops, ...(fullScan ? { cursors: undefined } : {}) });
             } finally { await deps.close(); }
           } else if (domain === 'task') {
             // The managed half of the seventh fan-out (workplan 0113). This
@@ -554,7 +582,7 @@ export const runDeltaSync = schemaTask({
             // together.
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'task');
             try {
-              result = await runTaskSync({ ...deps, deadline: typeDeadline, ...(fullScan ? { cursors: undefined } : {}) });
+              result = await runTaskSync({ ...deps, ...passStops, ...(fullScan ? { cursors: undefined } : {}) });
             } finally { await deps.close(); }
           } else if (domain === 'file') {
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'file');
@@ -562,8 +590,21 @@ export const runDeltaSync = schemaTask({
             // a move this pass records from being auto-applied by this pass.
             const passStartedAt = new Date().toISOString();
             try {
-              result = await runFileSync({ ...deps, deadline: typeDeadline, ...(fullScan ? { cursors: undefined } : {}) });
-              await autoApplyOpenRelocations(tenantId, mappingId, runId, deps, passStartedAt);
+              result = await runFileSync({ ...deps, ...passStops, ...(fullScan ? { cursors: undefined } : {}) });
+              // Not after a pass that was told to stop: applying a relocation
+              // removes the old copy on the target, which is exactly the kind
+              // of write a Pause, a withdrawn grant or a closed organisation
+              // forbids. Said in the run log, as the apply says what it did.
+              if (!result.haltPause) {
+                await autoApplyOpenRelocations(tenantId, mappingId, runId, deps, passStartedAt);
+              } else {
+                const told = HALT_IN_WORDS[result.haltPause.reason];
+                await withTenant(pool, tenantId, async (db) => {
+                  await new RunStore(db).logEvent(tenantId, runId, 'info',
+                    `relocation auto-apply: not run — this pass was told to stop (${told}), and ` +
+                      'removing an old copy on the target is work too', { domain: 'file' });
+                });
+              }
             } finally { await deps.close(); }
           } else {
             // NOT a fallback — a refusal, and the managed twin of the same
@@ -601,14 +642,35 @@ export const runDeltaSync = schemaTask({
            * and logged "N created, M skipped" as though it had finished the
            * mailbox. Handling only the deadline here would have added a
            * second silence beside the first.
+           *
+           * And a domain its pass was TOLD to stop (2026-09-29) — paused, its
+           * grant taken back, its organisation closed, or stopped by its owner
+           * while it copied — is not completed either, and is read first: it is
+           * the reason a person gave, and the one they will look for. Its row
+           * stays `in_progress` too, as the deadline's does; the migration's
+           * own lifecycle is what the screen shows for a paused one. No
+           * `markPaused` either: that reason is the owner's own act, not a
+           * ceiling or a hold they need telling about.
            */
-          const pause = result.deadlinePause
+          const pause = result.haltPause
+            ? {
+                why:
+                  `stopped while copying after ${result.haltPause.ranForMs}ms, because ` +
+                  HALT_IN_WORDS[result.haltPause.reason] +
+                  (result.haltPause.collectionsNotReached
+                    ? `, with ${result.haltPause.collectionsNotReached} collection(s) not reached`
+                    : ''),
+                then: 'the next pass continues from them when it runs again',
+                detail: { haltPause: result.haltPause },
+              }
+            : result.deadlinePause
             ? {
                 why:
                   `stopped at its share of this pass's time after ${result.deadlinePause.ranForMs}ms` +
                   (result.deadlinePause.collectionsNotReached
                     ? `, with ${result.deadlinePause.collectionsNotReached} collection(s) not reached`
                     : ''),
+                then: 'the next scheduled pass continues from them',
                 detail: { deadlinePause: result.deadlinePause },
               }
             : result.budgetPause
@@ -619,6 +681,7 @@ export const runDeltaSync = schemaTask({
                     (result.budgetPause.windowResetsAt
                       ? `, which resets at ${result.budgetPause.windowResetsAt}`
                       : ''),
+                  then: 'the next scheduled pass continues from them',
                   detail: { budgetPause: result.budgetPause },
                 }
               : undefined;
@@ -664,7 +727,7 @@ export const runDeltaSync = schemaTask({
                 runId,
                 'info',
                 `${domain}: ${pause.why}. Nothing failed and nothing is owed a retry; the ` +
-                  'cursors stayed where they are and the next scheduled pass continues from them.',
+                  `cursors stayed where they are and ${pause.then}.`,
                 { domain, ...pause.detail },
               );
             });
@@ -674,7 +737,12 @@ export const runDeltaSync = schemaTask({
             updated: result.updated,
             adopted: result.adopted,
             skipped: result.skipped,
-            ...(result.deadlinePause ? { stopped: 'deadline' as const } : result.budgetPause ? { stopped: 'budget' as const } : {}),
+            // The stop it was told to make first, as `pause` reads it, with its
+            // reason: a cutover's final sync names a paused migration and a data
+            // type its owner stopped differently (`final-sync.ts`).
+            ...(result.haltPause
+              ? { stopped: 'halt' as const, haltedBecause: result.haltPause.reason }
+              : result.deadlinePause ? { stopped: 'deadline' as const } : result.budgetPause ? { stopped: 'budget' as const } : {}),
           };
           // The data axis (0109 T3): this pass's first-copy bytes join the
           // tenant's lifetime meter. Managed-side by construction — the
@@ -711,8 +779,12 @@ export const runDeltaSync = schemaTask({
           // separate defects now (the task domain that built file deps, E2E
           // #168's `tasks 0/4`, and this), and each time the silence is what
           // let it stand.
+          // Not for a pass that stopped before its first item (any of the three
+          // stops above, and most plainly one it was told to make): it did not
+          // find nothing, it did not look, and a WARN saying the listing may be
+          // failing would send somebody after a defect that is not there.
           const foundNothingIn =
-            result.collectionsListed > 0 && result.scanned === 0 ? result.collectionsListed : 0;
+            !pause && result.collectionsListed > 0 && result.scanned === 0 ? result.collectionsListed : 0;
           const line = foundNothingIn
             ? `${domain}: ${passCounts(result)} — ` +
               `${foundNothingIn} collection(s) listed and NOT ONE ITEM scanned in any of them. ` +

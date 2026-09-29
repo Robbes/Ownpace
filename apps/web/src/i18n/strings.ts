@@ -956,7 +956,7 @@ const en = {
   'mappings.action.pause': 'Pause',
   'hub.connections': 'From {source} to {target}',
   'mappings.action.pause.why':
-    'No new passes are started. A pass already running finishes the data type it is on and then stops. Nothing is lost: Review and start continues from where it stopped.',
+    'No new passes are started. A pass already running finishes what it is copying at that moment and starts nothing new, usually within a minute; a very large file can take longer. Nothing is lost: Review and start continues from where it stopped.',
   'mappings.action.startSync': 'Start sync',
   // 0037 T2: a paused mapping's row leads to the confirm screen — the Play
   // button it used to render could only earn a 409.
@@ -3658,7 +3658,7 @@ const nl: Record<keyof typeof en, string> = {
   'mappings.action.pause': 'Pauzeren',
   'hub.connections': 'Van {source} naar {target}',
   'mappings.action.pause.why':
-    'Er worden geen nieuwe rondes gestart. Een ronde die al loopt maakt het huidige gegevenstype af en stopt dan. Er gaat niets verloren: Controleren en starten gaat verder waar het gebleven was.',
+    'Er worden geen nieuwe rondes gestart. Een ronde die al loopt, maakt af wat ze op dat moment kopieert en begint niets nieuws, meestal binnen een minuut; een heel groot bestand kan langer duren. Er gaat niets verloren: Controleren en starten gaat verder waar het gebleven was.',
   'mappings.action.startSync': 'Start synchronisatie',
   'mappings.action.reviewAndStart': 'Controleren en starten',
   'mappings.action.open': 'Openen',

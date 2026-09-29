@@ -246,8 +246,10 @@ ervoor te zorgen dat u dit hoofdstuk nooit nodig hebt.
      or use the access answers 409 account_closed (apps/api/src/closed-organisation.ts). Work
      already running is not all stopped: the close cancels only the runs whose row names the
      orchestrator's run (a sync pass), best effort (apps/api/src/close-account.ts); a sync pass
-     the cancel did not stop, or a discovery, reads to the end of the data type it is on; a
-     verification or a confirmation already running reads to its end with the stored access.
+     the cancel did not stop stops within about fifteen seconds, after what it is copying at that
+     moment (whyThisDataTypeStops, 2026-09-29); a discovery reads to the end of the data type it
+     is on; a verification or a confirmation already running reads to its end with the stored
+     access.
      True once the close stops those too, or once the sentence says what the code does. -->
 
 **U** kunt uw account op elk moment sluiten: mail naar support@ownpace.eu. U kiest wanneer uw

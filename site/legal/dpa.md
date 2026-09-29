@@ -135,8 +135,10 @@
   - "After the account closes nothing uses them" (Annex A): since #1320
     (d7868276, 2026-09-28), merged into this branch in c1413b53, nothing new
     starts once the account is closed. Work already running is not all
-    stopped: a sync pass or a discovery stops before its next data type, and
-    a verification or a confirmation already running reads to its end with
+    stopped: a sync pass stops within about fifteen seconds, after what it
+    is copying at that moment (2026-09-29), a discovery stops before its
+    next data type, and a verification or a confirmation already running
+    reads to its end with
     the stored access (terms briefing, precondition B, not fully done).
   - The Status line becomes a Version line the site build can read (0139
     T2), «REGISTERED_ADDRESS» is filled with the address privacy §1 and

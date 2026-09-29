@@ -3,7 +3,7 @@ import type { FailureCategory, FailureSide } from './failure-category.ts';
 import type { TenantId, MappingId } from './ids.ts';
 import type { BudgetPause, DownloadMeter } from './rate-budget.ts';
 import type { PauseReason } from './pause-reason.ts';
-import type { DeadlinePause, PassClock } from './pass-deadline.ts';
+import type { DeadlinePause, HaltPause, PassClock } from './pass-deadline.ts';
 import type { SourceAuthority } from './lifecycle.ts';
 import type { DomainDiscovery, DiscoveryRecord, DiscoveryDomain } from './discovery.ts';
 import type { MailFolder, MailItem, RawMessage, MailKeyword, SpecialUse } from './mail.ts';
@@ -2469,6 +2469,15 @@ export interface ReconcileResult {
    * say.
    */
   readonly deadlinePause?: DeadlinePause;
+  /**
+   * Set when the pass stopped because it was told to (2026-09-29): the
+   * migration was paused or finished, its grant taken back, its organisation
+   * closed, or mail stopped by its owner — see `HaltPause`. Carried for the
+   * same reason as the two above, and the one a dispatcher most needs: left
+   * out of this hand-built result, a mail pass the owner paused would read as
+   * a mail pass that finished.
+   */
+  readonly haltPause?: HaltPause;
 }
 
 /**

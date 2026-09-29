@@ -26,6 +26,8 @@
  * unless something is genuinely wrong.
  */
 
+import type { PassStopReason } from './path-phase.ts';
+
 /**
  * The task runner's hard kill, in milliseconds — `maxDuration: 3600` in
  * `apps/worker/trigger.config.ts`, written here in the unit the rest of this
@@ -94,6 +96,80 @@ export interface DeadlinePause {
 }
 
 /**
+ * HOW OFTEN A RUNNING PASS ASKS WHETHER IT HAS BEEN TOLD TO STOP: at most once
+ * every **15 seconds** of its own clock (2026-09-29).
+ *
+ * The owner pressed Pause while a file pass was writing large files into a
+ * Nextcloud target, and the writes went on for most of an hour: about two
+ * thousand PUTs after the press. The pass re-read its migration between data
+ * types only, on the reasoning that each data type's pass "already stops
+ * itself at its own deadline", and that deadline is fifty minutes away. So a
+ * pass is now handed the between-types question to ask from inside a data
+ * type (`PassClock.whyItStops`), and this is how often it asks.
+ *
+ * What one asking costs: one transaction of two or three statements on the
+ * managed stack (the organisation's status and the migration's phases,
+ * `passStepBefore`), one short transaction queued on the appliance's single
+ * connection. At six passes in flight that is under one statement a second for
+ * the whole box, beside a pass that already talks to the ledger about every
+ * item it lists. Asking per item instead would roughly double a steady-state
+ * pass's ledger traffic for an answer that changes a few times a year.
+ *
+ * What it buys: a pause is heard within this interval plus the items already
+ * in flight, which finish, because an item abandoned half-written would be the
+ * destructive failure this product does not have. A large file on a slow
+ * target can take longer than the interval by itself; nothing here promises
+ * seconds for that one, only that nothing new begins after it.
+ *
+ * A starting point, like `PASS_SOFT_DEADLINE_MS`, and one constant for the
+ * same reason: if a real box shows the asking in its ledger traffic, move it.
+ */
+export const PASS_REREAD_EVERY_MS = 15_000;
+
+/**
+ * Set when a pass stopped because it was TOLD to: its migration was paused or
+ * finished, the person being migrated took their grant back, the organisation
+ * was closed, or this data type was stopped by its owner or no longer runs.
+ *
+ * A stop somebody or the migration's own state asked for, not a clock and not
+ * a meter, with the same contract `DeadlinePause` carries: nothing failed, no
+ * item is owed a retry, the collection it stopped inside keeps its cursor, and
+ * nothing it did not reach is concluded gone. Kept apart from the other two so
+ * a reader can tell "you paused it" from "the pass's minutes ran out" and from
+ * "the day's bytes are spent": the first comes back with a Resume (or a new
+ * grant, or a reopen), and neither of the others does anything for it.
+ */
+export interface HaltPause {
+  /** What the question answered. `HALT_IN_WORDS` says it as a sentence. */
+  readonly reason: PassStopReason;
+  /** ISO timestamp, on the pass's own clock, of the asking that heard it. */
+  readonly noticedAt: string;
+  /** Milliseconds of wall time the pass ran before it heard it. */
+  readonly ranForMs: number;
+  /**
+   * Collections listed for this domain that the pass never reached. Absent
+   * when the stop landed inside the last one, as with `DeadlinePause`: absent
+   * is not zero, and zero would report a finished domain.
+   */
+  readonly collectionsNotReached?: number;
+}
+
+/**
+ * Each answer, as the second half of a sentence that starts "because": the
+ * loop's log line, the managed run log and the appliance's log all say it the
+ * same way. Exhaustive by type, so a sixth reason cannot be added without
+ * words. Never "deadline" and never "budget": those are the other two stops'.
+ */
+export const HALT_IN_WORDS: Readonly<Record<PassStopReason, string>> = {
+  no_longer_runs: "the migration no longer runs passes (paused, finished, or past its cutover's grace period)",
+  grant_withdrawn: 'the person being migrated withdrew their permission',
+  organisation_closed: 'the organisation was closed',
+  stopped_by_its_owner: 'its owner stopped this data type',
+  data_type_no_longer_runs:
+    'this data type no longer runs passes (its own cutover is past its grace period, or it has ended)',
+};
+
+/**
  * The absolute moment a pass starting now must stop taking new work.
  *
  * A function rather than an addition at each call site so that "when does
@@ -124,6 +200,20 @@ export interface PassClock {
   readonly deadline?: number;
   /** The clock, injectable so the deadline's behaviour can be tested. */
   readonly now?: () => number;
+  /**
+   * The question `passStepBefore` answers between data types, asked from
+   * inside one (2026-09-29): has this pass been told to stop, and why?
+   * Resolves null while the pass may go on. The loop asks it at the gates it
+   * asks its deadline at, at most once every `PASS_REREAD_EVERY_MS` of `now`,
+   * and a yes stops it the way the deadline does (`HaltPause`). A rejection
+   * fails the pass: a question that could not be answered is not a "go on"
+   * (hard rule 9).
+   *
+   * Absent means nothing can tell this pass to stop, which is the standalone
+   * CLI's case: it reads its migration once, from a file, and no Pause reaches
+   * it. The loop then reads no clock for it and asks nothing.
+   */
+  readonly whyItStops?: () => Promise<PassStopReason | null>;
 }
 
 /**
@@ -135,11 +225,17 @@ export interface PassClock {
  * forwards one of the two is a domain that ignores its deadline while
  * appearing to honour it. `a-domain-that-ignores-its-deadline.unit.test.ts`
  * fails the build on a `runDomainSync` call that does not go through here.
+ *
+ * And the question a pass is told to stop by (`whyItStops`, 2026-09-29), for
+ * the same reason and through the same five calls: forwarded here, every
+ * wrapper that forwards its deadline forwards the question with it, and none
+ * had to be edited to do so.
  */
 export function passClock(clock: PassClock): PassClock {
   return {
     ...(clock.deadline !== undefined ? { deadline: clock.deadline } : {}),
     ...(clock.now ? { now: clock.now } : {}),
+    ...(clock.whyItStops ? { whyItStops: clock.whyItStops } : {}),
   };
 }
 

@@ -36,8 +36,10 @@ import type {
   ByteBudgetState,
   DeadlinePause,
   DownloadMeter,
+  HaltPause,
   PassClock,
 } from '@openmig/shared';
+import { HALT_IN_WORDS, PASS_REREAD_EVERY_MS } from '@openmig/shared';
 import type { DiscoveryDomain } from '@openmig/shared';
 
 export type { PassMetrics };
@@ -956,6 +958,15 @@ export interface DomainSyncResult {
    * quarter of an hour". See `PASS_SOFT_DEADLINE_MS`.
    */
   readonly deadlinePause?: DeadlinePause;
+  /**
+   * Set when the pass stopped because it was TOLD to (2026-09-29): its
+   * migration was paused or finished, its grant taken back, its organisation
+   * closed, or this data type stopped by its owner — the answer to
+   * `whyItStops`. The third of the same kind, and reported apart from both, so
+   * a reader can tell "you paused it, and Resume brings it back" from either
+   * clock running out. See `HaltPause`.
+   */
+  readonly haltPause?: HaltPause;
 }
 
 /**
@@ -1047,6 +1058,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     snapshot,
     deadline,
     now = Date.now,
+    whyItStops,
   } = withSides(deps);
 
   const phases = startPhaseTiming();
@@ -1227,9 +1239,19 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   const unfinishedCollections = new Set<string>();
 
   /**
+   * Set when somebody, or the migration's own state, told this pass to stop
+   * (`whyItStops`, 2026-09-29): Pause, a grant taken back, the organisation
+   * closed, this data type stopped by its owner. Same contract as the other
+   * two in every respect that matters to the loop — no ledger row, no retry,
+   * no failure — and reported apart from them so the reader is told that it
+   * was a person or a lifecycle, not a clock or a meter.
+   */
+  let haltPause: HaltPause | undefined;
+
+  /**
    * HAS THIS PASS STOPPED TAKING NEW WORK?
    *
-   * One question, two reasons today, and every site that must respect a pause
+   * One question, three reasons today, and every site that must respect a pause
    * asks it here instead of naming the reasons itself. There are FIVE such
    * sites — whether to list folders at all, whether to open the next folder,
    * whether to scan the next item, whether the folder's cursor may advance,
@@ -1243,9 +1265,12 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
    * That is precisely the shape this repository keeps paying for — a set of
    * conditions that agree by hand until somebody adds a third and updates
    * three of the four. `a-pass-that-stops-halfway-keeps-its-cursor.unit.test.ts`
-   * drives both reasons through all four.
+   * drives the first two reasons through the first four sites, and
+   * `a-pass-told-to-stop.unit.test.ts` drives the third through all five: it
+   * was added here, and no site below had to be edited for it.
    */
-  const paused = (): boolean => budgetPause !== undefined || deadlinePause !== undefined;
+  const paused = (): boolean =>
+    budgetPause !== undefined || deadlinePause !== undefined || haltPause !== undefined;
 
   /**
    * Stop if this pass's own deadline has arrived. Returns true when it just
@@ -1275,6 +1300,79 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     return true;
   };
 
+  /**
+   * THE PASS ASKS WHETHER IT HAS BEEN TOLD TO STOP (2026-09-29).
+   *
+   * The owner pressed Pause while this loop was writing large files into a
+   * Nextcloud target, and it went on writing for most of an hour. Its caller
+   * re-read the migration between data types only, and inside one the loop
+   * knew two reasons to stop: the day's bytes, and its own deadline fifty
+   * minutes out. So it is handed the caller's between-types question
+   * (`whyItStops`) and asks it here, beside its deadline and at the same
+   * gates, so that a Pause, a grant taken back, a closed organisation or a
+   * data type its owner stopped is heard within `PASS_REREAD_EVERY_MS` plus
+   * whatever is already in flight, and not fifty minutes later.
+   *
+   * By the pass's own clock and not per item: an asking is a database round
+   * trip, and per item it would roughly double the pass's ledger traffic for
+   * an answer that almost never changes. The first asking is at the first
+   * gate: that repeats the caller's own read by design, and covers the
+   * seconds spent building credentials between the two.
+   *
+   * One asking at a time. Up to `concurrency` item bodies reach their gate
+   * together, and each would otherwise find the interval over and ask; they
+   * share the one in flight instead.
+   *
+   * Never asked again once it said stop, and never asked at all, with no
+   * clock read, when nobody handed it in — the standalone CLI's case, and
+   * every test that scripts this loop's clock gate by gate.
+   *
+   * NOT caught. A question that could not be answered is not "go on": that
+   * would be the swallowed error hard rule 9 forbids, on the one read that
+   * decides whether the pass may keep writing. It fails the pass instead, as
+   * a ledger that cannot answer `find` already does.
+   */
+  let lastAskedAt: number | undefined;
+  let asking: Promise<boolean> | undefined;
+  const stopIfToldTo = async (): Promise<boolean> => {
+    if (haltPause || whyItStops === undefined) return false;
+    if (asking) return asking;
+    const at = now();
+    if (lastAskedAt !== undefined && at - lastAskedAt < PASS_REREAD_EVERY_MS) return false;
+    lastAskedAt = at;
+    asking = (async () => {
+      try {
+        const reason = await whyItStops();
+        if (reason === null) return false;
+        haltPause = { reason, noticedAt: new Date(at).toISOString(), ranForMs: at - startedAtMs };
+        // In the deadline's voice and for the same reason: whoever reads this
+        // log has to be able to tell a stop from a failure without knowing
+        // this code (hard rule 9), and this stop from the other two, whose
+        // sentences name their clock and their meter. This one names neither.
+        log.info(
+          `[sync] ${domain}: this pass was told to stop after ${haltPause.ranForMs}ms, because ` +
+            `${HALT_IN_WORDS[reason]}, and is stopping cleanly: what is in flight finishes and ` +
+            `nothing new begins. This is a stop, not an error: nothing failed, no item is owed a ` +
+            `retry, the cursors stay where they are, and whichever pass runs next continues from them.`,
+        );
+        return true;
+      } finally {
+        asking = undefined;
+      }
+    })();
+    return asking;
+  };
+
+  /**
+   * Whether to take the next piece of work, at the two gates inside the loop:
+   * one question, so a fourth reason is one more line here and not a third
+   * copy of the condition. The deadline is asked before the question because
+   * it is synchronous and free, so when both land at one gate the deadline is
+   * what this data type reports, and the caller's next read reports the rest.
+   */
+  const stopTakingNewWork = async (): Promise<boolean> =>
+    paused() || stopIfPastDeadline() || (await stopIfToldTo());
+
   // The pass-start reading. A pass that begins with nothing left to spend
   // has no business listing anything — yesterday's pass already said why.
   if (downloadMeter) {
@@ -1286,6 +1384,10 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   // its own budget arrives exactly like this, and listing a mailbox it cannot
   // act on would spend the source's rate budget to learn nothing.
   stopIfPastDeadline();
+  // …and a pass told to stop since its caller last asked lists nothing either.
+  // The deadline stays asked first and on its own line, so the clock readings
+  // a scripted test counts at this gate are the ones they always were.
+  if (!paused()) await stopIfToldTo();
 
   const listedNothing = paused();
   const folders = listedNothing ? [] : await timed(phases, 'listCollectionsMs', () => listFolders());
@@ -1297,7 +1399,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // Set mid-pass by the pre-fetch gate below: stop LISTING new folders too.
     // Counted rather than merely broken out of: "stopped with four
     // collections still to go" is a different sentence from "finished".
-    if (paused() || stopIfPastDeadline()) {
+    if (await stopTakingNewWork()) {
       collectionsNotReached += 1;
       unfinishedCollections.add(collectionPathOf(folder));
       continue;
@@ -1418,7 +1520,10 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       // or a single file store holding a hundred gigabytes. A pass that could
       // only stop between folders would run until its runner killed it, which
       // is the failure this deadline exists to remove.
-      if (paused() || stopIfPastDeadline()) {
+      //
+      // And whether it has been told to stop, for the same reason: the Pause
+      // that waited fifty minutes (2026-09-29) was pressed inside one folder.
+      if (await stopTakingNewWork()) {
         unfinishedCollections.add(collectionPath);
         return;
       }
@@ -2458,6 +2563,15 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       ? {
           deadlinePause: {
             ...deadlinePause,
+            ...(collectionsNotReached > 0 ? { collectionsNotReached } : {}),
+          },
+        }
+      : {}),
+    // The same rule for the stop it was told to make.
+    ...(haltPause
+      ? {
+          haltPause: {
+            ...haltPause,
             ...(collectionsNotReached > 0 ? { collectionsNotReached } : {}),
           },
         }

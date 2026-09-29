@@ -43,7 +43,7 @@ import {
   qualificationReportLines,
   qualifyAccount,
 } from '@openmig/orchestration/account-qualification';
-import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow } from '@openmig/shared';
+import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow, stepFrom, stopReasonOf, HALT_IN_WORDS } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
 // three cannot drift apart in the explanations that stop somebody destroying
@@ -907,12 +907,25 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         readPathPhases(tdb, tenantId, mappingId),
       );
       const phaseOf = phases?.phaseOf ?? phasesOfTheMigration(currentStatus);
+      // AND ASKED AGAIN WHILE THE PASS RUNS (2026-09-29), because a firing on
+      // a first copy can run for days and the reading above is as old as it
+      // is: before each data type, and from inside each data type's pass at
+      // most once every PASS_REREAD_EVERY_MS. Read afresh each time, from the
+      // same reader, and decided by the same function the managed pass
+      // decides by (`stepFrom`), so a Finish, a pause set by hand or a data
+      // type its owner stopped stops the copy after what is in flight, not
+      // at the end of the firing. No organisation is read: the appliance's
+      // one organisation is always open (`organisation-open.ts`).
       const results = await runAllDomains(
         configWithCorrectMappingId,
         statusStore,
         phaseOf,
         ledgerOptions,
         (domain) => pathRunsNow(phaseOf(domain)),
+        (domain) =>
+          withTenant(persistenceBackend.driver, tenantId, (tdb) => readPathPhases(tdb, tenantId, mappingId)).then(
+            (current) => stopReasonOf(stepFrom(current, domain)),
+          ),
       );
       const created = results.reduce((n, r) => n + r.created, 0);
       // Disabled domains report placeholder zeros so status pollers see every
@@ -937,8 +950,11 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
               if (r.error) {
                 await runs.logEvent(tenantId, id, 'error', `${r.domain} sync failed: ${r.error}`, { domain: r.domain });
               } else {
+                // A data type stopped while it copied says so, and why, beside
+                // what it did copy: its counts alone would read as a finish.
                 await runs.logEvent(tenantId, id, 'info',
-                  `${r.domain}: ${passCounts(r)}`,
+                  `${r.domain}: ${passCounts(r)}` +
+                    (r.haltedBecause ? ` — stopped while copying: ${HALT_IN_WORDS[r.haltedBecause]}` : ''),
                   { domain: r.domain, created: r.created, updated: r.updated, adopted: r.adopted, skipped: r.skipped });
               }
             }
