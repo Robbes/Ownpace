@@ -2,7 +2,12 @@
 
 > **In one line:** Dropbox entries marked `is_downloadable: false` (Paper docs as `.paper` files, and any other kind T2 finds) refuse `files/download` with 409 `unsupported_file`; export each kind in the user's chosen format via `files/export`, or state a refusal and park it on first sight, as Drive does.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-09-29 (update this block at the end of every session)
+
+**2026-09-29, morning: D10's two lines kept.** Asked to confirm the start screen's two lines,
+*"You can start once the count is in, or after 15 minutes at most."* and *"The count did not
+finish within 15 minutes. You can start anyway: …"*, the owner answered *"Yes"*. Both stay as
+built in #1351, in English and in Dutch.
 
 **2026-09-29, night: T1's measurements took the gate's fourth-level check red, and the check
 now reads a count as a count.** On branch `claude/ownpace-public-readiness-y7orc6-a-count-is-not-a-fourth-level`.
@@ -801,7 +806,8 @@ minutes, and that count took about seven. — *"Hold, up to 15 min"* (2026-09-28
 three options, over *"Hold, up to 5 min"* and *"Keep as is"*. So Start stays greyed out while a
 count the screen waits for is still coming, with a line saying so. After five minutes the screen
 keeps asking, more slowly. If the count has not landed within fifteen minutes, Start opens with a
-line saying it did not finish. Built in `ConfirmMigration.tsx` (Status, 2026-09-29).
+line saying it did not finish. Built in `ConfirmMigration.tsx` (Status, 2026-09-29). The owner
+kept both lines as written on 2026-09-29: *"Yes"*.
 
 ## The shape of the fix (Drive, mirrored)
 
