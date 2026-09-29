@@ -45,8 +45,17 @@ place, could become the one-candidate default, and was posted as the source of a
     migrations meanwhile.
 - **Not yet:** grant and progress links *per person* on the person's page (T5) wait for 0108's
   links per person; each migration's page keeps its own.
-- **Proved by** `StartMigration.unit.test.tsx` (33 cases) and `start-plan.unit.test.ts` (25).
-  Not yet against a real Google grant: the path runs through 0108's own routes, unchanged.
+- **Proved by** `StartMigration.unit.test.tsx` (33 cases) and `start-plan.unit.test.ts` (25),
+  and by a walk in Chromium over a fixture API that answers a Google account with no token as
+  the create door does (`error`). The walk goes in English and Dutch from *They do, with a link*,
+  through Anna's address and two grant links, one per migration, used, to *Start* and her page.
+  It found the closing line promising that each migration starts by itself once connected, which
+  nothing does, in Dutch that read Anna as a woman (*haar account*). The line now says to start
+  each one from its *Details*.
+- **The owner's answer on the links (2026-09-29):** *"yes, a per-person link instead of the
+  per-migration links"*. The walk shows why: Anna's one Google account took two links, one per
+  migration. Designed next, with ADR-0035's amendment.
+- Not yet against a real Google grant: the path runs through 0108's own routes, unchanged.
 
 **2026-09-29, morning: T4 with T7, *Start a migration* (the owner's *"Yes"*, 0131 §6), in #1378.**
 
