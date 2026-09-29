@@ -1,10 +1,12 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
- * START A MIGRATION, ITS FIRST SCREENS (workplan 0153 T4, T7): who it is for,
- * which accounts are left, and what moves. Each screen starts with focus on
- * its heading, a Next that cannot be pressed says why under it, a tile or a
- * data type that has not met a real account says so, and a data type a
- * provider cannot give is said to be the provider's limit.
+ * START A MIGRATION (workplan 0153 T4, T7): who it is for, which accounts are
+ * left, what moves, connecting them, and where each thing goes. Each screen
+ * starts with focus on its heading, a Next that cannot be pressed says why
+ * under it, a tile or a data type that has not met a real account says so,
+ * and a limit is blamed on the side that has it. The account you already have
+ * is the default; a new one shows only what a person must type, and is kept
+ * only once its check passes.
  */
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -14,13 +16,38 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DISCOVERY_DOMAINS, lifecycleCounts, type Person } from '@openmig/shared';
 import StartMigration from './StartMigration.tsx';
 import { fetchPeople } from '../services/operating-service.ts';
-import { providerAccountsApi } from '../services/mapping-service.ts';
+import {
+  connectionsApi,
+  providerAccountsApi,
+  providerClientsApi,
+  type ConnectionSummary,
+} from '../services/mapping-service.ts';
 
 vi.mock('../services/operating-service', () => ({ fetchPeople: vi.fn() }));
-vi.mock('../services/mapping-service', () => ({ providerAccountsApi: { get: vi.fn() } }));
+vi.mock('../services/mapping-service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/mapping-service.ts')>()),
+  providerAccountsApi: { get: vi.fn() },
+  providerClientsApi: { get: vi.fn() },
+  connectionsApi: { list: vi.fn(), add: vi.fn(), remove: vi.fn() },
+}));
 
 const peopleMock = vi.mocked(fetchPeople);
 const factsMock = vi.mocked(providerAccountsApi.get);
+const clientsMock = vi.mocked(providerClientsApi.get);
+const listMock = vi.mocked(connectionsApi.list);
+const addMock = vi.mocked(connectionsApi.add);
+const removeMock = vi.mocked(connectionsApi.remove);
+
+const account = (over: Partial<ConnectionSummary>): ConnectionSummary => ({
+  id: 'c-1',
+  role: 'source',
+  kind: 'imap',
+  displayName: 'Anna mail',
+  status: 'connected',
+  createdAt: '2026-09-20T10:00:00.000Z',
+  usedByMigrations: 0,
+  ...over,
+});
 
 const ANNA: Person = {
   id: 'p-anna',
@@ -64,7 +91,15 @@ beforeEach(() => {
   vi.resetAllMocks();
   peopleMock.mockResolvedValue({ people: [], unassigned: [] });
   factsMock.mockResolvedValue(NARROW as never);
+  clientsMock.mockResolvedValue({ google: 'deployment', dropbox: 'deployment', microsoft: 'deployment' });
+  listMock.mockResolvedValue([]);
 });
+
+/** Walk on from *What moves?* to the screen with this heading. */
+async function onTo(user: ReturnType<typeof userEvent.setup>, heading: string) {
+  await user.click(next());
+  return screen.findByRole('heading', { level: 2, name: heading });
+}
 
 describe('Who is it for? (screen 1)', () => {
   it('asks for a name, and says why Next waits until there is one', async () => {
@@ -221,5 +256,160 @@ describe('Connect your accounts (screen 4, what it will ask)', () => {
     await user.click(next());
     expect(screen.queryByText(/Google asks for mail and files apart/)).not.toBeInTheDocument();
     expect(screen.getByText('One sign-in: email, calendar, contacts, files, and tasks')).toBeInTheDocument();
+  });
+});
+
+describe('Connect your accounts (screen 4)', () => {
+  it('takes the one saved account as the default, and draws no form for it', async () => {
+    listMock.mockResolvedValue([
+      account({ knownValues: { host: 'imap.example.nl', port: '993', username: 'anna@example.nl' } }),
+    ]);
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Another mail provider']);
+    await onTo(user, 'Connect your accounts');
+    expect(await screen.findByRole('radio', { name: 'Anna mail (anna@example.nl)' })).toBeChecked();
+    expect(screen.getByText('Connected as anna@example.nl')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Check the sign-in' })).not.toBeInTheDocument();
+    expect(next()).toBeEnabled();
+  });
+
+  it('asks a new account for what its card asks, names it itself, and keeps it once its check passes', async () => {
+    addMock.mockResolvedValue({ ok: true, id: 'c-new' });
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Another mail provider']);
+    await onTo(user, 'Connect your accounts');
+    await screen.findByRole('button', { name: 'Check the sign-in' });
+    // The flow names the account: no box asks for a name.
+    expect(screen.queryByLabelText('Name for this account')).not.toBeInTheDocument();
+    expect(next()).toHaveAccessibleDescription('Connect each account first.');
+
+    await user.type(screen.getByRole('textbox', { name: /^Host/ }), 'imap.example.nl');
+    await user.type(screen.getByRole('spinbutton', { name: /^Port/ }), '993');
+    await user.type(screen.getByRole('textbox', { name: /^Username/ }), 'anna@example.nl');
+    await user.type(screen.getByLabelText(/^Password/), 'secret');
+    listMock.mockResolvedValue([
+      account({ id: 'c-new', displayName: 'Anna Jansen · IMAP', knownValues: { username: 'anna@example.nl' } }),
+    ]);
+    await user.click(screen.getByRole('button', { name: 'Check the sign-in' }));
+
+    expect(addMock).toHaveBeenCalledWith({
+      role: 'source',
+      type: 'imap',
+      displayName: 'Anna Jansen · IMAP',
+      values: { host: 'imap.example.nl', port: '993', username: 'anna@example.nl', password: 'secret' },
+    });
+    expect(await screen.findByText('Connected as anna@example.nl')).toBeInTheDocument();
+    expect(next()).toBeEnabled();
+  });
+
+  it('offers Try again after a failed check, takes back the account it left, and keeps what was typed', async () => {
+    addMock.mockResolvedValue({ ok: false, id: 'c-bad', reason: 'Login failed' });
+    removeMock.mockResolvedValue(null);
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Another mail provider']);
+    await onTo(user, 'Connect your accounts');
+    await user.type(await screen.findByRole('textbox', { name: /^Username/ }), 'anna@example.nl');
+    await user.click(screen.getByRole('button', { name: 'Check the sign-in' }));
+
+    await user.click(await screen.findByRole('button', { name: 'Try again' }));
+    expect(removeMock).toHaveBeenCalledWith('c-bad');
+    expect(screen.getByRole('button', { name: 'Check the sign-in' })).toBeEnabled();
+    expect(screen.getByRole('textbox', { name: /^Username/ })).toHaveValue('anna@example.nl');
+    expect(next()).toBeDisabled();
+  });
+
+  it('asks Google’s account for the ticked faces with no ticks of its own, and Gmail and Drive apart', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Google']);
+    await onTo(user, 'Connect your accounts');
+    expect(await screen.findAllByRole('button', { name: 'Connect with Google' })).toHaveLength(3);
+    // The faces were decided on *What moves?*: the consent draws none to tick.
+    expect(screen.queryByText('What this account will serve')).not.toBeInTheDocument();
+    expect(screen.getByText('One sign-in: calendar, contacts, and tasks')).toBeInTheDocument();
+    expect(screen.getByText('One sign-in: email')).toBeInTheDocument();
+    expect(screen.getByText('One sign-in: files')).toBeInTheDocument();
+  });
+});
+
+describe('Where does it go? (screen 5)', () => {
+  /** Mail from another provider and files from Dropbox, both saved, so screen 4 is already done. */
+  const SAVED_SOURCES = [
+    account({ id: 'c-mail', knownValues: { username: 'anna@example.nl' } }),
+    account({ id: 'c-dropbox', kind: 'dropbox', displayName: 'Anna Dropbox', knownValues: { username: 'anna@example.nl' } }),
+  ];
+
+  async function toWhereTo(user: ReturnType<typeof userEvent.setup>) {
+    await toWhatMoves(user, ['Dropbox', 'Another mail provider']);
+    await onTo(user, 'Connect your accounts');
+    await screen.findAllByText('Connected as anna@example.nl');
+    return onTo(user, 'Where does it go?');
+  }
+
+  it('suggests Soverin for mail and Nextcloud for files, and blames each limit on its side (T7 (e))', async () => {
+    listMock.mockResolvedValue(SAVED_SOURCES);
+    const user = userEvent.setup();
+    renderAt();
+    await toWhereTo(user);
+    expect(screen.getByRole('combobox', { name: 'Where email goes' })).toHaveDisplayValue('Add Soverin');
+    expect(screen.getByRole('combobox', { name: 'Where files goes' })).toHaveDisplayValue('Add Nextcloud');
+    expect(screen.getByText('Soverin does not take files.')).toBeInTheDocument();
+    expect(screen.getByText('Nextcloud does not take email.')).toBeInTheDocument();
+    expect(next()).toHaveAccessibleDescription('Add each new account first.');
+  });
+
+  it('asks Soverin for two fields, its servers filled in and folded (T7 (b))', async () => {
+    listMock.mockResolvedValue(SAVED_SOURCES);
+    const user = userEvent.setup();
+    renderAt();
+    await toWhereTo(user);
+    const soverin = screen.getByRole('heading', { level: 3, name: 'Add Soverin' }).closest('section')!;
+    const fold = within(soverin).getByText('Server settings (filled in for Soverin)').closest('details')!;
+    expect(fold).not.toHaveAttribute('open');
+    expect(within(fold).getByRole('textbox', { name: /^Host/ })).toHaveValue('caldav.soverin.net');
+    // Outside the fold: the two a person must type.
+    const shown = within(soverin)
+      .getAllByRole('textbox')
+      .filter((box) => !fold.contains(box));
+    expect(shown.map((box) => box.getAttribute('autocomplete'))).toEqual(['username']);
+    expect(within(soverin).getByLabelText(/^Password/)).toBeInTheDocument();
+  });
+
+  it('asks a Nextcloud for its address and derives its DAV root (T7 (c))', async () => {
+    listMock.mockResolvedValue(SAVED_SOURCES);
+    addMock.mockResolvedValue({ ok: true, id: 'c-cloud' });
+    const user = userEvent.setup();
+    renderAt();
+    await toWhereTo(user);
+    const nextcloud = screen.getByRole('heading', { level: 3, name: 'Add Nextcloud' }).closest('section')!;
+    await user.type(within(nextcloud).getByLabelText(/Your Nextcloud’s address|Your Nextcloud's address/), 'cloud.example.eu');
+    await user.type(within(nextcloud).getByRole('textbox', { name: /^Username/ }), 'anna');
+    await user.type(within(nextcloud).getByLabelText(/^Password/), 'secret');
+    await user.click(within(nextcloud).getByRole('button', { name: 'Check the sign-in' }));
+    expect(addMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: 'target',
+        type: 'nextcloud',
+        values: expect.objectContaining({ url: 'https://cloud.example.eu/remote.php/dav', username: 'anna' }),
+      }),
+    );
+  });
+
+  it('takes a saved destination that can take the data type, and draws no form for it', async () => {
+    listMock.mockResolvedValue([
+      ...SAVED_SOURCES,
+      account({ id: 'c-soverin', role: 'target', kind: 'soverin', displayName: 'Anna Soverin' }),
+      account({ id: 'c-cloud', role: 'target', kind: 'nextcloud', displayName: 'Anna Nextcloud' }),
+    ]);
+    const user = userEvent.setup();
+    renderAt();
+    await toWhereTo(user);
+    expect(screen.getByRole('combobox', { name: 'Where email goes' })).toHaveDisplayValue('Anna Soverin');
+    expect(screen.getByRole('combobox', { name: 'Where files goes' })).toHaveDisplayValue('Anna Nextcloud');
+    expect(screen.queryByRole('heading', { level: 3 })).not.toBeInTheDocument();
+    expect(next()).toBeEnabled();
   });
 });

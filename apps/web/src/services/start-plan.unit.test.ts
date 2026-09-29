@@ -12,6 +12,8 @@ import {
   connectionsFor,
   destinationsFor,
   migrationsFor,
+  nextcloudAddress,
+  nextcloudDavUrl,
   offers,
   photosThrough,
   type Route,
@@ -166,5 +168,32 @@ describe('the migrations that follow (underneath)', () => {
 
   it('counts a type once, even if it arrives twice', () => {
     expect(migrationsFor([route({}), route({})])[0]!.types).toEqual(['email']);
+  });
+});
+
+describe('a Nextcloud is its address (T7 (c))', () => {
+  it('derives the DAV root from what a person types', () => {
+    expect(nextcloudDavUrl('cloud.example.eu')).toBe('https://cloud.example.eu/remote.php/dav');
+    expect(nextcloudDavUrl(' https://cloud.example.eu/ ')).toBe('https://cloud.example.eu/remote.php/dav');
+    // Installed under a path: the path stays.
+    expect(nextcloudDavUrl('example.eu/nextcloud')).toBe('https://example.eu/nextcloud/remote.php/dav');
+    // Copied from the address bar, or typed whole: what follows the install goes.
+    expect(nextcloudDavUrl('https://cloud.example.eu/apps/files/?dir=/')).toBe(
+      'https://cloud.example.eu/remote.php/dav',
+    );
+    expect(nextcloudDavUrl('cloud.example.eu/index.php/apps/dashboard/')).toBe(
+      'https://cloud.example.eu/remote.php/dav',
+    );
+    expect(nextcloudDavUrl('https://cloud.example.eu/remote.php/dav/files/anna')).toBe(
+      'https://cloud.example.eu/remote.php/dav',
+    );
+    // A scheme typed stays as typed.
+    expect(nextcloudDavUrl('http://nas.example.eu')).toBe('http://nas.example.eu/remote.php/dav');
+    expect(nextcloudDavUrl('   ')).toBe('');
+  });
+
+  it('gives the address back for a box drawn again', () => {
+    expect(nextcloudAddress('https://cloud.example.eu/remote.php/dav')).toBe('cloud.example.eu');
+    expect(nextcloudAddress(nextcloudDavUrl('example.eu/nextcloud'))).toBe('example.eu/nextcloud');
   });
 });

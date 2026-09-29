@@ -212,3 +212,33 @@ export function migrationsFor(routes: ReadonlyArray<Route>): PlannedMigration[] 
   }
   return [...pairs.values()].map((m) => ({ ...m, types: inOrder(m.types) }));
 }
+
+/**
+ * A Nextcloud's DAV root, from the address a person opens it at (T7 (c)):
+ * `cloud.example.eu` is `https://cloud.example.eu/remote.php/dav`. A scheme
+ * typed stays as typed, a path it is installed under stays (`/nextcloud`),
+ * and what a browser's address bar adds after it (`/apps/files`,
+ * `/index.php/…`, the DAV root itself) goes. Checked by the same probe as
+ * anything typed, so a server whose root is elsewhere fails with its field
+ * named, never silently.
+ */
+export function nextcloudDavUrl(address: string): string {
+  let url = address.trim();
+  if (url === '') return '';
+  if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+  url = url
+    .replace(/[?#].*$/, '')
+    .replace(/\/+$/, '')
+    .replace(/\/remote\.php\/dav(\/.*)?$/i, '')
+    .replace(/\/(index\.php|apps)(\/.*)?$/i, '')
+    .replace(/\/+$/, '');
+  return `${url}/remote.php/dav`;
+}
+
+/** The address a DAV root was derived from, for a box drawn again: the inverse of `nextcloudDavUrl`. */
+export function nextcloudAddress(davUrl: string): string {
+  return davUrl
+    .trim()
+    .replace(/\/remote\.php\/dav\/?$/i, '')
+    .replace(/^https:\/\//i, '');
+}

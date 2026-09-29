@@ -20,6 +20,17 @@
  * (0153 T4). So both ask for the same fields, in the same words, with the
  * same consent — the drift two copies would grow is 0077's lesson.
  *
+ * AS THE FLOW DRAWS IT (`variant="flow"`, 0153 T7). A family's form: the
+ * door names the account, so there is no name box; the consent asks for the
+ * faces the door already asked about (`domains`), with no ticks of its own;
+ * the buttons are primary, at least 44 pixels tall, and the check is *Check
+ * the sign-in* (T7 (a)). A named provider's published servers fold under
+ * *Server settings*, which opens by itself when the check fails on a server
+ * (T7 (b)); a Nextcloud is asked for by its address, and its DAV root is
+ * derived and folded with them (T7 (c)); and the company fields wait behind
+ * *Is this a company account with an administrator?* (T7 (d)), which splits
+ * the fields and never hides them.
+ *
  * WHAT IS TYPED BELONGS TO THE DOOR. The values and the name are the caller's
  * state: the Accounts page keeps them through a Cancel, and the flow keeps
  * them while a person goes back and forth between its screens. What the form
@@ -35,8 +46,10 @@ import {
   credentialFieldRequired,
   credentialFieldsFor,
   followedField,
+  providerDefaultsFor,
   providerDefaultsProvenance,
   type CredentialField,
+  type DiscoveryDomain,
 } from '@openmig/shared';
 import { ChoiceField } from './ChoiceField.tsx';
 import { ExperimentalTag, wholeDomainOptionIsExperimental } from './ExperimentalTag.tsx';
@@ -55,6 +68,13 @@ import { conditionsRefusal } from '../services/acceptance.ts';
 import { useT, useLocale, type StringKey } from '../i18n/index.tsx';
 import { optionName } from '../i18n/option-name.ts';
 import { measuredText, probeText, qualificationEvidence, qualificationText } from '../i18n/probe-text.ts';
+import { nextcloudAddress, nextcloudDavUrl } from '../services/start-plan.ts';
+
+/** The fields a company path asks for (T7 (d)): an organisation's own registration, or Google's domain-wide key. */
+const COMPANY_FIELDS: ReadonlySet<string> = new Set(['serviceAccountKey', 'tenantId']);
+
+/** A check that failed on the server rather than on the sign-in: *Server settings* opens by itself (T7 (b)). */
+const SERVER_OUTCOMES: ReadonlySet<string> = new Set(['unreachable', 'insideOurNetwork', 'timedOut', 'targetStatus']);
 
 /**
  * A refusal in the reader's own language wherever we authored it (0071).
@@ -138,6 +158,13 @@ export interface AccountFormProps {
   readonly onAdded: (added: TestConnectionResult & { id: string }) => void;
   /** The second button, and what it does. Left out, there is none. */
   readonly onCancel?: () => void;
+  /**
+   * The faces an account's consent asks for, where the door already asked
+   * (0153 T4, T1 (c)). Given, the form draws no ticks of its own.
+   */
+  readonly domains?: ReadonlyArray<DiscoveryDomain>;
+  /** How the form is drawn: the Accounts page's, or *Start a migration*'s (see the header). */
+  readonly variant?: 'accounts' | 'flow';
 }
 
 export const AccountForm: React.FC<AccountFormProps> = ({
@@ -149,8 +176,11 @@ export const AccountForm: React.FC<AccountFormProps> = ({
   onDisplayName: setDisplayName,
   onAdded,
   onCancel,
+  domains,
+  variant = 'accounts',
 }) => {
   const { t, locale } = useLocale();
+  const flow = variant === 'flow';
   /** Prefix for the chosen option's line, which its select points at. */
   const chosenIdBase = React.useId();
   const [busy, setBusy] = React.useState(false);
@@ -190,6 +220,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
     values,
     onToken: (refreshToken) => setValues((v) => ({ ...v, refreshToken })),
     refusalText,
+    ...(domains === undefined ? {} : { fixedDomains: domains }),
   });
   const deploymentClient = consent.deploymentClient;
   const clientIdTyped = (values.clientId ?? '').trim() !== '';
@@ -208,18 +239,46 @@ export const AccountForm: React.FC<AccountFormProps> = ({
   const pairedToken = folded ? fields.find((f) => f.key === 'refreshToken') : undefined;
   const ps = consent.words;
 
+  // WHERE EACH FIELD GOES, as the flow draws the form (the header). On the
+  // Accounts page every field is drawn in the descriptor's order, as before.
+  /** A named provider's published servers, and the DAV root, fold under *Server settings* (T7 (b), (c)). */
+  const serverKeys: ReadonlySet<string> = flow
+    ? new Set([...Object.keys(providerDefaultsFor(role, type)), 'url'])
+    : new Set();
+  const companyFields = flow ? fields.filter((f) => COMPANY_FIELDS.has(f.key)) : [];
+  const [company, setCompany] = React.useState(() =>
+    companyFields.some((f) => (values[f.key] ?? '').trim() !== ''),
+  );
+  const [serverOpen, setServerOpen] = React.useState(false);
+  /** Where the account is kept, as typed, for a Nextcloud (T7 (c)); its DAV root is derived from it. */
+  const [address, setAddress] = React.useState(() => nextcloudAddress(values.url ?? ''));
+  const addressId = React.useId();
+  const placement = (field: CredentialField): 'server' | 'company' | 'more' | 'shown' => {
+    if (!flow) return 'shown';
+    if (serverKeys.has(field.key)) return 'server';
+    if (COMPANY_FIELDS.has(field.key)) return 'company';
+    // Where in the account a migration starts (a folder, a path): its own
+    // choice, which a family seldom needs.
+    if (field.perMapping && !field.required) return 'more';
+    return 'shown';
+  };
+
   const submit = async (name: string = displayName) => {
     setBusy(true);
     setResult(null);
     try {
       const answer = await connectionsApi.add({ role, type, displayName: name, values: answers });
       setResult(answer);
+      if (!answer.ok && answer.outcome && SERVER_OUTCOMES.has(answer.outcome.code)) setServerOpen(true);
       // Added either way — a credential that does not work YET is still worth
       // keeping while somebody chases an administrator.
       setAdded(true);
       onAdded(answer);
     } catch (err) {
       setResult({ ok: false, reason: refusalText(err) });
+      // A server field the door refused as missing or malformed is in the fold.
+      const named = [...(missingCredentialFields(err) ?? []), ...(invalidCredentialFields(err) ?? [])];
+      if (named.some((key) => serverKeys.has(key))) setServerOpen(true);
     } finally {
       setBusy(false);
     }
@@ -362,7 +421,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
 
   return (
     <>
-      {provenance && (
+      {provenance && !flow && (
         <p className="mt-2 text-xs text-gray-600">{t('wizard.providerDefaults.note', provenance)}</p>
       )}
 
@@ -376,16 +435,45 @@ export const AccountForm: React.FC<AccountFormProps> = ({
       )}
 
       <div className="mt-2 grid gap-3 sm:grid-cols-2">
-        <label className="text-sm sm:col-span-2">
-          <span className="block text-gray-700 mb-1">{t('connections.name')}</span>
-          <input
-            className="input w-full"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-          />
-        </label>
+        {/* The flow names the account itself (the header). */}
+        {!flow && (
+          <label className="text-sm sm:col-span-2">
+            <span className="block text-gray-700 mb-1">{t('connections.name')}</span>
+            <input
+              className="input w-full"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+            />
+          </label>
+        )}
+
+        {/* A NEXTCLOUD IS ITS ADDRESS (T7 (c)): typed as a person opens it,
+            with the DAV root derived into the fold below, where it can still
+            be edited. */}
+        {flow && role === 'target' && type === 'nextcloud' && (
+          <div className="text-sm sm:col-span-2">
+            <label htmlFor={addressId} className="block text-gray-700 mb-1">
+              {t('start.to.nextcloudAddress')}
+              <span className="text-red-600"> *</span>
+            </label>
+            <input
+              id={addressId}
+              className="input w-full"
+              autoComplete="url"
+              placeholder={t('start.to.nextcloudAddress.placeholder')}
+              value={address}
+              onChange={(e) => {
+                setAddress(e.target.value);
+                const url = nextcloudDavUrl(e.target.value);
+                setValues((v) => ({ ...v, url }));
+              }}
+            />
+            <Hint text={t('start.to.nextcloudAddress.hint')} />
+          </div>
+        )}
 
         {fields.map((field) => {
+          if (placement(field) !== 'shown') return null;
           if (folded && (field.key === 'clientSecret' || field.key === 'refreshToken')) return null;
           if (folded && field.key === 'clientId') {
             return (
@@ -411,12 +499,89 @@ export const AccountForm: React.FC<AccountFormProps> = ({
         })}
       </div>
 
-      <ProviderConsentPanel consent={consent} />
+      {/* THE COMPANY PATH (T7 (d)): asked, and answered yes, before an
+          organisation's own fields appear. The question splits the fields and
+          never hides them (0068 T3): a yes shows every one. */}
+      {companyFields.length > 0 && (
+        <fieldset className="mt-4">
+          <legend className="text-sm text-gray-700">{t('start.company.question')}</legend>
+          <div className="mt-1 flex gap-6">
+            <label className="inline-flex min-h-[44px] items-center gap-2 text-sm text-gray-700">
+              <input type="radio" checked={!company} onChange={() => setCompany(false)} />
+              {t('start.company.no')}
+            </label>
+            <label className="inline-flex min-h-[44px] items-center gap-2 text-sm text-gray-700">
+              <input type="radio" checked={company} onChange={() => setCompany(true)} />
+              {t('start.company.yes')}
+            </label>
+          </div>
+          {company && (
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              {companyFields.map((field) => (
+                <React.Fragment key={field.key}>
+                  {fieldBox(field)}
+                  {chosenLine(field)}
+                </React.Fragment>
+              ))}
+            </div>
+          )}
+        </fieldset>
+      )}
+
+      {fields.some((f) => placement(f) === 'more') && (
+        <details className="mt-4 rounded-md border border-gray-200 p-3">
+          <summary className="cursor-pointer text-sm text-gray-700">{t('start.moreOptions')}</summary>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {fields
+              .filter((f) => placement(f) === 'more')
+              .map((field) => (
+                <React.Fragment key={field.key}>
+                  {fieldBox(field)}
+                  {chosenLine(field)}
+                </React.Fragment>
+              ))}
+          </div>
+        </details>
+      )}
+
+      {/* SERVER SETTINGS (T7 (b)): what a named provider publishes, filled in
+          and folded, and opened by itself when the check fails on a server. */}
+      {fields.some((f) => placement(f) === 'server') && (
+        <details
+          className="mt-4 rounded-md border border-gray-200 p-3"
+          open={serverOpen}
+          onToggle={(e) => setServerOpen(e.currentTarget.open)}
+        >
+          <summary className="cursor-pointer text-sm text-gray-700">
+            {provenance ? t('start.serverSettings.filled', { provider: provenance.provider }) : t('start.serverSettings')}
+          </summary>
+          {provenance && (
+            <p className="mt-2 text-xs text-gray-600">{t('wizard.providerDefaults.note', provenance)}</p>
+          )}
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {fields
+              .filter((f) => placement(f) === 'server')
+              .map((field) => (
+                <React.Fragment key={field.key}>
+                  {fieldBox(field)}
+                  {chosenLine(field)}
+                </React.Fragment>
+              ))}
+          </div>
+        </details>
+      )}
+
+      <ProviderConsentPanel consent={consent} primary={flow} />
 
       {/* The prerequisites for whatever is selected — often the reason a value
-          is missing is that nobody has been to the provider's console yet. */}
+          is missing is that nobody has been to the provider's console yet.
+          From the flow in a tab of its own, so its answers stay where they are. */}
       <p className="mt-3">
-        <Link to={`/setup/${role}/${type}`} className="text-sm text-blue-700 hover:underline">
+        <Link
+          to={`/setup/${role}/${type}`}
+          className="text-sm text-blue-700 hover:underline"
+          {...(flow ? { target: '_blank', rel: 'noreferrer' } : {})}
+        >
           {t('connections.setupSteps')}
         </Link>
       </p>
@@ -455,9 +620,23 @@ export const AccountForm: React.FC<AccountFormProps> = ({
           type="button"
           disabled={busy || added || !displayName.trim()}
           onClick={() => void submit()}
-          className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded disabled:opacity-50"
+          className={
+            flow
+              ? `min-h-[44px] px-5 py-2 font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed ${
+                  consent.isGrantKind
+                    ? 'bg-white border border-gray-300 text-gray-800 hover:bg-gray-50'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`
+              : 'text-sm px-3 py-1.5 bg-blue-600 text-white rounded disabled:opacity-50'
+          }
         >
-          {busy ? t('connections.testing') : added ? t('connections.added') : t('connections.addAndTest')}
+          {busy
+            ? t('connections.testing')
+            : added
+              ? t('connections.added')
+              : flow
+                ? t('start.connect.check')
+                : t('connections.addAndTest')}
         </button>
         {onCancel && (
           <button type="button" onClick={onCancel} className="text-sm px-3 py-1.5 border border-gray-300 rounded">
