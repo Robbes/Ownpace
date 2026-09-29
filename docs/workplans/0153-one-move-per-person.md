@@ -27,6 +27,71 @@ place, could become the one-candidate default, and was posted as the source of a
   passes 53 files (1568 tests), `tsc -p apps/web/tsconfig.json` is clean, and the `scripts`
   guards pass 212 files.
 
+**2026-09-29, morning: T4 with T7, *Start a migration* (the owner's *"Yes"*, 0131 §6), in #1378.**
+
+- **`/start`** (`apps/web/src/pages/StartMigration.tsx`), managed only, drawn in
+  `wf-start-a-migration.svg`. *Start a migration* on Migrations, and *Add a migration* on a
+  person's card and page, open it. The four-step wizard stays beside them as *Add one migration
+  by hand*. Six screens, each starting with focus on its heading:
+  1. *Who is it for?* Somebody on Migrations, or a new name, and `?person=` chooses. Nobody is
+     made before screen 6, so leaving half-way leaves no empty card.
+  2. *Which account are you leaving?* Six tiles, none ticked, more than one allowed, each
+     tagged where it has not met a real account. An export archive and a server by its
+     protocol go to the wizard, with the person.
+  3. *What moves?* Per provider, what it can give on this deployment, all ticked, each tagged
+     by the card that carries it. Google Docs and Dropbox Paper get the wizard's own format
+     choosers, with its defaults. Photos are a line: a Takeout export, added by hand once it
+     is in the new files.
+  4. *Connect your accounts.* One sign-in per card, for exactly what was ticked (T1 (c)), and
+     how many Google takes is said before the first. A saved account is offered first, and the
+     one saved account is the default. A new one is kept only once its check passes; *Try
+     again* takes back the account a failed check left.
+  5. *Where does it go?* Per data type: a saved account that takes it, or a new Soverin or
+     Nextcloud, as drawn.
+  6. *Check, then start.* Leaving screen 5 makes the person and one paused migration per pair
+     of accounts. Each is named *"{person} — {provider} to {destination}"*, runs daily at
+     02:00, and is added to the person. Then each migration's count with its tick, the
+     manifest's rows true of these sources, and one *Start*. It waits for every count and
+     tick, and lands on the person's page.
+- **T7**, as `AccountForm`'s flow variant:
+  - (a) *Connect with …* and *Check the sign-in* are primary and at least 44 pixels tall, and a
+    greyed Next says why under it;
+  - (b) Soverin shows two fields, its servers folded under *Server settings*, which a server
+    failure opens;
+  - (c) a Nextcloud is its address, with the DAV root derived (`nextcloudDavUrl`) and editable
+    in the fold;
+  - (d) the company fields wait behind *Is this a company account with an administrator?*;
+  - one way in first (the owner, 2026-09-29): the address and *Connect with Google*, and under
+    it, each folded, an app password instead (Gmail's) and one's own client. *Check the
+    sign-in* shows once one of those is in use;
+  - (e) a limit is blamed on its side: *Not from Dropbox*, and *Soverin does not take files*;
+  - (f) the flow draws no progress line to strike through; the wizard's stays until it
+    retires.
+- **Underneath:**
+  - `start-plan.ts` holds the rules;
+  - `ConfirmMigration`'s count is split into `useMigrationCount` and `MigrationCountSection`,
+    so one screen holds several counts under one *Start*, and the confirm page is unchanged.
+- **Not yet, and said:**
+  - *Myself / Someone else* and grant links: 0108's links are per migration and Google only,
+    so they come in the next slice, not as a promise screen 1 cannot keep;
+  - screen 6's time estimate waits for 0154 T3 (a);
+  - the wizard retires once `CreateMapping.reachability.unit.test.tsx` passes through the flow
+    (D5).
+- **Proved by:**
+  - `StartMigration.unit.test.tsx` (28 cases) and `start-plan.unit.test.ts` (21). They cover
+    each screen's focus and reasons, the tags, the saved-account default, a failed check's
+    *Try again*, Soverin's fold, Nextcloud's address, and the set-up's payloads. A refused
+    set-up asks again only for what was not made, and one *Start* for two migrations lands on
+    the person's page. A failed read of the saved accounts is said, and a `?person=` naming
+    nobody chooses nobody;
+  - `managed-ui.ui.test.ts` in a real browser: from Anna's card through the six screens and
+    one *Start* to her page, with no call the API does not serve. With the card's link pointed
+    back at the wizard, it fails;
+  - `ConfirmMigration`'s own 68 cases pass unchanged;
+  - a walk in Chromium over a fixture API, in English, Dutch and at phone width, found two
+    faults, both fixed: mail was listed after files, and *Another mail provider* was
+    capitalised mid-sentence.
+
 **2026-09-29, morning: the owner's answers to the writing session's eleven questions, and two
 words changed with them** (0131 §6, R8).
 

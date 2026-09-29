@@ -633,6 +633,89 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
     await l.page.close();
   });
 
+  it('starts a migration for Anna from her card, through six screens and one Start, to her page (0153 T4)', async () => {
+    // What the flow asks for, answered as the API would: Anna's saved mail
+    // account and a saved Soverin, what this deployment serves, and the
+    // create, the count and the start of one migration. Restored after, so no
+    // other case sees them.
+    const NEW = 'a0000000-0000-4000-8000-0000000000d9';
+    const at = new Date(Date.now() + 60_000).toISOString();
+    const detail = {
+      id: NEW,
+      tenantId: TENANT,
+      name: 'Anna — example.nl to Soverin',
+      sourceType: 'imap',
+      targetType: 'soverin',
+      status: 'paused',
+      mode: 'mirror',
+      syncConfig: { domains: ['email'], schedule: '0 2 * * *' },
+      sourceConfig: {},
+      targetConfig: {},
+      domainStatus: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const added: Record<string, unknown> = {
+      'GET /api/connections': {
+        connections: [
+          { id: 'c0000000-0000-4000-8000-000000000001', role: 'source', kind: 'imap', displayName: 'Anna mail', status: 'connected', createdAt: at, usedByMigrations: 0, knownValues: { host: 'imap.example.nl', port: '993', username: 'anna@example.nl' } },
+          { id: 'c0000000-0000-4000-8000-000000000002', role: 'target', kind: 'soverin', displayName: 'Anna Soverin', status: 'connected', createdAt: at, usedByMigrations: 0, knownValues: { username: 'anna@soverin.net' } },
+        ],
+      },
+      'GET /api/provider-accounts': {
+        google: { domains: ['calendar', 'contact', 'task'], client: 'deployment' },
+        microsoft: { domains: ['email', 'calendar', 'contact', 'file', 'task'] },
+      },
+      'GET /api/provider-clients': { google: 'deployment', dropbox: 'deployment', microsoft: 'deployment' },
+      'POST /api/migrations': detail,
+      [`POST /api/people/${PERSON}/migrations`]: (FIXTURES['GET /api/people'] as { people: unknown[] }).people[0],
+      [`POST /api/migrations/${NEW}/discover`]: {},
+      [`GET /api/migrations/${NEW}`]: detail,
+      [`GET /api/migrations/${NEW}/discovery`]: {
+        mappingId: NEW,
+        discovered: true,
+        domains: [{ domain: 'email', collections: 12, items: 18734, bytes: 3_400_000_000, discoveredAt: at }],
+      },
+      'GET /api/scope-manifest': {
+        version: 'ui-smoke',
+        migrates: [{ item: 'Email', detail: 'Folders, flags and timestamps.' }],
+        partial: [],
+        doesNotMigrate: [],
+      },
+      [`POST /api/migrations/${NEW}/start`]: { id: NEW, status: 'active' },
+    };
+    Object.assign(FIXTURES, added);
+    const missesBefore = apiMisses.length;
+    try {
+      const l = await open('/mappings');
+      const next = () => l.page.getByRole('button', { name: 'Next' }).click();
+      await l.page.getByRole('link', { name: 'Add a migration' }).click();
+      await l.page.waitForURL(`**/start?person=${PERSON}`, { timeout: 10_000 });
+      expect(await l.page.getByRole('radio', { name: 'Anna' }).isChecked()).toBe(true);
+      await next();
+      await l.page.getByRole('checkbox', { name: 'Another mail provider' }).check();
+      await next();
+      await l.page.getByRole('heading', { level: 2, name: 'What moves?' }).waitFor({ timeout: 10_000 });
+      await next();
+      // The one saved account is the default: nothing to type.
+      await l.page.getByText('Connected as anna@example.nl').waitFor({ timeout: 10_000 });
+      await next();
+      await l.page.getByRole('heading', { level: 2, name: 'Where does it go?' }).waitFor({ timeout: 10_000 });
+      await next();
+      await l.page.getByRole('heading', { level: 2, name: 'Check, then start' }).waitFor({ timeout: 15_000 });
+      const start = l.page.getByRole('button', { name: 'Start', exact: true });
+      await expect.poll(() => start.isEnabled(), { timeout: 15_000 }).toBe(true);
+      await start.click();
+      await l.page.waitForURL(`**/people/${PERSON}`, { timeout: 15_000 });
+      expect(apiHits).toContain(`/api/migrations/${NEW}/start`);
+      expect(apiMisses.slice(missesBefore), 'the flow called endpoints with no fixture').toEqual([]);
+      expectClean(l, 'Start a migration');
+      await l.page.close();
+    } finally {
+      for (const key of Object.keys(added)) delete FIXTURES[key];
+    }
+  });
+
   it('sends an old /dashboard link to Migrations, so a bookmark still lands', async () => {
     const l = await open('/dashboard');
     await l.page.waitForURL((u) => u.pathname === '/mappings', { timeout: 10_000 });

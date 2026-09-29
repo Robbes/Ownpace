@@ -159,8 +159,10 @@ describe('Migrations — a failed read is never an empty list (hard rule 9)', ()
     expect(await screen.findByText('No migrations yet')).toBeInTheDocument();
     expect(screen.getByText('Start one: who it is for, where from, what, and where to.')).toBeInTheDocument();
     for (const link of screen.getAllByRole('link', { name: 'Start a migration' })) {
-      expect(link).toHaveAttribute('href', '/mappings/new');
+      expect(link).toHaveAttribute('href', '/start');
     }
+    // The wizard stays reachable, by hand (0153 T4).
+    expect(screen.getByRole('link', { name: 'Add one migration by hand' })).toHaveAttribute('href', '/mappings/new');
     expect(screen.queryByText('Could not load the migrations list.')).not.toBeInTheDocument();
   });
 });
@@ -247,14 +249,14 @@ describe('Migrations — one card per person (0153 T3)', () => {
     expect(screen.queryByText(/Needs you:/)).not.toBeInTheDocument();
   });
 
-  it("offers Add a migration for the person, which the wizard adds to them", async () => {
+  it('offers Add a migration for the person, which Start a migration adds to them', async () => {
     listMock.mockResolvedValue([MAIL]);
     peopleMock.mockResolvedValue({ people: [person('p-anna', 'Anna', [{ id: 'm-mail', status: 'active' }])], unassigned: [] });
 
     renderMappings();
 
     const add = await screen.findByRole('link', { name: 'Add a migration' });
-    expect(add).toHaveAttribute('href', '/mappings/new?person=p-anna');
+    expect(add).toHaveAttribute('href', '/start?person=p-anna');
   });
 
   it('says what a person with no migrations has: nothing yet', async () => {
