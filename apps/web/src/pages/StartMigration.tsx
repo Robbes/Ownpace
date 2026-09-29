@@ -209,9 +209,14 @@ const pairKey = (m: PlannedMigration): string => `${m.sourceConnectionId}→${m.
  * mail provider* is the IMAP card, named for what a person has rather than
  * how it is reached.
  */
-function useProviderLabel(): (provider: StartProvider) => string {
+function useProviderLabel(): (provider: StartProvider, inSentence?: boolean) => string {
   const { t } = useLocale();
-  return (provider) => (provider === 'imap' ? t('start.from.otherMail') : providerName(provider, 'source'));
+  return (provider, inSentence = false) =>
+    provider !== 'imap'
+      ? providerName(provider, 'source')
+      : inSentence
+        ? t('start.from.otherMail.inSentence')
+        : t('start.from.otherMail');
 }
 
 /**
@@ -745,7 +750,12 @@ export const WhatStep: React.FC<{
         return (
           <fieldset key={provider}>
             <legend className="font-semibold text-gray-900">
-              <ProviderTile type={provider} role="source" size={28} name={t('start.what.from', { provider: label(provider) })} />
+              <ProviderTile
+                type={provider}
+                role="source"
+                size={28}
+                name={t('start.what.from', { provider: label(provider, true) })}
+              />
             </legend>
             <div className="mt-2 space-y-1">
               {offers(provider, served).map((type) => {
@@ -815,7 +825,7 @@ export const WhatStep: React.FC<{
               {missing.length > 0 && (
                 <Hint
                   className="mt-2"
-                  text={t('start.what.notFrom', { provider: label(provider), types: typeWords(missing) })}
+                  text={t('start.what.notFrom', { provider: label(provider, true), types: typeWords(missing) })}
                   {...(whyKey === undefined ? {} : { why: t(whyKey) })}
                 />
               )}

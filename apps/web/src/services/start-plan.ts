@@ -188,7 +188,9 @@ export interface PlannedMigration {
  * One migration per pair of old and new account, holding every type that
  * travels between them (0153 T4, *Underneath*). Mail and calendar leaving one
  * Google account for one Soverin account are one migration; files leaving
- * the same account for a Nextcloud are another.
+ * the same account for a Nextcloud are another. They are listed in the order
+ * a person reads data types, by the first each carries, so the check screen
+ * shows mail before files whichever provider was ticked first.
  */
 export function migrationsFor(routes: ReadonlyArray<Route>): PlannedMigration[] {
   const pairs = new Map<string, PlannedMigration & { types: DiscoveryDomain[] }>();
@@ -210,7 +212,8 @@ export function migrationsFor(routes: ReadonlyArray<Route>): PlannedMigration[] 
       types: [r.type],
     });
   }
-  return [...pairs.values()].map((m) => ({ ...m, types: inOrder(m.types) }));
+  const first = (m: { types: ReadonlyArray<DiscoveryDomain> }) => TYPE_ORDER.indexOf(m.types[0]!);
+  return [...pairs.values()].map((m) => ({ ...m, types: inOrder(m.types) })).sort((a, b) => first(a) - first(b));
 }
 
 /**

@@ -166,6 +166,14 @@ describe('the migrations that follow (underneath)', () => {
     expect(planned.map((m) => m.sourceCard)).toEqual(['gmail', 'google']);
   });
 
+  it('lists the migrations in the order a person reads data types, whichever provider came first', () => {
+    const planned = migrationsFor([
+      route({ type: 'file', provider: 'dropbox', sourceCard: 'dropbox', sourceConnectionId: 'src-dropbox', targetCard: 'nextcloud', targetConnectionId: 'dst-nextcloud' }),
+      route({ type: 'email', provider: 'imap', sourceCard: 'imap', sourceConnectionId: 'src-imap' }),
+    ]);
+    expect(planned.map((m) => m.types[0])).toEqual(['email', 'file']);
+  });
+
   it('counts a type once, even if it arrives twice', () => {
     expect(migrationsFor([route({}), route({})])[0]!.types).toEqual(['email']);
   });
