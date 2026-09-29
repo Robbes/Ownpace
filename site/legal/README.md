@@ -288,6 +288,16 @@ the text: after the lawyer's pass (0139 T1), or without it, as the owner did for
 conditions (1.0, 2026-09-28). `node site/build.mjs --public --check` then prints
 `0 legal page(s) marked draft` and exits 0.
 
+**The same pull request sets `LEGAL_DRAFTS`** in `packages/managed/src/legal-versions.ts` to
+match, and pins the final words in `ACCEPTED_WORDS`
+(`scripts/a-version-the-tester-accepted.unit.test.ts` fails until both agree with the texts). The
+app asks nobody to accept anything while any text is a draft, because a draft's number is the one
+its final text carries: an acceptance of draft 1.2 would be recorded as one of final 1.2 (0139 T3,
+review of 2026-09-29). **From then on, a text that changes gets a new number**, in both languages
+and in `LEGAL_VERSIONS`, and every tester is asked again; the guard fails when a final text's words
+change under the same number. This is the owner's rule for the Alpha conditions
+(alpha-version-number (a)), applied to all three.
+
 **Before the draft markers come off**, some sentences need code, machine or owner steps that are
 not done yet. The owner decided each on 2026-09-28 (the answer's id is in brackets). Each is also
 a comment beside the sentence, in both languages, where the text rests on it. **Done:**
@@ -301,16 +311,32 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   sign-in and before any other page; records one row per text with the version, the language and
   the time (`legal_acceptance`, managed migration 0032); asks again whenever a version changes;
   and refuses to store any access (adding a connection, giving one a new key, creating a
-  migration) until the current versions are accepted. The app's numbers are
+  migration, issuing a grant link) until the current versions are accepted. The app's numbers are
   `LEGAL_VERSIONS` in `packages/managed/src/legal-versions.ts`, and
   `scripts/a-version-the-tester-accepted.unit.test.ts` fails when a text's *Version* line and
   that number differ: **a new number here is a text every tester accepts again, so change both in
-  one commit.** The record is kept with the account and erased with it (privacy §9; 0139 open
-  question 4, the proposal until the owner answers). Not built: Alpha conditions §11's *"your
-  migrations carry on under the new conditions only once you have accepted them"*, for after the
-  Alpha.
+  one commit.** **Nobody is asked while any text is a draft** (`LEGAL_DRAFTS`, review of
+  2026-09-29): on live, asking starts with the release that carries the final texts (*To build or
+  to do*, below). The record is kept with the account and erased with it, and a member who leaves
+  keeps theirs until then (privacy §9's row; 0139 open question 4, the proposal until the owner
+  answers). Not built: Alpha conditions §11's *"your migrations carry on under the new conditions
+  only once you have accepted them"*, for after the Alpha.
 
 **To build or to do**, before the first invitation unless it says otherwise:
+
+- *Acceptance starts with the final texts* (terms §1, Alpha conditions §2, privacy §4.4; 0139
+  T3): the owner's final-text pull request drops the draft words from privacy 1.2 and terms 1.3,
+  sets `LEGAL_DRAFTS` to match, and pins their words in `ACCEPTED_WORDS` (*What a final Version
+  line looks like*, above). Until that release is on live, live asks nobody, so the first
+  invitation waits for it. The API's start log says which.
+- *The language on the record* (privacy §4.4; review of 2026-09-29): the record keeps the
+  language each text was accepted in, and the draft of §4.4 now says so in both languages
+  (*"in which language"* / *"in welke taal"*), as does the screen. For the owner's review with
+  the rest of the draft; if the owner prefers the sentence without it, the column goes instead
+  (`legal_acceptance.language`, managed 0032).
+- *A member who leaves* (privacy §9's new row; 0139 open question 4): the acceptance record of a
+  member who is removed stays with the organisation until its data is erased. For the owner's
+  review with the rest of the draft.
 
 - *Nothing uses your access after closing* (privacy §9, terms §11, Alpha conditions §10, the
   DPA's Annex A; terms briefing, precondition B): partly done. Since #1320 (`d7868276`, merged

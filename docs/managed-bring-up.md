@@ -1881,17 +1881,29 @@ GIT_SHA=$(git rev-parse --short HEAD) \
 Open the sign-in page: the note is under the title. Empty, or any value but
 `alpha`, is no note and no paragraph. The appliance never shows it.
 
-**The same setting asks for acceptance** (workplan 0139 T3). With `alpha`,
-every tester who signs in meets one screen before any other page: the Alpha
-conditions, the privacy policy and the terms, each linked in their language
-with its version, and one button. The API records the version of each text
-they accepted, the language and the time, and until they have, it refuses to
-store any access they give (adding a connection, a new key, a new migration:
-409 `conditions_not_accepted`). The screen comes back whenever a text's
-version changes. It is the API's alone, so recreating `api` is enough for it;
-the web bundle asks `GET /api/me` rather than baking it in. The links point at
-the site `VITE_LEGAL_SITE_URL` names, so the texts must be served there before
-the first invitation (0139 T10). Who accepted what is under *Acceptance* in the
+**The same setting asks for acceptance** (workplan 0139 T3), **once no text is
+still a draft**. With `alpha`, every tester who signs in meets one screen before
+any other page: the Alpha conditions, the privacy policy and the terms, each
+linked in their language with its version, and one button. The API records the
+version of each text they accepted, the language and the time, and until they
+have, it refuses to store any access they give (adding a connection, a new key,
+a new migration, a grant link: 409 `conditions_not_accepted`). The screen comes
+back whenever a text's version changes, at the next load or the next door
+pressed. Both halves take the setting: the API's refusals and records, and the
+web bundle, which asks `GET /api/me` on load only when built with it, so
+rebuild `web` as well as recreating `api`.
+
+While any text is a draft (`LEGAL_DRAFTS` in
+`packages/managed/src/legal-versions.ts`), nobody is asked, nothing is refused
+and nothing is recorded, as with the setting off: a draft's number is the one
+its final text will carry, so an acceptance of the draft would be recorded as
+one of the final text. On 2026-09-29 the privacy policy 1.2 and the terms 1.3
+are drafts, so deploying this to live asks nobody yet; it starts asking with
+the release that carries the owner's final texts. The API's start log says
+which (`[api] OWNPACE_STAGE=alpha, but … are drafts: nobody is asked …`). The
+links point at the site `VITE_LEGAL_SITE_URL` names, so the texts must be
+served there before the first invitation (0139 T10). Who accepted what is under
+*Acceptance* in the
 [operator runbook](./operator-runbook.md#acceptance-who-accepted-which-version).
 
 The second line is the alpha's other half: the days the erasure sentence says a

@@ -19,11 +19,15 @@
  *  - adding a connection (`POST /api/connections`);
  *  - giving a connection a new key (`PUT /api/connections/{id}/credentials`);
  *  - creating a migration (`POST /api/migrations`), which stores the source's
- *    and the destination's access in the same transaction.
+ *    and the destination's access in the same transaction;
+ *  - issuing a grant link (`POST /api/migrations/{mappingId}/links`), the
+ *    member's door to the access a family member then gives through it (review
+ *    of 2026-09-29: the migration may predate the check, or a text may have a
+ *    new version since it was created, so its creation proves nothing now).
  *
  * Two places seal a credential and do not ask, each for its reason below: a
  * grant link's consent, whose holder is no party to the terms (terms §1) and
- * whose migration was created behind this check, and the operator's seed.
+ * whose link was issued behind this check, and the operator's seed.
  * The OAuth callbacks of a member's own consent store nothing: they hand the
  * token back to the wizard, which stores it through one of the three doors.
  *
@@ -38,6 +42,15 @@
  *     answers 409 `conditions_not_accepted`, naming the texts and versions,
  *     writes nothing and probes nothing. The spec documents the answer.
  *  4. **On, and accepted**: each door answers as it did with the switch off.
+ *  5. **On, while a text is still a draft** (review of 2026-09-29): nobody is
+ *     asked, because a draft's number is the one the final text will carry
+ *     and an acceptance of it would be recorded as the final's. Each door
+ *     answers as with the switch off, and recording an acceptance is refused,
+ *     as it is with the switch off (409 `acceptance_not_asked`).
+ *
+ * The drafts are `LEGAL_DRAFTS` from `@openmig/managed`, replaced here by an
+ * object the cases set: every text final, unless a case says otherwise. Which
+ * texts really are drafts is `scripts/a-version-the-tester-accepted`'s.
  *
  * PGlite with both chains, as `app_user`.
  */
@@ -71,11 +84,23 @@ vi.mock('./middleware/auth.ts', async (importOriginal) => {
   return {
     ...actual,
     authenticate: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
-      Object.assign(req, { tenantId: TENANT, userId: TESTER, userRole: 'owner' });
+      Object.assign(req, { tenantId: TENANT, userId: caller.userId, userRole: 'owner' });
       next();
     },
     getDbPool: () => driver,
   };
+});
+
+// Every text final unless a case makes one a draft: the rule under test is the
+// API's, and the real drafts are held to the texts by their own guard. And who
+// `authenticate` says is pressing: the tester, unless a case says otherwise.
+const { texts, caller } = vi.hoisted(() => ({
+  texts: { drafts: { alpha: false, privacy: false, terms: false } as Record<string, boolean> },
+  caller: { userId: 'acceptance-tester' },
+}));
+vi.mock('@openmig/managed', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openmig/managed')>();
+  return { ...actual, LEGAL_DRAFTS: texts.drafts };
 });
 
 vi.mock('@openmig/scheduler', async (importOriginal) => {
@@ -104,11 +129,14 @@ vi.mock('@openmig/orchestration/account-qualification', async (importOriginal) =
 
 const { default: migrationRoutes } = await import('./routes/migrations/index.ts');
 const { default: connectionRoutes } = await import('./routes/connections.ts');
+const { default: meRoutes } = await import('./routes/me.ts');
+const { acceptanceAtStart } = await import('./conditions-not-accepted.ts');
 
 const app = express();
 app.use(express.json());
 app.use('/api/migrations', migrationRoutes);
 app.use('/api/connections', connectionRoutes);
+app.use('/api/me', meRoutes);
 
 async function rows<R = Record<string, unknown>>(text: string, params: unknown[] = []): Promise<R[]> {
   const conn = await driver.acquire();
@@ -175,6 +203,24 @@ const DOORS: readonly Door[] = [
 
 const press = (door: Door) => request(app)[door.method ?? 'post'](door.path).send(door.body ?? {});
 
+async function pressAs(userId: string, door: Door) {
+  caller.userId = userId;
+  try {
+    return await press(door);
+  } finally {
+    caller.userId = TESTER;
+  }
+}
+
+/** Recording an acceptance, as the screen does. */
+const ACCEPTING: Door = {
+  name: 'accepting the texts',
+  path: '/api/me/acceptance',
+  spec: '/api/me/acceptance',
+  body: { versions: LEGAL_VERSIONS, language: 'nl' },
+  accepted: 200,
+};
+
 const saved: Record<string, string | undefined> = {};
 const ENV = ['OWNPACE_STAGE', 'MAX_MIGRATIONS_PER_ORGANISATION', 'API_URL', 'WEB_URL'] as const;
 
@@ -223,6 +269,9 @@ const ASKS = /\brefusedUntilAccepted\s*\(/g;
 const CHECKS_BY_FILE: Readonly<Record<string, number>> = {
   'routes/connections.ts': 2,
   'routes/migrations/index.ts': 1,
+  // Issuing a grant link: the member's door to what a family member's consent
+  // stores (`grant-ending.ts`, below).
+  'routes/migrations/link-routes.ts': 1,
 };
 
 /** Where the API seals a credential to store it: a call, not a definition. */
@@ -240,8 +289,9 @@ const SEALS_BY_FILE: Readonly<Record<string, number>> = {
 const SEALED_WITHOUT_ASKING: Readonly<Record<string, string>> = {
   'routes/migrations/grant-ending.ts':
     'a grant link’s consent. The person granting is not a party to the terms (terms §1) and has no ' +
-    'account to accept them with; the migration the link belongs to was created by a member, through ' +
-    '`POST /api/migrations`, which asks.',
+    'account to accept them with. The member’s door to it is issuing the link, ' +
+    '`POST /api/migrations/{mappingId}/links` (`link-routes.ts`), which asks, so no grant link reaches ' +
+    'anybody from a member who has not accepted the current versions.',
   'scripts/seed-managed.ts':
     'the operator’s seed of the demo tenants, run by hand on a stack as the database owner. It is no ' +
     'door anybody signs in to, and a stack that asks for acceptance is not seeded.',
@@ -303,6 +353,14 @@ describe('the sweep: every door that stores a credential asks whether the condit
     const asks = create.search(ASKS);
     expect(asks, 'creating a migration: no check').toBeGreaterThan(-1);
     expect(create.indexOf('withTenantDb('), 'creating a migration: writes before it asks').toBeGreaterThan(asks);
+
+    const links = code(join(SRC, 'routes', 'migrations', 'link-routes.ts'));
+    const issue = links.slice(links.indexOf("'/:mappingId/links'"), links.indexOf('router.get('));
+    const linkAsks = issue.search(ASKS);
+    expect(linkAsks, 'issuing a grant link: no check').toBeGreaterThan(-1);
+    expect(issue.indexOf('issueWithinTheLimit('), 'issuing a grant link: writes before it asks').toBeGreaterThan(
+      linkAsks,
+    );
   });
 });
 
@@ -342,7 +400,7 @@ async function expectRefused(door: Door): Promise<void> {
   );
   expect(res.body.message).toMatch(/accept/i);
   expect(res.body.reason).toBe(res.body.message);
-  expect(res.body.messageNl).toMatch(/accepte/i);
+  expect(res.body.messageNl).toMatch(/aanvaard/i);
   expect(res.body.reasonNl).toBe(res.body.messageNl);
   expect(probed, 'a refused door used the access it was given').toEqual([]);
   if (door.wrote) expect(await door.wrote(), 'a refused door wrote').toBe(before);
@@ -404,5 +462,70 @@ describe('once the person has accepted the current version of each text', () => 
     const res = await press(door);
     expect(res.status, JSON.stringify(res.body)).toBe(door.accepted);
     expect(res.body?.error).not.toBe('conditions_not_accepted');
+  });
+});
+
+// ─── 5. On, while a text is still a draft ────────────────────────────────────
+
+describe('with the switch on while a text is still a draft, nobody is asked', () => {
+  beforeAll(async () => {
+    process.env.OWNPACE_STAGE = 'alpha';
+    // Somebody new, who has accepted nothing: were anybody asked, they would be.
+    await sql(`INSERT INTO tenant_member (tenant_id, user_id, email) VALUES ($1, 'newcomer', 'n@example.invalid')`, [
+      TENANT,
+    ]);
+    texts.drafts.privacy = true;
+  });
+
+  afterAll(() => {
+    texts.drafts.privacy = false;
+  });
+
+  it.each(DOORS.map((d) => [d.name, d] as const))('%s answers as it does with the switch off', async (_name, door) => {
+    await resetFor(door);
+    const res = await pressAs('newcomer', door);
+    expect(res.status, JSON.stringify(res.body)).toBe(door.accepted);
+    expect(res.body?.error).not.toBe('conditions_not_accepted');
+  });
+
+  it('recording an acceptance is refused with 409 acceptance_not_asked, and writes nothing', async () => {
+    const before = await count('SELECT count(*) AS n FROM legal_acceptance WHERE tenant_id = $1 AND subject = $2', [
+      TENANT,
+      'newcomer',
+    ]);
+    const res = await pressAs('newcomer', ACCEPTING);
+
+    expect(res.status, JSON.stringify(res.body)).toBe(409);
+    expect(res.body.error).toBe('acceptance_not_asked');
+    expect(res.body.messageNl).toBeTruthy();
+    expect(
+      await count('SELECT count(*) AS n FROM legal_acceptance WHERE tenant_id = $1 AND subject = $2', [
+        TENANT,
+        'newcomer',
+      ]),
+    ).toBe(before);
+    const { schema } = CHECKER.responseSchema(ACCEPTING, '409');
+    expect(CHECKER.satisfies(schema, res.body), `the spec does not document ${JSON.stringify(res.body)}`).toBe(true);
+  });
+
+  it('with the switch off, recording an acceptance is refused the same way', async () => {
+    delete process.env.OWNPACE_STAGE;
+    try {
+      const res = await pressAs('newcomer', ACCEPTING);
+      expect(res.status, JSON.stringify(res.body)).toBe(409);
+      expect(res.body.error).toBe('acceptance_not_asked');
+    } finally {
+      process.env.OWNPACE_STAGE = 'alpha';
+    }
+  });
+
+  it('the API says so when it starts, naming the drafts, so live does not seem to ask when it does not', () => {
+    expect(acceptanceAtStart({ OWNPACE_STAGE: 'alpha' }, { alpha: false, privacy: true, terms: true })).toMatch(
+      /privacy.*terms.*draft.*nobody/is,
+    );
+    expect(acceptanceAtStart({ OWNPACE_STAGE: 'alpha' }, { alpha: false, privacy: false, terms: false })).toMatch(
+      /alpha 1\.0.*privacy.*terms/i,
+    );
+    expect(acceptanceAtStart({}, { alpha: false, privacy: true, terms: true })).toBeNull();
   });
 });

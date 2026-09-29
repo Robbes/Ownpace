@@ -19,24 +19,30 @@
  *
  * The screen is the notice; the server's refusal of every door that stores a
  * credential (`conditions_not_accepted`) is what makes sure no access is kept
- * before it. Not accepting is allowed: *Not now* signs out, and nothing is
- * recorded.
+ * before it. Not accepting is allowed: *Not now* signs out, of the sign-in
+ * service too (`SignOut.tsx`), and nothing is recorded.
+ *
+ * Since the review of 2026-09-29: when a text changed since this person last
+ * accepted, the heading says the texts changed and each changed text is
+ * marked inside its link, so a screen reader names it too; the screen is the
+ * page's `main` landmark, as the grant and progress pages are; and a failure
+ * is said in the reader's language (`acceptanceFailure`).
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
 import { FileText, Check } from 'lucide-react';
 import { useLocale } from '../i18n/index.tsx';
 import type { StringKey } from '../i18n/strings.ts';
 import { legalUrl } from '../services/legal-links.ts';
-import { serverMessage } from '../services/api.ts';
 import {
   acceptTexts,
+  acceptanceFailure,
+  isAcceptanceNotAsked,
   isVersionNotCurrent,
   type Acceptance as AcceptanceState,
   type AcceptedDocument,
 } from '../services/acceptance.ts';
-import { useAuthStore } from '../stores/auth-store.ts';
+import { useSignOut } from '../components/SignOut.tsx';
 import LanguageSwitch from '../components/LanguageSwitch.tsx';
 import AlphaNote from '../components/AlphaNote.tsx';
 import SupportLine from '../components/SupportLine.tsx';
@@ -57,8 +63,7 @@ const Acceptance: React.FC<{
   readonly onStale: () => void;
 }> = ({ acceptance, onAccepted, onStale }) => {
   const { locale, t } = useLocale();
-  const navigate = useNavigate();
-  const logout = useAuthStore((s) => s.logout);
+  const signOut = useSignOut();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -81,8 +86,12 @@ const Acceptance: React.FC<{
       if (isVersionNotCurrent(err)) {
         setError(t('acceptance.notCurrent'));
         onStale();
+      } else if (isAcceptanceNotAsked(err)) {
+        // Nobody is asked now (a text became a draft, or the switch went
+        // off): read again, and the page this stood in front of comes back.
+        onStale();
       } else {
-        setError(serverMessage(err));
+        setError(acceptanceFailure(err, 'record', t));
       }
     } finally {
       setBusy(false);
@@ -91,13 +100,13 @@ const Acceptance: React.FC<{
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-8">
-      <div className="max-w-lg w-full space-y-6">
+      <main className="max-w-lg w-full space-y-6">
         <LanguageSwitch className="justify-end" />
         <div className="flex items-center gap-3">
           <FileText className="w-6 h-6 text-gray-500" aria-hidden="true" />
           <div>
             <h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold text-gray-900 focus:outline-none">
-              {t('acceptance.title')}
+              {t(changed ? 'acceptance.changedTitle' : 'acceptance.title')}
             </h1>
             <p className="text-sm text-gray-600">{t('acceptance.lead')}</p>
           </div>
@@ -121,6 +130,11 @@ const Acceptance: React.FC<{
                   {' · '}
                   {t('acceptance.version', { version: d.version })}
                 </span>
+                {changed && !d.accepted && (
+                  <span className="ml-2 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-900 no-underline">
+                    {t('acceptance.newVersion')}
+                  </span>
+                )}
                 <span className="sr-only"> {t('acceptance.newTab')}</span>
               </a>
             </li>
@@ -149,10 +163,9 @@ const Acceptance: React.FC<{
             type="button"
             disabled={busy}
             // Nothing is recorded: the screen is here again at the next sign-in.
-            onClick={() => {
-              logout();
-              void navigate('/login', { replace: true });
-            }}
+            // Out of the sign-in service too, or the next person at this
+            // machine would be in this account without signing in.
+            onClick={signOut}
             className="inline-flex items-center px-3 py-2 text-sm text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md disabled:opacity-50"
           >
             {t('acceptance.notNow')}
@@ -163,7 +176,7 @@ const Acceptance: React.FC<{
           <SupportLine />
           <BuildStamp />
         </div>
-      </div>
+      </main>
     </div>
   );
 };

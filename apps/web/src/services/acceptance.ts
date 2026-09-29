@@ -15,8 +15,10 @@
  * is refused (`version_not_current`), and the screen reads the texts again.
  */
 
-import apiClient from './api.ts';
-import type { Locale } from '../i18n/strings.ts';
+import axios from 'axios';
+import apiClient, { serverMessage } from './api.ts';
+import type { Locale, StringKey } from '../i18n/strings.ts';
+import { isConditionsNotAccepted } from './conditions-refused.ts';
 
 /** The texts a tester accepts, in the order the screen lists them. */
 export const ACCEPTED_DOCUMENTS = ['alpha', 'privacy', 'terms'] as const;
@@ -35,6 +37,8 @@ export interface Acceptance {
 
 /** The refusal of a version that is no longer current. */
 export const VERSION_NOT_CURRENT = 'version_not_current';
+/** The refusal of an acceptance while the deployment asks nobody (switched off, or a text is a draft). */
+export const ACCEPTANCE_NOT_ASKED = 'acceptance_not_asked';
 
 /**
  * What `GET /api/me` says about acceptance: the state, or `null` where the
@@ -88,4 +92,52 @@ export function takeSignIn(tenantId: string): { readonly acceptance: Acceptance 
 export function isVersionNotCurrent(err: unknown): boolean {
   const data = (err as { response?: { status?: number; data?: { error?: unknown } } })?.response;
   return data?.status === 409 && data.data?.error === VERSION_NOT_CURRENT;
+}
+
+/** Whether a failed accept was the server saying it asks nobody now: read again, and the page follows. */
+export function isAcceptanceNotAsked(err: unknown): boolean {
+  const data = (err as { response?: { status?: number; data?: { error?: unknown } } })?.response;
+  return data?.status === 409 && data.data?.error === ACCEPTANCE_NOT_ASKED;
+}
+
+type Translate = (key: StringKey, vars?: Record<string, string | number>) => string;
+
+/**
+ * A door's refusal because the texts are not accepted, in the reader's
+ * language, or null for any other failure (review of 2026-09-29). The
+ * sentence is ours, so it is the dictionary's, and it reads true after the
+ * texts are accepted as well as before; every door that stores access shows
+ * it: the connection forms, the wizard and the grant-link panel.
+ */
+export function conditionsRefusal(err: unknown, t: Translate): string | null {
+  return isConditionsNotAccepted(err) ? t('acceptance.refused') : null;
+}
+
+/** The reference a fault on our side carries in its sentence (`serverFault`: "Reference 0a1b2c3d;"). */
+function referenceIn(err: unknown): string | undefined {
+  const data: unknown = axios.isAxiosError(err) ? err.response?.data : undefined;
+  if (!data || typeof data !== 'object') return undefined;
+  const d = data as { reason?: unknown; message?: unknown };
+  const sentence = [d.reason, d.message].find((v): v is string => typeof v === 'string');
+  return sentence ? /\bReference ([0-9a-f]{8})\b/.exec(sentence)?.[1] : undefined;
+}
+
+/**
+ * What the acceptance screen says when reading or recording failed, in the
+ * reader's language (review of 2026-09-29). The failures it can meet are ours
+ * to word: a fault on our side (with its reference kept, so it can be quoted),
+ * no answer at all, and no access to this organisation. Anything else is the
+ * server's own sentence.
+ */
+export function acceptanceFailure(err: unknown, doing: 'read' | 'record', t: Translate): string {
+  if (!axios.isAxiosError(err)) return serverMessage(err);
+  if (!err.response) return t('acceptance.unreachable');
+  const status = err.response.status;
+  if (status >= 500) {
+    const fault = t(doing === 'read' ? 'acceptance.fault.read' : 'acceptance.fault.record');
+    const reference = referenceIn(err);
+    return reference ? `${fault} ${t('failure.reference', { reference })}` : fault;
+  }
+  if (status === 403) return t('acceptance.forbidden');
+  return serverMessage(err);
 }

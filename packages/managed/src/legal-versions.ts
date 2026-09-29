@@ -18,12 +18,26 @@
  * or of their Dutch files. A text with a new number is a text every tester is
  * asked to accept again: change it here in the same commit.
  *
- * ## A draft line is its number
+ * ## A draft is asked for by nobody
  *
- * `**Version:** 1.2 (draft — not yet published)` is version 1.2. The draft
- * words say whether the site may publish the text, which the site build
- * refuses on its own (`DRAFT_WORDS` in `site/build.mjs`); they are not part of
- * the version, and never appear here.
+ * `**Version:** 1.2 (draft — not yet published)` is version 1.2, and its
+ * number is the one the final text will carry: the owner's final-text pull
+ * request drops the draft words and keeps the number (`site/legal/README.md`,
+ * *What a final Version line looks like*). The text can still change before
+ * then. A tester who accepted the draft would be recorded as having accepted
+ * the final text, which they never read, and never be asked again (review of
+ * 2026-09-29). So `LEGAL_DRAFTS` says which texts are still drafts, and while
+ * any is, the API asks nobody, no door refuses, and nothing is recorded
+ * (`acceptanceAsked` in `apps/api/src/conditions-not-accepted.ts`). The site
+ * build refuses to publish a draft on its own (`DRAFT_WORDS` in
+ * `site/build.mjs`), and the guard holds `LEGAL_DRAFTS` to the same words.
+ *
+ * So a new version is drafted in its own pull request and merged once final:
+ * a draft merged to `main` stops the asking for every text until it is final.
+ * The API says so in its log when it starts (`acceptanceAtStart`).
+ *
+ * Once a text is final and asked for, its words are pinned to its number
+ * (`ACCEPTED_WORDS` in the guard): a change after that gets a new number.
  *
  * ## Managed only, and alpha only
  *
@@ -58,6 +72,23 @@ export const LEGAL_VERSIONS: LegalVersions = {
   privacy: '1.2',
   terms: '1.3',
 };
+
+/**
+ * Whether each text is still a draft: its *Version* line carries draft words
+ * (`DRAFT_WORDS` in `site/build.mjs`), in both languages. Held to the texts by
+ * `scripts/a-version-the-tester-accepted.unit.test.ts`. While any is `true`,
+ * nobody is asked to accept anything (the header says why).
+ */
+export const LEGAL_DRAFTS: Readonly<Record<LegalDocument, boolean>> = {
+  alpha: false,
+  privacy: true,
+  terms: true,
+};
+
+/** The texts that are still drafts, in the order the screen lists them; none once all are final. */
+export function draftTexts(drafts: Readonly<Record<LegalDocument, boolean>> = LEGAL_DRAFTS): LegalDocument[] {
+  return LEGAL_DOCUMENTS.filter((document) => drafts[document]);
+}
 
 /** A version number's shape, as the table's CHECK holds it (managed 0032). */
 export const VERSION_SHAPE = /^[0-9]+(\.[0-9]+)*$/;

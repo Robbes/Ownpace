@@ -56,7 +56,12 @@ import {
   recordAcceptance,
   type LegalDocument,
 } from '@openmig/managed';
-import { VERSION_NOT_CURRENT, acceptanceAsked, acceptanceOf } from '../conditions-not-accepted.ts';
+import {
+  ACCEPTANCE_NOT_ASKED,
+  VERSION_NOT_CURRENT,
+  acceptanceAsked,
+  acceptanceOf,
+} from '../conditions-not-accepted.ts';
 
 const router = Router();
 
@@ -157,9 +162,10 @@ router.get('/', authenticateSubject, async (req: AuthenticatedRequest, res: Resp
     /**
      * WHETHER THE TEXTS STILL WAIT TO BE ACCEPTED (workplan 0139 T3), for the
      * organisation this caller is acting as, and only while the deployment
-     * asks (`OWNPACE_STAGE=alpha`). The web app shows its screen in front of
-     * every page while this says `due`, with each text and its current
-     * version; the doors that store a credential refuse on the same reading.
+     * asks (`OWNPACE_STAGE=alpha`, and no text still a draft). The web app
+     * shows its screen in front of every page while this says `due`, with
+     * each text and its current version; the doors that store a credential
+     * refuse on the same reading.
      *
      * Absent when the deployment does not ask, and when no organisation is
      * current: acceptance is recorded per organisation, and a caller choosing
@@ -214,7 +220,13 @@ const AcceptanceSchema = z
 const NOT_CURRENT_EN =
   'These texts changed while the page was open. Read the current versions, then accept those.';
 const NOT_CURRENT_NL =
-  'Deze teksten zijn gewijzigd terwijl de pagina openstond. Lees de huidige versies en accepteer die.';
+  'Deze teksten zijn gewijzigd terwijl de pagina openstond. Lees de huidige versies en aanvaard die.';
+
+const NOT_ASKED_EN =
+  'This service asks nobody to accept its texts at the moment, so nothing was recorded. Reload the page.';
+const NOT_ASKED_NL =
+  'Deze dienst vraagt op dit moment niemand zijn teksten te aanvaarden, dus er is niets vastgelegd. Laad de ' +
+  'pagina opnieuw.';
 
 /**
  * `POST /api/me/acceptance` — accept the current version of each text
@@ -230,8 +242,13 @@ const NOT_CURRENT_NL =
  * the first time. The answer is what `GET /api/me` would now say.
  *
  * Tenant-scoped (`authenticate`), because the record is the organisation's.
- * Recording is always possible; the switch decides whether anybody is asked,
- * and whether the doors refuse without it.
+ *
+ * **Only while the deployment asks** (review of 2026-09-29). With the switch
+ * off, or while any text is still a draft, nothing is recorded and the answer
+ * is 409 `acceptance_not_asked`. A draft's number is the one its final text
+ * will carry, so an acceptance of the draft would be recorded as one of the
+ * final text, whose words may differ; the server records only what it asks
+ * for.
  */
 router.post('/acceptance', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -245,6 +262,16 @@ router.post('/acceptance', authenticate, async (req: AuthenticatedRequest, res: 
       res.status(400).json({
         error: 'invalid_body',
         message: `Send { versions: { ${LEGAL_DOCUMENTS.join(', ')} }, language: ${LEGAL_LANGUAGES.map((l) => `'${l}'`).join(' or ')} }.`,
+      });
+      return;
+    }
+    if (!acceptanceAsked()) {
+      res.status(409).json({
+        error: ACCEPTANCE_NOT_ASKED,
+        message: NOT_ASKED_EN,
+        messageNl: NOT_ASKED_NL,
+        reason: NOT_ASKED_EN,
+        reasonNl: NOT_ASKED_NL,
       });
       return;
     }

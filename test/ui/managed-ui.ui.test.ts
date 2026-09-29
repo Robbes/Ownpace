@@ -660,15 +660,23 @@ describe('signed in as a platform operator', () => {
 });
 
 /**
- * THE TEXTS BEFORE ANY OTHER PAGE (workplan 0139 T3), in a real browser.
+ * THE TEXTS, BROUGHT UP BY A DOOR'S REFUSAL (workplan 0139 T3), in a real
+ * browser.
  *
- * While the deployment asks (`OWNPACE_STAGE=alpha` on the API), `GET /api/me`
- * says acceptance is due, and the acceptance screen stands in front of every
- * signed-in page: the Alpha conditions, the privacy policy and the terms, each
- * linked at the site's own file for the reader's language, and one button.
- * Every other case in this file answers `/api/me` without `acceptance`, which
- * is a deployment that asks nobody, and walks the pages as before. This one
- * walks the built bundle through the screen and back to the page it asked for.
+ * While the deployment asks (`OWNPACE_STAGE=alpha` on the API, and no text
+ * still a draft), every door that stores somebody's access answers 409
+ * `conditions_not_accepted` until they accept the texts. The bundle under test
+ * is built as CI and the OTA stack build it, without `VITE_OWNPACE_STAGE`, so
+ * it asks nothing on load and waits for nothing (review of 2026-09-29): its
+ * pages render as before. What it does do is follow the API: the app's own
+ * client reports the refusal, and the acceptance screen comes up at once. The
+ * bundle built for the Alpha also asks on load; the web guard holds that
+ * (`an-acceptance-before-the-first-connection.unit.test.tsx`).
+ *
+ * The migrations list's own read stands in for a door here, answering the
+ * refusal: the client keys on the answer, not the method, and it is the one
+ * request every page of this suite already makes. Once the texts are
+ * accepted the screen gives way to the page it was in front of.
  */
 describe('signed in by somebody who has not accepted the texts yet', () => {
   const ME = FIXTURES['GET /api/me'];
@@ -679,10 +687,22 @@ describe('signed in by somebody who has not accepted the texts yet', () => {
       version: VERSIONS[document],
       accepted,
     }));
+  const REFUSAL = 'Nothing was stored: accept the Alpha conditions, the privacy policy and the terms first.';
 
-  it('meets the texts first, linked in their language, and the page after accepting', async () => {
+  it('meets the texts at a refusal, linked in their language, and the page after accepting', async () => {
     FIXTURES['GET /api/me'] = { ...(ME as object), acceptance: { due: true, documents: documents(false) } };
     FIXTURES['POST /api/me/acceptance'] = { written: 3, acceptance: { due: false, documents: documents(true) } };
+    failures.set('GET /api/migrations', {
+      status: 409,
+      body: {
+        error: 'conditions_not_accepted',
+        message: REFUSAL,
+        messageNl: REFUSAL,
+        reason: REFUSAL,
+        reasonNl: REFUSAL,
+        documents: documents(false).map(({ document, version }) => ({ document, version })),
+      },
+    });
     try {
       const l = await open('/mappings');
       await l.page.getByRole('heading', { level: 1, name: 'Before you start' }).waitFor({ timeout: 15_000 });
@@ -695,13 +715,26 @@ describe('signed in by somebody who has not accepted the texts yet', () => {
         'https://www.ownpace.eu/privacy.html',
         'https://www.ownpace.eu/terms.html',
       ]);
-      expect(await l.text(), 'the page it asked for showed before the texts').not.toContain('Acme Families');
+      expect(await l.page.getByRole('main').count(), 'the screen is not the page\'s main landmark').toBe(1);
+      expect(await l.page.getByRole('link', { name: 'Migrations' }).count(), 'the page shows beside the screen').toBe(
+        0,
+      );
 
+      failures.delete('GET /api/migrations');
       await l.page.getByRole('button', { name: 'Accept all three' }).click();
-      await l.page.getByText('Acme Families — mail').first().waitFor({ timeout: 15_000 });
-      expectClean(l, 'the acceptance screen');
+      await l.page.getByRole('heading', { level: 1, name: 'Before you start' }).waitFor({
+        state: 'detached',
+        timeout: 15_000,
+      });
+      await l.page.getByRole('link', { name: 'Migrations' }).first().waitFor({ timeout: 15_000 });
+      // The refusals themselves are the one thing the browser may log.
+      expect(
+        l.errors.filter((e) => !/status of 409/.test(e)),
+        'the acceptance screen raised errors in the browser',
+      ).toEqual([]);
       await l.page.close();
     } finally {
+      failures.delete('GET /api/migrations');
       FIXTURES['GET /api/me'] = ME;
       delete FIXTURES['POST /api/me/acceptance'];
     }

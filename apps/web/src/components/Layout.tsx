@@ -20,7 +20,7 @@ import { useQuery } from '@tanstack/react-query';
 import { mappingApi } from '../services/mapping-service.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { isSelfHost } from '../services/edition.ts';
-import { signOutUrl } from '../services/oidc.ts';
+import { useSignOut } from './SignOut.tsx';
 import { useLocale } from '../i18n/index.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import { LOCALES } from '../i18n/strings.ts';
@@ -175,7 +175,7 @@ const Layout: React.FC = () => {
     enabled: routeCtx !== null && !selfHostEdition,
     staleTime: 60_000,
   });
-  const { user, logout, operator, tenantCount } = useAuthStore();
+  const { user, operator, tenantCount } = useAuthStore();
   const token = useAuthStore((s) => s.token);
   // Whether the service takes problem reports (workplan 0130): the link is
   // offered only when a report could reach somebody.
@@ -193,33 +193,9 @@ const Layout: React.FC = () => {
   const helpAddress = supportAddress();
   const offerHelp = helpAddress !== null && !reportingAvailable && !reporting.isLoading;
 
-  /**
-   * SIGN OUT OF THE ISSUER TOO, not just of this tab (2026-09-01).
-   *
-   * `logout()` clears the store and `localStorage`, which ends the APP's
-   * session and nothing else. The issuer's own cookie survived it, so pressing
-   * "Sign in" afterwards completed the whole authorization-code round trip
-   * with no prompt at all and put the same person straight back in — found by
-   * the owner one press after signing out.
-   *
-   * On a shared or borrowed machine that is not cosmetic: "sign out" that
-   * leaves the issuer signed in means the next person to press "Sign in" is in
-   * your account having proved nothing.
-   *
-   * THE LOCAL HALF HAPPENS FIRST AND UNCONDITIONALLY. The remote leg can be
-   * absent (no issuer configured — the paste-a-token door has no remote
-   * session), unsupported (no `end_session_endpoint` published) or unreachable,
-   * and none of those may leave somebody still signed in HERE. So the URL is
-   * asked for before the state is cleared — it needs the ID token — and
-   * followed after, if there is one.
-   */
-  const signOut = React.useCallback(() => {
-    void (async () => {
-      const url = await signOutUrl(token);
-      logout();
-      if (url) globalThis.location.assign(url);
-    })();
-  }, [token, logout]);
+  // Out of the issuer too, not just this tab (2026-09-01): `SignOut.tsx`
+  // says why, and the acceptance screen's *Not now* shares it (0139 T3).
+  const signOut = useSignOut();
   const { locale, setLocale, t } = useLocale();
 
   // Tenants and Billing are managed-edition concepts: the appliance is

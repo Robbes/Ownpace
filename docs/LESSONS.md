@@ -135,6 +135,10 @@ reading a file drops off its entry by itself.
 
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 
+### `apps/api/src/conditions-not-accepted.ts`
+
+- [a-version-the-tester-accepted](../scripts/a-version-the-tester-accepted.unit.test.ts) — A VERSION THE TESTER ACCEPTED (workplan 0139 T3).
+
 ### `apps/api/src/enqueue-unless-held.ts`
 
 - [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
@@ -1247,7 +1251,10 @@ reading a file drops off its entry by itself.
 
 ### `docs/operator-runbook.md`
 
+- [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts) — A SENTENCE IN A DOCUMENT HAS NOTHING CHECKING IT, and this one was wrong for a month.
+- [a-placeholder-with-no-way-to-fill-it](../scripts/a-placeholder-with-no-way-to-fill-it.unit.test.ts) — A PLACEHOLDER WITH NO WAY TO FILL IT.
 - [a-runbook-for-every-alert](../scripts/a-runbook-for-every-alert.unit.test.ts) — AN ALERT NOBODY KNOWS WHAT TO DO ABOUT IS THE NEXT THING TO BE IGNORED (workplan 0142 T6).
+- [a-way-back-before-every-upgrade](../scripts/a-way-back-before-every-upgrade.unit.test.ts) — A WAY BACK BEFORE EVERY UPGRADE: the dump an identity provider upgrade needs was four commands pasted from a chat (workplan 0135 T7, *Before an upgrade*).
 
 ### `docs/release.md`
 
@@ -2337,6 +2344,7 @@ Reads:
 - `deploy/compose/operator.sh`
 - `deploy/compose/seed-managed.sh`
 - `deploy/compose/set-task-env.sh`
+- `docs/operator-runbook.md`
 - `docs/rls-guide.md`
 - `scripts/a-sentence-two-files-must-agree-on.unit.test.ts`
 - `scripts/adr-operative.unit.test.ts`
@@ -3089,6 +3097,7 @@ A PLACEHOLDER WITH NO WAY TO FILL IT.
 Reads:
 
 - `docs/managed-bring-up.md`
+- `docs/operator-runbook.md`
 
 ### [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts)
 
@@ -3645,6 +3654,7 @@ A VERSION THE TESTER ACCEPTED (workplan 0139 T3).
 
 Reads:
 
+- `apps/api/src/conditions-not-accepted.ts`
 - `apps/web/src/services/legal-links.ts`
 - `packages/managed/src/legal-versions.ts`
 - `site/build.mjs`
@@ -3673,6 +3683,7 @@ Reads:
 - `deploy/compose/env-read.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/stack-kind.sh`
+- `docs/operator-runbook.md`
 - `scripts/idp-pin-watch.mjs`
 
 ### [a-workflow-step-bash-cannot-parse](../scripts/a-workflow-step-bash-cannot-parse.unit.test.ts)

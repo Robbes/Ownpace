@@ -49,6 +49,7 @@ import {
 import { authenticate, getDbPool, requireRole, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { serverFault } from '../../server-fault.ts';
+import { refusedUntilAccepted } from '../../conditions-not-accepted.ts';
 import {
   grantLinkRefusal,
   viewLinkRefusal,
@@ -201,6 +202,15 @@ router.post(
       }
 
       const purpose: MappingLinkPurpose = parsed.data.purpose ?? 'grant';
+
+      // A grant link is the member's door to the access a family member then
+      // gives through it (`grant-ending.ts` stores it). So, while the
+      // deployment asks, nobody who has not accepted the current texts issues
+      // one (0139 T3; review of 2026-09-29): the migration it belongs to may
+      // predate the check, or a text may have a new version since. A
+      // progress link grants nothing, and is not asked about.
+      if (purpose === 'grant' && (await refusedUntilAccepted(res, s.tenantId, req.userId, pool()))) return;
+
       const base = webUrl();
 
       // A progress link runs no consent, so it is refused only by the one

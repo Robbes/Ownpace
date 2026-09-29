@@ -19,7 +19,13 @@
  *  - under row security an organisation reads only its own rows, writes rows
  *    only for itself and only naming one of its members, and nobody on the
  *    request path may change or delete a row, not even its own: no grant, and
- *    no policy.
+ *    no policy;
+ *  - a member who leaves keeps their record, as the organisation's, until the
+ *    organisation's data is erased (review of 2026-09-29; 0139 open question
+ *    4, the proposal until the owner answers; privacy §9). Removing the
+ *    membership leaves the rows, and a member invited back is not asked again
+ *    for a version they already accepted there. Only the erasure purge
+ *    deletes them (`PURGED_TABLES`).
  *
  * PGlite as `app_user`, both chains. The subjects are invented.
  */
@@ -230,5 +236,38 @@ describe('under row security', () => {
 
     // A grant given back by mistake still meets no policy that lets it through.
     expect(policies.map((p) => p.cmd).sort()).toEqual(['INSERT', 'SELECT']);
+  });
+});
+
+describe('when a member leaves the organisation', () => {
+  afterAll(async () => {
+    await owner(
+      `INSERT INTO tenant_member (tenant_id, user_id, email, role, status) VALUES ($1, $2, $3, 'owner', 'active')
+       ON CONFLICT DO NOTHING`,
+      [OURS, ANNA, `${ANNA}@example.invalid`],
+    );
+  });
+
+  it('removing the membership on the request path leaves their record, as the organisation keeps it until erasure', async () => {
+    const before = await rowsOf(OURS, ANNA);
+    expect(before.length, 'the fixture: Anna accepted above').toBeGreaterThan(0);
+
+    const removed = await withTenant(driver, OURS, (db) =>
+      db.execute(sql.raw(`DELETE FROM tenant_member WHERE user_id = '${ANNA}' RETURNING user_id`)),
+    );
+
+    expect((removed as unknown as { rows: unknown[] }).rows, 'the membership was not removed').toHaveLength(1);
+    expect(await rowsOf(OURS, ANNA)).toEqual(before);
+  });
+
+  it('invited back, they are not asked again for the versions they already accepted there', async () => {
+    await owner(
+      `INSERT INTO tenant_member (tenant_id, user_id, email, role, status) VALUES ($1, $2, $3, 'owner', 'active')
+       ON CONFLICT DO NOTHING`,
+      [OURS, ANNA, `${ANNA}@example.invalid`],
+    );
+    const state = await withTenant(driver, OURS, (db) => readAcceptance(db, OURS, ANNA));
+
+    expect(state.due).toBe(false);
   });
 });

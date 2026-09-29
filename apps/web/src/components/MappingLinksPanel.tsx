@@ -51,6 +51,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, Check, KeyRound, Eye } from 'lucide-react';
 import { isSelfHost } from '../services/edition.ts';
 import { serverMessage } from '../services/api.ts';
+import { conditionsRefusal } from '../services/acceptance.ts';
 import {
   LINK_LIFETIMES,
   grantLinkApi,
@@ -153,7 +154,9 @@ const LinkSection: React.FC<{
     } catch (err) {
       // Verbatim. Every refusal this route answers with names what to
       // configure; a generic "could not create link" would throw that away.
-      setIssueError(serverMessage(err));
+      // But for the texts not accepted yet (0139 T3), whose sentence is ours
+      // and so in the reader's language.
+      setIssueError(conditionsRefusal(err, t) ?? serverMessage(err));
     } finally {
       setIssuing(false);
     }

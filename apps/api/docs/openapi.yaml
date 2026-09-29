@@ -326,9 +326,10 @@ paths:
         subject — but only against an address the issuer says it VERIFIED,
         since otherwise whoever registers an address inherits what was granted
         to it.
-        While the deployment asks for acceptance (`OWNPACE_STAGE=alpha`,
-        workplan 0139 T3) and an organisation is current, `acceptance` says
-        which texts wait to be accepted, each with its current version.
+        While the deployment asks for acceptance (`OWNPACE_STAGE=alpha`, and
+        no text still a draft; workplan 0139 T3) and an organisation is
+        current, `acceptance` says which texts wait to be accepted, each with
+        its current version.
       responses:
         '200':
           description: The caller, their memberships, and which one they are currently acting as.
@@ -352,9 +353,11 @@ paths:
         nothing and answers 409 `version_not_current`, so a page left open
         across an update cannot accept a text nobody shows any more.
 
-        Recording is always possible. The deployment's switch decides whether
-        anybody is asked, and whether the doors that store a credential refuse
-        until it is done.
+        **Only while the deployment asks** (`OWNPACE_STAGE=alpha`, and no text
+        still a draft). Otherwise nothing is written and the answer is 409
+        `acceptance_not_asked`. A draft's number is the one its final text will
+        carry, so an acceptance of the draft would be recorded as one of the
+        final text, whose words may still change.
       requestBody:
         required: true
         content:
@@ -373,10 +376,16 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '409':
-          description: '`version_not_current`: a version that is not the current one. Nothing was written.'
+          description: |
+            Nothing was written. `version_not_current` (`VersionNotCurrent`): a
+            version that is not the current one. Or `acceptance_not_asked`
+            (`AcceptanceNotAsked`): this deployment asks nobody at the moment.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/VersionNotCurrent' }
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/VersionNotCurrent' }
+                  - { $ref: '#/components/schemas/AcceptanceNotAsked' }
 
   /api/invitations/{tenantId}/accept:
     parameters:
@@ -2813,13 +2822,23 @@ paths:
             connection stores none — for Gmail and Drive only where
             `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted` is declared. A Google
             account source asks for the data types the migration copies.
+
+            Or `conditions_not_accepted` (`ConditionsNotAccepted`), for a grant
+            link only: while the deployment asks, the caller has not yet
+            accepted the current version of each text (workplan 0139 T3). A
+            grant link is the door to the access a family member then gives
+            through it, so it waits for the texts as the doors that store a
+            credential do. A progress link grants nothing and is not asked
+            about.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  error: { type: string }
-                  reason: { type: string }
+                anyOf:
+                  - type: object
+                    properties:
+                      error: { type: string }
+                      reason: { type: string }
+                  - { $ref: '#/components/schemas/ConditionsNotAccepted' }
     get:
       tags: [Grant links]
       summary: The links that exist, and their state
@@ -6688,8 +6707,8 @@ components:
         Whether the texts still wait to be accepted (workplan 0139 T3): each
         text with its current version, and whether this caller accepted that
         version in the organisation they are acting as. **Present only while
-        the deployment asks** (`OWNPACE_STAGE=alpha`) and an organisation is
-        current. The web app shows its acceptance screen in front of every page
+        the deployment asks** (`OWNPACE_STAGE=alpha`, and no text still a
+        draft) and an organisation is current. The web app shows its acceptance screen in front of every page
         while `due` is true, and the doors that store a credential answer 409
         `conditions_not_accepted` on the same reading. A text that gets a new
         version is due again.
@@ -6709,7 +6728,7 @@ components:
         document: { $ref: '#/components/schemas/LegalDocument' }
         version:
           type: string
-          description: The number on the text's Version line, without any draft words.
+          description: The number on the text's Version line. A draft is never asked for.
         accepted:
           type: boolean
           description: Whether this caller accepted this version here.
@@ -6751,7 +6770,8 @@ components:
     ConditionsNotAccepted:
       type: object
       description: |
-        A door that would store a credential, pressed by somebody who has not
+        A door that would store a credential, or issue the grant link through
+        which a family member gives one, pressed by somebody who has not
         accepted the current version of each text in this organisation, while
         the deployment asks (workplan 0139 T3). `message` and `reason` carry
         one English sentence, `messageNl` and `reasonNl` its Dutch, and
@@ -6773,6 +6793,21 @@ components:
               version: { type: string }
             required: [document, version]
       required: [error, message, messageNl, reason, reasonNl, documents]
+
+    AcceptanceNotAsked:
+      type: object
+      description: |
+        An acceptance offered while this deployment asks nobody: its switch is
+        off, or a text is still a draft (workplan 0139 T3). Nothing was
+        written. `message` and `reason` carry one English sentence,
+        `messageNl` and `reasonNl` its Dutch.
+      properties:
+        error: { type: string, enum: [acceptance_not_asked] }
+        message: { type: string }
+        messageNl: { type: string }
+        reason: { type: string }
+        reasonNl: { type: string }
+      required: [error, message, messageNl, reason, reasonNl]
 
     VersionNotCurrent:
       type: object

@@ -164,7 +164,9 @@ export const PURGED_TABLES = [
   // with the organisation (0139 open question 4, the proposal until the owner
   // answers). Before `tenant_member`, whose members it names. The request path
   // may not delete these rows, so this list is the one deleter; the key would
-  // cascade, and it is named so the receipt counts it.
+  // cascade, and it is named so the receipt counts it. Removing a member does
+  // not delete theirs: the organisation keeps who agreed to what until this
+  // purge, and privacy §9 says so (review of 2026-09-29).
   'legal_acceptance',
   'tenant_member',
   'tenant_pricing',

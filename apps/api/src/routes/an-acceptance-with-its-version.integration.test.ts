@@ -22,7 +22,14 @@
  *  - then nothing is due, and the same two creates go through.
  *
  * With the switch off, nothing changes: no acceptance is reported, and the
- * creates go through without one.
+ * creates go through without one. With the switch on while a text is still a
+ * draft, the same (review of 2026-09-29): a draft's number is the one the final
+ * text will carry, so an acceptance of it would be recorded as the final's.
+ * Recording is refused in both (409 `acceptance_not_asked`).
+ *
+ * The drafts are `LEGAL_DRAFTS`, replaced here by an object the cases set:
+ * every text final, unless a case says otherwise. Which texts really are
+ * drafts is `scripts/a-version-the-tester-accepted`'s.
  *
  * Every write here goes through the served path, so the table's grants and
  * policies are the real ones.
@@ -37,6 +44,14 @@ import { Pool } from 'pg';
 import supertest from 'supertest';
 import jwt from 'jsonwebtoken';
 import { LEGAL_VERSIONS } from '@openmig/managed';
+
+const { texts } = vi.hoisted(() => ({
+  texts: { drafts: { alpha: false, privacy: false, terms: false } as Record<string, boolean> },
+}));
+vi.mock('@openmig/managed', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openmig/managed')>();
+  return { ...actual, LEGAL_DRAFTS: texts.drafts };
+});
 
 vi.mock('@openmig/scheduler', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
@@ -78,8 +93,10 @@ const { seedMembership } = await import('../__tests__/seed-membership.ts');
 const P = '0139e7a0-e29b-41d4-a716-4466554400';
 const ASKED = `${P}01`;
 const NOT_ASKED = `${P}02`;
+const DRAFTED = `${P}03`;
 const TESTER = 'acceptance-integration-tester';
 const OTHER = 'acceptance-integration-other';
+const READER = 'acceptance-integration-reader';
 
 /** The versions the texts carry today (`legal-versions.ts`, held to the texts by its own guard). */
 const CURRENT = LEGAL_VERSIONS;
@@ -131,12 +148,14 @@ describe('an acceptance with its version', () => {
     owner = new Pool({ connectionString: PG });
     await owner.query(
       `INSERT INTO tenant (id, name, status, settings)
-       VALUES ($1, 'Asked thuis', 'active', '{}'), ($2, 'Not asked thuis', 'active', '{}')
+       VALUES ($1, 'Asked thuis', 'active', '{}'), ($2, 'Not asked thuis', 'active', '{}'),
+              ($3, 'Drafted thuis', 'active', '{}')
        ON CONFLICT (id) DO NOTHING`,
-      [ASKED, NOT_ASKED],
+      [ASKED, NOT_ASKED, DRAFTED],
     );
     await seedMembership(owner, ASKED, TESTER, 'owner');
     await seedMembership(owner, NOT_ASKED, OTHER, 'owner');
+    await seedMembership(owner, DRAFTED, READER, 'owner');
   });
 
   afterAll(async () => {
@@ -144,7 +163,7 @@ describe('an acceptance with its version', () => {
       if (saved[k] === undefined) delete process.env[k];
       else process.env[k] = saved[k];
     }
-    await owner.query(`DELETE FROM tenant WHERE id = ANY($1::uuid[])`, [[ASKED, NOT_ASKED]]);
+    await owner.query(`DELETE FROM tenant WHERE id = ANY($1::uuid[])`, [[ASKED, NOT_ASKED, DRAFTED]]);
     await owner.end();
   });
 
@@ -278,6 +297,51 @@ describe('an acceptance with its version', () => {
       expect(connection.status, JSON.stringify(connection.body)).toBe(201);
       expect(migration.status, JSON.stringify(migration.body)).toBe(201);
       expect((await acceptances(NOT_ASKED, OTHER)).rows).toEqual([]);
+    });
+
+    it('recording an acceptance is refused, and writes nothing', async () => {
+      const res = await as('post', '/api/me/acceptance').send({ versions: CURRENT, language: 'nl' });
+
+      expect(res.status, JSON.stringify(res.body)).toBe(409);
+      expect(res.body.error).toBe('acceptance_not_asked');
+      expect((await acceptances(NOT_ASKED, OTHER)).rows).toEqual([]);
+    });
+  });
+
+  describe('with the switch on while a text is still a draft', () => {
+    const as = (method: 'get' | 'post', path: string) =>
+      request[method](path).set('Authorization', `Bearer ${token(READER)}`);
+
+    beforeAll(() => {
+      process.env.OWNPACE_STAGE = 'alpha';
+      texts.drafts.terms = true;
+    });
+    afterAll(() => {
+      texts.drafts.terms = false;
+    });
+
+    it('GET /api/me reports no acceptance at all', async () => {
+      const res = await as('get', '/api/me');
+
+      expect(res.status).toBe(200);
+      expect(res.body.tenantId).toBe(DRAFTED);
+      expect(res.body).not.toHaveProperty('acceptance');
+    });
+
+    it('creating a connection and a migration go through, as with the switch off', async () => {
+      const connection = await as('post', '/api/connections').send(connectionBody());
+      const migration = await as('post', '/api/migrations').send(migrationBody());
+
+      expect(connection.status, JSON.stringify(connection.body)).toBe(201);
+      expect(migration.status, JSON.stringify(migration.body)).toBe(201);
+    });
+
+    it('recording an acceptance of the draft is refused, and writes nothing', async () => {
+      const res = await as('post', '/api/me/acceptance').send({ versions: CURRENT, language: 'nl' });
+
+      expect(res.status, JSON.stringify(res.body)).toBe(409);
+      expect(res.body.error).toBe('acceptance_not_asked');
+      expect((await acceptances(DRAFTED, READER)).rows).toEqual([]);
     });
   });
 });
