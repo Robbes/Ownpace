@@ -329,13 +329,20 @@ const Mappings: React.FC = () => {
             </p>
           )}
         </div>
-        <Link
-          to="/mappings/new"
-          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          {t('mappings.new')}
-        </Link>
+        {/* Start a migration is the flow (0153 T4); the four-step wizard stays
+            reachable, by hand, until it carries every card. */}
+        <div className="flex flex-col items-end gap-2">
+          <Link
+            to="/start"
+            className="flex min-h-[44px] items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            {t('mappings.new')}
+          </Link>
+          <Link to="/mappings/new" className="text-sm text-blue-700 hover:underline">
+            {t('start.byHand')}
+          </Link>
+        </div>
       </div>
 
       {statusFilter && failures.length === 0 && (
@@ -367,7 +374,7 @@ const Mappings: React.FC = () => {
           <h3 className="text-lg font-medium text-gray-900 mb-2">{t('mappings.empty.title')}</h3>
           <p className="text-gray-500 mb-6">{t('mappings.empty.hint')}</p>
           <Link
-            to="/mappings/new"
+            to="/start"
             className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             <Plus className="w-5 h-5 mr-2" />
@@ -424,7 +431,7 @@ const Mappings: React.FC = () => {
                 </div>
                 {!person.implicit && (
                   <Link
-                    to={`/mappings/new?person=${encodeURIComponent(person.id)}`}
+                    to={`/start?person=${encodeURIComponent(person.id)}`}
                     className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:underline"
                   >
                     <Plus className="w-4 h-4" />

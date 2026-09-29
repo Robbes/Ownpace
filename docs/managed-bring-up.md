@@ -124,23 +124,34 @@ are **not** product-named and keep their names; nothing above touches them.
   registry and the built API/web images add up; running out midway leaves a
   stack that is partly built and wholly confusing.
 - The repository cloned, and `pnpm install --frozen-lockfile` done.
-- **Container output kept for a month, and no longer** (workplan 0129 T3). No
-  compose file here sets `logging`, so every container, the compose services and
-  the task runs Trigger.dev starts alike, writes with Docker's default, which
-  keeps everything for ever. Give it to the host's journal, and let the journal
-  keep 30 days:
+- **Container output: Docker's default log driver, kept until the container
+  is removed** (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default,
+  as the text says"*). No compose file here sets `logging`, so every
+  container, the compose services and the task runs Trigger.dev starts alike,
+  writes with the daemon's driver. Leave it at Docker's default, `json-file`,
+  which keeps a container's output with the container, with no limit of age
+  or size, and removes it with the container. `local` will do too: it keeps
+  the output with the container in the same way, but rotates it by size
+  (about 100 MB per container by default, by Docker's documentation: five
+  files of 20 MB, compressed), so the oldest lines can go sooner, never
+  later. That is what the privacy policy says of server logs (§9): kept until
+  the part of the service that wrote them is replaced, with no fixed period.
+  The host's journal would keep them after the container is gone, for as long
+  as the journal keeps anything, so do not hand them to it. Check the machine
+  (`stand-up-live.sh` asks too, and refuses any other answer):
 
   ```bash
-  # /etc/docker/daemon.json
-  { "log-driver": "journald" }
-
-  # /etc/systemd/journald.conf, under [Journal]
-  MaxRetentionSec=1month
+  docker info --format '{{.LoggingDriver}}'    # json-file, or local
   ```
 
-  Then `sudo systemctl restart systemd-journald docker`. Only containers created
-  after that use the journal, so do it before the bring-up. `docker compose logs`
-  keeps working, and `journalctl CONTAINER_NAME=<name>` reads the same lines.
+  If it prints `journald`, `/etc/docker/daemon.json` sets it: take the
+  `"log-driver"` line out (the file may hold nothing else, `{}`), then
+  `sudo systemctl restart docker` and ask again. A container keeps the driver
+  it was created with, so one created before the change writes to the journal
+  until it is recreated; do this before a stack's bring-up and there is none.
+  What went to the journal stays there until the journal's own retention
+  removes it. `docker compose logs` reads the output either way. The appliance
+  keeps its month (`docs/selfhost-quickstart.md`); this is the managed machine.
 
 **Architecture.** `DEPLOY_IMAGE_PLATFORM` decides what the task images are
 built for, **server-side** — there is no CLI flag. Get it wrong and every task
@@ -317,7 +328,10 @@ outside is the dispatch-only workflow *Exposure probe*
 (`.github/workflows/exposure-probe.yml`), on a GitHub-hosted runner. It needs
 the repository variable `EXPOSURE_PROBE_LIVE_PORTS`, live's `*_PORT` values, and
 takes the machine's own public address from the optional secret
-`EXPOSURE_PROBE_HOST`.
+`EXPOSURE_PROBE_HOST`. It also asks `app.`, `id.`, `status.` and
+`www.ownpace.eu` for the page a visitor asks first, and fails while NetBird's
+sign-in answers one of them instead of the service (workplan 0139, item 8;
+*After the script: the owner's steps*, step 5).
 
 **The OTA site is recreated by hand, and only by hand.** No workflow runs
 `www.yml`, and the bring-up does not start the site (*The public site*, below).
@@ -1341,13 +1355,17 @@ acted, `ownpace.audit.id` its row in `audit_log`, and `Resource` says which
 process (`ownpace-api`, or `ownpace-worker` for the task runs). Addresses and
 file and folder names are pseudonyms (`pseudo:` and sixteen hex characters,
 the same person always the same one), a URL keeps only its scheme and host,
-and a detail field nobody has classified is left out. The journal set up under
-the prerequisites keeps the API's output and every task run's, so a collector
-that reads the journal forwards them; the audit lines are the ones carrying
-`ownpace.audit.id`:
+and a detail field nobody has classified is left out. Docker keeps each
+container's output with the container, not in the host's journal (`json-file`,
+*Before you start*), so a collector reads it from Docker: `docker compose logs`,
+or the file `json-file` writes for each container. A task run's container is
+removed when its run ends, and its output goes with it, so a collector that is
+to forward the worker's lines reads them as they are written; what it missed is
+still in `audit_log` (below). The audit lines are the ones carrying
+`ownpace.audit.id`; the API's, from the stack's checkout:
 
 ```bash
-journalctl -o cat --since today | grep '"ownpace.audit.id"'
+docker compose -f deploy/compose/managed.yml logs --no-log-prefix --since 24h api | grep '"ownpace.audit.id"'
 ```
 
 Ownpace sends these lines nowhere itself. The pseudonyms are made with a key in
@@ -2335,7 +2353,8 @@ true.
 
 The demo's Stalwart (v0.16.10), which
 `setup-stalwart.sh` starts with `docker run`, outside every compose file, on
-the OTA stack every night and in the self-host end-to-end run. In normal mode
+the OTA stack every night, in the self-host end-to-end run, and on a
+developer's machine beside `deploy/compose/dev.yml`. In normal mode
 it downloads its WebUI from `github.com/stalwartlabs/webui/releases/latest` on
 first start and every 30 days, its spam-filter rules from
 `github.com/stalwartlabs/spam-filter/releases/latest`, and an ASN and country
@@ -2344,11 +2363,24 @@ and `SpamSettings` in `crates/registry/src/schema/structs_impl.rs`, at
 v0.16.10). They are downloads rather than reports about anybody. They are
 objects in its database, not in `config.json`, so switching them off is new
 objects in the provisioning plan, a change that has to be run and watched on
-the machine (`docs/stalwart-integration-fix.md`); it is put to the owner in
-workplan 0139. The deploy CLI, which runs on the host, was read only this far:
-at 4.5.16 its `src/telemetry/tracing.ts` is gone, and no exporter of its own
-was found. The integration tests' throwaway Nextcloud and Stalwart, which
-Testcontainers starts on a CI runner, are not switched.
+the machine (`docs/stalwart-integration-fix.md`). **Left on, as the owner
+preferred on 2026-09-29** (workplan 0139). Asked whether to switch them off or
+keep them, the owner wrote *"Do we need it. And where? Perhaps not in live but
+yes in OTA?"* The Stalwart itself is needed: it is the demo's mail source and
+target, which the nightly gate migrates between. Its three downloads are not:
+nothing here uses its WebUI, spam-filter rules or ASN database (accounts are
+provisioned with `stalwart-cli`, and no SMTP port is published). Where: the
+places above, which hold fixtures only, and not live. The scripted bring-up
+starts it only in its demo phase and only with `--with-demo`, which
+`deploy-live.sh` and `stand-up-live.sh` refuse, and `bootstrap-managed.sh`
+refuses on live's `.env` (`scripts/a-demo-on-a-real-address.unit.test.ts`).
+Run by hand, `setup-managed-demo.sh` is not refused on live's `.env` yet; that
+refusal is a follow-up in workplan 0139. So the downloads stay on, as they are.
+
+The deploy CLI, which runs on the host, was read only this far: at 4.5.16 its
+`src/telemetry/tracing.ts` is gone, and no exporter of its own was found. The
+integration tests' throwaway Nextcloud and Stalwart, which Testcontainers
+starts on a CI runner, are not switched.
 
 `scripts/a-service-that-phones-home.unit.test.ts` puts every service of every
 compose file under `deploy/` in one of three lists (switched, no switch, or left
@@ -2926,9 +2958,13 @@ has run that commit green.
 
 No script can do these. The script checks each one before it changes anything.
 
-1. **The machine** (*Before you start*): at least 15 GB free, the journald log
-   driver, and the setting that lets a container publish on the front's address
-   before the mesh has brought it up. Create
+1. **The machine** (*Before you start*): at least 15 GB free, Docker's default
+   log driver (`docker info --format '{{.LoggingDriver}}'` prints `json-file`
+   or `local`; any other answer comes from `/etc/docker/daemon.json`, and
+   *Before you start* says how to undo it, before the bring-up creates live's
+   containers; the script asks the same and refuses any other answer), and
+   the setting that lets a container publish on the front's address before
+   the mesh has brought it up. Create
    `/etc/sysctl.d/90-bind-before-the-mesh.conf` holding
    `net.ipv4.ip_nonlocal_bind = 1`, then run `sudo sysctl --system` (*Which
    address a port answers on*). Live's web, sign-in and status ports are
@@ -3030,7 +3066,7 @@ No script can do these. The script checks each one before it changes anything.
      WEB_URL=https://app.ownpace.eu CORS_ORIGIN=https://app.ownpace.eu \
      ZITADEL_EXTERNALDOMAIN=id.ownpace.eu ZITADEL_EXTERNALPORT=443 \
      ZITADEL_EXTERNALSECURE=true ZITADEL_TLS_MODE=external \
-     NODE_ENV=production OWNPACE_STAGE=alpha BACKUP_RETENTION_DAYS=7 \
+     NODE_ENV=production OWNPACE_STAGE=alpha BACKUP_RETENTION_DAYS=7 TRUST_PROXY=2 \
      SMTP_HOST=<the relay's submission host> SMTP_PORT=587 SMTP_SECURE= \
      SMTP_USER=<the sending address> NOTIFY_FROM=<the sending address> \
      NOTIFY_TO=<an address you read> \
@@ -3054,6 +3090,22 @@ No script can do these. The script checks each one before it changes anything.
    anything but a whole number above 0. `deploy-live.sh` takes that copy before
    each update, and it is deleted once the update is proven, or after six days
    less an hour by the daily duties (§8g; workplan 0139).
+
+   **`TRUST_PROXY=2`** is the number of proxies in front of live's API, and it
+   decides whose address the API's log and its request limit take for the
+   caller (privacy §4.5; the owner, 2026-09-28, *"Keep visitors' addresses in
+   all our logs"*). Two stand there: NetBird's reverse proxy, which ends TLS,
+   connects to the machine from its own address on the mesh, and sets
+   `X-Forwarded-For` to the address the visitor connected from, dropping
+   whatever the visitor sent; and the web container's nginx, which appends
+   NetBird's address. With 2 the API names the visitor; with 1 it names
+   NetBird for everybody, empty the web container. A count above the proxies
+   that are there is as bad as `true`: Express then takes the leftmost entry,
+   which the caller wrote. The script refuses anything but 2 or 3, 3 being for
+   a NetBird cluster that adds a hop of its own. Both nginx logs record the
+   header NetBird sets as their last field, whatever this says. Whether
+   NetBird's own cluster adds a hop is not in its source; workplan 0132 T3
+   (d)'s check, once live stands, settles it (*After the script*, step 6).
 
    **Mail goes through a real relay from the first day** (workplan 0133): live
    runs no catcher, and the sign-up's verification code is the first mail it
@@ -3176,8 +3228,62 @@ it says which and logs nothing; fix it and run it again with `--resume`.
    Lift the hold. Every deploy from here on is `deploy-live.sh`.
 5. **The outside probe.** Set the repository variable
    `EXPOSURE_PROBE_LIVE_PORTS` to live's published ports, and dispatch the
-   *Exposure probe* workflow.
-6. **The record.** The date, the tag and each check's outcome, never a value, in
+   *Exposure probe* workflow. Among its checks it asks `app.`, `id.`,
+   `status.` and `www.ownpace.eu` for a page as a visitor would (`www.` once
+   it is routed to live's front), and fails while NetBird's sign-in answers
+   any of them instead: a redirect to NetBird's identity provider, or NetBird's
+   own page. **NetBird's sign-in is off on all four before the first
+   invitation** (the owner, 2026-09-28, *"Off everywhere at launch"*; workplan
+   0139, item 8): in NetBird's dashboard, no SSO, password, PIN or header
+   authentication, and no NetBird-Only Access, on any of the four services.
+   Only a request from outside the NetBird network shows it. From a peer of
+   the account, your laptop on the mesh or the machine, NetBird may let a
+   request through its SSO without a sign-in page, so a browser there proves
+   nothing, and the probe runs on a GitHub-hosted runner.
+6. **Live's logs name the visitor** (workplan 0132 T3 (d); privacy §4.5).
+   From outside the NetBird network, send one request to the app and one to
+   the site, each with a forged header, `192.0.2.1` being a documentation
+   address and nobody's:
+
+   ```bash
+   curl -s -o /dev/null -H 'X-Forwarded-For: 192.0.2.1' https://app.ownpace.eu/api/version
+   curl -s -o /dev/null -H 'X-Forwarded-For: 192.0.2.1' https://www.ownpace.eu/      # once live serves the site
+   ```
+
+   Then, on the machine, from `~/ownpace-live`, one line of each log:
+
+   ```bash
+   docker compose -f deploy/compose/managed.yml logs --no-log-prefix --tail 50 api | grep 'GET /api/version'
+   docker compose -f deploy/compose/managed.yml logs --no-log-prefix --tail 50 web | grep 'GET /api/version'
+   docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file deploy/compose/.env logs --no-log-prefix --tail 50 www
+   ```
+
+   Read the API's line and the two nginx lines apart, because they answer
+   different questions. Each nginx line starts with NetBird's address on the
+   mesh and ends, in quotes, with what NetBird passed on:
+
+   - **Only the address you sent from**: NetBird replaces a visitor's header,
+     as its source says.
+   - **`192.0.2.1, ` and then the address you sent from**: NetBird appends to
+     it instead. That is not wrong in itself: the rightmost entry is the one
+     NetBird saw, and the API, which counts from the right, still names you.
+     Write it in 0132's Status block, because this field then also holds what
+     a visitor claimed.
+
+   The API's line starts with the address the API takes for the caller:
+
+   - **The address you sent from**: `TRUST_PROXY` is right.
+   - **Another address of NetBird's**: its cluster puts a proxy of its own in
+     front. `TRUST_PROXY=3` in live's `.env`, then
+     `docker compose -f deploy/compose/managed.yml up -d --force-recreate api`,
+     and ask again.
+   - **`192.0.2.1`**: the API believes what a visitor wrote: the count is
+     more than the proxies in front, or NetBird passed the forged header on
+     as though it were the address it saw. Stop, and write it in 0132's Status
+     block before the first invitation.
+
+   These lines hold your address and NetBird's: paste them nowhere public.
+7. **The record.** The date, the tag and each check's outcome, never a value, in
    workplan 0132's Status block (T0 step 6).
 
 ## Live's daily duties

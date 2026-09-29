@@ -415,8 +415,9 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
 - `exposure-probe.yml` — dispatch only, never scheduled, on a GitHub-hosted runner: the probe
   from outside (workplan 0132 T3). It tries every port the two stacks, the site and the demo
   publish, derived from the files, on the addresses the production and OTA names resolve to, and
-  passes when only 443 answers on the production names, over TLS, with live's issuer. Its log
-  names names and ports, never an address.
+  passes when only 443 answers on the production names, over TLS, with live's issuer, and each of
+  `app.`, `id.`, `status.` and `www.ownpace.eu` answers a visitor's first page itself, not
+  NetBird's sign-in (workplan 0139, item 8). Its log names names and ports, never an address.
 - `idp-pin-watch.yml` — weekly (Mondays 06:23 UTC) and on dispatch, on a GitHub-hosted runner:
   the identity provider's pin in `managed.yml` against upstream's newest release of the same
   major (workplan 0135 T7 (b)). It keeps one issue open while the two differ, says a newer

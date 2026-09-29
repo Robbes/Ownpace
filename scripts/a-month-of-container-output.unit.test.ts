@@ -9,8 +9,13 @@
  *
  *  - every service of the appliance's compose file caps what it keeps, and no
  *    override file layered on it takes the cap away;
- *  - both guides say how to keep exactly 30 days, with the host's journal,
- *    because a size cap can only approximate a month.
+ *  - the appliance's guide says how to keep exactly 30 days, with the host's
+ *    journal, because a size cap can only approximate a month.
+ *
+ * The managed guide said the same until 2026-09-28. On a managed machine the
+ * owner chose Docker's default instead (ops-log-driver (a)), which privacy §9
+ * describes: a container's output goes with the container. That half is
+ * `a-journal-that-outlived-the-container` now, and it holds the opposite.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -59,11 +64,8 @@ describe("the appliance's containers", () => {
 });
 
 describe('exactly thirty days, with the host journal', () => {
-  it.each([
-    ['the appliance guide', 'docs/selfhost-quickstart.md'],
-    ['the managed guide', 'docs/managed-bring-up.md'],
-  ])('%s says how', (_what, path) => {
-    const guide = read(path);
+  it('the appliance guide says how', () => {
+    const guide = read('docs/selfhost-quickstart.md');
     expect(guide).toContain('MaxRetentionSec=1month');
     expect(guide).toMatch(/journald/);
   });

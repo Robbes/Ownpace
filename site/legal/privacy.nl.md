@@ -168,9 +168,9 @@ e-mailaanbieder (§7).
      organisation, which version of each a person accepted, the language and the time
      (legal_acceptance, managed migration 0032). Asked while live's OWNPACE_STAGE=alpha and no text
      is still a draft (LEGAL_DRAFTS: a draft's number is the one its final text carries, so nobody
-     accepts a draft); nothing is connected before it. Kept with the account and erased with it; a
-     member who leaves keeps their rows until the organisation's data is erased (§9's row; 0139
-     open question 4, the proposal, until the owner answers). "In welke taal" below was added on
+     accepts a draft); nothing is connected before it. Kept with the account and erased with it
+     (0139 open question 4, answered 2026-09-29, the owner: "Ok"); a member who leaves keeps their
+     rows until the organisation's data is erased (§9's row). "In welke taal" below was added on
      2026-09-29 (review of 0139 T3), because the record keeps it; for the owner's review with the
      rest of this draft. -->
 
@@ -223,14 +223,18 @@ de twee accounts, en of er toegang is gegeven; en alleen een adres als die perso
 of een foutmelding van een aanbieder alleen als u die zelf in uw tekst of op de schermafbeelding
 zet.**
 
-<!-- NOT YET TRUE ON main (the owner, 2026-09-28, ops-trust-proxy (b): keep visitors' addresses
+<!-- NOT YET TRUE ON live (the owner, 2026-09-28, ops-trust-proxy (b): keep visitors' addresses
      in all our logs). NetBird ends TLS in front of the machine, so the app and the website see
-     NetBird as the caller. The visitor's address reaches our logs only once: live sets
-     TRUST_PROXY (the number of proxies in front of the API: NetBird and the web container's
-     nginx), so the API reads the address NetBird passes on; the app's nginx
-     (apps/web/nginx.conf.template, format ownpace_combined, $remote_addr) takes the real client
-     address from NetBird's header; and the website's nginx (deploy/compose/www-nginx.conf, no
-     log_format of its own) does the same. Check a log line of each on live (0132 T3 (d)). -->
+     NetBird as the caller, and NetBird passes the visitor's address on in X-Forwarded-For.
+     Built on branch claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird
+     (0132 T3 (d), 2026-09-28 and 2026-09-29): the app's nginx (apps/web/nginx.conf.template,
+     format ownpace_combined) and the website's (deploy/compose/www-nginx.conf, format
+     ownpace_site, where the image's default applied before) record that header as a field of
+     their own, last, after NetBird's address; recorded, not believed. Live sets TRUST_PROXY=2
+     (the proxies in front of the API: NetBird and the web container's nginx; 3 if NetBird's
+     cluster adds one), which stand-up-live.sh requires, so the API reads the address NetBird
+     passes on. True on live once live stands with it, and checked with a log line of each there
+     (0132 T3 (d)). -->
 
 **Serverlogs** leggen vast dát er verzoeken waren, voor de app en voor deze website: het
 tijdstip, uw IP-adres, dat NetBird aan ons doorgeeft (§7), de gevraagde pagina (zonder het

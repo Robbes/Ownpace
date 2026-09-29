@@ -2,7 +2,109 @@
 
 > **In one line:** The Migrations page lists people: one flow (who, from where, what, to where) takes a person from one or more old accounts to a new home and creates their migrations underneath, and protocols, kinds and ids stay off screen until needed. Four faults the audit found go first.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-09-29 (update this block at the end of every session)
+
+**2026-09-29: the wizard offers a saved Microsoft 365 or Apple account again.** On branch
+`claude/funny-wright-upyuqr`; not merged. This closes the fault 0131 T1 and 0148 T9 found and
+left. The wizard (*Add one migration by hand*) kept its own copy of the server's
+`sourceKindFor`, `sourceKindOf`, and every type it did not list fell to `o365`. It did not list
+`microsoft` (0114) or `apple` (0115). A saved account of either kind was never offered on the
+source step, so the person stored it twice. A saved *Via IMAP* or *Graph* row was offered in its
+place, could become the one-candidate default, and was posted as the source of a `microsoft` or
+`apple` migration, which the create route's reuse check refuses.
+
+- **The picker reads each saved row's kind back through `wizardTypeForConnectionKind`**, the
+  inverse the server's round-trip test pins, as T4's *Start a migration* flow already does. A
+  kind added later reads back as its own card. A card with no saved row of its kind offers
+  nothing, never a wrong row. The one exception is `oauth2`: `oauth2` and `graph` both store as
+  `o365`, and the inverse answers `graph`, so `oauth2` reads its rows as `graph`
+  (`storedSourceType` in `CreateMapping.tsx`).
+- **Proved by** `CreateMapping.reachability.unit.test.tsx`, *offers each card only the rows its
+  kind stores as*. It stores one `o365`, one `microsoft` and one `apple` row, then picks each of
+  the four cards. Each card must offer only its own row and start on it. Before the fix, the
+  Microsoft 365 account and Apple account cases fail, each offered the `o365` row. With the
+  `oauth2` case removed, *Via IMAP* fails. `vitest --project unit-browser apps/web/src/pages`
+  passes 53 files (1568 tests), `tsc -p apps/web/tsconfig.json` is clean, and the `scripts`
+  guards pass 212 files.
+
+**2026-09-29, morning: T7 (f), the wizard's step labels are not struck through** (0131 §6, R8).
+
+- The line between two steps in the wizard's header is now the step's last flex item. It was
+  drawn absolutely from 4rem to the step's right edge, so it ran through every label longer
+  than a word. It now fills only what the circle and the label leave.
+- On a phone four whole labels do not fit, and with the line out of the way they pushed the page
+  117 pixels sideways at 360 pixels. Below Tailwind's `sm` the labels are read, not shown, and
+  the heading under the row (*Stap 1 van 4: Bron*) names the step.
+- Proved in a real browser (`test/ui/managed-ui.ui.test.ts`, *the wizard's progress row*), in
+  English at 1280 pixels and in Dutch at 1280, 768, 640 and 360. No line box crosses a label
+  box, and the page does not scroll sideways. With the old positioning and the same markers,
+  the three cases it had then (English at 1280, Dutch at 1280 and 360) failed on *the line
+  crosses "Source"* and *"Bron"*.
+
+**2026-09-29, morning: T4 with T7, *Start a migration* (the owner's *"Yes"*, 0131 §6), in #1378.**
+
+- **`/start`** (`apps/web/src/pages/StartMigration.tsx`), managed only, drawn in
+  `wf-start-a-migration.svg`. *Start a migration* on Migrations, and *Add a migration* on a
+  person's card and page, open it. The four-step wizard stays beside them as *Add one migration
+  by hand*. Six screens, each starting with focus on its heading:
+  1. *Who is it for?* Somebody on Migrations, or a new name, and `?person=` chooses. Nobody is
+     made before screen 6, so leaving half-way leaves no empty card.
+  2. *Which account are you leaving?* Six tiles, none ticked, more than one allowed, each
+     tagged where it has not met a real account. An export archive and a server by its
+     protocol go to the wizard, with the person.
+  3. *What moves?* Per provider, what it can give on this deployment, all ticked, each tagged
+     by the card that carries it. Google Docs and Dropbox Paper get the wizard's own format
+     choosers, with its defaults. Photos are a line: a Takeout export, added by hand once it
+     is in the new files.
+  4. *Connect your accounts.* One sign-in per card, for exactly what was ticked (T1 (c)), and
+     how many Google takes is said before the first. A saved account is offered first, and the
+     one saved account is the default. A new one is kept only once its check passes; *Try
+     again* takes back the account a failed check left.
+  5. *Where does it go?* Per data type: a saved account that takes it, or a new Soverin or
+     Nextcloud, as drawn.
+  6. *Check, then start.* Leaving screen 5 makes the person and one paused migration per pair
+     of accounts. Each is named *"{person} — {provider} to {destination}"*, runs daily at
+     02:00, and is added to the person. Then each migration's count with its tick, the
+     manifest's rows true of these sources, and one *Start*. It waits for every count and
+     tick, and lands on the person's page.
+- **T7**, as `AccountForm`'s flow variant:
+  - (a) *Connect with …* and *Check the sign-in* are primary and at least 44 pixels tall, and a
+    greyed Next says why under it;
+  - (b) Soverin shows two fields, its servers folded under *Server settings*, which a server
+    failure opens;
+  - (c) a Nextcloud is its address, with the DAV root derived (`nextcloudDavUrl`) and editable
+    in the fold;
+  - (d) the company fields wait behind *Is this a company account with an administrator?*;
+  - one way in first (the owner, 2026-09-29): the address and *Connect with Google*, and under
+    it, each folded, an app password instead (Gmail's) and one's own client. *Check the
+    sign-in* shows once one of those is in use;
+  - (e) a limit is blamed on its side: *Not from Dropbox*, and *Soverin does not take files*;
+  - (f) the flow draws no progress line to strike through; the wizard's stays until it
+    retires.
+- **Underneath:**
+  - `start-plan.ts` holds the rules;
+  - `ConfirmMigration`'s count is split into `useMigrationCount` and `MigrationCountSection`,
+    so one screen holds several counts under one *Start*, and the confirm page is unchanged.
+- **Not yet, and said:**
+  - *Myself / Someone else* and grant links: 0108's links are per migration and Google only,
+    so they come in the next slice, not as a promise screen 1 cannot keep;
+  - screen 6's time estimate waits for 0154 T3 (a);
+  - the wizard retires once `CreateMapping.reachability.unit.test.tsx` passes through the flow
+    (D5).
+- **Proved by:**
+  - `StartMigration.unit.test.tsx` (28 cases) and `start-plan.unit.test.ts` (21). They cover
+    each screen's focus and reasons, the tags, the saved-account default, a failed check's
+    *Try again*, Soverin's fold, Nextcloud's address, and the set-up's payloads. A refused
+    set-up asks again only for what was not made, and one *Start* for two migrations lands on
+    the person's page. A failed read of the saved accounts is said, and a `?person=` naming
+    nobody chooses nobody;
+  - `managed-ui.ui.test.ts` in a real browser: from Anna's card through the six screens and
+    one *Start* to her page, with no call the API does not serve. With the card's link pointed
+    back at the wizard, it fails;
+  - `ConfirmMigration`'s own 68 cases pass unchanged;
+  - a walk in Chromium over a fixture API, in English, Dutch and at phone width, found two
+    faults, both fixed: mail was listed after files, and *Another mail provider* was
+    capitalised mid-sentence.
 
 **2026-09-29, morning: the owner's answers to the writing session's eleven questions, and two
 words changed with them** (0131 §6, R8).
