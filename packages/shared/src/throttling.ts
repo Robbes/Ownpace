@@ -103,6 +103,23 @@ export function parseRetryAfterMs(headerValue: string): number {
 }
 
 /**
+ * Node's and undici's codes for a network that did not answer: on the error
+ * itself, or on its `cause` behind undici's `fetch failed`. A provider that
+ * answered, whatever it said, is never one of these.
+ */
+const TRANSIENT_CODES: ReadonlySet<string> = new Set([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'EPIPE',
+  'EAI_AGAIN',
+  'UND_ERR_SOCKET',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'UND_ERR_HEADERS_TIMEOUT',
+  'UND_ERR_BODY_TIMEOUT',
+]);
+
+/**
  * Token bucket implementation for rate limiting
  */
 class TokenBucket {
@@ -396,17 +413,31 @@ export class ThrottleLimiter {
   }
 
   /**
-   * Check if an error is transient (retryable)
+   * Whether an error is the network's rather than the provider's answer, and
+   * so worth asking again.
+   *
+   * THE CODES ARE READ, NOT ONLY THE WORDS (2026-09-29, found with workplan
+   * 0143 T10). The message was lowercased and then searched for `ECONN`,
+   * `ETIMEDOUT` and `EPIPE` in capitals, so none of the three ever matched.
+   * And undici throws `fetch failed` with the code on its `cause`, so a reset
+   * connection carried no word the search could find either: the request
+   * failed at once, and its item with it, where one more try would have
+   * carried it.
    */
   private isTransientError(error: Error): boolean {
+    for (const thrown of [error, (error as { cause?: unknown }).cause]) {
+      const code = (thrown as { code?: unknown } | undefined)?.code;
+      if (typeof code === 'string' && TRANSIENT_CODES.has(code)) return true;
+    }
     const message = error.message.toLowerCase();
     return (
       message.includes('timeout') ||
       message.includes('network') ||
       message.includes('connection') ||
-      message.includes('ECONN') ||
-      message.includes('ETIMEDOUT') ||
-      message.includes('EPIPE')
+      message.includes('econn') ||
+      message.includes('etimedout') ||
+      message.includes('epipe') ||
+      message.includes('socket hang up')
     );
   }
 
