@@ -3,6 +3,9 @@ import {
   APP_EVENT_REFERENCE,
   classifyFailure,
   isFailureCategory,
+  UNREAD_NOTE_PREFIX,
+  unreadCollectionsNote,
+  type UnreadCollection,
   type MigrationStatusStore,
   type MigrationStatus,
   type TenantId,
@@ -15,7 +18,7 @@ import {
   type DomainState,
 } from '@openmig/shared';
 import type { PgDatabase } from './db.ts';
-import { eq, and, inArray, sql } from 'drizzle-orm';
+import { eq, and, inArray, like, sql } from 'drizzle-orm';
 import * as schemaPg from './schema-pg.ts';
 import type { DiscoveryDomain, FailureSide } from '@openmig/shared';
 
@@ -186,11 +189,12 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
    * appearing beside a half-copied mailbox.
    *
    * The failure trio is cleared for exactly the reason `markCompleted` clears
-   * it: reaching here means the pass RETURNED — `markFailed` is the only thing
-   * that writes `last_error`, and it is only called when a pass threw. So an
-   * error still standing here is from a pass that has since been superseded by
-   * a clean one, and a stale error beside a scheduled pause reads as the
-   * cause of it.
+   * it: reaching here means the pass RETURNED — `markFailed`, the one writer
+   * of a failure's line, is only called when a pass threw. So an error still
+   * standing here is from a pass that has since been superseded by a clean
+   * one, and a stale error beside a scheduled pause reads as the cause of it.
+   * The one other writer, `noteUnreadCollections`, runs after this in the same
+   * pass, so a collection this pass could not list is still named.
    */
   async markPaused(
     tenantId: TenantId,
@@ -215,6 +219,59 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
           eq(schemaPg.migrationStatus.domain, domain),
         ),
       );
+  }
+
+  /**
+   * Name the collections this pass could not list, or clear what an earlier
+   * pass said about them (0055 T3 (e), the owner's "2a"). See the port.
+   *
+   * Written where a failure's line is written, with the first collection's
+   * category, the source as the side, and its reference, because that is
+   * where the owner's screen shows what went wrong and the category's
+   * sentence is the way out. The state is left alone: the pass did not finish
+   * the data type, and the `in_progress` it began with is true across passes.
+   */
+  async noteUnreadCollections(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+    unread: ReadonlyArray<UnreadCollection>,
+  ): Promise<void> {
+    const row = and(
+      eq(schemaPg.migrationStatus.tenantId, tenantId),
+      eq(schemaPg.migrationStatus.mappingId, mappingId),
+      eq(schemaPg.migrationStatus.domain, domain),
+    );
+    const said = unreadCollectionsNote(domain, unread);
+    if (!said) {
+      // Only a note: a failure's line is the provider's prose, and clearing it
+      // is `markCompleted`'s, on a pass that finished. The prefix is ours and
+      // holds neither `%` nor `_`, so it matches itself and nothing else.
+      await this.db
+        .update(schemaPg.migrationStatus)
+        .set({
+          lastError: null,
+          lastErrorCategory: null,
+          failedSide: null,
+          lastErrorReference: null,
+          updatedAt: sql`now()`,
+        })
+        .where(and(row, like(schemaPg.migrationStatus.lastError, `${UNREAD_NOTE_PREFIX}%`)));
+      return;
+    }
+    await this.db
+      .update(schemaPg.migrationStatus)
+      .set({
+        lastError: said.note,
+        lastErrorCategory: said.category,
+        // Always the source: a listing is only ever asked of the source.
+        failedSide: 'source',
+        // One of the wrong shape is dropped rather than refused by the CHECK,
+        // as `markFailed` does, which would lose the note itself.
+        lastErrorReference: APP_EVENT_REFERENCE.test(said.reference) ? said.reference : null,
+        updatedAt: sql`now()`,
+      })
+      .where(row);
   }
 
   async markFailed(

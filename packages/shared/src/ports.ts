@@ -3,6 +3,7 @@ import type { FailureCategory, FailureSide } from './failure-category.ts';
 import type { TenantId, MappingId } from './ids.ts';
 import type { BudgetPause, DownloadMeter } from './rate-budget.ts';
 import type { PauseReason } from './pause-reason.ts';
+import type { UnreadCollection } from './unread-collections.ts';
 import type { DeadlinePause, PassClock } from './pass-deadline.ts';
 import type { SourceAuthority } from './lifecycle.ts';
 import type { DomainDiscovery, DiscoveryRecord, DiscoveryDomain } from './discovery.ts';
@@ -2455,6 +2456,12 @@ export interface ReconcileResult {
    */
   readonly reappearedAfterRemoval?: number;
   /**
+   * Folders the pass could not list, even after the source's own retries, and
+   * so skipped (0055 T3 (e), the owner's "2a"). See the same field on
+   * `DomainSyncResult`. Absent when every folder the pass opened was listed.
+   */
+  readonly unreadCollections?: ReadonlyArray<UnreadCollection>;
+  /**
    * Set when the pass stopped at the day's download ceiling (0090 T4). A
    * scheduled pause, not an error: nothing failed, the paused folder's cursor
    * stayed put, and the next pass continues by itself. Absent on a pass that
@@ -2793,6 +2800,30 @@ export interface MigrationStatusStore {
     mappingId: MappingId,
     domain: DiscoveryDomain,
     reason: PauseReason,
+  ): Promise<void>;
+
+  /**
+   * Say which collections this pass could not list, or clear what an earlier
+   * pass said (0055 T3 (e), the owner's "2a"). An empty list clears.
+   *
+   * The note stands where a pass's error stands, with the category of the
+   * first collection's error, the source as its side, and that collection's
+   * reference, because that is where the owner's screen shows what went
+   * wrong. The state is not touched: a pass that skipped a collection has not
+   * finished the data type, so the runner does not call `markCompleted`, and
+   * the `in_progress` the pass began with stays true across passes, as it
+   * does for a pause. Clearing touches only a note this call wrote, never a
+   * failure's line.
+   *
+   * Optional, so a store written before it still satisfies the port; a runner
+   * with such a store says nothing about the collection on the status row,
+   * and its log still does.
+   */
+  noteUnreadCollections?(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+    unread: ReadonlyArray<UnreadCollection>,
   ): Promise<void>;
 
   /**
