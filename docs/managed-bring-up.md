@@ -3576,7 +3576,9 @@ could not take or refused. Then it runs `git fetch --tags origin` and
 `bootstrap-managed.sh --from data`, never with `--with-demo`; the bring-up
 builds the images with the tag's commit as `GIT_SHA`. Then the checks, at the
 origin in `WEB_URL`: `/api/version` names the tag's commit **and** its version,
-`/api/ready` answers 200, `/api/auth/mode` answers `managed`, and
+and so does `/version.json`, the web app's own build (workplan 0145: a web image
+that did not move beside the API is a deploy that did not take, and a tag cut
+before 0145 has no such file), `/api/ready` answers 200, `/api/auth/mode` answers `managed`, and
 `exposure-check.sh` passes. `NODE_ENV` is not checked yet: workplan 0132 T4's
 check is not built, and the script says so. With `WWW_LIVE=true` in live's
 `.env` it also builds and serves `www.ownpace.eu` from the tag, before the

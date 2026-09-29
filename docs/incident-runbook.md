@@ -128,8 +128,9 @@ een vorm die deze pagina niet kent*): a page could not read one of the API's ans
    in the answer it sat, the page, and both builds, with *(they differ)* when the page's build is
    not the API's.
 3. **If they differ,** the page and the API are from two releases: a tab left open across a
-   deploy, which a reload ends and the sentence already asks for, or a deploy that moved one image
-   and not the other, which the build stamp in the sidebar shows as two versions.
+   deploy, which a reload ends, and which the page itself now offers when it sees the site serve
+   a newer build; or a web image that did not move beside the API, which `deploy-live.sh` refuses
+   since workplan 0145, and which the build stamp in the sidebar shows as two versions.
 4. **If they are the same,** the API answered something its own web app refuses, which is a bug.
    The code, the place and the page are what to reproduce it with.
 
