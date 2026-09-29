@@ -15,12 +15,14 @@ the web app disagree after a partial deploy.
 
 - **`serverMessage` words it, in the reader's language.** `unreadableAnswer` (beside it in
   `apps/web/src/services/api.ts`) recognises any zod error (`z.core.$ZodError`, classic or mini)
-  and returns the first issue's code and path. `serverMessage` then says `answer.unreadable`
-  followed by `answer.unreadable.at` (*"For support: invalid_value at 2.domains.2."*), or
-  `answer.unreadable.whole` when the whole answer was refused. EN: *"The server answered in a form
-  this page does not know. Reload the page; if it stays like this, report it."* NL: *"De server
-  antwoordde in een vorm die deze pagina niet kent. Laad de pagina opnieuw; blijft het zo, meld
-  het dan."* The failure is still shown as one (hard rule 9): which words, not whether.
+  and returns the first issue's code and path. `serverMessage` says `answer.unreadable`, whose
+  `{detail}` is `answer.unreadable.at` (*invalid_value at 2.domains.2.*), or
+  `answer.unreadable.whole` when the whole answer was refused (*invalid_type, in the whole
+  answer.*). In the owner's words (below), EN: *"The server answered in a form this page does not
+  know. Reload the page; if it stays like this, report it to support, and mention: invalid_value
+  at 2.domains.2."* NL: *"De server antwoordde in een vorm die deze pagina niet kent. Laad de
+  pagina opnieuw; blijft het zo, meld het en geef daarbij het volgende door: invalid_value bij
+  2.domains.2."* The failure is still shown as one (hard rule 9): which words, not whether.
 - **How the words reach the language.** `serverMessage` has some sixty callers and no `t`.
   `LocaleProvider` publishes its locale to `apps/web/src/i18n/active-locale.ts` as it renders,
   and `tActive` reads it. Outside a provider it is English, as `useLocale` is. `fill` moved to
@@ -46,8 +48,24 @@ The guards, each run against a mutation:
 - Gates: `pnpm exec vitest run --project unit-browser --maxWorkers=4` 133 files, 2535 tests;
   `pnpm exec vitest run --project unit scripts/` 212 files, 4049 tests; `pnpm typecheck` and
   `pnpm lint` exit 0.
-- For the owner's reading, beside the rest of the Dutch: `answer.unreadable`,
-  `answer.unreadable.at` and `answer.unreadable.whole`.
+
+**The owner's reading, 2026-09-29**, of screens from the branch's build at phone width, served
+with example answers (the reported `"contacts"` list; a proxy's page answered with a 200; an
+older API that does not send the `continuous` count):
+
+- **The wording**, as quoted above. NL: *"blijft het zo, meld het dan. Voor de ondersteuning:"*
+  became *"blijft het zo, meld het en geef daarbij het volgende door:"*. EN: *"report it"* became
+  *"report it to support, and mention:"*. The two detail keys lost their *For support: / Voor de
+  ondersteuning:* prefix, since the sentence now leads into them.
+- **`mappings.loadFailedNotEmpty` is removed** (*"Niet hetzelfde als geen migraties; er kunnen er
+  bestaan die niet gelezen konden worden."*), from the Migrations page and the dictionary. The
+  red box keeps its lead, *"De migratielijst kon niet worden geladen."*, and the reason under it,
+  and the page still shows no empty state. `queue.loadFailedNotEmpty` and
+  `billing.loadFailedNotEmpty` say the same on the queues and on Billing, and are unchanged: the
+  owner saw only the Migrations line.
+- **Open, the owner's question:** could such an answer also be logged, and the log alert
+  operations? Nothing carries it today. The app-event log (0129, `/support/log`) holds only the
+  server's own errors, and alerts (0142) come only from the status page's rows.
 
 **2026-09-28, build: T5 with T7 (a), on branch
 `claude/ownpace-public-readiness-y7orc6-a-consent-window-opened-by-the-press`, not merged.** This

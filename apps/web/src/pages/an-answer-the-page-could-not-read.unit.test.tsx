@@ -88,16 +88,18 @@ const CASES = [
     locale: 'en',
     lead: 'Could not load the migrations list.',
     notEmpty: /No migrations yet/,
-    sentence: 'The server answered in a form this page does not know. Reload the page; if it stays like this, report it.',
-    detail: 'For support: invalid_value at 2.domains.2.',
+    said:
+      'The server answered in a form this page does not know. Reload the page; if it stays like this, ' +
+      'report it to support, and mention: invalid_value at 2.domains.2.',
     queueLead: 'Could not load this queue.',
   },
   {
     locale: 'nl',
     lead: 'De migratielijst kon niet worden geladen.',
     notEmpty: /Nog geen migraties/,
-    sentence: 'De server antwoordde in een vorm die deze pagina niet kent. Laad de pagina opnieuw; blijft het zo, meld het dan.',
-    detail: 'Voor de ondersteuning: invalid_value bij 2.domains.2.',
+    said:
+      'De server antwoordde in een vorm die deze pagina niet kent. Laad de pagina opnieuw; blijft het zo, ' +
+      'meld het en geef daarbij het volgende door: invalid_value bij 2.domains.2.',
     queueLead: 'Deze wachtrij kon niet worden geladen.',
   },
 ] as const;
@@ -122,7 +124,7 @@ describe('an answer the page could not read is a sentence, not zod’s JSON', ()
 
       const { container } = inLocale(c.locale, <Mappings />);
 
-      expect(await screen.findByText(`${c.sentence} ${c.detail}`)).toBeInTheDocument();
+      expect(await screen.findByText(c.said)).toBeInTheDocument();
       // Still a failure (hard rule 9): the lead says the list was not read,
       // and nothing claims it is empty.
       expect(screen.getByText(c.lead)).toBeInTheDocument();
@@ -144,7 +146,7 @@ describe('an answer the page could not read is a sentence, not zod’s JSON', ()
         />,
       );
 
-      expect(await screen.findByText(`${c.sentence} ${c.detail}`)).toBeInTheDocument();
+      expect(await screen.findByText(c.said)).toBeInTheDocument();
       expect(screen.getByText(c.queueLead)).toBeInTheDocument();
       expect(container.textContent).not.toContain('"code":');
     });

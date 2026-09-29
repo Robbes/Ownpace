@@ -1199,12 +1199,13 @@ const en = {
     'Something went wrong on this page. Try again later; if it keeps happening, please tell the person who sent you the link.',
   // An answer the page's schema refused, on a signed-in page (reported
   // 2026-09-29): `serverMessage` says this where it used to show zod's JSON,
-  // most likely after the API and the web app were updated apart. The code
-  // and path after it are for support, verbatim.
+  // most likely after the API and the web app were updated apart. {detail} is
+  // one of the two lines under it: the code and path, verbatim, for support.
+  // The owner's wording, both languages (2026-09-29).
   'answer.unreadable':
-    'The server answered in a form this page does not know. Reload the page; if it stays like this, report it.',
-  'answer.unreadable.at': 'For support: {code} at {path}.',
-  'answer.unreadable.whole': 'For support: {code}, in the whole answer.',
+    'The server answered in a form this page does not know. Reload the page; if it stays like this, report it to support, and mention: {detail}',
+  'answer.unreadable.at': '{code} at {path}.',
+  'answer.unreadable.whole': '{code}, in the whole answer.',
   // The progress page (workplan 0122). The SAME reader as the grant page above
   // — no account, no jargon, second person — asking a different question:
   // has my mail arrived yet. So the states are sentences rather than the
@@ -1413,8 +1414,6 @@ const en = {
   'mappings.filtered.lead': 'Showing only:',
   'mappings.filtered.clear': 'Show all migrations',
   'mappings.loadFailed': 'Could not load the migrations list.',
-  'mappings.loadFailedNotEmpty':
-    'Not the same as having no migrations; some may exist that could not be read.',
   'mappings.syncFailed': 'The sync request did not complete.',
   // The people being moved (ADR-0050, 0153 T3). A person on screen is their
   // name; the grouping has no noun (D6). "Needs you" is the approved family
@@ -3799,9 +3798,9 @@ const nl: Record<keyof typeof en, string> = {
   'link.unreadable':
     'Er ging iets mis op deze pagina. Probeer het later opnieuw; blijft het misgaan, laat het dan de persoon weten die u de link stuurde.',
   'answer.unreadable':
-    'De server antwoordde in een vorm die deze pagina niet kent. Laad de pagina opnieuw; blijft het zo, meld het dan.',
-  'answer.unreadable.at': 'Voor de ondersteuning: {code} bij {path}.',
-  'answer.unreadable.whole': 'Voor de ondersteuning: {code}, in het hele antwoord.',
+    'De server antwoordde in een vorm die deze pagina niet kent. Laad de pagina opnieuw; blijft het zo, meld het en geef daarbij het volgende door: {detail}',
+  'answer.unreadable.at': '{code} bij {path}.',
+  'answer.unreadable.whole': '{code}, in het hele antwoord.',
   'view.title': 'Uw migratie',
   'view.loading': 'Een moment…',
   'view.who': '{organisation} migreert uw account naar een nieuwe provider.',
@@ -3982,8 +3981,6 @@ const nl: Record<keyof typeof en, string> = {
   'mappings.filtered.lead': 'Alleen zichtbaar:',
   'mappings.filtered.clear': 'Toon alle migraties',
   'mappings.loadFailed': 'De migratielijst kon niet worden geladen.',
-  'mappings.loadFailedNotEmpty':
-    'Niet hetzelfde als geen migraties; er kunnen er bestaan die niet gelezen konden worden.',
   'mappings.syncFailed': 'Het synchronisatieverzoek is niet voltooid.',
   'people.count.one': '1 persoon',
   'people.count.many': '{n} personen',

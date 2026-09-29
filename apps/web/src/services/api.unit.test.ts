@@ -116,7 +116,7 @@ describe('serverMessage — an answer the page could not read', () => {
     const said = serverMessage(reported());
     expect(said).toBe(
       'The server answered in a form this page does not know. Reload the page; if it stays like this, ' +
-        'report it. For support: invalid_value at 1.domains.1.',
+        'report it to support, and mention: invalid_value at 1.domains.1.',
     );
     expect(said).not.toContain('"code":');
     expect(said).not.toContain('[');
@@ -127,7 +127,7 @@ describe('serverMessage — an answer the page could not read', () => {
     const said = serverMessage(reported());
     expect(said).toBe(
       'De server antwoordde in een vorm die deze pagina niet kent. Laad de pagina opnieuw; blijft het zo, ' +
-        'meld het dan. Voor de ondersteuning: invalid_value bij 1.domains.1.',
+        'meld het en geef daarbij het volgende door: invalid_value bij 1.domains.1.',
     );
     expect(said).not.toContain('"code":');
   });
@@ -136,7 +136,7 @@ describe('serverMessage — an answer the page could not read', () => {
     // A proxy's HTML page answered with a 200 is refused at the root.
     expect(serverMessage(refusal(DOMAINS, '<html>502</html>'))).toBe(
       'The server answered in a form this page does not know. Reload the page; if it stays like this, ' +
-        'report it. For support: invalid_type, in the whole answer.',
+        'report it to support, and mention: invalid_type, in the whole answer.',
     );
   });
 

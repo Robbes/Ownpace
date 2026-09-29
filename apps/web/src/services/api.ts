@@ -191,7 +191,7 @@ export function serverMessage(err: unknown): string {
     const detail = unreadable.path
       ? tActive('answer.unreadable.at', { code: unreadable.code, path: unreadable.path })
       : tActive('answer.unreadable.whole', { code: unreadable.code });
-    return `${tActive('answer.unreadable')} ${detail}`;
+    return tActive('answer.unreadable', { detail });
   }
   return err instanceof Error ? err.message : String(err);
 }
