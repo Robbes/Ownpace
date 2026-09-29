@@ -2,7 +2,17 @@
 
 > **In one line:** Sizing the reference machine for the alpha's two stacks: Trigger.dev machine presets, a pass cap in `managed-sync-tick`, per-organisation limits, streamed files to `JmapFileTarget`, a largest-file refusal, plane retention and a measured load rehearsal.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-09-29 (update this block at the end of every session)
+
+**2026-09-29, morning: the owner's answers.**
+
+- **Open question 9, the plane's limit:** *"Yes"*. Each stack's limit is the tick's cap plus two:
+  8 on live and 5 on the OTA stack, one slot for the tick and one for a cutover waiting on its
+  pass. It is set in each stack's `triggerdb` and read back on every bring-up. T1 step 3's plane
+  half is built next (0131 §6, group M4). It changes `bootstrap-managed.sh`, which two of session
+  R's open pull requests change too, so it waits for them, as T8 does.
+- **T8's merge:** the owner left the moment to this session: *"you pick a good moment"*. Its first
+  bring-up recreates the database container once (T8, on its branch).
 
 **2026-09-29, night: T10 built, what the providers let every tester do together (0131 §6, group
 M4, after T3b)**, merged as #1363 (`7bcee5a`). T10's first two bullets; the budget for the whole
@@ -697,7 +707,7 @@ unproved until then:
 | Task | Status | Notes |
 |---|---|---|
 | T0 The alpha's numbers | 📋 **Provisional numbers accepted 2026-09-27** (open question 1): 2 passes per organisation, 5 migrations, waves of about five, and the largest file 10 GB, which the owner raised from 2 GB the same evening (T4); ✅ **the overall cap decided 2026-09-28**: `small-1x`, live 6, the OTA stack 3 (open question 7), and 20 GB for the stacks beside a GPU process held to 100 GB (open question 8); ⏳ **Owner**: that GPU process held to 100 GB before live — *was:* ⏳ **Owner** for the overall cap on the machine, the machine reads taken 2026-09-28 (open question 7) | §3. **Alpha minimum.** Five provisional numbers before T9, and final ones after it. They are written in this block. |
-| T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6); step 1 read in upstream's source 2026-09-28: presets are enforced, and every task runs on `small-1x`, half a CPU and 512 MB; step 3's tick half ✅ **done** in #1296, merged 2026-09-28 (`67b3e9e`): 3 passes at once on a stack unless its `.env` says otherwise, and 2 per organisation, longest-waiting first; live's `.env` sets 6 since 2026-09-28 (the owner); step 2 🔨 **built 2026-09-28** on its branch: every task names `small-1x`; the plane's limit ⏳ **Owner** (open question 9) | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
+| T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6); step 1 read in upstream's source 2026-09-28: presets are enforced, and every task runs on `small-1x`, half a CPU and 512 MB; step 3's tick half ✅ **done** in #1296, merged 2026-09-28 (`67b3e9e`): 3 passes at once on a stack unless its `.env` says otherwise, and 2 per organisation, longest-waiting first; live's `.env` sets 6 since 2026-09-28 (the owner); step 2 ✅ **done** in #1338, merged 2026-09-28 (`2aeaadf`): every task names `small-1x`; the plane's limit 📋 **decided 2026-09-29** (open question 9): the cap plus two, 8 on live and 5 on the OTA stack, to be built — *was:* ⏳ **Owner** | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
 | T2 What one organisation can make the machine do | 🔨 **T2a built 2026-09-27**, merged as #1258: five unfinished migrations per organisation, the deployment's number; **T2d's runbook step written 2026-09-27**, merged as #1252, in 0142 T6's runbook; **T2b built 2026-09-29**, merged as #1348 (`97bac8c`): no schedule faster than 15 minutes, on either door, and a stored one runs at that floor; **T2c built 2026-09-29**, merged as #1350 (`6282dd9`): `throttleConfig` refused on both managed doors, a stored one held to the defaults, and Gmail's download ceiling never raised on either edition; T2d's built hold 📋 **Proposed** — *was:* T2b and T2c 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
 | T3 A streamed file reaches a JMAP target | 🔨 **T3a built 2026-09-27**, merged as #1243: the refusal names the file, its size and WebDAV; **T3b built 2026-09-29**, merged as #1355 (`2ce6546`): the stream sent as the upload, and a file over the server's `maxSizeUpload` refused up front, naming it; 0141 T8's nightly leg next — *was:* T3b 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
 | T4 A file no pass can carry is refused up front, with a sentence | 🔨 **(a) built 2026-09-27**, merged as #1259: 10 GB, the owner's number, and a category of its own, `too_large`; the attempts after the alpha 📋 **Proposed** — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** A stated largest file, refused before a byte moves, and parked for a person rather than retried. The kill loop for smaller files that are still too slow comes after. |
@@ -1673,4 +1683,4 @@ As with the other rows, the owner may instead accept a gap in writing, dated, wi
    plus two, 8 on live and 5 on the OTA stack: one for the tick, one for a cutover waiting on its
    pass. At most 1 GB more on each stack, when both extra slots are held at once, which open
    question 8's 20 GB still covers. Set in each stack's `triggerdb` and read back on every
-   bring-up, as open question 7 said. Or other numbers.
+   bring-up, as open question 7 said. Or other numbers. *Answered 2026-09-29: "Yes".*
