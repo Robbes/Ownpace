@@ -4504,7 +4504,7 @@ const nl: Record<keyof typeof en, string> = {
   'nav.connections': 'Accounts',
   'nav.setup': 'Instelchecklist',
   'nav.docs': 'Handleidingen',
-  'nav.help': 'Help',
+  'nav.help': 'Hulp',
   'nav.needsYou.count.one': '1 wacht op u',
   'nav.needsYou.count.many': '{n} wachten op u',
   'wizard.reuseSource': 'Bewaarde bronverbinding hergebruiken',
