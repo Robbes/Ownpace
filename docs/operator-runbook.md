@@ -697,6 +697,19 @@ On either, this is what an upgrade does and does not do:
 3. Watch health checks and per-tenant run success after it.
 4. Roll forward: a fix and a new tag. If a release misbehaves and cannot be fixed forward, restore
    from a backup rather than reversing schema.
+5. A new pin of Trigger.dev, the identity provider, ClickHouse, MinIO, Mailpit or Nextcloud
+   starts with reading what that version sends its makers by default: Zitadel's daily report
+   arrived with v4 and was on until workplan 0139 switched it off (2026-09-28). For Trigger.dev
+   that is the webapp and everything its entrypoint runs: Prisma's migrate sent a checkpoint at
+   every start until `CHECKPOINT_DISABLE` (2026-09-29). The switches are written in `managed.yml`,
+   and `scripts/a-service-that-phones-home.unit.test.ts` fails until the row for that image names
+   the new version. The demo's Nextcloud has no switch yet: its update check, app store and
+   connectivity check are not switched off in this change. A hook that set them off made the
+   demo's first CalDAV write answer 500 in E2E (managed) #215; #216 on main, which recreated the
+   same container without it, passed. It holds fixtures only and is not on live, and a follow-up
+   switches them off with a check that the demo's DAV writes still work.
+   `docs/managed-bring-up.md`, *Nothing phones home*, has each switch, where it was read, the
+   command that applies it to a running stack, and the check to run after the upgrade.
 
 ## Grant links: who granted what
 
