@@ -182,6 +182,10 @@ reading a file drops off its entry by itself.
 
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 
+### `apps/api/src/routes/billing/billing-party.unit.test.ts`
+
+- [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)).
+
 ### `apps/api/src/routes/billing/index.ts`
 
 - [a-month-that-moved-with-the-servers-timezone](../scripts/a-month-that-moved-with-the-servers-timezone.unit.test.ts) — FOUR PLACES DECIDED WHICH MONTH A MOMENT BELONGED TO, AND THREE OF THEM ASKED THE SERVER WHERE IT WAS STANDING (found 2026-09-09).
@@ -417,6 +421,10 @@ reading a file drops off its entry by itself.
 
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
 
+### `apps/web/src/i18n/i18n.unit.test.tsx`
+
+- [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)).
+
 ### `apps/web/src/i18n/probe-text.unit.test.tsx`
 
 - [a-grant-stored-with-less-than-was-asked](../scripts/a-grant-stored-with-less-than-was-asked.unit.test.ts) — A SILENCE ON ONE SCREEN THAT DEPENDS ON A REFUSAL IN ANOTHER FILE.
@@ -428,6 +436,7 @@ reading a file drops off its entry by itself.
 - [a-read-only-claim-with-its-scope](../scripts/a-read-only-claim-with-its-scope.unit.test.ts) — A READ-ONLY CLAIM WITH ITS SCOPE (workplan 0144 T3).
 - [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
+- [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)).
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 
 ### `apps/web/src/pages/Billing.tsx`
@@ -795,6 +804,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/idp-strays.sh`
 
+- [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [an-account-nobody-let-in](../scripts/an-account-nobody-let-in.unit.test.ts) — AN ACCOUNT NOBODY LET IN (workplan 0135 T8).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 
@@ -1212,6 +1222,10 @@ reading a file drops off its entry by itself.
 ### `docs/breach-procedure.md`
 
 - [a-runbook-for-every-alert](../scripts/a-runbook-for-every-alert.unit.test.ts) — AN ALERT NOBODY KNOWS WHAT TO DO ABOUT IS THE NEXT THING TO BE IGNORED (workplan 0142 T6).
+
+### `docs/cutover-communication-templates.md`
+
+- [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)).
 
 ### `docs/dav-sync.md`
 
@@ -1732,6 +1746,10 @@ reading a file drops off its entry by itself.
 - [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 
+### `packages/shared/src/erasure-scope.ts`
+
+- [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)).
+
 ### `packages/shared/src/feature-matrix.unit.test.ts`
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
@@ -1829,6 +1847,10 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/remote-refusal.unit.test.ts`
 
 - [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
+
+### `packages/shared/src/share-announcement.ts`
+
+- [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)).
 
 ### `packages/shared/src/target-domains.ts`
 
@@ -2123,6 +2145,10 @@ reading a file drops off its entry by itself.
 
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
+
+### `site/site.unit.test.ts`
+
+- [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)).
 
 ### `site/tsconfig.json`
 
@@ -2599,6 +2625,7 @@ Reads:
 - `deploy/compose/env-read.sh`
 - `deploy/compose/env-upsert.sh`
 - `deploy/compose/exposure-check.sh`
+- `deploy/compose/idp-strays.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/own-addresses.sh`
 - `deploy/compose/redact-evidence.sh`
@@ -3680,6 +3707,20 @@ Reads:
 - `deploy/compose/stack-kind.sh`
 - `docs/operator-runbook.md`
 - `scripts/idp-pin-watch.mjs`
+
+### [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts)
+
+A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)).
+
+Reads:
+
+- `apps/api/src/routes/billing/billing-party.unit.test.ts`
+- `apps/web/src/i18n/i18n.unit.test.tsx`
+- `apps/web/src/i18n/strings.ts`
+- `docs/cutover-communication-templates.md`
+- `packages/shared/src/erasure-scope.ts`
+- `packages/shared/src/share-announcement.ts`
+- `site/site.unit.test.ts`
 
 ### [a-workflow-step-bash-cannot-parse](../scripts/a-workflow-step-bash-cannot-parse.unit.test.ts)
 

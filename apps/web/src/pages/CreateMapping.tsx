@@ -17,7 +17,7 @@ import {
   qualificationText,
 } from '../i18n/probe-text.ts';
 import type { StringKey } from '../i18n/index.tsx';
-import { useNavigate, Link } from 'react-router';
+import { useNavigate, useSearchParams, Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -53,8 +53,10 @@ import {
   credentialFieldRequired,
   carriesGoogleNativeFiles,
   sourceFaceIsExperimental,
+  providerDisplayName,
   type DropboxPaperPolicy,
 } from '@openmig/shared';
+import { connectionKindName } from '../components/ProviderTile.tsx';
 import {
   connectionsApi,
   mappingApi,
@@ -83,6 +85,7 @@ import {
 } from '../services/consent-window.ts';
 import { ChoiceField, choiceValue } from '../components/ChoiceField.tsx';
 import { isSelfHost } from '../services/edition.ts';
+import { addMigrationToPerson } from '../services/operating-service.ts';
 import {
   ExperimentalTag,
   ExperimentalWhy,
@@ -142,6 +145,9 @@ interface FormData {
   sourceTenantId: string;
   sourceClientId: string;
   sourceClientSecret: string;
+  /** Gmail's app password (workplan 0089 T7): a personal account's IMAP
+   *  credential, in place of the OAuth trio. A secret, so never in the draft. */
+  sourceAppPassword: string;
   /** Google Drive (workplan 0042): the delegated, read-only refresh token —
    *  the Google guide (`/docs/google`, docs/guides/<locale>/google.md) is
    *  where all three of its values come from, and the wizard says so beside
@@ -222,6 +228,7 @@ const initialFormData: FormData = {
   sourceTenantId: '',
   sourceClientId: '',
   sourceClientSecret: '',
+  sourceAppPassword: '',
   sourceRefreshToken: '',
   sourceServiceAccountKey: '',
   sourceRootFolderId: '',
@@ -357,6 +364,7 @@ function clearedSourceFields(prev: FormData, next: string): Partial<FormData> {
     sourceTenantId: '',
     sourceClientId: '',
     sourceClientSecret: '',
+    sourceAppPassword: '',
     sourceRefreshToken: '',
     sourceServiceAccountKey: '',
     sourceRootFolderId: '',
@@ -415,7 +423,7 @@ const ConnectionPicker: React.FC<{
       >
         {options.map((c) => (
           <option key={c.id} value={c.id}>
-            {c.displayName} ({c.kind})
+            {connectionKindName(c.kind) ? `${c.displayName} (${connectionKindName(c.kind)})` : c.displayName}
           </option>
         ))}
         <option value="">{t('wizard.reuseNone')}</option>
@@ -423,6 +431,51 @@ const ConnectionPicker: React.FC<{
       <p className="mt-1 text-sm text-gray-500">{t('wizard.reuse.hint')}</p>
     </div>
   );
+};
+
+/**
+ * Which form field each descriptor key writes to. The descriptor is not
+ * prefixed by side and this form is — this is the one place the two
+ * vocabularies meet for the SOURCE, exactly as `credentialValuesFor` is for
+ * the probe payload.
+ *
+ * A DESCRIPTOR FIELD MISSING HERE IS NEVER DRAWN, and nothing said so: Gmail's
+ * app password was declared and not drawn from 0089 T7 until 0153 T1 (b),
+ * while its guide told a person to type it. `end-user-docs.unit.test.tsx`
+ * reads these maps, so a guide may name only a field they draw.
+ */
+export const TARGET_FORM_FIELD: Readonly<Record<string, keyof FormData>> = {
+  host: 'targetHost',
+  port: 'targetPort',
+  username: 'targetUsername',
+  password: 'targetPassword',
+  url: 'targetUrl',
+  mailHost: 'targetMailHost',
+  mailPort: 'targetMailPort',
+};
+
+export const SOURCE_FORM_FIELD: Readonly<Record<string, keyof FormData>> = {
+  username: 'sourceUsername',
+  password: 'sourcePassword',
+  host: 'sourceHost',
+  port: 'sourcePort',
+  tenantId: 'sourceTenantId',
+  clientId: 'sourceClientId',
+  clientSecret: 'sourceClientSecret',
+  refreshToken: 'sourceRefreshToken',
+  serviceAccountKey: 'sourceServiceAccountKey',
+  rootFolderId: 'sourceRootFolderId',
+  rootPath: 'sourceRootPath',
+  userId: 'sourceBoxUserId',
+  // Gmail's app password (workplan 0089 T7): the descriptor carried it from
+  // the start, and this map did not, so the wizard never drew it and a
+  // personal account without a consent screen had no road (0153 T1 (b)).
+  appPassword: 'sourceAppPassword',
+  // The export archive's fields (0116 T5/T6): which export, and where —
+  // and, since 0148 T9, which store that path is in.
+  provider: 'sourceArchiveProvider',
+  path: 'sourceArchivePath',
+  where: 'sourceArchiveWhere',
 };
 
 /**
@@ -508,6 +561,11 @@ const CreateMapping: React.FC = () => {
   const consentLinesId = React.useId();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  // Opened from a person's card on Migrations (0153 T3): the new migration is
+  // theirs. Until *Start a migration* asks who it is for (T4), the card says
+  // so in the address.
+  const [searchParams] = useSearchParams();
+  const forPerson = searchParams.get('person');
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<FormData>(restoreDraft);
   const [showSourcePassword, setShowSourcePassword] = useState(false);
@@ -519,11 +577,27 @@ const CreateMapping: React.FC = () => {
     // to be swapped in as component state, which no route reached — a refresh
     // stranded the paused mapping. Navigating gives the green light an
     // address that survives the wizard.
-    onSuccess: (mapping: { id: string }) => {
+    onSuccess: async (mapping: { id: string }) => {
       // The draft has become a migration; keeping it would re-seed the next
       // wizard with the last one's name and schedule.
       clearDraft();
-      void navigate(`/mappings/${mapping.id}/confirm`);
+      let notAddedToPerson: string | undefined;
+      if (forPerson) {
+        try {
+          await addMigrationToPerson(forPerson, mapping.id);
+        } catch (error) {
+          // The migration exists either way, with nobody. The green light
+          // still comes next, and its page says the add failed, in the
+          // server's words (hard rule 9); Migrations lists the migration
+          // under *Not with a person yet*, one press from its person.
+          notAddedToPerson = serverMessage(error);
+        }
+        await queryClient.invalidateQueries({ queryKey: ['people'] });
+      }
+      void navigate(
+        `/mappings/${mapping.id}/confirm`,
+        notAddedToPerson === undefined ? undefined : { state: { notAddedToPerson } },
+      );
     },
   });
 
@@ -775,6 +849,11 @@ const CreateMapping: React.FC = () => {
               ...(formData.sourceServiceAccountKey.trim()
                 ? { serviceAccountKey: formData.sourceServiceAccountKey }
                 : {}),
+              // Gmail's third shape (0089 T7): a personal account's app
+              // password, which the create door stores in place of the trio.
+              ...(isGmailSource && formData.sourceAppPassword.trim()
+                ? { appPassword: formData.sourceAppPassword.trim() }
+                : {}),
               // The account kind's file face is the Drive connector, so its
               // export policy travels too — sent only where it MEANS something
               // (the ticks include files), because a Drive policy stored on a
@@ -951,6 +1030,7 @@ const CreateMapping: React.FC = () => {
             clientSecret: formData.sourceClientSecret,
             refreshToken: formData.sourceRefreshToken,
             serviceAccountKey: formData.sourceServiceAccountKey,
+            appPassword: formData.sourceAppPassword.trim(),
             rootFolderId: formData.sourceRootFolderId,
             rootPath: formData.sourceRootPath,
             userId: formData.sourceBoxUserId,
@@ -1724,41 +1804,6 @@ const CreateMapping: React.FC = () => {
    * Each side is now self-contained — pick a provider, enter its credentials,
    * test, saved — and what remains is one step to finalise between the two.
    */
-  /**
-   * Which form field each descriptor key writes to. The descriptor is not
-   * prefixed by side and this form is — this is the one place the two
-   * vocabularies meet for the SOURCE, exactly as `credentialValuesFor` is for
-   * the probe payload.
-   */
-  const TARGET_FORM_FIELD: Readonly<Record<string, keyof FormData>> = {
-    host: 'targetHost',
-    port: 'targetPort',
-    username: 'targetUsername',
-    password: 'targetPassword',
-    url: 'targetUrl',
-    mailHost: 'targetMailHost',
-    mailPort: 'targetMailPort',
-  };
-
-  const SOURCE_FORM_FIELD: Readonly<Record<string, keyof FormData>> = {
-    username: 'sourceUsername',
-    password: 'sourcePassword',
-    host: 'sourceHost',
-    port: 'sourcePort',
-    tenantId: 'sourceTenantId',
-    clientId: 'sourceClientId',
-    clientSecret: 'sourceClientSecret',
-    refreshToken: 'sourceRefreshToken',
-    serviceAccountKey: 'sourceServiceAccountKey',
-    rootFolderId: 'sourceRootFolderId',
-    rootPath: 'sourceRootPath',
-    userId: 'sourceBoxUserId',
-    // The export archive's fields (0116 T5/T6): which export, and where —
-    // and, since 0148 T9, which store that path is in.
-    provider: 'sourceArchiveProvider',
-    path: 'sourceArchivePath',
-    where: 'sourceArchiveWhere',
-  };
 
   /**
    * Does this field gate Next RIGHT NOW? (workplan 0075 T2.)
@@ -1778,7 +1823,11 @@ const CreateMapping: React.FC = () => {
     credentialFieldRequired(field, {
       deploymentClient: !clientPairRequired || clientHalfTyped,
       halfPairTyped: clientHalfTyped,
-      sideStepped: formData.sourceServiceAccountKey.trim() !== '',
+      // Gmail's app password steps round the trio as a pasted key does: the
+      // create door accepts either in place of all three (0089 T7).
+      sideStepped:
+        formData.sourceServiceAccountKey.trim() !== '' ||
+        (formData.sourceType === 'gmail' && formData.sourceAppPassword.trim() !== ''),
     });
 
   /**
@@ -2714,7 +2763,7 @@ const CreateMapping: React.FC = () => {
                 value={formData.name}
                 onChange={(e) => updateField('name', e.target.value)}
                 className="input w-full"
-                placeholder="My Migration"
+                placeholder={t('wizard.migrationName.placeholder')}
               />
             </div>
 
@@ -2829,7 +2878,7 @@ const CreateMapping: React.FC = () => {
                   <div>
                     <dt className="text-sm text-gray-500">{t('wizard.review.source')}</dt>
                     <dd className="text-sm font-medium text-gray-900">
-                      {formData.sourceType}{' '}
+                      {providerDisplayName(formData.sourceType)}{' '}
                       {isDriveSource
                         ? formData.sourceRootFolderId
                           ? `(${formData.sourceRootFolderId})`
@@ -2850,7 +2899,7 @@ const CreateMapping: React.FC = () => {
                   <div>
                     <dt className="text-sm text-gray-500">{t('wizard.review.target')}</dt>
                     <dd className="text-sm font-medium text-gray-900">
-                      {formData.targetType}{' '}
+                      {providerDisplayName(formData.targetType)}{' '}
                       {formData.targetUrl.trim()
                         ? `(${formData.targetUrl.trim()})`
                         : `(${formData.targetHost}:${formData.targetPort})`}
@@ -2894,7 +2943,7 @@ const CreateMapping: React.FC = () => {
       </div>
 
       {/* Progress Steps */}
-      <nav aria-label="Progress">
+      <nav aria-label={t('wizard.progress')}>
         <ol className="flex items-center">
           {steps.map((step, index) => (
             <li key={step.id} className={`relative ${index !== steps.length - 1 ? 'flex-1' : ''}`}>

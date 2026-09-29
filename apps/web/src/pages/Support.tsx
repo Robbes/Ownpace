@@ -867,7 +867,7 @@ export const SupportTenantDetail: React.FC = () => {
               <tr key={c.connection_id}>
                 <td className="px-3 py-2">{c.display_name ?? '—'}</td>
                 <td className="px-3 py-2 text-gray-600">{c.role}</td>
-                <td className="px-3 py-2 text-gray-600">{c.kind}</td>
+                <td className="px-3 py-2 text-gray-600">{c.kind}</td>{/* kind-exempt: the operator's support view names the stored kind */}
                 <td className="px-3 py-2 text-gray-600">{c.status}</td>
               </tr>
             ))}

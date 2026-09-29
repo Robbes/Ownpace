@@ -51,6 +51,7 @@ import { useLocale } from '../i18n/index.tsx';
 import { STRINGS, LOCALES, type Locale } from '../i18n/strings.ts';
 import { providerClientsApi } from '../services/mapping-service.ts';
 import { isSelfHost } from '../services/edition.ts';
+import { HelpTabs } from '../components/HelpTabs.tsx';
 
 /** Every customer guide, `docs/guides/<locale>/<slug>.md`, inlined at build time. */
 const GUIDES = import.meta.glob('../../../../docs/guides/*/*.md', {
@@ -546,6 +547,7 @@ const Docs: React.FC = () => {
   if (!slug) {
     return (
       <div className="p-6 max-w-3xl">
+        <HelpTabs />
         <h2 className="text-xl font-semibold text-gray-900">{t('docs.title')}</h2>
         <GuideList className="mt-4 space-y-2" locale={locale} />
         {isSelfHost() && (

@@ -29,7 +29,7 @@ U kunt een JMAP-verbinding ook vooraf toevoegen, onder **Verbindingen** → **Ve
 
 - **E-mail**: de mappen en de berichten daarin. Mappen die in het doel nog niet bestaan, worden aangemaakt.
 - **Contacten**.
-- **Bestanden**, met één grens: een bestand groter dan 8 MB komt nog niet aan op een JMAP-doel. De migratie meldt zo'n bestand als mislukt, onder **Mislukkingen**, en gaat verder met de rest. Wilt u grotere bestanden meenemen, kies dan voor de bestanden een WebDAV-doel ([de DAV-handleiding](dav.md)) of een Nextcloud ([de Nextcloud-handleiding](nextcloud.md)).
+- **Bestanden**, met één grens: het grootste bestand dat de JMAP-server in één upload aanneemt. De server geeft die grens zelf op. Een groter bestand meldt de migratie als mislukt, onder **Mislukkingen**, met de grens van de server, en de migratie gaat verder met de rest. Wilt u zo'n bestand meenemen, verhoog dan de uploadgrens van de server, of kies voor de bestanden een WebDAV-doel ([de DAV-handleiding](dav.md)) of een Nextcloud ([de Nextcloud-handleiding](nextcloud.md)).
 - **Agenda** en **Taken** gaan niet naar een JMAP-doel. Terugkerende afspraken komen via JMAP nog niet heel over: een reeks zou als losse afspraken aankomen. Deze dienst schrijft agenda's en takenlijsten daarom via CalDAV. Op de stap Migratie staan ze uit, met de regel **Niet beschikbaar via het gekozen doelprotocol.** Maak voor agenda's en taken een tweede migratie naar een CalDAV-doel.
 - Een migratie mag vaker lopen: wat al in het doel staat, wordt herkend en niet nog eens gekopieerd.
 

@@ -57,6 +57,12 @@
 #   ./deploy/compose/idp-strays.sh --remove                 list them, then remove them
 #   ./deploy/compose/idp-strays.sh --subject <sub>          one account, at any age
 #   ./deploy/compose/idp-strays.sh --subject <sub> --remove
+#   ./deploy/compose/idp-strays.sh --remove --at-most 20    as live's daily duty runs it
+#
+# AT MOST. `--at-most N` removes nothing when more than N would go. Live's
+# daily duties run it so (box-duties.sh, 0135 T8 (b)): a day with more strays
+# than a day brings waits for a person to look, rather than a run nobody
+# watches removing them.
 #
 # Exit: 0 listed, or every listed account removed; 1 refused, or a removal
 # failed, each said; 2 a usage error.
@@ -79,27 +85,35 @@ die() {
 
 usage() {
   cat <<'EOF'
-Usage: ./deploy/compose/idp-strays.sh [--remove]
+Usage: ./deploy/compose/idp-strays.sh [--remove [--at-most N]]
        ./deploy/compose/idp-strays.sh --subject <sub> [--remove]
 
 Lists this stack's sign-in accounts that nobody let in: no membership, no
 operator row, no open access request or invitation for the address, and older
 than 30 days. --remove removes them. --subject asks about one account, at any
-age, for an organisation that has been erased.
+age, for an organisation that has been erased. --at-most N removes nothing
+when more than N would go.
 EOF
 }
 
 REMOVE=0
 SUBJECT=''
+AT_MOST=''
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --remove) REMOVE=1; shift ;;
     --subject) SUBJECT="${2:-}"; [ -n "$SUBJECT" ] || { usage >&2; exit 2; }; shift 2 ;;
     --subject=*) SUBJECT="${1#--subject=}"; [ -n "$SUBJECT" ] || { usage >&2; exit 2; }; shift ;;
+    --at-most) AT_MOST="${2:-}"; [ -n "$AT_MOST" ] || { usage >&2; exit 2; }; shift 2 ;;
+    --at-most=*) AT_MOST="${1#--at-most=}"; [ -n "$AT_MOST" ] || { usage >&2; exit 2; }; shift ;;
     -h | --help) usage; exit 0 ;;
     *) echo "idp-strays: unknown argument '$1'" >&2; usage >&2; exit 2 ;;
   esac
 done
+if [ -n "$AT_MOST" ] && ! [[ "$AT_MOST" =~ ^[1-9][0-9]*$ ]]; then
+  echo "idp-strays: --at-most takes a whole number of accounts, one or more." >&2
+  exit 2
+fi
 # The provider's ids are digits. A `pending:` placeholder is an invitation, not
 # an account, and anything else would be pasted into a URL.
 case "$SUBJECT" in
@@ -337,6 +351,9 @@ if [ "$REMOVE" -eq 0 ]; then
   exit 0
 fi
 
+if [ -n "$AT_MOST" ] && [ "$STRAYS" -gt "$AT_MOST" ]; then
+  die "${STRAYS} accounts would be removed, more than the ${AT_MOST} this run may remove (--at-most). Look at them first: ./deploy/compose/idp-strays.sh lists them. If they are right, remove them with --remove alone."
+fi
 REMOVED=0
 FAILED=0
 while IFS=$'\t' read -r id created; do

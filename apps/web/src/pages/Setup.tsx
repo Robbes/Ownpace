@@ -37,6 +37,7 @@ import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
 import { serverMessage } from '../services/api.ts';
 import { GUIDE_SLUGS } from './Docs.tsx';
 import { cardGuideHref } from '../components/front-door-cards.ts';
+import { HelpTabs } from '../components/HelpTabs.tsx';
 // The name on the button a provider's consent draws, kept once beside the
 // consent window's own sentence (workplan 0145 T5).
 import { GRANT_PROVIDER_NAMES } from '../services/consent-window.ts';
@@ -176,6 +177,7 @@ const ProviderChooser: React.FC = () => {
   const t = useT();
   return (
     <div className="p-6 max-w-3xl">
+      <HelpTabs />
       <h2 className="text-xl font-semibold text-gray-900">{t('setup.choose.title')}</h2>
       <p className="mt-1 text-sm text-gray-600">{t('setup.choose.intro')}</p>
       {(['source', 'target'] as const).map((side) => (
