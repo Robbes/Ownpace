@@ -791,6 +791,39 @@ describe('bilingual rendering', () => {
   });
 });
 
+describe("a sign-in's example (the owner, 2026-09-29)", () => {
+  // The owner: stick with "Username" / "Gebruikersnaam" and fill in "a grey
+  // example hint of the formatting/syntax that goes away when clicked, like
+  // 'someone@example.com'". Whether a placeholder shows is the browser's to
+  // decide, so it is asked of one: its colour before and after focus.
+  it('shows someone@example.com in grey, and takes it away when the box is clicked', async () => {
+    const wizardReads: Record<string, unknown> = {
+      'GET /api/connections': { connections: [] },
+      'GET /api/provider-accounts': { google: { domains: ['calendar', 'contact', 'task'], client: 'deployment' } },
+      'GET /api/provider-clients': { google: 'deployment' },
+    };
+    Object.assign(FIXTURES, wizardReads);
+    try {
+      const l = await open('/mappings/new');
+      await l.page.getByRole('button', { name: /^Google account/ }).click();
+      const box = l.page.getByRole('textbox', { name: /^Username/ });
+      expect(await box.getAttribute('placeholder')).toBe('someone@example.com');
+
+      const exampleColour = () => box.evaluate((el) => getComputedStyle(el, '::placeholder').color);
+      const before = await exampleColour();
+      expect(before, 'the example is drawn before the box is clicked').not.toBe('rgba(0, 0, 0, 0)');
+      await box.click();
+      expect(await exampleColour(), 'the example goes once the box is clicked').toBe('rgba(0, 0, 0, 0)');
+      await box.blur();
+      expect(await exampleColour(), 'and comes back when it is left empty').toBe(before);
+      expectClean(l, "the wizard's Google sign-in");
+      await l.page.close();
+    } finally {
+      for (const key of Object.keys(wizardReads)) delete FIXTURES[key];
+    }
+  });
+});
+
 /**
  * THE PERSON THE GATE HAD NEVER SIGNED IN AS.
  *

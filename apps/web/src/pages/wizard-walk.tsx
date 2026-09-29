@@ -62,7 +62,7 @@ export const passSourceStep = (locale: Locale = 'en'): void => {
   fireEvent.change(screen.getByPlaceholderText('imap.example.com'), {
     target: { value: 'mail.old-provider.example' },
   });
-  fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
+  fireEvent.change(screen.getAllByPlaceholderText('someone@example.com')[0]!, {
     target: { value: 'source@acme.example' },
   });
   // The password too, which the walk's comment claimed since 0070 and the
@@ -85,7 +85,7 @@ export const walkToReview = (locale: Locale = 'en'): void => {
   fireEvent.change(targetHostBox(), {
     target: { value: 'stalwart.acme.example' },
   });
-  fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
+  fireEvent.change(screen.getAllByPlaceholderText('someone@example.com')[0]!, {
     target: { value: 'target@acme.example' },
   });
   fireEvent.change(document.querySelectorAll('input[type="password"]')[0]!, {

@@ -4,6 +4,21 @@
 
 ## Status — 2026-09-29 (update this block at the end of every session)
 
+**2026-09-29, morning: a sign-in's example goes when its box is clicked (T6, T7; the owner's
+answer).** Asked whether *Username* should read *Email address* where an address is what goes
+in it, the owner answered: *"stick with "Username" / "Gebruikersnaam" and fill in a grey example
+hint of the formatting/syntax that goes away when clicked, like 'someone@example.com'"*.
+
+- The label stays. The example is *someone@example.com* (Apple's *someone@icloud.com*), from the
+  one descriptor every door draws (`credential-fields.ts`).
+- Every box of the `.input` class, which is every sign-in box on Accounts, the wizard and
+  *Start a migration*, takes its example away while it has focus, and shows it again if it is
+  left empty. The search boxes elsewhere keep theirs, since there it is the instruction.
+- Proved in Chromium (`managed-ui.ui.test.ts`, *a sign-in's example*): the example's colour
+  before a click, transparent once clicked, and back after. Without the rule it failed on
+  `expected 'rgb(100, 116, 139)' to be 'rgba(0, 0, 0, 0)'`. Eight web test files found the box by
+  its old example, in 55 places, and now find it by the new one.
+
 **2026-09-29: the wizard offers a saved Microsoft 365 or Apple account again.** On branch
 `claude/funny-wright-upyuqr`; not merged. This closes the fault 0131 T1 and 0148 T9 found and
 left. The wizard (*Add one migration by hand*) kept its own copy of the server's
