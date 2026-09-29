@@ -39,6 +39,13 @@
  * is `required`; NetBird's sign-in in front of it fails either way. What a
  * redirect points at is named by its host only, and never when that host is
  * an address: the run's log is public.
+ *
+ * TWO EDGES, since 2026-09-29 (review). A redirect that stays on the name but
+ * goes into NetBird's own pages (`/__netbird__/`) failed, and no case said so:
+ * the check could be dropped and every case stayed green, and the log called
+ * it a redirect "to another host". And a redirect with no `Location` was taken
+ * for the service answering itself, as though it pointed at the page asked
+ * for. The first fails as NetBird's own page, the second as not the service.
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
@@ -198,6 +205,24 @@ describe('NetBird\'s sign-in in front of a name', () => {
     expect(lineFor(lines, 'app.ownpace.eu')[0]).toMatch(/^FAIL {2}.*NetBird's own page/);
   });
 
+  it.each([
+    ['absolute', 'https://app.ownpace.eu/__netbird__/login?state=s3cr3t-q1'],
+    ['relative', '/__netbird__/login?state=s3cr3t-q1'],
+  ])(
+    'fails a redirect on the same name into NetBird\'s own pages (%s), and says it is NetBird\'s, not another host',
+    async (_how, location) => {
+      const { io, lines } = fakeIo({ pages: { [urlOf('app.ownpace.eu')]: { status: 302, location } } });
+      expect(await runProbe(REPORT, io)).toBe(1);
+      const said = lineFor(lines, 'app.ownpace.eu')[0]!;
+      expect(said).toMatch(/^FAIL {2}.*302/);
+      expect(said).toContain("NetBird's own page");
+      expect(said).toContain('not the app');
+      expect(said).not.toContain('another host');
+      expect(said).toMatch(/0139/);
+      expectNothingLeaked(lines);
+    },
+  );
+
   it('never prints the address a redirect points at', async () => {
     const { io, lines } = fakeIo({
       pages: { [urlOf('id.ownpace.eu')]: { status: 302, location: 'https://192.0.2.44/authorize?state=s3cr3t-q1' } },
@@ -226,6 +251,17 @@ describe('a name that does not answer itself for another reason', () => {
     const report = fakeIo(quiet);
     expect(await runProbe(REPORT, report.io)).toBe(0);
     expect(lineFor(report.lines, SITE_NAME)[0]).toMatch(/^note {2}.*does not answer \(timeout\).*site_name is report/);
+  });
+
+  it('a redirect that says nowhere, with no Location, fails: it is not the service answering', async () => {
+    for (const status of [301, 302, 307]) {
+      const { io, lines } = fakeIo({ pages: { [urlOf('status.ownpace.eu')]: { status, netbird: false } } });
+      expect(await runProbe(REPORT, io)).toBe(1);
+      const said = lineFor(lines, 'status.ownpace.eu')[0]!;
+      expect(said).toMatch(new RegExp(`^FAIL {2}.*${status}`));
+      expect(said).toContain('no Location');
+      expect(said).toContain('not the status page');
+    }
   });
 
   it.each([

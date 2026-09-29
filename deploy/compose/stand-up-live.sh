@@ -39,6 +39,11 @@
 #   a deploy log with a line in it: live stands, and deploy-live.sh is the way
 #   <project>_postgres_data already there, unless --resume says this is a
 #       stand-up that stopped for you; a daemon that cannot list the volumes
+#   a Docker daemon whose log driver is not json-file or local, Docker's
+#       default and its size-capped sibling, or that does not say: another
+#       keeps a container's output past the container, and privacy §9 keeps
+#       server logs until the part that wrote them is replaced (the owner,
+#       2026-09-28, ops-log-driver (a))
 #   in live's .env, every one named at once, by its key and never its value:
 #       a line setting a key in a form env_value does not read and Compose
 #       does (indented, a space before '=', or ':' for '='), which would set
@@ -62,9 +67,10 @@
 #       needs no entry); WEB_URL
 #       or CORS_ORIGIN not https://app.ownpace.eu; the identity provider not
 #       at id.ownpace.eu on 443, secure, TLS ended in front; NODE_ENV not
-#       production; TRUST_PROXY not a count of at least 2, the proxies in
-#       front of the api (NetBird's and the web container's nginx, so the
-#       api's log names the visitor: T3 (d)); BACKUP_RETENTION_DAYS empty, 0
+#       production; TRUST_PROXY not 2 or 3, the proxies in front of the api
+#       (NetBird's and the web container's nginx, so the api's log names the
+#       visitor, and 3 where NetBird's cluster adds one: T3 (d); more believes
+#       the caller's own header); BACKUP_RETENTION_DAYS empty, 0
 #       or not a whole number above 0 (the most days a dump of live's
 #       databases taken before a deploy is kept: 7, workplan 0134; the dump
 #       and its deletion are the owner's steps, which nothing does yet);
@@ -377,6 +383,26 @@ main() {
     say "resuming: each step below asks whether it is done before it does anything"
   fi
 
+  # ---- The machine: where a container's output goes -------------------------------
+  # Privacy §9 keeps server logs "until the part of the service that wrote them
+  # is replaced": Docker's default driver, json-file, keeps a container's output
+  # with the container and removes it with the container, and local does the
+  # same within a size cap. Any other driver hands it to something that keeps
+  # it after the container is gone (the owner, 2026-09-28, ops-log-driver (a);
+  # docs/managed-bring-up.md, "Before you start"). A container keeps the driver
+  # it was created with, so this is asked before the bring-up creates any.
+  local driver
+  driver="$(docker info --format '{{.LoggingDriver}}')" ||
+    refuse "docker info could not say which log driver this machine's containers write with (above). A daemon that does not answer is not one on Docker's default."
+  case "$driver" in
+    json-file | local) say "the log driver is ${driver}: a container's output goes with the container (privacy §9)" ;;
+    *)
+      refuse "Docker's log driver on this machine is ${driver}, not json-file or local. It would keep live's container output after each container is gone, and privacy §9 says server logs are kept until the part that wrote them is replaced." \
+        "Take the \"log-driver\" line out of /etc/docker/daemon.json (the file may hold nothing else: {}), then: sudo systemctl restart docker" \
+        "Then ask again: docker info --format '{{.LoggingDriver}}'   (docs/managed-bring-up.md, \"Before you start\")"
+      ;;
+  esac
+
   # ---- Live's .env, key by key ------------------------------------------------------
   local -a problems=()
   local -a generate=()
@@ -625,10 +651,12 @@ check_settings() {
   # stand in front of live's api: NetBird's, which sets X-Forwarded-For to the
   # visitor's address, and the web container's nginx, which appends NetBird's.
   # Empty names the web container for every visitor, 1 names NetBird, and
-  # `true` believes whatever a caller sends. A count of 2 or more; T3 (d)'s
-  # request with a forged header, on live, says whether it is 2.
-  [[ "$(env_value "$ENV_FILE" TRUST_PROXY)" =~ ^([2-9]|[1-9][0-9]+)$ ]] ||
-    _p+=("TRUST_PROXY: empty, or not a count of at least 2. Live's api is behind two proxies, NetBird's and the web container's nginx, so it is 2: then the api names the visitor, whose address NetBird passes on, as privacy §4.5 says; with less it names one of the proxies for every visitor (T3 (d)).")
+  # `true` believes whatever a caller sends. So does a count above the proxies
+  # that are there: Express then takes the leftmost entry, which the caller
+  # wrote (review, 2026-09-29). 2, or 3 where T3 (d)'s request with a forged
+  # header, on live, shows NetBird's own cluster adds a hop; nothing else.
+  [[ "$(env_value "$ENV_FILE" TRUST_PROXY)" =~ ^[23]$ ]] ||
+    _p+=("TRUST_PROXY: not 2 or 3. Live's api is behind two proxies, NetBird's and the web container's nginx, so it is 2, or 3 where the bring-up's check on live shows NetBird adds one: then the api names the visitor, whose address NetBird passes on, as privacy §4.5 says. With less it names one of the proxies for every visitor; with more, or true, whatever a caller writes in X-Forwarded-For (T3 (d)).")
   # Live's databases are dumped before each deploy and each dump is deleted
   # after at most this many days: the owner's answer to 0134's open question
   # 1, (b), with 7 days, on 2026-09-28. Both are the owner's steps for now
@@ -1291,10 +1319,11 @@ owner_steps() {
      It fails while NetBird's sign-in answers app., id., status. or
      www.ownpace.eu instead of the service: switch it off on all four before
      the first invitation (workplan 0139, item 8).
-  6. Check that live's logs name the visitor: one request from outside with a
-     forged X-Forwarded-For, then one line of the api's, the web's and the
-     site's log (the bring-up guide, "After the script", step 6; workplan
-     0132 T3 (d)). Paste those lines nowhere public.
+  6. Check that live's logs name the visitor: one request to the app and one
+     to the site from outside, each with a forged X-Forwarded-For, then one
+     line of the api's, the web's and the site's log, read apart (the
+     bring-up guide, "After the script", step 6; workplan 0132 T3 (d)).
+     Paste those lines nowhere public.
   7. Write the date, the tag and each check's outcome, never a value, in
      workplan 0132's Status block (T0 step 6).
 EOF

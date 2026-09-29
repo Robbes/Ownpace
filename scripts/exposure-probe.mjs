@@ -66,7 +66,9 @@
  * redirect that stays on the name. A redirect to another host is NetBird's
  * sign-in (SSO sends a visitor to its identity provider), a page that loads
  * NetBird's own assets (`/__netbird__/`) is NetBird's (its password and PIN
- * page answers 401), and anything else that is not the service fails too:
+ * page answers 401), and so is a redirect on the same name into them; a
+ * redirect with no Location points nowhere and is not the service; and
+ * anything else that is not the service fails too:
  * netbirdio/netbird at 002755c4, proxy/internal/auth/middleware.go,
  * `authenticateWithSchemes`. It is asked from here, off the mesh, because a
  * request that arrives over the tunnel from a peer of the account can pass
@@ -213,14 +215,25 @@ export function signInVerdict(page, answer) {
     };
   }
   if (status >= 300 && status < 400) {
+    // A redirect that points nowhere is not the service answering: resolved
+    // against the page asked for, it would look like one that stays.
+    if (answer.location === undefined || answer.location.trim() === '') {
+      return { kind: 'other', words: `${status} with no Location, not ${page.what}` };
+    }
     let target;
     try {
-      target = new URL(answer.location ?? '', `https://${page.name}${page.path}`);
+      target = new URL(answer.location, `https://${page.name}${page.path}`);
     } catch {
       target = undefined;
     }
-    if (target && target.hostname === page.name && !target.pathname.startsWith(NETBIRD_ASSETS)) {
-      return { kind: 'itself', words: `${page.what} answers itself (${status} on the same name)` };
+    if (target && target.hostname === page.name) {
+      if (!target.pathname.startsWith(NETBIRD_ASSETS)) {
+        return { kind: 'itself', words: `${page.what} answers itself (${status} on the same name)` };
+      }
+      return {
+        kind: 'signin',
+        words: `${status} on the same name into ${NETBIRD_ASSETS}, NetBird's own page, not ${page.what}: its sign-in, or its error page (${own})`,
+      };
     }
     const where = target ? shownHost(target.hostname) : 'a Location that is not a URL';
     return {

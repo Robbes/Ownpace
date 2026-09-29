@@ -216,7 +216,8 @@ comments still name them, to say what filled them.
   stays. The owner checks the machine with `docker info --format '{{.LoggingDriver}}'` and undoes
   the journald setting if it is there, and the journald step comes out of
   `docs/managed-bring-up.md`. **If the machine logs to journald** until then, the row is wrong
-  for that time.
+  for that time. (Since 2026-09-29, on the branch named under *To build or to do*, the step is
+  out and `stand-up-live.sh` refuses a machine whose driver is not `json-file` or `local`.)
 
 - `«SUPPORT_RETENTION»`: filled 2026-09-28 in privacy 1.2 (§9, the row *Support mail and problem
   reports*): until the question or problem is resolved, and then 6 months more. The owner chose
@@ -337,10 +338,19 @@ a comment beside the sentence, in both languages, where the text rests on it. **
 - *Server logs until the part that wrote them is replaced* (privacy §9; ops-log-driver (a), the
   owner: *"needs checking"*): the owner runs `docker info --format '{{.LoggingDriver}}'` on the
   machine and undoes a journald setting if there is one; the journald step comes out of
-  `docs/managed-bring-up.md`.
+  `docs/managed-bring-up.md`. **Built** on branch `claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird` (0132's and 0139's
+  Status, 2026-09-28 and 2026-09-29), not merged: the journald step is out of the managed guides,
+  the breach procedure and the audit section read container output from Docker, not the journal,
+  and `stand-up-live.sh` refuses a machine whose driver is not `json-file` or `local`. **Still the
+  owner's:** the check on the machine now, and undoing a journald setting there.
 - *Visitors' IP addresses in our own logs* (privacy §4.5; ops-trust-proxy (b)): `TRUST_PROXY` in
   live's `.env`, and both nginx configurations (`apps/web/nginx.conf.template`,
-  `deploy/compose/www-nginx.conf`) recording the address NetBird passes on.
+  `deploy/compose/www-nginx.conf`) recording the address NetBird passes on. **Built** on the same
+  branch: both nginx logs record the header NetBird sets as a field of their own, last, without
+  believing it; live's `TRUST_PROXY` is 2 (3 if NetBird's cluster adds a hop), and
+  `stand-up-live.sh` refuses anything else; the managed gate's public log replaces that field
+  with `<client-ip>`. **Still to do:** 0132 T3 (d)'s check, one log line of each on live, once live
+  stands.
 - *Email and password only at the sign-in page* (privacy §4.4, §7, §8; ops-social-signin (a)):
   live's `.env` sets no `IDP_*` key.
 - *Telemetry off* (privacy §8's negative; ops-telemetry (a)): `TRIGGER_TELEMETRY_DISABLED` for
@@ -377,7 +387,11 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   `status.` and `www.ownpace.eu`, and no other NetBird sign-in (password or PIN) takes its place,
   so NetBird's log keeps no user ID for testers, as §7's row says. To check: from outside the
   NetBird network, a request to each of the four hosts is answered by the app, the sign-in
-  service, the status page or the website itself, not by NetBird's sign-in page.
+  service, the status page or the website itself, not by NetBird's sign-in page. **The check is
+  built** on the same branch: the exposure probe (0132 T3 (c)), dispatched on a GitHub-hosted
+  runner, asks each of the four and fails a redirect to NetBird's identity provider, NetBird's own
+  page, anything else that is not the service, and no answer. **Still the owner's:** the sign-in
+  switched off in NetBird on all four, then a dispatch of the probe that passes.
 - *VIES on live* (fact-vat (a)): `VIES_REQUESTER_MEMBER_STATE` and `VIES_REQUESTER_VAT_NUMBER` in
   live's `.env`.
 
