@@ -4,6 +4,10 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-29, morning: open question 2 is answered.** For a provider with no published ceiling,
+the review screen says *"we will know after the first hour"* (T3 (a)), in the owner's words
+*"You, say it."*
+
 **2026-09-29, night: T4's person half is built, on 0153 T5's page (#1353).** A
 person's page lists the hub's seven steps as one ordered list, each summed across the person's
 migrations, with its count and its state in words (*Done*, *Needs you*, *Not yet*). On a
@@ -344,7 +348,8 @@ All of it comes before the first invitation. Session R builds it with 0153, as g
 1. **T7.** Does a first-copy email join the channel? If so, once per move, as proposed, or once
    per migration? **Answered 2026-09-28: once per person** (*"One per person"*).
 2. **T3 (a).** Should the review screen show the range for providers with no published ceiling as
-   *"we will know after the first hour"*, as proposed, or show nothing until then?
+   *"we will know after the first hour"*, as proposed, or show nothing until then? **Answered
+   2026-09-29: say it** (*"You, say it."*).
 3. **T1 (d).** A move's stage is its least-advanced migration's, as proposed. Or should the card
    show one stage per data type and no stage for the move? **Answered 2026-09-28: one stage per
    person, the least advanced** (*"One stage per person"*).

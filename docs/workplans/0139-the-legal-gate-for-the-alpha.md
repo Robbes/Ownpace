@@ -4,6 +4,34 @@
 
 ## Status — 2026-09-29 (update this block at the end of every session)
 
+**2026-09-29, morning: the Dutch texts say *migratie*, never *verhuizing*, for the lawyer's pass**
+(0152 D6, the owner's word of 2026-09-28; the owner's answer 10 of 2026-09-29, *"Yes"*; by the
+writing session, in 0131 §6's split). The Dutch privacy policy, terms and Alpha conditions said a
+form of *verhuizen* 85 times. Each now says *migratie*, *migraties*, *migreren*, *migreert* or
+*gemigreerd*, as the site and the app do. The English says *migration* already and is unchanged.
+
+- **A word, not a meaning.** Singular and plural follow the English (*your migration* /
+  *uw migratie*, *your migrations* / *uw migraties*), and a pronoun follows *de migratie*
+  (*haar*, *ze*). The owner's earlier *"Verhuizing is plural in Dutch, so leave it as is"* (the
+  second of the nine answers, in the entry of 2026-09-28 below) is met the same way: §11 says
+  *uw migraties*, as the English does.
+- **Where the old word did not mean a migration,** the sentence says what it meant:
+  - the service moving to another host (Alpha §11, privacy §7 and §13) *gaat over* and is an
+    *overgang*;
+  - data that does not follow into a new service is not *meegenomen* (Alpha §11);
+  - a household's migration is *een migratie voor uw gezin*, not *gezinsmigratie*, which in
+    Dutch means family immigration (privacy §5, and §12's parent and child).
+- **The compounds:** *migratieregister* (privacy §4.2 and §9, terms §11), *migratiegegevens*
+  (terms §8), *migratietool* (privacy §8), *migratiedoel* (privacy §6).
+- **Versions:** the texts are unpublished drafts, and the Alpha conditions are edited in place
+  until the first tester accepts them, so no version number moves. The three Dutch texts'
+  *Laatst bijgewerkt* is 2026-09-29. privacy.md's briefing says the Dutch now follows D6
+  throughout.
+- **The site's guard** (`site/site.unit.test.ts`, #1339) now reads the three legal pages too: it
+  excused them until they followed D6.
+- **For the lawyer:** whether *migratie* reads as intended in the defined terms and in §3's two
+  roles (organisation and household) is one more item for the pass.
+
 **2026-09-29, later: T5, the demo's Nextcloud left on after all**, a third commit on branch
 `claude/ownpace-public-readiness-y7orc6-nothing-phones-home`, not merged; `main` merged in first.
 Nothing has run on the machine.
