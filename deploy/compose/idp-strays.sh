@@ -7,23 +7,32 @@
 # account opens nothing until an operator grants a request for its address, but
 # the identity provider holds a name, an address, a password hash, sessions and
 # their history for it. Privacy 1.2's §9 keeps it 30 days (0135 open question
-# 6, answered 2026-09-28: "30 days is ok"). Nothing removed one.
+# 6, answered 2026-09-28: "30 days is ok"). Nothing removed one. The account of
+# a member removed from an organisation goes too, 7 days after the removal
+# (0135 open question 13, answered 2026-09-29: "Samen number of days", and
+# then "7 days").
 #
 # WHAT IT LISTS: a human account at this stack's identity provider that matches
 # all of these.
 #
 #   1. It has no membership: its subject is in no `tenant_member` row, whatever
 #      the row's status.
-#   2. It was never let in and removed since: no `audit_log` row with the
-#      action `member.removed` names its subject in `detail.userId`. The Team
-#      page's removal and `operator.sh leave` both delete the member row and
-#      write that record (2026-09-29). Privacy §9's 30 days are for an account
-#      "that we never let in"; the owner's question was whether these are
-#      unused accounts, answered "unused, yes" (site/legal/README.md). What
-#      becomes of a removed member's account is the owner's open question
-#      (workplan 0135); until it is answered, it is kept. An organisation's
-#      erasure deletes its audit rows, so after a purge the account is weighed
-#      like any other, as the runbook's Tenant offboarding means it to be.
+#   2. It was not removed from an organisation here in the last 7 days. The
+#      Team page's removal and `operator.sh leave` both delete the member row
+#      and write an `audit_log` row with the action `member.removed`, the
+#      subject in `detail.userId` (2026-09-29), and the row's own time, `at`,
+#      says when. While the NEWEST such row for its subject is younger than 7
+#      days, the account is kept. The 7 are the owner's (0135 open question
+#      13, 2026-09-29: "Samen number of days", and, asked the same as which
+#      rule, "7 days"): the erasure window, in which a closed organisation, or
+#      a tester who does not accept the new conditions, is erased 7 days later.
+#      Privacy §9 says it. A record that names no subject names no account,
+#      and is passed over. An organisation's erasure deletes its audit rows,
+#      so after a purge the account is weighed like any other: 30 days from
+#      its creation (6), or never, with no creation date. Closed with a window
+#      of 0, an organisation can be erased less than 7 days after a removal;
+#      the runbook's Tenant offboarding has the operator note such subjects
+#      before the purge and remove each with `--subject` after it.
 #   3. It has no operator row: its subject is not in `platform_operator`.
 #   4. No open access request carries its address.
 #   5. No open invitation is addressed to it: no `tenant_member` row with
@@ -31,7 +40,14 @@
 #      placeholder where the subject will go, so the first condition cannot see
 #      it, and a person granted after registering has one until they first sign
 #      in to the app (added 2026-09-28).
-#   6. It is older than 30 days, by the date the provider says it was created.
+#   6. It is older than 30 days, by the date the provider says it was created,
+#      unless its removal is recorded (2). Privacy §9's 30 days are for an
+#      account "that we never let in"; the owner's question was whether these
+#      are unused accounts, answered "unused, yes" (site/legal/README.md). An
+#      account whose removal is recorded was let in, and the owner's answer
+#      counts its 7 days from the removal, so for it the date it was created
+#      plays no part: created 10 days ago and removed 8 days ago, it goes. Nor
+#      does a creation date the script cannot read keep it.
 #   7. It belongs to this stack's organisation at the provider: its
 #      `details.resourceOwner` is the id `GET /management/v1/orgs/me` answers.
 #      An account of another organisation (0135 T3: one may be made on purpose)
@@ -43,16 +59,18 @@
 # An address is compared without case. The provider's own members, of the
 # instance and of the organisation, are never listed: the first human is one of
 # them, and so is the machine user whose token this uses. Only humans are asked
-# for. An account with no creation date the script can read is left alone.
+# for. An account with no creation date the script can read is left alone,
+# unless its removal is recorded (6).
 #
 # ONE ACCOUNT, AT ANY AGE (`--subject`). When an organisation is erased, its
-# members' accounts stay at the provider (docs/operator-runbook.md, Tenant
-# offboarding). After the purge, `--subject <sub> --remove` removes one of
-# them. The age condition does not apply; the others do, so the account of
+# members' accounts stay at the provider, and so do those of the members
+# removed from it, whose record the purge deletes (docs/operator-runbook.md,
+# Tenant offboarding). After the purge, `--subject <sub> --remove` removes one
+# of them. The age condition does not apply; the others do, so the account of
 # somebody who is still a member elsewhere, was removed from an organisation
-# that still exists, is an operator, holds an open request or invitation,
-# belongs to another organisation, or holds a role at the provider is
-# refused, with the reason.
+# here less than 7 days ago, is an operator, holds an open request or
+# invitation, belongs to another organisation, or holds a role at the
+# provider is refused, with the reason.
 #
 # WHAT IT NEVER DOES. Without `--remove` it removes nothing and writes nothing.
 # It refuses, before removing anything, when any read failed or came back in a
@@ -114,8 +132,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "${SCRIPT_DIR}/env-read.sh"
 ENV_FILE="${SCRIPT_DIR}/.env"
 
-# The retention period, privacy 1.2's §9 (0135 open question 6).
+# How long an account nobody let in is kept, from the date the provider says
+# it was created: privacy 1.2's §9 (0135 open question 6, 2026-09-28: "30
+# days is ok").
 DAYS=30
+# How long the account of a member removed from an organisation is kept, from
+# the newest removal recorded for it: the erasure window's 7 days, the owner's
+# answer to 0135 open question 13 (2026-09-29: "Samen number of days", and,
+# asked the same as which rule, "7 days"). Privacy §9 says it beside the 30.
+REMOVED_DAYS=7
 
 say() { echo "idp-strays: $*"; }
 die() {
@@ -129,13 +154,14 @@ usage() {
 Usage: ./deploy/compose/idp-strays.sh [--remove [--at-most N]]
        ./deploy/compose/idp-strays.sh --subject <sub> [--remove]
 
-Lists this stack's sign-in accounts that nobody let in: no membership, never
-removed from one, no operator row, no open access request or invitation for
-the address, of our own organisation at the provider with no role there, and
-older than 30 days. --remove removes them, and refuses while the database has
-no operator row. --subject asks about one account, at any age, for an
-organisation that has been erased. --at-most N removes nothing when more than
-N would go.
+Lists this stack's sign-in accounts that nobody let in: no membership, no
+operator row, no open access request or invitation for the address, of our
+own organisation at the provider with no role there, and older than 30 days;
+and those of members removed from an organisation 7 or more days ago, on the
+same conditions but the age. --remove removes them, and refuses while the
+database has no operator row. --subject asks about one account, at any age,
+for an organisation that has been erased. --at-most N removes nothing when
+more than N would go.
 EOF
 }
 
@@ -258,8 +284,9 @@ fields() {
 
 # ------------------------------------------------------------ what the stack knows --
 
-# db <file> <sql> — one value per line into <file>, over the database's own
-# superuser, which row security does not hold back.
+# db <file> <sql> — one row per line into <file>, its columns split by a bar
+# (psql -At), over the database's own superuser, which row security does not
+# hold back.
 db() {
   local why
   if ! docker exec "$DB_CONTAINER" sh -c 'psql -X -q -v ON_ERROR_STOP=1 -At -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1"' sh "$2" >"$1" 2>"${WORK}/db-error"; then
@@ -268,13 +295,22 @@ db() {
   fi
 }
 db "${WORK}/members" "SELECT DISTINCT user_id FROM tenant_member"
-# The subjects let in and removed since: the Team page's removal (members.ts,
-# MEMBER_REMOVED_ACTION) and `operator.sh leave` (MEMBERSHIP_REMOVED_ACTION)
-# record `member.removed` with the subject in `detail.userId`.
-db "${WORK}/removed" "SELECT DISTINCT detail->>'userId' FROM audit_log WHERE action = 'member.removed'"
+# The subjects let in and removed since, and when: the Team page's removal
+# (members.ts, MEMBER_REMOVED_ACTION) and `operator.sh leave`
+# (MEMBERSHIP_REMOVED_ACTION) record `member.removed` with the subject in
+# `detail.userId`, and the row's own `at` is when. Every such row, as the
+# subject and whole seconds since 1970; the newest of each subject counts.
+db "${WORK}/removed" "SELECT detail->>'userId', extract(epoch FROM at)::bigint FROM audit_log WHERE action = 'member.removed'"
 db "${WORK}/operators" "SELECT user_id FROM platform_operator"
 db "${WORK}/requests" "SELECT DISTINCT email FROM access_request WHERE state = 'open'"
 db "${WORK}/invited" "SELECT DISTINCT email FROM tenant_member WHERE status = 'invited'"
+
+# Each removal is a subject, a bar, and whole seconds, as psql -At prints the
+# two columns. A line in another shape would read as a subject nobody removed,
+# or as a time long past: refuse. Its words are not printed.
+if grep -qvE '^[^|]*[|][0-9]+$' "${WORK}/removed"; then
+  die "the record of removals came back in a shape this does not know: a line of audit_log's member.removed is not a subject and a time in whole seconds."
+fi
 
 # A database that names no operator is not live's as it runs: live has one from
 # "Become the operator" on (docs/managed-bring-up.md). Emptied or another
@@ -357,12 +393,16 @@ jq -n \
   --arg subject "$SUBJECT" \
   --arg org "$ORG_ID" \
   --argjson now "$(date -u +%s)" \
-  --argjson days "$DAYS" '
+  --argjson days "$DAYS" \
+  --argjson removedDays "$REMOVED_DAYS" '
   def lines: split("\n") | map(select(length > 0));
   # The provider stamps fractions of a second, which fromdateiso8601 does not read.
   def epoch: sub("\\.[0-9]+"; "") | fromdateiso8601;
   ($members | lines) as $m
-  | ($removed | lines) as $x
+  # The newest removal of each subject named, in seconds since 1970.
+  | ($removed | lines
+     | map(capture("^(?<id>.*)[|](?<at>[0-9]+)$") | select(.id != ""))
+     | group_by(.id) | map({ key: .[0].id, value: (map(.at | tonumber) | max) }) | from_entries) as $x
   | ($operators | lines) as $o
   | ($requests | lines | map(ascii_downcase)) as $r
   | ($invited | lines | map(ascii_downcase)) as $i
@@ -379,20 +419,26 @@ jq -n \
         | .userId as $id
         | (.human.email.email // "" | ascii_downcase) as $e
         | (try (.details.creationDate | epoch) catch null) as $born
+        | $x[$id] as $gone
         | {
             id: $id,
             login: (.preferredLoginName // .username // ""),
             created: ((.details.creationDate // "") | .[0:10]),
             days: (if $born == null then null else (($now - $born) / 86400 | floor) end),
+            # Days since the newest removal, when one is recorded.
+            removed: (if $gone == null then null else (($now - $gone) / 86400 | floor) end),
             kept: (
               if ($p | any(. == $id)) then "own"
               elif ($m | any(. == $id)) then "member"
-              elif ($x | any(. == $id)) then "removed"
+              elif $gone != null and ($now - $gone) < ($removedDays * 86400) then "removed"
               elif ($o | any(. == $id)) then "operator"
               elif $e != "" and ($r | any(. == $e)) then "request"
               elif $e != "" and ($i | any(. == $e)) then "invitation"
               elif (.details.resourceOwner // "") != $org then "elsewhere"
               elif $subject != "" then null
+              # Let in, and removed 7 days ago or more: its days count from
+              # the removal, and the date it was created plays no part.
+              elif $gone != null then null
               elif $born == null then "undated"
               elif ($now - $born) <= ($days * 86400) then "young"
               else null end)
@@ -453,26 +499,32 @@ mv "${WORK}/verdict.next" "${WORK}/verdict"
 
 ACCOUNTS="$(jq '.accounts | length' "${WORK}/verdict")"
 STRAYS="$(jq '[.accounts[] | select(.kept == null)] | length' "${WORK}/verdict")"
+# Of those, the accounts of members removed 7 or more days ago.
+GONE="$(jq '[.accounts[] | select(.kept == null and .removed != null)] | length' "${WORK}/verdict")"
 
 if [ -n "$SUBJECT" ]; then
   [ "$ACCOUNTS" -gt 0 ] || die "no account ${SUBJECT} at the provider of '${COMPOSE_PROJECT}'."
-  WHY="$(jq -r '{
+  WHY="$(jq -r --argjson removedDays "$REMOVED_DAYS" '.accounts[0] as $a | {
       own: "it is one of the provider'"'"'s own members",
       member: "it is a member of an organisation here",
-      removed: "it was let in, and removed from an organisation here since",
+      removed: "it was removed from an organisation here \($a.removed) days ago, and is kept until \($removedDays) days after that",
       operator: "it is an operator",
       request: "an open access request carries its address",
       invitation: "an open invitation is addressed to it",
       elsewhere: "it belongs to another organisation at the provider",
       provider: "it holds a membership or a grant at the provider"
-    }[.accounts[0].kept // ""] // empty' "${WORK}/verdict")"
+    }[$a.kept // ""] // empty' "${WORK}/verdict")"
   [ -z "$WHY" ] || die "account ${SUBJECT} is left alone: ${WHY}."
   say "stack '${COMPOSE_PROJECT}': account ${SUBJECT} belongs to nobody here."
 else
-  say "stack '${COMPOSE_PROJECT}': ${ACCOUNTS} accounts at the provider, ${STRAYS} nobody let in and older than ${DAYS} days."
-  LEFT="$(jq -r --argjson days "$DAYS" '
+  if [ "$GONE" -gt 0 ]; then
+    say "stack '${COMPOSE_PROJECT}': ${ACCOUNTS} accounts at the provider, $((STRAYS - GONE)) nobody let in and older than ${DAYS} days, and ${GONE} removed from an organisation ${REMOVED_DAYS} or more days ago."
+  else
+    say "stack '${COMPOSE_PROJECT}': ${ACCOUNTS} accounts at the provider, ${STRAYS} nobody let in and older than ${DAYS} days."
+  fi
+  LEFT="$(jq -r --argjson days "$DAYS" --argjson removedDays "$REMOVED_DAYS" '
     [ ["own", "the provider'"'"'s own members"], ["member", "members of an organisation"],
-      ["removed", "let in and removed since"],
+      ["removed", "removed from an organisation less than \($removedDays) days ago"],
       ["operator", "operators"], ["request", "with an open access request"],
       ["invitation", "with an open invitation"],
       ["elsewhere", "of another organisation at the provider"],
@@ -487,8 +539,12 @@ else
 fi
 
 if [ "$REMOVE" -eq 0 ]; then
+  # A removed member's account may have no creation date (6): say so, rather
+  # than "created ," with nothing after it.
   jq -r '.accounts[] | select(.kept == null)
-    | "  \(.id)  \(.login)  created \(.created)\(if .days == null then "" else ", \(.days) days ago" end)"' "${WORK}/verdict"
+    | "  \(.id)  \(.login)  \(if .created == "" then "no creation date" else "created \(.created)" end)\(
+        if .days == null then "" else ", \(.days) days ago" end)\(
+        if .removed == null then "" else ", removed from an organisation \(.removed) days ago" end)"' "${WORK}/verdict"
   if [ "$OPERATORS" -eq 0 ]; then
     say "nothing was removed, and --remove refuses while the database names no operator (platform_operator): docs/managed-bring-up.md, 'Become the operator'."
   elif [ -n "$SUBJECT" ]; then
@@ -509,7 +565,7 @@ FAILED=0
 while IFS=$'\t' read -r id created; do
   [ -n "$id" ] || continue
   if api DELETE "/v2/users/${id}"; then
-    echo "  removed ${id}, created ${created}"
+    if [ -n "$created" ]; then echo "  removed ${id}, created ${created}"; else echo "  removed ${id}, no creation date"; fi
     REMOVED=$((REMOVED + 1))
   elif [ "$STATUS" = "404" ]; then
     echo "  ${id} was gone already"

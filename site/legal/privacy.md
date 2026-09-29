@@ -964,10 +964,18 @@ target. We show you the target before anything is written.
        a test account on the test stack (Zitadel v4.19.2) and look at what stays. If the earlier
        entries go, the row says instead: "Removed with your sign-in account." / "Verwijderd met
        uw inlogaccount."
-     - A sign-in account nobody let in, "30 days after it was created": nothing removes one yet.
-       The owner chose a daily script, built before the first tester
-       (ops-unadmitted-signin-cleanup (a)): 0135 T8, deploy/compose/idp-strays.sh, with the
-       machine's daily duties. The row waits for it.
+     - A sign-in account nobody let in, "30 days after it was created", and a removed member's,
+       "7 days after they were removed" (ops-unadmitted-signin-cleanup (a), "A daily script,
+       built before the first tester"; 0135 open question 13, answered 2026-09-29: "Samen number
+       of days", and then "7 days", the erasure window's): built, not yet run:
+       deploy/compose/idp-strays.sh (0135 T8 (a), #1344, review fixes #1367, the 7 days added
+       2026-09-29), the duty `strays` in box-duties.sh (0135 T8 (b), #1345), --remove --at-most
+       20 once a day. It counts the 7 days from the newest audit_log member.removed row for the
+       subject, and keeps the account while the person is a member anywhere, an operator, or has
+       an open request or invitation. True on live once live's daily duties run; a day with more
+       than 20 waits for a person. An organisation erased less than 7 days after a removal takes
+       that row with it: the runbook's Tenant offboarding has the operator note the subject before
+       the purge and remove the account with --subject after it, sooner than 7 days, never later.
      - Support mail, and the copies of the service's own mail (privacy-sent-mail-copies (b):
        "until resolved, then 6 months", as it stands): nothing prunes the mailbox or its Sent
        folder at Proton; it is done by hand. A mail that answers no question has no clear end
@@ -994,6 +1002,7 @@ target. We show you the target before anything is written.
 | The history our sign-in service keeps of your sign-in account: every change to it, such as your name and email address as they were, and your sign-ins | As long as we run this sign-in service, because it cannot remove them. Removing your sign-in account adds an entry to that history; it does not remove the earlier ones. |
 | Your request for access (§4.4) | While it is open. Declined: deleted 30 days after our decision. Granted: kept with your account, and erased with it. |
 | A sign-in account that someone created at our sign-in page but that we never let in, and that therefore opens nothing (§4.4) | 30 days after it was created, unless a request for access with that address is still open. |
+| The sign-in account of someone who was removed from an organisation and is no longer a member of any (§4.4) | 7 days after they were removed, unless a request for access or an invitation with that address is still open. |
 | Support mail and problem reports, and the copies of the service's own mail in the same mailbox (§4.5) | Until the question or problem is resolved, and then 6 months more. The same holds for the copies of the service's own mail. Then deleted from the mailbox. |
 | The record of what we viewed on your account (§4.5) | Until your data is erased. What is recorded without an organisation stays after that: a search by address, and a download of the log of who did what. These are deleted 12 months after they were recorded. |
 | The copy made right before an update | Until the update it was made for is shown to work, and never longer than 7 days. It holds the service's database and our sign-in service's database; before the system that runs the background tasks is upgraded, also its database. Such a copy is made only to undo a failed update, and it does not leave the hosting environment. Data erased from the service can remain in it for at most 7 days. |
