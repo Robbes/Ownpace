@@ -35,7 +35,6 @@ import { FolderGit2, Plus, Play, Pause, Trash2, Edit, AlertCircle } from 'lucide
 import {
   leastAdvancedStage,
   stageOf,
-  type MappingAttention,
   type Person,
   type Stage,
 } from '@openmig/shared';
@@ -53,28 +52,11 @@ import ProviderTile, { providerName } from '../components/ProviderTile.tsx';
 import { DataTypeLabel } from '../components/icons/data-type-icons.tsx';
 import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
 import { Hint } from '../components/Hint.tsx';
+import { waitingOn } from '../services/needs-you.ts';
 
 /** A migration's stage, from what the list carries (see the header). */
 export function listStage(m: Pick<MappingListItem, 'status' | 'lastSyncAt'>): Stage | undefined {
   return stageOf({ phase: m.status, completedOnce: Boolean(m.lastSyncAt) });
-}
-
-/**
- * What waits on a person about one of their migrations (0153 T3 (a)): its
- * failures, deletions and moves waiting, and each data type whose grace period
- * ended while nobody chose. Undefined when the count could not be taken.
- *
- * NOT THE ORGANISATION'S DECISIONS. A new mailbox belongs to no migration yet,
- * so no person's card can claim it; the attention read hangs the count on
- * whichever migration reported first, and adding it here gave that person
- * somebody else's work. *Needs you* (`/decisions`) lists them. Nor *Ready to
- * switch*: the card says that in its stage.
- */
-export function waitingOn(a: MappingAttention | undefined, attentionRead: boolean): number | undefined {
-  if (!attentionRead) return undefined;
-  if (!a) return 0;
-  if ((a.blindSpots?.length ?? 0) > 0) return undefined;
-  return a.failuresWaiting + a.deletionsWaiting + a.movesWaiting + (a.graceEnded?.length ?? 0);
 }
 
 /** The names on one side of a person's migrations, once each, in the order met. */
