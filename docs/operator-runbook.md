@@ -643,6 +643,28 @@ It also stops a sign-in already in progress. It records nothing in `audit_log`, 
 ticket that you did it. It does not take back access already given: only the person can, from
 their progress page (**Withdraw access**), or in their Google account.
 
+## Sign-in accounts nobody let in
+
+Anybody can create an account at the sign-in page: organisation registration is
+off (workplan 0135 T1), self-registration is not. Such an account opens nothing
+until you grant a request for its address, but the identity provider keeps a
+name, an address, a password hash and sessions for it, and privacy §9 keeps it
+30 days. From the stack's checkout:
+
+```bash
+./deploy/compose/idp-strays.sh            # lists them; removes nothing
+./deploy/compose/idp-strays.sh --remove   # removes what it lists
+```
+
+It lists an account with no membership, no operator row, and no open access
+request or invitation for its address, older than 30 days by the provider's own
+date. An address compares without case. The provider's own members (the first
+human, the organisation's managers) are never listed. It refuses, removing
+nothing, when a read fails or comes back in a shape it does not know, and when
+the database names people none of whom has an account at this provider. A
+removal's line names the account's id, never its address. Workplan 0135 T8 has
+the rule, and why each part of it is there.
+
 ## Tenant offboarding (GDPR right to erasure, §17)
 
 > ⚠️ **This section was rewritten 2026-08-18 (workplan 0085).** It previously
@@ -815,9 +837,16 @@ not withdrawing a consent: an Entra admin consent, a Google OAuth
 authorization, a Dropbox app link or a Box admin authorization lives in *their*
 platform under *their* account, and no API call of ours withdraws it.
 
-**Their sign-in account.** Closing and purging leave the person's account at
-the identity provider. Once the purge has run, remove it in the provider's
-console. Workplan 0135 T8's script will take this step over.
+**Their sign-in accounts.** Closing and purging leave each member's account at
+the identity provider. After the purge, from the stack's checkout,
+`./deploy/compose/idp-strays.sh` lists every former member who belongs to no
+other organisation and whose account is older than 30 days, beside any other
+account nobody let in (*Sign-in accounts nobody let in*, above). Check the list,
+then run it again with `--remove`. A younger account is not listed: note its
+subject (`tenant_member.user_id`) before the purge, and afterwards remove it
+with `./deploy/compose/idp-strays.sh --subject <sub> --remove`. That refuses,
+saying why, while the subject is still a member anywhere, an operator, or holds
+an open request or invitation.
 
 > **The three decision queues now have a UI as well as these endpoints**
 > ([ADR-0026](adr/0026-one-operating-ui-one-contract.md)). The appliance serves

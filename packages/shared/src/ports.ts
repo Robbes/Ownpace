@@ -2715,6 +2715,25 @@ export interface PassMetrics {
    * serially, which is a configuration problem rather than a slow server.
    */
   readonly overlap: number;
+  // WHAT A PASS DOES BEFORE IT READS AN ITEM (2026-09-28). The phases above
+  // time the work done per item. A Dropbox pass copied nothing for the first
+  // 40 of its 50 minutes, and nothing recorded where those minutes went,
+  // because the work done per COLLECTION had no clock at all. The five below
+  // are wall time, collections taken one after another. Optional: a pass
+  // measured before they existed has none.
+  /** Listing the source's collections, once, before the first is opened. */
+  readonly listCollectionsMs?: number;
+  /**
+   * Making each collection ready on the target (`ensureCollection`). On a
+   * WebDAV target the first one also walks what the target already holds.
+   */
+  readonly collectionSetupMs?: number;
+  /** Listing each collection's items on the source, and its keys where a second listing is asked for. */
+  readonly collectionListingMs?: number;
+  /** How many collections the pass opened: made ready on the target and listed. */
+  readonly collectionsOpened?: number;
+  /** From the pass's start to its first write that created or updated an item. Absent when none did. */
+  readonly firstWriteAfterMs?: number;
 }
 
 export interface MigrationStatusStore {
