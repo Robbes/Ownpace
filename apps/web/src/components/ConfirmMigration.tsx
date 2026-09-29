@@ -101,6 +101,7 @@ export function countedSinceChange<T extends { readonly discoveredAt: string; re
  */
 export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps): React.ReactElement {
   const t = useT();
+  const countsHeadingId = React.useId();
   const queryClient = useQueryClient();
   const startedAt = React.useRef(Date.now());
   const [gaveUp, setGaveUp] = React.useState(false);
@@ -254,8 +255,8 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
       </div>
 
       {/* Discovery counts — shared with the appliance's confirm screen. */}
-      <section aria-label="discovery-counts">
-        <h3 className="text-sm font-medium text-gray-700 mb-2">{t('confirm.foundInSource')}</h3>
+      <section aria-labelledby={countsHeadingId}>
+        <h3 id={countsHeadingId} className="text-sm font-medium text-gray-700 mb-2">{t('confirm.foundInSource')}</h3>
         {/* With nothing landed, the counts say *Scanning your source*, which a
             refused count makes untrue. A count begun a moment before the hold
             still lands (the door refused the join, not the count), so rows
