@@ -18,12 +18,29 @@
  *     came, so the error the caller writes still quotes Dropbox;
  *  3. a 429 is waited out, by the shared helper;
  *  4. a refusal is never asked again;
- *  5. through the source, a folder whose listing met one 500 is listed.
+ *  5. through the source, a folder whose listing met one 500 is listed;
+ *  6. every request, a rate limit's second ask too, reaches Dropbox with
+ *     Node's own `fetch`, never through `tenantFetch`.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TokenProvider } from '@openmig/shared';
+import { tenantFetch } from '@openmig/shared/reachable-host';
 import { DROPBOX_TROUBLE_ATTEMPTS, DropboxFileSource, dropboxTransport } from './dropbox-file-source.ts';
+
+/**
+ * DROPBOX'S HOST IS A FIXED ONE (2026-09-29). The transport reaches it with
+ * Node's own `fetch`, which the fetch guard lists for this connector
+ * (`scripts/a-client-that-reaches-a-tenant-host`), and not through
+ * `tenantFetch`, the client for a host a tester typed. So here `tenantFetch`
+ * answers nothing: every case in this file fails if the transport asks it.
+ */
+vi.mock('@openmig/shared/reachable-host', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@openmig/shared/reachable-host')>()),
+  tenantFetch: vi.fn(async () => {
+    throw new Error("tenantFetch was asked for Dropbox's fixed host");
+  }),
+}));
 
 const tokens = { getToken: async () => ({ accessToken: 'a-token' }) } as unknown as TokenProvider;
 const noPause = { pauseMs: () => 0 };
@@ -124,5 +141,20 @@ describe('through the source', () => {
     const { items } = await source.listSince({ path: '' });
 
     expect(items.map((i) => i.item.path)).toEqual(['Report.pdf']);
+  });
+});
+
+describe("Dropbox's fixed host", () => {
+  it("is reached with Node's own fetch, a rate limit's second ask too, and never through tenantFetch", async () => {
+    const asked = answering([
+      () => new Response('{"error_summary":"too_many_requests/"}', { status: 429, headers: { 'Retry-After': '0' } }),
+      listing,
+    ]);
+
+    const response = await dropboxTransport(tokens, noPause)(LIST, { method: 'POST', headers: {} });
+
+    expect(response.status).toBe(200);
+    expect(asked.map((a) => a.url)).toEqual([LIST, LIST]);
+    expect(vi.mocked(tenantFetch)).not.toHaveBeenCalled();
   });
 });

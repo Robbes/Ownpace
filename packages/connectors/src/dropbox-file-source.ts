@@ -217,7 +217,10 @@ function dropboxErrorTag(body: string): string | undefined {
  *
  * Every call this source makes only reads, so asking again cannot do anything
  * twice. 429 and 503 are not here: `fetchWithRateLimitRetry` waits those out,
- * as hard rule 4 asks, and until now this connector never used it.
+ * as hard rule 4 asks, and until now this connector never used it. It sends
+ * them with Node's own `fetch`, as this connector always has: Dropbox's API is
+ * a provider's fixed host, never one a tester typed, so the fetch guard lists
+ * this file in FIXED_HOSTS rather than asking for `tenantFetch`.
  */
 const DROPBOX_OWN_TROUBLE: ReadonlySet<number> = new Set([500, 502, 504]);
 
@@ -251,6 +254,7 @@ export function dropboxTransport(
           ...(init.body !== undefined ? { body: init.body } : {}),
         },
         'dropbox',
+        fetch,
       );
       if (!DROPBOX_OWN_TROUBLE.has(response.status) || attempt >= DROPBOX_TROUBLE_ATTEMPTS) return response;
       // Read to the end, so the connection can be used again.
