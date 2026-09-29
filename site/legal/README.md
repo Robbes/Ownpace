@@ -403,9 +403,21 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   it runs once live's timer is installed. It deletes every read recorded with no organisation at 12
   months: besides a search and a download, the organisation list, the invoices kept after an
   erasure, and a log page not filtered to one organisation.
-- *The sharing list goes with its migration* (privacy §4.6, §9; privacy-sharing-list (b)): the
-  migration delete also deletes that migration's `share_grant` rows, which have no foreign key to
-  the migration today. Not built; until it is, the list stays until erasure.
+- *The sharing list goes with its migration* (privacy §4.6, §9; privacy-sharing-list (b)): built
+  (0139 T6, 2026-09-29) on branch
+  `claude/ownpace-public-readiness-y7orc6-the-sharing-list-goes-with-its-migration`, not merged.
+  Deleting a migration (`DELETE /api/migrations/:id`) deletes that migration's `share_grant` rows,
+  which have no foreign key to the migration, in the same transaction as the migration itself: a
+  list that cannot be deleted keeps the migration too. A sharing rescan writes no list for a
+  migration deleted while it scanned: the list's one writer holds the migration's row, so a delete
+  either waits for the list and takes it, or comes first and the rescan writes nothing. The
+  rollback from the copy before an update deletes them again with a migration deleted after the
+  copy (`copy-before-update.sh since`); the erasure already deleted them by organisation, and
+  `operator.sh clean empty-tenant` now deletes them with an organisation it removes. **Still to
+  do:** merged, and live runs a tag that carries it. A list whose migration was deleted before
+  that stays until the organisation's erasure, or until `clean empty-tenant` removes the
+  organisation. Privacy's briefing and the comments beside §9 in both languages still say it is
+  not built.
 - *Server logs until the part that wrote them is replaced* (privacy §9; ops-log-driver (a), the
   owner: *"needs checking"*): the owner runs `docker info --format '{{.LoggingDriver}}'` on the
   machine and undoes a journald setting if there is one; the journald step comes out of

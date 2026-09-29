@@ -4,6 +4,22 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-29, morning: T6 (g)'s ADR-0014 amendment is drafted, for the owner's acceptance**
+(R8 step 11's first need; the owner's answer 9, *"Yes"*, after checking it had not landed). The
+amendment is appended to ADR-0014 as proposed, and the operative rules are unchanged until the
+owner accepts:
+- D9's list, with a yearly column and no setup fees;
+- D11's year, which renews, can be stopped, and refunds;
+- D12's principle, which replaces *"No profit" STANDS*.
+
+It asks the owner two questions, each with a recommendation:
+- **Top-ups**, which were paid with the setup fee: recommended, none; the tier moves up.
+- **How a year meets a tier derived each month:** recommended, a year is credit at six months'
+  price, and each month takes its own tier at half its monthly price.
+
+The table changes with `site/prices.mjs` in T6 (d)'s pull request, because the price guards read
+it.
+
 **2026-09-29, morning: the owner's answers (asked by the writing session).**
 
 - **T0 for D6 on the site's own pages:** #1339's Dutch is approved as written (*"Yes"*), as its

@@ -650,9 +650,9 @@ the three, with its owner and `app_user`'s grants. The sign-in service's way bac
 the same way for `dump-idp.sh` (its header). Steps 4 and 6 are rehearsed in
 `scripts/one-copy-before-each-update.unit.test.ts` on two PGlite databases with both chains
 applied, the copy's and the one after it: an organisation closed, one reopened, one erased, a
-connection, a migration, a person and a membership deleted, and a grant withdrawn after the
-copy, each done again in a fresh copy of the first. The whole sequence has not been run on a
-stack.
+connection, a migration with its sharing list, a person and a membership deleted, and a grant
+withdrawn after the copy, each done again in a fresh copy of the first. The whole sequence has
+not been run on a stack.
 
 ## If the machine is lost during the alpha
 

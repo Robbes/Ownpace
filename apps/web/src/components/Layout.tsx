@@ -29,6 +29,7 @@ import { fetchReportingAvailable } from '../services/problem-report-service.ts';
 import { fetchAttention } from '../services/operating-service.ts';
 import { needsYouTotal } from '../services/needs-you.ts';
 import PlatformPauseBanner from './PlatformPauseBanner.tsx';
+import NewVersionPrompt from './NewVersionPrompt.tsx';
 import AlphaNote from './AlphaNote.tsx';
 import { supportAddress } from './SupportLine.tsx';
 import {
@@ -587,6 +588,10 @@ const Layout: React.FC = () => {
               click away. Renders nothing when nothing is held, and nothing on
               the appliance, which has no such thing. */}
           <PlatformPauseBanner />
+          {/* A newer page than this one (workplan 0145): the site serves
+              another build, most likely after a deploy while the tab stayed
+              open. Both editions; nothing while the page is current. */}
+          <NewVersionPrompt />
           <Outlet />
         </main>
       </div>

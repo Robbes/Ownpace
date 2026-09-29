@@ -4,6 +4,67 @@
 
 ## Status — 2026-09-29 (update this block at the end of every session)
 
+**2026-09-29, build: the deploy check and the reload prompt (the owner: *"build the deploy check
+and the reload prompt in this session"*), on branch `claude/affectionate-mayer-xqkjdh`, after the
+fix below merged.** Both answer the owner's question of the same day, whether a deploy could
+prevent a page and an API from two builds. A deploy can for the images; only the page can for a
+tab left open across one.
+
+- **The web build writes its own build beside the page.** `vite.config.ts` emits `version.json`,
+  `{ version, commit }`, from the same two constants it stamps into the bundle, so the file and
+  the page cannot disagree. The web image's nginx serves it with `Cache-Control: no-cache` and a
+  404 when it is missing, never the page in its place. The appliance serves it under `/ui/`, and
+  now caches hard only what Vite fingerprints (`assets/`), where it cached every file but the
+  page for a year.
+- **`deploy-live.sh` refuses a web app that is not the release's.** Step 7 asked `/api/version`,
+  which the web image's nginx hands to the API, so a web image that did not move beside the API
+  passed. It now also asks `/version.json` at the app's address: another commit, another
+  version, no file or the page in its place is a deploy that did not take (exit 3, the hold
+  stays). A tag cut before this has no `/version.json` and cannot pass, as a tag cut before
+  #1271 cannot pass the exposure check. `stand-up-live.sh`, the first bring-up, is unchanged: it
+  builds both images at once from one checkout.
+- **An open page offers a reload when the site serves a newer build.** `NewVersionPrompt`, in the
+  layout of both editions, asks `version.json` (`services/served-build.ts`) when the page opens,
+  when the person comes back to the tab, every five minutes while it is in front, and at once
+  after an answer the page could not read. When the site serves another build than the page's
+  own, on a part both know, it shows one sentence and one button. It never reloads by itself.
+  It compares with the site's build, not the API's: after a deploy that moved only the API, a
+  reload would load the same page again, and the prompt would never go away.
+  EN: *"A newer version of this page is available. Reload the page to use it; anything you have
+  not saved yet is lost."* / *Reload the page*. NL: *"Er is een nieuwere versie van deze pagina.
+  Laad de pagina opnieuw om die te gebruiken; wat u nog niet hebt opgeslagen, gaat daarbij
+  verloren."* / *Pagina opnieuw laden*. For the owner's reading.
+
+  The guards, each run against a mutation:
+
+  - `scripts/a-deploy-from-a-named-tag.unit.test.ts`: every deploy that takes now asks
+    `/version.json` after `/api/version`, and four more ways a deploy did not take: the web
+    image names another commit, another version, answers 404, or answers the page in the
+    file's place. Mutations: no web check (36 failed); a web commit ignored (2).
+  - `scripts/ui-build-output.unit.test.ts`: the appliance's build, handed a `GIT_SHA`, writes
+    `version.json` with the root `package.json`'s version and that commit, the one the page is
+    stamped with (the plugin reads the stamp's own `define`, so `a-release-that-names-itself`
+    still finds the stamp read from `GIT_SHA`). Mutations: the plugin left out (1); the file
+    reading another key than the stamp (1).
+  - `apps/selfhost/src/static-ui.unit.test.ts`: `/ui/version.json` is served as JSON with
+    `no-cache`. Mutation: the old rule (1).
+  - `apps/web/src/services/served-build.unit.test.ts` (eight) and
+    `apps/web/src/components/NewVersionPrompt.unit.test.tsx` (eight): nothing while the site
+    serves the page's build; the sentence and button in `en` and `nl` when it serves another;
+    a reload only when pressed; asked again on return to the tab, every five minutes, at once
+    after an unreadable answer, and once more when told to while a question is still out (a
+    race the screenshots found: the return was dropped while the first question was out);
+    nothing when the site cannot say. `api.unit.test.ts`: an unreadable answer asks once.
+    Mutations: never compares (7); not asked on return (1); an unreadable answer does not ask
+    (1). The race test failed before the fix.
+  - Screens from the branch's build at phone width, the fixture server answering
+    `/version.json` with another build after the page opened: no prompt before, the prompt
+    after the tab comes back, in both languages.
+  - Gates: `pnpm exec vitest run --project unit-browser --maxWorkers=3` 137 files, 2612 tests;
+    `pnpm exec vitest run --project unit scripts apps/selfhost` 251 files, 4494 tests;
+    `pnpm test:ui` 2 files, 31 tests (every page now asks `version.json`, and the smoke refuses
+    any failed request); `pnpm typecheck` and `pnpm lint` exit 0.
+
 **2026-09-29, fix: T6's unreadable answer, on the signed-in pages too, and kept in the log, on
 branch `claude/affectionate-mayer-xqkjdh`, not merged.** T6 made the grant and view pages say
 `link.unreadable` where they showed zod's JSON. The signed-in pages still showed it. A service
@@ -102,12 +163,11 @@ older API that does not send the `continuous` count), in two rounds:
   place, which the log line carries.
 - **"The alerting is for later."** Open: nothing alerts on `web.answer_unreadable`; alerts
   (0142) still come only from the status page's rows.
-- **Open, the owner's question:** could the release catch a web app and an API from two builds
-  at deployment, and prevent this altogether? `deploy-live.sh` step 7 asks `/api/version`, which
-  the web image's nginx hands to the API, so it proves the API's build and never the web app's,
-  whose build is baked into its JavaScript (`vite.config.ts`). The check can be closed for a
-  deploy by publishing the web app's build where the script can read it. No deploy check reaches
-  a tab left open across a deploy: that page keeps its old code until it is reloaded.
+- **The owner's question**, whether the release could catch a web app and an API from two builds
+  at deployment and prevent this altogether: `deploy-live.sh` step 7 asked `/api/version`, which
+  the web image's nginx hands to the API, so it proved the API's build and never the web app's.
+  No deploy check reaches a tab left open across a deploy. The owner: *"build the deploy check
+  and the reload prompt in this session"*; both are built, in the entry above.
 
 **2026-09-28, build: T5 with T7 (a), on branch
 `claude/ownpace-public-readiness-y7orc6-a-consent-window-opened-by-the-press`, not merged.** This

@@ -710,11 +710,10 @@ function stage(opts: StageOptions = {}): Stage {
   };
   const s: Stage = { root, work, compose, log, sqlLog, http, deployLog, siteUp, env, commit };
 
-  // The app answers as the next release, when there is one.
+  // The app answers as the next release, when there is one: the API and the
+  // web app's own build alike (0145).
   const next = opts.releases?.[0];
-  if (next) {
-    answer(s, '/api/version', 200, { version: next.version ?? next.tag.replace(/^v/, ''), commit: commit[next.tag] });
-  }
+  if (next) answerAs(s, { tag: next.tag, version: next.version ?? next.tag.replace(/^v/, '') });
   answer(s, '/api/ready', 200, { status: 'ok', database: 'up', signIn: 'up' });
   answer(s, '/api/auth/mode', 200, { mode: 'managed', acceptsSeedToken: false });
   return s;
@@ -724,6 +723,12 @@ function answer(s: Stage, path: string, code: number, body: unknown): void {
   const name = path.replace(/^\//, '').replace(/\//g, '_');
   writeFileSync(join(s.http, `${name}.code`), String(code));
   writeFileSync(join(s.http, `${name}.body`), typeof body === 'string' ? body : JSON.stringify(body));
+}
+
+/** The app as a release: the API's `/api/version` and the web app's `/version.json` (0145). */
+function answerAs(s: Stage, rel: { tag: string; version: string }): void {
+  answer(s, '/api/version', 200, { version: rel.version, commit: s.commit[rel.tag] });
+  answer(s, '/version.json', 200, { version: rel.version, commit: s.commit[rel.tag] });
 }
 
 function silence(s: Stage, path: string): void {
@@ -1087,6 +1092,7 @@ describe('a deploy that took', () => {
       // The checks, at the origin in WEB_URL (T6 step 7).
       expect(called(s, 'curl')).toEqual([
         `curl https://${APP_HOST}/api/version`,
+        `curl https://${APP_HOST}/version.json`,
         `curl https://${APP_HOST}/api/ready`,
         `curl https://${APP_HOST}/api/auth/mode`,
       ]);
@@ -1135,7 +1141,7 @@ describe('a deploy that took', () => {
       const NEXT3 = { tag: 'v0.2.0-alpha.3', version: '0.2.0-alpha.3' };
       const s = stage({ releases: [NEXT, NEXT3] });
       expect(run(s, [NEXT.tag]).status).toBe(0);
-      answer(s, '/api/version', 200, { version: NEXT3.version, commit: s.commit[NEXT3.tag] });
+      answerAs(s, NEXT3);
       const r = run(s, [NEXT3.tag]);
       expect(r.status, r.out).toBe(0);
       expect(head(s)).toBe(s.commit[NEXT3.tag]);
@@ -1168,6 +1174,28 @@ describe('a deploy that did not take keeps the hold and exits non-zero', () => {
       /commit/,
     ],
     ['/api/version is not reachable', (s) => silence(s, '/api/version'), /\/api\/version/],
+    // The web app's own build (0145): an API on the tag beside a web image
+    // that did not move is a deploy that did not take.
+    [
+      '/version.json names another commit: the web image did not move',
+      (s) => answer(s, '/version.json', 200, { version: NEXT.version, commit: s.commit[RUNNING.tag] }),
+      /\/version\.json names commit .*the web app is not the release's/,
+    ],
+    [
+      '/version.json names the right commit and another version',
+      (s) => answer(s, '/version.json', 200, { version: '0.2.0-alpha.1', commit: s.commit[NEXT.tag] }),
+      /\/version\.json names version '0\.2\.0-alpha\.1'/,
+    ],
+    [
+      '/version.json is not there, as in a tag from before it',
+      (s) => answer(s, '/version.json', 404, 'Not found'),
+      /\/version\.json: answered HTTP 404/,
+    ],
+    [
+      '/version.json is the page in its place',
+      (s) => answer(s, '/version.json', 200, '<!doctype html><html><body></body></html>'),
+      /\/version\.json names commit 'none'/,
+    ],
     ['/api/ready answers 503', (s) => answer(s, '/api/ready', 503, { status: 'down' }), /\/api\/ready/],
     [
       '/api/auth/mode answers another mode',
@@ -1313,7 +1341,7 @@ describe('before the hold is lifted it says whether the deploy can be undone (01
       // over alpha.1, the tag that is running.
       const NEXT3 = { tag: 'v0.2.0-alpha.3', version: '0.2.0-alpha.3' };
       const s = stage({ releases: [{ ...NEXT, ledger: '0002_a_column.sql' }, NEXT3], checkout: NEXT.tag });
-      answer(s, '/api/version', 200, { version: NEXT3.version, commit: s.commit[NEXT3.tag] });
+      answerAs(s, NEXT3);
       mkdirSync(dirname(s.deployLog), { recursive: true });
       writeFileSync(
         s.deployLog,
@@ -1332,7 +1360,7 @@ describe('before the hold is lifted it says whether the deploy can be undone (01
 
   /** Deploy `tag` with the app answering as it, and return the run. */
   const deployAs = (s: Stage, rel: { tag: string; version: string }, extra: NodeJS.ProcessEnv = {}) => {
-    answer(s, '/api/version', 200, { version: rel.version, commit: s.commit[rel.tag] });
+    answerAs(s, rel);
     return run(s, [rel.tag], extra);
   };
   const logged = (s: Stage): string[] => deployLines(s).map((l) => l.split('\t').slice(1).join(' '));
