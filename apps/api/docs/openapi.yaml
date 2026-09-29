@@ -326,6 +326,10 @@ paths:
         subject — but only against an address the issuer says it VERIFIED,
         since otherwise whoever registers an address inherits what was granted
         to it.
+        While the deployment asks for acceptance (`OWNPACE_STAGE=alpha`, and
+        no text still a draft; workplan 0139 T3) and an organisation is
+        current, `acceptance` says which texts wait to be accepted, each with
+        its current version.
       responses:
         '200':
           description: The caller, their memberships, and which one they are currently acting as.
@@ -333,6 +337,55 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Me' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/me/acceptance:
+    post:
+      tags: [Account]
+      summary: Accept the current version of each text
+      description: |
+        The terms, the Alpha conditions and the privacy policy, at their
+        current versions, in the language the screen showed them (workplan
+        0139 T3). One row per text, with its version, the language and the
+        time, for this caller in the organisation they are acting as. Pressed
+        again, nothing is written and the first time stays.
+
+        **Only the current versions.** A body naming any other version writes
+        nothing and answers 409 `version_not_current`, so a page left open
+        across an update cannot accept a text nobody shows any more.
+
+        **Only while the deployment asks** (`OWNPACE_STAGE=alpha`, and no text
+        still a draft). Otherwise nothing is written and the answer is 409
+        `acceptance_not_asked`. A draft's number is the one its final text will
+        carry, so an acceptance of the draft would be recorded as one of the
+        final text, whose words may still change.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AcceptanceRequest' }
+      responses:
+        '200':
+          description: Recorded, or already recorded. The acceptance as `GET /api/me` now reports it.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AcceptanceRecorded' }
+        '400':
+          description: A body that does not name every text, or names a language the texts are not in.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: |
+            Nothing was written. `version_not_current` (`VersionNotCurrent`): a
+            version that is not the current one. Or `acceptance_not_asked`
+            (`AcceptanceNotAsked`): this deployment asks nobody at the moment.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/VersionNotCurrent' }
+                  - { $ref: '#/components/schemas/AcceptanceNotAsked' }
 
   /api/invitations/{tenantId}/accept:
     parameters:
@@ -1631,7 +1684,19 @@ paths:
             probed or stored; the sentence says the export goes in a folder of
             the Nextcloud or WebDAV files the migration writes to.
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '409': { $ref: '#/components/responses/AccountClosed' }
+        '409':
+          description: |
+            Nothing was probed or stored. `account_closed` (`AccountClosed`):
+            the organisation was closed (workplan 0085 T2). Or
+            `conditions_not_accepted` (`ConditionsNotAccepted`): while the
+            deployment asks, the caller has not yet accepted the current version
+            of each text (workplan 0139 T3).
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/AccountClosed' }
+                  - { $ref: '#/components/schemas/ConditionsNotAccepted' }
         '429': { $ref: '#/components/responses/TooManyTests' }
   /api/connections/{id}:
     delete:
@@ -1716,13 +1781,17 @@ paths:
             path is on this service's own machine. Rotating probes the stored
             path first, so it is refused before anything is opened or replaced.
             Or `account_closed` (`AccountClosed`): the organisation was closed
-            (workplan 0085 T2); nothing was probed or replaced.
+            (workplan 0085 T2); nothing was probed or replaced. Or
+            `conditions_not_accepted` (`ConditionsNotAccepted`): while the
+            deployment asks, the caller has not yet accepted the current version
+            of each text (workplan 0139 T3); nothing was probed or replaced.
           content:
             application/json:
               schema:
                 anyOf:
                   - { $ref: '#/components/schemas/Refusal' }
                   - { $ref: '#/components/schemas/AccountClosed' }
+                  - { $ref: '#/components/schemas/ConditionsNotAccepted' }
   /api/connections/{id}/test:
     post:
       tags: [Connections]
@@ -1989,13 +2058,17 @@ paths:
             already. `migration_cap`: the organisation has as many unfinished
             migrations as it may (workplan 0143 T2a). `account_closed`
             (`AccountClosed`): the organisation was closed (workplan 0085 T2),
-            and takes no new migration or credential.
+            and takes no new migration or credential. `conditions_not_accepted`
+            (`ConditionsNotAccepted`): while the deployment asks, the caller
+            has not yet accepted the current version of each text, and no
+            credential is stored before that (workplan 0139 T3).
           content:
             application/json:
               schema:
                 anyOf:
                   - { $ref: '#/components/schemas/Refusal' }
                   - { $ref: '#/components/schemas/AccountClosed' }
+                  - { $ref: '#/components/schemas/ConditionsNotAccepted' }
 
   /api/migrations/{mappingId}:
     parameters:
@@ -2749,13 +2822,23 @@ paths:
             connection stores none — for Gmail and Drive only where
             `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted` is declared. A Google
             account source asks for the data types the migration copies.
+
+            Or `conditions_not_accepted` (`ConditionsNotAccepted`), for a grant
+            link only: while the deployment asks, the caller has not yet
+            accepted the current version of each text (workplan 0139 T3). A
+            grant link is the door to the access a family member then gives
+            through it, so it waits for the texts as the doors that store a
+            credential do. A progress link grants nothing and is not asked
+            about.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  error: { type: string }
-                  reason: { type: string }
+                anyOf:
+                  - type: object
+                    properties:
+                      error: { type: string }
+                      reason: { type: string }
+                  - { $ref: '#/components/schemas/ConditionsNotAccepted' }
     get:
       tags: [Grant links]
       summary: The links that exist, and their state
@@ -6754,7 +6837,142 @@ components:
             Whether to OFFER the access queue. The queue itself is guarded by
             database policies; being wrong here shows or hides a link and
             grants nothing.
+        acceptance:
+          $ref: '#/components/schemas/Acceptance'
       required: [userId, tenants, invitations, operator]
+
+    Acceptance:
+      type: object
+      description: |
+        Whether the texts still wait to be accepted (workplan 0139 T3): each
+        text with its current version, and whether this caller accepted that
+        version in the organisation they are acting as. **Present only while
+        the deployment asks** (`OWNPACE_STAGE=alpha`, and no text still a
+        draft) and an organisation is current. The web app shows its acceptance screen in front of every page
+        while `due` is true, and the doors that store a credential answer 409
+        `conditions_not_accepted` on the same reading. A text that gets a new
+        version is due again.
+      properties:
+        due:
+          type: boolean
+          description: True while any text's current version is not accepted.
+        documents:
+          type: array
+          description: Every text, in the order the screen lists them.
+          items: { $ref: '#/components/schemas/AcceptanceDocument' }
+      required: [due, documents]
+
+    AcceptanceDocument:
+      type: object
+      properties:
+        document: { $ref: '#/components/schemas/LegalDocument' }
+        version:
+          type: string
+          description: The number on the text's Version line. A draft is never asked for.
+        accepted:
+          type: boolean
+          description: Whether this caller accepted this version here.
+      required: [document, version, accepted]
+
+    LegalDocument:
+      type: string
+      enum: [alpha, privacy, terms]
+      description: The Alpha conditions, the privacy policy or the terms.
+
+    AcceptanceRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        versions:
+          type: object
+          additionalProperties: false
+          description: The version of each text the screen showed. Every text, and nothing else.
+          properties:
+            alpha: { type: string }
+            privacy: { type: string }
+            terms: { type: string }
+          required: [alpha, privacy, terms]
+        language:
+          type: string
+          enum: [nl, en]
+          description: The language the screen showed the texts in.
+      required: [versions, language]
+
+    AcceptanceRecorded:
+      type: object
+      properties:
+        written:
+          type: integer
+          description: Rows written, one per text. Nought when the same versions were accepted before.
+        acceptance: { $ref: '#/components/schemas/Acceptance' }
+      required: [written, acceptance]
+
+    ConditionsNotAccepted:
+      type: object
+      description: |
+        A door that would store a credential, or issue the grant link through
+        which a family member gives one, pressed by somebody who has not
+        accepted the current version of each text in this organisation, while
+        the deployment asks (workplan 0139 T3). `message` and `reason` carry
+        one English sentence, `messageNl` and `reasonNl` its Dutch, and
+        `documents` names each text still to accept with its current version.
+        Nothing was stored or probed. Once the texts are accepted
+        (`POST /api/me/acceptance`), the same press goes through.
+      properties:
+        error: { type: string, enum: [conditions_not_accepted] }
+        message: { type: string }
+        messageNl: { type: string }
+        reason: { type: string }
+        reasonNl: { type: string }
+        documents:
+          type: array
+          items:
+            type: object
+            properties:
+              document: { $ref: '#/components/schemas/LegalDocument' }
+              version: { type: string }
+            required: [document, version]
+      required: [error, message, messageNl, reason, reasonNl, documents]
+
+    AcceptanceNotAsked:
+      type: object
+      description: |
+        An acceptance offered while this deployment asks nobody: its switch is
+        off, or a text is still a draft (workplan 0139 T3). Nothing was
+        written. `message` and `reason` carry one English sentence,
+        `messageNl` and `reasonNl` its Dutch.
+      properties:
+        error: { type: string, enum: [acceptance_not_asked] }
+        message: { type: string }
+        messageNl: { type: string }
+        reason: { type: string }
+        reasonNl: { type: string }
+      required: [error, message, messageNl, reason, reasonNl]
+
+    VersionNotCurrent:
+      type: object
+      description: |
+        An acceptance naming a version that is not the current one: a page left
+        open across an update. Nothing was written. `stale` names the texts
+        whose version changed, `current` gives every current version, and the
+        sentences say to read them again.
+      properties:
+        error: { type: string, enum: [version_not_current] }
+        message: { type: string }
+        messageNl: { type: string }
+        reason: { type: string }
+        reasonNl: { type: string }
+        stale:
+          type: array
+          items: { $ref: '#/components/schemas/LegalDocument' }
+        current:
+          type: object
+          properties:
+            alpha: { type: string }
+            privacy: { type: string }
+            terms: { type: string }
+          required: [alpha, privacy, terms]
+      required: [error, message, messageNl, reason, reasonNl, stale, current]
 
     Invitation:
       type: object

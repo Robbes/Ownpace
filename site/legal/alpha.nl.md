@@ -6,8 +6,10 @@
      with the owner's answers of 2026-09-28 until the first tester accepts it
      (alpha-version-number (a)). The briefing for the reviewing lawyer,
      including which language governs and which answer changed which section,
-     is the comment at the top of alpha.md — it applies to both files. Not
-     rendered by the site build and not linked from anywhere yet (0139 T10). -->
+     is the comment at the top of alpha.md — it applies to both files.
+     Rendered by the site build since 0139 T3 (outside the site's nav), whose
+     acceptance screen links it; published once live serves the site
+     (0139 T10). -->
 
 # Voorwaarden voor de Alpha
 

@@ -326,6 +326,41 @@ const en = {
   'invite.skipHelp.why': 'Declining is recorded, and only the organisation can invite you again.',
   'invite.confirmDecline':
     'Decline the invitation from {name}? Only they can invite you again.',
+  // The texts, accepted before anything else (workplan 0139 T3): the Alpha
+  // conditions, the privacy policy and the terms, with their versions.
+  'acceptance.title': 'Before you start',
+  // When a text got a new version since this person last accepted (0139 T3,
+  // review of 2026-09-29): the heading says so, and the text is marked.
+  'acceptance.changedTitle': 'The texts have changed',
+  'acceptance.lead': 'Read these three texts. They say what we do with your accounts and your data.',
+  'acceptance.list': 'The texts to accept',
+  'acceptance.doc.alpha': 'Alpha conditions',
+  'acceptance.doc.privacy': 'Privacy policy',
+  'acceptance.doc.terms': 'Terms of service',
+  'acceptance.version': 'version {version}',
+  'acceptance.newVersion': 'new version',
+  'acceptance.newTab': '(opens in a new tab)',
+  'acceptance.changed': 'One or more texts have changed since you last accepted them.',
+  'acceptance.record': 'We record which version of each text you accepted, in which language, and when.',
+  'acceptance.accept': 'Accept all three',
+  'acceptance.accepting': 'Recording…',
+  'acceptance.notNow': 'Not now, sign out',
+  'acceptance.notCurrent':
+    'These texts changed while this page was open. Read the current versions, then accept those.',
+  'acceptance.checking': 'Checking your account…',
+  'acceptance.readFailed': 'Your account could not be read.',
+  'acceptance.retry': 'Try again',
+  // The failures this screen can meet, in the reader's language; the
+  // reference a fault carries is kept ('failure.reference').
+  'acceptance.fault.read': 'The fault is on our side, not yours.',
+  'acceptance.fault.record': 'Your acceptance was not recorded: the fault is on our side, not yours. Try again.',
+  'acceptance.unreachable': 'The service could not be reached. Check your connection and try again.',
+  'acceptance.forbidden':
+    'This account has no access to this organisation. Sign out, and sign in with the account you were invited with.',
+  // A door that stores access, refused because the texts were not accepted
+  // yet (409 conditions_not_accepted). Read after accepting as well as before.
+  'acceptance.refused':
+    'Nothing was stored: the Alpha conditions, the privacy policy and the terms had not been accepted yet. Once you have accepted them, try again.',
   'queue.title': 'Access requests',
   'queue.subtitle': 'People who asked to be let in. A person reads these.',
   'queue.empty': 'Nobody is waiting.',
@@ -3096,6 +3131,35 @@ const nl: Record<keyof typeof en, string> = {
     'Afwijzen wordt vastgelegd, en alleen de organisatie kan u opnieuw uitnodigen.',
   'invite.confirmDecline':
     'De uitnodiging van {name} afwijzen? Alleen zij kunnen u opnieuw uitnodigen.',
+  // "Aanvaarden", the texts' own word (terms §1, Alpha §2 and §11, privacy
+  // §4.4), and "uitloggen", the nav's (review of 2026-09-29).
+  'acceptance.title': 'Voordat u begint',
+  'acceptance.changedTitle': 'De teksten zijn gewijzigd',
+  'acceptance.lead': 'Lees deze drie teksten. Ze zeggen wat we met uw accounts en uw gegevens doen.',
+  'acceptance.list': 'De teksten om te aanvaarden',
+  'acceptance.doc.alpha': 'Voorwaarden voor de Alpha',
+  'acceptance.doc.privacy': 'Privacyverklaring',
+  'acceptance.doc.terms': 'Servicevoorwaarden',
+  'acceptance.version': 'versie {version}',
+  'acceptance.newVersion': 'nieuwe versie',
+  'acceptance.newTab': '(opent in een nieuw tabblad)',
+  'acceptance.changed': 'Een of meer teksten zijn gewijzigd sinds u ze voor het laatst aanvaardde.',
+  'acceptance.record': 'We leggen vast welke versie van elke tekst u hebt aanvaard, in welke taal, en wanneer.',
+  'acceptance.accept': 'Alle drie aanvaarden',
+  'acceptance.accepting': 'Bezig met vastleggen…',
+  'acceptance.notNow': 'Nu niet, uitloggen',
+  'acceptance.notCurrent':
+    'Deze teksten zijn gewijzigd terwijl deze pagina openstond. Lees de huidige versies en aanvaard die.',
+  'acceptance.checking': 'Uw account wordt gecontroleerd…',
+  'acceptance.readFailed': 'Uw account kon niet worden gelezen.',
+  'acceptance.retry': 'Opnieuw proberen',
+  'acceptance.fault.read': 'De fout ligt bij ons, niet bij u.',
+  'acceptance.fault.record': 'Uw aanvaarding is niet vastgelegd: de fout ligt bij ons, niet bij u. Probeer het opnieuw.',
+  'acceptance.unreachable': 'De dienst was niet bereikbaar. Controleer uw verbinding en probeer het opnieuw.',
+  'acceptance.forbidden':
+    'Dit account heeft geen toegang tot deze organisatie. Log uit en log in met het account waarmee u bent uitgenodigd.',
+  'acceptance.refused':
+    'Er is niets opgeslagen: de voorwaarden voor de Alpha, de privacyverklaring en de servicevoorwaarden waren nog niet aanvaard. Probeer het opnieuw zodra u ze hebt aanvaard.',
   'queue.title': 'Toegangsverzoeken',
   'queue.subtitle': 'Mensen die om toegang hebben gevraagd. Een mens leest deze.',
   'queue.empty': 'Er wacht niemand.',
