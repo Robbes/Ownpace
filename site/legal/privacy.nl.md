@@ -504,17 +504,25 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
        pass the cancel did not stop, or a discovery, reads to the end of the data type it is on; a
        verification or a confirmation already running reads to its end with the stored access.
        True once the close stops those too, or once the row says what the code does.
-     - De kopie vlak voor een update (rec-copies (a)): one copy per update, deleted once the
-       update is proven (deploy-live.sh logged it as "took", one pass completed, the hold is
-       lifted), and never past day 7; not proven by day 6 means rolling back from the copy. Not
-       built: one script and one directory for the copy, a delete step, a daily 6-day backstop,
-       and dump-idp.sh writing into that directory or refusing on live. Until then the copy is
-       taken and deleted by hand, and dump-idp.sh keeps every dump ("none is ever
-       overwritten").
-     - Vastleggingen van de achtergrondtaken: the drill sentence is gone (rec-drill (a)), but
-       box-duties.sh still runs `trigger-version.sh drill` on live, keeping 7 dumps, until that
-       duty is taken off live. "Uiterlijk tot het einde van de Alpha" (privacy-task-records (a))
-       is one step in the end-of-Alpha routine, not written yet.
+     - De kopie vlak voor een update (rec-copies (a)): one copy per update, deleted once
+       the update is proven (deploy-live.sh logged it as "took", one pass completed, the hold is
+       lifted), and never past day 7; not proven by day 6 means rolling back from the copy.
+       Built (0139 T6, 2026-09-28, review fixes 2026-09-29): deploy/compose/
+       copy-before-update.sh and one directory, ~/.persistent/ownpace-live/copy-before-update,
+       taken by deploy-live.sh right before its checkout, a delete step that refuses an
+       unproven update, a daily backstop in box-duties.sh that deletes it once older than 6
+       days less an hour, and dump-idp.sh and trigger-version.sh writing only there on live.
+       The rollback first writes down what was erased, closed or deleted after the copy
+       (copy-before-update.sh since) and does it again in the restored database, so "Gegevens
+       die uit de dienst zijn gewist, kunnen nog hoogstens 7 dagen in die kopie staan" holds
+       through a rollback too. True on live once live runs a tag that carries it and the daily duties' timer runs
+       (take refuses without it); the rollback has not been run on a stack.
+     - Vastleggingen van de achtergrondtaken: the drill sentence is gone (rec-drill (a)), and
+       the drill is off live's duties (0139 T6): box-duties.sh's second duty is the copy's
+       backstop, and trigger-version.sh refuses drill on live. True on live once live runs a
+       tag that carries it; until then the tag it runs keeps 7 daily dumps.
+       "Uiterlijk tot het einde van de Alpha" (privacy-task-records (a)) is one step in the
+       end-of-Alpha routine, not written yet.
      - De lijst van wat er gedeeld was, "verdwijnt wanneer u de verhuizing verwijdert" (§4.2,
        §4.6; the owner's privacy-sharing-list (b)): deleting a migration does not yet delete its
        share_grant rows. A small code change; until it lands, the list stays until erasure.
