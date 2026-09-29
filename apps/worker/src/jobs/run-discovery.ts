@@ -26,7 +26,7 @@ import type {
   TenantId,
   MappingId,
 } from '@openmig/shared';
-import { withTenant, PgDiscoveryStore } from '@openmig/ledger';
+import { withTenant, PgDiscoveryStore, organisationStillOpen } from '@openmig/ledger';
 import { buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { discoverDomains, type DomainDiscoveryTask } from '@openmig/orchestration/discovery';
 import { enabledDomains } from '@openmig/orchestration/enabled-domains';
@@ -187,10 +187,14 @@ export function buildTask(
     run: async () => {
       const deps = await counted.open(scopePool, tenantId, mappingId);
       try {
-        const out = await discoverSource(
-          deps.source,
-          counted.itemBytes ? { itemBytes: sizeOf } : {},
-        );
+        const out = await discoverSource(deps.source, {
+          ...(counted.itemBytes ? { itemBytes: sizeOf } : {}),
+          // Asked before each collection is listed (0139 T7): a close while
+          // this counts stops it with the close's refusal, which the loop in
+          // `discoverDomains` records as this data type's error, as it records
+          // the builders' refusal for every data type after it.
+          organisationIsOpen: organisationStillOpen(scopePool, tenantId),
+        });
         // AFTER the walk, not before — the tally is what the walk accumulated
         // (0042 T7, owner's decision 2026-09-16). An OPTIONAL capability in the
         // shape `listTrashedPaths` and `storageUsage` already use: only the

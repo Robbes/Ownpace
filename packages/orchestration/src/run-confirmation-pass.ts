@@ -41,6 +41,7 @@ import type { Pool } from 'pg';
 import {
   ConfirmationStore,
   RunStore,
+  organisationStillOpen,
   withTenant,
   type LedgerDriver,
   type PgDatabase,
@@ -176,6 +177,9 @@ export async function runConfirmationOver(args: {
   tally: { verified: number; total: number };
   recorded: number;
   paused: boolean;
+  /** Set when the organisation was closed while the pass ran (workplan 0139 T7). */
+  stoppedBecause?: 'organisation_closed';
+  stoppedBefore?: DiscoveryDomain;
 }> {
   const readers = await buildConfirmationReaders({
     open: args.open,
@@ -194,12 +198,20 @@ export async function runConfirmationOver(args: {
       runs: confirmationRunLog(args.source, args.tenantId),
       trigger: args.trigger ?? 'manual',
       ...(readers.meter ? { meter: readers.meter } : {}),
+      // Asked before each item the pass hands the target (0139 T7): the
+      // readers above were built before the pass began, so a close while it
+      // runs is not seen by the builders that refuse one. Both editions ask;
+      // the appliance's one organisation is always open, so there it never
+      // stops anything.
+      organisationIsOpen: organisationStillOpen(args.source, args.tenantId),
     });
     return {
       runId: result.runId,
       tally: result.tally,
       recorded: result.recorded,
       paused: result.budgetPause !== undefined,
+      ...(result.stoppedBecause ? { stoppedBecause: result.stoppedBecause } : {}),
+      ...(result.stoppedBefore ? { stoppedBefore: result.stoppedBefore } : {}),
     };
   } finally {
     // Rule 3: whatever was confirmed before a failure stays confirmed. The

@@ -27,7 +27,7 @@ import { schemaTask } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
 import { eq } from 'drizzle-orm';
 import { asTenantId, asMappingId, log } from '@openmig/shared';
-import { withTenant } from '@openmig/ledger';
+import { organisationStillOpen, withTenant } from '@openmig/ledger';
 import { openTaskPools } from './task-pools.ts';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import { runVerification, createRealVerificationDeps } from '@openmig/core';
@@ -109,6 +109,11 @@ export const runVerificationTask = schemaTask({
             config: verificationConfigFor(enabled, stopped),
             verificationReader,
             targetReindexers: targets.reindexers,
+            // Asked before each read of a target (0139 T7): the readers were
+            // built before this run began, so a close while it runs is not
+            // seen by the builders. Once closed, the scan throws the close's
+            // own refusal, and the row below lands `failed` with it.
+            organisationIsOpen: organisationStillOpen(pool, tenantId),
           }),
         );
       } finally {

@@ -23,6 +23,7 @@ import {
   taskNaturalKeyHash,
 } from '@openmig/shared';
 import type { VerificationDeps } from './verification.ts';
+import type { OrganisationIsOpen } from './while-the-organisation-is-open.ts';
 import type { DiscoveryDomain } from '@openmig/shared';
 
 /**
@@ -52,6 +53,13 @@ export interface RealVerificationDeps {
   /** Per-domain reindexers. Takes precedence over `targetReindexer` for mail. */
   targetReindexers?: Partial<Record<'mail' | 'calendar' | 'contacts' | 'files' | 'tasks', TargetReindexer>>;
   verificationReader: LedgerVerificationReader;
+  /**
+   * Is the organisation still open? Asked before each read of a target
+   * (`VerificationDeps.organisationIsOpen`, workplan 0139 T7). The managed
+   * gate and the owner's Finish check pass `organisationStillOpen`; the
+   * appliance leaves it out.
+   */
+  organisationIsOpen?: OrganisationIsOpen;
 }
 
 /**
@@ -98,6 +106,7 @@ export function createRealVerificationDeps(
       getTotalBytesFromLedger(verificationReader, tenantId, mappingId, dataType),
     getTotalBytesTarget: (dataType) =>
       getTotalBytesFromReindexer(reindexerFor(dataType), verificationReader, tenantId, mappingId, dataType),
+    ...(deps.organisationIsOpen ? { organisationIsOpen: deps.organisationIsOpen } : {}),
   };
 }
 

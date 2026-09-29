@@ -4,7 +4,72 @@
 
 ## Status — 2026-09-29 (update this block at the end of every session)
 
-**2026-09-29, latest: review fixes to the copy before an update (T6)**, on the same branch,
+**2026-09-29, latest: the close stops what is running (T7; terms briefing, precondition B)**,
+on branch `claude/ownpace-public-readiness-y7orc6-the-close-stops-what-is-running`, not merged.
+`site/legal/README.md`'s *To build or to do* said: *"A verification or a confirmation already
+running reads the accounts to its end, with the readers it built before the close. To build:
+those runs record the orchestrator's reference and the close cancels them too, or they check the
+close between steps."* This builds the second. Nothing has run on a machine.
+
+- **The check, not the reference.** The close cancels by the orchestrator's reference on a `run`
+  row. A verification's row is `verification_run`, which the close never reads and which has no
+  column for one; a discovery has no row at all; only a confirmation's `run` row could carry one.
+  Recording it would take a migration and a second read in the close, and a cancel is a request
+  whose failure is only logged. A check between steps needs neither, also stops a run whose
+  cancel failed, and on the appliance, where nothing closes, is always answered yes.
+- **What asks, and when.** `organisationStillOpen` (`@openmig/ledger`) reads `tenant.status` in a
+  short transaction of its own each time it is asked, as the pass's stop check does, and core's
+  `refuseOnceClosed` throws the builders' own refusal (`account_closed`, the same sentence in both
+  languages). A **verification** asks before each read of a target (`runVerification`, through
+  `readingOnlyWhileOpen`): each data type is five listings of its target, so a close waits for
+  the listing in flight and no other. It throws the refusal, so no verdict is recorded and
+  `verification_run` lands `failed` with the close as its reason, as for a verification started
+  after the close. Both doors hand it the check: the owner's Finish check (`run-verification.ts`)
+  and the cutover's gate (`cutover-gate.ts`, which the operator's `verify` also runs). A
+  **confirmation** asks before each item it hands the target, and so before each data type
+  (`runConfirmationPass`'s new rule 5, wired in `runConfirmationOver`, so both editions ask): the
+  item in flight finishes and is recorded, the rest keep their NULL answer (UNASKED), and the run
+  closes `cancelled` with `stoppedBecause: 'organisation_closed'` and the data type it stopped
+  before in its stats. Nothing is thrown, so the plane does not retry it. A **discovery** asks
+  before each collection it lists (`discoverSource`, wired in `run-discovery.ts`): it throws the
+  refusal, which `discoverDomains` records as that data type's error, so no partial count stands
+  for the whole; the builders refuse every data type after it, as before. The `account_closed`
+  refusals that already existed are unchanged. `close-account.ts`'s header says what the cancel
+  does not see and how that stops.
+- **Proved, guard first.** `apps/worker/src/jobs/a-run-that-read-on-after-the-close.unit.test.ts`
+  runs the jobs' own code (`runCutoverGate`, `runConfirmationOver`, `run-discovery`'s `buildTask`)
+  over a PGlite ledger with both targets and the mail source stood in, closes the organisation
+  WHILE a target or source is being read, and asks that no read begins after it: 9 cases, **6 red
+  on the base** (the three with the organisation open were green, as they should be), 9 green
+  after. On the base a close during the mail target's first listing was followed by four more
+  listings of it and five of the file target, and a verdict; the confirmation read the remaining
+  mail item and all three file items and closed `succeeded`; the discovery listed the two folders
+  it had not reached. One case reads `run-verification.ts` and `cutover-gate.ts` for the check
+  handed to `createRealVerificationDeps`, because the task itself cannot run without the plane;
+  the verification's item counts are answered from the same keys, because its ledger reader
+  speaks node-postgres and PGlite does not.
+- **Seven mutations**, each restored after, each turning the guard red: the verification asking
+  nothing before a read (2 cases); the confirmation handing on every row (2); `runConfirmationOver`
+  not passing the check (2); `discoverSource` not asking (1); `run-discovery.ts` not passing it
+  (1); `run-verification.ts` not passing it (1); a stopped confirmation closing `succeeded` (2).
+- **Gates.** `tsc --noEmit` clean; ESLint clean on the 14 changed files; the unit project, 870
+  files and 11,899 tests, green; nine integration files (74 tests) on a throwaway Postgres from
+  `scripts/local-pg.sh` with both chains, among them `a-closed-organisation-is-read-by-nobody`,
+  `a-pass-under-row-security`, `a-cutover-without-mail` and the verify and discovery routes.
+- **Still not true.** The close still cancels only a sync pass, best effort, and a sync pass the
+  cancel did not stop reads to the end of the data type it is on, then stops before the next:
+  the same check between its collections would be a third reason in the sync engine's `paused()`
+  (`domain-sync.ts`), beside the byte budget and the deadline, with their cursor and
+  unfinished-collection rules, and is not built. The daily shared-address discovery and drift
+  check read the list of open organisations once, when they start, so an organisation closed
+  while one runs is still read in that run. A confirmation the close stopped reads *Cancelled* on
+  the runs panel and *failed* on the confirmed list, which reads every run but `succeeded` so
+  (`latestConfirmationPass`). So precondition B stays *not fully done*. The comments beside terms
+  §11 (both languages), privacy §9's *NOT YET TRUE* list and the Alpha and DPA briefings still
+  describe the state before this branch: the legal texts are not changed here. `site/legal/README.md`'s
+  item and T7's row say what holds.
+
+**2026-09-29: review fixes to the copy before an update (T6)**, on the same branch,
 `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, not merged. Nothing has run
 on the machine; the scripts have run only against the stand-ins in their guards, and the
 rollback's new step against two PGlite databases.
@@ -1960,7 +2025,7 @@ longer starts by pausing the nightly gate, which never touches live.
 | T4 A notice wherever a tester's data is collected | 📋 **Proposed**; two pieces 📋 **Decided 2026-09-28**, not built: the app's own sentences reworded in both languages (ops-app-sentences (a): the grant mail, the Alpha note, the request form), and a privacy line and a link in the mail to people items were shared with (privacy-share-mail-notice (a)), both before the first tester | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form, the share mail (`packages/shared/src/share-announcement.ts`). The grant page's addresses were fixed in #1137, merged 2026-09-24. |
 | T5 The sub-processors named | 🔨 **Text done 2026-09-28** in the drafts, on draft PR #1317, not merged: privacy §7's table is the complete list and says so (rec-subprocessors-url (a)); NetBird GmbH, its terms and agreement accepted on 2026-08-01 and the agreement covering the proxy and its log (dpa-netbird-agreement (a); the owner, 2026-09-28), carries connections on through a WireGuard tunnel and keeps its own log of each request; Proton AG in Switzerland, with Art. 45 GDPR and Decision 2000/518/EC cited (privacy-switzerland-wording (b)); no hosting row, because no company houses the machine (subprocessors-machine-housed (a)); `subprocessors.md` unpublished until the first business customer; NetBird's own sub-processors read from its trust center 2026-09-28 (18 entries, none with a location); NetBird's sign-in (SSO), on for the hosts NetBird serves (*"No pin, but SSO on"*), to go off on every `ownpace.eu` host before the first invitation, the owner's choice (*"Off everywhere at launch"*), a precondition (privacy's to-do on NetBird, (d)); ⏳ **Owner**, not before the first invitation: NetBird asked where its proxy and log run, at which provider, and whether its own sub-processors receive either, the *Where* staying *Germany (EU)* by the owner's choice until it answers ((c)), and asked in writing whether the Alpha or a paid tier behind the proxy is commercial use under its terms §3.1, answered before the first paid tier at the latest ((e)); the agreement's sub-processors, their announcement, the right to object and the 7 days for the lawyer's pass ((b)) — *was:* NetBird's acceptance date, its agreement read, where its proxy and log run and at which provider, and whether its own sub-processors receive either still for the owner; before that, the text drafted 2026-09-28 with the entity name, the agreement, the proxy's location and whether a company houses the machine all to confirm | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
 | T6 What is kept, and for how long, made true | 🔨 **The copy before an update, and the drill off live, built 2026-09-28, review fixes 2026-09-29** (rec-copies (a), rec-drill (a)) on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, **not merged**: `copy-before-update.sh`, taken by `deploy-live.sh` right before its checkout (only while the daily duties' timer runs), deleted by the owner once the update is proven and by the daily duties after 6 days less an hour, a rollback that erases again what was erased after the copy (`since`), and no drill on live; `privacy.md`'s and `privacy.nl.md`'s comments, `README.md`'s two items and `alpha.md`'s briefing say so; 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 🔨 **built 2026-09-27**, merged as #1255; every period 📋 **Decided 2026-09-28** from the owner's answers and in privacy §9's draft: the copy before an update (rec-copies (a)), the drill off live (rec-drill (a)), support-screen searches and downloads 12 months (privacy-search-records (a): 🔨 built 2026-09-29 as `box-duties.sh`'s duty `searches`, `support-read-prune.sh --delete`, not merged, and running once live's timer is installed), the sharing list with its migration (privacy-sharing-list (b)), sent mail until resolved and then 6 months (privacy-sent-mail-copies (b)), the background tasks' records until the end of the Alpha (privacy-task-records (a)), the sign-in history checked first (privacy-signin-history (a)), accounts nobody let in removed by a daily script (ops-unadmitted-signin-cleanup (a), 0135 T8: ✅ built, merged 2026-09-29 as #1344 and #1345, and running once live's timer is installed), server logs with Docker's default (ops-log-driver (a)); the code for each of the rest 📋 **Proposed**, not built — *was:* the wording drafted 2026-09-28; the rest's code proposed | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. `site/legal/README.md`, *Before the draft markers come off*, lists what each needs. |
-| T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`; the identity provider's account ✅ **since 0135 T8 (a), merged 2026-09-29 as #1344** (0131 §6, M3's step 7): `idp-strays.sh --subject <sub> --remove` in the runbook's *Tenant offboarding*, refused while the account still belongs somewhere — *was:* by hand until 0135 T8; *nothing uses your access after closing* is not fully true yet: since #1320 (`d7868276`, merged 2026-09-28), on this branch since `main` was merged into it in `c1413b53`, nothing new starts for a closed organisation, but work already running is not all stopped, and a verification or a confirmation reads to its end (terms briefing, precondition B); a tester who does not accept the new conditions after the Alpha is closed that day and erased 7 days later (alpha-s11-erasure-window (b)), which `operator.sh close <tenant> 7` already does — *was:* (a) built; terms §11 and privacy §9 describing the close in the drafts of 2026-09-28 | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
+| T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`; the identity provider's account ✅ **since 0135 T8 (a), merged 2026-09-29 as #1344** (0131 §6, M3's step 7): `idp-strays.sh --subject <sub> --remove` in the runbook's *Tenant offboarding*, refused while the account still belongs somewhere — *was:* by hand until 0135 T8; *nothing uses your access after closing* is not fully true yet: since #1320 (`d7868276`, merged 2026-09-28) nothing new starts for a closed organisation; 🔨 **work already running stops, built 2026-09-29** on branch `claude/ownpace-public-readiness-y7orc6-the-close-stops-what-is-running`, **not merged**: a verification, a confirmation and a discovery check the close between their steps (each read of a target, each item, each collection) and stop; still not true: a sync pass the cancel did not stop reads to the end of its data type, and the daily shared-address discovery and drift check still read an organisation closed while they run (terms briefing, precondition B) — *was:* work already running not all stopped, a verification or a confirmation reading to its end; a tester who does not accept the new conditions after the Alpha is closed that day and erased 7 days later (alpha-s11-erasure-window (b)), which `operator.sh close <tenant> 7` already does — *was:* (a) built; terms §11 and privacy §9 describing the close in the drafts of 2026-09-28 | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
 | T9 SECURITY.md covers the hosted service, with one channel | ✅ **done** in #1257, merged 2026-09-27 (`12cb40fb`): `SECURITY.md`'s scope, versions and five days, and `security.txt` from the site build; privacy §11 names the form, then support@, in both languages in the draft of 2026-09-28 (not committed), so the guard, which asks for one channel, can ask for both, in order — *was:* 🔨 **Written 2026-09-27, not merged**; 📋 **Decided 2026-09-27** (open question 5): the advisory form with `support@ownpace.eu` as fallback, five working days, `main` and live's release | §3. Scope, supported versions, a response target, `security.txt`. |
 | T10 The texts published where a tester can read them, with no placeholder left | (a) the link module ✅ **done** in #1270, merged 2026-09-28 (`a8ed15b5`): `VITE_LEGAL_SITE_URL` and `legal-links.ts`, the grant page on it; publishing with `--public` on the reference machine (T0 fact 6, answered 2026-09-28) 🔨 **built 2026-09-28** on branch `claude/ownpace-public-readiness-y7orc6-the-site-deployed-with-live`, **not merged**: `deploy-live.sh` builds the tag's site and serves it as `ownpace-live-www` when live's `.env` says `WWW_LIVE=true`, and `box-duties.sh` watches it. That build is `--public`, so indexable: the step follows the owner's answer to open question 1, (a), of 2026-09-28, *"public site: yes, search engine index."* (recorded under the question by #1293, merged 2026-09-28). Live's `WWW_LIVE` stays `false` until the texts are final: with it `true` a deploy refuses before anything moves; (b) the site's second copy, #1275, merged separately (`4b93e061`), which the tag must hold; still 📋 **Proposed**: rendering the conditions, and `subprocessors.md` only when the first business customer arrives (rec-subprocessors-url (a), 2026-09-28; privacy §7's table is the complete list until then); (c) `--no-drafts` not needed, by that answer — *was:* (a) ✅ done in #1270; still 📋 **Proposed**: rendering the conditions and `subprocessors.md`, publishing with `--public` where T0 fact 6 says, (b) the site's second copy (draft #1275, the owner's call) and (c) `--no-drafts` | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders and draft version lines, served where T0 says, and one setting for every link the app makes to them. |

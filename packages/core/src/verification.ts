@@ -13,6 +13,7 @@
 
 import type { TenantId, MappingId } from '@openmig/shared';
 import { sameFingerprintVersion } from '@openmig/shared';
+import { refuseOnceClosed, type OrganisationIsOpen } from './while-the-organisation-is-open.ts';
 
 // The report SHAPES moved to @openmig/shared under ADR-0026 so the UI and both
 // editions compile against one declaration; the ENGINE below is core's own.
@@ -147,6 +148,66 @@ export interface VerificationDeps {
    * nobody chose.
    */
   targetCanHash(dataType: VerificationDomain): boolean;
+
+  /**
+   * Is the organisation still open? (workplan 0139 T7; terms briefing,
+   * precondition B.)
+   *
+   * Asked before EACH read of a target: the count, the missing and the extra
+   * items, the samples and the bytes each list a data type's target whole, so
+   * a data type is five reads of the account, and a verification over five
+   * data types is twenty-five. Its readers were built before the run began,
+   * so a close while it runs is not seen by the builders that refuse one.
+   * Once the answer is no, the run throws the close's own refusal
+   * (`refuseOnceClosed`) and records no verdict: the read in flight finishes,
+   * and no read of any target begins after it.
+   *
+   * Optional: the appliance's one organisation is always open, and leaves it
+   * out.
+   */
+  organisationIsOpen?: OrganisationIsOpen;
+}
+
+/**
+ * The same deps, asking whether the organisation is still open before each
+ * read of a target (see `VerificationDeps.organisationIsOpen`).
+ *
+ * The ledger's reads (the source counts, samples and bytes) are not the
+ * account's and are not asked about. Wrapped once, here, rather than asked at
+ * each call site in `verifyDataType`: a sixth read added there is then a read
+ * this already covers, rather than one somebody has to remember.
+ */
+function readingOnlyWhileOpen(deps: VerificationDeps): VerificationDeps {
+  const isOpen = deps.organisationIsOpen;
+  if (!isOpen) return deps;
+  const getTotalBytesTarget = deps.getTotalBytesTarget?.bind(deps);
+  return {
+    ...deps,
+    getTargetCount: async (dataType) => {
+      await refuseOnceClosed(isOpen);
+      return deps.getTargetCount(dataType);
+    },
+    getTargetSamples: async (dataType, count, naturalKeyHashes) => {
+      await refuseOnceClosed(isOpen);
+      return deps.getTargetSamples(dataType, count, naturalKeyHashes);
+    },
+    findMissingOnTarget: async (dataType) => {
+      await refuseOnceClosed(isOpen);
+      return deps.findMissingOnTarget(dataType);
+    },
+    findExtraOnTarget: async (dataType) => {
+      await refuseOnceClosed(isOpen);
+      return deps.findExtraOnTarget(dataType);
+    },
+    ...(getTotalBytesTarget
+      ? {
+          getTotalBytesTarget: async (dataType: VerificationDomain) => {
+            await refuseOnceClosed(isOpen);
+            return getTotalBytesTarget(dataType);
+          },
+        }
+      : {}),
+  };
 }
 
 /** Which domains the config asks to verify. */
@@ -204,8 +265,11 @@ function notMeasured(
  * Run verification for all data types
  */
 export async function runVerification(
-  deps: VerificationDeps
+  given: VerificationDeps
 ): Promise<VerificationResult> {
+  // Every read of a target below asks first whether the organisation is still
+  // open, when the caller supplied the question (0139 T7).
+  const deps = readingOnlyWhileOpen(given);
   const { tenantId, mappingId, config } = deps;
 
   /**
