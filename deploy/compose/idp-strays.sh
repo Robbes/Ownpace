@@ -58,15 +58,25 @@
 # It refuses, before removing anything, when any read failed or came back in a
 # shape it does not know: a partial picture makes everybody look like a
 # stranger. The account listing is read to its end or refused: a page with
-# accounts and no count, or an empty page before the count is reached, would
-# otherwise end it early and in silence. For the same reason it refuses when
-# the database names people and none of them has an account at this provider,
-# which is what the other stack's provider, or subjects that are not the
-# provider's ids, would look like; and, with `--remove`, when the database has
-# no operator row. Live has one from managed-bring-up's "Become the operator"
-# on, so a database without one is empty, wrongly restored, or not live's, and
-# every tester would look like a stranger; `--at-most` would not stop it at the
-# alpha's scale. Listing, without `--remove`, still works on a fresh stack. It
+# accounts and no count, an empty page before the count is reached, or a count
+# below the accounts already given would otherwise end it early and in
+# silence. A membership or grant answer is read as the provider counts it, the
+# larger of its list and its count, and one that counts roles it does not list
+# where the provider lists them is refused, never read as "no role". For the
+# same reason it refuses when the database names people and none of them has
+# an account at this provider, which is what the other stack's provider, or
+# subjects that are not the provider's ids, would look like; and, with
+# `--remove`, when the database has no operator row. Live has one from
+# managed-bring-up's "Become the operator" on, so a database without one is
+# emptied or not live's, and every tester would look like a stranger;
+# `--at-most` would not stop it at the alpha's scale. Listing, without
+# `--remove`, still works on a fresh stack. An operator row does not prove the
+# rest is there: live's database reset or restored while the provider keeps
+# its accounts, with "Become the operator" done again first, names the operator
+# and none of the testers, and nothing here tells that from a stack whose
+# testers' organisations were all erased, where removing their accounts is the
+# point. So the runbook holds the duty after such a reset until the members
+# are back (docs/operator-runbook.md, "Sign-in accounts nobody let in"). It
 # prints no token: the token goes to curl in a file only this account can read,
 # never on a command line. A removal's line carries the account's id and date,
 # never its address, so a log of a removal keeps no address of the account it
@@ -235,10 +245,14 @@ ask() {
 
 # fields — the names of the fields in the last answer and in its first result,
 # never their values: a refusal is printed, and an account's values are an
-# address and a name.
+# address and a name. A `result` that is not a list of objects has no first
+# result's names to give.
 fields() {
   local out
-  out="$(jq -c '[keys, ((.result // [])[0] // {} | keys)]' <<<"$ANSWER" 2>/dev/null)" || out='none: not JSON'
+  out="$(jq -rc '
+    if type != "object" then "none: the answer is a JSON \(type)"
+    else [keys, (if (.result | type) == "array" and (.result[0] | type) == "object" then .result[0] | keys else [] end)]
+    end' <<<"$ANSWER" 2>/dev/null)" || out='none: not JSON'
   printf '%s' "${out:0:300}"
 }
 
@@ -263,12 +277,13 @@ db "${WORK}/requests" "SELECT DISTINCT email FROM access_request WHERE state = '
 db "${WORK}/invited" "SELECT DISTINCT email FROM tenant_member WHERE status = 'invited'"
 
 # A database that names no operator is not live's as it runs: live has one from
-# "Become the operator" on (docs/managed-bring-up.md). Emptied, wrongly
-# restored or another stack's, it would make every tester a stranger, so
-# nothing is removed from it. Before the provider is asked anything.
+# "Become the operator" on (docs/managed-bring-up.md). Emptied or another
+# stack's, it would make every tester a stranger, so nothing is removed from
+# it. Before the provider is asked anything. (A reset that brought the operator
+# row back first is the runbook's to hold: see the header.)
 OPERATORS="$(grep -c . "${WORK}/operators" || true)"
 if [ "$REMOVE" -eq 1 ] && [ "$OPERATORS" -eq 0 ]; then
-  die "the database of '${COMPOSE_PROJECT}' has no operator row (platform_operator), so it does not name the people who were let in: an emptied or wrongly restored database would make every tester look like a stranger. Live has one from docs/managed-bring-up.md's 'Become the operator' on. Listing, without --remove, still works."
+  die "the database of '${COMPOSE_PROJECT}' has no operator row (platform_operator), so it does not name the people who were let in: an emptied database, or another stack's, would make every tester look like a stranger. Live has one from docs/managed-bring-up.md's 'Become the operator' on. Listing, without --remove, still works."
 fi
 
 # ------------------------------------------------------------ what the provider holds --
@@ -310,6 +325,10 @@ while :; do
   COUNT="$(jq -r '.details.totalResult // empty' <<<"$ANSWER")"
   if [ -n "$COUNT" ]; then
     [[ "$COUNT" =~ ^[0-9]+$ ]] || die "the account listing's count is not a number."
+    # A count below what the listing has already given ("0" beside a full
+    # page, say) would read as the last page.
+    [ "$COUNT" -ge "$((OFFSET + GOT))" ] ||
+      die "the account listing counts ${COUNT} accounts and has already given $((OFFSET + GOT)), so where it ends cannot be told."
     TOTAL="$COUNT"
   elif [ "$GOT" -gt 0 ]; then
     die "a page of the account listing holds ${GOT} accounts and no count (details.totalResult), so the listing cannot be read to its end."
@@ -389,10 +408,27 @@ fi
 # project, say) or a user grant. Asked only of the accounts the rest would
 # list, so a day with none asks nothing more. A search that fails refuses.
 : >"${WORK}/held"
-# results <what> — how many results the last answer holds, or refuse.
+# results <what> — how many roles the last answer holds, or refuse. These
+# searches have met stand-ins only, and an answer misread as "none" removes an
+# account somebody gave a role, so it is read as the provider counts it: the
+# larger of the list's length and `details.totalResult`. An answer whose list
+# is not a list, whose count is not a number, or that counts roles and has no
+# list at all is in a shape this does not know. proto3 JSON leaves an empty
+# list and a count of zero out, so `{"details":{}}` is none.
 results() {
   local n
-  n="$(jq -r 'if (.result // []) | type == "array" then (.result // []) | length else "" end' <<<"$ANSWER" 2>/dev/null)" || n=''
+  n="$(jq -r '
+    (.details // {}) as $d
+    | (if ($d | type) != "object" then null
+       else ($d.totalResult // "0") as $t
+         | if ($t | type) == "string" and ($t | test("^[0-9]+$")) then ($t | tonumber)
+           elif ($t | type) == "number" and $t >= 0 and ($t | floor) == $t then $t
+           else null end
+       end) as $count
+    | if $count == null then ""
+      elif has("result") and (.result | type) != "array" then ""
+      elif $count > 0 and (has("result") | not) then ""
+      else [$count, (.result // [] | length)] | max end' <<<"$ANSWER" 2>/dev/null)" || n=''
   [[ "$n" =~ ^[0-9]+$ ]] || die "$1 came back in a shape this does not know. Its answer's fields: $(fields)"
   printf '%s' "$n"
 }

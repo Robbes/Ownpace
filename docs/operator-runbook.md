@@ -674,21 +674,40 @@ human, the organisation's managers) are never listed. Nor are three more
   `details.resourceOwner` is the organisation the provisioning token belongs to
   (`GET /management/v1/orgs/me`) are weighed.
 - **An account with a membership or a user grant at the provider,** given by
-  hand in the console. Each account the rest would list is asked for both.
+  hand in the console. Each account the rest would list is asked for both, and
+  an answer is read as the provider counts it: the larger of its list and its
+  `details.totalResult`.
 
 It refuses, removing nothing, when a read fails or comes back in a shape it does
-not know (the account listing too: a page with accounts and no count, or an
-empty page before the count is reached), when the database names people none of
-whom has an account at this provider, and, with `--remove`, when the database
-has no operator row. Live has one from *Become the operator*
-(`docs/managed-bring-up.md`) on; a database without one is empty, wrongly
-restored or another stack's, and every tester would look like a stranger.
-Listing without `--remove` still works on a fresh stack, and says why `--remove`
-would refuse. The database is read at the machine, on the owner's connection
-(`psql` as `POSTGRES_USER` in the stack's `-db` container), because
-`audit_log` and `tenant_member` force row security and `app_user` sees one
-organisation at a time. A removal's line names the account's id, never its
-address. Workplan 0135 T8 has the rule, and why each part of it is there.
+not know: the account listing (a page with accounts and no count, an empty page
+before the count is reached, or a count below the accounts already given), and a
+membership or grant answer that counts roles and lists them under another name
+or not at all. It also refuses when the database names people none of whom has
+an account at this provider, and, with `--remove`, when the database has no
+operator row. Live has one from *Become the operator*
+(`docs/managed-bring-up.md`) on; a database without one is emptied or another
+stack's, and every tester would look like a stranger. Listing without
+`--remove` still works on a fresh stack, and says why `--remove` would refuse.
+The database is read at the machine, on the owner's connection (`psql` as
+`POSTGRES_USER` in the stack's `-db` container), because `audit_log` and
+`tenant_member` force row security and `app_user` sees one organisation at a
+time. A removal's line names the account's id, never its address. Workplan 0135
+T8 has the rule, and why each part of it is there.
+
+**After live's database is reset or restored while the identity provider keeps
+its accounts,** hold the duty until the members are back. *Become the operator*
+comes first, so the operator row is back before anybody else is, and the script
+cannot tell such a database from one whose testers' organisations were all
+erased: it takes every tester older than 30 days for one nobody let in, up to
+20 a day. Before the reset, turn the daily duties off
+(`systemctl --user disable --now ownpace-box-duties.timer`, as
+`docs/managed-bring-up.md` says), and run
+`./deploy/compose/setup-zitadel.sh --token-only` by hand at least every three
+days while they are off. Turn them on again
+(`systemctl --user enable --now ownpace-box-duties.timer`) once
+`./deploy/compose/idp-strays.sh` lists nobody who was let in. When the machine
+itself is lost, the provider's accounts go with it (*If the machine is lost
+during the alpha*), and there is nothing to hold.
 
 On live it runs once a day, as `--remove --at-most 20`, among the daily duties
 (`docs/managed-bring-up.md`, *Live's daily duties*). A day with more than 20

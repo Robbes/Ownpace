@@ -17,6 +17,11 @@
  * - a removal writes one `audit_log` row, `member.removed`, naming the removed
  *   subject in `detail.userId`, with the member row's id, role and status and
  *   the door it came through, and no address;
+ * - the record names the row as the delete found it: an invitee who first
+ *   signs in between the route's read and its delete turns the row from a
+ *   `pending:` placeholder into their subject, and a record of the
+ *   placeholder would leave their account to the strays duty (review of
+ *   2026-09-29);
  * - the action is spelled as `operator.sh leave` spells it, and the statement
  *   the strays duty sends finds the subject on the owner's connection, as the
  *   script reads it; as `app_user`, row security shows one organisation's
@@ -48,6 +53,8 @@ const FORMER_ADDRESS = 'former@acme.test';
 
 let driver: LedgerDriver;
 let caller: { tenantId?: string; userId?: string; userRole?: string } = {};
+/** Runs once, after the route's next `withTenantDb` returns and before the one after it. */
+let afterTheRead: (() => Promise<unknown>) | null = null;
 
 vi.mock('../../middleware/auth.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../middleware/auth.ts')>();
@@ -59,6 +66,13 @@ vi.mock('../../middleware/auth.ts', async (importOriginal) => {
       next();
     },
     getDbPool: () => driver,
+    withTenantDb: (async (...args: Parameters<typeof actual.withTenantDb>) => {
+      const out = await actual.withTenantDb(...args);
+      const between = afterTheRead;
+      afterTheRead = null;
+      if (between) await between();
+      return out;
+    }) as typeof actual.withTenantDb,
   };
 });
 
@@ -119,6 +133,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   caller = OWNER;
+  afterTheRead = null;
   await rows('DELETE FROM audit_log WHERE tenant_id = $1', [TENANT]);
   await rows('DELETE FROM tenant_member WHERE tenant_id = $1', [TENANT]);
   ownerId = await seeded(OWNER.userId, 'owner@acme.test', 'owner');
@@ -165,6 +180,36 @@ describe('a member removed on the Team page is recorded', () => {
       await conn.query('ROLLBACK');
       await conn.release();
     }
+  });
+
+  it('names the row it deleted, when the invitee signs in between the read and the delete', async () => {
+    // An invitation the owner withdraws while the invitee first signs in:
+    // claimRequestedMembership (auth.ts) turns the same row from a `pending:`
+    // placeholder, invited, into the person's subject, active. The row deleted
+    // is then the member's, and a record that named what the route read first
+    // would say `pending:…`, so the strays duty would weigh their account as
+    // one nobody let in.
+    const INVITEE = 'sub-invitee-0135';
+    const [row] = await rows(
+      `INSERT INTO tenant_member (tenant_id, user_id, email, role, status, origin, invited_at)
+       VALUES ($1, $2, 'invitee@acme.test', 'member', 'invited', 'requested', now()) RETURNING id`,
+      [TENANT, 'pending:5f620000-e29b-41d4-a716-446655441803'],
+    );
+    const invitationId = row!.id as string;
+    afterTheRead = () =>
+      rows(`UPDATE tenant_member SET user_id = $1, status = 'active', joined_at = now() WHERE id = $2`, [
+        INVITEE,
+        invitationId,
+      ]);
+
+    const res = await request(app).delete(`/api/tenants/${TENANT}/members/${invitationId}`);
+    expect(res.status).toBe(204);
+    expect(afterTheRead, 'the invitee never signed in between the two').toBeNull();
+    expect(await rows('SELECT 1 FROM tenant_member WHERE id = $1', [invitationId])).toEqual([]);
+    const recorded = await removals();
+    expect(recorded.map((r) => r.detail)).toEqual([
+      { memberId: invitationId, userId: INVITEE, role: 'member', status: 'active', via: 'the Team page' },
+    ]);
   });
 
   it('records nothing for a removal it refuses', async () => {

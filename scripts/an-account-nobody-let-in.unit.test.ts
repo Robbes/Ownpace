@@ -29,7 +29,10 @@
  *   Only our own organisation's accounts. An account whose
  *   `details.resourceOwner` is not `GET /management/v1/orgs/me`'s id is
  *   another organisation's, and one given a membership or a grant at the
- *   provider was given a role there by hand: both are left alone.
+ *   provider was given a role there by hand: both are left alone. A membership
+ *   or grant answer is read as the provider counts it, the larger of its list
+ *   and its count; one that counts roles it lists elsewhere, or not at all, is
+ *   refused, never read as "no role" (review of 2026-09-29).
  *
  *   What it removes. Nothing, without `--remove`. With it, exactly what it
  *   listed, each removal on a line with the id and never the address. A
@@ -38,7 +41,9 @@
  *
  *   When it refuses, removing nothing. A database read that fails, a listing in
  *   a shape it does not know, a page with accounts and no count, an empty page
- *   before the count is reached, a token the provider refuses, no token at all,
+ *   before the count is reached, a count below the accounts already given, a
+ *   membership or grant answer in a shape it does not know, a token the
+ *   provider refuses, no token at all,
  *   an instance with no members, no organisation for the token, a membership
  *   or grant search that fails, a database whose people have no account at
  *   this provider, and, with `--remove`, a database with no operator row: each
@@ -61,8 +66,9 @@
  * `docker` and `curl` are stubs on the PATH: the database answers what the
  * fixture holds for the statement it is sent, and the provider pages its
  * accounts as the script asks, names its organisation, and answers each
- * account's memberships and grants. The statements themselves are held as
- * text.
+ * account's memberships and grants, or with a case's own answer
+ * (`STUB_MEMBERSHIPS_ANSWER`, `STUB_GRANTS_ANSWER`). The statements themselves
+ * are held as text.
  */
 
 import { describe, it, expect, afterAll } from 'vitest';
@@ -152,12 +158,14 @@ case "$method $path" in
     re='"userId":"([^"]*)"'
     [[ "$body" =~ $re ]] && id="\${BASH_REMATCH[1]}"
     [ "\${STUB_FAILS:-}" = grants ] && answer 500 '{"message":"internal"}'
+    [ -n "\${STUB_GRANTS_ANSWER:-}" ] && answer 200 "$STUB_GRANTS_ANSWER"
     [ -n "$id" ] && [ -e "$STUB_DIR/grants/$id" ] && answer 200 '{"details":{"totalResult":"1"},"result":[{"id":"g-'"$id"'","userId":"'"$id"'","roleKeys":["reader"]}]}'
     answer 200 '{"details":{}}' ;;
   'POST /management/v1/users/'*'/memberships/_search')
     id="\${path#/management/v1/users/}"
     id="\${id%%/*}"
     [ "\${STUB_FAILS:-}" = memberships ] && answer 500 '{"message":"internal"}'
+    [ -n "\${STUB_MEMBERSHIPS_ANSWER:-}" ] && answer 200 "$STUB_MEMBERSHIPS_ANSWER"
     [ -e "$STUB_DIR/memberships/$id" ] && answer 200 '{"details":{"totalResult":"1"},"result":[{"userId":"'"$id"'","projectId":"p1","roles":["PROJECT_OWNER"]}]}'
     answer 200 '{"details":{}}' ;;
   'POST /v2/users')
@@ -418,10 +426,12 @@ describe('an account that was let in is kept, also after its membership is gone'
 });
 
 describe('it removes nothing when the database names nobody', () => {
-  // An emptied or wrongly restored database beside a provider that still holds
-  // the testers: every tester looks like a stranger, and at the alpha's scale
-  // --at-most 20 does not stop it. Live always has an operator row after
-  // managed-bring-up's "Become the operator".
+  // An emptied database, or one restored without its operator row, beside a
+  // provider that still holds the testers: every tester looks like a
+  // stranger, and at the alpha's scale --at-most 20 does not stop it. Live
+  // always has an operator row after managed-bring-up's "Become the operator".
+  // A reset that brought that row back first and not the members is not seen
+  // here: the runbook holds the duty until the members are back.
   const aDatabaseThatNamesNobody = (): World => ({
     accounts: [
       { userId: '1', email: 'first@provider.example', days: 400 },
@@ -546,6 +556,48 @@ describe('it weighs only the accounts of our own organisation at the provider', 
   });
 });
 
+describe('a role at the provider is read as the provider counts it, or the run refuses', () => {
+  // The memberships and grants searches have met stand-ins only (0135 Status:
+  // unverified), so an answer in another shape than expected is the likely
+  // failure, and read as "no role" it removes an account somebody gave a role
+  // by hand. In the review of 2026-09-29, a memberships answer that counted
+  // one and listed it under `results`, and one that counted one and listed
+  // nothing, each removed account 10. The account listing fails safe on a
+  // shape it does not know; these now do too.
+  const project = { userId: '10', projectId: 'p1', roles: ['PROJECT_OWNER'] };
+  const grant = { id: 'g1', userId: '10', roleKeys: ['PROJECT_READER'] };
+  const unknown: Array<[string, 'memberships' | 'grants', unknown, string]> = [
+    ['a memberships answer that counts one and lists it under another name', 'memberships',
+      { details: { totalResult: '1' }, results: [project] }, '[["details","results"],[]]'],
+    ['a memberships answer that counts one and lists nothing', 'memberships',
+      { details: { totalResult: '1' } }, '[["details"],[]]'],
+    ['a memberships answer whose list is not a list', 'memberships', { result: project }, '[["result"],[]]'],
+    ['a memberships answer whose count is not a number', 'memberships',
+      { details: { totalResult: 'one' }, result: [] }, '[["details","result"],[]]'],
+    ['a grants answer that counts one and lists it under another name', 'grants',
+      { details: { totalResult: '1' }, grants: [grant] }, '[["details","grants"],[]]'],
+  ];
+  it.each(unknown)('refuses %s, naming its fields and none of their values', (_what, where, answer, fields) => {
+    const stub = where === 'memberships' ? 'STUB_MEMBERSHIPS_ANSWER' : 'STUB_GRANTS_ANSWER';
+    const r = run(aStackWithEveryReason(), { args: ['--remove', '--at-most', '20'], stub: { [stub]: JSON.stringify(answer) } });
+    expect(r.status).toBe(1);
+    expect(r.err).toContain(`the ${where} of account 10 came back in a shape this does not know. Its answer's fields: ${fields}`);
+    expect(r.err).toContain('nothing was removed.');
+    expect(r.err).not.toMatch(/PROJECT_OWNER|PROJECT_READER/);
+    expect(r.deleted).toEqual([]);
+  });
+
+  it('keeps an account whose memberships answer counts one and lists an empty page', () => {
+    const r = run(aStackWithEveryReason(), {
+      args: ['--remove', '--at-most', '20'],
+      stub: { STUB_MEMBERSHIPS_ANSWER: JSON.stringify({ details: { totalResult: '1' }, result: [] }) },
+    });
+    expect(r.status, r.err).toBe(0);
+    expect(r.deleted).toEqual([]);
+    expect(r.out).toContain('1 with a membership or a grant at the provider');
+  });
+});
+
 describe('the listing is read to its end, or refused', () => {
   const many = (n: number) =>
     Array.from({ length: n }, (_, i) => account({ userId: `${2000 + i}`, email: `m${i}@example.test`, days: 60 }));
@@ -572,6 +624,20 @@ describe('the listing is read to its end, or refused', () => {
     expect(r.err).toContain('the account listing stopped at 100 of the 251 accounts it counted');
     expect(r.err).toContain('nothing was removed.');
     expect(r.deleted).toEqual([]);
+  });
+
+  it.each([
+    ['0', 101],
+    ['50', 100],
+  ])('refuses a count of %s beside %i accounts already given, which would read as the last page', (count, n) => {
+    // The accounts are young, so a run that took the page for the last one
+    // lists them all and asks the provider nothing more.
+    const young = Array.from({ length: n }, (_, i) => account({ userId: `${3000 + i}`, email: `y${i}@example.test`, days: 5 }));
+    const r = run({ operators: ['3000'] }, { stub: { STUB_LISTING: JSON.stringify({ details: { totalResult: count }, result: young }) } });
+    expect(r.status).toBe(1);
+    expect(r.err).toContain(`the account listing counts ${count} accounts and has already given ${n}`);
+    expect(r.err).toContain('nothing was removed.');
+    expect(r.calls.filter((c) => c.startsWith('POST /v2/users '))).toHaveLength(1);
   });
 
   it('an empty listing with no count is an empty listing: proto3 leaves a zero out', () => {

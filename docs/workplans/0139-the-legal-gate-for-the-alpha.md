@@ -19,6 +19,10 @@ branch `claude/ownpace-public-readiness-y7orc6-accounts-kept-that-were-let-in`. 
   `--subject … --remove` refuse while `platform_operator` has no row. Only our own organisation's
   accounts with no role at the provider are weighed, and the provider's listing is read to its end
   or the run refuses.
+- **A second commit, from that fix's review** (0135 Status, *later*): a role at the provider is
+  read as the provider counts it, the Team page's record names the row it deleted, and a count
+  below the accounts given is refused. After a reset of live's database that keeps the provider's
+  accounts, the runbook turns the daily duties off until the members are back.
 
 **2026-09-29, night: T7's identity-provider step and T6's daily script, built by 0135 T8 (0131 §6,
 group M3, its step 7)**, merged as #1344 (`0bcbc25`) and #1345 (`a4885a5`). Recorded here from

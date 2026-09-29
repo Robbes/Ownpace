@@ -428,13 +428,9 @@ router.delete(
         });
       }
 
-      // Get the member's role, user id and status first (RLS-scoped).
+      // Get the member's role + user id first (RLS-scoped).
       const memberData = await withTenantDb(tenantId, getSharedPool(), async (db) => {
-        return await db.select({
-          role: schema.tenantMember.role,
-          userId: schema.tenantMember.userId,
-          status: schema.tenantMember.status,
-        })
+        return await db.select({ role: schema.tenantMember.role, userId: schema.tenantMember.userId })
           .from(schema.tenantMember)
           .where(
             and(
@@ -490,26 +486,35 @@ router.delete(
       // The removal and its record, in one transaction: a record that cannot
       // be written rolls the removal back, never a removal left unrecorded.
       // The detail names the subject, which is what the record is for, and no
-      // address (0137 T4).
+      // address (0137 T4). It names the row as the delete found it, not as the
+      // read above did: an invitee's first sign-in (claimRequestedMembership,
+      // auth.ts) turns the same row from a `pending:` placeholder into their
+      // subject in between, and a record of the placeholder would leave the
+      // strays duty taking their account for one nobody let in (0135 T8).
       await withTenantDb(tenantId, getSharedPool(), async (db) => {
-        const removed = await db.delete(schema.tenantMember)
+        const [gone] = await db.delete(schema.tenantMember)
           .where(
             and(
               eq(schema.tenantMember.id, memberId),
               eq(schema.tenantMember.tenantId, tenantId),
             )
           )
-          .returning({ id: schema.tenantMember.id });
-        if (removed.length === 0) return;
+          .returning({
+            id: schema.tenantMember.id,
+            userId: schema.tenantMember.userId,
+            role: schema.tenantMember.role,
+            status: schema.tenantMember.status,
+          });
+        if (!gone) return;
         await new PgLedger(db).recordAuditEvent(tenantId as TenantId, {
           actor: req.userId ?? 'unknown',
           action: MEMBER_REMOVED_ACTION,
           entity: 'member',
           detail: {
-            memberId,
-            userId: target.userId,
-            role: target.role,
-            status: target.status,
+            memberId: gone.id,
+            userId: gone.userId,
+            role: gone.role,
+            status: gone.status,
             via: 'the Team page',
           },
         });

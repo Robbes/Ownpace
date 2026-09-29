@@ -4,6 +4,40 @@
 
 ## Status — 2026-09-29 (update this block at the end of every session)
 
+**2026-09-29, later: T8's fix reviewed, four minor findings, three fixed and one said (0131 §6,
+group M3)**, not merged, on the same branch, a second commit.
+
+- **A role at the provider is read as the provider counts it.** The memberships and grants
+  searches read only `result`, so an answer that counted a role and listed it under another name,
+  or not at all, read as "no role" and the account was removed. They have met stand-ins only, so
+  a shape mismatch is the likely failure. The script now takes the larger of the list's length
+  and `details.totalResult`, and refuses an answer whose list is not a list, whose count is not a
+  number, or that counts roles and has no list. A refusal names the answer's fields, and no longer
+  says "not JSON" when `result` is an object.
+- **The Team page's record names the row it deleted.** It named the subject, role and status the
+  route read first. An invitee's first sign-in (`claimRequestedMembership`, `auth.ts`) turns that
+  same row from a `pending:` placeholder into their subject; between the read and the delete, the
+  record said `pending:…`, and the strays duty would have weighed the person's account as one
+  nobody let in. The detail now comes from the delete's own `RETURNING`.
+- **The listing refuses a count below the accounts already given.** `"totalResult":"0"` beside a
+  full page read as the last page and exited 0, and the accounts past it were never weighed.
+- **Said, not guarded: a reset that brings the operator row back first.** Live's database reset or
+  restored while the identity provider keeps its accounts, with *Become the operator* done first,
+  names the operator and none of the testers, and every tester older than 30 days goes, up to 20 a
+  day. The runbook's *Sign-in accounts nobody let in* now says to turn the daily duties off before
+  such a reset and on again once the members are back, and the duty row in
+  `docs/managed-bring-up.md` points there. The optional guard (refuse `--remove` when the database
+  names nobody let in besides its operators) was not built: after every tester's organisation is
+  erased, at *Tenant offboarding* or the alpha's end, the database says the same thing, and
+  removing those accounts is what the duty is for. The script's header and the runbook no longer
+  say the operator check covers a wrongly restored database.
+- **Proved by** 8 new cases in `scripts/an-account-nobody-let-in.unit.test.ts` (64 in all, the 8
+  red on the first commit's script) and 1 in
+  `apps/api/src/routes/tenants/a-member-removed-is-recorded.unit.test.ts` (5 in all, red on the
+  first commit's route; the invitee's sign-in runs between the route's read and its delete). All 9
+  mutations were caught, among them `|| die` in the role count read as `|| n=0`, which the first
+  commit's 56 cases let through.
+
 **2026-09-29: T8 reviewed and fixed: an account that was let in is kept, and nothing is removed
 while the database names nobody (0131 §6, group M3)**, not merged, on branch
 `claude/ownpace-public-readiness-y7orc6-accounts-kept-that-were-let-in`. A review of #1344 and
@@ -370,7 +404,7 @@ Names used from here on: **live** is the identity provider of `ownpace-live`, at
 | T5 Privacy and terms links on the registration and sign-in pages | 📋 **Proposed**; lands with 0139's publication (D5) | §3. The instance privacy policy, from `.env`, read back. Live's first. |
 | T6 Dutch and English, in Ownpace's own words | 📋 **Decided 2026-09-24** (D4) for the languages, and (a) the languages ✅ **done** in #1286, merged 2026-09-28 (`a0897c0`); 📋 **Proposed** for the brand | §3. Only `nl` and `en` allowed, a default from `.env`, and the verification and reset mails rewritten. Logo, colours and the organisation's name follow; live's fresh instance can carry the name from its first start. |
 | T7 A watch on the pinned identity provider | ✅ **the pin moved to v4.19.1** in #1285, merged 2026-09-28 (`f839929`) (open question 11: go); the watch 📋 **decided 2026-09-28**: (a) the owner's GitHub subscription and (b) a weekly job, seven days (open question 5); (b) ✅ **done** in #1288, merged 2026-09-28 (`07dd8ff`); its first run found v4.19.2 (open question 12); the pin ✅ **moved to v4.19.2** in #1292, 2026-09-28, after the owner's dump with `dump-idp.sh`; E2E (managed) #210 applied it to the OTA instance (open question 12: go) — *was:* 📋 **Proposed**; the three releases after the pin read 2026-09-28: v4.18.0 fixes GHSA-4hgj-wm6c-q7p2 in login v1, which this stack serves (open question 11) | §3. Read the three newer releases now, choose a watch, set a response window, and take a dump before an upgrade. |
-| T8 Accounts nobody let in, and erasure that reaches the identity provider | ✅ **(a) done** in #1344, merged 2026-09-29 (`0bcbc25`): `idp-strays.sh`, and the runbook's two steps; ✅ **(b) done** in #1345, merged 2026-09-29 (`a4885a5`): the daily run on live, the owner's choice (0139), once live's timer is installed, which is the owner's step (copy the units again and reload); the review 🔨 **fixed 2026-09-29**, not merged: an account that was let in and removed since is kept (the Team page's removal records `member.removed`), `--remove` refuses while the database has no operator row, only our own organisation's accounts with no role at the provider are weighed, and the listing is read to its end or refused; what finally becomes of a removed member's account is the owner's (open question 13); the retention period 📋 **Decided 2026-09-28**, 30 days (open question 6), and the rule gains a fifth condition, an open invitation — *was:* 📋 **Proposed**; the retention period is the owner's (→ 0139) | §3. A retention rule, an operator script in `deploy/compose`, and a runbook step. |
+| T8 Accounts nobody let in, and erasure that reaches the identity provider | ✅ **(a) done** in #1344, merged 2026-09-29 (`0bcbc25`): `idp-strays.sh`, and the runbook's two steps; ✅ **(b) done** in #1345, merged 2026-09-29 (`a4885a5`): the daily run on live, the owner's choice (0139), once live's timer is installed, which is the owner's step (copy the units again and reload); the review 🔨 **fixed 2026-09-29**, not merged: an account that was let in and removed since is kept (the Team page's removal records `member.removed`), `--remove` refuses while the database has no operator row, only our own organisation's accounts with no role at the provider are weighed, and the listing is read to its end or refused; its review 🔨 **fixed 2026-09-29**, not merged: a role at the provider read as the provider counts it, the Team page's record naming the row it deleted, a count below the accounts given refused, and the runbook holding the duty after a reset that keeps the provider's accounts; what finally becomes of a removed member's account is the owner's (open question 13); the retention period 📋 **Decided 2026-09-28**, 30 days (open question 6), and the rule gains a fifth condition, an open invitation — *was:* 📋 **Proposed**; the retention period is the owner's (→ 0139) | §3. A retention rule, an operator script in `deploy/compose`, and a runbook step. |
 
 ## 1. What there is today
 
@@ -1046,7 +1080,9 @@ the first tester"*), so T8 has two steps: (a) the script, and (b) `--remove --at
 live's daily duties (`box-duties.sh`, 0132 T7). More than 20 at once removes none and fails the
 duty, so a day with more strays than a day brings waits for a person to look. `--remove` also
 refuses while `platform_operator` has no row (2026-09-29): a database that names nobody would make
-every tester a stranger, and at the alpha's scale 20 would not stop it.
+every tester a stranger, and at the alpha's scale 20 would not stop it. It cannot see a database
+reset or restored with its operator row back and its members not, beside a provider that kept
+their accounts; the runbook turns the duties off for such a reset until the members are back.
 
 **Erasure.** The runbook's *Tenant offboarding* gets one more step. After the purge, for each
 member subject that belongs to no other organisation and is not an operator, the identity
@@ -1066,7 +1102,8 @@ and `psql`, and fails today because the script does not exist. It checks that:
 - without `--remove`, it sends no `DELETE`;
 - since 2026-09-29: it keeps an account whose removal from an organisation is recorded, and one
   of another organisation or with a role at the provider; `--remove` refuses while the database
-  has no operator row; and a listing it cannot read to its end refuses.
+  has no operator row; a listing it cannot read to its end refuses, and so does a membership or
+  grant answer that counts roles it does not list where the provider lists them.
   `apps/api/src/routes/tenants/a-member-removed-is-recorded.unit.test.ts` holds the Team page's
   record of a removal.
 
