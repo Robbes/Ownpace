@@ -4,6 +4,33 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, night: T6 (c)'s two guards, and what they found (0131 §6, R8, built beside R at
+the owner's word *"continue on the rest"*)**, in #1347, stacked on #1343.
+
+- **Attributes are read.** `hardcoded-text.unit.test.ts` refuses a literal with a word in it in a
+  `placeholder`, an `aria-label`, a `title` or an `alt`. A single word counts. An address, a host,
+  a path, a URL or a token passes. It found four:
+  - the wizard's name box said *My Migration* in both languages. It now gives an example:
+    *For example: Anna's mail* / *Bijvoorbeeld: mail van Anna*;
+  - its steps were announced as *Progress*. They are now *Progress* / *Voortgang*;
+  - two regions were announced by their slugs, *discovery-counts* and *scope-manifest*. The
+    first is named by its own heading, and the second *What migrates, and what does not* /
+    *Wat migreert, en wat niet*.
+
+  The sign-in's token example stays as it is, marked as a technical literal.
+- **No connection kind is rendered as text.** `a-kind-shown-where-a-name-belongs.unit.test.tsx`
+  refuses `{x.kind}`, `{x.sourceType}` or `{x.targetType}` as a JSX child. It found three:
+  - the Accounts row's badge;
+  - the wizard's list of saved accounts, *Anna's mail (gmail)*;
+  - its review step, which said the source was `oauth2`.
+
+  Each now says the name. `connectionKindName` names a stored kind, and `o365` is *Microsoft
+  365* whichever card saved it. The operator's support table keeps the kind, marked as needed
+  there. The guard also holds every kind the ledger's `connection_kind_check` allows to a name,
+  apart from the two kinds from before the cards.
+- **Proved by** mutation: with *Progress* written back as a literal, the attribute case names
+  its line, and with `{connection.kind}` back on the Accounts row, the kind guard names it.
+
 **2026-09-28, night: the menu counts beside *Needs you* what waits (T3 (c); 0131 §6, R8 step 4,
 built beside R at the owner's word *"continue on the rest"*)**, in #1346, stacked on #1343.
 
@@ -268,7 +295,7 @@ person, and a flow that fills it.
 | T3 The Migrations page lists people | 🟡 **Built in two halves: the page lists people (#1341); it is the landing page, the Dashboard is gone, and the menu is the drawing's (#1343). The menu counts beside *Needs you* what waits (#1346). The progress line and *Ready to switch* wait on 0154 T2. Before the first invitation** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
 | T4 *Start a migration*: who, from where, what, to where | 📋 **Proposed; before the first invitation** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
 | T5 A page per person | 📋 **Proposed; before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
-| T6 Words a family reads | 🟡 **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, before the first invitation** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |
+| T6 Words a family reads | 🟡 **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, before the first invitation. (c)'s two guards built (#1347)** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |
 | T7 Defaults a family can pass | 📋 **Proposed; before the first invitation, inside T4** | §3. Buttons that look like buttons, with the reason in text. A Soverin sign-in in two visible fields. A Nextcloud address, not a DAV URL. Business-only fields only on the business path. The limit blamed on the side that has it. Tiles and icons: `tiles.svg`, `icons.svg`. |
 | T8 The appliance shows its person's page | 📋 **Proposed; before the first invitation (D5)** | §3. The same page, fed by the appliance's one implicit grouping. No list or create screen (0034 stands). |
 

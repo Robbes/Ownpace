@@ -14,10 +14,20 @@
  * listed in ALLOWLIST below with the reason. Do not add to the allowlist
  * because the guard is inconvenient; add because the words genuinely must
  * not be translated.
+ *
+ * ATTRIBUTES ARE READ TOO (0153 T6 (c)). A placeholder is read, and an
+ * `aria-label` or a `title` is heard, as surely as text between tags, and
+ * the text rule never looked at them: the wizard's name box said *My
+ * Migration* in Dutch, its steps were announced as *Progress*, and two
+ * regions were announced by their slugs, *discovery-counts* and
+ * *scope-manifest*. Any literal with a word in it is refused there, and a
+ * single word counts. An address, a host, a path, a URL or a token (no
+ * space, and an `@`, `.`, `/` or `:`) is a technical literal and passes.
+ * The whole-file ALLOWLIST does not cover attributes.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { describe, it, expect } from 'vitest';
+import { beforeAll, describe, it, expect } from 'vitest';
 
 const ROOTS = [join(__dirname, '..', 'pages'), join(__dirname, '..', 'components')];
 
@@ -36,9 +46,16 @@ const BETWEEN_TAGS = />([^<>{}]+)</g;
 const AFTER_TAG = />\s*([^<>{}]+)\s*$/;
 // A continuation line that is pure text (multiline JSX children).
 const BARE_TEXT_LINE = /^\s+([A-Za-z'\u2019&][A-Za-z'\u2019&%().,:\u2014 -]{6,})\s*$/;
+// An attribute a person reads or hears, holding a literal: "…", '…', {"…"},
+// {'…'} or a template with nothing interpolated.
+const READ_ATTRIBUTE =
+  /\b(placeholder|aria-label|title|alt)=(?:"([^"]*)"|'([^']*)'|\{\s*"([^"]*)"\s*\}|\{\s*'([^']*)'\s*\}|\{\s*`([^`$]*)`\s*\})/g;
+const HAS_WORD = /[A-Za-z]{2,}/;
+const TECHNICAL = /^\S*[@./:]\S*$/;
 
 describe('no hardcoded user-facing sentences outside t()', () => {
   const offenders: string[] = [];
+  const attributeOffenders: string[] = [];
 
   const scan = (dir: string): void => {
     for (const name of readdirSync(dir)) {
@@ -49,7 +66,7 @@ describe('no hardcoded user-facing sentences outside t()', () => {
       }
       if (!name.endsWith('.tsx') || name.includes('.test.')) continue;
       const rel = relative(join(__dirname, '..'), path).replace(/\\/g, '/');
-      if (ALLOWLIST[rel]) continue;
+      const allowlisted = Boolean(ALLOWLIST[rel]);
 
       const lines = readFileSync(path, 'utf8').split('\n');
       let inComment = false;
@@ -62,6 +79,15 @@ describe('no hardcoded user-facing sentences outside t()', () => {
         }
         if (trimmed.startsWith('//') || trimmed.startsWith('*')) continue;
         if (line.includes('i18n-exempt')) continue;
+
+        for (const m of line.matchAll(READ_ATTRIBUTE)) {
+          const value = (m[2] ?? m[3] ?? m[4] ?? m[5] ?? m[6] ?? '').trim();
+          if (HAS_WORD.test(value) && !TECHNICAL.test(value)) {
+            attributeOffenders.push(`${rel}:${i + 1}: ${m[1]}="${value.slice(0, 60)}"`);
+          }
+        }
+
+        if (allowlisted) continue;
         if (line.includes("t('") || line.includes('t(`')) continue;
 
         const candidates: string[] = [];
@@ -85,9 +111,21 @@ describe('no hardcoded user-facing sentences outside t()', () => {
     }
   };
 
-  it('pages/ and components/ are clean (annotate deliberate exceptions)', () => {
+  beforeAll(() => {
     for (const root of ROOTS) scan(root);
+  });
+
+  it('pages/ and components/ are clean (annotate deliberate exceptions)', () => {
     expect(offenders).toEqual([]);
+  });
+
+  it('no placeholder, aria-label, title or alt holds a literal with a word in it (0153 T6 (c))', () => {
+    expect(
+      attributeOffenders,
+      'An attribute a person reads or hears holds words outside t(). Put them in\n' +
+        'strings.ts (GLOSSARY.md first), or, for a technical literal, end the line\n' +
+        'with // i18n-exempt: <reason>.',
+    ).toEqual([]);
   });
 });
 

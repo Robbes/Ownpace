@@ -183,6 +183,7 @@ const en = {
   'scope.migrates': 'Migrates',
   'scope.partial': 'Partial',
   'scope.doesNotMigrate': 'Does not migrate',
+  'scope.title': 'What migrates, and what does not',
   'login.title': 'Sign in to Ownpace',
   'login.tagline': 'Sovereign data migration for families and SMBs',
   'login.tokenLabel': 'Access token',
@@ -775,6 +776,8 @@ const en = {
     'Pre-filled from {provider}’s published settings, read {seen}. Test checks them.',
   'wizard.useSsl': 'Use SSL/TLS',
   'wizard.migrationName': 'Migration Name',
+  'wizard.migrationName.placeholder': 'For example: Anna’s mail',
+  'wizard.progress': 'Progress',
   'wizard.credentials': 'Credentials',
   // WHAT THE STAR MEANS, said once (2026-09-07). Eight labels used to carry
   // "(optional)" and the rest carried nothing, which read as "these eight are
@@ -2949,6 +2952,7 @@ const nl: Record<keyof typeof en, string> = {
   'scope.migrates': 'Migreert',
   'scope.partial': 'Gedeeltelijk',
   'scope.doesNotMigrate': 'Migreert niet',
+  'scope.title': 'Wat migreert, en wat niet',
   'login.title': 'Aanmelden bij Ownpace',
   'login.tagline': 'Soevereine datamigratie voor gezinnen en mkb',
   'login.tokenLabel': 'Toegangstoken',
@@ -3357,6 +3361,8 @@ const nl: Record<keyof typeof en, string> = {
     'Vooraf ingevuld met de gepubliceerde instellingen van {provider}, gelezen op {seen}. Test controleert ze.',
   'wizard.useSsl': 'SSL/TLS gebruiken',
   'wizard.migrationName': 'Naam van de migratie',
+  'wizard.migrationName.placeholder': 'Bijvoorbeeld: mail van Anna',
+  'wizard.progress': 'Voortgang',
   'wizard.credentials': 'Inloggegevens',
   'form.requiredLegend': 'Velden met * zijn verplicht.',
   'wizard.sourceUsername': 'Gebruikersnaam',

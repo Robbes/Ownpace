@@ -437,7 +437,7 @@ describe('CreateMapping — choices that cannot work are constrained (0037 T4)',
     fireEvent.click(nextButton());
 
     // The migration step carries the name, the data types and the schedule.
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), {
       target: { value: 'Acme mail' },
     });
   };
@@ -735,7 +735,7 @@ describe('CreateMapping — oauth2/graph collect the app registration (0037 T6, 
     fireEvent.click(nextButton());
 
     // Migration: a name; email is preselected and jmap takes it.
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), {
       target: { value: 'Acme O365' },
     });
     fireEvent.click(nextButton());
@@ -812,7 +812,7 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
 
     // Step 3 — The migration itself: a name, what to move (file is pinned and
     // the mail-shaped types cannot be picked), how often.
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), {
       target: { value: 'Acme files' },
     });
     fireEvent.click(nextButton());
@@ -945,7 +945,7 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     fireEvent.change(targetHostBox(), { target: { value: 'nextcloud.acme.example' } });
     satisfyTargetStep();
     fireEvent.click(nextButton());
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), {
       target: { value: 'Acme files' },
     });
     fireEvent.click(nextButton());
@@ -979,7 +979,7 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     fireEvent.change(targetHostBox(), { target: { value: 'nextcloud.acme.example' } });
     satisfyTargetStep();
     fireEvent.click(nextButton());
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), { target: { value: 'x' } });
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), { target: { value: 'x' } });
     fireEvent.click(nextButton());
     fireEvent.click(nextButton());
 
@@ -1008,7 +1008,7 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     });
     satisfyTargetStep();
     fireEvent.click(nextButton());
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), { target: { value: 'x' } });
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), { target: { value: 'x' } });
 
     // The Email card is disabled on the migration step: the SOURCE rules it
     // out even though the jmap target would carry it — a Drive credential
@@ -1044,7 +1044,7 @@ describe('CreateMapping — a Dropbox source chooses its Paper docs’ format (w
     fireEvent.change(targetHostBox(), { target: { value: 'nextcloud.acme.example' } });
     satisfyTargetStep();
     fireEvent.click(nextButton());
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), { target: { value: 'Acme papers' } });
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), { target: { value: 'Acme papers' } });
     fireEvent.click(nextButton());
     fireEvent.click(nextButton());
     await waitFor(() => expect(createMock).toHaveBeenCalled());
@@ -1134,7 +1134,7 @@ describe('CreateMapping — a Gmail source (workplan 0044)', () => {
 
     // Step 3 — The migration itself: a name, what to move (email is pinned),
     // how often.
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), {
       target: { value: 'Acme mail' },
     });
     fireEvent.click(nextButton());
@@ -1171,7 +1171,7 @@ describe('CreateMapping — a Gmail source (workplan 0044)', () => {
     });
     satisfyTargetStep();
     fireEvent.click(nextButton());
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), { target: { value: 'x' } });
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), { target: { value: 'x' } });
 
     // Files is ruled out by the SOURCE even though the target (jmap) carries
     // it: the mail-scoped credential cannot read a Drive.
@@ -1222,7 +1222,7 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
     satisfyTargetStep();
     fireEvent.click(nextButton());
 
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), {
       target: { value: 'Acme Google' },
     });
     fireEvent.click(nextButton());
@@ -1408,7 +1408,7 @@ describe('CreateMapping — the export chooser follows the FILES (owner 2026-09-
     fireEvent.change(targetHostBox(), { target: { value: 'nextcloud.acme.example' } });
     satisfyTargetStep();
     fireEvent.click(nextButton());
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), {
       target: { value: 'Acme Google files' },
     });
     fireEvent.click(nextButton());
@@ -1460,7 +1460,7 @@ describe('CreateMapping — the export chooser follows the FILES (owner 2026-09-
     fireEvent.change(targetHostBox(), { target: { value: 'dav.acme.example' } });
     satisfyTargetStep();
     fireEvent.click(nextButton());
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+    fireEvent.change(screen.getByPlaceholderText('For example: Anna’s mail'), {
       target: { value: 'Acme Google calendar' },
     });
     fireEvent.click(nextButton());

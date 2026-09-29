@@ -82,6 +82,20 @@ const SOURCE_COMPANY: Readonly<Record<string, string>> = {
   apple: 'Apple iCloud',
 };
 
+/**
+ * A stored connection kind's name, for a row that has only the kind (0153 T6
+ * (a), (c)): `gmail` is *Gmail* and `google_drive` is *Google Drive*, never the
+ * kind itself. `o365` is *Microsoft 365*, whichever of its two cards saved it.
+ * A kind no card saves any more (`proton` and `selfhosted_mail`, from before
+ * the cards) has none, and its row shows the account's own name alone.
+ */
+export function connectionKindName(kind: string): string | undefined {
+  if (kind === 'o365') return 'Microsoft 365';
+  const type = wizardTypeForConnectionKind(kind);
+  const name = providerDisplayName(type);
+  return name === type ? undefined : name;
+}
+
 /** What a line of words calls a type or a connection kind on this side. */
 export function providerName(typeOrKind: string, role: TileRole): string {
   const type = wizardTypeForConnectionKind(typeOrKind);
