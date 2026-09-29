@@ -116,6 +116,13 @@ export const PURGED_TABLES = [
   'apply_receipt',
   'setup_step',
   'backup_target',
+  // The people being moved (ADR-0050, managed migration 0031): a name, and an
+  // address when somebody gave one, which is exactly what an erasure erases.
+  // Which person a migration is for goes first, then the person, and both
+  // before `mailbox_mapping`, which a membership references. Both keys would
+  // cascade; named so the receipt counts them.
+  'person_migration',
+  'person',
   // Before `mailbox_mapping`: a link references the mapping it opens.
   'mapping_link',
   'mailbox_mapping',

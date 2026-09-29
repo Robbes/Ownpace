@@ -34,13 +34,23 @@
  * from here, takes only the tenant pool, and whether this module does anything
  * at import, is `a-pass-that-opened-the-owners-pool`'s.
  *
+ * The three jobs split in two (0138 T2: the digest, the drift detector and
+ * group discovery) take their pools from it too, and ask their one question
+ * across organisations through `activeOrganisations`: which organisations are
+ * active, as ids. That list is read on the owner's URL, never on
+ * `APP_DATABASE_URL`, where with no organisation set it would find none and
+ * every such job would visit nobody and call it a quiet morning. So it
+ * refuses without `DATABASE_URL`, asks first whether its connection sees every
+ * organisation and refuses when it does not, and closes its one connection
+ * before it answers. Here without a database: its pool's `query` answers.
+ *
  * The addresses are invented; nothing here is contacted.
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { Pool } from 'pg';
 import { exportAuditEvent, recordAppEvent, setAppEventSink, setAuditExportSink } from '@openmig/shared';
-import { openTaskPools, type TaskPools } from './task-pools.ts';
+import { ACTIVE_ORGANISATIONS_SQL, activeOrganisations, openTaskPools, type TaskPools } from './task-pools.ts';
 
 const APP = 'postgresql://app_user:not-a-password@pgbouncer.example.invalid:6432/ownpace';
 const OWNER = 'postgresql://ownpace:not-a-password@pgbouncer.example.invalid:6432/ownpace';
@@ -174,5 +184,57 @@ describe('importing it does nothing', () => {
     } finally {
       if (app !== undefined) process.env.APP_DATABASE_URL = app;
     }
+  });
+});
+
+describe('the list a split job visits: the active organisations, on the owner\'s URL, closed before it answers', () => {
+  /** Every statement the list's pool is asked, and the pool, answered without a database. */
+  const answering = (seesEveryOrganisation: boolean) => {
+    const asked: Array<{ pool: Pool; text: string }> = [];
+    vi.spyOn(Pool.prototype, 'query').mockImplementation(function (this: Pool, text: unknown) {
+      asked.push({ pool: this, text: String(text) });
+      return Promise.resolve(
+        /pg_roles/.test(String(text))
+          ? { rows: [{ sees_every_organisation: seesEveryOrganisation }] }
+          : { rows: [{ id: '0138d000-e29b-41d4-a716-4466554400a1' }, { id: '0138d000-e29b-41d4-a716-4466554400b1' }] },
+      );
+    } as never);
+    return asked;
+  };
+
+  it('refuses without DATABASE_URL, and never reads the list on APP_DATABASE_URL in its place', async () => {
+    const asked = answering(true);
+    await expect(activeOrganisations({ APP_DATABASE_URL: APP })).rejects.toThrow(/DATABASE_URL is required/);
+    await expect(activeOrganisations({ APP_DATABASE_URL: APP, DATABASE_URL: '  ' })).rejects.toThrow(/DATABASE_URL/);
+    expect(asked).toEqual([]);
+  });
+
+  it('asks one connection on the owner\'s URL for the ids of the active organisations, and ends it', async () => {
+    const asked = answering(true);
+    const ids = await activeOrganisations({ APP_DATABASE_URL: APP, DATABASE_URL: OWNER });
+
+    expect(ids).toEqual(['0138d000-e29b-41d4-a716-4466554400a1', '0138d000-e29b-41d4-a716-4466554400b1']);
+    expect(asked.map((a) => a.text)).toContain(ACTIVE_ORGANISATIONS_SQL);
+    const [pool] = new Set(asked.map((a) => a.pool));
+    expect(new Set(asked.map((a) => a.pool)).size).toBe(1);
+    expect(optionsOf(pool).connectionString).toBe(OWNER);
+    expect(optionsOf(pool).max).toBe(1);
+    // Closed before it answered: the list holds nothing past its one read.
+    expect(pool!.ended).toBe(true);
+    // And the role question came first: an empty list must never be the answer
+    // of a connection that could not see the organisations.
+    expect(asked[0]!.text).toMatch(/pg_roles/);
+  });
+
+  it('refuses on a connection row security binds, where the list would be empty, and ends it anyway', async () => {
+    // app_user, or an owner without the superuser bit on an operator's own
+    // Postgres, where the FORCEd policies bind it: with no organisation set,
+    // `tenant` answers no row, and every split job would visit nobody.
+    const asked = answering(false);
+    await expect(activeOrganisations({ APP_DATABASE_URL: APP, DATABASE_URL: OWNER })).rejects.toThrow(
+      /row security/,
+    );
+    expect(asked.map((a) => a.text)).not.toContain(ACTIVE_ORGANISATIONS_SQL);
+    expect(asked[0]!.pool.ended).toBe(true);
   });
 });

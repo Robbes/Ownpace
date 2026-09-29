@@ -259,6 +259,24 @@ describe('the export-policy panel', () => {
   });
 });
 
+describe('the schedule panel (the owner, 2026-09-28)', () => {
+  it('shows the schedule this migration runs on, from the detail read', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ syncConfig: { domains: ['email'], schedule: '0 */6 * * *' } }));
+    renderHub();
+    const sixHourly = await screen.findByRole('button', { name: /^Every 6 hours/ });
+    expect(sixHourly).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /^Hourly/ })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('is not on the appliance, whose schedule is its owner’s mapping file', async () => {
+    editionFlag.selfhost = true;
+    renderHub();
+    expect(await screen.findByText(/cutover order/i)).toBeInTheDocument();
+    expect(screen.queryByText('Sync schedule')).toBeNull();
+    expect(mappingApiGet).not.toHaveBeenCalled();
+  });
+});
+
 describe('Pause, where a pause is possible (0128)', () => {
   it('is offered on an active migration', async () => {
     mappingApiGet.mockResolvedValue(aMapping({ status: 'active' }));

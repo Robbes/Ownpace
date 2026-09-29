@@ -88,6 +88,8 @@ const MOUNTS: ReadonlyArray<{ prefix: string; files: string[]; mountedIn?: strin
       'src/routes/migrations/link-routes.ts',
     ],
   },
+  // The person a migration is for (ADR-0050, amended 2026-09-28).
+  { prefix: '/api/people', files: ['src/routes/people.ts'] },
   { prefix: '/api/decisions', files: ['src/routes/decisions.ts'] },
   // Every queue at once, for the screen that showed only the one above.
   { prefix: '/api/attention', files: ['src/routes/attention.ts'] },

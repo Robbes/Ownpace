@@ -15,21 +15,32 @@
  * can put a migration's contents in front of the wrong person — which is more
  * than the file had before.
  *
- * The rest of the file remains deliberately untested wiring, and the workplan
- * says so rather than leaving it implicitly covered.
+ * The rest of the file remains deliberately untested wiring here, and the
+ * workplan says so rather than leaving it implicitly covered. What the wiring
+ * reads, and as whom, is `a-job-that-reads-each-organisation-as-itself`'s
+ * (integration, 0138 T2), which runs it on the pools the job opens.
  *
- * Importing this module has SIDE EFFECTS — it constructs a Pool at import and
- * throws without DATABASE_URL — so the variable is set before the import and the
- * import is dynamic. That is a property of the module worth knowing about, and
- * it is the reason a fuller test of this file is awkward rather than merely
- * unwritten.
+ * Since 0138 T2 the module builds nothing at import (the job opens its pools in
+ * its run), and each statement is a drizzle `sql` for one organisation, run in
+ * that organisation's scope. Each is read here as the text and parameters it
+ * sends, so the clauses are pinned as they reach Postgres. Which organisations
+ * are considered at all is the list's (`ACTIVE_ORGANISATIONS_SQL`,
+ * task-pools.ts), asked once across them.
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import type { SQL } from 'drizzle-orm';
+import { ACTIVE_ORGANISATIONS_SQL } from './task-pools.ts';
 
-let ACTIVE_TENANTS_SQL: string;
+/** A statement for one organisation, as the text and parameters it sends. */
+const sent = (query: SQL) => new PgDialect().sqlToQuery(query);
+const ONE = '0043e000-e29b-41d4-a716-446655440001';
+
+let DIGEST_ORGANISATION_SQL: string;
 let DIGEST_RECIPIENTS_SQL: string;
 let DIGEST_MAPPINGS_SQL: string;
+let PARAMS: unknown[][];
 
 // The import is the job's whole module graph, the Trigger.dev SDK and the
 // ledger among it, loaded cold inside this hook. On main's self-hosted runner,
@@ -38,19 +49,36 @@ let DIGEST_MAPPINGS_SQL: string;
 // having asserted nothing. A minute, as the suites that open a database in
 // their hook allow.
 beforeAll(async () => {
-  process.env.DATABASE_URL ??= 'postgres://unused:unused@127.0.0.1:5432/none';
   const mod = await import('./managed-digest.ts');
-  ACTIVE_TENANTS_SQL = mod.ACTIVE_TENANTS_SQL;
-  DIGEST_RECIPIENTS_SQL = mod.DIGEST_RECIPIENTS_SQL;
-  DIGEST_MAPPINGS_SQL = mod.DIGEST_MAPPINGS_SQL;
+  const statements = [mod.digestOrganisationSql(ONE), mod.digestRecipientsSql(ONE), mod.digestMappingsSql(ONE)].map(
+    sent,
+  );
+  [DIGEST_ORGANISATION_SQL, DIGEST_RECIPIENTS_SQL, DIGEST_MAPPINGS_SQL] = statements.map((s) => s.sql) as [
+    string,
+    string,
+    string,
+  ];
+  PARAMS = statements.map((s) => s.params);
 }, 60_000);
 
 describe('which tenants the digest considers', () => {
   it('reads only ACTIVE tenants', () => {
     // A suspended or closed tenant must not be emailed about a migration it is
-    // no longer paying for or has left.
-    expect(ACTIVE_TENANTS_SQL).toMatch(/status\s*=\s*'active'/);
-    expect(ACTIVE_TENANTS_SQL).toMatch(/from\s+tenant\b/i);
+    // no longer paying for or has left. The list is the one question the
+    // digest asks across organisations (0138 T2).
+    expect(ACTIVE_ORGANISATIONS_SQL).toMatch(/status\s*=\s*'active'/);
+    expect(ACTIVE_ORGANISATIONS_SQL).toMatch(/from\s+tenant\b/i);
+  });
+
+  it('reads each one\'s own row by its id, for its name and its settings', () => {
+    expect(DIGEST_ORGANISATION_SQL).toMatch(/from\s+tenant\b/i);
+    expect(DIGEST_ORGANISATION_SQL).toMatch(/\bid\s*=\s*\$1/);
+    expect(DIGEST_ORGANISATION_SQL).toMatch(/\bname\b/);
+    expect(DIGEST_ORGANISATION_SQL).toMatch(/\bsettings\b/);
+  });
+
+  it('asks every statement about the one organisation it was handed', () => {
+    for (const params of PARAMS) expect(params).toEqual([ONE]);
   });
 });
 
@@ -92,7 +120,7 @@ describe('what the digest knows about each migration', () => {
  * 7c): the digest's line for a grace period nobody chose at. `runDigest` asks
  * it only when this module hands it the read, so a module that stopped handing
  * it over would leave every `runDigest` test green while no managed owner was
- * told again. Read as text, for the import's side effects above.
+ * told again. Read as text: the read needs a database to run.
  */
 describe('the grace periods nobody chose at are asked of the ledger', () => {
   it('hands the digest the read, in the organisation\'s own transaction', async () => {
