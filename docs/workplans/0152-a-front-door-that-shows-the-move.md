@@ -6,12 +6,33 @@
 
 **2026-09-29, morning: the owner's answers (asked by the writing session).**
 
-- **T0 for D6 on the site's own pages:** the rewritten Dutch in #1339 is approved as written
-  (*"Yes"*), *migreer uw eigen gegevens* in the footer and the home title included.
+- **T0 for D6 on the site's own pages:** #1339's Dutch is approved as written (*"Yes"*), as its
+  own entry below says.
 - **Open question 4: English at the root.** `/` stays English, and Dutch stays under `/nl/`.
 - **T6 (g), the ADR-0014 amendment:** the writing session drafts it for the owner's acceptance
   (*"Yes"*, once it was checked that none had landed overnight). T6 (d)–(f) and T7 still wait on
   the amendment's acceptance and on 0111's yearly invoice.
+
+**2026-09-28, night: D6 on the site's own pages, and T6 (a)'s guard (R8 step 2, by the writing
+session at the owner's word *"continue on the rest"*).**
+
+- **D6 is built for what the site writes.** Every form of *verhuizen* in `site/copy.mjs`,
+  `site/pages/nl/` and `build.mjs`'s Dutch page titles is a form of *migratie* or *migreren*
+  (52 places). Where a straight swap read worse, the sentence is rewritten:
+  - *"Wie verhuist er?"* becomes *"Voor wie is het?"*, the app's *Voor wie?*;
+  - *"Wat verhuist er?"* becomes *"Wat wilt u migreren?"*;
+  - *"nadat ze zijn verhuisd"* becomes *"nadat ze zijn overgestapt"*.
+
+  The owner read them and approved them as written on 2026-09-29 (*"Yes"*), *migreer uw eigen
+  gegevens* in the footer and the home title included.
+- **A guard** in `site/site.unit.test.ts` fails on `/verhui[sz]/i` in any Dutch page the build
+  writes. The legal texts are excused by name: the privacy policy, the terms, and the Alpha
+  conditions, which #1360 made a page of their own. They are 0139's, and still say *verhuizing*
+  as the Alpha conditions' own word. The excuse fails when they follow D6.
+- **T6 (a):** #1317 already took *"VAT is added where it applies"* off both pricing pages. The
+  guard is new: no page may say both that prices include VAT and that VAT is added. #1317's
+  briefing asks the lawyer whether one sentence covers both audiences, which is T6 (a)'s question
+  to 0139.
 
 **2026-09-28, evening: the owner's second answers settle every open choice but one.** Nothing is
 built. The answers, quoted in §2:
@@ -49,13 +70,13 @@ together, from one audit of the site and the app on `main` at `83eb73e` (§1).
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner reads the new copy | ⏳ **Owner; before the first invitation, before each task merges** | §3. Site copy is the owner's to approve (0144 T0). Every new sentence here is a proposal, in both languages. It includes *migratie* for *verhuizing* (D6) and the new *Why it is priced this way* (T6 (g)). |
+| T0 The owner reads the new copy | ⏳ **Owner; before the first invitation, before each task merges. D6's *migratie* is built on the site's own pages; the legal texts are 0139's** | §3. Site copy is the owner's to approve (0144 T0). Every new sentence here is a proposal, in both languages. It includes *migratie* for *verhuizing* (D6) and the new *Why it is priced this way* (T6 (g)). |
 | T1 The alpha, said on the site | 📋 **Proposed; before the first invitation** | §3. The app's alpha sentence on every site page while the alpha setting is on. The unbacked *"Most people"* and *"Meest gekozen"* become a fact about the tier. |
 | T2 A shorter menu, and a header that fits a phone | 📋 **Proposed; before the first invitation** | §3. The header reads Home · How it works · Pricing · Sign in, plus the language switch. Privacy and Terms move to the footer. On a phone the menu folds into a `<details>`, which needs no script. |
 | T3 The hero shows the move | 📋 **Proposed; before the first invitation** | §3. The drawing `hero-move.svg`, inlined: the old account's data, then Ownpace, then the new home, with our own icons (D4). Three facts sit under it, and a three-step strip links to *How it works*. An app screen joins it once 0153 T5 exists. |
 | T4 The destinations, named | 📋 **Proposed; before the first invitation** | §3. A *Where to* section names what the app supports, from a site copy of the app's list with a guard that it matches. It says plainly that the new account is one the person opens and pays for themselves. |
 | T5 A page per provider a person leaves | 📋 **Proposed; before the first invitation (D5)** | §3. *Leaving Google*, *Leaving Microsoft 365*, *Leaving iCloud*, *Leaving Dropbox*, *Leaving Box*, *Leaving another mail provider*: what moves, the limits, what the person does, the destinations it can go to, a typical cost. Built from copies of the app's own verdicts, each guarded. |
-| T6 Pricing that reads in one pass | 📋 **Proposed; before the first invitation (D5); (g) waits for the owner's ADR-0014 amendment** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) Renewal and a withdrawal button (D11). (g) The principle, the price that pays for the work (D12). |
+| T6 Pricing that reads in one pass | 🟡 **(a) done: the sentence by #1317, its guard beside D6's. The rest proposed; before the first invitation (D5); (g) waits for the owner's ADR-0014 amendment** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) Renewal and a withdrawal button (D11). (g) The principle, the price that pays for the work (D12). |
 | T7 A calculator that ends in a button | 📋 **Proposed; before the first invitation** | §3. (a) *Request access* carries the answers along. (b) *Until when?* says which payment suits it. (c) The layout faults and a live region. (d) Box as a source. |
 | T8 Claims you can check | 📋 **Proposed; before the first invitation (D5)** | §3. "Open source" links the repository. Each proof point links the guard that holds it. The footer names the company once 0139 publishes it; until then that line is the one part that waits. |
 | T9 One look from the site to the app | 📋 **Proposed; before the first invitation** | §3. `/request-access` and `/login` take the site's palette and logo, and link back to the site. The identity provider's own branding stays 0135 T6. |

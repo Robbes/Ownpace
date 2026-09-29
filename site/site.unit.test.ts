@@ -148,7 +148,7 @@ describe('the published prices agree with the decision that set them', () => {
     // The landing page's line says what free covers, where it used to say
     // "From €6 for the first month".
     expect(rendered.find((p) => p.file === 'index.html')!.html).toContain('Tiny is free: one migration at a time, up to 250 GB.');
-    expect(rendered.find((p) => p.file === 'nl/index.html')!.html).toContain('Tiny is gratis: één verhuizing tegelijk, tot 250 GB.');
+    expect(rendered.find((p) => p.file === 'nl/index.html')!.html).toContain('Tiny is gratis: één migratie tegelijk, tot 250 GB.');
     // And no page still says there is nothing to gain by going one at a time.
     for (const page of rendered) {
       expect(page.html, `${page.file} still says rationing gains nothing`).not.toMatch(
@@ -202,6 +202,21 @@ describe('the published prices agree with the decision that set them', () => {
       ).toContain(COPY[locale]!.vatIncluded);
     }
   });
+
+  it('never says both that prices include VAT and that VAT is added (0152 T6 (a))', async () => {
+    // The pricing page said both: "All prices include VAT." in its label and
+    // "VAT is added where it applies." in its last paragraph (#1317 took the
+    // second out). A reader cannot know which one holds, and toward a consumer
+    // only the first is allowed: the displayed price is the final price.
+    const { rendered } = (await import('./build.mjs')) as unknown as {
+      rendered: Array<{ file: string; html: string }>;
+    };
+    const ADDED = /VAT is added|plus VAT|excluding VAT|excl\.? VAT|btw komt erbij|exclusief btw|excl\.? btw/i;
+    const both = rendered
+      .filter((p) => /include VAT|inclusief btw/i.test(p.html) && ADDED.test(p.html))
+      .map((p) => `${p.file}: ${p.html.match(ADDED)![0]}`);
+    expect(both, 'these pages say prices include VAT and also that VAT is added').toEqual([]);
+  });
 });
 
 describe('both locales are complete', () => {
@@ -235,6 +250,48 @@ describe('both locales are complete', () => {
       // diffed when either changes. Compare the count of `## N.` headings.
       const count = (s: string) => (s.match(/^## \d+\./gm) ?? []).length;
       expect(count(nl), `${f}.nl.md has a different number of numbered sections`).toBe(count(en));
+    }
+  });
+
+  /**
+   * DUTCH SAYS *MIGRATIE*, NEVER *VERHUIZING* (workplan 0152 D6; the owner,
+   * 2026-09-28: "dutch know 'één migratie en 4 migraties'. So we use 'migratie'
+   * in instead of 'verhuizing'"). Every form: *verhuizing*, *verhuist*,
+   * *verhuisd*, *verhuizen*.
+   *
+   * Asked of the built pages, so a page title from `build.mjs` counts as much as
+   * a sentence in `copy.mjs` or `pages/nl/`.
+   *
+   * THE LEGAL TEXTS ARE EXCUSED, by name and for one reason: they are the
+   * owner's and the lawyer's (0139), and chose *verhuizing* as the Alpha
+   * conditions' own word before D6. When they follow D6, their excuse fails
+   * below, so it cannot outlive its reason. The Alpha conditions joined them
+   * as a page of their own (0139 T3, #1360).
+   */
+  const LEGAL_STILL_SAYING_VERHUIZING = ['nl/privacy.html', 'nl/voorwaarden.html', 'nl/alpha.html'];
+
+  it('says no form of verhuizen on any Dutch page the site writes (0152 D6)', async () => {
+    const { rendered } = (await import('./build.mjs')) as unknown as {
+      rendered: Array<{ file: string; html: string }>;
+    };
+    const dutch = rendered.filter((p) => p.file.startsWith('nl/') && !LEGAL_STILL_SAYING_VERHUIZING.includes(p.file));
+    // Vacuity: the home page, how it works, pricing, the estimate and the 404.
+    expect(dutch.map((p) => p.file)).toEqual(
+      expect.arrayContaining(['nl/index.html', 'nl/hoe-het-werkt.html', 'nl/prijzen.html', 'nl/schatting.html']),
+    );
+    for (const page of dutch) {
+      expect(page.html.match(/\S*verhui[sz]\S*/gi) ?? [], `${page.file} says a form of verhuizen`).toEqual([]);
+    }
+  });
+
+  it('excuses only legal texts that still say verhuizing', async () => {
+    const { rendered } = (await import('./build.mjs')) as unknown as {
+      rendered: Array<{ file: string; html: string }>;
+    };
+    for (const file of LEGAL_STILL_SAYING_VERHUIZING) {
+      const page = rendered.find((p) => p.file === file);
+      expect(page, `${file} is excused and not built`).toBeDefined();
+      expect(page!.html, `${file} no longer says verhuizing: take it off the list`).toMatch(/verhui[sz]/i);
     }
   });
 });
