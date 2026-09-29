@@ -10,7 +10,7 @@
 # `trigger-version.sh drill` dumps the Trigger.dev database and proves the
 # dump loads. Live never meets CI (T1g), so nothing did either for it.
 #
-# This runs five duties, from live's checkout (`~/ownpace-live`), once a day on
+# This runs six duties, from live's checkout (`~/ownpace-live`), once a day on
 # a systemd timer (the units are in deploy/compose/systemd/, the install steps
 # in docs/managed-bring-up.md, "Live's daily duties"):
 #
@@ -39,12 +39,17 @@
 #                  site; and, when live's .env says WWW_LIVE=true, when
 #                  live's copy of www.ownpace.eu (the project <project>-www)
 #                  is not running and healthy.
+#   strays         idp-strays.sh --remove --at-most 20 (0135 T8): the sign-in
+#                  accounts nobody let in, older than 30 days, removed, which
+#                  privacy §9 promises. More than 20 in one run removes none and
+#                  fails the duty, so a person looks at them first. Its lines
+#                  name an account's id, never its address.
 #
 # EACH DUTY RUNS WHATEVER THE ONE BEFORE IT DID. The token goes first, so the
 # count asks with a token that is alive. A duty that fails, is missing from the
 # checkout, or runs past BOX_DUTY_TIMEOUT seconds (default 1200) is recorded,
 # and the next one starts. At the end the script names every duty that failed
-# and exits 1; all five passing is exit 0. Nobody is told when it fails
+# and exits 1; all six passing is exit 0. Nobody is told when it fails
 # (0142 is where that changes); the journal has it.
 #
 # STOPPED IS STOPPED. `timeout` puts the duty in a process group of its own,
@@ -226,7 +231,7 @@ run_duty() {
   return 0
 }
 
-say "${COMPOSE_PROJECT}: five duties, each one run whatever the one before it did"
+say "${COMPOSE_PROJECT}: six duties, each one run whatever the one before it did"
 
 run_duty token "live's provisioning token, its clock only" \
   "${SCRIPT_DIR}/setup-zitadel.sh" --token-only
@@ -238,10 +243,12 @@ run_duty organisations "the organisations on live's identity provider, read-only
   "${SCRIPT_DIR}/setup-zitadel.sh" --count-organisations
 run_duty site "live's copy of the public site, read-only: no www service in live's project, and the site's own project healthy when WWW_LIVE is true" \
   "${SCRIPT_DIR}/www-live.sh" check
+run_duty strays "sign-in accounts nobody let in, older than 30 days, removed; more than 20 at once removes none" \
+  "${SCRIPT_DIR}/idp-strays.sh" --remove --at-most 20
 
 if [ "${#FAILED[@]}" -gt 0 ]; then
   names="${FAILED[*]}"
-  fail_line "FAILED: ${names// /, } (${#FAILED[@]} of 5 duties). Each one's own words are above."
+  fail_line "FAILED: ${names// /, } (${#FAILED[@]} of 6 duties). Each one's own words are above."
   exit 1
 fi
-say "all 5 duties passed"
+say "all 6 duties passed"

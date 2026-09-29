@@ -665,6 +665,11 @@ the database names people none of whom has an account at this provider. A
 removal's line names the account's id, never its address. Workplan 0135 T8 has
 the rule, and why each part of it is there.
 
+On live it runs once a day, as `--remove --at-most 20`, among the daily duties
+(`docs/managed-bring-up.md`, *Live's daily duties*). A day with more than 20
+removes none and fails the duty `strays`: list them, and if they are right,
+remove them by hand with `--remove`.
+
 ## Tenant offboarding (GDPR right to erasure, §17)
 
 > ⚠️ **This section was rewritten 2026-08-18 (workplan 0085).** It previously

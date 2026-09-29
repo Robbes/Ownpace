@@ -44,9 +44,41 @@ const en = {
   'report.description': 'What happened?',
   'report.descriptionHint': 'What you were doing, what you expected, and what you saw instead.',
   'report.screenshot': 'Screenshot (optional)',
-  'report.screenshotHint': 'PNG or JPEG, up to 5 MB. It shows your screen: check it first.',
+  'report.screenshotHint':
+    'PNG or JPEG, up to 5 MB: choose one, drop it here, or paste it anywhere on this page. ' +
+    'It shows your screen: check it first.',
   'report.screenshotTooBig': 'That picture is larger than 5 MB.',
   'report.screenshotType': 'Choose a PNG or a JPEG.',
+  // How to make one, a closed fold under the field (the owner, 2026-09-28):
+  // one line for each kind of device, from each vendor's own help page, and
+  // what to look at before sending it. Print Screen copies the whole screen on
+  // Windows 10; on Windows 11 it opens the same snipping bar as Windows+Shift+S,
+  // unless its keyboard setting is turned off.
+  'report.screenshotHelp': 'How do I make a screenshot?',
+  'report.screenshotHelp.windows':
+    'Windows: press Windows+Shift+S, choose the part of the screen, then paste it here with Ctrl+V. ' +
+    'Or press Print Screen (on Windows 11 you get the same choice), then paste.',
+  'report.screenshotHelp.mac':
+    'Mac: press Shift+Command+4, drag over the part you want, then choose the picture from your desktop. ' +
+    'Or press Control+Shift+Command+4 to copy it instead, and paste it here with Command+V.',
+  'report.screenshotHelp.iphone':
+    'iPhone or iPad: press the side or top button and volume up at the same time (on a model with a ' +
+    'Home button: the side or top button and the Home button). Then choose the picture from Photos.',
+  'report.screenshotHelp.android':
+    'Android: press power and volume down at the same time, on most phones. Then choose the picture from your photos.',
+  'report.screenshotHelp.chromebook': 'Chromebook: press Ctrl+Show windows, then paste it here with Ctrl+V.',
+  'report.screenshotHelp.check':
+    'Before you send it, look at it: the picture shows everything that was on your screen, so check that ' +
+    'nothing on it is something you would rather not send.',
+  // What is attached, however it came: chosen, pasted or dropped.
+  'report.screenshotAttached': 'Attached: {name} ({size}).',
+  'report.screenshotRemove': 'Remove the screenshot',
+  // Only where the browser can read a picture from the clipboard.
+  'report.screenshotPaste': 'Paste screenshot',
+  'report.screenshotPasteEmpty':
+    'There is no picture on the clipboard. Make a screenshot first, then press Paste screenshot again.',
+  'report.screenshotPasteFailed':
+    'This browser could not read the clipboard. Paste with Ctrl+V instead, or with Command+V on a Mac.',
   'report.tooLarge': 'The screenshot is too large to send: choose a smaller one and send the report again.',
   'report.timedOut':
     'No answer came within {minutes} minutes, so this page cannot tell whether your report arrived. ' +
@@ -1435,6 +1467,12 @@ const en = {
   // it does (`ConfirmMigration.tsx`); nothing else here is there to press.
   'confirm.countError': 'Counting did not start:',
   'confirm.countAgain': 'This screen counts again by itself once copying resumes.',
+  // Start waits for the count it would be pressed on, fifteen minutes at most
+  // (the owner, 2026-09-28), and then opens without it, saying so
+  // (`ConfirmMigration.tsx`, `stillCounting`).
+  'confirm.startWaits': 'You can start once the count is in, or after 15 minutes at most.',
+  'confirm.countUnfinished':
+    'The count did not finish within 15 minutes. You can start anyway: anything that cannot be copied is listed on the migration’s page once it is found.',
   // The manifest that could not be read (0153 T1 (a)): the reason follows,
   // verbatim, so this is the frame and not the finding.
   'confirm.manifestError': 'The list of what migrates could not be read:',
@@ -2641,9 +2679,34 @@ const nl: Record<keyof typeof en, string> = {
   'report.description': 'Wat gebeurde er?',
   'report.descriptionHint': 'Wat u deed, wat u verwachtte, en wat u in plaats daarvan zag.',
   'report.screenshot': 'Schermafbeelding (optioneel)',
-  'report.screenshotHint': 'PNG of JPEG, tot 5 MB. Hij toont uw scherm: bekijk hem eerst.',
+  'report.screenshotHint':
+    'PNG of JPEG, tot 5 MB: kies er een, sleep hem hierheen of plak hem ergens op deze pagina. ' +
+    'Hij toont uw scherm: bekijk hem eerst.',
   'report.screenshotTooBig': 'Die afbeelding is groter dan 5 MB.',
   'report.screenshotType': 'Kies een PNG of een JPEG.',
+  'report.screenshotHelp': 'Hoe maak ik een schermafbeelding?',
+  'report.screenshotHelp.windows':
+    'Windows: druk op Windows+Shift+S, kies het deel van het scherm en plak hem hier met Ctrl+V. ' +
+    'Of druk op Print Screen (in Windows 11 krijgt u dan dezelfde keuze) en plak hem daarna.',
+  'report.screenshotHelp.mac':
+    'Mac: druk op Shift+Command+4, sleep over het deel dat u wilt en kies de afbeelding daarna op uw bureaublad. ' +
+    'Of druk op Control+Shift+Command+4 om hem te kopiëren, en plak hem hier met Command+V.',
+  'report.screenshotHelp.iphone':
+    'iPhone of iPad: druk tegelijk op de zij- of bovenknop en volume omhoog (op een model met een ' +
+    "thuisknop: de zij- of bovenknop en de thuisknop). Kies de afbeelding daarna in Foto's.",
+  'report.screenshotHelp.android':
+    "Android: druk tegelijk op de aan/uit-knop en volume omlaag, op de meeste telefoons. Kies de afbeelding daarna uit uw foto's.",
+  'report.screenshotHelp.chromebook': 'Chromebook: druk op Ctrl+Vensters weergeven en plak hem hier met Ctrl+V.',
+  'report.screenshotHelp.check':
+    'Bekijk hem voordat u hem verstuurt: de afbeelding toont alles wat er op uw scherm stond, dus kijk of ' +
+    'er niets op staat wat u liever niet meestuurt.',
+  'report.screenshotAttached': 'Bijgevoegd: {name} ({size}).',
+  'report.screenshotRemove': 'Schermafbeelding verwijderen',
+  'report.screenshotPaste': 'Schermafbeelding plakken',
+  'report.screenshotPasteEmpty':
+    'Er staat geen afbeelding op het klembord. Maak eerst een schermafbeelding en druk dan opnieuw op Schermafbeelding plakken.',
+  'report.screenshotPasteFailed':
+    'Deze browser kon het klembord niet lezen. Plak dan met Ctrl+V, of met Command+V op een Mac.',
   'report.tooLarge': 'De schermafbeelding is te groot om te versturen: kies een kleinere en verstuur de melding opnieuw.',
   'report.timedOut':
     'Binnen {minutes} minuten kwam er geen antwoord, dus deze pagina weet niet of uw melding is aangekomen. ' +
@@ -3911,6 +3974,9 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.startErrorFallback': 'het verzoek is mislukt',
   'confirm.countError': 'Het tellen is niet gestart:',
   'confirm.countAgain': 'Dit scherm telt vanzelf opnieuw zodra het kopiëren weer begint.',
+  'confirm.startWaits': 'U kunt starten zodra de telling binnen is, of uiterlijk na 15 minuten.',
+  'confirm.countUnfinished':
+    'De telling was na 15 minuten niet klaar. U kunt toch starten: wat niet gekopieerd kan worden, staat op de pagina van de migratie zodra het gevonden is.',
   'confirm.manifestError': 'De lijst van wat er migreert kon niet worden gelezen:',
   'confirm.openConsole': 'Open de migratieconsole',
   'confirm.whatMigrates': 'Wat migreert er',
