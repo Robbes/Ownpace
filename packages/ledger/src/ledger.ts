@@ -83,6 +83,25 @@ function nameOfFailure(row: {
   return name ? { displayName: name } : {};
 }
 
+/**
+ * A sharing list refused because its migration is not there, or is another
+ * organisation's (workplan 0139 T6; privacy-sharing-list (b)). Nothing was
+ * written. The API answers it as the 404 any migration that is not there gets:
+ * in practice the migration was deleted while a rescan scanned. See
+ * `PgLedger.upsertShareGrants`.
+ */
+export class ShareListWithoutMigration extends Error {
+  readonly mappingId: string;
+  constructor(mappingId: string) {
+    super(
+      `There is no migration ${mappingId} in this organisation to write a sharing list for; ` +
+        'nothing was written.',
+    );
+    this.name = 'ShareListWithoutMigration';
+    this.mappingId = mappingId;
+  }
+}
+
 export class PgLedger implements Ledger {
   private readonly db: PgDatabase;
 
@@ -1067,6 +1086,25 @@ export class PgLedger implements Ledger {
       readonly isContainer?: boolean;
     }>,
   ): Promise<number> {
+    // THE MIGRATION FIRST, AND HELD (workplan 0139 T6; privacy §4.6 and §9,
+    // privacy-sharing-list (b)). `share_grant.mapping_id` has no foreign key
+    // (migration 0016), and deleting a migration deletes its list in the
+    // delete's transaction, which can only take the rows that exist when it
+    // runs. A rescan scans for seconds or minutes before it gets here, so the
+    // migration may be gone by now, and rows written for it would stay until
+    // the organisation's erasure. So: no migration in this organisation, no
+    // list. `FOR KEY SHARE` holds the row until the caller's transaction ends:
+    // a delete that arrives meanwhile waits for this list to commit, and its
+    // next statement then sees the list and takes it; a delete that came first
+    // leaves no row to hold. Held in the caller's transaction, so called
+    // outside one (the appliance, which never deletes a migration) it is only
+    // the existence check.
+    const [migration] = await this.db
+      .select({ id: schemaPg.mailboxMapping.id })
+      .from(schemaPg.mailboxMapping)
+      .where(and(eq(schemaPg.mailboxMapping.id, mappingId), eq(schemaPg.mailboxMapping.tenantId, tenantId)))
+      .for('key share');
+    if (!migration) throw new ShareListWithoutMigration(mappingId);
     let created = 0;
     for (const g of grants) {
       // Insert-or-touch, one grant at a time: identity is the hash, and a

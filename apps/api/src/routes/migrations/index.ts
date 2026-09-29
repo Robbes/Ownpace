@@ -3203,6 +3203,13 @@ const tokenRevoker = (): TokenRevoker => (revoker ??= new HttpTokenRevoker());
  * them, stays in the appliance's own database until its operator removes the
  * data (`docs/selfhost-ending-the-service.md`). Guard:
  * `a-deleted-migration-takes-its-sharing-list.unit.test.ts`.
+ *
+ * This takes only the rows there when it runs. A sharing rescan that outlives
+ * the migration writes none after it: the list's one writer,
+ * `PgLedger.upsertShareGrants`, holds the migration's row while it writes and
+ * refuses when it is gone, so this delete either waits for that list and then
+ * takes it, or comes first and leaves the rescan no migration to write for. Guard:
+ * `a-rescan-that-outlives-its-migration.integration.test.ts`.
  */
 router.delete(
   '/:mappingId',

@@ -1579,6 +1579,12 @@ export interface Ledger {
    * workplan 0052). Identity is `grantHash`; a known row only refreshes
    * `scannedAt` — an owner's decision is NEVER reset to open by looking
    * again. Returns how many rows are new.
+   *
+   * The Postgres ledger writes nothing, and throws `ShareListWithoutMigration`,
+   * when the migration is not there (workplan 0139 T6): the list goes with its
+   * migration, and a list written for one a delete already took would never
+   * go. It holds the migration's row until the caller's transaction ends, so a
+   * delete that arrives meanwhile waits and takes the list with it.
    */
   upsertShareGrants(
     tenantId: TenantId,

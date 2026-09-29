@@ -783,7 +783,8 @@ cmd_since() {
 -- status and closure are as they were when this was written; the erasure
 -- records are all of them; connections, migrations (with their sharing
 -- lists), people and memberships deleted since are deleted again; a grant
--- withdrawn since loses its token again. Everything else testers did after the copy is lost with the rollback.
+-- withdrawn since loses its token again. Everything else testers did after
+-- the copy is lost with the rollback.
 --
 -- It holds ids and dates: no name, address or credential. It is part of the
 -- copy, and goes with it.
