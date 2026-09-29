@@ -96,22 +96,33 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
    */
   readonly ownsTargetFolderPrefix = true;
   /**
-   * One snapshot of everything already under the target root, natural key
-   * (root-relative path) -> href.
+   * WHAT THE TARGET HOLDS, ONE DIRECTORY AT A TIME, listed when a pass first
+   * needs it (2026-09-28), root-relative directory path -> its listing.
    *
-   * The existence check was a PROPFIND PER FILE. `listEntries()` walks the tree
-   * with one PROPFIND per DIRECTORY, and there are far fewer directories than
-   * files — 670 files across a handful of folders in a real run. Built lazily
-   * and shared, so concurrent items coalesce onto one walk.
+   * The existence check was a PROPFIND PER FILE. It became one walk of the
+   * whole tree, one PROPFIND per directory, before the first write: far fewer
+   * requests for 670 files across a handful of folders. But the walk covered
+   * everything under the root, whatever the pass would touch, and it ran again
+   * on every pass. On a target that already holds an account's worth of
+   * folders, that is the whole account listed, one directory after another,
+   * before anything is copied: the owner's Dropbox pass copied nothing for the
+   * first 40 of its 50 minutes.
+   *
+   * Now a directory is listed the first time something in it is asked about,
+   * and never twice: an existence check lists the file's directory, and making
+   * a folder ready lists its parent. A pass pays for the directories it
+   * touches. Concurrent items share one listing. A directory this writer
+   * creates starts out known to be empty, so it is never listed at all.
+   * `undefined` is a listing that could not be taken, and its files fall back
+   * to the per-item PROPFIND, as the walk's did.
    */
-  private rootKeys: Promise<Map<string, string> | undefined> | undefined;
+  private readonly listings = new Map<string, Promise<DirectoryListing | undefined>>();
   /**
    * Root-relative paths on the target that are COLLECTIONS.
    *
-   * Filled in by `listEntries` as it walks, so it costs nothing extra — that
-   * walk already descends into every directory, it simply did not keep them.
-   * They matter because a directory sitting where a file has to go is a
-   * conflict this writer must not paper over; see `upsertFile`.
+   * Filled in by every listing this writer takes, and by every folder it
+   * creates or finds. They matter because a directory sitting where a file has
+   * to go is a conflict this writer must not paper over; see `upsertFile`.
    */
   private readonly rootDirs = new Set<string>();
   /** Whether `targetFolderPrefix`'s own chain has been created this session. */
@@ -221,18 +232,26 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     await this.ensurePrefixRoot();
     const collection = this.normalizeRelativePath(path);
     if (collection === '') return;
-    // The up-front walk fills `rootDirs`; a memoised no-op after the first call.
-    await this.keysUnderRoot();
     const segments = collection.split('/');
     for (let depth = 1; depth <= segments.length; depth++) {
       const prefix = segments.slice(0, depth).join('/');
       if (this.rootDirs.has(prefix)) continue;
-      if (await this.directoryExists(prefix)) {
+      // Asked of the parent's listing, which fills `rootDirs` with its
+      // siblings too, so a folder's neighbours cost nothing more. A parent that
+      // could not be listed is asked the old way, one PROPFIND.
+      const parent = await this.listingOf(this.parentOf(prefix));
+      const exists = parent ? parent.dirs.has(prefix) : await this.directoryExists(prefix);
+      if (exists) {
         this.rootDirs.add(prefix);
         continue;
       }
-      await this.createDirectory(prefix);
+      const created = await this.createDirectory(prefix);
       this.rootDirs.add(prefix);
+      parent?.dirs.add(prefix);
+      // Made by this writer a moment ago, so it holds nothing: nothing in it
+      // needs asking about. Not so when the server said it was already there
+      // (405), which is a directory this writer knows nothing about.
+      if (created) this.listings.set(prefix, Promise.resolve({ files: new Map(), dirs: new Set() }));
     }
   }
 
@@ -264,7 +283,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
       if (written.conflicted) {
         return { targetId: written.path, created: false, conflicted: true };
       }
-      (await this.keysUnderRoot())?.set(this.normalizeRelativePath(naturalKey), written.path);
+      await this.rememberFile(this.normalizeRelativePath(naturalKey), written.path);
       return {
         targetId: written.path,
         created: false,
@@ -336,11 +355,12 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     // source file and retry, or accept leaving it behind. Exactly the shape
     // per-item failure isolation exists for.
     //
-    // The snapshot has to be awaited FIRST: `rootDirs` is filled in by that
-    // walk, so consulting it beforehand always reads an empty set. (It did, and
-    // the unit test below caught it.) The call is memoised, so this costs
-    // nothing — `existingTargetId` awaits the very same promise.
-    await this.keysUnderRoot();
+    // The file's directory has to be listed FIRST: `rootDirs` is filled in by
+    // that listing, so consulting it beforehand reads a set without this
+    // directory's children. (The walk it replaced had the same order, and the
+    // unit test below caught it once.) The listing is memoised, so this costs
+    // nothing more: `existingTargetId` awaits the very same promise.
+    await this.listingOf(this.parentOf(this.normalizeRelativePath(naturalKey)));
     if (this.rootDirs.has(this.normalizeRelativePath(naturalKey))) {
       throw new Error(
         `Cannot write ${naturalKey}: the target already holds a DIRECTORY at that path. ` +
@@ -410,14 +430,14 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     // below is true of it. The snapshot is kept current, as the create path
     // keeps it.
     if (written.alreadyHeld) {
-      (await this.keysUnderRoot())?.set(this.normalizeRelativePath(naturalKey), written.path);
+      await this.rememberFile(this.normalizeRelativePath(naturalKey), written.path);
       return adopt(written.path);
     }
     // The digest the upload made on its way past, when it streamed. Falls back
     // to the buffered hash, which is what every non-streaming source produces.
     if (written.contentHash !== undefined) contentHashValue = written.contentHash;
     const fileId = written.path;
-    (await this.keysUnderRoot())?.set(this.normalizeRelativePath(naturalKey), fileId);
+    await this.rememberFile(this.normalizeRelativePath(naturalKey), fileId);
 
     // RECORD IN LEDGER
     await this.ledger.recordIfAbsent({
@@ -459,38 +479,57 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
   }
 
   /**
-   * Natural key -> href for everything already under the root; undefined when
-   * the target cannot be walked, in which case the caller falls back to the
-   * per-item PROPFIND. A target we cannot enumerate must still be migratable.
+   * What one directory on the target holds, listed the first time it is asked
+   * about and never again (see `listings`). `undefined` when it could not be
+   * listed, and the caller falls back to the per-item PROPFIND: a target we
+   * cannot enumerate must still be migratable.
    */
-  private keysUnderRoot(): Promise<Map<string, string> | undefined> {
-    if (!this.rootKeys) {
-      this.rootKeys = (async () => {
+  private listingOf(dir: string): Promise<DirectoryListing | undefined> {
+    const key = this.normalizeRelativePath(dir);
+    let listing = this.listings.get(key);
+    if (!listing) {
+      listing = (async () => {
         try {
-          const keys = new Map<string, string>();
-          for await (const entry of this.listEntries()) {
-            keys.set(entry.naturalKey, entry.targetId);
+          const listed: DirectoryListing = { files: new Map(), dirs: new Set() };
+          for (const child of await this.propfindChildren(key)) {
+            if (child.isDirectory) {
+              listed.dirs.add(child.path);
+              this.rootDirs.add(child.path);
+            } else {
+              listed.files.set(child.path, child.path);
+            }
           }
-          return keys;
+          return listed;
         } catch (err) {
           log.warn(
-            `[webdav] could not walk the target root up front, falling back to a per-item ` +
-              `existence check: ${err instanceof Error ? err.message : String(err)}`,
+            `[webdav] could not list ${key || '/'} on the target, falling back to a per-item ` +
+              `existence check for what is in it: ${err instanceof Error ? err.message : String(err)}`,
           );
           return undefined;
         }
       })();
+      this.listings.set(key, listing);
     }
-    return this.rootKeys;
+    return listing;
   }
 
-  /** Is this file already on the target? Snapshot first, per-item PROPFIND as fallback. */
+  /**
+   * A file this writer put on the target, kept in its directory's listing when
+   * that listing has been taken. One not taken yet is left alone: when it is
+   * taken, the file is in it.
+   */
+  private async rememberFile(path: string, href: string): Promise<void> {
+    (await this.listings.get(this.parentOf(path)))?.files.set(path, href);
+  }
+
+  /** Is this file already on the target? Its directory's listing first, per-item PROPFIND as fallback. */
   private async existingTargetId(
     parentId: string,
     naturalKey: string,
   ): Promise<string | undefined> {
-    const keys = await this.keysUnderRoot();
-    if (keys) return keys.get(this.normalizeRelativePath(naturalKey));
+    const path = this.normalizeRelativePath(naturalKey);
+    const listing = await this.listingOf(this.parentOf(path));
+    if (listing) return listing.files.get(path);
     return this.findFileByNaturalKey(parentId, naturalKey);
   }
 
@@ -756,7 +795,8 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     }
   }
 
-  private async createDirectory(path: string): Promise<void> {
+  /** `true` when this call made the directory (201), `false` when it was already there (405). */
+  private async createDirectory(path: string): Promise<boolean> {
     const response = await this.requestWithRetry({
       method: 'MKCOL',
       url: this.buildUrl(path),
@@ -770,8 +810,8 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     // caller could not tell — a 409 from a missing ancestor, a 403 from a
     // read-only share, a 401 — so the failure surfaced only later, on the
     // PUT of every file underneath, as a 404 naming this path.
-    if (response.status === 201 || response.status === 405) return;
-    if (response.status >= 200 && response.status < 300) return;
+    if (response.status === 405) return false;
+    if (response.status >= 200 && response.status < 300) return true;
     throw new Error(
       `MKCOL failed for ${path} with status ${response.status}: ${davRefusalBody(response.body)}`,
     );
@@ -1242,6 +1282,14 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
 /**
  * HTTP client interface for WebDAV requests
  */
+/** What one directory on the target holds, as `listingOf` keeps it. */
+interface DirectoryListing {
+  /** Root-relative file path -> href, for the files directly in the directory. */
+  readonly files: Map<string, string>;
+  /** Root-relative paths of the collections directly in it. */
+  readonly dirs: Set<string>;
+}
+
 export interface HttpClient {
   request(options: HttpRequestOptions): Promise<HttpResponse>;
 }
