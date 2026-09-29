@@ -2488,6 +2488,9 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
                 return false;
               }
             },
+            // No privacy line (0139 T4): the owner sends this from their own
+            // box, and the managed service's privacy policy is not theirs.
+            privacyPolicy: null,
             onError: (message, err) => log.error(message, err),
           },
           { note, locale, confirmResend: body.confirmResend === true },

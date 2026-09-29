@@ -39,7 +39,17 @@
  *     boundary: a typo would blank the page for every recipient;
  *  4. unset, it is the production site, the address the site build calls
  *     itself, so a build that was told nothing links what it linked before;
- *  5. no other shipped file in the web app names a legal page's address.
+ *  5. no other shipped file in the web app names a legal page's address;
+ *  6. THE MAIL'S LINK (0139 T4, privacy-share-mail-notice (a)). The mail to
+ *     people items were shared with links the privacy policy, and the API
+ *     sends it, so the API reads the same `.env` key: `managed.yml` hands
+ *     `VITE_LEGAL_SITE_URL` to the api service as `LEGAL_SITE_URL`, and
+ *     `packages/shared/src/privacy-policy-link.ts` makes the address. That
+ *     module cannot import this one (the web bundle's, which `vite.config.ts`
+ *     loads at build time) and this one does not import the shared index, so
+ *     the privacy page's file is written in both. For every value, the mail's
+ *     address must be the web's, and a file the build writes; a value the web
+ *     refuses, the API refuses too.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -49,6 +59,7 @@ import { join, dirname, basename } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import type * as LegalLinks from '../apps/web/src/services/legal-links.ts';
+import type * as MailLink from '../packages/shared/src/privacy-policy-link.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string): string => readFileSync(join(REPO_ROOT, rel), 'utf8');
@@ -65,6 +76,11 @@ const OTA_SITE = 'https://www.ota.ownpace.eu';
  */
 const loadModule = (): Promise<typeof LegalLinks> =>
   import('../apps/web/src/services/legal-links.ts');
+
+/** The mail's half, loaded the same way (point 6). */
+const MAIL_MODULE = 'packages/shared/src/privacy-policy-link.ts';
+const MAIL_SETTING = 'LEGAL_SITE_URL';
+const loadMailModule = (): Promise<typeof MailLink> => import('../packages/shared/src/privacy-policy-link.ts');
 
 interface Built {
   readonly pages: ReadonlyArray<{ readonly locale: string; readonly key: string; readonly file: string }>;
@@ -140,21 +156,21 @@ describe('the build is read, so the checks below compare real files', () => {
   });
 });
 
-describe('every address the app links is a file the site build writes', () => {
-  /** One address, held to the file the build writes for that language and page. */
-  function expectWritten(address: string, origin: string, locale: string, page: string): void {
-    expect(address.startsWith(`${origin}/`), `${address} is not on ${origin}`).toBe(true);
-    const file = address.slice(origin.length + 1);
-    const written = built().pages.find((p) => p.file === file);
-    expect(
-      written,
-      `${address} links ${file}, which the site build does not write. The site's\n` +
-        'nginx serves files as they are named, so this link is a 404.',
-    ).toBeDefined();
-    expect(written?.locale, `${address} is the ${locale} ${page} link`).toBe(locale);
-    expect(written?.key, `${address} is the ${locale} ${page} link`).toBe(page);
-  }
+/** One address, held to the file the build writes for that language and page. */
+function expectWritten(address: string, origin: string, locale: string, page: string): void {
+  expect(address.startsWith(`${origin}/`), `${address} is not on ${origin}`).toBe(true);
+  const file = address.slice(origin.length + 1);
+  const written = built().pages.find((p) => p.file === file);
+  expect(
+    written,
+    `${address} links ${file}, which the site build does not write. The site's\n` +
+      'nginx serves files as they are named, so this link is a 404.',
+  ).toBeDefined();
+  expect(written?.locale, `${address} is the ${locale} ${page} link`).toBe(locale);
+  expect(written?.key, `${address} is the ${locale} ${page} link`).toBe(page);
+}
 
+describe('every address the app links is a file the site build writes', () => {
   // The origin each case must land on is written here or read from the build,
   // never taken from the module: a module that ignored the setting would
   // otherwise agree with itself.
@@ -332,6 +348,62 @@ describe('the value', () => {
   ])('refuses %s, naming the setting', async (_name, value) => {
     const m = await loadModule();
     expect(() => m.legalSiteFrom({ [SETTING]: value })).toThrow(SETTING);
+  });
+});
+
+describe("the mail's link to the privacy policy (0139 T4)", () => {
+  it.each([
+    ['unset, the production site', undefined, (): string => built().publicSite],
+    ['the OTA test site, with a trailing slash', `${OTA_SITE}/`, (): string => OTA_SITE],
+  ])('%s: the address the web links, and a file the build writes, in every language', async (_name, value, origin) => {
+    const web = await loadModule();
+    const mail = await loadMailModule();
+    for (const locale of legalPagesBuilt().keys()) {
+      const lang = locale as 'en' | 'nl';
+      const address = mail.privacyPolicyUrl(lang, value === undefined ? {} : { [MAIL_SETTING]: value });
+      expect(address, `${MAIL_MODULE} and ${MODULE} disagree on the ${locale} privacy page`).toBe(
+        web.legalUrl('privacy', lang, value === undefined ? {} : { [SETTING]: value }),
+      );
+      expectWritten(address, origin(), locale, 'privacy');
+    }
+  });
+
+  it.each([
+    ['a scheme that is not http(s)', 'javascript:alert(1)'],
+    ['no scheme at all', 'www.ownpace.eu'],
+    ['a path, where the site writes its pages at the root', `${OTA_SITE}/legal/`],
+    ['a query', `${OTA_SITE}/?lang=nl`],
+  ])('refuses %s, as the web build does, naming both names', async (_name, value) => {
+    const mail = await loadMailModule();
+    expect(() => mail.privacyPolicyUrl('en', { [MAIL_SETTING]: value })).toThrow(MAIL_SETTING);
+    // The operator sets the .env key, not the api's name for it.
+    expect(() => mail.privacyPolicyUrl('en', { [MAIL_SETTING]: value })).toThrow(SETTING);
+  });
+
+  it('managed.yml hands the api the same .env key the web build takes', () => {
+    const compose = parseYaml(read('deploy/compose/managed.yml')) as {
+      services: Record<string, { environment?: Record<string, unknown> }>;
+    };
+    expect(
+      compose.services.api?.environment?.[MAIL_SETTING],
+      `managed.yml does not pass ${SETTING} to the api as ${MAIL_SETTING}, so the mail\n` +
+        "links the production site's policy while the web links the stack's own site.",
+    ).toBe(`\${${SETTING}:-}`);
+  });
+
+  it('the managed press hands the mail the address, and the appliance hands none', () => {
+    // The appliance's owner sends the mail from their own box; our policy is
+    // not theirs (privacy §4.6 is the managed service's).
+    const managed = read('apps/api/src/routes/migrations/operating-routes.ts');
+    const start = managed.indexOf("'/:mappingId/sharing/announce'");
+    expect(start, 'the managed announce route moved or was renamed').toBeGreaterThan(-1);
+    const handler = managed.slice(start, managed.indexOf('\nrouter.', start));
+    expect(handler).toMatch(/\bprivacyPolicyUrl\(locale, process\.env\)/);
+    expect(handler).toMatch(/\bprivacyPolicy,/);
+    expect(handler).not.toMatch(/privacyPolicy:\s*null/);
+    const appliance = read('apps/selfhost/src/index.ts');
+    const press = appliance.slice(appliance.indexOf('const sharingAnnounceMatch'));
+    expect(press.slice(0, press.indexOf('announceByHandShares(') + 2000)).toMatch(/privacyPolicy:\s*null/);
   });
 });
 

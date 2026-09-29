@@ -69,6 +69,7 @@ import {
   renderCompletionReportMarkdown,
   finishTransition,
   log,
+  privacyPolicyUrl,
 } from '@openmig/shared';
 import type {
   ApplyDeletionsFlag,
@@ -773,7 +774,8 @@ router.post(
  * type, at its own cutover, and a data type announced before is mailed again
  * only on purpose (`confirmResend`), never as a silent duplicate
  * (`announceByHandShares`, 0128 T5). Per grantee: their items only (§17 —
- * least disclosure).
+ * least disclosure). Each mail closes with a privacy line and the policy's
+ * address, in the mail's language (0139 T4, privacy §4.6).
  */
 router.post(
   '/:mappingId/sharing/announce',
@@ -795,6 +797,10 @@ router.post(
       const locale: NotificationLocale = body.locale === 'nl' ? 'nl' : 'en';
       const decidedBy = req.userId ?? 'unknown';
       const isCutOver = await shareGateOf(s);
+      // The privacy line's address (0139 T4, privacy §4.6), in the mail's
+      // language, on the site LEGAL_SITE_URL names. Made before anything is
+      // sent, so a value it cannot use sends nothing.
+      const privacyPolicy = privacyPolicyUrl(locale, process.env);
 
       const outcome = await withLedger(s.tenantId, (l) =>
         announceByHandShares(
@@ -806,6 +812,7 @@ router.post(
             isCutOver,
             channelIsOn: channelIsOn(),
             tell: async (grantee, message) => (await tellMessage(grantee, locale, message)) === 'sent',
+            privacyPolicy,
             onError: (m: string, err: unknown) => log.error(m, err),
           },
           { note, locale, confirmResend: body.confirmResend === true },

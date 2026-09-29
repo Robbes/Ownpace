@@ -1085,6 +1085,13 @@ services:
       # off, which is every deployment but the one testers use.
       # `scripts/an-alpha-both-halves-know-about.unit.test.ts`.
       OWNPACE_STAGE: ${OWNPACE_STAGE:-}
+      # WHERE THE PRIVACY POLICY IS (workplan 0139 T4): the mail to people items
+      # were shared with closes with a link to it, and the API sends that mail.
+      # The same .env key the web build takes below as VITE_LEGAL_SITE_URL, so
+      # the mail and the app link the same site. Empty is the production site
+      # (`packages/shared/src/privacy-policy-link.ts`); a value the link cannot
+      # use stops the api's start. `scripts/a-policy-link-that-answers.unit.test.ts`.
+      LEGAL_SITE_URL: ${VITE_LEGAL_SITE_URL:-}
       # THE RULE FOR A HOST A TENANT GIVES US (workplan 0136 T1, T2): the API
       # refuses to connect to an address inside this service's own network, but
       # for these exact names. The gate's stack names its demo targets
@@ -1133,7 +1140,8 @@ services:
         VITE_OIDC_ISSUER: ${VITE_OIDC_ISSUER:-}
         VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:-}
         # Where the legal pages live (workplan 0139 T10). Empty is the production
-        # site, the default in `apps/web/src/services/legal-links.ts`.
+        # site, the default in `apps/web/src/services/legal-links.ts`. The api
+        # service above reads the same key as LEGAL_SITE_URL (0139 T4).
         VITE_LEGAL_SITE_URL: ${VITE_LEGAL_SITE_URL:-}
         # The support screen's way through to an account at the provider.
         # setup-zitadel.sh writes it; empty means the screen shows the address
