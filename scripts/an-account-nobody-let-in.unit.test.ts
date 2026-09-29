@@ -16,19 +16,48 @@
  *   among them, are never listed; nor is a machine user, or an account whose
  *   age it cannot read. Every page of the listing is read.
  *
+ *   An account that was let in is kept (2026-09-29). A member removed on the
+ *   Team page (`apps/api/src/routes/tenants/members.ts`) or by `operator.sh
+ *   leave` has no member row left, and the script took their used account for
+ *   one nobody let in. Privacy §9's 30 days are for an account "that we never
+ *   let in" (`site/legal/privacy.md`), and the owner's answer was "unused, yes"
+ *   (`site/legal/README.md`). Both removals record `member.removed` in
+ *   `audit_log` with the subject, and the script keeps every subject so
+ *   recorded. `apps/api/src/routes/tenants/a-member-removed-is-recorded.unit.test.ts`
+ *   holds the route's half.
+ *
+ *   Only our own organisation's accounts. An account whose
+ *   `details.resourceOwner` is not `GET /management/v1/orgs/me`'s id is
+ *   another organisation's, and one given a membership or a grant at the
+ *   provider was given a role there by hand: both are left alone. A membership
+ *   or grant answer is read as the provider counts it, the larger of its list
+ *   and its count; one that counts roles it lists elsewhere, or not at all, is
+ *   refused, never read as "no role" (review of 2026-09-29).
+ *
  *   What it removes. Nothing, without `--remove`. With it, exactly what it
  *   listed, each removal on a line with the id and never the address. A
  *   removal that fails is named, and the run fails. With `--at-most N`, as
  *   live's daily duty runs it (0135 T8 (b)), nothing when more than N would go.
  *
  *   When it refuses, removing nothing. A database read that fails, a listing in
- *   a shape it does not know, a token the provider refuses, no token at all,
- *   an instance with no members, and a database whose people have no account
- *   at this provider: each would make everybody look like a stranger.
+ *   a shape it does not know, a page with accounts and no count, an empty page
+ *   before the count is reached, a count below the accounts already given, a
+ *   membership or grant answer in a shape it does not know, a token the
+ *   provider refuses, no token at all,
+ *   an instance with no members, no organisation for the token, a membership
+ *   or grant search that fails, a database whose people have no account at
+ *   this provider, and, with `--remove`, a database with no operator row: each
+ *   would make somebody look like a stranger. In the review of 2026-09-29, a
+ *   stand-in with an empty database beside a provider holding three testers
+ *   removed all three: the strangers check needs somebody named, and
+ *   `--at-most 20` does not stop a stack of 20 or fewer. Listing on a fresh
+ *   stack is still allowed.
  *
  *   One account, at any age (`--subject`), for an organisation that has been
- *   erased; refused while it is still a member anywhere, an operator, or has an
- *   open request or invitation. A subject that is not an id never reaches a URL.
+ *   erased; refused while it is still a member anywhere, was removed from an
+ *   organisation that still exists, is an operator, has an open request or
+ *   invitation, belongs to another organisation or holds a role at the
+ *   provider. A subject that is not an id never reaches a URL.
  *
  *   Whose stack, and the token. The checkout's own project, its database and
  *   its token's volume; the token goes to curl in a file, never on a command
@@ -36,7 +65,10 @@
  *
  * `docker` and `curl` are stubs on the PATH: the database answers what the
  * fixture holds for the statement it is sent, and the provider pages its
- * accounts as the script asks. The statements themselves are held as text.
+ * accounts as the script asks, names its organisation, and answers each
+ * account's memberships and grants, or with a case's own answer
+ * (`STUB_MEMBERSHIPS_ANSWER`, `STUB_GRANTS_ANSWER`). The statements themselves
+ * are held as text.
  */
 
 import { describe, it, expect, afterAll } from 'vitest';
@@ -70,6 +102,7 @@ case "$1" in
     printf 'sql %s | %s\\n' "$2" "$sql" >>"$STUB_LOG"
     case "$sql" in
       *platform_operator*) table=operators ;;
+      *audit_log*) table=removed ;;
       *access_request*) table=requests ;;
       *"status = 'invited'"*) table=invited ;;
       *tenant_member*) table=members ;;
@@ -110,17 +143,45 @@ if [ "$path" = /debug/healthz ]; then
 fi
 printf '%s %s %s\\n' "$method" "$path" "$body" >>"$STUB_CALLS"
 answer() { printf '%s\\n%s' "$2" "$1"; exit 0; }
-[ -n "$header_file" ] && [ "$(cat "$header_file")" = "Authorization: Bearer $STUB_TOKEN" ] || answer 401 '{"message":"unauthenticated"}'
+header=''
+[ -n "$header_file" ] && read -r header <"$header_file"
+[ "$header" = "Authorization: Bearer $STUB_TOKEN" ] || answer 401 '{"message":"unauthenticated"}'
 [ "\${STUB_REFUSE:-}" = 1 ] && answer 401 '{"message":"token expired"}'
 case "$method $path" in
   'POST /admin/v1/members/_search') answer 200 "$(cat "$STUB_DIR/iam.json")" ;;
   'POST /management/v1/orgs/me/members/_search') answer 200 "$(cat "$STUB_DIR/org.json")" ;;
+  'GET /management/v1/orgs/me')
+    [ "\${STUB_FAILS:-}" = orgme ] && answer 500 '{"message":"internal"}'
+    answer 200 "$(cat "$STUB_DIR/orgme.json")" ;;
+  'POST /management/v1/users/grants/_search')
+    id=''
+    re='"userId":"([^"]*)"'
+    [[ "$body" =~ $re ]] && id="\${BASH_REMATCH[1]}"
+    [ "\${STUB_FAILS:-}" = grants ] && answer 500 '{"message":"internal"}'
+    [ -n "\${STUB_GRANTS_ANSWER:-}" ] && answer 200 "$STUB_GRANTS_ANSWER"
+    [ -n "$id" ] && [ -e "$STUB_DIR/grants/$id" ] && answer 200 '{"details":{"totalResult":"1"},"result":[{"id":"g-'"$id"'","userId":"'"$id"'","roleKeys":["reader"]}]}'
+    answer 200 '{"details":{}}' ;;
+  'POST /management/v1/users/'*'/memberships/_search')
+    id="\${path#/management/v1/users/}"
+    id="\${id%%/*}"
+    [ "\${STUB_FAILS:-}" = memberships ] && answer 500 '{"message":"internal"}'
+    [ -n "\${STUB_MEMBERSHIPS_ANSWER:-}" ] && answer 200 "$STUB_MEMBERSHIPS_ANSWER"
+    [ -e "$STUB_DIR/memberships/$id" ] && answer 200 '{"details":{"totalResult":"1"},"result":[{"userId":"'"$id"'","projectId":"p1","roles":["PROJECT_OWNER"]}]}'
+    answer 200 '{"details":{}}' ;;
   'POST /v2/users')
     [ -n "\${STUB_LISTING:-}" ] && answer 200 "$STUB_LISTING"
-    answer 200 "$(jq -c --argjson q "$body" --arg every "\${STUB_IGNORES_TYPE:-}" '
+    # STUB_EMPTY_FROM: from that offset on, an empty page, with the count
+    # (STUB_EMPTY_COUNT=keep) or with nothing at all.
+    answer 200 "$(jq -c --argjson q "$body" --arg every "\${STUB_IGNORES_TYPE:-}" \\
+        --argjson emptyFrom "\${STUB_EMPTY_FROM:-null}" --arg emptyCount "\${STUB_EMPTY_COUNT:-}" '
       (if $every == "" and ($q.queries // [] | any(.typeQuery.type == "TYPE_HUMAN")) then map(select(has("human"))) else . end) as $all
-      | { details: { totalResult: ($all | length | tostring) },
-          result: $all[($q.query.offset // 0) : (($q.query.offset // 0) + ($q.query.limit // 100))] }' "$STUB_DIR/humans.json")" ;;
+      | ($q.query.offset // 0) as $o
+      | if $emptyFrom != null and $o >= $emptyFrom then
+          (if $emptyCount == "keep" then { details: { totalResult: ($all | length | tostring) }, result: [] } else {} end)
+        else
+          { details: { totalResult: ($all | length | tostring) },
+            result: $all[$o : ($o + ($q.query.limit // 100))] }
+        end' "$STUB_DIR/humans.json")" ;;
   'DELETE /v2/users/'*)
     id="\${path##*/}"
     case " \${STUB_DELETE_FAILS:-} " in *" $id "*) answer 500 '{"message":"internal"}' ;; esac
@@ -136,10 +197,12 @@ interface Account {
   /** How old the account is, in days; undefined means no creation date. */
   days?: number;
   machine?: boolean;
+  /** The organisation at the provider that holds it (`details.resourceOwner`); '100' is ours. */
+  org?: string;
 }
 
-function account({ userId, email, days, machine }: Account): Record<string, unknown> {
-  const details: Record<string, unknown> = { sequence: '7', resourceOwner: '100' };
+function account({ userId, email, days, machine, org }: Account): Record<string, unknown> {
+  const details: Record<string, unknown> = { sequence: '7', resourceOwner: org ?? '100' };
   // The provider stamps fractions of a second, which the script must strip.
   if (days !== undefined) details.creationDate = new Date(Date.now() - days * DAY).toISOString();
   return machine
@@ -151,6 +214,8 @@ interface World {
   accounts?: Account[];
   /** `tenant_member.user_id`, every status. */
   members?: string[];
+  /** `detail.userId` of `audit_log` rows `member.removed`: people let in and removed since. */
+  removed?: string[];
   operators?: string[];
   /** Addresses on open access requests. */
   requests?: string[];
@@ -160,6 +225,12 @@ interface World {
   iam?: string[];
   /** The organisation's members at the provider. */
   org?: string[];
+  /** What `GET /management/v1/orgs/me` answers; the organisation '100' by default. */
+  orgMe?: unknown;
+  /** Accounts with a membership at the provider (a project role, say). */
+  memberships?: string[];
+  /** Accounts with a user grant at the provider. */
+  grants?: string[];
 }
 
 interface Run {
@@ -186,12 +257,19 @@ function run(world: World, opts: { args?: string[]; stub?: Record<string, string
   writeFileSync(join(compose, '.env'), 'POSTGRES_USER=openmigrate\n');
   const lines = (xs: string[] = []) => xs.map((x) => `${x}\n`).join('');
   writeFileSync(join(data, 'members'), lines(world.members));
+  writeFileSync(join(data, 'removed'), lines(world.removed));
   writeFileSync(join(data, 'operators'), lines(world.operators));
   writeFileSync(join(data, 'requests'), lines(world.requests));
   writeFileSync(join(data, 'invited'), lines(world.invited));
   const members = (ids: string[]) => JSON.stringify({ result: ids.map((userId) => ({ userId, roles: ['IAM_OWNER'] })) });
   writeFileSync(join(data, 'iam.json'), members(world.iam ?? ['1']));
   writeFileSync(join(data, 'org.json'), members(world.org ?? []));
+  writeFileSync(join(data, 'orgme.json'), JSON.stringify(world.orgMe ?? { org: { id: '100', name: 'Ownpace' } }));
+  // One file per account holding a role, so the stand-in answers without a process.
+  for (const held of ['memberships', 'grants'] as const) {
+    mkdirSync(join(data, held));
+    for (const id of world[held] ?? []) writeFileSync(join(data, held, id), '');
+  }
   writeFileSync(join(data, 'humans.json'), JSON.stringify((world.accounts ?? []).map(account)));
   const logs = { STUB_LOG: join(root, 'docker.log'), STUB_CALLS: join(root, 'calls.log'), STUB_ARGV: join(root, 'argv.log') };
   for (const f of Object.values(logs)) writeFileSync(f, '');
@@ -269,13 +347,21 @@ describe('whom it lists', () => {
   });
 
   it('asks the provider for humans, a page at a time, and reads every page', () => {
-    const accounts = Array.from({ length: 250 }, (_, n) => ({ userId: `${1000 + n}`, email: `p${n}@example.test`, days: 60 }));
+    // The first and the last are old, on the first page and the third; the
+    // rest are young, so they are weighed without a question to the provider
+    // each (a membership, a grant), which 250 strays would ask 500 times.
+    const accounts = Array.from({ length: 250 }, (_, n) => ({
+      userId: `${1000 + n}`,
+      email: `p${n}@example.test`,
+      days: n === 0 || n === 249 ? 60 : 5,
+    }));
     const r = run({ accounts: [{ userId: '1', email: 'first@provider.example', days: 400 }, ...accounts], members: ['1'] });
     expect(r.status, r.err).toBe(0);
     const listings = r.calls.filter((c) => c.startsWith('POST /v2/users '));
     expect(listings.map((c) => JSON.parse(c.slice('POST /v2/users '.length)).query.offset)).toEqual([0, 100, 200]);
     for (const c of listings) expect(c).toContain('"typeQuery":{"type":"TYPE_HUMAN"}');
-    expect(r.out).toContain('251 accounts at the provider, 250 nobody let in');
+    expect(r.out).toContain('251 accounts at the provider, 2 nobody let in');
+    expect(r.out).toContain('248 younger than 30 days');
     expect(r.out).toContain('  1000  p0@example.test');
     expect(r.out).toContain('  1249  p249@example.test');
   });
@@ -293,10 +379,271 @@ describe('whom it lists', () => {
     const r = run(aStackWithEveryReason());
     expect(r.docker.filter((l) => l.startsWith('sql '))).toEqual([
       `sql ${PROJECT}-db | SELECT DISTINCT user_id FROM tenant_member`,
+      `sql ${PROJECT}-db | SELECT DISTINCT detail->>'userId' FROM audit_log WHERE action = 'member.removed'`,
       `sql ${PROJECT}-db | SELECT user_id FROM platform_operator`,
       `sql ${PROJECT}-db | SELECT DISTINCT email FROM access_request WHERE state = 'open'`,
       `sql ${PROJECT}-db | SELECT DISTINCT email FROM tenant_member WHERE status = 'invited'`,
     ]);
+  });
+});
+
+describe('an account that was let in is kept, also after its membership is gone', () => {
+  // The Team page's removal and `operator.sh leave` delete the member row and
+  // record `member.removed` in audit_log with the subject. Privacy §9's 30 days
+  // are for an account "that we never let in"; the owner's question was
+  // whether these are unused accounts, answered "unused, yes"
+  // (site/legal/README.md). What becomes of a removed member's account is the
+  // owner's open question (0135); until it is answered, it is kept.
+  const withARemovedMember = (): World => {
+    const world = aStackWithEveryReason();
+    world.accounts!.push({ userId: '20', email: 'former@example.test', days: 120 });
+    world.removed = ['20', 'pending:an-invitation-withdrawn'];
+    return world;
+  };
+
+  it('keeps an account whose removal from an organisation is recorded, and says why', () => {
+    const r = run(withARemovedMember(), { args: ['--remove', '--at-most', '20'] });
+    expect(r.status, r.err).toBe(0);
+    expect(r.deleted).toEqual(['10']);
+    expect(r.out).toContain('10 accounts at the provider, 1 nobody let in and older than 30 days.');
+    expect(r.out).toContain('1 let in and removed since');
+  });
+
+  it('refuses --subject for it, naming the reason', () => {
+    const r = run(withARemovedMember(), { args: ['--subject', '20', '--remove'] });
+    expect(r.status).toBe(1);
+    expect(r.err).toContain('account 20 is left alone: it was let in, and removed from an organisation here since.');
+    expect(r.deleted).toEqual([]);
+  });
+
+  it('refuses, before it asks the provider anything, when the record of removals cannot be read', () => {
+    const r = run(withARemovedMember(), { args: ['--remove'], stub: { STUB_DB_FAIL: 'removed' } });
+    expect(r.status).toBe(1);
+    expect(r.err).toContain('could not be read');
+    expect(r.err).toContain('nothing was removed.');
+    expect(r.calls).toEqual([]);
+  });
+});
+
+describe('it removes nothing when the database names nobody', () => {
+  // An emptied database, or one restored without its operator row, beside a
+  // provider that still holds the testers: every tester looks like a
+  // stranger, and at the alpha's scale --at-most 20 does not stop it. Live
+  // always has an operator row after managed-bring-up's "Become the operator".
+  // A reset that brought that row back first and not the members is not seen
+  // here: the runbook holds the duty until the members are back.
+  const aDatabaseThatNamesNobody = (): World => ({
+    accounts: [
+      { userId: '1', email: 'first@provider.example', days: 400 },
+      { userId: '20', email: 'tester1@example.test', days: 60 },
+      { userId: '21', email: 'tester2@example.test', days: 60 },
+      { userId: '22', email: 'tester3@example.test', days: 60 },
+    ],
+  });
+
+  it('--remove refuses when no operator row exists, before it asks the provider anything', () => {
+    const r = run(aDatabaseThatNamesNobody(), { args: ['--remove', '--at-most', '20'] });
+    expect(r.status).toBe(1);
+    expect(r.err).toContain("the database of 'ownpace-managed' has no operator row (platform_operator)");
+    expect(r.err).toContain('Become the operator');
+    expect(r.err).toContain('nothing was removed.');
+    expect(r.deleted).toEqual([]);
+    expect(r.calls).toEqual([]);
+  });
+
+  it('--subject --remove refuses there too', () => {
+    const r = run(aDatabaseThatNamesNobody(), { args: ['--subject', '20', '--remove'] });
+    expect(r.status).toBe(1);
+    expect(r.err).toContain('has no operator row (platform_operator)');
+    expect(r.deleted).toEqual([]);
+    expect(r.calls).toEqual([]);
+  });
+
+  it('a database with members and no operator row refuses --remove as well', () => {
+    const r = run({ ...aStackWithEveryReason(), operators: [] }, { args: ['--remove'] });
+    expect(r.status).toBe(1);
+    expect(r.err).toContain('has no operator row (platform_operator)');
+    expect(r.deleted).toEqual([]);
+  });
+
+  it('but listing, a fresh stack, still works, and says why --remove would refuse', () => {
+    const r = run(aDatabaseThatNamesNobody());
+    expect(r.status, r.err).toBe(0);
+    expect(r.out).toContain('4 accounts at the provider, 3 nobody let in');
+    expect(r.out).toMatch(/^ {2}20 {2}tester1@example\.test/m);
+    expect(r.out).toContain('--remove refuses while the database names no operator (platform_operator)');
+    expect(r.out).not.toContain('To remove these');
+    expect(r.deleted).toEqual([]);
+  });
+});
+
+describe('it weighs only the accounts of our own organisation at the provider', () => {
+  it('leaves an account of another organisation alone, however old, and counts it', () => {
+    const world = aStackWithEveryReason();
+    world.accounts!.push({ userId: '30', email: 'elsewhere@example.test', days: 90, org: '200' });
+    const r = run(world, { args: ['--remove', '--at-most', '20'] });
+    expect(r.status, r.err).toBe(0);
+    expect(r.deleted).toEqual(['10']);
+    expect(r.out).toContain('1 of another organisation at the provider');
+    expect(r.calls).toContain('GET /management/v1/orgs/me ');
+  });
+
+  it('refuses --subject for such an account', () => {
+    const world = aStackWithEveryReason();
+    world.accounts!.push({ userId: '30', email: 'elsewhere@example.test', days: 90, org: '200' });
+    const r = run(world, { args: ['--subject', '30', '--remove'] });
+    expect(r.status).toBe(1);
+    expect(r.err).toContain('account 30 is left alone: it belongs to another organisation at the provider.');
+    expect(r.deleted).toEqual([]);
+  });
+
+  const orgAnswers: Array<[string, { orgMe?: unknown; stub?: Record<string, string> }, RegExp]> = [
+    ['answers 500', { stub: { STUB_FAILS: 'orgme' } }, /the organisation of the provisioning token: the provider answered HTTP 500/],
+    ['names none', { orgMe: { details: {} } }, /the provider named no organisation for the provisioning token/],
+  ];
+  it.each(orgAnswers)('refuses when the organisation it asks for %s', (_what, how, reason) => {
+    const r = run({ ...aStackWithEveryReason(), orgMe: how.orgMe }, { args: ['--remove'], stub: how.stub });
+    expect(r.status).toBe(1);
+    expect(r.err).toMatch(reason);
+    expect(r.err).toContain('nothing was removed.');
+    expect(r.deleted).toEqual([]);
+  });
+
+  it('refuses a listing that names no organisation for an account', () => {
+    const noOrg = account({ userId: '40', email: 'x@example.test', days: 90 });
+    delete (noOrg.details as Record<string, unknown>).resourceOwner;
+    const operator = account({ userId: '12', email: 'operator@example.test', days: 45 });
+    const r = run(aStackWithEveryReason(), {
+      args: ['--remove'],
+      stub: { STUB_LISTING: JSON.stringify({ details: { totalResult: '2' }, result: [operator, noOrg] }) },
+    });
+    expect(r.status).toBe(1);
+    expect(r.err).toContain('names no organisation (details.resourceOwner) for an account');
+    expect(r.err).toContain('nothing was removed.');
+    expect(r.deleted).toEqual([]);
+  });
+
+  it.each([
+    ['a membership', 'memberships'],
+    ['a user grant', 'grants'],
+  ])('leaves an account with %s at the provider alone, and asks only of the accounts it would remove', (_what, where) => {
+    const world = aStackWithEveryReason();
+    world.accounts!.push({ userId: '17', email: 'another@example.test', days: 31 });
+    world[where as 'memberships' | 'grants'] = ['10'];
+    const r = run(world, { args: ['--remove', '--at-most', '20'] });
+    expect(r.status, r.err).toBe(0);
+    expect(r.deleted).toEqual(['17']);
+    expect(r.out).toContain('1 with a membership or a grant at the provider');
+    const asked = r.calls
+      .filter((c) => c.includes('/memberships/_search'))
+      .map((c) => c.split(' ')[1]!.split('/')[4]);
+    expect(asked).toEqual(['10', '17']);
+  });
+
+  it.each([['memberships'], ['grants']])('refuses when the %s search fails, removing nothing', (what) => {
+    const r = run(aStackWithEveryReason(), { args: ['--remove'], stub: { STUB_FAILS: what } });
+    expect(r.status).toBe(1);
+    expect(r.err).toMatch(new RegExp(`the ${what} of account 10: the provider answered HTTP 500`));
+    expect(r.err).toContain('nothing was removed.');
+    expect(r.deleted).toEqual([]);
+  });
+
+  it('refuses --subject for an account with a membership at the provider', () => {
+    const r = run({ ...aStackWithEveryReason(), memberships: ['15'] }, { args: ['--subject', '15', '--remove'] });
+    expect(r.status).toBe(1);
+    expect(r.err).toContain('account 15 is left alone: it holds a membership or a grant at the provider.');
+    expect(r.deleted).toEqual([]);
+  });
+});
+
+describe('a role at the provider is read as the provider counts it, or the run refuses', () => {
+  // The memberships and grants searches have met stand-ins only (0135 Status:
+  // unverified), so an answer in another shape than expected is the likely
+  // failure, and read as "no role" it removes an account somebody gave a role
+  // by hand. In the review of 2026-09-29, a memberships answer that counted
+  // one and listed it under `results`, and one that counted one and listed
+  // nothing, each removed account 10. The account listing fails safe on a
+  // shape it does not know; these now do too.
+  const project = { userId: '10', projectId: 'p1', roles: ['PROJECT_OWNER'] };
+  const grant = { id: 'g1', userId: '10', roleKeys: ['PROJECT_READER'] };
+  const unknown: Array<[string, 'memberships' | 'grants', unknown, string]> = [
+    ['a memberships answer that counts one and lists it under another name', 'memberships',
+      { details: { totalResult: '1' }, results: [project] }, '[["details","results"],[]]'],
+    ['a memberships answer that counts one and lists nothing', 'memberships',
+      { details: { totalResult: '1' } }, '[["details"],[]]'],
+    ['a memberships answer whose list is not a list', 'memberships', { result: project }, '[["result"],[]]'],
+    ['a memberships answer whose count is not a number', 'memberships',
+      { details: { totalResult: 'one' }, result: [] }, '[["details","result"],[]]'],
+    ['a grants answer that counts one and lists it under another name', 'grants',
+      { details: { totalResult: '1' }, grants: [grant] }, '[["details","grants"],[]]'],
+  ];
+  it.each(unknown)('refuses %s, naming its fields and none of their values', (_what, where, answer, fields) => {
+    const stub = where === 'memberships' ? 'STUB_MEMBERSHIPS_ANSWER' : 'STUB_GRANTS_ANSWER';
+    const r = run(aStackWithEveryReason(), { args: ['--remove', '--at-most', '20'], stub: { [stub]: JSON.stringify(answer) } });
+    expect(r.status).toBe(1);
+    expect(r.err).toContain(`the ${where} of account 10 came back in a shape this does not know. Its answer's fields: ${fields}`);
+    expect(r.err).toContain('nothing was removed.');
+    expect(r.err).not.toMatch(/PROJECT_OWNER|PROJECT_READER/);
+    expect(r.deleted).toEqual([]);
+  });
+
+  it('keeps an account whose memberships answer counts one and lists an empty page', () => {
+    const r = run(aStackWithEveryReason(), {
+      args: ['--remove', '--at-most', '20'],
+      stub: { STUB_MEMBERSHIPS_ANSWER: JSON.stringify({ details: { totalResult: '1' }, result: [] }) },
+    });
+    expect(r.status, r.err).toBe(0);
+    expect(r.deleted).toEqual([]);
+    expect(r.out).toContain('1 with a membership or a grant at the provider');
+  });
+});
+
+describe('the listing is read to its end, or refused', () => {
+  const many = (n: number) =>
+    Array.from({ length: n }, (_, i) => account({ userId: `${2000 + i}`, email: `m${i}@example.test`, days: 60 }));
+
+  it('refuses a page with accounts and no count, which would read as the last page', () => {
+    const r = run({ operators: ['2000'] }, { args: ['--remove'], stub: { STUB_LISTING: JSON.stringify({ result: many(101) }) } });
+    expect(r.status).toBe(1);
+    expect(r.err).toContain('a page of the account listing holds 101 accounts and no count (details.totalResult)');
+    expect(r.err).toContain('nothing was removed.');
+    expect(r.calls.filter((c) => c.startsWith('POST /v2/users '))).toHaveLength(1);
+    expect(r.deleted).toEqual([]);
+  });
+
+  it.each([
+    ['with its count', 'keep'],
+    ['with no count at all', 'none'],
+  ])('refuses an empty page before the count is reached (%s)', (_what, count) => {
+    const accounts = Array.from({ length: 250 }, (_, n) => ({ userId: `${1000 + n}`, email: `p${n}@example.test`, days: 60 }));
+    const r = run(
+      { accounts: [{ userId: '1', email: 'first@provider.example', days: 400 }, ...accounts], members: ['1'], operators: ['1'] },
+      { args: ['--remove'], stub: { STUB_EMPTY_FROM: '100', STUB_EMPTY_COUNT: count } },
+    );
+    expect(r.status).toBe(1);
+    expect(r.err).toContain('the account listing stopped at 100 of the 251 accounts it counted');
+    expect(r.err).toContain('nothing was removed.');
+    expect(r.deleted).toEqual([]);
+  });
+
+  it.each([
+    ['0', 101],
+    ['50', 100],
+  ])('refuses a count of %s beside %i accounts already given, which would read as the last page', (count, n) => {
+    // The accounts are young, so a run that took the page for the last one
+    // lists them all and asks the provider nothing more.
+    const young = Array.from({ length: n }, (_, i) => account({ userId: `${3000 + i}`, email: `y${i}@example.test`, days: 5 }));
+    const r = run({ operators: ['3000'] }, { stub: { STUB_LISTING: JSON.stringify({ details: { totalResult: count }, result: young }) } });
+    expect(r.status).toBe(1);
+    expect(r.err).toContain(`the account listing counts ${count} accounts and has already given ${n}`);
+    expect(r.err).toContain('nothing was removed.');
+    expect(r.calls.filter((c) => c.startsWith('POST /v2/users '))).toHaveLength(1);
+  });
+
+  it('an empty listing with no count is an empty listing: proto3 leaves a zero out', () => {
+    const r = run({}, { stub: { STUB_LISTING: '{}' } });
+    expect(r.status, r.err).toBe(0);
+    expect(r.out).toContain('0 accounts at the provider, 0 nobody let in');
   });
 });
 
@@ -395,7 +742,7 @@ describe('when it refuses, removing nothing', () => {
     refused(r, /lists no members of its instance/);
   });
 
-  it('but a database that names nobody yet, a fresh stack, is no reason to refuse', () => {
+  it('but a database that names nobody yet, a fresh stack, is no reason to refuse a listing', () => {
     const r = run({ accounts: [{ userId: '1', email: 'first@provider.example', days: 400 }, { userId: '10', email: 'stray@example.test', days: 45 }] });
     expect(r.status, r.err).toBe(0);
     expect(r.out).toContain('2 accounts at the provider, 1 nobody let in');
