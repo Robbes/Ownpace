@@ -1002,6 +1002,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/smoke-managed.sh`
 
+- [a-count-the-gate-took-for-a-fourth-level](../scripts/a-count-the-gate-took-for-a-fourth-level.unit.test.ts) — A COUNT CALLED `items`, AND A GATE THAT TOOK IT FOR A FOURTH LEVEL.
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-fixture-smaller-than-a-chunk](../scripts/a-fixture-smaller-than-a-chunk.unit.test.ts) — Every fixture was smaller than a chunk, so the buffering was never tested.
 - [a-person-opened-in-the-wrong-organisation](../scripts/a-person-opened-in-the-wrong-organisation.unit.test.ts) — A SEARCH THAT FINDS ONE PERSON IN TWO ORGANISATIONS, AND A GATE THAT OPENED WHICHEVER ROW POSTGRES HAPPENED TO RETURN FIRST.
@@ -2416,6 +2417,14 @@ Reads:
 ### [a-count-in-a-sentence-the-table-outgrew](../scripts/a-count-in-a-sentence-the-table-outgrew.unit.test.ts)
 
 A COUNT IN A SENTENCE IS A COPY OF THE TABLE, AND A COPY ROTS.
+
+### [a-count-the-gate-took-for-a-fourth-level](../scripts/a-count-the-gate-took-for-a-fourth-level.unit.test.ts)
+
+A COUNT CALLED `items`, AND A GATE THAT TOOK IT FOR A FOURTH LEVEL.
+
+Reads:
+
+- `deploy/compose/smoke-managed.sh`
 
 ### [a-credential-the-next-step-printed](../scripts/a-credential-the-next-step-printed.unit.test.ts)
 
