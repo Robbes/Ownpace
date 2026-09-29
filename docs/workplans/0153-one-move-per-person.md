@@ -184,6 +184,25 @@ words changed with them** (0131 §6, R8).
   at `5f74ebc`: T4 and T7 are still proposed, and no branch or open pull request of R's or M's
   touches them. 0131 §6 records the split.
 
+**2026-09-29, morning: T5 (b)'s first slice, a person's link as a row (ADR-0035's amendment of
+2026-09-29).** No page issues or opens one yet: the doors come with the grant page that opens
+them, by `link-routes.ts`'s own rule that a link no page honours opens nothing.
+
+- **`person_link`**, managed migration 0034 (0033 is taken by #1358's system role): shaped as
+  the ledger's `mapping_link`, with `(person_id, tenant_id)` referencing the person, NULL-safe
+  tenant policies, and its own `link_sees_itself` on `app.current_link`. Deleting the person
+  deletes their links. Erasure purges it before `person`.
+- **`person-link-store.ts`** (managed): issue, verify, spend, revoke, list, count. The secret is
+  made, hashed and compared by the ledger's own `mintLinkSecret`, `hashLinkSecret` and
+  `linkSecretMatches`, now exported so the two kinds cannot drift. A person's token is
+  `p.<id>.<secret>`, and each store refuses the other's by shape before reading anything.
+- **The live-link limit counts both kinds** under the one lock (`liveGrantLinks`), a person's
+  link once whatever it covers.
+- **Proved by** `person-link-under-rls.unit.test.ts` (12, PGlite as `app_user`, both chains) and
+  the limit's route test (34 → 35). Mutations: revoking without the person in the `WHERE`, and
+  the migration without the person's key, each fail their cases; the limit counting migrations
+  only fails the new one.
+
 **2026-09-29, night: T5's first slice, a page per person (0131 §6, R8 step 7, built beside R at
 the owner's word *"continue on the rest"*)**, in #1353, stacked on #1349.
 
