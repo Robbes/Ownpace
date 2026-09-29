@@ -48,7 +48,10 @@ TRIGGER_SECRET_KEY=tr_prod_...
   (`src/jobs/task-pools.ts`): tenant data on `APP_DATABASE_URL`, as `app_user`
   under row security, and one connection on `DATABASE_URL` for the audit
   export's key alone. A run without `APP_DATABASE_URL` refuses to start; it
-  never falls back to the owner. The six scheduled jobs connect with
+  never falls back to the owner. The digest, the drift detector and group
+  discovery take their pools the same way, in their run, and read on
+  `DATABASE_URL` only the list of active organisations (`activeOrganisations`,
+  ids only, workplan 0138 T2). The other three scheduled jobs connect with
   `DATABASE_URL` (workplan 0138, `docs/rls-guide.md`).
 
 ## Deploy

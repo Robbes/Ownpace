@@ -1053,6 +1053,29 @@ export const mappingApi = {
   },
 
   /**
+   * CHANGE HOW OFTEN A MIGRATION SYNCS, after it was created (the owner,
+   * 2026-09-28).
+   *
+   * Sends the schedule and nothing else, for the reason the export policy's
+   * call does: the route refuses every field `mayRevise` refuses, so a body
+   * carrying more than was meant is refused for the wrong reason. The
+   * schedule comes back because it was sent; the tick reads it from the row
+   * on its next firing.
+   */
+  setSchedule: async (mappingId: string, schedule: string) => {
+    const response = await apiClient.put(`/migrations/${mappingId}`, {
+      syncConfig: { schedule },
+    });
+    return z
+      .object({
+        id: z.string(),
+        syncConfig: z.object({ schedule: z.string() }),
+        updatedAt: z.string(),
+      })
+      .parse(response.data);
+  },
+
+  /**
    * ADD ONE DATA TYPE TO A MIGRATION THAT ALREADY EXISTS (workplan 0125 T6).
    *
    * Accepted exactly when the detail's `kindChoices` calls it addable; any

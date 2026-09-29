@@ -68,4 +68,4 @@ priced above their own cost on purpose, so the smaller ones can exist — a sing
 moving one mailbox is not a profitable customer anywhere, and that is exactly the person
 this was built for.
 
-VAT is added where it applies. Self-hosting is free and always will be.
+All prices include VAT. Self-hosting is free and always will be.

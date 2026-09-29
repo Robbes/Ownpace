@@ -295,14 +295,26 @@ describe('every task', () => {
     // Until it opens them, the log page has no sink in a fresh process, and a
     // refusal thrown first (run-rollback's notify check) left a reference that
     // named no event. And ended anywhere but in afterwards, a failure's event
-    // lost its pool (0138 T1 step 2's review).
+    // lost its pool (0138 T1 step 2's review). The three jobs split in two
+    // open theirs in their run too (0138 T2): a daily job holds no pool
+    // between runs, and its first act, the list of organisations, can fail.
     const perRun = tasks.filter(({ code }) => /\n {2}run: [\s\S]*\bopenTaskPools\(\)/.test(code));
-    expect(perRun.map((t) => t.file).sort()).toEqual(['run-cutover.ts', 'run-rollback.ts']);
+    expect(perRun.map((t) => t.file).sort()).toEqual([
+      'managed-digest.ts',
+      'managed-drift-detect.ts',
+      'managed-group-discovery.ts',
+      'run-cutover.ts',
+      'run-rollback.ts',
+    ]);
     for (const { file, code } of perRun) {
       const body = code.slice(code.indexOf('\n  run: '));
-      const firstThrow = body.search(/\bthrow\b/);
-      expect(body.indexOf('openTaskPools()'), file).toBeGreaterThan(0);
-      expect(body.indexOf('openTaskPools()'), `${file} throws before it opens its pools`).toBeLessThan(firstThrow);
+      const opens = body.indexOf('openTaskPools()');
+      expect(opens, file).toBeGreaterThan(0);
+      // Before anything it throws, and before anything it awaits: the list, the
+      // first thing a split job asks, fails like anything else.
+      for (const first of [body.search(/\bthrow\b/), body.search(/\bawait\b/)]) {
+        if (first >= 0) expect(opens, `${file} throws or waits before it opens its pools`).toBeLessThan(first);
+      }
       expect(body, file).toContain('afterwards(() => pools.end());');
     }
   });

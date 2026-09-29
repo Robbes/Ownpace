@@ -1,13 +1,46 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * THE POOLS A PER-TENANT TASK OPENS (workplan 0138 T1 parts 1 and 5).
+ * THE POOLS A TASK OPENS FOR ONE ORGANISATION'S ROWS (workplan 0138 T1 parts
+ * 1 and 5, and T2).
  *
- * The one place a per-tenant task's database pools are built: the eight
+ * The one place a task's database pools are built for tenant data: the eight
  * per-tenant jobs (`run-delta-sync`, `run-discovery`, `run-verification`,
  * `run-confirmation`, `run-apply-deletion`, `run-apply-relocation`,
- * `run-cutover`, `run-rollback`) and the standalone worker (`src/index.ts`)
- * call `openTaskPools` and build none of their own.
+ * `run-cutover`, `run-rollback`), the standalone worker (`src/index.ts`) and,
+ * since T2, the three jobs split in two (`managed-digest`,
+ * `managed-drift-detect`, `managed-group-discovery`) call `openTaskPools` and
+ * build none of their own.
+ *
+ * THE SPLIT JOBS' ONE QUESTION ACROSS ORGANISATIONS (T2, open question 3
+ * answered 2026-09-28, "split them"). The digest, the drift detector and group
+ * discovery each need to know which organisations to visit, and nothing else
+ * across them. `activeOrganisations` answers that, and only that: the ids of
+ * the active organisations, read on the owner's URL on a pool of one that is
+ * closed before it answers. Everything the job then reads or writes for one
+ * organisation (its row, members, migrations, queues, sources, decisions,
+ * groups, audit rows) goes through that organisation's scope on the tenant
+ * pool below. The list is read where it can be read: on `app_user`, with no
+ * organisation set, `tenant` answers no row, and a job handed that empty list
+ * would visit nobody and report a quiet morning. So it first asks whether its
+ * connection sees every organisation (a superuser, or `BYPASSRLS`, which T3
+ * step 2's system role will have), and refuses when it does not. It never
+ * reads `APP_DATABASE_URL`, and it never falls back to it.
+ *
+ * WHAT THIS HANDS OUT, AND NOTHING MORE (0138 T2's review). Review added one
+ * export here that asked the role question and then handed its caller the
+ * list's pool, `acrossOrganisations(work)`, and read every organisation on it
+ * from a split job's run and from a per-tenant job, with every guard green.
+ * `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts` (rule 7) now holds
+ * this module to three values, `openTaskPools`, `activeOrganisations` and
+ * `ACTIVE_ORGANISATIONS_SQL`, and types; to its own short list of imports, so
+ * no query builder and no schema; to naming each pool it builds on the owner's
+ * URL (the key's and the list's) only to ask it one of its two statements by
+ * name, end it, hear its errors or, the key's, hand it to the audit sink; and
+ * `activeOrganisations` to answering `rows.map((row) => row.id)`, declared
+ * `Promise<string[]>`. And it holds each file that imports this to what its
+ * kind may take: a per-tenant job and the standalone worker `openTaskPools`, a
+ * split job that and `activeOrganisations`.
  *
  * TWO POOLS.
  *
@@ -62,19 +95,23 @@
  *
  * NOTHING AT IMPORT. A job imports this at its top, and a test imports the
  * job's helpers from the job. Building a pool or pointing a sink is what
- * `openTaskPools` does when it is CALLED; loading this module does neither.
+ * `openTaskPools` does when it is CALLED, and reading the list is what
+ * `activeOrganisations` does when it is called; loading this module does
+ * neither.
  * `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts` checks both that
  * every per-tenant job calls it and that no top-level statement here runs
  * anything; `a-task-pool-that-fell-back-to-the-owner.unit.test.ts` (beside
  * this file) checks the refusals and the pools, and
  * `a-pass-under-row-security.integration.test.ts` asks Postgres who they are.
  *
- * THE POOLER. Both pools go through PgBouncer in transaction mode, the tenant
- * pool as `app_user`, and share that user's server connections with the API's
- * request path since this step (docs/rls-guide.md, "Where row security holds
- * today"; 0138 Status, 2026-09-28, for the sizing). Every scope here is one
- * transaction, so a server connection is held for the scope and not for the
- * pass.
+ * THE POOLER. Every pool here goes through PgBouncer in transaction mode, the
+ * tenant pool as `app_user`, and shares that user's server connections with
+ * the API's request path since T1's second step (docs/rls-guide.md, "Where
+ * row security holds today"; 0138 Status, 2026-09-28, for the sizing). Every
+ * scope here is one transaction, so a server connection is held for the scope
+ * and not for the pass. The three split jobs run once a day each, at 06:30,
+ * 07:00 and 08:00 UTC, one organisation and one scope at a time: one more of
+ * `app_user`'s server connections at most while one runs.
  */
 
 import { Pool } from 'pg';
@@ -148,4 +185,52 @@ export function openTaskPools(env: TaskEnv = process.env, options: TaskPoolOptio
     tenant,
     end: () => tenant.end(),
   };
+}
+
+/**
+ * The one statement a split job sends across organisations: which ones are
+ * active, by id. No name, no settings, no other table: what the job needs of
+ * an organisation beyond its id it reads in that organisation's own scope
+ * (0138 T2). `a-pass-that-opened-the-owners-pool` holds this module to this
+ * statement and the role question below, and nothing else.
+ */
+export const ACTIVE_ORGANISATIONS_SQL = "SELECT id FROM tenant WHERE status = 'active' ORDER BY id";
+
+/** Whether the connection sees every organisation: a superuser, or a role with `BYPASSRLS`. */
+const SEES_EVERY_ORGANISATION_SQL =
+  'SELECT rolsuper OR rolbypassrls AS sees_every_organisation FROM pg_roles WHERE rolname = current_user';
+
+/**
+ * The organisations a split job visits: the ids of the active ones, read on
+ * the owner's URL (`DATABASE_URL`) on a pool of one, closed before this
+ * returns. Refuses without `DATABASE_URL` (never `APP_DATABASE_URL` in its
+ * place), and refuses on a connection row security binds, where the list would
+ * come back empty and read as nothing to do. See the file header.
+ */
+export async function activeOrganisations(env: TaskEnv = process.env): Promise<string[]> {
+  const ownerUrl = env.DATABASE_URL?.trim();
+  if (!ownerUrl) {
+    throw new Error(
+      'DATABASE_URL is required, for the list of organisations alone: a job split in two asks which ' +
+        'organisations are active on the connection that sees them all, and reads each one on ' +
+        'APP_DATABASE_URL in its own scope; never APP_DATABASE_URL for the list, where it would find ' +
+        'none (workplan 0138 T2).',
+    );
+  }
+  const list = new Pool({ connectionString: ownerUrl, max: 1 });
+  list.on('error', (err) => log.warn(`[organisations] the list's connection closed: ${err.message}`));
+  try {
+    const seen = await list.query<{ sees_every_organisation: boolean }>(SEES_EVERY_ORGANISATION_SQL);
+    if (seen.rows[0]?.sees_every_organisation !== true) {
+      throw new Error(
+        "The list of organisations was asked on a connection that row security binds: with no " +
+          'organisation set it would find none, and the job would visit nobody and call that ' +
+          "nothing to do. It is read on the owner's connection, DATABASE_URL (workplan 0138 T2).",
+      );
+    }
+    const { rows } = await list.query<{ id: string }>(ACTIVE_ORGANISATIONS_SQL);
+    return rows.map((row) => row.id);
+  } finally {
+    await list.end();
+  }
 }

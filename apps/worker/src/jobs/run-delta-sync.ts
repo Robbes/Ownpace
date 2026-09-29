@@ -28,7 +28,7 @@ import {
 import { budgetPauseToReason } from '@openmig/shared';
 import { passStepBefore, type PassHalt, type PassSkip } from './stopping-a-pass.ts';
 import { leavesAReference, planeErrorFor } from './what-a-run-leaves.ts';
-import type { TenantId, MappingId, BudgetPause, DeadlinePause } from '@openmig/shared';
+import type { TenantId, MappingId, BudgetPause, DeadlinePause, PassMetrics } from '@openmig/shared';
 import type { DeltaSyncOutput, DomainOutcome } from './final-sync.ts';
 import { buildDepsFromMapping, buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { enabledDomains, describeAbsentDomains } from '@openmig/orchestration/enabled-domains';
@@ -203,6 +203,14 @@ export const runDeltaSync = schemaTask({
   description: 'Delta Sync',
   schema: DeltaSyncJobSchema,
   queue: deltaSyncQueue,
+  // THE MACHINE A COPY PASS RUNS ON (workplan 0143 T1 step 2): half a CPU and
+  // 512 MB, of which V8 gets 410. Named here because this task copies, for
+  // the tick, *Sync now*, `/start` and a cutover's final sync alike.
+  // Measured 2026-09-28 on the owner's Dropbox pass, the first after #1328:
+  // 307 MiB at its peak, copying a 409 MB file, and 120 to 160 MiB while it
+  // was not copying (0150, Status). Mail's worst case (0143 §3: four bodies
+  // held whole) is not measured yet; that is 0143 T9.
+  machine: 'small-1x',
   run: leavesAReference('run-delta-sync', async (payload: unknown, context) => {
     // Type assertion since schemaTask validates the payload
     const typedPayload = payload as DeltaSyncJobPayload;
@@ -317,6 +325,17 @@ export const runDeltaSync = schemaTask({
     const domainSeconds: Record<string, number> = {};
 
     /**
+     * WHERE EACH DATA TYPE'S PASS SPENT ITS TIME (2026-09-28), beside
+     * `domainSeconds` in `run.stats`. The loop measures it (`PassMetrics`)
+     * and this runner used to drop it: `markCompleted` was called without it,
+     * and nothing else read it. So a Dropbox pass that copied nothing for 40
+     * of its 50 minutes left no record of where they went. Durations and
+     * counts only, never a name (§17), on a row that is written regardless,
+     * and one per pass, where the status row keeps only the last.
+     */
+    const domainMetrics: Record<string, PassMetrics> = {};
+
+    /**
      * The run row closes EXACTLY ONCE, whichever way this task leaves.
      *
      * It used to close on the success path and in the catch, with no net
@@ -339,7 +358,7 @@ export const runDeltaSync = schemaTask({
       runClosed = true;
       try {
         await withTenant(pool, tenantId, async (db) => {
-          await new RunStore(db).finishRun(runId, outcome, { itemsProcessed, errors, domainSeconds });
+          await new RunStore(db).finishRun(runId, outcome, { itemsProcessed, errors, domainSeconds, domainMetrics });
         });
       } catch (finishErr) {
         // Best-effort — never mask the real error with a bookkeeping one.
@@ -478,6 +497,8 @@ export const runDeltaSync = schemaTask({
             firstCopyBytes?: number;
             budgetPause?: BudgetPause;
             deadlinePause?: DeadlinePause;
+            /** Where the pass spent its time; kept in `run.stats` (see `domainMetrics`). */
+            metrics?: PassMetrics;
           };
           if (domain === 'email') {
             // SECURITY: Build deps with tenant scoping: the builder's queries filter by tenant,
@@ -602,9 +623,12 @@ export const runDeltaSync = schemaTask({
                 }
               : undefined;
 
+          // Before the status is written, so a pass that stops at its deadline
+          // keeps its measurements too: that is the pass they are wanted for.
+          if (result.metrics) domainMetrics[domain] = result.metrics;
           if (!pause) {
             await withTenant(pool, tenantId, async (db) => {
-              await new PgMigrationStatusStore(db).markCompleted(tenantId, mappingId, domain);
+              await new PgMigrationStatusStore(db).markCompleted(tenantId, mappingId, domain, result.metrics);
             });
           } else {
             /**

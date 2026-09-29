@@ -69,29 +69,35 @@ Migration `0001_baseline` creates a **non-owner `app_user`** role. RLS is enforc
   download read the pseudonym key through it, and no tenant's rows. It is held
   by the scripts that act at the machine: `bootstrap-managed.sh` (migrations), `seed-managed.sh`
   (the demo tenants), `operator.sh` (appointments, memberships, `check`/`clean`) and
-  `set-task-env.sh`, which uploads it into the Trigger.dev task environment, where **the six jobs
-  that span organisations connect with it**, and the per-tenant tasks read their audit key with it
+  `set-task-env.sh`, which uploads it into the Trigger.dev task environment, where **the three jobs
+  that span organisations whole connect with it**, the three split jobs read their list of
+  organisations with it, and every task that opens `openTaskPools` reads its audit key with it
   (below). `docs/rls-guide.md` §2 carries the full table, and a guard fails if a script composes
   an owner URL without appearing in it.
 - `APP_DATABASE_URL` → the **`app_user`** role. The API connects through this for tenant data, so
   row-level security is in force on its request path (workplan 0011 T1). If you ever point the
   app at the owner URL, tenant isolation silently disappears — don't.
-- **The deployed Trigger.dev tasks: the eight per-tenant ones connect as `app_user`, the six that
-  span organisations as the owner.** `set-task-env.sh` uploads two URLs, beside
+- **The deployed Trigger.dev tasks: the eight per-tenant ones connect as `app_user`, three
+  scheduled jobs read each organisation as `app_user`, and the three that span organisations whole
+  connect as the owner.** `set-task-env.sh` uploads two URLs, beside
   `SECRET_ENCRYPTION_KEY` and the optional values, and every run receives both. Since workplan 0138
   T1 step 2 the per-tenant tasks (a pass, a discovery, a verification, a confirmation, an apply, a
   cutover's preparation, a rollback) take their pools from `openTaskPools`
   (`apps/worker/src/jobs/task-pools.ts`): tenant data on `APP_DATABASE_URL`, under row security,
   and one connection on `DATABASE_URL` for the audit export's key (`deployment_key`, which
   `app_user` may not read). A task run without `APP_DATABASE_URL` refuses to start, naming it; it
-  never falls back to the owner. The six scheduled jobs (the sync tick, retention, the purge of
-  closed organisations, the digest, the drift detector and group discovery) still connect with
-  `DATABASE_URL`, and there each query's own tenant filter is what keeps one organisation's rows
-  from another; 0138 T2 and T3 step 2 are the rest. The sync tick needs `APP_DATABASE_URL` as
-  well: it imports the pass's task (`run-delta-sync`) to enqueue it, and that module opens its
-  pools when it is loaded, so without it no tick runs. The API's request path and the per-tenant
-  tasks now share `app_user`'s server connections at PgBouncer (`pgbouncer.ini`, beside
-  `default_pool_size`, says what that holds). `docs/rls-guide.md`, "Where row security holds
+  never falls back to the owner. The digest, the drift detector and group discovery are split
+  since 0138 T2: each run asks the owner's connection once which organisations are active (ids
+  only, one connection, closed before it answers; `activeOrganisations`), and reads and writes each
+  of them on the same tenant pool, in that organisation's scope. Without `APP_DATABASE_URL` they
+  refuse to start too, and on a connection that cannot see every organisation the list refuses
+  rather than come back empty. The other three scheduled jobs (the sync tick, retention, the purge
+  of closed organisations) still connect with `DATABASE_URL`, and there each query's own tenant
+  filter is what keeps one organisation's rows from another; 0138 T3 step 2 is the rest. The sync
+  tick needs `APP_DATABASE_URL` as well: it imports the pass's task (`run-delta-sync`) to enqueue it, and that module opens its
+  pools when it is loaded, so without it no tick runs. The API's request path, the per-tenant
+  tasks and the three split jobs now share `app_user`'s server connections at PgBouncer
+  (`pgbouncer.ini`, beside `default_pool_size`, says what that holds). `docs/rls-guide.md`, "Where row security holds
   today", lists every connection and whether the policies bind it. Until 0138 T3 step 1,
   `set-task-env.sh` uploaded a third, `DIRECT_DATABASE_URL` (the owner, straight to
   `postgres:5432`), which no task read, since no task runs migrations. It no longer does, but a
@@ -286,7 +292,8 @@ Two things send email on managed, both through the operator's own SMTP relay con
   whether today is its day (cadence is per tenant, chosen on the Tenants screen: daily, weekly
   on Monday, or off) and mails that tenant's **active owners and admins** a summary of what is
   waiting: pending drift decisions, the deletions/moves/failures queues, and mappings sitting in
-  READY_FOR_CUTOVER. Counted from the same ledger calls the screens read.
+  READY_FOR_CUTOVER. Counted from the same ledger calls the screens read, and read as that tenant,
+  under row security (workplan 0138 T2): only the list of active tenants is read across them.
 - **the rollback notice** — only when `run-rollback` is submitted with `notifyUsers: true`.
 
 Two behaviours worth knowing before you go looking for a missing email:
@@ -711,6 +718,28 @@ It also stops a sign-in already in progress. It records nothing in `audit_log`, 
 ticket that you did it. It does not take back access already given: only the person can, from
 their progress page (**Withdraw access**), or in their Google account.
 
+## Sign-in accounts nobody let in
+
+Anybody can create an account at the sign-in page: organisation registration is
+off (workplan 0135 T1), self-registration is not. Such an account opens nothing
+until you grant a request for its address, but the identity provider keeps a
+name, an address, a password hash and sessions for it, and privacy §9 keeps it
+30 days. From the stack's checkout:
+
+```bash
+./deploy/compose/idp-strays.sh            # lists them; removes nothing
+./deploy/compose/idp-strays.sh --remove   # removes what it lists
+```
+
+It lists an account with no membership, no operator row, and no open access
+request or invitation for its address, older than 30 days by the provider's own
+date. An address compares without case. The provider's own members (the first
+human, the organisation's managers) are never listed. It refuses, removing
+nothing, when a read fails or comes back in a shape it does not know, and when
+the database names people none of whom has an account at this provider. A
+removal's line names the account's id, never its address. Workplan 0135 T8 has
+the rule, and why each part of it is there.
+
 ## Tenant offboarding (GDPR right to erasure, §17)
 
 > ⚠️ **This section was rewritten 2026-08-18 (workplan 0085).** It previously
@@ -882,9 +911,16 @@ not withdrawing a consent: an Entra admin consent, a Google OAuth
 authorization, a Dropbox app link or a Box admin authorization lives in *their*
 platform under *their* account, and no API call of ours withdraws it.
 
-**Their sign-in account.** Closing and purging leave the person's account at
-the identity provider. Once the purge has run, remove it in the provider's
-console. Workplan 0135 T8's script will take this step over.
+**Their sign-in accounts.** Closing and purging leave each member's account at
+the identity provider. After the purge, from the stack's checkout,
+`./deploy/compose/idp-strays.sh` lists every former member who belongs to no
+other organisation and whose account is older than 30 days, beside any other
+account nobody let in (*Sign-in accounts nobody let in*, above). Check the list,
+then run it again with `--remove`. A younger account is not listed: note its
+subject (`tenant_member.user_id`) before the purge, and afterwards remove it
+with `./deploy/compose/idp-strays.sh --subject <sub> --remove`. That refuses,
+saying why, while the subject is still a member anywhere, an operator, or holds
+an open request or invitation.
 
 > **The three decision queues now have a UI as well as these endpoints**
 > ([ADR-0026](adr/0026-one-operating-ui-one-contract.md)). The appliance serves
@@ -1550,8 +1586,11 @@ steps for a tester's report. The items below are causes it points to.
   verification, confirmation, apply, cutover or rollback run that fails at once with
   *"APP_DATABASE_URL is required"* is a task environment without it, or with it blank, which
   `set-task-env.sh` uploads. **The sync tick fails the same way**, every tick, and with it every
-  scheduled sync: it imports `run-delta-sync`, which opens its pools when it is loaded. The other
-  five scheduled jobs connect with `DATABASE_URL` alone.
+  scheduled sync: it imports `run-delta-sync`, which opens its pools when it is loaded. **So do the
+  digest, the drift detector and group discovery**, each at the start of its daily run (workplan
+  0138 T2). Retention and the purge of closed organisations connect with `DATABASE_URL` alone.
+  A split job that fails with *"The list of organisations was asked on a connection that row
+  security binds"* was handed a `DATABASE_URL` that is not the owner's.
 - **"fail-closed" errors with no tenant context:** expected when a query runs without
   `app.current_tenant` set — that's RLS doing its job, not a bug. The request path must go through
   `withTenantDb`/`withTenant`.
