@@ -19,6 +19,7 @@ import Layout from './components/Layout.tsx';
 import AcceptanceGate from './components/AcceptanceGate.tsx';
 import Mappings from './pages/Mappings.tsx';
 import Person from './pages/Person.tsx';
+import StartMigration from './pages/StartMigration.tsx';
 import MappingDetail from './pages/MappingDetail.tsx';
 import CreateMapping from './pages/CreateMapping.tsx';
 import ConfirmMapping from './pages/ConfirmMapping.tsx';
@@ -269,6 +270,17 @@ const AppRoutes: React.FC = () => {
           element={
             <ManagedOnly>
               <Person />
+            </ManagedOnly>
+          }
+        />
+        {/* Start a migration (0153 T4): who, from where, what, to where.
+            Managed only, as the wizard it will replace is, for the same
+            reason: it creates migrations through the managed /api. */}
+        <Route
+          path="start"
+          element={
+            <ManagedOnly>
+              <StartMigration />
             </ManagedOnly>
           }
         />
