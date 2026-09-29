@@ -729,7 +729,11 @@ describe('someone else connects their own accounts, by a link where one reaches 
     expect(await screen.findByText(/Waiting for Anna Jansen to connect/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Create grant link/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
-    expect(screen.getByText(/You can close this page: Anna Jansen's page keeps these migrations/)).toBeInTheDocument();
+    // Nothing starts by itself when the grant lands (grant-ending.ts starts
+    // nothing), so the sentence says where to start each one.
+    expect(
+      screen.getByText(/Anna Jansen's page keeps these migrations: once they have connected, start each one from its Details/),
+    ).toBeInTheDocument();
   });
 
   it('shows the count once their link was used, and Start goes', async () => {
