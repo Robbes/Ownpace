@@ -339,8 +339,14 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   0135 T8's script, `idp-strays.sh`, run with the machine's daily duties. Built; it runs once
   live's timer is installed.
 - *Searches and downloads on the support screens, 12 months* (privacy §4.5, §9;
-  privacy-search-records (a)): a daily duty deletes those log records older than 12 months, over
-  the owner's connection, because the app cannot delete from that log. Not built.
+  privacy-search-records (a)): a daily duty deletes those log records older than 12 months, over the
+  owner's connection at the machine: `app_user`, the role every request runs as, cannot delete from
+  that log, and after 0138 T3 step 2 the tasks' system role can, for the purge of an erased
+  organisation, but its grant lets it pick rows by organisation, never by age. Built (0139 T6):
+  `box-duties.sh` runs `support-read-prune.sh --delete` on live once a day as the duty `searches`;
+  it runs once live's timer is installed. It deletes every read recorded with no organisation at 12
+  months: besides a search and a download, the organisation list, the invoices kept after an
+  erasure, and a log page not filtered to one organisation.
 - *The sharing list goes with its migration* (privacy §4.6, §9; privacy-sharing-list (b)): the
   migration delete also deletes that migration's `share_grant` rows, which have no foreign key to
   the migration today. Not built; until it is, the list stays until erasure.
