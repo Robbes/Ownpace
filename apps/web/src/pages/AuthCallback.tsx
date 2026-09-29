@@ -16,6 +16,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { completeSignIn } from '../services/oidc.ts';
 import { fetchMe } from '../services/session.ts';
+import { rememberSignIn } from '../services/acceptance.ts';
 import { requestAccessHref } from '../services/no-organisation.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { useT } from '../i18n/index.tsx';
@@ -71,6 +72,9 @@ const AuthCallback: React.FC = () => {
           me.operator === true,
           me.tenants.length,
         );
+        // Whether the texts wait to be accepted (0139 T3), for the page this
+        // lands on, which would otherwise ask the same question again.
+        rememberSignIn(me);
 
         // Where to land (Migrations, since the Dashboard went: 0153 T3 (b)),
         // and the two cases that are not Migrations.

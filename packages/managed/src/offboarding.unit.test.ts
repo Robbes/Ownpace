@@ -141,6 +141,13 @@ async function seed(tenantId: string, suffix: string): Promise<void> {
      VALUES ($1, $2, $3, 'owner', 'active')`,
     [tenantId, `sub-${suffix}`, `owner-${suffix}@example.test`],
   );
+  // What that member accepted, and when (workplan 0139 T3, managed 0032):
+  // part of their account, which privacy §4.4 and §9 erase with it.
+  await conn.query(
+    `INSERT INTO legal_acceptance (tenant_id, subject, document, version, language)
+     VALUES ($1, $2, 'terms', '1.3', 'nl'), ($1, $2, 'privacy', '1.2', 'nl')`,
+    [tenantId, `sub-${suffix}`],
+  );
   // The buyer (workplan 0111 T1) — a consumer, deliberately, since that is the
   // default shape. The NAME differs from the tenant's display name on purpose:
   // the detach test below has to be able to tell which one was stamped.
@@ -434,6 +441,9 @@ describe('purging a tenant', () => {
     // Named in the list, so counted: the cascade alone would have removed them unreported.
     expect(rows[0]?.purged_counts?.person).toBe(1);
     expect(rows[0]?.purged_counts?.person_migration).toBe(1);
+    // What the member accepted goes with their account (privacy §9; 0139 T3,
+    // open question 4's proposal), and the receipt counts it.
+    expect(rows[0]?.purged_counts?.legal_acceptance).toBe(2);
     expect(rows[0]?.retained_invoice_ids).toHaveLength(1);
     expect(result.retainedInvoiceIds).toHaveLength(1);
   });
