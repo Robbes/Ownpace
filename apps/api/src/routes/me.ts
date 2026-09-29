@@ -35,19 +35,42 @@
 
 import { Router } from 'express';
 import type { Response } from 'express';
+import { z } from 'zod';
 import {
+  authenticate,
   authenticateSubject,
   claimRequestedMembership,
+  getDbPool,
   pendingInvitations,
   isPlatformOperator,
   membershipsForSubject,
   reconcileMemberEmail,
+  withTenantDb,
 } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
 import { log } from '@openmig/shared';
+import {
+  LEGAL_DOCUMENTS,
+  LEGAL_LANGUAGES,
+  recordAcceptance,
+  type LegalDocument,
+} from '@openmig/managed';
+import {
+  ACCEPTANCE_NOT_ASKED,
+  VERSION_NOT_CURRENT,
+  acceptanceAsked,
+  acceptanceOf,
+} from '../conditions-not-accepted.ts';
 
 const router = Router();
+
+/** One pool for the acceptance record, built on first use rather than per request. */
+let _pool: ReturnType<typeof getDbPool> | null = null;
+function pool(): ReturnType<typeof getDbPool> {
+  if (!_pool) _pool = getDbPool();
+  return _pool;
+}
 
 router.get('/', authenticateSubject, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -136,6 +159,23 @@ router.get('/', authenticateSubject, async (req: AuthenticatedRequest, res: Resp
       tenants.find((t) => t.tenantId === named) ??
       (tenants.length === 1 ? tenants[0] : undefined);
 
+    /**
+     * WHETHER THE TEXTS STILL WAIT TO BE ACCEPTED (workplan 0139 T3), for the
+     * organisation this caller is acting as, and only while the deployment
+     * asks (`OWNPACE_STAGE=alpha`, and no text still a draft). The web app
+     * shows its screen in front of every page while this says `due`, with
+     * each text and its current version; the doors that store a credential
+     * refuse on the same reading.
+     *
+     * Absent when the deployment does not ask, and when no organisation is
+     * current: acceptance is recorded per organisation, and a caller choosing
+     * between two is asked once they have chosen. A read that fails is not
+     * "nothing due" (hard rule 9): it fails this answer, which the screen
+     * reports.
+     */
+    const acceptance =
+      current && acceptanceAsked() ? await acceptanceOf(current.tenantId, userId, pool()) : undefined;
+
     res.json({
       userId,
       // From the verified `email` claim, not the database: it is what the
@@ -155,9 +195,110 @@ router.get('/', authenticateSubject, async (req: AuthenticatedRequest, res: Resp
       // by policies on `access_request`; being wrong here shows or hides a
       // link and grants nothing (workplan 0093 T6).
       operator: await isPlatformOperator(userId),
+      ...(acceptance ? { acceptance } : {}),
     });
   } catch (error) {
     serverFault(res, 'me_failed', 'reading your account', error);
+  }
+});
+
+/** `{ versions: { alpha, privacy, terms }, language }`, every text named, nothing else. */
+const AcceptanceSchema = z
+  .object({
+    versions: z
+      .object(
+        Object.fromEntries(LEGAL_DOCUMENTS.map((d) => [d, z.string().min(1).max(20)])) as Record<
+          LegalDocument,
+          z.ZodString
+        >,
+      )
+      .strict(),
+    language: z.enum(LEGAL_LANGUAGES),
+  })
+  .strict();
+
+const NOT_CURRENT_EN =
+  'These texts changed while the page was open. Read the current versions, then accept those.';
+const NOT_CURRENT_NL =
+  'Deze teksten zijn gewijzigd terwijl de pagina openstond. Lees de huidige versies en aanvaard die.';
+
+const NOT_ASKED_EN =
+  'This service asks nobody to accept its texts at the moment, so nothing was recorded. Reload the page.';
+const NOT_ASKED_NL =
+  'Deze dienst vraagt op dit moment niemand zijn teksten te aanvaarden, dus er is niets vastgelegd. Laad de ' +
+  'pagina opnieuw.';
+
+/**
+ * `POST /api/me/acceptance` — accept the current version of each text
+ * (workplan 0139 T3).
+ *
+ * Takes the version of each text the screen showed, and the language it
+ * showed them in. Every version must be the current one, or nothing is
+ * written and the answer is 409 `version_not_current`, naming the texts that
+ * changed and the current versions: a tab left open across an update must not
+ * accept a text nobody shows any more. Accepted, it writes one row per text,
+ * with the version, the language and the time, for this person in the
+ * organisation they are acting as; pressed again, it writes nothing and keeps
+ * the first time. The answer is what `GET /api/me` would now say.
+ *
+ * Tenant-scoped (`authenticate`), because the record is the organisation's.
+ *
+ * **Only while the deployment asks** (review of 2026-09-29). With the switch
+ * off, or while any text is still a draft, nothing is recorded and the answer
+ * is 409 `acceptance_not_asked`. A draft's number is the one its final text
+ * will carry, so an acceptance of the draft would be recorded as one of the
+ * final text, whose words may differ; the server records only what it asks
+ * for.
+ */
+router.post('/acceptance', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { tenantId, userId } = req;
+    if (!tenantId || !userId) {
+      res.status(401).json({ error: 'Unauthorized', message: 'No organisation or subject on this request' });
+      return;
+    }
+    const parsed = AcceptanceSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        error: 'invalid_body',
+        message: `Send { versions: { ${LEGAL_DOCUMENTS.join(', ')} }, language: ${LEGAL_LANGUAGES.map((l) => `'${l}'`).join(' or ')} }.`,
+      });
+      return;
+    }
+    if (!acceptanceAsked()) {
+      res.status(409).json({
+        error: ACCEPTANCE_NOT_ASKED,
+        message: NOT_ASKED_EN,
+        messageNl: NOT_ASKED_NL,
+        reason: NOT_ASKED_EN,
+        reasonNl: NOT_ASKED_NL,
+      });
+      return;
+    }
+    const { versions, language } = parsed.data;
+    const outcome = await withTenantDb(tenantId, pool(), (db) =>
+      recordAcceptance(db, tenantId, userId, versions, language),
+    );
+    if (outcome.kind === 'not_current') {
+      res.status(409).json({
+        error: VERSION_NOT_CURRENT,
+        message: NOT_CURRENT_EN,
+        messageNl: NOT_CURRENT_NL,
+        reason: NOT_CURRENT_EN,
+        reasonNl: NOT_CURRENT_NL,
+        stale: outcome.stale,
+        current: outcome.current,
+      });
+      return;
+    }
+    if (outcome.written > 0) {
+      log.info(
+        `[me] ${userId} accepted ${LEGAL_DOCUMENTS.map((d) => `${d} ${versions[d]}`).join(', ')} (${language}) in ${tenantId}`,
+      );
+    }
+    res.json({ written: outcome.written, acceptance: outcome.state });
+  } catch (error) {
+    serverFault(res, 'acceptance_failed', 'recording your acceptance', error);
   }
 });
 

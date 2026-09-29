@@ -16,7 +16,9 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router';
 import { useAuthStore } from './stores/auth-store.ts';
 import Layout from './components/Layout.tsx';
+import AcceptanceGate from './components/AcceptanceGate.tsx';
 import Mappings from './pages/Mappings.tsx';
+import Person from './pages/Person.tsx';
 import MappingDetail from './pages/MappingDetail.tsx';
 import CreateMapping from './pages/CreateMapping.tsx';
 import ConfirmMapping from './pages/ConfirmMapping.tsx';
@@ -209,11 +211,18 @@ const AppRoutes: React.FC = () => {
           </ManagedOnly>
         }
       />
+      {/* Every signed-in page, behind the texts (workplan 0139 T3): while
+          `GET /api/me` says acceptance is due, the acceptance screen stands in
+          front of whichever page was asked for. The invitation screen above is
+          outside it, because joining comes first and acceptance is per
+          organisation; the appliance never asks. */}
       <Route
         path="/"
         element={
           <ProtectedRoute>
-            <Layout />
+            <AcceptanceGate>
+              <Layout />
+            </AcceptanceGate>
           </ProtectedRoute>
         }
       >
@@ -250,6 +259,16 @@ const AppRoutes: React.FC = () => {
           element={
             <ManagedOnly>
               <Mappings />
+            </ManagedOnly>
+          }
+        />
+        {/* A page per person (0153 T5). `/people`, not `/moves`: that is the
+            appliance's moved-items queue. Managed only, as Migrations is. */}
+        <Route
+          path="people/:personId"
+          element={
+            <ManagedOnly>
+              <Person />
             </ManagedOnly>
           }
         />

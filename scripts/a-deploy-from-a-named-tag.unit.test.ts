@@ -28,11 +28,30 @@
  *   refused before the checkout moves. None of them may reach the bring-up.
  *
  *   Its dry run moves something, or refuses less. `--dry-run` is what the
- *   owner runs, with the hold on, to learn whether a dump is the only way
- *   back before taking one. It must refuse all that the deploy refuses, say
- *   the same one-way or reversible the deploy then logs, and stop: the
- *   checkout, the working tree and the deploy log (not even created) as they
- *   were, and no install, bring-up or check.
+ *   owner runs, with the hold on, to learn whether the deploy can be undone
+ *   by another tag. It must refuse all that the deploy refuses, say the same
+ *   one-way or reversible the deploy then logs, and stop: the checkout, the
+ *   working tree and the deploy log (not even created) as they were, and no
+ *   install, bring-up or check.
+ *
+ *   It moves live without a copy of what ran before (workplan 0139, the
+ *   owner's answer rec-copies (a), 2026-09-28; 0132 T6 step 4). Right before
+ *   the checkout, with the hold on and nothing in flight, it runs
+ *   `copy-before-update.sh take <tag>`, with `--trigger` when the tag moves
+ *   the Trigger.dev pin, and a take that fails refuses the deploy with
+ *   nothing moved. The dry run asks the same question, `take --dry-run`, and
+ *   takes nothing. What it says at the end names the delete step and day 6.
+ *   `--trigger` errs towards taking the task runner's database: a base the
+ *   log does not name (`-`), a commit this clone does not have, a tag with no
+ *   pin to read, and any base, not only HEAD, whose pin differs each ask for
+ *   it (review of 2026-09-29).
+ *
+ *   It moves live to a tag that cannot keep it. A tag without any of the
+ *   scripts live is deployed, checked and kept by (release-tag.sh's list:
+ *   deploy-live.sh, exposure-check.sh, box-duties.sh, stack-kind.sh and
+ *   copy-before-update.sh) would leave live without its daily duties or the
+ *   copy's backstop, and the next deploy without a copy: refused before
+ *   anything moves, in stand-up-live.sh's words.
  *
  *   It says a deploy took when it did not. After the bring-up it asks the app
  *   at the origin in `WEB_URL`: `/api/version` must name the tag's commit AND
@@ -91,10 +110,12 @@
  * HOW IT RUNS. Every case builds a checkout of its own: a real git repository
  * with a bare `origin` beside it, whose commits carry the script under test,
  * the two helpers it sources, the real `managed.yml`, one file in each
- * migration chain, and two stand-ins committed beside the script:
+ * migration chain, and three stand-ins committed beside the script:
  * `bootstrap-managed.sh`, which records its arguments and the commit checked
- * out when it was called, and `exposure-check.sh`, which records its arguments
- * and exits as told. The real check (0132 T3 (b)) is on `main` since #1271 and
+ * out when it was called, `exposure-check.sh`, which records its arguments
+ * and exits as told, and `copy-before-update.sh`, which records its arguments
+ * and the commit checked out when it was called, and fails when told. The
+ * real one has a guard of its own (one-copy-before-each-update). The real check (0132 T3 (b)) is on `main` since #1271 and
  * has a guard of its own; this one asks only that the deploy runs it with
  * live's `.env` and fails when it fails. git is real,
  * so tags, `ls-remote` and the diff between two tags behave as they do on the
@@ -375,6 +396,16 @@ fi
 exit "\${STUB_BOOTSTRAP_EXIT:-0}"
 `;
 
+/**
+ * The copy before the update (0139), as a stand-in: what it was asked, at
+ * which commit, and a refusal when told.
+ */
+const COPY_STUB = `#!/usr/bin/env bash
+printf 'copy-before-update %s head=%s\\n' "$*" "$(git -C "$(dirname "$0")/../.." rev-parse HEAD)" >>"$STUB_LOG"
+if [ -n "\${STUB_COPY_FAIL:-}" ]; then echo "[copy-before-update] refused: \${STUB_COPY_FAIL}" >&2; exit 1; fi
+exit 0
+`;
+
 /** 0132 T3 (b)'s check, as a stand-in: what it was asked, and the exit it was told to give. */
 const EXPOSURE_STUB = `#!/usr/bin/env bash
 printf 'exposure-check %s\\n' "$*" >>"$STUB_LOG"
@@ -456,8 +487,10 @@ interface Release {
   lightweight?: boolean;
   /** Push the tag to origin (default true). */
   push?: boolean;
-  /** Remove exposure-check.sh at this commit. */
-  noExposureCheck?: boolean;
+  /** Remove these files from deploy/compose at this commit. */
+  omit?: string[];
+  /** Take the Trigger.dev image lines out of managed.yml at this commit, so its pin cannot be read. */
+  noTriggerPin?: boolean;
   /** The count of unfilled placeholders the site at this commit has (default 0). */
   siteDrafts?: number;
   /** What the site's `--public` build at this commit refuses with, beyond the count (its `--check` passes). */
@@ -574,7 +607,7 @@ function stage(opts: StageOptions = {}): Stage {
   writeFileSync(join(work, '.gitignore'), '.env\nsite/dist/\n');
   writeFileSync(join(work, 'package.json'), packageJson(RUNNING.version));
   mkdirSync(compose, { recursive: true });
-  for (const f of [SCRIPT, 'env-read.sh', 'stack-kind.sh', 'own-addresses.sh', 'www-live.sh']) {
+  for (const f of [SCRIPT, 'env-read.sh', 'stack-kind.sh', 'own-addresses.sh', 'www-live.sh', 'release-tag.sh']) {
     // A helper the script does not source yet is simply not there.
     if (!existsSync(join(COMPOSE_DIR, f))) continue;
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
@@ -584,6 +617,9 @@ function stage(opts: StageOptions = {}): Stage {
   writeFileSync(join(compose, 'www.yml'), wwwYml());
   writeExec(join(compose, 'bootstrap-managed.sh'), BOOTSTRAP_STUB);
   writeExec(join(compose, 'exposure-check.sh'), EXPOSURE_STUB);
+  writeExec(join(compose, 'copy-before-update.sh'), COPY_STUB);
+  // What live's daily duties run from: here only so that a tag carries it.
+  writeExec(join(compose, 'box-duties.sh'), '#!/usr/bin/env bash\nexit 0\n');
   const siteDir = join(work, 'site');
   writeExec(join(siteDir, 'build.mjs'), SITE_BUILD_STUB);
   writeFileSync(join(siteDir, 'drafts'), '0\n');
@@ -604,8 +640,13 @@ function stage(opts: StageOptions = {}): Stage {
     let yml = readFileSync(join(compose, 'managed.yml'), 'utf8');
     if (r.trigger) yml = movePin(yml, 'trigger', r.trigger);
     if (r.zitadel) yml = movePin(yml, 'zitadel', r.zitadel);
+    if (r.noTriggerPin) {
+      const unpinned = yml.replace(/^[ \t]*image:.*triggerdotdev\/.*\n/gm, '');
+      if (unpinned === yml) throw new Error('managed.yml carries no Trigger.dev image line this fixture knows how to take out');
+      yml = unpinned;
+    }
     writeFileSync(join(compose, 'managed.yml'), yml);
-    if (r.noExposureCheck) rmSync(join(compose, 'exposure-check.sh'));
+    for (const f of r.omit ?? []) rmSync(join(compose, f));
     writeFileSync(join(compose, 'www.yml'), wwwYml(r.fixedSiteName));
     if (r.realSite) {
       rmSync(siteDir, { recursive: true, force: true });
@@ -1159,14 +1200,18 @@ describe('a deploy that did not take keeps the hold and exits non-zero', () => {
     CASE_MS,
   );
 
-  it(
-    'a tag without the exposure check cannot pass it',
-    () => {
-      const s = stage({ releases: [{ ...NEXT, noExposureCheck: true }] });
-      const r = run(s, [NEXT.tag]);
-      expect(r.status, r.out).not.toBe(0);
-      expect(r.out).toMatch(/the deploy did not take/);
-      expect(r.out).toMatch(/exposure-check\.sh/);
+  it.each(['exposure-check.sh', 'box-duties.sh', 'copy-before-update.sh', 'stack-kind.sh', 'deploy-live.sh'])(
+    'a tag without %s is refused before anything moves: live would lose what deploys, checks or keeps it',
+    (file) => {
+      const s = stage({ releases: [{ ...NEXT, omit: [file] }] });
+      for (const args of [[NEXT.tag], ['--dry-run', NEXT.tag]]) {
+        const r = run(s, args);
+        expect(r.status, `${args.join(' ')}:\n${r.out}`).toBe(1);
+        expect(r.out).toContain(`${NEXT.tag} does not carry deploy/compose/${file}`);
+        expect(r.out).toContain('The checkout and the stack are as they were.');
+        expectNothingChanged(s, r.out);
+        expect(called(s, 'copy-before-update'), 'a copy was taken for a tag that is refused').toEqual([]);
+      }
     },
     CASE_MS,
   );
@@ -1588,9 +1633,9 @@ describe('a dry run refuses what the deploy refuses, says one-way or reversible,
       expect(dry.out).not.toMatch(verdict === 'one-way' ? /\breversible\b/ : /one-way/);
       expect(dry.out).toMatch(names);
       if (verdict === 'one-way') {
-        expect(dry.out).toMatch(/dump live's database now/);
+        expect(dry.out).toMatch(/the way back is forward, or the copy the deploy takes right before its checkout/);
       } else {
-        expect(dry.out).not.toMatch(/dump live's database now/);
+        expect(dry.out).not.toMatch(/the way back is forward/);
       }
       expect(dry.out).toMatch(STOPPED);
       expectMovedNothing(s, was, dry.out);
@@ -1600,6 +1645,176 @@ describe('a dry run refuses what the deploy refuses, says one-way or reversible,
       expect(r.status, r.out).toBe(0);
       expect(deployLines(s)).toHaveLength(1);
       expect(deployLines(s)[0]!.split('\t')[4]).toBe(verdict);
+    },
+    CASE_MS,
+  );
+});
+
+// ---------------------------------------------------------------------------
+// The copy before the update (workplan 0139, rec-copies (a); 0132 T6 step 4)
+// ---------------------------------------------------------------------------
+
+describe('a copy is made before the update: copy-before-update.sh, right before the checkout (0139, rec-copies (a))', () => {
+  const copies = (s: Stage): string[] => called(s, 'copy-before-update');
+
+  it(
+    'a deploy takes it at the running release, after the hold and the drain were read, before the install and the bring-up',
+    () => {
+      const s = stage({ releases: [NEXT] });
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(copies(s)).toEqual([`copy-before-update take ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+      const order = calls(s).map((l) => l.split(' ')[0]);
+      const at = order.indexOf('copy-before-update');
+      expect(order.indexOf('psql'), 'the copy came before the hold and the drain were read').toBeLessThan(at);
+      expect(order.indexOf('psql')).toBeGreaterThan(-1);
+      expect(at, 'the copy came after the install').toBeLessThan(order.indexOf('pnpm'));
+      expect(at, 'the copy came after the bring-up').toBeLessThan(order.indexOf('bootstrap'));
+    },
+    CASE_MS,
+  );
+
+  it(
+    "a tag that moves the Trigger.dev pin: the copy holds the task runner's database too (--trigger)",
+    () => {
+      const s = stage({ releases: [{ ...NEXT, trigger: 'v4.9.99' }] });
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(copies(s)).toEqual([`copy-before-update take --trigger ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+    },
+    CASE_MS,
+  );
+
+  it.each([
+    ['a migration', { ...NEXT, ledger: '0002_a_column.sql' }],
+    ["the identity provider's pin", { ...NEXT, zitadel: 'v4.99.0' }],
+  ] as const)(
+    "a tag that moves %s and not the Trigger.dev pin: no --trigger",
+    (_label, release) => {
+      const s = stage({ releases: [release] });
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(copies(s)).toEqual([`copy-before-update take ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "a retry after a first deploy that did not take, one-way over what ran before it: that base is named nowhere, so --trigger",
+    () => {
+      const s = stage({ releases: [{ ...NEXT, ledger: '0002_a_column.sql' }] });
+      const first = run(s, [NEXT.tag], { STUB_EXPOSURE_EXIT: '1' });
+      expect(first.status, first.out).toBe(3);
+      const retry = run(s, [NEXT.tag]);
+      expect(retry.status, retry.out).toBe(0);
+      expect(copies(s)).toEqual([
+        `copy-before-update take ${NEXT.tag} head=${s.commit[RUNNING.tag]}`,
+        `copy-before-update take --trigger ${NEXT.tag} head=${s.commit[NEXT.tag]}`,
+      ]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'a deploys.log naming a commit this clone does not have: its pin cannot be read, so --trigger',
+    () => {
+      const s = stage({ releases: [NEXT] });
+      mkdirSync(dirname(s.deployLog), { recursive: true });
+      writeFileSync(s.deployLog, `2026-09-27T10:00:00Z\t${RUNNING.tag}\t${'c0ffee'.padEnd(40, '0')}\ttook\treversible\n`);
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(copies(s)).toEqual([`copy-before-update take --trigger ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "the last deploy that took ran another Trigger.dev pin than HEAD: every base is compared, not only HEAD, so --trigger",
+    () => {
+      const OTHER = { tag: 'v0.2.0-alpha.3', version: '0.2.0-alpha.3' };
+      const s = stage({ releases: [NEXT, { ...OTHER, trigger: 'v4.9.99' }] });
+      mkdirSync(dirname(s.deployLog), { recursive: true });
+      writeFileSync(s.deployLog, `2026-09-27T10:00:00Z\t${OTHER.tag}\t${s.commit[OTHER.tag]}\ttook\tone-way\n`);
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(copies(s)).toEqual([`copy-before-update take --trigger ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "a tag whose managed.yml names no Trigger.dev image: its pin cannot be read, so --trigger",
+    () => {
+      const s = stage({ releases: [{ ...NEXT, noTriggerPin: true }] });
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(copies(s)).toEqual([`copy-before-update take --trigger ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'a copy that cannot be taken refuses the deploy: nothing moved, not logged',
+    () => {
+      const s = stage({ releases: [NEXT] });
+      const r = run(s, [NEXT.tag], { STUB_COPY_FAIL: 'the copy of an update that is proven is still there' });
+      expect(r.status, r.out).toBe(1);
+      expect(r.out).toContain('[deploy-live] refused: ');
+      expect(r.out).toContain('the copy of an update that is proven is still there');
+      expect(r.out).toContain('The checkout and the stack are as they were.');
+      expectNothingChanged(s, r.out, 'reads');
+    },
+    CASE_MS,
+  );
+
+  it(
+    'a refusal before it takes no copy',
+    () => {
+      const s = stage({ releases: [NEXT] });
+      const r = run(s, [NEXT.tag], { STUB_PSQL_ANSWER: 'yes|0|-1|0\n' });
+      expect(r.status, r.out).toBe(1);
+      expect(copies(s)).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'a dry run asks the same question and takes nothing: take --dry-run, and its refusal is the dry run\'s',
+    () => {
+      const s = stage({ releases: [{ ...NEXT, trigger: 'v4.9.99' }] });
+      const dry = run(s, ['--dry-run', NEXT.tag]);
+      expect(dry.status, dry.out).toBe(0);
+      expect(copies(s)).toEqual([`copy-before-update take --dry-run --trigger ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+
+      const refused = stage({ releases: [NEXT] });
+      const r = run(refused, ['--dry-run', NEXT.tag], { STUB_COPY_FAIL: 'a proven copy is still there' });
+      expect(r.status, r.out).toBe(1);
+      expect(r.out).toContain('[deploy-live] refused: ');
+      expect(existsSync(refused.deployLog)).toBe(false);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'the deploy that took says how the copy goes: deleted once proven, rolled back from by day 6',
+    () => {
+      const s = stage({ releases: [NEXT] });
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      const after = r.out.slice(r.out.indexOf('the deploy took'));
+      expect(after).toContain('./deploy/compose/copy-before-update.sh delete');
+      expect(after).toMatch(/day 6/);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'a deploy that did not take keeps the copy, and says so',
+    () => {
+      const s = stage({ releases: [NEXT] });
+      const r = run(s, [NEXT.tag], { STUB_EXPOSURE_EXIT: '1' });
+      expect(r.status, r.out).toBe(3);
+      expect(r.out.slice(r.out.indexOf('the deploy did not take'))).toMatch(/copy before this update .*kept/);
     },
     CASE_MS,
   );

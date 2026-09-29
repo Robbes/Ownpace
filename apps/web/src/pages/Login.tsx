@@ -8,6 +8,7 @@ import { useLocale } from '../i18n/index.tsx';
 import { beginSignIn, oidcConfig } from '../services/oidc.ts';
 import { fetchAuthMode, type AuthMode } from '../services/auth-mode.ts';
 import { fetchMe } from '../services/session.ts';
+import { rememberSignIn } from '../services/acceptance.ts';
 import { serverMessage } from '../services/api.ts';
 import StatusLink from '../components/StatusLink.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
@@ -205,6 +206,9 @@ const Login: React.FC = () => {
           me.operator === true,
           me.tenants.length,
         );
+        // Whether the texts wait to be accepted (0139 T3), for the page this
+        // lands on, which would otherwise ask the same question again.
+        rememberSignIn(me);
         // THE SAME LANDING AuthCallback CHOOSES, and for the same reason: a
         // platform operator belongs to no organisation by design, so the
         // landing page's first request 403s. This door was left sending them
@@ -242,7 +246,7 @@ const Login: React.FC = () => {
           value={token}
           onChange={(e) => setToken(e.target.value)}
           className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-mono"
-          placeholder="eyJhbGciOi..."
+          placeholder="eyJhbGciOi..." // i18n-exempt: a token's opening characters, not words
         />
       </div>
 

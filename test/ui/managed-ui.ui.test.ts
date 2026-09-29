@@ -56,7 +56,7 @@ import { createServer, type Server } from 'node:http';
 import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium, type Browser, type Page } from 'playwright-core';
+import { chromium, type Browser, type Page, type Request } from 'playwright-core';
 
 const REPO = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const DIST = join(REPO, 'apps/web/dist');
@@ -122,6 +122,16 @@ const FIXTURES: Record<string, unknown> = {
    * this entry came to be written.
    */
   [`GET /api/problem-reports/available`]: { available: true },
+  /**
+   * WHAT A REPORT FROM THIS PAGE WOULD CARRY (workplan 0130 T6), asked by the
+   * form once it knows the service takes reports: where it goes, and its
+   * lines of facts, which the form shows verbatim in its fold. The lines are
+   * the API's to write; two stand for them here.
+   */
+  [`GET /api/problem-reports/preview`]: {
+    to: { kind: 'mail', addresses: ['support@example.invalid'] },
+    lines: ['Page: /mappings', 'Role: owner'],
+  },
   // The build stamp in the sidebar asks the server what IT is running
   // (services/build-identity.ts). Answered from the ROOT package.json rather
   // than a literal, for the same reason every other consumer reads it there:
@@ -361,7 +371,41 @@ async function open(
   page.on('console', (m) => {
     if (m.type() === 'error') errors.push(`console.error: ${m.text()}`);
   });
-  page.on('requestfailed', (r) => badResponses.push(`${r.url()} (${r.failure()?.errorText})`));
+  // THE SIGN-IN'S LANDING PAGE IS LET SETTLE before the goto below leaves it.
+  // Leaving a page aborts whatever it still had in flight, and the landing page
+  // starts its requests a moment after its address changes, which is all
+  // waitForURL waits for: the goto then aborted them, in this test's own
+  // navigation, in a third to a half of the runs once 0139 T3's gate moved the
+  // timing. So the landing page gets what goto gives the page it loads, 500 ms
+  // with nothing in flight (settled(), below), and an abort of what it asked
+  // for is still let through, should one start in the last moment. An answer
+  // of 400 or more, or any other failure, from the landing page still counts.
+  const landing = new Set<Request>();
+  let signingIn = opts.signedIn !== false;
+  let inFlight = 0;
+  let lastChange = Date.now();
+  page.on('request', (r) => {
+    if (signingIn) landing.add(r);
+    inFlight += 1;
+    lastChange = Date.now();
+  });
+  page.on('requestfinished', () => {
+    inFlight -= 1;
+    lastChange = Date.now();
+  });
+  page.on('requestfailed', (r) => {
+    inFlight -= 1;
+    lastChange = Date.now();
+    const failure = r.failure()?.errorText;
+    if (landing.has(r) && failure === 'net::ERR_ABORTED') return;
+    badResponses.push(`${r.url()} (${failure})`);
+  });
+  const settled = async (): Promise<void> => {
+    const until = Date.now() + 15_000;
+    while ((inFlight > 0 || Date.now() - lastChange < 500) && Date.now() < until) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  };
   page.on('response', (r) => {
     if (r.status() >= 400) badResponses.push(`${r.url()} -> ${r.status()}`);
   });
@@ -381,8 +425,10 @@ async function open(
     await page.fill('#token', TOKEN);
     await page.click('form button[type=submit]');
     await page.waitForURL((u) => !u.pathname.endsWith('/login'), { timeout: 15_000 });
+    await settled();
   }
 
+  signingIn = false;
   await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle', timeout: 30_000 });
   return { page, errors, badResponses, origins, text: async () => (await page.textContent('body')) ?? '' };
 }
@@ -576,6 +622,17 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
     }
   });
 
+  it("opens a person's page from their card, with their steps before they switch (0153 T5)", async () => {
+    const l = await open('/mappings');
+    await l.page.getByRole('link', { name: 'Anna', exact: true }).click();
+    await l.page.waitForURL(`**/people/${PERSON}`, { timeout: 10_000 });
+    await l.page.getByRole('heading', { name: 'Before you switch' }).waitFor({ timeout: 10_000 });
+    expect(await l.page.getByRole('heading', { level: 1, name: 'Anna' }).count()).toBe(1);
+    expect(await l.page.locator('[data-step]').count()).toBe(7);
+    expectClean(l, "a person's page");
+    await l.page.close();
+  });
+
   it('sends an old /dashboard link to Migrations, so a bookmark still lands', async () => {
     const l = await open('/dashboard');
     await l.page.waitForURL((u) => u.pathname === '/mappings', { timeout: 10_000 });
@@ -620,9 +677,13 @@ describe('Report a problem (workplan 0130)', () => {
     await l.page.waitForURL((u) => u.pathname === '/report', { timeout: 10_000 });
 
     expect(new URL(l.page.url()).searchParams.get('from')).toBe('/mappings');
-    // Said before anything is sent: what goes with the report, and the page.
-    await l.page.locator('text=Sent with your report:').waitFor({ timeout: 10_000 }); // report.sentWith
-    expect(await l.text()).toContain('the page you were on: /mappings'); // report.page
+    // Said before anything is sent: where it goes, and, in the fold, every
+    // line that goes with it, the page first.
+    await l.page
+      .locator('text=Goes to the Ownpace support team, by email to support@example.invalid.') // report.goesTo.mail
+      .waitFor({ timeout: 10_000 });
+    await l.page.locator('summary', { hasText: 'What we send with this' }).click(); // report.facts
+    await l.page.locator('li', { hasText: 'Page: /mappings' }).waitFor({ state: 'visible', timeout: 10_000 });
     expectClean(l, 'the report form');
     await l.page.close();
   });
@@ -755,6 +816,88 @@ describe('signed in as a platform operator', () => {
     } finally {
       failures.delete('GET /api/migrations');
       restore();
+    }
+  });
+});
+
+/**
+ * THE TEXTS, BROUGHT UP BY A DOOR'S REFUSAL (workplan 0139 T3), in a real
+ * browser.
+ *
+ * While the deployment asks (`OWNPACE_STAGE=alpha` on the API, and no text
+ * still a draft), every door that stores somebody's access answers 409
+ * `conditions_not_accepted` until they accept the texts. The bundle under test
+ * is built as CI and the OTA stack build it, without `VITE_OWNPACE_STAGE`, so
+ * it asks nothing on load and waits for nothing (review of 2026-09-29): its
+ * pages render as before. What it does do is follow the API: the app's own
+ * client reports the refusal, and the acceptance screen comes up at once. The
+ * bundle built for the Alpha also asks on load; the web guard holds that
+ * (`an-acceptance-before-the-first-connection.unit.test.tsx`).
+ *
+ * The migrations list's own read stands in for a door here, answering the
+ * refusal: the client keys on the answer, not the method, and it is the one
+ * request every page of this suite already makes. Once the texts are
+ * accepted the screen gives way to the page it was in front of.
+ */
+describe('signed in by somebody who has not accepted the texts yet', () => {
+  const ME = FIXTURES['GET /api/me'];
+  const VERSIONS = { alpha: '1.0', privacy: '1.2', terms: '1.3' } as const;
+  const documents = (accepted: boolean) =>
+    (['alpha', 'privacy', 'terms'] as const).map((document) => ({
+      document,
+      version: VERSIONS[document],
+      accepted,
+    }));
+  const REFUSAL = 'Nothing was stored: accept the Alpha conditions, the privacy policy and the terms first.';
+
+  it('meets the texts at a refusal, linked in their language, and the page after accepting', async () => {
+    FIXTURES['GET /api/me'] = { ...(ME as object), acceptance: { due: true, documents: documents(false) } };
+    FIXTURES['POST /api/me/acceptance'] = { written: 3, acceptance: { due: false, documents: documents(true) } };
+    failures.set('GET /api/migrations', {
+      status: 409,
+      body: {
+        error: 'conditions_not_accepted',
+        message: REFUSAL,
+        messageNl: REFUSAL,
+        reason: REFUSAL,
+        reasonNl: REFUSAL,
+        documents: documents(false).map(({ document, version }) => ({ document, version })),
+      },
+    });
+    try {
+      const l = await open('/mappings');
+      await l.page.getByRole('heading', { level: 1, name: 'Before you start' }).waitFor({ timeout: 15_000 });
+
+      const links = await l.page.$$eval('ul[aria-label="The texts to accept"] a', (as) =>
+        as.map((a) => (a as HTMLAnchorElement).href),
+      );
+      expect(links).toEqual([
+        'https://www.ownpace.eu/alpha.html',
+        'https://www.ownpace.eu/privacy.html',
+        'https://www.ownpace.eu/terms.html',
+      ]);
+      expect(await l.page.getByRole('main').count(), 'the screen is not the page\'s main landmark').toBe(1);
+      expect(await l.page.getByRole('link', { name: 'Migrations' }).count(), 'the page shows beside the screen').toBe(
+        0,
+      );
+
+      failures.delete('GET /api/migrations');
+      await l.page.getByRole('button', { name: 'Accept all three' }).click();
+      await l.page.getByRole('heading', { level: 1, name: 'Before you start' }).waitFor({
+        state: 'detached',
+        timeout: 15_000,
+      });
+      await l.page.getByRole('link', { name: 'Migrations' }).first().waitFor({ timeout: 15_000 });
+      // The refusals themselves are the one thing the browser may log.
+      expect(
+        l.errors.filter((e) => !/status of 409/.test(e)),
+        'the acceptance screen raised errors in the browser',
+      ).toEqual([]);
+      await l.page.close();
+    } finally {
+      failures.delete('GET /api/migrations');
+      FIXTURES['GET /api/me'] = ME;
+      delete FIXTURES['POST /api/me/acceptance'];
     }
   });
 });

@@ -274,7 +274,8 @@ export const FailureGroupPanel: React.FC<{
               <span className="text-xs text-gray-700 flex-1 min-w-[10rem]">
                 {g.category ? (
                   <>
-                    {t(remedyKey(g.category, sourceKind))} <SendItToUs category={g.category} />
+                    {t(remedyKey(g.category, sourceKind))}{' '}
+                    <SendItToUs category={g.category} dataType={g.domain} migrationId={mappingId} />
                   </>
                 ) : (
                   // NOT PRESSABLE, and it says why rather than sitting there

@@ -242,7 +242,7 @@ const walkToReview = (locale: Locale) => {
   });
   fireEvent.click(next());
   // The migration: a name; email is preselected.
-  fireEvent.change(screen.getByPlaceholderText('My Migration'), { target: { value: 'Acme mail' } });
+  fireEvent.change(screen.getByPlaceholderText(words(locale, 'wizard.migrationName.placeholder')), { target: { value: 'Acme mail' } });
   fireEvent.click(next());
   return screen.getByRole('button', { name: words(locale, 'wizard.create') });
 };

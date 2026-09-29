@@ -147,7 +147,7 @@
     *verhuizing*.
   - §4.4: the account also records which versions of the three texts a
     person accepted, and when (terms-acceptance-route (b): the in-app screen,
-    0139 T3, not built).
+    0139 T3, built 2026-09-28; see beside §4.4).
   - §4.5: our server logs record the visitor's IP address, which NetBird
     passes on, and NetBird keeps its own log (ops-trust-proxy (b); needs
     TRUST_PROXY and both nginx logs, see beside §4.5). Searches by address and
@@ -435,8 +435,7 @@
     sharing list deleted with its migration (privacy-sharing-list (b)); the
     12-month clean-up of searches and downloads (privacy-search-records (a));
     0135 T8's daily script for sign-in accounts nobody let in, before the
-    first tester (ops-unadmitted-signin-cleanup (a)); the acceptance screen,
-    0139 T3 (terms-acceptance-route (b)); the share mail's privacy line
+    first tester (ops-unadmitted-signin-cleanup (a)); the share mail's privacy line
     (privacy-share-mail-notice (a)); the app's three sentences
     (ops-app-sentences (a)); the read-log query in the operator runbook
     (privacy-read-log-copy (a)).
@@ -590,15 +589,23 @@ sign-in page, but it opens nothing until we let that person in. The sign-in serv
 you, such as a sign-in code or a link to reset your password, goes through our mail provider
 (§7).
 
-<!-- NOT YET BUILT: the record of which versions a person accepted, and when, is the in-app
-     acceptance screen, 0139 T3 (the owner, 2026-09-28, terms-acceptance-route (b): "accepting
-     fits in there and should record what time/version the accepted of what document"). The
-     first invitation waits for it. -->
+<!-- BUILT 2026-09-28 (0139 T3; the owner, terms-acceptance-route (b): "accepting fits in there
+     and should record what time/version the accepted of what document"): after sign-in the app
+     shows the Alpha conditions, this policy and the terms with their versions, and records, per
+     organisation, which version of each a person accepted, the language and the time
+     (legal_acceptance, managed migration 0032). Asked while live's OWNPACE_STAGE=alpha and no text
+     is still a draft (LEGAL_DRAFTS: a draft's number is the one its final text carries, so nobody
+     accepts a draft); nothing is connected before it. Kept with the account and erased with it; a
+     member who leaves keeps their rows until the organisation's data is erased (§9's row; 0139
+     open question 4, the proposal, until the owner answers). "In which language" below was added
+     on 2026-09-29 (review of 0139 T3), because the record keeps it; for the owner's review with
+     the rest of this draft. -->
 
 **Your account with us.** Your email address, the identifier our sign-in service gives you, the
 organisation you belong to (in the app, your household's space is called an organisation), your
 role in it (during the Alpha, owner or admin), when you were invited and when you joined, and
-which versions of the Alpha conditions, the terms and this policy you accepted, and when.
+which versions of the Alpha conditions, the terms and this policy you accepted, in which language,
+and when.
 
 **During the Alpha, your Google address.** If you want to connect a Google account, you give us
 its address, and we enter it in the list of test users that Google keeps for our app (§6).
@@ -620,15 +627,24 @@ sign-in codes, progress summaries and the notices you ask us to send.
      True on live once live runs without ZAMMAD_URL (README, "Before the draft markers come
      off"). -->
 
-**Reporting a problem.** During the Alpha, *Report a problem* in the app's menu sends your
-report as an email to support@ownpace.eu, through our mail provider (§7). The mail holds what
-you wrote, the page you were on (without the secret part of a link), the reference and kind of
-an error if there was one, your organisation's identifier, the app's version, and your sign-in
-address, so that we can answer you. If you add a screenshot, it goes too. A screenshot shows
-whatever was on your screen, such as subjects, names and addresses, so look at it before you
-send it. *Report this link*, on a page reached through a grant link or a progress link, sends
-what the person wrote and the facts of that link the same way, such as who made it and for
-which accounts, and an address only if they give one.
+**Reporting a problem.** During the Alpha, *Report a problem* in the app's menu sends your report
+as an email to support@ownpace.eu, through our mail provider (§7). The mail holds what you wrote
+and your sign-in address, so that we can answer you, and these facts, which the form lists before
+you send: the page you were on (without the secret part of a link), the reference and kind of an
+error if there was one, your organisation's identifier and status, your role, the version of the
+service, the state of the migration on that page and of each data type in it, whether access was
+given through a link, which providers its two accounts are with and whether their last test passed,
+whether the service is on hold or its scheduler has stopped, the name your browser gives itself,
+and what your browser tells the form: the language of the screen, your time zone, the width of the
+window, the version of the app in your browser when it is not the service's, the data type, side
+and migration of the error line you came from, and the reference of an error the app met in the
+five minutes before you opened the form. If you add a screenshot, it goes too. A screenshot shows
+whatever was on your screen, such as subjects, names and addresses, so look at it before you send
+it. *Report this link*, on a page reached through a grant link or a progress link, sends what the
+person wrote and the facts of that link the same way: the organisation and the migration, who made
+the link, the two accounts, and whether access was given; and an address only if they give one.
+**A report contains the content of your mail, files or calendars, a subject, a folder name or a
+provider's error text only if you put it in what you write or in the screenshot.**
 
 <!-- NOT YET TRUE ON main (the owner, 2026-09-28, ops-trust-proxy (b): keep visitors' addresses
      in all our logs). NetBird ends TLS in front of the machine, so the app and the website see
@@ -910,21 +926,35 @@ target. We show you the target before anything is written.
        True once the close stops those too, or once the row says what the code does.
      - The copy made right before an update (rec-copies (a)): one copy per update, deleted once
        the update is proven (deploy-live.sh logged it as "took", one pass completed, the hold is
-       lifted), and never past day 7; not proven by day 6 means rolling back from the copy. Not
-       built: one script and one directory for the copy, a delete step, a daily 6-day backstop,
-       and dump-idp.sh writing into that directory or refusing on live. Until then the copy is
-       taken and deleted by hand, and dump-idp.sh keeps every dump ("none is ever
-       overwritten").
-     - Records of the background tasks: the drill sentence is gone (rec-drill (a)), but
-       box-duties.sh still runs `trigger-version.sh drill` on live, keeping 7 dumps, until that
-       duty is taken off live. "Until the end of the Alpha" (privacy-task-records (a)) is one
-       step in the end-of-Alpha routine, not written yet.
+       lifted), and never past day 7; not proven by day 6 means rolling back from the copy.
+       Built (0139 T6, 2026-09-28, review fixes 2026-09-29): deploy/compose/
+       copy-before-update.sh and one directory, ~/.persistent/ownpace-live/copy-before-update,
+       taken by deploy-live.sh right before its checkout, a delete step that refuses an
+       unproven update, a daily backstop in box-duties.sh that deletes it once older than 6
+       days less an hour, and dump-idp.sh and trigger-version.sh writing only there on live.
+       The rollback first writes down what was erased, closed or deleted after the copy
+       (copy-before-update.sh since) and does it again in the restored database, so "Data
+       erased from the service can remain in it for at most 7 days" holds through a rollback
+       too. True on live once live runs a tag that carries it and the daily duties' timer runs
+       (take refuses without it); the rollback has not been run on a stack.
+     - Records of the background tasks: the drill sentence is gone (rec-drill (a)), and
+       the drill is off live's duties (0139 T6): box-duties.sh's second duty is the copy's
+       backstop, and trigger-version.sh refuses drill on live. True on live once live runs a
+       tag that carries it; until then the tag it runs keeps 7 daily dumps.
+       "Until the end of the Alpha" (privacy-task-records (a)) is one step in the end-of-Alpha
+       routine, not written yet.
      - The list of what was shared, "goes when you delete the migration" (§4.2, §4.6; the
        owner's privacy-sharing-list (b)): deleting a migration does not yet delete its
        share_grant rows. A small code change; until it lands, the list stays until erasure.
      - A search by address and a download of the log, "deleted 12 months after"
-       (privacy-search-records (a)): nothing deletes them yet. A small job with the machine's
-       daily duties; the app still cannot change the log.
+       (privacy-search-records (a)): built, not yet run: deploy/compose/support-read-prune.sh
+       (0139 T6), the duty `searches` in box-duties.sh, over the owner's connection, since
+       app_user cannot change the log, and after 0138 T3 step 2 the tasks' system role can
+       delete from it, for the purge of an erased organisation, but its grant lets it pick rows
+       by organisation, never by age. True on live once live's daily duties run. It deletes
+       every read recorded with no organisation 12 months after it: besides these two, the
+       organisation list, the invoices kept after an erasure and a log page not filtered to one
+       organisation.
      - The sign-in service's history, "as long as we run this sign-in service"
        (privacy-signin-history (a), the owner: "still needs to be checked"): NOT CHECKED. Remove
        a test account on the test stack (Zitadel v4.19.2) and look at what stays. If the earlier
@@ -949,6 +979,7 @@ target. We show you the target before anything is written.
 | The migration ledger (§4.2), and what each migration keeps beside it, such as the list of what was shared (§4.6) | Until you delete the migration; then deleted with it. Otherwise until your data is erased. |
 | Preflight counts | With the migration they were counted for: until you delete it, or your data is erased. |
 | What belongs to your organisation rather than to one migration: its members and invitations, the distribution lists a migration found, and the audit log of who did what, and when | Until your data is erased, also after you delete the migration that found them. |
+| Which versions of the Alpha conditions, the terms and this policy each member accepted, in which language, and when (§4.4) | Until your data is erased, also after that member has left your organisation, so that it stays on record who agreed to what. |
 | The people you migrate for: each one's name, and an email address if you gave one (§4.6) | Until you delete that person, or your data is erased. Deleting a migration does not delete the person. |
 | The record of each pass: when it ran, and what it counted | During the Alpha: until your data is erased. |
 | A pass's log lines | 60 days. |

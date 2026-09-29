@@ -366,10 +366,10 @@ in it does not work, reply to the sender you know.
 
 ### Dutch
 
-**Onderwerp:** Met u gedeelde bestanden zijn verhuisd
+**Onderwerp:** Met u gedeelde bestanden zijn verplaatst
 
 De onderstaande bestanden of mappen waren met u gedeeld. Ze zijn naar een
-ander platform verhuisd, en uw toegang is meeverhuisd.
+ander platform verplaatst, en uw toegang is meegegaan.
 
 [Uw notitie — VERPLICHT bij verzending: zeg in een of twee zinnen waar alles
 nu staat.]

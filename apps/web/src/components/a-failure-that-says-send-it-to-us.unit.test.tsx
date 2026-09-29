@@ -77,7 +77,11 @@ describe('the progress strip', () => {
     at('/mappings/acme', <LiveProgress domains={[FAILED]} />);
 
     const link = await screen.findByRole('link', { name: EN['failure.sendItToUs'] });
-    expect(link).toHaveAttribute('href', '/report?from=%2Fmappings%2Facme&category=unknown&reference=0a1b2c3d');
+    // And its data type (0130 T6, Part B); no side, since the pass named none.
+    expect(link).toHaveAttribute(
+      'href',
+      '/report?from=%2Fmappings%2Facme&category=unknown&reference=0a1b2c3d&dataType=contact',
+    );
   });
 
   it('fills the form in when followed', async () => {

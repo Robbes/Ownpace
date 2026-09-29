@@ -132,9 +132,19 @@ function zammad() {
   return { calls, fetchImpl };
 }
 
+/** An organisation with nothing closed, no hold, and the scheduler running. */
+const quietRecords = async () => ({
+  organisation: { status: 'active', closedAt: null, purgeAfter: null },
+  hold: { on: false, since: null },
+  scheduler: 'running' as const,
+});
+
 function app(deps: Parameters<typeof problemReportRoutes>[0]) {
   const a = express();
-  a.use('/api/problem-reports', problemReportRoutes(deps));
+  // The facts from the records, as a quiet service reads them: this file is
+  // about where a report goes; `a-report-that-says-what-it-sends` reads the
+  // real ones, on PGlite as `app_user`.
+  a.use('/api/problem-reports', problemReportRoutes({ readFacts: quietRecords, ...deps }));
   return a;
 }
 
@@ -167,12 +177,15 @@ describe('where a report goes', () => {
         smtp: { host: 'smtp.example.invalid', port: 587, secure: false, user: MAIL.SMTP_USER, password: MAIL.SMTP_PASSWORD },
         from: 'ownpace@example.invalid',
         to: ['support@example.invalid'],
+        supportMailbox: true,
       },
     });
   });
 
   it("to the operator's own address when REPORT_MAIL_TO is empty", () => {
     expect(reportMailConfigFrom({ ...MAIL, REPORT_MAIL_TO: '  ' })?.to).toEqual(['operator@example.invalid']);
+    // Not the support mailbox, so the form never shows it (0130 T6).
+    expect(reportMailConfigFrom({ ...MAIL, REPORT_MAIL_TO: '  ' })?.supportMailbox).toBe(false);
     expect(reportMailConfigFrom({ ...MAIL, REPORT_MAIL_TO: 'a@example.invalid, b@example.invalid' })?.to).toEqual([
       'a@example.invalid',
       'b@example.invalid',
@@ -457,6 +470,7 @@ describe('a relay that does not answer', () => {
     smtp: { host, port: 587, secure: false },
     from: 'ownpace@example.invalid',
     to: ['support@example.invalid'],
+    supportMailbox: true,
   });
   const hosts: string[] = [];
   afterEach(() => {

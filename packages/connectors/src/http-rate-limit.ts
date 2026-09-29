@@ -93,6 +93,17 @@ function isRateLimited(status: number): boolean {
 }
 
 /**
+ * How a request reaches its host, when that is not `tenantFetch`.
+ *
+ * Only a provider's FIXED host passes one: Dropbox's API (0055 T3 (e)), which
+ * is reached with Node's own `fetch`, and whose file the fetch guard lists in
+ * FIXED_HOSTS for it (`scripts/a-client-that-reaches-a-tenant-host`). A host a
+ * tester typed never does, so the rule that refuses an inward address still
+ * rides every request to one.
+ */
+export type Send = (url: string, init: RequestInit) => Promise<Response>;
+
+/**
  * Fetch, retrying while the server is rate-limiting, within a time budget.
  *
  * Safe for every call that uses it: JMAP reads (`Email/query`, `Email/get`,
@@ -102,16 +113,20 @@ function isRateLimited(status: number): boolean {
  * mid-migration should cost seconds, not items.
  *
  * @param label what appears in the log line, e.g. `jmap`.
+ * @param send how the request reaches its host. Left out, it is `tenantFetch`,
+ *   the client for a host a tester typed, as it is for every caller but one
+ *   (see {@link Send}).
  */
 export async function fetchWithRateLimitRetry(
   url: string,
   init: RequestInit,
   label = 'http',
+  send?: Send,
 ): Promise<Response> {
   let waitedMs = 0;
 
   for (let attempt = 0; ; attempt++) {
-    const response = await tenantFetch(url, init);
+    const response = send ? await send(url, init) : await tenantFetch(url, init);
     if (!isRateLimited(response.status)) return response;
 
     const remaining = RATE_LIMIT_TOTAL_BUDGET_MS - waitedMs;

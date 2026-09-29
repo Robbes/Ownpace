@@ -38,8 +38,10 @@ import {
   expiryFromDays,
 } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
-import { runManagedMigrations } from '@openmig/managed';
+import { LEGAL_VERSIONS, recordAcceptance, runManagedMigrations } from '@openmig/managed';
 import { SecretStore } from '@openmig/core/secret-store';
+import { join } from 'node:path';
+import { specChecker } from '../../__tests__/doors-that-start-work.ts';
 
 // UUID family 5f4f0000-…, unused elsewhere in the repo.
 const TENANT = '5f4f0000-e29b-41d4-a716-446655441601';
@@ -105,6 +107,13 @@ async function onTheDeploymentsClient<T>(fn: () => Promise<T>, scopeClass?: stri
 let driver: LedgerDriver;
 /** Set per test — the session `authenticate` pretends to have verified. */
 let caller: { tenantId?: string; userId?: string; userRole?: string } = {};
+
+// Every text final, so a deployment that runs the Alpha asks (0139 T3): which
+// texts really are drafts is `scripts/a-version-the-tester-accepted`'s.
+vi.mock('@openmig/managed', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openmig/managed')>();
+  return { ...actual, LEGAL_DRAFTS: { alpha: false, privacy: false, terms: false } };
+});
 
 vi.mock('../../middleware/auth.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../middleware/auth.ts')>();
@@ -720,5 +729,63 @@ describe('as many live grant links as the tier runs migrations (0108 T8 (d))', (
     ]);
 
     expect((await issue()).body).toMatchObject({ live: 3, limit: 1 });
+  });
+});
+
+/**
+ * A GRANT LINK WAITS FOR THE TEXTS (workplan 0139 T3; review of 2026-09-29).
+ *
+ * Issuing a grant link is the member's door to the access a family member
+ * then gives through it, which `grant-ending.ts` stores. So while the
+ * deployment asks (`OWNPACE_STAGE=alpha`), a member who has not accepted the
+ * current version of each text is refused a grant link, as the three doors
+ * that store a credential refuse them: 409 `conditions_not_accepted`, and
+ * nothing written. A progress link grants nothing, and is issued as before.
+ */
+describe('a grant link waits until the texts are accepted (0139 T3)', () => {
+  const CHECKER = specChecker(join(import.meta.dirname, '..', '..', '..', 'docs', 'openapi.yaml'));
+  const LINKS = {
+    name: 'issuing a grant link',
+    path: `/api/migrations/${READY_MAPPING}/links`,
+    spec: '/api/migrations/{mappingId}/links',
+    accepted: 201,
+  } as const;
+  const had = process.env.OWNPACE_STAGE;
+
+  beforeAll(async () => {
+    process.env.OWNPACE_STAGE = 'alpha';
+    await asOwner(`INSERT INTO tenant_member (tenant_id, user_id, email) VALUES ($1, 'pat', 'pat@example.invalid')`, [
+      TENANT,
+    ]);
+  });
+
+  afterAll(() => {
+    if (had === undefined) delete process.env.OWNPACE_STAGE;
+    else process.env.OWNPACE_STAGE = had;
+  });
+
+  it('is refused with 409 conditions_not_accepted to a member who has not accepted them, and writes nothing', async () => {
+    const before = (await rowsFor(READY_MAPPING)).length;
+    const res = await request(app).post(LINKS.path).send({ purpose: 'grant' });
+
+    expect(res.status, JSON.stringify(res.body)).toBe(409);
+    expect(res.body.error).toBe('conditions_not_accepted');
+    expect(await rowsFor(READY_MAPPING)).toHaveLength(before);
+    const { raw, schema } = CHECKER.responseSchema(LINKS, '409');
+    expect(JSON.stringify(raw)).toContain('ConditionsNotAccepted');
+    expect(CHECKER.satisfies(schema, res.body), `the spec does not document ${JSON.stringify(res.body)}`).toBe(true);
+  });
+
+  it('still issues a progress link, which grants nothing', async () => {
+    const res = await request(app).post(LINKS.path).send({ purpose: 'view' });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+  });
+
+  it('is issued once the member has accepted the current version of each text', async () => {
+    const got = await withTenant(driver, TENANT, (db) => recordAcceptance(db, TENANT, 'pat', LEGAL_VERSIONS, 'nl'));
+    expect(got.kind).toBe('recorded');
+
+    const res = await request(app).post(LINKS.path).send({ purpose: 'grant' });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
   });
 });

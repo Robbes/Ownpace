@@ -9,6 +9,12 @@
  * one (0130 T3's first half put it on the progress strip). The form checks all
  * three again, since an address is something anybody can edit.
  *
+ * And, since 0130 T6 Part B, what the line knows of the failure that its page's
+ * address may not say: its data type, its side and its migration, each when
+ * the line has it. A line on Connections sits on a page with no migration in
+ * its path; its report said only `/connections`. The form checks these too,
+ * and sends them among the browser's facts, which the server checks again.
+ *
  * Offered only where a report can reach somebody: on the managed service, when
  * it takes reports (the same question, and the same cached answer, as the
  * link beside Sign out). The appliance has no report form.
@@ -21,25 +27,39 @@
 import React from 'react';
 import { Link, useInRouterContext, useLocation } from 'react-router';
 import { QueryClientContext, useQuery } from '@tanstack/react-query';
-import type { FailureCategory } from '@openmig/shared';
+import type { DiscoveryDomain, FailureCategory, FailureSide } from '@openmig/shared';
 import { useT } from '../i18n/index.tsx';
 import { isSelfHost } from '../services/edition.ts';
 import { fetchReportingAvailable } from '../services/problem-report-service.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 
-interface Props {
+/** What a failure line knows of its failure beyond its category, each when it has it. */
+export interface FailureLine {
+  readonly dataType?: DiscoveryDomain;
+  readonly side?: FailureSide;
+  readonly migrationId?: string;
+}
+
+interface Props extends FailureLine {
   readonly category: FailureCategory;
   /** The reference the failure was recorded under, when this screen has it. */
   readonly reference?: string;
 }
 
 /** The report form's address, with what the failure line knows. */
-export function reportHref(from: string, category: FailureCategory, reference?: string): string {
-  const query = new URLSearchParams({ from, category, ...(reference ? { reference } : {}) });
+export function reportHref(from: string, category: FailureCategory, reference?: string, line: FailureLine = {}): string {
+  const query = new URLSearchParams({
+    from,
+    category,
+    ...(reference ? { reference } : {}),
+    ...(line.dataType ? { dataType: line.dataType } : {}),
+    ...(line.side ? { side: line.side } : {}),
+    ...(line.migrationId ? { migration: line.migrationId } : {}),
+  });
   return `/report?${query.toString()}`;
 }
 
-const Offered: React.FC<Props> = ({ category, reference }) => {
+const Offered: React.FC<Props> = ({ category, reference, dataType, side, migrationId }) => {
   const t = useT();
   const { pathname } = useLocation();
   const token = useAuthStore((s) => s.token);
@@ -52,7 +72,7 @@ const Offered: React.FC<Props> = ({ category, reference }) => {
     }).data === true;
   if (!available) return null;
   return (
-    <Link to={reportHref(pathname, category, reference)} className="underline">
+    <Link to={reportHref(pathname, category, reference, { dataType, side, migrationId })} className="underline">
       {t('failure.sendItToUs')}
     </Link>
   );

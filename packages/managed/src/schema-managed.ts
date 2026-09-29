@@ -551,3 +551,38 @@ export const personMigration = pgTable(
   },
   (t) => [index('person_migration_person_idx').on(t.personId)],
 );
+
+// ========================= What a person accepted =========================
+
+/**
+ * Which version of the Alpha conditions, the privacy policy and the terms a
+ * person accepted, in which language, and when (workplan 0139 T3; managed
+ * migration 0032). One row per person, text and version: a new version is a
+ * new row, and accepting the same one again adds nothing. The request path
+ * appends and reads, and may not change or delete a row. Purged on erasure
+ * with the organisation (`PURGED_TABLES`).
+ *
+ * The appliance has no such table: it has no terms, and asks nobody.
+ */
+export const legalAcceptance = pgTable(
+  'legal_acceptance',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    /** The signed-in person, as `tenant_member.user_id` holds them. */
+    subject: text('subject').notNull(),
+    /** `alpha`, `privacy` or `terms` (`LEGAL_DOCUMENTS`). */
+    document: text('document').notNull(),
+    /** The number on the text's Version line, never a draft marker. */
+    version: text('version').notNull(),
+    /** `nl` or `en`: the language the screen showed the text in. */
+    language: text('language').notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('legal_acceptance_once').on(t.tenantId, t.subject, t.document, t.version),
+    index('legal_acceptance_subject_idx').on(t.tenantId, t.subject),
+  ],
+);

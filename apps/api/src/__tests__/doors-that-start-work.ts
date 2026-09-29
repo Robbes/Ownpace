@@ -174,7 +174,7 @@ export type Schema = { readonly [key: string]: unknown };
 const ANNOTATIONS = new Set(['description', 'examples', 'example', 'format', 'title']);
 /** Words this checker applies. Anything else fails loudly rather than passing unread. */
 const CONSTRAINTS = new Set([
-  '$ref', 'type', 'enum', 'required', 'properties', 'additionalProperties', 'oneOf', 'anyOf', 'allOf',
+  '$ref', 'type', 'enum', 'required', 'properties', 'additionalProperties', 'oneOf', 'anyOf', 'allOf', 'items',
 ]);
 
 function typeOf(value: unknown): string {
@@ -229,6 +229,8 @@ export function specChecker(specPath: string): SpecChecker {
       if (!allowed.some((t) => t === actual || (t === 'number' && actual === 'integer'))) return false;
     }
     if (Array.isArray(schema.enum) && !schema.enum.includes(value)) return false;
+    // Every element, for an array: the list of texts a refusal names (0139 T3).
+    if (schema.items && Array.isArray(value) && !value.every((v) => satisfies(schema.items as Schema, v))) return false;
     if (typeOf(value) === 'object') {
       const record = value as Record<string, unknown>;
       const properties = (schema.properties ?? {}) as Record<string, Schema>;

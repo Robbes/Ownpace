@@ -88,9 +88,19 @@ function zammad(answer: { status?: number; number?: unknown } = {}) {
   return { calls, fetchImpl };
 }
 
+/** An organisation with nothing closed, no hold, and the scheduler running. */
+const quietRecords = async () => ({
+  organisation: { status: 'active', closedAt: null, purgeAfter: null },
+  hold: { on: false, since: null },
+  scheduler: 'running' as const,
+});
+
 function app(deps: Parameters<typeof problemReportRoutes>[0]) {
   const a = express();
-  a.use('/api/problem-reports', problemReportRoutes(deps));
+  // The facts from the records, as a quiet service reads them: this file is
+  // about where a report goes; `a-report-that-says-what-it-sends` reads the
+  // real ones, on PGlite as `app_user`.
+  a.use('/api/problem-reports', problemReportRoutes({ readFacts: quietRecords, ...deps }));
   // The API's own last word on an error, as `index.ts` mounts it.
   a.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     serverFault(res, 'unhandled', 'handling this request', err);

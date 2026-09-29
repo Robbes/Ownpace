@@ -214,7 +214,9 @@ describe('Migrations — one card per person (0153 T3)', () => {
     renderMappings();
 
     const count = await screen.findByRole('link', { name: 'Needs you: 3 →' });
-    expect(count).toHaveAttribute('href', '/decisions');
+    // To the person's own page, where their steps are (0153 T5).
+    expect(count).toHaveAttribute('href', '/people/p-anna#before-you-switch');
+    expect(screen.getByRole('link', { name: 'Anna' })).toHaveAttribute('href', '/people/p-anna');
     expect(screen.getByText(/1 person/)).toBeInTheDocument();
     expect(screen.getByText(/1 needs you/)).toBeInTheDocument();
   });

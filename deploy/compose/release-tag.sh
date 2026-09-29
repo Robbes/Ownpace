@@ -38,6 +38,19 @@
 #       its commit's package.json says the version. Sets RELEASE_TAG_COMMIT and
 #       RELEASE_TAG_VERSION.
 #
+# AND WHAT IT MUST CARRY. A release live runs must hold the scripts live is
+# deployed, checked and kept by after it: deploy-live.sh, exposure-check.sh,
+# box-duties.sh (the daily duties, the copy's backstop among them),
+# stack-kind.sh and copy-before-update.sh (workplan 0132 T3, T6, T7; 0139). A
+# tag cut before one of them would leave live without its daily duties or the
+# backstop of the copy just taken, and the next deploy without a copy. Both
+# scripts refuse such a tag, in the same words: stand-up-live.sh before live's
+# first bring-up, deploy-live.sh before a deploy moves anything.
+#
+#   release_tag_carries <repo-root> <tag> <commit>
+#       true when <commit> has every file in RELEASE_TAG_MUST_CARRY under
+#       deploy/compose/.
+#
 # On a refusal each returns 1 with RELEASE_TAG_WHY holding the lines to print:
 # the sentence first, then what to do. Neither prints anything itself, and
 # neither exits: the caller refuses in its own words around these.
@@ -46,6 +59,9 @@
 #         release_tag_on_origin "$REPO_ROOT" "$tag" || refuse "${RELEASE_TAG_WHY[@]}"
 
 RELEASE_SENTENCE='live runs releases: name a release tag'
+# What a release tag must carry for live to be deployed, checked and kept
+# after it, under deploy/compose/ (above).
+RELEASE_TAG_MUST_CARRY=(deploy-live.sh exposure-check.sh box-duties.sh stack-kind.sh copy-before-update.sh)
 RELEASE_TAG_WHY=()
 RELEASE_TAG_REMOTE_OBJECT=''
 RELEASE_TAG_COMMIT=''
@@ -115,6 +131,20 @@ release_tag_is_release() {
   fi
   RELEASE_TAG_COMMIT="$commit"
   RELEASE_TAG_VERSION="$version"
+}
+
+# release_tag_carries <repo-root> <tag> <commit>
+release_tag_carries() {
+  local root="$1" tag="$2" commit="$3" f
+  local -a missing=()
+  RELEASE_TAG_WHY=()
+  for f in "${RELEASE_TAG_MUST_CARRY[@]}"; do
+    git -C "$root" cat-file -e "${commit}:deploy/compose/${f}" 2>/dev/null || missing+=("deploy/compose/${f}")
+  done
+  [ "${#missing[@]}" -gt 0 ] || return 0
+  RELEASE_TAG_WHY=("${tag} does not carry ${missing[*]}. Live is deployed, checked and kept by them after this (workplan 0132 T3, T6, T7; 0139)."
+    "Cut the release from a commit of main that has them (docs/release.md §2).")
+  return 1
 }
 
 # release_tag_version_at <repo-root> <commit> — the root package.json's

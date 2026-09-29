@@ -8,7 +8,81 @@
  */
 
 import axios, { AxiosError } from 'axios';
+import type { DiscoveryDomain, FailureSide } from '@openmig/shared';
 import apiClient from './api.ts';
+import { uiBuild } from './build-identity.ts';
+import { recentErrors, type RecentError } from './recent-errors.ts';
+
+/**
+ * What the browser says of itself with a report (workplan 0130 T6, Part B),
+ * as one small object the API checks key by key, dropping whatever is not one
+ * of these in its shape (`apps/api/src/report-browser-facts.ts`). The same
+ * object goes with the preview, as JSON, and with the report, so the fold
+ * shows what is sent.
+ */
+export interface BrowserFacts {
+  readonly language: 'en' | 'nl';
+  /** The IANA time zone, which turns "at 14:02" into the log's UTC. */
+  readonly timeZone?: string;
+  /** The window's width in CSS pixels, which a layout follows. */
+  readonly windowWidth?: number;
+  /** This bundle's build; the API writes it only when it is not its own. */
+  readonly appVersion?: string;
+  readonly appCommit?: string;
+  /** From the failure line the form was opened from, each when it had it. */
+  readonly dataType?: DiscoveryDomain;
+  readonly side?: FailureSide;
+  readonly migrationId?: string;
+  /** The faults met in the five minutes before the form was opened: reference and code only. */
+  readonly recentErrors?: readonly RecentError[];
+}
+
+/** What the browser knows when the form opens, read once, so the preview and the report say the same. */
+export interface BrowserSnapshot {
+  readonly timeZone?: string;
+  readonly windowWidth?: number;
+  readonly appVersion?: string;
+  readonly appCommit?: string;
+  readonly recentErrors: readonly RecentError[];
+}
+
+/** The time zone, the window's width, this bundle's build and the recent faults, as they are now. */
+export function readBrowser(): BrowserSnapshot {
+  let timeZone: string | undefined;
+  try {
+    timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    // A browser without the time zone database says none; the report goes without it.
+    timeZone = undefined;
+  }
+  const { innerWidth } = globalThis as unknown as { innerWidth?: unknown };
+  const width = typeof innerWidth === 'number' ? Math.round(innerWidth) : NaN;
+  const build = uiBuild();
+  return {
+    ...(timeZone ? { timeZone } : {}),
+    ...(Number.isFinite(width) && width > 0 ? { windowWidth: width } : {}),
+    ...(build.version ? { appVersion: build.version } : {}),
+    ...(/^[0-9a-f]{7,40}$/.test(build.commit) ? { appCommit: build.commit } : {}),
+    recentErrors: recentErrors(),
+  };
+}
+
+/** The browser's facts for a report: the screen's language, the snapshot, and the failure line. */
+export function browserFacts(
+  language: BrowserFacts['language'],
+  snapshot: BrowserSnapshot,
+  line: Pick<BrowserFacts, 'dataType' | 'side' | 'migrationId'>,
+): BrowserFacts {
+  const { recentErrors: recent, ...rest } = snapshot;
+  return {
+    language,
+    ...rest,
+    ...(line.dataType ? { dataType: line.dataType } : {}),
+    ...(line.side ? { side: line.side } : {}),
+    ...(line.migrationId ? { migrationId: line.migrationId } : {}),
+    ...(recent.length > 0 ? { recentErrors: recent } : {}),
+  };
+}
 
 export interface ProblemReportBody {
   readonly description: string;
@@ -16,6 +90,7 @@ export interface ProblemReportBody {
   readonly reference?: string;
   readonly category?: string;
   readonly screenshot?: { readonly data: string };
+  readonly browser?: BrowserFacts;
 }
 
 /**
@@ -32,6 +107,75 @@ export async function fetchReportingAvailable(): Promise<boolean> {
 }
 
 /**
+ * Where a report would go: by mail, with the support mailbox's addresses when
+ * the service names them, or the owner's helpdesk. A service that sends
+ * reports to its operator's own address names none, and the form then says
+ * the support team without an address.
+ */
+export type ReportRecipient =
+  | { readonly kind: 'mail'; readonly addresses?: readonly string[] }
+  | { readonly kind: 'helpdesk' };
+
+/**
+ * What a report from this page would carry, before it is sent (workplan 0130
+ * T6): where it goes, and its lines of facts, exactly as the API will write
+ * them into the ticket or the mail. Shown verbatim, in English, as the support
+ * team reads them. Sending reads them again on the server; nothing here is
+ * sent back.
+ */
+export interface ReportPreview {
+  readonly to: ReportRecipient;
+  readonly lines: readonly string[];
+}
+
+/** Whether a value is the recipient the API describes, and nothing else. */
+function isRecipient(value: unknown): value is ReportRecipient {
+  if (typeof value !== 'object' || value === null) return false;
+  const to = value as { kind?: unknown; addresses?: unknown };
+  if (to.kind === 'helpdesk') return true;
+  return (
+    to.kind === 'mail' &&
+    (to.addresses === undefined ||
+      (Array.isArray(to.addresses) &&
+        to.addresses.length > 0 &&
+        to.addresses.every((a) => typeof a === 'string' && a !== '')))
+  );
+}
+
+/**
+ * The preview for a report from `place`, with the browser's facts when there
+ * are any. An answer in any other shape is refused rather than half shown: the
+ * form then lists what it knows itself and says the rest is read when the
+ * report is sent.
+ */
+export async function fetchReportPreview(place: {
+  readonly page: string;
+  readonly reference?: string;
+  readonly category?: string;
+  readonly browser?: BrowserFacts;
+}): Promise<ReportPreview> {
+  const response = await apiClient.get<unknown>('/problem-reports/preview', {
+    params: {
+      page: place.page,
+      ...(place.reference ? { reference: place.reference } : {}),
+      ...(place.category ? { category: place.category } : {}),
+      // In a query, so as JSON: the API reads the same object as the report's.
+      ...(place.browser ? { browser: JSON.stringify(place.browser) } : {}),
+    },
+  });
+  const data = response.data as { to?: unknown; lines?: unknown } | null;
+  if (
+    data === null ||
+    typeof data !== 'object' ||
+    !isRecipient(data.to) ||
+    !Array.isArray(data.lines) ||
+    !data.lines.every((line) => typeof line === 'string')
+  ) {
+    throw new Error('The service answered the preview of a report in a shape this page does not read.');
+  }
+  return { to: data.to, lines: data.lines as string[] };
+}
+
 /**
  * How long the form waits for a report to be sent and answered: two minutes,
  * not `apiClient`'s 30 seconds. A report with a 5 MB screenshot is a request of

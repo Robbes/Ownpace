@@ -32,12 +32,7 @@ import React from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FolderGit2, Plus, Play, Pause, Trash2, Edit, AlertCircle } from 'lucide-react';
-import {
-  leastAdvancedStage,
-  stageOf,
-  type Person,
-  type Stage,
-} from '@openmig/shared';
+import { leastAdvancedStage, type Person } from '@openmig/shared';
 import { mappingApi, type MappingListItem } from '../services/mapping-service.ts';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
 import {
@@ -48,16 +43,12 @@ import {
 } from '../services/operating-service.ts';
 import { serverMessage } from '../services/api.ts';
 import StateChip from '../components/StateChip.tsx';
-import ProviderTile, { providerName } from '../components/ProviderTile.tsx';
-import { DataTypeLabel } from '../components/icons/data-type-icons.tsx';
+import { providerName } from '../components/ProviderTile.tsx';
+import { MigrationLines, listStage } from '../components/MigrationLines.tsx';
 import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
 import { Hint } from '../components/Hint.tsx';
 import { waitingOn } from '../services/needs-you.ts';
 
-/** A migration's stage, from what the list carries (see the header). */
-export function listStage(m: Pick<MappingListItem, 'status' | 'lastSyncAt'>): Stage | undefined {
-  return stageOf({ phase: m.status, completedOnce: Boolean(m.lastSyncAt) });
-}
 
 /** The names on one side of a person's migrations, once each, in the order met. */
 function providerNames(migrations: readonly MappingListItem[], side: 'sourceType' | 'targetType'): string[] {
@@ -76,7 +67,7 @@ type SyncOutcome = { state: 'pending' } | { state: 'failed'; text: string };
 
 const Mappings: React.FC = () => {
   const t = useT();
-  const { relativeToNow, list } = useFormatters();
+  const { list } = useFormatters();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -202,7 +193,6 @@ const Mappings: React.FC = () => {
   const needYou = cards.filter((c) => (needsOf(c.migrations) ?? 0) > 0).length;
 
   const migrationBlock = (m: MappingListItem, extra?: React.ReactNode) => {
-    const stage = listStage(m);
     const outcome = syncOutcomes[m.id];
     return (
       <div key={m.id} className="py-3 border-t border-gray-100 first:border-t-0">
@@ -282,22 +272,7 @@ const Mappings: React.FC = () => {
               </button>
             </div>
           </div>
-          <ul className="mt-1">
-            {m.domains.map((domain) => (
-              <li key={domain} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-1 text-sm">
-                <DataTypeLabel domain={domain} size={18} />
-                <span className="flex items-center gap-2 text-gray-700">
-                  <ProviderTile type={m.sourceType} role="source" size={20} />
-                  <span aria-hidden="true">→</span>
-                  <ProviderTile type={m.targetType} role="target" size={20} />
-                </span>
-                {stage && <StateChip entity="stage" state={stage} />}
-                <span className="text-gray-500">
-                  {m.lastSyncAt ? t('people.lastPass', { when: relativeToNow(m.lastSyncAt) }) : t('people.noPassYet')}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <MigrationLines migration={m} />
         </div>
         {extra}
         {deleteArm?.id === m.id && (
@@ -415,14 +390,25 @@ const Mappings: React.FC = () => {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-3">
                     <h2 id={headingId} className="text-lg font-semibold text-gray-900">
-                      {person.displayName ?? t('people.implicit')}
+                      {person.implicit ? (
+                        t('people.implicit')
+                      ) : (
+                        // The person's own page (0153 T5): what waits on them,
+                        // and their steps before they switch.
+                        <Link to={`/people/${encodeURIComponent(person.id)}`} className="hover:underline">
+                          {person.displayName}
+                        </Link>
+                      )}
                     </h2>
                     {stage && <StateChip entity="stage" state={stage} />}
                   </div>
                   {needs === undefined ? (
                     attentionQuery.isLoading ? null : <span className="text-sm text-gray-600">{t('people.needsUnknown')}</span>
                   ) : needs > 0 ? (
-                    <Link to="/decisions" className="text-sm font-medium text-blue-700 hover:underline">
+                    <Link
+                      to={person.implicit ? '/decisions' : `/people/${encodeURIComponent(person.id)}#before-you-switch`}
+                      className="text-sm font-medium text-blue-700 hover:underline"
+                    >
                       {t('people.needsYou', { n: needs })} →
                     </Link>
                   ) : null}

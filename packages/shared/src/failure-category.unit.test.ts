@@ -281,3 +281,27 @@ describe('the vocabulary itself', () => {
     expect(wrong).toHaveLength(2);
   });
 });
+
+describe("Google's rate-limit reasons read as a rate limit (workplan 0143 T10)", () => {
+  // Google says "rate limit" with a 403 as often as with a 429, and its
+  // sentence can be the quota rule's own words. The reason is the part that
+  // is sure, and every rendering of a Google refusal keeps it.
+  const PER_MINUTE =
+    "Quota exceeded for quota metric 'Queries' and limit 'Queries per minute per user' of service 'drive.googleapis.com'";
+
+  it.each([
+    ['a limit per minute, in the words of a daily quota', `Drive API 429 for https://www.googleapis.com/drive/v3/files: rateLimitExceeded — ${PER_MINUTE}`],
+    ['the same on a download', `Drive refused the download of "report.pdf" (403): userRateLimitExceeded — ${PER_MINUTE}`],
+    ['the GData code alone, on a DAV face', 'PROPFIND failed with status 403: userRateLimitExceeded'],
+  ])('%s', (_what, message) => {
+    for (const side of [undefined, 'source', 'target'] as const) {
+      expect(classifyFailure(message, side)).toBe('rate_limited');
+    }
+  });
+
+  it('leaves a daily limit a daily limit', () => {
+    expect(classifyFailure('Drive API 403 for https://www.googleapis.com/drive/v3/files: dailyLimitExceeded — Daily Limit Exceeded')).toBe(
+      'quota_exceeded',
+    );
+  });
+});

@@ -30,17 +30,36 @@
  * gives it (workplan 0146 T2). Every managed build since 2026-08-04 has said
  * the same version, so the commit is what tells two apart, and a person
  * reporting a problem is not asked to copy it off the page.
+ *
+ * And, since 2026-09-28, **the facts from our records** (workplan 0130 T6,
+ * Part A): the reporter's role, the organisation's status, the migration on
+ * the page, whether the reference is a current failure, the service hold, the
+ * scheduler, the two accounts' providers, and the browser, from the request's
+ * own header. Read on the server (`report-facts.ts`), never from the browser,
+ * and written by {@link reportFactLines}, the one function that writes a
+ * report's facts: the form's *What we send with this* shows its lines before
+ * sending, and the ticket's article and the mail carry the same lines after.
+ *
+ * And **what only the browser knows** (Part B, `report-browser-facts.ts`): the
+ * screen's language, the time zone, the window's width, the web app's build
+ * when it is not the server's, the failure line the form came from, and the
+ * references of the faults the page met in the five minutes before. One small
+ * object, `browser`, of which only its own keys in their own shapes are taken,
+ * and the rest dropped without refusing the report.
  */
 
 import { z } from 'zod';
 import { buildIdentity, type BuildIdentity } from '@openmig/core';
 import {
   APP_EVENT_REFERENCE,
+  DISCOVERY_DOMAINS,
   isFailureCategory,
   type FailureCategory,
   type MailAttachment,
 } from '@openmig/shared';
 import { loggableUrl } from './access-log.ts';
+import type { ReportFacts } from './report-facts.ts';
+import { browserFactLines, parseBrowserFacts, type BrowserFacts } from './report-browser-facts.ts';
 
 /** The most a description may hold. A report, not an essay, and a bound on the body. */
 export const MAX_DESCRIPTION = 5000;
@@ -51,12 +70,20 @@ export const PROBLEM_REPORT_BODY_LIMIT = '8mb';
 
 export type ScreenshotType = 'image/png' | 'image/jpeg';
 
-export interface ProblemReport {
-  readonly description: string;
+/**
+ * Where a report was made: the page, the error on it when there is one, and
+ * what the browser said of itself, as far as it was a fact in its shape.
+ */
+export interface ReportPlace {
   /** The page, already redacted. */
   readonly page: string;
   readonly reference?: string;
   readonly category?: FailureCategory;
+  readonly browser?: BrowserFacts;
+}
+
+export interface ProblemReport extends ReportPlace {
+  readonly description: string;
   readonly screenshot?: { readonly type: ScreenshotType; readonly data: string };
 }
 
@@ -90,6 +117,40 @@ export function parseProblemReport(body: unknown): ProblemReport | ReportRefusal
     return { field: 'description', reason: `At most ${MAX_DESCRIPTION} characters.`, status: 400 };
   }
 
+  const place = parseReportPlace(b);
+  if (isRefusal(place)) return place;
+
+  let screenshot: ProblemReport['screenshot'];
+  if (b.screenshot !== undefined && b.screenshot !== null) {
+    const shot = b.screenshot as Record<string, unknown>;
+    if (typeof shot.data !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(shot.data)) {
+      return { field: 'screenshot', reason: 'The screenshot did not arrive whole.', status: 400 };
+    }
+    const bytes = Buffer.from(shot.data, 'base64');
+    if (bytes.byteLength > MAX_SCREENSHOT_BYTES) {
+      return { field: 'screenshot', reason: 'A screenshot may be at most 5 MB.', status: 413 };
+    }
+    // By its own first bytes, not by the type the browser claimed: a file
+    // named .png is not thereby a picture.
+    const type = imageTypeOf(bytes);
+    if (!type) {
+      return { field: 'screenshot', reason: 'A screenshot is a PNG or a JPEG.', status: 400 };
+    }
+    screenshot = { type, data: shot.data };
+  }
+
+  return { description, ...place, ...(screenshot ? { screenshot } : {}) };
+}
+
+/**
+ * The page, the reference and the category, as a report's body carries them
+ * and as the preview of its facts is asked with them (a query string), each
+ * checked the same way for both. And the browser's facts: an object in the
+ * body, JSON in the query, never a reason to refuse (`parseBrowserFacts`).
+ */
+export function parseReportPlace(body: unknown): ReportPlace | ReportRefusal {
+  const b = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
+
   if (typeof b.page !== 'string' || !b.page.startsWith('/') || b.page.length > 2000) {
     return { field: 'page', reason: 'The page is a path on this site.', status: 400 };
   }
@@ -111,31 +172,13 @@ export function parseProblemReport(body: unknown): ProblemReport | ReportRefusal
     category = b.category;
   }
 
-  let screenshot: ProblemReport['screenshot'];
-  if (b.screenshot !== undefined && b.screenshot !== null) {
-    const shot = b.screenshot as Record<string, unknown>;
-    if (typeof shot.data !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(shot.data)) {
-      return { field: 'screenshot', reason: 'The screenshot did not arrive whole.', status: 400 };
-    }
-    const bytes = Buffer.from(shot.data, 'base64');
-    if (bytes.byteLength > MAX_SCREENSHOT_BYTES) {
-      return { field: 'screenshot', reason: 'A screenshot may be at most 5 MB.', status: 413 };
-    }
-    // By its own first bytes, not by the type the browser claimed: a file
-    // named .png is not thereby a picture.
-    const type = imageTypeOf(bytes);
-    if (!type) {
-      return { field: 'screenshot', reason: 'A screenshot is a PNG or a JPEG.', status: 400 };
-    }
-    screenshot = { type, data: shot.data };
-  }
+  const browser = parseBrowserFacts(b.browser);
 
   return {
-    description,
     page,
     ...(reference ? { reference } : {}),
     ...(category ? { category } : {}),
-    ...(screenshot ? { screenshot } : {}),
+    ...(browser ? { browser } : {}),
   };
 }
 
@@ -186,20 +229,156 @@ function titleFor(report: ProblemReport): string {
 }
 
 /**
- * What the person wrote, then the facts under it: the page, the reference and
- * category when there is one, the organisation, the build. The ticket's article
- * and the mail's body are both exactly this, so the two ways a report travels
- * cannot say different things.
+ * What the server adds to a report of its own: the reporter's role from the
+ * session, the browser from the request's header, and the facts from the
+ * records, or the reference of the error that kept them from being read.
+ * Never anything the report's body says.
  */
-function reportText(report: ProblemReport, reporter: Reporter, build: BuildIdentity): string {
-  const facts = [
-    `Page: ${report.page}`,
-    ...(report.reference ? [`Reference: ${report.reference}`] : []),
-    ...(report.category ? [`Category: ${report.category}`] : []),
+export interface ServerFacts {
+  /** `req.userRole`, which the membership row gave. */
+  readonly role: string | undefined;
+  /** The request's `User-Agent` header, as it came. */
+  readonly browser: string | undefined;
+  readonly records: ReportFacts | { readonly unread: string };
+}
+
+/** The most of a browser's `User-Agent` a report carries, in characters. */
+export const MAX_BROWSER_LINE = 300;
+
+/** The roles a member can have (`tenant_member.role`). */
+const ROLES: readonly string[] = ['owner', 'admin', 'member', 'viewer'];
+
+/**
+ * EVERY LABEL A REPORT'S FACT LINE CAN START WITH. The guard holds every line
+ * to it, so a line cannot arrive without somebody adding its label here, in
+ * this file, where the rule about what a report may carry is written.
+ */
+export const REPORT_FACT_LABELS: readonly string[] = [
+  'Page',
+  'Reference',
+  'Category',
+  'Organisation',
+  'Build',
+  'Role',
+  'Organisation status',
+  'Migration',
+  'Grant',
+  'Grant link',
+  'Data types',
+  ...DISCOVERY_DOMAINS.map((d) => `Data type ${d}`),
+  'Source account',
+  'Destination account',
+  'Reference match',
+  'Service hold',
+  'Scheduler',
+  'Browser',
+  'Facts',
+  // What the browser said (Part B, `report-browser-facts.ts`).
+  'Screen language',
+  'Time zone',
+  'Window width',
+  'App build in the browser',
+  'Failure line',
+  'Recent error',
+];
+
+const day = (value: string): string => value.slice(0, 10);
+const minute = (value: string): string => `${value.slice(0, 10)} ${value.slice(11, 16)} UTC`;
+
+/** The records' lines: the organisation, the migration on the page, the reference, the hold, the scheduler. */
+function recordLines(facts: ReportFacts): string[] {
+  const { organisation, migration, referenceMatch, hold } = facts;
+  const lines = [
+    `Organisation status: ${organisation.status}` +
+      (organisation.closedAt && organisation.purgeAfter
+        ? ` (closed on ${day(organisation.closedAt)}, removed after ${day(organisation.purgeAfter)})`
+        : ''),
+  ];
+  if (migration === undefined) {
+    lines.push('Migration: none on this page');
+  } else if ('notFound' in migration) {
+    lines.push(`Migration: ${migration.id} is not one of this organisation's`);
+  } else {
+    const account = (a: { provider: string; status: string } | null) => (a ? `${a.provider}, ${a.status}` : 'none');
+    lines.push(
+      `Migration: ${migration.id}, ${migration.state}`,
+      `Grant: ${migration.grant === 'withdrawn' && migration.grantWithdrawnAt ? `withdrawn on ${day(migration.grantWithdrawnAt)}` : migration.grant}`,
+      `Grant link: ${migration.grantLink}`,
+      ...(migration.dataTypes.length === 0
+        ? ['Data types: none recorded yet']
+        : migration.dataTypes.map((t) =>
+            [
+              `Data type ${t.dataType}: ${t.state}`,
+              ...(t.category ? [t.category === 'unrecognised' ? 'unrecognised category' : t.category] : []),
+              ...(t.side ? [`${t.side} side`] : []),
+              ...(t.reference ? [`reference ${t.reference}`] : []),
+            ].join(', '),
+          )),
+      `Source account: ${account(migration.source)}`,
+      `Destination account: ${account(migration.destination)}`,
+    );
+  }
+  if (referenceMatch !== undefined) {
+    lines.push(
+      referenceMatch
+        ? `Reference match: the current failure of ${referenceMatch.dataType} on migration ${referenceMatch.migrationId}`
+        : 'Reference match: none, not a current failure',
+    );
+  }
+  lines.push(
+    `Service hold: ${hold.on ? (hold.since ? `on since ${minute(hold.since)}` : 'on') : 'off'}`,
+    `Scheduler: ${facts.scheduler}`,
+  );
+  return lines;
+}
+
+/** The browser, on one line and capped; the header is whatever the request said. */
+function browserLine(browser: string | undefined): string {
+  const said = oneLine(browser ?? '');
+  if (said === '') return 'Browser: not given';
+  return `Browser: ${said.length > MAX_BROWSER_LINE ? `${said.slice(0, MAX_BROWSER_LINE - 1)}…` : said}`;
+}
+
+/**
+ * THE ONE FUNCTION THAT WRITES A REPORT'S FACTS: the page, the reference and
+ * category when there is one, the organisation, the build and, when the server
+ * has read them, the role, the records and the browser; then what the browser
+ * said of itself, checked. The preview answers exactly these lines, and the
+ * ticket's article and the mail carry exactly these lines, so what the form
+ * showed is what was sent.
+ */
+export function reportFactLines(
+  place: ReportPlace,
+  reporter: Pick<Reporter, 'tenantId'>,
+  build: BuildIdentity = buildIdentity(),
+  server?: ServerFacts,
+): string[] {
+  return [
+    `Page: ${place.page}`,
+    ...(place.reference ? [`Reference: ${place.reference}`] : []),
+    ...(place.category ? [`Category: ${place.category}`] : []),
     ...(reporter.tenantId ? [`Organisation: ${reporter.tenantId}`] : []),
     buildLine(build),
+    ...(server
+      ? [
+          `Role: ${server.role !== undefined && ROLES.includes(server.role) ? server.role : 'not known'}`,
+          ...('unread' in server.records
+            ? [`Facts: could not be read [ref ${server.records.unread}]`]
+            : recordLines(server.records)),
+          browserLine(server.browser),
+        ]
+      : []),
+    ...browserFactLines(place.browser, build),
   ];
-  return `${report.description}\n\n---\n${facts.join('\n')}`;
+}
+
+/**
+ * What the person wrote, then the facts under it ({@link reportFactLines}).
+ * The ticket's article and the mail's body are both exactly this, so the two
+ * ways a report travels cannot say different things.
+ */
+function reportText(report: ProblemReport, reporter: Reporter, build: BuildIdentity, server?: ServerFacts): string {
+  return `${report.description}\n\n---\n${reportFactLines(report, reporter, build, server).join('\n')}`;
 }
 
 /** The screenshot's file name, by the type its own first bytes gave it. */
@@ -222,6 +401,7 @@ export function ticketFor(
   reporter: Reporter,
   group: string,
   build: BuildIdentity = buildIdentity(),
+  server?: ServerFacts,
 ) {
   const title = titleFor(report);
   return {
@@ -230,7 +410,7 @@ export function ticketFor(
     customer_id: `guess:${reporter.email}`,
     article: {
       subject: title,
-      body: reportText(report, reporter, build),
+      body: reportText(report, reporter, build, server),
       type: 'web',
       internal: false,
       content_type: 'text/plain',
@@ -282,6 +462,7 @@ export function reportMailFor(
   reporter: Reporter,
   reference: string,
   build: BuildIdentity = buildIdentity(),
+  server?: ServerFacts,
 ): ReportMail {
   const address = REPLY_ADDRESS.safeParse(reporter.email);
   const replyLine = address.success
@@ -289,7 +470,7 @@ export function reportMailFor(
     : `Reply to: none. The sign-in address is not one address a reply can go to: ${oneLine(reporter.email)}`;
   return {
     subject: titleFor(report),
-    body: `${reportText(report, reporter, build)}\n${replyLine}\nReport reference: ${reference}`,
+    body: `${reportText(report, reporter, build, server)}\n${replyLine}\nReport reference: ${reference}`,
     ...(address.success ? { replyTo: address.data } : {}),
     ...(report.screenshot
       ? {
