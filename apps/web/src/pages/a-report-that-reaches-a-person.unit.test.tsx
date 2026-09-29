@@ -95,7 +95,9 @@ describe('Report a problem', () => {
   it('says what goes with the report, and where the reply goes, before it is sent', async () => {
     renderPage('/report?from=%2Fgrant%2Fabc.secret%2Fgoogle&reference=0a1b2c3d&category=unknown');
 
-    expect(await screen.findByText(EN['report.sentWith'])).toBeVisible();
+    // In the fold above Send (workplan 0130 T6); with no lines from the
+    // service, what the form itself knows.
+    await userEvent.click(await screen.findByText(EN['report.facts']));
     expect(screen.getByText(EN['report.page'].replace('{page}', '/grant/:link/google'))).toBeVisible();
     expect(screen.getByText(EN['report.reference'].replace('{reference}', '0a1b2c3d'))).toBeVisible();
     expect(screen.getByText(EN['report.category'].replace('{category}', 'unknown'))).toBeVisible();
@@ -106,7 +108,7 @@ describe('Report a problem', () => {
   it('drops a reference or a category that is not one', async () => {
     renderPage('/report?from=%2F&reference=not-a-ref&category=it%20broke');
 
-    await screen.findByText(EN['report.sentWith']);
+    await screen.findByText(EN['report.facts']);
     expect(document.body.textContent).not.toContain('not-a-ref');
     expect(document.body.textContent).not.toContain('it broke');
   });
