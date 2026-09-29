@@ -1771,9 +1771,17 @@ finds), `Organisation`, `Build`, then what the API reads from its own records
 in the customer's organisation (workplan 0130 T6): `Role`, `Organisation
 status`, the migration on the page with `Grant`, `Grant link`, a `Data type …`
 line for each data type and the two accounts' providers, `Reference match`,
-`Service hold`, `Scheduler` and `Browser`; then `Reply to` (the customer's
-sign-in address) and `Report reference`, the report's own. The form showed the
-customer the fact lines, `Page` to `Browser`, under *What we send with this*
+`Service hold`, `Scheduler` and `Browser`; then what the customer's browser
+said of itself (0130 T6, Part B), each line only when it was said in its own
+shape: `Screen language`, `Time zone` (to turn their "at 14:02" into the log's
+UTC), `Window width`, `App build in the browser` (only when it is not the
+server's build: an old page in front of a newer server), `Failure line` (the
+data type, side and migration of the failure line they came from) and a
+`Recent error` line, reference and code, for each "Something went wrong" the
+page met in the five minutes before they opened the form, which the log page
+finds by that reference; then `Reply to` (the customer's sign-in address) and
+`Report reference`, the report's own. The form showed the customer the fact
+lines, `Page` to the last of the browser's, under *What we send with this*
 before they sent it, unless that preview could not be read; `Reply to` and
 `Report reference` are added on sending. When the database could not be read,
 the report still arrives, with `Facts: could not be read [ref …]` in place of
@@ -1896,14 +1904,42 @@ GIT_SHA=$(git rev-parse --short HEAD) \
 Open the sign-in page: the note is under the title. Empty, or any value but
 `alpha`, is no note and no paragraph. The appliance never shows it.
 
+**The same setting asks for acceptance** (workplan 0139 T3), **once no text is
+still a draft**. With `alpha`, every tester who signs in meets one screen before
+any other page: the Alpha conditions, the privacy policy and the terms, each
+linked in their language with its version, and one button. The API records the
+version of each text they accepted, the language and the time, and until they
+have, it refuses to store any access they give (adding a connection, a new key,
+a new migration, a grant link: 409 `conditions_not_accepted`). The screen comes
+back whenever a text's version changes, at the next load or the next door
+pressed. Both halves take the setting: the API's refusals and records, and the
+web bundle, which asks `GET /api/me` on load only when built with it, so
+rebuild `web` as well as recreating `api`.
+
+While any text is a draft (`LEGAL_DRAFTS` in
+`packages/managed/src/legal-versions.ts`), nobody is asked, nothing is refused
+and nothing is recorded, as with the setting off: a draft's number is the one
+its final text will carry, so an acceptance of the draft would be recorded as
+one of the final text. On 2026-09-29 the privacy policy 1.2 and the terms 1.3
+are drafts, so deploying this to live asks nobody yet; it starts asking with
+the release that carries the owner's final texts. The API's start log says
+which (`[api] OWNPACE_STAGE=alpha, but … are drafts: nobody is asked …`). The
+links point at the site `VITE_LEGAL_SITE_URL` names, so the texts must be
+served there before the first invitation (0139 T10). Who accepted what is under
+*Acceptance* in the
+[operator runbook](./operator-runbook.md#acceptance-who-accepted-which-version).
+
 The second line is the alpha's other half: the days the erasure sentence says a
-copy may still hold a closing organisation's data. The alpha takes no backups.
-Live's databases are dumped before each deploy, and each dump is deleted after
-at most seven days (workplan 0134 open question 1 (b), the owner's answer of
-2026-09-28), so live sets `7`. **Both are your steps for now:** `deploy-live.sh`
-takes no dump (0132 T6 step 4 is yours, before it), and nothing deletes one, so
-delete each dump by its seventh day, whether or not a deploy followed. The
-automatic copy and its deletion are not built yet. A stack that keeps no copy
+copy may still hold a closing organisation's data. The alpha takes no backups,
+apart from one copy of live's databases made right before each update and kept
+until that update is proven, never longer than seven days (workplan 0134 open
+question 1 (b), and workplan 0139, the owner's answer rec-copies (a), both of
+2026-09-28), so live sets `7`. `deploy-live.sh` takes the copy
+(`copy-before-update.sh take`, *`ownpace-live`: a release tag, with
+`deploy-live.sh`*), you delete it once the update is proven
+(`./deploy/compose/copy-before-update.sh delete`), and the daily duties delete
+it once it is older than six days less an hour whatever happens (*Live's daily
+duties*), so it is never kept past its seventh day. A stack that keeps no copy
 at all sets `0`, and the sentence then names none; a blank reads as seven days
 whether or not a copy exists. With `OWNPACE_STAGE=alpha` the API refuses to
 start while it is blank, and the refusal names it. `stand-up-live.sh` refuses
@@ -2241,6 +2277,134 @@ decides the following, and it is better read here than discovered:
 None of this is a defect to fix on the box. It is what a mesh is for. When
 one of these has to work, the piece that needs it moves to a host with a
 public address, and the mesh keeps everything that never needed one.
+
+## Nothing phones home
+
+The privacy policy names every party that receives anything (§7, §8), and for
+the question *ops-telemetry* the owner chose, on 2026-09-28, *"Switch it off
+everywhere"* (workplan 0139). Six images in `managed.yml` reported to, or
+asked, their makers by default until then. Five are switched off here; the
+demo's Nextcloud is not yet (*What is left on, and where*, below). Each switch
+is written in the compose file itself, never read from `.env`, so it is the
+same on the OTA stack and on live, and no machine's `.env` can empty it. Live
+runs `managed.yml` and `www.yml` and no other compose file: `stand-up-live.sh`
+refuses a `COMPOSE_FILE` in the shell.
+
+| Service | What it sent by default | The switch | Read at |
+|---|---|---|---|
+| `trigger-api` | PostHog from the server at every sign-in (the user's id, email and name) and when a user, an organisation or a project is created; and PostHog in the dashboard's browser, which identifies the signed-in user by id and email, under Trigger.dev's own project key | `TRIGGER_TELEMETRY_DISABLED: "1"` stops the server's half only. `POSTHOG_PROJECT_KEY: ""` stops the browser's: the key defaults to Trigger.dev's, and the dashboard starts PostHog whenever it is not empty | `apps/webapp/app/services/telemetry.server.ts`, `services/postAuth.server.ts`, `app/root.tsx`, `app/hooks/usePostHog.ts`, `app/env.server.ts` at v4.5.16 |
+| `trigger-api`, its entrypoint | Prisma's checkpoint to `checkpoint.prisma.io` at every start, from the `prisma migrate deploy` the entrypoint runs: the version, OS, architecture, Node, CI, the command, hashes of the project's and the CLI's paths, the schema's providers and a stored random signature | `CHECKPOINT_DISABLE: "1"`, the only thing the CLI and its client check | `docker/scripts/entrypoint.sh` at v4.5.16; `packages/cli/src/CLI.ts` and `utils/checkpoint.ts` at prisma 6.14.0; checkpoint-client 1.1.33 |
+| `zitadel` | A "service ping" once a day to `zitadel.com`: the version, each instance's id, creation date and domains, and its count of users, organisations and projects | `ZITADEL_SERVICEPING_ENABLED: "false"`; `ZITADEL_TELEMETRY_ENABLED: "false"` too, which ships off | `cmd/defaults.yaml` at v4.19.2 (*"It's enabled by default"*) |
+| `clickhouse` | A report on every crash and logical error to `crash.clickhouse.com` | `clickhouse-no-crash-reports.xml`, mounted into `config.d`, sets both off; the `config.xml` the image ships sets them on. It is the only file ClickHouse merges that speaks of crash reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d` and `conf.d`, in sorted order, so a later one would win | `programs/server/config.xml`, `src/Daemon/CrashWriter.cpp`, `src/Common/Config/ConfigProcessor.cpp` at `v26.2.19.43-stable` |
+| `minio` | A release check to `dl.min.io` at every start, its User-Agent carrying the OS, architecture, version and CPU | `MINIO_UPDATE: "off"`; `MINIO_CALLHOME_ENABLE: "off"` too, which ships off | `cmd/server-main.go`, `cmd/update.go`, `internal/config/callhome/callhome.go` at `RELEASE.2025-05-24T17-08-30Z` |
+| `mailpit` (the test stack's catcher; live runs none) | A release check to GitHub whenever its page asks for the server's info | `MP_DISABLE_VERSION_CHECK: "true"` | `internal/stats/stats.go`, `cmd/root.go` at v1.31.1 |
+| `nextcloud` (the demo's DAV target, on the OTA stack every night; and `dev.yml`'s) | Its version, PHP version and install time to `updates.nextcloud.com`, the app store at `apps.nextcloud.com`, the announcements feed at `pushfeed.nextcloud.com`, and a connectivity check to four public sites | **None yet.** `updatechecker`, `appstoreenabled` and `has_internet_connection` stay on, Nextcloud's defaults; see *What is left on, and where*, below | `config/config.sample.php` and `apps/settings/lib/SetupChecks/InternetConnectivity.php` at `stable34`; `lib/Cron/Crawler.php` in nextcloud_announcements at `stable34` |
+
+The entrypoint's other children do not call out: pnpm 10.33.2 checks for its
+own update only on `install` and `add`, goose v3.27.1 has no network use of its
+own, and the dashboard agent's migration is plain drizzle-orm.
+
+`trigger-tls` has no telemetry; its one default that leaves the machine is
+automatic HTTPS, which asks a public certificate authority, and
+`trigger-tls.Caddyfile` says `tls internal`. The rest need no switch:
+PostgreSQL, PgBouncer, Redis, the registry (its trace exporter's default is
+its own container), the Docker socket proxy, the supervisor (its traces go to
+the webapp's own `/otel`), busybox, nginx, the status page (its requests are
+the probes `gatus.yaml` lists), and our own API, web app and appliance.
+
+**What is left on, and where.** The demo's Nextcloud, in `managed.yml`, and
+the development one in `dev.yml`: their three settings are **not** switched off
+in this change. A hook that set them false before Apache started, at every
+start, was tried on 2026-09-29, and with it the demo's first CalDAV write
+answered 500 in E2E (managed) #215, the branch's run; #216 on main, which
+recreated the same container without the hook, passed. What broke the write,
+one of the three settings or the hook's run itself, is not known: the values
+the hook wrote in #215 are most likely still in `config.php` on the demo's
+volume, which the gate keeps between runs, and nothing here takes them out or
+has looked. This Nextcloud holds fixtures, never a tester's data, and it is
+not on live: the bring-up starts it only with `--with-demo`, which both live
+scripts refuse. A follow-up switches the three off with a check that the
+demo's DAV writes still work. Not by a `*.config.php` mounted into `config/`:
+that makes the directory non-empty before the first install, and the image's
+entrypoint then skips copying its own config files, `smtp.config.php` among
+them, which is what points the demo's Nextcloud at the catcher (0103). And as
+booleans: `--value=false` alone stores the string `"false"`, which PHP reads as
+true.
+
+The demo's Stalwart (v0.16.10), which
+`setup-stalwart.sh` starts with `docker run`, outside every compose file, on
+the OTA stack every night and in the self-host end-to-end run. In normal mode
+it downloads its WebUI from `github.com/stalwartlabs/webui/releases/latest` on
+first start and every 30 days, its spam-filter rules from
+`github.com/stalwartlabs/spam-filter/releases/latest`, and an ASN and country
+database from `cdn.jsdelivr.net` daily (`crates/common/src/manager/defaults.rs`,
+and `SpamSettings` in `crates/registry/src/schema/structs_impl.rs`, at
+v0.16.10). They are downloads rather than reports about anybody. They are
+objects in its database, not in `config.json`, so switching them off is new
+objects in the provisioning plan, a change that has to be run and watched on
+the machine (`docs/stalwart-integration-fix.md`); it is put to the owner in
+workplan 0139. The deploy CLI, which runs on the host, was read only this far:
+at 4.5.16 its `src/telemetry/tracing.ts` is gone, and no exporter of its own
+was found. The integration tests' throwaway Nextcloud and Stalwart, which
+Testcontainers starts on a CI runner, are not switched.
+
+`scripts/a-service-that-phones-home.unit.test.ts` puts every service of every
+compose file under `deploy/` in one of three lists (switched, no switch, or left
+on, each with its reason) and fails on a service in none. A switched or
+left-on row names the image its default was read at, and fails when the file
+pins another. It holds the webapp to a list of the keys it may be given, each
+with the reason it reaches no third party, reads every file ClickHouse merges,
+holds the left-on Nextcloud to the demo's bring-up, which neither live script
+starts, and pins the Stalwart named above. So **a new pin of
+Trigger.dev, Zitadel, ClickHouse, MinIO, Mailpit or Nextcloud starts with
+re-reading what the new version sends by default** (Zitadel's ping arrived with
+v4; for Trigger.dev, the entrypoint's children as well as the webapp), then
+moving the row. `trigger-version.sh pin` moves the Trigger.dev tag and does not
+do this for you.
+
+**When it takes effect.** The OTA stack's identity provider has sent the ping
+since it first started, as far as the machine let it out: every v4 release
+carries it. A switch is read when its container starts, so a stack has it once
+Compose has recreated those containers: the OTA stack at its next nightly
+bring-up, and live at its stand-up and every deploy from a tag that contains
+this change, since both run `bootstrap-managed.sh`, which brings each of them
+up by name. The pull sequence in *Updating a running deployment* does **not**
+do all of it: it brings up `api` and `web`, whose dependencies take in
+`trigger-api` and `clickhouse` but not the identity provider, the object store
+or the catcher, which keep their old environment until the next bring-up. By
+hand, on a stack that is already up, from its checkout:
+
+```bash
+docker compose -f deploy/compose/managed.yml up -d trigger-api clickhouse zitadel minio
+# Only where it already runs: the catcher.
+docker compose -f deploy/compose/managed.yml up -d mailpit
+```
+
+To see it on a running stack, from its checkout:
+
+```bash
+# The environment each container was started with, one variable a line.
+env_of() { docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' \
+  "$(docker compose -f deploy/compose/managed.yml ps -q "$1")"; }
+
+env_of trigger-api | grep -E '^(TRIGGER_TELEMETRY_DISABLED|POSTHOG_PROJECT_KEY|CHECKPOINT_DISABLE)='
+#   TRIGGER_TELEMETRY_DISABLED=1
+#   POSTHOG_PROJECT_KEY=
+#   CHECKPOINT_DISABLE=1
+env_of zitadel | grep -E '^ZITADEL_(SERVICEPING|TELEMETRY)_ENABLED='
+#   both =false
+env_of minio | grep -E '^MINIO_(UPDATE|CALLHOME_ENABLE)='
+#   both =off
+env_of mailpit | grep -E '^MP_DISABLE_VERSION_CHECK='     # where the catcher runs
+#   MP_DISABLE_VERSION_CHECK=true
+
+# ClickHouse writes the configuration it merged, config.d included:
+docker compose -f deploy/compose/managed.yml exec clickhouse \
+  sed -n '/<send_crash_reports>/,/<\/send_crash_reports>/p' /var/lib/clickhouse/preprocessed_configs/config.xml
+#   <enabled>false</enabled> and <send_logical_errors>false</send_logical_errors>
+```
+
+The webapp also logs `Telemetry disabled` when it builds its telemetry client.
 
 ## Mail: caught, not delivered
 
@@ -2885,8 +3049,9 @@ No script can do these. The script checks each one before it changes anything.
    such a line. `BACKUP_RETENTION_DAYS=7` is the most days a dump of live's
    databases taken before a deploy is kept, which the erasure sentence names
    (workplan 0134 open question 1 (b)); the script refuses it empty, `0`, or
-   anything but a whole number above 0. Taking that dump and deleting it by its
-   seventh day are yours: nothing does either yet (§8g).
+   anything but a whole number above 0. `deploy-live.sh` takes that copy before
+   each update, and it is deleted once the update is proven, or after six days
+   less an hour by the daily duties (§8g; workplan 0139).
 
    **Mail goes through a real relay from the first day** (workplan 0133): live
    runs no catcher, and the sign-up's verification code is the first mail it
@@ -3002,7 +3167,7 @@ it says which and logs nothing; fix it and run it again with `--resume`.
    so `sudo loginctl enable-linger "$USER"`, then
    `systemctl --user enable --now ownpace-box-duties.timer`, one
    `systemctl --user start ownpace-box-duties.service`, and the journal: all
-   four duties pass.
+   seven duties pass.
 4. **Rehearse the next deploy.** Open a hold on the support screen with a Dutch
    sentence, wait five minutes, then `./deploy/compose/deploy-live.sh --dry-run <tag>`:
    every refusal passes, it says reversible (the same tag), and nothing moves.
@@ -3022,19 +3187,24 @@ run replaces it in its last three, and past its deadline no successor can be
 minted), and `trigger-version.sh drill` dumps the Trigger.dev database and
 proves the dump loads. CI never touches live (workplan 0132 T1g), so live has
 [`box-duties.sh`](../deploy/compose/box-duties.sh), run once a day from
-`~/ownpace-live` by a systemd timer (0132 T7). It does six duties, each one
-whatever the one before it did:
+`~/ownpace-live` by a systemd timer (0132 T7). **The drill is not one of
+them:** it runs on the test stack only, in the gate (workplan 0139, the
+owner's answer rec-drill (a) of 2026-09-28). On live it kept a daily dump of
+the task runner's database, and live keeps one copy of its databases, made
+right before an update; `trigger-version.sh` refuses `drill` there. It does
+seven duties, each one whatever the one before it did:
 
 | Duty | What it runs | What it does |
 |---|---|---|
 | `token` | `setup-zitadel.sh --token-only` | The token's clock and nothing else: no secrets generated, the provider not started or reconfigured. It writes `ZITADEL_PAT_EXPIRY`, as every run does. |
-| `drill` | `trigger-version.sh drill` | Dumps live's Trigger.dev database, restores it into a throwaway and compares. The dumps go to `~/.persistent/ownpace-live/trigger-backups` and are **secret-bearing** (the plane's API keys and the encrypted task environment); the script makes them readable by this account only. |
+| `copies` | `copy-before-update.sh expire` | The backstop of the copy made before an update (workplan 0139), in `~/.persistent/ownpace-live/copy-before-update`: deleted once it is older than six days less an hour, whether or not its update was proven, so it is never kept past day 7, even when this run starts late; a dump made there by hand goes by its own age. The run before the one that deletes it keeps it and fails the duty, saying to roll back from it today or to delete it (the operator runbook's *The copy before an update*). It reads no database. The copy is **secret-bearing** (testers' data, the provider's password hashes); the scripts make it readable by this account only. |
 | `exposure` | `exposure-check.sh` | Every port any container on the machine publishes, both stacks (0132 T3). Needs `EXPOSURE_ALLOW` in live's `.env`. |
 | `organisations` | `setup-zitadel.sh --count-organisations` | 0135 T3's count on live's identity provider, read-only. A count that is not one fails the duty. |
 | `site` | `www-live.sh check` | Read-only (0139 T10). Fails when a container of live's project has the compose service `www`, where a `www.yml` command without `-p` puts the site; and, when live's `.env` says `WWW_LIVE=true`, when `ownpace-live-www` is not running and healthy (*`www.ownpace.eu`: live's copy*). |
-| `strays` | `idp-strays.sh --remove --at-most 20` | Removes the sign-in accounts nobody let in, older than 30 days, as privacy §9 says (0135 T8; the runbook's *Sign-in accounts nobody let in*). More than 20 at once removes none and fails the duty: run `./deploy/compose/idp-strays.sh` from `~/ownpace-live` to see them, then `--remove` by hand if they are right. Its lines name an account's id, never its address. |
+| `strays` | `idp-strays.sh --remove --at-most 20` | Removes the sign-in accounts nobody let in, older than 30 days, as privacy §9 says (0135 T8; the runbook's *Sign-in accounts nobody let in*). An account that was let in and removed since stays, and so does one of another organisation at the provider or with a role there. More than 20 at once removes none and fails the duty: run `./deploy/compose/idp-strays.sh` from `~/ownpace-live` to see them, then `--remove` by hand if they are right. A database with no operator row (*Become the operator*, above) removes none and fails the duty too. One that has its operator row back and not its members, after a reset or restore that kept the provider's accounts, is not seen: turn the duties off before such a reset and on again once the members are back (the runbook says how). Its lines name an account's id, never its address. |
+| `searches` | `support-read-prune.sh --delete` | Deletes the support screens' reads recorded with no organisation (a search by address, a download of the audit log, the organisation list, the invoices kept after an erasure, a log page not filtered to one organisation) 12 months after they were recorded, as privacy §4.5 and §9 say (0139 T6; the runbook's *Searches and downloads on the support screens*). As the database's owner: `app_user` cannot delete from that log, and the tasks' system role (0138 T3 step 2) can, for the purge of an erased organisation, but its grant (`SELECT` on `tenant_id`, and `DELETE`) lets it pick rows by organisation, never by age. It stops, deleting nothing, and fails the duty when that connection does not pass row security. It prints a count. |
 
-It exits 0 when all six pass, 1 naming every duty that failed, and 2 when it
+It exits 0 when all seven pass, 1 naming every duty that failed, and 2 when it
 refused before any duty: a `.env` without live's marker (the OTA stack's duties
 are the gate's), a project the reader refuses, or an argument. A duty that runs
 past 20 minutes (`BOX_DUTY_TIMEOUT`, in seconds) is a failed duty. Ctrl-C in a
@@ -3055,11 +3225,11 @@ and reaches Docker. Both are in
 
 ```ini
 # ownpace-box-duties.service — live's daily duties (workplan 0132 T7): the
-# provisioning token's clock, the Trigger.dev drill, the exposure check, the
-# organisation count, the site's (0139 T10) and the accounts nobody let in
-# (0135 T8). A user unit, started by
-# ownpace-box-duties.timer; the install steps are in docs/managed-bring-up.md,
-# "Live's daily duties".
+# provisioning token's clock, the backstop of the copy before an update
+# (0139), the exposure check, the organisation count, the site's (0139 T10),
+# the accounts nobody let in (0135 T8) and the support screens' searches kept
+# a year (0139 T6). A user unit, started by ownpace-box-duties.timer; the
+# install steps are in docs/managed-bring-up.md, "Live's daily duties".
 [Unit]
 Description=ownpace-live: the duties the nightly gate does for the OTA stack
 
@@ -3068,9 +3238,9 @@ Type=oneshot
 WorkingDirectory=%h/ownpace-live
 ExecStart=%h/ownpace-live/deploy/compose/box-duties.sh
 SyslogIdentifier=ownpace-box-duties
-# Six duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
+# Seven duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
 # which failed.
-TimeoutStartSec=130min
+TimeoutStartSec=150min
 ```
 
 ```ini
@@ -3123,16 +3293,19 @@ journalctl --user -u ownpace-box-duties -n 200 --no-pager
 - **A run after a stop.** `Persistent=true` runs a missed day at the next
   start, which may fall inside the appliance nightly's hours; its dev
   Nextcloud then fails `exposure`, by name.
-- **A rollback after a Trigger.dev upgrade.** Once the timer runs, restore the
-  backup taken before the upgrade by its file name, never with `--latest`:
-  `trigger-version.sh restore ~/.persistent/ownpace-live/trigger-backups/triggerdb-<stamp>-before-<version>.sql.gz --yes`.
-  The webapp migrates its schema on boot, one way, so the first drill after
-  the upgrade dumps the migrated schema, and `--latest` is that dump. The drill
-  also keeps only the newest seven dumps (`TRIGGER_BACKUP_KEEP`), a labelled
-  one included, so seven days after the upgrade the `before-` backup is gone:
-  before the upgrade, copy it out of `trigger-backups/` with `cp -p` into a
-  directory only this account can read. It is as secret-bearing as the rest.
+- **A rollback after a Trigger.dev upgrade.** `deploy-live.sh` takes the
+  task runner's database into the copy before an update whose tag moves the
+  Trigger.dev pin (`copy-before-update.sh take --trigger`). Restore it from
+  there by its file name, as the operator runbook's *The copy before an
+  update* says:
+  `trigger-version.sh restore ~/.persistent/ownpace-live/copy-before-update/triggerdb-<stamp>-before-<tag>.sql.gz --yes`.
+  On live `trigger-version.sh` writes and reads that directory only, and the
+  copy's rules delete what is there.
 - **Turning it off:** `systemctl --user disable --now ownpace-box-duties.timer`.
+  Then nothing deletes the copy before an update, so `copy-before-update.sh
+  take` refuses and no deploy moves live until the timer is active again. A
+  copy already there stays until you delete it or the timer runs again:
+  delete it by its seventh day yourself (workplan 0134 T0).
 
 ## When it goes wrong
 
@@ -3234,23 +3407,48 @@ thing. One script moves it:
    in the checkout, and nothing is logged. With `WWW_LIVE=true` it does build
    one thing: the tag's site, from git's objects, in a directory of its own
    that it removes, to learn whether the deploy's own build would refuse it
-   (*`www.ownpace.eu`: live's copy*). **If it says one-way** and you want a
-   way back that is not a fix and a new tag, dump live's database now, with
-   the hold still on (the operator runbook's *Backup & restore*). Nothing
-   takes a dump for you.
-   First check that live's `BACKUP_RETENTION_DAYS` is N and not `0` (§8g).
-   Keep the dump until the next deploy succeeds and never longer than N days,
-   and nothing deletes it for you either: delete it by its N-th day, whether
-   or not a deploy followed (workplan 0134 T0 step 4).
+   (*`www.ownpace.eu`: live's copy*). It also asks `copy-before-update.sh take
+   --dry-run`, and refuses when the copy of an earlier update that is proven
+   is still there (delete that first, step 6), when a kept copy is on its last
+   day (the next daily run deletes it: prove its update and delete it, or roll
+   back from it), and when the daily duties' timer is not active (nothing
+   would delete the copy). **If it says one-way,** the way back that is not a
+   fix and a new tag is the copy the deploy takes.
 4. From `~/ownpace-live`:
 
    ```bash
    ./deploy/compose/deploy-live.sh <tag>
    ```
 
+   Right before its checkout it takes **the copy before the update**, into
+   `~/.persistent/ownpace-live/copy-before-update`: the app's database, the
+   sign-in service's database and the roles, and the task runner's database
+   when the tag moves the Trigger.dev pin, each read back (workplan 0139). A
+   copy whose update is not proven yet (a deploy that did not take, run
+   again) is kept instead, since it is of what ran before. No copy, no deploy:
+   without the daily duties' timer active, or with a kept copy the next daily
+   run deletes, it refuses before anything moves. A tag without
+   `deploy-live.sh`, `exposure-check.sh`, `box-duties.sh`, `stack-kind.sh` and
+   `copy-before-update.sh` is refused too, as `stand-up-live.sh` refuses it: live
+   would lose its daily duties and the copy's backstop.
 5. **Read what it printed, then lift the hold yourself.** The tick's next
    summary shows passes started, and one of your own migrations should complete
    a pass on the new tasks.
+6. **Delete the copy once the update is proven.** From `~/ownpace-live`:
+
+   ```bash
+   ./deploy/compose/copy-before-update.sh delete
+   ```
+
+   It refuses unless the last line `deploys.log` has since the copy was taken
+   says the deploy took (one that did not take after it leaves nothing
+   proven), the hold that covered it is lifted, and a pass that started after
+   it succeeded, each read from live's database. **Not proven by day 6: roll
+   back from the copy that day** (the operator runbook's *The copy before an
+   update*, which starts with `copy-before-update.sh since`, so that what
+   testers erased or deleted after the copy is erased and deleted again). The
+   daily duties delete it once it is older than six days less an hour
+   whatever happens, and fail the day before to remind you.
 
 What `deploy-live.sh` does, in order. It refuses, before the checkout or the
 stack changes, each with its own message: `--with-demo`; a `.env` without live's
@@ -3260,10 +3458,12 @@ marker (`STACK_KIND=production`, `stack-kind.sh`) or without `WEB_URL`;
 working tree that is not clean; a ref that is not a tag, a tag not on origin, a
 lightweight tag, a tag not named `v…`, and a tag whose commit's root
 `package.json` version is not the tag without its `v` (it names both, and says
-*"live runs releases: name a release tag"*); a database it cannot read; no open
-hold; a pass still in flight; a hold less than five minutes old, since a pass
-queued just before it is in no count until it starts; and a deploy log it cannot
-append to. Then it runs `git fetch --tags origin` and
+*"live runs releases: name a release tag"*); a tag without the five scripts
+live is deployed, checked and kept by (`release-tag.sh`'s list); a database it
+cannot read; no open hold; a pass still in flight; a hold less than five minutes old, since a pass
+queued just before it is in no count until it starts; a deploy log it cannot
+append to; and a copy before the update that `copy-before-update.sh take`
+could not take or refused. Then it runs `git fetch --tags origin` and
 `git checkout --detach <tag>`, `pnpm install --frozen-lockfile`, and
 `bootstrap-managed.sh --from data`, never with `--with-demo`; the bring-up
 builds the images with the tag's commit as `GIT_SHA`. Then the checks, at the
@@ -3284,12 +3484,13 @@ live's `.env` to every address any container on it is published on on purpose
 (*Checking every publish on the machine at once*, under *Which address a port
 answers on*), or it fails for each of them. And the tag must be cut from a
 commit that has `deploy/compose/exposure-check.sh`; the script runs the tag's
-own copy, and a tag without one cannot pass.
+own copy, and refuses a tag without one before anything moves.
 
 **`--dry-run`** runs everything up to the checkout (every refusal above, the tag
-fetch, and one-way or reversible, by the same comparison) and then stops, exit
-0: no checkout, no install, no bring-up, none of the checks after it, and no
-line in the deploy log, which it does not even create. With `WWW_LIVE=true`
+fetch, one-way or reversible, by the same comparison, and `copy-before-update.sh
+take --dry-run`, which writes nothing) and then stops, exit 0: no checkout, no
+copy, no install, no bring-up, none of the checks after it, and no line in the
+deploy log, which it does not even create. With `WWW_LIVE=true`
 the site's refusals are among those it runs, and so is their test build of the
 tag's site, in a directory of its own that it removes; nothing is built in the
 checkout. A refusal exits 1, as in the deploy. Step 3 above is what it is for.
@@ -3525,9 +3726,12 @@ the SDK alone, passed all seventeen checks and broke the managed gate.
 ./deploy/compose/trigger-version.sh restore --latest --yes   # DESTRUCTIVE rollback
 ```
 
-On a stack whose drill runs every day, `--latest` is the last drill's dump,
-taken after the upgrade migrated the schema: on live, restore the `before-`
-backup by its file name (*Live's daily duties*).
+On the OTA stack, whose drill runs every night, `--latest` is the last drill's
+dump, taken after the upgrade migrated the schema: restore the `before-` backup
+by its file name. On live there is no drill (workplan 0139): `backup`,
+`backups` and `restore` use the directory of the copy before an update, and the
+copy `deploy-live.sh` takes before a tag that moves the pin holds that dump
+(*Live's daily duties*).
 
 `list` probes the registry by manifest rather than reading its tag list: ghcr's
 `/tags/list` is neither newest-first nor complete in one page — with `n=1000`
@@ -3844,10 +4048,10 @@ then `up -d`. Every service reads them, so nothing in `managed.yml` is edited.
   database is not built.) A stack without backups sets
   `BACKUP_RETENTION_DAYS=0`, so the erasure sentence names none.
   `ownpace-live`, the stack testers use, takes none during the alpha and sets
-  `7`: its databases are dumped before each deploy and each dump is deleted
-  after at most seven days (workplan 0134 open question 1 (b)), both by hand
-  for now. `deploy-live.sh` takes no dump and nothing deletes one; the
-  automatic copy and its deletion are not built yet (§8g).
+  `7`: one copy of its databases is made right before each update, by
+  `deploy-live.sh`, and deleted once the update is proven, or after six days
+  less an hour by the daily duties (workplan 0134 open question 1 (b), workplan
+  0139; §8g).
   [Workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md)
   is that decision. It parks building the backups (its T5) until before the
   first paying customer, or the end of the alpha, whichever comes first.

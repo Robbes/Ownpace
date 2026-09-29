@@ -90,7 +90,7 @@ const Row: React.FC<{
         // said what to do since August; the ITEM level — the common case, and
         // the whole reason this queue exists — said nothing.
         <div className="text-xs text-red-900">
-          {t(remedyKey(f.category, sourceKind))} <SendItToUs category={f.category} />
+          {t(remedyKey(f.category, sourceKind))} <SendItToUs category={f.category} dataType={f.domain} />
         </div>
       )}
       {/*

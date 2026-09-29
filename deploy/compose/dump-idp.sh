@@ -31,6 +31,18 @@
 # in its name, and none is ever overwritten. A dump holds the provider's
 # accounts, and the roles file its password hashes: keep both off shared places.
 #
+# ON LIVE, ONE DIRECTORY AND NO OTHER (workplan 0139, rec-copies (a)). Live
+# keeps one copy, made right before an update and deleted once the update is
+# proven, never past day 7, and the privacy policy says so. A dump anywhere
+# else would outlive that. So on a .env that is or may be live's
+# (stack_may_be_live) it writes into the copy's directory,
+# `~/.persistent/<project>/copy-before-update/` (copy-before-update.sh names
+# it), whose rules then delete it, and refuses a `--dir` naming any other,
+# and that directory when it is a symbolic link (the backstop does not follow
+# one), before any docker call. copy-before-update.sh runs it there as part of the
+# copy that deploy-live.sh takes before each update, so on live it need not be
+# run by hand.
+#
 # WHAT IT NEVER DOES. It stops, starts and changes nothing: the stack keeps
 # serving while it runs, and pg_dump reads one consistent snapshot. It does not
 # copy `.env`. The dump is readable only with the ZITADEL_MASTERKEY in that
@@ -51,6 +63,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=deploy/compose/env-read.sh
 . "${SCRIPT_DIR}/env-read.sh"
+# Live's marker, named once.
+# shellcheck source=deploy/compose/stack-kind.sh
+. "${SCRIPT_DIR}/stack-kind.sh"
+# The copy's one directory, named once (it only defines, when sourced).
+# shellcheck source=deploy/compose/copy-before-update.sh
+. "${SCRIPT_DIR}/copy-before-update.sh"
 ENV_FILE="${SCRIPT_DIR}/.env"
 
 usage() {
@@ -60,6 +78,7 @@ Usage: ./deploy/compose/dump-idp.sh [--dir DIR]
 Dumps this stack's identity provider database, with the server's roles, before
 an upgrade, reads the dump back, and writes a note on how to go back to it.
 Files go into ~/ownpace-dumps/<project>/ unless --dir names another directory.
+On live, into ~/.persistent/<project>/copy-before-update/ and nowhere else.
 EOF
 }
 
@@ -87,6 +106,20 @@ case "$DB_NAME" in
     ;;
 esac
 
+# On live, the copy's directory and no other: its rules delete what is there.
+if stack_may_be_live "$ENV_FILE"; then
+  COPY_DIR="$(copy_before_update_dir)"
+  # A link there is refused: the backstop does not follow one.
+  if [ -L "$COPY_DIR" ]; then
+    echo "dump-idp: refused: $(copy_before_update_link_refusal)" >&2
+    exit 1
+  fi
+  if [ -n "$DIR" ] && [ "$(realpath -m -- "$DIR")" != "$(realpath -m -- "$COPY_DIR")" ]; then
+    echo "dump-idp: refused: on live a dump goes into ${COPY_DIR}, the one directory of the copy before an update, and nowhere else: there it is deleted once the update is proven, and after day ${COPY_EXPIRE_DAYS} whatever happens (workplan 0139). Run this without --dir. Nothing was dumped." >&2
+    exit 1
+  fi
+  DIR="$COPY_DIR"
+fi
 DIR="${DIR:-${HOME}/ownpace-dumps/${COMPOSE_PROJECT}}"
 umask 077
 if [ ! -d "$DIR" ]; then

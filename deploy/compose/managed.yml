@@ -269,6 +269,38 @@ services:
       # Misc
       PORT: 3000
       APP_LOG_LEVEL: info
+      # NOTHING GOES TO TRIGGER.DEV'S ANALYTICS, OR PRISMA'S (privacy §8; the
+      # owner, 2026-09-28, ops-telemetry (a): "Switch it off everywhere";
+      # workplan 0139). Three reports, read at v4.5.16, and upstream documents
+      # one switch:
+      #
+      # - TRIGGER_TELEMETRY_DISABLED stops the SERVER's PostHog client
+      #   (app/services/telemetry.server.ts): the user identified by id, email
+      #   and name at every sign-in (services/postAuth.server.ts), and each
+      #   user, organisation and project created. Any value will do, upstream
+      #   says not an empty one.
+      # - It does not stop the DASHBOARD's. The root loader hands the browser
+      #   POSTHOG_PROJECT_KEY, which defaults to Trigger.dev's own project key
+      #   (app/env.server.ts), and app/hooks/usePostHog.ts starts PostHog and
+      #   identifies the signed-in user by id and email whenever it is not
+      #   empty. The empty string is the one value that stops it.
+      # - Nor PRISMA's. The entrypoint above runs `prisma migrate deploy` at
+      #   every start (docker/scripts/entrypoint.sh; prisma 6.14.0), and the
+      #   Prisma CLI sends a checkpoint to checkpoint.prisma.io for every
+      #   command it runs: version, OS, architecture, Node, CI, the command,
+      #   hashes of the project's and the CLI's paths, the schema's providers
+      #   and a stored random signature (packages/cli/src/CLI.ts,
+      #   utils/checkpoint.ts; checkpoint-client 1.1.33). CHECKPOINT_DISABLE is
+      #   the only thing either checks.
+      #
+      # Written here rather than read from .env, so no machine's .env can empty
+      # them. Every other key this service sets is in the guard's WEBAPP_KEYS,
+      # each with the reason it reaches no third party, and a key that is not
+      # fails it until somebody has read what it does at the pinned version.
+      # `scripts/a-service-that-phones-home.unit.test.ts` holds all of it.
+      TRIGGER_TELEMETRY_DISABLED: "1"
+      POSTHOG_PROJECT_KEY: ""
+      CHECKPOINT_DISABLE: "1"
     ports:
       # Plain HTTP, and the deploy CLI and its image build ask it on 127.0.0.1
       # (API_ORIGIN above), so TRIGGER_BIND stays empty on a real box. See the
@@ -369,6 +401,10 @@ services:
       # fresh empty volume has no accumulated ceiling, and ClickHouse's own
       # eleven system log tables would start filling it from the first boot.
       - ./clickhouse-disable-system-logs.xml:/etc/clickhouse-server/config.d/disable-system-logs.xml:ro
+      # And no crash report to ClickHouse, Inc. (workplan 0139, 2026-09-28):
+      # the config.xml this image ships turns them ON, and this file turns
+      # them off again. Its header has the detail.
+      - ./clickhouse-no-crash-reports.xml:/etc/clickhouse-server/config.d/no-crash-reports.xml:ro
     healthcheck:
       test: ["CMD", "clickhouse-client", "--host", "localhost", "--port", "9000", "--user", "${CLICKHOUSE_USER:-default}", "--password", "${CLICKHOUSE_PASSWORD:-password}", "--query", "SELECT 1"]
       interval: 5s
@@ -513,6 +549,16 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-very-safe-password}
       MINIO_DEFAULT_BUCKETS: packets
+      # NO RELEASE CHECK AT START (workplan 0139, 2026-09-28). At every start
+      # this MinIO (RELEASE.2025-05-24T17-08-30Z) asks dl.min.io for its newest
+      # release, and its User-Agent carries the OS, the architecture, `docker`,
+      # its version and the CPU's count, vendor and model (cmd/server-main.go,
+      # cmd/update.go). `off` here is the one thing that skips it. Its
+      # call-home to SUBNET already ships off, and is written out so a stored
+      # setting cannot turn it on: the environment wins over MinIO's own
+      # config. `scripts/a-service-that-phones-home.unit.test.ts`.
+      MINIO_UPDATE: "off"
+      MINIO_CALLHOME_ENABLE: "off"
     volumes:
       - minio_data:/bitnami/minio/data
     networks:
@@ -741,6 +787,19 @@ services:
       # serves the form. setup-zitadel.sh sets it on an existing instance and
       # reads it back on both.
       ZITADEL_DEFAULTINSTANCE_RESTRICTIONS_DISALLOWPUBLICORGREGISTRATION: "true"
+      # NO DAILY REPORT TO ZITADEL (workplan 0139, 2026-09-28). `cmd/defaults.yaml`
+      # at v4.19.2 ships `ServicePing.Enabled: true`: once a day, to
+      # https://zitadel.com/api/ping, the version, the id, creation date and
+      # domains of every instance, and the count of its users, organisations
+      # and projects. It says so itself: "It's enabled by default". Every v4
+      # release carries it, so the OTA stack's provider has sent it since it
+      # first ran. Unlike DefaultInstance above, this is read at every start,
+      # so recreating the container is all it takes. `Telemetry.Enabled` (the
+      # milestone push) ships false and is written out beside it, so a new
+      # default cannot turn it on unseen. Re-read both at every new pin:
+      # `scripts/a-service-that-phones-home.unit.test.ts` fails until you have.
+      ZITADEL_SERVICEPING_ENABLED: "false"
+      ZITADEL_TELEMETRY_ENABLED: "false"
       # The first human, so a fresh stack has somebody who can sign in.
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: ${ZITADEL_ADMIN_USERNAME:-owner}
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_ADMIN_PASSWORD:?run ./deploy/compose/ensure-env-secrets.sh first}
@@ -1022,9 +1081,10 @@ services:
       # completes (0085 T5). Unset means the 7-day default in @openmig/shared,
       # and that default assumes backups exist: nothing in this repository
       # backs this database up yet. `ownpace-live` takes no backups during the
-      # alpha and sets 7: its databases are dumped before each deploy and each
-      # dump is deleted after at most 7 days, both by the owner for now (0132
-      # T6 step 4; workplan 0134 open question 1 (b)). The api warns about a
+      # alpha and sets 7: one copy of its databases is made right before each
+      # update by deploy-live.sh, and deleted once the update is proven, or
+      # after 6 days by the daily duties (copy-before-update.sh; workplan 0134
+      # open question 1 (b), workplan 0139). The api warns about a
       # blank value in production, and with OWNPACE_STAGE=alpha refuses to
       # start (`config-guards.ts`).
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-}
@@ -1079,9 +1139,12 @@ services:
       ZAMMAD_GROUP: ${ZAMMAD_GROUP:-}
       REPORT_MAIL_TO: ${REPORT_MAIL_TO:-}
       # THE ALPHA (workplan 0131 T1): `alpha` makes the access-granted mail say
-      # so, read by `accessGrantedEvent` in apps/api/src/access-notify.ts. The
-      # web build below takes the same setting as VITE_OWNPACE_STAGE. Empty is
-      # off, which is every deployment but the one testers use.
+      # so, read by `accessGrantedEvent` in apps/api/src/access-notify.ts, and
+      # asks every tester to accept the Alpha conditions, the privacy policy
+      # and the terms before any access is stored, once no text is still a
+      # draft (0139 T3, apps/api/src/conditions-not-accepted.ts). The web build below takes
+      # the same setting as VITE_OWNPACE_STAGE. Empty is off, which is every
+      # deployment but the one testers use.
       # `scripts/an-alpha-both-halves-know-about.unit.test.ts`.
       OWNPACE_STAGE: ${OWNPACE_STAGE:-}
       # THE RULE FOR A HOST A TENANT GIVES US (workplan 0136 T1, T2): the API
@@ -1142,7 +1205,9 @@ services:
         # THE ALPHA NOTE (workplan 0131 T1), from the same OWNPACE_STAGE the api
         # service reads above: a build arg because /login and /request-access
         # have no session to ask with. Vite exposes only VITE_ names, hence the
-        # prefix. Empty is off; changing it means rebuilding this image.
+        # prefix. With `alpha` the bundle also asks, on load, whether the texts
+        # wait to be accepted (0139 T3). Empty is off; changing it means
+        # rebuilding this image.
         VITE_OWNPACE_STAGE: ${OWNPACE_STAGE:-}
         # The address a tester writes to (workplan 0144 T6 (a)). Empty shows nothing new.
         VITE_SUPPORT_EMAIL: ${VITE_SUPPORT_EMAIL:-}
@@ -1363,6 +1428,11 @@ services:
       # so this moves the exposure no further than the port above already does,
       # which is the boundary that was argued out there and still holds.
       MP_DATABASE: /data/mailpit.db
+      # NO RELEASE CHECK (workplan 0139, 2026-09-28). Whenever its page asks
+      # for the server's info, Mailpit (v1.31.1, internal/stats/stats.go) asks
+      # GitHub for its newest release. Live runs no catcher; this is the test
+      # stack's. `scripts/a-service-that-phones-home.unit.test.ts`.
+      MP_DISABLE_VERSION_CHECK: "true"
     ports:
       # 127.0.0.1, LIKE THE REGISTRY AND FOR A SHARPER REASON. Mailpit has no
       # authentication of any kind — it is a catcher, and asking it to hold
@@ -1409,6 +1479,13 @@ services:
       timeout: 5s
       retries: 5
 
+  # The demo's DAV target, brought up with the OTA stack every night
+  # (--with-demo, which both live scripts refuse). Its update check, app store,
+  # announcements feed and connectivity check are on by default
+  # (config.sample.php at stable34), and are NOT switched off yet: a hook that
+  # set them false made the demo's first CalDAV write answer 500 (workplan
+  # 0139, 2026-09-29). It holds fixtures, never a tester's data.
+  # `scripts/a-service-that-phones-home.unit.test.ts` lists it as left on.
   nextcloud:
     image: nextcloud:34-apache
     container_name: ${COMPOSE_PROJECT_NAME}-nextcloud

@@ -60,6 +60,7 @@ import {
   serverMessage,
   tooManyTests,
 } from '../services/api.ts';
+import { conditionsRefusal } from '../services/acceptance.ts';
 import { QUALIFICATION_KEYS, credentialFieldRequired } from '@openmig/shared';
 import { Hint } from '../components/Hint.tsx';
 import { optionName } from '../i18n/option-name.ts';
@@ -110,6 +111,10 @@ const useRefusalText = (fields: ReadonlyArray<{ key: string; labelKey: string }>
     }
     // The limit on tests (0136 T3): ours, so in the reader's language.
     if (tooManyTests(err)) return t('probe.tooManyTests');
+    // The texts not accepted yet (0139 T3): ours too. The screen comes up at
+    // the same time (`AcceptanceGate`); this is what the form says after.
+    const conditions = conditionsRefusal(err, t);
+    if (conditions) return conditions;
     return serverMessage(err);
   };
 };
@@ -404,7 +409,13 @@ const Row: React.FC<{
                 when: relativeToNow(f.asOf),
                 domains: f.domains.map((d) => t(DOMAIN_STRING_KEY[d])).join(', '),
               })}{' '}
-              {t(FAILURE_KEY[f.category])} <SendItToUs category={f.category} />
+              {t(FAILURE_KEY[f.category])}{' '}
+              <SendItToUs
+                category={f.category}
+                migrationId={f.mappingId}
+                {...(f.side ? { side: f.side } : {})}
+                {...(f.domains.length === 1 ? { dataType: f.domains[0] } : {})}
+              />
               {ASK_TEST.has(f.category) && (
                 <> {t(f.side ? 'connections.standing.thisSide' : 'connections.standing.whichSide')}</>
               )}

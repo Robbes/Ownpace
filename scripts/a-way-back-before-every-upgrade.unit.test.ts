@@ -13,7 +13,10 @@
  *
  *   Whose stack. It dumps the stack of the checkout it runs in, from the
  *   project `compose_project` reads, and refuses before any `docker` call
- *   when the shell names the other stack.
+ *   when the shell names the other stack. On live it writes into the one
+ *   directory of the copy before an update, `~/.persistent/<project>/copy-before-update`,
+ *   and nowhere else (workplan 0139, rec-copies (a); the cases are in
+ *   one-copy-before-each-update).
  *
  *   A dump that is no way back. A file with the final name has read back
  *   through the server's own `pg_restore --list`, with entries. An empty dump,
@@ -133,7 +136,9 @@ function run(opts: {
   mkdirSync(compose, { recursive: true });
   mkdirSync(bin);
   mkdirSync(home);
-  for (const f of [SCRIPT, 'env-read.sh', 'stack-kind.sh', 'managed.yml']) {
+  for (const f of [SCRIPT, 'env-read.sh', 'stack-kind.sh', 'copy-before-update.sh', 'managed.yml']) {
+    // A script that is not in this checkout yet is simply not there.
+    if (!existsSync(join(COMPOSE_DIR, f))) continue;
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
   }
   writeFileSync(
@@ -164,7 +169,10 @@ function run(opts: {
     timeout: 20_000,
   });
   const project = /COMPOSE_PROJECT_NAME=(\S+)/.exec(opts.dotenv ?? '')?.[1] ?? OTA;
-  const dir = join(home, 'ownpace-dumps', project);
+  // On live (its marker in the .env), the copy's one directory (0139).
+  const dir = /^STACK_KIND=production$/m.test(opts.dotenv ?? '')
+    ? join(home, '.persistent', project, 'copy-before-update')
+    : join(home, 'ownpace-dumps', project);
   return {
     status: r.status,
     out: r.stdout,
@@ -193,7 +201,7 @@ describe('whose stack', () => {
     expect(r.out).toContain(r.dir);
   });
 
-  it("in live's checkout, dumps live, and names nothing of the OTA stack", () => {
+  it("in live's checkout, dumps live into the copy's directory, and names nothing of the OTA stack", () => {
     const r = run({
       dotenv: `COMPOSE_PROJECT_NAME=${LIVE}\nSTACK_KIND=production\nZITADEL_MASTERKEY=${MASTERKEY}\n`,
     });
@@ -201,7 +209,9 @@ describe('whose stack', () => {
     expect(r.calls.join('\n')).toContain(`${LIVE}-db`);
     expect(r.calls.join('\n')).toContain(`${LIVE}-idp`);
     expect(r.calls.join('\n')).not.toContain(OTA);
+    expect(r.dir).toBe(join(r.home, '.persistent', LIVE, 'copy-before-update'));
     expect(r.files).toContain(`zitadel-${LIVE}-${STAMP}.dump`);
+    expect(existsSync(join(r.home, 'ownpace-dumps')), 'a dump of live outside the copy\'s directory').toBe(false);
   });
 
   it('refuses before any docker call when the shell names the other stack', () => {

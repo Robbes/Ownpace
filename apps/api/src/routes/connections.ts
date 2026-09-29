@@ -82,6 +82,7 @@ import type {
 } from '@openmig/shared';
 import { authenticate, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import { refusedAsClosed } from '../closed-organisation.ts';
+import { refusedUntilAccepted } from '../conditions-not-accepted.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 // The SHAPE builders stay the create route's, deliberately: what a connection
 // stores must match what a sync pass reads, and one authority for that is the
@@ -720,6 +721,9 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
     // A closed organisation takes no new access, and nothing is probed with
     // it (0085 T2).
     if (await refusedAsClosed(res, tenantId, pool())) return;
+    // Nor does anybody who has not accepted the current texts, while the
+    // deployment asks (0139 T3).
+    if (await refusedUntilAccepted(res, tenantId, req.userId, pool())) return;
     // One test against the member's limit, now that it will connect (0136 T3).
     if (refusedOverTestLimit(req, res)) return;
     // What a host the tester typed said is answered from its parts (0136 T3).
@@ -970,8 +974,10 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
     // silently re-point a mapping at a different folder.
     //
     // A closed organisation takes no new access, and nothing is probed with
-    // it (0085 T2).
+    // it (0085 T2). Nor does anybody who has not accepted the current texts,
+    // while the deployment asks (0139 T3).
     if (await refusedAsClosed(res, tenantId, pool())) return;
+    if (await refusedUntilAccepted(res, tenantId, req.userId, pool())) return;
     if (refusedOverTestLimit(req, res)) return;
     const answers = probeAnswers('replacing credentials', tenantId);
     const probe = answers.result(

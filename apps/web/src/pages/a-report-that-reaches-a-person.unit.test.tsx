@@ -121,7 +121,14 @@ describe('Report a problem', () => {
     await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
     expect(postMock).toHaveBeenCalledWith(
       '/problem-reports',
-      { description: 'The Moves screen is empty', page: '/grant/:link/google', reference: '0a1b2c3d' },
+      {
+        description: 'The Moves screen is empty',
+        page: '/grant/:link/google',
+        reference: '0a1b2c3d',
+        // And what the browser says of itself (0130 T6, Part B), which
+        // `a-report-that-carries-what-the-browser-knows` holds.
+        browser: expect.objectContaining({ language: 'en' }) as unknown,
+      },
       // Its own time, not the client's 30 seconds: a 7 MB report uploads first.
       { timeout: REPORT_TIMEOUT_MS },
     );
@@ -149,7 +156,7 @@ describe('Report a problem', () => {
     await waitFor(() => expect(postMock).toHaveBeenCalledTimes(2));
     expect(postMock).toHaveBeenLastCalledWith(
       '/problem-reports',
-      { description: 'The Moves screen is empty', page: '/' },
+      { description: 'The Moves screen is empty', page: '/', browser: expect.objectContaining({ language: 'en' }) as unknown },
       { timeout: REPORT_TIMEOUT_MS },
     );
     expect(
