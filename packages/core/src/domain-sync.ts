@@ -1131,6 +1131,14 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
    * counting them as gone would read a healthy corpus as mass deletion.
    */
   const seenByCollection = new Map<string, Set<string>>();
+  /**
+   * Every key the item loop found listed in another collection THIS pass,
+   * under the same key — a move `classifyKnownItem` already dealt with,
+   * reported or decided. The end-of-pass reconciliation leaves these alone: it
+   * finds such a row absent from its old collection too, and used to report
+   * the one move a second time.
+   */
+  const movedByTheLoop = new Set<string>();
   /** Items created THIS pass — the other half of the correlation. */
   const createdThisPass: Array<{
     naturalKeyHash: string;
@@ -1540,6 +1548,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
             // returned the move in the pass result, so an operator who was not
             // reading the container output at that moment never learned — and
             // had no way to say "dealt with, stop telling me".
+            movedByTheLoop.add(key);
             if (!decided(known, collectionPath)) {
               await timed(phases, 'ledgerWriteMs', () =>
                 ledger.recordMove(tenantId, mappingId, domain, key, collectionPath),
@@ -2355,6 +2364,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       domain,
       ledger,
       seenByCollection,
+      movedByTheLoop,
       createdThisPass,
       listedByIdentity,
       unfinishedCollections,
@@ -2682,6 +2692,8 @@ async function detectPathKeyedMoves(args: {
   domain: DiscoveryDomain;
   ledger: Ledger;
   seenByCollection: ReadonlyMap<string, ReadonlySet<string>>;
+  /** Keys the item loop already found moved under the same key this pass. */
+  movedByTheLoop: ReadonlySet<string>;
   createdThisPass: ReadonlyArray<{
     naturalKeyHash: string;
     contentHash: string;
@@ -2698,7 +2710,7 @@ async function detectPathKeyedMoves(args: {
 }): Promise<{ moves: ItemMove[]; deletions: ItemDeletion[]; drift: number }> {
   const { tenantId, mappingId, domain, ledger, seenByCollection, createdThisPass, listedByIdentity } =
     args;
-  const { unfinishedCollections } = args;
+  const { unfinishedCollections, movedByTheLoop } = args;
 
   // Content hash -> the new items carrying it, consumed as they are matched.
   // Consuming matters: three identical files deleted and one created is one
@@ -2760,6 +2772,18 @@ async function detectPathKeyedMoves(args: {
     // finishes that collection. A collection absent from the source's own
     // folder list is still gone, and read as such below.
     if (unfinishedCollections.has(row.collection)) continue;
+
+    // MOVED UNDER THE SAME KEY, and the item loop has already said so. It
+    // listed this key in another collection, `classifyKnownItem` returned
+    // `'moved'`, and the loop recorded and reported the move (or found it
+    // decided) before this ran. The row is absent from its old collection for
+    // exactly that reason, so everything below would be a second account of
+    // the same move — and was: the remembered branch read the move the loop
+    // had just written down and reported it again, so one key-preserving move
+    // came out as `moved: 2` with two identical entries (found 2026-09-29).
+    // A move that CHANGES the key never gets here: the loop saw the new key as
+    // a new item, not as this row.
+    if (movedByTheLoop.has(row.naturalKeyHash)) continue;
 
     // AN EARLIER EXPORT, already explained: the document is listed under the
     // name the current export policy gives it, and this copy is what the old
@@ -2900,9 +2924,14 @@ async function detectPathKeyedMoves(args: {
       // the new key, which is equally true whichever of the two happened.
       const [match] = candidates.splice(0, 1);
       const to = match!.collection;
-      // The arrival's own key. A same-key arrival is impossible — the ledger
-      // holds this row under that key already, so `recordIfAbsent` would have
-      // found it rather than creating one — which is why this needs no filter.
+      // The arrival's own key, which is never this row's own. An arrival is a
+      // key the loop CREATED this pass, and an item listed under a key the
+      // ledger already holds is classified rather than created: a move that
+      // keeps its key is the loop's `'moved'`, recorded and reported there and
+      // passed over above (`movedByTheLoop`); a failed row retried and copied
+      // under its key is rewritten to the collection it was listed in, so it is
+      // seen, not absent. What remains here is the move that CHANGES the key
+      // (ADR-0030), which is why this needs no filter.
       const toNaturalKeyHash = match!.naturalKeyHash;
       // No `decided()` check here any more, and none is possible: a row with a
       // recorded move never reaches this line. It used to, and the call read as

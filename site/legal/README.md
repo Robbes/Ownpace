@@ -388,7 +388,12 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   Privacy §9 no longer names the drill. **Still to do:** live runs a tag that carries it.
 - *A sign-in account nobody let in, 30 days* (privacy §9; ops-unadmitted-signin-cleanup (a)):
   0135 T8's script, `idp-strays.sh`, run with the machine's daily duties. Built; it runs once
-  live's timer is installed.
+  live's timer is installed. The same run removes the sign-in account of someone removed from an
+  organisation, 7 days after they were removed (privacy §9's row beside it; 0135 open question
+  13, answered 2026-09-29: *"Samen number of days"*, and then *"7 days"*, the erasure window's),
+  unless they are a member again or have an open request or invitation. An organisation erased
+  less than 7 days after a removal takes the record with it; the runbook's *Tenant offboarding*
+  removes such an account at the purge.
 - *Searches and downloads on the support screens, 12 months* (privacy §4.5, §9;
   privacy-search-records (a)): a daily duty deletes those log records older than 12 months, over the
   owner's connection at the machine: `app_user`, the role every request runs as, cannot delete from
@@ -431,11 +436,22 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   (`access.privacy`) are reworded, in both languages: *"we store only a hash of it, in the
   sign-in service we run"*; *"no backups, apart from one copy before each update, kept up to 7
   days"*; *"We keep what you type to decide on your request and to answer you; asking creates no
-  account."*
+  account."* Built (0139 T4, 2026-09-29) on branch
+  `claude/ownpace-public-readiness-y7orc6-what-the-app-says`, **not merged**: all three, in
+  English and Dutch, and the grant mail's alpha paragraph with the note, whose words it shares.
+  **Still to do:** merged, and live runs a tag that carries it.
 - *A privacy line in the mail to people items were shared with* (privacy §4.6;
   privacy-share-mail-notice (a)): one sentence and a link to the policy, in both languages, in
   `packages/shared/src/share-announcement.ts` and its copy in
-  `docs/cutover-communication-templates.md`, before the first tester uses the feature.
+  `docs/cutover-communication-templates.md`, before the first tester uses the feature. Built on
+  the same branch, **not merged**: on the managed service the mail closes with *"Ownpace, the
+  migration service that sent this message, keeps your address and the names of these items;
+  its privacy policy says why, and for how long:"* and the policy's address in the mail's
+  language, and Template 6 carries the same line. The address is on the site the app links:
+  `managed.yml` hands `VITE_LEGAL_SITE_URL` to the api as `LEGAL_SITE_URL`
+  (`packages/shared/src/privacy-policy-link.ts`). An appliance's mail has no such line; its
+  owner sends it, and this policy is not theirs. **Still to do:** merged, and live runs a tag
+  that carries it; the lawyer reads the sentence with question 2 of the privacy briefing.
 - *By hand, by the owner*: the service's sent mail and support mail pruned in Proton, until
   resolved and then 6 months (privacy §9; privacy-sent-mail-copies (b)); a family member's
   Google address taken off Google's test list with the tester's, at erasure, or sooner if asked

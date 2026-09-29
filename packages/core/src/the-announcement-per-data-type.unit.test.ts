@@ -85,9 +85,15 @@ const cutOver =
   (subject: string) =>
     subjects.includes(subject);
 
-function press(ledger: MemoryLedger, isCutOver: (s: string) => boolean, tell = mailbox().tell, confirmResend = false) {
+function press(
+  ledger: MemoryLedger,
+  isCutOver: (s: string) => boolean,
+  tell = mailbox().tell,
+  confirmResend = false,
+  privacyPolicy: string | null = null,
+) {
   return announceByHandShares(
-    { tenantId: TENANT, mappingId: MAPPING, ledger, pressedBy: 'owner', isCutOver, channelIsOn: true, tell },
+    { tenantId: TENANT, mappingId: MAPPING, ledger, pressedBy: 'owner', isCutOver, channelIsOn: true, tell, privacyPolicy },
     { note: 'It all lives on the new server now.', locale: 'en', confirmResend },
   );
 }
@@ -131,6 +137,29 @@ describe('each data type’s shares carried by hand, announced at its own cutove
       expect.objectContaining({ mappingId: MAPPING, subjects: ['calendar'], sent: 1, waitingForCutover: 3 }),
       expect.objectContaining({ mappingId: MAPPING, subjects: ['drive_item'], sent: 2, alreadyAnnounced: 1 }),
     ]);
+  });
+});
+
+describe('the privacy line (workplan 0139 T4, privacy-share-mail-notice (a))', () => {
+  it('every mail of a press closes with the policy address the edition hands it, and none without one', async () => {
+    // The managed service hands the address of its privacy policy, in the
+    // press's language (privacy §4.6); the appliance hands none, because its
+    // owner sends this from their own box and our policy is not theirs.
+    const POLICY = 'https://legal.example.test/privacy.html';
+    const ledger = await carriedByHand();
+    const managed = mailbox();
+    await press(ledger, cutOver('calendar', 'drive_item'), managed.tell, false, POLICY);
+    expect(managed.mails.map((m) => m.to)).toEqual(['anna@example.invalid', 'cas@example.invalid']);
+    for (const { message } of managed.mails) {
+      const last = message.body.split('\n\n').at(-1) ?? '';
+      expect(last).toContain('privacy policy');
+      expect(last.endsWith(`: ${POLICY}`), last).toBe(true);
+    }
+
+    const appliance = mailbox();
+    await press(ledger, cutOver('calendar', 'drive_item'), appliance.tell, true, null);
+    expect(appliance.mails).toHaveLength(2);
+    for (const { message } of appliance.mails) expect(message.body).not.toMatch(/privacy|https?:\/\//i);
   });
 });
 
@@ -205,6 +234,7 @@ describe('a press that may not announce', () => {
         isCutOver: cutOver('calendar'),
         channelIsOn: false,
         tell: mail.tell,
+        privacyPolicy: null,
       },
       { note: 'Here.', locale: 'en', confirmResend: false },
     );

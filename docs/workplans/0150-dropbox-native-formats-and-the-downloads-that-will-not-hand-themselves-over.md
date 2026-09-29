@@ -4,6 +4,34 @@
 
 ## Status — 2026-09-29 (update this block at the end of every session)
 
+**2026-09-29: a move that keeps its key is reported once, not twice (found while testing #1384).**
+In the file domain `runDomainSync` runs both move detectors. The item loop saw an item listed in
+another folder under the same key, and `classifyKnownItem` returned `'moved'`, so the loop recorded
+and reported the move. Then the end-of-pass reconciliation (`detectPathKeyedMoves`) found the row
+absent from its old folder. It read the move the loop had just recorded and reported it again, so
+the result showed `moved: 2` with two identical entries. That doubled count reached the pass's
+stats, the worker's "N item(s) are now in a different source" line and the pass's own `[sync]` warning. The
+moves queue was never wrong: the ledger holds one row, and the second `recordMove` wrote the same
+values. The issue first blamed the reconciliation's content-matching branch, but a probe
+showed the second report came from its remembered-move branch. A key-preserving move creates
+nothing, so the matching branch has nothing to match it with.
+
+- **What changed.** The loop keeps the keys it classified `'moved'` this pass (`movedByTheLoop`),
+  and the reconciliation leaves those rows alone. A move that changes the key (ADR-0030) never
+  reaches the loop as the old row, so it is reported by the reconciliation once, as before. The
+  comment saying a same-key arrival is impossible now gives the real reasons. Nothing touches the
+  target: this only removes a second report.
+- **Proved** by three cases in `packages/core/src/move-detection.unit.test.ts`, through the real
+  `runDomainSync` with the memory stores:
+  - a move that keeps its key is reported once on each pass it stays open, and once acknowledged,
+    no longer reported;
+  - a move that changes its key is reported once;
+  - both kinds on one pass are reported once each.
+
+  Two of the cases fail on `main` (`expected 2 to be 1`, `expected 3 to be 2`). #1384's guard in
+  `copied-items-asked-a-window-at-a-time.unit.test.ts` now expects `moved: 1` and fails on
+  `main` too.
+
 **2026-09-29, morning: the OTA stack's Nextcloud moves from SQLite to Postgres (the owner's
 decision).** The E2E (managed) gate went red on `main` twice, #222 and #223, and not because of any
 merged change. The demo Nextcloud (service `nextcloud`) answered HTTP 500 when asked for a new
@@ -31,17 +59,39 @@ database is locked"*.
   4. Postgres, which removes the cause.
 
   The owner chose Postgres: *"ok, we'll move to postgres."*
-- **Done by hand on the OTA stack**, while the migrations were paused and no gate run was active:
-  - a `nextcloud` role and database in the stack's Postgres;
-  - then Nextcloud's own converter, `occ db:convert-type -n --all-apps pgsql nextcloud postgres
-    nextcloud`, checked against its source (Nextcloud 34, `core/Command/Db/ConvertType.php`).
-    It holds the maintenance page while it copies, writes the new settings into `config.php`
-    only once the copy succeeded, and never changes the SQLite file;
-  - `config.php` copied beforehand, which is the whole way back until the migrations resume.
-- **Still open.** A fresh demo install still starts on SQLite. New installs should start on
-  Postgres without touching one that exists. The owner decides who takes it: it is the demo
-  stack's change, and `db-roles.sh` is being rewritten in #1358. Neither `copy-before-update.sh`
-  nor any other copy includes this Nextcloud's database, as none included its SQLite file.
+- **Done by hand on the OTA stack, the same morning**, while the migrations were paused and no
+  gate run was active. `config.php` was copied first; that copy was the whole way back until the
+  migrations resumed. Then a `nextcloud` role and database were made in the stack's Postgres, and
+  Nextcloud's own converter was run, `occ db:convert-type` (Nextcloud 34,
+  `core/Command/Db/ConvertType.php`). The converter holds the maintenance page while it copies,
+  switches `config.php` only after its last step, and never changes the SQLite file. On this
+  install it failed twice, and each failure left Nextcloud on SQLite:
+  - **With `--all-apps`, before copying anything.** It builds tables for disabled apps as well,
+    and the disabled LDAP app cannot load here (*"Could not resolve
+    OCA\User_LDAP\ILDAPWrapper"*). It ran without it: tables for the enabled apps only.
+  - **In its last step, after copying every table.** `PgSqlTools::resynchronizeDatabaseSequences`
+    finds each id counter's table through the column whose default names that counter. It fails
+    on the first counter no default names, which here was `oc_preview_locations_id_seq`: *"SELECT
+    setval('oc_preview_locations_id_seq', (SELECT MAX() FROM ))"*. Nextcloud's newer-style
+    (identity) columns have no such default either.
+
+  So the last step was done by hand. Every counter was set from the column that owns it
+  (`pg_depend`), counting only the ids within the counter's own range, one counter at a time.
+  `oc_jobs` holds ids Nextcloud generates itself, beyond its counter's range, and that range check
+  was the second attempt's fix. Then `config.php`'s database settings were set with
+  `occ config:system:set`, `dbtype` last. **113 counters were set, none failed**, and Nextcloud
+  answered on Postgres (`occ status`, `occ user:list`). The statement was proven beforehand on a
+  local Postgres with the same five kinds of counter:
+  - an ordinary one;
+  - an identity column's;
+  - the preview case;
+  - generated ids beside old ones;
+  - an empty table's.
+- **Still open, and this session's** (the owner, 2026-09-29: *"You take that aswell"*), after
+  #1358, which is rewriting `db-roles.sh`: a fresh demo install still starts on SQLite. New
+  installs should start on Postgres, and an install still on SQLite should be converted by a
+  script that carries the two workarounds above, not by hand. Neither `copy-before-update.sh` nor
+  any other copy includes this Nextcloud's database, as none included its SQLite file.
 
 **2026-09-29, morning: where the Dropbox passes spend their time, and items already copied asked
 about a window at a time (T1)**, merged as #1384 (`8674bbc`). From the owner's readings on the OTA

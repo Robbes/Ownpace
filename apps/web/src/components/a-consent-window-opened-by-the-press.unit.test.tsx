@@ -254,7 +254,7 @@ const DOORS: ReadonlyArray<{ readonly name: string; readonly open: (locale: Loca
 
 const pickGmail = async (locale: Locale): Promise<HTMLElement> => {
   fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
-  fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+  fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
     target: { value: 'owner@gmail.com' },
   });
   return liveConnect(locale);

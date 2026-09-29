@@ -43,6 +43,8 @@ export * from './permissions.ts';
 export * from './notifications.ts';
 export * from './tenant-contact.ts';
 export * from './share-announcement.ts';
+// The privacy policy's address for that mail, from LEGAL_SITE_URL (0139 T4).
+export * from './privacy-policy-link.ts';
 export * from './share-grouping.ts';
 export * from './scope-manifest.ts';
 export * from './keywords.ts';
@@ -92,6 +94,7 @@ export * from './quiesce.ts';
 export * from './token-revocation.ts';
 export * from './logger.ts';
 export * from './app-event.ts';
+export * from './unreadable-answer.ts';
 export * from './operator-log.ts';
 export * from './audit-export.ts';
 export * from './metrics.ts';

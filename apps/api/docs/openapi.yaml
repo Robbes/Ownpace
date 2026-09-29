@@ -4961,6 +4961,55 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+  /api/unreadable-answers:
+    post:
+      tags: [Reports]
+      summary: Report an answer a page could not read
+      description: |
+        Sent by the web app, once per failure, when a page's schema refused one
+        of this API's answers, with the reference the page showed its reader
+        (workplan 0145). Kept as a fault of our own is kept: an app event
+        `web.answer_unreadable` under that reference, on the log page, and one
+        line in the API's output with the issue's code, where in the answer it
+        sat, the page, and the page's build beside the API's. Each field is
+        kept only in its own shape (`parseUnreadableAnswer` in
+        `@openmig/shared`), and a field of any other shape is dropped, never a
+        reason to refuse; only the reference is required. Thirty reports an
+        hour per person. The appliance answers the same body at
+        `POST /unreadable-answers`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reference: { type: string, pattern: '^[0-9a-f]{8}$' }
+                code: { type: string, description: The issue's code, as zod names it. }
+                path:
+                  type: string
+                  description: Where in the answer, as `2.domains.2`; empty for the whole answer.
+                page: { type: string, description: The page, with every id written as `:id`. }
+                build:
+                  type: object
+                  properties:
+                    version: { type: string }
+                    commit: { type: string }
+              required: [reference]
+      responses:
+        '204':
+          description: Kept.
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429':
+          description: Thirty reports from this person in the last hour. Carries `Retry-After`.
+          headers:
+            Retry-After:
+              schema: { type: integer }
+              description: Seconds to wait.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
   /api/scope-manifest:
     get:
       tags: [Discovery]

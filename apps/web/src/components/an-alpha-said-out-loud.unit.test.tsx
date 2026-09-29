@@ -75,20 +75,25 @@ import apiClient from '../services/api.ts';
 import { LocaleProvider } from '../i18n/index.tsx';
 import { STRINGS } from '../i18n/strings.ts';
 
-/** 0131 T1's words. They must match 0139's alpha conditions once those exist. */
+/**
+ * 0131 T1's words, with the copy before an update since 0139 T4
+ * (ops-app-sentences (a)): they match the Alpha conditions §6 and privacy §9.
+ */
 const SAID = {
   en: {
     lead: 'Alpha: a small invited group is trying this service out.',
     all:
-      'Alpha: a small invited group is trying this service out. Nothing is charged, nothing is ' +
-      'backed up, and the alpha can end. Keep your old account until you have checked what arrived.',
+      'Alpha: a small invited group is trying this service out. Nothing is charged, and the alpha ' +
+      'can end. There are no backups, apart from one copy before each update, kept up to 7 days. ' +
+      'Keep your old account until you have checked what arrived.',
   },
   nl: {
     lead: 'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit.',
     all:
       'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit. Er wordt niets in rekening ' +
-      'gebracht, er worden geen back-ups gemaakt en de alfa kan stoppen. Houd uw oude account tot ' +
-      'u hebt gecontroleerd wat er is aangekomen.',
+      'gebracht en de alfa kan stoppen. Er worden geen back-ups gemaakt, op één kopie vlak voor ' +
+      'elke update na, die hoogstens 7 dagen wordt bewaard. Houd uw oude account tot u hebt ' +
+      'gecontroleerd wat er is aangekomen.',
   },
 } as const;
 
