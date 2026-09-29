@@ -64,6 +64,7 @@ const EXPLICIT_CHROMIUM = process.env.E2E_CHROMIUM ?? '/opt/pw-browsers/chromium
 
 const TENANT = 'a0000000-0000-4000-8000-000000000001';
 const MAPPING = 'a0000000-0000-4000-8000-0000000000d1';
+const PERSON = 'a0000000-0000-4000-8000-0000000000e1';
 
 const b64url = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
 
@@ -184,6 +185,45 @@ const FIXTURES: Record<string, unknown> = {
         lastSyncAt: new Date(Date.now() - 5 * 60_000).toISOString(),
         createdAt: new Date(Date.now() - 86_400_000).toISOString(),
         updatedAt: new Date().toISOString(),
+      },
+    ],
+  },
+  /**
+   * WHO EACH MIGRATION IS FOR (workplan 0153 T3, ADR-0050): the Migrations
+   * page is one card per person, so it reads the people beside the
+   * migrations. The shape is `packages/shared/src/people.ts`'s, which the
+   * route answers on both editions.
+   */
+  [`GET /api/people`]: {
+    people: [
+      {
+        id: PERSON,
+        implicit: false,
+        displayName: 'Anna',
+        email: null,
+        createdAt: new Date(Date.now() - 86_400_000).toISOString(),
+        migrations: [{ id: MAPPING, status: 'active' }],
+        counts: { paused: 0, active: 1, cutover: 0, done: 0, continuous: 0 },
+      },
+    ],
+    unassigned: [],
+  },
+  /**
+   * WHAT NEEDS EACH PERSON, counted on their card (0153 T3 (a)). `?all=true`
+   * keeps the quiet migrations, so this one is here with nothing waiting.
+   */
+  [`GET /api/attention`]: {
+    mappings: [
+      {
+        mappingId: MAPPING,
+        name: 'Acme Families — mail',
+        pendingDecisions: 0,
+        deletionsWaiting: 0,
+        movesWaiting: 0,
+        failuresWaiting: 0,
+        readyForCutover: false,
+        autoApplied: 0,
+        sharingOpen: 0,
       },
     ],
   },
@@ -420,7 +460,7 @@ describe('the managed UI boots and is styled', () => {
 describe('the managed UI talks to its own origin', () => {
   it('SENDS API REQUESTS SAME-ORIGIN — the defect that broke the live deployment', async () => {
     const l = await open('/mappings');
-    await l.page.waitForSelector('tbody tr', { timeout: 10_000 });
+    await l.page.waitForSelector('[data-migration]', { timeout: 10_000 });
 
     // Every request, including the API ones, went to the origin that served
     // the page. A bundle with a baked absolute URL fails here by never
@@ -441,11 +481,12 @@ describe('the managed UI talks to its own origin', () => {
 });
 
 describe('the migrations list', () => {
-  it('renders the migrations the API returned', async () => {
+  it('renders the migrations the API returned, on the card of the person they are for', async () => {
     const l = await open('/mappings');
-    await l.page.waitForSelector('tbody tr');
+    await l.page.waitForSelector('[data-migration]');
     const text = await l.text();
     expect(text).toContain('Acme Families — mail');
+    expect(await l.page.getByRole('heading', { name: 'Anna' }).count(), 'no card for the person').toBe(1);
     expect(text).not.toContain('No migrations yet'); // i18n key mappings.empty.title
     expectClean(l, '/mappings');
     await l.page.close();
@@ -453,11 +494,11 @@ describe('the migrations list', () => {
 
   it('OPENS THE MIGRATION WHEN THE ROW IS CLICKED — the dead-row defect', async () => {
     const l = await open('/mappings');
-    await l.page.waitForSelector('tbody tr');
+    await l.page.waitForSelector('[data-migration]');
 
-    // The status cell: inside the row, outside every button and link, which is
-    // exactly where the owner clicked and nothing happened.
-    await l.page.locator('tbody tr:first-child td').nth(2).click();
+    // Its last pass: inside the migration, outside every button and link,
+    // which is where the owner clicked a row and nothing happened.
+    await l.page.locator(`[data-migration="${MAPPING}"]`).getByText(/Last pass/).first().click(); // people.lastPass
     await l.page.waitForURL(`**/mappings/${MAPPING}`, { timeout: 10_000 });
 
     expect(l.page.url()).toContain(`/mappings/${MAPPING}`);
@@ -481,6 +522,20 @@ describe('the migrations list', () => {
       await l.page.close();
     } finally {
       failures.delete('GET /api/migrations');
+    }
+  });
+
+  it('says the PEOPLE read failed rather than showing every migration as nobody’s (0153 T3 (d))', async () => {
+    failures.set('GET /api/people', 500);
+    try {
+      const l = await open('/mappings');
+      await l.page.locator('text=Could not load who each migration is for.').first().waitFor({ timeout: 30_000 }); // people.loadFailed
+      const text = await l.text();
+      expect(text).not.toContain('No migrations yet'); // mappings.empty.title
+      expect(text).not.toContain('Not with a person yet'); // people.unassigned.title
+      await l.page.close();
+    } finally {
+      failures.delete('GET /api/people');
     }
   });
 });
