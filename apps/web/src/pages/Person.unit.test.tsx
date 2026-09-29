@@ -139,6 +139,27 @@ describe("a person's page (0153 T5)", () => {
     ]);
   });
 
+  it("says on each migration's link what that migration holds of a queue's step, so the work can be found", async () => {
+    renderAt();
+    await screen.findByRole('heading', { name: 'Before you switch' });
+    const names = (key: string) => within(step(key)).getAllByRole('link').map((a) => a.textContent);
+    expect(names('deletions')).toEqual(['Anna mail (2)', 'Anna files (0)']);
+    expect(names('sharing')).toEqual(['Anna mail (0)', 'Anna files (5)']);
+    // The check is not a queue: its links name the migration alone.
+    expect(names('check')).toEqual(['Anna mail', 'Anna files']);
+  });
+
+  it("says a migration's own count could not be read, rather than showing none (hard rule 9)", async () => {
+    attentionMock.mockResolvedValue({
+      mappings: [quiet('m-mail', { deletionsWaiting: 2 }), quiet('m-files', { blindSpots: ['the deletions queue: timeout'] })],
+    });
+    renderAt();
+    await screen.findByRole('heading', { name: 'Before you switch' });
+    const [mail, files] = within(step('deletions')).getAllByRole('link');
+    expect(mail).toHaveAccessibleName('Anna mail (2)');
+    expect(files).toHaveAccessibleName('Anna files (could not be read)');
+  });
+
   it('links the step itself to the migration, when the person has one', async () => {
     peopleMock.mockResolvedValue({ people: [person('p-anna', 'Anna Jansen', [{ id: 'm-mail', status: 'active' }])], unassigned: [] });
     renderAt();

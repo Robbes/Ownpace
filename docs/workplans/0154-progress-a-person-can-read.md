@@ -6,8 +6,10 @@
 
 **2026-09-29, night: T4's person half is built, on 0153 T5's page (#1353).** A
 person's page lists the hub's seven steps as one ordered list, each summed across the person's
-migrations, with its count and its state in words (*Done*, *Needs you*, *Not yet*). A count
-that could not be read says so and claims no state. The rules are `apps/web/src/services/cutover-steps.ts`,
+migrations, with its count and its state in words (*Done*, *Needs you*, *Not yet*). On a
+queue's step each migration's link carries that migration's own count (*Anna mail (2)*), so the
+person sees which one the work is in. A count that could not be read says so and claims no
+state. The rules are `apps/web/src/services/cutover-steps.ts`,
 tested case by case. **Not yet:** a migration's own page still shows the seven as cards, and
 the Check row cannot tell *not run* from *not passed* until the list carries the check (T2).
 

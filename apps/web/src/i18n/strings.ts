@@ -1387,6 +1387,8 @@ const en = {
   'person.state.notYet': 'Not yet',
   'person.step.none': 'None',
   'person.step.unread': 'Could not be read',
+  // A migration's own link under a queue's step, when its count could not be read.
+  'person.step.linkUnread': '{name} (could not be read)',
   'person.step.deletions': '{n} to decide',
   'person.step.moves': '{n} reported',
   'person.step.failures.one': '1 could not be copied',
@@ -3897,6 +3899,7 @@ const nl: Record<keyof typeof en, string> = {
   'person.state.notYet': 'Nog niet',
   'person.step.none': 'Geen',
   'person.step.unread': 'Kon niet worden gelezen',
+  'person.step.linkUnread': '{name} (kon niet worden gelezen)',
   'person.step.deletions': '{n} om te beslissen',
   'person.step.moves': '{n} gemeld',
   'person.step.failures.one': '1 kon niet worden gekopieerd',

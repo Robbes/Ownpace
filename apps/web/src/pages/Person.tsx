@@ -15,7 +15,8 @@
  * - *Before you switch*: the hub's seven steps as one ordered list, each
  *   summed across the person's migrations, with its state in words
  *   (`cutover-steps.ts`, 0154 T4). A step opens each migration's own page for
- *   it;
+ *   it, and on a queue's step each link carries that migration's own count,
+ *   so the person sees which one the work is in;
  * - *Add a migration*.
  *
  * NOT YET HERE, and said in the plan: the one-line progress on each data type
@@ -65,6 +66,9 @@ const STATE_TONE: Readonly<Record<StepState, string>> = {
   needsYou: 'bg-amber-100 text-amber-900',
   notYet: 'bg-gray-100 text-gray-700',
 };
+
+/** The steps that count a queue, whose link to each migration carries that migration's own count. */
+const QUEUE_STEPS: ReadonlySet<Step['key']> = new Set(['deletions', 'moves', 'failures', 'sharing']);
 
 /** The names on one side of a person's migrations, once each, in the order met. */
 function names(migrations: readonly MappingListItem[], side: 'sourceType' | 'targetType'): string[] {
@@ -251,16 +255,27 @@ const Person: React.FC = () => {
                   <p className="mt-1 text-sm text-gray-500">{t(screen.blurbKey)}</p>
                   {!only && (
                     <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                      {migrations.map((m) => (
-                        <li key={m.id}>
-                          <Link
-                            to={`/mappings/${encodeURIComponent(m.id)}/${screen.path}`}
-                            className="text-blue-700 hover:underline"
-                          >
-                            {m.name}
-                          </Link>
-                        </li>
-                      ))}
+                      {migrations.map((m) => {
+                        // Which migration holds what the row sums, so the
+                        // person knows which of the links has work behind it.
+                        const own = QUEUE_STEPS.has(step.key)
+                          ? step.perMigration.find((p) => p.id === m.id)
+                          : undefined;
+                        return (
+                          <li key={m.id}>
+                            <Link
+                              to={`/mappings/${encodeURIComponent(m.id)}/${screen.path}`}
+                              className="text-blue-700 hover:underline"
+                            >
+                              {own === undefined
+                                ? m.name
+                                : own.count === undefined
+                                  ? t('person.step.linkUnread', { name: m.name })
+                                  : `${m.name} (${own.count})`}
+                            </Link>
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
                 </li>

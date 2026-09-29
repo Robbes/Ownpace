@@ -17,7 +17,9 @@ the owner's word *"continue on the rest"*)**, in #1353, stacked on #1349.
   - *Before you switch* (0154 T4): the hub's seven steps as one ordered list, each summed across
     the person's migrations, with its state in words: *Done*, *Needs you* or *Not yet*.
     Several migrations each get a link to their own page for the step; one migration's step
-    name is the link. A count that could not be read says so, and claims no state;
+    name is the link. On a queue's step each link carries that migration's own count
+    (*Anna mail (2)*), so the person sees which one the work is in. A count that could not be
+    read says so, on the step and on the link, and claims no state;
   - *Add a migration*.
 - **The steps' rules are pure and tested** (`cutover-steps.ts`):
   - Deletions, Moves and Failures need the person while anything waits.
@@ -33,7 +35,8 @@ the owner's word *"continue on the rest"*)**, in #1353, stacked on #1349.
     for 0108's per-person links;
   - the migration's own page still shows its seven as cards (0154 T4's other half).
 - **Proved by:**
-  - `Person.unit.test.tsx` (8 cases) and `cutover-steps.unit.test.ts` (8 cases);
+  - `Person.unit.test.tsx` (10 cases) and `cutover-steps.unit.test.ts` (8 cases). With an
+    unread count on a link shown as *(0)*, the hard-rule-9 case fails;
   - the routes, the menu (Migrations lit on a person's page) and the card's links;
   - `managed-ui.ui.test.ts` in a real browser: from Anna's card to her page and its seven
     steps.
