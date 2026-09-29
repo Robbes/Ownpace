@@ -1890,8 +1890,8 @@ question 1 (b), and workplan 0139, the owner's answer rec-copies (a), both of
 (`copy-before-update.sh take`, *`ownpace-live`: a release tag, with
 `deploy-live.sh`*), you delete it once the update is proven
 (`./deploy/compose/copy-before-update.sh delete`), and the daily duties delete
-it once it is older than six days whatever happens (*Live's daily duties*), so
-it never reaches its seventh day. A stack that keeps no copy
+it once it is older than six days less an hour whatever happens (*Live's daily
+duties*), so it is never kept past its seventh day. A stack that keeps no copy
 at all sets `0`, and the sentence then names none; a blank reads as seven days
 whether or not a copy exists. With `OWNPACE_STAGE=alpha` the API refuses to
 start while it is blank, and the refusal names it. `stand-up-live.sh` refuses
@@ -2875,7 +2875,7 @@ No script can do these. The script checks each one before it changes anything.
    (workplan 0134 open question 1 (b)); the script refuses it empty, `0`, or
    anything but a whole number above 0. `deploy-live.sh` takes that copy before
    each update, and it is deleted once the update is proven, or after six days
-   by the daily duties (§8g; workplan 0139).
+   less an hour by the daily duties (§8g; workplan 0139).
 
    **Mail goes through a real relay from the first day** (workplan 0133): live
    runs no catcher, and the sign-up's verification code is the first mail it
@@ -3021,7 +3021,7 @@ five duties, each one whatever the one before it did:
 | Duty | What it runs | What it does |
 |---|---|---|
 | `token` | `setup-zitadel.sh --token-only` | The token's clock and nothing else: no secrets generated, the provider not started or reconfigured. It writes `ZITADEL_PAT_EXPIRY`, as every run does. |
-| `copies` | `copy-before-update.sh expire` | The backstop of the copy made before an update (workplan 0139), in `~/.persistent/ownpace-live/copy-before-update`: deleted once it is older than six days, whether or not its update was proven, so it never reaches day 7. On day 6 it stays and the duty fails, saying to roll back from it today or to delete it (the operator runbook's *The copy before an update*). It reads no database. The copy is **secret-bearing** (testers' data, the provider's password hashes); the scripts make it readable by this account only. |
+| `copies` | `copy-before-update.sh expire` | The backstop of the copy made before an update (workplan 0139), in `~/.persistent/ownpace-live/copy-before-update`: deleted once it is older than six days less an hour, whether or not its update was proven, so it is never kept past day 7, even when this run starts late; a dump made there by hand goes by its own age. The run before the one that deletes it keeps it and fails the duty, saying to roll back from it today or to delete it (the operator runbook's *The copy before an update*). It reads no database. The copy is **secret-bearing** (testers' data, the provider's password hashes); the scripts make it readable by this account only. |
 | `exposure` | `exposure-check.sh` | Every port any container on the machine publishes, both stacks (0132 T3). Needs `EXPOSURE_ALLOW` in live's `.env`. |
 | `organisations` | `setup-zitadel.sh --count-organisations` | 0135 T3's count on live's identity provider, read-only. A count that is not one fails the duty. |
 | `site` | `www-live.sh check` | Read-only (0139 T10). Fails when a container of live's project has the compose service `www`, where a `www.yml` command without `-p` puts the site; and, when live's `.env` says `WWW_LIVE=true`, when `ownpace-live-www` is not running and healthy (*`www.ownpace.eu`: live's copy*). |
@@ -3124,6 +3124,10 @@ journalctl --user -u ownpace-box-duties -n 200 --no-pager
   On live `trigger-version.sh` writes and reads that directory only, and the
   copy's rules delete what is there.
 - **Turning it off:** `systemctl --user disable --now ownpace-box-duties.timer`.
+  Then nothing deletes the copy before an update, so `copy-before-update.sh
+  take` refuses and no deploy moves live until the timer is active again. A
+  copy already there stays until you delete it or the timer runs again:
+  delete it by its seventh day yourself (workplan 0134 T0).
 
 ## When it goes wrong
 
@@ -3227,8 +3231,11 @@ thing. One script moves it:
    that it removes, to learn whether the deploy's own build would refuse it
    (*`www.ownpace.eu`: live's copy*). It also asks `copy-before-update.sh take
    --dry-run`, and refuses when the copy of an earlier update that is proven
-   is still there: delete that first (step 6). **If it says one-way,** the way
-   back that is not a fix and a new tag is the copy the deploy takes.
+   is still there (delete that first, step 6), when a kept copy is on its last
+   day (the next daily run deletes it: prove its update and delete it, or roll
+   back from it), and when the daily duties' timer is not active (nothing
+   would delete the copy). **If it says one-way,** the way back that is not a
+   fix and a new tag is the copy the deploy takes.
 4. From `~/ownpace-live`:
 
    ```bash
@@ -3240,7 +3247,12 @@ thing. One script moves it:
    sign-in service's database and the roles, and the task runner's database
    when the tag moves the Trigger.dev pin, each read back (workplan 0139). A
    copy whose update is not proven yet (a deploy that did not take, run
-   again) is kept instead, since it is of what ran before. No copy, no deploy.
+   again) is kept instead, since it is of what ran before. No copy, no deploy:
+   without the daily duties' timer active, or with a kept copy the next daily
+   run deletes, it refuses before anything moves. A tag without
+   `deploy-live.sh`, `exposure-check.sh`, `box-duties.sh`, `stack-kind.sh` and
+   `copy-before-update.sh` is refused too, as `stand-up-live.sh` refuses it: live
+   would lose its daily duties and the copy's backstop.
 5. **Read what it printed, then lift the hold yourself.** The tick's next
    summary shows passes started, and one of your own migrations should complete
    a pass on the new tasks.
@@ -3250,12 +3262,15 @@ thing. One script moves it:
    ./deploy/compose/copy-before-update.sh delete
    ```
 
-   It refuses unless `deploys.log` says a deploy took since the copy was taken,
-   the hold that covered it is lifted, and a pass that started after it
-   succeeded, each read from live's database. **Not proven by day 6: roll
+   It refuses unless the last line `deploys.log` has since the copy was taken
+   says the deploy took (one that did not take after it leaves nothing
+   proven), the hold that covered it is lifted, and a pass that started after
+   it succeeded, each read from live's database. **Not proven by day 6: roll
    back from the copy that day** (the operator runbook's *The copy before an
-   update*). The daily duties delete it once it is older than six days
-   whatever happens, and fail on day 6 to remind you.
+   update*, which starts with `copy-before-update.sh since`, so that what
+   testers erased or deleted after the copy is erased and deleted again). The
+   daily duties delete it once it is older than six days less an hour
+   whatever happens, and fail the day before to remind you.
 
 What `deploy-live.sh` does, in order. It refuses, before the checkout or the
 stack changes, each with its own message: `--with-demo`; a `.env` without live's
@@ -3265,8 +3280,9 @@ marker (`STACK_KIND=production`, `stack-kind.sh`) or without `WEB_URL`;
 working tree that is not clean; a ref that is not a tag, a tag not on origin, a
 lightweight tag, a tag not named `v…`, and a tag whose commit's root
 `package.json` version is not the tag without its `v` (it names both, and says
-*"live runs releases: name a release tag"*); a database it cannot read; no open
-hold; a pass still in flight; a hold less than five minutes old, since a pass
+*"live runs releases: name a release tag"*); a tag without the five scripts
+live is deployed, checked and kept by (`release-tag.sh`'s list); a database it
+cannot read; no open hold; a pass still in flight; a hold less than five minutes old, since a pass
 queued just before it is in no count until it starts; a deploy log it cannot
 append to; and a copy before the update that `copy-before-update.sh take`
 could not take or refused. Then it runs `git fetch --tags origin` and
@@ -3290,7 +3306,7 @@ live's `.env` to every address any container on it is published on on purpose
 (*Checking every publish on the machine at once*, under *Which address a port
 answers on*), or it fails for each of them. And the tag must be cut from a
 commit that has `deploy/compose/exposure-check.sh`; the script runs the tag's
-own copy, and a tag without one cannot pass.
+own copy, and refuses a tag without one before anything moves.
 
 **`--dry-run`** runs everything up to the checkout (every refusal above, the tag
 fetch, one-way or reversible, by the same comparison, and `copy-before-update.sh
@@ -3855,8 +3871,9 @@ then `up -d`. Every service reads them, so nothing in `managed.yml` is edited.
   `BACKUP_RETENTION_DAYS=0`, so the erasure sentence names none.
   `ownpace-live`, the stack testers use, takes none during the alpha and sets
   `7`: one copy of its databases is made right before each update, by
-  `deploy-live.sh`, and deleted once the update is proven, or after six days by
-  the daily duties (workplan 0134 open question 1 (b), workplan 0139; §8g).
+  `deploy-live.sh`, and deleted once the update is proven, or after six days
+  less an hour by the daily duties (workplan 0134 open question 1 (b), workplan
+  0139; §8g).
   [Workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md)
   is that decision. It parks building the backups (its T5) until before the
   first paying customer, or the end of the alpha, whichever comes first.

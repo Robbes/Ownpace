@@ -28,20 +28,35 @@
  *   directory is not taken from the shell, because the backstop looks there
  *   and nowhere else.
  *
- *   delete. Only once the update is proven: deploys.log says a deploy took
- *   since the copy was taken, the hold that covered it is lifted, and a pass
- *   that started after it succeeded. Each read from a database with both
- *   migration chains applied (PGlite behind the `psql` stub), and each missing
- *   one refuses; a database it cannot read, or a role row security binds, is
- *   no proof. It sends no statement that writes.
+ *   delete. Only once the update is proven: the last line deploys.log has
+ *   since the copy was taken says a deploy took (a did-not-take after a took
+ *   is no proof), the hold that covered that deploy is lifted, and a pass that
+ *   started after it succeeded. Each read from a database with both migration
+ *   chains applied (PGlite behind the `psql` stub), and each missing one
+ *   refuses; a database it cannot read, or a role row security binds, is no
+ *   proof. It sends no statement that writes.
  *
- *   expire, the daily backstop. Nothing older than 6 days survives it, proven
- *   or not, so a copy never reaches day 7 between two daily runs. Day 6 keeps
- *   the copy and fails, saying to roll back from it or delete it.
+ *   expire, the daily backstop. Nothing older than 6 days less an hour
+ *   survives it, proven or not, so a copy is never kept past day 7 even when a
+ *   daily run starts late. Each file goes by its own age, a dump by hand
+ *   included, and the copy by its note's. The run before the one that deletes
+ *   the copy keeps it and fails, saying to roll back from it or delete it.
+ *   `take` applies the same rule first, refuses a kept copy the next run
+ *   deletes, and refuses while the daily duties' timer is not active: nothing
+ *   would delete what it takes.
+ *
+ *   since, the rollback's first step. What was erased, closed, reopened or
+ *   deleted after the copy, read from the database before it is replaced and
+ *   written into the copy's directory as SQL that does it all again in the
+ *   restored one: rehearsed here on two PGlite databases, the copy's and the
+ *   one after it.
+ *
+ *   The directory is a directory: a symbolic link there is refused by every
+ *   script that writes or deletes in it, because `find` does not follow one.
  *
  *   dump-idp.sh on live writes into that directory and nowhere else, and
- *   trigger-version.sh on live dumps only there and never drills; on the OTA
- *   stack both are what they were.
+ *   trigger-version.sh on live dumps only there and never drills, on a slip of
+ *   live's marker too; on the OTA stack both are what they were.
  *
  * `docker`, `pg_dump`, `pg_dumpall`, `pg_restore` and `psql` are stubs on the
  * PATH. The docker stub runs `docker exec <container> <command…>` itself, so
@@ -54,6 +69,7 @@ import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
   copyFileSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -61,12 +77,13 @@ import {
   readdirSync,
   rmSync,
   statSync,
+  symlinkSync,
   utimesSync,
   writeFileSync,
 } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
 import { runManagedMigrations } from '@openmig/managed';
@@ -95,6 +112,8 @@ const LIVE_ENV = [
 ].join('\n');
 /** The OTA stack's `.env`: no marker, no project (managed.yml's own name). */
 const OTA_ENV = ['POSTGRES_USER=openmigrate', `ZITADEL_MASTERKEY=${MASTERKEY}`, ''].join('\n');
+/** Live's `.env` with its marker slipped: spaces around `=`, which the reader cannot read (stack_may_be_live). */
+const SLIP_ENV = LIVE_ENV.replace('STACK_KIND=production', 'STACK_KIND = production');
 
 const tempDirs: string[] = [];
 function tempDir(prefix: string): string {
@@ -230,6 +249,22 @@ if (!process.env.STUB_PGLITE) {
 })();
 `;
 
+/**
+ * systemctl: `--user is-active --quiet <unit>` answers from STUB_TIMER (active
+ * unless it says otherwise); any other call fails.
+ */
+const SYSTEMCTL_STUB = `#!/usr/bin/env bash
+printf 'systemctl %s\\n' "$*" >>"$STUB_LOG"
+case " $* " in
+  *" is-active "*)
+    [ "\${STUB_TIMER:-active}" = active ] && exit 0
+    exit 3
+    ;;
+esac
+echo "systemctl stub: unexpected call: $*" >&2
+exit 98
+`;
+
 // ---------------------------------------------------------------------------
 // A checkout of live, and its home
 // ---------------------------------------------------------------------------
@@ -295,6 +330,7 @@ function stage(dotEnv: string = LIVE_ENV): Stage {
   writeExec(join(bin, 'pg_dumpall'), PG_DUMPALL_STUB);
   writeExec(join(bin, 'pg_restore'), PG_RESTORE_STUB);
   writeExec(join(bin, 'psql'), PSQL_STUB(process.execPath));
+  writeExec(join(bin, 'systemctl'), SYSTEMCTL_STUB);
   const log = join(root, 'calls.log');
   const sqlLog = join(root, 'sql.log');
   writeFileSync(log, '');
@@ -341,11 +377,13 @@ const note = (s: Stage): string => readFileSync(join(s.dir, NOTE), 'utf8');
 /** An ISO time `ago` milliseconds before now, to the second, as deploys.log writes it. */
 const iso = (ago: number): string => new Date(Date.now() - ago).toISOString().replace(/\.\d{3}Z$/, 'Z');
 
-/** A line of deploys.log, as deploy-live.sh appends it. */
-function logDeploy(s: Stage, ago: number, outcome: 'took' | 'did-not-take', tag = TAG): void {
+/** A line of deploys.log, as deploy-live.sh appends it. Returns the line's time. */
+function logDeploy(s: Stage, ago: number, outcome: 'took' | 'did-not-take', tag = TAG): string {
   mkdirSync(dirname(s.deployLog), { recursive: true });
-  const line = [iso(ago), tag, 'c0ffee0000000000000000000000000000000000', outcome, 'one-way'].join('\t');
+  const at = iso(ago);
+  const line = [at, tag, 'c0ffee0000000000000000000000000000000000', outcome, 'one-way'].join('\t');
   writeFileSync(s.deployLog, `${existsSync(s.deployLog) ? readFileSync(s.deployLog, 'utf8') : ''}${line}\n`);
+  return at;
 }
 
 /**
@@ -505,6 +543,83 @@ describe('take: one copy, right before an update, in one directory', () => {
     expect(filesIn(s.dir)).toEqual(planted);
   });
 
+  it("a kept copy, and a take --trigger whose task runner's part fails: exit 1, and the kept copy exactly as it was", () => {
+    const s = stage();
+    const planted = plantCopy(s, 2 * HOUR);
+    const before = Object.fromEntries(planted.map((f) => [f, readFileSync(join(s.dir, f), 'utf8')]));
+    const r = run(s, ['take', '--trigger', TAG], { STUB_FAIL: 'triggerdb' });
+    expect(r.status, r.out).toBe(1);
+    expect(filesIn(s.dir), 'a failed take removed or left something in the kept copy').toEqual(planted);
+    for (const f of planted) expect(readFileSync(join(s.dir, f), 'utf8'), f).toBe(before[f]);
+  });
+
+  it('a dump by hand, and a fresh take that fails: the dump by hand is still there', () => {
+    const s = stage();
+    mkdirSync(s.dir, { recursive: true, mode: 0o700 });
+    const hand = 'zitadel-ownpace-live-20260928T080000Z.dump';
+    writeFileSync(join(s.dir, hand), 'PGDMP by hand\n', { mode: 0o600 });
+    const r = run(s, ['take', TAG], { STUB_FAIL: 'zitadel' });
+    expect(r.status, r.out).toBe(1);
+    expect(filesIn(s.dir)).toEqual([hand]);
+  });
+
+  it("a kept copy the next daily run deletes is refused: the update after it would have no copy from then on", () => {
+    for (const age of [5 * DAY + HOUR, 6 * DAY - 2 * HOUR]) {
+      const s = stage();
+      const planted = plantCopy(s, age);
+      for (const args of [['take', TAG], ['take', '--dry-run', TAG]]) {
+        const r = run(s, args);
+        expect(r.status, `${args.join(' ')} with a copy ${age / DAY} days old:\n${r.out}`).toBe(1);
+        expect(r.out).toMatch(/next daily run deletes it/);
+        expect(r.out).toMatch(/roll back/);
+        expect(r.out).toContain('copy-before-update.sh delete');
+      }
+      expect(dumps(s)).toEqual([]);
+      expect(filesIn(s.dir)).toEqual(planted);
+    }
+  });
+
+  it("on the copy's last day, the rollback's deploy of the release it holds (its note's from=) keeps it and goes ahead", () => {
+    // The runbook's rollback deploys that release by day 6; refusing it there
+    // would leave the restored databases under the new release's code.
+    const s = stage();
+    const planted = plantCopy(s, 5 * DAY + HOUR);
+    const r = run(s, ['take', RUNNING]);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toMatch(/kept/);
+    expect(dumps(s)).toEqual([]);
+    expect(filesIn(s.dir)).toEqual(planted);
+  });
+
+  it('a kept copy past the backstop\'s limit goes first, as the backstop would delete it, and a new one is taken', () => {
+    const s = stage();
+    const planted = plantCopy(s, 6 * DAY);
+    const dry = run(s, ['take', '--dry-run', TAG]);
+    expect(dry.status, dry.out).toBe(0);
+    expect(dry.out).toMatch(/would delete/);
+    expect(filesIn(s.dir), 'the dry run deleted something').toEqual(planted);
+    const r = run(s, ['take', TAG]);
+    expect(r.status, r.out).toBe(0);
+    expect(filesIn(s.dir).filter((f) => planted.includes(f)), 'the old copy survived').toEqual([NOTE]);
+    expect(note(s)).not.toContain('A planted copy.');
+    expect(dumps(s).length).toBeGreaterThan(0);
+  });
+
+  it("refuses, taking nothing, while the daily duties' timer is not active: nothing would delete the copy", () => {
+    const s = stage();
+    for (const args of [['take', TAG], ['take', '--dry-run', TAG]]) {
+      const r = run(s, args, { STUB_TIMER: 'inactive' });
+      expect(r.status, r.out).toBe(1);
+      expect(r.out).toContain('ownpace-box-duties.timer');
+    }
+    expect(dumps(s)).toEqual([]);
+    expect(existsSync(s.dir)).toBe(false);
+    // The user manager's own answer, for the unit the bring-up installs.
+    const ok = stage();
+    expect(run(ok, ['take', TAG]).status).toBe(0);
+    expect(calls(ok)).toContain('systemctl --user is-active --quiet ownpace-box-duties.timer');
+  });
+
   it('files there without a note, a dump by hand, become part of the copy the note names', () => {
     const s = stage();
     mkdirSync(s.dir, { recursive: true, mode: 0o700 });
@@ -584,6 +699,37 @@ describe('delete: only once the update is proven', () => {
     expect(r.out).toMatch(/deploys\.log/);
     expect(filesIn(s.dir)).toEqual(planted);
     expect(calls(s).filter((c) => c.startsWith('psql '))).toEqual([]);
+  });
+
+  it('a deploy took, and a later one did not: not proven, refused, and the copy intact, whatever the hold and the passes say', () => {
+    // The hold lifted after a did-not-take (the exposure check, say), and
+    // passes then succeed on the checkout that did not take: the took line
+    // before it proves nothing about what runs now.
+    for (const args of [['delete'], ['take', TAG]]) {
+      const s = stage();
+      const planted = plantCopy(s, 3 * HOUR);
+      logDeploy(s, 2 * HOUR, 'took');
+      logDeploy(s, 1 * HOUR, 'did-not-take', 'v0.2.0-alpha.3');
+      const r = run(s, args, { STUB_PSQL_ANSWER: 'yes|0|1\n' });
+      expect(r.status, `${args[0]}:\n${r.out}`).toBe(args[0] === 'delete' ? 1 : 0);
+      expect(r.out).toMatch(/did not take/);
+      expect(filesIn(s.dir)).toEqual(planted);
+      expect(dumps(s)).toEqual([]);
+    }
+  });
+
+  it("two deploys took since the copy: the proof is the later one's, its hold and the passes after it", () => {
+    const s = stage();
+    const planted = plantCopy(s, 3 * HOUR);
+    const first = logDeploy(s, 2 * HOUR, 'took');
+    const later = logDeploy(s, 1 * HOUR, 'took', 'v0.2.0-alpha.3');
+    // The later update's hold is still on.
+    const r = run(s, ['delete'], { STUB_PSQL_ANSWER: 'yes|1|0\n' });
+    expect(r.status, r.out).toBe(1);
+    expect(filesIn(s.dir)).toEqual(planted);
+    expect(sqlSent(s)).toContain(later);
+    expect(sqlSent(s)).not.toContain(first);
+    expect(r.out).toContain('v0.2.0-alpha.3');
   });
 
   it.each([
@@ -739,13 +885,18 @@ describe('delete, the proof read from a database with both chains applied', () =
 // expire: the daily backstop
 // ===========================================================================
 
-describe('expire, the daily backstop: nothing older than 6 days survives it', () => {
-  const AGES: Array<[string, number, 'kept' | 'day 6' | 'deleted']> = [
+describe('expire, the daily backstop: nothing older than 6 days survives it, nor an hour short of it', () => {
+  // The limit is 6 days less an hour: a run that starts late (the token duty
+  // before it takes up to 20 minutes, the timer a minute) still deletes a copy
+  // before its seventh day ends. The run before the one that deletes it fails.
+  const AGES: Array<[string, number, 'kept' | 'last day' | 'deleted']> = [
     ['an hour', HOUR, 'kept'],
     ['a day', DAY, 'kept'],
-    ['just under 5 days', 5 * DAY - 10 * 60_000, 'kept'],
-    ['just over 5 days, day 6', 5 * DAY + 10 * 60_000, 'day 6'],
-    ['just under 6 days', 6 * DAY - 10 * 60_000, 'day 6'],
+    ['two hours short of 5 days', 5 * DAY - 2 * HOUR, 'kept'],
+    ['half an hour short of 5 days', 5 * DAY - 30 * 60_000, 'last day'],
+    ['just over 5 days, day 6', 5 * DAY + 10 * 60_000, 'last day'],
+    ['two hours short of 6 days', 6 * DAY - 2 * HOUR, 'last day'],
+    ['half an hour short of 6 days', 6 * DAY - 30 * 60_000, 'deleted'],
     ['just over 6 days', 6 * DAY + 10 * 60_000, 'deleted'],
     ['six and a half days', 6.5 * DAY, 'deleted'],
     ['a month', 30 * DAY, 'deleted'],
@@ -757,16 +908,16 @@ describe('expire, the daily backstop: nothing older than 6 days survives it', ()
     const r = run(s, ['expire']);
     const left = filesIn(s.dir);
     for (const f of left) {
-      expect(Date.now() - statSync(join(s.dir, f)).mtimeMs, `${f} is older than 6 days and survived`).toBeLessThanOrEqual(6 * DAY);
+      expect(Date.now() - statSync(join(s.dir, f)).mtimeMs, `${f} is older than 6 days less an hour and survived`).toBeLessThanOrEqual(6 * DAY - HOUR);
     }
     if (outcome === 'deleted') {
       expect(r.status, r.out).toBe(0);
       expect(left).toEqual([]);
       expect(r.out).toMatch(/deleted/i);
-    } else if (outcome === 'day 6') {
+    } else if (outcome === 'last day') {
       expect(r.status, r.out).toBe(1);
       expect(left).toEqual(planted);
-      expect(r.out).toMatch(/day 6/);
+      expect(r.out).toMatch(/next daily run deletes it/);
       expect(r.out).toMatch(/roll back/);
       expect(r.out).toContain('copy-before-update.sh delete');
     } else {
@@ -786,24 +937,49 @@ describe('expire, the daily backstop: nothing older than 6 days survives it', ()
     expect(filesIn(s.dir)).toEqual([]);
   });
 
-  it('and as old as its oldest file: a dump older than 6 days takes the copy it sits in with it', () => {
+  it('a dump by hand older than the limit goes by its own age, alone: the copy it sits in stays', () => {
     const s = stage();
-    plantCopy(s, HOUR);
+    const planted = plantCopy(s, HOUR);
     const stray = join(s.dir, 'zitadel-ownpace-live-20260901T080000Z.dump');
     writeFileSync(stray, 'PGDMP by hand\n', { mode: 0o600 });
     const old = (Date.now() - 8 * DAY) / 1000;
     utimesSync(stray, old, old);
     const r = run(s, ['expire']);
     expect(r.status, r.out).toBe(0);
-    expect(filesIn(s.dir)).toEqual([]);
+    expect(filesIn(s.dir)).toEqual(planted);
   });
 
-  it('files without a note go by their own age too', () => {
+  it('a fresh copy taken beside a dump by hand five and a half days old is as old as its note: kept, and the dump goes alone', () => {
+    const s = stage();
+    mkdirSync(s.dir, { recursive: true, mode: 0o700 });
+    const hand = join(s.dir, 'zitadel-ownpace-live-20260923T080000Z.dump');
+    writeFileSync(hand, 'PGDMP by hand\n', { mode: 0o600 });
+    const oldish = (Date.now() - 5.5 * DAY) / 1000;
+    utimesSync(hand, oldish, oldish);
+    const took = run(s, ['take', TAG]);
+    expect(took.status, took.out).toBe(0);
+    const taken = filesIn(s.dir);
+    const first = run(s, ['expire']);
+    expect(first.status, `the new copy is on its first day:\n${first.out}`).toBe(0);
+    expect(filesIn(s.dir)).toEqual(taken);
+    // A day on, the dump by hand is past the limit, and the copy is not.
+    const older = (Date.now() - 6.5 * DAY) / 1000;
+    utimesSync(hand, older, older);
+    const second = run(s, ['expire']);
+    expect(second.status, second.out).toBe(0);
+    expect(filesIn(s.dir)).toEqual(taken.filter((f) => f !== basename(hand)));
+  });
+
+  it('files without a note go by their own age too, each alone', () => {
     const s = stage();
     plantCopy(s, 6 * DAY + HOUR, { withNote: false });
+    const young = join(s.dir, 'roles-ownpace-live-20260928T080000Z.sql');
+    writeFileSync(young, 'CREATE ROLE zitadel;\n', { mode: 0o600 });
+    const day = (Date.now() - DAY) / 1000;
+    utimesSync(young, day, day);
     const r = run(s, ['expire']);
     expect(r.status, r.out).toBe(0);
-    expect(filesIn(s.dir)).toEqual([]);
+    expect(filesIn(s.dir)).toEqual([basename(young)]);
   });
 
   it('no copy, or no directory at all: nothing to do, exit 0', () => {
@@ -818,6 +994,57 @@ describe('expire, the daily backstop: nothing older than 6 days survives it', ()
     const r = run(s, ['expire']);
     expect(r.status, r.out).not.toBe(0);
     expect(r.out).toContain('STACK_KIND');
+  });
+});
+
+// ===========================================================================
+// The one directory is a directory
+// ===========================================================================
+
+describe('the directory is a directory: a symbolic link there is refused by every script that writes or deletes in it', () => {
+  // find does not follow a link it is started on: the backstop would find
+  // nothing there, and what went through the link would never be deleted.
+  function linked(): { s: Stage; elsewhere: string } {
+    const s = stage();
+    const elsewhere = join(s.root, 'a-bigger-disk');
+    mkdirSync(elsewhere, { recursive: true, mode: 0o700 });
+    mkdirSync(dirname(s.dir), { recursive: true });
+    symlinkSync(elsewhere, s.dir);
+    return { s, elsewhere };
+  }
+
+  it.each([[['take', TAG]], [['take', '--dry-run', TAG]], [['delete']], [['expire']], [['since']]])(
+    'copy-before-update.sh %j: refused, naming the link, and nothing written through it',
+    (args) => {
+      const { s, elsewhere } = linked();
+      const r = run(s, args, { STUB_PSQL_ANSWER: 'yes|0|1\n' });
+      expect(r.status, r.out).toBe(1);
+      expect(r.out).toMatch(/symbolic link/);
+      expect(readdirSync(elsewhere)).toEqual([]);
+      expect(dumps(s)).toEqual([]);
+    },
+  );
+
+  it('expire does not pass over a copy behind a link as no copy: it fails, and the journal says why', () => {
+    const { s, elsewhere } = linked();
+    writeFileSync(join(elsewhere, 'openmigrate-ownpace-live-20260901T080000Z.dump'), 'PGDMP\n', { mode: 0o600 });
+    const old = (Date.now() - 8 * DAY) / 1000;
+    utimesSync(join(elsewhere, 'openmigrate-ownpace-live-20260901T080000Z.dump'), old, old);
+    const r = run(s, ['expire']);
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).not.toMatch(/nothing to do/);
+  });
+
+  it.each([
+    ['dump-idp.sh', []],
+    ['trigger-version.sh', ['backup', 'by-hand']],
+  ] as const)('%s on live: refused before any docker call', (script, args) => {
+    const { s, elsewhere } = linked();
+    const r = runIn(s, script, [...args]);
+    expect(r.status, r.out).not.toBe(0);
+    expect(r.out).toMatch(/symbolic link/);
+    expect(calls(s)).toEqual([]);
+    expect(readdirSync(elsewhere)).toEqual([]);
   });
 });
 
@@ -862,6 +1089,17 @@ describe('dump-idp.sh on live writes into the copy\'s directory, and nowhere els
     expect(filesIn(s.dir).length).toBe(3);
   });
 
+  it("on a .env whose marker is a slip of live's (STACK_KIND = production): the copy's directory too, and no ~/ownpace-dumps", () => {
+    const s = stage(SLIP_ENV);
+    const r = runIn(s, 'dump-idp.sh', []);
+    expect(r.status, r.out).toBe(0);
+    expect(filesIn(s.dir).filter((f) => f.startsWith('zitadel-ownpace-live-'))).toHaveLength(2);
+    expect(existsSync(join(s.home, 'ownpace-dumps'))).toBe(false);
+    const elsewhere = runIn(s, 'dump-idp.sh', ['--dir', join(s.root, 'elsewhere')]);
+    expect(elsewhere.status, elsewhere.out).not.toBe(0);
+    expect(existsSync(join(s.root, 'elsewhere'))).toBe(false);
+  });
+
   it('on the OTA stack it is what it was: ~/ownpace-dumps/<project>', () => {
     const s = stage(OTA_ENV);
     const r = runIn(s, 'dump-idp.sh', []);
@@ -898,6 +1136,18 @@ describe('trigger-version.sh on live: a backup only into the copy\'s directory, 
     expect(existsSync(elsewhere)).toBe(false);
   });
 
+  it("on a .env whose marker is a slip of live's (STACK_KIND = production): no drill, and a backup only into the copy's directory", () => {
+    const s = stage(SLIP_ENV);
+    const drill = runIn(s, 'trigger-version.sh', ['drill'], { STUB_PSQL_ANSWER: '12\n' });
+    expect(drill.status, drill.out).not.toBe(0);
+    expect(drill.out).toMatch(/test stack/);
+    expect(calls(s)).toEqual([]);
+    const backup = runIn(s, 'trigger-version.sh', ['backup', 'by-hand']);
+    expect(backup.status, backup.out).toBe(0);
+    expect(filesIn(s.dir).filter((f) => f.startsWith('triggerdb-'))).toHaveLength(1);
+    expect(existsSync(join(s.home, '.persistent', LIVE, 'trigger-backups'))).toBe(false);
+  });
+
   it('on the OTA stack the drill runs as the gate runs it, into trigger-backups', () => {
     const s = stage(OTA_ENV);
     // Every count the drill asks answers 12: a schema big enough, the same on both sides.
@@ -905,6 +1155,241 @@ describe('trigger-version.sh on live: a backup only into the copy\'s directory, 
     expect(r.status, r.out).toBe(0);
     expect(r.out).toMatch(/round trip proved/);
     expect(filesIn(join(s.home, '.persistent', OTA, 'trigger-backups'))).toHaveLength(1);
+  });
+});
+
+// ===========================================================================
+// since: what changed after the copy, done again after the rollback
+// ===========================================================================
+
+describe('since: what was erased, closed, reopened or deleted after the copy, written down before the rollback and done again after it', () => {
+  // Two databases with both chains applied: the one the copy holds, which a
+  // rollback restores, and the one after it, which `since` reads. The file it
+  // writes is applied to a fresh copy of the first, the way the runbook applies
+  // it with psql: one run of the whole file.
+  const ID = (n: number) => `e0000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+  const T = { kept: ID(1), closed: ID(2), reopened: ID(3), erased: ID(4), trimmed: ID(5), newer: ID(6) };
+  const C = { gone: ID(11), kept: ID(12), erased: ID(13) };
+  const BOX = { kept: ID(21), erased: ID(22) };
+  const M = { gone: ID(31), withdrawn: ID(32), kept: ID(33), erased: ID(34) };
+  const P = { gone: ID(41), kept: ID(42) };
+  const E = { reopened: ID(51), closed: ID(52), erased: ID(53) };
+  const ref = (tenant: string) => `encode(sha256(convert_to('${tenant}', 'UTF8')), 'hex')`;
+  let copyDb = '';
+  let afterDb = '';
+
+  const withDbAt = async <R,>(dir: string, fn: (db: PgliteLike & { query: (q: string) => Promise<{ rows: unknown[] }> }) => Promise<R>): Promise<R> => {
+    const db = new PGlite(dir, { extensions: { pgcrypto } }) as PgliteLike & { query: (q: string) => Promise<{ rows: unknown[] }> };
+    try {
+      return await fn(db);
+    } finally {
+      await db.close();
+    }
+  };
+  const rows = async (dir: string, q: string): Promise<Array<Record<string, unknown>>> =>
+    withDbAt(dir, async (db) => (await db.query(q)).rows as Array<Record<string, unknown>>);
+
+  // What the copy holds.
+  const AT_THE_COPY = `
+    INSERT INTO tenant (id, name) VALUES
+      ('${T.kept}', 'Kept'), ('${T.closed}', 'Closed since'), ('${T.reopened}', 'Reopened since'),
+      ('${T.erased}', 'Erased since'), ('${T.trimmed}', 'Trimmed since');
+    UPDATE tenant SET status = 'closed' WHERE id = '${T.reopened}';
+    INSERT INTO tenant_closure (tenant_id, closed_at, purge_after, closed_by)
+      VALUES ('${T.reopened}', now() - interval '1 day', now() + interval '29 days', 'owner-subject');
+    INSERT INTO erasure_record (id, tenant_ref, requested_at, window_days, backup_retention_days, backups_expire_at)
+      VALUES ('${E.reopened}', ${ref(T.reopened)}, now() - interval '1 day', 30, 7, now() + interval '36 days');
+    INSERT INTO tenant_member (tenant_id, user_id, email, role, status) VALUES
+      ('${T.trimmed}', '100001', 'anna@example.test', 'owner', 'active'),
+      ('${T.trimmed}', '100002', 'bob@example.test', 'viewer', 'active'),
+      ('${T.erased}', '100003', 'carol@example.test', 'owner', 'active'),
+      ('${T.kept}', '100004', 'dave@example.test', 'owner', 'active');
+    INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref) VALUES
+      ('${C.gone}', '${T.trimmed}', 'source', 'imap', 'deleted since', '{}'::jsonb, 'connected', 'v1:a-credential-deleted-since'),
+      ('${C.kept}', '${T.trimmed}', 'source', 'imap', 'kept', '{}'::jsonb, 'connected', 'v1:a-credential-kept'),
+      ('${C.erased}', '${T.erased}', 'source', 'imap', 'erased with its organisation', '{}'::jsonb, 'connected', 'v1:erased');
+    INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address) VALUES
+      ('${BOX.kept}', '${T.trimmed}', '${C.kept}', 'user', 'someone@example.org'),
+      ('${BOX.erased}', '${T.erased}', '${C.erased}', 'user', 'someone-else@example.org');
+    INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, status, source_secret_ref) VALUES
+      ('${M.gone}', '${T.trimmed}', '${BOX.kept}', 'active', NULL),
+      ('${M.withdrawn}', '${T.trimmed}', '${BOX.kept}', 'active', 'v1:a-token-granted-through-a-link'),
+      ('${M.kept}', '${T.trimmed}', '${BOX.kept}', 'active', NULL),
+      ('${M.erased}', '${T.erased}', '${BOX.erased}', 'active', NULL);
+    INSERT INTO person (id, tenant_id, display_name) VALUES
+      ('${P.gone}', '${T.trimmed}', 'Anna'), ('${P.kept}', '${T.trimmed}', 'Bob');`;
+
+  // What happened after it.
+  const AFTER_THE_COPY = `
+    UPDATE tenant SET status = 'closed' WHERE id = '${T.closed}';
+    INSERT INTO tenant_closure (tenant_id, closed_at, purge_after, closed_by)
+      VALUES ('${T.closed}', now() - interval '2 hours', now() + interval '7 days' - interval '2 hours', 'owner-subject');
+    INSERT INTO erasure_record (id, tenant_ref, requested_at, window_days, backup_retention_days, backups_expire_at)
+      VALUES ('${E.closed}', ${ref(T.closed)}, now() - interval '2 hours', 7, 7, now() + interval '14 days');
+    DELETE FROM tenant_closure WHERE tenant_id = '${T.reopened}';
+    UPDATE tenant SET status = 'active' WHERE id = '${T.reopened}';
+    INSERT INTO erasure_record (id, tenant_ref, requested_at, window_days, backup_retention_days, backups_expire_at,
+                                purged_at, purged_counts, revocations)
+      VALUES ('${E.erased}', ${ref(T.erased)}, now() - interval '90 minutes', 0, 7, now() + interval '7 days',
+              now() - interval '80 minutes', '{"tenant": 1}'::jsonb, '[{"kind": "imap", "outcome": "not_applicable"}]'::jsonb);
+    DELETE FROM mailbox_mapping WHERE tenant_id = '${T.erased}';
+    DELETE FROM mailbox WHERE tenant_id = '${T.erased}';
+    DELETE FROM connection WHERE tenant_id = '${T.erased}';
+    DELETE FROM tenant_member WHERE tenant_id = '${T.erased}';
+    DELETE FROM tenant WHERE id = '${T.erased}';
+    DELETE FROM mailbox_mapping WHERE id = '${M.gone}';
+    DELETE FROM connection WHERE id = '${C.gone}';
+    UPDATE mailbox_mapping SET source_secret_ref = NULL, grant_withdrawn_at = now() - interval '30 minutes'
+     WHERE id = '${M.withdrawn}';
+    DELETE FROM person WHERE id = '${P.gone}';
+    DELETE FROM tenant_member WHERE tenant_id = '${T.trimmed}' AND user_id = '100002';
+    INSERT INTO tenant (id, name) VALUES ('${T.newer}', 'New since');`;
+
+  beforeAll(async () => {
+    copyDb = join(tempDir('since-the-copy-'), 'pg');
+    const driver = pgliteDriver({ dataDir: copyDb });
+    await runMigrations({ driver, logger: () => {} });
+    await runManagedMigrations({ driver, logger: () => {} });
+    await driver.end();
+    await withDbAt(copyDb, (db) => db.exec(AT_THE_COPY));
+    afterDb = join(tempDir('since-after-'), 'pg');
+    cpSync(copyDb, afterDb, { recursive: true });
+    await withDbAt(afterDb, (db) => db.exec(AFTER_THE_COPY));
+  }, PGLITE_CASE_MS);
+
+  /** A copy planted, `since` run against the database after it, and the file it wrote. */
+  const since = () => {
+    const s = stage();
+    plantCopy(s, 3 * HOUR);
+    const r = run(s, ['since'], { STUB_PGLITE: afterDb });
+    const written = filesIn(s.dir).filter((f) => /^since-the-copy-\d{8}T\d{6}Z\.sql$/.test(f));
+    return { s, r, written, sql: written.length === 1 ? readFileSync(join(s.dir, written[0]!), 'utf8') : '' };
+  };
+  /** A fresh copy of the database the copy holds: what a rollback restores. */
+  const restored = () => {
+    const dir = join(tempDir('since-restored-'), 'pg');
+    cpSync(copyDb, dir, { recursive: true });
+    return dir;
+  };
+
+  it(
+    'writes one file into the copy, readable by the owner alone, sending only SELECTs and changing nothing',
+    async () => {
+      const before = await rows(afterDb, 'SELECT (SELECT count(*) FROM tenant) AS t, (SELECT count(*) FROM connection) AS c');
+      const { s, r, written, sql } = since();
+      expect(r.status, r.out).toBe(0);
+      expect(written, filesIn(s.dir).join('\n')).toHaveLength(1);
+      expect(mode(join(s.dir, written[0]!))).toBe('600');
+      expect(r.out).toContain(written[0]!);
+      for (const statement of sqlSent(s).split('-- (end of one psql call)').map((x) => x.trim()).filter(Boolean)) {
+        expect(statement, 'since sent something that is not a SELECT').toMatch(/^SELECT\b/i);
+        expect(statement).not.toMatch(/\b(UPDATE|INSERT|DELETE|DROP|TRUNCATE|ALTER|CREATE)\b/i);
+      }
+      expect(await rows(afterDb, 'SELECT (SELECT count(*) FROM tenant) AS t, (SELECT count(*) FROM connection) AS c')).toEqual(before);
+      // Ids and dates, never a credential, a name or an address.
+      for (const secret of ['v1:a-credential-kept', 'v1:a-token-granted-through-a-link', 'anna@example.test', 'Trimmed since', 'Anna']) {
+        expect(sql).not.toContain(secret);
+      }
+    },
+    PGLITE_CASE_MS,
+  );
+
+  it(
+    'applied to the restored database, it erases, closes, reopens and deletes again what was erased, closed, reopened and deleted after the copy',
+    async () => {
+      const { r, sql } = since();
+      expect(r.status, r.out).toBe(0);
+      const dir = restored();
+      const printed = await withDbAt(dir, async (db) => {
+        const results = (await db.exec(sql)) as Array<{ rows: Array<Record<string, unknown>> }>;
+        return results.flatMap((x) => x.rows.map((row) => Object.values(row).join('|')));
+      });
+      const after = async (q: string) => rows(afterDb, q);
+      const now = async (q: string) => rows(dir, q);
+
+      // Closed after the copy: closed, with the dates it was given.
+      expect(await now(`SELECT status FROM tenant WHERE id = '${T.closed}'`)).toEqual([{ status: 'closed' }]);
+      const closure = `SELECT closed_at, purge_after, closed_by FROM tenant_closure WHERE tenant_id = '${T.closed}'`;
+      expect(await now(closure)).toEqual(await after(closure));
+      // Reopened after it: open, and nothing scheduled.
+      expect(await now(`SELECT status FROM tenant WHERE id = '${T.reopened}'`)).toEqual([{ status: 'active' }]);
+      expect(await now(`SELECT tenant_id FROM tenant_closure WHERE tenant_id = '${T.reopened}'`)).toEqual([]);
+      // Erased after it: back in the restored database, so closed and due now,
+      // which the hourly purge's own query picks up.
+      expect(await now(`SELECT status FROM tenant WHERE id = '${T.erased}'`)).toEqual([{ status: 'closed' }]);
+      expect(
+        await now(`SELECT t.id FROM tenant t JOIN tenant_closure c ON c.tenant_id = t.id
+                    WHERE t.status = 'closed' AND c.purge_after <= now() ORDER BY t.id`),
+      ).toEqual([{ id: T.erased }]);
+      // The erasure records exactly as they are now: nothing deletes one.
+      const records = 'SELECT * FROM erasure_record ORDER BY id';
+      expect(await now(records)).toEqual(await after(records));
+      // Deleted after it, deleted again: the connection and its credential, the
+      // migration, the person, the membership; a withdrawn grant's token gone.
+      expect(await now(`SELECT id FROM connection WHERE tenant_id = '${T.trimmed}' ORDER BY id`)).toEqual([{ id: C.kept }]);
+      expect(await now(`SELECT id FROM mailbox_mapping WHERE tenant_id = '${T.trimmed}' ORDER BY id`)).toEqual([
+        { id: M.withdrawn },
+        { id: M.kept },
+      ]);
+      const grant = `SELECT source_secret_ref, grant_withdrawn_at FROM mailbox_mapping WHERE id = '${M.withdrawn}'`;
+      expect(await now(grant)).toEqual(await after(grant));
+      expect(await now(`SELECT id FROM person WHERE tenant_id = '${T.trimmed}'`)).toEqual([{ id: P.kept }]);
+      expect(await now(`SELECT user_id FROM tenant_member WHERE tenant_id = '${T.trimmed}'`)).toEqual([{ user_id: '100001' }]);
+      // Untouched: what did not change, and what the restore took back (new since).
+      expect(await now(`SELECT status FROM tenant WHERE id = '${T.kept}'`)).toEqual([{ status: 'active' }]);
+      expect(await now(`SELECT id FROM tenant WHERE id = '${T.newer}'`)).toEqual([]);
+      // The sign-in accounts to remove again once the purge has run: the
+      // erased organisation's member, and the member removed after the copy.
+      const commands = printed.filter((l) => l.includes('idp-strays.sh'));
+      expect(commands.sort()).toEqual([
+        './deploy/compose/idp-strays.sh --subject 100002 --remove',
+        './deploy/compose/idp-strays.sh --subject 100003 --remove',
+      ]);
+    },
+    PGLITE_CASE_MS,
+  );
+
+  it(
+    'applied to a database none of whose organisations it lists, it stops, and changes nothing',
+    async () => {
+      const { r, sql } = since();
+      expect(r.status, r.out).toBe(0);
+      const other = join(tempDir('since-other-'), 'pg');
+      const driver = pgliteDriver({ dataDir: other });
+      await runMigrations({ driver, logger: () => {} });
+      await runManagedMigrations({ driver, logger: () => {} });
+      await driver.end();
+      await withDbAt(other, (db) => db.exec(`INSERT INTO tenant (id, name) VALUES ('${ID(99)}', 'Another stack''s')`));
+      await expect(withDbAt(other, (db) => db.exec(sql))).rejects.toThrow(/not the database the copy was taken from/);
+      expect(await rows(other, `SELECT status FROM tenant`)).toEqual([{ status: 'active' }]);
+      expect(await rows(other, `SELECT count(*)::int AS n FROM tenant_closure`)).toEqual([{ n: 0 }]);
+    },
+    PGLITE_CASE_MS,
+  );
+
+  it('refuses without a copy, on a database it cannot read, and as a role row security binds; writes nothing', () => {
+    const none = stage();
+    const r0 = run(none, ['since'], { STUB_PSQL_ANSWER: 'yes\n' });
+    expect(r0.status, r0.out).toBe(1);
+    expect(r0.out).toMatch(/no copy/i);
+    // The row-security case answers every question with a row of the shape a
+    // part expects, so that only the superuser check can refuse it.
+    const aRow = `  ('${ID(1)}'::uuid, 'active', NULL::timestamptz, NULL::timestamptz, NULL)\n`;
+    for (const [extra, why] of [
+      [{ STUB_PSQL_FAIL: '1' }, /could not be read/],
+      [{ STUB_PSQL_ANSWER: aRow }, /superuser/],
+    ] as const) {
+      const s = stage();
+      const planted = plantCopy(s, HOUR);
+      const r = run(s, ['since'], extra);
+      expect(r.status, r.out).toBe(1);
+      expect(r.out).toMatch(why);
+      expect(filesIn(s.dir)).toEqual(planted);
+    }
+    const ota = stage(OTA_ENV);
+    const r1 = run(ota, ['since']);
+    expect(r1.status, r1.out).toBe(1);
+    expect(calls(ota)).toEqual([]);
   });
 });
 
@@ -924,11 +1409,32 @@ describe('the way back is written down where the operator looks', () => {
       '~/.persistent/ownpace-live/copy-before-update',
       './deploy/compose/copy-before-update.sh delete',
       'day 6',
+      './deploy/compose/copy-before-update.sh since',
       '--clean --if-exists --create',
+      'since-the-copy-<stamp>.sql',
       'trigger-version.sh restore',
       './deploy/compose/deploy-live.sh',
+      'idp-strays.sh',
     ]) {
       expect(section, `the section does not say ${words}`).toContain(words);
+    }
+    // The erasures after the copy are done again BEFORE the stack comes back:
+    // since is written before the restore, and applied before the deploy.
+    const at = (w: string) => section.indexOf(w);
+    expect(at('copy-before-update.sh since')).toBeLessThan(at('--clean --if-exists --create'));
+    expect(at('since-the-copy-<stamp>.sql')).toBeLessThan(at('./deploy/compose/deploy-live.sh'));
+  });
+
+  it('what it says of the seventh day: never past it, never "never reaches" it', () => {
+    // A copy over 6 days old waiting for the next run is ON its seventh day.
+    for (const rel of [
+      'deploy/compose/copy-before-update.sh',
+      'deploy/compose/box-duties.sh',
+      'docs/operator-runbook.md',
+      'docs/managed-bring-up.md',
+    ]) {
+      const text = readFileSync(join(REPO_ROOT, rel), 'utf8').replace(/\s+/g, ' ');
+      expect(text, rel).not.toMatch(/never reach(es)? (day 7|its seventh day|N = 7 days)/);
     }
   });
 

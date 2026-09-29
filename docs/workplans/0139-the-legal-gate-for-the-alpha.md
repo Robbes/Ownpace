@@ -2,9 +2,101 @@
 
 > **In one line:** Legal gate for the alpha: `site/legal` placeholders filled and published, a lawyer's pass, alpha conditions, acceptance recorded at first sign-in, notices where data is collected, sub-processors, retention, account closure, breach procedure, `SECURITY.md`.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-09-29 (update this block at the end of every session)
 
-**2026-09-28, latest: the copy before an update, and the drill off live (T6; the owner's answers
+**2026-09-29, latest: review fixes to the copy before an update (T6)**, on the same branch,
+`claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, not merged. Nothing has run
+on the machine; the scripts have run only against the stand-ins in their guards, and the
+rollback's new step against two PGlite databases.
+
+- **`main` merged in first, not rebased.** The branch was cut before #1317 (merged 2026-09-28,
+  `df74a08f`), and this plan conflicted with it in the Status block and the task table.
+  `main` at `0bcbc255` was merged into the branch (`b2986866`), both entries kept, the way
+  `scripts/commit-convention.mjs` documents for a conflict; the session was not allowed to
+  rebase. The entry below now names #1317 as merged.
+- **The proof is the last deploy's.** `delete` (and `take`, which refuses a proven copy) read
+  the LAST line of `deploys.log` at or after the copy's time, of either outcome, and require it
+  to say `took`; the hold and the passes are asked about that line's time. Before, a `took`
+  followed by a `did-not-take` counted as proven: lifting the hold after the did-not-take (the
+  exposure check, say) and one pass on that checkout, and `delete` removed the only copy of
+  what ran before.
+- **A rollback no longer brings back what was erased.** Restoring the copy undid everything
+  erased or deleted after it: an organisation closed after the copy came back open, one erased
+  came back whole, the `erasure_record` rows written since were lost with the rest of that
+  database, and a deleted connection with its credential, a deleted migration, person or
+  membership, a withdrawn grant's token and a removed sign-in account all came back. New: `copy-before-update.sh since`, run
+  before the restore, reads (SELECTs only) every organisation with its status and closure, every
+  erasure record, the ids of every connection, migration, person and membership, and each
+  withdrawn grant, and writes `since-the-copy-<stamp>.sql` into the copy's directory: ids and
+  dates, no name, address or credential. Applied after the restore, in one transaction, it
+  closes each organisation erased since and makes it due at once for the hourly purge, puts
+  every other organisation's status and closure back as they were, restores all erasure
+  records, deletes again what was deleted, takes a withdrawn grant's token again, refuses a
+  database none of whose organisations it lists, and prints the `idp-strays.sh --subject …
+  --remove` lines for the sign-in accounts to remove once the purge has run. The runbook's
+  rollback has eleven steps now (4, 6 and 10 are new).
+- **The texts #1317 merged say what is built.** `privacy.md`'s and `privacy.nl.md`'s NOT YET
+  TRUE comments for the copy and the drill, `site/legal/README.md`'s two items and `alpha.md`'s
+  briefing: built, and what is still to do (live runs a tag that carries it, with the daily
+  duties' timer; the rollback run once on the test stack). The item *What needs code or machine
+  work* below has a dated note.
+- **The copy is never kept past day 7, and nothing takes one that nothing deletes.** The
+  backstop deletes the copy once it is older than 6 days **less an hour** (a run that starts
+  late, after the token duty's up to 20 minutes, still deletes it before its seventh day ends);
+  the texts that said it *"never reaches day 7"* say *never past* it. `take` refuses while
+  `systemctl --user is-active ownpace-box-duties.timer` fails, and 0134 says T0's daily look
+  stays for a copy left there while the timer is off.
+- **`take` refuses a kept copy the next daily run deletes**, and applies the backstop's rule
+  first (a copy past it goes, as the backstop would, and a new one is taken). The rollback's own
+  deploy, of the release the copy holds (its note's `from=`), is let through on that last day:
+  refusing it would leave the restored databases under the new release's code.
+- **A dump by hand goes by its own age.** The copy is as old as its note; every other file in
+  the directory goes alone once it is past the limit. A copy taken beside an old dump is no
+  longer old with it.
+- **The directory is a directory.** `take`, `delete`, `expire` and `since`, and `dump-idp.sh`
+  and `trigger-version.sh` on live, refuse a symbolic link there before any docker call: `find`
+  does not follow one it starts on, so the backstop saw no copy behind it.
+- **`deploy-live.sh` refuses a tag without the scripts live is kept by**: `deploy-live.sh`,
+  `exposure-check.sh`, `box-duties.sh`, `stack-kind.sh` and `copy-before-update.sh`, the list
+  now named once in `release-tag.sh` (`release_tag_carries`) and asked by `stand-up-live.sh`
+  too, in its words. `v0.1.0-rc.1` carries none of them. A tag without `exposure-check.sh` is
+  now refused before the checkout (exit 1) instead of not taking (exit 3).
+- **Guard gaps closed.** A kept copy and a `take --trigger` that fails leaves it byte for byte;
+  a hand dump survives a fresh take that fails; with two deploys that took, the later one's time
+  is the one asked. `--trigger` for a `-` base, a base this clone lacks, a tag with no readable
+  pin, and a base other than HEAD with another pin. `dump-idp.sh` and `trigger-version.sh` on a
+  slip of live's marker (`STACK_KIND = production`).
+- **Proved, guard first.** `one-copy-before-each-update`: 25 new or changed cases were red on
+  the branch's scripts (85 in all), and the rollback's last-day case red on its own after them;
+  `a-deploy-from-a-named-tag` and `one-rule-for-a-release-tag`: 5 of 154 red (the tag's
+  scripts). The guard-gap cases were green on the old scripts, as they should be, and are shown
+  red under the mutations below. With the change every guard in `scripts/` and the site's
+  tests pass: 211 files, 3986 tests. Twenty-nine mutations, each restored after, each turned a
+  guard red: the proof by the last `took` line with a `did-not-take` after it ignored, or by the
+  first line; a failed take removing every entry; no margin; no timer check, or the system
+  manager asked instead of the account's; a last-day copy kept, or the rollback's deploy refused
+  on it; take not applying the backstop first; no file by its own age, or the copy as old as
+  its oldest file; a linked directory followed by `copy-before-update.sh`, `dump-idp.sh` or
+  `trigger-version.sh`; `since` not closing an erased organisation, applied to a database it
+  does not list, leaving a deleted connection, keeping a withdrawn grant's token, dropping the
+  erasure records, leaving a reopened organisation scheduled, or not checking the superuser (that
+  one survived the first guard, whose answer failed the shape check first; the case now answers
+  with a row of the right shape); `stack_is_live` in `dump-idp.sh` or `trigger-version.sh`; the
+  four `--trigger` fail-safes; `deploy-live.sh` not asking what the tag carries; `box-duties.sh`
+  left out of the list. The eight regressions the review named as guard gaps (the first took
+  line, every entry removed, the four fail-safes, the two `stack_is_live`) stay green on the old
+  guards with the old scripts, and are red on the new ones. A case comparing two `deploys.log`
+  times computed its expected time a second time and could cross a second under load; it now
+  compares the times it wrote.
+- **Not true yet, or not built.** The rollback has not been run on a stack; `since` is
+  rehearsed on PGlite with both chains, not on Postgres 16. The audit log's entries after the
+  copy are not brought back. A sign-in account removed by hand in the provider's console after
+  the copy has to be removed again by hand. The timer check asks the account's user manager,
+  so `deploy-live.sh` must run from a session of that account (`systemctl --user` answers
+  nothing under `sudo -u`). Nobody is told on the copy's last day but the journal (0142). The 6
+  days are a constant beside `BACKUP_RETENTION_DAYS=7`, not read from it.
+
+**2026-09-28: the copy before an update, and the drill off live (T6; the owner's answers
 rec-copies (a) and rec-drill (a))**, built on branch
 `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, not merged. Nothing has run
 on the machine: live is not stood up (0132 T1b), and the scripts have run only against the
@@ -14,8 +106,8 @@ stand-ins in their guards.
   we already have one backup copy of what actually works. What about the drill?"*, and then one
   copy per update, deleted once the update is proven and never kept past day 7, and the drill on
   the test stack only. Privacy §9 and the Alpha conditions §6 (*"until that update is shown to
-  work, and never longer than 7 days"*) promise it, on draft PR #1317, whose
-  `site/legal/README.md` (*To build or to do*) is the spec: *"one copy right before each update:
+  work, and never longer than 7 days"*) promise it, in #1317 (merged 2026-09-28, `df74a08f`),
+  whose `site/legal/README.md` (*To build or to do*) is the spec: *"one copy right before each update:
   the app's database, the sign-in service's database and the roles, and the task runner's
   database before a Trigger.dev upgrade. It is deleted once the update is proven
   (`deploy-live.sh` logged it as taken, one pass completed, and the hold lifted), and never kept
@@ -97,8 +189,8 @@ stand-ins in their guards.
 - **Not true yet, or not built.** A deploy started from a checkout without the step takes no
   copy: live's first tag must hold it, which `stand-up-live.sh` now checks. Nobody is told on
   day 6 but the journal (0142). The 6 days are a constant beside live's
-  `BACKUP_RETENTION_DAYS=7`, not read from it. #1317's texts still say this item is not built;
-  that branch changes them once this merges. The whole rollback has not been run on a stack.
+  `BACKUP_RETENTION_DAYS=7`, not read from it. #1317's texts said this item was not built; the
+  2026-09-29 entry above changes them. The whole rollback has not been run on a stack.
 
 **2026-09-28, latest: the owner's NetBird answers: accepted 2026-08-01, the agreement covers the
 proxy, and no NetBird sign-in at launch**, same branch (draft PR #1317). The five questions the
@@ -492,7 +584,9 @@ conditions stay 1.0, edited in place because nobody has accepted them yet.
 - **What needs code or machine work** is the list in `site/legal/README.md`, *Before the draft
   markers come off*: T3's screen (terms-acceptance-route (b)); T6's copy before an update, the
   drill off live, the 12-month clean-up of support-screen searches, the sharing list deleted with
-  its migration, and 0135 T8's daily script; T4's reworded app sentences and the share mail's
+  its migration, and 0135 T8's daily script (*2026-09-29: T6's copy before an update and the
+  drill off live are built, on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`,
+  not merged; the entry at the top*); T4's reworded app sentences and the share mail's
   privacy line; live's `.env` (`TRUST_PROXY`, no `IDP_*`, the three mail addresses, the VIES
   requester) and both nginx log formats; the telemetry opt-outs; the log driver and the
   sign-in history checked; and, by hand, Proton's Sent folder, a family member's Google address
@@ -1744,7 +1838,7 @@ longer starts by pausing the nightly gate, which never touches live.
 | T3 Acceptance recorded, with version and time, at first sign-in | 📋 **Decided 2026-09-28** (terms-acceptance-route (b), *"Build the in-app screen first"*); not built. The first invitation waits for it and its tests. The owner: *"People that are accepted in the Alpha do need to create a login for the app, accepting fits in there and should record what time/version the accepted of what document."* Terms §1, the Alpha conditions §2 and §11 and privacy §4.4 now describe it — *was:* 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. The same screen asks again for the new conditions after the Alpha (Alpha §11). Open question 4 (the record after erasure) is still open. |
 | T4 A notice wherever a tester's data is collected | 📋 **Proposed**; two pieces 📋 **Decided 2026-09-28**, not built: the app's own sentences reworded in both languages (ops-app-sentences (a): the grant mail, the Alpha note, the request form), and a privacy line and a link in the mail to people items were shared with (privacy-share-mail-notice (a)), both before the first tester | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form, the share mail (`packages/shared/src/share-announcement.ts`). The grant page's addresses were fixed in #1137, merged 2026-09-24. |
 | T5 The sub-processors named | 🔨 **Text done 2026-09-28** in the drafts, on draft PR #1317, not merged: privacy §7's table is the complete list and says so (rec-subprocessors-url (a)); NetBird GmbH, its terms and agreement accepted on 2026-08-01 and the agreement covering the proxy and its log (dpa-netbird-agreement (a); the owner, 2026-09-28), carries connections on through a WireGuard tunnel and keeps its own log of each request; Proton AG in Switzerland, with Art. 45 GDPR and Decision 2000/518/EC cited (privacy-switzerland-wording (b)); no hosting row, because no company houses the machine (subprocessors-machine-housed (a)); `subprocessors.md` unpublished until the first business customer; NetBird's own sub-processors read from its trust center 2026-09-28 (18 entries, none with a location); NetBird's sign-in (SSO), on for the hosts NetBird serves (*"No pin, but SSO on"*), to go off on every `ownpace.eu` host before the first invitation, the owner's choice (*"Off everywhere at launch"*), a precondition (privacy's to-do on NetBird, (d)); ⏳ **Owner**, not before the first invitation: NetBird asked where its proxy and log run, at which provider, and whether its own sub-processors receive either, the *Where* staying *Germany (EU)* by the owner's choice until it answers ((c)), and asked in writing whether the Alpha or a paid tier behind the proxy is commercial use under its terms §3.1, answered before the first paid tier at the latest ((e)); the agreement's sub-processors, their announcement, the right to object and the 7 days for the lawyer's pass ((b)) — *was:* NetBird's acceptance date, its agreement read, where its proxy and log run and at which provider, and whether its own sub-processors receive either still for the owner; before that, the text drafted 2026-09-28 with the entity name, the agreement, the proxy's location and whether a company houses the machine all to confirm | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
-| T6 What is kept, and for how long, made true | 🔨 **The copy before an update, and the drill off live, built 2026-09-28** (rec-copies (a), rec-drill (a)) on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, **not merged**: `copy-before-update.sh`, taken by `deploy-live.sh` right before its checkout, deleted by the owner once the update is proven and by the daily duties after day 6, and no drill on live; 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 🔨 **built 2026-09-27**, merged as #1255; every period 📋 **Decided 2026-09-28** from the owner's answers and in privacy §9's draft: the copy before an update (rec-copies (a)), the drill off live (rec-drill (a)), support-screen searches and downloads 12 months (privacy-search-records (a)), the sharing list with its migration (privacy-sharing-list (b)), sent mail until resolved and then 6 months (privacy-sent-mail-copies (b)), the background tasks' records until the end of the Alpha (privacy-task-records (a)), the sign-in history checked first (privacy-signin-history (a)), accounts nobody let in removed by a daily script (ops-unadmitted-signin-cleanup (a), 0135 T8), server logs with Docker's default (ops-log-driver (a)); the code for each 📋 **Proposed**, not built — *was:* the wording drafted 2026-09-28; the rest's code proposed | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. `site/legal/README.md`, *Before the draft markers come off*, lists what each needs. |
+| T6 What is kept, and for how long, made true | 🔨 **The copy before an update, and the drill off live, built 2026-09-28, review fixes 2026-09-29** (rec-copies (a), rec-drill (a)) on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, **not merged**: `copy-before-update.sh`, taken by `deploy-live.sh` right before its checkout (only while the daily duties' timer runs), deleted by the owner once the update is proven and by the daily duties after 6 days less an hour, a rollback that erases again what was erased after the copy (`since`), and no drill on live; `privacy.md`'s and `privacy.nl.md`'s comments, `README.md`'s two items and `alpha.md`'s briefing say so; 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 🔨 **built 2026-09-27**, merged as #1255; every period 📋 **Decided 2026-09-28** from the owner's answers and in privacy §9's draft: the copy before an update (rec-copies (a)), the drill off live (rec-drill (a)), support-screen searches and downloads 12 months (privacy-search-records (a)), the sharing list with its migration (privacy-sharing-list (b)), sent mail until resolved and then 6 months (privacy-sent-mail-copies (b)), the background tasks' records until the end of the Alpha (privacy-task-records (a)), the sign-in history checked first (privacy-signin-history (a)), accounts nobody let in removed by a daily script (ops-unadmitted-signin-cleanup (a), 0135 T8), server logs with Docker's default (ops-log-driver (a)); the code for each of the rest 📋 **Proposed**, not built — *was:* the wording drafted 2026-09-28; the rest's code proposed | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. `site/legal/README.md`, *Before the draft markers come off*, lists what each needs. |
 | T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; *nothing uses your access after closing* is not fully true yet: since #1320 (`d7868276`, merged 2026-09-28), on this branch since `main` was merged into it in `c1413b53`, nothing new starts for a closed organisation, but work already running is not all stopped, and a verification or a confirmation reads to its end (terms briefing, precondition B); a tester who does not accept the new conditions after the Alpha is closed that day and erased 7 days later (alpha-s11-erasure-window (b)), which `operator.sh close <tenant> 7` already does — *was:* (a) built; terms §11 and privacy §9 describing the close in the drafts of 2026-09-28 | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
 | T9 SECURITY.md covers the hosted service, with one channel | ✅ **done** in #1257, merged 2026-09-27 (`12cb40fb`): `SECURITY.md`'s scope, versions and five days, and `security.txt` from the site build; privacy §11 names the form, then support@, in both languages in the draft of 2026-09-28 (not committed), so the guard, which asks for one channel, can ask for both, in order — *was:* 🔨 **Written 2026-09-27, not merged**; 📋 **Decided 2026-09-27** (open question 5): the advisory form with `support@ownpace.eu` as fallback, five working days, `main` and live's release | §3. Scope, supported versions, a response target, `security.txt`. |

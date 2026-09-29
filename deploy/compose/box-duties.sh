@@ -28,13 +28,18 @@
 #   copies         copy-before-update.sh expire (workplan 0139, rec-copies
 #                  (a)): the copy made before an update, in
 #                  ~/.persistent/<project>/copy-before-update, is deleted once
-#                  it is older than 6 days, proven or not, so it never reaches
-#                  day 7; on day 6 it stays and the duty fails, saying to roll
-#                  back from it or delete it. It reads no database. The copy is
+#                  it is older than 6 days less an hour, proven or not, and a
+#                  dump by hand there once it is, so a copy is never kept past
+#                  day 7: the hour is for this run starting late, after the
+#                  token duty's up to 20 minutes. The run before the one that
+#                  deletes it keeps it and fails the duty, saying to roll back
+#                  from it or delete it. It reads no database. The copy is
 #                  SECRET-BEARING (testers' data, the provider's password
 #                  hashes): this script never prints what is in it, and makes
 #                  every file the duties write readable by this account alone
-#                  (umask 077).
+#                  (umask 077). Without this timer active,
+#                  copy-before-update.sh take refuses, so no deploy takes a
+#                  copy nothing would delete.
 #   exposure       exposure-check.sh (0132 T3 (b)): every port any container on
 #                  the machine publishes, both stacks at once. Outside the
 #                  appliance nightly's hours, whose dev Nextcloud publishes on
@@ -239,7 +244,7 @@ say "${COMPOSE_PROJECT}: five duties, each one run whatever the one before it di
 
 run_duty token "live's provisioning token, its clock only" \
   "${SCRIPT_DIR}/setup-zitadel.sh" --token-only
-run_duty copies "the copy made before an update, deleted once older than 6 days, whether or not its update was proven; day 6 fails (~/.persistent/${COMPOSE_PROJECT}/copy-before-update)" \
+run_duty copies "the copy made before an update, deleted once older than 6 days less an hour, whether or not its update was proven; its last day fails (~/.persistent/${COMPOSE_PROJECT}/copy-before-update)" \
   "${SCRIPT_DIR}/copy-before-update.sh" expire
 run_duty exposure "every port this machine publishes, both stacks" \
   "${SCRIPT_DIR}/exposure-check.sh"

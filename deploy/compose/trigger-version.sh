@@ -25,8 +25,9 @@
 # `drill` is refused, and `backup`, `backups` and `restore` use the copy's
 # directory, `~/.persistent/<project>/copy-before-update/`
 # (copy-before-update.sh names it), whose rules delete what is there. A
-# MANAGED_BACKUP_DIR naming another directory is refused there, before any
-# docker call. copy-before-update.sh runs `backup before-<tag>` as part of the
+# MANAGED_BACKUP_DIR naming another directory is refused there, and so is
+# that directory when it is a symbolic link (the backstop does not follow
+# one), before any docker call. copy-before-update.sh runs `backup before-<tag>` as part of the
 # copy before an update that moves the Trigger.dev pin.
 #
 # Usage:
@@ -100,6 +101,8 @@ if stack_may_be_live "$ENV_FILE"; then
     die "on live a dump of ${DB_NAME} goes into $(copy_before_update_dir), the one directory of the copy before an update, and MANAGED_BACKUP_DIR names another. Unset it (workplan 0139). Nothing was dumped."
   fi
   BACKUP_DIR="$(copy_before_update_dir)"
+  # A link there is refused: the backstop does not follow one.
+  [ ! -L "$BACKUP_DIR" ] || die "$(copy_before_update_link_refusal)"
   # What goes there holds the plane's API keys: this account's alone.
   umask 077
 fi

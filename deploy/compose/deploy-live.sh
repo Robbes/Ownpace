@@ -110,6 +110,11 @@
 #       `v`; a tag whose commit's root package.json version is not the tag
 #       without its `v` (it names both). Each says 0146's sentence, "live runs
 #       releases: name a release tag".
+#   a tag without any of deploy-live.sh, exposure-check.sh, box-duties.sh,
+#       stack-kind.sh and copy-before-update.sh (release-tag.sh's list, in
+#       stand-up-live.sh's words): live would be left without what deploys,
+#       checks and keeps it, the daily duties and the copy's backstop among
+#       them, and the next deploy without a copy (workplan 0139).
 #   a database it cannot read, which is never taken for "nothing in flight"
 #       (hard rule 9); a role row security would bind, which would count no
 #       pass at all; no open hold; a pass still in flight; and a hold younger
@@ -232,6 +237,11 @@ ENV_FILE="${SCRIPT_DIR}/.env"
 # Live's copy of the site: its project, its switch, and what asks Docker.
 # shellcheck source=deploy/compose/www-live.sh
 . "${SCRIPT_DIR}/www-live.sh"
+# What a release tag must carry, the list stand-up-live.sh asks too
+# (release_tag_carries). This script's own rule for what a release is stays
+# below, word for word the library's (one-rule-for-a-release-tag).
+# shellcheck source=deploy/compose/release-tag.sh
+. "${SCRIPT_DIR}/release-tag.sh"
 # The .env named to Compose, so that it reads the file checked below.
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml" --env-file "${ENV_FILE}")
 # Live's copy of the site: its project, and Compose under it, never live's
@@ -395,6 +405,11 @@ main() {
     refuse "the root package.json at ${tag} says version '${version:-none}', and the tag says '${tag#v}'. ${RELEASE_SENTENCE}." \
       "A release's tag is its package.json version with a v in front (docs/release.md §1)."
   fi
+  # What live is deployed, checked and kept by after this: a tag without one
+  # of them would leave live without its daily duties or the copy's backstop
+  # (release-tag.sh's list; stand-up-live.sh refuses the same tag in the same
+  # words).
+  release_tag_carries "$REPO_ROOT" "$tag" "$commit" || refuse "${RELEASE_TAG_WHY[@]}"
   say "${tag} is an annotated release tag on origin, at ${commit}, version ${version}"
 
   # ---- The site at this tag: its own project, a port, no blank in its texts --------
@@ -827,7 +842,7 @@ did_not_take() {
     printf '[deploy-live] the deploy did not take: %s is checked out, and\n' "$tag"
     printf '    %s\n' "$@"
     printf '[deploy-live] The hold stays on. Nothing was lifted. Fix the cause and run this again with %s, or name another tag; the next deploy is compared with %s too.\n' "$tag" "$tag"
-    printf '[deploy-live] The copy before this update is kept (copy-before-update.sh): it is of what ran before, and the next deploy keeps it too. Not proven by day 6: roll back from it (docs/operator-runbook.md, The copy before an update).\n'
+    printf '[deploy-live] The copy before this update is kept (copy-before-update.sh): it is of what ran before, and the next deploy keeps it too, until its last day, when only the rollback, a deploy of the release it holds, may go. Not proven by day 6: roll back from it (docs/operator-runbook.md, The copy before an update, which starts with copy-before-update.sh since).\n'
     log_deploy "$log" "$tag" "$commit" did-not-take "$verdict"
   } >&2
   exit 3

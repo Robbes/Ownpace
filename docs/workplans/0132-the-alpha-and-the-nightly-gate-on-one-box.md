@@ -2,9 +2,32 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-09-29 (update this block at the end of every session)
 
-**2026-09-28, latest: T6 step 4 and T7's drill, changed by 0139's copy before an update** (the
+**2026-09-29, latest: review fixes to T6 step 4 and T7's backstop**, same branch, not merged;
+0139's Status block (2026-09-29) says what each fixes and what proved it.
+
+- **T6 (a): a tag without the scripts live is kept by is refused before anything moves.**
+  `deploy-live.sh` now refuses a tag without `deploy-live.sh`, `exposure-check.sh`,
+  `box-duties.sh`, `stack-kind.sh` or `copy-before-update.sh`, the list `stand-up-live.sh`
+  checks, now named once in `release-tag.sh` (`release_tag_carries`), in the stand-up's words.
+  Deploying an older tag (`v0.1.0-rc.1`, the only `v` tag in this clone, carries none of the
+  five) would have left live without the daily duties' `copies` and the next deploy without a
+  copy. A tag
+  without `exposure-check.sh` used to get as far as the checks and not take (exit 3); it is now
+  refused before the checkout (exit 1).
+- **T6 step 4: what `take` refuses.** It refuses while the daily duties' timer is not active
+  (`systemctl --user is-active ownpace-box-duties.timer`), and a kept copy the next daily run
+  deletes, unless the tag is the release that copy holds (the rollback's own deploy). The
+  Trigger.dev pin's comparison errs towards `--trigger` as it did; four guard cases now hold it
+  there.
+- **T6 step 4's rollback** starts with `copy-before-update.sh since`, which writes down what was
+  erased, closed, reopened or deleted after the copy, and applies it again after the restore
+  (the operator runbook, eleven steps).
+- **T7: the backstop** deletes the copy once it is older than 6 days less an hour, and each
+  other file there by its own age.
+
+**2026-09-28: T6 step 4 and T7's drill, changed by 0139's copy before an update** (the
 owner's answers rec-copies (a) and rec-drill (a)), on branch
 `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, not merged. 0139's Status
 block says how it was built and what proved it.
@@ -1448,8 +1471,8 @@ both taken, the owner's answer, and a second review's four, all taken.
 | T3 "Not reachable from the internet", checked | (b) the exposure check and (c) the outside probe ✅ **done** in #1271, merged 2026-09-28 (`6088f469`), not yet run on the machine or dispatched; (a) the binds ✅ **done** in #1236, merged 2026-09-27, with #1253; (d) the path a tester's request takes 📋 **Proposed**, waits for live to stand (T1b to T1e) — *was:* (b) and (c) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-port-nobody-meant-to-open`, not merged (2026-09-28); 📋 **Proposed** (D2, D4, D7); (a) the binds 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. Before the first check and probe the owner sets `EXPOSURE_ALLOW` in each stack's `.env` to every address any container on the machine is published on (both stacks' `*_BIND` values, the site's `WWW_BIND`, the demo's `STALWART_BIND`; commas, no space), and the repository variable `EXPOSURE_PROBE_LIVE_PORTS`. |
 | T4 A stack that does not say it is production does not start | 📋 **Proposed** | §3. `managed.yml`'s `development` default becomes a required value. Live sets `production` at T1b. |
 | T5 No demo in the alpha, and the values that left the machine replaced | ✅ **Closed for live 2026-09-24** (D7), and the refusal of `--with-demo` on live 🔨 **built** on branch `claude/ownpace-public-readiness-y7orc6-a-first-bring-up-of-live`, not merged (2026-09-28); 🅿️ **Parked for the OTA stack (trigger: 0026 row 24's own, the OTA stack stops being a demo)** — *was:* the refusal 📋 **Proposed** | §3 and §4. Live never had the demo or its values, so there is nothing to replace. `bootstrap-managed.sh` refuses `--with-demo` on a `.env` that is, or could be, live's (`stack_may_be_live`). Routes (a) and (b) are kept for the OTA stack. |
-| T6 One way to deploy live, from a tag | Step 4, the copy before the update, 🔨 **built 2026-09-28** into `deploy-live.sh` with `copy-before-update.sh` (0139, rec-copies (a)), on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, **not merged**; (a) `deploy-live.sh` ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), with 0146 T5 (a), not yet run on live; (b) ✅ **done** in #1232, merged 2026-09-27: every enqueue in the API goes through one function that answers 409 with the hold's sentence; the three web gaps (b) left ✅ **done** in #1284, merged 2026-09-28 (`f7a7a270`). The procedure's steps on the machine are the owner's, once live stands (T1b) and 0146 has cut a release tag — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); (b) ✅ **done** in #1232, merged 2026-09-27; the procedure and (a), `deploy-live.sh`, 📋 **Proposed** (D1, D5, D7) | §3. Hold, drain, a tag, bring-up without the demo, checks, lift. Replaces three procedures that disagree. With 0146. (a) is the deploy script, (b) the hold at every door. The Status block (2026-09-28) says how (a) was built. |
-| T7 What the gate does for the OTA stack, done for live | The drill off live, its duty replaced by the copy's backstop `copies`, 🔨 **built 2026-09-28** (0139, rec-drill (a)), on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, **not merged**; ✅ **done** in #1276, merged 2026-09-28 (`b2e63ab0`): `box-duties.sh`, `setup-zitadel.sh --token-only` and `--count-organisations`, and a user timer in the bring-up; waits for live to stand (T1b to T1e, from 0146 T0's tag) and for the owner to install the timer — *was:* 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-duty-the-gate-used-to-do`, not merged (2026-09-28); 📋 **Proposed**, with T1b | §3. The identity provider's provisioning token, the Trigger.dev database drill (until 2026-09-28; since then the copy's backstop, 0139), T3's check and 0135's organisation count, on a timer on the machine, for live. |
+| T6 One way to deploy live, from a tag | Step 4, the copy before the update, 🔨 **built 2026-09-28** into `deploy-live.sh` with `copy-before-update.sh` (0139, rec-copies (a)), review fixes 2026-09-29 (a tag without the scripts live is kept by refused, the rollback's `since`), on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, **not merged**; (a) `deploy-live.sh` ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), with 0146 T5 (a), not yet run on live; (b) ✅ **done** in #1232, merged 2026-09-27: every enqueue in the API goes through one function that answers 409 with the hold's sentence; the three web gaps (b) left ✅ **done** in #1284, merged 2026-09-28 (`f7a7a270`). The procedure's steps on the machine are the owner's, once live stands (T1b) and 0146 has cut a release tag — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); (b) ✅ **done** in #1232, merged 2026-09-27; the procedure and (a), `deploy-live.sh`, 📋 **Proposed** (D1, D5, D7) | §3. Hold, drain, a tag, bring-up without the demo, checks, lift. Replaces three procedures that disagree. With 0146. (a) is the deploy script, (b) the hold at every door. The Status block (2026-09-28) says how (a) was built. |
+| T7 What the gate does for the OTA stack, done for live | The drill off live, its duty replaced by the copy's backstop `copies`, 🔨 **built 2026-09-28** (0139, rec-drill (a)), review fixes 2026-09-29 (6 days less an hour, each file by its own age), on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, **not merged**; ✅ **done** in #1276, merged 2026-09-28 (`b2e63ab0`): `box-duties.sh`, `setup-zitadel.sh --token-only` and `--count-organisations`, and a user timer in the bring-up; waits for live to stand (T1b to T1e, from 0146 T0's tag) and for the owner to install the timer — *was:* 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-duty-the-gate-used-to-do`, not merged (2026-09-28); 📋 **Proposed**, with T1b | §3. The identity provider's provisioning token, the Trigger.dev database drill (until 2026-09-28; since then the copy's backstop, 0139), T3's check and 0135's organisation count, on a timer on the machine, for live. |
 | T8 The gate gets a stack of its own on the same machine | ⛔ **Superseded 2026-09-24** by D7 | §3. The second stack is live, not the gate's. Its parts moved to T1, T1b and 0143. |
 
 ## 1. What there is today

@@ -38,7 +38,8 @@
 # (stack_may_be_live) it writes into the copy's directory,
 # `~/.persistent/<project>/copy-before-update/` (copy-before-update.sh names
 # it), whose rules then delete it, and refuses a `--dir` naming any other,
-# before any docker call. copy-before-update.sh runs it there as part of the
+# and that directory when it is a symbolic link (the backstop does not follow
+# one), before any docker call. copy-before-update.sh runs it there as part of the
 # copy that deploy-live.sh takes before each update, so on live it need not be
 # run by hand.
 #
@@ -108,6 +109,11 @@ esac
 # On live, the copy's directory and no other: its rules delete what is there.
 if stack_may_be_live "$ENV_FILE"; then
   COPY_DIR="$(copy_before_update_dir)"
+  # A link there is refused: the backstop does not follow one.
+  if [ -L "$COPY_DIR" ]; then
+    echo "dump-idp: refused: $(copy_before_update_link_refusal)" >&2
+    exit 1
+  fi
   if [ -n "$DIR" ] && [ "$(realpath -m -- "$DIR")" != "$(realpath -m -- "$COPY_DIR")" ]; then
     echo "dump-idp: refused: on live a dump goes into ${COPY_DIR}, the one directory of the copy before an update, and nowhere else: there it is deleted once the update is proven, and after day ${COPY_EXPIRE_DAYS} whatever happens (workplan 0139). Run this without --dir. Nothing was dumped." >&2
     exit 1

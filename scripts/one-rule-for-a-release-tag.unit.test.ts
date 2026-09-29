@@ -134,6 +134,8 @@ function stage(setup: (s: Stage, h: { release: (tag: string, version: string, op
   writeExec(join(compose, 'exposure-check.sh'), BOOTSTRAP_STUB);
   // The copy before the update (0139): the dry run asks it, and it answers yes.
   writeExec(join(compose, 'copy-before-update.sh'), BOOTSTRAP_STUB);
+  // What live's daily duties run from: a release tag must carry it (release-tag.sh).
+  writeExec(join(compose, 'box-duties.sh'), BOOTSTRAP_STUB);
   mkdirSync(join(work, 'packages', 'ledger', 'migrations'), { recursive: true });
   mkdirSync(join(work, 'packages', 'managed', 'migrations'), { recursive: true });
   writeFileSync(join(work, 'packages', 'ledger', 'migrations', '0001_first.sql'), 'SELECT 1;\n');

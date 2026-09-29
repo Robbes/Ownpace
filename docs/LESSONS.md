@@ -657,8 +657,11 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/box-duties.sh`
 
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
+- [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
+- [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 
 ### `deploy/compose/check-env-agreement.sh`
 
@@ -793,6 +796,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/idp-strays.sh`
 
 - [an-account-nobody-let-in](../scripts/an-account-nobody-let-in.unit.test.ts) — AN ACCOUNT NOBODY LET IN (workplan 0135 T8).
+- [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 
 ### `deploy/compose/managed.env.example`
 
@@ -925,6 +929,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/release-tag.sh`
 
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 
@@ -2461,6 +2466,7 @@ A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 Reads:
 
 - `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/box-duties.sh`
 - `deploy/compose/copy-before-update.sh`
 - `deploy/compose/deploy-live.sh`
 - `deploy/compose/env-read.sh`
@@ -2468,6 +2474,7 @@ Reads:
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `deploy/compose/own-addresses.sh`
+- `deploy/compose/release-tag.sh`
 - `deploy/compose/stack-kind.sh`
 - `deploy/compose/www-live.sh`
 - `deploy/compose/www.yml`
@@ -4082,10 +4089,12 @@ ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 013
 
 Reads:
 
+- `deploy/compose/box-duties.sh`
 - `deploy/compose/copy-before-update.sh`
 - `deploy/compose/deploy-live.sh`
 - `deploy/compose/dump-idp.sh`
 - `deploy/compose/env-read.sh`
+- `deploy/compose/idp-strays.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/stack-kind.sh`
 - `deploy/compose/trigger-version.sh`
@@ -4107,6 +4116,7 @@ ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1
 Reads:
 
 - `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/box-duties.sh`
 - `deploy/compose/copy-before-update.sh`
 - `deploy/compose/deploy-live.sh`
 - `deploy/compose/env-read.sh`

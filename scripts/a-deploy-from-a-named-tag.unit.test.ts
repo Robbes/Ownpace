@@ -41,6 +41,17 @@
  *   the Trigger.dev pin, and a take that fails refuses the deploy with
  *   nothing moved. The dry run asks the same question, `take --dry-run`, and
  *   takes nothing. What it says at the end names the delete step and day 6.
+ *   `--trigger` errs towards taking the task runner's database: a base the
+ *   log does not name (`-`), a commit this clone does not have, a tag with no
+ *   pin to read, and any base, not only HEAD, whose pin differs each ask for
+ *   it (review of 2026-09-29).
+ *
+ *   It moves live to a tag that cannot keep it. A tag without any of the
+ *   scripts live is deployed, checked and kept by (release-tag.sh's list:
+ *   deploy-live.sh, exposure-check.sh, box-duties.sh, stack-kind.sh and
+ *   copy-before-update.sh) would leave live without its daily duties or the
+ *   copy's backstop, and the next deploy without a copy: refused before
+ *   anything moves, in stand-up-live.sh's words.
  *
  *   It says a deploy took when it did not. After the bring-up it asks the app
  *   at the origin in `WEB_URL`: `/api/version` must name the tag's commit AND
@@ -476,8 +487,10 @@ interface Release {
   lightweight?: boolean;
   /** Push the tag to origin (default true). */
   push?: boolean;
-  /** Remove exposure-check.sh at this commit. */
-  noExposureCheck?: boolean;
+  /** Remove these files from deploy/compose at this commit. */
+  omit?: string[];
+  /** Take the Trigger.dev image lines out of managed.yml at this commit, so its pin cannot be read. */
+  noTriggerPin?: boolean;
   /** The count of unfilled placeholders the site at this commit has (default 0). */
   siteDrafts?: number;
   /** What the site's `--public` build at this commit refuses with, beyond the count (its `--check` passes). */
@@ -594,7 +607,7 @@ function stage(opts: StageOptions = {}): Stage {
   writeFileSync(join(work, '.gitignore'), '.env\nsite/dist/\n');
   writeFileSync(join(work, 'package.json'), packageJson(RUNNING.version));
   mkdirSync(compose, { recursive: true });
-  for (const f of [SCRIPT, 'env-read.sh', 'stack-kind.sh', 'own-addresses.sh', 'www-live.sh']) {
+  for (const f of [SCRIPT, 'env-read.sh', 'stack-kind.sh', 'own-addresses.sh', 'www-live.sh', 'release-tag.sh']) {
     // A helper the script does not source yet is simply not there.
     if (!existsSync(join(COMPOSE_DIR, f))) continue;
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
@@ -605,6 +618,8 @@ function stage(opts: StageOptions = {}): Stage {
   writeExec(join(compose, 'bootstrap-managed.sh'), BOOTSTRAP_STUB);
   writeExec(join(compose, 'exposure-check.sh'), EXPOSURE_STUB);
   writeExec(join(compose, 'copy-before-update.sh'), COPY_STUB);
+  // What live's daily duties run from: here only so that a tag carries it.
+  writeExec(join(compose, 'box-duties.sh'), '#!/usr/bin/env bash\nexit 0\n');
   const siteDir = join(work, 'site');
   writeExec(join(siteDir, 'build.mjs'), SITE_BUILD_STUB);
   writeFileSync(join(siteDir, 'drafts'), '0\n');
@@ -625,8 +640,13 @@ function stage(opts: StageOptions = {}): Stage {
     let yml = readFileSync(join(compose, 'managed.yml'), 'utf8');
     if (r.trigger) yml = movePin(yml, 'trigger', r.trigger);
     if (r.zitadel) yml = movePin(yml, 'zitadel', r.zitadel);
+    if (r.noTriggerPin) {
+      const unpinned = yml.replace(/^[ \t]*image:.*triggerdotdev\/.*\n/gm, '');
+      if (unpinned === yml) throw new Error('managed.yml carries no Trigger.dev image line this fixture knows how to take out');
+      yml = unpinned;
+    }
     writeFileSync(join(compose, 'managed.yml'), yml);
-    if (r.noExposureCheck) rmSync(join(compose, 'exposure-check.sh'));
+    for (const f of r.omit ?? []) rmSync(join(compose, f));
     writeFileSync(join(compose, 'www.yml'), wwwYml(r.fixedSiteName));
     if (r.realSite) {
       rmSync(siteDir, { recursive: true, force: true });
@@ -1180,14 +1200,18 @@ describe('a deploy that did not take keeps the hold and exits non-zero', () => {
     CASE_MS,
   );
 
-  it(
-    'a tag without the exposure check cannot pass it',
-    () => {
-      const s = stage({ releases: [{ ...NEXT, noExposureCheck: true }] });
-      const r = run(s, [NEXT.tag]);
-      expect(r.status, r.out).not.toBe(0);
-      expect(r.out).toMatch(/the deploy did not take/);
-      expect(r.out).toMatch(/exposure-check\.sh/);
+  it.each(['exposure-check.sh', 'box-duties.sh', 'copy-before-update.sh', 'stack-kind.sh', 'deploy-live.sh'])(
+    'a tag without %s is refused before anything moves: live would lose what deploys, checks or keeps it',
+    (file) => {
+      const s = stage({ releases: [{ ...NEXT, omit: [file] }] });
+      for (const args of [[NEXT.tag], ['--dry-run', NEXT.tag]]) {
+        const r = run(s, args);
+        expect(r.status, `${args.join(' ')}:\n${r.out}`).toBe(1);
+        expect(r.out).toContain(`${NEXT.tag} does not carry deploy/compose/${file}`);
+        expect(r.out).toContain('The checkout and the stack are as they were.');
+        expectNothingChanged(s, r.out);
+        expect(called(s, 'copy-before-update'), 'a copy was taken for a tag that is refused').toEqual([]);
+      }
     },
     CASE_MS,
   );
@@ -1671,6 +1695,60 @@ describe('a copy is made before the update: copy-before-update.sh, right before 
       const r = run(s, [NEXT.tag]);
       expect(r.status, r.out).toBe(0);
       expect(copies(s)).toEqual([`copy-before-update take ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "a retry after a first deploy that did not take, one-way over what ran before it: that base is named nowhere, so --trigger",
+    () => {
+      const s = stage({ releases: [{ ...NEXT, ledger: '0002_a_column.sql' }] });
+      const first = run(s, [NEXT.tag], { STUB_EXPOSURE_EXIT: '1' });
+      expect(first.status, first.out).toBe(3);
+      const retry = run(s, [NEXT.tag]);
+      expect(retry.status, retry.out).toBe(0);
+      expect(copies(s)).toEqual([
+        `copy-before-update take ${NEXT.tag} head=${s.commit[RUNNING.tag]}`,
+        `copy-before-update take --trigger ${NEXT.tag} head=${s.commit[NEXT.tag]}`,
+      ]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'a deploys.log naming a commit this clone does not have: its pin cannot be read, so --trigger',
+    () => {
+      const s = stage({ releases: [NEXT] });
+      mkdirSync(dirname(s.deployLog), { recursive: true });
+      writeFileSync(s.deployLog, `2026-09-27T10:00:00Z\t${RUNNING.tag}\t${'c0ffee'.padEnd(40, '0')}\ttook\treversible\n`);
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(copies(s)).toEqual([`copy-before-update take --trigger ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "the last deploy that took ran another Trigger.dev pin than HEAD: every base is compared, not only HEAD, so --trigger",
+    () => {
+      const OTHER = { tag: 'v0.2.0-alpha.3', version: '0.2.0-alpha.3' };
+      const s = stage({ releases: [NEXT, { ...OTHER, trigger: 'v4.9.99' }] });
+      mkdirSync(dirname(s.deployLog), { recursive: true });
+      writeFileSync(s.deployLog, `2026-09-27T10:00:00Z\t${OTHER.tag}\t${s.commit[OTHER.tag]}\ttook\tone-way\n`);
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(copies(s)).toEqual([`copy-before-update take --trigger ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "a tag whose managed.yml names no Trigger.dev image: its pin cannot be read, so --trigger",
+    () => {
+      const s = stage({ releases: [{ ...NEXT, noTriggerPin: true }] });
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(copies(s)).toEqual([`copy-before-update take --trigger ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
     },
     CASE_MS,
   );

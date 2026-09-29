@@ -189,8 +189,6 @@ DEMO_PORT_KEYS=' NEXTCLOUD_PORT '
 # managed.env.example does not define it, so nothing here asks WWW_PORT. The
 # guard checks the name and the value against that script's once it is here.
 SITE_SWITCH_KEY=WWW_LIVE
-# What a tag must carry for live to be deployed, checked and kept after this.
-TAG_MUST_CARRY=(deploy-live.sh exposure-check.sh box-duties.sh stack-kind.sh copy-before-update.sh)
 # Each password this may generate, and the volume that takes it at its first
 # initialisation and keeps it.
 PASSWORDS=(
@@ -315,8 +313,7 @@ main() {
   OTA_PROJECT="$(sed -n 's/^name:[[:space:]]*\([^[:space:]#]*\).*/\1/p' "${SCRIPT_DIR}/managed.yml")"
 
   # ---- The tag: a release, parked on -------------------------------------------
-  local branch dirty head tags_text tag='' t head_version f
-  local -a missing=()
+  local branch dirty head tags_text tag='' t head_version
   if branch="$(git -C "$REPO_ROOT" symbolic-ref -q --short HEAD)"; then
     refuse "HEAD is on the branch '${branch}', not detached at a release tag. ${RELEASE_SENTENCE}." \
       "Live's checkout is parked on the tag it runs: git fetch --tags origin && git checkout --detach <tag>"
@@ -345,13 +342,8 @@ main() {
   release_tag_is_release "$REPO_ROOT" "$tag" "$RELEASE_TAG_REMOTE_OBJECT" || refuse "${RELEASE_TAG_WHY[@]}"
   local commit="$RELEASE_TAG_COMMIT" version="$RELEASE_TAG_VERSION"
   [ "$commit" = "$head" ] || refuse "${tag} is at ${commit}, and HEAD at ${head}."
-  for f in "${TAG_MUST_CARRY[@]}"; do
-    git -C "$REPO_ROOT" cat-file -e "${commit}:deploy/compose/${f}" 2>/dev/null || missing+=("deploy/compose/${f}")
-  done
-  if [ "${#missing[@]}" -gt 0 ]; then
-    refuse "${tag} does not carry ${missing[*]}. Live is deployed, checked and kept by them after this (workplan 0132 T3, T6, T7)." \
-      "Cut the release from a commit of main that has them (docs/release.md §2)."
-  fi
+  # What it must carry: release-tag.sh's list, which deploy-live.sh asks too.
+  release_tag_carries "$REPO_ROOT" "$tag" "$commit" || refuse "${RELEASE_TAG_WHY[@]}"
   say "${tag} is an annotated release tag on origin, at ${commit}, version ${version}"
 
   # ---- Stood up already? ----------------------------------------------------------
