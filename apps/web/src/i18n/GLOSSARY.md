@@ -21,7 +21,7 @@ Two kinds of words render; only the first belongs to this glossary:
 
 | concept | EN | NL | rule |
 |---|---|---|---|
-| The managed thing | **migration** | **migratie** | Nav, titles, buttons, empty states. Nobody "creates a mapping". |
+| The managed thing | **migration** | **migratie** | Nav, titles, buttons, empty states. Nobody "creates a mapping". Never any form of *verhuizen* (*verhuizing*, *verhuist*, *verhuisd*): the owner chose *migratie* (2026-09-28, 0152 D6). Files that moved to another platform are *verplaatst*, and what does not come along *gaat niet mee*. `i18n.unit.test.tsx` refuses the word in the dictionary, and `scripts/a-word-the-owner-retired.unit.test.ts` everywhere else the product speaks Dutch. |
 | The technical identifier | **mapping** (id) | **mapping**(-id) | Only where the id itself is shown (config key, API path). Renaming those is out of scope. |
 | A person being moved: one card on Migrations, holding their migrations (ADR-0050, amended 2026-09-28; 0153 D6) | **person** / **people** | **persoon** / **personen** | On a card a person is only their name: the grouping has no noun. *people* / *personen* is said in a count (*"2 people · 1 needs you"*) and on the few controls that make one (*Add a person* / *Persoon toevoegen*). The appliance's one person has no name, and its card says *Your migrations* / *Uw migraties*. In code the word is `person`, never *move*: `/moves` is the moved-items queue. |
 

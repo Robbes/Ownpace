@@ -1,8 +1,183 @@
 # Workplan 0130 — A problem report that reaches a person
 
-> **In one line:** Report a problem on managed: `POST /api/problem-reports` files a ticket on the owner's Zammad, or mails the support mailbox without one (the alpha); linked from the `unknown` failure remedy with its reference; the same for *Report this link*; plus privacy wording.
+> **In one line:** Report a problem on managed: `POST /api/problem-reports` files a Zammad ticket, or mails the support mailbox (the alpha), with facts from our records shown before sending; linked from the `unknown` failure remedy; the same for *Report this link*; plus privacy wording.
 
 ## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28: main's legal revision merged in (#1317).** main now carries privacy policy v1.2,
+still marked draft. Its §4.5 has a *Reporting a problem* paragraph of its own, and its §9 a row for
+support mail and problem reports, kept until resolved and then 6 months. The paragraph and the row
+this branch added (Part A, below) conflicted with them, in EN and NL. They were resolved on main's
+text. §9 keeps only main's row, which states the same rule. main's paragraph now lists Part A's
+facts where it said *your organisation's identifier, the app's version*: the sign-in address, so
+that we can answer, and *these facts, which the form lists before you send* / *deze feiten, die het
+formulier opsomt voordat u verstuurt*. Those are the page, the error's reference and kind, the
+organisation's identifier and status, the role, the version of the service, the state of the
+migration and of each data type in it, whether access was given through a link, the two accounts'
+providers and last test, the hold and the scheduler, and the browser's name. Its link sentence
+names that link's facts: the organisation and the migration, who made the link, the two accounts,
+and whether access was given. It ends with this branch's bold sentence: a report holds content, a
+subject, a folder name or a provider's error text only if the person puts it there. main's
+screenshot warning and *without the secret part of a link* stay. The version lines are untouched.
+
+**2026-09-28: T6 Part A, the review's seven findings fixed.** On the same branch, not merged:
+
+- **The preview no longer hands out the operator's address.** With `REPORT_MAIL_TO` empty,
+  reports go to `NOTIFY_TO`, the operator's own list, and `GET /preview` gave that list to every
+  signed-in member, a viewer too. Now `reportMailConfigFrom` records whether `to` is the support
+  mailbox (`supportMailbox`, true only when `REPORT_MAIL_TO` names it), and the preview answers
+  `{ kind: 'mail' }` without addresses otherwise; the form then says *"Goes to the Ownpace support
+  team."* / *"Gaat naar het supportteam van Ownpace."*. `openapi.yaml` and step 8f of
+  `docs/managed-bring-up.md` say so.
+- **Privacy §4.5, EN and NL,** names the sign-in address among what a report from the app carries,
+  *so we can reply* / *zodat we kunnen antwoorden* (the mail's `Reply to` line, its Reply-To, and a
+  Zammad ticket's customer), and says *these facts* / *deze feiten* where it said *facts from our
+  records*: the page, the build and the browser are not records. Version lines untouched.
+- **The fold** says *"…exactly as our support team reads them, in English"* only above the
+  service's lines, which are marked `lang="en"` (WCAG 3.1.2, for a Dutch screen reader); when
+  they cannot be had, the form's own list has an introduction of its own (`report.facts.known`).
+  *From our records* is gone from the fold's sentences.
+- **Step 8f** no longer says the form showed every line: it showed the fact lines, `Page` to
+  `Browser`, unless the preview could not be read, and `Reply to` and `Report reference` are added
+  on sending.
+
+Guards: the API's `a-report-that-says-what-it-sends` (23, was 20) adds a migration whose grant was
+withdrawn with a token still stored, with a revoked and an expired grant link, a newer used one
+and a newest progress link (*Grant: withdrawn on …*, *Grant link: used*); a malformed
+`last_error_reference`, planted with the column's CHECK (0061) dropped for that case, written
+*reference unrecognised* and never itself; and `REPORT_MAIL_TO` empty, blank or absent giving a
+viewer `{ kind: 'mail' }`, no address, while the report still goes to `NOTIFY_TO`.
+`a-report-that-reaches-support-by-mail` expects the new field. The web guard (22, was 16) waits
+for the service's first line before comparing, with the preview answering 30 ms late: before the
+fix the Dutch case compared the form's own list to the lines and failed; it checks `lang="en"`,
+the fallback's own introduction in both languages, and the address left out when the service
+names none. Real Postgres (`local-pg.sh`, 16): the integration file, 2 of 2. 15 mutations, all
+killed: the grant link always `live`, the oldest grant link, a progress link counted, a token
+winning over a withdrawal, the reference passed through unvetted (the five that survived the
+review), the preview handing out `NOTIFY_TO`, `supportMailbox` set by an empty `REPORT_MAIL_TO`,
+never naming the support mailbox; and in the web app the lines without `lang`, `lang="en"` on the
+Dutch fallback, the English promise above the fallback, a recipient without addresses refused, a
+"by email to" with no address, *from our records* back in the fold, and the fold's introduction
+dropped.
+
+**2026-09-28: a report that says what it sends (T6, Part A).** A report carried the page, the
+error's reference and category, the organisation's id and the build, and support's first answer
+was always a question. The proposal (what a report could carry by itself, and why not an
+automatic screenshot) went to the owner, who chose *"Both parts"*, kept report mails *"Until
+resolved + 6 months"*, and for facts that cannot be read chose *"Send anyway"*. This is Part A,
+the facts from our records; Part B, the browser's facts and the recent error's reference, is not
+built. Built on branch `claude/ownpace-public-readiness-y7orc6-a-screenshot-anyone-can-make`, on
+top of the screenshot work below, not merged:
+
+- **Facts from our records, read on the server** (`apps/api/src/report-facts.ts`), in one
+  `withTenantDb` transaction in the reporter's organisation, as `app_user`, never from the
+  browser: the organisation's status, and its closing and removal dates when it is closed; the
+  migration the page names (`/mappings/<id>`), when it is one of this organisation's: its state,
+  whether access was given through a link or withdrawn (asked in SQL as whether there is a
+  grant, so the token never leaves the database), its newest grant link's state, and each data
+  type's state, error category, side and reference; the providers of its two accounts and their
+  status as the last test left it; whether the report's reference is a current failure, and of
+  which data type on which migration; the service hold, on or off and since when (never the
+  operator's message); and whether the scheduler's tick ran in the last five minutes. From the
+  request: the role, from the membership row, and the browser, the `User-Agent` header on one
+  line and capped at 300 characters. Another organisation's migration id, which anybody can
+  type into the address bar, reads as *not one of this organisation's*, as an id that exists
+  nowhere does. Every value is one of its column's own words or it is written `unrecognised`:
+  `last_error_category` has no CHECK in the database.
+- **What is never read:** a provider's error text, items and their names, folders, what an
+  organisation or a migrated person typed (names, addresses, hosts, the organisation's name and
+  settings), credentials and tokens, and the hold's message. Each read names its columns, and
+  `REPORT_FACT_FIELDS` is the whole list of what the facts can hold.
+- **One function writes the lines** (`reportFactLines` in `problem-report.ts`): `Page`,
+  `Reference`, `Category`, `Organisation`, `Build`, then `Role`, `Organisation status`,
+  `Migration`, `Grant`, `Grant link`, a `Data type …` line each, `Source account`, `Destination
+  account`, `Reference match`, `Service hold`, `Scheduler`, `Browser`. The mail and the Zammad
+  article carry them; `REPORT_FACT_LABELS` lists every label a line can start with.
+- **`GET /api/problem-reports/preview`**, signed in, for the reporter's own organisation, sixty
+  an hour per person: where the report goes (`{ kind: 'mail', addresses }` from `REPORT_MAIL_TO`,
+  or `{ kind: 'helpdesk' }`) and the lines. On sending, the route reads the facts again and takes
+  none from the body. In `apps/api/docs/openapi.yaml`.
+- **Facts that cannot be read do not stop a report.** It goes with `Facts: could not be read [ref
+  …]` in place of the records' lines (the role, the page and the browser still go), and the error
+  is recorded as `report.facts-unread` under that reference. A read that takes more than five
+  seconds (`REPORT_FACTS_DEADLINE_MS`) is treated the same: the person is waiting, and a report
+  is for exactly the moment the database is the problem.
+- **The form.** Above Send it says where the report goes: *"Goes to the Ownpace support team,
+  by email to support@ownpace.eu."* / *"Gaat naar het supportteam van Ownpace, per e-mail naar
+  support@ownpace.eu."*, with the address the service answers, every address when there are
+  several; *"Goes to the Ownpace support team's helpdesk."* / *"Gaat naar de helpdesk van het
+  supportteam van Ownpace."* with a Zammad; and *"Goes to the Ownpace support team."* when the
+  preview could not be had. Then *Replies go to …* as before, and a closed fold, *What we send
+  with this* / *Wat we meesturen*: what you write and the screenshot, and every line from the
+  preview, verbatim and in English, as the support team reads them (ADR-0024's prose boundary);
+  the fold says so in Dutch too. This closes the gap the research found in T5: the form never
+  listed the organisation or the build, and said only "us". When the preview fails, the fold
+  lists the page, reference and category the form knows and says the rest is read on sending
+  and goes with it. The *Sent with your report* box and its key are gone.
+- **The link form** says what it already sends, text only, no new facts: *"Sent with it, from our
+  records: which link this is; the organisation and the migration it belongs to, with the state
+  of the migration; the address of whoever made the link; the account the migration copies from
+  and the account it copies to; and whether you have given access."* and its Dutch.
+- **The privacy policy (T4),** EN and NL, same structure, version lines untouched: §4.5 gains a
+  paragraph on reports (both doors; during the Alpha by email to support@ownpace.eu, a mailbox at
+  Proton, through the mail provider in §7; what a report from the app and one from a link carry;
+  content only if the person puts it in their words or the screenshot), and §9 a row, *Support
+  mail and reports: until your question or problem is resolved, then 6 months more* / *Supportmail
+  en meldingen: tot uw vraag of probleem is opgelost, en daarna nog 6 maanden*. §7's relay row,
+  §8's "no third country" beside Proton in Switzerland, and alpha §10's erasure list are
+  unchanged and stay with the lawyer (0133, 0139).
+- **Docs.** Step 8f of `docs/managed-bring-up.md` lists the new lines and the unread line; Stage 8
+  step 7 of `docs/owner-test-runbook.md` expects the recipient sentence, the fold, and the same
+  lines in the mail.
+
+Guards: `apps/api/src/a-report-that-says-what-it-sends.unit.test.ts` (20), through the real route
+on PGlite as `app_user` with both chains: the facts read with every column of every table filled
+in hold exactly `REPORT_FACT_FIELDS`, and every line starts with a label of `REPORT_FACT_LABELS`;
+the exact lines for a migration with a failing data type, a withdrawn grant, a grant never given,
+no migration on the page, a closed organisation, a hold and a stopped scheduler; the role from the
+session and not the query, the browser on one line and capped; canaries planted in a provider's
+error text, an item's name and folder, an account's name, address, host and token, the
+organisation's name and phone, the migration's name, a category nobody wrote and the other
+organisation's rows reach neither the preview nor the mail; another organisation's migration id
+and its failure's reference give nothing of it; the preview's lines are the mail's and the Zammad
+article's; sending reads again (a migration paused between preview and send says paused) and takes
+no role, lines or facts from the body; facts that throw or hang still send, with the line and one
+`report.facts-unread` event; and the preview's sign-in, refusals, redaction, 503 and limit. And
+`apps/api/src/routes/a-report-that-says-what-it-sends.integration.test.ts` (2), on real Postgres
+through the API as wired (`APP_DATABASE_URL`, `app_user`, no test seam), run here on
+`scripts/local-pg.sh`'s PostgreSQL 16: A's own migration and failure give their facts, B's give
+nothing, and no planted text reaches the answer. `apps/web/src/pages/a-report-that-says-what-it-sends.unit.test.tsx`
+(16): every line in the fold, in English and Dutch, closed until opened and above Send; the
+preview asked with the page, reference and category; the fallback and an answer of the wrong
+shape; the recipient sentence for mail, several addresses, the helpdesk and no answer, and no
+address in any string; the report's body unchanged; the link form's sentence names the
+organisation, migration, account, maker and access in both languages. Red on the branch head: the
+API file does not load (no `report-facts.ts`); with an empty stand-in module, 19 of 20 failed, the
+one passing being the field list held against the stand-in's own empty list. The web file: 16 of
+16. The integration file: 2 of 2 (404). Existing guards adapted: `a-report-that-reaches-a-person`
+and `a-report-that-reaches-support-by-mail` in the API hand the route a quiet reader (their subject
+is where a report goes), the web `a-report-that-reaches-a-person` opens the fold, and
+`a-link-that-can-be-reported` and the UI smoke (`test/ui/managed-ui.ui.test.ts`, with a preview
+fixture, run in Chromium, 12 of 12) read the new sentences. 0137's `a-role-that-promises-less-than-it-allows`, which lists every
+read of the caller's role under `apps/api/src/routes` as a door only an owner may pass, now names
+the report's two reads (`GET /preview` and `POST /`) as not a door: the role is written into the
+facts and neither route decides anything by it; the owner-only acts, and the Team page's admin
+line, are unchanged. 27
+mutations: 25 killed, 2 survived by design. Killed: a whole status row spread into each data type
+(by the field list alone: the lines are written from named fields, so the provider's text never
+reached a line); the category passed through unvetted; another organisation's id read as a
+migration with defaults; the page's migration never found; the role taken from the body on
+sending; the mail, and the Zammad article, sent without the facts; facts that fail stopping the
+report; no deadline; the browser line not kept to one line, and not capped; the preview not
+limited, and without the server's facts; the closing dates left out; the hold always off; a grant
+always given; the reference match not asked; no unread line when the facts fail; and in the web
+app the fold open, the lines ignored, the recipient without its address, an answer of any shape
+shown, and the preview asked without the reference. **Survived, by design:** the organisation
+filter taken off the reference match, and off the migration's read. Row security is the second
+net and still refused the other organisation's rows, on PGlite and on Postgres. With the filters
+off *and* the read on a connection row security does not bind (PGlite's owner connection; on
+Postgres the API's pool pointed at the owner), the other-organisation case fails in both files,
+so the guard sees a leak once both nets are gone.
 
 **2026-09-28: a screenshot anyone can make.** Of two proposals for the form's screenshot, the
 owner answered *"yes, build 1 and 2"*. The form asked for a screenshot and said nothing of how to
@@ -325,8 +500,9 @@ form is the second half. Guards: `a-failure-with-its-reference` in ledger (6), o
 | T1 A report form in the app | ✅ **Built 2026-09-23** (D2) | §3. What the person writes, the page they are on, the error they see, and a screenshot if they add one. |
 | T2 The report becomes a Zammad ticket | ✅ **Built 2026-09-23** (D1) | §3. Created by the API on the owner's own Zammad, so a reply reaches the person by email. |
 | T3 The failure line that says "send it to us" opens the form | ✅ **Built 2026-09-23** (D2) | §3. With the failure's category and reference already filled in, wherever the `unknown` remedy is shown to a customer. |
-| T4 The privacy policy names support requests | 📋 **Proposed** | §3. What is sent, where it is kept, for how long. Link reports too (0108 T8 (d)): what the person wrote and, if they want an answer, a reply address, from somebody who has no account. During the alpha, reports go by mail (T5): through the Proton relay (0133) into the support mailbox, and the paragraph must say so. |
+| T4 The privacy policy names support requests | 🔨 **Drafted 2026-09-28**; §4.5's paragraph and §9's row are on main with the legal revision (#1317), still marked draft; T6's facts in that paragraph on this branch, not merged; in the drafts for the lawyer's pass | §3. What is sent, where it is kept, for how long. Link reports too (0108 T8 (d)): what the person wrote and, if they want an answer, a reply address, from somebody who has no account. During the alpha, reports go by mail (T5): through the Proton relay (0133) into the support mailbox, and the paragraph must say so. Written with T6: privacy §4.5's paragraph on reports and §9's row, until resolved and then 6 months (the owner, 2026-09-28), EN and NL; main's legal revision (#1317) carries both, and T6 adds its facts to that paragraph. §7, §8 and alpha §10 stay with the lawyer. |
 | T5 Without a Zammad, a report goes to the support mailbox by mail | 🔨 **Built 2026-09-28**, not merged (the owner, 2026-09-28: *"b"*) | Status entry of the day. `REPORT_MAIL_TO` (else `NOTIFY_TO`) through the API's own relay, the signed-in reporter as Reply-To and on a `Reply to:` line, the screenshot attached; the form's answer names a report reference, not a ticket. Link reports too, with no Reply-To. At most 50 report mails a day, since the relay is the identity provider's too (0133). A Zammad, when set, still wins. |
+| T6 A report says what it sends: facts from our records (Part A) | 🔨 **Built 2026-09-28**, not merged (the owner, 2026-09-28: *"Both parts"*, *"Send anyway"*) | Status entry of the day. The role, the organisation's status, the migration on the page, the reference's match, the hold, the scheduler, the two accounts' providers and the browser, read on the server under row security; `GET /api/problem-reports/preview` shows the same lines in the form's fold before sending, with the recipient above Send; the report goes without them, with a reference, when they cannot be read. Part B (the browser's facts and the recent error's reference, with its canary-token guard) is not built. |
 
 ## 1. What there is today
 

@@ -627,15 +627,21 @@ sign-in codes, progress summaries and the notices you ask us to send.
      True on live once live runs without ZAMMAD_URL (README, "Before the draft markers come
      off"). -->
 
-**Reporting a problem.** During the Alpha, *Report a problem* in the app's menu sends your
-report as an email to support@ownpace.eu, through our mail provider (§7). The mail holds what
-you wrote, the page you were on (without the secret part of a link), the reference and kind of
-an error if there was one, your organisation's identifier, the app's version, and your sign-in
-address, so that we can answer you. If you add a screenshot, it goes too. A screenshot shows
-whatever was on your screen, such as subjects, names and addresses, so look at it before you
-send it. *Report this link*, on a page reached through a grant link or a progress link, sends
-what the person wrote and the facts of that link the same way, such as who made it and for
-which accounts, and an address only if they give one.
+**Reporting a problem.** During the Alpha, *Report a problem* in the app's menu sends your report
+as an email to support@ownpace.eu, through our mail provider (§7). The mail holds what you wrote
+and your sign-in address, so that we can answer you, and these facts, which the form lists before
+you send: the page you were on (without the secret part of a link), the reference and kind of an
+error if there was one, your organisation's identifier and status, your role, the version of the
+service, the state of the migration on that page and of each data type in it, whether access was
+given through a link, which providers its two accounts are with and whether their last test passed,
+whether the service is on hold or its scheduler has stopped, and the name your browser gives
+itself. If you add a screenshot, it goes too. A screenshot shows whatever was on your screen, such
+as subjects, names and addresses, so look at it before you send it. *Report this link*, on a page
+reached through a grant link or a progress link, sends what the person wrote and the facts of that
+link the same way: the organisation and the migration, who made the link, the two accounts, and
+whether access was given; and an address only if they give one. **A report contains the content of
+your mail, files or calendars, a subject, a folder name or a provider's error text only if you put
+it in what you write or in the screenshot.**
 
 <!-- NOT YET TRUE ON main (the owner, 2026-09-28, ops-trust-proxy (b): keep visitors' addresses
      in all our logs). NetBird ends TLS in front of the machine, so the app and the website see

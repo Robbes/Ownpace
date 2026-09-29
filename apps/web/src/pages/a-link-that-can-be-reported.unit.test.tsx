@@ -114,7 +114,15 @@ describe('on the grant page', () => {
     await user.click(await screen.findByRole('button', { name: 'Report this link' }));
 
     expect(screen.getByText('Your report goes to the Ownpace team, not to Acme Legal.')).toBeInTheDocument();
-    expect(screen.getByText('Sent with it: which link this is, so we can find who sent it.')).toBeInTheDocument();
+    // What the note carries, from the rows (workplan 0130 T6): the organisation,
+    // the migration, who made the link, the two accounts and the access.
+    expect(
+      screen.getByText(
+        'Sent with it, from our records: which link this is; the organisation and the migration it belongs to, ' +
+          'with the state of the migration; the address of whoever made the link; the account the migration ' +
+          'copies from and the account it copies to; and whether you have given access.',
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText('Only if you want an answer; we use it for nothing else.')).toBeInTheDocument();
     // Nothing to send until they say what makes them doubt it; the address may stay empty.
     expect(screen.getByRole('button', { name: 'Send the report' })).toBeDisabled();

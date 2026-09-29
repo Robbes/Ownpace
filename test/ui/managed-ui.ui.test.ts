@@ -122,6 +122,16 @@ const FIXTURES: Record<string, unknown> = {
    * this entry came to be written.
    */
   [`GET /api/problem-reports/available`]: { available: true },
+  /**
+   * WHAT A REPORT FROM THIS PAGE WOULD CARRY (workplan 0130 T6), asked by the
+   * form once it knows the service takes reports: where it goes, and its
+   * lines of facts, which the form shows verbatim in its fold. The lines are
+   * the API's to write; two stand for them here.
+   */
+  [`GET /api/problem-reports/preview`]: {
+    to: { kind: 'mail', addresses: ['support@example.invalid'] },
+    lines: ['Page: /mappings', 'Role: owner'],
+  },
   // The build stamp in the sidebar asks the server what IT is running
   // (services/build-identity.ts). Answered from the ROOT package.json rather
   // than a literal, for the same reason every other consumer reads it there:
@@ -620,9 +630,13 @@ describe('Report a problem (workplan 0130)', () => {
     await l.page.waitForURL((u) => u.pathname === '/report', { timeout: 10_000 });
 
     expect(new URL(l.page.url()).searchParams.get('from')).toBe('/mappings');
-    // Said before anything is sent: what goes with the report, and the page.
-    await l.page.locator('text=Sent with your report:').waitFor({ timeout: 10_000 }); // report.sentWith
-    expect(await l.text()).toContain('the page you were on: /mappings'); // report.page
+    // Said before anything is sent: where it goes, and, in the fold, every
+    // line that goes with it, the page first.
+    await l.page
+      .locator('text=Goes to the Ownpace support team, by email to support@example.invalid.') // report.goesTo.mail
+      .waitFor({ timeout: 10_000 });
+    await l.page.locator('summary', { hasText: 'What we send with this' }).click(); // report.facts
+    await l.page.locator('li', { hasText: 'Page: /mappings' }).waitFor({ state: 'visible', timeout: 10_000 });
     expectClean(l, 'the report form');
     await l.page.close();
   });

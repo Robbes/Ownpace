@@ -67,7 +67,7 @@ export const ScopeManifestPanel: React.FC<{ manifest: ScopeManifest }> = ({ mani
   // columns are server prose and render verbatim (the prose boundary).
   const t = useT();
   return (
-    <section aria-label="scope-manifest" className="grid gap-4 md:grid-cols-3">
+    <section aria-label={t('scope.title')} className="grid gap-4 md:grid-cols-3">
       <Column title={t('scope.migrates')} tone="text-green-700" entries={manifest.migrates} />
       <Column title={t('scope.partial')} tone="text-amber-700" entries={manifest.partial} />
       <Column
