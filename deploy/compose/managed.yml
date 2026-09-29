@@ -1081,9 +1081,10 @@ services:
       # completes (0085 T5). Unset means the 7-day default in @openmig/shared,
       # and that default assumes backups exist: nothing in this repository
       # backs this database up yet. `ownpace-live` takes no backups during the
-      # alpha and sets 7: its databases are dumped before each deploy and each
-      # dump is deleted after at most 7 days, both by the owner for now (0132
-      # T6 step 4; workplan 0134 open question 1 (b)). The api warns about a
+      # alpha and sets 7: one copy of its databases is made right before each
+      # update by deploy-live.sh, and deleted once the update is proven, or
+      # after 6 days by the daily duties (copy-before-update.sh; workplan 0134
+      # open question 1 (b), workplan 0139). The api warns about a
       # blank value in production, and with OWNPACE_STAGE=alpha refuses to
       # start (`config-guards.ts`).
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-}

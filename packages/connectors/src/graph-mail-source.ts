@@ -64,6 +64,10 @@ export class GraphMailSource implements SourceConnector {
   private readonly httpClient: HttpClient;
   private readonly baseUrl: string;
   private readonly throttleLimiter?: ThrottleLimiter;
+  /** The Entra tenant: the limiter's scope label, as on the other Graph faces. */
+  private readonly tenantId: string;
+  /** The budget's provider: Graph's host, so mail spends against the other faces' row. */
+  private readonly provider: string;
   /** `{baseUrl}/me` or `{baseUrl}/users/{address}` — see graph-scope.ts. */
   private readonly scope: string;
 
@@ -81,9 +85,12 @@ export class GraphMailSource implements SourceConnector {
     options?: { baseUrl?: string; throttleLimiter?: ThrottleLimiter; mailbox?: string },
     deps?: { httpClient?: HttpClient },
   ) {
-    void tenantId; // Recorded in config by callers; the SCOPE is `options.mailbox`.
+    // Which mailbox is read is `options.mailbox`, not this: the tenant only
+    // labels the limiter's bucket, as it does on the other Graph faces.
+    this.tenantId = tenantId;
     this.tokenProvider = tokenProvider;
     this.baseUrl = options?.baseUrl?.replace(/\/$/, '') ?? 'https://graph.microsoft.com/v1.0';
+    this.provider = hostnameOf(this.baseUrl);
     // `/me` unless a mailbox address was configured, in which case
     // `/users/{address}` — application permissions, workplan 0027 T0. Resolved
     // ONCE here so a bad address fails at construction rather than on the
@@ -317,24 +324,46 @@ export class GraphMailSource implements SourceConnector {
     return id;
   }
 
-  /** Authenticated request with the drive source's 429/503 Retry-After handling. */
+  /**
+   * An authenticated request, through the limiter when the pass has one.
+   *
+   * MAIL SPENDS AGAINST THE SHARED BUDGET TOO (workplan 0143 T10). The other
+   * Graph faces take a slot before every request (`executeWithThrottling`):
+   * the pass's own rate and concurrency, then the organisation's row in
+   * `PgRateBudget`, which every runner reads. Mail only asked the limiter how
+   * long to wait after a 429, so a mail pass spent Graph's quota for the
+   * tenant without counting it, and the calendar, contacts and files passes
+   * beside it were throttled for requests the budget never saw.
+   *
+   * A 429 or 503 is now retried by the limiter, up to its `maxRetries`, and
+   * then answered with its error. It used to be retried without end.
+   */
   private async request(options: HttpRequestOptions): Promise<HttpResponse> {
-    const token = await this.tokenProvider.getToken();
-    const withAuth: HttpRequestOptions = {
-      ...options,
-      headers: { ...options.headers, Authorization: `Bearer ${token.accessToken}` },
+    const send = async (): Promise<HttpResponse> => {
+      // Per attempt: the provider caches the token, and a retry after a long
+      // wait gets a fresh one if the old one has expired meanwhile.
+      const token = await this.tokenProvider.getToken();
+      return this.httpClient.request({
+        ...options,
+        headers: { ...options.headers, Authorization: `Bearer ${token.accessToken}` },
+      });
     };
 
-    const response = await this.httpClient.request(withAuth);
+    if (!this.throttleLimiter) return send();
+    return this.throttleLimiter.executeWithThrottling(
+      this.tenantId,
+      this.provider,
+      send,
+      (response) => response.headers['retry-after'] ?? response.headers['Retry-After'],
+    );
+  }
+}
 
-    if ((response.status === 429 || response.status === 503) && this.throttleLimiter) {
-      const retryAfter = response.headers['retry-after'] ?? response.headers['Retry-After'];
-      const waitTime = this.throttleLimiter.handleRateLimited(response.status, retryAfter);
-      await new Promise((resolve) => setTimeout(resolve, waitTime));
-      return this.request(options);
-    }
-
-    return response;
+function hostnameOf(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).hostname;
+  } catch {
+    return 'unknown';
   }
 }
 

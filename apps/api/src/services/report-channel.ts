@@ -49,6 +49,13 @@ export interface ReportMailConfig {
   readonly smtp: SmtpSettings;
   readonly from: string;
   readonly to: readonly string[];
+  /**
+   * Whether `to` is the support mailbox `REPORT_MAIL_TO` names, which the form
+   * may show the person reporting (workplan 0130 T6), and not `NOTIFY_TO`,
+   * the operator's own list of addresses a person reads, which no customer is
+   * shown.
+   */
+  readonly supportMailbox: boolean;
 }
 
 /**
@@ -65,7 +72,7 @@ export function reportMailConfigFrom(env: NodeJS.ProcessEnv = process.env): Repo
     if (to) sayOnce(`[api] problem reports are switched off: REPORT_MAIL_TO is set, but the mail is off: ${mail.reason}`);
     return undefined;
   }
-  return { smtp: mail.smtp, from: mail.settings.from, to: mail.settings.to };
+  return { smtp: mail.smtp, from: mail.settings.from, to: mail.settings.to, supportMailbox: Boolean(to) };
 }
 
 /**

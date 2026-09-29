@@ -470,8 +470,17 @@ one of them.
      meldingskenmerk …"* for A and *"Sent to our support team, with report reference …"* for B,
      and then *"We antwoorden per e-mail naar …"* / *"We will reply by email to …"* with the
      address the tester signed in with. Write down the report reference.
+   - Before it is sent, above the button, the page says *"Gaat naar het supportteam van Ownpace,
+     per e-mail naar support@ownpace.eu."* / *"Goes to the Ownpace support team, by email to
+     support@ownpace.eu."*, and the fold *Wat we meesturen* / *What we send with this* opens on
+     the lines the report will carry, in English: `Page`, `Organisation`, `Build`, `Role`,
+     `Organisation status`, `Migration`, `Service hold`, `Scheduler`, `Browser`, then
+     `Screen language` (*Dutch* for A, *English* for B), `Time zone` and `Window width`. Opened
+     from a migration's page, it also has the migration's `Grant`, `Grant link`, `Data type …` and
+     account lines. No line names an address, a folder, a subject or a provider's error text.
    - The report is in `support@ownpace.eu` within a few minutes. Its Subject is *Ownpace:* and
-     the first line of the description. Its body ends with a `Reply to:` line naming the tester's
+     the first line of the description. Under the description come the same lines the fold
+     showed, in the same order, and the body ends with a `Reply to:` line naming the tester's
      sign-in address and a `Report reference:` line with the reference the page gave. The
      screenshot is attached.
    - **The reply check** (0131, the row for 0130). The mail goes from `support@ownpace.eu` to

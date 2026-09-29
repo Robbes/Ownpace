@@ -394,6 +394,12 @@ export interface DriveResponse {
    * compile error and taught nothing.
    */
   readonly body?: ReadableStream<Uint8Array> | null;
+  /**
+   * The response's headers, for `Retry-After` on a rate limit (workplan 0143
+   * T10). Optional for the same reason as `body`: without it a rate limit is
+   * waited out for the default second.
+   */
+  readonly headers?: { get(name: string): string | null };
 }
 
 /** Google's own name for the native-editor family, used to detect them. */

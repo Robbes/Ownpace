@@ -810,7 +810,7 @@ describe('naming the connection that testing saves', () => {
 
   it('saves under the name that was typed', async () => {
     filledImapSource();
-    fill(/^Connection name/, 'Acme old mail server');
+    fill(/^Name for this account/, 'Acme old mail server');
 
     fireEvent.click(screen.getByRole('button', { name: /^Test/i }));
 
@@ -853,7 +853,7 @@ describe('naming the connection that testing saves', () => {
     // first, the way a person would, or there is no name to clash.
     await waitFor(() => expect(queryFieldFor(/^Reuse a saved source connection/)).not.toBeNull());
     fireEvent.change(fieldFor(/^Reuse a saved source connection/), { target: { value: '' } });
-    fill(/^Connection name/, 'Acme old mail server');
+    fill(/^Name for this account/, 'Acme old mail server');
 
     // A warning, not a refusal: nothing keys off the name, and blocking here
     // would be friction at the worst moment — you have just proved a credential.
@@ -881,7 +881,7 @@ describe('naming the connection that testing saves', () => {
       target: { value: 'c0000000-0000-4000-8000-00000000000b' },
     });
 
-    expect(queryFieldFor(/^Connection name/)).toBeNull();
+    expect(queryFieldFor(/^Name for this account/)).toBeNull();
   });
 });
 

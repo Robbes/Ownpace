@@ -4,9 +4,91 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-29, night: T10 built, what the providers let every tester do together (0131 §6, group
+M4, after T3b)** on branch `claude/mailbox-sync-errors-c2xsw2-what-every-tester-shares`, not
+merged. T10's first two bullets; the budget for the whole deployment and streaming mail bodies
+stay parked on their own triggers.
+
+- **What was open.**
+  - Graph mail took no slot from the organisation's `PgRateBudget`. It only asked the limiter how
+    long to wait after a 429, and then asked again without end.
+  - The Google Drive source waited out no 429, and neither did the CalDAV and CardDAV sources that
+    read Google's calendars and contacts. A rate limit failed the item, or the whole listing, on
+    first sight.
+  - **Found on the way:** `executeWithThrottling` kept a concurrency slot for every 429, 503 or
+    transient error it retried. After `maxConcurrent` of them (4 by default), the next request
+    waited for a slot nothing would free, until the pass's deadline stopped it. Every Graph face
+    and the Tasks source retry through it, and mail was about to.
+- **Built:**
+  - `executeWithThrottling` (`packages/shared/src/throttling.ts`) gives each attempt's slot back
+    as soon as its request has answered or thrown, and never gives one back twice when the shared
+    budget refuses.
+  - `graph-mail-source.ts` sends every request through `executeWithThrottling`, on Graph's row
+    (`graph.microsoft.com`), as the other Graph faces do; `pg-rate-budget.ts`'s comment says so. A
+    throttled request is retried up to the limiter's `maxRetries`, then fails as `rate_limited`.
+  - `packages/connectors/src/rate-limit-once.ts` states the Tasks source's rule once, and the
+    Drive, CalDAV, CardDAV and Tasks sources read it. A 429 or 503, or Google's 403
+    `rateLimitExceeded` or `userRateLimitExceeded` (its JSON reason, or its GData code), is waited
+    out once: what `Retry-After` asks, otherwise one second. A server that asks for longer than a
+    minute is believed, not slept through: its answer goes back as it came, and a later pass takes
+    the item. The 429 and 503 half holds for every server a DAV source reads.
+  - `classifyFailure` reads Google's two reasons as `rate_limited`, ahead of the quota words:
+    Google's limit per minute says *"Quota exceeded for quota metric 'Queries' and limit 'Queries
+    per minute per user'"*.
+  - The Drive source keeps Google's refusal whole before it renders it. Its first 300 characters
+    could end before the reason.
+- **Proved** by:
+  - `packages/shared/src/a-retry-that-gives-its-slot-back.unit.test.ts` (5 cases, all failing on
+    `main`);
+  - `packages/connectors/src/a-rate-limit-every-tester-shares.unit.test.ts` (16 cases): mail draws
+    from the budget for every request and attempt, on Graph's row, with Graph's own
+    `Retry-After`, and gives up after the limiter's retries; each DAV source waits out a 429 and
+    Google's 403 once, reports one that holds as `rate_limited`, asks a refusal once and does not
+    sleep through an hour. 9 fail on `main`; the rest guard against asking too often, and the
+    helper's own rule;
+  - `google-drive-source.unit.test.ts` (7 new cases, 6 failing on `main`);
+  - `failure-category.unit.test.ts` (4 new cases, 3 failing on `main`).
+
+  The cases run on a fake clock, so a wait that should not happen fails at once instead of
+  hanging the file. 20 of 20 mutations caught.
+- **Found, not fixed:** `isTransientError` lowercases a message and then looks for `ECONN`,
+  `ETIMEDOUT` and `EPIPE` in capitals, so the limiter never retries a request that failed with
+  those codes. Retrying them changes every Graph face, so it is its own change.
+- **Not measured.** None of Google's rate-limit answers has been observed here; they are read
+  from Google's published error tables. T9's and the alpha's `rate_limited` counts are the
+  evidence the parked bullets wait for.
+
+**2026-09-29, night: T3b built, a streamed file reaches a JMAP target (0131 §6, group M4, after
+T2b and T2c)**, merged as #1355 (`2ce6546`).
+
+- **What was open.** A source reads a file larger than 8 MB as a stream (`FileBody`), and
+  `JmapFileTarget` could not send one, so it refused every such file (T3a), on the target the
+  alpha calls primary.
+- **Built,** in `packages/connectors/src/jmap-file-target.ts`:
+  - The upload sends the stream as the request body, shaped like
+    `WebDAVTargetWriter.uploadStreamed`: opened afresh for each attempt (the rate-limit retry takes
+    a factory for a stream), with `Content-Length` from `body.sizeBytes`, and
+    `STREAMED_REQUEST_INIT`, so fetch keeps no copy of what it sends.
+  - `connect()` reads the session's `maxSizeUpload` (the core capability). A file larger than it,
+    streamed or not, is refused before a byte is read or a folder is made, with a sentence that
+    names the file, its size and the server's limit (`tooLargeForThisJmapServer`). It is stated as
+    `target_refused` and waits for a person, because trying again gives the same answer. A server
+    whose session states no limit decides for itself, as before.
+  - T3a's refusal at 8 MB is gone. A file with neither bytes nor a body is still refused as having
+    no content.
+- **Proved** by `packages/connectors/src/a-jmap-file-nothing-holds.unit.test.ts` (8 cases): a
+  32 MB body from a stub source arrives byte for byte (by digest), with its length, sent as a
+  stream with `redirect: 'error'`; a 429 opens it afresh; a rewrite sends it the same way; a file
+  over `maxSizeUpload` is refused before any read, upload or folder, on create and on rewrite, and
+  one exactly at the limit is taken. All 8 fail on the old target. T3a's two cases in
+  `jmap-file-target.unit.test.ts` asked for the refusal T3b removes; the block keeps the
+  no-content cases. 11 of 11 mutations caught.
+- **Docs:** the feature matrix, both JMAP guides and `docs/performance.md` say what is now true.
+- **Next:** 0141 T8's nightly leg, which proves it against a real Stalwart, and what the demo
+  Stalwart's session states as its limit.
+
 **2026-09-29, night: T2c built, how fast a migration asks its providers is the operator's (0131 §6,
-group M4, after its step 3)** on branch `claude/mailbox-sync-errors-c2xsw2-a-throttle-the-tester-set`,
-not merged.
+group M4, after its step 3)**, merged as #1350 (`6282dd9`).
 
 - **What was open.** The managed create door took a `throttleConfig` from the organisation and
   stored it; a pass then built the organisation's shared rate budget at the stored rate, as it
@@ -612,15 +694,15 @@ unproved until then:
 |---|---|---|
 | T0 The alpha's numbers | 📋 **Provisional numbers accepted 2026-09-27** (open question 1): 2 passes per organisation, 5 migrations, waves of about five, and the largest file 10 GB, which the owner raised from 2 GB the same evening (T4); ✅ **the overall cap decided 2026-09-28**: `small-1x`, live 6, the OTA stack 3 (open question 7), and 20 GB for the stacks beside a GPU process held to 100 GB (open question 8); ⏳ **Owner**: that GPU process held to 100 GB before live — *was:* ⏳ **Owner** for the overall cap on the machine, the machine reads taken 2026-09-28 (open question 7) | §3. **Alpha minimum.** Five provisional numbers before T9, and final ones after it. They are written in this block. |
 | T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6); step 1 read in upstream's source 2026-09-28: presets are enforced, and every task runs on `small-1x`, half a CPU and 512 MB; step 3's tick half ✅ **done** in #1296, merged 2026-09-28 (`67b3e9e`): 3 passes at once on a stack unless its `.env` says otherwise, and 2 per organisation, longest-waiting first; live's `.env` sets 6 since 2026-09-28 (the owner); step 2 🔨 **built 2026-09-28** on its branch: every task names `small-1x`; the plane's limit ⏳ **Owner** (open question 9) | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
-| T2 What one organisation can make the machine do | 🔨 **T2a built 2026-09-27**, merged as #1258: five unfinished migrations per organisation, the deployment's number; **T2d's runbook step written 2026-09-27**, merged as #1252, in 0142 T6's runbook; **T2b built 2026-09-29**, merged as #1348 (`97bac8c`): no schedule faster than 15 minutes, on either door, and a stored one runs at that floor; **T2c built 2026-09-29** on its branch, not merged: `throttleConfig` refused on both managed doors, a stored one held to the defaults, and Gmail's download ceiling never raised on either edition; T2d's built hold 📋 **Proposed** — *was:* T2b and T2c 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
-| T3 A streamed file reaches a JMAP target | 🔨 **T3a built 2026-09-27**, merged as #1243: the refusal names the file, its size and WebDAV; T3b 📋 **Proposed** — *was:* 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
+| T2 What one organisation can make the machine do | 🔨 **T2a built 2026-09-27**, merged as #1258: five unfinished migrations per organisation, the deployment's number; **T2d's runbook step written 2026-09-27**, merged as #1252, in 0142 T6's runbook; **T2b built 2026-09-29**, merged as #1348 (`97bac8c`): no schedule faster than 15 minutes, on either door, and a stored one runs at that floor; **T2c built 2026-09-29**, merged as #1350 (`6282dd9`): `throttleConfig` refused on both managed doors, a stored one held to the defaults, and Gmail's download ceiling never raised on either edition; T2d's built hold 📋 **Proposed** — *was:* T2b and T2c 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
+| T3 A streamed file reaches a JMAP target | 🔨 **T3a built 2026-09-27**, merged as #1243: the refusal names the file, its size and WebDAV; **T3b built 2026-09-29**, merged as #1355 (`2ce6546`): the stream sent as the upload, and a file over the server's `maxSizeUpload` refused up front, naming it; 0141 T8's nightly leg next — *was:* T3b 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
 | T4 A file no pass can carry is refused up front, with a sentence | 🔨 **(a) built 2026-09-27**, merged as #1259: 10 GB, the owner's number, and a category of its own, `too_large`; the attempts after the alpha 📋 **Proposed** — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** A stated largest file, refused before a byte moves, and parked for a person rather than retried. The kill loop for smaller files that are still too slow comes after. |
 | T5 Every data type of a migration gets a turn in a pass | ✅ **done** in #1262, merged 2026-09-27: (c), small first, then a fair share of what is left — *was:* 📋 **Decided 2026-09-27: (c)** (open question 3) | §3. After the first invitation. It has to be built **before a tester with a large Microsoft 365 mailbox and more than mail ticked** is granted. Small data types go first, and each type gets a fair share of what is left. |
 | T6 Runs of organisations that are never invoiced | 🅿️ **Parked (trigger: the alpha runs past the 60-day run window, or its organisations carry on after it)** | §3. Nothing an alpha of a few weeks writes is old enough to prune, even with the rule changed. |
 | T7 What the task plane keeps, and for how long | 📋 **Proposed** | §3. After the first invitation, sooner if T9's runway is short. Registry clean-up on both planes, task-event and run-record retention, host image and build-cache pruning, and the ClickHouse volume the OTA stack left behind. |
 | T8 `pg_stat_statements` on | 📋 **Proposed** | §3. Before T9 if it is ready. Not a condition of the first invitation. Utility statements are not tracked, so a password change is never recorded. |
 | T9 One measured rehearsal of the alpha's shape | ✅ **The script done** in #1235, merged 2026-09-27 — *was:* 📋 Proposed. ⏳ **Owner** (the sitting) | §3. **Alpha minimum.** Twenty organisations × M migrations against the demo servers, on the OTA stack with live standing beside it, plus one large drive and one large mailbox of the owner's own. Memory, containers, pool waits, statements and disk are recorded for the whole machine. The numbers set T0's final values and the invite ceiling. |
-| T10 What the providers let every tester do together | 📋 **Proposed** | §3. After the first invitation. Graph mail joins the shared budget, and the Google Drive and Google DAV faces wait out a 429. 0141 hands this item to this plan. |
+| T10 What the providers let every tester do together | 🔨 **Built 2026-09-29** on its branch, not merged: Graph mail spends against the shared budget, a retried request gives its slot back, and the Drive and Google DAV faces wait out a 429 or Google's 403 once; the budget for the whole deployment and streaming mail bodies stay parked — *was:* 📋 **Proposed** | §3. After the first invitation. Graph mail joins the shared budget, and the Google Drive and Google DAV faces wait out a 429. 0141 hands this item to this plan. |
 
 ## 1. What there is today
 
