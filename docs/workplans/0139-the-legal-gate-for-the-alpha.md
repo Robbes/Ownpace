@@ -38,8 +38,15 @@ Docs, comments and one guard's new cases; no behaviour changes, and nothing has 
   `setup-managed-demo.sh` run by hand is not refused on live's `.env`; it should refuse the way
   `bootstrap-managed.sh` does (`stack_may_be_live`), with a case in the same guard.
 - **A removed member's sign-in account** (0135 open question 13), the owner: *"Samen number of
-  days"*. Being built on branch `claude/ownpace-public-readiness-y7orc6-a-removed-member-goes-after-seven-days`,
-  not merged, which takes it as 7 days; 0135 records the answer there and is not touched here.
+  days"*, and, asked the same as which rule, *"7 days"*: removed 7 days after the removal, the
+  window an erasure keeps. Built on branch
+  `claude/ownpace-public-readiness-y7orc6-a-removed-member-goes-after-seven-days`, not merged;
+  0135 records the answer there and is not touched here.
+- **NetBird's sign-in (SSO) switched off**, by the owner, 2026-09-29 (*"NetBird sign-in (SSO) is
+  turned off"*), the step the answer to (d) below chose (*Off everywhere at launch*). The message
+  names no hosts, and nothing here has checked it from outside yet: the exposure probe's passing
+  run is what shows every host, and it needs the repository variable `EXPOSURE_PROBE_LIVE_PORTS`,
+  which is the owner's to set.
 - **Review of this branch, fixed the same day.** Besides the two items above: the runbook says
   the record is erased with the organisation, not that nothing of it is kept (the copy before an
   update can hold it for at most 7 days, and the erasure receipt counts its rows);
