@@ -18,9 +18,12 @@
  *     the reasons render in the shared contract's words (0037 T4).
  *  7. A dirty wizard prompts before unload and before Cancel (0037 T5).
  *  8. oauth2/graph sources say on screen what the fields actually do (T6).
+ *  9. Opened from a person's card (`?person=`), the new migration is added to
+ *     that person before the green light, and a refused add goes on to the
+ *     green light carrying the server's words (0153 T3).
  */
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AxiosError, AxiosHeaders } from 'axios';
@@ -33,8 +36,15 @@ import {
   connectionsApi,
 } from '../services/mapping-service.ts';
 import type { ProviderAccountFacts } from '../services/mapping-service.ts';
+import { addMigrationToPerson } from '../services/operating-service.ts';
 import { LocaleProvider } from '../i18n/index.tsx';
 import { STRINGS } from '../i18n/strings.ts';
+
+// Only the add to a person is replaced: the rest of the module is the real one.
+vi.mock('../services/operating-service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/operating-service.ts')>()),
+  addMigrationToPerson: vi.fn(),
+}));
 
 vi.mock('../services/mapping-service', () => ({
   mappingApi: {
@@ -153,6 +163,85 @@ const axios400 = (message: string): AxiosError => {
   };
   return err;
 };
+
+describe("CreateMapping — opened from a person's card (0153 T3)", () => {
+  const personAddMock = vi.mocked(addMigrationToPerson);
+  const created = {
+    id: 'mapping-new',
+    tenantId: 't1',
+    name: 'Acme mail',
+    sourceType: 'imap',
+    targetType: 'jmap',
+    status: 'paused',
+    mode: 'mirror',
+    syncConfig: { domains: ['email'] },
+    createdAt: '2026-08-09T12:00:00.000Z',
+    updatedAt: '2026-08-09T12:00:00.000Z',
+  } as Awaited<ReturnType<typeof mappingApi.create>>;
+
+  /** The green light's route, saying what the wizard brought it. */
+  const ConfirmMarker = () => <div>confirm-route {JSON.stringify(useLocation().state)}</div>;
+
+  const renderAt = (path: string) =>
+    render(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}
+      >
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path="/mappings/new" element={<CreateMapping />} />
+            <Route path="/mappings/:mappingId/confirm" element={<ConfirmMarker />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+  beforeEach(() => {
+    createMock.mockReset();
+    personAddMock.mockReset();
+    createMock.mockResolvedValue(created);
+  });
+
+  it('adds the new migration to the person before the green light', async () => {
+    personAddMock.mockResolvedValue({} as never);
+    renderAt('/mappings/new?person=p-anna');
+    walkToReview();
+    fireEvent.click(screen.getByRole('button', { name: /Create Migration/ }));
+
+    await waitFor(() => expect(personAddMock).toHaveBeenCalledWith('p-anna', 'mapping-new'));
+    expect(await screen.findByText('confirm-route null')).toBeInTheDocument();
+  });
+
+  it("goes on to the green light when the add is refused, carrying the server's words", async () => {
+    const refusal = new AxiosError('Request failed with status code 404');
+    refusal.response = {
+      status: 404,
+      statusText: 'Not Found',
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+      data: { error: 'person_not_found', message: 'There is no such person in this organisation.' },
+    };
+    personAddMock.mockRejectedValue(refusal);
+    renderAt('/mappings/new?person=p-gone');
+    walkToReview();
+    fireEvent.click(screen.getByRole('button', { name: /Create Migration/ }));
+
+    expect(
+      await screen.findByText(
+        'confirm-route {"notAddedToPerson":"There is no such person in this organisation."}',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('adds it to nobody when opened without a person', async () => {
+    renderAt('/mappings/new');
+    walkToReview();
+    fireEvent.click(screen.getByRole('button', { name: /Create Migration/ }));
+
+    expect(await screen.findByText('confirm-route null')).toBeInTheDocument();
+    expect(personAddMock).not.toHaveBeenCalled();
+  });
+});
 
 describe('CreateMapping — the wizard reaches submit and says what failed', () => {
   beforeEach(() => {

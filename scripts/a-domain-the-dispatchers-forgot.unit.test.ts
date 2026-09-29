@@ -83,7 +83,9 @@ const DISPATCHERS = [
     what: 'the managed worker (run-delta-sync)',
     path: 'apps/worker/src/jobs/run-delta-sync.ts',
     from: 'for (const domain of domains) {',
-    to: 'new PgMigrationStatusStore(db).markCompleted(tenantId, mappingId, domain);',
+    // The status row keeps the pass's measurements since 2026-09-28
+    // (`a-pass-that-kept-no-clock`): the same call, one argument longer.
+    to: 'new PgMigrationStatusStore(db).markCompleted(tenantId, mappingId, domain, result.metrics);',
   },
 ] as const;
 
