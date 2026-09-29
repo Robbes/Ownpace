@@ -54,6 +54,7 @@ import {
   carriesGoogleNativeFiles,
   sourceFaceIsExperimental,
   providerDisplayName,
+  wizardTypeForConnectionKind,
   type DropboxPaperPolicy,
 } from '@openmig/shared';
 import { connectionKindName } from '../components/ProviderTile.tsx';
@@ -260,26 +261,28 @@ const initialFormData: FormData = {
 };
 
 /**
- * The `connection.kind` a wizard source type stores as — the client half of
- * the server's `sourceKindFor`, so the picker only offers connections that
- * would actually work for the selected source.
+ * The wizard type a source card's stored connections read back as, through
+ * `wizardTypeForConnectionKind`: the picker offers a stored row when its kind
+ * reads back as this, so it only offers connections the create route's reuse
+ * check accepts for the selected source.
+ *
+ * READ BACKWARDS, NOT TYPED OUT AGAIN. This used to be `sourceKindOf`, a
+ * hand-kept copy of the server's `sourceKindFor` that ended in
+ * `return … : 'o365'`. Every kind added after it fell into that `o365`: the
+ * export archive (fixed in 0148 T9), then the Microsoft 365 account and the
+ * Apple account. A saved account of either kind was never offered, and a
+ * saved *Via IMAP* or *Graph* row was offered in its place, which the create
+ * route refuses. The inverse is the table the server's round-trip test pins
+ * against `sourceKindFor`, so a new kind reads back as its own card here too,
+ * and a card with no rows of its kind offers nothing rather than a wrong one.
+ *
+ * The one card that needs a word: `oauth2` and `graph` both store as `o365`,
+ * and the inverse answers `graph` for it (the kind cannot say which card made
+ * the row, `wizardTypeForConnectionKind`'s own comment), so `oauth2` reads its
+ * rows as `graph`.
  */
-function sourceKindOf(sourceType: string): string {
-  if (sourceType === 'google-drive') return 'google_drive';
-  if (sourceType === 'google-calendar') return 'google_calendar';
-  if (sourceType === 'google-contacts') return 'google_contacts';
-  if (sourceType === 'gmail') return 'gmail';
-  // The account kind's wizard word and connection kind are the same word,
-  // so this is an identity — spelled out because the ones around it are not.
-  if (sourceType === 'google') return 'google';
-  if (sourceType === 'dropbox') return 'dropbox';
-  if (sourceType === 'box') return 'box';
-  // The export archive (0116 T1): one word on both sides, as the server's
-  // `sourceKindFor` has it. Missing here, an archive fell to 'o365', so the
-  // picker never offered a stored export and a reuse could only start from
-  // the wizard's own Test (found in 0148 T9's review).
-  if (sourceType === 'archive') return 'archive';
-  return sourceType === 'imap' ? 'imap' : 'o365';
+function storedSourceType(sourceType: string): string {
+  return sourceType === 'oauth2' ? 'graph' : sourceType;
 }
 
 /**
@@ -698,8 +701,11 @@ const CreateMapping: React.FC = () => {
       | 'redirectUri',
   ) => t(`wizard.${grantProvider ?? 'google'}.${suffix}` as StringKey);
 
+  // Keyed like the default below: one key per stored kind, so the two
+  // Microsoft registration cards share theirs as they share `o365`.
+  const sourceConnectionType = storedSourceType(formData.sourceType);
   const reusableSources = (existingConnections ?? []).filter(
-    (c) => c.role === 'source' && c.kind === sourceKindOf(formData.sourceType),
+    (c) => c.role === 'source' && wizardTypeForConnectionKind(c.kind) === sourceConnectionType,
   );
   // Target kinds ARE the wizard's target types (jmap/imap/caldav/carddav/
   // webdav are all valid connection kinds), so no mapping is needed here.
@@ -734,14 +740,13 @@ const CreateMapping: React.FC = () => {
    * overruled by this effect on the next render.
    */
   const defaultedConnection = React.useRef<{ source?: string; target?: string }>({});
-  const sourceConnectionKind = sourceKindOf(formData.sourceType);
   React.useEffect(() => {
     // `length > 0` GATES THE MARK, and it is the whole of what makes this
     // work: the connections arrive after the first render, so a kind marked
     // as decided while the list was still empty would never be offered its
     // default at all. Nothing to choose from is not a decision.
-    if (defaultedConnection.current.source !== sourceConnectionKind && reusableSources.length > 0) {
-      defaultedConnection.current.source = sourceConnectionKind;
+    if (defaultedConnection.current.source !== sourceConnectionType && reusableSources.length > 0) {
+      defaultedConnection.current.source = sourceConnectionType;
       if (formData.sourceConnectionId === '' && reusableSources.length === 1) {
         updateField('sourceConnectionId', reusableSources[0]!.id);
       }
@@ -762,7 +767,7 @@ const CreateMapping: React.FC = () => {
     //    rather than decorative: without it, this pass would put the stored
     //    row back over their "a new connection".
   }, [
-    sourceConnectionKind,
+    sourceConnectionType,
     formData.targetType,
     reusableSources.length,
     reusableTargets.length,
@@ -2572,7 +2577,7 @@ const CreateMapping: React.FC = () => {
                 // Whatever they picked — a stored row or "a new connection" —
                 // is now their answer for this kind, and the default effect
                 // above must not reapply over it.
-                defaultedConnection.current.source = sourceConnectionKind;
+                defaultedConnection.current.source = sourceConnectionType;
                 updateField('sourceConnectionId', id);
                 // A row just picked shows the store IT is in (0148 T9
                 // review), not an answer given for another one.
