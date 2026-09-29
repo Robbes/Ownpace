@@ -781,9 +781,9 @@ cmd_since() {
 -- What it does again: organisations erased since are closed and due at once,
 -- for the hourly purge (managed-purge-closed); every other organisation's
 -- status and closure are as they were when this was written; the erasure
--- records are all of them; connections, migrations, people and memberships
--- deleted since are deleted again; a grant withdrawn since loses its token
--- again. Everything else testers did after the copy is lost with the rollback.
+-- records are all of them; connections, migrations (with their sharing
+-- lists), people and memberships deleted since are deleted again; a grant
+-- withdrawn since loses its token again. Everything else testers did after the copy is lost with the rollback.
 --
 -- It holds ids and dates: no name, address or credential. It is part of the
 -- copy, and goes with it.
@@ -857,11 +857,17 @@ INSERT INTO erasure_record (id, tenant_ref, requested_at, window_days, backup_re
          revocations = EXCLUDED.revocations, purged_counts = EXCLUDED.purged_counts, created_at = EXCLUDED.created_at;
 
 -- 4. Deleted since the copy, in the organisations still here, deleted again:
---    migrations, then connections (and the access each held), then people,
---    then memberships. The erased organisations go whole with the purge.
-DELETE FROM mailbox_mapping m USING since_tenant s
- WHERE s.id = m.tenant_id
-   AND NOT EXISTS (SELECT 1 FROM since_kept k WHERE k.kind = 'mailbox_mapping' AND k.key = m.id::text);
+--    migrations, each with its sharing list as its delete took it (share_grant
+--    has no foreign key to cascade on), then connections (and the access each
+--    held), then people, then memberships. The erased organisations go whole
+--    with the purge.
+WITH gone AS (
+  DELETE FROM mailbox_mapping m USING since_tenant s
+   WHERE s.id = m.tenant_id
+     AND NOT EXISTS (SELECT 1 FROM since_kept k WHERE k.kind = 'mailbox_mapping' AND k.key = m.id::text)
+  RETURNING m.id, m.tenant_id
+)
+DELETE FROM share_grant g USING gone WHERE g.mapping_id = gone.id AND g.tenant_id = gone.tenant_id;
 DELETE FROM connection c USING since_tenant s
  WHERE s.id = c.tenant_id
    AND NOT EXISTS (SELECT 1 FROM since_kept k WHERE k.kind = 'connection' AND k.key = c.id::text);

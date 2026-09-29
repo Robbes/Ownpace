@@ -341,9 +341,16 @@ a comment beside the sentence, in both languages, where the text rests on it. **
 - *Searches and downloads on the support screens, 12 months* (privacy §4.5, §9;
   privacy-search-records (a)): a daily duty deletes those log records older than 12 months, over
   the owner's connection, because the app cannot delete from that log. Not built.
-- *The sharing list goes with its migration* (privacy §4.6, §9; privacy-sharing-list (b)): the
-  migration delete also deletes that migration's `share_grant` rows, which have no foreign key to
-  the migration today. Not built; until it is, the list stays until erasure.
+- *The sharing list goes with its migration* (privacy §4.6, §9; privacy-sharing-list (b)): built
+  (0139 T6, 2026-09-29) on branch
+  `claude/ownpace-public-readiness-y7orc6-the-sharing-list-goes-with-its-migration`, not merged.
+  Deleting a migration (`DELETE /api/migrations/:id`) deletes that migration's `share_grant` rows,
+  which have no foreign key to the migration, in the same transaction as the migration itself: a
+  list that cannot be deleted keeps the migration too. The rollback from the copy before an update
+  deletes them again with a migration deleted after the copy (`copy-before-update.sh since`); the
+  erasure already deleted them by organisation. **Still to do:** merged, and live runs a tag that
+  carries it. A list whose migration was deleted before that stays until erasure. Privacy's
+  briefing and the comments beside §9 in both languages still say it is not built.
 - *Server logs until the part that wrote them is replaced* (privacy §9; ops-log-driver (a), the
   owner: *"needs checking"*): the owner runs `docker info --format '{{.LoggingDriver}}'` on the
   machine and undoes a journald setting if there is one; the journald step comes out of
