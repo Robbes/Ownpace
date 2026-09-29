@@ -99,7 +99,6 @@ import {
   DISTRIBUTION_D_NOT_A_MAPPING,
   targetDomainRefusal,
   parseTargetFolderPrefix,
-  parseThrottleConfig,
   sourceDomainRefusal,
   providerAccountDomains,
   googleDeploymentClient,
@@ -1703,19 +1702,7 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
       });
     }
   }
-  if (body.throttleConfig !== undefined) {
-    // The appliance's parser, verbatim (hard rule 5): a garbage field is
-    // refused here in the same words a mapping file gets.
-    try {
-      parseThrottleConfig(body.throttleConfig);
-    } catch (err) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['throttleConfig'],
-        message: err instanceof ConfigError ? err.message : String(err),
-      });
-    }
-  }
+  refuseTestersThrottle(ctx, body.throttleConfig);
   // WHERE the target is, demanded per type (2026-09-07). `nextcloud` is the
   // one target whose address is a URL: host and port cannot be right for it,
   // so its door does not ask for them and this must not either. Every other
@@ -1846,7 +1833,28 @@ export const UpdateMappingSchema = CreateMappingBase.partial()
   .superRefine((body, ctx) => {
     if (body.sourceConfig) refuseUnreadableExportFormat(ctx, body.sourceConfig);
     if (body.syncConfig?.schedule !== undefined) refuseUnreadableSchedule(ctx, body.syncConfig.schedule);
+    refuseTestersThrottle(ctx, body.throttleConfig);
   });
+
+/**
+ * HOW FAST A MIGRATION MAY ASK ITS PROVIDERS IS THE OPERATOR'S (workplan 0143
+ * T2c). The appliance's owner sets `throttleConfig` for their own machine; on
+ * managed, one organisation's value spends a budget every organisation shares
+ * (the rate budget per tenant, the machine's passes) and can raise a
+ * provider's own ceiling past the point where it locks the account. The web
+ * app never sends it, so no tester loses anything. Refused on both doors, so
+ * no body carries it silently.
+ */
+function refuseTestersThrottle(ctx: IssueSink, throttleConfig: unknown): void {
+  if (throttleConfig === undefined) return;
+  ctx.addIssue({
+    code: 'custom',
+    path: ['throttleConfig'],
+    message:
+      'How fast a migration may ask its providers is set by the operator of this service, not by ' +
+      'the organisation: leave throttleConfig out. Each migration gets the rate its providers allow.',
+  });
+}
 
 /**
  * Prove a connection before creating anything (workplan 0046).
@@ -2483,11 +2491,10 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
             // Parsed, not raw: '/Gmail/' stores as 'Gmail', and '' as NULL —
             // the same normalisation the appliance's config loader applies.
             targetFolderPrefix: parseTargetFolderPrefix(body.targetFolderPrefix) ?? null,
-            // Stored as the PARSED shape, so what a pass reads back is exactly
-            // what the shared parser accepted (migration 0017).
-            throttleConfig: body.throttleConfig
-              ? parseThrottleConfig(body.throttleConfig)
-              : null,
+            // Never the tester's (0143 T2c): refused at the door, so there is
+            // nothing to store. A row written before that is clamped where a
+            // pass reads it (`tenantThrottleLimiter`).
+            throttleConfig: null,
             /**
              * When a connection is SHARED, this mapping's own answers to
              * "whose data, and where" (migration 0021). Only recorded when
