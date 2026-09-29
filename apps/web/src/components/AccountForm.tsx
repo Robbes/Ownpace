@@ -31,6 +31,16 @@
  * *Is this a company account with an administrator?* (T7 (d)), which splits
  * the fields and never hides them.
  *
+ * ONE WAY IN FIRST, THE OTHERS UNDER IT (the owner, 2026-09-29: the default
+ * is an address and *Connect with Google*; an app password is the
+ * alternative; one's own client the smallest group). Where a card has a
+ * consent, the flow draws the address, then the consent's button, and under
+ * it, each in its own fold: an app password instead (Gmail's), one's own
+ * client where the deployment carries one, the company question, and more
+ * options. *Check the sign-in* shows only once one of those ways is in use,
+ * so each way has one button. A fold that already holds a value opens by
+ * itself.
+ *
  * WHAT IS TYPED BELONGS TO THE DOOR. The values and the name are the caller's
  * state: the Accounts page keeps them through a Cancel, and the flow keeps
  * them while a person goes back and forth between its screens. What the form
@@ -250,12 +260,17 @@ export const AccountForm: React.FC<AccountFormProps> = ({
     companyFields.some((f) => (values[f.key] ?? '').trim() !== ''),
   );
   const [serverOpen, setServerOpen] = React.useState(false);
+  /** Where a manual way in is already in use, its fold starts open. */
+  const typedAny = (keys: ReadonlyArray<string>) => keys.some((k) => (values[k] ?? '').trim() !== '');
+  const manualKeys = ['appPassword', 'refreshToken', 'serviceAccountKey'];
   /** Where the account is kept, as typed, for a Nextcloud (T7 (c)); its DAV root is derived from it. */
   const [address, setAddress] = React.useState(() => nextcloudAddress(values.url ?? ''));
   const addressId = React.useId();
-  const placement = (field: CredentialField): 'server' | 'company' | 'more' | 'shown' => {
+  const placement = (field: CredentialField): 'server' | 'company' | 'more' | 'alternative' | 'shown' => {
     if (!flow) return 'shown';
     if (serverKeys.has(field.key)) return 'server';
+    // Gmail's app password: a way in of its own, under the consent's button.
+    if (field.key === 'appPassword') return 'alternative';
     if (COMPANY_FIELDS.has(field.key)) return 'company';
     // Where in the account a migration starts (a folder, a path): its own
     // choice, which a family seldom needs.
@@ -476,6 +491,8 @@ export const AccountForm: React.FC<AccountFormProps> = ({
           if (placement(field) !== 'shown') return null;
           if (folded && (field.key === 'clientSecret' || field.key === 'refreshToken')) return null;
           if (folded && field.key === 'clientId') {
+            // The flow draws this fold under the consent's button (the header).
+            if (flow) return null;
             return (
               <details key={field.key} className="sm:col-span-2 rounded-md border border-gray-200 p-3">
                 <summary className="cursor-pointer text-sm text-gray-700">
@@ -498,6 +515,45 @@ export const AccountForm: React.FC<AccountFormProps> = ({
           );
         })}
       </div>
+
+      <ProviderConsentPanel consent={consent} primary={flow} />
+
+      {/* GMAIL'S APP PASSWORD, INSTEAD (the owner, 2026-09-29): a password,
+          which the flow's default never needs, so it waits in a fold under
+          the button. */}
+      {fields.some((f) => placement(f) === 'alternative') && (
+        <details className="mt-4 rounded-md border border-gray-200 p-3" open={typedAny(['appPassword']) || undefined}>
+          <summary className="cursor-pointer text-sm text-gray-700">{t('start.appPassword')}</summary>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {fields
+              .filter((f) => placement(f) === 'alternative')
+              .map((field) => (
+                <React.Fragment key={field.key}>
+                  {fieldBox(field)}
+                  {chosenLine(field)}
+                </React.Fragment>
+              ))}
+          </div>
+        </details>
+      )}
+
+      {/* ONE'S OWN CLIENT, the smallest group, under the button too. */}
+      {flow && folded && (
+        <details
+          className="mt-4 rounded-md border border-gray-200 p-3"
+          open={typedAny(['clientId', 'clientSecret', 'refreshToken']) || undefined}
+        >
+          <summary className="cursor-pointer text-sm text-gray-700">{ps('ownClient')}</summary>
+          <p className="mt-2 text-sm text-gray-500">{ps('deploymentClient')}</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {fields
+              .filter((f) => f.key === 'clientId' || f === pairedSecret || f === pairedToken)
+              .map((field) => (
+                <React.Fragment key={field.key}>{fieldBox(field)}</React.Fragment>
+              ))}
+          </div>
+        </details>
+      )}
 
       {/* THE COMPANY PATH (T7 (d)): asked, and answered yes, before an
           organisation's own fields appear. The question splits the fields and
@@ -571,8 +627,6 @@ export const AccountForm: React.FC<AccountFormProps> = ({
         </details>
       )}
 
-      <ProviderConsentPanel consent={consent} primary={flow} />
-
       {/* The prerequisites for whatever is selected — often the reason a value
           is missing is that nobody has been to the provider's console yet.
           From the flow in a tab of its own, so its answers stay where they are. */}
@@ -616,17 +670,14 @@ export const AccountForm: React.FC<AccountFormProps> = ({
       )}
 
       <div className="mt-3 flex gap-2">
+        {(!flow || !consent.isGrantKind || typedAny(manualKeys) || busy || added || result !== null) && (
         <button
           type="button"
           disabled={busy || added || !displayName.trim()}
           onClick={() => void submit()}
           className={
             flow
-              ? `min-h-[44px] px-5 py-2 font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed ${
-                  consent.isGrantKind
-                    ? 'bg-white border border-gray-300 text-gray-800 hover:bg-gray-50'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`
+              ? 'min-h-[44px] px-5 py-2 font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed'
               : 'text-sm px-3 py-1.5 bg-blue-600 text-white rounded disabled:opacity-50'
           }
         >
@@ -638,6 +689,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
                 ? t('start.connect.check')
                 : t('connections.addAndTest')}
         </button>
+        )}
         {onCancel && (
           <button type="button" onClick={onCancel} className="text-sm px-3 py-1.5 border border-gray-300 rounded">
             {added ? t('common.close') : t('common.cancel')}

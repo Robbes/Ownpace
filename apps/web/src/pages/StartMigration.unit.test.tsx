@@ -378,6 +378,35 @@ describe('Connect your accounts (screen 4)', () => {
   });
 });
 
+describe('one way in first, the others folded under it (the owner, 2026-09-29)', () => {
+  it('draws the address and Connect with Google, with the app password and one’s own client folded below', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Google']);
+    const google = screen.getByRole('group', { name: 'From Google' });
+    for (const face of ['Calendar', 'Contacts', 'Files', 'Tasks Experimental']) {
+      await user.click(within(google).getByRole('checkbox', { name: face }));
+    }
+    await onTo(user, 'Connect your accounts');
+    const connect = await screen.findByRole('button', { name: 'Connect with Google' });
+    const address = screen.getByRole('textbox', { name: /^Username/ });
+    // The address comes first, then the one button.
+    expect(address.compareDocumentPosition(connect) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Check the sign-in' })).not.toBeInTheDocument();
+
+    const appPassword = screen.getByText('Use an app password instead').closest('details')!;
+    expect(appPassword).not.toHaveAttribute('open');
+    expect(connect.compareDocumentPosition(appPassword) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const ownClient = screen.getByText('Use your own Google client').closest('details')!;
+    expect(ownClient).not.toHaveAttribute('open');
+
+    // Typing an app password is using that way: its button appears.
+    await user.click(screen.getByText('Use an app password instead'));
+    await user.type(within(appPassword).getByLabelText(/^App password/), 'abcd efgh ijkl mnop');
+    expect(screen.getByRole('button', { name: 'Check the sign-in' })).toBeInTheDocument();
+  });
+});
+
 describe('Where does it go? (screen 5)', () => {
   /** Mail from another provider and files from Dropbox, both saved, so screen 4 is already done. */
   const SAVED_SOURCES = [

@@ -38,6 +38,9 @@
   - (c) a Nextcloud is its address, with the DAV root derived (`nextcloudDavUrl`) and editable
     in the fold;
   - (d) the company fields wait behind *Is this a company account with an administrator?*;
+  - one way in first (the owner, 2026-09-29): the address and *Connect with Google*, and under
+    it, each folded, an app password instead (Gmail's) and one's own client. *Check the
+    sign-in* shows once one of those is in use;
   - (e) a limit is blamed on its side: *Not from Dropbox*, and *Soverin does not take files*;
   - (f) the flow draws no progress line to strike through; the wizard's stays until it
     retires.
@@ -52,7 +55,7 @@
   - the wizard retires once `CreateMapping.reachability.unit.test.tsx` passes through the flow
     (D5).
 - **Proved by:**
-  - `StartMigration.unit.test.tsx` (27 cases) and `start-plan.unit.test.ts` (21). They cover
+  - `StartMigration.unit.test.tsx` (28 cases) and `start-plan.unit.test.ts` (21). They cover
     each screen's focus and reasons, the tags, the saved-account default, a failed check's
     *Try again*, Soverin's fold, Nextcloud's address, and the set-up's payloads. A refused
     set-up asks again only for what was not made, and one *Start* for two migrations lands on
