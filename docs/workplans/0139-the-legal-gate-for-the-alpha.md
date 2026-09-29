@@ -96,6 +96,111 @@ rollback's new step against two PGlite databases.
   nothing under `sudo -u`). Nobody is told on the copy's last day but the journal (0142). The 6
   days are a constant beside `BACKUP_RETENTION_DAYS=7`, not read from it.
 
+**2026-09-29: T6, the support screens' searches and downloads kept a year, then deleted daily
+(privacy-search-records (a))**, on branch
+`claude/ownpace-public-readiness-y7orc6-searches-kept-a-year`, not merged. `site/legal/README.md`'s
+*To build or to do* said: *"a daily duty deletes those log records older than 12 months, over the
+owner's connection, … Not built."* Nothing has run on a machine.
+
+- **`deploy/compose/support-read-prune.sh`** deletes the `support_read` rows with no organisation
+  (`tenant_id IS NULL`) recorded more than 12 months ago, and nothing else: a search by address
+  (`people`), a download of the audit log (`audit_export`), the organisation list (`tenants`), the
+  invoices kept after an erasure (`retained_invoices`), a log page not filtered to one organisation
+  (`log`). A row that names an organisation, on any screen, goes with that organisation's erasure.
+  Without `--delete` it counts. It runs `psql` as the database's owner in the stack's own
+  container, because `app_user` cannot delete from the log: managed migration 0009 grants it
+  `SELECT` and `INSERT` on the log and revokes `UPDATE` and `DELETE`, and its forced row security
+  has no `DELETE` policy. The purge of closed organisations deletes an erased organisation's rows:
+  on 2026-09-29 as the owner, since every Trigger.dev run was then given the owner's URL; after
+  0138 T3 step 2 as the tasks' system role, `ownpace_system`, whose grant on the log is `SELECT` on
+  `tenant_id` and `DELETE`: it can pick rows by organisation and never by their age, though it
+  could delete every row with no organisation at once, and the purge is the only task that deletes
+  there. The 12-month prune picks rows by age, so it stays at the machine on the owner's
+  connection. Before it counts or deletes it asks, in the same call, whether its connection
+  passes row security, and stops if not: an owner that is neither a superuser nor `BYPASSRLS`
+  would delete nothing and say "deleted 0" every day. It prints a count.
+- **Live runs it daily**: `box-duties.sh`'s seventh duty, `searches`, `--delete`, after `strays`;
+  the service unit's `TimeoutStartSec` goes from 130 to 150 minutes, for seven duties of at most
+  20 minutes each. It runs once live's timer is installed (the owner copies the two units again
+  and reloads them). The runbook gains *Searches and downloads on the support screens*;
+  `managed-bring-up.md`'s duty table and unit copy, `site/legal/README.md` and privacy §9's
+  comment, in both languages, say it is built.
+- **Proved by** `a-search-kept-past-its-year` (13 cases, 11 red before the script; the two about
+  the migrations' grants true already), `a-search-kept-a-year-a-real-database-answers` (4 cases on
+  a throwaway Postgres with both chains, all red before: a read with no organisation 13 months and
+  400 days old goes, on each screen that records one; one 11 months old, one a day short of 12
+  months, and one naming an organisation, however old and on whichever screen, stay; an owner
+  bound by row security stops before anything; `app_user` cannot delete or change a row), and
+  `a-duty-the-gate-used-to-do` (seven duties, 15 red before the wiring). Ten mutations, each
+  caught: old rows kept (24 months), young rows deleted (1 day), a row naming an organisation
+  deleted, `app_user` in place of the owner, no flag deleting, the row-security check left out, an
+  answer that is not a count accepted; and in the wiring, the duty left out, run without
+  `--delete`, and the unit's 130 minutes kept.
+- **Beside 0138 T3 step 2 (#1358), which gives the tasks' system role `SELECT (tenant_id), DELETE`
+  on the log** so the purge can delete an erased organisation's rows. The guard *no migration grants
+  DELETE on it* would have failed once that merged (a trial merge of the two branches: 1 of 13 red),
+  and six places said that the app, rather than `app_user`, could not delete from the log, which
+  that step makes partly false; the script's header also called the owner's the only connection that
+  may, while every Trigger.dev run was then given it too. The guard now says what it means: *no
+  migration lets `app_user` or `PUBLIC` delete from it or change it* (no `DELETE`, `UPDATE`,
+  `TRUNCATE` or `ALL`, by name or on every table in the schema, and no `DELETE` or `ALL` policy, a
+  policy with no `FOR` counting as `ALL`), and *any other role a migration grants on it may read
+  only its organisation column, and delete*, so none can pick a row by its age. A new pair, *every
+  place that says why this runs at the machine says who else may delete*, reads the script,
+  `box-duties.sh`, the runbook, `managed-bring-up.md`'s duty row, this entry, `site/legal/README.md`
+  and privacy §9's comment in both languages: 2 of 16 red before the rewording, on this branch and
+  on the trial merge alike; 16 of 16 green after, on both. On the trial merge, 13 mutations of the
+  migrations each turn it red (`DELETE`, `UPDATE`, `TRUNCATE` or `ALL` to `app_user` or `PUBLIC`,
+  one listing both grantees, one quoted, one on every table; the system role given the whole row,
+  `at` beside `tenant_id`, or `INSERT`; a `DELETE` policy and one with no `FOR`), and 4 of the docs
+  (the old phrases put back, the step's name taken out). A throwaway Postgres with the merged chains
+  answers the same: `app_user` has no `DELETE`, `UPDATE` or `TRUNCATE`; `ownpace_system` has
+  `DELETE` and `SELECT` on `tenant_id` only, deletes by organisation, and is refused (`permission
+  denied for table support_read`) a delete by age. `a-search-kept-a-year-a-real-database-answers`
+  passes 4 of 4 on this branch and on the merge.
+- **Review of that fix, the same day.** `main` merged in first (`f2e028d0`), not rebased: #1361 made
+  `box-duties.sh`'s second duty `copies` in place of the drill, so `searches` stays the seventh, and
+  two counts in `a-duty-the-gate-used-to-do` went from six to seven. Four holes the review found,
+  each closed:
+  - *The grant reading let a `GRANTED BY` through.* `GRANT DELETE ON public.support_read TO app_user
+    GRANTED BY CURRENT_USER` read as the role `app_user granted by current_user`, which other roles
+    may be, and the guard stayed green. It now strips `GRANTED BY` and `GROUP`, reads `ALL TABLES IN
+    SCHEMA` with more than one schema, and fails on a grantee it cannot take for one name instead of
+    letting it by as another role.
+  - *A quoted policy name with spaces was not read.* `CREATE POLICY "support read delete" ON
+    public.support_read FOR DELETE …` passed. The name may now be quoted, a `CREATE POLICY` on the
+    log that the reading cannot parse fails, and both of 0009's policies must be read.
+  - *The system role's grant was said to decide what it deletes for.* On a throwaway Postgres with
+    #1358's migration (the review's, and again here, rolled back), `ownpace_system` is refused a
+    delete by age, but `DELETE … WHERE tenant_id IS NULL` and a bare `DELETE` both run: the grant
+    stops it from picking rows by age, not from deleting every row with no organisation at once. The
+    eight places now say that `app_user` cannot, that the system role can, for the purge, and that
+    its grant lets it pick rows by organisation, never by age; the script, the runbook and this
+    entry add that it could delete every row with no organisation at once and that the purge is the
+    only task that deletes there. Nothing but the purge's code keeps another task that holds the
+    role from doing it.
+  - *The owner's URL sentence had nothing making it go.* The script's header and the runbook say
+    every Trigger.dev run is given the owner's URL as `DATABASE_URL`, true on `main` today and false
+    once #1358's `set-task-env.sh` uploads `SYSTEM_DATABASE_URL` instead. A new case, *says a
+    Trigger.dev run receives the owner's URL only while set-task-env.sh uploads it*, reads that
+    script: whichever of #1358 and this branch lands second is red until the sentence goes. This
+    entry says it in the past tense, with the date. The script's inline comment and the privacy
+    comments are re-wrapped.
+- **Proved.** Guard first: 1 of 17 red on this branch (the new *never says …* phrase) and 2 of 17 on
+  a trial merge with #1358 (that and the owner's URL); after the rewording 17 of 17 on this branch,
+  and on the trial merge 1 of 17, the owner's URL, as meant, and 17 of 17 once that sentence is
+  taken out there as the second to land would. On that tree, 13 migration mutations each turn it
+  red: `app_user` given `DELETE` with `GRANTED BY`, with `WITH GRANT OPTION GRANTED BY`, quoted with
+  a quoted grantor, as `GROUP app_user`, by name, beside another grantee, and through two schemas;
+  `PUBLIC` in lower case; a `DELETE` policy with a quoted name holding spaces, a quoted policy with
+  no `FOR`, and one `AS PERMISSIVE FOR ALL`; the system role given `at`, or `UPDATE (tenant_id)`.
+  The last round's guard stayed green under 6 of them (the three `GRANTED BY`, `GROUP`, both quoted
+  policies and the two schemas). Five of the docs each turn it red: the old *only for* phrase back
+  in the runbook, `box-duties.sh` and `privacy.nl.md`; *never by age* taken out of the bring-up's
+  row; the owner's URL sentence back on the merged tree. With the change,
+  `a-search-kept-a-year-a-real-database-answers` passes 4 of 4 on this branch, and every guard in
+  `scripts/` and the site's tests pass: 212 files, 4004 tests.
+
 **2026-09-29, night: T7's identity-provider step and T6's daily script, built by 0135 T8 (0131 §6,
 group M3, its step 7)**, merged as #1344 (`0bcbc25`) and #1345 (`a4885a5`). Recorded here from
 0135's Status.
@@ -1854,7 +1959,7 @@ longer starts by pausing the nightly gate, which never touches live.
 | T3 Acceptance recorded, with version and time, at first sign-in | 📋 **Decided 2026-09-28** (terms-acceptance-route (b), *"Build the in-app screen first"*); not built. The first invitation waits for it and its tests. The owner: *"People that are accepted in the Alpha do need to create a login for the app, accepting fits in there and should record what time/version the accepted of what document."* Terms §1, the Alpha conditions §2 and §11 and privacy §4.4 now describe it — *was:* 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. The same screen asks again for the new conditions after the Alpha (Alpha §11). Open question 4 (the record after erasure) is still open. |
 | T4 A notice wherever a tester's data is collected | 📋 **Proposed**; two pieces 📋 **Decided 2026-09-28**, not built: the app's own sentences reworded in both languages (ops-app-sentences (a): the grant mail, the Alpha note, the request form), and a privacy line and a link in the mail to people items were shared with (privacy-share-mail-notice (a)), both before the first tester | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form, the share mail (`packages/shared/src/share-announcement.ts`). The grant page's addresses were fixed in #1137, merged 2026-09-24. |
 | T5 The sub-processors named | 🔨 **Text done 2026-09-28** in the drafts, on draft PR #1317, not merged: privacy §7's table is the complete list and says so (rec-subprocessors-url (a)); NetBird GmbH, its terms and agreement accepted on 2026-08-01 and the agreement covering the proxy and its log (dpa-netbird-agreement (a); the owner, 2026-09-28), carries connections on through a WireGuard tunnel and keeps its own log of each request; Proton AG in Switzerland, with Art. 45 GDPR and Decision 2000/518/EC cited (privacy-switzerland-wording (b)); no hosting row, because no company houses the machine (subprocessors-machine-housed (a)); `subprocessors.md` unpublished until the first business customer; NetBird's own sub-processors read from its trust center 2026-09-28 (18 entries, none with a location); NetBird's sign-in (SSO), on for the hosts NetBird serves (*"No pin, but SSO on"*), to go off on every `ownpace.eu` host before the first invitation, the owner's choice (*"Off everywhere at launch"*), a precondition (privacy's to-do on NetBird, (d)); ⏳ **Owner**, not before the first invitation: NetBird asked where its proxy and log run, at which provider, and whether its own sub-processors receive either, the *Where* staying *Germany (EU)* by the owner's choice until it answers ((c)), and asked in writing whether the Alpha or a paid tier behind the proxy is commercial use under its terms §3.1, answered before the first paid tier at the latest ((e)); the agreement's sub-processors, their announcement, the right to object and the 7 days for the lawyer's pass ((b)) — *was:* NetBird's acceptance date, its agreement read, where its proxy and log run and at which provider, and whether its own sub-processors receive either still for the owner; before that, the text drafted 2026-09-28 with the entity name, the agreement, the proxy's location and whether a company houses the machine all to confirm | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
-| T6 What is kept, and for how long, made true | 🔨 **The copy before an update, and the drill off live, built 2026-09-28, review fixes 2026-09-29** (rec-copies (a), rec-drill (a)) on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, **not merged**: `copy-before-update.sh`, taken by `deploy-live.sh` right before its checkout (only while the daily duties' timer runs), deleted by the owner once the update is proven and by the daily duties after 6 days less an hour, a rollback that erases again what was erased after the copy (`since`), and no drill on live; `privacy.md`'s and `privacy.nl.md`'s comments, `README.md`'s two items and `alpha.md`'s briefing say so; 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 🔨 **built 2026-09-27**, merged as #1255; every period 📋 **Decided 2026-09-28** from the owner's answers and in privacy §9's draft: the copy before an update (rec-copies (a)), the drill off live (rec-drill (a)), support-screen searches and downloads 12 months (privacy-search-records (a)), the sharing list with its migration (privacy-sharing-list (b)), sent mail until resolved and then 6 months (privacy-sent-mail-copies (b)), the background tasks' records until the end of the Alpha (privacy-task-records (a)), the sign-in history checked first (privacy-signin-history (a)), accounts nobody let in removed by a daily script (ops-unadmitted-signin-cleanup (a), 0135 T8: ✅ built, merged 2026-09-29 as #1344 and #1345, and running once live's timer is installed), server logs with Docker's default (ops-log-driver (a)); the code for each of the rest 📋 **Proposed**, not built — *was:* the wording drafted 2026-09-28; the rest's code proposed | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. `site/legal/README.md`, *Before the draft markers come off*, lists what each needs. |
+| T6 What is kept, and for how long, made true | 🔨 **The copy before an update, and the drill off live, built 2026-09-28, review fixes 2026-09-29** (rec-copies (a), rec-drill (a)) on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, **not merged**: `copy-before-update.sh`, taken by `deploy-live.sh` right before its checkout (only while the daily duties' timer runs), deleted by the owner once the update is proven and by the daily duties after 6 days less an hour, a rollback that erases again what was erased after the copy (`since`), and no drill on live; `privacy.md`'s and `privacy.nl.md`'s comments, `README.md`'s two items and `alpha.md`'s briefing say so; 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 🔨 **built 2026-09-27**, merged as #1255; every period 📋 **Decided 2026-09-28** from the owner's answers and in privacy §9's draft: the copy before an update (rec-copies (a)), the drill off live (rec-drill (a)), support-screen searches and downloads 12 months (privacy-search-records (a): 🔨 built 2026-09-29 as `box-duties.sh`'s duty `searches`, `support-read-prune.sh --delete`, not merged, and running once live's timer is installed), the sharing list with its migration (privacy-sharing-list (b)), sent mail until resolved and then 6 months (privacy-sent-mail-copies (b)), the background tasks' records until the end of the Alpha (privacy-task-records (a)), the sign-in history checked first (privacy-signin-history (a)), accounts nobody let in removed by a daily script (ops-unadmitted-signin-cleanup (a), 0135 T8: ✅ built, merged 2026-09-29 as #1344 and #1345, and running once live's timer is installed), server logs with Docker's default (ops-log-driver (a)); the code for each of the rest 📋 **Proposed**, not built — *was:* the wording drafted 2026-09-28; the rest's code proposed | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. `site/legal/README.md`, *Before the draft markers come off*, lists what each needs. |
 | T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`; the identity provider's account ✅ **since 0135 T8 (a), merged 2026-09-29 as #1344** (0131 §6, M3's step 7): `idp-strays.sh --subject <sub> --remove` in the runbook's *Tenant offboarding*, refused while the account still belongs somewhere — *was:* by hand until 0135 T8; *nothing uses your access after closing* is not fully true yet: since #1320 (`d7868276`, merged 2026-09-28), on this branch since `main` was merged into it in `c1413b53`, nothing new starts for a closed organisation, but work already running is not all stopped, and a verification or a confirmation reads to its end (terms briefing, precondition B); a tester who does not accept the new conditions after the Alpha is closed that day and erased 7 days later (alpha-s11-erasure-window (b)), which `operator.sh close <tenant> 7` already does — *was:* (a) built; terms §11 and privacy §9 describing the close in the drafts of 2026-09-28 | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
 | T9 SECURITY.md covers the hosted service, with one channel | ✅ **done** in #1257, merged 2026-09-27 (`12cb40fb`): `SECURITY.md`'s scope, versions and five days, and `security.txt` from the site build; privacy §11 names the form, then support@, in both languages in the draft of 2026-09-28 (not committed), so the guard, which asks for one channel, can ask for both, in order — *was:* 🔨 **Written 2026-09-27, not merged**; 📋 **Decided 2026-09-27** (open question 5): the advisory form with `support@ownpace.eu` as fallback, five working days, `main` and live's release | §3. Scope, supported versions, a response target, `security.txt`. |
