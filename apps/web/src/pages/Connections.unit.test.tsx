@@ -284,7 +284,7 @@ describe('the connections screen', () => {
     list.mockResolvedValue([]);
     renderPage();
 
-    expect(await screen.findByText(/No connections yet/)).toBeTruthy();
+    expect(await screen.findByText(/No accounts yet/)).toBeTruthy();
   });
 });
 
@@ -716,7 +716,7 @@ describe('adding a connection through the front door', () => {
   const open = async () => {
     list.mockResolvedValue([]);
     renderPage();
-    fireEvent.click(await screen.findByText('Add a connection'));
+    fireEvent.click(await screen.findByText('Add an account'));
   };
 
   it('offers the wizard’s cards, grouped the wizard’s way', async () => {
@@ -762,7 +762,7 @@ describe('adding a connection through the front door', () => {
     fireEvent.change(screen.getByLabelText(/^Folder in your destination's files/), {
       target: { value: 'Exports/takeout-20260904' },
     });
-    fireEvent.change(screen.getByLabelText(/^Connection name/), { target: { value: 'my photos' } });
+    fireEvent.change(screen.getByLabelText(/^Name for this account/), { target: { value: 'my photos' } });
     add.mockResolvedValue({ ok: true });
     fireEvent.click(screen.getByRole('button', { name: 'Add and test' }));
     await waitFor(() => expect(add).toHaveBeenCalled());
@@ -1619,7 +1619,7 @@ describe('what is standing against a connection (workplan 0094 T5)', () => {
     renderPage();
 
     expect(await screen.findByText('Acme mail')).toBeInTheDocument();
-    expect(screen.getByText(/It failed on this connection\./)).toBeInTheDocument();
+    expect(screen.getByText(/It failed on this account\./)).toBeInTheDocument();
     // No guessing left, so no invitation to Test.
     expect(screen.queryByText(/Test this one to find out/)).toBeNull();
   });

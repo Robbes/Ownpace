@@ -69,7 +69,7 @@ describe('Report a problem, beside Sign out', () => {
 
   it('is not offered when the service takes none', async () => {
     available.value = false;
-    renderLayout('/dashboard');
+    renderLayout('/mappings');
 
     await screen.findByText('page-body');
     // Give the question its answer before asserting the absence.

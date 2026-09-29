@@ -101,7 +101,7 @@ async function openConnectionsForm() {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  fireEvent.click(await screen.findByText('Add a connection'));
+  fireEvent.click(await screen.findByText('Add an account'));
 }
 
 const pickArchive = () => fireEvent.click(screen.getByRole('button', { name: /^Export archive/ }));
@@ -162,7 +162,7 @@ describe('the doors post where', () => {
     fireEvent.change(screen.getByLabelText(new RegExp(`^${escape(en['wizard.archivePath.target'])}`)), {
       target: { value: 'Exports/takeout-20260904' },
     });
-    fireEvent.change(screen.getByLabelText(/^Connection name/), { target: { value: 'my photos' } });
+    fireEvent.change(screen.getByLabelText(/^Name for this account/), { target: { value: 'my photos' } });
     vi.mocked(connectionsApi.add).mockResolvedValue({ id: 'c-archive', ok: true });
     fireEvent.click(screen.getByRole('button', { name: 'Add and test' }));
     await waitFor(() => expect(connectionsApi.add).toHaveBeenCalled());

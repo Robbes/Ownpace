@@ -789,6 +789,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/idp-strays.sh`
 
+- [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [an-account-nobody-let-in](../scripts/an-account-nobody-let-in.unit.test.ts) — AN ACCOUNT NOBODY LET IN (workplan 0135 T8).
 
 ### `deploy/compose/managed.env.example`
@@ -2598,6 +2599,7 @@ Reads:
 - `deploy/compose/env-read.sh`
 - `deploy/compose/env-upsert.sh`
 - `deploy/compose/exposure-check.sh`
+- `deploy/compose/idp-strays.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/own-addresses.sh`
 - `deploy/compose/redact-evidence.sh`
