@@ -73,6 +73,7 @@ import {
   probeSourceConnection,
   probeTargetConnection,
 } from '@openmig/orchestration/probe-connection';
+import { SCHEDULE_FLOOR_MINUTES, shortestGapMinutes } from '@openmig/orchestration/sync-due';
 // The §11.2 decision queues and the decisions on them (ADR-0026). Mounted on
 // this same router so they sit under /api/migrations/:mappingId/... alongside
 // discovery and start, which is where the appliance's equivalents live too.
@@ -1784,22 +1785,38 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
 });
 
 /**
- * A schedule the tick cannot evaluate, refused on the box it was typed in.
+ * A schedule the tick cannot evaluate, or one faster than the floor, refused
+ * on the box it was typed in.
  *
  * One function for both doors, create and update, so a cadence refused at
  * create is not one the migration page can store afterwards, in other words.
+ * The floor (workplan 0143 T2b) is the tick's own number, from the module the
+ * tick reads schedules with, so the doors and the tick cannot disagree on it.
  */
 function refuseUnreadableSchedule(ctx: IssueSink, schedule: string): void {
   const cronProblem = describeCronScheduleProblem(schedule);
-  if (!cronProblem) return;
-  ctx.addIssue({
-    code: 'custom',
-    path: ['syncConfig', 'schedule'],
-    message:
-      `The sync schedule is not a valid cron expression: ${cronProblem}. ` +
-      'The scheduler could not evaluate it and would fall back to syncing every ' +
-      '15 minutes, silently ignoring the cadence you stated — so it is refused here instead.',
-  });
+  if (cronProblem) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['syncConfig', 'schedule'],
+      message:
+        `The sync schedule is not a valid cron expression: ${cronProblem}. ` +
+        'The scheduler could not evaluate it and would fall back to syncing every ' +
+        '15 minutes, silently ignoring the cadence you stated — so it is refused here instead.',
+    });
+    return;
+  }
+  const gap = shortestGapMinutes(schedule);
+  if (gap < SCHEDULE_FLOOR_MINUTES) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['syncConfig', 'schedule'],
+      message:
+        `A migration syncs at most every ${SCHEDULE_FLOOR_MINUTES} minutes, and this schedule ` +
+        `would start a pass every ${gap === 1 ? 'minute' : `${gap} minutes`}. ` +
+        `Choose ${SCHEDULE_FLOOR_MINUTES} minutes or longer.`,
+    });
+  }
 }
 
 /** Exported for the retraction guard too: the update path must refuse the
