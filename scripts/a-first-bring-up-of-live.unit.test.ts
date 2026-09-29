@@ -517,7 +517,18 @@ function stage(opts: StageOptions = {}): Stage {
   mkdirSync(join(work, 'apps', 'worker'), { recursive: true });
   writeFileSync(join(work, 'apps', 'worker', 'package.json'), WORKER_PACKAGE);
   mkdirSync(join(compose, 'systemd'), { recursive: true });
-  for (const f of [SCRIPT, 'release-tag.sh', 'env-read.sh', 'stack-kind.sh', 'trigger-cli-lib.sh', 'deploy-live.sh', 'box-duties.sh']) {
+  for (const f of [
+    SCRIPT,
+    'release-tag.sh',
+    'env-read.sh',
+    'stack-kind.sh',
+    'trigger-cli-lib.sh',
+    'deploy-live.sh',
+    'box-duties.sh',
+    'copy-before-update.sh',
+  ]) {
+    // A script that is not in this checkout yet is simply not there.
+    if (!existsSync(join(COMPOSE_DIR, f))) continue;
     if (opts.omit?.includes(f)) continue;
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
     chmodSync(join(compose, f), 0o755);
@@ -847,7 +858,7 @@ describe('refused before anything changes: the tag live is to run', () => {
     CASE_MS,
   );
 
-  it.each(['deploy-live.sh', 'exposure-check.sh', 'box-duties.sh', 'stack-kind.sh'])(
+  it.each(['deploy-live.sh', 'exposure-check.sh', 'box-duties.sh', 'stack-kind.sh', 'copy-before-update.sh'])(
     'a tag without %s',
     (file) => {
       const s = stage({ omit: [file] });
@@ -1191,19 +1202,24 @@ describe("live's BACKUP_RETENTION_DAYS is the most days a dump taken before a de
   );
 
   it(
-    'the refusal says the dump and its deletion are the owner\'s, as long as deploy-live.sh says it takes none',
+    'the refusal says what takes the copy and what deletes it, as deploy-live.sh and the daily duties do (0139, rec-copies (a))',
     () => {
-      // deploy-live.sh leaves step 4, the dump, to the owner, and nothing
-      // deletes one (0132 T6; 0134 T0). A refusal that said live keeps a copy
-      // would have the owner deploy believing a way back exists. When a
-      // script takes the dump, this fails, and the refusal changes with it.
+      // Until 0139's copy, deploy-live.sh left step 4, the dump, to the owner,
+      // and nothing deleted one (0132 T6; 0134 T0), and this refusal said so.
+      // Now deploy-live.sh takes the copy right before its checkout, and the
+      // daily duties delete it after day 6. When either stops, this fails, and
+      // the refusal changes with it.
       const deployLive = readFileSync(join(COMPOSE_DIR, 'deploy-live.sh'), 'utf8');
-      expect(deployLive).toMatch(/It does not open the hold \(step 2\) or dump the database\s*#?\s*\(step 4\): both are the owner's/);
+      expect(deployLive).toMatch(/copy-before-update\.sh" "\$\{copy_args\[@\]\}"/);
+      const duties = readFileSync(join(COMPOSE_DIR, 'box-duties.sh'), 'utf8');
+      expect(duties).toMatch(/copy-before-update\.sh" expire/);
       const s = stage({ env: { BACKUP_RETENTION_DAYS: '0' } });
       const r = run(s);
       expectRefused(s, r, '- BACKUP_RETENTION_DAYS', 'reads', envNow(s));
-      expect(r.out).toContain('Taking the dump and deleting it by then are your steps (0132 T6 step 4): no script takes it or deletes it yet.');
-      expect(r.out).not.toMatch(/\blive (takes|keeps) a copy\b/i);
+      expect(r.out).toContain(
+        'deploy-live.sh takes that copy right before each update (copy-before-update.sh), you delete it once the update is proven, and the daily duties delete it after day 6 (workplan 0139).',
+      );
+      expect(r.out).not.toMatch(/no script takes it/);
     },
     CASE_MS,
   );

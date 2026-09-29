@@ -4,6 +4,43 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-29, night: T5's first slice, a page per person (0131 §6, R8 step 7, built beside R at
+the owner's word *"continue on the rest"*)**, in #1353, stacked on #1349.
+
+- **`/people/:personId`** (`apps/web/src/pages/Person.tsx`), drawn in `wf-person-page.svg`. The
+  card's name on Migrations links to it, and so does its *Needs you* count. It holds:
+  - *← Migrations*, the person's name, where from and where to, one stage, and what waits on
+    them (the card's count), linked to their steps below;
+  - each migration's lines per data type, drawn by one component with the card
+    (`MigrationLines`), and *Details →* to the migration's own page, where its runs, schedule,
+    settings and controls stay;
+  - *Before you switch* (0154 T4): the hub's seven steps as one ordered list, each summed across
+    the person's migrations, with its state in words: *Done*, *Needs you* or *Not yet*.
+    Several migrations each get a link to their own page for the step; one migration's step
+    name is the link. On a queue's step each link carries that migration's own count
+    (*Anna mail (2)*), so the person sees which one the work is in. A count that could not be
+    read says so, on the step and on the link, and claims no state;
+  - *Add a migration*.
+- **The steps' rules are pure and tested** (`cutover-steps.ts`):
+  - Deletions, Moves and Failures need the person while anything waits.
+  - Sharing is *Not yet* until every migration is done.
+  - Check passes when every migration is ready to finish, or in or past its cutover, and
+    Confirmed follows it.
+  - Finish needs the person while a migration is in its cutover.
+- **The hub's seven** moved to `hub-screens.ts`, so the migration's page and the person's page
+  keep one order and one set of names.
+- **Not yet, and said:**
+  - the one-line progress per data type (0154 T2's totals, R's);
+  - grant and progress links per person, which wait for T4 to ask who a migration is for and
+    for 0108's per-person links;
+  - the migration's own page still shows its seven as cards (0154 T4's other half).
+- **Proved by:**
+  - `Person.unit.test.tsx` (10 cases) and `cutover-steps.unit.test.ts` (8 cases). With an
+    unread count on a link shown as *(0)*, the hard-rule-9 case fails;
+  - the routes, the menu (Migrations lit on a person's page) and the card's links;
+  - `managed-ui.ui.test.ts` in a real browser: from Anna's card to her page and its seven
+    steps.
+
 **2026-09-29, night: T1 (b), Gmail's app password is drawn (0131 §6, R8 step 1, built beside R at
 the owner's word *"continue on the rest"*)**, in #1349, stacked on #1347.
 
@@ -335,7 +372,7 @@ person, and a flow that fills it.
 | T2 ADR-0050: a move is a person's migrations | ✅ **ADR-0050 accepted 2026-09-28 (#1327), amended the same night: *person*. The tables and `/api/people` built, with the appliance's implicit person (#1332)** | §3. A `person` row and `person_migration` in `packages/managed/migrations` (0031). The appliance answers one implicit person. The billed unit (a path) and the migration (a mapping) do not change. Deleting a person deletes no migration. |
 | T3 The Migrations page lists people | 🟡 **Built in two halves: the page lists people (#1341); it is the landing page, the Dashboard is gone, and the menu is the drawing's (#1343). The menu counts beside *Needs you* what waits (#1346). The progress line and *Ready to switch* wait on 0154 T2. Before the first invitation** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
 | T4 *Start a migration*: who, from where, what, to where | 📋 **Proposed; before the first invitation** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
-| T5 A page per person | 📋 **Proposed; before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
+| T5 A page per person | 🟡 **First slice built (#1353): the person, their migrations, and their steps before they switch. Per-person grant and progress links wait on T4 and 0108; the progress lines on 0154 T2. Before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
 | T6 Words a family reads | 🟡 **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, before the first invitation. The Dutch says *migratie* everywhere the product speaks, with two guards (#1342). (c)'s two guards built (#1347)** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |
 | T7 Defaults a family can pass | 📋 **Proposed; before the first invitation, inside T4** | §3. Buttons that look like buttons, with the reason in text. A Soverin sign-in in two visible fields. A Nextcloud address, not a DAV URL. Business-only fields only on the business path. The limit blamed on the side that has it. Tiles and icons: `tiles.svg`, `icons.svg`. |
 | T8 The appliance shows its person's page | 📋 **Proposed; before the first invitation (D5)** | §3. The same page, fed by the appliance's one implicit grouping. No list or create screen (0034 stands). |

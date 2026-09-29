@@ -435,6 +435,13 @@ describe("a member's menu", () => {
     }
   });
 
+  it("lights Migrations on a person's page, which is part of it (0153 T5)", () => {
+    renderLayout('/people/p-anna');
+    const migrations = within(screen.getByRole('navigation')).getByRole('link', { name: 'Migrations' });
+    expect(migrations.className).toContain('bg-blue-50');
+    expect(screen.getByRole('heading', { level: 1, name: 'Migrations' })).toBeInTheDocument();
+  });
+
   it('opens Help on the setup checklist', () => {
     renderLayout('/mappings');
     expect(within(screen.getByRole('navigation')).getByRole('link', { name: 'Help' })).toHaveAttribute('href', '/setup');

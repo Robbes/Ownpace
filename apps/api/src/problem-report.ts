@@ -39,6 +39,13 @@
  * and written by {@link reportFactLines}, the one function that writes a
  * report's facts: the form's *What we send with this* shows its lines before
  * sending, and the ticket's article and the mail carry the same lines after.
+ *
+ * And **what only the browser knows** (Part B, `report-browser-facts.ts`): the
+ * screen's language, the time zone, the window's width, the web app's build
+ * when it is not the server's, the failure line the form came from, and the
+ * references of the faults the page met in the five minutes before. One small
+ * object, `browser`, of which only its own keys in their own shapes are taken,
+ * and the rest dropped without refusing the report.
  */
 
 import { z } from 'zod';
@@ -52,6 +59,7 @@ import {
 } from '@openmig/shared';
 import { loggableUrl } from './access-log.ts';
 import type { ReportFacts } from './report-facts.ts';
+import { browserFactLines, parseBrowserFacts, type BrowserFacts } from './report-browser-facts.ts';
 
 /** The most a description may hold. A report, not an essay, and a bound on the body. */
 export const MAX_DESCRIPTION = 5000;
@@ -62,12 +70,16 @@ export const PROBLEM_REPORT_BODY_LIMIT = '8mb';
 
 export type ScreenshotType = 'image/png' | 'image/jpeg';
 
-/** Where a report was made: the page, and the error on it when there is one. */
+/**
+ * Where a report was made: the page, the error on it when there is one, and
+ * what the browser said of itself, as far as it was a fact in its shape.
+ */
 export interface ReportPlace {
   /** The page, already redacted. */
   readonly page: string;
   readonly reference?: string;
   readonly category?: FailureCategory;
+  readonly browser?: BrowserFacts;
 }
 
 export interface ProblemReport extends ReportPlace {
@@ -133,7 +145,8 @@ export function parseProblemReport(body: unknown): ProblemReport | ReportRefusal
 /**
  * The page, the reference and the category, as a report's body carries them
  * and as the preview of its facts is asked with them (a query string), each
- * checked the same way for both.
+ * checked the same way for both. And the browser's facts: an object in the
+ * body, JSON in the query, never a reason to refuse (`parseBrowserFacts`).
  */
 export function parseReportPlace(body: unknown): ReportPlace | ReportRefusal {
   const b = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
@@ -159,7 +172,14 @@ export function parseReportPlace(body: unknown): ReportPlace | ReportRefusal {
     category = b.category;
   }
 
-  return { page, ...(reference ? { reference } : {}), ...(category ? { category } : {}) };
+  const browser = parseBrowserFacts(b.browser);
+
+  return {
+    page,
+    ...(reference ? { reference } : {}),
+    ...(category ? { category } : {}),
+    ...(browser ? { browser } : {}),
+  };
 }
 
 /** Whether a parse refused, for this form's report or a link's (`link-report.ts`). */
@@ -253,6 +273,13 @@ export const REPORT_FACT_LABELS: readonly string[] = [
   'Scheduler',
   'Browser',
   'Facts',
+  // What the browser said (Part B, `report-browser-facts.ts`).
+  'Screen language',
+  'Time zone',
+  'Window width',
+  'App build in the browser',
+  'Failure line',
+  'Recent error',
 ];
 
 const day = (value: string): string => value.slice(0, 10);
@@ -315,9 +342,10 @@ function browserLine(browser: string | undefined): string {
 /**
  * THE ONE FUNCTION THAT WRITES A REPORT'S FACTS: the page, the reference and
  * category when there is one, the organisation, the build and, when the server
- * has read them, the role, the records and the browser. The preview answers
- * exactly these lines, and the ticket's article and the mail carry exactly
- * these lines, so what the form showed is what was sent.
+ * has read them, the role, the records and the browser; then what the browser
+ * said of itself, checked. The preview answers exactly these lines, and the
+ * ticket's article and the mail carry exactly these lines, so what the form
+ * showed is what was sent.
  */
 export function reportFactLines(
   place: ReportPlace,
@@ -340,6 +368,7 @@ export function reportFactLines(
           browserLine(server.browser),
         ]
       : []),
+    ...browserFactLines(place.browser, build),
   ];
 }
 

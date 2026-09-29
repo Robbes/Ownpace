@@ -34,7 +34,8 @@
 #   a HEAD on a branch, or at no tag named v…, or at a tag release-tag.sh
 #       refuses (the rule deploy-live.sh applies: on origin, the same object
 #       here, annotated, package.json's version); a tag without deploy-live.sh,
-#       exposure-check.sh, box-duties.sh and stack-kind.sh
+#       exposure-check.sh, box-duties.sh, stack-kind.sh and
+#       copy-before-update.sh
 #   a working tree that is not clean
 #   a deploy log with a line in it: live stands, and deploy-live.sh is the way
 #   <project>_postgres_data already there, unless --resume says this is a
@@ -70,11 +71,11 @@
 #       production; TRUST_PROXY not 2 or 3, the proxies in front of the api
 #       (NetBird's and the web container's nginx, so the api's log names the
 #       visitor, and 3 where NetBird's cluster adds one: T3 (d); more believes
-#       the caller's own header); BACKUP_RETENTION_DAYS empty, 0
-#       or not a whole number above 0 (the most days a dump of live's
-#       databases taken before a deploy is kept: 7, workplan 0134; the dump
-#       and its deletion are the owner's steps, which nothing does yet);
-#       OWNPACE_REACHABLE_HOSTS set;
+#       the caller's own header); BACKUP_RETENTION_DAYS empty, 0 or not a whole
+#       number above 0 (the most days a dump of live's databases taken before a
+#       deploy is kept: 7, workplan 0134; deploy-live.sh takes that copy, and
+#       it is deleted once the update is proven, and after day 6 by the daily
+#       duties, workplan 0139); OWNPACE_REACHABLE_HOSTS set;
 #       APP_DB_USER not app_user; a gate placeholder client (gate-…,
 #       gatedropboxappkey); SMTP_HOST empty or mailpit, SMTP_PORT empty or
 #       not a port, NOTIFY_FROM or NOTIFY_TO empty or an address in .invalid,
@@ -198,8 +199,6 @@ DEMO_PORT_KEYS=' NEXTCLOUD_PORT '
 # managed.env.example does not define it, so nothing here asks WWW_PORT. The
 # guard checks the name and the value against that script's once it is here.
 SITE_SWITCH_KEY=WWW_LIVE
-# What a tag must carry for live to be deployed, checked and kept after this.
-TAG_MUST_CARRY=(deploy-live.sh exposure-check.sh box-duties.sh stack-kind.sh)
 # Each password this may generate, and the volume that takes it at its first
 # initialisation and keeps it.
 PASSWORDS=(
@@ -324,8 +323,7 @@ main() {
   OTA_PROJECT="$(sed -n 's/^name:[[:space:]]*\([^[:space:]#]*\).*/\1/p' "${SCRIPT_DIR}/managed.yml")"
 
   # ---- The tag: a release, parked on -------------------------------------------
-  local branch dirty head tags_text tag='' t head_version f
-  local -a missing=()
+  local branch dirty head tags_text tag='' t head_version
   if branch="$(git -C "$REPO_ROOT" symbolic-ref -q --short HEAD)"; then
     refuse "HEAD is on the branch '${branch}', not detached at a release tag. ${RELEASE_SENTENCE}." \
       "Live's checkout is parked on the tag it runs: git fetch --tags origin && git checkout --detach <tag>"
@@ -354,13 +352,8 @@ main() {
   release_tag_is_release "$REPO_ROOT" "$tag" "$RELEASE_TAG_REMOTE_OBJECT" || refuse "${RELEASE_TAG_WHY[@]}"
   local commit="$RELEASE_TAG_COMMIT" version="$RELEASE_TAG_VERSION"
   [ "$commit" = "$head" ] || refuse "${tag} is at ${commit}, and HEAD at ${head}."
-  for f in "${TAG_MUST_CARRY[@]}"; do
-    git -C "$REPO_ROOT" cat-file -e "${commit}:deploy/compose/${f}" 2>/dev/null || missing+=("deploy/compose/${f}")
-  done
-  if [ "${#missing[@]}" -gt 0 ]; then
-    refuse "${tag} does not carry ${missing[*]}. Live is deployed, checked and kept by them after this (workplan 0132 T3, T6, T7)." \
-      "Cut the release from a commit of main that has them (docs/release.md §2)."
-  fi
+  # What it must carry: release-tag.sh's list, which deploy-live.sh asks too.
+  release_tag_carries "$REPO_ROOT" "$tag" "$commit" || refuse "${RELEASE_TAG_WHY[@]}"
   say "${tag} is an annotated release tag on origin, at ${commit}, version ${version}"
 
   # ---- Stood up already? ----------------------------------------------------------
@@ -657,16 +650,18 @@ check_settings() {
   # header, on live, shows NetBird's own cluster adds a hop; nothing else.
   [[ "$(env_value "$ENV_FILE" TRUST_PROXY)" =~ ^[23]$ ]] ||
     _p+=("TRUST_PROXY: not 2 or 3. Live's api is behind two proxies, NetBird's and the web container's nginx, so it is 2, or 3 where the bring-up's check on live shows NetBird adds one: then the api names the visitor, whose address NetBird passes on, as privacy §4.5 says. With less it names one of the proxies for every visitor; with more, or true, whatever a caller writes in X-Forwarded-For (T3 (d)).")
-  # Live's databases are dumped before each deploy and each dump is deleted
+  # Live's databases are copied before each deploy and each copy is deleted
   # after at most this many days: the owner's answer to 0134's open question
-  # 1, (b), with 7 days, on 2026-09-28. Both are the owner's steps for now
-  # (0132 T6 step 4; 0134 T0): deploy-live.sh takes no dump, and nothing
-  # deletes one. The number is set before the first dump, so it is a whole
-  # number above 0 from the first bring-up, and the erasure sentence names it.
+  # 1, (b), with 7 days, on 2026-09-28, and rec-copies (a) the same day.
+  # deploy-live.sh takes the copy (copy-before-update.sh take), the owner
+  # deletes it once the update is proven, and the daily duties after day 6
+  # whatever happens (workplan 0139). The number is set before the first copy,
+  # so it is a whole number above 0 from the first bring-up, and the erasure
+  # sentence names it.
   # 0 would say there is no copy; a blank reads as 7 and the api refuses to
   # start on one while OWNPACE_STAGE=alpha.
   [[ "$(env_value "$ENV_FILE" BACKUP_RETENTION_DAYS)" =~ ^[1-9][0-9]*$ ]] ||
-    _p+=("BACKUP_RETENTION_DAYS: empty, 0, or not a whole number of days above 0. On live it is the most days a dump of its databases taken before a deploy is kept, 7 (workplan 0134, open question 1 (b)), and the erasure sentence a closing organisation is given names it. Taking the dump and deleting it by then are your steps (0132 T6 step 4): no script takes it or deletes it yet.")
+    _p+=("BACKUP_RETENTION_DAYS: empty, 0, or not a whole number of days above 0. On live it is the most days a dump of its databases taken before a deploy is kept, 7 (workplan 0134, open question 1 (b)), and the erasure sentence a closing organisation is given names it. deploy-live.sh takes that copy right before each update (copy-before-update.sh), you delete it once the update is proven, and the daily duties delete it after day 6 (workplan 0139).")
   [ -z "$(env_value "$ENV_FILE" OWNPACE_REACHABLE_HOSTS)" ] ||
     _p+=("OWNPACE_REACHABLE_HOSTS: set. It admits the demo's hosts on the OTA stack; live's stays empty (0136 T2).")
   value="$(env_value "$ENV_FILE" APP_DB_USER)"
