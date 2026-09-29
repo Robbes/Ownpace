@@ -17,7 +17,7 @@ import {
   qualificationText,
 } from '../i18n/probe-text.ts';
 import type { StringKey } from '../i18n/index.tsx';
-import { useNavigate, Link } from 'react-router';
+import { useNavigate, useSearchParams, Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -84,6 +84,7 @@ import {
 } from '../services/consent-window.ts';
 import { ChoiceField, choiceValue } from '../components/ChoiceField.tsx';
 import { isSelfHost } from '../services/edition.ts';
+import { addMigrationToPerson } from '../services/operating-service.ts';
 import {
   ExperimentalTag,
   ExperimentalWhy,
@@ -509,6 +510,11 @@ const CreateMapping: React.FC = () => {
   const consentLinesId = React.useId();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  // Opened from a person's card on Migrations (0153 T3): the new migration is
+  // theirs. Until *Start a migration* asks who it is for (T4), the card says
+  // so in the address.
+  const [searchParams] = useSearchParams();
+  const forPerson = searchParams.get('person');
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<FormData>(restoreDraft);
   const [showSourcePassword, setShowSourcePassword] = useState(false);
@@ -520,11 +526,27 @@ const CreateMapping: React.FC = () => {
     // to be swapped in as component state, which no route reached — a refresh
     // stranded the paused mapping. Navigating gives the green light an
     // address that survives the wizard.
-    onSuccess: (mapping: { id: string }) => {
+    onSuccess: async (mapping: { id: string }) => {
       // The draft has become a migration; keeping it would re-seed the next
       // wizard with the last one's name and schedule.
       clearDraft();
-      void navigate(`/mappings/${mapping.id}/confirm`);
+      let notAddedToPerson: string | undefined;
+      if (forPerson) {
+        try {
+          await addMigrationToPerson(forPerson, mapping.id);
+        } catch (error) {
+          // The migration exists either way, with nobody. The green light
+          // still comes next, and its page says the add failed, in the
+          // server's words (hard rule 9); Migrations lists the migration
+          // under *Not with a person yet*, one press from its person.
+          notAddedToPerson = serverMessage(error);
+        }
+        await queryClient.invalidateQueries({ queryKey: ['people'] });
+      }
+      void navigate(
+        `/mappings/${mapping.id}/confirm`,
+        notAddedToPerson === undefined ? undefined : { state: { notAddedToPerson } },
+      );
     },
   });
 

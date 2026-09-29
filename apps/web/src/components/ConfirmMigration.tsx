@@ -24,16 +24,26 @@ export interface ConfirmMigrationProps {
 /** How often to ask, and for how long before the screen stops asking. */
 const POLL_MS = 2000;
 /**
- * FIVE MINUTES, then stop asking and say so.
+ * AFTER FIVE MINUTES, ASKED MORE SLOWLY (the owner, 2026-09-28: *"Hold, up to
+ * 15 min"*). Five minutes was the ceiling itself, and a count that took seven
+ * (the owner's Dropbox, 55,245 files) landed on a screen that had stopped
+ * asking, while Start had already been pressed. The screen now keeps asking,
+ * every ten seconds instead of every two.
+ */
+const SLOWER_AFTER_MS = 5 * 60 * 1000;
+const SLOWER_POLL_MS = 10_000;
+/**
+ * FIFTEEN MINUTES, then stop asking and say so.
  *
  * Not a timeout on the work — discovery keeps running server-side and the
  * counts land in the database whenever they land. This is a ceiling on the
  * POLLING, because a tab left open on a stuck domain would otherwise ask
- * thirty times a minute for ever. When it is reached the rows that arrived
- * stay on screen and the sentence under them gets longer; nothing is
- * discarded and nothing is called a failure.
+ * for ever. When it is reached the rows that arrived stay on screen and the
+ * sentence under them gets longer; nothing is discarded and nothing is
+ * called a failure. It is also as long as Start waits for the count
+ * (`stillCounting` below).
  */
-const POLL_CEILING_MS = 5 * 60 * 1000;
+const POLL_CEILING_MS = 15 * 60 * 1000;
 
 /**
  * THE ROWS THAT ANSWER THE COUNT THIS SCREEN ASKED FOR (workplan 0150 T3 (d),
@@ -176,19 +186,21 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
     queryKey: ['discovery', mappingId],
     queryFn: () => mappingApi.getDiscovery(mappingId),
     refetchInterval: (query) => {
-      if (Date.now() - startedAt.current > POLL_CEILING_MS) {
+      const waited = Date.now() - startedAt.current;
+      if (waited > POLL_CEILING_MS) {
         // Rendering during another component's render is what React forbids;
         // this runs from the query client's own timer, well after.
         setGaveUp(true);
         return false;
       }
+      const every = waited > SLOWER_AFTER_MS ? SLOWER_POLL_MS : POLL_MS;
       // Until the mapping answers we do not know what to wait for, so keep
       // asking — stopping here would be the old bug with a new cause.
-      if (!expected) return POLL_MS;
+      if (!expected) return every;
       const landed = new Set(
         countedSinceChange(query.state.data?.domains ?? [], changedAt).map((d) => d.domain),
       );
-      return expected.every((d) => landed.has(d)) ? false : POLL_MS;
+      return expected.every((d) => landed.has(d)) ? false : every;
     },
   });
 
@@ -239,6 +251,31 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
   });
 
   const domains = countedSinceChange(discovery.data?.domains ?? [], changedAt);
+
+  /**
+   * START WAITS FOR THE COUNT, FIFTEEN MINUTES AT MOST (the owner, 2026-09-28:
+   * *"Hold, up to 15 min"*).
+   *
+   * The count is what this screen exists to show: the files a format would
+   * refuse, with their tick-box, and the numbers a person decides on. Start
+   * did not wait for it. The owner pressed it at 17:23, and the Dropbox count,
+   * with the Paper line and its tick-box, landed at 17:30, on a migration
+   * already copying.
+   *
+   * So Start stays greyed out while a count this screen is waiting for is
+   * still coming, with a line saying so. Not while nothing is counting: a
+   * refused count leaves it as it was. Not for ever either: after fifteen
+   * minutes, when the screen stops asking, Start opens with a line saying the
+   * count did not finish. Until the migration answers, the screen cannot know
+   * what to wait for, so it waits; if the migration cannot be read at all,
+   * it does not.
+   */
+  const everyCountLanded =
+    expected !== undefined && expected.every((d) => domains.some((row) => row.domain === d));
+  const stillCounting =
+    countRefused === null && !gaveUp && (expected !== undefined ? !everyCountLanded : mapping.isPending);
+  const countUnfinished = countRefused === null && gaveUp && !everyCountLanded;
+  const startWaitsId = React.useId();
 
   return (
     <div className="space-y-6">
@@ -302,14 +339,29 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
         </p>
       )}
 
+      {/* Beside Start, so the greyed-out button says why, and when it opens
+          without the count, that it did. See `stillCounting`. */}
+      {stillCounting && (
+        <p id={startWaitsId} className="text-right text-sm text-gray-500">
+          {t('confirm.startWaits')}
+        </p>
+      )}
+      {countUnfinished && (
+        <p className="text-right text-sm text-amber-700" role="note">
+          {t('confirm.countUnfinished')}
+        </p>
+      )}
+
       <div className="flex justify-end">
         <button
           type="button"
           onClick={() => startMutation.mutate()}
           // NOT A BLOCK — a tick-box one line up, and only when something is
           // actually refused. A migration with nothing to warn about starts
-          // exactly as it did.
-          disabled={startMutation.isPending || (needsAcknowledgement(domains) && !refusedAcked)}
+          // exactly as it did. The count, while it is coming, is the other
+          // wait: fifteen minutes at most.
+          disabled={startMutation.isPending || stillCounting || (needsAcknowledgement(domains) && !refusedAcked)}
+          aria-describedby={stillCounting ? startWaitsId : undefined}
           className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {startMutation.isPending ? t('confirm.starting') : t('confirm.start')}

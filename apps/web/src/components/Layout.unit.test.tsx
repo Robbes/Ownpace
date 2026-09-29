@@ -56,6 +56,14 @@ const { mappingGet } = vi.hoisted(() => ({
 }));
 vi.mock('../services/mapping-service', () => ({ mappingApi: { get: mappingGet } }));
 
+// What waits on the organisation, for the count beside *Needs you* (0153 T3
+// (c)). Never resolving by default, so every test that is not about the count
+// renders the menu as it loads: no count at all.
+const { attentionFetch } = vi.hoisted(() => ({
+  attentionFetch: vi.fn((): Promise<unknown> => new Promise<never>(() => {})),
+}));
+vi.mock('../services/operating-service', () => ({ fetchAttention: attentionFetch }));
+
 import Layout from './Layout.tsx';
 
 /**
@@ -87,6 +95,21 @@ beforeEach(() => {
   authState.user = null;
   authState.operator = false;
   authState.tenantCount = 1;
+  attentionFetch.mockReset();
+  attentionFetch.mockImplementation(() => new Promise<never>(() => {}));
+});
+
+/** A migration's line of `GET /api/attention` with nothing waiting. */
+const quiet = (mappingId: string, over: Record<string, unknown> = {}) => ({
+  mappingId,
+  pendingDecisions: 0,
+  deletionsWaiting: 0,
+  movesWaiting: 0,
+  failuresWaiting: 0,
+  readyForCutover: false,
+  autoApplied: 0,
+  sharingOpen: 0,
+  ...over,
 });
 
 describe('the sidebar identity block (T2)', () => {
@@ -104,7 +127,7 @@ describe('the sidebar identity block (T2)', () => {
 
   it('managed: the signed-in claims render — never the dead fallbacks', () => {
     authState.user = { name: 'Alex', email: 'owner@example.invalid' };
-    renderLayout('/dashboard');
+    renderLayout('/mappings');
 
     expect(screen.getByText('Alex')).toBeInTheDocument();
     expect(screen.getByText('owner@example.invalid')).toBeInTheDocument();
@@ -113,7 +136,7 @@ describe('the sidebar identity block (T2)', () => {
   });
 
   it('managed with no claims: an absent block, not a fake identity', () => {
-    renderLayout('/dashboard');
+    renderLayout('/mappings');
 
     expect(screen.queryByText('User')).not.toBeInTheDocument();
     expect(screen.queryByText('user@example.com')).not.toBeInTheDocument();
@@ -141,7 +164,7 @@ describe('the build stamp is at the bottom of the sidebar in both editions', () 
 
   it.each([
     ['the appliance', true, '/confirm'],
-    ['managed', false, '/dashboard'],
+    ['managed', false, '/mappings'],
   ] as const)('%s', async (_, selfhost, path) => {
     editionFlag.selfhost = selfhost;
     const sidebar = renderLayout(path).container.querySelector('aside');
@@ -171,7 +194,7 @@ describe('the phone menu has a name a screen reader can say', () => {
   });
 
   it('names the menu button and says whether the menu is open, and names its close button', () => {
-    renderLayout('/dashboard');
+    renderLayout('/mappings');
 
     const menu = screen.getByRole('button', { name: 'Menu' });
     expect(menu).toHaveAttribute('aria-expanded', 'false');
@@ -263,13 +286,13 @@ describe('the header on per-mapping routes (T3)', () => {
 describe('the Billing nav entry follows the billing-read guard (owner decision 2026-08-10)', () => {
   it('managed admin sees Billing; viewer and member do not', () => {
     authState.user = { name: 'A', email: 'a@acme.test', role: 'admin' };
-    const { unmount } = renderLayout('/dashboard');
+    const { unmount } = renderLayout('/mappings');
     expect(screen.getAllByRole('link', { name: /Billing/ }).length).toBeGreaterThan(0);
     unmount();
 
     for (const role of ['viewer', 'member']) {
       authState.user = { name: 'V', email: 'v@acme.test', role };
-      const view = renderLayout('/dashboard');
+      const view = renderLayout('/mappings');
       // The server 403s a lesser role's billing reads — a nav entry that can
       // only lead to a refusal is hidden, like the appliance hides Billing.
       expect(screen.queryByRole('link', { name: /Billing/ })).not.toBeInTheDocument();
@@ -317,14 +340,9 @@ describe('somebody who is in no organisation (the operator)', () => {
    * mistake this repository keeps writing down.
    */
   const KEPT = ['Access requests', 'Support', 'Setup guides'] as const;
-  const HIDDEN = [
-    'Dashboard',
-    'Migrations',
-    'Connections',
-    'Setup checklist',
-    'Attention',
-    'Tenants',
-  ] as const;
+  /** A member's menu since 0153 T3 (c): the checklist is a tab under Help. */
+  const MEMBERS = ['Migrations', 'Needs you', 'Accounts', 'Help', 'Team'] as const;
+  const HIDDEN = [...MEMBERS, 'Setup checklist'] as const;
 
   it.each(KEPT)('still offers %s — it works without an organisation', (label) => {
     // The queue they came for, the support surface, and the guides — which
@@ -352,10 +370,10 @@ describe('somebody who is in no organisation (the operator)', () => {
     // member of an organisation gets the whole nav.
     asOperatorWithNoOrganisation();
     authState.tenantCount = 1;
-    renderLayout('/dashboard');
+    renderLayout('/mappings');
 
     const names = linkNames();
-    for (const label of HIDDEN) expect(names).toContain(label);
+    for (const label of MEMBERS) expect(names).toContain(label);
     expect(names).toContain('Access requests');
     // Managed's log is under Support; the appliance's `/log` would redirect.
     expect(names).not.toContain('Log');
@@ -372,8 +390,117 @@ describe('somebody who is in no organisation (the operator)', () => {
 
     const names = linkNames();
     expect(names).toContain('Setup checklist');
-    expect(names).toContain('Attention');
+    expect(names).toContain('Setup guides');
+    expect(names).not.toContain('Help');
+    // T6 (b)'s one word for what waits on you reaches the appliance too.
+    expect(names).toContain('Needs you');
     // The owner's log (0129 D5), on the appliance only: managed has no `/log`.
     expect(names).toContain('Log');
+  });
+});
+
+/**
+ * THE MENU A MEMBER READS (0153 T3 (c), T6 (b); the owner's D7, 2026-09-28):
+ * Migrations, Needs you, Accounts, Help, Team, and Billing for an owner or an
+ * admin. The Dashboard went, and Migrations is the landing page. Help is the
+ * setup checklist and the setup guides, as two tabs of one entry.
+ */
+describe("a member's menu", () => {
+  const linkNames = () =>
+    within(screen.getByRole('navigation'))
+      .getAllByRole('link')
+      .map((a) => a.textContent?.trim() ?? '');
+
+  it('is Migrations, Needs you, Accounts, Help, Team and Billing, in that order', () => {
+    authState.user = { name: 'Anna', email: 'anna@example.org', role: 'owner' };
+    renderLayout('/mappings');
+    expect(linkNames()).toEqual(['Migrations', 'Needs you', 'Accounts', 'Help', 'Team', 'Billing']);
+  });
+
+  it('has no Dashboard, no Connections, and no Attention any more', () => {
+    renderLayout('/mappings');
+    const names = linkNames();
+    for (const gone of ['Dashboard', 'Connections', 'Attention', 'Tenants', 'Setup checklist', 'Setup guides']) {
+      expect(names, `the menu still offers ${gone}`).not.toContain(gone);
+    }
+  });
+
+  it('lights Help, and names the page Help, on either of its tabs', () => {
+    for (const path of ['/setup', '/docs', '/docs/google']) {
+      const view = renderLayout(path);
+      const help = within(screen.getByRole('navigation')).getByRole('link', { name: 'Help' });
+      expect(help.className, `Help is not lit on ${path}`).toContain('bg-blue-50');
+      expect(screen.getByRole('heading', { level: 1, name: 'Help' })).toBeInTheDocument();
+      view.unmount();
+    }
+  });
+
+  it('opens Help on the setup checklist', () => {
+    renderLayout('/mappings');
+    expect(within(screen.getByRole('navigation')).getByRole('link', { name: 'Help' })).toHaveAttribute('href', '/setup');
+  });
+});
+
+/**
+ * THE COUNT BESIDE *NEEDS YOU* (0153 T3 (c)): what the cards on Migrations
+ * count, added up, and the organisation's own decisions, which no card
+ * claims. The link keeps its name; the count is its description.
+ */
+describe('the count beside Needs you', () => {
+  const needsYou = () => within(screen.getByRole('navigation')).getByRole('link', { name: 'Needs you' });
+
+  it("adds up what the cards count and the organisation's decisions", async () => {
+    attentionFetch.mockResolvedValue({
+      mappings: [
+        // Two failures and a grace period nobody chose; and the organisation's
+        // decision riding on the first migration that reported.
+        quiet('m1', { failuresWaiting: 2, graceEnded: ['email'], pendingDecisions: 1 }),
+        // Neither Ready to switch nor the sharing checklist is counted.
+        quiet('m2', { movesWaiting: 1, readyForCutover: true, sharingOpen: 3 }),
+      ],
+    });
+    renderLayout('/mappings');
+
+    await vi.waitFor(() => expect(needsYou()).toHaveAccessibleDescription('5 waiting on you'));
+    expect(needsYou().textContent?.trim()).toBe('Needs you');
+  });
+
+  it("counts the organisation's decisions when no migration reported", async () => {
+    attentionFetch.mockResolvedValue({ mappings: [], tenant: { pendingDecisions: 1 } });
+    renderLayout('/mappings');
+    await vi.waitFor(() => expect(needsYou()).toHaveAccessibleDescription('1 waiting on you'));
+  });
+
+  it('shows nothing when nothing waits', async () => {
+    attentionFetch.mockResolvedValue({ mappings: [quiet('m1')] });
+    renderLayout('/mappings');
+    await vi.waitFor(() => expect(attentionFetch).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(needsYou()).not.toHaveAttribute('aria-describedby');
+  });
+
+  it('says it could not count when the read fails, never nothing (hard rule 9)', async () => {
+    attentionFetch.mockRejectedValue(new Error('the database is unreachable'));
+    renderLayout('/mappings');
+    await vi.waitFor(() => expect(needsYou()).toHaveAccessibleDescription('Could not count what needs you.'));
+  });
+
+  it('says it could not count when a queue could not be read', async () => {
+    attentionFetch.mockResolvedValue({
+      mappings: [quiet('m1', { failuresWaiting: 2, blindSpots: ['the moves queue: timeout'] })],
+    });
+    renderLayout('/mappings');
+    await vi.waitFor(() => expect(needsYou()).toHaveAccessibleDescription('Could not count what needs you.'));
+  });
+
+  it('asks nothing on the appliance, or for somebody in no organisation', () => {
+    editionFlag.selfhost = true;
+    const view = renderLayout('/confirm');
+    view.unmount();
+    editionFlag.selfhost = false;
+    authState.operator = true;
+    authState.tenantCount = 0;
+    renderLayout('/access-requests');
+    expect(attentionFetch).not.toHaveBeenCalled();
   });
 });

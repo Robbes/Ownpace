@@ -29,7 +29,7 @@ import type { QueryClient } from '@tanstack/react-query';
 /** The detail query's key, as `MappingDetail` and the hub screens spell it. */
 export const mappingDetailKey = (mappingId: string): readonly unknown[] => ['mapping', mappingId];
 
-/** The list query's key, as `Mappings` and the dashboard spell it. */
+/** The list query's key, as `Mappings` spells it. */
 export const mappingListKey: readonly unknown[] = ['mappings'];
 
 /**

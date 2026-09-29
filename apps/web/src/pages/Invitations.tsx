@@ -95,7 +95,7 @@ const Invitations: React.FC = () => {
       const left = me.invitations ?? [];
       setWaiting(left);
       if (choice === 'accept' || left.length === 0) {
-        void navigate(me.tenants.length > 0 ? '/dashboard' : '/login', { replace: true });
+        void navigate(me.tenants.length > 0 ? '/mappings' : '/login', { replace: true });
       }
     } catch (err) {
       // The server's own sentence where there is one — a 404 says the

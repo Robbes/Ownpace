@@ -76,15 +76,16 @@ const AuthCallback: React.FC = () => {
         // lands on, which would otherwise ask the same question again.
         rememberSignIn(me);
 
-        // Where to land, and the two cases that are not the dashboard.
+        // Where to land (Migrations, since the Dashboard went: 0153 T3 (b)),
+        // and the two cases that are not Migrations.
         //
         // A PLATFORM OPERATOR belongs to no organisation by design (workplan
-        // 0093 T6), so the dashboard would 403 on its first request. The queue
+        // 0093 T6), so Migrations would 403 on its first request. The queue
         // is the screen they came for.
         //
         // Somebody in NO organisation and not an operator is either waiting on
         // a grant or holding an invitation that has not bound — an unverified
-        // email, most likely. Sending them to a dashboard that cannot load is
+        // email, most likely. Sending them to a screen that cannot load is
         // the version of this that generates a support ticket; saying so is not.
         // An UNANSWERED INVITATION comes first, ahead of both cases below
         // (workplan 0099). It used to bind itself silently on this very
@@ -105,7 +106,7 @@ const AuthCallback: React.FC = () => {
           setNoOrganisation({ email: me.email ?? null });
           return;
         }
-        void navigate('/dashboard', { replace: true });
+        void navigate('/mappings', { replace: true });
       } catch (err) {
         // The service's own sentence, verbatim where there is one. "Sign-in
         // failed" tells somebody nothing they can act on; `access_denied` or

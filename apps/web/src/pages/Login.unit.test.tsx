@@ -128,7 +128,7 @@ describe('Login', () => {
     await user.type(screen.getByLabelText(/access token/i), token);
     await user.click(screen.getByRole('button', { name: /use this token/i }));
 
-    await vi.waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/dashboard'));
+    await vi.waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/mappings'));
     const state = useAuthStore.getState();
     expect(state.isAuthenticated).toBe(true);
     expect(state.tenantId).toBe('tenant-a');
@@ -149,7 +149,7 @@ describe('Login', () => {
    * screen that was never theirs. `AuthCallback` had chosen the right landing
    * since 0093 T7; this door had not been told.
    */
-  it('lands a platform operator on the queue, not a dashboard that 403s', async () => {
+  it('lands a platform operator on the queue, not a landing page that 403s', async () => {
     fetchMeMock.mockResolvedValue({
       userId: 'op1',
       email: 'operator@example.test',
@@ -175,14 +175,14 @@ describe('Login', () => {
     await user.click(screen.getByRole('button', { name: /use this token/i }));
 
     await vi.waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/access-requests'));
-    expect(navigateMock).not.toHaveBeenCalledWith('/dashboard');
+    expect(navigateMock).not.toHaveBeenCalledWith('/mappings');
     // And the store learns they are in no organisation, which is what stops
     // the nav offering them six screens that cannot open.
     expect(useAuthStore.getState().tenantCount).toBe(0);
     expect(useAuthStore.getState().operator).toBe(true);
   });
 
-  it('still lands an ordinary member on the dashboard', async () => {
+  it('still lands an ordinary member on Migrations, the landing page since the Dashboard went (0153 T3 (b))', async () => {
     // The other half: the default fixture belongs to one organisation, so the
     // landing above must not have become unconditional.
     const user = userEvent.setup();
@@ -192,7 +192,7 @@ describe('Login', () => {
     await user.type(screen.getByLabelText(/access token/i), token);
     await user.click(screen.getByRole('button', { name: /use this token/i }));
 
-    await vi.waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/dashboard'));
+    await vi.waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/mappings'));
     expect(useAuthStore.getState().tenantCount).toBe(1);
   });
 
@@ -347,7 +347,7 @@ describe('a pasted token is checked with the API, not just decoded', () => {
 
     await paste(good);
 
-    await vi.waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/dashboard'));
+    await vi.waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/mappings'));
     const s = useAuthStore.getState();
     expect(s.tenantId).toBe('tenant-from-the-database');
     expect(s.user?.id).toBe('zitadel-sub-9');
