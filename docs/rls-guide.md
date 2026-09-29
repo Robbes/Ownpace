@@ -327,10 +327,10 @@ has SELECT and INSERT only, on the tenant, and an insert must name one of that
 tenant's members; UPDATE and DELETE are revoked from `app_user` as well, so a
 record of what somebody accepted cannot be rewritten on the request path. It
 has no key to `tenant_member`, on purpose: removing a member leaves their rows,
-which the organisation keeps until its data is erased (privacy §9's row; 0139
-open question 4, the proposal until the owner answers), and a member invited
-back is not asked again for a version they accepted there. The erasure purge
-is the one deleter (`PURGED_TABLES`). Read
+which the organisation keeps until its data is erased (privacy §9's row), and
+a member invited back is not asked again for a version they accepted there.
+The erasure purge is the one deleter (`PURGED_TABLES`): the rows go with the
+organisation, the owner's answer to 0139 open question 4 on 2026-09-29. Read
 the policies themselves in
 `pg_policies`; this paragraph is a map, not the contract.
 

@@ -41,6 +41,13 @@
  *   logs the bring-up dumps (`explain_failure`'s and `setup-zitadel.sh`'s),
  *   and the artifact, which a mask never touches.
  *
+ * AND A VISITOR'S ADDRESS (review of 2026-09-29, ops-trust-proxy (b)). Since
+ * both nginx logs record the `X-Forwarded-For` NetBird passes on as their last
+ * field, an access line names the visitor's own public address, which is
+ * neither this machine's nor in the mesh's range: most likely the owner's,
+ * browsing the test stack. The same filter replaces that field with
+ * `<client-ip>`, whatever it holds but the `-` of a request without one.
+ *
  * Addresses here are documentation shapes: `100.64.0.1`, the mesh placeholder
  * `an-address-that-was-not-an-example` permits, and RFC 5737's. A second mesh
  * peer is assembled at run time, so the sweep in that guard never sees one.
@@ -98,6 +105,9 @@ const ZONE = 'mesh.example';
 const FILES = 'files.mesh.example';
 /** Another peer on the mesh: in the range, and in no key. */
 const PEER = ['100', '97', '12', '34'].join('.');
+/** Visitors, as an access line's last field names them: in no key and no range. */
+const VISITOR = '203.0.113.77';
+const VISITOR6 = '2001:db8::77';
 
 const ENV = [
   '# the OTA stack, as the gate restores it',
@@ -408,6 +418,9 @@ describe('what the gate prints about the stack', () => {
   });
 });
 
+/** Everything a filtered log must not name: this machine, a peer, a visitor. */
+const HIDDEN = [...OWN_VALUES, PEER, VISITOR, VISITOR6];
+
 describe('what is written to a file', () => {
   const LOG = [
     `mailpit is not answering at http://${MESH}:3127 — the mail path is unproven`,
@@ -416,6 +429,11 @@ describe('what is written to a file', () => {
     `{"logger":"http","msg":"enabling automatic TLS certificate management","domains":["${NAME}"]}`,
     `${PEER} - - [27/Sep/2026] "GET / HTTP/1.1" 200 from another peer`,
     `trusted domains: localhost nextcloud ${ZONE} ${FILES} ${TRUSTED}`,
+    // The web container's access lines, with the visitor NetBird passes on
+    // last (apps/web/nginx.conf.template, ownpace_combined).
+    `${PEER} - - [27/Sep/2026:22:54:34 +0000] "GET /grant/:link HTTP/1.1" 200 512 "-" "Mozilla/5.0" "${VISITOR}"`,
+    `${PEER} - - [27/Sep/2026:22:54:35 +0000] "GET /api/version HTTP/1.1" 200 64 "-" "curl/8.5.0" "${VISITOR6}, ${PEER}"`,
+    `${PEER} - - [27/Sep/2026:22:54:36 +0000] "GET / HTTP/1.1" 200 512 "-" "Mozilla/5.0" "-"`,
     // Near misses, which must survive: a longer address sharing a prefix, and
     // loopback.
     'a neighbour at 192.0.2.100, and the API on http://127.0.0.1:3001',
@@ -431,7 +449,7 @@ describe('what is written to a file', () => {
     });
     expect(r.status, r.stderr).toBe(0);
     const out = readFileSync(join(evidence, 'smoke-managed-1.log'), 'utf8');
-    for (const v of [...OWN_VALUES, PEER]) expect(out, `${v} survived`).not.toMatch(whole(v));
+    for (const v of HIDDEN) expect(out, `${v} survived`).not.toMatch(whole(v));
     expect(out).not.toMatch(CUT);
     // Replaced by what it is, so the line still reads.
     expect(out).toContain('WEB_BIND');
@@ -440,6 +458,10 @@ describe('what is written to a file', () => {
     expect(out).toContain('192.0.2.100');
     expect(out).toContain('http://127.0.0.1:3001');
     expect(out).toContain('localhost nextcloud');
+    // The visitor's field says what it was, and a request without one says so.
+    expect(out).toContain('"Mozilla/5.0" "<client-ip>"');
+    expect(out).toContain('"curl/8.5.0" "<client-ip>"');
+    expect(out).toContain('"Mozilla/5.0" "-"');
   });
 
   it('the smoke filters its own stream, so its log and its evidence are clean at the source', () => {
@@ -461,7 +483,7 @@ describe('what is written to a file', () => {
     const r = spawnSync('bash', [preamble, LOG], { encoding: 'utf8', env });
     expect(r.status, r.stderr).toBe(0);
     const file = readFileSync(kept, 'utf8');
-    for (const v of [...OWN_VALUES, PEER]) {
+    for (const v of HIDDEN) {
       expect(r.stdout, `${v} reached the stream`).not.toMatch(whole(v));
       expect(file, `${v} reached ${kept}`).not.toMatch(whole(v));
     }
@@ -476,7 +498,7 @@ describe('what is written to a file', () => {
       input: LOG,
     });
     expect(piped.status, piped.stderr).toBe(0);
-    for (const v of [...OWN_VALUES, PEER]) expect(piped.stdout, `${v} survived`).not.toMatch(whole(v));
+    for (const v of HIDDEN) expect(piped.stdout, `${v} survived`).not.toMatch(whole(v));
     expect(piped.stdout).not.toMatch(CUT);
     expect(piped.stdout).toContain('192.0.2.100');
   });
@@ -506,7 +528,7 @@ describe('what is written to a file', () => {
     const r = bash(program);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('trigger-tls');
-    for (const v of [...OWN_VALUES, PEER]) expect(r.stderr, `${v} survived`).not.toMatch(whole(v));
+    for (const v of HIDDEN) expect(r.stderr, `${v} survived`).not.toMatch(whole(v));
   });
 
   it('setup-zitadel\'s log tail is filtered the same way', () => {
@@ -535,7 +557,7 @@ describe('what is written to a file', () => {
       ].join('\n'),
     );
     expect(r.status, r.stderr).toBe(0);
-    for (const v of [...OWN_VALUES, PEER]) expect(r.stderr, `${v} survived`).not.toMatch(whole(v));
+    for (const v of HIDDEN) expect(r.stderr, `${v} survived`).not.toMatch(whole(v));
     expect(r.stderr).toContain('<mesh-ip>');
   });
 

@@ -1125,6 +1125,8 @@ services:
       # (Express 'trust proxy') and knock-limit.ts. Empty is today's behaviour:
       # one service-wide bucket of 60 an hour. Workplan 0093 T2c says when to
       # set them. `scripts/a-limit-the-api-was-never-handed.unit.test.ts`.
+      # TRUST_PROXY also decides whose address the api's log names: live sets
+      # 2, NetBird and the web's nginx (managed.env.example; workplan 0132 T3 (d)).
       TRUST_PROXY: ${TRUST_PROXY:-}
       ACCESS_REQUEST_MAX_PER_HOUR: ${ACCESS_REQUEST_MAX_PER_HOUR:-}
       # PROBLEM REPORTS (workplan 0130), read by apps/api/src/services/zammad.ts

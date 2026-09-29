@@ -13,6 +13,11 @@
 # that no production name and not the secret below resolves to is never
 # tried, since until the site is routed the name points at another host. The
 # input site_name says whether it must answer yet.
+# And it asks app., id., status. and www.ownpace.eu for the page a visitor asks
+# first, without following a redirect, and fails while NetBird's sign-in answers
+# one of them instead of the service (workplan 0139, item 8: off on all four
+# before the first invitation). Asked from here because a request over the
+# NetBird tunnel may pass that sign-in unseen.
 # scripts/exposure-probe.mjs says how, and scripts/exposure-probe-ports.mjs
 # derives the port list from managed.yml, www.yml and setup-managed-demo.sh:
 # no port is written in this file.

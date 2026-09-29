@@ -379,10 +379,10 @@ the names of these items; its privacy policy says why, and for how long:
 
 ### Dutch
 
-**Onderwerp:** Met u gedeelde bestanden zijn verplaatst
+**Onderwerp:** Met u gedeelde bestanden zijn gemigreerd
 
 De onderstaande bestanden of mappen waren met u gedeeld. Ze zijn naar een
-ander platform verplaatst, en uw toegang is meegegaan.
+ander platform gemigreerd, en uw toegang is meegegaan.
 
 [Uw notitie — VERPLICHT bij verzending: zeg in een of twee zinnen waar alles
 nu staat.]

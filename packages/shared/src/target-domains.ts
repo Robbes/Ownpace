@@ -214,6 +214,13 @@ export const SOURCE_TYPE_DOMAINS: Partial<
   // nothing today — it stays a read of the one table rather than a hand-typed
   // "every domain", so a face leaving that table leaves this one too.
   microsoft: PROVIDER_ACCOUNT_DOMAINS.microsoft,
+  // Read from the same table (workplan 0115), and here the row DOES
+  // constrain: Apple's account serves mail, calendars, contacts and reminders,
+  // and no file, because Apple publishes no way into a person's iCloud Drive
+  // for anyone outside Apple. Without this row an Apple source with Files
+  // ticked passed the create door and could only fail at its first pass
+  // (found while mapping 0153 T4, whose *What moves?* must not offer it).
+  apple: PROVIDER_ACCOUNT_DOMAINS.apple,
 };
 
 /**
@@ -223,7 +230,7 @@ export const SOURCE_TYPE_DOMAINS: Partial<
  * Gmail's to a mailbox.
  */
 const CONSTRAINED_SOURCE_PROSE: Partial<
-  Record<WizardSourceType, { name: string; reads: string }>
+  Record<WizardSourceType, { name: string; reads: string; credential?: string }>
 > = {
   'google-drive': { name: 'Google Drive', reads: 'the Drive API only' },
   archive: {
@@ -269,6 +276,15 @@ const CONSTRAINED_SOURCE_PROSE: Partial<
       'and files need a Google security assessment we have not bought yet, and ' +
       'the single-purpose Gmail and Google Drive sources still serve those',
   },
+  // Not an OAuth credential: Apple offers none for these (0115), so the
+  // sentence names the app-specific password the account is added with.
+  apple: {
+    name: 'Apple',
+    credential: 'app-specific password',
+    reads:
+      'mail, calendars, contacts and reminders over IMAP, CalDAV and CardDAV — Apple offers ' +
+      'no way into iCloud Drive for anyone outside Apple',
+  },
   dropbox: { name: 'Dropbox', reads: 'the Dropbox API only' },
   box: { name: 'Box', reads: 'the Box API only' },
 };
@@ -313,7 +329,7 @@ export function sourceTypeDomains(
 function constrainedSourceProse(
   sourceType: WizardSourceType,
   allowed: ReadonlyArray<DiscoveryDomain>,
-): { name: string; reads: string } | undefined {
+): { name: string; reads: string; credential?: string } | undefined {
   const prose = CONSTRAINED_SOURCE_PROSE[sourceType];
   if (!prose) return undefined;
   if (sourceType !== 'google') return prose;
@@ -352,7 +368,7 @@ export function sourceDomainRefusal(
   const allowedList = allowed.map((d) => `'${d}'`).join(', ');
   return (
     `A ${prose.name} source cannot provide the ${badList} data type${bad.length > 1 ? 's' : ''} — ` +
-    `its OAuth credential reads ${prose.reads}, which carries ${allowedList}. Create a ` +
+    `its ${prose.credential ?? 'OAuth credential'} reads ${prose.reads}, which carries ${allowedList}. Create a ` +
     'separate mapping for the other data types, with a source that serves them.'
   );
 }

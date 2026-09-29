@@ -87,7 +87,7 @@ describe('no form of verhuizen where the product speaks Dutch (0152 D6)', () => 
     expect(
       saying,
       'A form of verhuizen is back. The owner chose migratie (0152 D6): write\n' +
-        'migratie or migreren for the product, verplaatst for files that moved, and\n' +
+        'migratie, migreren or gemigreerd for the product and what it moved, and\n' +
         '"gaat niet mee" for what does not come along (GLOSSARY.md).',
     ).toEqual([]);
   });

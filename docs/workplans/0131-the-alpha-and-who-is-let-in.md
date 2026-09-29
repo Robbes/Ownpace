@@ -1171,6 +1171,17 @@ R's or M's groups are changing:
   T3's second half (#1343), stacked on it, also changes `Layout.tsx`, `AppRoutes.tsx`, `Decisions.tsx`,
   `Setup.tsx`, `Docs.tsx`, the three sign-in doors, and deletes `Dashboard.tsx`; none is in an
   open pull request of R's or M's either.
+- At the owner's word on 2026-09-29 (*"Yes, but check first if it did not already land during
+  tonight"*), four more:
+  - R8's step 6, 0153 T4 with T7, *Start a migration*;
+  - the rest of step 7, the person's page;
+  - the draft of the ADR-0014 amendment that step 11 waits on;
+  - the legal texts' *migratie*, 0139's texts, for the lawyer's pass.
+
+  Checked on `main` at `5f74ebc`: T4 and T7 are still proposed, ADR-0014 has no amendment for
+  the new prices, and the Dutch legal texts say *verhuizing* 85 times. No branch or open pull
+  request of R's or M's changes them. R's open #1362 changes `site/legal/privacy.md` and
+  `privacy.nl.md` beside the legal texts' change; whichever merges second keeps both.
 
 R builds the rest in the order above. 0154 T2's totals stay with R, because they change
 `apps/api`'s migration routes, which are R2's.

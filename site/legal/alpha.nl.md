@@ -15,7 +15,7 @@
 
 **Gelden voor:** de Alpha van de **beheerde Ownpace-dienst** op `ownpace.eu`.
 **Versie:** 1.0
-**Laatst bijgewerkt:** 2026-09-28
+**Laatst bijgewerkt:** 2026-09-29
 
 ---
 
@@ -76,7 +76,7 @@ servicevoorwaarden al zegt, is er geen beschikbaarheidsgarantie.
 Wij kunnen de dienst stilzetten, bijvoorbeeld bij een storing of een beveiligingsprobleem. Er
 start dan geen nieuwe ronde, en u ziet dat in de app. Dat kan zonder waarschuwing vooraf.
 
-Tijdens de Alpha werken wij de dienst vaak bij. Een update kan uw verhuizingen even stilzetten;
+Tijdens de Alpha werken wij de dienst vaak bij. Een update kan uw migraties even stilzetten;
 wij kondigen niet elke update aan.
 
 Wij kunnen de Alpha ook opnieuw laten beginnen (een reset) of beëindigen. Bij een reset wissen wij
@@ -86,7 +86,7 @@ hostingomgeving. Een reset of het einde melden wij u per e-mail, minstens 7 dage
 ## 6. Geen back-ups
 
 Tijdens de Alpha maken wij geen back-ups van de eigen gegevens van de dienst: uw organisatie, de
-accounts die u hebt gekoppeld, uw verhuizingen en hun geschiedenis, en uw Ownpace-inlogaccount.
+accounts die u hebt gekoppeld, uw migraties en hun geschiedenis, en uw Ownpace-inlogaccount.
 
 Eén uitzondering. Vlak voor elke update van de dienst maken wij één kopie van de databases. Die
 kopie is er alleen om een mislukte update terug te draaien. Wij bewaren haar tot blijkt dat die
@@ -96,7 +96,7 @@ gewist, dan kunnen uw gegevens nog hoogstens 7 dagen in die kopie staan.
 Gaat de hostingomgeving van de Alpha verloren, dan gaan de gegevens van de dienst en die kopie
 mee verloren. Uw eigen gegevens niet: Ownpace verwijdert niets uit uw oude account, en wat naar
 uw nieuwe aanbieder is gekopieerd, blijft daar staan. Wij laten u dan opnieuw toe, net als de
-eerste keer. U logt opnieuw in, koppelt uw accounts opnieuw en zet uw verhuizingen opnieuw op.
+eerste keer. U logt opnieuw in, koppelt uw accounts opnieuw en zet uw migraties opnieuw op.
 De eerste ronde herkent wat al bij uw nieuwe aanbieder staat en kopieert dat niet nog een keer.
 Wat hij herkent, wordt daarna niet meer bijgewerkt als het in uw oude account verandert, en wat
 u bij uw nieuwe aanbieder hebt verwijderd of verplaatst, wordt opnieuw gekopieerd. Als dit
@@ -108,15 +108,15 @@ verloren, trek die toegang dan in, en geef haar opnieuw wanneer u opnieuw koppel
 
 Sommige bronnen en gegevenssoorten dragen het label *Experimenteel*. Dat betekent: gebouwd,
 maar nog niet gebruikt met een echt account van die soort. Houd uw oude account aan tot u hebt
-gecontroleerd wat er is aangekomen. §10 van de servicevoorwaarden zegt dat voor elke verhuizing;
+gecontroleerd wat er is aangekomen. §10 van de servicevoorwaarden zegt dat voor elke migratie;
 bij een experimentele bron telt het extra.
 
 ## 8. Uw account is van u
 
 Uw account is alleen voor u. Deel uw inloggegevens met niemand.
 
-Nodig tijdens de Alpha niemand anders uit in uw organisatie. Wil iemand een verhuizing volgen,
-stuur die persoon dan de voortgangslink van die verhuizing: die toont aantallen en statussen,
+Nodig tijdens de Alpha niemand anders uit in uw organisatie. Wil iemand een migratie volgen,
+stuur die persoon dan de voortgangslink van die migratie: die toont aantallen en statussen,
 nooit de inhoud. Nodigt u toch iemand uit, geef die persoon dan de rol beheerder, en weet dat een
 beheerder alles kan wat u kunt, behalve de organisatie sluiten of heropenen, het toepassen van
 verwijderingen of het automatisch toepassen van verplaatsingen aan- of uitzetten, en iemand
@@ -144,9 +144,9 @@ Wat blijft: de kopieën bij uw nieuwe aanbieder, en uw oude account, waaruit Own
 verwijdert. Toegang die u zelf bij een aanbieder hebt gemaakt, zoals een app-wachtwoord of de
 toestemming bij Microsoft of Dropbox, trekt u daar zelf in. Wij zeggen u welke.
 
-Een afgeronde verhuizing houdt de toegang die u ons gaf, zodat u hem kunt hervatten. Wij bewaren
-die toegang tot u de koppeling verwijdert; de app staat dat toe zodra geen verhuizing haar meer
-gebruikt. Toegang die een gezinslid via een toegangslink gaf, verdwijnt wanneer u de verhuizing
+Een afgeronde migratie houdt de toegang die u ons gaf, zodat u haar kunt hervatten. Wij bewaren
+die toegang tot u de koppeling verwijdert; de app staat dat toe zodra geen migratie haar meer
+gebruikt. Toegang die een gezinslid via een toegangslink gaf, verdwijnt wanneer u de migratie
 verwijdert, of wanneer die persoon haar op de eigen voortgangspagina intrekt. Sluit u uw account,
 dan gebruikt niets die toegang meer, en wordt alles vernietigd wanneer uw gegevens worden gewist,
 aan het eind van de termijn die u koos.
@@ -158,17 +158,17 @@ dat vraagt.
 
 ## 11. Het einde van de Alpha
 
-Na de Alpha gaat de dienst door, onder nieuwe voorwaarden. Misschien verhuist de dienst dan van de
-huidige hostingomgeving naar een andere hostingaanbieder.
+Na de Alpha gaat de dienst door, onder nieuwe voorwaarden. Misschien gaat de dienst dan van de
+huidige hostingomgeving over naar een andere hostingaanbieder.
 
 Wij laten het u minstens 7 dagen van tevoren per e-mail weten. U krijgt dan de nieuwe
-voorwaarden, en wij zeggen waar uw gegevens dan naartoe gaan. Uw verhuizingen gaan pas onder de
+voorwaarden, en wij zeggen waar uw gegevens dan naartoe gaan. Uw migraties gaan pas onder de
 nieuwe voorwaarden door als u die in de app hebt aanvaard, zoals in §2. Wilt u liever stoppen,
 sluit dan uw account zoals in §10. Hebt u ze niet aanvaard op de dag dat ze ingaan, dan sluiten
-wij uw account en verhuizen uw gegevens niet mee naar de nieuwe dienst. Uw gegevens worden 7
+wij uw account en nemen wij uw gegevens niet mee naar de nieuwe dienst. Uw gegevens worden 7
 dagen later gewist; tot dan kunt u ze alsnog aanvaarden en doorgaan.
 
-Wat u met uw verhuizingen al naar uw nieuwe aanbieder hebt gekopieerd, blijft daar in elk
+Wat u met uw migraties al naar uw nieuwe aanbieder hebt gekopieerd, blijft daar in elk
 geval staan.
 
 ## 12. Ons bereiken
