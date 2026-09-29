@@ -27,6 +27,7 @@ import {
   fetchApplyDeletionsFlag,
   setApplyDeletionsFlag,
 } from '../../services/operating-service.ts';
+import { serverMessage } from '../../services/api.ts';
 
 export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId }) => {
   const queryClient = useQueryClient();
@@ -57,7 +58,7 @@ export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId
           err instanceof DecisionRefusedError
             ? (err.refusal.reason ?? err.refusal.hint ?? err.refusal.error)
             : err instanceof Error
-              ? err.message
+              ? serverMessage(err)
               : t('common.requestFailed'),
         );
       })
@@ -70,7 +71,7 @@ export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId
     return (
       <p className="mb-4 text-sm text-amber-800">
         {t('applyFlag.readFailed')}{' '}
-        {error instanceof Error ? error.message : String(error)}
+        {serverMessage(error)}
       </p>
     );
   }

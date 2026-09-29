@@ -247,7 +247,7 @@ const Finish: React.FC = () => {
             {perMapping ? t('finish.readError.one') : t('finish.readError.many')}
           </p>
           <p className="mt-1">
-            {loadError instanceof Error ? loadError.message : String(loadError)}
+            {serverMessage(loadError)}
           </p>
         </div>
       </div>
@@ -385,9 +385,7 @@ const Finish: React.FC = () => {
                   {verifyOutcome.error != null ? (
                     <p className="mt-1 text-amber-800">
                       {t('finish.step1.readFailed')}{' '}
-                      {verifyOutcome.error instanceof Error
-                        ? verifyOutcome.error.message
-                        : String(verifyOutcome.error)}
+                      {serverMessage(verifyOutcome.error)}
                     </p>
                   ) : verifyOutcome.data?.state === 'done' && verifyOutcome.data.report[id] ? (
                     verifyOutcome.data.report[id]!.canProceedToCutover ? (
@@ -438,7 +436,7 @@ const Finish: React.FC = () => {
                     <span className="text-amber-800">
                       {queueReadErrors.map((e, i) => (
                         <span key={i} className="block">
-                          {t('finish.step2.readFailed')} {e.message} {t('finish.step2.notSameAsClear')}
+                          {t('finish.step2.readFailed')} {serverMessage(e)} {t('finish.step2.notSameAsClear')}
                         </span>
                       ))}
                     </span>
@@ -527,9 +525,7 @@ const Finish: React.FC = () => {
                     // screen where believing that costs the most.
                     <p className="mt-1 text-amber-800">
                       {t('finish.step3.stoppedUnread')}{' '}
-                      {mappingDomains.error instanceof Error
-                        ? mappingDomains.error.message
-                        : String(mappingDomains.error)}
+                      {serverMessage(mappingDomains.error)}
                     </p>
                   )}
                   {typeof passState === 'object' && (

@@ -54,6 +54,7 @@ import supportRoutes from './routes/support.ts';
 import platformPauseRoutes from './routes/platform-pause.ts';
 import { problemReportRoutes } from './routes/problem-reports.ts';
 import { linkReportRoutes } from './routes/link-reports.ts';
+import { unreadableAnswerRoutes } from './routes/unreadable-answers.ts';
 import { assertProductionAuthConfig, getDbPool, selectAuthMode } from './middleware/auth.ts';
 import { assertBackupRetentionConfig, assertProductionUrlConfig } from './config-guards.ts';
 import { maxMigrationsPerOrganisationFromEnv } from './routes/migrations/migration-cap.ts';
@@ -276,6 +277,9 @@ app.use('/api/decisions', decisionRoutes);
 // Everything waiting on a person, across every queue — the read the
 // "Attention" screen was missing, which showed drift alone.
 app.use('/api/attention', attentionRoutes);
+// An answer a page could not read, told by the page once, and kept on the log
+// page under the reference the page showed (workplan 0145, the owner's "Log it").
+app.use('/api/unreadable-answers', unreadableAnswerRoutes());
 app.use('/api/shared-addresses', sharedAddressRoutes);
 app.use('/api/permissions', permissionRoutes);
 app.use('/api/billing', billingRoutes);

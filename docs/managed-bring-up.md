@@ -1329,7 +1329,9 @@ an event name, category, reference or dates; an organisation's page and a
 migration's page open it narrowed to them. When somebody quotes the reference
 an error showed them, type it into **Reference**: the row says when, where and
 what kind of error, and the error's text is in the API's or the worker's
-output, on the line carrying the same `[ref …]`.
+output, on the line carrying the same `[ref …]`. A page that could not read one
+of the API's answers records itself here too, as `web.answer_unreadable` under
+the reference it showed (workplan 0145; `incident-runbook.md`).
 
 What an audit event changed is not on the page. It stays in `audit_log.detail`
 until the organisation is erased, and an investigation reads it as the database

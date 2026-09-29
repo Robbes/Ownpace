@@ -103,6 +103,15 @@ const NOT_ASKED: Record<string, string> = {
     'test.ts, which drives the route with the helpdesk faked at fetch, and by ' +
     'a-report-that-reaches-support-by-mail.unit.test.ts, with the relay faked ' +
     'at its transport and nodemailer rendering the message.',
+  '/api/unreadable-answers':
+    'a page\'s report of an answer it could not read (workplan 0145). Asking it ' +
+    'writes a web.answer_unreadable error into the log the owner reads to find ' +
+    'real ones, every night, for a failure that never happened, and an error ' +
+    'that is always there teaches its reader to skip it. Covered by ' +
+    'routes/an-answer-a-page-could-not-read.unit.test.ts (kept under the ' +
+    'reference, fields of another shape dropped, sign-in, the hour\'s thirty) ' +
+    'and by apps/selfhost\'s a-log-the-appliance-serves.unit.test.ts, which ' +
+    'sends one to a real appliance and finds it on its /log.',
 };
 
 describe('every route family is either asked for or accounted for', () => {
