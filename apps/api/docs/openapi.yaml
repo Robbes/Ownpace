@@ -2906,7 +2906,9 @@ paths:
       - name: link
         in: path
         required: true
-        description: The whole credential — `<id>.<secret>`, one path segment.
+        description: |
+          The whole credential, one path segment: a migration's `<id>.<secret>`,
+          or a person's `p.<id>.<secret>` (ADR-0035, amended 2026-09-29).
         schema: { type: string }
     get:
       tags: [Grant links]
@@ -2928,6 +2930,11 @@ paths:
         Changes nothing, deliberately. Chat applications fetch URLs to draw
         previews, and a link is spent at the GRANT rather than at the open, so
         a preview cannot burn it.
+
+        For a person's link the answer is per Google account (`kind:
+        person`, `PersonGrantPage`): each account their migrations read, what
+        its one consent asks for, where each of its migrations goes, and
+        whether it is connected already.
       security: []
       responses:
         '200':
@@ -2935,56 +2942,58 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  organisation: { type: string }
-                  checkedCompany:
-                    type: string
-                    nullable: true
-                    description: The company name the EU VAT register (VIES) gave, when the organisation's VAT number as stored was checked and found valid; null otherwise.
-                  askedBy:
-                    type: string
-                    nullable: true
-                    description: The sign-in address of the member who issued the link; null when they are no longer a member.
-                  organisationPhone:
-                    type: string
-                    nullable: true
-                    description: The organisation's phone number, when it gave one; never anything that is not a phone number.
-                  domains:
-                    type: array
-                    minItems: 1
-                    items: { type: string, enum: [email, calendar, contact, file, task] }
-                    description: |
-                      Which data types the link reads, as codes. The page words
-                      them itself, in the reader's language, and joins them as
-                      that language joins a list (workplan 0145 T6); until then
-                      the server sent an English sentence as `reads`.
-                  scope: { type: string }
-                  readOnlyAtProvider:
-                    type: boolean
-                    description: |
-                      Whether every data scope this link asks for is one Google
-                      enforces as read-only (today `drive.readonly` and
-                      `tasks.readonly`). The page says "read-only" only then
-                      (workplan 0144 T3). A statement about the ask, not the
-                      grant: the consent asks with `include_granted_scopes`, so
-                      Google also hands back any permission this account already
-                      gave the same app, and the ending page judges what Google
-                      recorded.
-                  from:
-                    type: string
-                    description: |
-                      The account the migration reads, and the only one whose
-                      sign-in is accepted (0108 T8 (b)). A migration that names
-                      none answers 409 instead.
-                  to:
-                    type: object
-                    description: Where the data goes.
+                anyOf:
+                  - $ref: '#/components/schemas/PersonGrantPage'
+                  - type: object
                     properties:
-                      provider: { type: string, description: 'The target kind, e.g. `nextcloud`.' }
-                      host: { type: string, nullable: true }
-                      account: { type: string, nullable: true }
-                  expiresAt: { type: string, format: date-time }
+                      organisation: { type: string }
+                      checkedCompany:
+                        type: string
+                        nullable: true
+                        description: The company name the EU VAT register (VIES) gave, when the organisation's VAT number as stored was checked and found valid; null otherwise.
+                      askedBy:
+                        type: string
+                        nullable: true
+                        description: The sign-in address of the member who issued the link; null when they are no longer a member.
+                      organisationPhone:
+                        type: string
+                        nullable: true
+                        description: The organisation's phone number, when it gave one; never anything that is not a phone number.
+                      domains:
+                        type: array
+                        minItems: 1
+                        items: { type: string, enum: [email, calendar, contact, file, task] }
+                        description: |
+                          Which data types the link reads, as codes. The page words
+                          them itself, in the reader's language, and joins them as
+                          that language joins a list (workplan 0145 T6); until then
+                          the server sent an English sentence as `reads`.
+                      scope: { type: string }
+                      readOnlyAtProvider:
+                        type: boolean
+                        description: |
+                          Whether every data scope this link asks for is one Google
+                          enforces as read-only (today `drive.readonly` and
+                          `tasks.readonly`). The page says "read-only" only then
+                          (workplan 0144 T3). A statement about the ask, not the
+                          grant: the consent asks with `include_granted_scopes`, so
+                          Google also hands back any permission this account already
+                          gave the same app, and the ending page judges what Google
+                          recorded.
+                      from:
+                        type: string
+                        description: |
+                          The account the migration reads, and the only one whose
+                          sign-in is accepted (0108 T8 (b)). A migration that names
+                          none answers 409 instead.
+                      to:
+                        type: object
+                        description: Where the data goes.
+                        properties:
+                          provider: { type: string, description: 'The target kind, e.g. `nextcloud`.' }
+                          host: { type: string, nullable: true }
+                          account: { type: string, nullable: true }
+                      expiresAt: { type: string, format: date-time }
         '401':
           description: |
             One sentence for every way a link can fail — unknown, forged,
@@ -3057,6 +3066,15 @@ paths:
             schema:
               type: object
               properties:
+                account:
+                  type: string
+                  description: |
+                    For a person's link only: the Google account whose button
+                    was pressed, as the page listed it. The consent asks it for
+                    every scope its migrations need, offers it first, and the
+                    ending keeps only its sign-in. Answered 409
+                    `not_this_account` when the link does not ask for it, and
+                    `already_granted` when it is connected already.
                 locale:
                   type: string
                   enum: [en, nl]
@@ -4663,6 +4681,131 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+
+  /api/people/{personId}/links:
+    parameters:
+      - $ref: '#/components/parameters/PersonId'
+    post:
+      tags: [Grant links]
+      summary: Issue a person's grant link, and see it once
+      description: |
+        One link for all of a person's migrations (ADR-0035, amended
+        2026-09-29; workplan 0153 T5 (b)). Its page asks each Google account
+        the person's migrations read once, for everything those migrations
+        need, and the grant lands on each migration the page listed. It is
+        spent once every account on it is granted.
+
+        As `POST /api/migrations/{mappingId}/links`: owner or admin, the URL
+        said once, sent by you and never by Ownpace, `expiryDays` of 1, 7 or
+        30 (default 7), within the organisation's live-link limit (a person's
+        link counts once), and waiting for the current texts while the
+        deployment asks. The token is `p.<id>.<secret>`.
+
+        A progress link for a person is not offered yet: its page comes with
+        the next slice, and a link no page honours opens nothing.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                purpose: { type: string, enum: [grant] }
+                expiryDays: { type: integer, enum: [1, 7, 30], default: 7 }
+      responses:
+        '201':
+          description: The link, said once.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  purpose: { type: string, enum: [grant] }
+                  url: { type: string }
+                  expiresAt: { type: string, format: date-time }
+                  expiryDays: { type: integer }
+                  distribution: { type: string }
+        '400': { description: '`purpose` or `expiryDays` was not one of the offered values.' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: '`person_not_found`: this organisation has no such person.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: |
+            Nothing was written. `nothing_to_grant`: none of the person's
+            migrations can be granted through a link (the reason lists each
+            migration's own), or every account they read is connected already.
+            `web_url_unset`: the deployment cannot build the address.
+            `grant_links_at_limit`: the organisation holds as many live grant
+            links as it may. Or `conditions_not_accepted`
+            (`ConditionsNotAccepted`), as for a migration's grant link.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - type: object
+                    properties:
+                      error: { type: string }
+                      reason: { type: string }
+                  - { $ref: '#/components/schemas/ConditionsNotAccepted' }
+    get:
+      tags: [Grant links]
+      summary: A person's links, and their state
+      description: State and dates, never a URL and never a secret, as for a migration's links.
+      responses:
+        '200':
+          description: Every link of this person's, newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  links:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        purpose: { type: string, enum: [grant, view] }
+                        state: { type: string, enum: [live, used, revoked, expired] }
+                        createdAt: { type: string, format: date-time }
+                        createdBy: { type: string }
+                        expiresAt: { type: string, format: date-time }
+                        usedAt: { type: string, format: date-time, nullable: true }
+                        revokedAt: { type: string, format: date-time, nullable: true }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: '`person_not_found`: this organisation has no such person.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /api/people/{personId}/links/{linkId}:
+    parameters:
+      - $ref: '#/components/parameters/PersonId'
+      - { name: linkId, in: path, required: true, schema: { type: string, format: uuid } }
+    delete:
+      tags: [Grant links]
+      summary: Revoke a person's link
+      description: |
+        The kill switch, idempotent as for a migration's link. Re-checked when
+        a grant would be stored, so it also stops a consent already in flight.
+      responses:
+        '200':
+          description: Revoked now (`true`), or already revoked (`false`).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  revoked: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /api/decisions:
     get:
@@ -6665,6 +6808,56 @@ components:
           description: When its data is removed from the service; null when the close's own row could not say.
       required: [error, message, reason, closedAt, purgeAfter]
 
+    PersonGrantPage:
+      type: object
+      description: |
+        What a PERSON'S grant link opens (ADR-0035, amended 2026-09-29;
+        workplan 0153 T5 (b)): who is asking, once, then each Google account
+        the person's migrations read. No migration id, no tenant id, no client
+        id: the authorize call names the account.
+      required: [kind, organisation, accounts, expiresAt]
+      properties:
+        kind: { type: string, enum: [person] }
+        organisation: { type: string }
+        checkedCompany: { type: string, nullable: true }
+        askedBy: { type: string, nullable: true }
+        organisationPhone: { type: string, nullable: true }
+        accounts:
+          type: array
+          items:
+            type: object
+            required: [account, granted, domains, migrations]
+            properties:
+              account: { type: string, description: 'The address, and the only one whose sign-in is kept for it.' }
+              granted: { type: boolean, description: 'Every one of its migrations has a way in already.' }
+              domains:
+                type: array
+                items: { type: string, enum: [email, calendar, contact, file, task] }
+              scope: { type: string, nullable: true, description: 'The one consent it asks, in Google''s words; null when it cannot be asked.' }
+              readOnlyAtProvider: { type: boolean }
+              notReady:
+                nullable: true
+                description: Why this account cannot be asked, in English and Dutch, or null.
+                type: object
+                properties:
+                  reason: { type: string }
+                  reasonNl: { type: string }
+              migrations:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    domains:
+                      type: array
+                      items: { type: string, enum: [email, calendar, contact, file, task] }
+                    to:
+                      type: object
+                      properties:
+                        provider: { type: string }
+                        host: { type: string, nullable: true }
+                        account: { type: string, nullable: true }
+                    granted: { type: boolean }
+        expiresAt: { type: string, format: date-time }
     Refusal:
       type: object
       description: A refusal named by `error`, with the door's own sentence in `reason` or `message`.

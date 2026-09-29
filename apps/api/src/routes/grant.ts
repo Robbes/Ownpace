@@ -77,9 +77,9 @@ import {
   type Bilingual,
   type DiscoveryDomain,
 } from '@openmig/shared';
-import { authenticateMappingLink, getDbPool, withTenantDb } from '../middleware/auth.ts';
+import { authenticateGrantLink, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import { refusedAsClosed } from '../closed-organisation.ts';
-import type { MappingLinkRequest } from '../types/api.ts';
+import type { MappingLinkRequest, PersonLinkRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
 import {
   consentUrl,
@@ -98,6 +98,12 @@ import {
   whereFromAndTo,
   type WhereFromAndTo,
 } from './migrations/grant-subject.ts';
+import {
+  readPersonGrantSubject,
+  readPersonLinkAskedBy,
+  type PersonGrantSubject,
+} from './migrations/person-grant-subject.ts';
+import { sameGoogleAccount } from './migrations/signed-in-account.ts';
 
 const router = Router();
 
@@ -119,7 +125,35 @@ function pool() {
  * makes the middleware do the same.
  */
 const linkAuth: RequestHandler = (req, res, next) =>
-  authenticateMappingLink('grant', pool())(req, res, next);
+  // A migration's link or a person's (ADR-0035, amended 2026-09-29): the two
+  // routes below answer both, each in its own shape.
+  authenticateGrantLink('grant', pool())(req, res, next);
+
+/**
+ * When none of a person's migrations can be granted through their link (0153
+ * T5 (b)): each migration's own reason was the owner's to hear when issuing.
+ * This reader can act on none of them, so it says whom to tell.
+ */
+const NOTHING_TO_GRANT: Bilingual = {
+  en:
+    'None of the migrations this link is for can be connected through it yet. Nothing you can do ' +
+    'from here will fix that; please tell the person who sent you the link.',
+  nl:
+    'Geen van de migraties waarvoor deze link is, kan er al mee worden verbonden. U kunt dat vanaf ' +
+    'hier niet oplossen; laat het de persoon weten die u de link stuurde.',
+};
+
+/** When the button named an account this person's link does not ask for. */
+const NOT_THIS_ACCOUNT: Bilingual = {
+  en: 'This link does not ask for that account. Open the link again and choose an account it lists.',
+  nl: 'Deze link vraagt niet om dat account. Open de link opnieuw en kies een account dat erop staat.',
+};
+
+/** When the account the button named is already connected. */
+const ALREADY_GRANTED: Bilingual = {
+  en: 'This account is already connected. Nothing more is needed for it.',
+  nl: 'Dit account is al verbonden. Er is niets meer voor nodig.',
+};
 
 interface GrantSubject extends WhereFromAndTo {
   /** Never null here: a migration that names no account is not ready (T8 (b)). */
@@ -221,6 +255,110 @@ function callbackUri(req: MappingLinkRequest): string {
   return `${base}/api/migrations/google/callback`;
 }
 
+type PersonLink = NonNullable<PersonLinkRequest['personLink']>;
+
+/** A person's migrations, grouped by account, read in their organisation's transaction. */
+function readPersonSubject(link: PersonLink): Promise<PersonGrantSubject | null> {
+  return withTenantDb(link.tenantId, pool(), (db) => readPersonGrantSubject(db, link.tenantId, link.personId));
+}
+
+/**
+ * GET for a PERSON'S link (ADR-0035, amended 2026-09-29; 0153 T5 (b)): what a
+ * migration's page says, per Google account. Who is asking, who asked, and
+ * until when, once; then each account with what it will read, the scope in
+ * Google's words, where each of its migrations goes, and whether it is
+ * connected already. No migration id: the button names the account.
+ */
+async function answerForAPerson(res: Response, link: PersonLink): Promise<void> {
+  if (await refusedAsClosed(res, link.tenantId, pool())) return;
+  const subject = await readPersonSubject(link);
+  if (!subject) return void res.status(409).json({ error: 'not_ready', ...reasonPair(NOTHING_TO_GRANT) });
+  const { askedBy, checkedCompany } = await withTenantDb(link.tenantId, pool(), async (db) => ({
+    askedBy: await readPersonLinkAskedBy(db, link.tenantId, link.linkId),
+    checkedCompany: await readCheckedCompany(db, link.tenantId),
+  }));
+  res.json({
+    kind: 'person',
+    organisation: subject.organisation,
+    checkedCompany,
+    askedBy,
+    organisationPhone: subject.organisationPhone,
+    accounts: subject.accounts.map((a) => ({
+      account: a.account,
+      granted: a.granted,
+      // What it will read and in which words, when one sign-in can serve it;
+      // otherwise why not, in both languages, for the person to forward.
+      ...(a.ask.ok
+        ? { domains: a.ask.domains, scope: a.ask.scope, readOnlyAtProvider: a.ask.readOnlyAtProvider, notReady: null }
+        : { domains: [], scope: null, readOnlyAtProvider: false, notReady: reasonPair(a.ask.reason) }),
+      migrations: a.migrations.map((m) => ({ domains: m.domains, to: m.to, granted: m.granted })),
+    })),
+    expiresAt: link.expiresAt.toISOString(),
+  });
+}
+
+/**
+ * POST authorize for a PERSON'S link: the account the button named, asked for
+ * everything its listed migrations need, through the one client they share.
+ * The pending state records the account and those migrations, so the ending
+ * grants exactly what the page showed and keeps only that account's sign-in.
+ */
+async function authorizeForAPerson(req: PersonLinkRequest, res: Response, link: PersonLink): Promise<void> {
+  if (await refusedAsClosed(res, link.tenantId, pool())) return;
+  const asked = (req.body as { account?: unknown } | undefined)?.account;
+  const subject = await readPersonSubject(link);
+  if (!subject) return void res.status(409).json({ error: 'not_ready', ...reasonPair(NOTHING_TO_GRANT) });
+  const account =
+    typeof asked === 'string' ? subject.accounts.find((a) => sameGoogleAccount(a.account, asked)) : undefined;
+  if (!account) return void res.status(409).json({ error: 'not_this_account', ...reasonPair(NOT_THIS_ACCOUNT) });
+  if (account.granted) return void res.status(409).json({ error: 'already_granted', ...reasonPair(ALREADY_GRANTED) });
+  if (!account.ask.ok) {
+    return void res.status(409).json({ error: 'not_ready', ...reasonPair(account.ask.reason) });
+  }
+
+  // WHOSE client, as decided, the values read only now.
+  let client: { clientId: string; clientSecret: string } | null;
+  if (account.ask.client === 'connection') {
+    const creds = storedCredentials(account.ask.connectionSecretRef);
+    const clientId = credential(creds, 'clientId');
+    const clientSecret = credential(creds, 'clientSecret');
+    client = clientId && clientSecret ? { clientId, clientSecret } : null;
+  } else {
+    client = googleDeploymentClient();
+  }
+  if (!client) {
+    return void res
+      .status(409)
+      .json({ error: 'not_ready', ...reasonPair(notReadyBecause(FOR_THE_LINK_HOLDER.client_not_configured)) });
+  }
+
+  const redirectUri = callbackUri(req);
+  const ipRefusal = rawIpCallbackRefusal(redirectUri);
+  if (ipRefusal) return void res.status(409).json({ error: 'raw_ip_callback', ...reasonPair(cannotSignInYet(ipRefusal)) });
+  const unreachable = unreachableCallbackRefusal(redirectUri, process.env.WEB_URL);
+  if (unreachable) {
+    return void res.status(409).json({ error: 'unreachable_callback', ...reasonPair(cannotSignInYet(unreachable)) });
+  }
+
+  const state = consentFlows.begin({
+    clientId: client.clientId,
+    clientSecret: client.clientSecret,
+    scope: account.ask.scope,
+    redirectUri,
+    personLink: {
+      linkId: link.linkId,
+      tenantId: link.tenantId,
+      personId: link.personId,
+      account: account.account,
+      mappingIds: account.migrations.map((m) => m.mappingId),
+    },
+    locale: localeOf((req.body as { locale?: unknown } | undefined)?.locale),
+  });
+  res.json({
+    url: consentUrl({ clientId: client.clientId, scope: account.ask.scope, redirectUri, state, loginHint: account.account }),
+  });
+}
+
 /**
  * GET /api/grant/:link — what this page must be able to say before the button.
  *
@@ -234,6 +372,8 @@ router.get(
   linkAuth,
   async (req: MappingLinkRequest, res: Response) => {
     try {
+      const person = (req as PersonLinkRequest).personLink;
+      if (person) return void (await answerForAPerson(res, person));
       const { linkId, tenantId, mappingId, expiresAt } = req.mappingLink!;
       // The organisation that sent the link was closed (0085 T2): nobody is
       // asked to grant it anything, and the page says why in its language.
@@ -294,6 +434,8 @@ router.post(
   linkAuth,
   async (req: MappingLinkRequest, res: Response) => {
     try {
+      const person = (req as PersonLinkRequest).personLink;
+      if (person) return void (await authorizeForAPerson(req, res, person));
       const { linkId, tenantId, mappingId } = req.mappingLink!;
       // No consent begins for a closed organisation (0085 T2): nothing would
       // be allowed to use what it granted.

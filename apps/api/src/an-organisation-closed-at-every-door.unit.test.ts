@@ -575,7 +575,8 @@ const CHECKS_BY_FILE: Readonly<Record<string, number>> = {
   'routes/migrations/operating-routes.ts': 4,
   'routes/connections.ts': 3,
   'routes/permissions.ts': 1,
-  'routes/grant.ts': 2,
+  // Two more since a person's link (0153 T5 (b)): its page and its consent ask too.
+  'routes/grant.ts': 4,
   'routes/migrations/google-oauth-routes.ts': 1,
 };
 
@@ -590,7 +591,7 @@ const ASKS_AT_ALL = /\b(refusedAsClosed|closedOrganisation|enqueueUnlessHeld|rea
  * credential, or reaching a provider with one. A call, not a definition.
  */
 const USES_STORED_ACCESS =
-  /(?<!function\s+)\b(?:SecretStore\.decryptCredentials|storedCredentials|probeSourceConnection|probeTargetConnection|qualifyAccount|qualifyAndRemember|tenantInventoryScans|createNextcloudShare|exchangeCode|storeGrantedToken)\s*\(/g;
+  /(?<!function\s+)\b(?:SecretStore\.decryptCredentials|storedCredentials|probeSourceConnection|probeTargetConnection|qualifyAccount|qualifyAndRemember|tenantInventoryScans|createNextcloudShare|exchangeCode|storeGrantedToken|storePersonGrant)\s*\(/g;
 
 /**
  * Where the API uses the stored access today, counted per file. A new use
@@ -599,12 +600,13 @@ const USES_STORED_ACCESS =
  */
 const USES_BY_FILE: Readonly<Record<string, number>> = {
   'routes/connections.ts': 11,
-  'routes/grant.ts': 1,
+  'routes/grant.ts': 2,
   'routes/migrations/account-on-connection.ts': 1,
-  'routes/migrations/google-oauth-routes.ts': 2,
+  'routes/migrations/google-oauth-routes.ts': 3,
   'routes/migrations/grant-subject.ts': 2,
   'routes/migrations/index.ts': 3,
   'routes/migrations/operating-routes.ts': 3,
+  'routes/migrations/person-grant-subject.ts': 2,
   'routes/permissions.ts': 5,
   'routes/withdraw-grant.ts': 1,
 };
@@ -616,6 +618,10 @@ const USED_WITHOUT_ASKING: Readonly<Record<string, string>> = {
   'routes/migrations/grant-subject.ts':
     'reads whether the organisation’s own Google client is stored, to say whether a grant link can work. ' +
     'It reaches no provider. The grant page and the consent that use it ask (grant.ts, google-oauth-routes.ts).',
+  'routes/migrations/person-grant-subject.ts':
+    'reads whether each of a person’s migrations has a way in, to say which accounts their link still asks for ' +
+    '(0153 T5 (b)). It reaches no provider. The grant page and the consent that use it ask (grant.ts, ' +
+    'google-oauth-routes.ts), and the person’s ending reads the close in its own transaction.',
   'routes/withdraw-grant.ts':
     'withdrawing a grant revokes it at the provider. That ends access, and ending stays open after a close.',
 };

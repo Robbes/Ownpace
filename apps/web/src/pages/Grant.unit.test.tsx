@@ -270,3 +270,94 @@ describe('when the link is refused', () => {
     expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['EN', 'NL']);
   });
 });
+
+/**
+ * A PERSON'S link (ADR-0035, amended 2026-09-29; workplan 0153 T5 (b)): one
+ * card per Google account, each asked once, with its own button, and a card
+ * that is connected already has none.
+ */
+describe("a person's link", () => {
+  const PERSON = {
+    kind: 'person',
+    organisation: 'Acme Legal',
+    checkedCompany: null,
+    askedBy: 'owner@example.org',
+    organisationPhone: null,
+    accounts: [
+      {
+        account: 'anna@gmail.com',
+        granted: true,
+        domains: ['calendar', 'contact'],
+        scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/carddav',
+        readOnlyAtProvider: false,
+        notReady: null,
+        migrations: [
+          { domains: ['calendar'], to: { provider: 'nextcloud', host: 'cloud.example.org', account: 'anna' }, granted: true },
+          { domains: ['contact'], to: { provider: 'soverin', host: null, account: 'anna@soverin.net' }, granted: true },
+        ],
+      },
+      {
+        account: 'anna@work.example',
+        granted: false,
+        domains: ['email'],
+        scope: 'https://mail.google.com/ openid',
+        readOnlyAtProvider: false,
+        notReady: null,
+        migrations: [
+          { domains: ['email'], to: { provider: 'soverin', host: null, account: 'anna@soverin.net' }, granted: false },
+        ],
+      },
+      {
+        account: 'anna@old.example',
+        granted: false,
+        domains: [],
+        scope: null,
+        readOnlyAtProvider: false,
+        notReady: { reason: 'Two applications, one sign-in.', reasonNl: 'Twee applicaties, één aanmelding.' },
+        migrations: [
+          { domains: ['file'], to: { provider: 'nextcloud', host: 'cloud.example.org', account: 'anna' }, granted: false },
+        ],
+      },
+    ],
+    expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+  };
+
+  beforeEach(() => {
+    readMock.mockResolvedValue(PERSON);
+  });
+
+  it('draws a card per account, saying where each of its migrations goes and what it copies', async () => {
+    renderPage();
+    expect(await screen.findByRole('heading', { level: 2, name: 'anna@gmail.com' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'anna@work.example' })).toBeInTheDocument();
+    expect(screen.getByText('To anna, Nextcloud at cloud.example.org: your calendars and their events.')).toBeInTheDocument();
+    expect(screen.getByText('To anna@soverin.net, Soverin: your contacts.')).toBeInTheDocument();
+    expect(screen.getByText(/is moving your accounts to a new provider/)).toBeInTheDocument();
+  });
+
+  it('offers no button for a connected account, and says why an account cannot be asked', async () => {
+    renderPage();
+    await screen.findByRole('heading', { level: 2, name: 'anna@gmail.com' });
+    expect(screen.getByText('Connected. Nothing more is needed for this account.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /as anna@gmail\.com/ })).not.toBeInTheDocument();
+    expect(screen.getByText('Two applications, one sign-in.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /as anna@old\.example/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Continue with Google as/ })).toHaveLength(1);
+  });
+
+  it('asks for the account whose button was pressed, and follows the URL the server built', async () => {
+    authorizeMock.mockResolvedValue({ url: 'https://accounts.google.com/o/oauth2/v2/auth?y=2' });
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Continue with Google as anna@work.example' }));
+    await waitFor(() => expect(authorizeMock).toHaveBeenCalledWith('abc.def', 'en', 'anna@work.example'));
+    expect(assignMock).toHaveBeenCalledWith('https://accounts.google.com/o/oauth2/v2/auth?y=2');
+  });
+
+  it('is in Dutch for a Dutch reader, the refusal too', async () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    renderPage();
+    expect(await screen.findByRole('button', { name: 'Doorgaan met Google als anna@work.example' })).toBeInTheDocument();
+    expect(screen.getByText('Twee applicaties, één aanmelding.')).toBeInTheDocument();
+    expect(screen.getByText('Verbonden. Voor dit account is niets meer nodig.')).toBeInTheDocument();
+  });
+});
