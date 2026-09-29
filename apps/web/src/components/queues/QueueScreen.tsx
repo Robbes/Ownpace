@@ -22,6 +22,7 @@ import AsOf from '../AsOf.tsx';
 import { useT } from '../../i18n/index.tsx';
 import { DecisionRefusedError } from '../../services/operating-service.ts';
 import { Hint } from '../Hint.tsx';
+import { serverMessage } from '../../services/api.ts';
 
 /**
  * What happened to one item after the operator acted on it.
@@ -114,7 +115,7 @@ export function QueueScreen<T extends QueueEnvelope>({
             ...o,
             [hash]: {
               state: 'refused',
-              text: err instanceof Error ? err.message : t('common.requestFailed'),
+              text: err instanceof Error ? serverMessage(err) : t('common.requestFailed'),
             },
           }));
         });
@@ -140,7 +141,7 @@ export function QueueScreen<T extends QueueEnvelope>({
         <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
         <div>
           <p className="font-medium">{t('queue.loadFailed')}</p>
-          <p className="mt-1">{error instanceof Error ? error.message : String(error)}</p>
+          <p className="mt-1">{serverMessage(error)}</p>
           <p className="mt-1">{t('queue.loadFailedNotEmpty')}</p>
         </div>
       </div>

@@ -1197,6 +1197,14 @@ const en = {
   'link.unreachable': 'This page could not reach the server. Check your connection and try again.',
   'link.unreadable':
     'Something went wrong on this page. Try again later; if it keeps happening, please tell the person who sent you the link.',
+  // An answer the page's schema refused, on a signed-in page (reported
+  // 2026-09-29): `serverMessage` says this where it used to show zod's JSON,
+  // most likely after the API and the web app were updated apart. The code
+  // and path after it are for support, verbatim.
+  'answer.unreadable':
+    'The server answered in a form this page does not know. Reload the page; if it stays like this, report it.',
+  'answer.unreadable.at': 'For support: {code} at {path}.',
+  'answer.unreadable.whole': 'For support: {code}, in the whole answer.',
   // The progress page (workplan 0122). The SAME reader as the grant page above
   // — no account, no jargon, second person — asking a different question:
   // has my mail arrived yet. So the states are sentences rather than the
@@ -3790,6 +3798,10 @@ const nl: Record<keyof typeof en, string> = {
   'link.unreachable': 'Deze pagina kon de server niet bereiken. Controleer uw verbinding en probeer het opnieuw.',
   'link.unreadable':
     'Er ging iets mis op deze pagina. Probeer het later opnieuw; blijft het misgaan, laat het dan de persoon weten die u de link stuurde.',
+  'answer.unreadable':
+    'De server antwoordde in een vorm die deze pagina niet kent. Laad de pagina opnieuw; blijft het zo, meld het dan.',
+  'answer.unreadable.at': 'Voor de ondersteuning: {code} bij {path}.',
+  'answer.unreadable.whole': 'Voor de ondersteuning: {code}, in het hele antwoord.',
   'view.title': 'Uw migratie',
   'view.loading': 'Een moment…',
   'view.who': '{organisation} migreert uw account naar een nieuwe provider.',

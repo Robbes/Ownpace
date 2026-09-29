@@ -11,6 +11,8 @@
 import React from 'react';
 import { STRINGS, type Locale, type StringKey } from './strings.ts';
 import { formatRelativeToNow, formatDateTime, formatNumber, formatCurrency, formatList } from './datetime.ts';
+import { publishLocale } from './active-locale.ts';
+import { fill, type TemplateVars } from './fill.ts';
 
 const STORAGE_KEY = 'ownpace.locale';
 
@@ -49,33 +51,22 @@ interface LocaleContextValue {
 
 const LocaleContext = React.createContext<LocaleContextValue | null>(null);
 
-/**
- * Values substituted into a string's `{placeholders}` (workplan 0080).
- *
- * Added for the probe results, and the reason it had to exist rather than be
- * composed at the call site: a sentence built by concatenating dictionary
- * fragments has ENGLISH word order baked into the concatenation. *The JMAP
- * session document at {url} answered {status}* and its Dutch counterpart do
- * not put those two values in the same places, and no amount of care at the
- * call site fixes that — the ordering belongs to the sentence, which means it
- * belongs to the dictionary.
- */
-export type TemplateVars = Readonly<Record<string, string | number>>;
-
-/**
- * Substitute `{name}` from `vars`. A placeholder with no value is left ALONE
- * rather than blanked: a visible `{count}` on screen is a bug report, and an
- * empty gap is a mystery.
- */
-function fill(template: string, vars?: TemplateVars): string {
-  if (!vars) return template;
-  return template.replace(/\{(\w+)\}/g, (whole, name: string) =>
-    name in vars ? String(vars[name]) : whole,
-  );
-}
-
 export const LocaleProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [locale, setLocaleState] = React.useState<Locale>(detectLocale);
+
+  // For the words chosen outside React (`active-locale.ts`). During render,
+  // not in an effect: a parent renders before its children, and a child that
+  // words a failure as it renders must already see the language it is in.
+  // Assigning the same value again is harmless.
+  publishLocale(locale);
+  // Unmounted, the screen is in no language of ours: back to the English an
+  // un-provided render uses, so an isolated render after this one is too. The
+  // body publishes again because StrictMode unmounts and remounts once, and
+  // the cleanup must not be the last word.
+  React.useEffect(() => {
+    publishLocale(locale);
+    return () => publishLocale('en');
+  }, [locale]);
 
   // WCAG 3.1.1 (SAD §23): the document's language follows the UI's, or a
   // screen reader reads Dutch with an English voice. index.html says `en`.
@@ -154,4 +145,4 @@ export function useFormatters(): {
   );
 }
 
-export type { Locale, StringKey };
+export type { Locale, StringKey, TemplateVars };

@@ -2,7 +2,52 @@
 
 > **In one line:** The web app on phones, screen readers and in-app browsers: phone menu focus, `CreateMapping` wizard focus, the consent popup opened on the press, grant page language, ARIA state, axe and WebKit tests, an accessibility statement.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-09-29 (update this block at the end of every session)
+
+**2026-09-29, fix: T6's unreadable answer, on the signed-in pages too, on branch
+`claude/affectionate-mayer-xqkjdh`, not merged.** T6 made the grant and view pages say
+`link.unreadable` where they showed zod's JSON. The signed-in pages still showed it. A service
+that checks an answer with `Schema.parse(response.data)` throws a zod error when the API answers
+a shape the schema refuses, and `serverMessage` returned that error's message, which in zod 4 is
+the pretty-printed JSON of its issues. Seen on Migrations while taking screenshots with a fixture
+that sent `"contacts"` for `"contact"`. In production it is what somebody sees when the API and
+the web app disagree after a partial deploy.
+
+- **`serverMessage` words it, in the reader's language.** `unreadableAnswer` (beside it in
+  `apps/web/src/services/api.ts`) recognises any zod error (`z.core.$ZodError`, classic or mini)
+  and returns the first issue's code and path. `serverMessage` then says `answer.unreadable`
+  followed by `answer.unreadable.at` (*"For support: invalid_value at 2.domains.2."*), or
+  `answer.unreadable.whole` when the whole answer was refused. EN: *"The server answered in a form
+  this page does not know. Reload the page; if it stays like this, report it."* NL: *"De server
+  antwoordde in een vorm die deze pagina niet kent. Laad de pagina opnieuw; blijft het zo, meld
+  het dan."* The failure is still shown as one (hard rule 9): which words, not whether.
+- **How the words reach the language.** `serverMessage` has some sixty callers and no `t`.
+  `LocaleProvider` publishes its locale to `apps/web/src/i18n/active-locale.ts` as it renders,
+  and `tActive` reads it. Outside a provider it is English, as `useLocale` is. `fill` moved to
+  `i18n/fill.ts` so both substitute placeholders the same way.
+- **Sixteen renders in nine files that bypassed `serverMessage` now use it**: Finish (four), the queue screen
+  (two), the apply-deletions panel (two), a failure group, the pause on a migration's page, the
+  completion report download, Sharing (three), Moves and Deletions. Each showed a zod error's
+  `message` raw. For a non-request error `serverMessage` still returns the message, and for a
+  request it prefers the server's own sentence, as everywhere else.
+- **Not changed**: Team (`Tenants.tsx`) and Needs you (`Decisions.tsx`) word their failed reads
+  from the dictionary and never showed the JSON. The sign-in pages read nothing through zod.
+
+The guards, each run against a mutation:
+
+- `apps/web/src/pages/an-answer-the-page-could-not-read.unit.test.tsx`, five cases: the
+  reported list through the real `MappingListItemSchema`, on Migrations and on a queue, in `en`
+  and `nl`. The sentence and path show, no `"code":` does, and the lead still says the list was
+  not read, with no empty state.
+- `apps/web/src/services/api.unit.test.ts`, five cases: English, Dutch, a root refusal, a
+  zod-mini error, and an Axios refusal that keeps the server's words.
+- Mutations: no zod branch (8 failed); the locale ignored (the 3 Dutch cases failed); the queue
+  screen's raw message back (2 failed).
+- Gates: `pnpm exec vitest run --project unit-browser --maxWorkers=4` 133 files, 2535 tests;
+  `pnpm exec vitest run --project unit scripts/` 212 files, 4049 tests; `pnpm typecheck` and
+  `pnpm lint` exit 0.
+- For the owner's reading, beside the rest of the Dutch: `answer.unreadable`,
+  `answer.unreadable.at` and `answer.unreadable.whole`.
 
 **2026-09-28, build: T5 with T7 (a), on branch
 `claude/ownpace-public-readiness-y7orc6-a-consent-window-opened-by-the-press`, not merged.** This

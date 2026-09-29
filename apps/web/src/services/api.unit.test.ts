@@ -6,8 +6,11 @@
  * stays stale after an unauthorized response.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import apiClient, { onUnauthorized, serverMessage } from './api.ts';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { z } from 'zod';
+import { z as zm } from 'zod/mini';
+import apiClient, { onUnauthorized, serverMessage, unreadableAnswer } from './api.ts';
+import { publishLocale } from '../i18n/active-locale.ts';
 import type { AxiosAdapter } from 'axios';
 import { useAuthStore } from '../stores/auth-store.ts';
 
@@ -86,6 +89,74 @@ describe('serverMessage', () => {
 
   it('falls back to the transport message when there is no body', () => {
     expect(serverMessage(axiosErr(undefined))).toBe('Request failed with status code 409');
+  });
+});
+
+/**
+ * AN ANSWER THE PAGE'S SCHEMA REFUSED (reported 2026-09-29).
+ *
+ * A zod error's message is the JSON of its issues, and every screen showing
+ * `serverMessage(err)` under a failed read of a parsed answer showed that
+ * JSON. It is ours to word, in the reader's language, with the first issue's
+ * code and path kept for support. The page-level cases, on the reported
+ * Migrations list, are in `pages/an-answer-the-page-could-not-read.unit.test.tsx`.
+ */
+describe('serverMessage — an answer the page could not read', () => {
+  const refusal = (schema: z.ZodType, value: unknown): unknown => {
+    const result = schema.safeParse(value);
+    if (result.success) throw new Error('the schema accepted the value');
+    return result.error;
+  };
+  const DOMAINS = z.object({ domains: z.array(z.enum(['email', 'calendar', 'contact'])) }).array();
+  const reported = () => refusal(DOMAINS, [{ domains: ['email'] }, { domains: ['email', 'contacts'] }]);
+
+  afterEach(() => publishLocale('en'));
+
+  it('says a sentence and the path in English, and no JSON', () => {
+    const said = serverMessage(reported());
+    expect(said).toBe(
+      'The server answered in a form this page does not know. Reload the page; if it stays like this, ' +
+        'report it. For support: invalid_value at 1.domains.1.',
+    );
+    expect(said).not.toContain('"code":');
+    expect(said).not.toContain('[');
+  });
+
+  it('says it in Dutch when the screen is in Dutch', () => {
+    publishLocale('nl');
+    const said = serverMessage(reported());
+    expect(said).toBe(
+      'De server antwoordde in een vorm die deze pagina niet kent. Laad de pagina opnieuw; blijft het zo, ' +
+        'meld het dan. Voor de ondersteuning: invalid_value bij 1.domains.1.',
+    );
+    expect(said).not.toContain('"code":');
+  });
+
+  it('says so when the whole answer was the wrong shape, with no path to give', () => {
+    // A proxy's HTML page answered with a 200 is refused at the root.
+    expect(serverMessage(refusal(DOMAINS, '<html>502</html>'))).toBe(
+      'The server answered in a form this page does not know. Reload the page; if it stays like this, ' +
+        'report it. For support: invalid_type, in the whole answer.',
+    );
+  });
+
+  it('recognises a zod error from the core and mini builds too', () => {
+    const mini = zm.object({ n: zm.number() }).safeParse({ n: 'one' });
+    expect(mini.success).toBe(false);
+    expect(unreadableAnswer(mini.error)).toEqual({ code: 'invalid_type', path: 'n' });
+  });
+
+  it('is not an unreadable answer when the server refused with its own words', () => {
+    // The Axios refusal keeps the server's sentence; the case above this
+    // block holds that for every shape it reads.
+    const axiosRefusal = Object.assign(new Error('Request failed with status code 400'), {
+      isAxiosError: true,
+      response: { data: { error: 'Validation error', details: [{ message: 'Name is required.' }] } },
+    });
+    expect(unreadableAnswer(axiosRefusal)).toBeNull();
+    expect(serverMessage(axiosRefusal)).toBe('Name is required.');
+    expect(unreadableAnswer(new Error('plain'))).toBeNull();
+    expect(serverMessage(new Error('plain'))).toBe('plain');
   });
 });
 
