@@ -550,13 +550,16 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
      - Een inlogaccount dat we nooit hebben toegelaten, "30 dagen nadat het is aangemaakt", en
        dat van een verwijderd lid, "7 dagen nadat die persoon is verwijderd"
        (ops-unadmitted-signin-cleanup (a), "A daily script, built before the first tester"; 0135
-       open question 13, answered 2026-09-29: "Same number of days", the erasure window's 7):
-       built, not yet run: deploy/compose/idp-strays.sh (0135 T8 (a), #1344, review fixes #1367,
-       the 7 days added 2026-09-29), the duty `strays` in box-duties.sh (0135 T8 (b), #1345),
-       --remove --at-most 20 once a day. It counts the 7 days from the newest audit_log
-       member.removed row for the subject, and keeps the account while the person is a member
-       anywhere, an operator, or has an open request or invitation. True on live once live's
-       daily duties run; a day with more than 20 waits for a person.
+       open question 13, answered 2026-09-29: "Samen number of days", and then "7 days", the
+       erasure window's): built, not yet run: deploy/compose/idp-strays.sh (0135 T8 (a), #1344,
+       review fixes #1367, the 7 days added 2026-09-29), the duty `strays` in box-duties.sh (0135
+       T8 (b), #1345), --remove --at-most 20 once a day. It counts the 7 days from the newest
+       audit_log member.removed row for the subject, and keeps the account while the person is a
+       member anywhere, an operator, or has an open request or invitation. True on live once
+       live's daily duties run; a day with more than 20 waits for a person. An organisation
+       erased less than 7 days after a removal takes that row with it: the runbook's Tenant
+       offboarding has the operator note the subject before the purge and remove the account
+       with --subject after it, sooner than 7 days, never later.
      - Supportmail, and the copies of the service's own mail (privacy-sent-mail-copies (b):
        "until resolved, then 6 months", as it stands): nothing prunes the mailbox or its Sent
        folder at Proton; it is done by hand. A mail that answers no question has no clear end

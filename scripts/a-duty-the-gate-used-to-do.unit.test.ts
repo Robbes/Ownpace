@@ -25,7 +25,9 @@
  * site, and, when live's `.env` switches the site on, when `ownpace-live-www`
  * is not running and healthy. And `strays` (0135 T8): `idp-strays.sh
  * --remove --at-most 20`, which removes the sign-in accounts nobody let in,
- * older than 30 days, and removes none when more than 20 would go. And a
+ * older than 30 days, and those of members removed from an organisation 7 or
+ * more days ago (0135 open question 13), and removes none when more than 20
+ * would go. And a
  * seventh, `searches` (0139 T6, privacy §4.5 and §9): `support-read-prune.sh
  * --delete`, which deletes the support screens' reads recorded with no
  * organisation 12 months after they were recorded, over the owner's

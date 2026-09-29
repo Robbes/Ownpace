@@ -860,7 +860,8 @@ until you grant a request for its address, but the identity provider keeps a
 name, an address, a password hash and sessions for it, and privacy §9 keeps it
 30 days. The account of a member removed from an organisation goes too, 7 days
 after the removal (privacy §9; 0135 open question 13, the owner, 2026-09-29:
-*"Same number of days"*). From the stack's checkout:
+*"Samen number of days"*, and, asked the same as which rule, *"7 days"*). From
+the stack's checkout:
 
 ```bash
 ./deploy/compose/idp-strays.sh            # lists them; removes nothing
@@ -881,13 +882,16 @@ human, the organisation's managers) are never listed. Nor are three more
   let in*; such an account was let in. The script keeps it while the newest
   removal recorded for it is younger than 7 days, the erasure window's number,
   which the owner chose for it on 2026-09-29 (workplan 0135, open question 13).
-  From 7 days on it lists it, however young the account itself is: the 7 days
-  count from the removal, and the 30 from creation do not apply. Every other
-  condition still does, so a former member who is a member again anywhere, an
-  operator, or holds an open request or invitation, keeps the account. Its line
-  says how long ago the removal was. An erasure deletes the organisation's
-  audit rows, so after a purge it is weighed like any other (*Tenant
-  offboarding*, below).
+  From 7 days on it lists it, however young the account itself is, and whether
+  or not the provider gives it a creation date: the 7 days count from the
+  removal, and the 30 from creation do not apply. Every other condition still
+  does, so a former member who is a member again anywhere, an operator, or holds
+  an open request or invitation, keeps the account. Its line says how long ago
+  the removal was. An erasure deletes the organisation's audit rows, so after a
+  purge it is weighed like any other: listed 30 days after it was created, and
+  never with no creation date. An organisation closed with a window of 0 can be
+  erased less than 7 days after a removal; *Tenant offboarding*, below, removes
+  such an account at the purge.
 - **An account of another organisation at the provider.** Only accounts whose
   `details.resourceOwner` is the organisation the provisioning token belongs to
   (`GET /management/v1/orgs/me`) are weighed.
@@ -1148,15 +1152,35 @@ authorization, a Dropbox app link or a Box admin authorization lives in *their*
 platform under *their* account, and no API call of ours withdraws it.
 
 **Their sign-in accounts.** Closing and purging leave each member's account at
-the identity provider. After the purge, from the stack's checkout,
-`./deploy/compose/idp-strays.sh` lists every former member who belongs to no
-other organisation and whose account is older than 30 days, beside any other
-account nobody let in (*Sign-in accounts nobody let in*, above). The purge
-deletes the organisation's `audit_log` rows too, so a member removed from it
-before the close is listed with the rest, whatever the age of the removal.
-Check the list, then run it again with `--remove`. A younger account is not
-listed: note its subject (`tenant_member.user_id`) before the purge, and
-afterwards remove it with
+the identity provider, and the account of a member removed from the
+organisation less than 7 days before the purge is still there too: the daily
+duty had not reached it. After the purge, from the
+stack's checkout, `./deploy/compose/idp-strays.sh` lists every former member
+who belongs to no other organisation and whose account is older than 30 days,
+beside any other account nobody let in (*Sign-in accounts nobody let in*,
+above). The purge deletes the organisation's `audit_log` rows too, and with
+them the record of each removal, so a member removed from it before the close
+is weighed the same way: listed when their account is older than 30 days,
+whatever the age of the removal. Check the list, then run it again with
+`--remove`. A younger account is not listed, nor one with no creation date,
+and privacy §9 promises a removed member's account goes 7 days after the
+removal: so **before the purge** (with a window of `0`, right after the close:
+the hourly purge, at :23, erases it at its next run), note the organisation's
+subjects, its members' and those of the members removed from it, as the
+database's owner (`audit_log` and `tenant_member` force row security):
+
+```bash
+docker compose -f deploy/compose/managed.yml exec -T postgres sh -c 'psql -X -At -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+SELECT user_id FROM tenant_member
+ WHERE tenant_id = '<tenant-id>' AND user_id NOT LIKE 'pending:%'
+UNION
+SELECT detail->>'userId' FROM audit_log
+ WHERE tenant_id = '<tenant-id>' AND action = 'member.removed' AND detail->>'userId' <> '';
+SQL
+```
+
+After the purge and the listing's `--remove`, remove each noted subject the
+listing did not name with
 `./deploy/compose/idp-strays.sh --subject <sub> --remove`. That refuses, saying
 why, while the subject is still a member anywhere, was removed from another
 organisation less than 7 days ago (the daily duty removes it 7 days after that

@@ -9,7 +9,8 @@
 # their history for it. Privacy 1.2's §9 keeps it 30 days (0135 open question
 # 6, answered 2026-09-28: "30 days is ok"). Nothing removed one. The account of
 # a member removed from an organisation goes too, 7 days after the removal
-# (0135 open question 13, answered 2026-09-29: "Same number of days").
+# (0135 open question 13, answered 2026-09-29: "Samen number of days", and
+# then "7 days").
 #
 # WHAT IT LISTS: a human account at this stack's identity provider that matches
 # all of these.
@@ -22,13 +23,16 @@
 #      subject in `detail.userId` (2026-09-29), and the row's own time, `at`,
 #      says when. While the NEWEST such row for its subject is younger than 7
 #      days, the account is kept. The 7 are the owner's (0135 open question
-#      13, 2026-09-29: "Same number of days", and then "7 days"): the erasure
-#      window, in which a closed organisation, or a tester who does not accept
-#      the new conditions, is erased 7 days later. Privacy §9 says it. A record
-#      that names no subject names no account, and is passed over. An
-#      organisation's erasure deletes its audit rows, so after a purge the
-#      account is weighed like any other, as the runbook's Tenant offboarding
-#      means it to be.
+#      13, 2026-09-29: "Samen number of days", and, asked the same as which
+#      rule, "7 days"): the erasure window, in which a closed organisation, or
+#      a tester who does not accept the new conditions, is erased 7 days later.
+#      Privacy §9 says it. A record that names no subject names no account,
+#      and is passed over. An organisation's erasure deletes its audit rows,
+#      so after a purge the account is weighed like any other: 30 days from
+#      its creation (6), or never, with no creation date. Closed with a window
+#      of 0, an organisation can be erased less than 7 days after a removal;
+#      the runbook's Tenant offboarding has the operator note such subjects
+#      before the purge and remove each with `--subject` after it.
 #   3. It has no operator row: its subject is not in `platform_operator`.
 #   4. No open access request carries its address.
 #   5. No open invitation is addressed to it: no `tenant_member` row with
@@ -59,9 +63,10 @@
 # unless its removal is recorded (6).
 #
 # ONE ACCOUNT, AT ANY AGE (`--subject`). When an organisation is erased, its
-# members' accounts stay at the provider (docs/operator-runbook.md, Tenant
-# offboarding). After the purge, `--subject <sub> --remove` removes one of
-# them. The age condition does not apply; the others do, so the account of
+# members' accounts stay at the provider, and so do those of the members
+# removed from it, whose record the purge deletes (docs/operator-runbook.md,
+# Tenant offboarding). After the purge, `--subject <sub> --remove` removes one
+# of them. The age condition does not apply; the others do, so the account of
 # somebody who is still a member elsewhere, was removed from an organisation
 # here less than 7 days ago, is an operator, holds an open request or
 # invitation, belongs to another organisation, or holds a role at the
@@ -133,8 +138,8 @@ ENV_FILE="${SCRIPT_DIR}/.env"
 DAYS=30
 # How long the account of a member removed from an organisation is kept, from
 # the newest removal recorded for it: the erasure window's 7 days, the owner's
-# answer to 0135 open question 13 (2026-09-29: "Same number of days", and then
-# "7 days"). Privacy §9 says it beside the 30.
+# answer to 0135 open question 13 (2026-09-29: "Samen number of days", and,
+# asked the same as which rule, "7 days"). Privacy §9 says it beside the 30.
 REMOVED_DAYS=7
 
 say() { echo "idp-strays: $*"; }
@@ -279,8 +284,9 @@ fields() {
 
 # ------------------------------------------------------------ what the stack knows --
 
-# db <file> <sql> — one value per line into <file>, over the database's own
-# superuser, which row security does not hold back.
+# db <file> <sql> — one row per line into <file>, its columns split by a bar
+# (psql -At), over the database's own superuser, which row security does not
+# hold back.
 db() {
   local why
   if ! docker exec "$DB_CONTAINER" sh -c 'psql -X -q -v ON_ERROR_STOP=1 -At -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1"' sh "$2" >"$1" 2>"${WORK}/db-error"; then
@@ -533,8 +539,11 @@ else
 fi
 
 if [ "$REMOVE" -eq 0 ]; then
+  # A removed member's account may have no creation date (6): say so, rather
+  # than "created ," with nothing after it.
   jq -r '.accounts[] | select(.kept == null)
-    | "  \(.id)  \(.login)  created \(.created)\(if .days == null then "" else ", \(.days) days ago" end)\(
+    | "  \(.id)  \(.login)  \(if .created == "" then "no creation date" else "created \(.created)" end)\(
+        if .days == null then "" else ", \(.days) days ago" end)\(
         if .removed == null then "" else ", removed from an organisation \(.removed) days ago" end)"' "${WORK}/verdict"
   if [ "$OPERATORS" -eq 0 ]; then
     say "nothing was removed, and --remove refuses while the database names no operator (platform_operator): docs/managed-bring-up.md, 'Become the operator'."
@@ -556,7 +565,7 @@ FAILED=0
 while IFS=$'\t' read -r id created; do
   [ -n "$id" ] || continue
   if api DELETE "/v2/users/${id}"; then
-    echo "  removed ${id}, created ${created}"
+    if [ -n "$created" ]; then echo "  removed ${id}, created ${created}"; else echo "  removed ${id}, no creation date"; fi
     REMOVED=$((REMOVED + 1))
   elif [ "$STATUS" = "404" ]; then
     echo "  ${id} was gone already"

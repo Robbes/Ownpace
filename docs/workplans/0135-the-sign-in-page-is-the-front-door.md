@@ -10,9 +10,10 @@ account goes 7 days after the removal (T8)**, not merged, on branch
 
 - **The owner's answer.** Asked whether the sign-in account of a member removed on the Team page,
   or by `operator.sh leave`, is kept until the organisation is erased or removed after some number
-  of days, the owner answered *"Same number of days"*, and chose *"7 days"*: the erasure window,
-  in which a closed organisation, or a tester who does not accept the new conditions, is erased 7
-  days later.
+  of days, the owner answered *"Samen number of days"*, and, asked the same as which rule (the
+  30 days of an account nobody let in, or the erasure window), chose *"7 days"*: the erasure
+  window, in which a closed organisation, or a tester who does not accept the new conditions, is
+  erased 7 days later.
 - **Built.** `idp-strays.sh` reads each `member.removed` row's own time (`audit_log.at`) beside
   its subject, and keeps the account while the NEWEST removal recorded for it is younger than 7
   days: `REMOVED_DAYS=7`, beside `DAYS=30`, each saying where its number comes from. From 7 days
@@ -55,6 +56,34 @@ account goes 7 days after the removal (T8)**, not merged, on branch
   `copy-before-update.sh since` prints an `idp-strays.sh --subject … --remove` line for them
   (the runbook's step 10), which removes the account at once, not 7 days after the removal.
   Sooner, never later, than privacy §9 says.
+- **Review, fixed the same day, not merged.** Four findings, all taken but one part.
+  (1) A member removed less than 7 days before their organisation's purge lost the record with
+  the purge (`audit_log` is in `PURGED_TABLES`, and a window of `0` purges at the next hourly
+  run), so the account then waited 30 days from its creation, or for ever with no creation date,
+  and the runbook's *Tenant offboarding* said such a member was "listed with the rest, whatever
+  the age of the removal". It now says that holds only for an account older than 30 days, and has
+  the operator note, before the purge, the organisation's members and the subjects of its
+  `member.removed` rows, and remove each one the listing does not name with `--subject` after
+  it. Privacy §9's hidden note and `site/legal/README.md` say so. A new case in
+  `a-member-removed-is-recorded.unit.test.ts` runs the runbook's statement on PGlite: members
+  and removed subjects, once each, no `pending:` placeholder, no other organisation's; red on the
+  runbook before the fix, which gave no statement, and red under four mutations (members only,
+  every organisation's removals, the placeholder kept, `UNION ALL`). (2) Nothing held a removed member's account with no creation date to its 7 days: three
+  new cases do, and they found the listing printing `created ,` and the removal `created ` with
+  nothing after it; both lines now say `no creation date`. Two more cases pin what the
+  offboarding step relies on: with the record gone, the daily run keeps a young or undated
+  account, and `--subject` removes it. (3) `box-duties.sh`'s header and its duty's description,
+  the header of `a-duty-the-gate-used-to-do.unit.test.ts`, the comment on
+  `MEMBER_REMOVED_ACTION` in `members.ts`, and `idp-strays.sh`'s `db()` comment (two columns
+  now) said the old rule; they say this one. 0139's §3 T6 and its Status bullet still say the
+  owner decides: this branch changes only 0139's T6 row, and the branch that adds 0139's Status
+  entry today carries the rest. (4) The owner's words are quoted as written, *"Samen number of
+  days"*; *"7 days"* is the option the owner chose when asked the same as which rule.
+  `an-account-nobody-let-in`: 90 cases, the two line cases red on the unfixed script; six
+  mutations each red: a removed member's account needing a creation date (2 red), an undated one
+  kept as undated before the removal is weighed (3), the listing's or the removal's empty date
+  back (1 each), `--subject` held to the age rule (4), and the 30 days from creation applied to a
+  removed member (3).
 - **Unverified, as before:** nothing has called a real Zitadel, and live's timer has not run it.
 
 **2026-09-29, morning: 20 a day is the owner's number (T8 (b)).** Asked whether the strays duty's
@@ -461,7 +490,7 @@ Names used from here on: **live** is the identity provider of `ownpace-live`, at
 | T5 Privacy and terms links on the registration and sign-in pages | 📋 **Proposed**; lands with 0139's publication (D5) | §3. The instance privacy policy, from `.env`, read back. Live's first. |
 | T6 Dutch and English, in Ownpace's own words | 📋 **Decided 2026-09-24** (D4) for the languages, and (a) the languages ✅ **done** in #1286, merged 2026-09-28 (`a0897c0`); 📋 **Proposed** for the brand | §3. Only `nl` and `en` allowed, a default from `.env`, and the verification and reset mails rewritten. Logo, colours and the organisation's name follow; live's fresh instance can carry the name from its first start. |
 | T7 A watch on the pinned identity provider | ✅ **the pin moved to v4.19.1** in #1285, merged 2026-09-28 (`f839929`) (open question 11: go); the watch 📋 **decided 2026-09-28**: (a) the owner's GitHub subscription and (b) a weekly job, seven days (open question 5); (b) ✅ **done** in #1288, merged 2026-09-28 (`07dd8ff`); its first run found v4.19.2 (open question 12); the pin ✅ **moved to v4.19.2** in #1292, 2026-09-28, after the owner's dump with `dump-idp.sh`; E2E (managed) #210 applied it to the OTA instance (open question 12: go) — *was:* 📋 **Proposed**; the three releases after the pin read 2026-09-28: v4.18.0 fixes GHSA-4hgj-wm6c-q7p2 in login v1, which this stack serves (open question 11) | §3. Read the three newer releases now, choose a watch, set a response window, and take a dump before an upgrade. |
-| T8 Accounts nobody let in, and erasure that reaches the identity provider | ✅ **(a) done** in #1344, merged 2026-09-29 (`0bcbc25`): `idp-strays.sh`, and the runbook's two steps; ✅ **(b) done** in #1345, merged 2026-09-29 (`a4885a5`): the daily run on live, the owner's choice (0139), once live's timer is installed, which is the owner's step (copy the units again and reload); the review ✅ **fixed 2026-09-29**, merged as #1367 (`c9826dc`): an account that was let in and removed since is kept (the Team page's removal records `member.removed`), `--remove` refuses while the database has no operator row, only our own organisation's accounts with no role at the provider are weighed, and the listing is read to its end or refused; its review ✅ **fixed 2026-09-29**, in the same merge: a role at the provider read as the provider counts it, the Team page's record naming the row it deleted, a count below the accounts given refused, and the runbook holding the duty after a reset that keeps the provider's accounts; a removed member's account 📋 **Decided 2026-09-29**, removed 7 days after the removal (open question 13: *"Same number of days"*), 🔨 **built 2026-09-29**, not merged, with privacy §9's row in both languages — *was:* the owner's (open question 13); the retention period 📋 **Decided 2026-09-28**, 30 days (open question 6), and the rule gains a fifth condition, an open invitation — *was:* 📋 **Proposed**; the retention period is the owner's (→ 0139) | §3. A retention rule, an operator script in `deploy/compose`, and a runbook step. |
+| T8 Accounts nobody let in, and erasure that reaches the identity provider | ✅ **(a) done** in #1344, merged 2026-09-29 (`0bcbc25`): `idp-strays.sh`, and the runbook's two steps; ✅ **(b) done** in #1345, merged 2026-09-29 (`a4885a5`): the daily run on live, the owner's choice (0139), once live's timer is installed, which is the owner's step (copy the units again and reload); the review ✅ **fixed 2026-09-29**, merged as #1367 (`c9826dc`): an account that was let in and removed since is kept (the Team page's removal records `member.removed`), `--remove` refuses while the database has no operator row, only our own organisation's accounts with no role at the provider are weighed, and the listing is read to its end or refused; its review ✅ **fixed 2026-09-29**, in the same merge: a role at the provider read as the provider counts it, the Team page's record naming the row it deleted, a count below the accounts given refused, and the runbook holding the duty after a reset that keeps the provider's accounts; a removed member's account 📋 **Decided 2026-09-29**, removed 7 days after the removal (open question 13: *"Samen number of days"*, then *"7 days"*), 🔨 **built 2026-09-29**, not merged, with privacy §9's row in both languages; its review 🔨 **fixed the same day**, not merged: an account with no creation date held to its 7 days, and *Tenant offboarding* removing, at the purge, the account of a member removed less than 7 days before it — *was:* the owner's (open question 13); the retention period 📋 **Decided 2026-09-28**, 30 days (open question 6), and the rule gains a fifth condition, an open invitation — *was:* 📋 **Proposed**; the retention period is the owner's (→ 0139) | §3. A retention rule, an operator script in `deploy/compose`, and a runbook step. |
 
 ## 1. What there is today
 
@@ -1100,7 +1129,10 @@ matches all of these:
   `member.removed` names its subject with a time (`at`) less than 7 days ago (added 2026-09-29;
   the Team page's removal and `operator.sh leave` both write one; the 7 days are the owner's
   answer to open question 13, the same day). For an account whose removal is recorded, the
-  7 days since the newest removal take the place of the age condition below;
+  7 days since the newest removal take the place of the age condition below, and a creation
+  date the script cannot read does not keep it. An organisation's purge deletes the record, so
+  the runbook's *Tenant offboarding* notes such subjects before a purge and removes each with
+  `--subject` after it;
 - it has no operator row;
 - no open access request carries its address;
 - no open invitation is addressed to its email (a `tenant_member` row with `status = 'invited'`,
@@ -1160,7 +1192,8 @@ and `psql`, and fails today because the script does not exist. It checks that:
   first human or an account that is too young;
 - without `--remove`, it sends no `DELETE`;
 - since 2026-09-29: it keeps an account whose newest recorded removal from an organisation is
-  younger than 7 days, and lists it from then on, however young the account (open question 13),
+  younger than 7 days, and lists it from then on, however young the account and with no
+  creation date too (open question 13),
   and keeps one of another organisation or with a role at the provider; `--remove` refuses while the database
   has no operator row; a listing it cannot read to its end refuses, and so does a membership or
   grant answer that counts roles it does not list where the provider lists them.
@@ -1362,7 +1395,7 @@ carried T1 and T2.
     organisation is erased, or removed after N days: the owner decides, and privacy §9 then names
     it. Until then the code keeps it, which comes to the first of the two: an erasure deletes the
     organisation's audit rows, and the next daily run then weighs the account like any other.
-    *Answered 2026-09-29, in the owner's words: "Same number of days", and then "7 days": the
-    erasure window's number, in which a closed organisation, or a tester who does not accept the
+    *Answered 2026-09-29, in the owner's words: "Samen number of days", and then, asked the same
+    as which rule, "7 days": the erasure window's number, in which a closed organisation, or a tester who does not accept the
     new conditions, is erased 7 days later. The account goes 7 days after the removal. Built in
     T8 the same day, and privacy §9 names it in both languages (Status, 2026-09-29).*

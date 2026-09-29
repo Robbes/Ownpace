@@ -25,13 +25,16 @@
  *   (`site/legal/README.md`). Both removals record `member.removed` in
  *   `audit_log` with the subject, and the row's own time, `at`, says when.
  *   The script kept every subject so recorded until the organisation was
- *   erased; the owner then answered 0135 open question 13 (2026-09-29): "Same
- *   number of days", 7, the erasure window. So the account is kept while its
- *   NEWEST removal is younger than 7 days, and goes once that removal is 7
- *   days old, however young the account is, unless it is a member again, an
- *   operator, has an open request or invitation, belongs to another
- *   organisation or holds a role at the provider. A record of removals in a
- *   shape it does not know refuses.
+ *   erased; the owner then answered 0135 open question 13 (2026-09-29):
+ *   "Samen number of days", and, asked the same as which rule, "7 days", the
+ *   erasure window. So the account is kept while its NEWEST removal is younger
+ *   than 7 days, and goes once that removal is 7 days old, however young the
+ *   account is and whether or not its creation date can be read, unless it is
+ *   a member again, an operator, has an open request or invitation, belongs to
+ *   another organisation or holds a role at the provider. A record of removals
+ *   in a shape it does not know refuses. An organisation's purge deletes the
+ *   record, and the account is then weighed like one nobody let in, which is
+ *   why the runbook's Tenant offboarding removes it with `--subject`.
  *   `apps/api/src/routes/tenants/a-member-removed-is-recorded.unit.test.ts`
  *   holds the route's half, and the statement's answer on a real database.
  *
@@ -415,16 +418,20 @@ describe("a removed member's account: kept 7 days after the removal, then weighe
   // time in the row's own `at`. Privacy §9's 30 days are for an account "that
   // we never let in"; such an account was let in. Until 2026-09-29 it was kept
   // for as long as the record was there, which was until the organisation was
-  // erased. The owner's answer to 0135 open question 13 (2026-09-29): "Same
-  // number of days", 7, the erasure window. The NEWEST removal counts, and the
-  // date the account was created plays no part: removed 8 days ago, it goes,
-  // though it was created 10 days ago. Every other reason to keep an account
-  // still keeps it.
+  // erased. The owner's answer to 0135 open question 13 (2026-09-29): "Samen
+  // number of days", and, asked the same as which rule, "7 days", the erasure
+  // window. The NEWEST removal counts, and the date the account was created
+  // plays no part: removed 8 days ago, it goes, though it was created 10 days
+  // ago, or has no creation date the script can read. Every other reason to
+  // keep an account still keeps it.
   const HOUR = 1 / 24;
-  /** Account 20, created `created` days ago, removed once per entry of `removed`, that many days ago. */
-  const withARemovedMember = (removed: number[], created = 120): World => {
+  /**
+   * Account 20, created `created` days ago ('undated': the provider gives no
+   * creation date), removed once per entry of `removed`, that many days ago.
+   */
+  const withARemovedMember = (removed: number[], created: number | 'undated' = 120): World => {
     const world = aStackWithEveryReason();
-    world.accounts!.push({ userId: '20', email: 'former@example.test', days: created });
+    world.accounts!.push({ userId: '20', email: 'former@example.test', days: created === 'undated' ? undefined : created });
     world.removed = [
       ...removed.map((days) => ({ userId: '20', days })),
       // An invitation withdrawn: its placeholder names no account.
@@ -474,6 +481,53 @@ describe("a removed member's account: kept 7 days after the removal, then weighe
     const r = run(withARemovedMember([8], 10), { args: ['--remove', '--at-most', '20'] });
     expect(r.status, r.err).toBe(0);
     expect(r.deleted).toEqual(['10', '20']);
+  });
+
+  // An account whose creation date cannot be read is left alone when nobody
+  // let it in: its 30 days cannot be counted. A removed member's 7 days count
+  // from the removal, so the date plays no part there either (review of
+  // 2026-09-29: reverting that rule left every case green).
+  it('removes it 7 days after the removal though the provider gives no creation date, and its line says so', () => {
+    const r = run(withARemovedMember([8], 'undated'), { args: ['--remove', '--at-most', '20'] });
+    expect(r.status, r.err).toBe(0);
+    expect(r.deleted).toEqual(['10', '20']);
+    expect(r.out).toMatch(/^ {2}removed 20, no creation date$/m);
+    expect(r.out).toContain('removed 2 of 2.');
+  });
+
+  it('lists it, with no creation date and removed 8 days ago, without an empty date on its line', () => {
+    const r = run(withARemovedMember([8], 'undated'));
+    expect(r.status, r.err).toBe(0);
+    expect(r.out).toMatch(/^ {2}20 {2}former@example\.test {2}no creation date, removed from an organisation 8 days ago$/m);
+    expect(r.deleted).toEqual([]);
+  });
+
+  it('keeps it, with no creation date, while its removal is younger than 7 days, and counts it as removed', () => {
+    const r = run(withARemovedMember([3], 'undated'), { args: ['--remove', '--at-most', '20'] });
+    expect(r.status, r.err).toBe(0);
+    expect(r.deleted).toEqual(['10']);
+    expect(r.out).toContain('1 removed from an organisation less than 7 days ago');
+    // Account 16's, and not account 20's as well.
+    expect(r.out).toContain(', 1 with no creation date.');
+  });
+
+  // The purge of an organisation deletes its audit rows, and with them the
+  // record of a member removed from it. Closed with a window of 0, it can be
+  // erased less than 7 days after the removal; the daily run then weighs the
+  // account like one nobody let in, 30 days from its creation. The runbook's
+  // Tenant offboarding has the operator note such subjects before the purge
+  // and remove each with --subject after it (review of 2026-09-29).
+  it.each([
+    ['4 days old', 4 as number | 'undated', '2 younger than 30 days'],
+    ['with no creation date', 'undated' as number | 'undated', '2 with no creation date'],
+  ])("after its organisation's erasure the record is gone: the daily run keeps an account %s, and --subject removes it", (_what, created, said) => {
+    const daily = run(withARemovedMember([], created), { args: ['--remove', '--at-most', '20'] });
+    expect(daily.status, daily.err).toBe(0);
+    expect(daily.deleted).toEqual(['10']);
+    expect(daily.out).toContain(said);
+    const one = run(withARemovedMember([], created), { args: ['--subject', '20', '--remove'] });
+    expect(one.status, one.err).toBe(0);
+    expect(one.deleted).toEqual(['20']);
   });
 
   it.each([

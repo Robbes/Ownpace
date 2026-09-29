@@ -377,8 +377,10 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   0135 T8's script, `idp-strays.sh`, run with the machine's daily duties. Built; it runs once
   live's timer is installed. The same run removes the sign-in account of someone removed from an
   organisation, 7 days after they were removed (privacy §9's row beside it; 0135 open question
-  13, answered 2026-09-29: *"Same number of days"*, the erasure window's 7), unless they are a
-  member again or have an open request or invitation.
+  13, answered 2026-09-29: *"Samen number of days"*, and then *"7 days"*, the erasure window's),
+  unless they are a member again or have an open request or invitation. An organisation erased
+  less than 7 days after a removal takes the record with it; the runbook's *Tenant offboarding*
+  removes such an account at the purge.
 - *Searches and downloads on the support screens, 12 months* (privacy §4.5, §9;
   privacy-search-records (a)): a daily duty deletes those log records older than 12 months, over the
   owner's connection at the machine: `app_user`, the role every request runs as, cannot delete from
