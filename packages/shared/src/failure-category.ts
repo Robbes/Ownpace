@@ -235,6 +235,19 @@ const RULES: ReadonlyArray<{
    */
   readonly whenSource?: FailureCategory;
 }> = [
+  // GOOGLE'S TWO RATE-LIMIT REASONS, ahead of the quota words (workplan 0143
+  // T10). Google answers a rate limit with a 403 as often as with a 429, and
+  // its sentence can be "Quota exceeded for quota metric 'Queries' and limit
+  // 'Queries per minute per user'": a limit per MINUTE, in the quota rule's
+  // words. The reason is the machine-readable half (`error.errors[0].reason`
+  // in JSON, `<code>` in GData XML), and every rendering of a Google refusal
+  // here keeps it (`driveRefusalBody`, `davRefusalBody`), so it is read first:
+  // wait a minute, not until tomorrow, and never reconnect. Read from Google's
+  // published error tables; not yet observed by this code.
+  {
+    category: 'rate_limited',
+    test: /\b(user)?ratelimitexceeded\b/i,
+  },
   // A daily ceiling. Gmail's own words, plus this product's refusal (0090 T4),
   // which names the ceiling before the provider ever locks the account out.
   {

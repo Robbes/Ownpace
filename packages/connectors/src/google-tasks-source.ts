@@ -10,6 +10,7 @@ import type {
 } from '@openmig/shared';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import { driveRefusalBody, googleRefusalReason } from './drive-refusal.ts';
+import { asksToSlowDown, isGoogleRateLimit, rateLimitWaitMs } from './rate-limit-once.ts';
 // RFC 5545's text rules, which are not Microsoft's: shared with the To Do
 // source rather than copied.
 import { escapeText, fold } from './graph-todo-source.ts';
@@ -69,14 +70,6 @@ const MAX_PAGES = 10_000;
 
 /** See the header: each flag's default hides something that is the person's. */
 const EVERY_TASK = 'showCompleted=true&showHidden=true&showAssigned=true&showDeleted=true';
-
-/**
- * Reasons Google gives for a rate limit on a 403 rather than a 429. Calendar
- * and Drive document both; whether Tasks uses them is unverified, so both are
- * read. Reading one as a missing grant would tell the owner to reconnect over
- * a limit that clears by itself.
- */
-const RATE_LIMIT_REASONS: ReadonlySet<string> = new Set(['rateLimitExceeded', 'userRateLimitExceeded']);
 
 const EPOCH_ISO = new Date(0).toISOString();
 
@@ -186,24 +179,23 @@ export class GoogleTasksSource implements CalendarSource {
         ...options,
         headers: { Authorization: `Bearer ${token.accessToken}`, ...options.headers },
       });
-      return isGoogleRateLimit(response) ? { ...response, status: 429 } : response;
+      // Calendar and Drive document both 403 reasons; whether Tasks uses them
+      // is unverified, so both are read. Reading one as a missing grant would
+      // tell the owner to reconnect over a limit that clears by itself.
+      return isGoogleRateLimit(response.status, response.body) ? { ...response, status: 429 } : response;
     };
 
     if (this.throttleLimiter) {
       return this.throttleLimiter.executeWithThrottling(this.tenantId, this.provider, send);
     }
+    // The rule the Drive and DAV sources now share (`rate-limit-once.ts`).
     const response = await send();
-    if (response.status === 429 || response.status === 503) {
-      const seconds = Number(response.headers['retry-after']);
-      await new Promise((resolve) => setTimeout(resolve, Number.isFinite(seconds) ? seconds * 1000 : 1000));
-      return send();
-    }
-    return response;
+    if (!asksToSlowDown(response.status, response.body)) return response;
+    const waitMs = rateLimitWaitMs(response.headers['retry-after']);
+    if (waitMs === undefined) return response;
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    return send();
   }
-}
-
-function isGoogleRateLimit(response: HttpResponse): boolean {
-  return response.status === 403 && RATE_LIMIT_REASONS.has(googleRefusalReason(response.body));
 }
 
 /**
