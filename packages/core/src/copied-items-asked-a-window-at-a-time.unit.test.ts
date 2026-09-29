@@ -160,11 +160,11 @@ describe('every other item is asked about on its own, and acted on as before', (
       [PHOTOS, [item]],
     ]);
 
-    // By the row, not by `r.moved`: the pass reports this one move twice, once
-    // from the listing and once from the end-of-pass reconciliation, with or
-    // without the read-ahead.
+    // Once. The end-of-pass reconciliation used to report it a second time;
+    // `move-detection.unit.test.ts` holds that case for both kinds of move.
     expect((await ledger.find(TENANT, MAPPING, 'file', 'shared-key'))?.movedToCollection).toBe('Photos');
-    expect(r.moves.map((m) => `${m.from}>${m.to}`)).toContain('Work>Photos');
+    expect(r.moved).toBe(1);
+    expect(r.moves.map((m) => `${m.from}>${m.to}`)).toEqual(['Work>Photos']);
     expect(w.written).toEqual([]);
   });
 
