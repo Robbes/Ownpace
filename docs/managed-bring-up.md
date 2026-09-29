@@ -1748,8 +1748,10 @@ customer-facing version of all of this.
 "Report a problem", beside Sign out, sends a customer's report to a person
 (workplan 0130): what they wrote, the page they were on (without any link
 secret), the reference and kind of error on their screen, and a screenshot if
-they add one. It goes one of two ways. While neither is set up, the link is not
-shown at all.
+they add one: a PNG or JPEG of up to 5 MB, chosen as a file, dropped on the
+field or pasted anywhere on the page (Ctrl+V or Command+V), with a fold under
+the field that says how to make one on each kind of device. It goes one of two
+ways. While neither is set up, the link is not shown at all.
 
 **By mail, to your support mailbox** (the owner's choice for the alpha,
 2026-09-28). This needs nothing but the mail settings the API already sends
