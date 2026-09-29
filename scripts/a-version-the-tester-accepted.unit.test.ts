@@ -81,7 +81,9 @@ const FILES = {
  */
 const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   'alpha.md@1.0': '63c2f0b986aa6bf7fbe9d8539d558207c41d71332d1c9e49fe63a25263acac2a',
-  'alpha.nl.md@1.0': 'b909d25866d56b23b2e09a2efb821d5d73dab9c9bc261773f5dde04caeddea52',
+  // Re-pinned under 1.0 on 2026-09-29, while privacy and terms were drafts and so nobody had accepted
+  // it: the Dutch says migratie (0152 D6).
+  'alpha.nl.md@1.0': '2fd5efe3e13905d1c47ad2b900a58e1dc9b3a1359e6cb30d911146bb17002029',
 };
 
 /** The digest `ACCEPTED_WORDS` pins: the text outside HTML comments, white space collapsed. */
