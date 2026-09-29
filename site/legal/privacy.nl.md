@@ -517,8 +517,9 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
      - Een zoekopdracht op adres en een download van het logboek, "12 maanden na het
        vastleggen verwijderd" (privacy-search-records (a)): built, not yet run:
        deploy/compose/support-read-prune.sh (0139 T6), the duty `searches` in box-duties.sh, over
-       the owner's connection, since the app still cannot change the log. True on live once
-       live's daily duties run. It deletes every read recorded with no organisation 12 months
+       the owner's connection, since app_user cannot change the log, and after 0138 T3 step 2 the
+       tasks' system role may delete from it only for the purge of an erased organisation, never
+       by age. True on live once live's daily duties run. It deletes every read recorded with no organisation 12 months
        after it: besides these two, the organisation list, the invoices kept after an erasure and
        a log page not filtered to one organisation.
      - De geschiedenis van de inlogdienst, "zolang we deze inlogdienst draaien"

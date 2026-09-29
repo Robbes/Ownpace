@@ -8,8 +8,7 @@
 (privacy-search-records (a))**, on branch
 `claude/ownpace-public-readiness-y7orc6-searches-kept-a-year`, not merged. `site/legal/README.md`'s
 *To build or to do* said: *"a daily duty deletes those log records older than 12 months, over the
-owner's connection, because the app cannot delete from that log. Not built."* Nothing has run on a
-machine.
+owner's connection, … Not built."* Nothing has run on a machine.
 
 - **`deploy/compose/support-read-prune.sh`** deletes the `support_read` rows with no organisation
   (`tenant_id IS NULL`) recorded more than 12 months ago, and nothing else: a search by address
@@ -17,9 +16,14 @@ machine.
   invoices kept after an erasure (`retained_invoices`), a log page not filtered to one organisation
   (`log`). A row that names an organisation, on any screen, goes with that organisation's erasure.
   Without `--delete` it counts. It runs `psql` as the database's owner in the stack's own
-  container, because the app cannot: managed migration 0009 grants `app_user` `SELECT` and
-  `INSERT` on the log and revokes `UPDATE` and `DELETE`, and its forced row security has no
-  `DELETE` policy. Before it counts or deletes it asks, in the same call, whether its connection
+  container, because `app_user` cannot delete from the log: managed migration 0009 grants it
+  `SELECT` and `INSERT` on the log and revokes `UPDATE` and `DELETE`, and its forced row security
+  has no `DELETE` policy. The purge of closed organisations deletes an erased organisation's rows:
+  today as the owner, since every Trigger.dev run still receives the owner's URL; after 0138 T3
+  step 2 as the tasks' system role, `ownpace_system`, whose grant on the log is `SELECT` on
+  `tenant_id` and `DELETE`, so it may delete only for that purge, picking rows by organisation and
+  never by their age. The 12-month prune picks rows by age, so it stays at the machine on the
+  owner's connection. Before it counts or deletes it asks, in the same call, whether its connection
   passes row security, and stops if not: an owner that is neither a superuser nor `BYPASSRLS`
   would delete nothing and say "deleted 0" every day. It prints a count.
 - **Live runs it daily**: `box-duties.sh`'s seventh duty, `searches`, `--delete`, after `strays`;
@@ -39,6 +43,28 @@ machine.
   deleted, `app_user` in place of the owner, no flag deleting, the row-security check left out, an
   answer that is not a count accepted; and in the wiring, the duty left out, run without
   `--delete`, and the unit's 130 minutes kept.
+- **Beside 0138 T3 step 2 (#1358), which gives the tasks' system role `SELECT (tenant_id), DELETE`
+  on the log** so the purge can delete an erased organisation's rows. The guard *no migration
+  grants DELETE on it* would have failed once that merged (a trial merge of the two branches: 1 of
+  13 red), and six places said that the app, rather than `app_user`, could not delete from the
+  log, which that step makes partly false; the script's header also called the owner's the only
+  connection that may, while every Trigger.dev run still holds it. The guard now says what it
+  means: *no migration lets `app_user` or `PUBLIC` delete from it or change it* (no `DELETE`,
+  `UPDATE`, `TRUNCATE` or `ALL`, by name or on every table in the schema, and no `DELETE` or `ALL`
+  policy, a policy with no `FOR` counting as `ALL`), and *any other role a migration grants on it
+  may read only its organisation column, and delete*, so none can pick a row by its age. A new
+  pair, *every place that says why this runs at the machine says who else may delete*, reads the
+  script, `box-duties.sh`, the runbook, `managed-bring-up.md`'s duty row, this entry,
+  `site/legal/README.md` and privacy §9's comment in both languages: 2 of 16 red before the
+  rewording, on this branch and on the trial merge alike; 16 of 16 green after, on both. On the
+  trial merge, 13 mutations of the migrations each turn it red (`DELETE`, `UPDATE`, `TRUNCATE` or
+  `ALL` to `app_user` or `PUBLIC`, one listing both grantees, one quoted, one on every table; the
+  system role given the whole row, `at` beside `tenant_id`, or `INSERT`; a `DELETE` policy and one
+  with no `FOR`), and 4 of the docs (the old phrases put back, the step's name taken out). A
+  throwaway Postgres with the merged chains answers the same: `app_user` has no `DELETE`,
+  `UPDATE` or `TRUNCATE`; `ownpace_system` has `DELETE` and `SELECT` on `tenant_id` only, deletes
+  by organisation, and is refused (`permission denied for table support_read`) a delete by age.
+  `a-search-kept-a-year-a-real-database-answers` passes 4 of 4 on this branch and on the merge.
 
 **2026-09-29, night: T7's identity-provider step and T6's daily script, built by 0135 T8 (0131 §6,
 group M3, its step 7)**, merged as #1344 (`0bcbc25`) and #1345 (`a4885a5`). Recorded here from

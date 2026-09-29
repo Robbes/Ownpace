@@ -48,9 +48,11 @@
 #                  screens' reads recorded with no organisation (among them a
 #                  search by address and a download of the audit log), deleted
 #                  12 months after they were recorded, which privacy §4.5 and
-#                  §9 promise. Over the database owner's connection, since the
-#                  app cannot delete from that log; it stops, deleting nothing,
-#                  if that connection does not pass row security. It prints a
+#                  §9 promise. Over the database owner's connection: app_user
+#                  cannot delete from that log, and the tasks' system role
+#                  (0138 T3 step 2) may only for the purge of an erased
+#                  organisation, never by age. It stops, deleting nothing, if
+#                  that connection does not pass row security. It prints a
 #                  count, never a query.
 #
 # EACH DUTY RUNS WHATEVER THE ONE BEFORE IT DID. The token goes first, so the

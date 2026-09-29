@@ -15,14 +15,24 @@
  * says "they stay after that, and are deleted 12 months after they were
  * recorded", and until now nothing deleted them.
  *
- * THE APP CANNOT, AND THAT IS WHY THIS IS A DUTY AT THE MACHINE. The log is
- * append-only for `app_user`, the role every request runs as: 0009 grants it
- * `SELECT, INSERT` and revokes `UPDATE, DELETE` (the shared chain's default
- * privileges would otherwise have handed it DELETE on every new table), and
- * the table's row security is FORCEd with a policy for SELECT (an operator's
- * own rows) and one for INSERT, and none for DELETE, so even a grant would
- * find no row to delete. So `deploy/compose/support-read-prune.sh` deletes
- * them over the owner's connection, `psql` as `POSTGRES_USER` in the stack's
+ * `app_user` CANNOT, NOTHING ELSE MAY BY AGE, AND THAT IS WHY THIS IS A DUTY AT
+ * THE MACHINE. The log is append-only for `app_user`, the role every request
+ * runs as: 0009 grants it `SELECT, INSERT` and revokes `UPDATE, DELETE` (the
+ * shared chain's default privileges would otherwise have handed it DELETE on
+ * every new table), and the table's row security is FORCEd with a policy for
+ * SELECT (an operator's own rows) and one for INSERT, and none for DELETE, so
+ * even a grant would find no row to delete. The purge of closed organisations
+ * deletes an erased organisation's rows: today as the owner, since every
+ * Trigger.dev run still receives the owner's URL; after 0138 T3 step 2 as the
+ * tasks' system role, `ownpace_system`, which that step's managed migration
+ * grants `SELECT (tenant_id), DELETE` here and nothing more. It bypasses row
+ * security, so it can delete by organisation, and it can read no other
+ * column, so it can never pick a row by its age. A guard that said "no
+ * migration grants DELETE on it" would have failed on that grant (a trial
+ * merge, 2026-09-29) while meaning `app_user`; it says so now, and a second
+ * holds every other grantee to the organisation column. So the 12-month prune
+ * stays with the owner: `deploy/compose/support-read-prune.sh` deletes the
+ * rows over the owner's connection, `psql` as `POSTGRES_USER` in the stack's
  * own database container, run daily by `box-duties.sh` with `--delete`.
  *
  * WHAT IS ASSERTED here, with a stand-in `docker` that records the SQL piped to
@@ -43,7 +53,16 @@
  *   - its header names every read the support screens record with no
  *     organisation, so the operator knows which go at 12 months;
  *   - an argument it does not know is refused before anything is asked;
- *   - the migrations still make the log append-only for `app_user`.
+ *   - no migration lets `app_user` or `PUBLIC` delete from the log or change
+ *     it, or gives it a DELETE policy; any other role a migration grants on it
+ *     may read only `tenant_id`, and delete: it can purge by organisation and
+ *     cannot pick a row by its age;
+ *   - every place that says why this runs at the machine (the script, the
+ *     duty, the runbook, the bring-up's duty row, 0139, `site/legal/README.md`
+ *     and privacy §9's comment in both languages) names `app_user` as the role
+ *     that cannot, and 0138 T3 step 2's system role as one that may, for the
+ *     purge only; none says "the app cannot delete from this log", or calls
+ *     the owner's "the one connection that may".
  */
 
 import { describe, it, expect, afterAll } from 'vitest';
@@ -234,13 +253,55 @@ describe('the support log keeps a read with no organisation for 12 months, and n
   });
 });
 
-describe('the app cannot delete from the log, which is why this runs at the machine', () => {
+describe('who may delete from the log: never app_user, and nobody by its age but the owner at the machine', () => {
   const managed = readdirSync(join(ROOT, 'packages/managed/migrations'))
     .filter((f) => f.endsWith('.sql'))
     .map((f) => ({ f, text: sqlCode(read(`packages/managed/migrations/${f}`)) }));
   const ledger = readdirSync(join(ROOT, 'packages/ledger/migrations'))
     .filter((f) => f.endsWith('.sql'))
     .map((f) => ({ f, text: sqlCode(read(`packages/ledger/migrations/${f}`)) }));
+  const statements = [...ledger, ...managed].flatMap(({ f, text }) =>
+    text.split(';').map((stmt) => ({ f, s: stmt.replace(/\s+/g, ' ').trim() })),
+  );
+
+  /** Split on the commas outside parentheses: `SELECT (a, b), DELETE` is two privileges. */
+  const topLevel = (list: string): string[] => {
+    const out: string[] = [];
+    let depth = 0;
+    let cur = '';
+    for (const ch of list) {
+      if (ch === '(') depth++;
+      if (ch === ')') depth--;
+      if (ch === ',' && depth === 0) {
+        out.push(cur.trim());
+        cur = '';
+      } else cur += ch;
+    }
+    if (cur.trim()) out.push(cur.trim());
+    return out;
+  };
+
+  /**
+   * Every GRANT of a privilege on `support_read`, by name or through `ALL
+   * TABLES IN SCHEMA public`, one row per grantee: `GRANT <privileges> ON
+   * [TABLE] <tables> TO <grantees>`. A role granted to a role (`GRANT x TO y`)
+   * has no ON and is not one.
+   */
+  const grants = statements.flatMap(({ f, s }) => {
+    const m = /^GRANT (.+?) ON (?:TABLE )?(.+?) TO (.+?)(?: WITH GRANT OPTION)?$/i.exec(s);
+    if (!m) return [];
+    const [, privileges = '', tables = '', grantees = ''] = m;
+    const onIt =
+      /^ALL TABLES IN SCHEMA public$/i.test(tables) ||
+      topLevel(tables).some((t) => /^(public\.)?support_read$/i.test(t.replace(/"/g, '')));
+    if (!onIt) return [];
+    return topLevel(grantees).map((grantee) => ({
+      f,
+      s,
+      grantee: grantee.replace(/"/g, '').toLowerCase(),
+      privileges: topLevel(privileges).map((p) => p.replace(/\s+/g, ' ').toUpperCase()),
+    }));
+  });
 
   it('0009 revokes UPDATE and DELETE from app_user, and grants it SELECT and INSERT only', () => {
     const m = managed.find((x) => x.f.startsWith('0009_'));
@@ -249,14 +310,75 @@ describe('the app cannot delete from the log, which is why this runs at the mach
     expect(m?.text).toMatch(/ALTER TABLE ONLY public\.support_read FORCE ROW LEVEL SECURITY;/);
   });
 
-  it('no migration grants DELETE on it, or gives it a policy a DELETE could pass', () => {
-    for (const { f, text } of [...ledger, ...managed]) {
-      for (const stmt of text.split(';')) {
-        const s = stmt.replace(/\s+/g, ' ');
-        if (!/\bsupport_read\b/.test(s)) continue;
-        expect(/\bGRANT\b[^;]*\b(DELETE|ALL)\b[^;]*\bON\b[^;]*\bsupport_read\b/i.test(s), `${f}: ${s}`).toBe(false);
-        expect(/\bCREATE POLICY\b[^;]*\bON\b[^;]*\bsupport_read\b[^;]*\bFOR (DELETE|ALL)\b/i.test(s), `${f}: ${s}`).toBe(false);
+  it('no migration lets app_user or PUBLIC delete from it or change it, and none gives it a policy a DELETE could pass', () => {
+    // 0009's own grant is found, so a reading that matches nothing fails here.
+    expect(
+      grants.some((g) => g.grantee === 'app_user' && g.f.startsWith('0009_')),
+      'no grant on support_read found at all: the reading no longer matches the migrations',
+    ).toBe(true);
+    for (const g of grants.filter((x) => x.grantee === 'app_user' || x.grantee === 'public')) {
+      for (const p of g.privileges) {
+        expect(/^(DELETE|UPDATE|TRUNCATE|ALL)\b/.test(p), `${g.f}: ${g.s}`).toBe(false);
       }
+    }
+    for (const { f, s } of statements) {
+      const policy = /^CREATE POLICY \S+ ON (?:ONLY )?(?:public\.)?"?support_read"?\b(.*)$/i.exec(s);
+      if (!policy) continue;
+      // A policy with no FOR is FOR ALL.
+      const cmd = /\bFOR (ALL|SELECT|INSERT|UPDATE|DELETE)\b/i.exec(policy[1] ?? '')?.[1]?.toUpperCase() ?? 'ALL';
+      expect(['ALL', 'DELETE'].includes(cmd), `${f}: ${s}`).toBe(false);
+    }
+  });
+
+  it('any other role a migration grants on it may read only its organisation column, and delete: it can purge an organisation, never pick a row by its age', () => {
+    // 0138 T3 step 2 gives the tasks' system role `SELECT (tenant_id), DELETE`
+    // on it, so the purge can delete an erased organisation's rows (it
+    // bypasses row security). With `at`, or the whole row, it could do what
+    // only the owner at the machine does here, and read what was searched for.
+    for (const g of grants.filter((x) => x.grantee !== 'app_user' && x.grantee !== 'public')) {
+      for (const p of g.privileges) {
+        expect(['DELETE', 'SELECT (TENANT_ID)'].includes(p), `${g.grantee}, ${p} — ${g.f}: ${g.s}`).toBe(true);
+      }
+    }
+  });
+});
+
+describe('every place that says why this runs at the machine says who else may delete', () => {
+  /** The passage, from its first words to what ends it; a passage that is not found fails. */
+  const passage = (rel: string, from: string, to: RegExp): string => {
+    const text = read(rel);
+    const at = text.indexOf(from);
+    if (at < 0) throw new Error(`${rel}: "${from}" is not there any more; this guard reads the passage that starts with it`);
+    const rest = text.slice(at + from.length);
+    const end = rest.search(to);
+    return `${from}${end < 0 ? rest : rest.slice(0, end)}`.replace(/\s+/g, ' ');
+  };
+  const PLACES: Array<[string, string]> = [
+    [SCRIPT_REL, read(SCRIPT_REL).replace(/\s+/g, ' ')],
+    ['deploy/compose/box-duties.sh', passage('deploy/compose/box-duties.sh', '#   searches ', /\n#\s*\n/)],
+    ['docs/operator-runbook.md', passage('docs/operator-runbook.md', '## Searches and downloads on the support screens', /\n## /)],
+    ['docs/managed-bring-up.md', passage('docs/managed-bring-up.md', '| `searches` |', /\n/)],
+    [
+      'docs/workplans/0139-the-legal-gate-for-the-alpha.md',
+      passage('docs/workplans/0139-the-legal-gate-for-the-alpha.md', "**2026-09-29: T6, the support screens' searches", /\n\*\*20/),
+    ],
+    ['site/legal/README.md', passage('site/legal/README.md', '- *Searches and downloads on the support screens, 12 months*', /\n- /)],
+    ['site/legal/privacy.md', passage('site/legal/privacy.md', '- A search by address and a download of the log', /\n\s*- /)],
+    ['site/legal/privacy.nl.md', passage('site/legal/privacy.nl.md', '- Een zoekopdracht op adres en een download van het logboek', /\n\s*- /)],
+  ];
+
+  it("names app_user as the role that cannot, and 0138 T3 step 2's system role as one that may, for the purge only", () => {
+    for (const [rel, text] of PLACES) {
+      expect(text, rel).toMatch(/`app_user`|\bapp_user\b/);
+      expect(text, rel).toMatch(/0138 T3 step 2/);
+      expect(text, rel).toMatch(/purge/i);
+    }
+  });
+
+  it("never says the app cannot delete from the log, or calls the owner's the one connection that may", () => {
+    for (const [rel, text] of PLACES) {
+      expect(text, rel).not.toMatch(/\bthe app (still )?cannot (delete from|change) (this|that|the) log\b/i);
+      expect(text, rel).not.toMatch(/\bthe one connection that may\b/i);
     }
   });
 });

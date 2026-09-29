@@ -334,7 +334,9 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   live's timer is installed.
 - *Searches and downloads on the support screens, 12 months* (privacy §4.5, §9;
   privacy-search-records (a)): a daily duty deletes those log records older than 12 months, over
-  the owner's connection, because the app cannot delete from that log. Built (0139 T6):
+  the owner's connection at the machine: `app_user`, the role every request runs as, cannot delete
+  from that log, and after 0138 T3 step 2 the tasks' system role may delete from it only for the
+  purge of an erased organisation, picking rows by organisation and never by age. Built (0139 T6):
   `box-duties.sh` runs `support-read-prune.sh --delete` on live once a day as the duty
   `searches`; it runs once live's timer is installed. It deletes every read recorded with no
   organisation at 12 months: besides a search and a download, the organisation list, the

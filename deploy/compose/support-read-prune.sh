@@ -17,15 +17,26 @@
 # whatever its screen (`tenant`, `person`, `migration`, a `log` page filtered
 # to one organisation); it goes with that organisation's erasure.
 #
-# WHY AT THE MACHINE, OVER THE OWNER'S CONNECTION. The app cannot delete from
-# this log, by design: 0009 grants `app_user`, the role every request runs as,
+# WHY AT THE MACHINE, OVER THE OWNER'S CONNECTION. `app_user`, the role every
+# request runs as, cannot delete from this log, by design: 0009 grants it
 # SELECT and INSERT and revokes UPDATE and DELETE (the shared chain's default
 # privileges would otherwise have given it DELETE), and the table's row
 # security is FORCEd with a SELECT policy (an operator's own rows) and an
 # INSERT policy, and none for DELETE. A log the app could shorten would not be
-# the record 0110 built it to be. So this runs `psql` as the database's owner
-# (`POSTGRES_USER`) inside this stack's own Postgres container, the one
-# connection that may, and `box-duties.sh` runs it daily on live with --delete.
+# the record 0110 built it to be. One job does delete from it: the purge of
+# closed organisations, an erased organisation's rows (`PURGED_TABLES`).
+# Today the purge runs as the owner, since every Trigger.dev run still
+# receives the owner's URL as DATABASE_URL (set-task-env.sh); after 0138 T3
+# step 2 it runs as the tasks' system role, `ownpace_system`, which may delete
+# from this log only for that purge: its grant here is SELECT on `tenant_id`
+# and DELETE, so it can pick rows by organisation and never by their age. The
+# 12-month prune picks rows by age, so it stays at the machine on the owner's
+# connection: this runs `psql` as the database's owner (`POSTGRES_USER`)
+# inside this stack's own Postgres container, and `box-duties.sh` runs it
+# daily on live with --delete. That connection is not this script's alone
+# (the API holds the owner for its migrations and its audit key, and until
+# 0138 T3 step 2 every Trigger.dev run holds it too), but nothing else deletes
+# from this log by age.
 #
 # ONLY AN OWNER THAT PASSES ROW SECURITY. FORCE applies the policies to the
 # table's owner too, so an owner that is neither a superuser nor BYPASSRLS
@@ -88,8 +99,8 @@ else
 SELECT count(*) FROM public.support_read ${PAST_ITS_YEAR};"
 fi
 
-# As the owner, over the container's own socket: the one connection that may
-# delete here. ON_ERROR_STOP so a failed statement is a failed run, never a
+# As the owner, over the container's own socket: `app_user` may not delete
+# here, and the tasks' system role may not pick a row by its age. ON_ERROR_STOP so a failed statement is a failed run, never a
 # quiet empty answer (hard rule 9); -X so no ~/.psqlrc changes the output.
 if ! answer="$(docker exec -i "$DB_CONTAINER" \
     sh -c 'exec psql -X -q -At -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<<"$SQL")"; then

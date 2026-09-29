@@ -930,8 +930,10 @@ target. We show you the target before anything is written.
        share_grant rows. A small code change; until it lands, the list stays until erasure.
      - A search by address and a download of the log, "deleted 12 months after"
        (privacy-search-records (a)): built, not yet run: deploy/compose/support-read-prune.sh
-       (0139 T6), the duty `searches` in box-duties.sh, over the owner's connection, since the
-       app still cannot change the log. True on live once live's daily duties run. It deletes
+       (0139 T6), the duty `searches` in box-duties.sh, over the owner's connection, since
+       app_user cannot change the log, and after 0138 T3 step 2 the tasks' system role may delete
+       from it only for the purge of an erased organisation, never by age. True on live once
+       live's daily duties run. It deletes
        every read recorded with no organisation 12 months after it: besides these two, the
        organisation list, the invoices kept after an erasure and a log page not filtered to one
        organisation.

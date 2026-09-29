@@ -689,11 +689,18 @@ checkout:
 It deletes the rows with no organisation (`tenant_id IS NULL`) recorded more
 than 12 months ago, and nothing else: a row that names an organisation goes with
 that organisation's erasure, whatever its screen. It runs `psql` as the
-database's owner in the stack's own Postgres container, because the app cannot
-delete from this log: 0009 grants `app_user` `SELECT` and `INSERT` on it and
-revokes `UPDATE` and `DELETE`, and its row security is forced with no policy for
-`DELETE`. As `app_user`, a `DELETE` answers `permission denied for table
-support_read`. Forced row security applies to the table's owner too, so an
+database's owner in the stack's own Postgres container, because `app_user`, the
+role every request runs as, cannot delete from this log: 0009 grants it `SELECT`
+and `INSERT` on it and revokes `UPDATE` and `DELETE`, and its row security is
+forced with no policy for `DELETE`. As `app_user`, a `DELETE` answers
+`permission denied for table support_read`. The purge of closed organisations
+deletes an erased organisation's rows; today it runs as the owner, since every
+Trigger.dev run still receives the owner's URL as `DATABASE_URL`. After 0138 T3
+step 2 it runs as the tasks' system role, `ownpace_system`, which may delete
+from this log only for that purge: its grant is `SELECT` on `tenant_id` and
+`DELETE`, so it can pick rows by organisation and never by their age. The
+12-month prune picks rows by age, so it stays here, at the machine, on the
+owner's connection. Forced row security applies to the table's owner too, so an
 owner that is neither a superuser nor `BYPASSRLS` would delete nothing and say
 "deleted 0" every day: before it counts or deletes, the script asks, in the same
 call, and stops with *"does not pass row security"* if not. Today's
