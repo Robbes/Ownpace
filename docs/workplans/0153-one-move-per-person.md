@@ -4,6 +4,20 @@
 
 ## Status — 2026-09-29 (update this block at the end of every session)
 
+**2026-09-29, morning: one link per person, decided and planned (T5 (b); ADR-0035 amended).**
+The owner, asked after the walk of *Someone else* sent Anna two links for one Google account:
+*"yes, a per-person link instead of the per-migration links. Perhapse replace it, or do we still
+need the per-migration-link?"*
+
+- **ADR-0035's amendment** records the decision, the design, and the answer to the question as a
+  proposal: replace, keeping per-migration links already sent until they expire, and a migration
+  with no person gets one first. It also proposes *start when granted*.
+- **T5 (b)** plans the build in four slices: the managed-only `person_link` row and its doors;
+  the grant page per person, asked and bound per Google account; the progress page per person,
+  with taking a grant back per account; and the owner's side.
+- **Found while mapping it:** the ledger's `mapping_link` cannot point at `person`, which is
+  managed-only (ADR-0036), so the person's link is a managed row of its own.
+
 **2026-09-29: the wizard offers a saved Microsoft 365 or Apple account again.** On branch
 `claude/funny-wright-upyuqr`; not merged. This closes the fault 0131 T1 and 0148 T9 found and
 left. The wizard (*Add one migration by hand*) kept its own copy of the server's
@@ -479,7 +493,7 @@ person, and a flow that fills it.
 | T2 ADR-0050: a move is a person's migrations | ✅ **ADR-0050 accepted 2026-09-28 (#1327), amended the same night: *person*. The tables and `/api/people` built, with the appliance's implicit person (#1332)** | §3. A `person` row and `person_migration` in `packages/managed/migrations` (0031). The appliance answers one implicit person. The billed unit (a path) and the migration (a mapping) do not change. Deleting a person deletes no migration. |
 | T3 The Migrations page lists people | 🟡 **Built in two halves: the page lists people (#1341); it is the landing page, the Dashboard is gone, and the menu is the drawing's (#1343). The menu counts beside *Needs you* what waits (#1346). The progress line and *Ready to switch* wait on 0154 T2. Before the first invitation** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
 | T4 *Start a migration*: who, from where, what, to where | 📋 **Proposed; before the first invitation** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
-| T5 A page per person | 🟡 **First slice built (#1353): the person, their migrations, and their steps before they switch. Per-person grant and progress links wait on T4 and 0108; the progress lines on 0154 T2. Before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
+| T5 A page per person | 🟡 **First slice built (#1353): the person, their migrations, and their steps before they switch. One link per person is decided (ADR-0035's amendment of 2026-09-29) and planned as T5 (b), four slices; the progress lines wait on 0154 T2. Before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
 | T6 Words a family reads | 🟡 **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, before the first invitation. The Dutch says *migratie* everywhere the product speaks, with two guards (#1342). (c)'s two guards built (#1347)** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |
 | T7 Defaults a family can pass | 📋 **Proposed; before the first invitation, inside T4** | §3. Buttons that look like buttons, with the reason in text. A Soverin sign-in in two visible fields. A Nextcloud address, not a DAV URL. Business-only fields only on the business path. The limit blamed on the side that has it. Tiles and icons: `tiles.svg`, `icons.svg`. |
 | T8 The appliance shows its person's page | 📋 **Proposed; before the first invitation (D5)** | §3. The same page, fed by the appliance's one implicit grouping. No list or create screen (0034 stands). |
@@ -923,6 +937,51 @@ Each migration keeps its page (`/mappings/:id`) for its run history, its data ty
 and its settings. The person's page links each one as *Details*. The seven queue pages keep
 working per migration. The person's page shows their counts summed across the person's
 migrations, and links each migration's page.
+
+#### T5 (b) — one link per person (ADR-0035's amendment of 2026-09-29)
+
+The owner: *"yes, a per-person link instead of the per-migration links"*. The design, and what it
+changes in 0108 and 0122, is the amendment's. Built in four slices, each its own pull request:
+
+1. **The row and its doors.** `person_link` in `packages/managed/migrations` (the next free
+   number), shaped as `mapping_link` is in `packages/ledger/migrations/0031_a_link_that_grants.sql`:
+   a hashed secret, `purpose` (`grant` | `view`), `created_by`, `expires_at`, `used_at`,
+   `revoked_at`, `person_id` referencing `person(id, tenant_id)`, and the same row security,
+   including `link_sees_itself` on `app.current_link`. A store beside `people.ts` (issue, verify,
+   spend, revoke, list, count). `POST`/`GET`/`DELETE /api/people/:personId/links`, owner or admin,
+   the texts accepted, refused where no migration of theirs can take a grant (each migration asked
+   through `grantLinkAsk`, unchanged), and within the live-link limit, which counts both tables
+   under the one advisory lock (`live-link-limit.ts`). No page issues one yet.
+2. **The grant page per person.** The link middleware tells the two kinds apart and sets the
+   tenant and `app.current_link` as `withMappingLink` does. `GET /api/grant/:link` answers, for
+   a person's link, each Google account with its migrations (from, to, what) and whether it is
+   granted; `POST …/google/authorize` takes the account, and asks for every scope its listed
+   migrations need through one client (two clients on one account are refused by name). The
+   callback's ending writes the token to each listed migration of that account in one
+   transaction, audits each, and spends the link once every account is granted. It then mints the
+   person's progress link. `Grant.tsx` draws one *Sign in as …* per account.
+3. **The progress page per person.** `GET /api/view/:link` for a person's link answers their
+   migrations; *Take my grant back* is per account (`withdraw-grant.ts`: one revoke at Google,
+   every migration holding that token cleared in one statement). `View.tsx` draws them.
+4. **The owner's side.** The person's page (*For Anna*: *Create a grant link*, *Create a progress
+   link*, their states), *Start a migration*'s last screen offering the one link in place of each
+   migration's (#1386), and the migration's page listing any per-migration link still live,
+   revocable, with new ones made on the person's page. A migration with no person offers
+   *Who is this for?* there. The per-migration issue route refuses with a sentence naming the
+   person's page.
+
+**Tests that pin the per-migration shape today** and take the person's beside it: the grant route
+(`grant.unit.test.ts`), issuing (`link-routes.unit.test.ts`, `one-issue-at-a-time.integration.test.ts`),
+the store (`mapping-link-store.unit.test.ts`), the middleware (`mapping-link-auth.unit.test.ts`),
+the callback (`google-callback-route.unit.test.ts`, `signed-in-account.unit.test.ts`), withdrawing
+(`a-grant-taken-back.unit.test.ts`), the progress page (`view-routes.unit.test.ts`), reports
+(`a-link-that-can-be-reported.unit.test.ts`), the limit (`as-many-links-as-the-tier-runs.unit.test.ts`),
+closing (`an-organisation-closed-at-every-door.unit.test.ts`), the log's redaction
+(`a-log-that-kept-the-link.unit.test.ts`) and the OpenAPI spec. Offboarding purges `person_link`
+before `person` (`offboarding.ts`'s `PURGED_TABLES`).
+
+**Waits for the owner:** *start when granted* (the amendment's last section). Slices 1 to 3 do not
+depend on it.
 
 ### T6 — words a family reads (before the first invitation, inside T3–T5)
 
