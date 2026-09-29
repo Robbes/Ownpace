@@ -868,11 +868,55 @@ name, an address, a password hash and sessions for it, and privacy §9 keeps it
 It lists an account with no membership, no operator row, and no open access
 request or invitation for its address, older than 30 days by the provider's own
 date. An address compares without case. The provider's own members (the first
-human, the organisation's managers) are never listed. It refuses, removing
-nothing, when a read fails or comes back in a shape it does not know, and when
-the database names people none of whom has an account at this provider. A
-removal's line names the account's id, never its address. Workplan 0135 T8 has
-the rule, and why each part of it is there.
+human, the organisation's managers) are never listed. Nor are three more
+(2026-09-29):
+
+- **An account that was let in and removed since.** Removing a member, on the
+  Team page or with `operator.sh leave`, deletes the member row and records
+  `member.removed` in `audit_log` with the subject in `detail.userId` (the Team
+  page's record carries no address). The script keeps every subject so
+  recorded: privacy §9's 30 days are for an account *that we never let in*. What becomes of such an account in the end is the
+  owner's open question (workplan 0135, open question 13); until it is
+  answered it stays. An erasure deletes the organisation's audit rows, so after
+  a purge it is weighed like any other (*Tenant offboarding*, below).
+- **An account of another organisation at the provider.** Only accounts whose
+  `details.resourceOwner` is the organisation the provisioning token belongs to
+  (`GET /management/v1/orgs/me`) are weighed.
+- **An account with a membership or a user grant at the provider,** given by
+  hand in the console. Each account the rest would list is asked for both, and
+  an answer is read as the provider counts it: the larger of its list and its
+  `details.totalResult`.
+
+It refuses, removing nothing, when a read fails or comes back in a shape it does
+not know: the account listing (a page with accounts and no count, an empty page
+before the count is reached, or a count below the accounts already given), and a
+membership or grant answer that counts roles and lists them under another name
+or not at all. It also refuses when the database names people none of whom has
+an account at this provider, and, with `--remove`, when the database has no
+operator row. Live has one from *Become the operator*
+(`docs/managed-bring-up.md`) on; a database without one is emptied or another
+stack's, and every tester would look like a stranger. Listing without
+`--remove` still works on a fresh stack, and says why `--remove` would refuse.
+The database is read at the machine, on the owner's connection (`psql` as
+`POSTGRES_USER` in the stack's `-db` container), because `audit_log` and
+`tenant_member` force row security and `app_user` sees one organisation at a
+time. A removal's line names the account's id, never its address. Workplan 0135
+T8 has the rule, and why each part of it is there.
+
+**After live's database is reset or restored while the identity provider keeps
+its accounts,** hold the duty until the members are back. *Become the operator*
+comes first, so the operator row is back before anybody else is, and the script
+cannot tell such a database from one whose testers' organisations were all
+erased: it takes every tester older than 30 days for one nobody let in, up to
+20 a day. Before the reset, turn the daily duties off
+(`systemctl --user disable --now ownpace-box-duties.timer`, as
+`docs/managed-bring-up.md` says), and run
+`./deploy/compose/setup-zitadel.sh --token-only` by hand at least every three
+days while they are off. Turn them on again
+(`systemctl --user enable --now ownpace-box-duties.timer`) once
+`./deploy/compose/idp-strays.sh` lists nobody who was let in. When the machine
+itself is lost, the provider's accounts go with it (*If the machine is lost
+during the alpha*), and there is nothing to hold.
 
 On live it runs once a day, as `--remove --at-most 20`, among the daily duties
 (`docs/managed-bring-up.md`, *Live's daily duties*). A day with more than 20
@@ -1097,12 +1141,16 @@ platform under *their* account, and no API call of ours withdraws it.
 the identity provider. After the purge, from the stack's checkout,
 `./deploy/compose/idp-strays.sh` lists every former member who belongs to no
 other organisation and whose account is older than 30 days, beside any other
-account nobody let in (*Sign-in accounts nobody let in*, above). Check the list,
-then run it again with `--remove`. A younger account is not listed: note its
-subject (`tenant_member.user_id`) before the purge, and afterwards remove it
-with `./deploy/compose/idp-strays.sh --subject <sub> --remove`. That refuses,
-saying why, while the subject is still a member anywhere, an operator, or holds
-an open request or invitation.
+account nobody let in (*Sign-in accounts nobody let in*, above). The purge
+deletes the organisation's `audit_log` rows too, so a member removed from it
+before the close is listed with the rest. Check the list, then run it again
+with `--remove`. A younger account is not listed: note its subject
+(`tenant_member.user_id`) before the purge, and afterwards remove it with
+`./deploy/compose/idp-strays.sh --subject <sub> --remove`. That refuses, saying
+why, while the subject is still a member anywhere, was removed from an
+organisation that still exists, is an operator, holds an open request or
+invitation, belongs to another organisation at the provider, or holds a
+membership or grant there.
 
 > **The three decision queues now have a UI as well as these endpoints**
 > ([ADR-0026](adr/0026-one-operating-ui-one-contract.md)). The appliance serves
