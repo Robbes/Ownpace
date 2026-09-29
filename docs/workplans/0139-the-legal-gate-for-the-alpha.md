@@ -7,8 +7,8 @@
 **2026-09-29, latest: the sharing list goes with its migration (T6; the owner's
 privacy-sharing-list (b)), and its review fixed the same day**, built on branch
 `claude/ownpace-public-readiness-y7orc6-the-sharing-list-goes-with-its-migration`, not merged,
-with `main` merged in twice, not rebased: #1366 took the legal README's item and this block, and
-#1357 this block and T5's row, as this branch did.
+with `main` merged in twice, not rebased: #1366 edited the legal README's item and this block,
+and #1357 this block and T5's row; each side's text is kept.
 Privacy §9 keeps what a migration keeps beside its ledger, *such as the list of what was shared*,
 *until you delete the migration; then deleted with it*. The list is `share_grant` (ADR-0032,
 workplan 0052), and its `mapping_id` has no foreign key (migration 0016), so the cascade that takes
