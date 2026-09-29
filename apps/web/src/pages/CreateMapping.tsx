@@ -53,8 +53,10 @@ import {
   credentialFieldRequired,
   carriesGoogleNativeFiles,
   sourceFaceIsExperimental,
+  providerDisplayName,
   type DropboxPaperPolicy,
 } from '@openmig/shared';
+import { connectionKindName } from '../components/ProviderTile.tsx';
 import {
   connectionsApi,
   mappingApi,
@@ -416,7 +418,7 @@ const ConnectionPicker: React.FC<{
       >
         {options.map((c) => (
           <option key={c.id} value={c.id}>
-            {c.displayName} ({c.kind})
+            {connectionKindName(c.kind) ? `${c.displayName} (${connectionKindName(c.kind)})` : c.displayName}
           </option>
         ))}
         <option value="">{t('wizard.reuseNone')}</option>
@@ -2736,7 +2738,7 @@ const CreateMapping: React.FC = () => {
                 value={formData.name}
                 onChange={(e) => updateField('name', e.target.value)}
                 className="input w-full"
-                placeholder="My Migration"
+                placeholder={t('wizard.migrationName.placeholder')}
               />
             </div>
 
@@ -2851,7 +2853,7 @@ const CreateMapping: React.FC = () => {
                   <div>
                     <dt className="text-sm text-gray-500">{t('wizard.review.source')}</dt>
                     <dd className="text-sm font-medium text-gray-900">
-                      {formData.sourceType}{' '}
+                      {providerDisplayName(formData.sourceType)}{' '}
                       {isDriveSource
                         ? formData.sourceRootFolderId
                           ? `(${formData.sourceRootFolderId})`
@@ -2872,7 +2874,7 @@ const CreateMapping: React.FC = () => {
                   <div>
                     <dt className="text-sm text-gray-500">{t('wizard.review.target')}</dt>
                     <dd className="text-sm font-medium text-gray-900">
-                      {formData.targetType}{' '}
+                      {providerDisplayName(formData.targetType)}{' '}
                       {formData.targetUrl.trim()
                         ? `(${formData.targetUrl.trim()})`
                         : `(${formData.targetHost}:${formData.targetPort})`}
@@ -2916,7 +2918,7 @@ const CreateMapping: React.FC = () => {
       </div>
 
       {/* Progress Steps */}
-      <nav aria-label="Progress">
+      <nav aria-label={t('wizard.progress')}>
         <ol className="flex items-center">
           {steps.map((step, index) => (
             <li key={step.id} className={`relative ${index !== steps.length - 1 ? 'flex-1' : ''}`}>
