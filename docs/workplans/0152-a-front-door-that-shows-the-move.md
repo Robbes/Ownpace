@@ -14,10 +14,12 @@ session at the owner's word *"continue on the rest"*).**
   - *"Wat verhuist er?"* becomes *"Wat wilt u migreren?"*;
   - *"nadat ze zijn verhuisd"* becomes *"nadat ze zijn overgestapt"*.
 
-  The owner reads each in the pull request, as T0 says.
+  The owner read them and approved them as written on 2026-09-29 (*"Yes"*), *migreer uw eigen
+  gegevens* in the footer and the home title included.
 - **A guard** in `site/site.unit.test.ts` fails on `/verhui[sz]/i` in any Dutch page the build
-  writes. The legal texts are excused by name. They are 0139's, and still say *verhuizing* as
-  the Alpha conditions' own word. The excuse fails when they follow D6.
+  writes. The legal texts are excused by name: the privacy policy, the terms, and the Alpha
+  conditions, which #1360 made a page of their own. They are 0139's, and still say *verhuizing*
+  as the Alpha conditions' own word. The excuse fails when they follow D6.
 - **T6 (a):** #1317 already took *"VAT is added where it applies"* off both pricing pages. The
   guard is new: no page may say both that prices include VAT and that VAT is added. #1317's
   briefing asks the lawyer whether one sentence covers both audiences, which is T6 (a)'s question

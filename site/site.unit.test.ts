@@ -265,9 +265,10 @@ describe('both locales are complete', () => {
    * THE LEGAL TEXTS ARE EXCUSED, by name and for one reason: they are the
    * owner's and the lawyer's (0139), and chose *verhuizing* as the Alpha
    * conditions' own word before D6. When they follow D6, their excuse fails
-   * below, so it cannot outlive its reason.
+   * below, so it cannot outlive its reason. The Alpha conditions joined them
+   * as a page of their own (0139 T3, #1360).
    */
-  const LEGAL_STILL_SAYING_VERHUIZING = ['nl/privacy.html', 'nl/voorwaarden.html'];
+  const LEGAL_STILL_SAYING_VERHUIZING = ['nl/privacy.html', 'nl/voorwaarden.html', 'nl/alpha.html'];
 
   it('says no form of verhuizen on any Dutch page the site writes (0152 D6)', async () => {
     const { rendered } = (await import('./build.mjs')) as unknown as {
