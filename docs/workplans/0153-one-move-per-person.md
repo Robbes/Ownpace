@@ -51,11 +51,19 @@
   - screen 6's time estimate waits for 0154 T3 (a);
   - the wizard retires once `CreateMapping.reachability.unit.test.tsx` passes through the flow
     (D5).
-- **Proved by** `StartMigration.unit.test.tsx` (24 cases) and `start-plan.unit.test.ts` (20).
-  They cover each screen's focus and reasons, the tags, the saved-account default, a failed
-  check's *Try again*, Soverin's fold, Nextcloud's address, and the set-up's payloads. A
-  refused set-up asks again only for what was not made, and one *Start* for two migrations
-  lands on the person's page. `ConfirmMigration`'s own 68 cases pass unchanged.
+- **Proved by:**
+  - `StartMigration.unit.test.tsx` (24 cases) and `start-plan.unit.test.ts` (21). They cover
+    each screen's focus and reasons, the tags, the saved-account default, a failed check's
+    *Try again*, Soverin's fold, Nextcloud's address, and the set-up's payloads. A refused
+    set-up asks again only for what was not made, and one *Start* for two migrations lands on
+    the person's page;
+  - `managed-ui.ui.test.ts` in a real browser: from Anna's card through the six screens and
+    one *Start* to her page, with no call the API does not serve. With the card's link pointed
+    back at the wizard, it fails;
+  - `ConfirmMigration`'s own 68 cases pass unchanged;
+  - a walk in Chromium over a fixture API, in English, Dutch and at phone width, found two
+    faults, both fixed: mail was listed after files, and *Another mail provider* was
+    capitalised mid-sentence.
 
 **2026-09-29, morning: the owner's answers to the writing session's eleven questions, and two
 words changed with them** (0131 §6, R8).
