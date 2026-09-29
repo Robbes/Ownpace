@@ -2069,10 +2069,12 @@ reading a file drops off its entry by itself.
 
 ### `site/legal/privacy.md`
 
+- [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 
 ### `site/legal/privacy.nl.md`
 
+- [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 
 ### `site/legal/terms.md`
@@ -3992,6 +3994,8 @@ Reads:
 - `site/legal/README.md`
 - `site/legal/alpha.md`
 - `site/legal/alpha.nl.md`
+- `site/legal/privacy.md`
+- `site/legal/privacy.nl.md`
 - `site/legal/terms.md`
 - `site/legal/terms.nl.md`
 
