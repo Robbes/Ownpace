@@ -38,19 +38,35 @@
  * and says the rest is read when the report is sent. Nothing shown is sent
  * back: the server reads the facts again
  * (`a-report-that-says-what-it-sends.unit.test.tsx`).
+ *
+ * What only the browser knows (Part B): the screen's language, the time zone,
+ * the window's width, this page's build, the data type, side and migration
+ * the failure line passed, and the references and codes of the faults this
+ * page met in the five minutes before the form was opened
+ * (`services/recent-errors.ts`, which keeps nothing else of a fault: the
+ * request that met it carries the sign-in token). Read once when the form
+ * opens, sent as one object with the preview and with the report, and shown
+ * in the fold among the service's lines, or, when those cannot be had, in the
+ * reader's language. The server takes only its own keys, in their shapes
+ * (`a-report-that-carries-what-the-browser-knows.unit.test.tsx`).
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { FAILURE_CATEGORIES } from '@openmig/shared';
-import { useT } from '../i18n/index.tsx';
+import { DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureSide, type DiscoveryDomain } from '@openmig/shared';
+import { useLocale, useT } from '../i18n/index.tsx';
 import { formatBytes } from '../i18n/bytes.ts';
+import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { serverMessage } from '../services/api.ts';
+import { describeBuild } from '../services/build-identity.ts';
+import { RECENT_ERROR_MS } from '../services/recent-errors.ts';
 import {
+  browserFacts,
   fetchReportingAvailable,
   fetchReportPreview,
+  readBrowser,
   refusedAsTooLarge,
   REPORT_TIMEOUT_MS,
   reportablePage,
@@ -60,6 +76,7 @@ import {
 
 export const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;
 const REFERENCE = /^[0-9a-f]{8}$/;
+const MIGRATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** The pictures a report takes; the API checks each by its first bytes again. */
 const PICTURE_TYPES: readonly string[] = ['image/png', 'image/jpeg'];
 
@@ -118,6 +135,7 @@ function readAsBase64(file: File): Promise<string> {
 
 const ReportProblem: React.FC = () => {
   const t = useT();
+  const { locale } = useLocale();
   const [search] = useSearchParams();
   const email = useAuthStore((s) => s.user?.email);
 
@@ -127,6 +145,24 @@ const ReportProblem: React.FC = () => {
   const reference = REFERENCE.test(askedReference) ? askedReference : undefined;
   const askedCategory = search.get('category') ?? '';
   const category = (FAILURE_CATEGORIES as readonly string[]).includes(askedCategory) ? askedCategory : undefined;
+  // What the failure line knew, each only in its own shape.
+  const askedDataType = search.get('dataType') ?? '';
+  const dataType = (DISCOVERY_DOMAINS as readonly string[]).includes(askedDataType)
+    ? (askedDataType as DiscoveryDomain)
+    : undefined;
+  const askedSide = search.get('side');
+  const side = isFailureSide(askedSide) ? askedSide : undefined;
+  const askedMigration = search.get('migration') ?? '';
+  const migrationId = MIGRATION_ID.test(askedMigration) ? askedMigration : undefined;
+  // What this browser says of itself, read once when the form opens: the
+  // preview and the report then carry the same, and a fault's reference counts
+  // from when the person came here to report it.
+  const [snapshot] = useState(readBrowser);
+  const browser = useMemo(
+    () => browserFacts(locale, snapshot, { dataType, side, migrationId }),
+    [locale, snapshot, dataType, side, migrationId],
+  );
+  const browserKey = JSON.stringify(browser);
 
   const [description, setDescription] = useState('');
   const [screenshot, setScreenshot] = useState<File | undefined>();
@@ -138,9 +174,9 @@ const ReportProblem: React.FC = () => {
   // What a report from this page would carry. Read once per page: the server
   // reads it again when the report is sent, whatever this showed.
   const preview = useQuery({
-    queryKey: ['problem-reports', 'preview', page, reference ?? '', category ?? ''],
+    queryKey: ['problem-reports', 'preview', page, reference ?? '', category ?? '', browserKey],
     queryFn: () =>
-      fetchReportPreview({ page, ...(reference ? { reference } : {}), ...(category ? { category } : {}) }),
+      fetchReportPreview({ page, ...(reference ? { reference } : {}), ...(category ? { category } : {}), browser }),
     enabled: available.data === true,
     retry: false,
     refetchOnWindowFocus: false,
@@ -161,6 +197,7 @@ const ReportProblem: React.FC = () => {
         ...(reference ? { reference } : {}),
         ...(category ? { category } : {}),
         ...(screenshot ? { screenshot: { data: await readAsBase64(screenshot) } } : {}),
+        browser,
       }),
   });
 
@@ -405,6 +442,28 @@ const ReportProblem: React.FC = () => {
                   <li>{t('report.page', { page })}</li>
                   {reference && <li>{t('report.reference', { reference })}</li>}
                   {category && <li>{t('report.category', { category })}</li>}
+                  <li>{t('report.browser.language')}</li>
+                  {browser.timeZone && <li>{t('report.browser.timeZone', { timeZone: browser.timeZone })}</li>}
+                  {browser.windowWidth && <li>{t('report.browser.width', { width: browser.windowWidth })}</li>}
+                  {browser.appVersion && (
+                    <li>
+                      {t('report.browser.appBuild', {
+                        build: describeBuild({ version: browser.appVersion, commit: browser.appCommit ?? '' }, null),
+                      })}
+                    </li>
+                  )}
+                  {dataType && <li>{t('report.browser.dataType', { dataType: t(DOMAIN_STRING_KEY[dataType]) })}</li>}
+                  {side && <li>{t(side === 'source' ? 'report.browser.side.source' : 'report.browser.side.target')}</li>}
+                  {migrationId && <li>{t('report.browser.migration', { migration: migrationId })}</li>}
+                  {(browser.recentErrors ?? []).map((e) => (
+                    <li key={e.reference}>
+                      {t('report.browser.recentError', {
+                        minutes: RECENT_ERROR_MS / 60_000,
+                        reference: e.reference,
+                        code: e.code,
+                      })}
+                    </li>
+                  ))}
                 </ul>
                 <p className="mt-2">{preview.isError ? t('report.facts.unshown') : t('report.facts.reading')}</p>
               </>

@@ -27,6 +27,7 @@ import {
   isSendableAsText,
 } from './dav-http.types.ts';
 import { parseRemovedHrefs } from './dav-removals.ts';
+import { asksToSlowDown, rateLimitWaitMs } from './rate-limit-once.ts';
 import { RemoteRefusal, davRefusalParts } from '@openmig/shared';
 
 /**
@@ -1060,8 +1061,24 @@ export class CarddavSource implements ContactSource {
    * mapping carries a limiter, take a rate+concurrency slot first and release
    * it after — the caps an owner configured, enforced. Without one this is
    * exactly `httpClient.request`.
+   *
+   * A RATE LIMIT IS WAITED OUT ONCE (workplan 0143 T10): a 429 or 503, or
+   * Google's 403 rate limit, for what `Retry-After` asks or else a second,
+   * holding no slot while it waits. The rule and its limits are
+   * `rate-limit-once.ts`'s. Every request here is a read, so asking again
+   * cannot do anything twice.
    */
   private async send(options: import('./dav-http.types.ts').HttpRequestOptions): Promise<import('./dav-http.types.ts').HttpResponse> {
+    const first = await this.sendOnce(options);
+    if (!asksToSlowDown(first.status, first.body)) return first;
+    const waitMs = rateLimitWaitMs(first.headers['retry-after'] ?? first.headers['Retry-After']);
+    if (waitMs === undefined) return first;
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    return this.sendOnce(options);
+  }
+
+  /** One request, with the limiter's slot held for it alone. */
+  private async sendOnce(options: import('./dav-http.types.ts').HttpRequestOptions): Promise<import('./dav-http.types.ts').HttpResponse> {
     const limiter = this.config.throttleLimiter;
     if (!limiter) return this.httpClient.request(options);
     await limiter.waitForSlot('dav', this.limiterHost());

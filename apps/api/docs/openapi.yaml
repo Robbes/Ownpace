@@ -4717,6 +4717,13 @@ paths:
         No names, addresses, provider error text or tokens. When the facts
         cannot be read, the lines say so with a reference, as the report
         would. Sending a report reads the facts again. Sixty an hour per person.
+
+        Then what the browser says of itself, from `browser`, the report's
+        `browser` object as JSON: each fact only in its own shape, written as
+        `Screen language`, `Time zone`, `Window width`, `App build in the
+        browser` (only when it is not this server's), `Failure line` and a
+        `Recent error` line each. Anything else in it is dropped, never
+        refused.
       parameters:
         - name: page
           in: query
@@ -4730,6 +4737,13 @@ paths:
           in: query
           required: false
           schema: { type: string }
+        - name: browser
+          in: query
+          required: false
+          description: |
+            The report's `browser` object (`BrowserFacts`), as JSON, at most
+            2000 characters. Longer, not JSON, or not an object, it is dropped.
+          schema: { type: string, maxLength: 2000 }
       responses:
         '200':
           description: Where the report goes, and its lines of facts.
@@ -4795,6 +4809,9 @@ paths:
         lines of facts `GET /api/problem-reports/preview` describes, read
         again on sending and never taken from the body; when they cannot be
         read, the report still goes, with `Facts: could not be read [ref …]`.
+        And `browser`, what the browser says of itself, checked key by key:
+        a key not in `BrowserFacts`, or a value not in its shape, is dropped,
+        and never a reason to refuse the report.
       requestBody:
         required: true
         content:
@@ -4811,6 +4828,7 @@ paths:
                   properties:
                     data: { type: string, description: The image, base64. }
                   required: [data]
+                browser: { $ref: '#/components/schemas/BrowserFacts' }
               required: [description, page]
       responses:
         '201':
@@ -6498,6 +6516,44 @@ components:
           type: string
           examples: ['Mapping is paused — review the discovery counts and start it first (POST /start).']
       required: [error, message]
+
+    BrowserFacts:
+      type: object
+      description: |
+        What the browser says of itself with a problem report (workplan 0130
+        T6, Part B). Each key is taken only in the shape below; any other key,
+        or a value not in its shape, is dropped without refusing the report.
+        Written into the report as lines, and nowhere else.
+      properties:
+        language: { type: string, enum: [en, nl], description: The screen's language. }
+        timeZone:
+          type: string
+          maxLength: 64
+          pattern: '^[A-Za-z][A-Za-z0-9_+-]*(?:/[A-Za-z0-9_+-]+){0,2}$'
+          description: The IANA time zone.
+        windowWidth: { type: integer, minimum: 1, maximum: 20000, description: The window's width in CSS pixels. }
+        appVersion:
+          type: string
+          maxLength: 40
+          pattern: '^[0-9A-Za-z][0-9A-Za-z.+-]*$'
+          description: The web app's version; written only when it is not the server's.
+        appCommit: { type: string, pattern: '^[0-9a-f]{7,40}$' }
+        dataType: { type: string, enum: [email, calendar, contact, file, task], description: From the failure line the form was opened from. }
+        side: { type: string, enum: [source, target], description: From the failure line. }
+        migrationId: { type: string, format: uuid, description: From the failure line. }
+        recentErrors:
+          type: array
+          minItems: 1
+          maxItems: 3
+          description: |
+            The faults the page met in the five minutes before the form was
+            opened, newest first: only each one's reference and code.
+          items:
+            type: object
+            properties:
+              reference: { type: string, pattern: '^[0-9a-f]{8}$' }
+              code: { type: string, pattern: '^[a-z][a-z0-9_]{0,47}$' }
+            required: [reference, code]
 
     AccountClosed:
       type: object

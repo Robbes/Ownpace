@@ -24,6 +24,12 @@
 #   rotate-db-passwords.sh      --sync and --rotate refuse live; --check runs
 #                               on any stack, it changes nothing (0132 T2,
 #                               built: stack_may_be_live)
+#   copy-before-update.sh       refuses a .env WITHOUT the marker: the copy
+#                               before an update is live's (0139:
+#                               stack_is_live)
+#   dump-idp.sh and             on live write only into that copy's
+#   trigger-version.sh          directory, and trigger-version.sh refuses its
+#                               drill there (0139: stack_may_be_live)
 #
 # Each of them reads the marker's name from here, so it is spelled once. Live's
 # .env carries the line

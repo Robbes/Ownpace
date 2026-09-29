@@ -13,7 +13,8 @@
  *  4. The listing carries no bytes (the memory property `ports.ts` records).
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { classifyFailure, isDecisionError } from '@openmig/shared';
 import { GoogleDriveSource, NativeFileRefused, isNativeEditorFile } from './google-drive-source.ts';
 import type { DriveTransport } from './google-drive-source.types.ts';
 
@@ -769,5 +770,186 @@ describe("storageUsage — how much the Drive holds, as Google says it (2026-09-
     const { transport } = fakeDrive({ '/about?fields=storageQuota': { storageQuota: { usageInDrive: '10' } } });
     const usage = await new GoogleDriveSource(transport, { baseUrl: BASE }).storageUsage();
     expect(usage).toEqual({ bytes: 10, trashBytes: 0, nativeFilesExcluded: true });
+  });
+});
+
+describe('a rate limit is waited out once, not failed (workplan 0143 T10)', () => {
+  // One Google project serves every tester, so its quota is shared, and a rate
+  // limit clears by itself. Drive failed one on first sight: an item, or a
+  // whole listing, for a limit that was gone a second later.
+  //
+  // The clock is fake, so no case sleeps, and a wait that should not happen is
+  // left pending rather than slept through: a regression fails at once.
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const STUCK = 'still asking';
+
+  /** How the work settled once the clock has moved `advanceMs` (a little, by default), or `STUCK`. */
+  async function settled<T>(work: Promise<T>, advanceMs = 50): Promise<T | typeof STUCK> {
+    let outcome: { readonly value: T } | { readonly error: unknown } | undefined;
+    work.then(
+      (value) => {
+        outcome = { value };
+      },
+      (error: unknown) => {
+        outcome = { error };
+      },
+    );
+    await vi.advanceTimersByTimeAsync(advanceMs);
+    if (outcome === undefined) return STUCK;
+    if ('error' in outcome) throw outcome.error;
+    return outcome.value;
+  }
+
+  interface Answer {
+    readonly status: number;
+    readonly body?: unknown;
+    readonly retryAfter?: string;
+  }
+
+  /** Answers per URL fragment, in order; the last one repeats. Records every URL asked. */
+  function answering(routes: Record<string, Answer | Answer[]>) {
+    const calls: string[] = [];
+    const queues = new Map(Object.entries(routes).map(([k, v]) => [k, Array.isArray(v) ? [...v] : [v]]));
+    const transport: DriveTransport = async (url) => {
+      calls.push(url);
+      const key = [...queues.keys()].find((k) => url.includes(k));
+      const queue = key === undefined ? undefined : queues.get(key)!;
+      const a: Answer = queue === undefined ? { status: 404, body: `no fake route for ${url}` } : queue.length > 1 ? queue.shift()! : queue[0]!;
+      const text = typeof a.body === 'string' ? a.body : JSON.stringify(a.body ?? {});
+      return {
+        ok: a.status >= 200 && a.status < 300,
+        status: a.status,
+        headers: { get: (name: string) => (name.toLowerCase() === 'retry-after' ? (a.retryAfter ?? null) : null) },
+        json: async () => JSON.parse(text) as unknown,
+        arrayBuffer: async () => new TextEncoder().encode(text).buffer as ArrayBuffer,
+        text: async () => text,
+      };
+    };
+    return { transport, calls };
+  }
+
+  /** Google's JSON refusal, the shape every Google API refuses in. */
+  const refusal = (status: number, reason: string, message: string) => ({
+    error: { code: status, message, errors: [{ message, domain: 'usageLimits', reason }] },
+  });
+
+  /** A limit per minute, in words the quota rule reads as a daily one. */
+  const PER_MINUTE =
+    "Quota exceeded for quota metric 'Queries' and limit 'Queries per minute per user' of service 'drive.googleapis.com'";
+
+  const REPORT = { path: 'report.pdf', isDirectory: false, size: 2048, modifiedAt: '2026-08-01T10:00:00Z', sourceRef: 'file-1' };
+
+  const now = (answer: Answer): Answer => ({ ...answer, retryAfter: '0' });
+
+  it('asks a listing again after a 429, and the listing arrives', async () => {
+    const { transport, calls } = answering({
+      '/files?q=': [now({ status: 429, body: refusal(429, 'rateLimitExceeded', PER_MINUTE) }), { status: 200, body: { files: [BINARY] } }],
+    });
+
+    const listed = await settled(new GoogleDriveSource(transport, { baseUrl: BASE }).listSince({ path: '' }));
+
+    if (listed === STUCK) throw new Error('the listing is still waiting');
+    expect(listed.items.map((i) => i.item.path)).toEqual(['report.pdf']);
+    expect(calls.filter((url) => url.includes('/files?q='))).toHaveLength(2);
+  });
+
+  it('waits one second for a 503 that does not say how long', async () => {
+    const { transport, calls } = answering({
+      '/files?q=': [{ status: 503, body: 'backend error' }, { status: 200, body: { files: [BINARY] } }],
+    });
+    const listing = new GoogleDriveSource(transport, { baseUrl: BASE }).listSince({ path: '' });
+
+    expect(await settled(listing, 999)).toBe(STUCK);
+    expect(calls).toHaveLength(1);
+    const listed = await settled(listing, 1);
+    if (listed === STUCK) throw new Error('the listing is still waiting after a second');
+    expect(listed.items).toHaveLength(1);
+    expect(calls).toHaveLength(2);
+  });
+
+  it.each(['rateLimitExceeded', 'userRateLimitExceeded'])(
+    'reads Google’s 403 %s as a rate limit, and downloads the file on the second ask',
+    async (reason) => {
+      const bytes = new Uint8Array([4, 2]);
+      const { transport, calls } = answering({
+        '/files/file-1?fields=': { status: 200, body: BINARY },
+        'alt=media': [now({ status: 403, body: refusal(403, reason, 'Rate Limit Exceeded') }), { status: 200, body: 'xx' }],
+      });
+      const drive: DriveTransport = async (url, init) => {
+        const response = await transport(url, init);
+        return url.includes('alt=media') && response.ok ? { ...response, arrayBuffer: async () => bytes.buffer as ArrayBuffer } : response;
+      };
+
+      const out = await settled(new GoogleDriveSource(drive, { baseUrl: BASE }).fetch(REPORT));
+
+      if (out === STUCK) throw new Error('the download is still waiting');
+      expect(out.content).toEqual(bytes);
+      expect(calls.filter((url) => url.includes('alt=media'))).toHaveLength(2);
+    },
+  );
+
+  it('reports a rate limit that holds as one: Google’s words kept, not a daily quota, not a reconnect', async () => {
+    const { transport, calls } = answering({
+      '/files/file-1?fields=': { status: 200, body: BINARY },
+      'alt=media': now({ status: 403, body: refusal(403, 'userRateLimitExceeded', PER_MINUTE) }),
+    });
+
+    const failure = String(
+      await settled(
+        new GoogleDriveSource(transport, { baseUrl: BASE })
+          .fetch(REPORT)
+          .then(() => 'copied', (error: Error) => error.message),
+      ),
+    );
+
+    expect(calls.filter((url) => url.includes('alt=media'))).toHaveLength(2);
+    expect(failure).toContain(`userRateLimitExceeded — ${PER_MINUTE}`);
+    expect(classifyFailure(failure, 'source')).toBe('rate_limited');
+    expect(failure).not.toMatch(/reconnect/i);
+  });
+
+  it('asks a refusal only once, and still quotes Google’s words', async () => {
+    const { transport, calls } = answering({
+      '/files/file-1?fields=': { status: 200, body: BINARY },
+      'alt=media': {
+        status: 403,
+        body: refusal(403, 'cannotExportFile', 'This file cannot be exported by the user.'),
+      },
+    });
+
+    const failure = await settled(
+      new GoogleDriveSource(transport, { baseUrl: BASE })
+        .fetch(REPORT)
+        .catch((error: Error) => error),
+    );
+
+    expect(calls.filter((url) => url.includes('alt=media'))).toHaveLength(1);
+    expect(String(failure)).toContain('cannotExportFile — This file cannot be exported by the user.');
+    // Read once to learn it was no rate limit, and still an answer for a person.
+    expect(isDecisionError(failure)).toBe(true);
+  });
+
+  it('does not sleep through a window longer than a minute', async () => {
+    const { transport, calls } = answering({
+      '/files?q=': { status: 429, body: refusal(429, 'rateLimitExceeded', PER_MINUTE), retryAfter: '3600' },
+    });
+
+    const failure = String(
+      await settled(
+        new GoogleDriveSource(transport, { baseUrl: BASE })
+          .listSince({ path: '' })
+          .then(() => 'listed', (error: Error) => error.message),
+      ),
+    );
+
+    expect(calls).toHaveLength(1);
+    expect(failure).toContain('429');
+    expect(classifyFailure(failure, 'source')).toBe('rate_limited');
   });
 });

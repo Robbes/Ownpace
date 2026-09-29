@@ -2,7 +2,28 @@
 
 > **In one line:** Making the alpha's no-backups decision true on `ownpace-live`: `BACKUP_RETENTION_DAYS` equal to the days a pre-deploy copy is kept, so the erasure sentence says so, alpha-conditions wording, a runbook note on a lost machine, an off-machine `.env` copy, and a design for drilled database backups.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-09-29 (update this block at the end of every session)
+
+**2026-09-29, latest: review fixes to the copy before an update**, same branch, not merged
+(0139's Status block, 2026-09-29). The daily duties now delete the copy once it is older than 6
+days **less an hour**, so it is never kept past day 7 (N) even when their run starts late, and a
+dump by hand there goes by its own age. The earlier entry below said the copy *"never reaches
+N = 7 days"*: a copy over 6 days old waiting for the next run is on its seventh day, so the
+promise is *never past* day 7. **T0 step 4's daily look stays while the daily duties' timer is
+not active**: `copy-before-update.sh take` now refuses without it, so no copy is taken that
+nothing deletes, but a copy already there when the timer is stopped stays until someone deletes
+it. The owner deletes such a copy by its seventh day, as T0 step 4 says, until the timer is back.
+
+**2026-09-28: T0 step 4 done by a script, with 0139's copy before an update** (the
+owner's answer rec-copies (a)), on branch
+`claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, not merged. 0139's Status
+block says how. `deploy-live.sh` takes the copy right before each update
+(`copy-before-update.sh`, into `~/.persistent/ownpace-live/copy-before-update`), the owner
+deletes it once the update is proven, and the daily duties delete it once it is older than 6
+days, proven or not, so it is never kept past N = 7 days. Once that merges, T0 step 4's daily
+look and its `find … -mmin` are not needed while the timer runs, and the follow-up above
+(*"0132 T6 step 4 says to keep the copy until the next deploy … T0 step 4 does it by hand until
+one of them does"*) is closed. `BACKUP_RETENTION_DAYS` on live stays 7.
 
 **2026-09-28, later: the owner answered open question 1: (b), a dump before each deploy.**
 *"database copy before live deployment: i think that might be more safe to do make a backup?"*
@@ -284,7 +305,7 @@ runbook's recipe and `docs/deployment.md` as fixed in #1137.
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner's steps on the reference machine | ⏳ **Owner** | §3. `BACKUP_RETENTION_DAYS` in live's `.env` (`~/.persistent/ownpace-live/.env`, which live's checkout links to), set when 0132 T1b seeds it and read back from live's API container: N, the most days a copy made before a deploy is kept (open question 1 (b), 2026-09-28), and `0` only while no copy is taken. A copy older than N days deleted, whether or not a deploy followed it. T4's copies, if the owner takes them. Dates and outcomes go in this block, never values. |
+| T0 The owner's steps on the reference machine | ⏳ **Owner** | §3. `BACKUP_RETENTION_DAYS` in live's `.env` (`~/.persistent/ownpace-live/.env`, which live's checkout links to), set when 0132 T1b seeds it and read back from live's API container: N, the most days a copy made before a deploy is kept (open question 1 (b), 2026-09-28), and `0` only while no copy is taken. A copy older than N days deleted, whether or not a deploy followed it (by the daily duties since 0139's copy before an update, built 2026-09-28, not merged; by hand again whenever their timer is not active, 2026-09-29). T4's copies, if the owner takes them. Dates and outcomes go in this block, never values. |
 | T1 The erasure sentence says there are no backups | ✅ **done** in #1214, merged 2026-09-27: (a) the wording and (b) the start-up check, a warning in production and fatal with the alpha setting on (open question 4, the owner's answer still owed). (c), the check of the Trigger.dev store, done 2026-09-27, merged as #1240: it found tester data, and open question 3 was answered (a) the same day. That (a) built 2026-09-28, not merged: a run's error, discovery's output and its logs leave Trigger.dev a reference and a category — *was:* 📋 Decided 2026-09-24 (D1) for the setting and the wording; the start-up check 📋 Proposed | §3. The close response then says *"This deployment keeps no backups"*. The comments that say the reference deployment keeps seven days are corrected. The code default stays 7, for the reason §3 gives. (a) is the wording, (b) the start-up check, (c) *A check before the sentence is trusted*. |
 | T2 The alpha conditions say it, in Dutch first | 📋 **Decided 2026-09-24** (D1, D2, D3); one sentence added 2026-09-28 for the dump before each deploy (open question 1 (b)) | §3. A paragraph drafted here for 0139's lawyer's pass. 0131 T1's note carries the short form. |
 | T3 What a lost machine costs, written down | ✅ **done** in #1238, merged 2026-09-27: the runbook's section, ADR-0020 amended, the downgrade refusal, no squash in the alpha — *was:* 📋 **Proposed** | §3. A runbook section for the owner. ADR-0020's operative rule is amended to what is built. No squash of either migration chain during the alpha. |
