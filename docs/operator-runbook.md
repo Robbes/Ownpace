@@ -152,6 +152,43 @@ running service, force it: `docker compose -f managed.yml up -d --force-recreate
 — the live symptom that teaches this the hard way is changing the `TRIGGER_*_ORIGIN`s and
 getting a white screen from a dashboard still advertising the old origins.
 
+### Whose address a log line names, and how long it stays
+
+Behind NetBird, every request reaches the machine from NetBird's own address on
+the mesh: its reverse proxy ends TLS and connects through the tunnel. The
+visitor's address travels in `X-Forwarded-For`, which NetBird sets to the
+address the visitor connected from (privacy §4.5: *"your IP address, which
+NetBird passes on to us"*). So:
+
+| Log | Where the visitor's address is |
+|---|---|
+| `api` (`docker compose … logs api`) | First, when `TRUST_PROXY` counts the proxies in front of it: 2 on live, NetBird's and the web container's nginx (3 if NetBird's cluster adds one). Empty, the first field is the web container for everybody; more than the proxies there, whatever the caller wrote. |
+| `web`, the app's nginx | Last, in quotes (`ownpace_combined` in `apps/web/nginx.conf.template`). The first field is NetBird's. |
+| `www`, the website's nginx | Last, in quotes (`ownpace_site` in `deploy/compose/www-nginx.conf`). The first field is NetBird's. |
+
+Workplan 0132 T3 (d)'s check reads one line of each on live
+([managed-bring-up.md](managed-bring-up.md#after-the-script-the-owners-steps),
+step 6). These lines are personal data: never paste one anywhere public. The
+managed gate filters the container logs it prints into its public job log through
+`own-addresses.sh`, which replaces an nginx line's last field with `<client-ip>`
+as it replaces mesh addresses with `<mesh-ip>`.
+
+**How long they stay.** Every container writes with Docker's default log driver,
+`json-file`, which keeps its output, with no limit of age or size, until the
+container is removed: at each deploy for the app and the site, when its image or
+settings change for the sign-in service, and when its run ends for a task. That is
+privacy §9's *"until the part of the service that wrote them is replaced"*. `local`
+keeps it the same way and also rotates it by size, so lines can go sooner, never
+later. `docker info --format '{{.LoggingDriver}}'` prints `json-file` (or `local`)
+on a machine that keeps to it, and `stand-up-live.sh` refuses any other answer; the
+journal would keep every line past its container (managed-bring-up.md, *Before you
+start*, says how to undo that).
+
+**Keeping a container's output** past a deploy, for an incident: copy it first,
+`docker compose -f deploy/compose/managed.yml logs --no-color --timestamps > containers-$(date +%F).txt`
+([breach-procedure.md](breach-procedure.md), step 2). A recreated container starts
+with an empty log.
+
 ### The trigger dashboard's TLS front (`trigger-tls`)
 
 The dashboard runs production-mode Secure cookies, so login is unusable over plain http
