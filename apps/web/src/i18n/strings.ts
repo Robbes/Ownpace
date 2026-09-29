@@ -1203,6 +1203,12 @@ const en = {
   // (2026-09-29), and the owner's "Log it" for the reference.
   'answer.unreadable':
     'The server answered in a form this page does not know. Reload the page; if it stays like this, report it to support, and mention: reference {reference}.',
+  // The site serves a newer build than the page on screen (workplan 0145):
+  // most likely a deploy while the tab stayed open. The page never reloads by
+  // itself, so the sentence says what a reload costs.
+  'reload.newer':
+    'A newer version of this page is available. Reload the page to use it; anything you have not saved yet is lost.',
+  'reload.button': 'Reload the page',
   // The progress page (workplan 0122). The SAME reader as the grant page above
   // — no account, no jargon, second person — asking a different question:
   // has my mail arrived yet. So the states are sentences rather than the
@@ -3876,6 +3882,9 @@ const nl: Record<keyof typeof en, string> = {
     'Er ging iets mis op deze pagina. Probeer het later opnieuw; blijft het misgaan, laat het dan de persoon weten die u de link stuurde.',
   'answer.unreadable':
     'De server antwoordde in een vorm die deze pagina niet kent. Laad de pagina opnieuw; blijft het zo, meld het en geef daarbij het volgende door: referentie {reference}.',
+  'reload.newer':
+    'Er is een nieuwere versie van deze pagina. Laad de pagina opnieuw om die te gebruiken; wat u nog niet hebt opgeslagen, gaat daarbij verloren.',
+  'reload.button': 'Pagina opnieuw laden',
   'view.title': 'Uw migratie',
   'view.loading': 'Een moment…',
   'view.who': '{organisation} migreert uw account naar een nieuwe provider.',

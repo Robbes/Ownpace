@@ -32,6 +32,7 @@ import { pageForLog, type UnreadableAnswerBody } from '@openmig/shared';
 import { operatingBaseUrl } from './edition.ts';
 import { uiBuild } from './build-identity.ts';
 import { RECENT_ERROR_MS, rememberUnreadableAnswer } from './recent-errors.ts';
+import { askServedBuild } from './served-build.ts';
 
 /** What the page could not read: the first issue's code, and where, as the log keeps it. */
 export interface UnreadableAnswer {
@@ -91,7 +92,12 @@ export function referenceFor(found: UnreadableAnswer, now: number = Date.now()):
       page,
       build: { version: build.version, commit: build.commit },
     };
-    queueMicrotask(() => send(body));
+    queueMicrotask(() => {
+      send(body);
+      // The likeliest cause is a page older than the site: ask now rather than
+      // at the next look, so the reload is offered beside the sentence.
+      askServedBuild();
+    });
   }
   return reference;
 }

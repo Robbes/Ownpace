@@ -13,6 +13,7 @@ import apiClient, { onUnauthorized, serverMessage, unreadableAnswer } from './ap
 import { publishLocale } from '../i18n/active-locale.ts';
 import { forgetUnreadableAnswers } from './unreadable-answer.ts';
 import { forgetRecentErrors, recentErrors } from './recent-errors.ts';
+import { onAskServedBuild } from './served-build.ts';
 import type { AxiosAdapter } from 'axios';
 import { useAuthStore } from '../stores/auth-store.ts';
 
@@ -191,6 +192,17 @@ describe('serverMessage — an answer the page could not read', () => {
 
     forgetUnreadableAnswers();
     expect(EN.exec(serverMessage(reported()))![1]).not.toBe(one);
+  });
+
+  it('asks at once whether the site serves a newer page, the likeliest cause', async () => {
+    const asked = vi.fn();
+    const stop = onAskServedBuild(asked);
+    serverMessage(reported());
+    serverMessage(reported());
+    await leave();
+    stop();
+
+    expect(asked).toHaveBeenCalledTimes(1);
   });
 
   it('hands the reference to a problem report, as a fault of ours', () => {

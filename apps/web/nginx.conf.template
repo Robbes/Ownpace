@@ -93,5 +93,15 @@ server {
     proxy_read_timeout 300s;
   }
 
+  # THE WEB APP'S OWN BUILD (workplan 0145): version.json, written by the
+  # build beside the page. deploy-live.sh asks it at the app's address and
+  # refuses a web app that is not the release's; an open page asks it to learn
+  # that a newer one is served. Never from a cache, and a 404 when it is
+  # missing, never the page in its place.
+  location = /version.json {
+    add_header Cache-Control "no-cache" always;
+    try_files $uri =404;
+  }
+
   location / { try_files $uri $uri/ /index.html; }
 }
