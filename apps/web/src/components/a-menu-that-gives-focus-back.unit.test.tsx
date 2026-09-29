@@ -114,7 +114,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const renderLayout = (path = '/dashboard') =>
+const renderLayout = (path = '/mappings') =>
   render(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
@@ -241,11 +241,11 @@ describe('a narrow screen', () => {
   it('gives focus back to the menu button when a link to this same page is followed', () => {
     // No route change, so no new page takes focus (T3 (b)). Without this the
     // focused link goes `inert` with its drawer and focus falls to the body.
-    renderLayout('/dashboard');
+    renderLayout('/mappings');
     const { drawer, menu } = parts();
 
     fireEvent.click(menu);
-    const here = screen.getByRole('link', { name: 'Dashboard' });
+    const here = screen.getByRole('link', { name: 'Migrations' });
     here.focus();
     fireEvent.click(here);
 
@@ -276,13 +276,13 @@ describe('a wide screen', () => {
     // focus later: a link out of the drawer, once narrow, is not a close that
     // gives focus back to the menu button.
     media.wide = true;
-    renderLayout('/dashboard');
+    renderLayout('/mappings');
     const { menu } = parts();
-    fireEvent.click(screen.getByRole('link', { name: 'Dashboard' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Migrations' }));
 
     media.resize(false);
     fireEvent.click(menu);
-    fireEvent.click(screen.getByRole('link', { name: 'Migrations' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Needs you' }));
 
     expect(menu).toHaveAttribute('aria-expanded', 'false');
     expect(document.activeElement).not.toBe(menu);

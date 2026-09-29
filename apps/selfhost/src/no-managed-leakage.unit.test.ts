@@ -302,6 +302,15 @@ describe('self-host has no managed-only leakage (hard rule 5)', () => {
     ]) {
       expect(MANAGED_ONLY_TABLES, `the derivation missed '${missed}'`).toContain(missed);
     }
+
+    // The people an organisation is moving (ADR-0050, managed migration 0031).
+    // The appliance moves one person and answers `GET /people` with an
+    // implicit one, from `@openmig/shared`, and never names either table: the
+    // store that does is `@openmig/managed`'s `people.ts`, which the rule on
+    // the managed package already keeps out of the graph above.
+    for (const managedOnly of ['person', 'person_migration']) {
+      expect(MANAGED_ONLY_TABLES, `the derivation lost '${managedOnly}'`).toContain(managedOnly);
+    }
   });
 
   it('declares no managed-only table anywhere in its reachable graph', () => {

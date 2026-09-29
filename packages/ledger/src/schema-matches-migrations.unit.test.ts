@@ -221,6 +221,8 @@ describe('the Drizzle schema and the migrations describe the same database', () 
       'erasure_record',
       'tenant_pricing',
       'tenant_closure',
+      'person',
+      'person_migration',
     ]) {
       expect(names.has(table), `${table} is created by the migrations but no ` +
         'schema module in this guard declares it, so nothing checks it for drift').toBe(true);

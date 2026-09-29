@@ -4,6 +4,8 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, latest: the DMARC report address, added by the owner.** The owner, the same day: *"DMARC record was added"*, the step the entry below left to them: `rua=mailto:support@ownpace.eu` in the domain's DMARC record, so aggregate reports reach the mailbox that already takes `NOTIFY_TO` and `REPORT_MAIL_TO`. Not read back from here: this session's network refuses DNS-over-HTTPS, so the record's text is the owner's word. To confirm it on any machine: `dig +short TXT _dmarc.ownpace.eu` shows `rua=mailto:support@ownpace.eu` beside `p=quarantine`. The first aggregate reports arrive within a day of mail being sent; the support mailbox's retention (until resolved, then 6 months, privacy §9 as drafted in #1317) covers them as it covers any mail there.
+
 **2026-09-28, later still: problem reports share T0's relay (0130 T5, built, not merged).** The
 owner chose mail for the report form during the alpha (*"b"*). Each report is a mail from
 `NOTIFY_FROM` to `REPORT_MAIL_TO`, both `support@ownpace.eu` on live, through the same Proton

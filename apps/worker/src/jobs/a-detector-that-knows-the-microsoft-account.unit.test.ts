@@ -18,8 +18,9 @@
  *
  * - `listDirectoryOf` and `listGroupsOf`, the part of each task that decides,
  *   are called with a `microsoft` source;
- * - drift detection's lookup runs on the ledger's own schema (PGlite), and
- *   finds a `microsoft` row;
+ * - drift detection's lookup runs on the ledger's own schema (PGlite), in the
+ *   organisation's scope as the task runs it (0138 T2), and finds a
+ *   `microsoft` row;
  * - each task's body is read as text, as `a-tick-that-says-it-ran` does,
  *   because the body needs a runner: it asks the one kind list, and hands the
  *   row to the function above.
@@ -28,9 +29,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { pgliteDriver, runMigrations, type LedgerDriver, type LedgerConnection } from '@openmig/ledger';
+import { pgliteDriver, runMigrations, withTenant, type LedgerDriver } from '@openmig/ledger';
 import { MICROSOFT_ACCOUNT_IS_DELEGATED } from '@openmig/connectors';
-import { microsoftSourceKinds } from '@openmig/orchestration/source-face-builders';
 
 // UUID family 0141c000-…11xx, unused elsewhere in the repo.
 const TENANT = '0141c000-e29b-41d4-a716-446655441101';
@@ -47,8 +47,7 @@ let drift: typeof import('./managed-drift-detect.ts');
 let groups: typeof import('./managed-group-discovery.ts');
 
 beforeAll(async () => {
-  // The tasks build a pool at import; nothing here connects to it.
-  process.env.DATABASE_URL ??= 'postgres://unused:unused@127.0.0.1:5432/none';
+  // The tasks open their pools in their run (0138 T2), so importing one opens nothing.
   drift = await import('./managed-drift-detect.ts');
   groups = await import('./managed-group-discovery.ts');
 });
@@ -87,36 +86,40 @@ describe('group discovery gives a Microsoft account its delegated reason', () =>
 
 describe("drift detection's lookup, on the ledger's own schema", () => {
   let driver: LedgerDriver;
-  let conn: LedgerConnection;
 
   beforeAll(async () => {
     driver = pgliteDriver({});
     await runMigrations({ driver, logger: () => {} });
-    conn = await driver.acquire();
-    await conn.query(`INSERT INTO tenant (id, name, status) VALUES ($1, 'microsoft', 'active')`, [
-      TENANT,
-    ]);
-    await conn.query(
-      `INSERT INTO connection (id, tenant_id, role, kind, display_name, status, config)
-       VALUES ($1, $3, 'source', 'microsoft', 'account', 'connected', '{"type":"microsoft"}'::jsonb),
-              ($2, $3, 'source', 'imap', 'mail', 'connected', '{}'::jsonb)`,
-      [ACCOUNT, MAILBOX_SOURCE, TENANT],
-    );
+    // Released before the case: PGlite hands out one connection at a time,
+    // and the lookup takes its own, in the organisation's scope.
+    const conn = await driver.acquire();
+    try {
+      await conn.query(`INSERT INTO tenant (id, name, status) VALUES ($1, 'microsoft', 'active')`, [
+        TENANT,
+      ]);
+      await conn.query(
+        `INSERT INTO connection (id, tenant_id, role, kind, display_name, status, config)
+         VALUES ($1, $3, 'source', 'microsoft', 'account', 'connected', '{"type":"microsoft"}'::jsonb),
+                ($2, $3, 'source', 'imap', 'mail', 'connected', '{}'::jsonb)`,
+        [ACCOUNT, MAILBOX_SOURCE, TENANT],
+      );
+    } finally {
+      conn.release();
+    }
     // The whole migration chain on PGlite, under a full `--project unit` run
     // (a-fixture-with-ten-seconds): the figure its neighbours use.
   }, 120_000);
 
   afterAll(async () => {
-    conn?.release();
     await driver?.end();
   });
 
   it('finds the Microsoft account, and nothing that is not Microsoft', async () => {
-    const { rows } = await conn.query<{ kind: string }>(drift.MICROSOFT_SOURCES_SQL, [
-      TENANT,
-      [...microsoftSourceKinds()],
-    ]);
-    expect(rows.map((r) => r.kind)).toEqual(['microsoft']);
+    // In the organisation's scope, as the task reads it (0138 T2).
+    const rows = await withTenant(driver, TENANT, async (db) =>
+      (await db.execute(drift.microsoftSourcesSql(TENANT))) as unknown as { rows: Array<{ kind: string }> },
+    );
+    expect(rows.rows.map((r) => r.kind)).toEqual(['microsoft']);
   });
 });
 
@@ -131,12 +134,16 @@ describe('each task hands its rows to the part that decides', () => {
 
   it('drift detection asks every Microsoft kind, and decides with listDirectoryOf', () => {
     const task = code('managed-drift-detect.ts');
-    expect(task).toMatch(/MICROSOFT_SOURCES_SQL,\s*\[tenant\.id, \[\.\.\.microsoftSourceKinds\(\)\]\]/);
+    expect(task).toMatch(/kind IN \$\{\[\.\.\.microsoftSourceKinds\(\)\]\}/);
+    expect(task).toMatch(/db\.execute\(microsoftSourcesSql\(organisation\)\)/);
     expect(task).toMatch(/directorySourceOf\(microsoftSources\)/);
-    expect(task).toMatch(/listDirectory: \(\) => listDirectoryOf\(source\)/);
+    expect(task).toMatch(/listDirectory: \(\) => edges\.listDirectory\(source\)/);
+    expect(task).toMatch(/listDirectory: \(source\) => listDirectoryOf\(source\)/);
   });
 
   it('group discovery decides with listGroupsOf', () => {
-    expect(code('managed-group-discovery.ts')).toMatch(/listGroups: \(\) => listGroupsOf\(source\)/);
+    const task = code('managed-group-discovery.ts');
+    expect(task).toMatch(/listGroups: \(\) => edges\.listGroups\(source\)/);
+    expect(task).toMatch(/listGroups: \(source\) => listGroupsOf\(source\)/);
   });
 });

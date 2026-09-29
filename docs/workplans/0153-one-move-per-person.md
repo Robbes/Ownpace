@@ -4,6 +4,153 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, night: the menu counts beside *Needs you* what waits (T3 (c); 0131 §6, R8 step 4,
+built beside R at the owner's word *"continue on the rest"*)**, in #1346, stacked on #1343.
+
+- **One count, counted one way** (`apps/web/src/services/needs-you.ts`). It is what the cards on
+  Migrations count, added up, and the organisation's own decisions about a new mailbox, which
+  no card claims:
+  - a card counts a migration's failures, deletions and moves waiting, and each data type whose
+    grace period ended while nobody chose;
+  - *Ready to switch* and the sharing checklist are not counted.
+- **The same read, under the same key**, as Migrations and the *Needs you* page, so the three
+  agree.
+- **The link keeps its name; the count is its description** (*3 waiting on you*). When the read
+  fails, or a queue could not be read, the menu shows `?` and says it could not count, never
+  nothing (hard rule 9). Nothing is shown while it loads, or at nought.
+- **Only a member's menu asks.** The appliance and an operator in no organisation ask nothing.
+- **Proved by:**
+  - `Layout.unit.test.tsx` (6 new cases);
+  - `managed-ui.ui.test.ts` in a real browser: *3 waiting on you*, as the link's description.
+
+  **Mutations:** with an unread count shown as nothing, two cases fail; with *Ready to switch*
+  counted, one fails.
+- **T3 is built** (#1341, #1343 and #1346), apart from what waits on 0154 T2: the progress line on
+  each data type, *Ready to switch*, and a check not yet run in a person's count.
+
+**2026-09-28, night: Migrations is the landing page, the Dashboard is gone, and the menu is the
+drawing's (T3's second half, with T6 (b)'s words; 0131 §6, R8 step 4, built beside R at the
+owner's word *"continue on the rest"*)**, in #1343, stacked on #1341.
+
+- **Sign-in lands on Migrations** (`Login`, `AuthCallback`, `Invitations`, and `/` itself). An old
+  `/dashboard` link redirects there, so a bookmark still lands. The Dashboard page, its test and
+  its 36 strings are gone: the top line of Migrations says what its tiles said, and its quick
+  actions were the page's own buttons. The last run of each migration is on the migration's own
+  page, and a failure that needs a person is in their card's count.
+- **A member's menu** is Migrations · Needs you · Accounts · Help · Team · Billing (D7).
+  - *Help* is the setup checklist and the setup guides, as two tabs of one entry (`HelpTabs`).
+    It opens on the checklist, and stays lit on the guides.
+  - The appliance keeps its menu, with T6 (b)'s *Needs you* for its decisions. An operator in no
+    organisation keeps the guides, the access queue and support.
+- **The words** follow the menu, in both languages, glossary first:
+  - *Accounts* on the Connections page and wherever a sentence named it;
+  - *Team* for *Tenants*;
+  - *Needs you* for the page. Its list of the organisation's own decisions keeps *Needs a
+    decision* as its heading, and its box of each migration's line is *Per migration*, so no
+    heading repeats the page's.
+- **Proved by:**
+  - `Layout.unit.test.tsx`: the member's menu in order, nothing of the old menu left, and *Help*
+    lit and naming the page on either tab;
+  - `HelpTabs.unit.test.tsx` (4 cases), and `AppRoutes.unit.test.tsx`: `/`, `/dashboard` and the
+    appliance-only addresses land on Migrations;
+  - `managed-ui.ui.test.ts` in a real browser: sign-in lands on Migrations with the drawing's
+    menu, and an old `/dashboard` link lands there too.
+- **Next:** the count beside *Needs you* in the menu (T3 (c)), which reads what waits on every
+  page.
+
+**2026-09-28, night: the Migrations page lists people (T3's first half, with T6's words; 0131
+§6, R8 step 4, built beside R at the owner's word *"continue on the rest"*)**, in #1341.
+
+- **One card per person** (`apps/web/src/pages/Mappings.tsx`), read from `GET /api/people`
+  beside the migrations list. A card shows:
+  - the person's name, and one stage: the least advanced of their migrations' (*"One stage per
+    person"*);
+  - one line saying where from and where to, in words: *"From Google and Dropbox to Soverin and
+    Nextcloud"* (`providerName`, which names the company a person leaves);
+  - a line per data type, with its two tiles, its stage and its last pass;
+  - a count of what waits on the person: failures, deletions and moves, and a data type whose
+    grace period ended while nobody chose. It links to *Needs you* (`/decisions`) until T5's page
+    exists. The organisation's decisions about a new mailbox belong to no migration, so they
+    are on that page and on no card.
+- **Every migration keeps its controls:** sync or pause, *Review and start*, open, and delete in
+  two presses. Its own page has neither Delete nor a sync. The whole migration opens it, as the
+  table's row did (owner feedback 2026-08-11).
+- **Migrations that belong to nobody**, which is every one made before people existed, are
+  listed under *Not with a person yet*. Each is added to a person in one press. *Add a person*
+  takes a name, and an address or none. The page names the appliance's one implicit person
+  *Your migrations* and offers no person to add, ready for T8: the appliance does not route to
+  Migrations yet, and lands on its own review page.
+- **Add a migration** on a card opens the wizard with `?person=`. The new migration is added to
+  the person before its green light. When that add is refused, the green light's page says so
+  in the server's words, and the migration waits under *Not with a person yet*.
+- **The words** are T6 (b)'s: *Start a migration* / *Migratie starten* and *Needs you* /
+  *Wacht op u*. The new ones went into `GLOSSARY.md` first (*person* / *persoon*), then
+  `strings.ts`, in both languages.
+- **A failed read** of the migrations or of the people is a failure on screen, never an empty
+  list (hard rule 9). When what needs a person cannot be read, the card says it could not
+  count, never zero.
+- **Proved by:**
+  - `Mappings.unit.test.tsx` (31 cases);
+  - `CreateMapping.unit.test.tsx` (3 new cases) and `ConfirmMapping.unit.test.tsx` (3 new);
+  - `ProviderTile.unit.test.tsx` (10 new);
+  - `managed-ui.ui.test.ts` in a real browser (13 cases; the people read's failure is new).
+
+  **Mutations:**
+  - with the whole-migration click taken out, the unit case and the browser's dead-row case fail;
+  - with the actions' stop taken out, a Pause press opens the migration, and the unit case fails;
+  - with the wizard's refused add swallowed, its case fails;
+  - with the organisation's decisions added back to a person's count, its case fails.
+- **Not yet, T3's second half:** Migrations as the landing page, the Dashboard's going with
+  `/dashboard` redirected, and the menu (*Accounts*, *Needs you* with its count, *Help*, *Team*).
+  Two things wait on 0154 T2: until the list carries the check, a migration whose check passed
+  shows *Kept in step* rather than *Ready to switch*, and the one-line progress on each row
+  waits for the totals.
+
+**2026-09-28, night: the owner's answers for the rest of R8 (asked by the writing session, which
+the owner told to *"continue on the rest"*).**
+
+- **T6 (b)'s words: *"Approve as proposed"*.** The table below is decided, in both languages. It
+  includes *Start a migration* / *Migratie starten*, *Team*, and *Needs you* / *Wacht op u*.
+  T3 and T4 build with it, the glossary first.
+- **T1 (c): *"Skip the test; the new flow fixes it"*.** There is no press on the test tenant. T4
+  asks what moves before any consent, so the Microsoft consent is built from the ticked data
+  types by construction.
+- **For 0154:** a person's card shows one stage, their least advanced migration's (*"One stage per
+  person"*, 0154 open question 3). A first-copy email goes once per person (*"One per person"*,
+  0154 T7).
+
+**2026-09-28, night: T2's tables and API are built, and named *person* by the owner (0131 §6, R8
+step 3, taken on at the owner's word "Take it on")**, in #1332. Building them found `/moves` taken: on the
+appliance it is the queue of items a source put somewhere else, and the web app has a page there.
+Asked, the owner chose *"person / people (Recommended)"* for the name in code and in the API.
+ADR-0050 is amended in place, with a table of the old names and the new.
+
+- **Managed migration 0031:** `person` (a name, and an address or none) and `person_migration`,
+  keyed on the migration, so a migration belongs to one person at most. Both have forced row
+  security. A key holds a row to a person of its own organisation, and the policy holds it to
+  a migration of it. `mailbox_mapping` gains no column. Erasure purges both.
+- **`/api/people`** (`apps/api/src/routes/people.ts`, `@openmig/managed`'s `people.ts`):
+  - `GET` lists everyone with their migrations' states and counts, and the migrations with nobody
+    as `unassigned`;
+  - `POST` creates a person;
+  - `POST /{personId}/migrations` adds a migration: again changes nothing, and somebody else's
+    answers 409;
+  - `DELETE /{personId}` deletes a person and no migration.
+
+  All four are in the OpenAPI spec.
+- **The appliance** answers `GET /people` with one implicit person holding every configured
+  migration, and refuses the writes with `one_person_here`. The shapes are
+  `packages/shared/src/people.ts`, and a test holds both editions to one shape.
+- **Proved by:**
+  - `people-under-rls` (19 cases). With the policy's migration check and the person key's tenant
+    taken out, three of them fail;
+  - `people.unit.test.ts` (20 cases), with each answer's keys held to the spec's schema;
+  - `one-person-on-the-appliance` (5 cases) and `one-answer-from-both-editions` (6 cases);
+  - the erasure test, whose fixture now seeds a person and counts both tables in the receipt.
+    With the two tables taken off `PURGED_TABLES`, two of its cases fail.
+- **Next:** T3 (the Migrations page lists people) and T5 (a page per person, at `/people/:id`)
+  read `GET /api/people`. They are R's, in the split's order.
+
 **2026-09-28, night: ADR-0050 accepted by the owner (T0, T2; 0131 §6, R8's split)**, recorded in
 #1327. Asked what the pull request needed, and told its eight rules and the choices
 inside them, the owner answered *"accept"*: as proposed, rule 8 included. The ADR's operative
@@ -115,13 +262,13 @@ person, and a flow that fills it.
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner's words and the ADR | ✅ **Words decided 2026-09-28 (D6, D7); ADR-0050 accepted 2026-09-28 (#1327)** | §3. Dutch says *migratie*, never *verhuizing*. A person's card carries their name. *Accounts*, not *Connections*. `move` is internal only. |
-| T1 Four faults the audit found | 🟡 **(a) in #1315 and (d) in #1316, each proved by its guard; (b) and (c) proposed; all before the first invitation** | §3. (a) Review & confirm listed every source's limits on managed. (b) The Gmail app password the guide names is not in the wizard. (c) The Microsoft consent is sent before the data types are chosen (to confirm live). (d) A raw state word on Finish. |
-| T2 ADR-0050: a move is a person's migrations | 🟡 **ADR-0050 accepted 2026-09-28 (#1327); the tables and the API next; before the first invitation** | §3. A move row and its members in `packages/managed/migrations`. The appliance answers one implicit move. The billed unit (a path) and the migration (a mapping) do not change. Deleting a grouping deletes no migration. |
-| T3 The Migrations page lists people | 📋 **Proposed; before the first invitation** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
+| T0 The owner's words and the ADR | ✅ **Words decided 2026-09-28 (D6, D7); ADR-0050 accepted 2026-09-28 (#1327)** | §3. Dutch says *migratie*, never *verhuizing*. A person's card carries their name. *Accounts*, not *Connections*. The code says `person` (ADR-0050's amendment); `move` was its first name. |
+| T1 Four faults the audit found | 🟡 **(a) in #1315 and (d) in #1316, each proved by its guard; (b) and (c) proposed; all before the first invitation** | §3. (a) Review & confirm listed every source's limits on managed. (b) The Gmail app password the guide names is not in the wizard. (c) The Microsoft consent is sent before the data types are chosen: T4 fixes it by construction (the owner, 2026-09-28: no press). (d) A raw state word on Finish. |
+| T2 ADR-0050: a move is a person's migrations | ✅ **ADR-0050 accepted 2026-09-28 (#1327), amended the same night: *person*. The tables and `/api/people` built, with the appliance's implicit person (#1332)** | §3. A `person` row and `person_migration` in `packages/managed/migrations` (0031). The appliance answers one implicit person. The billed unit (a path) and the migration (a mapping) do not change. Deleting a person deletes no migration. |
+| T3 The Migrations page lists people | 🟡 **Built in two halves: the page lists people (#1341); it is the landing page, the Dashboard is gone, and the menu is the drawing's (#1343). The menu counts beside *Needs you* what waits (#1346). The progress line and *Ready to switch* wait on 0154 T2. Before the first invitation** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
 | T4 *Start a migration*: who, from where, what, to where | 📋 **Proposed; before the first invitation** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
 | T5 A page per person | 📋 **Proposed; before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
-| T6 Words a family reads | 📋 **Proposed; before the first invitation, inside T3–T5** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |
+| T6 Words a family reads | 🟡 **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, before the first invitation** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |
 | T7 Defaults a family can pass | 📋 **Proposed; before the first invitation, inside T4** | §3. Buttons that look like buttons, with the reason in text. A Soverin sign-in in two visible fields. A Nextcloud address, not a DAV URL. Business-only fields only on the business path. The limit blamed on the side that has it. Tiles and icons: `tiles.svg`, `icons.svg`. |
 | T8 The appliance shows its person's page | 📋 **Proposed; before the first invitation (D5)** | §3. The same page, fed by the appliance's one implicit grouping. No list or create screen (0034 stands). |
 
@@ -314,8 +461,10 @@ The owner answered this plan's open questions the same evening (quoted in the St
   - **On screen, a person's migrations have no noun of their own:** the card carries the
     person's name. One migration is one data type from one old account to one new account,
     the unit the site counts (*"4 migraties tegelijk"*).
-  - ***Move* is the internal name of the grouping:** ADR-0050, the `move` table, the API's
-    `/moves`. It is never a word on screen, the way *mapping* is kept today (`GLOSSARY.md`).
+  - ***Person* is the code's name for the grouping:** ADR-0050 (amended 2026-09-28), the
+    `person` table, the API's `/people`. It was *move* until the owner's answer that night,
+    because `/moves` is the moved-items queue. On screen a person is only ever their name, and
+    *people* in a count, the way *mapping* stays off screen today (`GLOSSARY.md`).
 - **D7 — *Accounts*, and no Dashboard.** *"yes and yes"*.
   - The menu entry *Connections* becomes *Accounts*.
   - The Dashboard goes, and Migrations is the landing page after sign-in.
@@ -339,11 +488,12 @@ The owner answered this plan's open questions the same evening (quoted in the St
   ours.
 - **The glossary is changed first** (`GLOSSARY.md`), then `strings.ts`:
   - *migration* is shown per data type;
-  - *move* is internal, like *mapping*;
+  - *person* is the code's name for the grouping, and on screen a person is their name;
   - *Accounts* replaces *Connections*.
 
-(b) **ADR-0050**, drafted in T2, was accepted by the owner on 2026-09-28 (#1327). T3 builds on it
-once T2's tables land. Its *move* is the internal name only (D6).
+(b) **ADR-0050**, drafted in T2, was accepted by the owner on 2026-09-28 (#1327). T2's tables and
+API are built, and T3 builds on them. The owner renamed its *move* to *person* in code the same
+night, because `/moves` is the moved-items queue (the ADR's amendment).
 
 ### T1 — four faults the audit found (before the first invitation, first)
 
@@ -381,6 +531,8 @@ Each is its own pull request, each with its own guard. They do not wait for T2.
   Microsoft*. The consent URL is then built from them. A guard reads the call's `domains`
   argument at the moment of the press.
 - T4 removes the ordering by construction: what moves is asked before any consent.
+- **The owner, 2026-09-28: *"Skip the test; the new flow fixes it"*.** No press. T4's flow is the
+  fix, and its guard reads the consent's `domains` at the press.
 
 (d) **Finish says the state in words.** `{m.lifecycle}` goes through `StateChip`. The
 `StateChip` guard's banned patterns gain `.lifecycle}`, so the next raw render fails the build.
@@ -388,6 +540,15 @@ Each is its own pull request, each with its own guard. They do not wait for T2.
 one raw word, fixed now, and T2 of 0145 builds on it. **Built in #1316.**
 
 ### T2 — ADR-0050: a move is a person's migrations (before the first invitation)
+
+**Built 2026-09-28, under the names of the owner's amendment:**
+- `person` and `person_migration (mapping_id, person_id, tenant_id)` (managed migration 0031);
+- `GET` and `POST /api/people`, `POST /api/people/{personId}/migrations` and
+  `DELETE /api/people/{personId}`;
+- the appliance's `GET /people`, with one implicit person;
+- `unassigned` for what the text below calls *Not in a move yet*.
+
+The proposal as the owner accepted it follows, under its first names.
 
 The proposed decision, to be written as `docs/adr/0050-a-move-is-a-persons-migrations.md` with
 its operative rules:
@@ -455,7 +616,7 @@ tsx` are updated in the same pull request.
 - On a phone each card stacks, and its actions have names and targets a thumb can hit, as 0145 T7 (b) asks for the Migrations rows.
 - The empty state says what to do first, in one sentence, with *Start a migration*.
 - A failed read shows as a failure, not an empty list (hard rule 9; `test/ui/managed-ui.ui.test.
-  ts` already asserts it for migrations, and it is extended to moves).
+  ts` already asserts it for migrations, and it is extended to people).
 
 ### T4 — *Start a migration*: who, from where, what, to where (before the first invitation)
 
@@ -523,7 +684,7 @@ on its heading, as 0145 T3 built for the wizard.
 
 **Underneath,** the flow creates one migration per pair of old and new account, holding the
 ticked data types, named *"{person} — {provider} to {destination}"*. It adds them to the
-person's grouping (ADR-0050's `move`).
+person (ADR-0050's `person`, `POST /api/people/{personId}/migrations`).
 The schedule is daily at 02:00, the default today, and can be changed on the migration later (T5).
 
 **The four-step wizard stays reachable** as *Add one migration by hand* on the person's page and
@@ -534,8 +695,9 @@ descriptors and examples.
 
 ### T5 — a page per person (before the first invitation)
 
-`/moves/:id` holds the following, drawn in `wf-person-page.svg`. The path keeps the internal
-name, as `/mappings/:id` does (D6).
+`/people/:id` holds the following, drawn in `wf-person-page.svg`. The path keeps the code's
+name, as `/mappings/:id` does (D6). It is not `/moves/:id`: `/moves` is the moved-items queue's
+page on the appliance.
 
 - the person's name;
 - where from and where to;
@@ -563,7 +725,7 @@ migrations, and links each migration's page.
 - the empty *"()"* goes;
 - item hashes on queue rows go into a fold.
 
-(b) **The words proposed:**
+(b) **The words, approved by the owner on 2026-09-28 as proposed:**
 
 | Where | Today | Proposed (EN / NL) |
 |---|---|---|
@@ -686,8 +848,8 @@ pages. `a-class-tailwind-draws-nothing-for.unit.test.ts` catches a class that re
 - **Mail and files in Google's one consent on a deployment that has not declared the restricted
   scopes.** That needs Google's restricted-scope assessment for the product's own client, which
   is ADR-0041's and 0089 T5's question, not a UX change.
-- **Recreating a person's shared mailboxes and groups as part of a move.** That is 0027's.
-- **Billing per move.** A move is not billed. Paths are (ADR-0014).
+- **Recreating a person's shared mailboxes and groups as part of their migrations.** That is 0027's.
+- **Billing per person.** A person is not billed. Paths are (ADR-0014).
 - **The site.** That is 0152.
 
 ## Open questions

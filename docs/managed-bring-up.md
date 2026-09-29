@@ -1748,8 +1748,10 @@ customer-facing version of all of this.
 "Report a problem", beside Sign out, sends a customer's report to a person
 (workplan 0130): what they wrote, the page they were on (without any link
 secret), the reference and kind of error on their screen, and a screenshot if
-they add one. It goes one of two ways. While neither is set up, the link is not
-shown at all.
+they add one: a PNG or JPEG of up to 5 MB, chosen as a file, dropped on the
+field or pasted anywhere on the page (Ctrl+V or Command+V), with a fold under
+the field that says how to make one on each kind of device. It goes one of two
+ways. While neither is set up, the link is not shown at all.
 
 **By mail, to your support mailbox** (the owner's choice for the alpha,
 2026-09-28). This needs nothing but the mail settings the API already sends
@@ -1973,9 +1975,11 @@ uploads are **in-network** (`pgbouncer:6432` by default), because runners
 join the compose network — `localhost` there would point a task at itself.
 The eight per-tenant tasks (a sync pass and the rest a migration asks for)
 read and write tenant data through `APP_DATABASE_URL`, as `app_user`, and a run
-without it refuses to start, naming it (workplan 0138 T1); the six scheduled
-jobs connect with `DATABASE_URL`, and the per-tenant tasks read only their
-audit key with it.
+without it refuses to start, naming it (workplan 0138 T1). So do the digest,
+the drift detector and group discovery, which read each organisation there too
+and read only their list of organisations with `DATABASE_URL` (workplan 0138
+T2); the other three scheduled jobs connect with `DATABASE_URL`, and every task
+that opens `openTaskPools` reads its audit key with it.
 It also uploads `OWNPACE_REACHABLE_HOSTS`, and deletes it from the plane when
 `.env` leaves it empty, so the tasks admit exactly the names the API does.
 It does not upload `DIRECT_DATABASE_URL` (workplan 0138 T3 step 1): that is the
@@ -3128,7 +3132,7 @@ run replaces it in its last three, and past its deadline no successor can be
 minted), and `trigger-version.sh drill` dumps the Trigger.dev database and
 proves the dump loads. CI never touches live (workplan 0132 T1g), so live has
 [`box-duties.sh`](../deploy/compose/box-duties.sh), run once a day from
-`~/ownpace-live` by a systemd timer (0132 T7). It does five duties, each one
+`~/ownpace-live` by a systemd timer (0132 T7). It does six duties, each one
 whatever the one before it did:
 
 | Duty | What it runs | What it does |
@@ -3138,8 +3142,9 @@ whatever the one before it did:
 | `exposure` | `exposure-check.sh` | Every port any container on the machine publishes, both stacks (0132 T3). Needs `EXPOSURE_ALLOW` in live's `.env`. |
 | `organisations` | `setup-zitadel.sh --count-organisations` | 0135 T3's count on live's identity provider, read-only. A count that is not one fails the duty. |
 | `site` | `www-live.sh check` | Read-only (0139 T10). Fails when a container of live's project has the compose service `www`, where a `www.yml` command without `-p` puts the site; and, when live's `.env` says `WWW_LIVE=true`, when `ownpace-live-www` is not running and healthy (*`www.ownpace.eu`: live's copy*). |
+| `strays` | `idp-strays.sh --remove --at-most 20` | Removes the sign-in accounts nobody let in, older than 30 days, as privacy §9 says (0135 T8; the runbook's *Sign-in accounts nobody let in*). More than 20 at once removes none and fails the duty: run `./deploy/compose/idp-strays.sh` from `~/ownpace-live` to see them, then `--remove` by hand if they are right. Its lines name an account's id, never its address. |
 
-It exits 0 when all five pass, 1 naming every duty that failed, and 2 when it
+It exits 0 when all six pass, 1 naming every duty that failed, and 2 when it
 refused before any duty: a `.env` without live's marker (the OTA stack's duties
 are the gate's), a project the reader refuses, or an argument. A duty that runs
 past 20 minutes (`BOX_DUTY_TIMEOUT`, in seconds) is a failed duty. Ctrl-C in a
@@ -3161,7 +3166,8 @@ and reaches Docker. Both are in
 ```ini
 # ownpace-box-duties.service — live's daily duties (workplan 0132 T7): the
 # provisioning token's clock, the Trigger.dev drill, the exposure check, the
-# organisation count and the site's (0139 T10). A user unit, started by
+# organisation count, the site's (0139 T10) and the accounts nobody let in
+# (0135 T8). A user unit, started by
 # ownpace-box-duties.timer; the install steps are in docs/managed-bring-up.md,
 # "Live's daily duties".
 [Unit]
@@ -3172,9 +3178,9 @@ Type=oneshot
 WorkingDirectory=%h/ownpace-live
 ExecStart=%h/ownpace-live/deploy/compose/box-duties.sh
 SyslogIdentifier=ownpace-box-duties
-# Five duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
+# Six duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
 # which failed.
-TimeoutStartSec=110min
+TimeoutStartSec=130min
 ```
 
 ```ini

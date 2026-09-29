@@ -77,6 +77,55 @@ export function isSyncDue(
   now: Date
 ): boolean {
   if (lastStartedAt === null) return true;
-  const next = new Cron(schedule ?? DEFAULT_SYNC_SCHEDULE).nextRun(lastStartedAt);
+  const expression = schedule ?? DEFAULT_SYNC_SCHEDULE;
+  // A stored schedule faster than the floor (one written before the doors
+  // refused it, 0143 T2b) runs at the floor: the next pass waits the floor
+  // after the last one started. Any other schedule is read as it was written.
+  if (shortestGapMinutes(expression) < SCHEDULE_FLOOR_MINUTES) {
+    return now.getTime() - lastStartedAt.getTime() >= SCHEDULE_FLOOR_MINUTES * MINUTE_MS;
+  }
+  const next = new Cron(expression).nextRun(lastStartedAt);
   return next !== null && next.getTime() <= now.getTime();
+}
+
+/**
+ * THE SHORTEST A SCHEDULE MAY RUN PASSES APART, in minutes (workplan 0143 T2b):
+ * 15, the fastest cadence the screens offer. A tester could type any cron
+ * expression through the API, and `* * * * *` asked for a pass a minute, on a
+ * machine sized for twenty organisations doing their first copies (0143 D1).
+ * Both doors refuse a faster schedule (`refuseUnreadableSchedule` in the API's
+ * migration routes), and `isSyncDue` runs one stored before that at the floor.
+ * The appliance's cadence is its owner's call on its owner's machine, and its
+ * scheduler does not read this.
+ */
+export const SCHEDULE_FLOOR_MINUTES = 15;
+
+const MINUTE_MS = 60_000;
+
+/** One answer per expression: the tick asks every mapping every minute. */
+const shortestGaps = new Map<string, number>();
+
+/**
+ * The shortest gap between two runs of `expression`, in minutes, over eight
+ * days from a fixed Monday in UTC, as croner reads it: what the tick would do
+ * with it. Infinity when those days hold fewer than two runs, which no
+ * floor counts in minutes can object to. Throws on an expression croner cannot
+ * read, as `isSyncDue` does.
+ */
+export function shortestGapMinutes(expression: string): number {
+  const known = shortestGaps.get(expression);
+  if (known !== undefined) return known;
+  const cron = new Cron(expression, { timezone: 'UTC' });
+  const from = new Date(Date.UTC(2026, 0, 5));
+  const until = from.getTime() + 8 * 24 * 60 * MINUTE_MS;
+  let shortest = Number.POSITIVE_INFINITY;
+  let previous = cron.nextRun(from);
+  while (previous !== null && shortest > 1) {
+    const next = cron.nextRun(previous);
+    if (next === null || next.getTime() >= until) break;
+    shortest = Math.min(shortest, (next.getTime() - previous.getTime()) / MINUTE_MS);
+    previous = next;
+  }
+  shortestGaps.set(expression, shortest);
+  return shortest;
 }
