@@ -1220,11 +1220,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       unfinishedCollections.add(collectionPathOf(folder));
       continue;
     }
-    const collectionId = await timed(phases, 'collectionSetupMs', () => ensureCollection(folder));
-    phases.collectionsOpened += 1;
-    // Hoisted: this is the source collection PATH (as opposed to `collectionId`,
-    // the target's handle for it), and it is now needed three times — for the
-    // cursor, for the ledger row, and for move detection.
+    // Hoisted: this is the source collection PATH (as opposed to the target's
+    // handle for it, `collectionIdOf` below), and it is needed three times —
+    // for the cursor, for the ledger row, and for move detection.
     //
     // '/' rather than '' for the ROOT, and that substitution is load-bearing.
     // A WebDAV connection's own root really does report `path: ''`
@@ -1242,6 +1240,30 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // cheaper price than two subtly different names for the same collection.
     const collectionPath = collectionPathOf(folder);
     const prev = cursors ? await cursors.get(tenantId, mappingId, collectionPath) : undefined;
+
+    // A COLLECTION AN EARLIER PASS MADE READY IS MADE READY AGAIN ONLY WHEN
+    // SOMETHING IS WRITTEN INTO IT (2026-09-29).
+    //
+    // `ensureCollection` used to run for every collection, before its listing,
+    // on every pass. On a WebDAV target it lists the collection's parent
+    // directory there, so a pass that found nothing new still asked the target
+    // about every folder it had: the owner's Microsoft migration spent 14 of a
+    // pass's 16 minutes doing so, and wrote nothing. A collection with a
+    // cursor was made ready by the pass that stored that cursor, so its target
+    // side is only asked again once an item in it needs writing. A collection
+    // without one, new or never read through, is made ready first, as before:
+    // an empty folder the source holds is still made on the target the first
+    // time a pass sees it.
+    //
+    // One promise per collection, so items written at once share one call. A
+    // refusal fails those items, each recorded, where it used to fail the
+    // pass before the listing.
+    let targetCollection: Promise<string> | undefined;
+    const collectionIdOf = (): Promise<string> =>
+      (targetCollection ??= timed(phases, 'collectionSetupMs', () => ensureCollection(folder)));
+    if (prev === undefined) await collectionIdOf();
+    phases.collectionsOpened += 1;
+
     const { items, nextCursor, removed, listedElsewhere } = await timed(phases, 'collectionListingMs', () =>
       listSince(folder, prev),
     );
@@ -1670,6 +1692,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         // The version travels WITH the write. The writers record the ledger
         // row themselves and win the race (`recordIfAbsent` no-ops on
         // conflict), so a version recorded only here never reached the row.
+        const collectionId = await collectionIdOf();
         const result = await timed(phases, 'upsertMs', () =>
           upsert(collectionId, raw, item, {
             ...(rewriteOf ? { overwrite: true } : {}),
