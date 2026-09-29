@@ -759,6 +759,82 @@ describe('CreateMapping — oauth2/graph collect the app registration (0037 T6, 
   });
 });
 
+/**
+ * GMAIL'S APP PASSWORD IS DRAWN (workplan 0153 T1 (b)).
+ *
+ * The descriptor declared it (0089 T7), the create door accepts it in place
+ * of the OAuth trio, and the Google guide tells a personal account how to
+ * make one. The wizard never drew it: its field map had no entry, and a field
+ * with none is skipped. So the one road for a person without a consent screen
+ * ended at a form without the box.
+ */
+describe('CreateMapping — Gmail\'s app password (0153 T1 (b))', () => {
+  beforeEach(() => {
+    createMock.mockReset();
+  });
+
+  it('draws it on the Gmail card, and on no other Google card', () => {
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+    expect(screen.getByPlaceholderText('xxxx xxxx xxxx xxxx')).toHaveAttribute('type', 'password');
+    expect(screen.getByText('App password')).toBeInTheDocument();
+    expect(screen.getByText('Personal Google accounts only; leave empty to use OAuth.')).toBeInTheDocument();
+
+    // An app password is an IMAP credential: Drive, Calendar, Contacts and
+    // the account card are not reached over IMAP.
+    for (const card of [/^Google Drive/, /^Google Calendar/, /^Google account/]) {
+      fireEvent.click(screen.getByRole('button', { name: card }));
+      expect(screen.queryByPlaceholderText('xxxx xxxx xxxx xxxx'), `${card} draws an app password`).toBeNull();
+    }
+  });
+
+  it('lets a personal account through with an address and an app password, and sends the password alone', async () => {
+    createMock.mockResolvedValue({ id: 'map-gmail-app' } as never);
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+    fireEvent.change(screen.getByPlaceholderText('user@example.com'), { target: { value: 'anna@gmail.com' } });
+    expect(nextButton()).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText('xxxx xxxx xxxx xxxx'), {
+      target: { value: ' abcd efgh ijkl mnop ' },
+    });
+    // The trio is no longer asked for: the app password steps round it.
+    expect(nextButton()).toBeEnabled();
+    fireEvent.click(nextButton());
+
+    fireEvent.change(targetHostBox(), { target: { value: 'stalwart.acme.example' } });
+    fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
+      target: { value: 'target@acme.example' },
+    });
+    fireEvent.change(document.querySelectorAll('input[type="password"]')[0]!, {
+      target: { value: 'target-password' },
+    });
+    fireEvent.click(nextButton());
+    fireEvent.change(screen.getByPlaceholderText(STRINGS.en['wizard.migrationName.placeholder']), {
+      target: { value: 'Anna mail' },
+    });
+    fireEvent.click(nextButton());
+    fireEvent.click(screen.getByRole('button', { name: /Create Migration/ }));
+
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+    const body = createMock.mock.calls[0]![0] as { sourceType: string; sourceConfig: Record<string, unknown> };
+    expect(body.sourceType).toBe('gmail');
+    expect(body.sourceConfig['appPassword']).toBe('abcd efgh ijkl mnop');
+  });
+
+  it('never remembers it in the draft, as it remembers no secret', async () => {
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+    fireEvent.change(screen.getByPlaceholderText('user@example.com'), { target: { value: 'anna@gmail.com' } });
+    fireEvent.change(screen.getByPlaceholderText('xxxx xxxx xxxx xxxx'), {
+      target: { value: 'abcd efgh ijkl mnop' },
+    });
+    // The draft is written: it holds the card and the address...
+    await waitFor(() => expect(globalThis.sessionStorage.getItem('wizard.draft.v1')).toContain('anna@gmail.com'));
+    // ...and not the password.
+    expect(globalThis.sessionStorage.getItem('wizard.draft.v1')).not.toContain('abcd efgh');
+  });
+});
+
 describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
   beforeEach(() => {
     vi.clearAllMocks();

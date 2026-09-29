@@ -4,6 +4,27 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-29, night: T1 (b), Gmail's app password is drawn (0131 §6, R8 step 1, built beside R at
+the owner's word *"continue on the rest"*)**, in #1349, stacked on #1347.
+
+- **Confirmed on a render:** the Gmail card drew *Username, Client ID, Client secret, Refresh
+  token, Service account key* and *Connection name*, and no *App password*. The descriptor had
+  declared it since 0089 T7, and the create door accepts it in place of the OAuth trio. But the
+  wizard's field map had no entry for it, and a field with none is skipped without a word. The
+  Google guide told a personal account to make one and type it in.
+- **Drawn, as the plan recommends:**
+  - on the Gmail card only, last, with its hint;
+  - typing one steps round the trio, as a pasted service-account key does;
+  - the probe and the saved account carry it, and the create payload sends it alone;
+  - it is never in the remembered draft, like every secret.
+- **The guide cannot name an undrawn field again.** `end-user-docs.unit.test.tsx` now fails
+  when a card's guide section names a field the wizard does not draw. With the map entry taken
+  out, it names `en/google.md`'s `{#gmail}` and `appPassword`.
+- **Accounts, in the wizard too:** the field that names a saved account says *Name for this
+  account* / *Naam voor dit account*, as the Accounts page does since #1343.
+- **Proved by** `CreateMapping.unit.test.tsx` (3 new cases). With the map entry taken out, all
+  three fail.
+
 **2026-09-28, night: T6 (c)'s two guards, and what they found (0131 §6, R8, built beside R at
 the owner's word *"continue on the rest"*)**, in #1347, stacked on #1343.
 
@@ -290,7 +311,7 @@ person, and a flow that fills it.
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner's words and the ADR | ✅ **Words decided 2026-09-28 (D6, D7); ADR-0050 accepted 2026-09-28 (#1327)** | §3. Dutch says *migratie*, never *verhuizing*. A person's card carries their name. *Accounts*, not *Connections*. The code says `person` (ADR-0050's amendment); `move` was its first name. |
-| T1 Four faults the audit found | 🟡 **(a) in #1315 and (d) in #1316, each proved by its guard; (b) and (c) proposed; all before the first invitation** | §3. (a) Review & confirm listed every source's limits on managed. (b) The Gmail app password the guide names is not in the wizard. (c) The Microsoft consent is sent before the data types are chosen: T4 fixes it by construction (the owner, 2026-09-28: no press). (d) A raw state word on Finish. |
+| T1 Four faults the audit found | 🟡 **(a) in #1315 and (d) in #1316, each proved by its guard; (b) drawn and guarded (#1349); (c) is T4's, by construction; all before the first invitation** | §3. (a) Review & confirm listed every source's limits on managed. (b) The Gmail app password the guide names is not in the wizard. (c) The Microsoft consent is sent before the data types are chosen: T4 fixes it by construction (the owner, 2026-09-28: no press). (d) A raw state word on Finish. |
 | T2 ADR-0050: a move is a person's migrations | ✅ **ADR-0050 accepted 2026-09-28 (#1327), amended the same night: *person*. The tables and `/api/people` built, with the appliance's implicit person (#1332)** | §3. A `person` row and `person_migration` in `packages/managed/migrations` (0031). The appliance answers one implicit person. The billed unit (a path) and the migration (a mapping) do not change. Deleting a person deletes no migration. |
 | T3 The Migrations page lists people | 🟡 **Built in two halves: the page lists people (#1341); it is the landing page, the Dashboard is gone, and the menu is the drawing's (#1343). The menu counts beside *Needs you* what waits (#1346). The progress line and *Ready to switch* wait on 0154 T2. Before the first invitation** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
 | T4 *Start a migration*: who, from where, what, to where | 📋 **Proposed; before the first invitation** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |

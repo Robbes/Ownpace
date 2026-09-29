@@ -730,7 +730,7 @@ const en = {
   'settings.kinds.stop.failed': 'That did not change:',
   'wizard.step.migration': 'Migration',
   'wizard.testConnections.reused': 'Already saved; this only checks it still works.',
-  'wizard.connectionName': 'Connection name',
+  'wizard.connectionName': 'Name for this account',
   'wizard.connectionName.taken':
     'This name is already taken; it saves, but two alike are hard to tell apart.',
   'wizard.testConnections.kept':
@@ -3338,7 +3338,7 @@ const nl: Record<keyof typeof en, string> = {
     'Een export is een weergave die Dropbox maakt, niet het Paper-document zelf: fijne opmaak kan verschuiven, en wat u op het nieuwe systeem wijzigt, gaat niet terug naar Dropbox. U kunt het formaat later wijzigen; al gekopieerde documenten houden het formaat waarin ze aankwamen.',
   'wizard.step.migration': 'Migratie',
   'wizard.testConnections.reused': 'Al bewaard; dit controleert alleen of hij nog werkt.',
-  'wizard.connectionName': 'Naam van de verbinding',
+  'wizard.connectionName': 'Naam voor dit account',
   'wizard.connectionName.taken':
     'Deze naam bestaat al; hij wordt bewaard, maar twee gelijke namen zijn lastig te onderscheiden.',
   'wizard.testConnections.kept':
