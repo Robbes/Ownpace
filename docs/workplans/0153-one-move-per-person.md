@@ -184,6 +184,36 @@ words changed with them** (0131 §6, R8).
   at `5f74ebc`: T4 and T7 are still proposed, and no branch or open pull request of R's or M's
   touches them. 0131 §6 records the split.
 
+**2026-10-03: start when granted, per person (T5 (b); ADR-0035's amendment, decided).** The
+owner: *"Yes, but after the move was started in the first place. After preflight the start needs
+to be given at least once, the grant may arrive later."* Asked whether that holds per person or
+per migration: *"Per person"*.
+
+- **When a grant lands** (`start-when-granted.ts`, called by both endings after the grant's own
+  transaction):
+  - each migration it landed on that never ran starts by itself if another migration of its
+    person is running: `active`, its paths with the month's peak, the change recorded `via:
+    'grant'` by the link, and its first pass enqueued;
+  - a move nothing of which runs (not started yet, or paused) starts nothing, and neither does a
+    migration paused after it ran;
+  - a closed organisation or an operator hold starts nothing (`enqueueIfFree`, the hold's door
+    with nobody to answer).
+- ***Start* on a migration that waits** says, when its person's move runs, that it starts by
+  itself once they have connected (`startsWhenGranted: true`).
+- ***Start a migration*'s last screen** may start once one count is in. It starts the counted
+  migrations; one waiting for the person's link says *"Once you have started the others, it starts
+  by itself when Anna connects."* With nothing counted, *Start* waits, as before.
+- **Not asked of a migration that starts by itself:** the tick for files a format would refuse,
+  by the owner's *"at least once"*. What it could not copy shows in its queues.
+- **Proved by:**
+  - `start-when-granted.unit.test.ts` (6; PGlite as `app_user`, both chains);
+  - `a-link-for-a-person.unit.test.ts` (+2, through a person's grant);
+  - `a-progress-page-for-a-person.unit.test.ts` (+1, through a migration's link sent before);
+  - `StartMigration.unit.test.tsx` (+2), and the hold guard (+1: `enqueueIfFree` has one caller).
+
+  Six mutations each fail their cases: no running-move check, no never-ran check, the hold
+  ignored, either ending not calling it, and the wizard waiting for every count.
+
 **2026-10-03: the person's link replaces the per-migration links (T5 (b)'s fourth slice, the rest
 of it; ADR-0035's amendment, decided).** The owner, asked the amendment's question: *"yes, replace
 the per-migration links"*. Its two "keep" points stand as written.
@@ -1214,8 +1244,9 @@ closing (`an-organisation-closed-at-every-door.unit.test.ts`), the log's redacti
 (`a-log-that-kept-the-link.unit.test.ts`) and the OpenAPI spec. Offboarding purges `person_link`
 before `person` (`offboarding.ts`'s `PURGED_TABLES`).
 
-**Waits for the owner:** *start when granted* (the amendment's last section). Slices 1 to 3 do not
-depend on it.
+**Start when granted** (the amendment's last section): decided by the owner on 2026-10-03, per
+person, and built the same day. Once a person's move runs, a migration of theirs that waits for a
+grant starts by itself when it lands; before that, a grant only makes the counts appear.
 
 ### T6 — words a family reads (before the first invitation, inside T3–T5)
 

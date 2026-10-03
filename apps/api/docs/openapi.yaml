@@ -2252,10 +2252,14 @@ paths:
           description: |
             Nothing was changed. `Conflict`: the migration is past cutover.
             `grant_withdrawn` or `awaiting_grant`: nobody's grant lets a pass
-            read the account, with `reason` saying whose. `platform_held`: an
-            operator hold is open (`PlatformHeld`). `account_closed`: the
-            organisation was closed (`AccountClosed`, workplan 0085 T2).
-            `anyOf`, not `oneOf`: those two bodies are an `Error` too.
+            read the account, with `reason` saying whose. An `awaiting_grant`
+            for a migration that has never run, whose person's move is
+            running, also carries `startsWhenGranted: true`, and its `reason`
+            says it starts by itself once that person has connected (ADR-0035's
+            amendment, start when granted). `platform_held`: an operator hold
+            is open (`PlatformHeld`). `account_closed`: the organisation was
+            closed (`AccountClosed`, workplan 0085 T2). `anyOf`, not `oneOf`:
+            those two bodies are an `Error` too.
           content:
             application/json:
               schema:

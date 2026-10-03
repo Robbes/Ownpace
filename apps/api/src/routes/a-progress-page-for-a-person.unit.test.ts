@@ -72,6 +72,23 @@ vi.mock('@openmig/managed', async (importOriginal) => {
   return { ...actual, LEGAL_DRAFTS: { alpha: false, privacy: false, terms: false } };
 });
 
+// The first pass a grant starts (start when granted): counted, never sent.
+const enqueued: string[] = [];
+vi.mock('@openmig/scheduler', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    getTriggerClient: () => ({
+      tasks: {
+        trigger: (_taskId: string, payload: { mappingId: string }) => {
+          enqueued.push(payload.mappingId);
+          return Promise.resolve({ id: `run-${enqueued.length}` });
+        },
+      },
+    }),
+  };
+});
+
 vi.mock('./../middleware/auth.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../middleware/auth.ts')>();
   return {
@@ -241,8 +258,10 @@ beforeEach(async () => {
   revoked = [];
   await q('DELETE FROM person_link');
   await q('DELETE FROM mapping_link');
-  await q('UPDATE mailbox_mapping SET source_secret_ref = NULL, grant_withdrawn_at = NULL');
+  await q(`UPDATE mailbox_mapping SET source_secret_ref = NULL, grant_withdrawn_at = NULL, status = 'paused'`);
+  await q('DELETE FROM path_lifecycle');
   await q('DELETE FROM audit_log');
+  enqueued.length = 0;
 });
 
 describe('a person’s progress page', () => {
@@ -306,6 +325,24 @@ describe('a person’s progress page', () => {
     expect((await q(`SELECT created_by FROM person_link WHERE purpose = 'view'`)).map((r) => r.created_by)).toEqual([
       'granted-by-link',
     ]);
+  });
+
+  it('starts the migration a link sent before granted, when the person’s move runs (start when granted)', async () => {
+    await q(`UPDATE mailbox_mapping SET status = 'active' WHERE id = $1`, [OLD_MAIL]);
+    const old = await withTenant(driver, TENANT, (db) =>
+      issueMappingLink(db, { tenantId: TENANT, mappingId: CAL, purpose: 'grant', createdBy: 'pat', expiresAt: expiryFromDays(7) }),
+    );
+    const started = await request(app).post(`/api/grant/${old.token}/google/authorize`).send({});
+    const url = new URL(started.body.url);
+    askedScope = url.searchParams.get('scope')!;
+    askedClient = url.searchParams.get('client_id')!;
+    const ended = await request(app)
+      .get('/api/migrations/google/callback')
+      .query({ state: url.searchParams.get('state')!, code: 'c' });
+
+    expect(ended.status, ended.text).toBe(200);
+    expect((await q('SELECT status FROM mailbox_mapping WHERE id = $1', [CAL]))[0]?.status).toBe('active');
+    expect(enqueued).toEqual([CAL]);
   });
 
   it('is not a grant link, and a grant link is not it', async () => {

@@ -20,7 +20,9 @@
  *  - stores nothing for the wrong account, a revoked link, or a migration that
  *    left them since the page was opened;
  *  - made while every account is connected, asks each of them again, and is
- *    spent once each has been connected through it (managed migration 0036).
+ *    spent once each has been connected through it (managed migration 0036);
+ *  - starts what it granted by itself when Anna's move already runs (start
+ *    when granted, the owner's answer of 2026-10-03), and nothing otherwise.
  *
  * PGlite as `app_user`, both chains. Google's token endpoint is the one thing
  * stubbed, as in `grant.unit.test.ts`. The names are invented.
@@ -84,6 +86,23 @@ let caller: { tenantId?: string; userId?: string; userRole?: string } = {};
 vi.mock('@openmig/managed', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@openmig/managed')>();
   return { ...actual, LEGAL_DRAFTS: { alpha: false, privacy: false, terms: false } };
+});
+
+// The first pass a grant starts (start when granted): counted, never sent.
+const enqueued: string[] = [];
+vi.mock('@openmig/scheduler', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    getTriggerClient: () => ({
+      tasks: {
+        trigger: (_taskId: string, payload: { mappingId: string }) => {
+          enqueued.push(payload.mappingId);
+          return Promise.resolve({ id: `run-${enqueued.length}` });
+        },
+      },
+    }),
+  };
 });
 
 vi.mock('./../middleware/auth.ts', async (importOriginal) => {
@@ -247,8 +266,10 @@ beforeEach(async () => {
   caller = { tenantId: TENANT, userId: 'pat', userRole: 'owner' };
   signsInAs = 'anna@gmail.com';
   await q('DELETE FROM person_link');
-  await q('UPDATE mailbox_mapping SET source_secret_ref = NULL, grant_withdrawn_at = NULL');
+  await q(`UPDATE mailbox_mapping SET source_secret_ref = NULL, grant_withdrawn_at = NULL, status = 'paused'`);
+  await q('DELETE FROM path_lifecycle');
   await q('DELETE FROM audit_log');
+  enqueued.length = 0;
   for (const m of [CONTACTS, WORK_MAIL]) {
     await q(
       `INSERT INTO person_migration (mapping_id, person_id, tenant_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`,
@@ -488,6 +509,34 @@ describe('a link made while every account is connected asks each again (managed 
     expect((await (await grant(token, 'anna@gmail.com')).callback()).status).toBe(200);
     const [row] = await q(`SELECT used_at FROM person_link WHERE purpose = 'grant'`);
     expect(row?.used_at).toBeTruthy();
+  });
+});
+
+describe('what a grant lets start (start when granted, per person; the owner, 2026-10-03)', () => {
+  it('starts the migrations it landed on that never ran, when Anna’s move already runs', async () => {
+    // Anna's old IMAP mailbox was started: their move runs.
+    await q(`UPDATE mailbox_mapping SET status = 'active' WHERE id = $1`, [OLD_MAIL]);
+    const token = tokenIn((await issue(ANNA)).body.url);
+    expect((await (await grant(token, 'anna@gmail.com')).callback()).status).toBe(200);
+
+    const statuses = await q('SELECT id, status FROM mailbox_mapping WHERE id IN ($1, $2, $3) ORDER BY id', [
+      CAL,
+      CONTACTS,
+      WORK_MAIL,
+    ]);
+    expect(statuses).toEqual([
+      { id: CAL, status: 'active' },
+      { id: CONTACTS, status: 'active' },
+      { id: WORK_MAIL, status: 'paused' },
+    ]);
+    expect([...enqueued].sort()).toEqual([CAL, CONTACTS].sort());
+  });
+
+  it('starts nothing when nothing of Anna’s runs: the counts appear, and the owner presses Start', async () => {
+    const token = tokenIn((await issue(ANNA)).body.url);
+    expect((await (await grant(token, 'anna@gmail.com')).callback()).status).toBe(200);
+    expect(await q(`SELECT id FROM mailbox_mapping WHERE status = 'active'`)).toEqual([]);
+    expect(enqueued).toEqual([]);
   });
 });
 

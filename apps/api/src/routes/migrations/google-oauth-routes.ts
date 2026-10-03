@@ -53,6 +53,9 @@ import {
 import { consentFlows as flows } from './consent-flows.ts';
 import { storeGrantedToken } from './grant-ending.ts';
 import { mintPersonProgressLink, mintProgressLinkForMigration, storePersonGrant } from './person-grant-ending.ts';
+// A migration that never ran starts by itself once its grant lands, when its
+// person's move is running (ADR-0035's amendment; the owner, 2026-10-03).
+import { startWhenGranted } from './start-when-granted.ts';
 // The account-kind ask (workplan 0106 T3b): several faces from ONE Google
 // account, and the scope string built from the ticks and nothing else.
 import { googleAccountConsent, isRefusal } from './google-account-consent.ts';
@@ -358,8 +361,10 @@ router.get('/google/callback', async (req: Request, res: Response) => {
         ? refuse(403, reason, 'works')
         : refuse(409, reason, stored.linkUnused ? 'unused' : undefined);
     }
-    // The person's own progress page, handed over while they are here, and
-    // after the consent's transaction, as a migration's is below.
+    // What the grant lets start, then the person's own progress page, handed
+    // over while they are here: both after the consent's transaction, as a
+    // migration's are below, and neither can undo it.
+    await startWhenGranted(getDbPool(), { tenantId: personLink.tenantId, mappingIds: stored.granted });
     const personProgressUrl = await mintPersonProgressLink(getDbPool(), personLink);
     const permission = recordedPermission(pending.scope, outcome.grantedScopes);
     return page(
@@ -413,6 +418,9 @@ router.get('/google/callback', async (req: Request, res: Response) => {
   // A migration's link is one sent before the person's replaced it (ADR-0035,
   // amended 2026-09-29), honoured until it expires: the page it hands over is
   // the person's when the migration has one (`mintProgressLinkForMigration`).
+  // And as for a person's link, a migration that never ran starts by itself
+  // when its person's move is running (`startWhenGranted`).
+  await startWhenGranted(getDbPool(), { tenantId: link.tenantId, mappingIds: [link.mappingId] });
   const progressUrl = await mintProgressLinkForMigration(getDbPool(), link);
   // "Read-only" at the ending only where Google holds what it RECORDED to
   // reading (0144 T3 (c)): with `include_granted_scopes` the grant can carry

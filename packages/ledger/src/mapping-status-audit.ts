@@ -71,9 +71,11 @@ export type MappingStatus = 'active' | 'paused' | 'cutover' | 'done' | 'continuo
 /**
  * How a status change was reached — the route, in the operator's vocabulary.
  * `rollback` (ADR-0047) and `cutover` (ADR-0048) are the worker's, through the
- * cutover CLI; the other three are the API's.
+ * cutover CLI; the other four are the API's. `grant` is the one nobody pressed:
+ * a migration that started by itself when its person's grant landed, their move
+ * already running (ADR-0035's amendment; the owner, 2026-10-03).
  */
-export type MappingStatusVia = 'start' | 'update' | 'finish' | 'rollback' | 'cutover';
+export type MappingStatusVia = 'start' | 'update' | 'finish' | 'rollback' | 'cutover' | 'grant';
 
 /** The database handle the ledger writes through — a pool's, or a transaction's. */
 type Db = ConstructorParameters<typeof PgLedger>[0];

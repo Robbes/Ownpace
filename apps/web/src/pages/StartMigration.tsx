@@ -1472,6 +1472,14 @@ const NewDestination: React.FC<{
  * manifest's rows true of these sources, and one *Start*, which waits for
  * every count and every tick. Nothing copies before it; after it, the
  * person's page (T5).
+ *
+ * **Start when granted** (ADR-0035's amendment; the owner, 2026-10-03:
+ * *"After preflight the start needs to be given at least once, the grant may
+ * arrive later"*, per person). A migration that waits for its person's link
+ * is not waited for once another one's count is in: *Start* starts the
+ * counted ones, and the waiting one starts by itself when they connect, since
+ * their move is then running (`start-when-granted.ts`). With nothing counted
+ * yet, *Start* waits, as before.
  */
 export const CheckStep: React.FC<{
   planned: ReadonlyArray<PlannedMigration>;
@@ -1502,10 +1510,15 @@ export const CheckStep: React.FC<{
       : [{ key: pairKey(m), id: one.id, notAdded: one.notAdded, byLink: awaitsGrant(m) }];
   });
   const anyByLink = made_.some((m) => m.byLink) && made.personId !== undefined;
-  const allReady = made_.every((m) => ready[m.id] === true);
   // Whether the person's one link was used: every account on it connected
   // (ADR-0035, amended 2026-09-29). Until then each migration it serves waits.
   const [granted, setGranted] = React.useState(false);
+  const waits = (m: (typeof made_)[number]) => m.byLink && anyByLink && !granted;
+  // What Start starts: every migration not waiting for the link. It may go once
+  // there is one, and each has its count and its tick; the waiting ones start
+  // by themselves when the person connects.
+  const counted = made_.filter((m) => !waits(m));
+  const allReady = counted.length > 0 && counted.every((m) => ready[m.id] === true);
 
   // The manifest's rows true of every source here, and of no other (0153 T1 (a)).
   const manifest = useQuery({ queryKey: ['scope-manifest'], queryFn: () => scopeManifestApi.get() });
@@ -1522,7 +1535,7 @@ export const CheckStep: React.FC<{
     setStarting(true);
     const now = new Set(started);
     const failed: Record<string, string> = {};
-    for (const m of made_) {
+    for (const m of counted) {
       if (now.has(m.id)) continue;
       try {
         await mappingApi.start(m.id);
@@ -1555,10 +1568,13 @@ export const CheckStep: React.FC<{
             {...(startFailed[m.id] === undefined ? {} : { failed: startFailed[m.id] })}
           />
         );
-        return m.byLink && anyByLink && !granted ? (
+        return waits(m) ? (
           <div key={m.id} className="rounded-lg border border-gray-200 p-4">
             <h3 className="text-sm font-medium text-gray-700">{titles[m.key] ?? ''}</h3>
             <p className="mt-1 text-sm text-gray-600">{t('start.check.waitsForLink', { person: personName })}</p>
+            {counted.length > 0 && (
+              <p className="mt-1 text-sm text-gray-600">{t('start.check.startsWhenGranted', { person: personName })}</p>
+            )}
           </div>
         ) : (
           check
@@ -1582,7 +1598,7 @@ export const CheckStep: React.FC<{
         </button>
         {!allReady && (
           <p id={waitsId} className="mt-2 text-sm text-gray-600">
-            {t('start.check.waits')}
+            {t(counted.length === 0 ? 'start.check.waitsForACount' : 'start.check.waits', { person: personName })}
           </p>
         )}
         {!allReady && anyByLink && (

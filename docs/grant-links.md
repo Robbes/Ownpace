@@ -32,7 +32,8 @@ Anna**, say), under **One grant link for everything**:
 
 *Start a migration* offers the same link on its last screen when the person connects their own
 accounts (**They do, with a link**). It is one link either way, however many migrations it
-serves.
+serves. You can press **Start** there once one count is in: the migrations still waiting for the
+link start by themselves when the person connects (see [When the grant lands](#when-the-grant-lands)).
 
 **When every account of theirs is connected already**, the new link asks each of them to connect
 again, and the screen says so. Make one when a connection has stopped working: the person took
@@ -191,6 +192,20 @@ helpdesk set up.
 
 A report changes nothing by itself. The link keeps working until you revoke it, and nothing is
 read unless the person grants. Whoever runs your Ownpace may ask you about it.
+
+## When the grant lands
+
+The token is stored on each migration the person's page asked for it. What happens next depends
+on whether you have started their move:
+
+- **Not yet**: nothing of theirs has been started. The counts appear, on *Start a migration*'s
+  last screen and on each migration's page, and you press **Start** once you have seen them.
+- **Started**: one of their migrations is running. Each migration of theirs that was waiting for
+  this grant starts by itself, ones you added later included. The record of it names the grant,
+  not you.
+- **Paused**: a move you paused stays paused, and so does a migration you paused after it ran.
+
+Pressing **Start** on a migration that waits for a grant says which of these applies.
 
 ## Managing them afterwards
 

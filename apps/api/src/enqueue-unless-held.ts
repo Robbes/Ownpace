@@ -70,6 +70,14 @@
  * Hard rule 9. The error goes to the door's own catch, which answers 500. A
  * hold or a close that could not be read must not start the pass it would
  * have stopped.
+ *
+ * ## A start nobody pressed
+ *
+ * One start has nobody to answer: a migration that starts by itself when its
+ * person's grant lands (`start-when-granted.ts`; ADR-0035's amendment, the
+ * owner's answer of 2026-10-03). `enqueueIfFree` asks the same two questions
+ * and says which stopped it instead of answering 409, and the migration then
+ * stays as it was, for the owner to start.
  */
 
 import type { Response } from 'express';
@@ -89,6 +97,14 @@ export type Enqueue = (...args: Parameters<Trigger>) => ReturnType<Trigger>;
 export const HELD_DEFAULT =
   'We have paused copying while we update the platform. Nothing was started. Try again when copying resumes.';
 
+/** The organisation's close and the platform hold, read in one transaction, the close first. */
+async function whatStopsAStart(tenantId: string, source: Pool | LedgerDriver) {
+  return withTenantDb(tenantId, source, async (db) => ({
+    closure: await readOrganisationClosure(db, tenantId),
+    hold: await readOpenPause(db),
+  }));
+}
+
 /**
  * Ask whether the organisation is closed, then the platform hold; answer 409
  * and return null when either stops the press.
@@ -102,10 +118,7 @@ export async function enqueueUnlessHeld(
   tenantId: string,
   source: Pool | LedgerDriver,
 ): Promise<Enqueue | null> {
-  const { closure, hold } = await withTenantDb(tenantId, source, async (db) => ({
-    closure: await readOrganisationClosure(db, tenantId),
-    hold: await readOpenPause(db),
-  }));
+  const { closure, hold } = await whatStopsAStart(tenantId, source);
   if (closure) {
     res.status(409).json(accountClosedAnswer(closure));
     return null;
@@ -120,5 +133,23 @@ export async function enqueueUnlessHeld(
     });
     return null;
   }
-  return (...args) => getTriggerClient().tasks.trigger(...args);
+  return enqueue;
 }
+
+/**
+ * `enqueueUnlessHeld` for a start nobody pressed: the same two questions, in
+ * the same order, with nobody to answer. Hands back the enqueue, or says what
+ * stopped it.
+ */
+export async function enqueueIfFree(
+  tenantId: string,
+  source: Pool | LedgerDriver,
+): Promise<{ readonly enqueue: Enqueue } | { readonly stopped: 'closed' | 'held' }> {
+  const { closure, hold } = await whatStopsAStart(tenantId, source);
+  if (closure) return { stopped: 'closed' };
+  if (hold) return { stopped: 'held' };
+  return { enqueue };
+}
+
+/** The SDK's own `tasks.trigger`: the one enqueue in this API, handed out only by the two doors above. */
+const enqueue: Enqueue = (...args) => getTriggerClient().tasks.trigger(...args);

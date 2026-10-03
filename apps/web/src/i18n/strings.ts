@@ -1557,6 +1557,8 @@ const en = {
   'start.check.waitsFor':
     'Waiting for {person} to connect. Make a link below and send it yourself: it is shown once. The count appears here once they have connected.',
   'start.check.waitsForLink': 'Its count appears here once {person} has connected through the link above.',
+  'start.check.startsWhenGranted': 'Once you have started the others, it starts by itself when {person} connects.',
+  'start.check.waitsForACount': 'You can start once {person} has connected and a count is in.',
   'start.check.later':
     "You can close this page. {person}'s page keeps these migrations: once they have connected, start each one from its Details.",
   'start.company.question': 'Is this a company account with an administrator?',
@@ -4249,6 +4251,8 @@ const nl: Record<keyof typeof en, string> = {
   'start.check.waitsFor':
     'Wacht tot {person} verbindt. Maak hieronder een link en stuur die zelf: hij wordt één keer getoond. De telling verschijnt hier zodra de verbinding er is.',
   'start.check.waitsForLink': 'De telling verschijnt hier zodra {person} via de link hierboven verbonden is.',
+  'start.check.startsWhenGranted': 'Zodra u de andere hebt gestart, start deze vanzelf wanneer {person} verbindt.',
+  'start.check.waitsForACount': 'U kunt starten zodra {person} verbonden is en er een telling binnen is.',
   'start.check.later':
     'U kunt deze pagina sluiten. De pagina van {person} bewaart deze migraties: start elke migratie via Details zodra de verbinding er is.',
   'start.company.question': 'Is dit een bedrijfsaccount met een beheerder?',
