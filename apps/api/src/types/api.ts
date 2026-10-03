@@ -62,6 +62,23 @@ export interface MappingLinkRequest extends Request {
   };
 }
 
+/**
+ * What a PERSON'S link attaches (ADR-0035, amended 2026-09-29; workplan 0153
+ * T5 (b)): which person the bearer may grant for, and on whose behalf. As with
+ * a migration's link, no user, no role and no session: the bearer is not a
+ * user. A route built for both kinds reads whichever the middleware set.
+ */
+export interface PersonLinkRequest extends MappingLinkRequest {
+  personLink?: {
+    readonly linkId: string;
+    readonly personId: string;
+    readonly tenantId: string;
+    readonly purpose: 'grant' | 'view';
+    /** When the link stops working, for the page to say before the button. */
+    readonly expiresAt: Date;
+  };
+}
+
 // JwtPayload lives in ../middleware/auth.ts, next to the code that verifies it.
 // It was declared here too, with `tenantId` and `role` REQUIRED, which stopped
 // being true at ADR-0042 — and a duplicate that contradicts the real one is

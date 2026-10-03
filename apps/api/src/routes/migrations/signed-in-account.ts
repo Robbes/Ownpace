@@ -87,7 +87,7 @@ export function accountInIdToken(idToken: unknown, clientId: string): string | n
  * One account's address in the form Google treats as the same account, or null
  * when the value is not an address at all.
  */
-function googleAccountKey(address: string): string | null {
+export function googleAccountKey(address: string): string | null {
   const parts = address.trim().toLowerCase().split('@');
   if (parts.length !== 2) return null;
   let [name, domain] = parts as [string, string];

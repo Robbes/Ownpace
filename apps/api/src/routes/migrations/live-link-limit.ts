@@ -21,6 +21,7 @@ import { countLiveGrantLinks, issueMappingLink } from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger/db';
 import {
   countLivePersonGrantLinks,
+  issuePersonLink,
   lastDayOf,
   liveGrantLinkLimit,
   type LiveLinkLimit,
@@ -67,6 +68,31 @@ export async function issueWithinTheLimit(
     if (live >= allowed.limit) return { kind: 'at_the_limit', live, allowed };
   }
   return { kind: 'issued', issued: await issueMappingLink(db, input) };
+}
+
+/** What issuing a person's link came to, as `IssueOutcome` is for a migration's. */
+export type PersonIssueOutcome =
+  | { readonly kind: 'issued'; readonly issued: Awaited<ReturnType<typeof issuePersonLink>> }
+  | { readonly kind: 'at_the_limit'; readonly live: number; readonly allowed: LiveLinkLimit };
+
+/**
+ * Mint a person's link under the same lock and the same count as a
+ * migration's (ADR-0035, amended 2026-09-29; 0153 T5 (b)), so the two kinds
+ * wait for each other and one limit holds them both.
+ */
+export async function issuePersonLinkWithinTheLimit(
+  db: PgDatabase,
+  input: Parameters<typeof issuePersonLink>[1],
+): Promise<PersonIssueOutcome> {
+  if (input.purpose === 'grant') {
+    await db.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`grant-links:${input.tenantId}`}, 0))`,
+    );
+    const live = await liveGrantLinks(db, input.tenantId);
+    const allowed = await liveGrantLinkLimit(db, input.tenantId);
+    if (live >= allowed.limit) return { kind: 'at_the_limit', live, allowed };
+  }
+  return { kind: 'issued', issued: await issuePersonLink(db, input) };
 }
 
 /**

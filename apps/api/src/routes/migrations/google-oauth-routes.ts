@@ -52,6 +52,7 @@ import {
 // same in-flight states — see `consent-flows.ts`.
 import { consentFlows as flows } from './consent-flows.ts';
 import { mintProgressLink, storeGrantedToken } from './grant-ending.ts';
+import { storePersonGrant } from './person-grant-ending.ts';
 // The account-kind ask (workplan 0106 T3b): several faces from ONE Google
 // account, and the scope string built from the ticks and nothing else.
 import { googleAccountConsent, isRefusal } from './google-account-consent.ts';
@@ -272,6 +273,11 @@ router.get('/google/callback', async (req: Request, res: Response) => {
   // that began it was in (workplan 0145 T6): the pending state's, never the
   // query string's.
   const link = pending.link;
+  // A person's link (ADR-0035, amended 2026-09-29; 0153 T5 (b)) ends the
+  // same way a migration's does, up to the store: the same page, the same
+  // refusals, in the same voice.
+  const personLink = pending.personLink;
+  const anyLink = link ?? personLink;
   const locale = localeOf(pending.locale);
   // `linkAfter` is what is true of a grant link after this refusal, when it
   // is not used up (see `grantResultPage`); the owner's ending has no link.
@@ -281,7 +287,7 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     const said = typeof reason === 'string' ? reason : inLocale(reason, locale);
     page(
       status,
-      link
+      anyLink
         ? grantResultPage({ ok: false, reason: said, ...(linkAfter ? { link: linkAfter } : {}) }, locale)
         : consentResultPage({ outcome: { ok: false, reason: said }, locale }),
     );
@@ -289,20 +295,20 @@ router.get('/google/callback', async (req: Request, res: Response) => {
 
   if (typeof req.query.error === 'string' && req.query.error.length > 0) {
     const said = req.query.error;
-    return refuse(200, link ? stoppedAtGoogle(said) : providerReported('google', said), 'unused');
+    return refuse(200, anyLink ? stoppedAtGoogle(said) : providerReported('google', said), 'unused');
   }
   const code = typeof req.query.code === 'string' ? req.query.code : '';
   if (!code) {
-    return refuse(400, link ? NOTHING_CAME_BACK : noCodeFrom('google'), 'unused');
+    return refuse(400, anyLink ? NOTHING_CAME_BACK : noCodeFrom('google'), 'unused');
   }
   // A grant link's consent begun before its organisation was closed (0085
   // T2): refused before the code is exchanged, so the organisation's client is
   // not used and nothing is stored. The link is not spent; a reopen can use
   // it. `storeGrantedToken` asks again, inside its own transaction.
-  if (link) {
+  if (anyLink) {
     let closed;
     try {
-      closed = await closedOrganisation(link.tenantId, closurePool());
+      closed = await closedOrganisation(anyLink.tenantId, closurePool());
     } catch (error) {
       // Not read is not open (hard rule 9): nothing is exchanged or stored.
       log.error('[api] reading whether a grant link’s organisation was closed failed:', error);
@@ -318,7 +324,7 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     askedScope: pending.scope,
   });
 
-  if (!link) {
+  if (!anyLink) {
     // The owner's ending (0089 T1), in the language the consent began in (0145 T6).
     return page(outcome.ok ? 200 : 400, consentResultPage({ webOrigin: webOrigin(), outcome, locale }));
   }
@@ -327,11 +333,39 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     // The owner's sentence names what to check, and nobody who can check it is
     // reading this page, so it goes where the one who runs this can find it.
     log.warn(
-      `[api] a grant link's code exchange failed (${outcome.code}) for mapping ` +
-        `${link.mappingId}: ${outcome.reason}`,
+      `[api] a grant link's code exchange failed (${outcome.code}) for ` +
+        `${link ? `mapping ${link.mappingId}` : `person ${personLink!.personId}`}: ${outcome.reason}`,
     );
     return refuse(400, FOR_THE_LINK_HOLDER_AFTER_GOOGLE[outcome.code], 'unused');
   }
+
+  if (personLink) {
+    // A person's ending: the one token onto every migration the page listed
+    // for the account, and nothing to anyone (`person-grant-ending.ts`).
+    let stored;
+    try {
+      stored = await storePersonGrant(getDbPool(), personLink, {
+        refreshToken: outcome.refreshToken,
+        signedInAs: outcome.signedInAs,
+      });
+    } catch (error) {
+      log.error('[api] storing a granted credential for a person failed:', error);
+      return refuse(500, NOT_KEPT, 'unused');
+    }
+    if (!stored.ok) {
+      const reason = { en: stored.reason, nl: stored.reasonNl };
+      return stored.linkStillWorks
+        ? refuse(403, reason, 'works')
+        : refuse(409, reason, stored.linkUnused ? 'unused' : undefined);
+    }
+    // The person's progress page is slice 3's; until then the ending says
+    // the permission landed, as a migration's did before its page existed.
+    const permission = recordedPermission(pending.scope, outcome.grantedScopes);
+    return page(200, grantResultPage({ ok: true, permission }, locale));
+  }
+  // Past a person's ending only a migration's link is left; said, so the
+  // type knows it too.
+  if (!link) return refuse(500, NOT_KEPT, 'unused');
 
   // The migrator's ending. Note what is NOT passed on from here: `outcome`
   // carries the refresh token, and only `storeGrantedToken` receives it. The

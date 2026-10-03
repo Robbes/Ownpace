@@ -49,11 +49,58 @@ const SubjectSchema = z.object({
 });
 export type GrantSubject = z.infer<typeof SubjectSchema>;
 
+const Domain = z.enum(DISCOVERY_DOMAINS as unknown as [DiscoveryDomain, ...DiscoveryDomain[]]);
+
+/**
+ * What a PERSON'S link opens (ADR-0035, amended 2026-09-29; workplan 0153
+ * T5 (b)): who asked, once, then each Google account the person's migrations
+ * read, what its one consent asks for, where each of its migrations goes, and
+ * whether it is connected already. No migration id: the button names the
+ * account. A data type this page has no words for fails the parse, as above.
+ */
+const PersonSubjectSchema = z.object({
+  kind: z.literal('person'),
+  organisation: z.string(),
+  checkedCompany: z.string().nullable(),
+  askedBy: z.string().nullable(),
+  organisationPhone: z.string().nullable(),
+  accounts: z
+    .array(
+      z.object({
+        account: z.string(),
+        granted: z.boolean(),
+        domains: z.array(Domain),
+        scope: z.string().nullable(),
+        readOnlyAtProvider: z.boolean(),
+        // Why this account cannot be asked, in both languages, or null.
+        notReady: z.object({ reason: z.string(), reasonNl: z.string() }).nullable(),
+        migrations: z
+          .array(
+            z.object({
+              domains: z.array(Domain).min(1),
+              to: z.object({ provider: z.string(), host: z.string().nullable(), account: z.string().nullable() }),
+              granted: z.boolean(),
+            }),
+          )
+          .min(1),
+      }),
+    )
+    .min(1),
+  expiresAt: z.string(),
+});
+export type PersonGrantSubject = z.infer<typeof PersonSubjectSchema>;
+
+/** Whether the page opened a person's link rather than a migration's. */
+export const isPersonSubject = (s: GrantSubject | PersonGrantSubject): s is PersonGrantSubject =>
+  'kind' in s && s.kind === 'person';
+
 export const grantApi = {
   /** What this page must be able to say before the button. Changes nothing. */
-  read: async (link: string): Promise<GrantSubject> => {
+  read: async (link: string): Promise<GrantSubject | PersonGrantSubject> => {
     const res = await client.get(`/grant/${encodeURIComponent(link)}`);
-    return SubjectSchema.parse(res.data);
+    return (res.data as { kind?: unknown } | undefined)?.kind === 'person'
+      ? PersonSubjectSchema.parse(res.data)
+      : SubjectSchema.parse(res.data);
   },
 
   /**
@@ -62,8 +109,12 @@ export const grantApi = {
    * it too (workplan 0145 T6); the server keeps it and never puts it in the
    * redirect.
    */
-  authorize: async (link: string, locale: Locale): Promise<{ url: string }> => {
-    const res = await client.post(`/grant/${encodeURIComponent(link)}/google/authorize`, { locale });
+  authorize: async (link: string, locale: Locale, account?: string): Promise<{ url: string }> => {
+    // For a person's link, the account whose button was pressed.
+    const res = await client.post(`/grant/${encodeURIComponent(link)}/google/authorize`, {
+      locale,
+      ...(account === undefined ? {} : { account }),
+    });
     return z.object({ url: z.string() }).parse(res.data);
   },
 };

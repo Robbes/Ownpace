@@ -11,7 +11,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { jwtVerify, createRemoteJWKSet, decodeJwt } from 'jose';
-import type { AuthenticatedRequest, MappingLinkRequest } from '../types/api.ts';
+import type { AuthenticatedRequest, MappingLinkRequest, PersonLinkRequest } from '../types/api.ts';
 import { Pool } from 'pg';
 import { eq, and } from 'drizzle-orm';
 import {
@@ -24,6 +24,7 @@ import {
   type PgDatabase,
 } from '@openmig/ledger';
 import { platformOperator, tenantMember } from '@openmig/managed/schema-managed';
+import { isPersonLinkToken, verifyPersonLink } from '@openmig/managed';
 import { LINK_CHECK_UNAVAILABLE, LINK_REFUSAL, log } from '@openmig/shared';
 import { serverFault } from '../server-fault.ts';
 
@@ -1179,6 +1180,54 @@ export function authenticateMappingLink(
       purpose: verdict.link.purpose,
       // A property of the link, not of the bearer — see `MappingLinkRequest`.
       // The grant page states its own validity before the button.
+      expiresAt: verdict.link.expiresAt,
+    };
+    next();
+  };
+}
+
+/**
+ * Authenticate EITHER kind of link for the routes built for both (ADR-0035,
+ * amended 2026-09-29; workplan 0153 T5 (b)): a migration's, exactly as
+ * `authenticateMappingLink` does, or a person's, told apart by its shape
+ * (`p.<id>.<secret>`) before anything is read. A person's link attaches which
+ * person the bearer may grant for and on whose behalf, and, like a
+ * migration's, no identity at all. Every failure answers the one sentence, and
+ * a database that cannot answer is ours (503), for the reasons given above.
+ *
+ * Only the routes that take a person's link use this. Every other link route
+ * keeps `authenticateMappingLink`, whose own shape refuses a person's token.
+ */
+export function authenticateGrantLink(
+  purpose: 'grant' | 'view',
+  pool: Pool | LedgerDriver,
+): (req: Request, res: Response, next: NextFunction) => Promise<void> {
+  const forAMigration = authenticateMappingLink(purpose, pool);
+  return async (req, res, next) => {
+    const token = req.params.link;
+    if (typeof token !== 'string' || !isPersonLinkToken(token)) return forAMigration(req, res, next);
+
+    let verdict;
+    try {
+      verdict = await verifyPersonLink(pool, token, { purpose });
+    } catch (error) {
+      log.error('[person-link] verification failed', error);
+      return void res.status(503).json({
+        error: 'link_check_unavailable',
+        message: LINK_CHECK_UNAVAILABLE.en,
+        messageNl: LINK_CHECK_UNAVAILABLE.nl,
+      });
+    }
+    if (!verdict.ok) {
+      return void res
+        .status(401)
+        .json({ error: 'link_unusable', message: LINK_REFUSAL.en, messageNl: LINK_REFUSAL.nl });
+    }
+    (req as PersonLinkRequest).personLink = {
+      linkId: verdict.link.id,
+      personId: verdict.link.personId,
+      tenantId: verdict.link.tenantId,
+      purpose: verdict.link.purpose,
       expiresAt: verdict.link.expiresAt,
     };
     next();
