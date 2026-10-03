@@ -9,7 +9,66 @@ the three forms put to them, *"18,234 of ~19,000"*. The row reads *18,234 of ~19
 ~3.4 GB*, in Dutch *18.234 van ~19.000* and *3,1 van ~3,4 GB*: the word *of* stays, so the tilde
 reads as *about* and never as a range. The glossary's row says so first.
 
-**2026-10-03: T2 is built.** Each data type's progress row reads *"18,234 of ~19,000"*,
+**2026-10-03, evening: T1 (b) and (d) are built for a person's card and page.** Each data type's
+line has its own stage and one sentence under it: *18,234 of ~19,000 · last pass 2 minutes
+ago*, or *The check passed yesterday*.
+
+- **The progress read** (`GET /api/migrations/progress`; `packages/shared/src/progress.ts`). The
+  list carries a lifecycle word and a last sync, and nothing per data type, so every line on a
+  card said the migration's stage, and none could say *Ready to switch*. The read gives each data
+  type:
+  - its pass state, phase and stop, the facts `stageOf` reads;
+  - its counts against what discovery found (T2).
+
+  It gives each migration its check: not run, running, could not run, passed or not passed, and
+  when. *Passed* is what the Finish page means by it (`canProceedToCutover`).
+  - Managed reads them per migration in one tenant transaction, by the readers the migration's own
+    page uses, and shares one reading of a verification run with the report route (`runReportOf`).
+  - The appliance builds the same rows from its `/status` and its last report
+    (`progressFromStatus`). After a restart it holds no report, and says the check was not run.
+- **The line's rules** (`apps/web/src/services/stage-line.ts`):
+  - *Copying*: how far;
+  - *Kept in step* and *Paused*: how far and the last pass;
+  - *Ready to switch*: when the check passed;
+  - *Switching* and *Done*: how far;
+  - *Not started*: nothing, since the stage says it.
+
+  Files lead with their bytes when both sides were measured (*12.4 of ~38.0 GB*), as the
+  drawing has them. What the count leaves out is said after it: contacts kept in step read *210
+  of ~612 · 402 left as they are*, not a third done. At most twelve words: the least
+  important part goes first, the last pass before what was left.
+- ***Ready to switch* is never guessed.** It needs the check passed and the failures that block
+  Finish counted (`failuresWaiting`, the count the Finish button refuses on). Where they could
+  not be counted, the line stays *Kept in step* (hard rule 9).
+- **A person's stage is the least advanced of their lines'**, so a data type its owner stopped
+  makes the person *Paused*.
+- **While the read loads, or where it failed**, the lines say what the list carries, as before.
+  Both pages refresh it at the migration page's own rate (`progress-poll.ts`).
+- ***Checked 2 minutes ago*, the drawing's words, is not used.** *Pass* (*ronde*) is the
+  glossary's word for a round of copying, and *the check* (*de verificatie*) is the menu's.
+  The two are kept apart, in the glossary first.
+- **(c) was built by 0153 T3 (c)**: *Needs you: 3* on the card counts failures, deletions,
+  moves and grace periods nobody chose. The organisation's own drift decisions belong to no card
+  and are counted beside *Needs you* in the menu.
+- **Not yet:**
+  - the migration's own page still shows its lifecycle word over T2's strip ((d)'s last place);
+  - the person's steps can now tell a check not run from one not passed. The progress read
+    carries it, and T4 reads it next.
+- **Proved by:**
+  - `a-line-for-each-data-type` (shared, 10);
+  - `a-line-under-each-stage`, the managed route over a real ledger (7), with its response held to
+    the spec;
+  - `stage-line.unit.test.ts` (21);
+  - the Migrations page (+5) and the person page (+3), managed through the parsed route and the
+    appliance through its status and last check;
+  - the lines in Dutch (2);
+  - the browser UI tests, with the read's fixture.
+
+  **Mutations: eight of eight caught.** One first slipped through: taking every data type's phase
+  from its migration passed until a migration in its cutover, with its calendars kept in step,
+  joined the route test.
+
+**2026-10-03: T2 is built, and merged in #1420.** Each data type's progress row reads *"18,234 of ~19,000"*,
 with a bar and *"3.1 of ~3.4 GB"*, on Review & confirm and on a migration's page, in both
 editions.
 
@@ -130,8 +189,8 @@ of a move after it. The evening's answer puts everything before.
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 One line that says where a person's migrations are | 🟡 **(a) merged in #1326; (b) to (d) proposed; before the first invitation** | §3. A stage in plain words, derived from the states the server already reports. One sentence, and what needs the person. On the person's card, their page and each migration. Drawing: `wf-person-page.svg`. |
-| T2 Totals: *of about how many* | ✅ **Built: *"18,234 of ~19,000"*, a bar and the bytes, on each data type's row in both editions** | §3. Synced counts set against what discovery found, as a share and in bytes. *About*, because the source keeps changing. |
+| T1 One line that says where a person's migrations are | 🟡 **(a) merged in #1326; (b) and (d) built for a person's card and page; (c) built by 0153 T3 (c); the migration's own page next; before the first invitation** | §3. A stage in plain words, derived from the states the server already reports. One sentence, and what needs the person. On the person's card, their page and each migration. Drawing: `wf-person-page.svg`. |
+| T2 Totals: *of about how many* | ✅ **Merged in #1420: *"18,234 of ~19,000"*, a bar and the bytes, on each data type's row in both editions** | §3. Synced counts set against what discovery found, as a share and in bytes. *About*, because the source keeps changing. |
 | T3 Time left, as a range with its reason | 📋 **Proposed; before the first invitation** | §3. (a) Before Start, from the counts and the limits the product already knows (Gmail's 2.5 GB a day). (b) During the copy, from the rate of recent passes. Never a single number, and nothing when it cannot know. |
 | T4 The cutover steps with counts and state | 🟡 **The person's half built on 0153 T5's page (#1353); the migration page's half next; before the first invitation** | §3. The seven cards become one ordered list. Each has its count and *done*, *needs you* or *not yet*, summed for the move across its migrations. |
 | T5 The report of what arrived, as a page | 📋 **Proposed; before the first invitation** | §3. The completion report is rendered in the app, per migration and per move, and downloadable. The word *Markdown* leaves the button. |

@@ -1216,7 +1216,15 @@ async function latestRunReport(s: Scoped): Promise<VerificationRunReport> {
       .orderBy(desc(schema.verificationRun.startedAt))
       .limit(1),
   );
-  const row = rows[0];
+  return runReportOf(rows[0]);
+}
+
+/**
+ * A migration's latest verification run, as the report route serves it: one
+ * reading of the row, shared with the progress read (0154 T1 (b)), so a
+ * person's line and the Check page cannot say two things about one run.
+ */
+export function runReportOf(row: typeof schema.verificationRun.$inferSelect | undefined): VerificationRunReport {
   if (!row) return { state: 'never-run' };
   const startedAt = row.startedAt.toISOString();
   if (row.state === 'running') return { state: 'running', startedAt };

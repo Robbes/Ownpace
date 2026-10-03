@@ -260,6 +260,26 @@ const FIXTURES: Record<string, unknown> = {
     sourceConfig: { type: 'imap-oauth2', host: 'stalwart', port: 993, username: 'source@dev.local', password: '********' },
     targetConfig: { type: 'jmap', baseUrl: 'http://stalwart:8080', username: 'target@dev.local', password: '********' },
   },
+  // Where each data type is (0154 T1 (b)): the lines on a person's card and page.
+  'GET /api/migrations/progress': {
+    mappings: [
+      {
+        mappingId: MAPPING,
+        domains: [
+          {
+            domain: 'email',
+            state: 'completed',
+            phase: 'active',
+            itemsSynced: 3,
+            itemsFound: 3,
+            bytesTransferred: 3000,
+            lastSyncedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+          },
+        ],
+        check: { state: 'not_run' },
+      },
+    ],
+  },
   [`GET /api/migrations/${MAPPING}/runs`]: {
     runs: [
       {
@@ -554,7 +574,8 @@ describe('the migrations list', () => {
 
     // Its last pass: inside the migration, outside every button and link,
     // which is where the owner clicked a row and nothing happened.
-    await l.page.locator(`[data-migration="${MAPPING}"]`).getByText(/Last pass/).first().click(); // people.lastPass
+    // The line's sentence since 0154 T1 (b): *3 of ~3 · last pass …*.
+    await l.page.locator(`[data-migration="${MAPPING}"]`).getByText(/last pass/i).first().click(); // people.line.lastPass
     await l.page.waitForURL(`**/mappings/${MAPPING}`, { timeout: 10_000 });
 
     expect(l.page.url()).toContain(`/mappings/${MAPPING}`);
