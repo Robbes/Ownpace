@@ -22,7 +22,9 @@
  *  - made while every account is connected, asks each of them again, and is
  *    spent once each has been connected through it (managed migration 0036);
  *  - starts what it granted by itself when Anna's move already runs (start
- *    when granted, the owner's answer of 2026-10-03), and nothing otherwise.
+ *    when granted, the owner's answer of 2026-10-03), and nothing otherwise;
+ *  - and Anna's page is told which of their migrations wait for it, and what
+ *    it does to each when it lands.
  *
  * PGlite as `app_user`, both chains. Google's token endpoint is the one thing
  * stubbed, as in `grant.unit.test.ts`. The names are invented.
@@ -537,6 +539,102 @@ describe('what a grant lets start (start when granted, per person; the owner, 20
     expect((await (await grant(token, 'anna@gmail.com')).callback()).status).toBe(200);
     expect(await q(`SELECT id FROM mailbox_mapping WHERE status = 'active'`)).toEqual([]);
     expect(enqueued).toEqual([]);
+  });
+});
+
+describe('what Anna’s page is told waits for their grant', () => {
+  const awaiting = (personId: string) => request(app).get(`/api/people/${personId}/awaiting-grant`);
+  const withAToken = JSON.stringify(SecretStore.encryptCredentials({ refreshToken: REFRESH }).encrypted);
+
+  it('names each migration their link asks for, by account: the owner starts them while nothing of Anna’s runs', async () => {
+    const res = await awaiting(ANNA);
+    expect(res.status).toBe(200);
+    expect(documented('/api/people/{personId}/awaiting-grant', 'get', '200', res.body), JSON.stringify(res.body)).toBe(
+      true,
+    );
+    // Their Google account's two, then their work Gmail; the IMAP mailbox waits for nobody.
+    expect(res.body).toEqual({
+      migrations: [
+        { mappingId: CAL, then: 'review_and_start' },
+        { mappingId: CONTACTS, then: 'review_and_start' },
+        { mappingId: WORK_MAIL, then: 'review_and_start' },
+      ],
+    });
+  });
+
+  it('says they start by themselves once Anna’s move runs, which is what a grant then does', async () => {
+    await q(`UPDATE mailbox_mapping SET status = 'active' WHERE id = $1`, [OLD_MAIL]);
+    expect((await awaiting(ANNA)).body.migrations).toEqual([
+      { mappingId: CAL, then: 'starts_by_itself' },
+      { mappingId: CONTACTS, then: 'starts_by_itself' },
+      { mappingId: WORK_MAIL, then: 'starts_by_itself' },
+    ]);
+
+    // And it is what happens: the grant for their Google account starts both of its migrations.
+    const token = tokenIn((await issue(ANNA)).body.url);
+    expect((await (await grant(token, 'anna@gmail.com')).callback()).status).toBe(200);
+    expect([...enqueued].sort()).toEqual([CAL, CONTACTS].sort());
+    expect((await awaiting(ANNA)).body.migrations).toEqual([{ mappingId: WORK_MAIL, then: 'starts_by_itself' }]);
+  });
+
+  it('leaves out one connected or finished, and says one that ran is waiting to be connected again', async () => {
+    // The calendar ran, and their grant was taken back since: its path stays, its token went.
+    await q(
+      `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state, first_activated_at, updated_at)
+       VALUES ($1,$2,'calendar','paused',now(),now())`,
+      [TENANT, CAL],
+    );
+    await q('UPDATE mailbox_mapping SET source_secret_ref = $2 WHERE id = $1', [CONTACTS, withAToken]);
+    await q(`UPDATE mailbox_mapping SET status = 'done' WHERE id = $1`, [WORK_MAIL]);
+    expect((await awaiting(ANNA)).body.migrations).toEqual([{ mappingId: CAL, then: 'ran_before' }]);
+  });
+
+  it('leaves out an account two Google applications read, which their link cannot ask', async () => {
+    // A third migration of their Google account, set up with an application of its own.
+    const [conn, box, mapping] = [U('15'), U('26'), U('36')];
+    const ownClient = JSON.stringify(
+      SecretStore.encryptCredentials({
+        username: 'anna@gmail.com',
+        clientId: 'own.apps.googleusercontent.com',
+        clientSecret: 'not-a-real-own-secret',
+      }).encrypted,
+    );
+    await q(
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
+       VALUES ($1,$2,'source','gmail','own','{}'::jsonb,'connected',$3)`,
+      [conn, TENANT, ownClient],
+    );
+    await q(
+      `INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address) VALUES ($1,$2,$3,'user','m@example.invalid')`,
+      [box, TENANT, conn],
+    );
+    await q(
+      `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, target_config_override, status)
+       VALUES ($1,$2,$3,$4,'{"user":"anna@cloud.example.org"}'::jsonb,'paused')`,
+      [mapping, TENANT, box, T1_BOX],
+    );
+    await q('INSERT INTO person_migration (mapping_id, person_id, tenant_id) VALUES ($1,$2,$3)', [mapping, ANNA, TENANT]);
+    try {
+      expect((await awaiting(ANNA)).body.migrations).toEqual([{ mappingId: WORK_MAIL, then: 'review_and_start' }]);
+    } finally {
+      await q('DELETE FROM person_migration WHERE mapping_id = $1', [mapping]);
+      await q('DELETE FROM mailbox_mapping WHERE id = $1', [mapping]);
+      await q('DELETE FROM mailbox WHERE id = $1', [box]);
+      await q('DELETE FROM connection WHERE id = $1', [conn]);
+    }
+  });
+
+  it('is empty for a person no link can serve, open to any member, and no other organisation’s', async () => {
+    expect((await awaiting(BRAM)).body).toEqual({ migrations: [] });
+
+    caller = { tenantId: TENANT, userId: 'val', userRole: 'viewer' };
+    expect((await awaiting(ANNA)).body.migrations).toHaveLength(3);
+
+    for (const person of [THEIR_PERSON, 'not-an-id']) {
+      const res = await awaiting(person);
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('person_not_found');
+    }
   });
 });
 

@@ -7,7 +7,10 @@
  *  - `POST /api/people/:personId/links` mints one and says its URL once;
  *  - `GET /api/people/:personId/links` lists them, with their states, never a
  *    secret;
- *  - `DELETE /api/people/:personId/links/:linkId` is the kill switch.
+ *  - `DELETE /api/people/:personId/links/:linkId` is the kill switch;
+ *  - `GET /api/people/:personId/awaiting-grant` says which of their migrations
+ *    wait for their grant, and what it does to each when it lands
+ *    (`start-when-granted.ts`), for their page to say beside each.
  *
  * They were `link-routes.ts`'s for a migration, and are the only doors that
  * issue a link since the owner's answer of 2026-10-03 (*"yes, replace the
@@ -68,6 +71,7 @@ import { grantLinkAsk, viewLinkRefusal } from './migrations/grant-link-readiness
 import { grantReadiness, readGrantRows } from './migrations/grant-subject.ts';
 import { readPersonGrantSubject } from './migrations/person-grant-subject.ts';
 import { atTheLimit, issuePersonLinkWithinTheLimit } from './migrations/live-link-limit.ts';
+import { awaitingTheirGrant } from './migrations/start-when-granted.ts';
 
 const router = Router({ mergeParams: true });
 
@@ -266,6 +270,24 @@ router.get('/:personId/links', authenticate, async (req: AuthenticatedRequest, r
     });
   } catch (error) {
     serverFault(res, 'person_link_list_failed', "listing this person's links", error);
+  }
+});
+
+/**
+ * What waits for their grant (start when granted, per person; the owner,
+ * 2026-10-03). Any member reads it, as any member reads their links: it names
+ * migrations and what happens to them, never an account or a secret.
+ */
+router.get('/:personId/awaiting-grant', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const s = await scopedPerson(req, res);
+    if (!s) return;
+    const migrations = await withTenantDb(s.tenantId, pool(), (db) =>
+      awaitingTheirGrant(db, s.tenantId, s.personId),
+    );
+    res.json({ migrations });
+  } catch (error) {
+    serverFault(res, 'person_awaiting_grant_failed', "reading what waits for this person's grant", error);
   }
 });
 

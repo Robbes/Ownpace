@@ -20,10 +20,15 @@
  * - *Add a migration*.
  *
  * - *For {name}*: one grant link for all of their Google accounts (ADR-0035,
- *   amended 2026-09-29; 0153 T5 (b)), on managed.
+ *   amended 2026-09-29; 0153 T5 (b)), on managed;
+ * - beside a migration that waits for their grant, what the grant does to it
+ *   when it lands: it starts by itself once their move runs, or the owner
+ *   reviews and starts it, or it had run and gets its way in back (start when
+ *   granted, per person; the owner, 2026-10-03). Managed only, as their links
+ *   are. A failed read says so under the migrations, and claims nothing.
  *
  * NOT YET HERE, and said in the plan: the one-line progress on each data type
- * (0154 T2's totals), and the person's progress link (T5 (b)'s third slice).
+ * (0154 T2's totals).
  *
  * THREE READS, as on Migrations. A failed read of the people or the list is a
  * failure on screen (hard rule 9). A step whose count could not be read says
@@ -32,7 +37,7 @@
 import React from 'react';
 import { Link, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle, Plus } from 'lucide-react';
+import { AlertCircle, Clock, Plus } from 'lucide-react';
 import { leastAdvancedStage } from '@openmig/shared';
 import { mappingApi, type MappingListItem } from '../services/mapping-service.ts';
 import { fetchAttention, fetchPeople } from '../services/operating-service.ts';
@@ -44,7 +49,7 @@ import { MigrationLines, listStage } from '../components/MigrationLines.tsx';
 import { providerName } from '../components/ProviderTile.tsx';
 import { SCREENS } from './hub-screens.ts';
 import { PersonGrantLinkSection, PersonViewLinkSection } from '../components/MappingLinksPanel.tsx';
-import { personLinkApi } from '../services/grant-link-service.ts';
+import { personLinkApi, type AwaitingGrant } from '../services/grant-link-service.ts';
 import { isSelfHost } from '../services/edition.ts';
 import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
 
@@ -69,6 +74,13 @@ const STATE_TONE: Readonly<Record<StepState, string>> = {
   done: 'bg-green-50 text-green-800',
   needsYou: 'bg-amber-100 text-amber-900',
   notYet: 'bg-gray-100 text-gray-700',
+};
+
+/** What a person's grant does to a migration that waits for it, in words. */
+const ONCE_GRANTED_WORDS: Readonly<Record<AwaitingGrant['then'], StringKey>> = {
+  starts_by_itself: 'person.awaiting.startsByItself',
+  review_and_start: 'person.awaiting.reviewAndStart',
+  ran_before: 'person.awaiting.ranBefore',
 };
 
 /** The steps that count a queue, whose link to each migration carries that migration's own count. */
@@ -98,6 +110,13 @@ const Person: React.FC = () => {
   const linksQuery = useQuery({
     queryKey: ['person-links', personId],
     queryFn: () => personLinkApi.list(personId!),
+    enabled: Boolean(personId) && !isSelfHost(),
+    retry: false,
+  });
+  // Which of their migrations wait for their grant, and what it does to each.
+  const awaitingQuery = useQuery({
+    queryKey: ['person-awaiting-grant', personId],
+    queryFn: () => personLinkApi.awaiting(personId!),
     enabled: Boolean(personId) && !isSelfHost(),
     retry: false,
   });
@@ -148,6 +167,8 @@ const Person: React.FC = () => {
     ? new Map(attentionQuery.data.mappings.map((a) => [a.mappingId, a]))
     : undefined;
   const stage = leastAdvancedStage(migrations.map(listStage));
+  const awaiting = new Map((awaitingQuery.data ?? []).map((a) => [a.mappingId, a.then]));
+  const theirName = person.displayName ?? '';
   const from = names(migrations, 'sourceType');
   const to = names(migrations, 'targetType');
 
@@ -211,16 +232,25 @@ const Person: React.FC = () => {
           <p className="text-sm text-gray-500">{t('people.noneYet')}</p>
         ) : (
           migrations.map((m) => (
-            <div key={m.id} className="py-3 border-t border-gray-100 first:border-t-0">
+            <div key={m.id} data-migration={m.id} className="py-3 border-t border-gray-100 first:border-t-0">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-medium text-gray-900">{m.name}</span>
                 <Link to={`/mappings/${encodeURIComponent(m.id)}`} className="text-sm text-blue-700 hover:underline">
                   {t('person.details')} →
                 </Link>
               </div>
+              {awaiting.has(m.id) && (
+                <p data-awaiting-grant={awaiting.get(m.id)} className="mt-1 flex items-start gap-1.5 text-sm text-gray-700">
+                  <Clock className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500" aria-hidden="true" />
+                  <span>{t(ONCE_GRANTED_WORDS[awaiting.get(m.id)!], { name: theirName })}</span>
+                </p>
+              )}
               <MigrationLines migration={m} />
             </div>
           ))
+        )}
+        {awaitingQuery.isError && migrations.length > 0 && (
+          <p className="mt-2 text-sm text-gray-600">{t('person.awaiting.unread', { name: theirName })}</p>
         )}
         {!person.implicit && (
           // *Start a migration* for this person, and the four-step wizard

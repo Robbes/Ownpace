@@ -82,6 +82,19 @@ const IssuedSchema = z.object({
 });
 export type IssuedGrantLink = z.infer<typeof IssuedSchema>;
 
+/**
+ * What a person's grant does to a migration of theirs that waits for it, once
+ * it lands (start when granted, per person; the owner, 2026-10-03): it starts
+ * by itself, the owner reviews and starts it, or it had run and gets its way
+ * in back. The server's `OnceGranted`.
+ */
+export const ONCE_GRANTED = ['starts_by_itself', 'review_and_start', 'ran_before'] as const;
+const AwaitingGrantSchema = z.object({
+  mappingId: z.string(),
+  then: z.enum(ONCE_GRANTED),
+});
+export type AwaitingGrant = z.infer<typeof AwaitingGrantSchema>;
+
 export const grantLinkApi = {
   list: async (mappingId: string): Promise<GrantLink[]> => {
     const res = await apiClient.get(`/migrations/${encodeURIComponent(mappingId)}/links`);
@@ -116,5 +129,11 @@ export const personLinkApi = {
 
   revoke: async (personId: string, linkId: string): Promise<void> => {
     await apiClient.delete(`/people/${encodeURIComponent(personId)}/links/${encodeURIComponent(linkId)}`);
+  },
+
+  /** Which of their migrations wait for their grant, and what it does to each. */
+  awaiting: async (personId: string): Promise<AwaitingGrant[]> => {
+    const res = await apiClient.get(`/people/${encodeURIComponent(personId)}/awaiting-grant`);
+    return z.array(AwaitingGrantSchema).parse(res.data.migrations);
   },
 };

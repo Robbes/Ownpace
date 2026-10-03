@@ -1579,6 +1579,13 @@ const en = {
   'person.notFound': 'There is no such person here.',
   'person.loadFailed': 'Could not load this person.',
   'person.details': 'Details',
+  // A migration that waits for their grant, and what the grant does to it
+  // when it lands (start when granted, per person; the owner, 2026-10-03).
+  'person.awaiting.startsByItself':
+    'Waits for {name} to connect, then starts by itself: another migration of theirs is running.',
+  'person.awaiting.reviewAndStart': 'Waits for {name} to connect. Once they have, open Details to review and start it.',
+  'person.awaiting.ranBefore': 'Waits for {name} to connect again.',
+  'person.awaiting.unread': 'Which of these wait for {name} to connect could not be read.',
   'person.links.title': 'For {name}',
   'person.steps.title': 'Before you switch',
   'person.steps.hint': 'Each step, summed across this person’s migrations.',
@@ -4271,6 +4278,11 @@ const nl: Record<keyof typeof en, string> = {
   'person.notFound': 'Deze persoon bestaat hier niet.',
   'person.loadFailed': 'Kon deze persoon niet laden.',
   'person.details': 'Details',
+  'person.awaiting.startsByItself':
+    'Wacht tot {name} verbindt en start dan vanzelf: een andere migratie van {name} loopt al.',
+  'person.awaiting.reviewAndStart': 'Wacht tot {name} verbindt. Open daarna Details om deze te controleren en te starten.',
+  'person.awaiting.ranBefore': 'Wacht tot {name} opnieuw verbindt.',
+  'person.awaiting.unread': 'Welke hiervan wachten tot {name} verbindt, kon niet worden gelezen.',
   'person.links.title': 'Voor {name}',
   'person.steps.title': 'Voordat u overstapt',
   'person.steps.hint': 'Elke stap, opgeteld over de migraties van deze persoon.',

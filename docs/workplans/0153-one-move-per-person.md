@@ -184,6 +184,26 @@ words changed with them** (0131 §6, R8).
   at `5f74ebc`: T4 and T7 are still proposed, and no branch or open pull request of R's or M's
   touches them. 0131 §6 records the split.
 
+**2026-10-03: the person's page says what waits for their grant (T5 (b); start when granted, per
+person).** Beside each migration of theirs that waits for their grant, the page says what the
+grant does to it when it lands, by the rule that starts it:
+
+- *"Waits for Anna to connect, then starts by itself: another migration of theirs is running."*
+  when it never ran and their move runs;
+- *"Waits for Anna to connect. Once they have, open Details to review and start it."* when it
+  never ran and nothing of theirs runs;
+- *"Waits for Anna to connect again."* when it ran, and lost its way in since.
+
+`GET /api/people/:personId/awaiting-grant` answers it (`awaitingTheirGrant` in
+`start-when-granted.ts`): the migrations their link asks for that have no way in, read as the
+grant page reads them, and judged by the two questions `startWhenGranted` asks. An account two
+Google applications read is left out, as the grant page leaves it out, and so is a finished
+migration. A read that failed says so under the migrations. Managed only, as their links are.
+
+- **Proved by:** `a-link-for-a-person.unit.test.ts` (+5: each answer, a real grant that starts
+  what it said would start, what is left out, and who may read it) and `Person.unit.test.tsx`
+  (+5). Five mutations of the server's reading and three of the page each fail their cases.
+
 **2026-10-03: start when granted, per person (T5 (b); ADR-0035's amendment, decided).** The
 owner: *"Yes, but after the move was started in the first place. After preflight the start needs
 to be given at least once, the grant may arrive later."* Asked whether that holds per person or
