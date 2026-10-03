@@ -72,7 +72,7 @@ vi.mock('../permissions.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../permissions.ts')>();
   return {
     ...actual,
-    tenantInventoryScans: async () => ({
+    migrationInventoryScans: async () => ({
       delegationReason: 'Mailbox delegation is not read here.',
       scanCalendars: async () => ({ kind: 'not_discoverable' as const, reason: 'Calendars are not read here.' }),
       scanDrive: async () => {

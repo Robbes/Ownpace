@@ -2419,6 +2419,12 @@ const en = {
     'Two blind spots: mailbox FullAccess or Send-As, and OneDrive and SharePoint sharing.',
   'permissions.blindSpot.more':
     'Who had full access to a mailbox or could send as it: Microsoft does not expose that to us at all, so you have to read it out of Exchange yourself. Sharing on the two file platforms is only included when this installation was given that extra permission. The document says which of the two it actually read, and how to cover the rest.',
+  // The same line for a Google source: Drive sharing IS read, so the two
+  // blind spots are the mailbox's and the calendar's.
+  'permissions.blindSpot.google':
+    'Two blind spots: Gmail delegation and send-as, and Google Calendar sharing.',
+  'permissions.blindSpot.google.more':
+    'Who could read or send from someone’s Gmail, and who could see whose calendar: this tool does not read either from Google yet, so note them yourself in the Gmail and Google Calendar settings. Sharing on Google Drive is read, and is in the list.',
   'permissions.download': 'Get the permission list',
   'permissions.failed': 'The permission list could not be fetched.',
   // Shared addresses, on Review & confirm (workplan 0027 T4).
@@ -4764,6 +4770,10 @@ const nl: Record<keyof typeof en, string> = {
     'Twee blinde vlekken: FullAccess of Send-As op een postvak, en delen op OneDrive en SharePoint.',
   'permissions.blindSpot.more':
     'Wie volledige toegang tot een postvak had of eruit kon verzenden: Microsoft geeft ons dat helemaal niet, dat moet u zelf uit Exchange halen. Delen op de twee bestandsplatforms komt alleen mee als deze installatie die extra machtiging heeft gekregen. Het document zegt welke van de twee het werkelijk gelezen heeft, en hoe u de rest afdekt.',
+  'permissions.blindSpot.google':
+    'Twee blinde vlekken: Gmail-gemachtigden en verzenden-als, en delen in Google Agenda.',
+  'permissions.blindSpot.google.more':
+    'Wie iemands Gmail kon lezen of eruit kon verzenden, en wie wiens agenda kon zien: dit hulpmiddel leest geen van beide nog bij Google uit, dus noteer ze zelf in de instellingen van Gmail en Google Agenda. Delen op Google Drive wordt wel gelezen en staat in de lijst.',
   'permissions.download': 'Haal de rechtenlijst op',
   'permissions.failed': 'De rechtenlijst kon niet worden opgehaald.',
   'sharedAddresses.heading': 'Gevonden gedeelde adressen',

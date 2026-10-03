@@ -19,15 +19,46 @@
 
 import React from 'react';
 import { KeyRound } from 'lucide-react';
-import { useT } from '../../i18n/index.tsx';
+import { scopeFamilyOf, scopeFamilyOfConnectionKind, type ScopeFamily } from '@openmig/shared';
+import { useT, type StringKey } from '../../i18n/index.tsx';
 import { fetchPermissionReport } from '../../services/operating-service.ts';
 import { Hint } from '../Hint.tsx';
+
+/**
+ * THE BLIND SPOTS OF THIS MIGRATION'S SOURCE, not of Microsoft's whatever the
+ * source (the owner, 2026-10-03). The line named Exchange's FullAccess and
+ * Send-As and OneDrive and SharePoint on every Finish page, a Google
+ * migration's included. A source family with no line of its own gets none:
+ * the document names, at the top, what it could not read.
+ *
+ * Either vocabulary is asked: the managed edition answers with the connection
+ * kind (`o365`, `google_drive`), the appliance with the mapping file's source
+ * type (`graph-mail`, `google-drive`). The two agree on every string they
+ * share, and the only answers read here are Microsoft and Google.
+ */
+const BLIND_SPOT: Partial<Record<ScopeFamily, readonly [StringKey, StringKey]>> = {
+  microsoft: ['permissions.blindSpot', 'permissions.blindSpot.more'],
+  google: ['permissions.blindSpot.google', 'permissions.blindSpot.google.more'],
+};
+
+function blindSpotOf(sourceKind: string | undefined): readonly [StringKey, StringKey] | undefined {
+  if (!sourceKind) return undefined;
+  const family = scopeFamilyOfConnectionKind(sourceKind) ?? scopeFamilyOf(sourceKind);
+  return family ? BLIND_SPOT[family] : undefined;
+}
 
 export const PermissionsHandover: React.FC<{
   /** Which migration's mailbox to report on. */
   mappingId: string;
-}> = ({ mappingId }) => {
+  /**
+   * The migration's source, as the failures queue names it (`sourceKind`):
+   * the connection kind on managed, the source type on the appliance.
+   * Absent while it is read, and then no blind-spot line is shown.
+   */
+  sourceKind?: string | undefined;
+}> = ({ mappingId, sourceKind }) => {
   const t = useT();
+  const blindSpot = blindSpotOf(sourceKind);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState('');
 
@@ -70,7 +101,9 @@ export const PermissionsHandover: React.FC<{
       {/* Said here, not only inside the document: the one class of right that
           cannot be read at all is the one most likely to break, and somebody
           who never opens the report should still learn it. */}
-      <Hint className="mt-1" tone="caution" label="more" text={t('permissions.blindSpot')} why={t('permissions.blindSpot.more')} />
+      {blindSpot && (
+        <Hint className="mt-1" tone="caution" label="more" text={t(blindSpot[0])} why={t(blindSpot[1])} />
+      )}
       <button
         onClick={download}
         disabled={busy}
