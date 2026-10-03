@@ -15,7 +15,9 @@
  * documented; `ownpace_system` has BYPASSRLS and the grants this job's
  * statements need, and is not a superuser, workplan 0138 T3 step 2: until
  * then this was the owner's `DATABASE_URL`, a superuser, in every run),
- * evaluate each mapping's own `schedule` cron via `isSyncDue`, and trigger
+ * evaluate each mapping's own `schedule` cron via `isSyncDue` (or, while its
+ * first copy is unfinished, the 15-minute floor whatever the cron says:
+ * `FIRST_COPY_UNFINISHED`, workplan 0156 T5), and trigger
  * `run-delta-sync` for the due ones with the mapping's ENABLED domains passed
  * explicitly (the scheduler's scope_selection query — a job must never touch
  * a domain the owner did not select, the #207 lesson).
@@ -52,6 +54,7 @@ import {
   mapWithConcurrency,
   PASS_HARD_LIMIT_MS,
   PASS_RUNNING_STATES,
+  UNREAD_NOTE_PREFIX,
   setAppEventSink, setAuditExportSink,
   type DiscoveryDomain,
 } from '@openmig/shared';
@@ -119,6 +122,8 @@ interface TickRow {
   readonly running: boolean;
   /** When the oldest STALE `running` row for this mapping started, if any. */
   readonly stale_since: Date | null;
+  /** Some data type it copies has not completed a pass (`FIRST_COPY_UNFINISHED`, 0156 T5). */
+  readonly first_copy_unfinished: boolean;
 }
 
 /**
@@ -146,6 +151,91 @@ interface TickRow {
 const STALE_RUN_AFTER_MS = 2 * PASS_HARD_LIMIT_MS;
 
 /**
+ * WHETHER A MIGRATION'S FIRST COPY IS UNFINISHED (workplan 0156 T5; the owner,
+ * 2026-10-03, 0125 T8's (a)), as a SQL condition on `mailbox_mapping m`. True,
+ * and `isSyncDue` runs the migration at the floor whatever its schedule; false,
+ * and its schedule applies.
+ *
+ * The owner: *"the default frequency now seems to be 1 sync every 1 day; that
+ * might be reasonable for the free tier and after all sync was done, like as a
+ * default sync of only the new additions/changes, but not for the initial
+ * bulk."* A pass stops itself at 50 minutes, and a migration made with no
+ * schedule picked is stored as daily at 02:00, so a large first copy copied
+ * for 50 minutes a day.
+ *
+ * THE RULE: some data type this migration copies has not completed a pass.
+ * "Completed a pass" is `migration_status.completed_at`, and the reason it is
+ * the signal and not the row's `state`:
+ *
+ *  - `markCompleted` is its only writer, and it is called only by a pass that
+ *    reached the end: not one stopped at its deadline, at a ceiling, by a Pause,
+ *    or with a collection it could not list (`run-delta-sync.ts`, "A PAUSED
+ *    DOMAIN IS NOT A COMPLETED ONE"). Nothing ever clears it. So a first copy
+ *    cut short by the deadline reads empty (its `state` back at `in_progress`),
+ *    and a finished one stays set through every later pass: a later pass that
+ *    stops at its deadline, or fails, puts the state back, never this.
+ *  - Items that could not be copied do not keep it empty. A pass that parks an
+ *    item on the failure queue still reaches the end and is marked completed,
+ *    with the item counted in `itemsFailed`. So a migration whose only open
+ *    work is failed items is on its schedule, and does not run every quarter
+ *    hour for ever (the owner's condition).
+ *  - It is what the screens already call a first copy: `completedOnce` in
+ *    `stage.ts`, *copying* until a data type's `lastSyncedAt`, which is this
+ *    column renamed (`operating-contract.ts`).
+ *
+ * WHICH DATA TYPES COUNT: the ones its pass copies. Included in its scope
+ * (`scope_selection.included`, the tick's `enabledDomainsForMappings`), not
+ * stopped by its owner (0128 T4), and in a phase that runs passes (`$5`,
+ * `PASS_RUNNING_STATES`): its own path row's, or the migration's where it has
+ * none, as `readPathPhases` falls back. So a data type added later to a
+ * finished migration counts until it has been copied once (it has no status
+ * row yet, or an empty one), and one waiting to be started (`ready`, photos
+ * waiting for a Takeout export), switched off or stopped does not hold the
+ * migration at the floor for a copy no pass will make. Nor does one in or past
+ * its cutover: its grace period copies on the schedule, as it did before.
+ *
+ * TWO WAITS STAY WAITS. Each is a data type that has not completed a pass but
+ * that another pass a quarter hour later would not move:
+ *
+ *  - **A provider's daily download ceiling** (`paused_reason`, migration 0041):
+ *    counted again once its window has reset (`windowResetsAt`), so a Gmail
+ *    first copy carries on the minute its day's bytes are back, and not before.
+ *    One with no reset time (the meter could not read its window) waits for
+ *    the schedule's next pass, which clears it (`markInProgress`), rather than
+ *    have a time invented for it. Read through `pg_input_is_valid`, so a value
+ *    some other build wrote is a wait, never a cast that fails the tick for
+ *    every organisation.
+ *  - **A collection its source would not list** (`noteUnreadCollections`, 0055
+ *    T3 (e); the note begins with `$6`, `UNREAD_NOTE_PREFIX`). The pass skips it
+ *    and the data type cannot complete until the source lets go of it, which a
+ *    folder the account may not open never does. A pass does not FAIL over it,
+ *    so the failure ladder never spaces it out: the schedule is the only
+ *    spacing it has. A data type whose pass THREW still counts: that pass fails
+ *    the run, and `heldBackByFailures` widens the gap after this says due.
+ *
+ * Cheap: each read is by a unique key per data type of one migration
+ * (`scope_selection`, `path_lifecycle` on `(mapping_id, domain)`,
+ * `migration_status` on `(tenant_id, mapping_id, domain)`), at most five rows.
+ * Each one filters by the migration's organisation itself, as every read in
+ * this statement does: the system role bypasses row security.
+ */
+export const FIRST_COPY_UNFINISHED = `EXISTS (SELECT 1 FROM scope_selection s
+                LEFT JOIN path_lifecycle p
+                  ON p.tenant_id = s.tenant_id AND p.mapping_id = s.mapping_id AND p.domain = s.domain
+                LEFT JOIN migration_status ms
+                  ON ms.tenant_id = s.tenant_id AND ms.mapping_id = s.mapping_id AND ms.domain = s.domain
+                WHERE s.tenant_id = m.tenant_id AND s.mapping_id = m.id AND s.included
+                  AND p.stopped_at IS NULL
+                  AND COALESCE(p.state, m.status) = ANY($5::text[])
+                  AND ms.completed_at IS NULL
+                  AND CASE WHEN ms.paused_reason IS NULL THEN true
+                           WHEN ms.paused_reason->>'windowResetsAt' IS NULL THEN false
+                           WHEN pg_input_is_valid(ms.paused_reason->>'windowResetsAt', 'timestamptz')
+                             THEN (ms.paused_reason->>'windowResetsAt')::timestamptz <= now()
+                           ELSE false END
+                  AND NOT COALESCE(starts_with(ms.last_error, $6::text), false))`;
+
+/**
  * The mappings this tick considers, and what it believes about each.
  *
  * Exported so `a-run-row-that-outlived-its-pass.unit.test.ts` can read the two
@@ -166,7 +256,11 @@ const STALE_RUN_AFTER_MS = 2 * PASS_HARD_LIMIT_MS;
  * that needs a longer window, a new run kind, or a new lifecycle that copies,
  * cannot then leave a stale literal behind here.
  *
- * `$5` is the newest and the one that had been a literal `'active'` since the
+ * `$6` is `UNREAD_NOTE_PREFIX`, read by `FIRST_COPY_UNFINISHED` (0156 T5),
+ * which reads `$5` too, for the same reason: a data type copies in the phases
+ * its migration does.
+ *
+ * `$5` is the one that had been a literal `'active'` since the
  * beginning. It is the managed twin of the appliance's `runsPasses`, and the
  * two must not drift: a state missing from one edition's gate is a migration
  * that copies for self-host customers and stands still for managed ones,
@@ -231,7 +325,11 @@ export const ACTIVE_MAPPINGS_SQL = `SELECT m.id, m.tenant_id, m.schedule,
               -- one request per pass.
               EXISTS (SELECT 1 FROM migration_status ms
                 WHERE ms.tenant_id = m.tenant_id AND ms.mapping_id = m.id
-                  AND ms.last_error_category = ANY($2::text[])) AS any_self_healing
+                  AND ms.last_error_category = ANY($2::text[])) AS any_self_healing,
+              -- THE FIRST COPY IS NOT FINISHED (workplan 0156 T5; the owner,
+              -- 2026-10-03): isSyncDue then runs this migration at the floor,
+              -- whatever its schedule. See FIRST_COPY_UNFINISHED above.
+              ${FIRST_COPY_UNFINISHED} AS first_copy_unfinished
          FROM mailbox_mapping m
         WHERE (m.status = ANY($5::text[])
                -- A cutover copies from execute until its grace period ends
@@ -496,6 +594,7 @@ export const managedSyncTick = schedules.task({
       FAILURE_WINDOW_MINUTES,
       [...BILLABLE_RUN_KINDS],
       [...PASS_RUNNING_STATES],
+      UNREAD_NOTE_PREFIX,
     ]);
 
     let notDue = 0;
@@ -530,9 +629,14 @@ export const managedSyncTick = schedules.task({
       // Only the absent one gets a per-mapping offset, so the mappings that
       // never chose a cadence stop all firing in the same minute.
       const schedule = m.schedule ?? defaultScheduleFor(m.id);
+      // Until its first copy is finished, at the floor whatever the schedule
+      // (0156 T5): after the `running` skip above, so never beside a pass
+      // that still runs, and before the back-off and the caps below, so both
+      // still hold.
+      const facts = { firstCopyUnfinished: m.first_copy_unfinished };
       let isDue: boolean;
       try {
-        isDue = isSyncDue(schedule, m.last_started, now);
+        isDue = isSyncDue(schedule, m.last_started, now, facts);
       } catch (err) {
         // Loud, every tick, and the mapping keeps syncing on the default
         // cadence while somebody fixes the value.
@@ -541,7 +645,7 @@ export const managedSyncTick = schedules.task({
             `using the default (${DEFAULT_SYNC_SCHEDULE}) until it is fixed:`,
           err
         );
-        isDue = isSyncDue(defaultScheduleFor(m.id), m.last_started, now);
+        isDue = isSyncDue(defaultScheduleFor(m.id), m.last_started, now, facts);
       }
       if (!isDue) {
         notDue++;
@@ -642,6 +746,10 @@ export const managedSyncTick = schedules.task({
 
     const summary = {
       active: rows.length,
+      // Of those, the ones whose first copy is unfinished, so on the floor
+      // whatever their schedule (0156 T5): the number that says why a daily
+      // migration ran a pass every hour today.
+      firstCopies: rows.filter((m) => m.first_copy_unfinished).length,
       triggered,
       notDue,
       heldBack,

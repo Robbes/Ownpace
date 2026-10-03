@@ -12,7 +12,8 @@
  * The rule: a mapping is due when the cron's next firing AFTER its last run
  * started is now in the past. "Last run started" (not finished) keeps a slow
  * pass from pulling the next one earlier, and a mapping that has never run is
- * due immediately.
+ * due immediately. Until its first copy is finished, a mapping runs at the
+ * floor instead, whatever its schedule (workplan 0156 T5, `isSyncDue`).
  *
  * Throws on an invalid cron expression — the caller decides what a broken
  * schedule means (the tick logs it loudly and falls back to the default so the
@@ -71,17 +72,74 @@ function offsetFor(mappingId: string): number {
   return hash % DEFAULT_PERIOD_MINUTES;
 }
 
+/**
+ * WHAT THE TICK KNOWS BESIDE THE SCHEDULE (workplan 0156 T5).
+ *
+ * One fact today, read by the tick's own statement (`ACTIVE_MAPPINGS_SQL`'s
+ * `first_copy_unfinished`, `apps/worker/src/jobs/managed-sync-tick.ts`), which
+ * is where the rule for it is written down and tested against real rows.
+ */
+export interface DueFacts {
+  /**
+   * Some data type this migration copies has not yet completed a pass: its
+   * `migration_status.completed_at` is empty. `markCompleted` is its one
+   * writer and nothing clears it, so it is the "copied once" the stages read
+   * (`completedOnce`, `stage.ts`: *copying* until it is set).
+   */
+  readonly firstCopyUnfinished: boolean;
+}
+
+/** A migration whose every data type has completed a pass: the schedule decides. */
+const STEADY: DueFacts = { firstCopyUnfinished: false };
+
+/**
+ * Whether a migration is due a pass now.
+ *
+ * A FIRST COPY RUNS PASS AFTER PASS (workplan 0156 T5; the owner, 2026-10-03,
+ * picking 0125 T8's (a)). The owner: *"the default frequency now seems to be 1
+ * sync every 1 day; that might be reasonable for the free tier and after all
+ * sync was done, like as a default sync of only the new additions/changes, but
+ * not for the initial bulk."* A migration made with no schedule picked is
+ * stored as daily at 02:00 (the wizard's default), and a managed pass stops
+ * itself at 50 minutes (`PASS_SOFT_DEADLINE_MS`), so a large first copy on that
+ * default copied for 50 minutes a day: a 100 GB mailbox took weeks to arrive,
+ * waiting on a schedule meant for the trickle that comes after it. When 0125
+ * T8 offered the three ways out on 2026-09-28 the owner chose (c), the schedule
+ * editable on the migration page; this is (a), which he asked for now.
+ *
+ * So while `firstCopyUnfinished`, the migration is due at the floor whatever
+ * its schedule says: `SCHEDULE_FLOOR_MINUTES` after its last pass STARTED. A
+ * pass that ran its full 50 minutes is followed at the next tick after it
+ * ends, and one that ended early waits out the rest of the quarter hour. Once
+ * every data type has completed a pass the schedule applies exactly as before:
+ * daily at 02:00 then means one pass a day for what is new or changed.
+ *
+ * What this does NOT decide, and so still holds: a pass already running skips
+ * the migration in the tick (its `running` column), so two passes never run at
+ * once; a migration failing for a cause nobody but a person can clear is held
+ * back after this answers (`heldBackByFailures`, `failing-backoff.ts`); a
+ * paused, closed, withdrawn or finished migration is never enumerated at all;
+ * and the box's caps choose among the due ones (`withinCapacity`). This only
+ * moves the schedule out of the way of a first copy, never any of those.
+ *
+ * The schedule is read FIRST, also while catching up, so one croner cannot
+ * read still throws here and the tick still says so every minute (hard rule 9)
+ * instead of the first copy hiding a value that will stop the migration the
+ * day it finishes.
+ */
 export function isSyncDue(
   schedule: string | null,
   lastStartedAt: Date | null,
-  now: Date
+  now: Date,
+  facts: DueFacts = STEADY,
 ): boolean {
   if (lastStartedAt === null) return true;
   const expression = schedule ?? DEFAULT_SYNC_SCHEDULE;
   // A stored schedule faster than the floor (one written before the doors
   // refused it, 0143 T2b) runs at the floor: the next pass waits the floor
-  // after the last one started. Any other schedule is read as it was written.
-  if (shortestGapMinutes(expression) < SCHEDULE_FLOOR_MINUTES) {
+  // after the last one started. So does every schedule while the first copy
+  // is unfinished (0156 T5). Any other schedule is read as it was written.
+  if (shortestGapMinutes(expression) < SCHEDULE_FLOOR_MINUTES || facts.firstCopyUnfinished) {
     return now.getTime() - lastStartedAt.getTime() >= SCHEDULE_FLOOR_MINUTES * MINUTE_MS;
   }
   const next = new Cron(expression).nextRun(lastStartedAt);
@@ -95,6 +153,7 @@ export function isSyncDue(
  * machine sized for twenty organisations doing their first copies (0143 D1).
  * Both doors refuse a faster schedule (`refuseUnreadableSchedule` in the API's
  * migration routes), and `isSyncDue` runs one stored before that at the floor.
+ * It is also the cadence of a first copy, whatever the schedule (0156 T5).
  * The appliance's cadence is its owner's call on its owner's machine, and its
  * scheduler does not read this.
  */
