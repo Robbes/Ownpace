@@ -1,8 +1,8 @@
 # ADR-0042: Who holds the passwords — an issuer we can replace
 
-- **Status:** Accepted 2026-08-22, on the owner's condition; amended five times (latest
-  2026-10-03: an upstream provider may be an account's only way in); consolidated 2026-10-03
-  (ADR-0051)
+- **Status:** Accepted 2026-08-22, on the owner's condition; amended six times (latest
+  2026-10-03: a provider may be an account's only way in, a verified email links without a
+  prompt, and Microsoft creates no account by itself); consolidated 2026-10-03 (ADR-0051)
 - **Date:** 2026-08-22; consolidated 2026-10-03
 - **Deciders:** Owner, 2026-08-22 — accepted with a condition: *confirm* the issuer is
   replaceable rather than assert it (*Decision* 4)
@@ -30,13 +30,14 @@
   tenancy model, no issuer-side roles. Guards:
   `apps/api/src/middleware/no-issuer-lock-in.unit.test.ts`, `issuer-is-replaceable.unit.test.ts`.
 - **`tenant_member.user_id` IS the token's `sub`; email is a label.** A new `sub` orphans the
-  membership, so linking is decided before a second method is offered. A provider may be an
-  account's only method (owner, 2026-10-03). What is not held: *Decision* 3. **Federation belongs
-  in the issuer**: `scripts/a-second-door-with-the-linking-decided.unit.test.ts`.
+  membership, so linking is decided before a second method is offered: a verified email links
+  unprompted; Microsoft creates no account by itself; a provider may be an account's only method
+  (owner, 2026-10-03). **Federation belongs in the issuer**:
+  `scripts/a-second-door-with-the-linking-decided.unit.test.ts`.
 - **Every endpoint is DISCOVERED, never composed**: `jwks_uri` by the API; `authorization_endpoint`,
   `token_endpoint` and `end_session_endpoint` by the browser, a **PUBLIC client, no secret**,
-  whose PKCE verifier (S256) never leaves the tab that minted it. A document naming
-  another `issuer` is refused (OIDC Discovery §4.3); `JWT_JWKS_URI` is the escape hatch:
+  whose PKCE verifier (S256) never leaves its tab. A document naming another `issuer` is
+  refused; `JWT_JWKS_URI` is the escape hatch:
   `issuer-is-replaceable.unit.test.ts`, `oidc.unit.test.ts`.
 - **Zitadel is the accepted issuer**, self-hosted on the managed Postgres. Pinned by version;
   upgrades are deliberate, never automatic (`scripts/a-pin-that-knows-it-is-behind.unit.test.ts`).
@@ -102,15 +103,21 @@ organisation their new subject cannot reach, and the API answers 403 on every ro
 - **Changing an address inside an account is safe**, and the label follows: `GET /api/me`
   reconciles `tenant_member.email` to the verified claim on rows already carrying the subject
   (`a-label-that-follows-the-claim.unit.test.ts`).
-- **Account linking is decided before a second sign-in method is offered**: a prompt on a verified
-  email match, never a silent merge (owner, 2026-08-25; workplan 0102 T2). **Not held, and the
-  owner's to resolve:** read in the pinned Zitadel's own code (v4.19.2, login v1, which this stack
-  runs), `autoLinking: EMAIL` links a single verified-email match directly, with no page asking
-  first, though `setup-zitadel.sh`'s comment and workplan 0102 describe a prompt. And a Microsoft
-  address arrives unverified on purpose (`emailVerified: false`, so that it cannot answer somebody
-  else's invitation), so it is never matched, and with creation on, a person who already has a
-  password and signs in with Microsoft can be given a second account. Not yet seen on a running
-  instance.
+- **Account linking is decided before a second sign-in method is offered** (owner, 2026-08-25;
+  workplan 0102 T2), and **a verified email that matches links without a prompt** (owner,
+  2026-10-03, taking the recommendation). The pinned Zitadel (v4.19.2, login v1, which this stack
+  runs) links a single verified-email match directly (`autoLinking: EMAIL`); when several accounts
+  match, nothing is linked. Whoever controls that address could already reset the account's
+  password through it, so a prompt would protect nothing, and a prompt needs automatic linking off,
+  after which a person who chose *create* would hold two accounts.
+- **A Microsoft sign-in creates no account by itself** (owner, 2026-10-03). A Microsoft address
+  arrives unverified on purpose (`emailVerified: false`, so that it cannot answer somebody else's
+  invitation), so it never matches, and with automatic creation a person who already had a
+  password and signed in with Microsoft was given a second account. Now Zitadel asks them to link
+  to the account they have or to create one (`IDP_OPTIONS_MICROSOFT` in `setup-zitadel.sh`, pinned
+  by `a-second-door-with-the-linking-decided.unit.test.ts`). The script does not update a provider
+  that already exists, so an existing Microsoft provider is changed in the console. Google keeps
+  automatic creation: its verified addresses match.
 - **An upstream provider may be an account's only sign-in method** (owner, 2026-10-03: *"we still
   allow login with Google. People on Google might still use their account in for example Android,
   while still leaving drive."*). Leaving Google Drive is not leaving the Google account, so
@@ -274,6 +281,11 @@ with Google. People on Google might still use their account in for example Andro
 leaving drive."* **Allowing it, but forcing a password after the first sign-in** was not
 available: the pinned Zitadel skips the password and passkey steps after an upstream sign-in.
 
+**A prompt before a verified email is linked** (the rule of 2026-08-25, never held by the pinned
+Zitadel). Set aside on 2026-10-03: it adds nothing that control of the address does not already
+give, and the way to get it, automatic linking off, lets a person create a second account where
+they meant to link.
+
 ## Amendment log
 
 - **2026-08-22** — Accepted the day it was proposed, on the condition that the issuer's
@@ -307,6 +319,9 @@ available: the pinned Zitadel skips the password and passkey steps after an upst
   the rule of 2026-08-25. The same reading found the linking prompt of 2026-08-25 not held by the
   pinned Zitadel, and Microsoft's unverified addresses able to make a second account; both the
   owner's to resolve. Record: *Decision* 3, and *Alternatives considered*.
+- **2026-10-03, last** — A verified email links without a prompt, and a Microsoft sign-in creates
+  no account by itself (owner: *"recommended"*); `setup-zitadel.sh` gives Microsoft its own
+  options. Record: *Decision* 3, and *Alternatives considered*.
 
 The full record, word for word as it read before this consolidation:
 [history/0042-who-holds-the-passwords.md](./history/0042-who-holds-the-passwords.md).

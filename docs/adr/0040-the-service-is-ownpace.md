@@ -3,7 +3,8 @@
 - **Status:** Accepted 2026-08-20 — owner decision in conversation ("Ok, i picked ownpace.eu"),
   closing the naming question opened by [ADR-0039](./0039-no-open-core-and-what-ops-privacy-means.md)'s
   finding that the trademark is the mission-compatible moat; updated three times the same day;
-  amended once since (2026-10-03: who owns the mark, and the cosign regexp).
+  amended once since (2026-10-03: who owns the mark, the EU filing, no backup brand, and the cosign
+  regexp).
 - **Date:** 2026-08-20
 - **Deciders:** owner
 - **Relates to:** [ADR-0001](./0001-license-apache-2.0.md) (Apache-2.0 §6 grants no trade-mark
@@ -62,9 +63,9 @@
 - **The mark is Archico B.V.'s; the copyright stays The Ownpace authors'** (owner, 2026-10-03).
   `NOTICE` names the owner `TRADEMARK.md` names, claims no registration (no `®`), and states what
   needs **no** permission as explicitly as what does: `scripts/notice-and-trademark.unit.test.ts`.
-- **Still OPEN, the owner's, not to be inferred:** whether to file an EUTM (`TRADEMARK.md` says
-  an EU application follows), and whether the post-cutover backup gets its own brand (ADR-0014
-  sells no separate backup).
+- **An EU application follows the Benelux one**, after the two searches *The trade-mark check*
+  names; **the post-cutover backup has no brand of its own**, being the continuous lane of
+  ADR-0014 (owner, 2026-10-03: *"yes"*).
 
 ## Context
 
@@ -216,6 +217,13 @@ read `^https://github\.com/Robbes/(open-migrate|ownpace|Ownpace)/` now, and
 both identities and against lookalikes. `CHANGELOG.md`'s `v0.1.0-rc.1` entry keeps the old identity:
 that release was signed under it.
 
+**The two items still open, closed the same day.** Asked whether an EU filing goes ahead, as
+`TRADEMARK.md` already said it would, and whether the post-cutover backup could be closed as
+needing no brand of its own, the owner answered *"yes"*. The EU application follows the Benelux
+one, and the two searches *The trade-mark check* says no `contains` search covers ("Own Pace", and
+the phonetic and visual neighbours) run before it is filed. There is no backup product to brand:
+keeping copying after cutover is ADR-0014's continuous lane, a part of Ownpace, priced as a path.
+
 ## Amendment log
 
 - **2026-08-20** — The owner extended the decision: the repository and every copyright header take
@@ -231,3 +239,6 @@ that release was signed under it.
   The Ownpace authors (owner: *"A, split the two"*). The cosign identity regexp accepts both
   repository names again, under a guard. Record: *Amendment 2026-10-03 — who owns the mark, and a
   regexp a rename broke*.
+- **2026-10-03, last** — The EU application follows the Benelux one, and the post-cutover backup
+  has no brand of its own (owner: *"yes"*); nothing is left open. Record: the same amendment, *The
+  two items still open, closed the same day*.

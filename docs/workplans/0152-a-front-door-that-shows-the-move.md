@@ -4,6 +4,13 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-10-03, later: the amendment is accepted, and a year is credit** (the owner, after *"the
+pricing model doesn't have setup costs anymore"*: *"a"*). Question 2 is answered (a): a year is
+credit at six months' price, and each month takes its own tier at half its monthly price. The
+acceptance T6 (d)–(f) and T7 were waiting for is given; what they still wait on is 0111's yearly
+invoice. The list comes into force with T6 (d)'s pull request, which changes ADR-0014's table,
+`site/prices.mjs` and the managed code together.
+
 **2026-10-03: the owner answered the amendment's top-up question: (b)** (*"Take b"*). Top-ups
 stay, at the tier's monthly price, once. The year question is still open, and the amendment still
 waits for acceptance; the answer is recorded in ADR-0014's *Pending* section. The rules in force

@@ -111,8 +111,8 @@ live in [README.md](./README.md), the register.
 - **What a customer is told, and what we will not do, are rules** (*Decision*): every price
   published; *Start* warns when the preflight will not fit; no per-GB, compute or per-path
   figure; no billing past 12 months unconfirmed. *"No profit" STANDS*.
-- **Pending (proposed 2026-09-29, not in force):** Free replaces Tiny, no setup fees, a year at
-  six months' price, and the price pays for the work (0152 D9–D12).
+- **Pending (accepted 2026-10-03; in force once built, 0152 T6 (d)):** Free replaces Tiny, no
+  setup fees, a year at six months' price; the price pays for the work.
 
 ## [ADR-0015: Backup scope — stack DR vs end-user data vs optional extra backup](./0015-backup-scope.md)
 
@@ -397,9 +397,9 @@ live in [README.md](./README.md), the register.
 - **The mark is Archico B.V.'s; the copyright stays The Ownpace authors'** (owner, 2026-10-03).
   `NOTICE` names the owner `TRADEMARK.md` names, claims no registration (no `®`), and states what
   needs **no** permission as explicitly as what does: `scripts/notice-and-trademark.unit.test.ts`.
-- **Still OPEN, the owner's, not to be inferred:** whether to file an EUTM (`TRADEMARK.md` says
-  an EU application follows), and whether the post-cutover backup gets its own brand (ADR-0014
-  sells no separate backup).
+- **An EU application follows the Benelux one**, after the two searches *The trade-mark check*
+  names; **the post-cutover backup has no brand of its own**, being the continuous lane of
+  ADR-0014 (owner, 2026-10-03: *"yes"*).
 
 ## [ADR-0041: Who owns the OAuth client — the managed edition brings its own, the appliance never does](./0041-who-owns-the-oauth-client.md)
 
@@ -446,13 +446,14 @@ live in [README.md](./README.md), the register.
   tenancy model, no issuer-side roles. Guards:
   `apps/api/src/middleware/no-issuer-lock-in.unit.test.ts`, `issuer-is-replaceable.unit.test.ts`.
 - **`tenant_member.user_id` IS the token's `sub`; email is a label.** A new `sub` orphans the
-  membership, so linking is decided before a second method is offered. A provider may be an
-  account's only method (owner, 2026-10-03). What is not held: *Decision* 3. **Federation belongs
-  in the issuer**: `scripts/a-second-door-with-the-linking-decided.unit.test.ts`.
+  membership, so linking is decided before a second method is offered: a verified email links
+  unprompted; Microsoft creates no account by itself; a provider may be an account's only method
+  (owner, 2026-10-03). **Federation belongs in the issuer**:
+  `scripts/a-second-door-with-the-linking-decided.unit.test.ts`.
 - **Every endpoint is DISCOVERED, never composed**: `jwks_uri` by the API; `authorization_endpoint`,
   `token_endpoint` and `end_session_endpoint` by the browser, a **PUBLIC client, no secret**,
-  whose PKCE verifier (S256) never leaves the tab that minted it. A document naming
-  another `issuer` is refused (OIDC Discovery §4.3); `JWT_JWKS_URI` is the escape hatch:
+  whose PKCE verifier (S256) never leaves its tab. A document naming another `issuer` is
+  refused; `JWT_JWKS_URI` is the escape hatch:
   `issuer-is-replaceable.unit.test.ts`, `oidc.unit.test.ts`.
 - **Zitadel is the accepted issuer**, self-hosted on the managed Postgres. Pinned by version;
   upgrades are deliberate, never automatic (`scripts/a-pin-that-knows-it-is-behind.unit.test.ts`).

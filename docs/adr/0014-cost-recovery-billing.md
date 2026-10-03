@@ -1,7 +1,8 @@
 # ADR-0014: Cost-recovery billing for the managed edition
 
-- **Status:** Accepted 2026-06-20; amended six times and retitled once (latest 2026-10-03); one
-  amendment proposed 2026-09-29, not in force; consolidated 2026-10-03 (ADR-0051)
+- **Status:** Accepted 2026-06-20; amended six times and retitled once (latest 2026-10-03); the
+  price list proposed 2026-09-29 accepted 2026-10-03, in force once built (0152 T6 (d));
+  consolidated 2026-10-03 (ADR-0051)
 - **Date:** 2026-06-20; consolidated 2026-10-03
 - **Deciders:** owner
 - **Relates to:** [ADR-0029](./0029-public-site-is-server-rendered-and-legible.md) (the public
@@ -48,8 +49,8 @@
 - **What a customer is told, and what we will not do, are rules** (*Decision*): every price
   published; *Start* warns when the preflight will not fit; no per-GB, compute or per-path
   figure; no billing past 12 months unconfirmed. *"No profit" STANDS*.
-- **Pending (proposed 2026-09-29, not in force):** Free replaces Tiny, no setup fees, a year at
-  six months' price, and the price pays for the work (0152 D9–D12).
+- **Pending (accepted 2026-10-03; in force once built, 0152 T6 (d)):** Free replaces Tiny, no
+  setup fees, a year at six months' price; the price pays for the work.
 
 ## Context
 
@@ -435,10 +436,11 @@ hold, and with them that screen says when the ceiling is reached, what waits, an
 None of the preflight's warning is built either: neither the Start step nor the start door reads
 the tier, the meter or the preflight today, and the calculator quotes only the bigger tier.
 
-## Pending — Free, a year at the price of six months, no setup fees, and the price pays for the work (proposed 2026-09-29, 0152 D9–D12; not in force)
+## Pending — Free, a year at the price of six months, no setup fees, and the price pays for the work (proposed 2026-09-29, 0152 D9–D12; accepted 2026-10-03, not in force until built)
 
-<!-- The record's text, word for word. On acceptance (ADR-0051): fold it into the Decision and
-     the operative rules, remove the Pending bullet and this section, and log the acceptance. -->
+<!-- The record's text, word for word, then the owner's answers. When it comes into force with
+     0152 T6 (d)'s pull request (ADR-0051): fold it into the Decision and the operative rules,
+     remove the Pending bullet and this section, and log it. -->
 
 **Status: proposed, for the owner's acceptance.** Nothing in the operative rules above changes
 until the owner accepts it. The price guards (`site/site.unit.test.ts`,
@@ -544,6 +546,15 @@ monthly price, once. *Tiers buy lanes; top-ups buy room* stays, with its own lin
 on the invoice, and the warning at 80% and the hold at the ceiling (*Amendment 2026-10-03*,
 above) still offer it beside the step up. Question 2 is still open.
 
+**Accepted 2026-10-03, with question 2 answered (a).** The owner had said *"the pricing model
+doesn't have setup costs anymore"*; asked whether that accepts this list, and which answer to
+question 2, the owner answered *"a"*. So a year is credit at six months' price: each month takes
+its own tier at half its monthly price, finishing paths still lowers what a month costs, and what
+is left is refunded on stopping or carried into the next year. **It is not in force yet.** As the
+status above says, the operative table changes together with `site/prices.mjs` and the managed
+code in 0152 T6 (d)'s pull request, because the price guards read it; until then the operative
+rules above are the prices the site quotes, and nothing is charged during the Alpha either way.
+
 **What follows once accepted:**
 
 - **The operative rules**, amended in place, and `OPERATIVE.md` regenerated
@@ -597,6 +608,9 @@ above) still offer it beside the step up. Question 2 is still open.
 - **2026-10-03, later still** — The pending proposal's question 1 answered: (b), a top-up costs the
   tier's monthly price, once (owner). The proposal is still not in force, and its question 2 is
   open. Its text: *Pending*.
+- **2026-10-03, last** — The price list of 2026-09-29 accepted, with its question 2 answered (a): a
+  year is credit at six months' price (owner: *"a"*). In force once 0152 T6 (d) builds it. Its
+  text: *Pending*.
 
 The full record, word for word as it read before this consolidation:
 [history/0014-cost-recovery-billing.md](./history/0014-cost-recovery-billing.md).

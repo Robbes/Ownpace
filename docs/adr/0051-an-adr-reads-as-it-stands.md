@@ -100,8 +100,10 @@ A change the owner has decided on but that is not in force yet — usually becau
 change with it — is one `- **Pending (proposed YYYY-MM-DD, not in force):** …` bullet in the
 operative section **and** a `## Pending — …` section holding its text in the same file. The test
 holds the two together in both directions: no proposal hidden in the body, no stale bullet after
-acceptance. On acceptance the text is folded into the decision and the rules, the section and the
-bullet go, and the acceptance gets a line in the amendment log.
+it comes into force. It comes into force when it is accepted and, where code changes with it,
+built: then the text is folded into the decision and the rules, the section and the bullet go,
+and the change gets a line in the amendment log. Until then an accepted change stays *Pending*,
+with its acceptance written into its section.
 
 ### 5. Consolidation in place
 
