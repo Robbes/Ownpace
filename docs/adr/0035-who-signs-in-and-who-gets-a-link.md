@@ -34,7 +34,8 @@
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
 - **Owners sign in; migrated people get links, not accounts** — and the owner decides who gets a link to manage and **grant** their own migration (restated 2026-08-19).
-- **The link is per person** (owner, 2026-09-29; ADR-0050's person): one grant link and one progress link for all of a person's migrations, a grant asked and bound per Google account, and covering only the migrations the page showed. Built by workplan 0153 T5 (b); until then links are per migration, and a per-migration link already sent is honoured until it expires.
+- **The link is per person** (owner, 2026-09-29; ADR-0050's person): one grant link and one progress link for all of a person's migrations, a grant asked and bound per Google account, and covering only the migrations the page showed. Built by workplan 0153 T5 (b).
+- **It replaces the per-migration link** (owner, 2026-10-03): no migration's page issues one any more. A per-migration link already sent is honoured until it expires, listed on the migration's page and revocable there, and a migration that belongs to nobody is given a person first (*Who is this for?*).
 - Only the migrated person holds their own source credential, never the organisation; admins see their whole family/organisation's progress.
 - `tenant_member` rows sign in; mappings get links. Organisation-held credentials (Box CCG, app-only Graph, DWD) **cannot be narrowed** — stated, not hidden.
 - Formally accepted 2026-09-20 (owner: "yes on all 3"); the 1/7/30-day link expiry presets stand.
@@ -329,6 +330,7 @@ private option and depart from ADR-0014 without saying so.
 *"yes, a per-person link instead of the per-migration links. Perhapse replace it, or do we still
 need the per-migration-link?"* The first sentence is the decision. The question after it is
 answered below as a recommendation, marked **(proposed)** where it waits for the owner's word.
+On 2026-10-03 the owner answered it: *"yes, replace the per-migration links"*.
 
 ### Why
 
@@ -374,7 +376,10 @@ copy-link"*.
   a purpose, an expiry, used and revoked, and the same row security, including a link seeing only
   itself. The appliance has one implicit person and no grant links; nothing there changes.
 
-### What the question after the decision is answered with (proposed)
+### What the question after the decision is answered with (decided 2026-10-03)
+
+The owner: *"yes, replace the per-migration links"*. The three points below were the proposal it
+answers, and stand as written.
 
 - **Replace, as the one link that is issued.** Neither the migration's page nor *Start a
   migration* issues a per-migration link once the person's link is built.

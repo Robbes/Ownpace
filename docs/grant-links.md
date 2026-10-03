@@ -8,20 +8,43 @@ needs a credential for that mailbox, and the two obvious ways to get one are bot
 for their password, or sitting beside them while they sign in and copying a token out of a
 browser. Both put one person's private credential through another person's hands. A link
 removes the middle: they sign in on Google's own page, and what comes back is stored against
-that one migration, encrypted, never shown to anyone.
+their migrations that read that account, encrypted, never shown to anyone.
 
 **You send the link. We never do.** Ownpace does not email it, does not store the recipient's
 address, and does not know who you sent it to. That is deliberate: an address we never learn is
 an address we cannot leak, and you already know who the person is.
 
+**One link per person.** A link is made for a person, not for a migration: one grant link for all
+of their migrations, which asks each Google account of theirs once, and one progress link where
+they follow all of them (ADR-0035, amended 2026-09-29). A migration's page makes no link of its
+own any more (the owner, 2026-10-03). A migration's link sent before then keeps working until it
+expires: see [Links sent before](#links-sent-before).
+
 ## Issuing one
 
-On the migration's page, under **Grant links**:
+On the person's page (open them from **Migrations**), in the section with their name (**For
+Anna**, say), under **One grant link for everything**:
 
 1. Choose how long the link should work — **1 day**, **7 days** or **30 days**. Seven is
    pre-filled. Pick the shortest one that gives the person a fair chance to get to it.
 2. Press **Create grant link**.
 3. Copy the link and send it, however you normally reach that person.
+
+*Start a migration* offers the same link on its last screen when the person connects their own
+accounts (**They do, with a link**). It is one link either way, however many migrations it
+serves.
+
+**When every account of theirs is connected already**, the new link asks each of them to connect
+again, and the screen says so. Make one when a connection has stopped working: the person took
+the access back at Google, or it lapsed, or it expired, as Google's access does after seven days
+while a Google application is still in testing. Their page then offers each account **Connect
+again with Google as** *that account*, and the link is spent once each has been connected through
+it.
+
+**A migration that belongs to nobody**, made before people were or by hand, is given a person
+first. On the migration's page, under **Links**, answer **Who is this for?**: choose somebody,
+or **Someone new** with their name, and press **Save**. The section then points to their page,
+where the link is made.
 
 **If they open it inside another app.** A link tapped in a chat or mail app opens in that app's
 own browser, and Google is reported to refuse its sign-in there. The page says what to do,
@@ -46,10 +69,12 @@ will sit in a shared channel afterwards.
 ### If issuing refuses
 
 The button refuses rather than handing out a link that would fail in somebody else's browser.
-Each refusal names what to fix:
+A person's link is refused only when none of their migrations can be granted through it. It then
+gives each migration's reason, once each, and each names what to fix:
 
 | It says | What to do |
 |---|---|
+| The person has no migrations yet | Add one first. |
 | The migration has no source connection yet | Finish setting up the source first. |
 | The source is not a Google account | Grant links cover a Google account, Gmail, Google Calendar, Google Contacts and Google Drive today. For other sources, the credential still comes to you by hand. |
 | The migration names no account | A grant is only accepted from the Google account the migration reads (see below), so a migration that names none cannot be granted. The account is set when a migration is created: create it again with the account's address. |
@@ -66,13 +91,15 @@ On the managed service, an organisation may hold as many grant links that can st
 its tier runs migrations at the same time: Tiny 1, Small 4, Medium 20, Large 50, Extra large
 200. The tier is the one your usage screen shows, so an organisation running more migrations
 gets more links as it grows. Only live links count: a link that was used, revoked or has expired
-does not, and a progress link never does, since it grants nothing. When you need more at once,
+does not, and a progress link never does, since it grants nothing. A person's link counts once,
+whatever it covers, and a migration's link sent before counts while it is live. When you need more at once,
 for an onboarding week say, ask us: we can set another number for your organisation, until a
 date or for good.
 
 ## What the other person sees
 
-Before any button, the page tells them:
+The page says who is asking once, then shows a card for each Google account their migrations
+read. Before any button, it tells them:
 
 - **who is asking** — your organisation, by name, and the address **you** sign in to Ownpace
   with, so they know which person is asking and not only which organisation. If your
@@ -80,13 +107,14 @@ Before any button, the page tells them:
   really you. And if your invoice details carry a business VAT number that the EU VAT register
   (VIES) confirmed, they see your company's name as the register gives it: the one name on the
   page nobody typed for it;
-- **from which account, and to where** — the account the migration reads, and its destination:
-  which kind of server, where it is, and the account on it. Then one question: *do you know
-  who asked, and is the destination yours or your organisation's? Only then continue.* This
+- **from which account, and to where** — the account each card is for, and where each of its
+  migrations goes: which kind of server, where it is, and the account on it. Then one question:
+  *do you know who asked, and is the destination yours or your organisation's? Only then
+  continue.* This
   is what lets somebody tell your migration from a stranger's, because everything else they
   see is genuine either way — this page, and Google's own;
-- **what will be read** — their mail, calendars, contacts, tasks or files, in plain words; for a
-  Google account, exactly the data types the migration copies;
+- **what will be read** — their mail, calendars, contacts, tasks or files, in plain words: exactly
+  the data types each migration copies;
 - **that Ownpace only reads** — nothing is ever deleted or changed in their account, and nobody
   sees their password, because they sign in on Google's own page. For mail, calendars and
   contacts it also says that Google may describe the permission more broadly, because the
@@ -99,12 +127,20 @@ Before any button, the page tells them:
   Google says which it was (below);
 - **the exact permission** Google will record, so they can find it again in their own account;
 - **how long the link works**;
-- **which account to sign in with**: the one the migration reads, and that any other is refused;
+- **which account to sign in with**: the one the card names, and that any other is refused;
 - the privacy policy and terms, before they go anywhere.
 
-Then one button. When they press it they go to Google, sign in, and land back on a page that
-says it is done. **That page contains no token and asks nothing else of them.** They can close
-it and get on with their day.
+Then a button on each card, **Continue with Google as** *that account*. When they press it they
+go to Google, sign in, and land back on a page that says it is done. **That page contains no
+token and asks nothing else of them.** They can close it and get on with their day. A card whose
+account is connected already says **Connected** instead, and the link is spent once every account
+on it is. On a link made to ask again, a connected account's card says it was connected before
+and offers **Connect again with Google as** *that account*. A card that cannot be asked, such as
+one whose migrations run through two different Google applications, says why instead of offering
+the button, in words they can pass on to you.
+
+A migration a link cannot serve, such as one reading a Microsoft account, is left off the page:
+its credential still comes to you by hand.
 
 That page judges the permission Google actually recorded, not the one the link asked for. It
 calls the access read-only only when every permission Google recorded is the read-only one for
@@ -123,8 +159,8 @@ page opened inside another app may not keep a bookmark.
 
 ### Only the account the page names
 
-The account the page shows under **From** is a condition, not a label. Google tells Ownpace
-which account signed in, and access is accepted only from that one. So a link forwarded to
+The account a card names is a condition, not a label. Google tells Ownpace which account signed
+in, and access is accepted only from that one. So a link forwarded to
 somebody else, or opened in a browser signed in to the wrong account, connects nothing. Google
 offers the named account first, so the wrong one is rarely picked by accident.
 
@@ -148,8 +184,9 @@ migration's account cannot be changed afterwards, so create it again with that a
 
 Under that question, the page offers **Report this link** (workplan 0108 T8 (d)). A report goes to
 whoever runs your Ownpace, **not to you**: what the person wrote, an address to reply to if they
-want an answer, and which link it was, so they can find the migration and who issued the link. The progress page offers the
-same, for somebody who granted and then had doubts. It appears only where the service has a
+want an answer, and which link it was, so they can find the person, each of their migrations and
+who issued the link. The progress page offers the same, for somebody who granted and then had
+doubts. It appears only where the service has a
 helpdesk set up.
 
 A report changes nothing by itself. The link keeps working until you revoke it, and nothing is
@@ -157,10 +194,12 @@ read unless the person grants. Whoever runs your Ownpace may ask you about it.
 
 ## Managing them afterwards
 
-The list under **Grant links** shows every link for the migration and what became of it:
+The list under **One grant link for everything**, on the person's page, shows every link made for
+them and what became of it:
 
 - **Live** — it works, and nobody has used it yet.
-- **Granted** — somebody connected the account with it. It is spent and cannot be used again.
+- **Granted** — every account it asked for was connected with it. It is spent and cannot be used
+  again.
 - **Revoked** — you switched it off.
 - **Expired unused** — it ran out before anybody got to it. This is the one to act on: somebody
   was asked and never managed to answer. Issue another and send it again.
@@ -171,26 +210,27 @@ that record.
 
 **Revoke** switches a link off immediately. It stops a sign-in that is already in progress too,
 not only future ones — so if you think a link went to the wrong place, revoke it first and ask
-questions afterwards. Deleting the migration removes its links with it.
+questions afterwards. Deleting the person removes their links with them.
 
 Revoking a link does **not** withdraw access somebody already granted. Those are two different
 things, held by two different people, and that is the point:
 
 | To stop | Who does it | Where |
 |---|---|---|
-| a link being used | you | the migration's Grant links list |
-| access already granted | the person who granted it | their progress page (**Withdraw access**), or their Google account's security settings, under the apps that have access |
+| a link being used | you | the person's page (a link sent before: the migration's page) |
+| access already granted | the person who granted it | their progress page (**Withdraw access**, per Google account), or their Google account's security settings, under the apps that have access |
 | everything, permanently | you | delete the migration |
 
 ### When the person takes their access back
 
-The progress page the person gets once they have granted offers **Withdraw access**, with one
-question before it acts (workplan 0108 T8 (c)). Pressing it:
+The progress page the person gets once they have granted offers **Withdraw access** for each
+Google account, with one question before it acts (workplan 0108 T8 (c)). Pressing it:
 
 1. asks Google to revoke the grant. Google takes back everything that person allowed the
    application, at once, so any other migration of the same account through the same application
    stops too; the page says so before the button;
-2. deletes the grant here, **whatever Google answered**, and records it;
+2. deletes the grant here from every migration of theirs that holds it, **whatever Google
+   answered**, and records it for each;
 3. tells them which of the two happened. When Google did not confirm, they are sent to remove the
    app from their Google account themselves.
 
@@ -201,8 +241,8 @@ even where the source connection has a credential of its own: the person said no
 and falling back to another way in would read them anyway. Your migration's page says it at the
 top.
 
-To continue, if they agree, create a new grant link and send it to them. Their new grant ends the
-withdrawal. What was already copied stays where it was copied to.
+To continue, if they agree, make a new grant link on their page and send it to them. Their new
+grant ends the withdrawal. What was already copied stays where it was copied to.
 
 ## When Google's side does not finish
 
@@ -253,9 +293,24 @@ up with an account, a sign-in and a role. A grant link is the opposite: the pers
 an account, never signs in to Ownpace, and never appears in your member list. They are being
 migrated, not hired.
 
-**It is not a progress page.** A grant link is for one thing — connecting an account — and it is
-spent the moment that happens. Somebody wanting to watch how their migration is going is a
-different question, answered by a separate **view link**, issued from the same links panel on the
-migration's page. It lives longer and can be revoked, and it shows counts and states — never
-content, and never the provider's error text. It is how the person being migrated follows their
-own migration without an account or a place in your member list.
+**It is not a progress page.** A grant link is for one thing — connecting accounts — and it is
+spent the moment that is done. Somebody wanting to watch how their migrations are going is a
+different question, answered by a separate **progress link**: the page after Google hands them
+one, and you can make another on their page, under **One progress link for everything**. It lives
+longer and can be revoked, and it shows counts and states — never content, and never the
+provider's error text. It is how the person being migrated follows their own migrations without
+an account or a place in your member list.
+
+## Links sent before
+
+Before links were made per person, each migration's page made its own. One sent then keeps
+working until it expires, so whoever holds it is not left with a link that fails. The
+migration's page lists them under **Grant links sent before** and **Progress links sent before**,
+with their states, and **Revoke** there stops one sooner. None is made there any more.
+
+A grant made through one is stored as it always was. The page it ends on is the person's
+progress page when the migration belongs to somebody, since that is the one page for all of
+their migrations; a migration that belongs to nobody hands over its own, as before.
+
+A request to make one at the old address, `POST /api/migrations/{mappingId}/links`, is answered
+`409 links_are_per_person`, with the person's id when the migration has one. Nothing is written.

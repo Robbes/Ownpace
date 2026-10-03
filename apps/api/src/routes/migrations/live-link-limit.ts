@@ -17,7 +17,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { countLiveGrantLinks, issueMappingLink } from '@openmig/ledger';
+import { countLiveGrantLinks } from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger/db';
 import {
   countLivePersonGrantLinks,
@@ -27,26 +27,28 @@ import {
   type LiveLinkLimit,
 } from '@openmig/managed';
 
-/** What issuing came to: a link, or the organisation at its limit and nothing written. */
-export type IssueOutcome =
-  | { readonly kind: 'issued'; readonly issued: Awaited<ReturnType<typeof issueMappingLink>> }
-  | { readonly kind: 'at_the_limit'; readonly live: number; readonly allowed: LiveLinkLimit };
-
 /**
- * Every grant link an organisation holds that can still be used: a
- * migration's (the ledger's `mapping_link`) and a person's (managed
- * `person_link`, ADR-0035's amendment of 2026-09-29). A person's counts once,
- * whatever number of migrations it covers. Read under the lock below, so both
- * kinds of issue wait for each other.
+ * Every grant link an organisation holds that can still be used: a person's
+ * (managed `person_link`, ADR-0035's amendment of 2026-09-29), and a
+ * migration's (the ledger's `mapping_link`) sent before the person's replaced
+ * it (the owner, 2026-10-03), which is honoured, and counted, until it
+ * expires. A person's counts once, whatever number of migrations it covers.
+ * Read under the lock below.
  */
 export async function liveGrantLinks(db: PgDatabase, tenantId: string): Promise<number> {
   return (await countLiveGrantLinks(db, tenantId)) + (await countLivePersonGrantLinks(db, tenantId));
 }
 
+/** What issuing came to: a link, or the organisation at its limit and nothing written. */
+export type PersonIssueOutcome =
+  | { readonly kind: 'issued'; readonly issued: Awaited<ReturnType<typeof issuePersonLink>> }
+  | { readonly kind: 'at_the_limit'; readonly live: number; readonly allowed: LiveLinkLimit };
+
 /**
- * Mint a link in the organisation's own transaction: a grant link only while
- * the organisation holds fewer live ones than it may (0108 T8 (d)), a progress
- * link always.
+ * Mint a person's link in the organisation's own transaction: a grant link
+ * only while the organisation holds fewer live ones than it may (0108 T8 (d)),
+ * a progress link always. Since the owner's answer of 2026-10-03 it is the one
+ * link issued (ADR-0035, amended 2026-09-29).
  *
  * The limit is held in the transaction that writes, one issue at a time per
  * organisation: the lock is taken before the count, so a second issue waits
@@ -54,31 +56,6 @@ export async function liveGrantLinks(db: PgDatabase, tenantId: string): Promise<
  * clicks at once would each count the same number and both be the last one
  * allowed. `pg_advisory_xact_lock` is released at COMMIT or ROLLBACK, which a
  * transaction pooler keeps to one connection.
- */
-export async function issueWithinTheLimit(
-  db: PgDatabase,
-  input: Parameters<typeof issueMappingLink>[1],
-): Promise<IssueOutcome> {
-  if (input.purpose === 'grant') {
-    await db.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`grant-links:${input.tenantId}`}, 0))`,
-    );
-    const live = await liveGrantLinks(db, input.tenantId);
-    const allowed = await liveGrantLinkLimit(db, input.tenantId);
-    if (live >= allowed.limit) return { kind: 'at_the_limit', live, allowed };
-  }
-  return { kind: 'issued', issued: await issueMappingLink(db, input) };
-}
-
-/** What issuing a person's link came to, as `IssueOutcome` is for a migration's. */
-export type PersonIssueOutcome =
-  | { readonly kind: 'issued'; readonly issued: Awaited<ReturnType<typeof issuePersonLink>> }
-  | { readonly kind: 'at_the_limit'; readonly live: number; readonly allowed: LiveLinkLimit };
-
-/**
- * Mint a person's link under the same lock and the same count as a
- * migration's (ADR-0035, amended 2026-09-29; 0153 T5 (b)), so the two kinds
- * wait for each other and one limit holds them both.
  */
 export async function issuePersonLinkWithinTheLimit(
   db: PgDatabase,

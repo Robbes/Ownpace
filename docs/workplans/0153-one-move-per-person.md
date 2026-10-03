@@ -184,6 +184,37 @@ words changed with them** (0131 §6, R8).
   at `5f74ebc`: T4 and T7 are still proposed, and no branch or open pull request of R's or M's
   touches them. 0131 §6 records the split.
 
+**2026-10-03: the person's link replaces the per-migration links (T5 (b)'s fourth slice, the rest
+of it; ADR-0035's amendment, decided).** The owner, asked the amendment's question: *"yes, replace
+the per-migration links"*. Its two "keep" points stand as written.
+
+- **No migration's page makes a link any more.** `POST /api/migrations/:id/links` answers `409
+  links_are_per_person`. When the migration has a person, the answer names them, with their id
+  for a page to link to. When it has none, it says to say who the migration is for. Nothing is
+  written. The door stays rather than going, so an older page or a script is told where links are
+  made instead of meeting a 404.
+- **The migration's page**, under *Links*, points to the person's page: *Open Anna's page*. A
+  migration that belongs to nobody asks *Who is this for?* there first, with somebody on the
+  Migrations page or *Someone new*.
+- **Links sent before** are listed there with their states, and *Revoke* still works:
+  - they are honoured until they expire;
+  - one still counts in the live-link limit while it is live;
+  - a grant through one ends on the person's progress page when the migration has a person
+    (`mintProgressLinkForMigration`).
+- **The limit's door is the person's only.** `issueWithinTheLimit` is gone, and the lock's
+  integration test (`one-issue-at-a-time`) now issues people's links. On a real Postgres (16, two
+  connections) it passes, and fails without the lock. The conditions sweep's order check reads
+  `person-link-routes.ts`.
+- **The withdrawn-grant banner** on a migration's page says the new link is made per person.
+- **The docs** say where links are made now: `grant-links.md` (with *Links sent before*), the
+  Google guides, the Workspace setup, and the owner's and operator's runbooks.
+- **Proved by:**
+  - `link-routes.unit.test.ts` (rewritten, 11) and `a-person-link-within-the-limit.unit.test.ts`
+    (6, the limit's cases moved to the person's door);
+  - `a-progress-page-for-a-person.unit.test.ts` (+1, a migration's link hands over the person's
+    page);
+  - `MappingLinksPanel.unit.test.tsx` (rewritten, 22) and `MappingDetail.unit.test.tsx`.
+
 **2026-10-03: a person's link asks again for an account whose connection stopped working (T5 (b);
 ADR-0035's amendment, added the same day).** Found while replacing the per-migration links (the
 owner: *"yes, replace the per-migration links"*). The person's link was refused once every
@@ -693,7 +724,7 @@ person, and a flow that fills it.
 | T2 ADR-0050: a move is a person's migrations | ✅ **ADR-0050 accepted 2026-09-28 (#1327), amended the same night: *person*. The tables and `/api/people` built, with the appliance's implicit person (#1332)** | §3. A `person` row and `person_migration` in `packages/managed/migrations` (0031). The appliance answers one implicit person. The billed unit (a path) and the migration (a mapping) do not change. Deleting a person deletes no migration. |
 | T3 The Migrations page lists people | 🟡 **Built in two halves: the page lists people (#1341); it is the landing page, the Dashboard is gone, and the menu is the drawing's (#1343). The menu counts beside *Needs you* what waits (#1346). The progress line and *Ready to switch* wait on 0154 T2. Before the first invitation** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
 | T4 *Start a migration*: who, from where, what, to where | 📋 **Proposed; before the first invitation** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
-| T5 A page per person | 🟡 **First slice built (#1353): the person, their migrations, and their steps before they switch. One link per person is decided (ADR-0035's amendment of 2026-09-29) and planned as T5 (b), four slices; the progress lines wait on 0154 T2. Before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
+| T5 A page per person | 🟡 **First slice built (#1353): the person, their migrations, and their steps before they switch. One link per person (ADR-0035's amendment of 2026-09-29) is built, T5 (b)'s four slices (#1394, #1396, #1401, the replacing of the per-migration links), with *Report this link* and asking again; the progress lines wait on 0154 T2. Before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
 | T6 Words a family reads | 🟡 **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, before the first invitation. The Dutch says *migratie* everywhere the product speaks, with two guards (#1342). (c)'s two guards built (#1347)** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |
 | T7 Defaults a family can pass | 📋 **Proposed; before the first invitation, inside T4** | §3. Buttons that look like buttons, with the reason in text. A Soverin sign-in in two visible fields. A Nextcloud address, not a DAV URL. Business-only fields only on the business path. The limit blamed on the side that has it. Tiles and icons: `tiles.svg`, `icons.svg`. |
 | T8 The appliance shows its person's page | 📋 **Proposed; before the first invitation (D5)** | §3. The same page, fed by the appliance's one implicit grouping. No list or create screen (0034 stands). |

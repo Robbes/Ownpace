@@ -1004,7 +1004,7 @@ const en = {
   'hub.noId': 'No mapping id in the address.',
   'hub.detailError': "Could not read this migration's details — the screens below still work.",
   'hub.grantWithdrawn': 'On {date} the person being migrated withdrew their access. Nothing reads their account now.',
-  'hub.grantWithdrawn.next': 'If they agree to continue, create a grant link below and send it to them.',
+  'hub.grantWithdrawn.next': 'If they agree to continue, send them a new grant link. Links are made per person: see Links below.',
   'hub.deletions.name': 'Deletions',
   'hub.deletions.blurb': 'Deleted on the old system, still on the new; your call, per item.',
   'hub.moves.name': 'Moves',
@@ -1149,6 +1149,20 @@ const en = {
   'viewLink.issued.urlLabel': 'The progress link',
   'viewLink.empty': 'No progress links yet for this migration.',
   'viewLink.expiredNudge': 'Their page has stopped working. Create another if they still need it.',
+  // A migration's page, now that a link is the person's (ADR-0035, amended
+  // 2026-09-29; the owner, 2026-10-03: "yes, replace the per-migration links").
+  'migrationLinks.title': 'Links',
+  'migrationLinks.perPerson': 'Grant and progress links are made per person: one for all of {name}’s migrations.',
+  'migrationLinks.openPerson': 'Open {name}’s page',
+  'migrationLinks.whoFor': 'Who is this for?',
+  'migrationLinks.whoFor.why': 'Links are made per person, so first say who this migration is for.',
+  'migrationLinks.whoFor.save': 'Save',
+  'migrationLinks.peopleFailed': 'Could not read who this migration is for.',
+  'migrationLinks.sent.grant': 'Grant links sent before',
+  'migrationLinks.sent.view': 'Progress links sent before',
+  'migrationLinks.sent.blurb': 'They work until they expire. Revoke one here if it should stop sooner.',
+  'migrationLinks.sent.why':
+    'Links are made per person now. One this migration was given before keeps working until it expires, so whoever holds it is not left with a link that fails.',
   // The migrator's page. Written for somebody with no account and no reason to
   // trust us, so: second person, no jargon, and nothing they have to look up.
   'grant.title': 'Connect your account',
@@ -3758,7 +3772,8 @@ const nl: Record<keyof typeof en, string> = {
   'hub.detailError':
     'De details van deze migratie konden niet worden gelezen — de schermen hieronder werken nog.',
   'hub.grantWithdrawn': 'Op {date} trok degene die gemigreerd wordt de toegang in. Er wordt niets meer gelezen.',
-  'hub.grantWithdrawn.next': 'Is die persoon akkoord om verder te gaan, stuur dan een nieuwe toegangslink (hieronder).',
+  'hub.grantWithdrawn.next':
+    'Is die persoon akkoord om verder te gaan, stuur dan een nieuwe toegangslink. Links worden per persoon gemaakt: zie Links hieronder.',
   'hub.deletions.name': 'Verwijderingen',
   'hub.deletions.blurb':
     'Verwijderd op het oude systeem, nog op het nieuwe; uw beslissing, per item.',
@@ -3889,6 +3904,20 @@ const nl: Record<keyof typeof en, string> = {
   'viewLink.issued.urlLabel': 'De voortgangslink',
   'viewLink.empty': 'Nog geen voortgangslinks voor deze migratie.',
   'viewLink.expiredNudge': 'Hun pagina werkt niet meer. Maak een nieuwe als zij hem nog nodig hebben.',
+  // De pagina van een migratie, nu een link van de persoon is (ADR-0035,
+  // gewijzigd 2026-09-29; de eigenaar, 2026-10-03).
+  'migrationLinks.title': 'Links',
+  'migrationLinks.perPerson': 'Toegangs- en voortgangslinks worden per persoon gemaakt: één voor alle migraties van {name}.',
+  'migrationLinks.openPerson': 'Pagina van {name} openen',
+  'migrationLinks.whoFor': 'Voor wie is dit?',
+  'migrationLinks.whoFor.why': 'Links worden per persoon gemaakt, dus kies eerst voor wie deze migratie is.',
+  'migrationLinks.whoFor.save': 'Opslaan',
+  'migrationLinks.peopleFailed': 'Kon niet lezen voor wie deze migratie is.',
+  'migrationLinks.sent.grant': 'Eerder verstuurde toegangslinks',
+  'migrationLinks.sent.view': 'Eerder verstuurde voortgangslinks',
+  'migrationLinks.sent.blurb': 'Ze werken tot ze verlopen. Trek een link hier in als die eerder moet stoppen.',
+  'migrationLinks.sent.why':
+    'Links worden nu per persoon gemaakt. Een link die deze migratie eerder kreeg, blijft werken tot die verloopt, zodat wie hem heeft geen link krijgt die niet meer werkt.',
   'grant.title': 'Verbind uw account',
   'grant.loading': 'Een moment…',
   'grant.asking': '{organisation} migreert uw account naar een nieuwe provider en heeft uw toestemming nodig om te lezen wat erin zit.',

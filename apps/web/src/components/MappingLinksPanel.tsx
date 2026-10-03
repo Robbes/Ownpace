@@ -39,6 +39,15 @@
  * something different, because nobody failed to do anything: their page simply
  * stopped working.
  *
+ * ## One link per person (ADR-0035, amended 2026-09-29; the owner, 2026-10-03)
+ *
+ * A link is the person's now, made on their page for all of their migrations
+ * (`PersonGrantLinkSection`, `PersonViewLinkSection`). A migration's page makes
+ * none: it says whose page makes them, or, for a migration that belongs to
+ * nobody, asks *Who is this for?* first. The links a migration was given
+ * before are honoured until they expire, so its page still lists them, by the
+ * same `LinkSection` with no form, and still revokes them.
+ *
  * **A refusal is the server's sentence, verbatim.** ADR-0024's prose boundary:
  * the ways a link cannot be issued each name what to configure, and re-writing
  * them here in two languages would be two more places for that advice to go
@@ -47,9 +56,12 @@
  */
 
 import React from 'react';
+import { Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, Check, KeyRound, Eye } from 'lucide-react';
+import type { Person } from '@openmig/shared';
 import { isSelfHost } from '../services/edition.ts';
+import { addMigrationToPerson, createPerson, fetchPeople } from '../services/operating-service.ts';
 import { serverMessage } from '../services/api.ts';
 import { conditionsRefusal } from '../services/acceptance.ts';
 import {
@@ -126,17 +138,18 @@ const WORDS: Record<
 /**
  * Where a section's links live: a migration's (`/migrations/:id/links`) or a
  * person's (`/people/:id/links`, ADR-0035's amendment of 2026-09-29). The
- * section is the same machinery either way; only the doors differ.
+ * section is the same machinery either way; only the doors differ. A
+ * migration's doors make nothing since the person's link replaced its own
+ * (the owner, 2026-10-03), so only a person's carry `issue`.
  */
 interface LinkDoors {
   readonly queryKey: readonly unknown[];
-  issue(purpose: MappingLinkPurpose, expiryDays: number): Promise<IssuedGrantLink>;
+  readonly issue?: (purpose: MappingLinkPurpose, expiryDays: number) => Promise<IssuedGrantLink>;
   revoke(linkId: string): Promise<void>;
 }
 
 const migrationDoors = (mappingId: string): LinkDoors => ({
   queryKey: ['grant-links', mappingId],
-  issue: (purpose, expiryDays) => grantLinkApi.issue(mappingId, purpose, expiryDays),
   revoke: (linkId) => grantLinkApi.revoke(mappingId, linkId),
 });
 
@@ -160,6 +173,15 @@ const PERSON_WORDS: Record<MappingLinkPurpose, (typeof WORDS)[MappingLinkPurpose
   },
 };
 
+/**
+ * A migration's links sent before the person's replaced them (the owner,
+ * 2026-10-03): listed and revocable until they expire, and never made again.
+ */
+const SENT_WORDS: Record<MappingLinkPurpose, (typeof WORDS)[MappingLinkPurpose]> = {
+  grant: { ...WORDS.grant, title: 'migrationLinks.sent.grant', blurb: 'migrationLinks.sent.blurb', why: 'migrationLinks.sent.why' },
+  view: { ...WORDS.view, title: 'migrationLinks.sent.view', blurb: 'migrationLinks.sent.blurb', why: 'migrationLinks.sent.why' },
+};
+
 const LinkSection: React.FC<{
   doors: LinkDoors;
   purpose: MappingLinkPurpose;
@@ -167,6 +189,9 @@ const LinkSection: React.FC<{
   loadFailed: boolean;
   words?: (typeof WORDS)[MappingLinkPurpose];
 }> = ({ doors, purpose, links, loadFailed, words: ownWords }) => {
+  // Links that are only listed and revoked here, never made: a migration's
+  // sent before the person's replaced them.
+  const issuable = doors.issue !== undefined;
   const t = useT();
   const { dateTime } = useFormatters();
   const queryClient = useQueryClient();
@@ -183,6 +208,7 @@ const LinkSection: React.FC<{
 
   const issue = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!doors.issue) return;
     setIssuing(true);
     setIssueError('');
     setCopied(false);
@@ -240,6 +266,7 @@ const LinkSection: React.FC<{
       <h3 className="text-base font-semibold text-gray-900">{t(words.title)}</h3>
       <Hint className="mt-0.5" text={t(words.blurb)} why={t(words.why)} />
 
+      {issuable && (
       <form onSubmit={issue} className="mt-3 flex flex-wrap items-end gap-3">
         <label className="flex flex-col text-sm text-gray-700">
           {t('grantLink.expiryLabel')}
@@ -264,6 +291,7 @@ const LinkSection: React.FC<{
           {issuing ? t('grantLink.issuing') : t(words.issue)}
         </button>
       </form>
+      )}
 
       {issueError && <p className="mt-2 text-sm text-amber-800">{issueError}</p>}
 
@@ -390,37 +418,136 @@ export const PersonViewLinkSection: React.FC<{
   <LinkSection {...props} doors={personDoors(personId)} purpose="view" words={PERSON_WORDS.view} />
 );
 
+/**
+ * For a migration that belongs to nobody: who it is for. That gives it a
+ * person, whose page makes its links (ADR-0035's amendment: *"a migration with
+ * no person gets one first"*). Somebody already on the Migrations page, or
+ * somebody new, named here.
+ */
+const WhoIsThisFor: React.FC<{ mappingId: string; people: readonly Person[] }> = ({ mappingId, people }) => {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const chooseId = React.useId();
+  const nameId = React.useId();
+  /** The choice that is somebody new: not an id, which is a uuid. */
+  const NEW = 'new';
+  const [choice, setChoice] = React.useState(people[0]?.id ?? NEW);
+  const [name, setName] = React.useState('');
+  const [pending, setPending] = React.useState(false);
+  const [failed, setFailed] = React.useState<string | null>(null);
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPending(true);
+    setFailed(null);
+    try {
+      const personId =
+        choice === NEW ? (await createPerson({ displayName: name.trim(), email: null })).id : choice;
+      await addMigrationToPerson(personId, mappingId);
+      await queryClient.invalidateQueries({ queryKey: ['people'] });
+    } catch (error) {
+      setFailed(serverMessage(error));
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <form onSubmit={save} className="mt-2">
+      <p className="text-sm text-gray-700">{t('migrationLinks.whoFor.why')}</p>
+      <div className="mt-2 flex flex-wrap items-end gap-3 text-sm">
+        <div className="flex flex-col text-gray-700">
+          <label htmlFor={chooseId}>{t('migrationLinks.whoFor')}</label>
+          <select
+            id={chooseId}
+            value={choice}
+            onChange={(e) => setChoice(e.target.value)}
+            className="mt-1 px-3 py-2 border border-gray-300 rounded-lg text-gray-900 bg-white"
+          >
+            {people.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.displayName}
+              </option>
+            ))}
+            <option value={NEW}>{t('start.who.someoneNew')}</option>
+          </select>
+        </div>
+        {choice === NEW && (
+          <div className="flex flex-col text-gray-700">
+            <label htmlFor={nameId}>{t('people.new.name')}</label>
+            <input id={nameId} value={name} onChange={(e) => setName(e.target.value)} className="input mt-1" />
+          </div>
+        )}
+        <button
+          type="submit"
+          disabled={pending || (choice === NEW && name.trim() === '')}
+          className="px-3 py-2 font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {t('migrationLinks.whoFor.save')}
+        </button>
+      </div>
+      {failed !== null && <p className="mt-2 text-sm text-amber-800">{failed}</p>}
+    </form>
+  );
+};
+
 const MappingLinksPanel: React.FC<{ mappingId: string }> = ({ mappingId }) => {
+  const t = useT();
+  const selfHost = isSelfHost();
   const links = useQuery({
     queryKey: ['grant-links', mappingId],
     queryFn: () => grantLinkApi.list(mappingId),
-    enabled: !isSelfHost(),
+    enabled: !selfHost,
     retry: false,
   });
+  // Whose migration this is: the Migrations page's own read, so the two agree.
+  const people = useQuery({ queryKey: ['people'], queryFn: fetchPeople, enabled: !selfHost, retry: false });
 
   // The appliance's ledger carries the table (the migration is shared), but its
   // API does not serve these routes — 0108 T3 built the managed half. Showing a
   // button that 404s would be worse than showing nothing, and claiming the
   // feature is managed-only would be worse still, because it is not: it is
   // unbuilt there.
-  if (isSelfHost()) return null;
+  if (selfHost) return null;
 
-  // ONE query for both sections. Two would double the requests and, worse,
-  // could disagree about a link that was revoked between them.
+  const named = people.data?.people.filter((p) => !p.implicit) ?? [];
+  const person = named.find((p) => p.migrations.some((m) => m.id === mappingId));
+  const has = (purpose: MappingLinkPurpose) => links.data?.some((l) => l.purpose === purpose) ?? false;
+
   return (
     <>
-      <LinkSection
-        doors={migrationDoors(mappingId)}
-        purpose="grant"
-        links={links.data}
-        loadFailed={links.error != null}
-      />
-      <LinkSection
-        doors={migrationDoors(mappingId)}
-        purpose="view"
-        links={links.data}
-        loadFailed={links.error != null}
-      />
+      <section className="mt-8" aria-labelledby={`links-${mappingId}`}>
+        <h3 id={`links-${mappingId}`} className="text-base font-semibold text-gray-900">
+          {t('migrationLinks.title')}
+        </h3>
+        {person ? (
+          <p className="mt-1 text-sm text-gray-700">
+            {t('migrationLinks.perPerson', { name: person.displayName ?? '' })}{' '}
+            <Link to={`/people/${person.id}`} className="text-blue-700 underline">
+              {t('migrationLinks.openPerson', { name: person.displayName ?? '' })}
+            </Link>
+          </p>
+        ) : people.data ? (
+          <WhoIsThisFor mappingId={mappingId} people={named} />
+        ) : people.isError ? (
+          <p className="mt-1 text-sm text-amber-800">{t('migrationLinks.peopleFailed')}</p>
+        ) : null}
+        {links.error != null && <p className="mt-3 text-sm text-amber-800">{t('grantLink.loadError')}</p>}
+      </section>
+      {/* The links this migration was given before the person's replaced
+          them: honoured until they expire, so listed and revocable, and never
+          made again. ONE query for both, as before: two could disagree about a
+          link revoked between them. */}
+      {(['grant', 'view'] as const).filter(has).map((purpose) => (
+        <LinkSection
+          key={purpose}
+          doors={migrationDoors(mappingId)}
+          purpose={purpose}
+          links={links.data}
+          loadFailed={false}
+          words={SENT_WORDS[purpose]}
+        />
+      ))}
     </>
   );
 };

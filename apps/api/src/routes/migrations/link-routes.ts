@@ -1,62 +1,40 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * The owner's surface for grant links: issue, list, revoke (workplan 0108 T3).
+ * The owner's surface for a migration's own links: list and revoke (workplan
+ * 0108 T3). Issuing one is over: a link is the person's (ADR-0035, amended
+ * 2026-09-29; the owner, 2026-10-03: *"yes, replace the per-migration
+ * links"*), made on their page for all of their migrations
+ * (`person-link-routes.ts`).
  *
- * Three routes, all of them the OWNER's — authenticated by the ordinary session,
- * scoped to one mapping, and answering with everything about a link except the
- * one thing that matters. `mapping-link-store.ts` holds every decision about
- * what a link IS; this file is the door the owner knocks on.
+ * ## What is left here, and why
  *
- * ## The division of labour these routes exist to make real
+ * A migration's link already sent is honoured until it expires (at most 30
+ * days for a grant, 180 for a progress page): breaking a link somebody already
+ * received would teach them that links from their organisation fail. So the
+ * owner can still SEE those links here, with their states, and REVOKE them,
+ * which is the kill switch every door needs. `mapping-link-store.ts` still
+ * verifies them, unchanged.
  *
- * ADR-0035: *"the owner decides who gets a link to manage and grant their own
- * migration"* — and **the admin distributes the link, we never do.** So issuing
- * returns a URL to the owner's own screen and sends nothing: no email, no
- * notification, no address stored anywhere. That is deliberate and it is a
- * feature. Ownpace never learns the migrator's address, which means Ownpace
- * cannot leak it, and the person who decides who gets access is the person who
- * already knows who they are.
+ * The issue door stays too, refusing in words, rather than going: a bookmark,
+ * a script or a page from an older build that still presses it is told where
+ * links are made now, instead of meeting a 404. It writes nothing.
  *
- * ## Shown once
+ * ## Shown once, never again
  *
- * `POST` is the ONLY response in this codebase that ever contains a link's
- * secret. The table holds a sha256; nothing can recover the token afterwards,
- * so `GET` answers with state and dates and never a URL. An owner who loses a
- * link re-issues, which costs them a click and costs an attacker a link that
- * has already been superseded.
- *
- * ## The refusal comes first
- *
- * Every reason a grant link could not possibly work is checked BEFORE the row
- * is written (`grant-link-readiness.ts`). Nothing is inserted on a refusal, so
- * a refused issue leaves no trace to clean up and no dead link to revoke.
+ * `GET` answers with state and dates and never a URL: the table holds a
+ * sha256, so it could not show one if it wanted to.
  */
 
 import { Router } from 'express';
 import type { Response } from 'express';
 import { and, eq } from 'drizzle-orm';
-import { z } from 'zod';
 import * as schema from '@openmig/ledger';
-import {
-  MAPPING_LINK_LIFETIMES,
-  MAPPING_LINK_PURPOSES,
-  type MappingLinkPurpose,
-  expiryFromDays,
-  listMappingLinks,
-  revokeMappingLink,
-} from '@openmig/ledger';
+import { listMappingLinks, revokeMappingLink } from '@openmig/ledger';
+import { readPersonOfMigration } from '@openmig/managed';
 import { authenticate, getDbPool, requireRole, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { serverFault } from '../../server-fault.ts';
-import { refusedUntilAccepted } from '../../conditions-not-accepted.ts';
-import {
-  grantLinkRefusal,
-  viewLinkRefusal,
-  type GrantLinkReadiness,
-} from './grant-link-readiness.ts';
-import { grantReadiness, readGrantRows } from './grant-subject.ts';
-import { atTheLimit, issueWithinTheLimit } from './live-link-limit.ts';
 
 const router = Router({ mergeParams: true });
 
@@ -74,46 +52,11 @@ function pool() {
 const MAY_ISSUE = ['owner', 'admin'] as const;
 
 /**
- * Both purposes, and the expiry checked AGAINST the purpose.
- *
- * `'view'` was reserved in the table from 0108 T1 and deliberately not offered
- * here, on this route's own rule — *"a purpose the API accepts but no page
- * honours is a link that opens nothing"*. Workplan 0122 built the page, so the
- * door opens; the rule has not changed, it has been satisfied.
- *
- * `purpose` defaults to `'grant'`, which keeps every existing caller meaning
- * exactly what it meant. The expiry is validated in `superRefine` rather than
- * against one flat list, because the two lifetimes are different by design
- * (ADR-0035) and `[1, 7, 30]` on a progress link would quietly re-impose the
- * credential's window on the page that is supposed to outlive it.
- */
-const IssueSchema = z
-  .object({
-    purpose: z.enum(MAPPING_LINK_PURPOSES).optional(),
-    expiryDays: z.number().int().optional(),
-  })
-  .superRefine((value, ctx) => {
-    if (value.expiryDays === undefined) return;
-    const allowed = MAPPING_LINK_LIFETIMES[value.purpose ?? 'grant'].days;
-    if (!allowed.includes(value.expiryDays)) {
-      ctx.addIssue({ code: 'custom', path: ['expiryDays'], message: 'not an offered expiry' });
-    }
-  });
-
-/** The browser-facing address, or null when this deployment cannot say. */
-function webUrl(): string | null {
-  const raw = process.env.WEB_URL;
-  return raw ? raw.replace(/\/+$/, '') : null;
-}
-
-/**
  * Resolve `:mappingId` for the authenticated tenant, or answer and return null.
  *
  * Deliberately narrower than `operating-routes.ts`'s `scope`: these routes need
  * the mapping to exist and to be this tenant's, and nothing about its
- * lifecycle. A link may be issued for a mapping in any state — including one
- * that has never run, which is the common case, because the whole point is that
- * it cannot run until somebody grants it.
+ * lifecycle.
  */
 async function scopedMapping(
   req: AuthenticatedRequest,
@@ -144,37 +87,19 @@ async function scopedMapping(
   return { tenantId, mappingId };
 }
 
-/**
- * Read what the readiness decision needs, and NOTHING ELSE.
- *
- * The same reading the grant route makes when the link is used
- * (`grant-subject.ts`), so the link issued here is the link that works there.
- * The credentials are decrypted inside `grantReadiness` and immediately reduced
- * to two booleans — the values never reach this route. That is the point of
- * `grant-link-readiness.ts` taking booleans.
- *
- * A source whose credentials cannot be decrypted reads as "not configured"
- * rather than throwing. That is not masking an error (hard rule 9): from the
- * owner's side an unreadable secret and an absent one are the same fact — the
- * consent has no client to run against — and the remedy the refusal names is
- * the right remedy for both. What must never happen is issuing a link anyway.
- */
-async function readReadiness(
-  tenantId: string,
-  mappingId: string,
-): Promise<Omit<GrantLinkReadiness, 'hasWebUrl'>> {
-  const rows = await withTenantDb(tenantId, pool(), (db) => readGrantRows(db, tenantId, mappingId));
-  return grantReadiness(rows);
-}
+/** Where a link is made now, for this migration's person or for nobody yet. */
+export const LINKS_ARE_PER_PERSON = 'links_are_per_person';
 
 /**
- * POST /api/migrations/:mappingId/links — mint one, and say the URL once.
+ * POST /api/migrations/:mappingId/links — refused, in words (ADR-0035, amended
+ * 2026-09-29; the owner, 2026-10-03: *"yes, replace the per-migration
+ * links"*).
  *
- * The expiry is the OWNER's choice (the owner's steer, 2026-08-26: control over
- * comfort-by-default), defaulting to seven days when the caller does not say.
- * The response repeats the chosen expiry as a date, because an owner about to
- * paste a link into a chat window should be able to say "this works until
- * Thursday" in the same message.
+ * A link is the person's: one for all of their migrations, made on their page.
+ * 409 names that person, with their id for a page to link to, or says that the
+ * migration belongs to nobody yet and is given a person first. The role is
+ * still asked first, as for every door that used to issue: a viewer is told
+ * 403, as before. Nothing is written.
  */
 router.post(
   '/:mappingId/links',
@@ -184,95 +109,26 @@ router.post(
     try {
       const s = await scopedMapping(req, res);
       if (!s) return;
-
-      const parsed = IssueSchema.safeParse(req.body ?? {});
-      if (!parsed.success) {
-        const offered = MAPPING_LINK_PURPOSES.map(
-          (p) => `${p}: ${MAPPING_LINK_LIFETIMES[p].days.join(', ')}`,
-        ).join('; ');
-        return void res.status(400).json({
-          error: 'invalid_body',
-          // Both lists, because the offered expiries depend on the purpose and
-          // a caller that sent 7 for a progress link needs to see WHY 7 was
-          // refused rather than only that it was.
-          reason:
-            `Send { purpose, expiryDays }. The expiries offered, in days, are — ${offered}. ` +
-            'Omit either and you get a grant link with the default expiry.',
-        });
-      }
-
-      const purpose: MappingLinkPurpose = parsed.data.purpose ?? 'grant';
-
-      // A grant link is the member's door to the access a family member then
-      // gives through it (`grant-ending.ts` stores it). So, while the
-      // deployment asks, nobody who has not accepted the current texts issues
-      // one (0139 T3; review of 2026-09-29): the migration it belongs to may
-      // predate the check, or a text may have a new version since. A
-      // progress link grants nothing, and is not asked about.
-      if (purpose === 'grant' && (await refusedUntilAccepted(res, s.tenantId, req.userId, pool()))) return;
-
-      const base = webUrl();
-
-      // A progress link runs no consent, so it is refused only by the one
-      // condition that kills any link — see `viewLinkRefusal`. Reading the
-      // source's credentials for it would decrypt a secret to answer a question
-      // nobody asked.
-      const refusal =
-        purpose === 'view'
-          ? viewLinkRefusal({ hasWebUrl: base !== null })
-          : grantLinkRefusal({
-              ...(await readReadiness(s.tenantId, s.mappingId)),
-              hasWebUrl: base !== null,
-            });
-      if (refusal) {
-        // 409, not 400: the request is well-formed and the caller is allowed to
-        // make it — the deployment is not in a state where it can be honoured.
-        // Nothing was written.
-        return void res.status(409).json({ error: refusal.code, reason: refusal.reason });
-      }
-
-      const days = parsed.data.expiryDays ?? MAPPING_LINK_LIFETIMES[purpose].fallback;
-      const outcome = await withTenantDb(s.tenantId, pool(), (db) =>
-        issueWithinTheLimit(db, {
-          tenantId: s.tenantId,
-          mappingId: s.mappingId,
-          purpose,
-          createdBy: req.userId ?? 'unknown',
-          expiresAt: expiryFromDays(days),
-        }),
+      const person = await withTenantDb(s.tenantId, pool(), (db) =>
+        readPersonOfMigration(db, s.tenantId, s.mappingId),
       );
-      if (outcome.kind === 'at_the_limit') {
-        // 409 like the refusals above: nothing was written, and what would
-        // make room is the owner's to do.
+      if (person) {
         return void res.status(409).json({
-          error: 'grant_links_at_limit',
-          reason: atTheLimit(outcome.live, outcome.allowed),
-          live: outcome.live,
-          limit: outcome.allowed.limit,
+          error: LINKS_ARE_PER_PERSON,
+          reason:
+            `Links are made per person now: one for all of ${person.displayName}'s migrations. ` +
+            'Make it on their page.',
+          personId: person.id,
         });
       }
-      const { issued } = outcome;
-
-      res.status(201).json({
-        id: issued.id,
-        purpose,
-        // The one time this exists in a response. `base` is non-null here —
-        // `web_url_unset` refused above. The path is the purpose's own word, so
-        // the two pages cannot be reached through each other's address and a
-        // token pasted into the wrong one is refused by the middleware rather
-        // than by a page that half-works.
-        url: `${base}/${purpose}/${issued.token}`,
-        expiresAt: issued.expiresAt.toISOString(),
-        expiryDays: days,
-        // Said in the payload rather than only in the UI, so the fact survives
-        // a screen redesign: ADR-0035's division of labour is the product's,
-        // not the template's.
-        distribution:
-          'Send this to the person yourself — Ownpace does not email it, and cannot show it ' +
-          'to you again. If it goes astray, revoke it and issue another.',
+      res.status(409).json({
+        error: LINKS_ARE_PER_PERSON,
+        reason:
+          'Links are made per person now, and this migration is not with a person yet. ' +
+          'Say who it is for on its page, then make the link on theirs.',
       });
     } catch (error) {
-      serverFault(res, 'link_issue_failed', 'issuing a grant link', error);
+      serverFault(res, 'link_issue_failed', 'answering for a migration’s link', error);
     }
   },
 );

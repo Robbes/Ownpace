@@ -37,6 +37,11 @@ vi.mock('../services/edition', () => ({
 vi.mock('../services/operating-service', () => ({
   fetchRuns: vi.fn().mockResolvedValue({ runs: [] }),
   fetchStatus: fetchStatusMock,
+  // The links panel asks whose migration this is, since a link is the
+  // person's (0153 T5 (b)): nobody's, here.
+  fetchPeople: vi.fn().mockResolvedValue({ people: [], unassigned: [] }),
+  createPerson: vi.fn(),
+  addMigrationToPerson: vi.fn(),
 }));
 
 import MappingDetail, {
@@ -144,7 +149,7 @@ describe('a grant the person took back (0108 T8 (c))', () => {
 
     expect(await screen.findByText(/the person being migrated withdrew their access/)).toBeInTheDocument();
     expect(screen.getByText(/Nothing reads their account now/)).toBeInTheDocument();
-    expect(screen.getByText(/create a grant link below and send it to them/)).toBeInTheDocument();
+    expect(screen.getByText(/send them a new grant link\. Links are made per person: see Links below/)).toBeInTheDocument();
   });
 
   it('says nothing about a migration whose grant stands', async () => {

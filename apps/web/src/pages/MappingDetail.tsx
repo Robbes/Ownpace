@@ -213,7 +213,8 @@ const MappingDetail: React.FC = () => {
       {/* A GRANT THE PERSON TOOK BACK (workplan 0108 T8 (c)), said before
           anything that reads as progress: the status can still say Active,
           and nothing reads their account until they grant it again. The
-          links panel below is where the owner makes the new link. */}
+          new link is the person's (ADR-0035, amended 2026-09-29): the links
+          panel below points to their page, or asks who this is for. */}
       {detail.data?.grantWithdrawnAt && (
         <div className="mt-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <p>{t('hub.grantWithdrawn', { date: dateTime(detail.data.grantWithdrawnAt) })}</p>
@@ -305,10 +306,14 @@ const MappingDetail: React.FC = () => {
         />
       )}
 
-      {/* Grant links (0108 T3) — how the person being migrated gives access to
-          their own account. Above the run history because it is a thing to DO,
-          and often the first: until somebody grants, there is nothing to run.
-          Renders nothing on the appliance, whose API does not serve it yet. */}
+      {/* Links (0108 T3, 0153 T5 (b)) — how the person being migrated gives
+          access to their own account. Made on the person's page since the
+          owner's answer of 2026-10-03 (*"yes, replace the per-migration
+          links"*): this panel points there, asks who the migration is for, and
+          lists the links it was given before. Above the run history because it
+          is a thing to DO, and often the first: until somebody grants, there
+          is nothing to run. Renders nothing on the appliance, which issues no
+          links. */}
       <MappingLinksPanel mappingId={id} />
 
       {/* Run history (0026 T3 row 23) — what each pass did, errors verbatim.

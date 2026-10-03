@@ -75,11 +75,11 @@ Het token moet toestemming hebben voor de contactenscope, `https://www.googleapi
 
 ### Het account van iemand anders: stuur een link {#grant-link}
 
-Is het account van een collega, een familielid of een klant, dan is de eerlijke manier om dit token te krijgen **niet** om naar het wachtwoord te vragen, en ook niet om ernaast te zitten terwijl die persoon zich aanmeldt. Open de migratie, druk op **Toegangslink maken**, en stuur de link zelf.
+Is het account van een collega, een familielid of een klant, dan is de eerlijke manier om dit token te krijgen **niet** om naar het wachtwoord te vragen, en ook niet om ernaast te zitten terwijl die persoon zich aanmeldt. Open de persoon op de pagina **Migraties**, druk op **Toegangslink maken**, en stuur de link zelf. Het is één link voor alle migraties van die persoon: die meldt zich één keer aan bij elk eigen Google-account.
 
-De ander opent de link, ziet wie het vraagt en wat er precies gelezen wordt, meldt zich bij Google aan op de eigen pagina van Google, en drukt op één knop. Het token gaat rechtstreeks naar de migratie. **U ziet het niet, en niemand anders ook niet**: het wordt versleuteld bewaard bij die ene migratie, en niet bij de verbinding, dus het zegt niets over enig ander account.
+De ander opent de link, ziet wie het vraagt en wat er precies gelezen wordt, meldt zich bij Google aan op de eigen pagina van Google, en drukt op één knop per account. Het token gaat rechtstreeks naar elke migratie die dat account leest. **U ziet het niet, en niemand anders ook niet**: het wordt versleuteld bewaard bij die migraties, en niet bij de verbinding, dus het zegt niets over enig ander account.
 
-U kiest hoe lang de link werkt, een dag, een week of een maand, en u kunt hem op elk moment intrekken. Een link werkt één keer: als iemand er toegang mee heeft gegeven, is hij gebruikt. Raakt hij kwijt, trek hem dan in en maak een nieuwe; dat is zo gedaan.
+U kiest hoe lang de link werkt, een dag, een week of een maand, en u kunt hem op elk moment intrekken. Een link is gebruikt zodra elk account erop verbonden is. Raakt hij kwijt, trek hem dan in en maak een nieuwe; dat is zo gedaan.
 
 **Wij sturen de link nooit.** Dat doet u, zoals u die persoon gewoonlijk bereikt. Ownpace leert het adres van die persoon nooit kennen, en kan het dus ook niet lekken.
 

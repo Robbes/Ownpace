@@ -51,8 +51,8 @@ import {
 // and `grant-routes.ts` holds the migrator's beginning. All three must see the
 // same in-flight states — see `consent-flows.ts`.
 import { consentFlows as flows } from './consent-flows.ts';
-import { mintProgressLink, storeGrantedToken } from './grant-ending.ts';
-import { mintPersonProgressLink, storePersonGrant } from './person-grant-ending.ts';
+import { storeGrantedToken } from './grant-ending.ts';
+import { mintPersonProgressLink, mintProgressLinkForMigration, storePersonGrant } from './person-grant-ending.ts';
 // The account-kind ask (workplan 0106 T3b): several faces from ONE Google
 // account, and the scope string built from the ticks and nothing else.
 import { googleAccountConsent, isRefusal } from './google-account-consent.ts';
@@ -409,7 +409,11 @@ router.get('/google/callback', async (req: Request, res: Response) => {
   // Nothing is emailed and no address is stored — ADR-0035's *"the admin
   // distributes the link, we never do"* is untouched. The link is put in front
   // of the person who is already here, in their own browser.
-  const progressUrl = await mintProgressLink(getDbPool(), link);
+  //
+  // A migration's link is one sent before the person's replaced it (ADR-0035,
+  // amended 2026-09-29), honoured until it expires: the page it hands over is
+  // the person's when the migration has one (`mintProgressLinkForMigration`).
+  const progressUrl = await mintProgressLinkForMigration(getDbPool(), link);
   // "Read-only" at the ending only where Google holds what it RECORDED to
   // reading (0144 T3 (c)): with `include_granted_scopes` the grant can carry
   // more than the link asked for, and this is the first moment that is known.
