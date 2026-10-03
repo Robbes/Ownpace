@@ -540,6 +540,10 @@ reading a file drops off its entry by itself.
 
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 
+### `apps/web/src/services/tester-guide-link.ts`
+
+- [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
+
 ### `apps/web/vite.config.ts`
 
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
@@ -2307,6 +2311,10 @@ reading a file drops off its entry by itself.
 - [a-version-the-tester-accepted](../scripts/a-version-the-tester-accepted.unit.test.ts) — A VERSION THE TESTER ACCEPTED (workplan 0139 T3).
 - [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 
+### `site/pages/en/alpha-guide.md`
+
+- [a-read-only-claim-with-its-scope](../scripts/a-read-only-claim-with-its-scope.unit.test.ts) — A READ-ONLY CLAIM WITH ITS SCOPE (workplan 0144 T3).
+
 ### `site/pages/en/how-it-works.md`
 
 - [a-read-only-claim-with-its-scope](../scripts/a-read-only-claim-with-its-scope.unit.test.ts) — A READ-ONLY CLAIM WITH ITS SCOPE (workplan 0144 T3).
@@ -2314,6 +2322,10 @@ reading a file drops off its entry by itself.
 ### `site/pages/en/pricing.md`
 
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
+
+### `site/pages/nl/alfa-handleiding.md`
+
+- [a-read-only-claim-with-its-scope](../scripts/a-read-only-claim-with-its-scope.unit.test.ts) — A READ-ONLY CLAIM WITH ITS SCOPE (workplan 0144 T3).
 
 ### `site/pages/nl/hoe-het-werkt.md`
 
@@ -3427,6 +3439,7 @@ Reads:
 - `apps/web/src/pages/Grant.tsx`
 - `apps/web/src/pages/Grant.unit.test.tsx`
 - `apps/web/src/services/legal-links.ts`
+- `apps/web/src/services/tester-guide-link.ts`
 - `apps/web/vite.config.ts`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
@@ -3556,7 +3569,9 @@ Reads:
 - `apps/web/src/a-permission-described-as-it-is.unit.test.tsx`
 - `apps/web/src/i18n/strings.ts`
 - `docs/grant-links.md`
+- `site/pages/en/alpha-guide.md`
 - `site/pages/en/how-it-works.md`
+- `site/pages/nl/alfa-handleiding.md`
 - `site/pages/nl/hoe-het-werkt.md`
 
 ### [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts)

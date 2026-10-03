@@ -48,7 +48,7 @@
 # the site runs, and a deploy is what it was. On, it refuses before the
 # checkout (below), and after the bring-up and the app's checks:
 #
-#   OWNPACE_APP_URL=https://app.ownpace.eu GIT_SHA=<commit> node site/build.mjs --public
+#   OWNPACE_APP_URL=https://app.ownpace.eu OWNPACE_STAGE=<live's> GIT_SHA=<commit> node site/build.mjs --public
 #   docker compose -p <project>-www -f deploy/compose/www.yml --env-file <live's .env> up -d --force-recreate
 #
 # in the checkout, now at the tag. Then it waits until the container is
@@ -65,7 +65,9 @@
 # come up healthy or answer as a public site is a deploy that DID NOT TAKE
 # (exit 3, the hold stays), like any other check: an app on a new release
 # beside texts of the old one is not a deploy that took. OWNPACE_STATUS_URL is
-# not passed on: the site derives status.ownpace.eu from the app.
+# not passed on: the site derives status.ownpace.eu from the app. OWNPACE_STAGE
+# is live's own, from its .env (empty when it names none), never the shell's:
+# with `alpha` the site carries the tester guide (workplan 0144 T1).
 #
 # Like every step, the site step is the one in the script that started, which
 # is the checkout's copy from before it moved. A deploy started from a
@@ -255,6 +257,11 @@ COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml" --env-file "${ENV_FILE}")
 # (0139 T10). Set by main from the project, with the reader's answer.
 WWW_LIVE_PROJECT=''
 WWW_COMPOSE=()
+# The alpha's setting as live's .env says it, empty when it says none, handed
+# to every site build (workplan 0144 T1): with OWNPACE_STAGE=alpha the site has
+# the tester guide. Read from the .env and never the shell's, as the app's own
+# OWNPACE_STAGE is. Set by main when the site is on.
+SITE_STAGE=''
 
 # The two chains a release can add a migration to (ADR-0036, ADR-0045).
 MIGRATION_CHAINS=(packages/ledger/migrations packages/managed/migrations)
@@ -357,6 +364,7 @@ main() {
     if ! [[ "$www_port" =~ ^[1-9][0-9]{0,4}$ ]] || [ "$www_port" -gt 65535 ]; then
       refuse "WWW_PORT in ${ENV_FILE} is not one port number (1 to 65535). Its value is not printed."
     fi
+    SITE_STAGE="$(env_value "$ENV_FILE" OWNPACE_STAGE)"
   fi
 
   # ---- The checkout: clean -----------------------------------------------------
@@ -947,8 +955,8 @@ site_test_build() {
     echo "git archive of site/ and package.json at ${commit} failed (above)." >&2
     return 1
   fi
-  out="$(cd "$tmp" && env -u OWNPACE_STATUS_URL OWNPACE_APP_URL="$WWW_LIVE_APP_URL" GIT_SHA="$commit" \
-    node site/build.mjs --public --check 2>&1)" || rc=$?
+  out="$(cd "$tmp" && env -u OWNPACE_STATUS_URL OWNPACE_APP_URL="$WWW_LIVE_APP_URL" OWNPACE_STAGE="$SITE_STAGE" \
+    GIT_SHA="$commit" node site/build.mjs --public --check 2>&1)" || rc=$?
   while IFS= read -r line; do
     if [[ "$line" =~ $re ]]; then count="${BASH_REMATCH[1]}"; fi
   done <<<"$out"
@@ -959,8 +967,8 @@ site_test_build() {
   fi
   # A count refuses by itself; the full build would only say it again.
   if [ "$count" = 0 ]; then
-    out="$(cd "$tmp" && env -u OWNPACE_STATUS_URL OWNPACE_APP_URL="$WWW_LIVE_APP_URL" GIT_SHA="$commit" \
-      node site/build.mjs --public 2>&1)" || rc=$?
+    out="$(cd "$tmp" && env -u OWNPACE_STATUS_URL OWNPACE_APP_URL="$WWW_LIVE_APP_URL" OWNPACE_STAGE="$SITE_STAGE" \
+      GIT_SHA="$commit" node site/build.mjs --public 2>&1)" || rc=$?
     if [ "$rc" -ne 0 ]; then
       rm -rf "$tmp"
       tail -n 20 <<<"$out" >&2
@@ -980,8 +988,8 @@ site_up() {
   local origin="http://127.0.0.1:${port}" rest link wrong=0 right=0
   local re='(https?://[^"'"'"'?#[:space:]<>]*/request-access)'
   say "the site: node site/build.mjs --public, at ${commit}"
-  if ! (cd "$REPO_ROOT" && env -u OWNPACE_STATUS_URL OWNPACE_APP_URL="$WWW_LIVE_APP_URL" GIT_SHA="$commit" \
-    node site/build.mjs --public); then
+  if ! (cd "$REPO_ROOT" && env -u OWNPACE_STATUS_URL OWNPACE_APP_URL="$WWW_LIVE_APP_URL" OWNPACE_STAGE="$SITE_STAGE" \
+    GIT_SHA="$commit" node site/build.mjs --public); then
     failures+=("the site: node site/build.mjs --public failed (above), so ${WWW_LIVE_PROJECT} was not brought up.")
     return 0
   fi

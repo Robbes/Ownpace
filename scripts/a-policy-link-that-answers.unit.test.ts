@@ -51,7 +51,17 @@
  *     the privacy page's file is written in both. For every value, the mail's
  *     address must be the web's, and a file the build writes; a value the web
  *     refuses, the API refuses too, and at its start (`apps/api/src/index.ts`,
- *     before it listens), so the operator meets the refusal there.
+ *     before it listens), so the operator meets the refusal there;
+ *  7. THE TESTER GUIDE'S LINK (workplan 0144 T1). The guide is a page of the
+ *     same site, and not a legal text: nobody accepts it, it has no version,
+ *     it comes from `site/pages/` and not `site/legal/`, and the build writes
+ *     it only for the alpha (`OWNPACE_STAGE=alpha`). So it is not in
+ *     `LEGAL_PAGES`, whose rule above is "exactly the pages the build renders
+ *     from `site/legal/`, in every build". Its address comes from a module of
+ *     its own, `apps/web/src/services/tester-guide-link.ts`, on the origin
+ *     this module makes from the same setting. Every address it gives must be
+ *     a file an ALPHA build writes, for that language, and no other shipped
+ *     file names the guide's file.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -61,6 +71,7 @@ import { join, dirname, basename } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import type * as LegalLinks from '../apps/web/src/services/legal-links.ts';
+import type * as GuideLink from '../apps/web/src/services/tester-guide-link.ts';
 import type * as MailLink from '../packages/shared/src/privacy-policy-link.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -99,9 +110,16 @@ interface Built {
  * refuses the production one. The files it writes do not depend on either.
  * Memoised, and run inside the tests, so a broken build fails them by name.
  */
-let cached: Built | null = null;
-function built(): Built {
-  if (cached) return cached;
+const cached = new Map<string, Built>();
+/**
+ * `stage` is the alpha's setting, `OWNPACE_STAGE` (point 7). Unset here unless
+ * given, whatever the shell running the tests exported, so the default build
+ * is the one every deployment but the alpha's gets.
+ */
+function built(stage?: string): Built {
+  const key = stage ?? '';
+  const hit = cached.get(key);
+  if (hit) return hit;
   const build = pathToFileURL(join(REPO_ROOT, 'site/build.mjs')).href;
   const security = pathToFileURL(join(REPO_ROOT, 'site/security-txt.mjs')).href;
   const out = execFileSync(
@@ -117,13 +135,14 @@ function built(): Built {
          .catch((e) => { process.stderr.write(String(e && e.message)); process.exit(1); });`,
     ],
     {
-      env: { ...process.env, OWNPACE_APP_URL: 'https://app.ota.ownpace.eu' },
+      env: { ...process.env, OWNPACE_APP_URL: 'https://app.ota.ownpace.eu', OWNPACE_STAGE: key },
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'] as const,
     },
   );
-  cached = JSON.parse(out) as Built;
-  return cached;
+  const result = JSON.parse(out) as Built;
+  cached.set(key, result);
+  return result;
 }
 
 /** Per locale, the keys of the pages the build renders from `site/legal/`. */
@@ -159,10 +178,16 @@ describe('the build is read, so the checks below compare real files', () => {
 });
 
 /** One address, held to the file the build writes for that language and page. */
-function expectWritten(address: string, origin: string, locale: string, page: string): void {
+function expectWritten(
+  address: string,
+  origin: string,
+  locale: string,
+  page: string,
+  pages: Built['pages'] = built().pages,
+): void {
   expect(address.startsWith(`${origin}/`), `${address} is not on ${origin}`).toBe(true);
   const file = address.slice(origin.length + 1);
-  const written = built().pages.find((p) => p.file === file);
+  const written = pages.find((p) => p.file === file);
   expect(
     written,
     `${address} links ${file}, which the site build does not write. The site's\n` +
@@ -470,5 +495,81 @@ describe('the one place in the web app that names a legal page', () => {
       `These name a legal page's address themselves. Read it from ${MODULE},\n` +
         `so ${SETTING} moves every link at once.`,
     ).toEqual([]);
+  });
+});
+
+describe("the tester guide's link (0144 T1)", () => {
+  const GUIDE_MODULE = 'apps/web/src/services/tester-guide-link.ts';
+  /** The alpha's setting, as the API and the web build read it (0131 T1). */
+  const ALPHA = 'alpha';
+  const loadGuideModule = (): Promise<typeof GuideLink> => import('../apps/web/src/services/tester-guide-link.ts');
+
+  /** Per locale, the file an alpha build writes for the page keyed `guide`. */
+  function guideFilesBuilt(stage?: string): Map<string, string> {
+    return new Map(built(stage).pages.filter((p) => p.key === 'guide').map((p) => [p.locale, p.file]));
+  }
+
+  it('an alpha build writes the guide in every language the site is built in, so the cases below compare real files', () => {
+    // The vacuity check: with no guide built, every address below would be
+    // held to an empty list.
+    expect([...guideFilesBuilt(ALPHA).keys()].sort()).toEqual([...legalPagesBuilt().keys()].sort());
+  });
+
+  it.each([
+    ['unset, the production site', {}, (): string => built().publicSite],
+    ['the OTA test site, with a trailing slash', { [SETTING]: `${OTA_SITE}/` }, (): string => OTA_SITE],
+  ])('%s: every address it gives is the file an alpha build writes for that language', async (_name, env, origin) => {
+    const m = await loadGuideModule();
+    for (const locale of guideFilesBuilt(ALPHA).keys()) {
+      const address = m.testerGuideUrl(locale as 'en' | 'nl', env);
+      expectWritten(address, origin(), locale, 'guide', built(ALPHA).pages);
+    }
+    expect(Object.keys(m.TESTER_GUIDE_FILES).sort()).toEqual([...guideFilesBuilt(ALPHA).keys()].sort());
+  });
+
+  it('is on the origin the legal pages are on, from the same setting, so one value moves every link', async () => {
+    const m = await loadGuideModule();
+    const legal = await loadModule();
+    for (const value of [undefined, OTA_SITE, `${OTA_SITE}/`]) {
+      const env = value === undefined ? {} : { [SETTING]: value };
+      expect(new URL(m.testerGuideUrl('nl', env)).origin).toBe(legal.legalSiteFrom(env));
+    }
+    expect(() => m.testerGuideUrl('en', { [SETTING]: 'www.ownpace.eu' })).toThrow(SETTING);
+  });
+
+  it('a build that is not for the alpha writes no guide, which is why the link is for the alpha alone', () => {
+    // Said here so a screen that links it reads why: on a site built without
+    // OWNPACE_STAGE=alpha, this address is a 404 (site/build.mjs, ALPHA_ONLY).
+    expect([...guideFilesBuilt().values()]).toEqual([]);
+  });
+
+  it('is not a legal page: the legal links stay exactly the pages built from site/legal/', async () => {
+    const m = await loadGuideModule();
+    const legal = await loadModule();
+    expect(legal.LEGAL_PAGES as readonly string[]).not.toContain('guide');
+    for (const [locale, file] of Object.entries(m.TESTER_GUIDE_FILES)) {
+      expect(Object.values(legal.LEGAL_FILES[locale as 'en' | 'nl'])).not.toContain(file);
+    }
+  });
+
+  it('no other shipped file in the web app names the guide or the site', () => {
+    const names = [...guideFilesBuilt(ALPHA).values()].map((f) => basename(f));
+    expect(names.length).toBeGreaterThan(0);
+    const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(names.map(escape).join('|'));
+    const sources = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+        const p = join(dir, e.name);
+        if (e.isDirectory()) return sources(p);
+        return /\.tsx?$/.test(p) && !/\.test\.tsx?$/.test(p) ? [p] : [];
+      });
+    const offenders = sources(join(REPO_ROOT, 'apps/web/src'))
+      .map((f) => f.slice(REPO_ROOT.length + 1))
+      .filter((f) => f !== GUIDE_MODULE)
+      .filter((f) => pattern.test(read(f).replace(/\/\*[^]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')));
+    expect(offenders, `These name the guide's file themselves. Read it from ${GUIDE_MODULE}.`).toEqual([]);
+    // And the module itself names no host: its origin is legal-links.ts's.
+    const own = read(GUIDE_MODULE).replace(/\/\*[^]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(own).not.toContain(new URL(built().publicSite).host);
   });
 });

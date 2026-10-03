@@ -426,8 +426,8 @@ const PUBLIC_APP = 'https://app.ownpace.eu';
  * the count last, and exits 1, as the real one does from 0139 T2 on for a
  * legal page whose version line says draft. `STUB_SITE_BUILD_EXIT` fails only
  * the build in the checkout (a disk that filled, say), not the test build. It
- * records its arguments, the three settings it reads and the directory it
- * lives in.
+ * records its arguments, the four settings it reads (the alpha's stage, which
+ * renders the tester guide, among them: 0144 T1) and the directory it lives in.
  */
 const SITE_BUILD_STUB = `#!/usr/bin/env node
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -438,7 +438,7 @@ const args = process.argv.slice(2);
 const e = process.env;
 appendFileSync(
   e.STUB_LOG,
-  \`site-build \${args.join(' ')} app=\${e.OWNPACE_APP_URL ?? '-'} sha=\${e.GIT_SHA ?? '-'} status=\${e.OWNPACE_STATUS_URL ?? '-'} here=\${HERE}\\n\`,
+  \`site-build \${args.join(' ')} app=\${e.OWNPACE_APP_URL ?? '-'} sha=\${e.GIT_SHA ?? '-'} status=\${e.OWNPACE_STATUS_URL ?? '-'} stage=\${e.OWNPACE_STAGE ?? '-'} here=\${HERE}\\n\`,
 );
 const pub = args.includes('--public');
 const app = (e.OWNPACE_APP_URL ?? '').trim();
@@ -2140,8 +2140,9 @@ describe("the site, www.ownpace.eu: built from the tag and served as ownpace-liv
     "switched on: the tag's site test-built before the checkout, then built in the checkout after the bring-up, brought up as ownpace-live-www with live's .env, found healthy and asked, all before the exposure check",
     () => {
       const s = stage({ releases: [NEXT], dotEnv: SITE_ENV });
-      // A status address a shell exported for another site does not reach this build.
-      const r = run(s, [NEXT.tag], { OWNPACE_STATUS_URL: 'https://status.ota.ownpace.eu' });
+      // A status address a shell exported for another site does not reach this build,
+      // and neither does a stage: live's .env says none here (0144 T1).
+      const r = run(s, [NEXT.tag], { OWNPACE_STATUS_URL: 'https://status.ota.ownpace.eu', OWNPACE_STAGE: 'alpha' });
       expect(r.status, r.out).toBe(0);
       const tagCommit = s.commit[NEXT.tag]!;
       const log = calls(s);
@@ -2156,13 +2157,13 @@ describe("the site, www.ownpace.eu: built from the tag and served as ownpace-liv
       // then the full --public build the deploy runs after the checkout.
       const builds = called(s, 'site-build');
       expect(builds, log.join('\n')).toHaveLength(3);
-      const pre = new RegExp(`^site-build --public --check app=${esc(PUBLIC_APP)} sha=${tagCommit} status=- here=(.+)$`).exec(builds[0]!);
+      const pre = new RegExp(`^site-build --public --check app=${esc(PUBLIC_APP)} sha=${tagCommit} status=- stage= here=(.+)$`).exec(builds[0]!);
       expect(pre, builds[0]).not.toBeNull();
       expect(pre![1]).not.toBe(join(s.work, 'site'));
-      expect(builds[1]).toBe(`site-build --public app=${PUBLIC_APP} sha=${tagCommit} status=- here=${pre![1]}`);
+      expect(builds[1]).toBe(`site-build --public app=${PUBLIC_APP} sha=${tagCommit} status=- stage= here=${pre![1]}`);
       expect(existsSync(dirname(pre![1]!)), 'the test build left its directory behind').toBe(false);
       // After the bring-up: the build in the checkout, stamped with the tag's commit.
-      expect(builds[2]).toBe(`site-build --public app=${PUBLIC_APP} sha=${tagCommit} status=- here=${join(s.work, 'site')}`);
+      expect(builds[2]).toBe(`site-build --public app=${PUBLIC_APP} sha=${tagCommit} status=- stage= here=${join(s.work, 'site')}`);
 
       const preBuild = at(builds[1]!, 'the full test build');
       const liveWww = at(LIVE_WWW, "the question whether live's project holds a www service");
@@ -2191,6 +2192,20 @@ describe("the site, www.ownpace.eu: built from the tag and served as ownpace-liv
       expect(r.out).toContain('<WWW_BIND>');
       expect(r.out).not.toContain(SITE_BIND);
       expect(r.out).not.toContain(APP_HOST);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "live's .env decides whether the site is built for the alpha: its OWNPACE_STAGE reaches all three builds, so the tester guide is on the site while live runs the alpha (0144 T1)",
+    () => {
+      const s = stage({ releases: [NEXT], dotEnv: `${SITE_ENV}OWNPACE_STAGE=alpha\n` });
+      // A shell that exported something else does not decide it either.
+      const r = run(s, [NEXT.tag], { OWNPACE_STAGE: 'beta' });
+      expect(r.status, r.out).toBe(0);
+      const builds = called(s, 'site-build');
+      expect(builds, calls(s).join('\n')).toHaveLength(3);
+      for (const line of builds) expect(line, 'a site build without the stage live runs').toMatch(/ stage=alpha here=/);
     },
     CASE_MS,
   );
