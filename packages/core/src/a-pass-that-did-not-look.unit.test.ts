@@ -31,6 +31,7 @@ import {
   setLogLevel,
   resetLogLevel,
   type ByteBudgetState,
+  type DiscardedListing,
   type DownloadMeter,
   type UpsertResult,
 } from '@openmig/shared';
@@ -71,6 +72,7 @@ const spentMeter = (): DownloadMeter => {
 function world(initial: Listing) {
   const state = { listing: initial };
   const ledger = new MemoryLedger();
+  const seen = { binReads: 0 };
   const run = (
     opts: {
       /** The deadline passes once this item has been scanned. */
@@ -79,9 +81,12 @@ function world(initial: Listing) {
       readonly late?: boolean;
       readonly meter?: DownloadMeter;
       readonly formerNames?: (item: Item) => string[];
+      /** What the owner's bin holds; counted, because a stopped pass must not read it. */
+      readonly bin?: readonly string[];
     } = {},
   ) => {
     let late = opts.late ?? false;
+    const bin = opts.bin;
     return runDomainSync<unknown, unknown, Item, { path: string }>({
       sourceIsAuthorityOnExistence: true,
       tenantId: TENANT,
@@ -111,11 +116,19 @@ function world(initial: Listing) {
       ...(opts.formerNames
         ? { formerNaturalKeys: opts.formerNames, sourceRef: (item: Item) => item.ref }
         : {}),
+      ...(bin
+        ? {
+            listDiscardedKeys: async (): Promise<DiscardedListing> => {
+              seen.binReads += 1;
+              return { keys: [...bin], unnameable: 0 };
+            },
+          }
+        : {}),
     });
   };
   const absences = async (key: string) =>
     (await ledger.find(TENANT, MAPPING, 'file', key))?.absentPasses ?? 0;
-  return { state, ledger, run, absences };
+  return { state, ledger, run, absences, seen };
 }
 
 describe('a pass that stopped before it finished', () => {
@@ -153,6 +166,28 @@ describe('a pass that stopped before it finished', () => {
       expect(late.drift, `pass ${n}`).toBe(0);
       expect(late.deletions, `pass ${n}`).toEqual([]);
     }
+    expect(await w.ledger.listDeletions(TENANT, MAPPING, 'file')).toEqual([]);
+  });
+
+  it("reads no bin when it listed nothing, so nothing alive at the source is concluded trashed", async () => {
+    // FOUND IN REVIEW (2026-09-29). A pass that lists nothing leaves no folder
+    // unfinished, and the bin's gate read "none unfinished" as "every one
+    // reached": it read the bin with an empty seen-set and recorded f2/b as
+    // trashed by its owner, the one kind of deletion a person may apply,
+    // while f2/b was still in f2 at the source.
+    const w = world(TWO_FOLDERS());
+    await w.run();
+    for (const n of [2, 3, 4]) {
+      const late = await w.run({ late: true, bin: ['f2/b'] });
+      expect(late.deadlinePause, `pass ${n} stopped`).toBeDefined();
+      expect(w.seen.binReads, `pass ${n}`).toBe(0);
+      expect(late.deletions, `pass ${n}`).toEqual([]);
+      const spent = await w.run({ meter: spentMeter(), bin: ['f2/b'] });
+      expect(spent.budgetPause, `pass ${n} paused`).toBeDefined();
+      expect(w.seen.binReads, `pass ${n}`).toBe(0);
+      expect(spent.deletions, `pass ${n}`).toEqual([]);
+    }
+    expect((await w.ledger.find(TENANT, MAPPING, 'file', 'f2/b'))?.deletionTrashedAt).toBeUndefined();
     expect(await w.ledger.listDeletions(TENANT, MAPPING, 'file')).toEqual([]);
   });
 

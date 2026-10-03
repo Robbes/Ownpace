@@ -92,11 +92,11 @@ terminates TLS for the public names, not with a service. The page runs on the sa
        refuses it, because after a cutover the source is no longer the authority on what exists
        (0117 D4). From `paused`, a press of *Start sync* would make it `active` again and bring
        the deletion detector back.
-     - A pass in flight stops taking new work within about fifteen seconds, once what it is
-       copying at that moment is written, because each pass re-reads its migration between data
-       types and every `PASS_REREAD_EVERY_MS` inside one. Until 2026-09-29 it re-read between
-       data types only, and a pause pressed during a file pass waited up to fifty minutes for the
-       pass's own deadline.
+     - A pass in flight stops starting new items within about fifteen seconds and finishes the
+       ones it has begun (a very large file can take longer), because each pass re-reads its
+       migration between data types and every `PASS_REREAD_EVERY_MS` inside one. Until
+       2026-09-29 it re-read between data types only, and a pause pressed during a file pass
+       waited up to fifty minutes for the pass's own deadline.
      - The tester can undo it: *Start sync* (*Start synchronisatie*) from `paused`, or entering
        the lane again from `cutover`.
        Write to them, as the owner does anyway.

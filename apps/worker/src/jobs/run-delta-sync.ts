@@ -595,10 +595,23 @@ export const runDeltaSync = schemaTask({
               // removes the old copy on the target, which is exactly the kind
               // of write a Pause, a withdrawn grant or a closed organisation
               // forbids. Said in the run log, as the apply says what it did.
-              if (!result.haltPause) {
+              //
+              // ASKED AGAIN HERE, not read off the pass's answer alone (review,
+              // 2026-09-29). The pass asks at its gates, at most once every
+              // PASS_REREAD_EVERY_MS, and the last gate is before the last
+              // item: a Pause pressed during the last large upload, or in the
+              // seconds after the last asking, is one it never hears, and its
+              // `haltPause` stays empty. Read alone, that let this apply remove
+              // old copies on the target after the owner said stop. So the
+              // question is asked once more, the read `passStops` asks, right
+              // before the one write that comes after the pass: one
+              // transaction per file pass.
+              const toldToStop =
+                result.haltPause?.reason ?? (await whyThisDataTypeStops(pool, tenantId, mappingId, 'file'));
+              if (toldToStop === null) {
                 await autoApplyOpenRelocations(tenantId, mappingId, runId, deps, passStartedAt);
               } else {
-                const told = HALT_IN_WORDS[result.haltPause.reason];
+                const told = HALT_IN_WORDS[toldToStop];
                 await withTenant(pool, tenantId, async (db) => {
                   await new RunStore(db).logEvent(tenantId, runId, 'info',
                     `relocation auto-apply: not run — this pass was told to stop (${told}), and ` +

@@ -183,8 +183,23 @@ describe('a pass told to stop while it copied is not marked completed', () => {
   it('neither dispatcher auto-applies a relocation after a pass that was told to stop', () => {
     // It removes the old copy on the target: exactly the write a Pause, a
     // withdrawal or a close forbids.
-    expect(guardOf(read(MANAGED), 'await autoApplyOpenRelocations(')).toMatch(/!result\.haltPause/);
-    expect(guardOf(read(APPLIANCE), 'await autoApplyRelocations(')).toMatch(/!haltPause/);
+    expect(guardOf(read(MANAGED), 'await autoApplyOpenRelocations(')).toMatch(/toldToStop === null/);
+    expect(guardOf(read(APPLIANCE), 'await autoApplyRelocations(')).toMatch(/toldToStop === null/);
+  });
+
+  it('and both ask the question again right before it, not only read what the pass last heard', () => {
+    // Found in review (2026-09-29). The pass asks at its gates, at most once
+    // every PASS_REREAD_EVERY_MS, and its last gate is before its last item:
+    // a Pause pressed during the last large upload was never heard, the
+    // pass's haltPause stayed empty, and the apply ran on it. So the answer
+    // the apply is guarded by is the pass's, or a fresh asking when it has
+    // none.
+    expect(read(MANAGED)).toMatch(
+      /const toldToStop =\s*result\.haltPause\?\.reason \?\? \(await whyThisDataTypeStops\(pool, tenantId, mappingId, 'file'\)\);/,
+    );
+    expect(read(APPLIANCE)).toMatch(
+      /const toldToStop = haltPause\?\.reason \?\? \(whyItStops \? await whyItStops\('file'\) : null\);/,
+    );
   });
 
   it('the appliance asks the migration, per data type, from the reader every gate asks', () => {

@@ -703,22 +703,39 @@ export async function runAllDomains(
           // Never after a pass that was told to stop (2026-09-29): applying a
           // relocation removes the old copy on the target, the very kind of
           // write a pause or a stop forbids.
-          if (config.autoApplyRelocations === true && !haltPause) {
-            await autoApplyRelocations(
-              {
-                tenantId,
-                mappingId,
-                domain: 'file',
-                ledger: deps.ledger,
-                target: deps.target,
-                allowApplyDeletions: config.allowApplyDeletions,
-                autoApplyRelocations: true,
-                ...(config.targetFolderPrefix !== undefined
-                  ? { targetFolderPrefix: config.targetFolderPrefix }
-                  : {}),
-              },
-              passStartedAt,
-            );
+          //
+          // And asked again here rather than read off the pass's answer alone
+          // (review, 2026-09-29): the pass asks at its gates, at most once
+          // every PASS_REREAD_EVERY_MS, and its last gate is before its last
+          // item, so a stop set during the last large upload is one it never
+          // hears. Only when there is an apply to withhold, so a mapping that
+          // never opted in pays nothing for it, and only when somebody handed
+          // the question in, as the standalone worker does not.
+          if (config.autoApplyRelocations === true) {
+            const toldToStop = haltPause?.reason ?? (whyItStops ? await whyItStops('file') : null);
+            if (toldToStop === null) {
+              await autoApplyRelocations(
+                {
+                  tenantId,
+                  mappingId,
+                  domain: 'file',
+                  ledger: deps.ledger,
+                  target: deps.target,
+                  allowApplyDeletions: config.allowApplyDeletions,
+                  autoApplyRelocations: true,
+                  ...(config.targetFolderPrefix !== undefined
+                    ? { targetFolderPrefix: config.targetFolderPrefix }
+                    : {}),
+                },
+                passStartedAt,
+              );
+            } else {
+              log.info(
+                `[Worker] file: relocation auto-apply not run, because ${HALT_IN_WORDS[toldToStop]}: ` +
+                  'removing an old copy on the target is work too. The moves stay open, and a later ' +
+                  'pass applies them by the same rules once the migration runs again.',
+              );
+            }
           }
         } finally {
           await deps.close();

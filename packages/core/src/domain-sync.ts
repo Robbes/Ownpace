@@ -1266,8 +1266,16 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
    * conditions that agree by hand until somebody adds a third and updates
    * three of the four. `a-pass-that-stops-halfway-keeps-its-cursor.unit.test.ts`
    * drives the first two reasons through the first four sites, and
-   * `a-pass-told-to-stop.unit.test.ts` drives the third through all five: it
-   * was added here, and no site below had to be edited for it.
+   * `a-pass-told-to-stop.unit.test.ts` drives the third through all five.
+   *
+   * Two of the five took the third reason with no edit at all: the cursor
+   * gate, which asks `paused()`, and `unfinishedCollections`, which the gates
+   * fill. The three gates that asked the deadline were edited, once each, to
+   * ask `stopTakingNewWork()` (or, at the listing gate, `stopIfToldTo()` on its
+   * own line beside the deadline's), because the question is asked where the
+   * clock is read and not on every `paused()`. Said plainly rather than
+   * claimed otherwise (review, 2026-09-29): "no site had to be edited" was
+   * not true, and a reader adding a fourth reason would have trusted it.
    */
   const paused = (): boolean =>
     budgetPause !== undefined || deadlinePause !== undefined || haltPause !== undefined;
@@ -1313,11 +1321,12 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
    * data type its owner stopped is heard within `PASS_REREAD_EVERY_MS` plus
    * whatever is already in flight, and not fifty minutes later.
    *
-   * By the pass's own clock and not per item: an asking is a database round
-   * trip, and per item it would roughly double the pass's ledger traffic for
-   * an answer that almost never changes. The first asking is at the first
-   * gate: that repeats the caller's own read by design, and covers the
-   * seconds spent building credentials between the two.
+   * By the pass's own clock and not per item: an asking is a database
+   * transaction of several statements (counted at `PASS_REREAD_EVERY_MS`), and
+   * per item it would roughly double the pass's ledger traffic for an answer
+   * that almost never changes. The first asking is at the first gate: that
+   * repeats the caller's own read by design, and covers the seconds spent
+   * building credentials between the two.
    *
    * One asking at a time. Up to `concurrency` item bodies reach their gate
    * together, and each would otherwise find the interval over and ask; they
@@ -2296,14 +2305,27 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   // keep their cursors (above), and the next pass reads the same removals.
   // `fullyEnumerated` would be the wrong gate, for the reason just given: a
   // cursor-limited pass is complete in the sense that matters here.
-  if (unfinishedCollections.size > 0) {
+  //
+  // AND A PASS THAT LISTED NOTHING DID NOT REACH EVERY COLLECTION EITHER (found
+  // in review, 2026-09-29). It leaves no collection unfinished, because it
+  // opened none, and "no collection unfinished" was read as "every collection
+  // reached". Nothing here resolved a removal on its strength, because a pass
+  // that listed nothing was told of none; the owner's bin below is where it
+  // did its harm. So whether this pass reached every collection is answered
+  // once, from both ways a pass falls short of it (stopped before it listed,
+  // or stopped inside what it listed), and each conclusion below that needs
+  // the answer (removals, the bin, former names) reads this one.
+  const reachedEveryCollection = !listedNothing && unfinishedCollections.size === 0;
+  const whatItDidNotReach = listedNothing
+    ? 'this pass stopped before listing a single collection'
+    : `this pass stopped before finishing ${unfinishedCollections.size} collection(s)`;
+  if (!reachedEveryCollection) {
     if (reportedRemovals.length > 0) {
       log.info(
-        `[sync] ${domain}: this pass stopped before finishing ${unfinishedCollections.size} ` +
-          `collection(s), so the ${new Set(reportedRemovals).size} removal(s) the source ` +
-          'reported are not resolved yet: an item reported removed may have moved into one of ' +
-          'them. The collections that reported them keep their cursors, and the next pass ' +
-          'reads them again.',
+        `[sync] ${domain}: ${whatItDidNotReach}, so the ${new Set(reportedRemovals).size} ` +
+          'removal(s) the source reported are not resolved yet: an item reported removed may ' +
+          'have moved into one of them. The collections that reported them keep their cursors, ' +
+          'and the next pass reads them again.',
       );
     }
   } else {
@@ -2335,11 +2357,21 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   // did not look in every folder. Read anyway, such a message was recorded as
   // trashed, which a person may apply. The bin still holds it on the next pass,
   // so waiting loses nothing.
-  if (listDiscardedKeys && unfinishedCollections.size > 0) {
+  //
+  // `reachedEveryCollection`, not "no collection unfinished" (found in review,
+  // 2026-09-29): a pass stopped before it listed anything has an empty seen-set
+  // and no unfinished collection, and it read the bin and recorded every
+  // on-target item in it as trashed by its owner, each one still alive at the
+  // source. A deadline or a spent budget at pass start reached that before; a
+  // pass told to stop at its first gate made it a third way in, and for a grant
+  // taken back or an organisation closed, reading the account at all is what
+  // the stop forbids. `a-pass-told-to-stop.unit.test.ts` (gate 1) and
+  // `a-pass-that-did-not-look.unit.test.ts` hold it.
+  if (listDiscardedKeys && !reachedEveryCollection) {
     log.info(
-      `[sync] ${domain}: this pass stopped before finishing ${unfinishedCollections.size} ` +
-        "collection(s), so the owner's bin is not read for deletions this pass: a message in " +
-        'it may also be in one of them. The next pass that reaches every collection reads it.',
+      `[sync] ${domain}: ${whatItDidNotReach}, so the owner's bin is not read for deletions ` +
+        'this pass: a message in it may still be alive in a collection this pass did not look ' +
+        'through. The next pass that reaches every collection reads it.',
     );
   } else if (listDiscardedKeys) {
     let discarded: DiscardedListing | undefined;
@@ -2405,7 +2437,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   // name, and the only rows it touches are failures that never reached the
   // target. A name still listed is left alone, because a real file can carry
   // it: an uploaded `Deck.pptx` beside a Slides deck called `Deck`.
-  if (formerNames.length > 0 && fullyEnumerated && unfinishedCollections.size === 0) {
+  if (formerNames.length > 0 && fullyEnumerated && reachedEveryCollection) {
     const seenAnywhere = new Set<string>();
     for (const keys of seenByCollection.values()) for (const k of keys) seenAnywhere.add(k);
     const unlisted = formerNames.filter((f) => !seenAnywhere.has(f.formerNaturalKeyHash));

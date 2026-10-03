@@ -43,6 +43,8 @@ const recorder = vi.hoisted(() => ({
   handed: [] as Handed[],
   /** A data type whose pass comes back stopped, and why. */
   haltIn: undefined as { domain: string; reason: string } | undefined,
+  /** How often the relocation auto-apply was run after a file pass. */
+  applied: 0,
 }));
 
 vi.mock('@openmig/core', async (importOriginal) => {
@@ -69,7 +71,17 @@ vi.mock('@openmig/core', async (importOriginal) => {
           : {}),
       };
     };
-  return { ...actual, runCalendarSync: recorded('calendar'), runContactSync: recorded('contact') };
+  return {
+    ...actual,
+    runCalendarSync: recorded('calendar'),
+    runContactSync: recorded('contact'),
+    runFileSync: recorded('file'),
+    // It removes old copies on the target; counted, never run.
+    autoApplyRelocations: async () => {
+      recorder.applied += 1;
+      return { considered: 0, applied: [], leftForReview: [] };
+    },
+  };
 });
 
 const { runAllDomains } = await import('./orchestration.ts');
@@ -95,6 +107,24 @@ const mapping = () =>
       calendar: { enabled: true, source: dav('caldav'), target: dav('caldav') },
       contacts: { enabled: true, source: dav('carddav'), target: dav('carddav') },
     },
+  });
+
+const webdav = () => ({
+  type: 'webdav',
+  url: 'https://cloud.example.invalid/remote.php/dav/files/someone/',
+  user: 'someone',
+  auth: { kind: 'login', passwordFromEnv: PASSWORD_ENV },
+});
+
+/** Files only, with relocation auto-apply switched on or not (ADR-0031). */
+const fileMapping = (autoApplyRelocations: boolean) =>
+  parseMappingConfig({
+    tenantId: TENANT,
+    mappingId: MAPPING,
+    source: webdav(),
+    target: webdav(),
+    autoApplyRelocations,
+    domains: { files: { enabled: true, source: webdav(), target: webdav() } },
   });
 
 /** A status store that remembers which data types it was told finished, paused or in progress. */
@@ -138,6 +168,7 @@ afterAll(async () => {
 afterEach(() => {
   recorder.handed.length = 0;
   recorder.haltIn = undefined;
+  recorder.applied = 0;
   vi.restoreAllMocks();
 });
 
@@ -228,5 +259,85 @@ describe("the appliance's pass, handed the question", () => {
       ['contact', false],
     ]);
     expect(calls.completed).toEqual(['calendar', 'contact']);
+  });
+});
+
+/**
+ * THE APPLY AFTER A FILE PASS ASKS AGAIN (review, 2026-09-29).
+ *
+ * The pass asks at its gates, at most once every `PASS_REREAD_EVERY_MS`, and
+ * its last gate is before its last item. A pause set during the last large
+ * upload, or in the seconds after the last asking, is one the pass never
+ * hears: it comes back with no `haltPause`, and an apply guarded by that alone
+ * removed old copies on the target after the owner said stop. The recorder
+ * asks once from inside, as the loop's first gate would, so the third asking
+ * here is the one the dispatcher makes after the pass.
+ */
+describe('relocation auto-apply after a file pass on the appliance', () => {
+  function countingQuestion(stopFromAsking: number) {
+    const asked: string[] = [];
+    return {
+      asked,
+      whyItStops: async (d: string): Promise<PassStopReason | null> => {
+        asked.push(d);
+        return asked.length >= stopFromAsking ? 'no_longer_runs' : null;
+      },
+    };
+  }
+
+  it('is not run when the stop is heard only after the last item gate, and says why', async () => {
+    const said = vi.spyOn(log, 'info').mockImplementation(() => {});
+    const { store, calls } = recordingStore();
+    // Asked before the data type (1), from inside the pass (2): both go on.
+    // Asked after the pass (3): stop.
+    const q = countingQuestion(3);
+    const results = await runAllDomains(fileMapping(true), store, phasesOfTheMigration('active'), { ledgerDb }, () => true, q.whyItStops);
+
+    expect(recorder.applied).toBe(0);
+    expect(q.asked).toEqual(['file', 'file', 'file']);
+    // The pass itself finished: what it copied is real, and nothing failed.
+    expect(results.find((r) => r.domain === 'file')?.haltedBecause).toBeUndefined();
+    expect(calls.failed).toEqual([]);
+    const lines = said.mock.calls.map((c) => String(c[0]));
+    const line = lines.find((l) => l.includes('relocation auto-apply not run'));
+    expect(line).toBeDefined();
+    expect(line).toContain(HALT_IN_WORDS.no_longer_runs);
+  });
+
+  it('is not run after a pass that heard the stop itself, and asks nothing more for it', async () => {
+    vi.spyOn(log, 'info').mockImplementation(() => {});
+    const { store } = recordingStore();
+    recorder.haltIn = { domain: 'file', reason: 'stopped_by_its_owner' };
+    const q = countingQuestion(Number.POSITIVE_INFINITY);
+    await runAllDomains(fileMapping(true), store, phasesOfTheMigration('active'), { ledgerDb }, () => true, q.whyItStops);
+
+    expect(recorder.applied).toBe(0);
+    expect(q.asked).toEqual(['file', 'file']);
+  });
+
+  it('runs when nothing said stop, after asking once more', async () => {
+    const { store, calls } = recordingStore();
+    const q = countingQuestion(Number.POSITIVE_INFINITY);
+    await runAllDomains(fileMapping(true), store, phasesOfTheMigration('active'), { ledgerDb }, () => true, q.whyItStops);
+
+    expect(q.asked).toEqual(['file', 'file', 'file']);
+    expect(recorder.applied).toBe(1);
+    expect(calls.completed).toEqual(['file']);
+  });
+
+  it('costs a mapping that never opted in nothing', async () => {
+    const { store } = recordingStore();
+    const q = countingQuestion(Number.POSITIVE_INFINITY);
+    await runAllDomains(fileMapping(false), store, phasesOfTheMigration('active'), { ledgerDb }, () => true, q.whyItStops);
+
+    expect(q.asked).toEqual(['file', 'file']);
+    expect(recorder.applied).toBe(0);
+  });
+
+  it('runs as before when nobody hands it a question, as the standalone worker does not', async () => {
+    const { store } = recordingStore();
+    await runAllDomains(fileMapping(true), store, phasesOfTheMigration('active'), { ledgerDb });
+
+    expect(recorder.applied).toBe(1);
   });
 });

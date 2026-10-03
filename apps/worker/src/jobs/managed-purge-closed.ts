@@ -20,12 +20,12 @@
  *
  * Closing stops the sync tick picking the organisation's migrations up: the
  * tick reads the organisation's status, `tenant.status`, and not only each
- * migration's own (workplan 0085 T2). A pass already under way stops within
- * about fifteen seconds, after the items it is copying at that moment (it
+ * migration's own (workplan 0085 T2). A pass already under way stops starting
+ * new items within about fifteen seconds and finishes the ones it has begun (it
  * re-reads between data types and, since 2026-09-29, from inside one), and the
  * credential builders refuse a closed organisation. So a run still in flight
- * here is one finishing the items it had begun when the close came, one whose
- * single item is a very large file, or a row a killed worker left behind.
+ * here is one finishing the items it had begun before it heard the close, one
+ * whose single item is a very large file, or a row a killed worker left behind.
  *
  * ## Why waiting was not enough on its own (T8's second half)
  *

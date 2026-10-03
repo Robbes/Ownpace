@@ -107,19 +107,30 @@ export interface DeadlinePause {
  * pass is now handed the between-types question to ask from inside a data
  * type (`PassClock.whyItStops`), and this is how often it asks.
  *
- * What one asking costs: one transaction of two or three statements on the
- * managed stack (the organisation's status and the migration's phases,
- * `passStepBefore`), one short transaction queued on the appliance's single
- * connection. At six passes in flight that is under one statement a second for
- * the whole box, beside a pass that already talks to the ledger about every
- * item it lists. Asking per item instead would roughly double a steady-state
- * pass's ledger traffic for an answer that changes a few times a year.
+ * What one asking costs, counted (review, 2026-09-29: the first count here
+ * said "two or three statements" and "under one a second", which was wrong on
+ * its own terms). On the managed stack it is `passStepBefore`: one
+ * transaction holding three SELECTs (the organisation's status, the
+ * migration's row, its data types' rows) and a fourth during a cutover (the
+ * cutover's windows), inside BEGIN, set_config and COMMIT, with SET LOCAL ROLE
+ * when the driver has a role: six to eight round trips. At six passes in
+ * flight, each asking at most once in this interval, that is about 1.2 SELECTs
+ * a second for the whole box (1.6 during a cutover), or 2.4 to 3.2 round
+ * trips, beside passes that already talk to the ledger about every item they
+ * list. On the appliance it is the same transaction without the organisation's
+ * read, queued on its single connection. Asking per item instead would roughly
+ * double a steady-state pass's ledger traffic for an answer that changes a few
+ * times a year.
  *
- * What it buys: a pause is heard within this interval plus the items already
- * in flight, which finish, because an item abandoned half-written would be the
- * destructive failure this product does not have. A large file on a slow
- * target can take longer than the interval by itself; nothing here promises
- * seconds for that one, only that nothing new begins after it.
+ * What it buys: a pause is heard within this interval, and the items in
+ * flight finish, because an item abandoned half-written would be the
+ * destructive failure this product does not have. Until it is heard the pass
+ * goes on starting items as before, so the items begun in the seconds between
+ * the press and the next asking are copied in full too (review, 2026-09-29:
+ * the sentences that said "starts nothing new" from the press were not true,
+ * and now say this). A large file on a slow target can take longer than the
+ * interval by itself; nothing here promises seconds for that one, only that
+ * nothing new begins once the pass has heard.
  *
  * A starting point, like `PASS_SOFT_DEADLINE_MS`, and one constant for the
  * same reason: if a real box shows the asking in its ledger traffic, move it.

@@ -302,6 +302,38 @@ describe('gate 1 — whether to list at all', () => {
     expect(await w.absences('f1/a')).toBe(0);
     expect(await w.absences('f2/b')).toBe(0);
   });
+
+  it("does not read the owner's bin either, so nothing it never reached is concluded trashed", async () => {
+    // FOUND IN REVIEW (2026-09-29). A pass stopped at this gate lists no
+    // collection, so no collection is left unfinished, and the bin's own gate
+    // read "none unfinished" as "every one reached": it read the bin, found
+    // f2/b in it, saw an empty seen-set, and recorded f2/b as trashed by its
+    // owner, the one kind of deletion a person may apply. f2/b is alive at the
+    // source. And a grant taken back or an organisation closed is exactly the
+    // case in which nothing may read that account any more.
+    const w = world({ f1: [{ key: 'f1/a', body: 'A' }], f2: [{ key: 'f2/b', body: 'B' }] });
+    await w.run();
+    const bin = async (): Promise<DiscardedListing> => ({ keys: ['f2/b'], unnameable: 0 });
+
+    for (const reason of EVERY_REASON) {
+      const q = question(reason);
+      q.press();
+      const result = await w.run({ whyItStops: q.whyItStops, now: handClock().now, bin });
+
+      expect(result.haltPause?.reason, reason).toBe(reason);
+      expect(w.seen.listFolders, reason).toBe(0);
+      expect(w.seen.binReads, reason).toBe(0);
+      expect(result.deletions, reason).toEqual([]);
+    }
+    expect((await w.ledger.find(TENANT, MAPPING, 'file', 'f2/b'))?.deletionTrashedAt).toBeUndefined();
+
+    // And the pass after Resume, which reaches every collection, reads it, and
+    // sees f2/b alive in f2, so the bin's copy of its name concludes nothing.
+    const resumed = await w.run({ bin });
+    expect(w.seen.binReads).toBe(1);
+    expect(resumed.haltPause).toBeUndefined();
+    expect(resumed.deletions).toEqual([]);
+  });
 });
 
 describe('gate 3 — whether to scan the next item', () => {

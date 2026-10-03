@@ -60,9 +60,9 @@
      all stopped. The close asks the orchestrator to cancel only the runs
      whose row names the orchestrator's run, which only a sync pass records,
      and a request that fails is only logged (apps/api/src/close-account.ts).
-     A sync pass stops within about fifteen seconds, after what it is
-     copying at that moment (2026-09-29: it hears the close from inside a
-     data type too); a discovery stops at the latest before its next data
+     A sync pass stops starting new items within about fifteen seconds and
+     finishes the ones it has begun (2026-09-29: it hears the close from
+     inside a data type too); a discovery stops at the latest before its next data
      type, so it reads to the end of the one it is on. A verification or a
      confirmation already running reads the accounts to its end, with the
      readers it built before the close (run-verification.ts,
@@ -646,10 +646,10 @@ sure you never need this section.
      or use the access answers 409 account_closed (apps/api/src/closed-organisation.ts). Work
      already running is not all stopped: the close cancels only the runs whose row names the
      orchestrator's run (a sync pass), best effort (apps/api/src/close-account.ts); a sync pass
-     the cancel did not stop stops within about fifteen seconds, after what it is copying at that
-     moment (whyThisDataTypeStops, 2026-09-29); a discovery reads to the end of the data type it
-     is on; a verification or a confirmation already running reads to its end with the stored
-     access.
+     the cancel did not stop stops starting new items within about fifteen seconds and finishes
+     the ones it has begun (whyThisDataTypeStops, 2026-09-29); a discovery reads to the end of
+     the data type it is on; a verification or a confirmation already running reads to its end
+     with the stored access.
      True once the close stops those too, or once the sentence says what the code does. -->
 
 **You** may close your account at any time: write to support@ownpace.eu. You choose when its

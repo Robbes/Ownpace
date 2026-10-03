@@ -2348,8 +2348,8 @@ paths:
         progress strip says `stopped`, the check that everything arrived skips
         it (D6), and the stop is recorded (`path.status`). Nothing is enqueued:
         every pass reads the stop afresh, and a pass already copying this data
-        type stops within about fifteen seconds, after what it is copying at
-        that moment.
+        type stops starting new items within about fifteen seconds, and
+        finishes the ones it has begun (a very large file can take longer).
       responses:
         '200':
           description: Stopped, or already stopped (`changed` false).

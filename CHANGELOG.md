@@ -6,10 +6,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
-- **A pause is heard inside a running pass** (workplan 0022 T2, 2026-09-29): pressing Pause,
-  taking a grant back, closing the organisation or stopping one data type now stops a pass
-  that is already copying within about fifteen seconds, after what it is copying at that
-  moment, on both editions. It used to wait for the pass's own deadline, up to fifty minutes.
+- **A pause is heard inside a running pass** (workplan 0022 T2, 2026-09-29). On the managed
+  service, pressing Pause, taking a grant back, closing the organisation or stopping one data
+  type now reaches a pass that is already copying: within about fifteen seconds it stops
+  starting new items, and it finishes the ones it has begun (a very large file can take
+  longer). It used to wait for the pass's own deadline, up to fifty minutes. The appliance has
+  no Pause button, grant withdrawal or organisation close; there the same holds for a Finish,
+  a data type its owner stopped, and a status changed by hand, which used to wait for the end
+  of the firing. Neither edition auto-applies a relocation after a pass that was told to stop,
+  and both ask once more right before that apply.
 
 ## [0.2.0-alpha.1] - 2026-09-29
 
