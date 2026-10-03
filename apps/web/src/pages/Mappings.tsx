@@ -26,7 +26,8 @@
  *
  * The stage is read from what the list carries: the lifecycle, and whether a
  * pass has completed. A migration whose check passed shows *Kept in step*
- * here, not *Ready to switch*, until the list carries the check (0154 T2).
+ * here, not *Ready to switch*, until the list carries the check, with the line
+ * under each stage (0154 T1 (b), which reads T2's totals).
  */
 import React from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';

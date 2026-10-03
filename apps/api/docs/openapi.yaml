@@ -2103,6 +2103,13 @@ paths:
         On a data type still in its cutover, `graceEndedAt` says when its
         grace period ended while nobody chose: it no longer copies (D7, slice
         7c).
+
+        Each `domainStatus` row carries what discovery found of its data type
+        (workplan 0154 T2): `itemsFound`, and `bytesFound` when the source has
+        cheap sizes. It is discovery's latest count that succeeded, kept
+        through a later error, and only for the data types the migration
+        carries, by the rule `…/discovery` reads by. Both are absent, never 0,
+        when discovery could not count the data type.
       responses:
         '200':
           description: The migration.

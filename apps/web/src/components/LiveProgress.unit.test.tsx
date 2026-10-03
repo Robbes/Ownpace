@@ -15,10 +15,11 @@
  */
 
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
 import LiveProgress from './LiveProgress.tsx';
 import type { LiveProgressRow } from './LiveProgress.tsx';
 import { STRINGS, LOCALES } from '../i18n/strings.ts';
+import { LocaleProvider } from '../i18n/index.tsx';
 import { FAILURE_CATEGORIES } from '@openmig/shared';
 import { FAILURE_KEY } from '../i18n/failure-key.ts';
 
@@ -43,6 +44,17 @@ describe('what the strip says about items nothing happened to', () => {
   it('counts them, beside what was copied', () => {
     render(<LiveProgress domains={[row({ itemsAdopted: 402 })]} />);
     expect(screen.getByText(/402 left as they are/i)).toBeTruthy();
+  });
+
+  /**
+   * AND SAYS WHAT IT MEANS, ON SCREEN (0154 T2). The meaning lived only in a
+   * tooltip, which a phone never shows.
+   */
+  it('says what it means where it is read, not only in a tooltip', () => {
+    render(<LiveProgress domains={[row({ itemsAdopted: 402 })]} />);
+    expect(
+      screen.getByText(/402 left as they are: already on the new system, or changed there since/),
+    ).toBeTruthy();
   });
 
   /**
@@ -195,7 +207,7 @@ describe('a stopped data type keeps its line', () => {
     render(<LiveProgress domains={[calendar('stopped')]} />);
     expect(screen.getByText('Calendar')).toBeTruthy();
     expect(screen.getByText(STRINGS.en['confirm.state.stopped'])).toBeTruthy();
-    expect(screen.getByText(/412 synced/)).toBeTruthy();
+    expect(screen.getByText('412 copied · total not known')).toBeTruthy();
     expect(screen.getByText(STRINGS.en['confirm.progress.stopped'])).toBeTruthy();
   });
 
@@ -216,5 +228,86 @@ describe('a stopped data type keeps its line', () => {
   it('says it only of a stopped one', () => {
     render(<LiveProgress domains={[calendar('completed')]} />);
     expect(screen.queryByText(STRINGS.en['confirm.progress.stopped'])).toBeNull();
+  });
+});
+
+/**
+ * OF ABOUT HOW MANY (workplan 0154 T2).
+ *
+ * The row said *"18,234 synced"*: how many had arrived, and not of how many.
+ * Both editions now serve what discovery found on each row, and the row sets
+ * the copies against it, as a line, a bar and bytes. The rules are
+ * `progress-totals.ts`'s, tested there; these hold what the reader sees.
+ */
+describe('of about how many', () => {
+  const GB = 1024 ** 3;
+  const mail = (over: Partial<LiveProgressRow> = {}): LiveProgressRow =>
+    row({ state: 'in_progress', itemsSynced: 18_234, itemsFailed: 0, itemsFound: 19_000, ...over });
+
+  afterEach(() => window.localStorage.removeItem('ownpace.locale'));
+
+  it('reads "18,234 of ~19,000", with a bar that says the same in words', () => {
+    render(<LiveProgress domains={[mail()]} />);
+    expect(screen.getByText('18,234 of ~19,000')).toBeTruthy();
+    const bar = screen.getByRole('progressbar', { name: 'Email' });
+    expect(bar.getAttribute('aria-valuenow')).toBe('95');
+    expect(bar.getAttribute('aria-valuetext')).toBe('18,234 of ~19,000');
+  });
+
+  it('adds the bytes as one quantity, when both sides were measured', () => {
+    render(<LiveProgress domains={[mail({ bytesTransferred: 3.1 * GB, bytesFound: 3.4 * GB })]} />);
+    expect(screen.getByText('18,234 of ~19,000 · 3.1 of ~3.4 GB')).toBeTruthy();
+  });
+
+  it('in Dutch, with Dutch digits', () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    render(
+      <LocaleProvider>
+        <LiveProgress domains={[mail({ bytesTransferred: 3.1 * GB, bytesFound: 3.4 * GB, itemsAdopted: 12 })]} />
+      </LocaleProvider>,
+    );
+    expect(screen.getByText('18.234 van ~19.000 · 3,1 van ~3,4 GB')).toBeTruthy();
+    expect(
+      screen.getByText(/12 ongemoeid gelaten: stonden al op het nieuwe systeem, of zijn daar sindsdien gewijzigd/),
+    ).toBeTruthy();
+  });
+
+  /** Hard rule 9: no count from discovery, no total; never "of 0", and no empty bar. */
+  it('says the total is not known when discovery has none, and draws no bar', () => {
+    render(<LiveProgress domains={[mail({ itemsFound: undefined, bytesTransferred: 3.1 * GB })]} />);
+    expect(screen.getByText('18,234 copied · total not known')).toBeTruthy();
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    expect(screen.queryByText(/of ~/)).toBeNull();
+  });
+
+  it('says none were found when discovery counted none and none arrived', () => {
+    render(<LiveProgress domains={[row({ domain: 'task', state: 'completed', itemsSynced: 0, itemsFailed: 0, itemsFound: 0 })]} />);
+    expect(screen.getByText('none found to copy')).toBeTruthy();
+    expect(screen.queryByText(/of ~0/)).toBeNull();
+    expect(screen.queryByRole('progressbar')).toBeNull();
+  });
+
+  /** About is literal: the total grows with what arrived, and the bar stops at 100%. */
+  it('never shows more than all of it', () => {
+    render(<LiveProgress domains={[mail({ itemsSynced: 19_250 })]} />);
+    expect(screen.getByText('19,250 of ~19,250')).toBeTruthy();
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('100');
+  });
+
+  it('draws what was left as it was after the copies, in the same bar', () => {
+    render(<LiveProgress domains={[row({ domain: 'contact', state: 'completed', itemsSynced: 210, itemsFailed: 0, itemsAdopted: 402, itemsFound: 612 })]} />);
+    const parts = screen.getByRole('progressbar').children;
+    expect(parts).toHaveLength(2);
+    expect((parts[0] as HTMLElement).style.width).toBe(`${(210 / 612) * 100}%`);
+    expect((parts[1] as HTMLElement).style.width).toBe(`${(402 / 612) * 100}%`);
+  });
+
+  it('says what happened to the rest on one line', () => {
+    render(<LiveProgress domains={[mail({ itemsFailed: 12, itemsRetrying: 3, itemsAdopted: 402 })]} />);
+    const failed = screen.getByText('12 failed');
+    const line = failed.parentElement;
+    expect(line?.textContent).toBe(
+      '12 failed · 3 retrying · 402 left as they are: already on the new system, or changed there since',
+    );
   });
 });

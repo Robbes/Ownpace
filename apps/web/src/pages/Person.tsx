@@ -35,7 +35,7 @@
  * Migrations page to go back to, no *Add a migration*, and no links.
  *
  * NOT YET HERE, and said in the plan: the one-line progress on each data type
- * (0154 T2's totals).
+ * (0154 T1 (b) and (d), which read T2's totals).
  *
  * THREE READS, as on Migrations. A failed read of the people or the list is a
  * failure on screen (hard rule 9). A step whose count could not be read says

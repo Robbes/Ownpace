@@ -310,13 +310,15 @@ describe('the live progress strip', () => {
     itemsNeedingDecision: 1,
     lastSyncedAt: '2026-08-09T10:00:00.000Z',
     lastError: 'IMAP LIST failed: connection reset',
+    // What discovery found (0154 T2), on both editions' rows.
+    itemsFound: 50,
   };
 
   it('managed: renders the strip from the detail payload, retrying count included', async () => {
     mappingApiGet.mockResolvedValue(aMapping({ domainStatus: [emailDomain] }));
     renderHub();
 
-    expect(await screen.findByText('42 synced')).toBeInTheDocument();
+    expect(await screen.findByText('42 of ~50')).toBeInTheDocument();
     expect(screen.getByText('3 failed')).toBeInTheDocument();
     expect(screen.getByText('2 retrying')).toBeInTheDocument();
     // The per-domain as-of (0036 T1) — must render from BOTH editions'
@@ -338,10 +340,10 @@ describe('the live progress strip', () => {
     });
     renderHub();
 
-    expect(await screen.findByText('42 synced')).toBeInTheDocument();
+    expect(await screen.findByText('42 of ~50')).toBeInTheDocument();
     expect(screen.getByText(/last synced/)).toBeInTheDocument();
     // The other mapping's numbers must not leak into this hub.
-    expect(screen.queryByText('999 synced')).not.toBeInTheDocument();
+    expect(screen.queryByText(/^999 /)).not.toBeInTheDocument();
     expect(mappingApiGet).not.toHaveBeenCalled();
   });
 });
