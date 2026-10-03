@@ -286,6 +286,15 @@ const Person: React.FC = () => {
         )}
       </section>
 
+      {/* Their report (0154 T5): each migration's, one section each. */}
+      {migrations.length > 0 && (
+        <p className="text-sm">
+          <Link to={`/people/${encodeURIComponent(person.id)}/report`} className="text-blue-700 hover:underline">
+            {t('migrationReport.open')} →
+          </Link>
+        </p>
+      )}
+
       {migrations.length > 0 && (
         <section aria-labelledby="before-you-switch" className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
           <h2 id="before-you-switch" className="text-lg font-semibold text-gray-900 scroll-mt-20">

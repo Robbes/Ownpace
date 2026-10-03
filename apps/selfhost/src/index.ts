@@ -2931,13 +2931,15 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         const statuses = await statusStore.getStatus(tId, mId);
         const failures = await ledger.listFailures(tId, mId);
         const adopted = await ledger.countAdoptedByDomain(tId, mId);
+        // What discovery found (0154 T2, T5), as `/status` reads it.
+        const found = foundByDomain(await discoveryStore.getDiscovery(tId, mId));
         const report = buildCompletionReport({
           mappingId: m.config.mappingId,
           sourceType: m.config.source.type,
           targetType: m.config.target.type,
           lifecycle: await mappingStatus(m),
           generatedAt: new Date().toISOString(),
-          domains: buildDomainStatusReports(statuses, failures, adopted),
+          domains: buildDomainStatusReports(statuses, failures, adopted, found),
           moves: await ledger.listMoves(tId, mId),
           deletions: await ledger.listDeletions(tId, mId),
           failures,

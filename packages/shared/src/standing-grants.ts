@@ -268,6 +268,15 @@ export interface CredentialRetirement {
   readonly whatTheyCallIt: string;
   /** A URL where one is stable, else the path through their settings. */
   readonly where: string;
+  /**
+   * Dutch for the two above, ONLY where they are our own words. A provider's
+   * screen name is a label on their screen and stays verbatim in every
+   * language; where we cannot name the screen and describe it instead
+   * (`archive`, `mail_password`, `dav_password`), the description is prose of
+   * ours, and an English sentence on a Dutch page is a page half-translated.
+   */
+  readonly whatTheyCallItNl?: string;
+  readonly whereNl?: string;
   readonly en: string;
   readonly nl: string;
 }
@@ -294,6 +303,8 @@ const CREDENTIALS: readonly CredentialRetirement[] = [
     impliedBy: ['archive'],
     whatTheyCallIt: 'the export you downloaded',
     where: 'wherever you saved and extracted the export on your own computer or drive',
+    whatTheyCallItNl: 'de export die u hebt gedownload',
+    whereNl: 'waar u de export op uw eigen computer of schijf hebt opgeslagen en uitgepakt',
     en:
       'The export archive itself is still on your own disk, where you put it. We never had a ' +
       'copy — only the path — and that path is now deleted. Worth remembering that the ' +
@@ -359,6 +370,10 @@ const CREDENTIALS: readonly CredentialRetirement[] = [
     where:
       'your mail provider’s account settings — look for “app password”, ' +
       '“application-specific password” or “device password”',
+    whatTheyCallItNl: 'de account- of beveiligingsinstellingen van uw mailaanbieder',
+    whereNl:
+      'de accountinstellingen van uw mailaanbieder — zoek naar “app-wachtwoord”, ' +
+      '“toepassingsspecifiek wachtwoord” of “apparaatwachtwoord”',
     en:
       'The mailbox password or app password you gave us still works. We have deleted our copy; ' +
       'only you can retire it, by deleting that app password or changing the account password. ' +
@@ -376,6 +391,10 @@ const CREDENTIALS: readonly CredentialRetirement[] = [
     where:
       'your provider’s account settings — look for “app password”, ' +
       '“application-specific password” or “connected devices”',
+    whatTheyCallItNl: 'de beveiligingsinstellingen van uw agenda-, contacten- of bestandsaanbieder',
+    whereNl:
+      'de accountinstellingen van uw aanbieder — zoek naar “app-wachtwoord”, ' +
+      '“toepassingsspecifiek wachtwoord” of “verbonden apparaten”',
     en:
       'The password you gave us for this calendar, contacts or file account still works. We have ' +
       'deleted our copy; only you can retire it where the account lives.',
@@ -435,9 +454,9 @@ export function accessThatOutlivesErasure(
   const credentials: OutlivingAccess[] = credentialRetirementsFor(kinds).map((c) => ({
     id: c.id,
     category: 'credential',
-    heading: c.whatTheyCallIt,
+    heading: (locale === 'nl' && c.whatTheyCallItNl) || c.whatTheyCallIt,
     body: locale === 'nl' ? c.nl : c.en,
-    where: c.where,
+    where: (locale === 'nl' && c.whereNl) || c.where,
   }));
   const consents: OutlivingAccess[] = standingGrantsFor(kinds).map((g) => ({
     id: g.id,

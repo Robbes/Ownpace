@@ -302,8 +302,11 @@ const MappingDetail: React.FC = () => {
       </details>
       {/* The completion report (workplan 0047): every number on it already
           lives on some screen below — this is the ONE document version, for
-          handing over. */}
-      <div className="mt-2">
+          handing over. Since 0154 T5 a page too, in the reader's language. */}
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+        <Link to={`/mappings/${encodeURIComponent(id)}/report`} className="text-sm text-blue-700 hover:underline">
+          {t('migrationReport.open')} →
+        </Link>
         <CompletionReportDownload mappingId={id} />
       </div>
       {detail.error != null && (

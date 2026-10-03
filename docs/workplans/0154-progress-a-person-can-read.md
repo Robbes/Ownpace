@@ -4,6 +4,47 @@
 
 ## Status — 2026-10-03 (update this block at the end of every session)
 
+**2026-10-03, night: T5 is built: the report of what arrived, as a page.**
+`/mappings/:mappingId/report` on both editions, and a person's at `/people/:personId/report`, one
+section per migration.
+
+- **The page** (`MigrationReport`) draws the completion report (0047) in the reader's language:
+  - the verdict;
+  - per data type, what was found, what arrived, what was left as it was and what could not come.
+    *Why:* is followed by the provider's own words, verbatim, and a link to see which;
+  - what waits on a decision, each line opening its queue;
+  - what was removed and on whose decision. On the appliance, which keeps removals in its log,
+    it says so rather than zeros nobody counted;
+  - the access carried over;
+  - what the check compared, per data type: the old system, the new, and the contents compared.
+    It says when, or that the check was not run, or that it could not be read;
+  - the access only the reader can withdraw, in their language
+    (`accessThatOutlivesErasure` on their locale). Where we cannot name the provider's screen (an
+    export, a mail or calendar password) the description is ours, and now has Dutch; a provider's
+    own label stays verbatim. The close-account list, which already asked for Dutch, gains it too.
+- **On a phone**, below 640 pixels, each data type is a block of its own: its name and state on
+  top, its four counts labelled beneath. *Could not come* is what a report is read for, and it no
+  longer sits behind a sideways scroll.
+- **What was found** is in the report now. Each domain line carries `itemsFound` and
+  `itemsAdopted`, and both editions' report routes join discovery's counts by T2's rule: only the
+  migration's own data types, and no count where the only attempt failed. The Markdown gains
+  *found* and *left as it was* as its last two columns, so an older reader finds the rest where it
+  was.
+- ***Download the report*** / ***Download het rapport***: the format is in the file's name, and
+  *Markdown* left the button in both languages.
+- **The report and *Confirmed* link each other**: what happened, and what is verified.
+- **A person's report** reads each migration on its own. One that could not be read says so in its
+  section, and the others still stand.
+- **Proved by:**
+  - the managed route over a real in-process ledger (2), and the appliance's through a restart (+3
+    lines);
+  - the page (12, Dutch included);
+  - the person's report (3);
+  - the three links;
+  - our own descriptions in Dutch (3).
+
+  **Mutations: eleven of eleven caught.**
+
 **2026-10-03, night: T3 (b) is built: how long, during the copy, from the last passes.** On a
 migration's page, once a pass has reported, in place of the count's estimate: *How long: About 4 to
 8 days more, from the last 3 passes.*
@@ -312,7 +353,7 @@ of a move after it. The evening's answer puts everything before.
 | T2 Totals: *of about how many* | ✅ **Merged in #1420: *"18,234 of ~19,000"*, a bar and the bytes, on each data type's row in both editions** | §3. Synced counts set against what discovery found, as a share and in bytes. *About*, because the source keeps changing. |
 | T3 Time left, as a range with its reason | ✅ **Built: before Start, a range with its reason from Gmail's ceiling, and *we will know after the first hour* for the rest (a); during the copy, a range from the last passes' pace (b)** | §3. (a) Before Start, from the counts and the limits the product already knows (Gmail's 2.5 GB a day). (b) During the copy, from the rate of recent passes. Never a single number, and nothing when it cannot know. |
 | T4 The cutover steps with counts and state | ✅ **Built: one list on a migration's page and a person's, each step with its count and state in words, and the check as it last ran** | §3. The seven cards become one ordered list. Each has its count and *done*, *needs you* or *not yet*, summed for the move across its migrations. |
-| T5 The report of what arrived, as a page | 📋 **Proposed; before the first invitation** | §3. The completion report is rendered in the app, per migration and per move, and downloadable. The word *Markdown* leaves the button. |
+| T5 The report of what arrived, as a page | ✅ **Built: a page per migration and one per person, found beside arrived, *Download the report*, and the report and *Confirmed* linked** | §3. The completion report is rendered in the app, per migration and per move, and downloadable. The word *Markdown* leaves the button. |
 | T6 Internals out of the way | ✅ **Built: the ID and the hashes fold away, the connections line says the card, and the run history says its counts in words** | §3. The UUID, the kinds, the doubled address and the item hashes fold away. *Left as they are* says what it means. |
 | T7 An email when the first copy is in | 📋 **Decided by the owner 2026-09-28: one per person; before the first invitation** | §3. A milestone mail, *"Your mail is in your new system and is kept in step until you switch."* It is a new kind for 0030's email-only channel, so the owner decides. |
 | T8 The person's own progress page says the same | 📋 **Proposed; before the first invitation** | §3. `/view/:link` shows T1's line, T2's totals and T3's range, in the person's language (0145 T6). |

@@ -4028,7 +4028,11 @@ paths:
         what was removed on whose decision — assembled by the shared builder
         both editions serve, from data every screen already shows. `markdown`
         is the deliverable an owner downloads and hands over; `report` is the
-        same content as data.
+        same content as data, which the report page draws in the reader's
+        language (workplan 0154 T5). Each of its `domains` lines carries
+        `itemsFound`, what discovery found of the data type, where a count
+        exists (absent, never 0, where none does), and `itemsAdopted`, what
+        was left as it already was.
       parameters:
         - { name: mappingId, in: path, required: true, schema: { type: string } }
       responses:

@@ -19,6 +19,7 @@ import Layout from './components/Layout.tsx';
 import AcceptanceGate from './components/AcceptanceGate.tsx';
 import Mappings from './pages/Mappings.tsx';
 import Person from './pages/Person.tsx';
+import PersonReport from './pages/PersonReport.tsx';
 import StartMigration from './pages/StartMigration.tsx';
 import MappingDetail from './pages/MappingDetail.tsx';
 import CreateMapping from './pages/CreateMapping.tsx';
@@ -51,6 +52,7 @@ import Sharing from './pages/Sharing.tsx';
 import Failures from './pages/Failures.tsx';
 import Verify from './pages/Verify.tsx';
 import Confirmed from './pages/Confirmed.tsx';
+import Report from './pages/Report.tsx';
 import Finish from './pages/Finish.tsx';
 import Confirm from './pages/Confirm.tsx';
 import { isSelfHost } from './services/edition.ts';
@@ -268,6 +270,8 @@ const AppRoutes: React.FC = () => {
             its one implicit person here, and lands here once every migration
             has started (0153 T8). Its list and create screens stay managed. */}
         <Route path="people/:personId" element={<Person />} />
+        {/* A person's report: each migration's, one section each (0154 T5). */}
+        <Route path="people/:personId/report" element={<PersonReport />} />
         {/* Start a migration (0153 T4): who, from where, what, to where.
             Managed only, as the wizard it will replace is, for the same
             reason: it creates migrations through the managed /api. */}
@@ -407,6 +411,9 @@ const AppRoutes: React.FC = () => {
           }
         />
         <Route path="mappings/:mappingId/confirmed" element={<Confirmed />} />
+        {/* The report of what arrived, as a page (0154 T5), on both editions:
+            the completion report is per migration on both. */}
+        <Route path="mappings/:mappingId/report" element={<Report />} />
         <Route
           path="finish"
           element={

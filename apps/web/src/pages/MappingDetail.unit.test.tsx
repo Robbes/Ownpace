@@ -153,6 +153,9 @@ describe('the per-mapping navigation', () => {
   it('shows the mapping name when the detail read succeeds', async () => {
     renderHub();
     expect(await screen.findByRole('heading', { name: 'Acme mail' })).toBeInTheDocument();
+    // The report, as a page and as a download (0154 T5).
+    expect(screen.getByRole('link', { name: 'The report →' })).toHaveAttribute('href', '/mappings/acme-mail/report');
+    expect(screen.getByRole('button', { name: 'Download the report' })).toBeInTheDocument();
   });
 
   it('keeps every link working when the detail read fails — navigation never dead-ends', async () => {

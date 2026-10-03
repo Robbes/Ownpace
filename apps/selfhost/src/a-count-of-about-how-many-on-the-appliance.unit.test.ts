@@ -134,6 +134,16 @@ describe('/status on the appliance — of about how many', () => {
       expect(rows.contact).toBeDefined();
       expect(rows.contact && 'itemsFound' in rows.contact).toBe(false);
       expect(rows.contact && 'bytesFound' in rows.contact).toBe(false);
+
+      // And the report says the same (0154 T5): found beside what arrived.
+      const report = (await (await fetch(`${booted.base}/mappings/${MAPPING}/completion-report`)).json()) as {
+        report: { domains: Row[] };
+        markdown: string;
+      };
+      const lines = Object.fromEntries(report.report.domains.map((r) => [r.domain, r]));
+      expect(lines.calendar).toMatchObject({ itemsSynced: 0, itemsFound: 1_204 });
+      expect(lines.contact && 'itemsFound' in lines.contact).toBe(false);
+      expect(report.markdown).toContain('| found | left as it was |');
     } finally {
       await booted.handle.stop();
     }

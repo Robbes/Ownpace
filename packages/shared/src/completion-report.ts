@@ -39,6 +39,14 @@ export interface CompletionDomainLine {
   readonly lastError?: string;
   /** Its owner stopped it (0128 T4), rather than the mapping file switching it off. */
   readonly stoppedByOwner?: true;
+  /**
+   * What discovery found of it (0154 T2), absent where nothing was counted:
+   * the *of ~* the progress row reads, so the report says what was found
+   * beside what arrived (0154 T5), and never a found of 0 nobody counted.
+   */
+  readonly itemsFound?: number;
+  /** What was left as it already was on the destination (0124 T2). */
+  readonly itemsAdopted?: number;
 }
 
 /** The queues, summarised — open items are the reasons a migration is not done. */
@@ -184,6 +192,8 @@ export function buildCompletionReport(inputs: CompletionReportInputs): Completio
       ...(d.lastSyncedAt ? { lastSyncedAt: d.lastSyncedAt } : {}),
       ...(d.lastError ? { lastError: d.lastError } : {}),
       ...(d.stoppedByOwner === true ? { stoppedByOwner: true as const } : {}),
+      ...(d.itemsFound !== undefined ? { itemsFound: d.itemsFound } : {}),
+      ...(d.itemsAdopted ? { itemsAdopted: d.itemsAdopted } : {}),
     })),
     queues,
     ...(inputs.applied ? { applied: inputs.applied } : {}),
@@ -221,12 +231,14 @@ export function renderCompletionReportMarkdown(report: CompletionReport): string
   lines.push('');
   lines.push('## What moved');
   lines.push('');
-  lines.push('| domain | state | items synced | failed | bytes | last synced |');
-  lines.push('|---|---|---:|---:|---:|---|');
+  // Found and left as it was come last, so a reader of an older report
+  // finds the columns they knew where they were (0154 T5).
+  lines.push('| domain | state | items synced | failed | bytes | last synced | found | left as it was |');
+  lines.push('|---|---|---:|---:|---:|---|---:|---:|');
   for (const d of report.domains) {
     lines.push(
       `| ${d.domain} | ${d.state} | ${d.itemsSynced} | ${d.itemsFailed} | ` +
-        `${d.bytesTransferred} | ${d.lastSyncedAt ?? '—'} |`,
+        `${d.bytesTransferred} | ${d.lastSyncedAt ?? '—'} | ${d.itemsFound ?? '—'} | ${d.itemsAdopted ?? 0} |`,
     );
   }
   const skipped = report.domains.filter((d) => d.state === 'skipped');

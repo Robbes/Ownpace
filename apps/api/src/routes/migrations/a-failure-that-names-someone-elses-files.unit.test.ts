@@ -64,7 +64,7 @@ describe("the owner's pages, for an account a person granted", () => {
   it('builds the completion report with the text withheld, since its JSON reaches the browser too', () => {
     const report = handler(operating, 'get', '/:mappingId/completion-report');
     expect(report).toMatch(
-      /buildDomainStatusReports\(gathered\.statuses, gathered\.failures, gathered\.adopted, undefined, \{\s*withholdProse: s\.personGranted,\s*\}\)/,
+      /buildDomainStatusReports\(gathered\.statuses, gathered\.failures, gathered\.adopted, gathered\.found, \{\s*withholdProse: s\.personGranted,\s*\}\)/,
     );
   });
 
