@@ -1998,6 +1998,28 @@ trigger-tls: TLS terminated on 127.0.0.1:3443 (HTTP 200)
   sitting at the machine — see the white-screen entry above, which is the same
   fault seen from the browser.
 
+### What the database spends its time on
+
+The managed stack's postgres loads `pg_stat_statements` (workplan 0143 T8): each statement's
+calls, time and rows since the last reset, with its literal values replaced by placeholders.
+Utility statements are not kept, so a password change never reaches the view. The ten
+statements with the most total time:
+
+```bash
+docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrate -d openmigrate -c \
+  "SELECT round(total_exec_time) AS total_ms, calls, round(mean_exec_time::numeric, 1) AS mean_ms,
+          rows, left(regexp_replace(query, '\s+', ' ', 'g'), 160) AS statement
+     FROM pg_stat_statements
+    ORDER BY total_exec_time DESC
+    LIMIT 10;"
+```
+
+Read it for the statement whose time grows with the number of passes, not for one slow call.
+Before a measured sitting (0143 T9), `SELECT pg_stat_statements_reset();`, as the same owner,
+starts the count again. *"pg_stat_statements must be loaded via shared_preload_libraries"* means
+the database container still runs without the preload: it takes it when the bring-up's data
+phase recreates it.
+
 ## Related docs
 
 - Architecture (source of truth): [`architecture/solution-architecture.md`](./architecture/solution-architecture.md) — §4 roles, §16 cost drivers, §17 security/GDPR, §22.1 releases.
