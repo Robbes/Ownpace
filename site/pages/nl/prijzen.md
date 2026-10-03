@@ -14,8 +14,8 @@ die alle vier tegelijk migreert, doet er vier tegelijk; iemand die ze na elkaar 
 
 ## Wat u wilt weten voordat u betaalt
 
-**Tiny is gratis.** Eén migratie tegelijk, tot 250 GB, kost niets: geen inrichtingskosten,
-niets per maand, geen factuur, en geen kaart of factuurgegevens die u ons hoeft te geven. Uw
+**Free is gratis.** Eén migratie tegelijk, tot 250 GB, kost niets: niets per maand, geen
+factuur, en geen kaart of factuurgegevens die u ons hoeft te geven. Uw
 e-mail, dan uw contacten, dan uw agenda, dan uw bestanden, na elkaar: dat is de gratis weg.
 Meer tegelijk starten is de snellere weg, en die kost wat elk ander pakket kost. Een tweede
 migratie tegelijk, of meer dan 250 GB, brengt u naar Small, en we vragen het u eerst.
@@ -40,34 +40,35 @@ overstap houdt een gestopte soort zijn plek vast, zoals een pauze. Blijft u na d
 kopiëren, dan telt een gestopte soort niet meer mee. Het pakket kijkt naar het drukste moment
 van de maand, dus stoppen en weer starten binnen één maand verlaagt het niet.
 
-**Inrichting betaalt u één keer, over het grootste pakket dat u ooit bereikt.** Gaat u later
-omhoog, dan betaalt u alleen het verschil. Gaat u omlaag, dan wordt het nooit opnieuw
-gerekend. Of u nu klein begon en groeide of meteen groot startte: het totaal is hetzelfde. Er
-valt dus ook niets te winnen met te laag inschatten.
+**Er zijn geen inrichtingskosten.** U betaalt voor de maanden die u gebruikt en niets vooraf,
+dus klein beginnen en groeien kost hetzelfde als meteen groot starten. Er valt niets te winnen
+met te laag inschatten.
+
+**Een jaar kost zes maanden.** Betaalt u een jaar vooruit, dan kost het de helft van de
+maandprijs. Het werkt als tegoed: elke maand krijgt nog steeds haar eigen pakket, tegen de
+helft van de maandprijs van dat pakket. Een migratie afronden verlaagt dus nog steeds wat een
+maand kost, en een maand op Free kost niets. Wat er over is wanneer u stopt, krijgt u terug.
 
 **Het gegevensgetal telt alleen de eerste kopie van iets.** Opnieuw kopiëren, herkansingen en
 latere wijzigingen tellen niet mee, en onze eigen fouten al helemaal niet. Het is een maat
 voor hoeveel van uw spullen we hebben gemigreerd — een getal dat u vóór de start kunt opzoeken
 op de opslagpagina van uw eigen aanbieder.
 
-**Ruimte tekort komen hoeft niet te betekenen dat u omhoog moet.** U kunt er voor hetzelfde
-eenmalige bedrag een hele band ruimte bij kopen en blijven waar u zit. Pakketten kopen
-capaciteit; bijkopen koopt ruimte. Wat voor u goedkoper is, is wat wij zullen aanwijzen. Tiny
-is gratis en kent dus geen bijkoop: voorbij de 250 GB is het Small.
+**Ruimte tekort komen hoeft niet te betekenen dat u omhoog moet.** U kunt er voor eenmaal de
+maandprijs van uw pakket een hele band ruimte bij kopen en blijven waar u zit. Pakketten kopen
+capaciteit; bijkopen koopt ruimte. Wat voor u goedkoper is, is wat wij zullen aanwijzen. Free
+kent geen bijkoop: voorbij de 250 GB is het Small.
 
 **We verdienen niet aan onoplettendheid.** Loopt er een migratie zonder dat er nog iets te
 doen valt, dan vragen we u — met één klik — of u haar wilt houden of afronden. En we brengen
 nooit langer dan twaalf maanden in rekening zonder dat u dat opnieuw bevestigt.
 
-**Opzeggen wanneer u wilt.** Geen minimumduur, geen opzegtermijn, geen opzegkosten. Al
-betaalde inrichtingskosten worden niet terugbetaald, omdat het werk waarvoor ze betaald zijn
-gedaan is.
+**Opzeggen wanneer u wilt.** Geen minimumduur, geen opzegtermijn, geen opzegkosten.
 
 ## Waarom het zo geprijsd is
 
-Ownpace is geprijsd om te dekken wat het kost om te draaien, niet om er marge op te maken. De
-grotere pakketten liggen bewust boven hun eigen kostprijs, zodat de kleinere kunnen bestaan —
-één persoon die één mailbox migreert is nergens een winstgevende klant, en dat is precies de
-persoon voor wie dit gebouwd is.
+De kosten omvatten ons werk. De prijs betaalt wat nodig is om de dienst te draaien en te
+bouwen: de servers, de ondersteuning, en de tijd die het kost om de software te bouwen en te
+verbeteren. Er zijn geen investeerders aan wie we verantwoording afleggen.
 
 Alle prijzen zijn inclusief btw. Zelf draaien is gratis en blijft dat.

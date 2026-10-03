@@ -614,8 +614,8 @@ describe('the tier the month has earned so far (0109 T4, surfaced)', () => {
   // The numbers are chosen so the derivation FLIPS if any input is dropped:
   //  - recorded peak 1, live slot-holders 3 (2 active + 1 paused; the cutover
   //    row holds nothing) → the paths axis says Small only because the LIVE
-  //    number is folded in; from the recorded peak alone it says Tiny.
-  //  - meter 100 GB → the data axis says Tiny, so `decided_by` is 'paths' —
+  //    number is folded in; from the recorded peak alone it says Free.
+  //  - meter 100 GB → the data axis says Free, so `decided_by` is 'paths' —
   //    and the meter still shows in the evidence, so dropping it is visible.
   beforeAll(async () => {
     const conn = await driver.acquire();
@@ -660,9 +660,9 @@ describe('the tier the month has earned so far (0109 T4, surfaced)', () => {
     const res = await get(`/api/support/tenants/${TENANT_A}`);
     expect(res.status).toBe(200);
     const usage = res.body.usage as Record<string, unknown>;
-    // Small, and by PATHS: 3 slot-holders clear Tiny's 1 while 100 GB does
-    // not clear Tiny's 250. From the recorded peak alone this would read
-    // Tiny/'both' — a route that ignores the live counts fails here.
+    // Small, and by PATHS: 3 slot-holders clear Free's 1 while 100 GB does
+    // not clear Free's 250. From the recorded peak alone this would read
+    // Free/'both' — a route that ignores the live counts fails here.
     expect((usage.tier as Record<string, unknown>).id).toBe('small');
     expect(usage.decided_by).toBe('paths');
     expect(usage.evidence).toEqual({ peak_paths: 3, gb_moved: 100 });

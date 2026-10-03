@@ -56,5 +56,5 @@ pace" actually means.
 whole chain works. Then do the rest.
 
 **Start everything at once if you are not.** The bill falls by itself as each thing
-finishes. Going one at a time is free instead (Tiny), and slower; which is better is yours
+finishes. Going one at a time is free instead, on Free, and slower; which is better is yours
 to say.

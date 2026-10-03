@@ -81,8 +81,8 @@ const businessPartyFixture = {
  * answer is Medium and `decidedBy` is `data`. A fixture where both axes agree
  * would pass against a screen that read either one.
  *
- * Medium is €15 setup and €8/month in ADR-0014's table, in WHOLE EUROS —
- * which is the trap this fixture also pins, since the formatter takes cents.
+ * Medium is €12 a month and €72 a year in ADR-0014's table, carried in CENTS
+ * — the formatter's own unit, so the screen forwards it untouched.
  */
 const usageFixture = {
   usage: {
@@ -94,7 +94,7 @@ const usageFixture = {
     syncCount: 7,
     lastUpdated: '2026-08-09T12:00:00.000Z',
   },
-  tier: { id: 'medium' as const, name: 'Medium', paths: 20, dataGb: 2000, setup: 15, monthly: 8 },
+  tier: { id: 'medium' as const, name: 'Medium', paths: 20, dataGb: 2000, monthlyCents: 1200, annualCents: 7200 },
   decidedBy: 'data' as const,
   evidence: { peakPaths: 4, peakAt: '2026-08-12', gbMoved: 900 },
   period: '2026-08',
@@ -350,18 +350,19 @@ describe('a VAT number that was actually checked (0111 T2)', () => {
 });
 
 describe('the price on the screen is the published price (0121 T4)', () => {
-  it('shows the tier and its money in EUROS, not the table figure read as cents', async () => {
+  it('shows the tier and its money in EUROS: the month and the year, and no setup fee', async () => {
     renderBilling();
 
     expect(await screen.findByText('Medium')).toBeInTheDocument();
-    // ADR-0014: Medium is €15 setup + €8/month. `formatCurrency` takes CENTS,
-    // and the table is in whole euros, so a screen that forwards the raw
-    // figure prints €0.15 and €0.08 — a hundredth of the real price, on the
-    // one line a customer reads to decide whether to buy.
-    const money = screen.getByText(/to set up/).textContent ?? '';
-    expect(money).toContain('15.00');
-    expect(money).toContain('8.00');
-    expect(money).not.toContain('0.15');
+    // ADR-0014: Medium is €12 a month, €72 a year. The tier arrives in CENTS,
+    // the unit `formatCurrency` takes, so a screen that multiplied by 100 as
+    // it once had to would print €1,200.00 on the line a customer reads.
+    const money = screen.getByText(/per month/).textContent ?? '';
+    expect(money).toContain('12.00');
+    expect(money).toContain('72.00');
+    expect(money).toContain('for a year');
+    expect(money).not.toContain('1,200');
+    expect(screen.queryByText(/to set up/)).not.toBeInTheDocument();
   });
 
   it('names the axis that decided, and shows the evidence behind it', async () => {
@@ -390,13 +391,13 @@ describe('the price on the screen is the published price (0121 T4)', () => {
   it('a free tier says free, never €0.00, and asks for no invoice details (ADR-0014, 2026-09-24)', async () => {
     usageMock.mockResolvedValue({
       ...usageFixture,
-      tier: { id: 'tiny' as const, name: 'Tiny', paths: 1, dataGb: 250, setup: 0, monthly: 0 },
+      tier: { id: 'free' as const, name: 'Free', paths: 1, dataGb: 250, monthlyCents: 0, annualCents: 0 },
       decidedBy: 'both' as const,
     });
     renderBilling();
 
     expect(await screen.findByText('Free: nothing is invoiced on this tier')).toBeInTheDocument();
-    expect(screen.queryByText(/to set up/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/per month/)).not.toBeInTheDocument();
     expect(screen.queryByText(/€0\.00|€ 0,00/)).not.toBeInTheDocument();
     // "Invoices cannot be issued until this is filled in" is a nag for a
     // tier that invoices nothing: the card says it is not needed.

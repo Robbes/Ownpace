@@ -249,8 +249,8 @@ router.get('/usage', authenticate, requireBillingRead, async (req: Authenticated
             name: tier.name,
             paths: tier.paths,
             dataGb: tier.dataGb,
-            setup: tier.setup,
-            monthly: tier.monthly,
+            monthlyCents: tier.monthlyCents,
+            annualCents: tier.annualCents,
           }
         : null,
       decidedBy,

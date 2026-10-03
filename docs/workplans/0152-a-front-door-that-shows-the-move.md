@@ -4,6 +4,29 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-10-03, night: T6 (d) is built, and the price list is in force** (the owner's *"go"* on
+the remaining work). One pull request changes ADR-0014's operative table, `site/prices.mjs` and
+the managed code together, as the amendment asked:
+- **The list:** Free (id `free`, was `tiny`) · Small €5 / €30 · Medium €12 / €72 · Large €40 /
+  €240 · Extra large €80 / €480. No setup fees. `site/prices.mjs` and
+  `packages/managed/src/tier-calculator.ts` are in integer cents with a yearly price; both guards
+  parse the new table and now also hold *a year is six months* for every tier.
+- **The cards** lead with the price a month and show the year's total under it, with *no setup
+  fee* and a three-month total; the derived first month is gone. The home page says *"Free: one
+  migration at a time, up to 250 GB."* A guard fails on any page that still names Tiny or quotes
+  a setup fee (the legal texts aside).
+- **The calculator** prices a top-up at the tier's monthly, once (the answer (b)), against the
+  next tier's monthly difference, and says the break-even in days. `$csp_calc` is re-pinned.
+- **The pricing page's rules:** *no setup fee*, *a year costs six months* (as credit, refunded
+  when you stop), the top-up at the monthly, and *Why it is priced this way* now says *"Costs
+  include our work"* (T6 (g)'s principle). The terms' §6 and §8 follow for Free and the setup fee;
+  §8's paragraph on a prepaid term still says it is not refunded, which is T6 (f)'s and the
+  lawyer's (0139) to rewrite.
+- **The app:** the Billing and Support screens show the month and the year in cents, and the
+  access form offers Free.
+- **Still open:** T6 (e) (the switch and the price a month on yearly), (f) (renewal, refund,
+  withdrawal), and 0111's yearly invoice. T0: every new sentence above is for the owner's reading.
+
 **2026-10-03, later: the amendment is accepted, and a year is credit** (the owner, after *"the
 pricing model doesn't have setup costs anymore"*: *"a"*). Question 2 is answered (a): a year is
 credit at six months' price, and each month takes its own tier at half its monthly price. The
@@ -108,7 +131,7 @@ together, from one audit of the site and the app on `main` at `83eb73e` (§1).
 | T3 The hero shows the move | 📋 **Proposed; before the first invitation** | §3. The drawing `hero-move.svg`, inlined: the old account's data, then Ownpace, then the new home, with our own icons (D4). Three facts sit under it, and a three-step strip links to *How it works*. An app screen joins it once 0153 T5 exists. |
 | T4 The destinations, named | 📋 **Proposed; before the first invitation** | §3. A *Where to* section names what the app supports, from a site copy of the app's list with a guard that it matches. It says plainly that the new account is one the person opens and pays for themselves. |
 | T5 A page per provider a person leaves | 📋 **Proposed; before the first invitation (D5)** | §3. *Leaving Google*, *Leaving Microsoft 365*, *Leaving iCloud*, *Leaving Dropbox*, *Leaving Box*, *Leaving another mail provider*: what moves, the limits, what the person does, the destinations it can go to, a typical cost. Built from copies of the app's own verdicts, each guarded. |
-| T6 Pricing that reads in one pass | 🟡 **(a) done: the sentence by #1317, its guard beside D6's. The rest proposed; before the first invitation (D5); (g) waits for the owner's ADR-0014 amendment** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) Renewal and a withdrawal button (D11). (g) The principle, the price that pays for the work (D12). |
+| T6 Pricing that reads in one pass | 🟡 **(a) done: the sentence by #1317, its guard beside D6's. (d) built 2026-10-03, with (g)'s principle on the page; the rest proposed, before the first invitation (D5)** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) Renewal and a withdrawal button (D11). (g) The principle, the price that pays for the work (D12). |
 | T7 A calculator that ends in a button | 📋 **Proposed; before the first invitation** | §3. (a) *Request access* carries the answers along. (b) *Until when?* says which payment suits it. (c) The layout faults and a live region. (d) Box as a source. |
 | T8 Claims you can check | 📋 **Proposed; before the first invitation (D5)** | §3. "Open source" links the repository. Each proof point links the guard that holds it. The footer names the company once 0139 publishes it; until then that line is the one part that waits. |
 | T9 One look from the site to the app | 📋 **Proposed; before the first invitation** | §3. `/request-access` and `/login` take the site's palette and logo, and link back to the site. The identity provider's own branding stays 0135 T6. |

@@ -66,15 +66,15 @@ describe('UsageResponseSchema vs the usage route', () => {
         syncCount: 7,
         lastUpdated: '2026-08-09T12:00:00.000Z',
       },
-      tier: { id: 'medium', name: 'Medium', paths: 20, dataGb: 2000, setup: 15, monthly: 8 },
+      tier: { id: 'medium', name: 'Medium', paths: 20, dataGb: 2000, monthlyCents: 1200, annualCents: 7200 },
       decidedBy: 'data',
       evidence: { peakPaths: 4, peakAt: '2026-08-12', gbMoved: 900 },
       period: '2026-08',
     });
     // Whole EUROS, as ADR-0014's table publishes them — not cents. A schema
     // that shrugged here would let the screen print a hundredth of the price.
-    expect(parsed.tier?.setup).toBe(15);
-    expect(parsed.tier?.monthly).toBe(8);
+    expect(parsed.tier?.monthlyCents).toBe(1200);
+    expect(parsed.tier?.annualCents).toBe(7200);
     expect(parsed.evidence.gbMoved).toBe(900);
   });
 
@@ -141,7 +141,7 @@ describe('UsageResponseSchema vs the usage route', () => {
           syncCount: 0,
           lastUpdated: '2026-08-09T12:00:00.000Z',
         },
-        tier: { id: 'enterprise', name: 'Enterprise', paths: 500, dataGb: 50000, setup: 0, monthly: 0 },
+        tier: { id: 'enterprise', name: 'Enterprise', paths: 500, dataGb: 50000, monthlyCents: 0, annualCents: 0 },
         decidedBy: 'paths',
         evidence: { peakPaths: 1, peakAt: null, gbMoved: 1 },
         period: '2026-08',

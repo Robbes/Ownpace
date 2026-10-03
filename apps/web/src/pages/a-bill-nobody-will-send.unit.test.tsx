@@ -21,7 +21,7 @@
  *   paid tier asked for the details in amber;
  * - the tier block stays under that line, prices included. On a free tier it
  *   says *free*, as 0109 T8 made it, and the two agree: the line says nothing
- *   is charged during the alpha, the block says nothing is invoiced on Tiny;
+ *   is charged during the alpha, the block says nothing is invoiced on Free;
  * - the request form keeps its package question, and the question's hint
  *   gains the line's first sentence.
  *
@@ -118,11 +118,11 @@ const LOCALES = Object.keys(SAID) as Locale[];
  * A paid tier: Medium, €15 to set up and €8 a month in ADR-0014's table. The
  * line has to stand above real prices, not only above a free tier's "free".
  */
-const MEDIUM = { id: 'medium' as const, name: 'Medium', paths: 20, dataGb: 2000, setup: 15, monthly: 8 };
-/** Tiny, free since 0109 T8 (2026-09-24). */
-const TINY = { id: 'tiny' as const, name: 'Tiny', paths: 1, dataGb: 250, setup: 0, monthly: 0 };
+const MEDIUM = { id: 'medium' as const, name: 'Medium', paths: 20, dataGb: 2000, monthlyCents: 1200, annualCents: 7200 };
+/** Free since 0109 T8 (2026-09-24); called Tiny until 0152 T6 (d). */
+const FREE = { id: 'free' as const, name: 'Free', paths: 1, dataGb: 250, monthlyCents: 0, annualCents: 0 };
 
-const usage = (tier: typeof MEDIUM | typeof TINY) => ({
+const usage = (tier: typeof MEDIUM | typeof FREE) => ({
   usage: {
     tenantId: 't1',
     period: '2026-09',
@@ -224,15 +224,15 @@ describe('with the alpha setting on', () => {
     const tier = await screen.findByText('Medium');
     const title = screen.getByRole('heading', { level: 1 });
     expect(title.compareDocumentPosition(tier) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // ADR-0014's Medium: €15 to set up, €8 a month. The measurement is one of
+    // ADR-0014's Medium: €12 a month, €72 a year. The measurement is one of
     // the things worth trying (0121 T4), so the prices are not taken away.
     const money = squash(tier.parentElement?.textContent);
-    expect(money).toMatch(/15[.,]00/);
-    expect(money).toMatch(/8[.,]00/);
+    expect(money).toMatch(/12[.,]00/);
+    expect(money).toMatch(/72[.,]00/);
   });
 
   it.each(LOCALES)('on a free tier, the line and 0109\'s "free" say the same thing, in %s', async (locale) => {
-    vi.mocked(billingApi.getCurrentUsage).mockResolvedValue(usage(TINY));
+    vi.mocked(billingApi.getCurrentUsage).mockResolvedValue(usage(FREE));
     await billingPage(locale);
     expect(await screen.findByText(SAID[locale].free)).toBeInTheDocument();
     expect(underTheTitle()).toBe(SAID[locale].line);

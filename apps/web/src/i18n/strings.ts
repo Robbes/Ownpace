@@ -931,7 +931,7 @@ const en = {
   'billing.apiCalls': 'API calls',
   // ADR-0014's tier, on the customer's own usage screen (0121 T4).
   'billing.yourTier': 'What this puts you on',
-  'billing.tierSetup': 'to set up',
+  'billing.tierPerYear': 'for a year',
   'billing.tierPerMonth': 'per month',
   'billing.tierFree': 'Free: nothing is invoiced on this tier',
   'billing.tierDecidedByPaths': 'Set by how many migrations ran at the same time.',
@@ -3762,7 +3762,7 @@ const nl: Record<keyof typeof en, string> = {
   'billing.apiCalls': 'API-aanroepen',
   // ADR-0014's tier, on the customer's own usage screen (0121 T4).
   'billing.yourTier': 'Waar u hiermee op uitkomt',
-  'billing.tierSetup': 'inrichting',
+  'billing.tierPerYear': 'voor een jaar',
   'billing.tierPerMonth': 'per maand',
   'billing.tierFree': 'Gratis: op dit pakket wordt niets gefactureerd',
   'billing.tierDecidedByPaths': 'Bepaald door hoeveel migraties tegelijk liepen.',
