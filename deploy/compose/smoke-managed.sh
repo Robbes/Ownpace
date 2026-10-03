@@ -5270,103 +5270,194 @@ fi
 # ---------- the page somebody with no account opens (0122) ----------
 #
 # ADR-0035's second lifetime, asked the way its reader asks it: **no
-# Authorization header at all**. That is why this cannot go through `http()`,
-# which refuses to send anything that is not a JWT — the whole property here is
-# that a bearer link in the PATH is the entire credential, and RLS, the
-# link-scoped context and the purpose check are what stand behind it. None of
-# those is observable without a live stack.
+# Authorization header at all**. That is why the open cannot go through
+# `http()`, which refuses to send anything that is not a JWT — the whole
+# property here is that a bearer link in the PATH is the entire credential, and
+# RLS, the link-scoped context and the purpose check are what stand behind it.
+# None of those is observable without a live stack.
 #
-# The credential link is deliberately NOT exercised (see NOT_ASKED in
+# A PERSON'S LINK, since 0153 T5 (b) (#1408; ADR-0035, amended 2026-09-29).
+# Links are a person's, one progress link to all of their migrations, and the
+# migration's own route now refuses with `links_are_per_person`. That refusal
+# is what turned E2E (managed) #232 red on this section and nowhere else. So the
+# run adds a person of its own, puts the APPLY mapping with them, issues and
+# opens THEIR progress link, revokes it, and deletes the person, which only
+# unassigns the migration and takes their links with them: the run leaves no
+# person and no link behind.
+#
+# The credential link's FLOW is deliberately not exercised (see NOT_ASKED in
 # scripts/gate-coverage.unit.test.ts): it needs a real Google client written
 # from a script and it ends at Google's own consent screen. A progress link has
-# neither obstacle — it runs no consent, so it can be issued for the APPLY
-# mapping's ordinary DAV source, which is exactly the point of its shorter
-# refusal list.
+# neither obstacle — it runs no consent, so it can be issued for a person whose
+# one migration reads the APPLY mapping's ordinary DAV source.
 note "the progress link"
 
-read -r vlcode vlbody <<<"$(http POST "$API/api/migrations/$APPLY_MAPPING/links" "$APPLY_TOKEN" \
-  '{"purpose":"view","expiryDays":30}')"
-if [ "$vlcode" != "201" ]; then
-  echo "issuing a progress link answered $vlcode: $vlbody"
-  fail_at "the owner could not issue a progress link"
+# The run's own person, by a name nobody else uses: the one name the take-back
+# below may delete, should an earlier run have stopped before its own clean-up.
+LINK_PERSON_NAME="Smoke run: progress link"
+LINK_PERSON=""
+read -r pcode pbody <<<"$(http POST "$API/api/people" "$APPLY_TOKEN" "{\"displayName\":\"$LINK_PERSON_NAME\"}")"
+if [ "$pcode" != "201" ]; then
+  echo "adding a person to issue the link for answered $pcode: $pbody"
+  fail_at "the owner could not add a person"
 else
-  VIEW_URL="$(grep -o '"url":"[^"]*"' <<<"$vlbody" | cut -d'"' -f4)"
-  VIEW_TOKEN="${VIEW_URL##*/}"
-  # The path carries the PURPOSE, so a token cannot be pasted into the other
-  # page's address and inherit its lifetime.
-  case "$VIEW_URL" in
-    */view/*) echo "issued: a /view/ link, expiring in 30 days" ;;
-    *) echo "the issued URL is not a /view/ address: $VIEW_URL"; fail_at "wrong path for a progress link" ;;
-  esac
+  LINK_PERSON="$(jq -r '.id // empty' <<<"$pbody")"
+  echo "added a person for this run: $LINK_PERSON"
+fi
 
-  # THE OPEN, with no session. `-w` for the code, because a 401 body and a 200
-  # body are both JSON and this has to tell them apart.
-  vpage="$(curl -sS -w '\n%{http_code}' "$API/api/view/$VIEW_TOKEN")"
-  vcode="${vpage##*$'\n'}"
-  vpage="${vpage%$'\n'*}"
-  if [ "$vcode" != "200" ]; then
-    echo "opening the progress link answered $vcode: $vpage"
-    fail_at "a live progress link did not open"
-  else
-    # Counts and states, and the organisation that is asking.
-    for want in '"organisation"' '"state"' '"started"' '"domains"' '"expiresAt"'; do
-      grep -q "$want" <<<"$vpage" || {
-        echo "the progress page answered without $want: $vpage"
-        fail_at "the progress payload is missing $want"
-      }
-    done
-    # AND NOT CONTENT. `lastError` is the provider's own prose and can quote a
-    # file name; the mapping id and the tenant id are addresses onto surfaces
-    # this holder must not reach. Asserted against the real payload of a
-    # migration that has actually run, which is the only place they could leak.
-    for banned in '"lastError"' "$APPLY_MAPPING" "$APPLY_TENANT"; do
-      if grep -q "$banned" <<<"$vpage"; then
-        echo "the progress page carried something it must not: $banned"
-        fail_at "the progress payload leaked $banned"
-      fi
-    done
-    echo "opened with no session, and carried counts and states only"
-  fi
-
-  # THE TWO LIFETIMES STAY APART. A credential token presented at the progress
-  # address is refused on its purpose — this is the check that stops a
-  # single-use link inheriting a ninety-day window.
-  read -r glcode glbody <<<"$(http POST "$API/api/migrations/$APPLY_MAPPING/links" "$APPLY_TOKEN" \
-    '{"purpose":"grant"}')"
-  if [ "$glcode" = "201" ]; then
-    GRANT_TOKEN="$(grep -o '"url":"[^"]*"' <<<"$glbody" | cut -d'"' -f4)"
-    GRANT_TOKEN="${GRANT_TOKEN##*/}"
-    xcode="$(curl -sS -o /dev/null -w '%{http_code}' "$API/api/view/$GRANT_TOKEN")"
-    if [ "$xcode" = "401" ]; then
-      echo "a credential link is refused at the progress address"
+LINKED=0
+if [ -n "$LINK_PERSON" ]; then
+  read -r acode abody <<<"$(http POST "$API/api/people/$LINK_PERSON/migrations" "$APPLY_TOKEN" \
+    "{\"mappingId\":\"$APPLY_MAPPING\"}")"
+  # A MIGRATION IS ONE PERSON'S AT MOST, and the refusal names whose. An earlier
+  # run that stopped between here and its clean-up left its person holding the
+  # APPLY mapping. Only a person by this section's own name is taken back:
+  # anybody else's is a fixture this run has no business changing, and is said.
+  if [ "$acode" = "409" ]; then
+    holder="$(jq -r '.personId // empty' <<<"$abody")"
+    read -r lcode lbody <<<"$(http GET "$API/api/people" "$APPLY_TOKEN")"
+    hname="$(jq -r --arg id "$holder" '.people[]? | select(.id == $id) | .displayName // empty' <<<"$lbody" 2>/dev/null)"
+    if [ -n "$holder" ] && [ "$hname" = "$LINK_PERSON_NAME" ]; then
+      read -r dcode _ <<<"$(http DELETE "$API/api/people/$holder" "$APPLY_TOKEN")"
+      echo "an earlier run's person still held the migration: deleting it answered $dcode"
+      read -r acode abody <<<"$(http POST "$API/api/people/$LINK_PERSON/migrations" "$APPLY_TOKEN" \
+        "{\"mappingId\":\"$APPLY_MAPPING\"}")"
     else
-      echo "a credential link opened the progress page: HTTP $xcode"
+      echo "the APPLY mapping is already with somebody else (${holder:-unnamed}${hname:+, \"$hname\"}),"
+      echo "  not a person this run made. Left as it is; take it back by hand or seed another mapping."
+    fi
+  fi
+  case "$acode" in
+    201) LINKED=1; echo "the APPLY mapping is with the person" ;;
+    # Idempotent by design: adding it again changes nothing and says so.
+    200) LINKED=1; echo "the APPLY mapping was already with the person" ;;
+    *)
+      echo "putting the APPLY mapping with the person answered $acode: $abody"
+      fail_at "the migration could not be put with a person"
+      ;;
+  esac
+fi
+
+if [ "$LINKED" = "1" ]; then
+  read -r vlcode vlbody <<<"$(http POST "$API/api/people/$LINK_PERSON/links" "$APPLY_TOKEN" \
+    '{"purpose":"view","expiryDays":30}')"
+  if [ "$vlcode" != "201" ]; then
+    echo "issuing the person's progress link answered $vlcode: $vlbody"
+    fail_at "the owner could not issue a progress link"
+  else
+    VIEW_URL="$(jq -r '.url // empty' <<<"$vlbody")"
+    VIEW_ID="$(jq -r '.id // empty' <<<"$vlbody")"
+    VIEW_TOKEN="${VIEW_URL##*/}"
+    # The path carries the PURPOSE, so a token cannot be pasted into the other
+    # page's address and inherit its lifetime.
+    case "$VIEW_URL" in
+      */view/*) echo "issued: a /view/ link for the person, expiring in 30 days" ;;
+      *) echo "the issued URL is not a /view/ address: $VIEW_URL"; fail_at "wrong path for a progress link" ;;
+    esac
+
+    # THE OPEN, with no session. `-w` for the code, because a 401 body and a 200
+    # body are both JSON and this has to tell them apart.
+    vpage="$(curl -sS -w '\n%{http_code}' "$API/api/view/$VIEW_TOKEN")"
+    vcode="${vpage##*$'\n'}"
+    vpage="${vpage%$'\n'*}"
+    if [ "$vcode" != "200" ]; then
+      echo "opening the progress link answered $vcode: $vpage"
+      fail_at "a live progress link did not open"
+    else
+      # A person's page: every migration of theirs, with counts and states,
+      # the accounts a link could take back, and the organisation that asks.
+      for want in '"kind":"person"' '"organisation"' '"expiresAt"' '"migrations"' '"state"' '"started"' '"domains"' '"accounts"'; do
+        grep -q "$want" <<<"$vpage" || {
+          echo "the progress page answered without $want: $vpage"
+          fail_at "the progress payload is missing $want"
+        }
+      done
+      # Theirs, and only theirs: the one migration this run put with them.
+      jq -e '.migrations | length == 1' >/dev/null <<<"$vpage" || {
+        echo "the person's page did not carry exactly their one migration: $vpage"
+        fail_at "the progress page does not show the person's migrations"
+      }
+      # AND NOT CONTENT. `lastError` is the provider's own prose and can quote a
+      # file name; the mapping id, the tenant id and the person's id are
+      # addresses onto surfaces this holder must not reach. Asserted against the
+      # real payload of a migration that has actually run, which is the only
+      # place they could leak.
+      for banned in '"lastError"' "$APPLY_MAPPING" "$APPLY_TENANT" "$LINK_PERSON"; do
+        if grep -q "$banned" <<<"$vpage"; then
+          echo "the progress page carried something it must not: $banned"
+          fail_at "the progress payload leaked $banned"
+        fi
+      done
+      echo "opened with no session, and carried the person's counts and states only"
+    fi
+
+    # THE TWO LIFETIMES STAY APART. A token is refused at the other purpose's
+    # address — this is the check that stops a single-use link inheriting a
+    # ninety-day window, or a progress link opening the grant page.
+    #
+    # The progress token at the GRANT address, always: the refusal is the
+    # purpose check, and asking it starts no consent flow.
+    xcode="$(curl -sS -o /dev/null -w '%{http_code}' "$API/api/grant/$VIEW_TOKEN")"
+    if [ "$xcode" = "401" ]; then
+      echo "the progress link is refused at the grant address"
+    else
+      echo "the progress link opened the grant page: HTTP $xcode"
       fail_at "the two link purposes are not being kept apart"
     fi
-  else
-    # Not a failure of THIS section: the APPLY mapping's source is not Google,
-    # so `source_not_google` is the correct answer and is what proves the
-    # progress link's shorter refusal list is doing something. Said out loud
-    # rather than skipped, so the cross-check below is not silently absent.
-    echo "no credential link to cross-check with (issuing answered $glcode) — expected"
-    echo "  for a non-Google source, and the reason a progress link can exist here at all"
-  fi
-
-  # THE KILL SWITCH, re-checked at the OPEN rather than trusted from the issue.
-  # That is the whole reason a longer window is acceptable.
-  VIEW_ID="$(grep -o '"id":"[^"]*"' <<<"$vlbody" | cut -d'"' -f4)"
-  read -r rvcode _ <<<"$(http DELETE "$API/api/migrations/$APPLY_MAPPING/links/$VIEW_ID" "$APPLY_TOKEN")"
-  if [ "$rvcode" != "200" ]; then
-    echo "revoking the progress link answered $rvcode"
-    fail_at "a progress link could not be revoked"
-  else
-    acode="$(curl -sS -o /dev/null -w '%{http_code}' "$API/api/view/$VIEW_TOKEN")"
-    if [ "$acode" = "401" ]; then
-      echo "and it stops opening the moment it is revoked"
+    # And a grant token at the progress address, when one can be issued.
+    read -r glcode glbody <<<"$(http POST "$API/api/people/$LINK_PERSON/links" "$APPLY_TOKEN" '{"purpose":"grant"}')"
+    if [ "$glcode" = "201" ]; then
+      GRANT_URL="$(jq -r '.url // empty' <<<"$glbody")"
+      GRANT_ID="$(jq -r '.id // empty' <<<"$glbody")"
+      gcode="$(curl -sS -o /dev/null -w '%{http_code}' "$API/api/view/${GRANT_URL##*/}")"
+      if [ "$gcode" = "401" ]; then
+        echo "a grant link is refused at the progress address"
+      else
+        echo "a grant link opened the progress page: HTTP $gcode"
+        fail_at "the two link purposes are not being kept apart"
+      fi
+      http DELETE "$API/api/people/$LINK_PERSON/links/$GRANT_ID" "$APPLY_TOKEN" >/dev/null
+    elif [ "$glcode" = "409" ] && grep -q '"nothing_to_grant"' <<<"$glbody"; then
+      # Not a failure of THIS section: the person's one migration reads a DAV
+      # source, not a Google account, so nothing can be granted through a link,
+      # and `nothing_to_grant` is the correct answer. Said out loud rather than
+      # skipped, so the cross-check above is not mistaken for both directions.
+      echo "no grant link to cross-check with (nothing_to_grant) — expected for a person"
+      echo "  whose one migration reads a DAV source"
     else
-      echo "a REVOKED progress link still opened: HTTP $acode"
-      fail_at "revocation did not reach the page"
+      echo "issuing a grant link for the person answered $glcode: $glbody"
+      echo "  (not this section's failure; the cross-check above stands on its own)"
     fi
+
+    # THE KILL SWITCH, re-checked at the OPEN rather than trusted from the issue.
+    # That is the whole reason a longer window is acceptable.
+    read -r rvcode rvbody <<<"$(http DELETE "$API/api/people/$LINK_PERSON/links/$VIEW_ID" "$APPLY_TOKEN")"
+    if [ "$rvcode" != "200" ] || ! grep -q '"revoked":true' <<<"$rvbody"; then
+      echo "revoking the progress link answered $rvcode: $rvbody"
+      fail_at "a progress link could not be revoked"
+    else
+      rcode="$(curl -sS -o /dev/null -w '%{http_code}' "$API/api/view/$VIEW_TOKEN")"
+      if [ "$rcode" = "401" ]; then
+        echo "and it stops opening the moment it is revoked"
+      else
+        echo "a REVOKED progress link still opened: HTTP $rcode"
+        fail_at "revocation did not reach the page"
+      fi
+    fi
+  fi
+fi
+
+# THE CLEAN-UP, whatever happened above: deleting the person unassigns the
+# APPLY mapping (it is not deleted) and takes their links with them. Asserted,
+# so a person left behind is a failure here rather than the next run's 409.
+if [ -n "$LINK_PERSON" ]; then
+  read -r dpcode dpbody <<<"$(http DELETE "$API/api/people/$LINK_PERSON" "$APPLY_TOKEN")"
+  if [ "$dpcode" = "200" ] && jq -e --arg m "$APPLY_MAPPING" \
+    '.deleted == true and ((.unassigned // []) | all(. == $m))' >/dev/null <<<"$dpbody"; then
+    echo "the person is deleted, and the APPLY mapping belongs to nobody again"
+  else
+    echo "deleting the run's person answered $dpcode: $dpbody"
+    fail_at "the run's person could not be deleted"
   fi
 fi
 

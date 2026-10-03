@@ -4,6 +4,31 @@
 
 ## Status — 2026-10-03 (update this block at the end of every session)
 
+**2026-10-03, evening: the managed gate asks a person for the progress link (E2E (managed)
+#232).** #1408 made links a person's, and `POST /api/migrations/:id/links` refuses with `409
+links_are_per_person`. The gate's progress-link section still asked the migration, so #232 failed
+there and nowhere else (verify done, apply applied). No pull request runs the gate.
+
+- **The section now:**
+  - adds a person of its own and puts the APPLY mapping with them;
+  - issues their progress link and opens it with no session: a person's page, with their one
+    migration, and nothing that names the person, the migration or the organisation;
+  - shows the two purposes kept apart in the direction a DAV source allows: their progress token
+    is refused at the grant address. A grant link for them is refused `nothing_to_grant`, as
+    expected;
+  - revokes the link and opens it again (401);
+  - deletes the person, whatever happened above. That unassigns the migration and takes their
+    links with them, so the run leaves no trace.
+- **A person an earlier run left holding the migration is taken back** only by the section's
+  own name. Anybody else's is said, and left alone.
+- **Proved by `a-link-the-gate-asked-of-a-migration`** (12 cases), which runs the section
+  exactly as the script has it, against a fake API. Against the old section, 11 fail. Four
+  mutations of the new one are caught:
+  - the person's id not banned;
+  - the clean-up only on success;
+  - any leftover deleted;
+  - the grant address not asked.
+
 **2026-09-29, morning: a sign-in's example goes when its box is clicked (T6, T7; the owner's
 answer).** Asked whether *Username* should read *Email address* where an address is what goes
 in it, the owner answered: *"stick with "Username" / "Gebruikersnaam" and fill in a grey example
