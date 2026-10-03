@@ -55,6 +55,7 @@ import { describe, it, expect } from 'vitest';
 import {
   VIEW_ROW_FIELDS,
   viewRowFor,
+  viewStageOf,
   type DomainStatusReport,
   type ViewDomainRow,
 } from '@openmig/shared';
@@ -75,8 +76,8 @@ const EVERY_FIELD: Required<DomainStatusReport> = {
   itemsRetrying: 2,
   itemsNeedingDecision: 1,
   itemsAdopted: 17,
-  // Left out of the link until 0154 T8 gives the person's page the totals:
-  // what discovery found is the owner's page's for now (0154 T2).
+  // Crosses since 0154 T8, which gives the person's page the totals the
+  // owner's line reads: counts, naming nothing (0154 T2).
   itemsFound: 4402,
   bytesFound: 95_000_000,
   lastSyncedAt: '2026-09-09T21:00:00.000Z',
@@ -99,7 +100,7 @@ const EVERY_FIELD: Required<DomainStatusReport> = {
 
 describe('what a progress link may open', () => {
   it('copies every field it is allowed to, and no others', () => {
-    const row = viewRowFor(EVERY_FIELD);
+    const row = viewRowFor(EVERY_FIELD, 'copying');
     // The row's own keys, against the list — both directions. A missing field
     // is a page that lost a number; an extra one is the leak.
     expect(Object.keys(row).sort()).toEqual([...VIEW_ROW_FIELDS].sort());
@@ -166,6 +167,43 @@ describe('what a progress link may open', () => {
     expect('itemsAdopted' in row).toBe(false);
   });
 
+  /**
+   * WHAT DISCOVERY FOUND crosses since 0154 T8: without it the line reads how
+   * many arrived and not of how many. A count, and a size, naming nothing,
+   * and by the same rule as `itemsAdopted`: a counted zero is *none found*,
+   * an absent one is no total.
+   */
+  it('carries what discovery found, and keeps a counted zero apart from no count', () => {
+    const row = viewRowFor(EVERY_FIELD);
+    expect(row.itemsFound).toBe(4402);
+    expect(row.bytesFound).toBe(95_000_000);
+    expect(viewRowFor({ ...EVERY_FIELD, itemsFound: 0 }).itemsFound).toBe(0);
+    const { itemsFound: _i, bytesFound: _b, ...uncounted } = EVERY_FIELD;
+    const bare = viewRowFor(uncounted) as unknown as Record<string, unknown>;
+    expect('itemsFound' in bare).toBe(false);
+    expect('bytesFound' in bare).toBe(false);
+  });
+
+  /**
+   * THE STAGE crosses, its inputs do not (0154 T8). A data type its owner
+   * stopped reads *Paused* on the person's page, as on the owner's line, and
+   * the row still says nothing of whose stop it was.
+   */
+  it("carries the stage of a stopped data type, and still not whose stop it was", () => {
+    const stopped = { ...EVERY_FIELD, state: 'completed' as const };
+    const stage = viewStageOf(stopped, { phase: 'active' }, { state: 'not_run' }, 0);
+    expect(stage).toBe('paused');
+    const row = viewRowFor(stopped, stage) as unknown as Record<string, unknown>;
+    expect(row.stage).toBe('paused');
+    expect('stoppedByOwner' in row).toBe(false);
+    expect('stopped' in row).toBe(false);
+  });
+
+  it('says no stage where none was worked out, rather than a guessed one', () => {
+    const row = viewRowFor(EVERY_FIELD) as unknown as Record<string, unknown>;
+    expect('stage' in row).toBe(false);
+  });
+
   it('carries the pause reason, because a silent pause is worse for this reader', () => {
     const row = viewRowFor(EVERY_FIELD);
     expect(row.pausedReason).toEqual({
@@ -207,9 +245,10 @@ describe('what a progress link may open', () => {
     // count, which is the only part a type cannot check.
     const fields: readonly (keyof ViewDomainRow)[] = VIEW_ROW_FIELDS;
     expect(new Set(fields).size).toBe(fields.length);
-    // 13 since 2026-09-18 (`itemsAdopted`, 0124 T2). This number is meant to be
-    // edited, and only ever alongside a deliberate answer to "may a stranger
-    // see it" — see the two tests above and `migration-view.ts`.
-    expect(fields.length).toBe(13);
+    // 16 since 2026-10-03 (`itemsFound`, `bytesFound`, `stage`, 0154 T8);
+    // 13 since 2026-09-18 (`itemsAdopted`, 0124 T2). This number is meant to
+    // be edited, and only ever alongside a deliberate answer to "may a
+    // stranger see it" — see the tests above and `migration-view.ts`.
+    expect(fields.length).toBe(16);
   });
 });
