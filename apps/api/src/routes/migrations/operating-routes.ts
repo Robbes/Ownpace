@@ -368,7 +368,13 @@ router.get(
         targetType: gathered.targetType,
         lifecycle: s.lifecycle,
         generatedAt: new Date().toISOString(),
-        domains: buildDomainStatusReports(gathered.statuses, gathered.failures, gathered.adopted),
+        // The provider's text stays out of this document too, for an account a
+        // person granted (ADR-0035 decision 5): it reaches the owner's browser
+        // as JSON beside the Markdown, and the text can name that person's
+        // files. Failures, moves and deletions are only counted here.
+        domains: buildDomainStatusReports(gathered.statuses, gathered.failures, gathered.adopted, undefined, {
+          withholdProse: s.personGranted,
+        }),
         moves: gathered.moves,
         deletions: gathered.deletions,
         failures: gathered.failures,

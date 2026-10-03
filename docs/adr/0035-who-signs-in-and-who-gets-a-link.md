@@ -221,7 +221,8 @@ link, never hold the credential. That is the support burden this ADR buys, accep
 
 **Built** (2026-10-03), on the server, so no browser is sent what it must not show
 (`apps/api/src/routes/migrations/whose-data.ts`). The migration page's report carries
-`lastErrorWithheld` where it carried `lastError`, and says why. The failure queue's rows keep their
+`lastErrorWithheld` where it carried `lastError`, and says why; so does the completion report,
+whose JSON reaches the browser beside its Markdown. The failure queue's rows keep their
 category, domain and attempts with an empty text and no names (`withheldFailure`), the queue says
 `textWithheld`, and the group action refuses a substring of text it does not show, since the count
 it answers with would read that text one guess at a time. Guards: the two
@@ -368,6 +369,9 @@ forwarded.
   *Alternatives considered*.
 - **2026-10-03, last** — Decision 5 built, and the items' names follow the text (owner: *"yes"*).
   Record: *Decision* 5.
+- **2026-10-03, after that** — The completion report withholds the text too: its JSON carried each
+  data type's error verbatim. Found in review of the build; nothing was decided. Record:
+  *Decision* 5.
 
 The full record, word for word as it read before this consolidation:
 [history/0035-who-signs-in-and-who-gets-a-link.md](./history/0035-who-signs-in-and-who-gets-a-link.md).

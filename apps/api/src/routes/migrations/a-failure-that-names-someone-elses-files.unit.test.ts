@@ -9,11 +9,11 @@
  * organisation could read it in the network panel. So the routes withhold it,
  * and this guard reads them as text, the way the source-level guard beside
  * `a-door-that-asked-nobody` does, because they need a signed-in tenant and a
- * database to run. What it pins: the migration page's report is built with the
- * text withheld for such an account; the failure queue maps every row through
- * `withheldFailure` and says so; and the group action refuses to match a
- * substring of text it does not show, since the count it answers with would
- * otherwise read the text one guess at a time.
+ * database to run. What it pins: the migration page's report and the completion
+ * report are built with the text withheld for such an account; the failure
+ * queue maps every row through `withheldFailure` and says so; and the group
+ * action refuses to match a substring of text it does not show, since the
+ * count it answers with would otherwise read the text one guess at a time.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -28,7 +28,9 @@ const migrations = readFileSync(join(HERE, 'index.ts'), 'utf8');
 
 /** The body of the handler registered as `method path`, up to the next registration. */
 function handler(source: string, method: 'get' | 'post', path: string): string {
-  const start = source.indexOf(`router.${method}('${path}'`);
+  // `router.get(` and the path may sit on two lines, as the completion report's do.
+  const escaped = path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const start = source.search(new RegExp(`router\\.${method}\\(\\s*'${escaped}'`));
   expect(start, `no ${method.toUpperCase()} ${path} handler`).toBeGreaterThan(-1);
   const next = source.indexOf('\nrouter.', start + 1);
   return source.slice(start, next === -1 ? undefined : next);
@@ -56,6 +58,13 @@ describe("the owner's pages, for an account a person granted", () => {
   it('builds the migration page with the text withheld', () => {
     expect(migrations).toMatch(
       /buildDomainStatusReports\(\s*domainStatus,\s*failures,\s*adopted,\s*foundByDomain\([^\n]*\),\s*\{ withholdProse: readsAPersonsGrant\(mapping\) \},\s*\)/,
+    );
+  });
+
+  it('builds the completion report with the text withheld, since its JSON reaches the browser too', () => {
+    const report = handler(operating, 'get', '/:mappingId/completion-report');
+    expect(report).toMatch(
+      /buildDomainStatusReports\(gathered\.statuses, gathered\.failures, gathered\.adopted, undefined, \{\s*withholdProse: s\.personGranted,\s*\}\)/,
     );
   });
 
