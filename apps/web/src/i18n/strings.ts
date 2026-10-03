@@ -1494,6 +1494,14 @@ const en = {
   'people.noneYet': 'Nothing for this person yet.',
   'people.lastPass': 'Last pass {when}',
   'people.noPassYet': 'No pass yet',
+  // THE SENTENCE UNDER A DATA TYPE'S STAGE (0154 T1 (b)), after its count:
+  // *18,234 of ~19,000 · last pass 2 minutes ago*. *Pass* is the
+  // glossary's word for a round of copying; *the check* is the verification,
+  // as the menu's *Check* names it, and the two are kept apart.
+  'people.line.lastPass': 'last pass {when}',
+  // What the count leaves out, short: its meaning is on the migration's page.
+  'people.line.leftAsIs': '{count} left as they are',
+  'people.line.checkPassed': 'The check passed {when}',
   'people.loadFailed': 'Could not load who each migration is for.',
   'people.unassigned.title': 'Not with a person yet',
   'people.unassigned.hint': 'Add each to the person it is for; it joins their card.',
@@ -4217,6 +4225,9 @@ const nl: Record<keyof typeof en, string> = {
   'people.noneYet': 'Nog niets voor deze persoon.',
   'people.lastPass': 'Laatste ronde {when}',
   'people.noPassYet': 'Nog geen ronde',
+  'people.line.lastPass': 'laatste ronde {when}',
+  'people.line.leftAsIs': '{count} ongemoeid gelaten',
+  'people.line.checkPassed': 'De verificatie is {when} geslaagd',
   'people.loadFailed': 'Kon niet laden bij wie elke migratie hoort.',
   'people.unassigned.title': 'Nog niet bij een persoon',
   'people.unassigned.hint': 'Voeg elke migratie toe aan de persoon voor wie ze is.',

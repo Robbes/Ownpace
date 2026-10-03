@@ -24,12 +24,24 @@ import {
 } from '@openmig/shared';
 import Person from './Person.tsx';
 import { mappingApi, type MappingListItem } from '../services/mapping-service.ts';
-import { fetchAttention, fetchPeople, fetchStatus } from '../services/operating-service.ts';
+import { fetchAttention, fetchPeople, fetchStatus, fetchVerifyReport } from '../services/operating-service.ts';
 import { personLinkApi } from '../services/grant-link-service.ts';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('../services/mapping-service', () => ({ mappingApi: { list: vi.fn() } }));
-vi.mock('../services/operating-service', () => ({ fetchPeople: vi.fn(), fetchAttention: vi.fn(), fetchStatus: vi.fn() }));
+vi.mock('../services/operating-service', () => ({
+  fetchPeople: vi.fn(),
+  fetchAttention: vi.fn(),
+  fetchStatus: vi.fn(),
+  fetchVerifyReport: vi.fn(),
+}));
+// The progress read (0154 T1 (b)) runs for real: managed's through its client,
+// whose GET is all that is replaced, and the appliance's from the status above.
+const apiGet = vi.hoisted(() => vi.fn());
+vi.mock('../services/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/api.ts')>()),
+  default: { get: apiGet },
+}));
 // Which edition this is: managed, unless a case says the appliance (0153 T8).
 const edition = vi.hoisted(() => ({ selfhost: false }));
 vi.mock('../services/edition', async (importOriginal) => ({
@@ -111,6 +123,10 @@ beforeEach(() => {
   attentionMock.mockResolvedValue({
     mappings: [quiet('m-mail', { deletionsWaiting: 2, failuresWaiting: 1 }), quiet('m-files', { sharingOpen: 5 })],
   });
+  // Unread unless a case says otherwise: the lines then say what the rows
+  // carry, which is what every case before 0154 T1 (b) described.
+  apiGet.mockRejectedValue(new Error('the progress read is not part of this case'));
+  vi.mocked(fetchVerifyReport).mockRejectedValue(new Error('the progress read is not part of this case'));
 });
 
 describe("a person's page (0153 T5)", () => {
@@ -404,5 +420,113 @@ describe('the appliance’s one person (0153 T8)', () => {
     renderAt('/people/implicit');
     expect(await screen.findByText('Could not load this person.')).toBeInTheDocument();
     expect(document.querySelector('[data-migration]')).toBeNull();
+  });
+});
+
+/**
+ * EACH LINE'S OWN STAGE, AND THE SENTENCE UNDER IT (workplan 0154 T1 (b) and
+ * (d)), from the progress read, on both editions: managed's route, parsed as
+ * the page reads it, and the appliance's status with its last check.
+ */
+describe('a person’s lines say where each data type is (0154 T1 (b))', () => {
+  const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
+  const row = (id: string) => document.querySelector(`[data-migration="${id}"]`) as HTMLElement;
+  const line = (migrationId: string, domain: string) =>
+    row(migrationId).querySelector(`[data-domain="${domain}"]`) as HTMLElement;
+
+  it('managed: from the progress route, files by their bytes, and the person the least advanced', async () => {
+    apiGet.mockImplementation(async (url: string) => {
+      if (url !== '/migrations/progress') throw new Error(`unexpected ${url}`);
+      return {
+        data: {
+          mappings: [
+            {
+              mappingId: 'm-mail',
+              domains: [
+                { domain: 'email', state: 'completed', phase: 'active', itemsSynced: 18234, itemsFound: 19000, bytesTransferred: 0, lastSyncedAt: ago(120_000) },
+              ],
+              check: { state: 'not_run' },
+            },
+            {
+              mappingId: 'm-files',
+              domains: [
+                { domain: 'file', state: 'in_progress', phase: 'active', itemsSynced: 900, itemsFound: 3000, bytesTransferred: 12.4 * 1024 ** 3, bytesFound: 38 * 1024 ** 3 },
+              ],
+              check: { state: 'not_run' },
+            },
+          ],
+        },
+      };
+    });
+
+    renderAt();
+
+    await screen.findByRole('heading', { level: 1, name: 'Anna Jansen' });
+    await vi.waitFor(() => expect(line('m-mail', 'email').getAttribute('data-stage')).toBe('kept_in_step'));
+    expect(within(line('m-mail', 'email')).getByText('18,234 of ~19,000 · last pass 2 minutes ago')).toBeInTheDocument();
+    expect(within(line('m-files', 'file')).getByText('Copying')).toBeInTheDocument();
+    expect(within(line('m-files', 'file')).getByText('12.4 of ~38.0 GB')).toBeInTheDocument();
+    const heading = screen.getByRole('heading', { level: 1, name: 'Anna Jansen' }).parentElement!;
+    expect(within(heading).getByText('Copying')).toBeInTheDocument();
+  });
+
+  describe('on the appliance', () => {
+    const STATUS: StatusReport = {
+      status: 'ok',
+      mappings: [
+        {
+          mappingId: 'mail',
+          migrationStatus: 'active',
+          sourceType: 'gmail',
+          targetType: 'jmap',
+          name: 'Mail',
+          domains: [
+            {
+              domain: 'email',
+              state: 'completed',
+              itemsSynced: 412,
+              itemsFailed: 0,
+              bytesTransferred: 0,
+              itemsRetrying: 0,
+              itemsNeedingDecision: 0,
+              itemsFound: 412,
+              lastSyncedAt: ago(3_600_000),
+            },
+          ],
+        },
+      ],
+    };
+
+    beforeEach(() => {
+      edition.selfhost = true;
+      peopleMock.mockResolvedValue(implicitPeople([{ id: 'mail', status: 'active' }]));
+      vi.mocked(fetchStatus).mockResolvedValue(STATUS);
+      attentionMock.mockResolvedValue({ mappings: [quiet('mail')] });
+    });
+
+    it('says Ready to switch from its status and its last check, and when the check passed', async () => {
+      vi.mocked(fetchVerifyReport).mockResolvedValue({
+        state: 'done',
+        startedAt: ago(86_400_000 + 60_000),
+        finishedAt: ago(86_400_000),
+        report: { mail: { canProceedToCutover: true } } as never,
+      });
+
+      renderAt('/people/implicit');
+
+      await screen.findByRole('heading', { level: 1, name: 'Your migrations' });
+      await vi.waitFor(() => expect(line('mail', 'email').getAttribute('data-stage')).toBe('ready_to_switch'));
+      expect(within(line('mail', 'email')).getByText('The check passed yesterday')).toBeInTheDocument();
+    });
+
+    it('says Kept in step, with how far, when no check is held, as after a restart', async () => {
+      vi.mocked(fetchVerifyReport).mockResolvedValue({ state: 'never-run' });
+
+      renderAt('/people/implicit');
+
+      await screen.findByRole('heading', { level: 1, name: 'Your migrations' });
+      await vi.waitFor(() => expect(line('mail', 'email').getAttribute('data-stage')).toBe('kept_in_step'));
+      expect(within(line('mail', 'email')).getByText('412 of ~412 · last pass 1 hour ago')).toBeInTheDocument();
+    });
   });
 });

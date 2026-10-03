@@ -31,6 +31,7 @@ export * from './path-phase.ts';
 // Workplan 0154 T1 (a): where a migration is, in a person's words, read from
 // the lifecycle and path phase beside it.
 export * from './stage.ts';
+export * from './progress.ts';
 // ADR-0050 (amended 2026-09-28), workplan 0153 T2: the person a migration is
 // for, in the shapes both editions answer.
 export * from './people.ts';

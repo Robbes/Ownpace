@@ -21,29 +21,9 @@ import { Pause } from 'lucide-react';
 import { SCREENS } from './hub-screens.ts';
 import { isSelfHost } from '../services/edition.ts';
 
-/**
- * HOW OFTEN THE LIVE STRIP ASKS AGAIN, from what it is currently showing.
- *
- * `pending` and `in_progress` are the two states where the numbers are still
- * moving, so they are the two that earn the fast rate. Everything else —
- * `completed`, `failed`, `skipped`, and a mapping with no domains yet — falls
- * back to the idle rate rather than to `false`: a migration STARTED from
- * another screen has to become visible here without a reload too, and that is
- * the same bug one step further out.
- *
- * Exported because both editions read it, and because a rule this small is
- * cheaper to assert directly than through two rendered components.
- */
-export const PROGRESS_POLL_ACTIVE_MS = 10_000;
-export const PROGRESS_POLL_IDLE_MS = 30_000;
-
-export function progressRefetchInterval(
-  domains: ReadonlyArray<{ readonly state: string }> | undefined,
-): number {
-  return domains?.some((d) => d.state === 'pending' || d.state === 'in_progress')
-    ? PROGRESS_POLL_ACTIVE_MS
-    : PROGRESS_POLL_IDLE_MS;
-}
+// The strip's refresh rule, shared with a person's lines (0154 T1 (b)).
+export { progressRefetchInterval, PROGRESS_POLL_ACTIVE_MS, PROGRESS_POLL_IDLE_MS } from '../services/progress-poll.ts';
+import { progressRefetchInterval } from '../services/progress-poll.ts';
 import { mappingApi } from '../services/mapping-service.ts';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
 import { fetchStatus } from '../services/operating-service.ts';

@@ -34,8 +34,10 @@
  * (`rowsFromStatus`), named by its file or by where it goes. There is no
  * Migrations page to go back to, no *Add a migration*, and no links.
  *
- * NOT YET HERE, and said in the plan: the one-line progress on each data type
- * (0154 T1 (b) and (d), which read T2's totals).
+ * EACH DATA TYPE'S LINE (0154 T1 (b) and (d)) has its own stage and the
+ * sentence under it, from the progress read: the progress route on managed,
+ * the status and the last check on the appliance. The person's stage is the
+ * least advanced of their lines'.
  *
  * THREE READS, as on Migrations. A failed read of the people or the list is a
  * failure on screen (hard rule 9). A step whose count could not be read says
@@ -52,7 +54,10 @@ import { serverMessage } from '../services/api.ts';
 import { waitingOn } from '../services/needs-you.ts';
 import { personSteps, type Step, type StepState } from '../services/cutover-steps.ts';
 import StateChip from '../components/StateChip.tsx';
-import { MigrationLines, listStage } from '../components/MigrationLines.tsx';
+import { MigrationLines, lineStages } from '../components/MigrationLines.tsx';
+import { fetchProgress } from '../services/progress-service.ts';
+import { progressRefetchInterval } from '../services/progress-poll.ts';
+import { linesProgressOf } from '../services/stage-line.ts';
 import { providerName } from '../components/ProviderTile.tsx';
 import { SCREENS } from './hub-screens.ts';
 import { PersonGrantLinkSection, PersonViewLinkSection } from '../components/MappingLinksPanel.tsx';
@@ -149,6 +154,14 @@ const Person: React.FC = () => {
   const rows: readonly PersonRow[] | undefined = selfHost ? statusQuery.data : listQuery.data;
   const peopleQuery = useQuery({ queryKey: ['people'], queryFn: fetchPeople });
   const attentionQuery = useQuery({ queryKey: ['attention'], queryFn: fetchAttention });
+  // Where each data type is (0154 T1 (b)), for each line's own stage and the
+  // sentence under it: the progress route on managed, the status and the last
+  // check on the appliance. A failed read leaves the lines what the rows carry.
+  const progressQuery = useQuery({
+    queryKey: ['progress'],
+    queryFn: fetchProgress,
+    refetchInterval: (query) => progressRefetchInterval(query.state.data?.mappings.flatMap((m) => m.domains)),
+  });
   // Their one grant link (ADR-0035, amended 2026-09-29; 0153 T5 (b)). Managed
   // only: the appliance moves one implicit person and serves no links.
   const linksQuery = useQuery({
@@ -214,7 +227,9 @@ const Person: React.FC = () => {
   const attention = attentionQuery.isSuccess
     ? new Map(attentionQuery.data.mappings.map((a) => [a.mappingId, a]))
     : undefined;
-  const stage = leastAdvancedStage(migrations.map(listStage));
+  const linesOf = (m: PersonRow) =>
+    linesProgressOf(progressQuery.data, m.id, attention?.get(m.id), attentionQuery.isSuccess);
+  const stage = leastAdvancedStage(migrations.flatMap((m) => lineStages(m, linesOf(m))));
   const awaiting = new Map((awaitingQuery.data ?? []).map((a) => [a.mappingId, a.then]));
   const theirName = person.displayName ?? '';
   const from = names(migrations, 'sourceType');
@@ -293,7 +308,7 @@ const Person: React.FC = () => {
                   <span>{t(ONCE_GRANTED_WORDS[awaiting.get(m.id)!], { name: theirName })}</span>
                 </p>
               )}
-              <MigrationLines migration={m} />
+              <MigrationLines migration={m} progress={linesOf(m)} />
             </div>
           ))
         )}

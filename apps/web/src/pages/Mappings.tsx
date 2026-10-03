@@ -24,10 +24,11 @@
  * What needs a person only counts: when that read fails, the counts say they
  * could not be taken, never zero.
  *
- * The stage is read from what the list carries: the lifecycle, and whether a
- * pass has completed. A migration whose check passed shows *Kept in step*
- * here, not *Ready to switch*, until the list carries the check, with the line
- * under each stage (0154 T1 (b), which reads T2's totals).
+ * Each data type's line has its own stage and a sentence under it, from the
+ * progress read (0154 T1 (b)): *18,234 of ~19,000 · last pass 2 minutes
+ * ago*, or *The check passed yesterday*. A person's stage is the least
+ * advanced of their lines'. While that read is loading, or where it failed,
+ * the lines say what the list carries (`MigrationLines`).
  */
 import React from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
@@ -45,7 +46,10 @@ import {
 import { serverMessage } from '../services/api.ts';
 import StateChip from '../components/StateChip.tsx';
 import { providerName } from '../components/ProviderTile.tsx';
-import { MigrationLines, listStage } from '../components/MigrationLines.tsx';
+import { MigrationLines, lineStages } from '../components/MigrationLines.tsx';
+import { fetchProgress } from '../services/progress-service.ts';
+import { progressRefetchInterval } from '../services/progress-poll.ts';
+import { linesProgressOf } from '../services/stage-line.ts';
 import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
 import { Hint } from '../components/Hint.tsx';
 import { waitingOn } from '../services/needs-you.ts';
@@ -75,6 +79,14 @@ const Mappings: React.FC = () => {
   const mappingsQuery = useQuery({ queryKey: ['mappings'], queryFn: mappingApi.list });
   const peopleQuery = useQuery({ queryKey: ['people'], queryFn: fetchPeople });
   const attentionQuery = useQuery({ queryKey: ['attention'], queryFn: fetchAttention });
+  // Where each data type is (0154 T1 (b)): each line's own stage and the
+  // sentence under it. Only the lines read it, so a failed read leaves them
+  // what the list carries, and refreshes at the migration page's own rate.
+  const progressQuery = useQuery({
+    queryKey: ['progress'],
+    queryFn: fetchProgress,
+    refetchInterval: (query) => progressRefetchInterval(query.state.data?.mappings.flatMap((m) => m.domains)),
+  });
 
   /**
    * `?status=` — where the dashboard's counts land (workplan 0074). Filters
@@ -168,6 +180,7 @@ const Mappings: React.FC = () => {
   const people = peopleQuery.data?.people ?? [];
   const attentionRead = attentionQuery.isSuccess;
   const attentionById = new Map((attentionQuery.data?.mappings ?? []).map((a) => [a.mappingId, a]));
+  const linesOf = (m: MappingListItem) => linesProgressOf(progressQuery.data, m.id, attentionById.get(m.id), attentionRead);
 
   // Each person's migrations, as the list has them; one the list does not
   // have is not shown (the list is what exists).
@@ -273,7 +286,7 @@ const Mappings: React.FC = () => {
               </button>
             </div>
           </div>
-          <MigrationLines migration={m} />
+          <MigrationLines migration={m} progress={linesOf(m)} />
         </div>
         {extra}
         {deleteArm?.id === m.id && (
@@ -387,7 +400,7 @@ const Mappings: React.FC = () => {
           {cards.map(({ person, migrations }) => {
             const visible = migrations.filter(shown);
             if (statusFilter && visible.length === 0) return null;
-            const stage = leastAdvancedStage(migrations.map(listStage));
+            const stage = leastAdvancedStage(migrations.flatMap((m) => lineStages(m, linesOf(m))));
             const needs = needsOf(migrations);
             const from = providerNames(migrations, 'sourceType');
             const to = providerNames(migrations, 'targetType');
