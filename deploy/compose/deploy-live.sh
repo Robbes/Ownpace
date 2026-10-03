@@ -22,7 +22,10 @@
 #      deploys the tasks. Without the demo it skips its smoke, and step 7
 #      stands in for it.
 #   7. asks the app at the origin in WEB_URL: /api/version names the tag's
-#      commit AND its version (0146 T5), /api/ready answers 200,
+#      commit AND its version (0146 T5), and so does /version.json, the web
+#      app's own build (0145: /api/version is the API's, handed on by the web
+#      image, and says nothing of the page it serves; a tag cut before 0145
+#      has no /version.json, and cannot pass), /api/ready answers 200,
 #      /api/auth/mode answers `managed`; and runs exposure-check.sh
 #      (0132 T3 (b), on main since #1271), the tag's own copy, which must
 #      pass. It reads EXPOSURE_ALLOW from live's .env, which the owner sets;
@@ -540,6 +543,26 @@ main() {
     fi
   else
     failures+=("/api/version: ${code}.")
+  fi
+  # The web app's own build (workplan 0145). /api/version above is the API's,
+  # handed on by the web image's nginx, and a web image that did not move
+  # beside it would pass: testers would get the old page talking to the new
+  # API, which is how a page meets an answer it cannot read. The build writes
+  # its own beside the page, and it must be the tag's too.
+  if http_get "$app_origin" /version.json body code; then
+    got_commit="$(json_string commit <<<"$body")"
+    got_version="$(json_string version <<<"$body")"
+    if [ "$got_commit" != "$commit" ]; then
+      failures+=("/version.json names commit '${got_commit:-none}', not the tag's ${commit}: the web app is not the release's.")
+    fi
+    if [ "$got_version" != "$version" ]; then
+      failures+=("/version.json names version '${got_version:-none}', not the tag's '${version}': the web app is not the release's.")
+    fi
+    if [ "$got_commit" = "$commit" ] && [ "$got_version" = "$version" ]; then
+      say "  /version.json: ${commit}, ${version}"
+    fi
+  else
+    failures+=("/version.json: ${code}.")
   fi
   if http_get "$app_origin" /api/ready body code; then
     say "  /api/ready: 200"

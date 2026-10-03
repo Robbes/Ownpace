@@ -169,11 +169,14 @@ export async function serveUi(
   }
 
   const headers: Record<string, string> = { 'content-type': contentTypeFor(target) };
-  // Vite fingerprints asset filenames, so those are safe to cache hard. index.html
-  // is not fingerprinted and must not be, or an upgraded appliance keeps serving
-  // the old bundle until somebody clears their browser cache.
-  headers['cache-control'] =
-    target === index ? 'no-cache' : 'public, max-age=31536000, immutable';
+  // Vite fingerprints the files it writes under assets/, so those are safe to
+  // cache hard. Nothing else is fingerprinted, and none of it may be cached:
+  // index.html, or an upgraded appliance keeps serving the old bundle until
+  // somebody clears their browser cache, and version.json (workplan 0145),
+  // which an open page asks to learn that a newer build is served.
+  headers['cache-control'] = rel.startsWith('/assets/')
+    ? 'public, max-age=31536000, immutable'
+    : 'no-cache';
 
   res.writeHead(200, headers);
   if (req.method === 'HEAD') {

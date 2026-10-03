@@ -366,7 +366,6 @@ const Mappings: React.FC = () => {
                 <p className="mt-1">{serverMessage(f.error)}</p>
               </React.Fragment>
             ))}
-            <p className="mt-1">{t('mappings.loadFailedNotEmpty')}</p>
           </div>
         </div>
       ) : nothingAtAll ? (

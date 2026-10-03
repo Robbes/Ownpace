@@ -190,7 +190,7 @@ const liveConnect = async (locale: Locale): Promise<HTMLElement> => {
 /** Pick Gmail and type the address, in either door that has cards. */
 const pickGmail = async (locale: Locale): Promise<HTMLElement> => {
   fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
-  fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+  fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
     target: { value: 'owner@gmail.com' },
   });
   return liveConnect(locale);
@@ -223,7 +223,7 @@ const walkToReview = (locale: Locale) => {
   fireEvent.change(screen.getByPlaceholderText('imap.example.com'), {
     target: { value: 'mail.old-provider.example' },
   });
-  fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
+  fireEvent.change(screen.getAllByPlaceholderText('someone@example.com')[0]!, {
     target: { value: 'source@acme.example' },
   });
   fireEvent.change(document.querySelectorAll('input[type="password"]')[0]!, {
@@ -234,7 +234,7 @@ const walkToReview = (locale: Locale) => {
   fireEvent.change(screen.getByLabelText(new RegExp(`^${words(locale, 'wizard.host')}`)), {
     target: { value: 'stalwart.acme.example' },
   });
-  fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
+  fireEvent.change(screen.getAllByPlaceholderText('someone@example.com')[0]!, {
     target: { value: 'target@acme.example' },
   });
   fireEvent.change(document.querySelectorAll('input[type="password"]')[0]!, {

@@ -244,6 +244,11 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     ...(result.reappearedAfterRemoval > 0
       ? { reappearedAfterRemoval: result.reappearedAfterRemoval }
       : {}),
+    // A folder the pass could not list, carried for the same reason: the
+    // runner names it on the owner's status line (0055 T3 (e), the owner's
+    // "2a"), and a mail result that dropped it would leave a mailbox's
+    // unread folder the one kind nobody is told about.
+    ...(result.unreadCollections ? { unreadCollections: result.unreadCollections } : {}),
     // A scheduled pause is a fact the pass summary must carry — a caller who
     // sees created: 0 with no reason would read a pause as a stall.
     ...(result.budgetPause ? { budgetPause: result.budgetPause } : {}),

@@ -29,6 +29,7 @@ beforeAll(async () => {
   await mkdir(join(root, 'assets'), { recursive: true });
   await writeFile(join(root, 'index.html'), '<!doctype html><title>console</title>');
   await writeFile(join(root, 'assets', 'index-abc.js'), 'console.log(1)');
+  await writeFile(join(root, 'version.json'), '{"version":"0.3.1","commit":"abc1234"}\n');
   await writeFile(join(outside, 'secret.txt'), 'TOP SECRET');
 });
 
@@ -221,6 +222,17 @@ describe('serving', () => {
     const page = reqres(`${UI_MOUNT}/`);
     await serveUi(page.req, page.res, { rootDir: root });
     expect(page.headers['cache-control']).toBe('no-cache');
+  });
+
+  it('never lets a cache keep the build an open page asks for (workplan 0145)', async () => {
+    // version.json says which build the appliance serves now: an open page
+    // asks it to offer a reload after an update, and a year's immutable copy
+    // would answer with the build it had before.
+    const build = reqres(`${UI_MOUNT}/version.json`);
+    await serveUi(build.req, build.res, { rootDir: root });
+    expect(build.status).toBe(200);
+    expect(build.headers['content-type']).toContain('application/json');
+    expect(build.headers['cache-control']).toBe('no-cache');
   });
 
   it('never serves a file from outside the bundle directory', async () => {

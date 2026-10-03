@@ -345,20 +345,30 @@ a comment beside the sentence, in both languages, where the text rests on it. **
 
 - *Nothing uses your access after closing* (privacy §9, terms §11, Alpha conditions §10, the
   DPA's Annex A; terms briefing, precondition B): partly done. Since #1320 (`d7868276`, merged
-  2026-09-28), on this branch since `main` was merged into it in `c1413b53`, nothing new starts
-  for a closed organisation: the sync tick starts no pass, a pass already queued halts before
-  its credentials are built, the credential builders refuse, and every door that would start
-  work or use the access answers 409 `account_closed`. Its members can still sign in, read and
-  export until the purge. Work already running when the account closes is not all stopped. The
-  close asks the orchestrator to cancel only the runs whose row names the orchestrator's run,
-  which only a sync pass records, and a request that fails is only logged
-  (`apps/api/src/close-account.ts`). A sync pass the cancel did not stop hears the close from
-  inside the data type it is on, stops starting new items within about fifteen seconds and
-  finishes the ones it has begun (2026-09-29); a discovery still reads to the end of the data
-  type it is on. A verification or a confirmation already running reads the accounts to its
-  end, with the readers it built before the close. To build: those runs
-  record the orchestrator's reference and the close cancels them too, or they check the close
-  between steps. Or the owner rewords the sentence to what the code does.
+  2026-09-28), nothing new starts for a closed organisation: the sync tick starts no pass, a
+  pass already queued halts before its credentials are built, the credential builders refuse,
+  and every door that would start work or use the access answers 409 `account_closed`. Its
+  members can still sign in, read and export until the purge. **Work already running when the
+  account closes: built 2026-09-29, reviewed and fixed the same day** (0139 T7) on branch
+  `claude/ownpace-public-readiness-y7orc6-the-close-stops-what-is-running`, **not merged**. A
+  verification, a confirmation and a discovery already running check the close between their
+  steps and stop: a verification before each listing of a target and before each sample it
+  downloads (it records no verdict, and its run says the organisation was closed), a
+  confirmation before each item it reads on the target (its run closes `cancelled`, the close
+  named, what it confirmed before stays, and the confirmed list says the close stopped it), a
+  discovery before each collection it lists (the close is that data type's error, and no
+  partial count stands). The step in flight when the close lands finishes, whether a listing
+  with all its pages, one download or one item; no other begins after it. **Still not true:**
+  the close asks the orchestrator to cancel only the runs whose row names the orchestrator's
+  run, which only a sync pass records, and a request that fails is only logged
+  (`apps/api/src/close-account.ts`); a sync pass the cancel did not stop hears the close from
+  inside the data type it is on, begins no new item within about fifteen seconds and finishes
+  the ones it has begun (2026-09-29). A discovery of a file source first walks the whole folder
+  tree, a request per folder on Google Drive, Box and Dropbox, and asks only after it, so a
+  close during that walk lets the walk finish. The daily shared-address discovery and drift
+  check read the list of open organisations once, when they start, so an organisation closed
+  while one runs is still read in that run. Until those stop too, or the owner rewords the
+  sentence to what the code does, precondition B is not fully done.
 - *The copy made right before an update, never longer than 7 days* (privacy §9, Alpha
   conditions §6; rec-copies (a)): built (0139 T6, 2026-09-28, review fixes 2026-09-29).
   `deploy/compose/copy-before-update.sh`, one directory,
@@ -379,7 +389,12 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   Privacy §9 no longer names the drill. **Still to do:** live runs a tag that carries it.
 - *A sign-in account nobody let in, 30 days* (privacy §9; ops-unadmitted-signin-cleanup (a)):
   0135 T8's script, `idp-strays.sh`, run with the machine's daily duties. Built; it runs once
-  live's timer is installed.
+  live's timer is installed. The same run removes the sign-in account of someone removed from an
+  organisation, 7 days after they were removed (privacy §9's row beside it; 0135 open question
+  13, answered 2026-09-29: *"Samen number of days"*, and then *"7 days"*, the erasure window's),
+  unless they are a member again or have an open request or invitation. An organisation erased
+  less than 7 days after a removal takes the record with it; the runbook's *Tenant offboarding*
+  removes such an account at the purge.
 - *Searches and downloads on the support screens, 12 months* (privacy §4.5, §9;
   privacy-search-records (a)): a daily duty deletes those log records older than 12 months, over the
   owner's connection at the machine: `app_user`, the role every request runs as, cannot delete from
@@ -389,9 +404,21 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   it runs once live's timer is installed. It deletes every read recorded with no organisation at 12
   months: besides a search and a download, the organisation list, the invoices kept after an
   erasure, and a log page not filtered to one organisation.
-- *The sharing list goes with its migration* (privacy §4.6, §9; privacy-sharing-list (b)): the
-  migration delete also deletes that migration's `share_grant` rows, which have no foreign key to
-  the migration today. Not built; until it is, the list stays until erasure.
+- *The sharing list goes with its migration* (privacy §4.6, §9; privacy-sharing-list (b)): built
+  (0139 T6, 2026-09-29) on branch
+  `claude/ownpace-public-readiness-y7orc6-the-sharing-list-goes-with-its-migration`, not merged.
+  Deleting a migration (`DELETE /api/migrations/:id`) deletes that migration's `share_grant` rows,
+  which have no foreign key to the migration, in the same transaction as the migration itself: a
+  list that cannot be deleted keeps the migration too. A sharing rescan writes no list for a
+  migration deleted while it scanned: the list's one writer holds the migration's row, so a delete
+  either waits for the list and takes it, or comes first and the rescan writes nothing. The
+  rollback from the copy before an update deletes them again with a migration deleted after the
+  copy (`copy-before-update.sh since`); the erasure already deleted them by organisation, and
+  `operator.sh clean empty-tenant` now deletes them with an organisation it removes. **Still to
+  do:** merged, and live runs a tag that carries it. A list whose migration was deleted before
+  that stays until the organisation's erasure, or until `clean empty-tenant` removes the
+  organisation. Privacy's briefing and the comments beside §9 in both languages still say it is
+  not built.
 - *Server logs until the part that wrote them is replaced* (privacy §9; ops-log-driver (a), the
   owner: *"needs checking"*): the owner runs `docker info --format '{{.LoggingDriver}}'` on the
   machine and undoes a journald setting if there is one; the journald step comes out of
@@ -422,11 +449,22 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   (`access.privacy`) are reworded, in both languages: *"we store only a hash of it, in the
   sign-in service we run"*; *"no backups, apart from one copy before each update, kept up to 7
   days"*; *"We keep what you type to decide on your request and to answer you; asking creates no
-  account."*
+  account."* Built (0139 T4, 2026-09-29) on branch
+  `claude/ownpace-public-readiness-y7orc6-what-the-app-says`, **not merged**: all three, in
+  English and Dutch, and the grant mail's alpha paragraph with the note, whose words it shares.
+  **Still to do:** merged, and live runs a tag that carries it.
 - *A privacy line in the mail to people items were shared with* (privacy §4.6;
   privacy-share-mail-notice (a)): one sentence and a link to the policy, in both languages, in
   `packages/shared/src/share-announcement.ts` and its copy in
-  `docs/cutover-communication-templates.md`, before the first tester uses the feature.
+  `docs/cutover-communication-templates.md`, before the first tester uses the feature. Built on
+  the same branch, **not merged**: on the managed service the mail closes with *"Ownpace, the
+  migration service that sent this message, keeps your address and the names of these items;
+  its privacy policy says why, and for how long:"* and the policy's address in the mail's
+  language, and Template 6 carries the same line. The address is on the site the app links:
+  `managed.yml` hands `VITE_LEGAL_SITE_URL` to the api as `LEGAL_SITE_URL`
+  (`packages/shared/src/privacy-policy-link.ts`). An appliance's mail has no such line; its
+  owner sends it, and this policy is not theirs. **Still to do:** merged, and live runs a tag
+  that carries it; the lawyer reads the sentence with question 2 of the privacy briefing.
 - *By hand, by the owner*: the service's sent mail and support mail pruned in Proton, until
   resolved and then 6 months (privacy §9; privacy-sent-mail-copies (b)); a family member's
   Google address taken off Google's test list with the tester's, at erasure, or sooner if asked

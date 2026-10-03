@@ -152,7 +152,13 @@ export const runConfirmationTask = schemaTask({
     log.info(
       `[run-confirmation] ${mappingId}: ${result.tally.verified} of ${result.tally.total} ` +
         `verified, ${result.recorded} recorded` +
-        (result.paused ? ` — paused at the day's ceiling` : ''),
+        (result.paused ? ` — paused at the day's ceiling` : '') +
+        // The close while it ran (0139 T7): the run row says `cancelled`, and
+        // nothing is thrown, so the plane does not retry what the builders
+        // would only refuse.
+        (result.stoppedBecause === 'organisation_closed'
+          ? ` — stopped before its next ${result.stoppedBefore} item: the organisation was closed`
+          : ''),
     );
     return { started: true as const, runId: result.runId, tally: result.tally };
   }),

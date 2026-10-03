@@ -552,6 +552,34 @@ export const personMigration = pgTable(
   (t) => [index('person_migration_person_idx').on(t.personId)],
 );
 
+/**
+ * A person's bearer link to all of their migrations (ADR-0035, amended
+ * 2026-09-29; workplan 0153 T5 (b); managed migration 0034): one grant link
+ * and one progress link per person rather than per migration. Shaped as the
+ * ledger's `mapping_link` is, with the person where the migration was, and
+ * managed-only because the person is. The person's key is `(person_id,
+ * tenant_id)` in the migration, so a link cannot name another organisation's
+ * person. Purged on erasure (`PURGED_TABLES`).
+ */
+export const personLink = pgTable(
+  'person_link',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    personId: uuid('person_id').notNull(),
+    purpose: text('purpose', { enum: ['grant', 'view'] }).notNull(),
+    secretHash: text('secret_hash').notNull(),
+    createdBy: text('created_by').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (t) => [index('person_link_person_idx').on(t.personId, t.createdAt)],
+);
+
 // ========================= What a person accepted =========================
 
 /**

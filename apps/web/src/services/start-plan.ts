@@ -60,6 +60,12 @@ export const TYPE_ORDER: ReadonlyArray<DiscoveryDomain> = DISCOVERY_DOMAINS;
 export interface ServedFacts {
   readonly google?: ReadonlyArray<DiscoveryDomain>;
   readonly microsoft?: ReadonlyArray<DiscoveryDomain>;
+  /**
+   * Whose Google client a consent runs on here (ADR-0041): the deployment's,
+   * or each connection's. A grant link through a connection with no client
+   * of its own needs the deployment's (`grantableByLink`).
+   */
+  readonly googleClient?: 'deployment' | 'connection';
 }
 
 const inOrder = (types: Iterable<DiscoveryDomain>): DiscoveryDomain[] => {
@@ -122,6 +128,33 @@ export function photosThrough(provider: StartProvider): ArchiveProvider | undefi
   };
   const through = archive[provider];
   return through !== undefined && hasArchiveReader(through) ? through : undefined;
+}
+
+/**
+ * Whether the person a migration is for can connect this card themselves, by
+ * a grant link (0108), so the one who starts it never holds their password.
+ *
+ * Only Google's cards have links, and only through the deployment's own
+ * client, since an account saved for somebody else holds none. Through it,
+ * mail and files are asked for only where the deployment declared Google's
+ * restricted scopes (`GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`); the link's own
+ * readiness check refuses them otherwise, so they are not offered.
+ */
+export function grantableByLink(card: string, served: ServedFacts = {}): boolean {
+  if (served.googleClient !== 'deployment') return false;
+  const account = served.google ?? PROVIDER_ACCOUNT_DOMAINS.google;
+  switch (card) {
+    case 'google':
+    case 'google-calendar':
+    case 'google-contacts':
+      return true;
+    case 'gmail':
+      return account.includes('email');
+    case 'google-drive':
+      return account.includes('file');
+    default:
+      return false;
+  }
 }
 
 /** One account to connect: the card it is added with, and the types it is asked for. */

@@ -345,6 +345,30 @@ describe('the confirmed list screen', () => {
     expect(screen.getByText(/the target refused/)).toBeInTheDocument();
   });
 
+  it('says the close stopped a pass, and neither dates the page as checked nor calls it failed', async () => {
+    // Workplan 0139 T7: a pass stopped because the organisation was closed
+    // read nothing more. Its members can still read this page until the purge
+    // and after a reopen; "checked" would claim a finished check, and
+    // "stopped" in the failure's amber would claim something went wrong.
+    show(
+      queue({
+        verified: 2,
+        total: 5,
+        lastPass: {
+          state: 'stopped',
+          startedAt: '2026-09-13T09:00:00Z',
+          finishedAt: '2026-09-13T09:04:00Z',
+          because: 'organisation-closed',
+        },
+      }),
+    );
+    const line = await screen.findByText(/This organisation was closed, so the check stopped at/);
+    expect(line).toBeInTheDocument();
+    expect(line.className).not.toContain('amber');
+    expect(screen.queryByText(/^Checked/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^The check stopped at/)).not.toBeInTheDocument();
+  });
+
   it('says WHY only part of the account was checked, when a pass was paused', async () => {
     // Without it, "12 of 50 000" reads as a bad result rather than as a day's
     // budget spent — §7c's own warning about misleading by omission.

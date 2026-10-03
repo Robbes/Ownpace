@@ -84,9 +84,16 @@
 import React from 'react';
 import { useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { ShieldCheck } from 'lucide-react';
+import { CheckCircle2, ShieldCheck } from 'lucide-react';
 import type { DiscoveryDomain } from '@openmig/shared';
-import { grantApi } from '../services/grant-service.ts';
+import { grantApi, type GrantSubject, type PersonGrantSubject } from '../services/grant-service.ts';
+
+/**
+ * Whether the page opened a person's link. Here rather than imported, so a
+ * test that stands in for the service with its two calls still draws the page.
+ */
+const isPersonSubject = (s: GrantSubject | PersonGrantSubject): s is PersonGrantSubject =>
+  'kind' in s && s.kind === 'person';
 import { linkRefusal } from '../services/link-refusal.ts';
 import { legalLinks } from '../services/legal-links.ts';
 import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
@@ -113,6 +120,148 @@ const READS_KEY: Readonly<Record<DiscoveryDomain, StringKey>> = {
 function providerName(kind: string): string {
   return TARGET_CARDS.find((c) => c.id === kind)?.name ?? kind;
 }
+
+/**
+ * A PERSON'S link (ADR-0035, amended 2026-09-29; workplan 0153 T5 (b)): who is
+ * asking and who asked, once, then one card per Google account. Each card says
+ * where each of its migrations goes and what it copies, what the permission
+ * allows and the scope in Google's words, which account to sign in with, and
+ * its own button; or that it is connected already; or, in the reader's
+ * language, why it cannot be asked. Everything else on the page is the
+ * migration's page's, in the same words.
+ */
+const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ data, link }) => {
+  const t = useT();
+  const { locale } = useLocale();
+  const { dateTime, list } = useFormatters();
+  const legal = legalLinks(locale);
+  // Which account's button was pressed, and what refused it.
+  const [starting, setStarting] = React.useState<string | null>(null);
+  const [failure, setFailure] = React.useState<{ account: string; error: unknown } | null>(null);
+
+  const connect = async (account: string) => {
+    setStarting(account);
+    setFailure(null);
+    try {
+      const { url } = await grantApi.authorize(link, locale, account);
+      globalThis.location.assign(url);
+    } catch (error) {
+      setFailure({ account, error });
+      setStarting(null);
+    }
+  };
+
+  const where = (to: PersonGrantSubject['accounts'][number]['migrations'][number]['to']) => {
+    const place = to.host ? t('grant.toWhere', { provider: providerName(to.provider), host: to.host }) : providerName(to.provider);
+    return to.account ? t('grant.person.where', { account: to.account, place }) : place;
+  };
+
+  return (
+    <>
+      <p className="mt-4 text-gray-900">{t('grant.person.asking', { organisation: data.organisation })}</p>
+      {(data.checkedCompany || data.askedBy || data.organisationPhone) && (
+        <dl className="mt-4 p-4 border border-gray-200 rounded-lg grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+          {data.checkedCompany && (
+            <>
+              <dt className="text-gray-600">{t('grant.company')}</dt>
+              <dd className="text-gray-900">
+                <span className="block">{data.checkedCompany}</span>
+                <span className="block text-xs text-gray-500">{t('grant.companyChecked')}</span>
+              </dd>
+            </>
+          )}
+          {data.askedBy && (
+            <>
+              <dt className="text-gray-600">{t('grant.askedBy')}</dt>
+              <dd className="text-gray-900 break-all">{data.askedBy}</dd>
+            </>
+          )}
+          {data.organisationPhone && (
+            <>
+              <dt className="text-gray-600">{t('grant.phone')}</dt>
+              <dd className="text-gray-900">
+                <a className="underline" href={`tel:${data.organisationPhone.replace(/[^0-9+]/g, '')}`}>
+                  {data.organisationPhone}
+                </a>
+              </dd>
+            </>
+          )}
+        </dl>
+      )}
+      <p className="mt-2 text-sm font-medium text-gray-900">{t('grant.check')}</p>
+
+      {data.accounts.map((a, i) => (
+        <section
+          key={a.account}
+          aria-labelledby={`grant-account-${i}`}
+          className="mt-6 p-4 border border-gray-200 rounded-lg"
+        >
+          <h2 id={`grant-account-${i}`} className="text-base font-semibold text-gray-900 break-all">
+            {a.account}
+          </h2>
+          <ul className="mt-2 space-y-1 text-sm text-gray-700">
+            {a.migrations.map((m, j) => (
+              <li key={j} className="break-words">
+                {t('grant.person.migration', {
+                  where: where(m.to),
+                  reads: list(m.domains.map((d) => t(READS_KEY[d]))),
+                })}
+              </li>
+            ))}
+          </ul>
+          {a.granted ? (
+            <p className="mt-3 flex items-center gap-2 text-sm font-medium text-green-800">
+              <CheckCircle2 className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
+              {t('grant.person.connected')}
+            </p>
+          ) : a.notReady ? (
+            <p className="mt-3 text-sm text-amber-800">{locale === 'nl' ? a.notReady.reasonNl : a.notReady.reason}</p>
+          ) : (
+            <>
+              <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="flex items-start gap-2 text-sm text-green-900">
+                  <ShieldCheck className="w-5 h-5 flex-shrink-0" />
+                  <span>{t(a.readOnlyAtProvider ? 'grant.readOnly' : 'grant.readsOnly')}</span>
+                </p>
+              </div>
+              <p className="mt-3 text-sm text-gray-600">{t('grant.scopeIntro')}</p>
+              <p className="mt-1 text-sm font-mono break-all text-gray-900">{a.scope}</p>
+              <p className="mt-3 text-sm font-medium text-gray-900 break-words">
+                {t('grant.signInAs', { account: a.account })}
+              </p>
+              <button
+                type="button"
+                onClick={() => void connect(a.account)}
+                disabled={starting !== null}
+                className="mt-3 min-h-[44px] px-4 py-2.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 break-all"
+              >
+                {starting === a.account ? t('grant.connecting') : t('grant.person.connect', { account: a.account })}
+              </button>
+              {failure?.account === a.account && (
+                <p role="alert" className="mt-3 text-sm text-amber-800">
+                  {linkRefusal(failure.error, locale, t)}
+                </p>
+              )}
+            </>
+          )}
+        </section>
+      ))}
+
+      <p className="mt-6 text-sm text-gray-600">{t('grant.until', { date: dateTime(data.expiresAt) })}</p>
+      <p className="mt-3 text-sm text-gray-600">{t('grant.inAppBrowser')}</p>
+      <p className="mt-6 text-sm text-gray-500">
+        {t('grant.disclosure')}{' '}
+        <a className="underline" href={legal.privacy}>
+          {t('grant.privacy')}
+        </a>{' '}
+        <a className="underline" href={legal.terms}>
+          {t('grant.terms')}
+        </a>
+      </p>
+      <p className="mt-3 text-sm text-gray-500">{t('grant.withdraw')}</p>
+    </>
+  );
+};
 
 const Grant: React.FC = () => {
   const { link } = useParams<{ link: string }>();
@@ -172,7 +321,11 @@ const Grant: React.FC = () => {
         </p>
       )}
 
-      {subject.data && (
+      {subject.data && isPersonSubject(subject.data) && link && (
+        <PersonGrant data={subject.data} link={link} />
+      )}
+
+      {subject.data && !isPersonSubject(subject.data) && (
         <>
           <p className="mt-4 text-gray-900">
             {t('grant.asking', { organisation: subject.data.organisation })}

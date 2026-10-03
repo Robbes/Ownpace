@@ -67,6 +67,12 @@ const UTILITIES = [
 
 let css = '';
 let html = '';
+/**
+ * A commit the build is handed as `GIT_SHA`, as images.yml hands every image
+ * its own, so `version.json` can be held to the commit the page is stamped
+ * with (workplan 0145) rather than to an empty string both would share.
+ */
+const STAMPED_COMMIT = 'c0ffee00'.repeat(5);
 
 beforeAll(() => {
   // The real script, from the repo root, exactly as `package:appliance` runs it.
@@ -80,6 +86,7 @@ beforeAll(() => {
     execFileSync('pnpm', ['--filter', '@openmig/web', 'build:selfhost'], {
       cwd: REPO,
       stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, GIT_SHA: STAMPED_COMMIT },
     });
   } catch (e) {
     const err = e as { stdout?: Buffer; stderr?: Buffer };
@@ -97,6 +104,24 @@ beforeAll(() => {
 }, 300_000);
 
 describe('the built operating UI', () => {
+  it('writes its own build beside the page, from the root package.json (workplan 0145)', () => {
+    // deploy-live.sh refuses a web app whose version.json is not the release's,
+    // and an open page asks it to offer a reload: it must exist, and name the
+    // one version this repository has.
+    const build = JSON.parse(readFileSync(join(OUT, 'version.json'), 'utf8')) as {
+      version?: unknown;
+      commit?: unknown;
+    };
+    const root = JSON.parse(readFileSync(join(WEB, '..', '..', 'package.json'), 'utf8')) as { version: string };
+    expect(build.version).toBe(root.version);
+    // The commit the page itself is stamped with, not a second reading of it.
+    expect(build.commit).toBe(STAMPED_COMMIT);
+    const stamped = readdirSync(join(OUT, 'assets'))
+      .filter((f) => f.endsWith('.js'))
+      .some((f) => readFileSync(join(OUT, 'assets', f), 'utf8').includes(STAMPED_COMMIT));
+    expect(stamped, 'the page is not stamped with the commit version.json names').toBe(true);
+  });
+
   it('emits a stylesheet carrying the utilities the app is written against', () => {
     const source = readAllTsx(join(WEB, 'src'));
     const missingFromSource: string[] = [];

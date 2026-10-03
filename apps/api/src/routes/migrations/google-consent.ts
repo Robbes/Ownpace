@@ -127,6 +127,20 @@ interface PendingConsent {
     readonly tenantId: string;
   };
   /**
+   * Present instead of `link` when a PERSON'S link began it (ADR-0035,
+   * amended 2026-09-29; workplan 0153 T5 (b)): the account the page named and
+   * the migrations it listed under it, recorded here when the button was
+   * pressed, so the ending grants exactly those and binds the sign-in to that
+   * account. Kept on the server for `link`'s reason.
+   */
+  readonly personLink?: {
+    readonly linkId: string;
+    readonly tenantId: string;
+    readonly personId: string;
+    readonly account: string;
+    readonly mappingIds: readonly string[];
+  };
+  /**
    * The language the page that began this consent was in (workplan 0145 T6),
    * so the ending is rendered in it. Beside `link`, and for the same reason:
    * the authorize call names it, the server keeps it here, and it never

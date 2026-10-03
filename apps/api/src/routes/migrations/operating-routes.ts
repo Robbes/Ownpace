@@ -40,7 +40,13 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import { and, desc, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
-import { PgLedger, PgCursorStore, PgMigrationStatusStore, readShareGate } from '@openmig/ledger';
+import {
+  PgLedger,
+  PgCursorStore,
+  PgMigrationStatusStore,
+  readShareGate,
+  ShareListWithoutMigration,
+} from '@openmig/ledger';
 import {
   DISCOVERY_DOMAINS,
   FAILURE_CATEGORIES,
@@ -69,6 +75,7 @@ import {
   renderCompletionReportMarkdown,
   finishTransition,
   log,
+  privacyPolicyUrl,
 } from '@openmig/shared';
 import type {
   ApplyDeletionsFlag,
@@ -556,20 +563,31 @@ router.post(
         });
       }
       const scans = await tenantInventoryScans(s.tenantId, mailbox);
-      const result = await withLedger(s.tenantId, (l) =>
-        refreshShareGrants({
-          tenantId: s.tenantId as TenantId,
-          mappingId: s.mappingId as MappingId,
-          ledger: l,
-          scans: [scans.scanCalendars, scans.scanDrive],
-          // Always, and not one of `scans`: no connector emits a mailbox
-          // grant on any provider, so the checklist must say so itself or the
-          // silence reads as "nothing to find". See `RefreshShareGrantsDeps`.
-          delegationReason: scans.delegationReason,
-        }),
-      );
+      const result = await refreshShareGrants({
+        tenantId: s.tenantId as TenantId,
+        mappingId: s.mappingId as MappingId,
+        // The scans run first, with no transaction open, for seconds or
+        // minutes of the provider's time; the list is then written in a
+        // transaction of its own, which holds the migration's row (workplan
+        // 0139 T6). A migration deleted while the scans ran is refused there,
+        // and nothing is written: its list went with it, and a new one would
+        // stay until the organisation's erasure.
+        ledger: {
+          upsertShareGrants: (tenantId, mappingId, rows) =>
+            withLedger(s.tenantId, (l) => l.upsertShareGrants(tenantId, mappingId, rows)),
+        },
+        scans: [scans.scanCalendars, scans.scanDrive],
+        // Always, and not one of `scans`: no connector emits a mailbox
+        // grant on any provider, so the checklist must say so itself or the
+        // silence reads as "nothing to find". See `RefreshShareGrantsDeps`.
+        delegationReason: scans.delegationReason,
+      });
       res.json(result);
     } catch (error) {
+      if (error instanceof ShareListWithoutMigration) {
+        // As `scope` answers a migration that is not there.
+        return void res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
+      }
       serverError(res, 'sharing_rescan_failed', 'rescanning sharing', error);
     }
   },
@@ -773,7 +791,8 @@ router.post(
  * type, at its own cutover, and a data type announced before is mailed again
  * only on purpose (`confirmResend`), never as a silent duplicate
  * (`announceByHandShares`, 0128 T5). Per grantee: their items only (§17 —
- * least disclosure).
+ * least disclosure). Each mail closes with a privacy line and the policy's
+ * address, in the mail's language (0139 T4, privacy §4.6).
  */
 router.post(
   '/:mappingId/sharing/announce',
@@ -795,6 +814,10 @@ router.post(
       const locale: NotificationLocale = body.locale === 'nl' ? 'nl' : 'en';
       const decidedBy = req.userId ?? 'unknown';
       const isCutOver = await shareGateOf(s);
+      // The privacy line's address (0139 T4, privacy §4.6), in the mail's
+      // language, on the site LEGAL_SITE_URL names. Made before anything is
+      // sent, so a value it cannot use sends nothing.
+      const privacyPolicy = privacyPolicyUrl(locale, process.env);
 
       const outcome = await withLedger(s.tenantId, (l) =>
         announceByHandShares(
@@ -806,6 +829,7 @@ router.post(
             isCutOver,
             channelIsOn: channelIsOn(),
             tell: async (grantee, message) => (await tellMessage(grantee, locale, message)) === 'sent',
+            privacyPolicy,
             onError: (m: string, err: unknown) => log.error(m, err),
           },
           { note, locale, confirmResend: body.confirmResend === true },

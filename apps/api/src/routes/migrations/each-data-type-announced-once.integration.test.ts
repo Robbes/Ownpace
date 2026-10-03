@@ -25,6 +25,7 @@ import { Pool } from 'pg';
 import supertest from 'supertest';
 import jwt from 'jsonwebtoken';
 import { notCutOverToAnnounceReason } from '@openmig/core';
+import { SHARE_ANNOUNCEMENT_PRIVACY } from '@openmig/shared';
 
 /** Every mail the channel was handed. */
 const SENT: Array<{ to: readonly string[]; subject: string; body: string }> = [];
@@ -170,6 +171,9 @@ describe('each data type’s shares carried by hand, announced once, at its own 
     expect(SENT.map((m) => [m.to, m.body.includes('Team planning'), m.body.includes('budget')])).toEqual([
       [['cas@example.invalid'], true, false],
     ]);
+    // The privacy line (0139 T4): the managed mail closes with the policy's
+    // address, on the site LEGAL_SITE_URL names, unset here: the production one.
+    expect(SENT[0]!.body.endsWith(`\n\n${SHARE_ANNOUNCEMENT_PRIVACY.en} https://www.ownpace.eu/privacy.html`)).toBe(true);
 
     const again = await announce();
     expect(again.status).toBe(409);
@@ -192,10 +196,21 @@ describe('each data type’s shares carried by hand, announced once, at its own 
     expect(refused.body.error).toBe('already_announced');
 
     SENT.length = 0;
-    const resent = await announce({ confirmResend: true });
+    // In Dutch, on the stack's own site: the address follows the setting and
+    // the press's language.
+    process.env.LEGAL_SITE_URL = 'https://www.ota.ownpace.eu';
+    let resent: Awaited<ReturnType<typeof announce>>;
+    try {
+      resent = await announce({ confirmResend: true, locale: 'nl' });
+    } finally {
+      delete process.env.LEGAL_SITE_URL;
+    }
     expect(resent.status).toBe(200);
     expect(resent.body).toMatchObject({ resend: true, sent: ['anna@example.invalid', 'cas@example.invalid'] });
     expect(SENT).toHaveLength(2);
+    for (const m of SENT) {
+      expect(m.body.endsWith(`\n\n${SHARE_ANNOUNCEMENT_PRIVACY.nl} https://www.ota.ownpace.eu/nl/privacy.html`)).toBe(true);
+    }
 
     const audit = await pool.query(
       `SELECT detail FROM audit_log WHERE tenant_id = $1 AND action = 'share.announce' ORDER BY at`,

@@ -3193,6 +3193,23 @@ const tokenRevoker = (): TokenRevoker => (revoker ??= new HttpTokenRevoker());
  * revoked, and is read in the same transaction as the delete. Best effort,
  * never a refusal: `revocation` says what happened, and `failed` means the
  * person has to withdraw it themselves.
+ *
+ * And delete its sharing list, `share_grant`, in the same transaction as the
+ * row (workplan 0139 T6; privacy-sharing-list (b)): who had access to what at
+ * the old provider, with their addresses. Privacy §9 keeps it *until you
+ * delete the migration; then deleted with it*, and nothing else deleted it
+ * before the organisation's erasure. The appliance has no such delete: a
+ * migration there is its config file, and every row of it, this list among
+ * them, stays in the appliance's own database until its operator removes the
+ * data (`docs/selfhost-ending-the-service.md`). Guard:
+ * `a-deleted-migration-takes-its-sharing-list.unit.test.ts`.
+ *
+ * This takes only the rows there when it runs. A sharing rescan that outlives
+ * the migration writes none after it: the list's one writer,
+ * `PgLedger.upsertShareGrants`, holds the migration's row while it writes and
+ * refuses when it is gone, so this delete either waits for that list and then
+ * takes it, or comes first and leaves the rescan no migration to write for. Guard:
+ * `a-rescan-that-outlives-its-migration.integration.test.ts`.
  */
 router.delete(
   '/:mappingId',
@@ -3230,7 +3247,17 @@ router.delete(
           .leftJoin(schema.connection, eq(schema.connection.id, schema.mailbox.connectionId))
           .where(thisMapping);
         const [row] = await db.delete(schema.mailboxMapping).where(thisMapping).returning();
-        return row ? { secretRef: row.sourceSecretRef, sourceKind: source?.kind ?? '' } : undefined;
+        if (!row) return undefined;
+        // The sharing list goes with its migration (privacy §4.6 and §9;
+        // privacy-sharing-list (b)). `share_grant.mapping_id` has no foreign
+        // key (migration 0016), so the cascade that takes the ledger never
+        // reaches it. Here, in the same transaction: a list that cannot be
+        // deleted keeps the migration too, and revokes nothing. Only once the
+        // migration's row is gone, so a 404 deletes nothing.
+        await db
+          .delete(schema.shareGrant)
+          .where(and(eq(schema.shareGrant.mappingId, row.id), eq(schema.shareGrant.tenantId, tenantId)));
+        return { secretRef: row.sourceSecretRef, sourceKind: source?.kind ?? '' };
       });
 
       if (!deleted) {

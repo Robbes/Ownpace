@@ -39,7 +39,7 @@ first.
 | [0011](./0011-targets-managed-eu-no-selfhosted-mail.md) | Targets default to managed EU/CH; self-hosted targets are user-operated | Accepted |
 | [0012](./0012-graph-over-ews-davmail.md) | Prefer Microsoft Graph; avoid EWS/DavMail | Accepted |
 | [0013](./0013-i18n-english-dev-bilingual-ui.md) | English for development; bilingual (EN+NL) end-user UI | Accepted — bilingual UI built 2026-08-02 |
-| [0014](./0014-cost-recovery-billing.md) | Managed billing | **Amended 2026-08-20** — five tiers on paths at the same time and data moved, no per-GB/compute line; "no profit" retired (cross-subsidy). **Amended 2026-09-24**: Tiny is free, and free means no billing |
+| [0014](./0014-cost-recovery-billing.md) | Managed billing | **Amended 2026-08-20** — five tiers on paths at the same time and data moved, no per-GB/compute line; "no profit" retired (cross-subsidy). **Amended 2026-09-24**: Tiny is free, and free means no billing. **Proposed 2026-09-29**: Free, a year at six months, no setup fees |
 | [0015](./0015-backup-scope.md) | Backup scope — stack DR vs end-user data vs optional extra backup | Accepted — extra-backup bullet retracted 2026-08-02 |
 | [0016](./0016-ledger-schema-v1.md) | Ledger schema v1 | Accepted — access-layer clause superseded by 0023; managed tables moved by 0036 |
 | [0017](./0017-migration-tooling.md) | Migration tooling — Drizzle Kit (+ Atlas lint), not Liquibase | Accepted — authoring/applying half superseded by 0045 (2026-09-09); Atlas lint (built 2026-08-02) and the Liquibase/Flyway rejection stand; two chains since 0036 |
@@ -60,7 +60,7 @@ first.
 | [0032](./0032-sharing-queue-target-native-invites.md) | The sharing queue — re-sharing on the target as an owner decision, invites through the target's own messaging | Accepted 2026-08-16 — first slice built |
 | [0033](./0033-domain-wide-delegation.md) | Whole-tenant Google migration — domain-wide delegation, opt-in and stated | Accepted 2026-08-17 — first slice built |
 | [0034](./0034-appliance-configuration-surface.md) | Personal / Organisation / Managed — naming the deployments, and giving each the configuration door it needs | Accepted 2026-09-20 (owner: "yes on all 3"); proposed 2026-08-17, open questions resolved 2026-08-19 |
-| [0035](./0035-who-signs-in-and-who-gets-a-link.md) | Who signs in, and who just gets a link | Accepted 2026-09-20 (owner: "yes on all 3"); substance owner-decided 2026-08-17, restated 2026-08-19 |
+| [0035](./0035-who-signs-in-and-who-gets-a-link.md) | Who signs in, and who just gets a link | Accepted 2026-09-20 (owner: "yes on all 3"); substance owner-decided 2026-08-17, restated 2026-08-19; **amended 2026-09-29**: the link is per person (owner: *"yes"*), built by 0153 T5 (b); keeping sent links until they expire, and *start when granted*, are proposed |
 | [0036](./0036-the-managed-edition-is-its-own-package-and-its-own-chain.md) | The managed edition is its own package and its own migration chain | Accepted 2026-08-19 — its parked two-repo options closed by 0039; the enforced boundary stands |
 | [0037](./0037-keys-credentials-and-transport-floors.md) | One credential store, two key providers, and TLS floors | Accepted 2026-08-19 |
 | [0038](./0038-operative-rules-and-the-growing-record.md) | Operative rules — keeping a growing decision record loadable | Accepted 2026-08-19 (this convention) |

@@ -68,6 +68,7 @@ export const AUDIT_DETAIL_FIELDS = {
   mappingId: 'keep',
   connectionId: 'keep',
   linkId: 'keep',
+  personLinkId: 'keep',
   grantId: 'keep',
   receiptId: 'keep',
   memberId: 'keep',

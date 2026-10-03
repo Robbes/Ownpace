@@ -11,6 +11,7 @@ import {
   carrierOf,
   connectionsFor,
   destinationsFor,
+  grantableByLink,
   migrationsFor,
   nextcloudAddress,
   nextcloudDavUrl,
@@ -203,5 +204,32 @@ describe('a Nextcloud is its address (T7 (c))', () => {
   it('gives the address back for a box drawn again', () => {
     expect(nextcloudAddress('https://cloud.example.eu/remote.php/dav')).toBe('cloud.example.eu');
     expect(nextcloudAddress(nextcloudDavUrl('example.eu/nextcloud'))).toBe('example.eu/nextcloud');
+  });
+});
+
+describe('what somebody else can connect themselves, by a grant link (0108)', () => {
+  const OWN_CLIENT = { ...NARROW, googleClient: 'deployment' } as const;
+
+  it('is Google’s account, for calendars, contacts and tasks, through the deployment’s own client', () => {
+    expect(grantableByLink('google', OWN_CLIENT)).toBe(true);
+  });
+
+  it('is Gmail and Drive only where the deployment declared Google’s restricted scopes', () => {
+    expect(grantableByLink('gmail', OWN_CLIENT)).toBe(false);
+    expect(grantableByLink('google-drive', OWN_CLIENT)).toBe(false);
+    const restricted = { ...RESTRICTED, googleClient: 'deployment' } as const;
+    expect(grantableByLink('gmail', restricted)).toBe(true);
+    expect(grantableByLink('google-drive', restricted)).toBe(true);
+  });
+
+  it('is nothing where the deployment carries no Google client, or has not said', () => {
+    expect(grantableByLink('google', { ...NARROW, googleClient: 'connection' })).toBe(false);
+    expect(grantableByLink('google', NARROW)).toBe(false);
+  });
+
+  it('is nothing for a provider with no link at all', () => {
+    for (const card of ['microsoft', 'apple', 'dropbox', 'box', 'imap']) {
+      expect(grantableByLink(card, OWN_CLIENT)).toBe(false);
+    }
   });
 });

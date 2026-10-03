@@ -13,7 +13,14 @@ import { describe, it, expect, vi } from 'vitest';
 const { getMock } = vi.hoisted(() => ({ getMock: vi.fn() }));
 vi.mock('./link-client.ts', () => ({ linkClient: { get: getMock, post: vi.fn() } }));
 
-import { grantApi } from './grant-service.ts';
+import { grantApi, isPersonSubject } from './grant-service.ts';
+
+/** A migration's page, as these cases expect: a person's would fail them loudly. */
+async function readMigration(link: string) {
+  const subject = await grantApi.read(link);
+  if (isPersonSubject(subject)) throw new Error("expected a migration's page, got a person's");
+  return subject;
+}
 
 describe('the grant subject, as the page receives it', () => {
   it('keeps the account it reads and the destination it writes', async () => {
@@ -31,7 +38,7 @@ describe('the grant subject, as the page receives it', () => {
         expiresAt: '2026-09-30T00:00:00.000Z',
       },
     });
-    const subject = await grantApi.read('abc.def');
+    const subject = await readMigration('abc.def');
     expect(subject.checkedCompany).toBe('ACME LEGAL B.V.');
     // Whether Google holds the grant to reading (0144 T3 (c)): the page picks
     // its box by it, so a schema that dropped it would say one thing to all.
@@ -63,7 +70,7 @@ describe('the grant subject, as the page receives it', () => {
         expiresAt: '2026-09-30T00:00:00.000Z',
       },
     });
-    const subject = await grantApi.read('abc.def');
+    const subject = await readMigration('abc.def');
     expect(subject.checkedCompany).toBeNull();
     expect(subject.askedBy).toBeNull();
     expect(subject.organisationPhone).toBeNull();
@@ -129,5 +136,45 @@ describe('the grant subject, as the page receives it', () => {
       });
       await expect(grantApi.read('abc.def'), JSON.stringify(domains)).rejects.toThrow();
     }
+  });
+});
+
+describe("a person's page, as the page receives it (0153 T5 (b))", () => {
+  const PERSON = {
+    kind: 'person',
+    organisation: 'Acme Legal',
+    checkedCompany: null,
+    askedBy: 'owner@example.org',
+    organisationPhone: null,
+    accounts: [
+      {
+        account: 'anna@gmail.com',
+        granted: false,
+        domains: ['calendar', 'contact'],
+        scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/carddav openid',
+        readOnlyAtProvider: false,
+        notReady: null,
+        migrations: [
+          { domains: ['calendar'], to: { provider: 'nextcloud', host: 'cloud.example.org', account: 'anna' }, granted: false },
+        ],
+      },
+    ],
+    expiresAt: '2026-10-06T00:00:00.000Z',
+  };
+
+  it('keeps each account, what it copies and where, and says it is a person’s', async () => {
+    getMock.mockResolvedValue({ data: PERSON });
+    const subject = await grantApi.read('p.abc.def');
+    expect(isPersonSubject(subject)).toBe(true);
+    if (!isPersonSubject(subject)) return;
+    expect(subject.accounts[0]?.account).toBe('anna@gmail.com');
+    expect(subject.accounts[0]?.migrations[0]?.to.host).toBe('cloud.example.org');
+  });
+
+  it('refuses a data type it has no words for, rather than naming less than will be read', async () => {
+    getMock.mockResolvedValue({
+      data: { ...PERSON, accounts: [{ ...PERSON.accounts[0], domains: ['photos'] }] },
+    });
+    await expect(grantApi.read('p.abc.def')).rejects.toThrow();
   });
 });

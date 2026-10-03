@@ -1011,16 +1011,22 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'If you do not have an account yet, create one there with that address and confirm the ' +
       'confirmation email. Your organisation appears the first time you sign in.',
     // Said out loud so nobody waits for a link that is never coming, and so the
-    // next person to touch this knows the absence is deliberate.
+    // next person to touch this knows the absence is deliberate. The password's
+    // sentence is privacy §4.4's: the sign-in service is ours, on the same
+    // machine, and keeps a hash of it (0139 T4, ops-app-sentences (a); it said
+    // "never with us" until then). `what-the-mails-say.unit.test.ts`.
     grantedNoLink:
       'There is no link or code in this email to keep: it is safe to forward and it grants ' +
-      'nobody anything. Your password lives with the sign-in service, never with us.',
+      'nobody anything. As for your password, we store only a hash of it, in the sign-in ' +
+      'service we run.',
     // The alpha note (workplan 0131 T1), word for word what the app's pages say
     // (`alpha.note.*` in apps/web's strings.ts; a web test holds the two
-    // together). It must match 0139's alpha conditions once those exist.
+    // together). The copy before an update is the Alpha conditions §6 and
+    // privacy §9 (0139 T4, ops-app-sentences (a)).
     grantedAlpha:
-      'Alpha: a small invited group is trying this service out. Nothing is charged, nothing is ' +
-      'backed up, and the alpha can end. Keep your old account until you have checked what arrived.',
+      'Alpha: a small invited group is trying this service out. Nothing is charged, and the alpha ' +
+      'can end. There are no backups, apart from one copy before each update, kept up to 7 days. ' +
+      'Keep your old account until you have checked what arrived.',
     // No reason, and no false hope. "We are not able to offer you a place right
     // now" is what is true; dressing it as "not yet" would be a promise nobody
     // made, and listing criteria would invite an argument about them.
@@ -1059,11 +1065,13 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'bevestigingsmail. Uw organisatie verschijnt zodra u zich voor het eerst aanmeldt.',
     grantedNoLink:
       'Deze e-mail bevat geen link of code om te bewaren: u kunt hem gerust doorsturen en hij ' +
-      'geeft niemand toegang. Uw wachtwoord staat bij de aanmeldservice, nooit bij ons.',
+      'geeft niemand toegang. Van uw wachtwoord bewaren we alleen een hash, in de ' +
+      'aanmeldservice die we zelf draaien.',
     grantedAlpha:
       'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit. Er wordt niets in rekening ' +
-      'gebracht, er worden geen back-ups gemaakt en de alfa kan stoppen. Houd uw oude account tot ' +
-      'u hebt gecontroleerd wat er is aangekomen.',
+      'gebracht en de alfa kan stoppen. Er worden geen back-ups gemaakt, op één kopie vlak voor ' +
+      'elke update na, die hoogstens 7 dagen wordt bewaard. Houd uw oude account tot u hebt ' +
+      'gecontroleerd wat er is aangekomen.',
     declinedIntro:
       'Bedankt voor uw interesse in Ownpace. Een mens heeft uw aanvraag gelezen en wij kunnen u ' +
       'op dit moment geen plek aanbieden.',

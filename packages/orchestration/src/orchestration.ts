@@ -50,6 +50,7 @@ import {
   type BudgetPause,
   type HaltPause,
   type PassStopReason,
+  type UnreadCollection,
 } from '@openmig/shared';
 import type { TargetReindexer } from '@openmig/shared';
 import { buildDeps, buildDomainDeps, type LedgerOptions } from './build-deps.ts';
@@ -520,6 +521,13 @@ export async function runAllDomains(
      */
     let budgetPause: BudgetPause | undefined;
     let haltPause: HaltPause | undefined;
+    /**
+     * The collections the pass could not list and skipped (0055 T3 (e), the
+     * owner's "2a"). Not a finished data type either, for the pause's reason:
+     * they are asked for again on the next pass. So the domain keeps its
+     * `in_progress`, and the status row names them instead.
+     */
+    let unread: ReadonlyArray<UnreadCollection>;
 
     try {
       // ASKED FIRST, before anything is built for this data type (2026-09-29):
@@ -548,6 +556,8 @@ export async function runAllDomains(
           budgetPause = result.budgetPause;
           // And the stop it was told to make, the same way (see haltPause above).
           haltPause = result.haltPause;
+          // And the collections it could not list (see `unread` above).
+          unread = result.unreadCollections ?? [];
           // `updated` carried like every other branch below. Mail delegates to
           // the same `runDomainSync`, so it reports one; this was the only
           // branch that dropped it, and the appliance's run log printed what
@@ -574,6 +584,8 @@ export async function runAllDomains(
           budgetPause = result.budgetPause;
           // And the stop it was told to make, the same way (see haltPause above).
           haltPause = result.haltPause;
+          // And the collections it could not list (see `unread` above).
+          unread = result.unreadCollections ?? [];
           outcome = {
             domain,
             collectionsListed: result.collectionsListed,
@@ -601,6 +613,8 @@ export async function runAllDomains(
           budgetPause = result.budgetPause;
           // And the stop it was told to make, the same way (see haltPause above).
           haltPause = result.haltPause;
+          // And the collections it could not list (see `unread` above).
+          unread = result.unreadCollections ?? [];
           outcome = {
             domain,
             collectionsListed: result.collectionsListed,
@@ -644,6 +658,8 @@ export async function runAllDomains(
           budgetPause = result.budgetPause;
           // And the stop it was told to make, the same way (see haltPause above).
           haltPause = result.haltPause;
+          // And the collections it could not list (see `unread` above).
+          unread = result.unreadCollections ?? [];
           outcome = {
             domain,
             collectionsListed: result.collectionsListed,
@@ -679,6 +695,8 @@ export async function runAllDomains(
           budgetPause = result.budgetPause;
           // And the stop it was told to make, the same way (see haltPause above).
           haltPause = result.haltPause;
+          // And the collections it could not list (see `unread` above).
+          unread = result.unreadCollections ?? [];
           outcome = {
             domain,
             collectionsListed: result.collectionsListed,
@@ -786,8 +804,22 @@ export async function runAllDomains(
             '. Nothing failed and nothing is owed a retry; the cursors stayed where they are ' +
             'and the next scheduled pass continues from them.',
         );
-      } else {
+      } else if (unread.length === 0) {
         await statusStore.markCompleted(tenantId, mappingId, domain, outcome.metrics);
+      }
+      // After the pause's own write, which clears the last error, so the note
+      // stands; and on every pass that returned, so a note an earlier pass
+      // wrote goes once the collection is read.
+      await statusStore.noteUnreadCollections?.(tenantId, mappingId, domain, unread);
+      if (unread.length > 0) {
+        // Without the collections' names, like the engine's own lines: the
+        // status row is where the owner reads those.
+        log.warn(
+          `[Worker] ${domain}: ${unread.length} collection(s) could not be listed, even after the ` +
+            "source's own retries, and were skipped this pass (refs " +
+            `${unread.map((u) => u.reference).join(', ')}). The rest was copied; the next pass asks ` +
+            'for them again, and nothing in them is counted as deleted meanwhile.',
+        );
       }
       recordPassMetrics(tenantId, mappingId, domain, outcome);
       // `adopted` is reported alongside the rest: a pass that created nothing

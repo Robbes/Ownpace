@@ -51,6 +51,7 @@ import {
   keepDeletion,
 } from '../services/operating-service.ts';
 import { useT } from '../i18n/index.tsx';
+import { serverMessage } from '../services/api.ts';
 
 const Row: React.FC<{
   d: ItemDeletion;
@@ -198,7 +199,7 @@ const Deletions: React.FC<{
               err instanceof DecisionRefusedError
                 ? (err.refusal.reason ?? err.refusal.hint ?? err.refusal.error)
                 : err instanceof Error
-                  ? err.message
+                  ? serverMessage(err)
                   : t('common.requestFailed'),
           });
         });

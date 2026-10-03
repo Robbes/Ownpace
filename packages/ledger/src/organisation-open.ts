@@ -23,16 +23,22 @@
  *                                one statement;
  *   organisationIsOpen           for the pass between its data types and for
  *                                the credential builders, read inside the
- *                                organisation's own transaction.
+ *                                organisation's own transaction;
+ *   organisationStillOpen        the same read, as a question a verification,
+ *                                a confirmation or a discovery already running
+ *                                asks between its steps (0139 T7).
  *
  * In the shared chain because the status is (ADR-0036). The appliance's one
  * organisation is always open. When a close was made and when its data is
  * removed are the managed edition's (`tenant_closure`).
  */
 
+import type { Pool } from 'pg';
 import { eq } from 'drizzle-orm';
 import * as schemaPg from './schema-pg.ts';
 import type { PgDatabase } from './db-types.ts';
+import type { LedgerDriver } from './driver.ts';
+import { withTenant } from './db.ts';
 
 /** The one status whose organisation is open. */
 export const OPEN_ORGANISATION_STATUS = 'active';
@@ -51,4 +57,25 @@ export async function organisationIsOpen(db: PgDatabase, tenantId: string): Prom
     .from(schemaPg.tenant)
     .where(eq(schemaPg.tenant.id, tenantId));
   return row?.status === OPEN_ORGANISATION_STATUS;
+}
+
+/**
+ * `organisationIsOpen`, asked afresh each time it is called, in a short
+ * transaction of its own (workplan 0139 T7; terms briefing, precondition B).
+ *
+ * For work that was already running when the account closed and reads for
+ * minutes: a verification, a confirmation, a discovery. Each built its readers
+ * before the close, so the builders' refusal never reaches it, and the close
+ * cancels only the runs whose row names the orchestrator's run. So each asks
+ * this between its steps (before each read of a target, each item, each
+ * collection) and stops once the answer is no.
+ *
+ * A transaction per question, never one held open across the run: the same
+ * reason the confirmation pages its reads (`run-confirmation-pass.ts`).
+ */
+export function organisationStillOpen(
+  source: LedgerDriver | Pool,
+  tenantId: string,
+): () => Promise<boolean> {
+  return () => withTenant(source, tenantId, (db) => organisationIsOpen(db, tenantId));
 }

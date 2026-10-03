@@ -460,7 +460,16 @@ export const HOUSEKEEPING_CHECKS: readonly HousekeepingCheck[] = [
           : `holds ${plural(row.count, 'mapping/connection', 'mappings/connections')} and ` +
             `${plural(row.otherCount, 'invoice', 'invoices')} — deleting it would cascade them away. ` +
             'Put an owner back instead.',
-      sql: `DELETE FROM tenant WHERE id = $1::uuid`,
+      // And the sharing lists its deleted migrations left behind (workplan 0139
+      // T6; privacy §4.6 and §9). `share_grant` has no foreign key, to the
+      // migration or to the organisation, so the cascade never reaches it. A
+      // migration deleted before its delete took its list along left the list
+      // here, and the erasure, which deletes it by organisation, never runs for
+      // an organisation this removes. One statement, so the runner's count is
+      // still the organisations removed, and one transaction with the row.
+      sql:
+        'WITH lists AS (DELETE FROM share_grant WHERE tenant_id = $1::uuid) ' +
+        'DELETE FROM tenant WHERE id = $1::uuid',
       tenantScoped: true,
       did: (row) => `removed. It held no mapping, no connection and no invoice (created ${row.ageDays}d ago).`,
     },

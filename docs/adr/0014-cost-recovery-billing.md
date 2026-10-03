@@ -1,6 +1,6 @@
 # ADR-0014: Cost-recovery billing for the managed edition
 
-- **Status:** Accepted 2026-06-20; **amended 2026-08-20** (metered → tiers), **2026-09-10** (a sixth path state, `continuous`, which holds a slot — owner decision 0117 D6) **2026-09-24** (Tiny is free, and free means no billing — the owner; see the amendment near the end), **2026-09-24, later** (a data type its owner stops keeps its slot before its cutover and releases it in the continuous lane; only a data type the migration carries is a path — 0128 D2 (c)) and **2026-09-26** (consequence 4's gap closed for the cutover: a data type is cut over on its own, and its slot is released then — 0128 T5 slice 5b; the amendments at the end); **retitled 2026-09-20** (owner) — "(no profit)" dropped from the title, since the tiers cross-subsidise by design (the 2026-08-20 amendment) and a title that said otherwise was the last place the old model lived. The 2026-08-20 amendment note follows: the model changed from metered
+- **Status:** Accepted 2026-06-20; **amended 2026-08-20** (metered → tiers), **2026-09-10** (a sixth path state, `continuous`, which holds a slot — owner decision 0117 D6) **2026-09-24** (Tiny is free, and free means no billing — the owner; see the amendment near the end), **2026-09-24, later** (a data type its owner stops keeps its slot before its cutover and releases it in the continuous lane; only a data type the migration carries is a path — 0128 D2 (c)) and **2026-09-26** (consequence 4's gap closed for the cutover: a data type is cut over on its own, and its slot is released then — 0128 T5 slice 5b; the amendments at the end); **2026-09-29, proposed, for the owner's acceptance** (Free replaces Tiny, a year at the price of six months, no setup fees, and the price pays for the work — 0152 D9–D12; the amendment at the end); **retitled 2026-09-20** (owner) — "(no profit)" dropped from the title, since the tiers cross-subsidise by design (the 2026-08-20 amendment) and a title that said otherwise was the last place the old model lived. The 2026-08-20 amendment note follows: the model changed from metered
   resources to five tiers on paths running at the same time, and "no profit" no longer
   describes it. Owner decision in conversation; workplan 0088's blocking T1.
 - **Date:** 2026-06-20
@@ -978,3 +978,125 @@ leaves (slice 5a), so pausing or starting the rest never takes a slot back for a
 was cut over, and the managed service prepares one data type's cutover on its own too (slice
 5c). What is left of consequence 4 is on the owner's side of the screen: the Finish page per data
 type (slice 7).
+
+## Amendment 2026-09-29, proposed — Free, a year at the price of six months, no setup fees, and the price pays for the work (0152 D9–D12)
+
+**Status: proposed, for the owner's acceptance.** Nothing in the operative rules above changes
+until the owner accepts it. The price guards (`site/site.unit.test.ts`,
+`packages/managed/src/tier-calculator.unit.test.ts`) read the operative table, so the table
+changes together with `site/prices.mjs` and the managed code, in 0152 T6 (d)'s pull request.
+Nothing is charged during the Alpha (0131 T3 (a)), so no customer has paid a setup fee or a price
+this changes.
+
+**The owner's decisions (2026-09-28, workplan 0152 §2):**
+
+- **D9, the list:** *"Free · Small €5/€30 · Medium €12/€72 · Large €40/€240 · Extra large
+  €80/€480."* Free replaces Tiny. *"Drop setup fees."* VAT is included. The limits (paths at the
+  same time, data moved) stay as they are.
+- **D10, the page:** *"Yearly preselected, with montly/yearly switch that opens on yearly. It
+  shows the monthly price (yearly divided by 12) and discount against the monthly price."*
+- **D11, the year:** *"Auto-renew a year, refund."*
+- **D12, the principle:** on *"not to make a margin"*: *"yes, but i do need a pricing model that
+  supports the efforts"*, and on how to say it: *"Costs include our work"*.
+
+**What the operative rules say once accepted:**
+
+1. **The table:**
+
+   | tier | paths at the same time | data moved | monthly | a year |
+   |---|---|---|---|---|
+   | **Free** | 1 | 250 GB | free | free |
+   | **Small** | 4 | 750 GB | €5 | €30 |
+   | **Medium** | 20 | 2 TB | €12 | €72 |
+   | **Large** | 50 | 7.5 TB | €40 | €240 |
+   | **Extra large** | 200 | 15 TB | €80 | €480 |
+
+   Every price includes VAT. The id `tiny` becomes `free`. A year costs six months, in every
+   paid tier, and the guards hold that too.
+2. **Free is free, and free means no billing:** the 2026-09-24 rule, renamed. No payment method,
+   no billing details and no invoice. Leaving Free is where billing starts, so it is consented.
+3. **No setup fee.** Three rules go with it:
+   - *"The setup fee is on the HIGHEST tier ever reached, and it is paid in steps"*;
+   - the step-up arithmetic that made a ramp cost the same as starting big;
+   - *"The linear component is the setup fee"* in *Flat within a band*, which keeps its first
+     two sentences.
+
+   With nothing paid up front, the total is independent of the ramp by construction.
+4. **A month or a year.** A month is paid monthly, at the monthly price. A year is paid ahead,
+   at six months' price, and:
+   - renews by itself;
+   - can be stopped at any time;
+   - refunds what was not used (question 2 below says how that is counted).
+
+   A reminder goes out 30 days before each renewal, naming what renews, the amount and how to
+   stop. After the first year, stopping takes at most one month's notice (art. 6:236 sub j BW).
+   A contract made online carries a withdrawal button during the withdrawal period (Directive
+   (EU) 2023/2673, art. 11a of the Consumer Rights Directive), on the Billing page. Refunds are
+   credit notes (0111).
+5. **The page's wording rules stand:**
+   - *free*, never *€0*;
+   - *at the same time*, never *concurrent*;
+   - no struck-through price and no *was* price;
+   - the yearly total is always shown beside a price per month;
+   - there is no countdown.
+6. **The price pays for the work.** *"No profit" STANDS* goes, and its cross-subsidy sentence
+   with it. In its place: **the price pays for what it takes to run and build the service**
+   (the servers, the support, and the time spent building and improving the software), with no
+   investors to answer to. Running it yourself is free, and always will be. What stays, and
+   why:
+   - **no steering:** a tier is derived, never picked, and the page says both ways to go (all
+     at once, or one at a time on Free). Steering was wrong because it takes money from people
+     who did not need to pay it, not because there was no margin;
+   - **we do not take money from inattention;**
+   - **metering stays internal.**
+
+   The business case behind the numbers is not in this repository.
+
+**Two questions for the owner.** Each has a recommendation, and neither can be settled by the
+list alone:
+
+1. **Top-ups.** The rule was *"pay your setup fee again and your allowance grows by another
+   whole band"*, and *"at 80%, offer both and show the break-even"*. With no setup fee, there is
+   nothing to pay again.
+   - **(a), recommended: no top-ups.** Past a band's data, the tier moves up, consented and
+     announced, as it already does from Free. One mechanism, and at €5 to €12 a month the step
+     up is small. The 80% warning names the next tier's price, and the break-even sentence
+     goes.
+   - **(b)** A top-up costs the tier's monthly price, once. This keeps *tiers buy lanes;
+     top-ups buy room*, and needs its own line on the page and on the invoice.
+2. **A year, when the tier is derived each month.** A tier follows the month's peak, and
+   finishing paths lowers the bill. A year is bought ahead.
+   - **(a), recommended: a year is credit at six months' price.** Buying a year of the tier you
+     are on pays for it ahead. Each month then takes that month's own tier at half its monthly
+     price: €2.50 for Small, €6 for Medium, €20 for Large, €40 for Extra large, nothing for
+     Free. So finishing paths still lowers what a month costs, and a month on Free costs
+     nothing. What is left is refunded when you stop. It is carried into the next year when the
+     year renews. A credit that runs out before the year does asks you to add another year, or
+     to go monthly. This keeps *the tier is derived* and *downgrade is automatic* true for
+     someone paying yearly, and it is what *a year costs six months* and *refund* say taken
+     literally.
+   - **(b) A year buys one tier for twelve months.** Stopping refunds the whole months not
+     used, and a step up during the year is consented and paid for the months left. It is
+     simpler to invoice. But a year paid on Medium stays Medium when its paths finish, which
+     is the opposite of *finishing lowers your bill*.
+
+**What follows once accepted:**
+
+- **The operative rules**, amended in place, and `OPERATIVE.md` regenerated
+  (`node scripts/adr-operative.mjs --write`).
+- **The code and the site,** in 0152 T6 (d)'s pull request, with the table:
+  - `site/prices.mjs` in integer cents, with a yearly price;
+  - `site/calculator.mjs` and `packages/managed/src/tier-calculator.ts`, which its own test holds
+    equal to the calculator;
+  - every sentence that names Tiny.
+- **The page:** the monthly/yearly switch opening on yearly (T6 (e)); renewal, refund and the
+  withdrawal button (T6 (f)); *Why it is priced this way* (T6 (g)).
+- **The terms,** by `site/legal/README.md`'s rule (*"If ADR-0014 changes, terms §6 and §8
+  change with it"*): the prices, no setup fee, the year, its renewal, the refund, and the
+  withdrawal button. For the lawyer's pass (0139).
+- **Invoices (0111):** no setup line, a yearly line, and credit notes for refunds. Which
+  question 2 answer is taken decides how a year is invoiced.
+- **The architecture document's §16:** its line *"Billing is cost-recovery, not for profit"*
+  gets a dated note: *"2026-09-29: amended by ADR-0014 (0152 D12). The price pays for what it
+  takes to run and build the service (servers, support, and the time spent building and
+  improving the software); running it yourself stays free."*

@@ -25,6 +25,37 @@ const rootPkg = JSON.parse(
   readFileSync(path.resolve(__dirname, '../../package.json'), 'utf-8'),
 ) as { version?: string };
 
+// THE BUILD, WHERE A SCRIPT AND AN OPEN PAGE CAN READ IT (workplan 0145; the
+// owner's "build the deploy check and the reload prompt", 2026-09-29). The
+// stamp's two values (`define`, below) are baked into the JavaScript, where
+// nothing outside the page can read them, so the build also writes them beside
+// the page, as
+// `version.json`. `deploy-live.sh` asks it at the app's address and refuses a
+// web app that is not the release's, and an open page asks it to learn that
+// the site now serves a newer one (`services/served-build.ts`). Read from the
+// stamp's own `define` once the config is resolved, so the file and the page
+// cannot disagree.
+const versionJson = (): Plugin => {
+  let stamp = { version: '', commit: '' };
+  return {
+    name: 'ownpace:version-json',
+    apply: 'build',
+    configResolved(config) {
+      const stamped = (key: string): string => {
+        const value: unknown = config.define?.[key];
+        return typeof value === 'string' ? String(JSON.parse(value)) : '';
+      };
+      stamp = {
+        version: stamped('import.meta.env.VITE_VERSION'),
+        commit: stamped('import.meta.env.VITE_COMMIT'),
+      };
+    },
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: `${JSON.stringify(stamp)}\n` });
+    },
+  };
+};
+
 // A LEGAL SITE THE LINKS CANNOT USE STOPS THE BUILD (workplan 0139 T10). The
 // grant page reads `VITE_LEGAL_SITE_URL` through `services/legal-links.ts`
 // while it renders, and that module throws on a value that is not an http(s)
@@ -59,7 +90,7 @@ export default defineConfig(({ mode }) => ({
   // the browser ignores `@import "tailwindcss"`, and every screen renders with
   // no utilities at all — which is exactly what shipped until 2026-08-06, in
   // both editions, because nothing asserted the CSS had been built.
-  plugins: [react(), tailwindcss(), legalSiteChecked()],
+  plugins: [react(), tailwindcss(), legalSiteChecked(), versionJson()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

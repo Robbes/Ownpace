@@ -553,10 +553,19 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
        a test account on the test stack (Zitadel v4.19.2) and look at what stays. If the earlier
        entries go, the row says instead: "Removed with your sign-in account." / "Verwijderd met
        uw inlogaccount."
-     - Een inlogaccount dat we nooit hebben toegelaten, "30 dagen nadat het is aangemaakt":
-       nothing removes one yet. The owner chose a daily script, built before the first tester
-       (ops-unadmitted-signin-cleanup (a)): 0135 T8, deploy/compose/idp-strays.sh, with the
-       machine's daily duties. The row waits for it.
+     - Een inlogaccount dat we nooit hebben toegelaten, "30 dagen nadat het is aangemaakt", en
+       dat van een verwijderd lid, "7 dagen nadat die persoon is verwijderd"
+       (ops-unadmitted-signin-cleanup (a), "A daily script, built before the first tester"; 0135
+       open question 13, answered 2026-09-29: "Samen number of days", and then "7 days", the
+       erasure window's): built, not yet run: deploy/compose/idp-strays.sh (0135 T8 (a), #1344,
+       review fixes #1367, the 7 days added 2026-09-29), the duty `strays` in box-duties.sh (0135
+       T8 (b), #1345), --remove --at-most 20 once a day. It counts the 7 days from the newest
+       audit_log member.removed row for the subject, and keeps the account while the person is a
+       member anywhere, an operator, or has an open request or invitation. True on live once
+       live's daily duties run; a day with more than 20 waits for a person. An organisation
+       erased less than 7 days after a removal takes that row with it: the runbook's Tenant
+       offboarding has the operator note the subject before the purge and remove the account
+       with --subject after it, sooner than 7 days, never later.
      - Supportmail, and the copies of the service's own mail (privacy-sent-mail-copies (b):
        "until resolved, then 6 months", as it stands): nothing prunes the mailbox or its Sent
        folder at Proton; it is done by hand. A mail that answers no question has no clear end
@@ -581,6 +590,7 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
 | De geschiedenis die onze inlogdienst van uw inlogaccount bijhoudt: elke wijziging eraan, zoals uw naam en e-mailadres zoals ze waren, en uw inlogmomenten | Zolang we deze inlogdienst draaien, omdat die ze niet kan verwijderen. Het verwijderen van uw inlogaccount voegt een regel aan die geschiedenis toe; het verwijdert de eerdere niet. |
 | Uw aanvraag voor toegang (§4.4) | Zolang die openstaat. Afgewezen: verwijderd 30 dagen na ons besluit. Toegekend: bewaard bij uw account, en daarmee gewist. |
 | Een inlogaccount dat iemand op onze inlogpagina aanmaakte maar dat we nooit hebben toegelaten, en dat dus niets opent (§4.4) | 30 dagen nadat het is aangemaakt, tenzij een aanvraag voor toegang met dat adres nog openstaat. |
+| Het inlogaccount van iemand die uit een organisatie is verwijderd en van geen enkele organisatie meer lid is (§4.4) | 7 dagen nadat die persoon is verwijderd, tenzij een aanvraag voor toegang of een uitnodiging met dat adres nog openstaat. |
 | Supportmail en probleemmeldingen, en de kopieën van de eigen mail van de dienst in dezelfde mailbox (§4.5) | Tot de vraag of het probleem is afgehandeld, en daarna nog 6 maanden. Hetzelfde geldt voor de kopieën van de eigen mail van de dienst. Dan verwijderd uit de mailbox. |
 | De vastlegging van wat wij bij uw account inzagen (§4.5) | Tot uw gegevens worden gewist. Wat zonder organisatie wordt vastgelegd, blijft daarna staan: een zoekopdracht op adres, en een download van het logboek van wie wat deed. Die worden 12 maanden na het vastleggen verwijderd. |
 | De kopie vlak voor een update | Tot vaststaat dat de update waarvoor ze is gemaakt werkt, en nooit langer dan 7 dagen. Ze bevat de database van de dienst en die van onze inlogdienst; vóór een upgrade van het systeem dat de achtergrondtaken uitvoert, ook de database daarvan. Zo'n kopie is er alleen om een mislukte update terug te draaien, en verlaat de hostingomgeving niet. Gegevens die uit de dienst zijn gewist, kunnen nog hoogstens 7 dagen in die kopie staan. |

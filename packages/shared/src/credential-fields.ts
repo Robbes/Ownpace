@@ -228,7 +228,7 @@ const USER = {
   key: 'username',
   labelKey: 'wizard.sourceUsername',
   required: true,
-  placeholder: 'user@example.com',
+  placeholder: 'someone@example.com',
   autoComplete: 'username',
 } as const;
 
@@ -352,7 +352,7 @@ function microsoftAccountFields(): ReadonlyArray<CredentialField> {
  */
 function appleAccountFields(): ReadonlyArray<CredentialField> {
   return [
-    { ...USER, placeholder: 'you@icloud.com' },
+    { ...USER, placeholder: 'someone@icloud.com' },
     {
       key: 'password',
       labelKey: 'wizard.appleAppPassword',
@@ -623,7 +623,7 @@ const TARGET_FIELDS: ReadonlyArray<CredentialField> = [
     key: 'username',
     labelKey: 'wizard.targetUsername',
     required: true,
-    placeholder: 'user@example.com',
+    placeholder: 'someone@example.com',
     autoComplete: 'username',
   },
   {

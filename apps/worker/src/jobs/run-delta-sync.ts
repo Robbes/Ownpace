@@ -36,6 +36,7 @@ import type {
   HaltPause,
   PassClock,
   PassMetrics,
+  UnreadCollection,
 } from '@openmig/shared';
 import type { DeltaSyncOutput, DomainOutcome } from './final-sync.ts';
 import { buildDepsFromMapping, buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
@@ -524,6 +525,8 @@ export const runDeltaSync = schemaTask({
             budgetPause?: BudgetPause;
             deadlinePause?: DeadlinePause;
             haltPause?: HaltPause;
+            /** Collections the pass could not list and skipped (0055 T3 (e)). */
+            unreadCollections?: ReadonlyArray<UnreadCollection>;
             /** Where the pass spent its time; kept in `run.stats` (see `domainMetrics`). */
             metrics?: PassMetrics;
           };
@@ -702,11 +705,22 @@ export const runDeltaSync = schemaTask({
           // Before the status is written, so a pass that stops at its deadline
           // keeps its measurements too: that is the pass they are wanted for.
           if (result.metrics) domainMetrics[domain] = result.metrics;
-          if (!pause) {
+          /**
+           * A COLLECTION THE PASS COULD NOT LIST IS NOT A FINISHED ONE EITHER
+           * (0055 T3 (e), the owner's "2a").
+           *
+           * The pass skipped it and carried on, so the rest of the data type
+           * was copied, but the data type has not finished: the collection is
+           * asked for again on the next pass. So it stays `in_progress`, as a
+           * pause does, and the status row names the collection instead
+           * (`noteUnreadCollections`, below).
+           */
+          const unread = result.unreadCollections ?? [];
+          if (!pause && unread.length === 0) {
             await withTenant(pool, tenantId, async (db) => {
               await new PgMigrationStatusStore(db).markCompleted(tenantId, mappingId, domain, result.metrics);
             });
-          } else {
+          } else if (pause) {
             /**
              * The customer's half of the same fact — but only for the ceiling.
              *
@@ -742,6 +756,29 @@ export const runDeltaSync = schemaTask({
                 `${domain}: ${pause.why}. Nothing failed and nothing is owed a retry; the ` +
                   `cursors stayed where they are and ${pause.then}.`,
                 { domain, ...pause.detail },
+              );
+            });
+          }
+          // After the pause's own write, which clears the last error, so the
+          // note it would have cleared stands; and on every pass that returned,
+          // so a note an earlier pass wrote goes once the collection is read.
+          // Only a note: a failure's line is `markCompleted`'s to clear.
+          await withTenant(pool, tenantId, async (db) => {
+            await new PgMigrationStatusStore(db).noteUnreadCollections(tenantId, mappingId, domain, unread);
+          });
+          if (unread.length > 0) {
+            // The operator's half: how many, the source's words and each one's
+            // reference, and never a collection's name, which is the owner's
+            // (the engine's log line and event carry none either).
+            await withTenant(pool, tenantId, async (db) => {
+              await new RunStore(db).logEvent(
+                tenantId,
+                runId,
+                'warn',
+                `${domain}: ${unread.length} collection(s) could not be listed, even after the ` +
+                  "source's own retries, and were skipped this pass. The rest was copied; the next " +
+                  'pass asks for them again, and nothing in them is counted as deleted meanwhile.',
+                { domain, unreadCollections: unread.map((u) => ({ error: u.error, reference: u.reference })) },
               );
             });
           }
@@ -804,7 +841,9 @@ export const runDeltaSync = schemaTask({
               `A source with nothing in it lists no collections, so this is not that: either ` +
               `the listing inside them is failing or they are genuinely empty.`
             : `${domain}: ${passCounts(result)}`;
-          log.info(`${domain} sync ${pause ? 'paused' : 'completed'}: ${passCounts(result)}`);
+          log.info(
+            `${domain} sync ${pause ? 'paused' : unread.length > 0 ? `ended with ${unread.length} collection(s) unread` : 'completed'}: ${passCounts(result)}`,
+          );
           if (foundNothingIn) log.warn(`[delta-sync] ${line}`);
           await withTenant(pool, tenantId, async (db) => {
             await new RunStore(db).logEvent(tenantId, runId, foundNothingIn ? 'warn' : 'info',

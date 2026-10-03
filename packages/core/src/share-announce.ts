@@ -50,6 +50,14 @@ export interface AnnounceByHandDeps {
   readonly channelIsOn: boolean;
   /** Mail one grantee their digest. True when it went; never throws. */
   readonly tell: (grantee: string, message: NotificationMessage) => Promise<boolean>;
+  /**
+   * The privacy policy's address, in the press's language, which closes every
+   * mail after one sentence about what is kept (workplan 0139 T4, privacy
+   * §4.6): the managed service's, from `privacyPolicyUrl`. `null` on the
+   * appliance, whose owner sends the mail from their own box, and whose mail
+   * then says nothing about our policy. Required, so each edition decides.
+   */
+  readonly privacyPolicy: string | null;
   /** Called, not thrown, when the audit row cannot be written. */
   readonly onError?: (message: string, err: unknown) => void;
 }
@@ -181,7 +189,10 @@ export async function announceByHandShares(
   const sent: string[] = [];
   const failed: string[] = [];
   for (const digest of assembly.digests) {
-    const told = await deps.tell(digest.grantee, renderShareAnnouncement(digest, press.locale, press.note));
+    const told = await deps.tell(
+      digest.grantee,
+      renderShareAnnouncement(digest, press.locale, press.note, deps.privacyPolicy),
+    );
     (told ? sent : failed).push(digest.grantee);
   }
 

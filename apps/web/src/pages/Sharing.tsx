@@ -526,7 +526,7 @@ const Sharing: React.FC = () => {
             err instanceof DecisionRefusedError
               ? (err.refusal.reason ?? err.refusal.hint ?? err.refusal.error)
               : err instanceof Error
-                ? err.message
+                ? serverMessage(err)
                 : t('common.requestFailed'),
         }));
       })
@@ -556,7 +556,7 @@ const Sharing: React.FC = () => {
             err instanceof DecisionRefusedError
               ? (err.refusal.reason ?? err.refusal.hint ?? err.refusal.error)
               : err instanceof Error
-                ? err.message
+                ? serverMessage(err)
                 : t('common.requestFailed');
         }
       }
@@ -596,7 +596,7 @@ const Sharing: React.FC = () => {
             err instanceof DecisionRefusedError
               ? (err.refusal.reason ?? err.refusal.hint ?? err.refusal.error)
               : err instanceof Error
-                ? err.message
+                ? serverMessage(err)
                 : t('common.requestFailed'),
         }));
       })

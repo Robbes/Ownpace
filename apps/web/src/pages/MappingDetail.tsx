@@ -56,6 +56,7 @@ import MigrationKindsPanel from '../components/MigrationKindsPanel.tsx';
 import CompletionReportDownload from '../components/CompletionReportDownload.tsx';
 import LiveProgress from '../components/LiveProgress.tsx';
 import StateChip from '../components/StateChip.tsx';
+import { serverMessage } from '../services/api.ts';
 
 /**
  * ONE SIDE OF THE LINE: the connection's name, AND THE ACCOUNT IT SIGNS IN AS
@@ -123,7 +124,7 @@ const MappingDetail: React.FC = () => {
       // now rather than a habit.
       await forgetMappingLifecycle(queryClient, id);
     } catch (err) {
-      setPauseFailed(err instanceof Error ? err.message : String(err));
+      setPauseFailed(serverMessage(err));
     } finally {
       setPausing(false);
     }

@@ -4,10 +4,98 @@
 
 ## Status — 2026-09-29 (update this block at the end of every session)
 
+**2026-09-29: a move that keeps its key is reported once, not twice (found while testing #1384).**
+In the file domain `runDomainSync` runs both move detectors. The item loop saw an item listed in
+another folder under the same key, and `classifyKnownItem` returned `'moved'`, so the loop recorded
+and reported the move. Then the end-of-pass reconciliation (`detectPathKeyedMoves`) found the row
+absent from its old folder. It read the move the loop had just recorded and reported it again, so
+the result showed `moved: 2` with two identical entries. That doubled count reached the pass's
+stats, the worker's "N item(s) are now in a different source" line and the pass's own `[sync]` warning. The
+moves queue was never wrong: the ledger holds one row, and the second `recordMove` wrote the same
+values. The issue first blamed the reconciliation's content-matching branch, but a probe
+showed the second report came from its remembered-move branch. A key-preserving move creates
+nothing, so the matching branch has nothing to match it with.
+
+- **What changed.** The loop keeps the keys it classified `'moved'` this pass (`movedByTheLoop`),
+  and the reconciliation leaves those rows alone. A move that changes the key (ADR-0030) never
+  reaches the loop as the old row, so it is reported by the reconciliation once, as before. The
+  comment saying a same-key arrival is impossible now gives the real reasons. Nothing touches the
+  target: this only removes a second report.
+- **Proved** by three cases in `packages/core/src/move-detection.unit.test.ts`, through the real
+  `runDomainSync` with the memory stores:
+  - a move that keeps its key is reported once on each pass it stays open, and once acknowledged,
+    no longer reported;
+  - a move that changes its key is reported once;
+  - both kinds on one pass are reported once each.
+
+  Two of the cases fail on `main` (`expected 2 to be 1`, `expected 3 to be 2`). #1384's guard in
+  `copied-items-asked-a-window-at-a-time.unit.test.ts` now expects `moved: 1` and fails on
+  `main` too.
+
+**2026-09-29, morning: the OTA stack's Nextcloud moves from SQLite to Postgres (the owner's
+decision).** The E2E (managed) gate went red on `main` twice, #222 and #223, and not because of any
+merged change. The demo Nextcloud (service `nextcloud`) answered HTTP 500 when asked for a new
+calendar object and for a DELETE. Its own log named the cause: *"SQLSTATE[HY000]: General error: 5
+database is locked"*.
+
+- **Why.** That Nextcloud keeps its database in SQLite (`SQLITE_DATABASE` in `managed.yml`), and
+  the owner's own migrations write into the same Nextcloud: the Dropbox one alone since this
+  plan's #1340, at 12 to 34 GB an hour. SQLite takes one writer at a time. Nextcloud 34 already
+  runs it in WAL mode, so reads never wait. But a request that read first and then wants to write
+  after another has written is refused at once, and Nextcloud writes a great deal for every file it
+  stores:
+  - the file's row;
+  - every parent folder up to the root;
+  - with no Redis configured, the file lock itself (`DBLockingProvider`).
+
+  So the gate's writes and the migrations' writes collided. The migrations' own uploads meet the
+  same refusal now and then; it is recorded as the target refusing the file and retried on the
+  next pass.
+- **Weighed.** Four ways were put to the owner:
+  1. pausing the migrations for every gate run, which costs up to a pass of copying each time and
+     leaves the migrations colliding with one another;
+  2. Nextcloud's file locks in Redis, which means fewer collisions, not none;
+  3. a Nextcloud of the gate's own;
+  4. Postgres, which removes the cause.
+
+  The owner chose Postgres: *"ok, we'll move to postgres."*
+- **Done by hand on the OTA stack, the same morning**, while the migrations were paused and no
+  gate run was active. `config.php` was copied first; that copy was the whole way back until the
+  migrations resumed. Then a `nextcloud` role and database were made in the stack's Postgres, and
+  Nextcloud's own converter was run, `occ db:convert-type` (Nextcloud 34,
+  `core/Command/Db/ConvertType.php`). The converter holds the maintenance page while it copies,
+  switches `config.php` only after its last step, and never changes the SQLite file. On this
+  install it failed twice, and each failure left Nextcloud on SQLite:
+  - **With `--all-apps`, before copying anything.** It builds tables for disabled apps as well,
+    and the disabled LDAP app cannot load here (*"Could not resolve
+    OCA\User_LDAP\ILDAPWrapper"*). It ran without it: tables for the enabled apps only.
+  - **In its last step, after copying every table.** `PgSqlTools::resynchronizeDatabaseSequences`
+    finds each id counter's table through the column whose default names that counter. It fails
+    on the first counter no default names, which here was `oc_preview_locations_id_seq`: *"SELECT
+    setval('oc_preview_locations_id_seq', (SELECT MAX() FROM ))"*. Nextcloud's newer-style
+    (identity) columns have no such default either.
+
+  So the last step was done by hand. Every counter was set from the column that owns it
+  (`pg_depend`), counting only the ids within the counter's own range, one counter at a time.
+  `oc_jobs` holds ids Nextcloud generates itself, beyond its counter's range, and that range check
+  was the second attempt's fix. Then `config.php`'s database settings were set with
+  `occ config:system:set`, `dbtype` last. **113 counters were set, none failed**, and Nextcloud
+  answered on Postgres (`occ status`, `occ user:list`). The statement was proven beforehand on a
+  local Postgres with the same five kinds of counter:
+  - an ordinary one;
+  - an identity column's;
+  - the preview case;
+  - generated ids beside old ones;
+  - an empty table's.
+- **Still open, and this session's** (the owner, 2026-09-29: *"You take that aswell"*), after
+  #1358, which is rewriting `db-roles.sh`: a fresh demo install still starts on SQLite. New
+  installs should start on Postgres, and an install still on SQLite should be converted by a
+  script that carries the two workarounds above, not by hand. Neither `copy-before-update.sh` nor
+  any other copy includes this Nextcloud's database, as none included its SQLite file.
+
 **2026-09-29, morning: where the Dropbox passes spend their time, and items already copied asked
-about a window at a time (T1)**, on branch
-`claude/mailbox-sync-errors-c2xsw2-copied-items-asked-a-window-at-a-time`, not merged. From the
-owner's readings on the OTA stack, counts and times only.
+about a window at a time (T1)**, merged as #1384 (`8674bbc`). From the owner's readings on the OTA
+stack, counts and times only.
 
 - **Where the passes spend their time.** The four passes from 03:00 to 06:00: making folders
   ready 0.0 minutes, listing Dropbox 0.3 minutes, the first new file 2.1, 2.6, 3.1 and 3.8

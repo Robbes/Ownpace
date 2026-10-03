@@ -367,7 +367,8 @@ describe('when the queue cannot be read', () => {
 
     expect(await screen.findByText('Could not load this queue.')).toBeInTheDocument();
     expect(screen.getByText(/ECONNREFUSED/)).toBeInTheDocument();
-    expect(screen.getByText(/not the same as an empty queue/)).toBeInTheDocument();
+    // Still a failure and not an empty queue: nothing says nobody is waiting.
+    expect(screen.queryByText('Nobody is waiting.')).not.toBeInTheDocument();
   });
 });
 
