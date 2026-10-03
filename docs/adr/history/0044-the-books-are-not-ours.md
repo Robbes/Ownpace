@@ -1,3 +1,11 @@
+<!-- FROZEN RECORD (ADR-0051). Do not edit: this file is history, not a decision. -->
+
+> **This is the record, not the decision.** ADR-0044 as it read on 2026-10-03, before its
+> operative rules were cut to the budget of [ADR-0051](../0051-an-adr-reads-as-it-stands.md). The decision as it
+> stands is [ADR-0044](../0044-the-books-are-not-ours.md). Kept word for word, so that nothing the record said is
+> lost — the earlier operative wording carries reasons and examples the budget left out; only
+> relative links were re-based for this folder.
+
 # ADR-0044: The books are not ours — an external bookkeeping system is the record for invoices
 
 - **Status:** Accepted
@@ -6,13 +14,13 @@
   bookkeeping system is the legal system of record"*, then *"ok, I stay the
   seller, we go with Moneybird"*, with credit notes in scope from the start and
   delivery as a PDF by email and in-app. The plan built on this is
-  [workplan 0111](../workplans/0111-an-invoice-that-is-a-document.md).
-- **Relates to:** [ADR-0014](./0014-cost-recovery-billing.md) (what is billed —
+  [workplan 0111](../../workplans/0111-an-invoice-that-is-a-document.md).
+- **Relates to:** [ADR-0014](../0014-cost-recovery-billing.md) (what is billed —
   untouched here; this ADR is about the *document*),
-  [ADR-0036](./0036-the-managed-edition-is-its-own-package-and-its-own-chain.md)
+  [ADR-0036](../0036-the-managed-edition-is-its-own-package-and-its-own-chain.md)
   (the invoice mirror is managed-chain data; the appliance never bills),
-  [ADR-0024](./0024-explicit-owner-deletion-apply.md) (immutability posture),
-  [ADR-0009](./0009-repo-strategy-public-monorepo.md) (why the comparative
+  [ADR-0024](../0024-explicit-owner-deletion-apply.md) (immutability posture),
+  [ADR-0009](../0009-repo-strategy-public-monorepo.md) (why the comparative
   vendor analysis and commercial rationale are recorded outside this
   repository, as business records — this ADR records only what the *product*
   must uphold).
@@ -23,28 +31,32 @@
      the narrative below stays append-only. Assembled into OPERATIVE.md by
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
-- **The legal system of record for invoices is Moneybird, not this product.** Moneybird assigns
-  the number, applies the tax rate, renders the document and files it. Ownpace is UPSTREAM of the
-  record (it pushes the billable period) and a MIRROR of it (number, issue date, PDF, status
-  pulled back): `packages/managed/src/moneybird-sales-invoices.ts`.
-- **Ownpace never assigns an invoice number.** No code path may mint, alter or reuse one; the
-  sequence is Moneybird's `invoice_sequence_id`:
-  `packages/managed/src/moneybird-sales-invoices.unit.test.ts`.
-- **Ownpace never renders an invoice document.** The customer, on the billing page, by email or
-  via an operator (workplan 0110), is served Moneybird's PDF: one document per sale
-  (*Consequences* below).
-- **Creation is idempotent by `reference`**: a period-derived `reference` is set on create and
-  looked up (`find_by_reference`) first, so a retried push cannot double-invoice (hard rule 1):
-  `packages/managed/src/moneybird-sales-invoices.unit.test.ts`.
-- **No VAT percentage lives in product code.** The treatment is a Moneybird `tax_rate_id` per
-  invoice (`packages/managed/src/moneybird-tax-rates.ts`); the legacy `VAT_RATE` in `pricing.ts`
-  must not spread: `scripts/a-rate-that-must-not-spread.unit.test.ts`.
-- **An issued invoice is immutable in the mirror; a correction is a credit note** issued by
-  Moneybird and mirrored, never an UPDATE to an issued row:
-  `packages/managed/src/invoice-refusal-under-rls.unit.test.ts` (managed migration 0014).
-- **The mirror is managed-chain data** (ADR-0036): the appliance carries no invoice tables'
-  behaviour and no Moneybird credential (`apps/selfhost/src/no-managed-leakage.unit.test.ts`).
-  Credentials ride `.env` (hard rule 3), never git, never the appliance image.
+- **The legal system of record for invoices is Moneybird, not this product.**
+  Moneybird assigns the number, applies the tax rate, renders the document and
+  files it for the retention period. Ownpace is UPSTREAM of the record (it
+  pushes the billable period) and a MIRROR of it (number, issue date, PDF,
+  status pulled back).
+- **Ownpace never assigns an invoice number.** Gapless sequential numbering is
+  the artefact auditors check; it belongs to the system that owns it
+  (Moneybird's `invoice_sequence_id`). No code path may mint, alter or reuse a
+  number.
+- **Ownpace never renders an invoice document.** The customer — on the billing
+  page, by email, or via an operator (workplan 0110) — is served Moneybird's
+  PDF. Exactly one document may exist per sale; a second, self-rendered
+  artefact is the failure mode this rule exists to prevent.
+- **Creation is idempotent by `reference`.** Ownpace sets a period-derived
+  `reference` on create and looks it up (`find_by_reference`) before creating,
+  so a retried push cannot double-invoice — hard rule 1, satisfied at the seam.
+- **No VAT percentage lives in product code.** The treatment is selected as a
+  Moneybird `tax_rate_id` per invoice (workplan 0111 T3). `pricing.ts`'s
+  `VAT_RATE` constant is legacy display logic pending that task and must not
+  spread.
+- **An issued invoice is immutable in the mirror; a correction is a credit
+  note** issued by Moneybird and mirrored like any other document — never an
+  UPDATE to an issued row.
+- **The mirror is managed-chain data** (ADR-0036): the appliance carries no
+  invoice tables' behaviour and no Moneybird credential. Credentials ride the
+  vault/`.env`, never git, never the appliance image.
 
 ## Context
 
@@ -90,9 +102,3 @@ workplan 0111 T1–T3.
 - **A Merchant of Record as the seller**: a commercial decision, recorded as
   business records outside this repository (ADR-0009's boundary); the product
   consequence is simply that Ownpace remains the seller and this ADR applies.
-
-## Amendment log
-
-- **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
-  decided. Their earlier wording, with the reasons and examples the budget left out, is in the
-  record: [history/0044-the-books-are-not-ours.md](./history/0044-the-books-are-not-ours.md).

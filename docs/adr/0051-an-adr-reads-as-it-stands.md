@@ -16,7 +16,7 @@
   sub-headings** (table rows are not counted). `scripts/adr-operative.mjs` refuses to assemble
   `OPERATIVE.md` otherwise, naming every file and limit at once.
 - **A bullet states the rule and points at what holds it** — a guard, a file, a section below.
-  Reasons, examples and earlier wording go below it, never in it.
+  Reasons and examples go in the body; earlier wording goes to `history/`; neither goes in it.
 - **An ADR's `**Status:**` entry is at most 400 characters**: where it stands and how many
   amendments. The dated story is its `## Amendment log`.
 - **A change decided but not in force is a `**Pending`** bullet in the operative rules and a
@@ -130,9 +130,11 @@ supersede one another; a single over-amended ADR is consolidated in place.
 ### 6. Compression without consolidation
 
 An ADR whose only problem is an oversized operative section keeps its body as it is. The section
-is rewritten to the budget, and its old bullets are appended word for word under
-`## Operative rules at length (as they read until 2026-10-03)`, so no reason they carried is
-lost.
+is rewritten to the budget, and the file as it read before moves word for word to
+`docs/adr/history/`, exactly as a consolidated ADR's does, linked from a dated line in its
+amendment log — so no reason the old bullets carried is lost, and none of it is carried in the
+file a reader opens. (Appending the old bullets to the file was tried first, the same day: it
+kept the reasons and grew the files it was meant to shrink.)
 
 ### 7. What this change did
 
@@ -178,5 +180,6 @@ lost.
   different: the cited file stays where it is; only its record moves.
 - **Keep the old operative wording only in git** for compressed ADRs, as in-place amendment always
   allowed. Rejected for this change because some of those bullets carried the only statement of
-  a reason; appending them is cheap and loses nothing.
+  a reason. **Appending them to the ADR** loses nothing either, but it is history kept in the file
+  a reader opens — the thing this decision exists to stop; `history/` holds it instead.
 - **A per-section budget of 250 words.** Tried; see decision 1.

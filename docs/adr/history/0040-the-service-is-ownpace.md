@@ -1,15 +1,23 @@
+<!-- FROZEN RECORD (ADR-0051). Do not edit: this file is history, not a decision. -->
+
+> **This is the record, not the decision.** ADR-0040 as it read on 2026-10-03, before its
+> operative rules were cut to the budget of [ADR-0051](../0051-an-adr-reads-as-it-stands.md). The decision as it
+> stands is [ADR-0040](../0040-the-service-is-ownpace.md). Kept word for word, so that nothing the record said is
+> lost — the earlier operative wording carries reasons and examples the budget left out; only
+> relative links were re-based for this folder.
+
 # ADR-0040: The service is Ownpace; the project keeps its own name
 
 - **Status:** Accepted 2026-08-20 — owner decision in conversation ("Ok, i picked ownpace.eu"),
-  closing the naming question opened by [ADR-0039](./0039-no-open-core-and-what-ops-privacy-means.md)'s
+  closing the naming question opened by [ADR-0039](../0039-no-open-core-and-what-ops-privacy-means.md)'s
   finding that the trademark is the mission-compatible moat.
 - **Date:** 2026-08-20
 - **Deciders:** owner
-- **Relates to:** [ADR-0001](./0001-license-apache-2.0.md) (Apache-2.0 §6 grants no trade-mark
-  rights — which is why a mark is worth having), [ADR-0009](./0009-repo-strategy-public-monorepo.md)
-  (one public repo), [ADR-0015](./0015-backup-scope.md) (the backup is a second mapping, not a
+- **Relates to:** [ADR-0001](../0001-license-apache-2.0.md) (Apache-2.0 §6 grants no trade-mark
+  rights — which is why a mark is worth having), [ADR-0009](../0009-repo-strategy-public-monorepo.md)
+  (one public repo), [ADR-0015](../0015-backup-scope.md) (the backup is a second mapping, not a
   second product — which bears on the open question below),
-  [workplan 0088](../workplans/0088-a-price-you-can-see-before-you-connect.md) (whose
+  [workplan 0088](../../workplans/0088-a-price-you-can-see-before-you-connect.md) (whose
   "the service name" hold this releases).
 
 > **Update 2026-08-20** — the owner extended this decision the same day: *"i want the repo
@@ -37,33 +45,43 @@
      the narrative below stays append-only. Assembled into OPERATIVE.md by
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
-- **One name: Ownpace** (`ownpace.eu`), service *and* project: the repository, every copyright
-  header, `NOTICE`, the README and API titles and the root package. The split this ADR first
-  recorded is superseded (owner, 2026-08-20; the updates above).
-- **Never draw a name from the category's own vocabulary**: a candidate gets a prior-user check
-  **before** a domain is bought (*Context*). The **GDPR Article 20 framing belongs in the copy,
-  never in the name** (*Alternatives considered*).
-- **A domain is not clearance.** DNS availability is a hint; **TMview classes 9, 38 and 42**
-  before any filing or any assertion of the mark (*The trade-mark check*).
-- **Renamed to `ownpace-*`:** compose project, container, network and volume names, the persist
-  directory, and GHCR image names after the rename. **This is not a rename on a live stack**: it
-  detaches the volumes, so an operator with data destroys the old project deliberately
-  (`docker compose -p <old> down -v`): `docs/managed-bring-up.md`.
-- **Kept, deliberately:** the npm scope **`@openmig/*`** (13 packages, all `private: true`), the
-  `openmigrate` Postgres role/database and the **`openmigrate_*` Prometheus metric prefix**.
-  Rename what is named after the *product*, keep what is named after the *scope*
-  (`CONTRIBUTING.md`).
+- **One name: Ownpace** (`ownpace.eu`) — service *and* project. The repository, every
+  copyright header, `NOTICE`, the README title, the API title and the root package all say
+  Ownpace. The project/service split this ADR first recorded lasted one day and is superseded
+  by the owner's 2026-08-20 instruction; the reasoning that produced it is kept above.
+- **Never draw a name from the category's own vocabulary.** Three rounds found a prior user
+  each time: *migrate* → TSG's OpenMigrate (2006); *safe* → SETsafe; *keep* → Keepit A/S.
+  A candidate gets a prior-user check **before** a domain is bought, not after.
+- **A domain is not clearance.** DNS availability is a hint (port 43 and RDAP are blocked from
+  our sandbox, so even "unregistered" is unproven); **TMview classes 9, 38 and 42** before any
+  filing or any assertion of the mark.
+- The **GDPR Article 20 framing belongs in the copy, never in the name** — "transmitted
+  directly from one controller to another, where technically feasible" is a claim no competitor
+  can take and no registry has to grant.
+- **Renamed to `ownpace-*`:** compose project, container, network and volume names, the
+  persist directory, and future GHCR image names. **This is not a rename on a live stack** —
+  a compose project rename detaches its volumes, so an operator with data must destroy the old
+  project deliberately (`docker compose -p <old> down -v`) rather than discover it. Done here
+  only because nothing was live.
+- **Kept, deliberately:** the npm scope **`@openmig/*`** (13 packages, all `private: true`), and
+  everything that follows it — the `openmigrate` Postgres role/database and the
+  **`openmigrate_*` Prometheus metric prefix**, which a rename would silently break for every
+  existing dashboard and alert. Rule of thumb: rename what is named after the *product*, keep
+  what is named after the *scope*.
 - **An image already published never moves.** Tags up to `v0.1.0-rc.1` live at
   `ghcr.io/robbes/open-migrate-selfhost` forever; `v0.1.0` on lives at `ownpace-selfhost`.
-  `scripts/upgrade-drill.sh` derives its registry from the tag; the cosign identity regexp
-  matches **both** repo paths.
-- **The mark is asserted in `NOTICE`** as an **unregistered** claim (no `®`), stating what needs
-  **no** permission (nominative use, forking, private instances) as explicitly as what does:
-  `scripts/notice-and-trademark.unit.test.ts`.
-- **Still OPEN, the owner's, not to be inferred:** whether to file an EUTM (*The trade-mark
-  check*); the legal proprietor named in `NOTICE`, currently "the Ownpace project maintainers"
-  rather than a company; and whether the post-cutover backup gets its own brand or is a plan name
-  under Ownpace.
+  `scripts/upgrade-drill.sh` derives its registry from the tag for exactly this reason — a
+  hardcoded path makes the drill pull a tag that does not exist, silently, from the script whose
+  job is proving upgrades work. The cosign identity regexp matches **both** repo paths.
+- **The mark is asserted in `NOTICE`** — the one restriction on an otherwise permissive
+  licence, guarded by `scripts/notice-and-trademark.unit.test.ts`. It is an **unregistered**
+  claim: no `®`, no "registered trade mark of". The assertion states what needs **no**
+  permission (nominative use, forking, private instances) as explicitly as what does, so it
+  cannot be misread as a restriction on the code.
+- **Still OPEN, the owner's, not to be inferred:** whether to file an EUTM (a separate step
+  from asserting — see the two extra searches named below); the legal proprietor named in
+  `NOTICE`, currently "the Ownpace project maintainers" rather than a company; and whether the
+  post-cutover backup gets its own brand or is a plan name under Ownpace.
 
 ## Context
 
@@ -184,9 +202,3 @@ nothing about unregistered rights, company-name registers, or common-law use.
 
 Asserting in `NOTICE` needs none of that — an unregistered mark is asserted by using it and
 saying so. **Filing does.**
-
-## Amendment log
-
-- **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
-  decided. Their earlier wording, with the reasons and examples the budget left out, is in the
-  record: [history/0040-the-service-is-ownpace.md](./history/0040-the-service-is-ownpace.md).

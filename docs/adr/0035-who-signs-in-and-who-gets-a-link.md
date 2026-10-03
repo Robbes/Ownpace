@@ -20,28 +20,27 @@
      all. Amend in place when a later decision changes it, then regenerate OPERATIVE.md:
      node scripts/adr-operative.mjs --write -->
 
-- **Owners sign in; migrated people get links, not accounts** (decisions 1, 7). A migrated
-  person is a *person* or migrator, never a `member`. Admins see their whole family's or
-  organisation's progress (decision 5); nobody is a seat to bill (decision 6).
+- **Owners sign in; migrated people get links, not accounts** (decisions 1, 7) — persons or
+  migrators, never `member`s. Admins see their whole family's or organisation's progress
+  (decision 5); nobody is a seat to bill (decision 6).
 - **Only the migrated person holds their own source credential, never the organisation**
   (decision 4). Organisation-held credentials (Box CCG, app-only Graph, DWD) **cannot be
   narrowed** — stated, not hidden (decision 3).
 - The owner decides who gets a link to manage and **grant** their own migration, and
-  **distributes it; we never do** (decision 2). A grant link lives 1, 7 or 30 days; a progress
-  link longer, showing counts and states, never content (`migration-view.ts`).
+  **distributes it; we never do** (decision 2). Grant links live 1, 7 or 30 days; progress links
+  longer, never showing content (`migration-view.ts`).
 - **The link is per person** (owner, 2026-09-29; ADR-0050): one grant link and one progress
   link for all their migrations, a grant asked and bound per Google account, covering only what
-  the page showed. Of these, only the grant link is built (`a-link-for-a-person.unit.test.ts`);
-  per-migration links serve meanwhile (decision 2).
+  the page showed. Only the grant link is built (`a-link-for-a-person.unit.test.ts`);
+  per-migration links serve meanwhile.
 - The person can **take their grant back** from the progress page: revoked at Google where it
-  will, always deleted here, they are told which; until they grant again nothing reads that
-  account for that migration, on any credential (`withdraw-grant.ts`).
-- A link can be **reported** from the grant or progress page to the Ownpace team's helpdesk or
-  support mailbox, never to the organisation that asked; a reply address is optional
-  (`link-reports.ts`).
-- **Pending (proposed 2026-09-29, not in force):** no new per-migration links, those already sent
-  work until they expire, a migration with no person gets one first, and a *Start* given before
-  the grant runs once it lands (*Pending* below).
+  will, always deleted here, and told which; until they grant again nothing reads that account
+  for that migration, on any credential (`withdraw-grant.ts`).
+- A link can be **reported** from either page to the Ownpace team's helpdesk or support mailbox,
+  never to the organisation that asked; a reply address is optional (`link-reports.ts`).
+- **Pending (proposed 2026-09-29, not in force):** no new per-migration links, those sent work
+  until they expire, a migration with no person gets one first, and a *Start* before the grant
+  runs once it lands (*Pending* below).
 
 ## Context
 
@@ -57,8 +56,7 @@ Managed has accounts already: `tenant_member` (roles `owner | admin | member | v
 boundary that takes the role from an active `tenant_member` row, never from the token
 (`apps/api/src/middleware/auth.ts`, [ADR-0042](./0042-who-holds-the-passwords.md)). The owner
 restated the substance on 2026-08-19: *"owners login, and owner decides who gets a link to manage
-and grant their migration."* What follows answers who needs an account, who holds which
-credential, what an admin may see, and whether any of it is a seat to bill.
+and grant their migration."*
 
 ## Decision
 
@@ -93,10 +91,10 @@ picks the expiry at issue: a grant link 1, 7 or 30 days (accepted 2026-09-20), a
 90 or 180 (`packages/ledger/src/mapping-link-store.ts`).
 
 **The admin distributes the link. We never do.** [ADR-0032](./0032-sharing-queue-target-native-invites.md)
-already has Ownpace never mail third parties, and here more so: a mail from an unfamiliar domain
-asking for access to a mailbox is indistinguishable from an attack. The admin copies the link and
-sends it through a channel their people already trust. Showing a person their progress link as
-their own grant ends is not sending (workplan 0122 T7).
+already keeps Ownpace from mailing third parties; here the reason is stronger: a mail from an
+unfamiliar domain asking for access to a mailbox is indistinguishable from an attack. The admin
+copies the link and sends it through a channel their people already trust. Showing a person their
+progress link as their own grant ends is not sending (workplan 0122 T7).
 
 **The link is per person** (the amendment of 2026-09-29; the owner: *"yes, a per-person link
 instead of the per-migration links"*): a person grants their own accounts, so they get **one grant
@@ -116,11 +114,10 @@ row, the owner's doors `/api/people/:personId/links` and the grant page. **Not y
 the person's progress link, which the door refuses, and the owner's screens. Meanwhile each
 migration's own links are issued and honoured as before; their future is *Pending*.
 
-Taking a grant back (0108 T8 (c), `apps/api/src/routes/withdraw-grant.ts`) and reporting a link
-(0108 T8 (d)) are stated in the operative rules. A report is a helpdesk ticket or, with no
-helpdesk, a mail to the support mailbox (`apps/api/src/services/report-channel.ts`); it is not
-offered where neither is set up, and one without a reply address (filed under the helpdesk's own
-user) cannot be answered.
+Taking a grant back (0108 T8 (c)) is stated in the operative rules. A report of a link (0108 T8
+(d)) is a helpdesk ticket or, with no helpdesk, a mail to the support mailbox
+(`apps/api/src/services/report-channel.ts`); it is not offered where neither is set up, and one
+without a reply address (filed under the helpdesk's own user) cannot be answered.
 
 ### 3. Three credential categories — because the promise is not uniform
 
@@ -134,13 +131,12 @@ this was decided:
 | **B — person-supplied** | `imap`, and the targets | `{username, password}` | Not from us — the admin never sees it back. But it is a reusable password we hold, not a scoped token. |
 | **C — organisation-held by the provider's design** | **Box** `{clientId, clientSecret}` (CCG, subject in config); **`oauth2`/`graph`** `{username, tenantId, clientId, clientSecret}` (app-only, reads `/users/{mailbox}`); **Google DWD** `{serviceAccountKey, subject}` | the organisation's app credential | **Yes, by construction.** No link changes this. |
 
-Category C is not a gap to close: Box has no per-user consent (it rotates refresh tokens, so it
-uses the Client Credentials Grant; `packages/shared/src/config.ts`). So **the category is recorded
-per mapping and stated in plain words** on the migrator's page and the admin's board — for A,
-"only you can authorise this"; for C, "your organisation's Box app can read this account" —
-ADR-0033's honesty about "what cannot be narrowed", one level down. **The link stays universal;
-only its meaning changes:** for C it is a notice, plus their progress page, owed to anyone whose
-files are read.
+Category C is not a gap to close: Box has no per-user consent (`packages/shared/src/config.ts`
+says why). So **the category is recorded per mapping and stated in plain words** on the migrator's
+page and the admin's board — for A, "only you can authorise this"; for C, "your organisation's Box
+app can read this account" — ADR-0033's honesty about "what cannot be narrowed", one level down.
+**The link stays universal; only its meaning changes:** for C it is a notice, plus their progress
+page, owed to anyone whose files are read.
 
 ### 4. Credentials need a per-mapping home
 
@@ -284,7 +280,9 @@ Start (decision 2's *"their own start and pause"* is the progress page's, and un
 - **2026-08-17** — Decided by the owner in conversation, recorded as Proposed: only the migrated
   person holds their own source credential, never the organisation; migrated people get links, not
   accounts; an admin sees the progress of everyone in their family or organisation; the seat
-  question is answered inside this ADR. Record: the *Status* entry, *Decision* 1–8.
+  question is answered inside this ADR. Record: the *Status* entry, *Context* (with *A correction,
+  first, because it changed my advice*), *The question*, *Decision* 1–8, *Consequences* and
+  *Alternatives considered*.
 - **2026-08-19** — Restated by the owner: *"owners login, and owner decides who gets a link to
   manage and grant their migration."* The owner is the only party who signs in, and the link is how
   the migrated person grants. Not taken as the formal accept. Record: the *Status* entry.

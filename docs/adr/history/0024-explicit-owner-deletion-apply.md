@@ -1,3 +1,11 @@
+<!-- FROZEN RECORD (ADR-0051). Do not edit: this file is history, not a decision. -->
+
+> **This is the record, not the decision.** ADR-0024 as it read on 2026-10-03, before its
+> operative rules were cut to the budget of [ADR-0051](../0051-an-adr-reads-as-it-stands.md). The decision as it
+> stands is [ADR-0024](../0024-explicit-owner-deletion-apply.md). Kept word for word, so that nothing the record said is
+> lost — the earlier operative wording carries reasons and examples the budget left out; only
+> relative links were re-based for this folder.
+
 # ADR-0024: `apply` — an explicit, gated exception to non-destructiveness
 
 - **Status:** Accepted
@@ -10,21 +18,10 @@
      the narrative below stays append-only. Assembled into OPERATIVE.md by
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
-- `apply` is the **only destructive code path**: per item, owner-called, never automatic.
-  Relocations are its second caller (ADR-0030/0031): same function, same gates.
-  `packages/core/src/apply-deletion.ts` holds the only calls to `removeItem`.
-- **Seven gates**, enforced by `applyDeletion`, re-checked in the ledger's conditional UPDATE:
-  (1) per-mapping opt-in; (2) `TargetRemover` capability; (3) **positive evidence only**,
-  `reported`/`trashed`, never `inferred`; (4) ownership, `copied`/`updated` only, never
-  `adopted`; (5) no edit since (DAV: the server's `If-Match`; JMAP contacts and files: a
-  successful read; IMAP: UIDVALIDITY); (6) mass-deletion breaker, 20% of ≥20; (7)
-  concurrent-apply re-check: `packages/core/src/apply-deletion.unit.test.ts`.
-- **With no recorded version, nothing is removed** (`version_unknown`, workplan 0149 T3); a weak
-  ETag counts as none. JMAP mail, which records no version by design, is exempt:
-  `packages/engines/src/a-removal-the-server-checks.unit.test.ts`.
-- Order is **remove-then-record**; rows are tombstoned, never deleted; a reappearance is **never
-  re-copied** (`packages/core/src/tombstone-not-restored.unit.test.ts`); outcomes state
-  `kind: binned|deleted`, understating recoverability.
+- `apply` is the **only destructive code path**, per item, owner-called, never automatic (relocations gained a second caller under ADR-0030/0031 — same function, same gates).
+- Seven gates, all enforced and re-checked in the ledger's conditional UPDATE: per-mapping opt-in; `TargetRemover` capability; **positive evidence only** (`reported`/`trashed`, never `inferred`); ownership (`copied`/`updated` only — `adopted` is never touched); no-edit-since (`If-Match` with the recorded ETag on DAV, checked by the server in the DELETE itself; a read that must succeed on JMAP contacts and files; UIDVALIDITY on IMAP); mass-deletion breaker (20% of ≥20); concurrent-apply re-check.
+- **With no recorded version, nothing is removed** (`version_unknown`, workplan 0149 T3): a row without one, or with only a weak ETag, cannot say whether somebody changed the copy. JMAP mail, which records no version by design, is the one target this does not apply to.
+- Order is **remove-then-record**; rows are tombstoned, never deleted; a reappearance is **never re-copied**; outcomes state `kind: binned|deleted`, understating recoverability.
 
 ## Context
 Hard rule 2 and ADR-0005 say the target is never auto-deleted or overwritten, and that source deletions surface as user decisions rather than being propagated. That produced a **deletions queue** (§11.1): items the source no longer lists, evidenced as `reported` (the source's own removal report), `trashed` (found in the owner's bin) or `inferred` (repeated absence), reported at `GET /deletions` with a `keep` action that only ever acknowledges.
@@ -92,9 +89,3 @@ version, because JMAP gives no per-message ETag and a message is immutable apart
 A **rewrite** without a version still goes ahead, as the owner kept it (0149 D3): refusing would
 stop source changes from reaching every such row. What changed for rewrites is how the check is
 made, not which rows are rewritten.
-
-## Amendment log
-
-- **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
-  decided. Their earlier wording, with the reasons and examples the budget left out, is in the
-  record: [history/0024-explicit-owner-deletion-apply.md](./history/0024-explicit-owner-deletion-apply.md).

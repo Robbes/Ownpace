@@ -1,3 +1,11 @@
+<!-- FROZEN RECORD (ADR-0051). Do not edit: this file is history, not a decision. -->
+
+> **This is the record, not the decision.** ADR-0049 as it read on 2026-10-03, before its
+> operative rules were cut to the budget of [ADR-0051](../0051-an-adr-reads-as-it-stands.md). The decision as it
+> stands is [ADR-0049](../0049-a-door-that-asked-nobody.md). Kept word for word, so that nothing the record said is
+> lost — the earlier operative wording carries reasons and examples the budget left out; only
+> relative links were re-based for this folder.
+
 # ADR-0049: A door that asked nobody
 
 - **Status:** **Accepted 2026-09-20** — found and built the night after ADR-0048, under the owner's
@@ -5,13 +13,13 @@
   not apply them.
 - **Date:** 2026-09-20
 - **Deciders:** built on the owner's earlier decisions (below); nothing new decided
-- **Relates to:** [ADR-0026](./0026-one-operating-ui-one-contract.md) (lifecycle decisions live in
-  `@openmig/shared`, and both editions ask them), [ADR-0047](./0047-a-rollback-is-a-setback.md) (a
-  rollback is the only way back before a cutover), [ADR-0048](./0048-the-mapping-hears-the-cutover.md)
+- **Relates to:** [ADR-0026](../0026-one-operating-ui-one-contract.md) (lifecycle decisions live in
+  `@openmig/shared`, and both editions ask them), [ADR-0047](../0047-a-rollback-is-a-setback.md) (a
+  rollback is the only way back before a cutover), [ADR-0048](../0048-the-mapping-hears-the-cutover.md)
   (what a cutover stops), workplan 0117 D4 and T1 (after cutover the source is not the authority;
   the continuous lane is entered from `cutover` or `done`), workplan 0038 T1 (finishing refuses
   over unresolved failures; a stable `code` beside the prose).
-- **Relates to workplan:** [0101 T7](../workplans/0101-the-paths-no-gate-had-opened.md).
+- **Relates to workplan:** [0101 T7](../../workplans/0101-the-paths-no-gate-had-opened.md).
 
 ## Operative rules
 
@@ -19,32 +27,29 @@
      the narrative below stays append-only. Assembled into OPERATIVE.md by
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
-- **`PUT /api/migrations/:id` asks `updateTransition` (shared) before it writes a status**, on
-  the status read in its own transaction. A move the lifecycle does not make through this door is
-  **409 `lifecycle_refused`**: a stable `code`, a `hint` naming the right door, nothing written.
-  Guards: the `a-door-that-asked-nobody` unit and integration tests in `apps/api`.
-- **After cutover stays after cutover** (`after_cutover`): `cutover`, `done` and `continuous` do
-  not go back to `active` or `paused` by an update. Only a rollback does, recorded as one.
-- **`done` is terminal** (`finished`) but for the continuous lane, which is entered only after
-  cutover, from `cutover` or `done` (`before_cutover`).
+- **`PUT /api/migrations/:id` asks `updateTransition` in `@openmig/shared` before it writes a
+  status**, on the status read inside its own transaction, and answers **409 `lifecycle_refused`**
+  — with a stable `code`, a `hint` naming the right door, and nothing written — when the move is
+  one the lifecycle does not make through this door.
+- **After cutover stays after cutover.** `cutover`, `done` and `continuous` do not go back to
+  `active` or `paused` by an update (`after_cutover`). Only a rollback does that, recorded as one.
+- **`done` is terminal** with one exit, the continuous lane (`finished` for everything else).
 - **A transition with its own door is refused here and sent there** (`own_door`): `active` is
-  `POST …/start` (it refuses a grant still awaited and runs the first pass); `done` is
+  `POST …/start` (it refuses a grant still being waited on and runs the first pass); `done` is
   `POST …/finish` (it refuses over unresolved failures unless forced).
-- **What the door does**: `active`/`paused` → `cutover` (the declaration), `active` → `paused`,
-  `cutover` ↔ `continuous` and `done` → `continuous` (the lane and its stop). Restating the
-  current status is 200, nothing recorded. Table: *Decision*, pinned by shared's
-  `a-door-that-asked-nobody.unit.test.ts`.
-- **The lane's switch is `PUT`**, the verb this path serves, for a caller of the API. The Finish
-  page does not send it: it keeps or ends each data type at its own door
-  (`POST …/domains/{domain}/keep`, `…/end`; ADR-0048). Guard:
-  `an-ending-either-edition-presses.unit.test.ts`.
-- **`POST /api/migrations` creates a migration `paused` (the default) or `active`**
-  (`CREATABLE_STATUSES`), and refuses `cutover`, `done` and `continuous` with a 400 on `status`
-  naming their doors: the cutover, Finish and Keep copying. Guard:
-  `path-lifecycle-wiring.unit.test.ts`.
-- **`POST …/cutover` asks `prepareTransition`** (core's `cutover-state.ts`, the rule the job
-  follows) before it enqueues: 409 `cutover_refused` with a stable `code`, or a 202 saying what
-  the job will do (0009 T10). See *Consequences*.
+- **The lane is entered after cutover** — from `cutover` or `done` — and from nowhere else
+  (`before_cutover`).
+- What the door still does: `active`/`paused` → `cutover` (the declaration), `active` → `paused`
+  (pause), `cutover` ↔ `continuous` and `done` → `continuous` (the lane and its stop). Restating
+  the status a mapping already has is a request, not a transition: 200, nothing recorded.
+- **The lane's switch is `PUT`**, the verb this path is served by, for a caller of the API. The
+  Finish page no longer sends it (amended 2026-09-26, workplan 0128 T5 slice 7b): it keeps each
+  data type copying through that data type's own door (`POST …/domains/{domain}/keep`, ADR-0048's
+  amendment of that day), and ends each through `…/end`, so the web's verb pin went with the
+  call it pinned.
+- **`POST /api/migrations` creates a migration `paused` (the default) or `active`**, and refuses
+  `cutover`, `done` and `continuous` with a 400 on `status` that names their doors: a migration
+  reaches them once it exists, through the cutover, Finish and Keep copying.
 
 ## Context
 
@@ -160,9 +165,3 @@ the axios instance without a `patch` at all, so a regression fails as a missing 
 - **Let `paused → active` through as a resume.** Rejected: Start is where the awaiting-grant
   refusal and the first pass live (workplan 0108 T4, task "run the first sync at activation");
   a resume that skips both is a migration that believes it started and did not.
-
-## Amendment log
-
-- **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
-  decided. Their earlier wording, with the reasons and examples the budget left out, is in the
-  record: [history/0049-a-door-that-asked-nobody.md](./history/0049-a-door-that-asked-nobody.md).

@@ -266,13 +266,14 @@ describe('an ADR says where it stands, in its header and its rules (ADR-0051)', 
   });
 });
 
-describe('an ADR consolidated in place keeps its whole record (ADR-0051)', () => {
+describe('an ADR rewritten to its current state keeps its whole record (ADR-0051)', () => {
   const histories = existsSync(HISTORY_DIR) ? readdirSync(HISTORY_DIR).sort() : [];
 
-  it('history is never deleted: the eight records of 2026-10-03 are all still there', () => {
+  it('history is never deleted: the nineteen records of 2026-10-03 are all still there', () => {
     // A floor rather than an exact count: a record joins history/ when its ADR
-    // is consolidated, and nothing ever leaves it.
-    expect(histories.length).toBeGreaterThanOrEqual(8);
+    // is rewritten (eight consolidated, eleven cut to the budget, ADR-0051), and
+    // nothing ever leaves it.
+    expect(histories.length).toBeGreaterThanOrEqual(19);
   });
 
   it('every history file carries the file name of the ADR it was, which still exists', () => {
@@ -282,7 +283,7 @@ describe('an ADR consolidated in place keeps its whole record (ADR-0051)', () =>
     }
   });
 
-  it('each consolidated ADR links its record and keeps an amendment log', () => {
+  it('each ADR with a record links it, and keeps an amendment log that says why', () => {
     for (const h of histories) {
       const adr = readFileSync(join(ADR_DIR, h), 'utf8');
       expect(adr, `${h} does not link ./history/${h}`).toContain(`](./history/${h})`);

@@ -18,10 +18,11 @@ a unit test, so it is build output rather than a second source; ADR-0038). Rows 
 deliberately one sentence: the substance the long rows used to carry lives in the
 operative sections now, where the drift guard can see it.
 
-**A consolidated ADR reads as it stands** (ADR-0051): same number and file, rewritten as the
-decision holds today, with a dated amendment log. Its old text is kept word for word in
-[`history/`](./history/) — the record, frozen, never assembled into `OPERATIVE.md` and not
-for routine reading.
+**An ADR reads as it stands** (ADR-0051): a consolidated one is rewritten under the same number
+and file as the decision holds today, with a dated amendment log; others had only their operative
+rules cut to the budget. Either way the text as it read before is kept word for word in
+[`history/`](./history/) — the record, frozen, never assembled into `OPERATIVE.md` and not for
+routine reading.
 
 New decision? Copy [`0000-template.md`](./0000-template.md) to the next free number.
 Read [`CONTRIBUTING.md`](../../CONTRIBUTING.md#architecture-decision-records-adrs)

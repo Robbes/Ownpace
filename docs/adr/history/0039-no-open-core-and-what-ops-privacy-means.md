@@ -1,3 +1,11 @@
+<!-- FROZEN RECORD (ADR-0051). Do not edit: this file is history, not a decision. -->
+
+> **This is the record, not the decision.** ADR-0039 as it read on 2026-10-03, before its
+> operative rules were cut to the budget of [ADR-0051](../0051-an-adr-reads-as-it-stands.md). The decision as it
+> stands is [ADR-0039](../0039-no-open-core-and-what-ops-privacy-means.md). Kept word for word, so that nothing the record said is
+> lost — the earlier operative wording carries reasons and examples the budget left out; only
+> relative links were re-based for this folder.
+
 # ADR-0039: No open-core — closed, with a trigger; and what "private ops" actually means
 
 - **Status:** Accepted 2026-08-19 — owner decision in conversation ("i accept the
@@ -7,12 +15,12 @@
   rescuing it, which is why the acceptance stands.
 - **Date:** 2026-08-19
 - **Deciders:** owner
-- **Resolves:** the flagged conflict between [ADR-0009](./0009-repo-strategy-public-monorepo.md)
-  ("No open-core", Accepted) and [ADR-0036](./0036-the-managed-edition-is-its-own-package-and-its-own-chain.md)
+- **Resolves:** the flagged conflict between [ADR-0009](../0009-repo-strategy-public-monorepo.md)
+  ("No open-core", Accepted) and [ADR-0036](../0036-the-managed-edition-is-its-own-package-and-its-own-chain.md)
   ("parked, not rejected… remains open", Accepted).
-- **Relates to:** [ADR-0001](./0001-license-apache-2.0.md) (Apache-2.0 and its accepted
-  trade), [ADR-0003](./0003-two-editions-one-core.md), [ADR-0014](./0014-cost-recovery-billing.md)
-  (**not** decided here — see the last section), [ADR-0015](./0015-backup-scope.md) (why the
+- **Relates to:** [ADR-0001](../0001-license-apache-2.0.md) (Apache-2.0 and its accepted
+  trade), [ADR-0003](../0003-two-editions-one-core.md), [ADR-0014](../0014-cost-recovery-billing.md)
+  (**not** decided here — see the last section), [ADR-0015](../0015-backup-scope.md) (why the
   backup use case is a pricing question, not a build).
 
 ## Operative rules
@@ -23,24 +31,20 @@
 
 - **No open-core, no private monorepo, no filtered mirror.** ADR-0009's answer stands and the
   question is **closed**, not open — superseding ADR-0036's "remains open" on this point only.
-  See *What the conflict actually was*.
 - **Revisit needs all three, not any:** the managed service has become the primary funding for
   sustained work; a resourced competitor has actually forked and is outcompeting us; and cost
-  recovery has demonstrably failed. Absent all three, this stays closed. Why: *The reasoning,
-  including the premise that was wrong*.
+  recovery has demonstrably failed. Absent all three, this stays closed.
 - **Two public Apache-2.0 repos** (the variant neither prior ADR named) is **declined**: the
   boundary's three guards each need one repo — the leakage walk's single import graph, the
   both-bundles build, and `two-chains` applying both chains to one database. Reconsider only
   on a *social* trigger (a separate contributor community around the core), never a technical one.
-- **"Private ops" means instance facts and secrets, never the recipe**: `deploy/` is public by
-  design, how an MSP runs its own managed instance. Instance facts ride env and repository
-  variables; secrets are gitignored, never in git. A private ops repo comes only when instance
-  facts outgrow env vars, and holds only them, pointing at the public recipe (*The ops-privacy
-  correction*).
-- The trademark is the **mission-compatible moat** — Apache-2.0 §6 grants no trade-mark rights.
-  This ADR recommended asserting it in `NOTICE` and did not decide it; it is asserted under
-  [ADR-0040](./0040-the-service-is-ownpace.md), guarded by
-  `scripts/notice-and-trademark.unit.test.ts`.
+- **"Private ops" means instance facts and secrets, never the recipe.** `deploy/` is public by
+  design — it is how an MSP runs their own managed instance. Instance facts (hostnames, IPs,
+  runner paths, project refs) ride env vars and repository variables; secrets are gitignored
+  and never in git. A private ops repo is warranted only if instance facts outgrow env vars,
+  and it holds *only* those, pointing at the public recipe.
+- The trademark is the **mission-compatible moat** — Apache-2.0 §6 grants no trade-mark
+  rights — but asserting it in `NOTICE` is **recommended, not yet decided**.
 
 ## What the conflict actually was
 
@@ -157,9 +161,3 @@ is the only unbounded line.
 
 **Asserting our trademark in `NOTICE`** is recommended above and not decided. `NOTICE` today
 disclaims Microsoft's marks and asserts nothing about ours.
-
-## Amendment log
-
-- **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
-  decided. Their earlier wording, with the reasons and examples the budget left out, is in the
-  record: [history/0039-no-open-core-and-what-ops-privacy-means.md](./history/0039-no-open-core-and-what-ops-privacy-means.md).

@@ -1,3 +1,11 @@
+<!-- FROZEN RECORD (ADR-0051). Do not edit: this file is history, not a decision. -->
+
+> **This is the record, not the decision.** ADR-0020 as it read on 2026-10-03, before its
+> operative rules were cut to the budget of [ADR-0051](../0051-an-adr-reads-as-it-stands.md). The decision as it
+> stands is [ADR-0020](../0020-ledger-rebuildable-cache-recovery.md). Kept word for word, so that nothing the record said is
+> lost — the earlier operative wording carries reasons and examples the budget left out; only
+> relative links were re-based for this folder.
+
 # ADR-0020: The ledger is a rebuildable cache — recovery via target reindex (natural-key adoption)
 
 - **Status:** Accepted — **amended 2026-09-27**: the operative rules say what is built. The reindex is the worker's command in both editions, run by hand; the appliance warns at start-up; nothing runs it automatically (workplan 0134 T3). See the amendment at the end.
@@ -10,18 +18,9 @@
      the narrative below stays append-only. Assembled into OPERATIVE.md by
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
-- The ledger is a **rebuildable cache + audit log**, never the source of truth for existence:
-  that fact lives on the target, by natural key (*Key insight* below).
-- Writes are **create-if-absent by natural key** (a target existence check beside the ledger
-  fast-path), so an empty ledger can never duplicate: `packages/core/src/reindex.unit.test.ts`.
-- **Reindex/adopt** rehydrates the ledger from the target. It is the worker's command in both
-  editions (`reindex --tenant <t> --mapping <m> --yes`, `apps/worker/src/cli/index.ts`), run by
-  hand, and nothing runs it automatically: the appliance warns at start-up when an active
-  migration's ledger is empty (`apps/selfhost/src/lost-ledger-warning.unit.test.ts`), and the
-  managed edition does not.
-- **Content-hash fallback** for Message-ID-less items (`packages/shared/src/generated-message-id.ts`);
-  **cursors are non-authoritative**; **backups are the fast path, not the safety net** (decisions
-  4–6 below).
+- The ledger is a **rebuildable cache + audit log**, never the source of truth for existence — that fact lives on the target via natural keys.
+- Writes are **create-if-absent by natural key** (target existence check beside the ledger fast-path); an empty ledger can never duplicate.
+- **Reindex/adopt** rehydrates the ledger from the target. It is the worker's command in both editions (`reindex --tenant <t> --mapping <m> --yes`), run by hand, and nothing runs it automatically: the appliance warns at start-up when an active migration's ledger is empty, and the managed edition does not. Content-hash fallback for Message-ID-less items; cursors are non-authoritative; backups are the fast path, not the safety net.
 
 ## Context
 A self-host user can lose their install (disk failure, no backup) and **reinstall fresh with an empty ledger**, pointing at the same O365 source and the same target. If migration relied solely on the local ledger to know what was already migrated, a fresh install would re-copy everything and risk **duplicating** it on the target. Correctness must survive ledger loss.
@@ -73,9 +72,3 @@ same database holds the organisations, their connections and stored credentials,
 and the audit log, and no target rebuilds those. The migration runner's downgrade refusal said
 *"nothing irreplaceable lives here"*. It now says that a database holding real data is restored
 from a backup, never dropped (`packages/ledger/src/migrate.ts`).
-
-## Amendment log
-
-- **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
-  decided. Their earlier wording, with the reasons and examples the budget left out, is in the
-  record: [history/0020-ledger-rebuildable-cache-recovery.md](./history/0020-ledger-rebuildable-cache-recovery.md).

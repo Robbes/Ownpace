@@ -1,45 +1,100 @@
+<!-- FROZEN RECORD (ADR-0051). Do not edit: this file is history, not a decision. -->
+
+> **This is the record, not the decision.** ADR-0042 as it read on 2026-10-03, before its
+> operative rules were cut to the budget of [ADR-0051](../0051-an-adr-reads-as-it-stands.md). The decision as it
+> stands is [ADR-0042](../0042-who-holds-the-passwords.md). Kept word for word, so that nothing the record said is
+> lost — the earlier operative wording carries reasons and examples the budget left out; only
+> relative links were re-based for this folder.
+
 # ADR-0042: Who holds the passwords — an issuer we can replace
 
-- **Status:** Accepted 2026-08-22, on the owner's condition; amended four times since (latest
-  2026-09-01) — see the amendment log
+- **Status:** Accepted
 - **Date:** 2026-08-22
 - **Deciders:** Owner, 2026-08-22 — accepted with a condition: *confirm* the issuer is
   replaceable rather than assert it. See "The condition, and what it found".
 
 ## Operative rules
 
-- **The managed edition authenticates against an external OIDC issuer; Ownpace stores no
-  passwords** (no password column in either migration chain). The appliance has one owner, no
-  accounts and no issuer dependency (hard rule 5):
+- **The managed edition authenticates against an external OIDC issuer.** Ownpace stores
+  no passwords, and there is no password column in either migration chain. The
+  appliance is unaffected: it has one owner and no accounts (hard rule 5).
+- **The issuer owns identity; `tenant_member` owns tenancy.** A token carries `sub`
+  and `email` and nothing Ownpace-specific. Which tenant a session acts on, and with
+  what role, is read from `tenant_member` at request time — never trusted from a claim.
+- **Because of that rule, the issuer is REPLACEABLE**, and the integration must stay
+  inside plain OIDC discovery + authorization-code + PKCE + JWKS. No issuer-specific
+  API, no issuer-side tenancy model, no issuer-side roles. This is what makes the
+  choice below reversible, and it is the point of the ADR. **Enforced**, not
+  remembered: `apps/api/src/middleware/no-issuer-lock-in.unit.test.ts` scans the
+  shipped source of `apps/` and `packages/` and fails on a provider name or endpoint
+  path; `issuer-is-replaceable.unit.test.ts` drives the real verification path with
+  both providers' discovery documents.
+- **Every endpoint is DISCOVERED, never composed** — on both sides of the wire.
+  `getJWKS` reads `jwks_uri` from the issuer's `/.well-known/openid-configuration`,
+  and the browser reads `authorization_endpoint` and `token_endpoint` from the same
+  document (`apps/web/src/services/oidc.ts`). Both refuse a document whose `issuer`
+  does not match the configured one (OIDC Discovery §4.3). `JWT_JWKS_URI` exists as an
+  escape hatch and is not the normal path.
+- **The browser client is PUBLIC and holds no secret.** The web app is a single-page
+  app, so a confidential client would mean shipping a secret to every visitor. The code
+  exchange is proven by a PKCE verifier (S256) that never leaves the tab that minted it.
+- **Zitadel is the accepted issuer**, self-hosted beside the managed stack against the
+  Postgres it already runs. Pinned by version; upgrades are deliberate, never automatic.
+  Switching is four environment variables and a rebuild — `JWT_ISSUER`, `JWT_AUDIENCE`,
+  `VITE_OIDC_ISSUER`, `VITE_OIDC_CLIENT_ID` — which was the owner's condition for
+  accepting it.
+- **The appliance never gains an issuer dependency**, enforced by
   `apps/selfhost/src/no-managed-leakage.unit.test.ts`.
-- **The issuer owns identity; `tenant_member` owns tenancy.** A token carries `sub` and `email`
-  and nothing Ownpace-specific; tenant and role are read from `tenant_member` per request, never
-  trusted from a claim: `apps/api/src/middleware/tenant-resolution.unit.test.ts`.
-- **The issuer is REPLACEABLE**: the integration must stay inside plain OIDC discovery +
-  authorization-code + PKCE + JWKS. No issuer-specific API, no issuer-side tenancy model, no
-  issuer-side roles: `apps/api/src/middleware/no-issuer-lock-in.unit.test.ts`,
-  `issuer-is-replaceable.unit.test.ts`.
-- **Every endpoint is DISCOVERED, never composed**, by API and browser alike; a document naming
-  another `issuer` is refused, and `JWT_JWKS_URI` is an escape hatch
-  (`issuer-is-replaceable.unit.test.ts`, `apps/web/src/services/oidc.unit.test.ts`). **The
-  browser client is PUBLIC and holds no secret**; PKCE (S256) proves the code exchange:
-  `scripts/idp-wiring.unit.test.ts`.
-- **Zitadel is the accepted issuer**, self-hosted on the managed Postgres. Pinned by version;
-  upgrades are deliberate, never automatic (`scripts/a-pin-that-knows-it-is-behind.unit.test.ts`).
-  Switching is four variables and a rebuild, `JWT_ISSUER`, `JWT_AUDIENCE`, `VITE_OIDC_ISSUER` and
-  `VITE_OIDC_CLIENT_ID`: `scripts/idp-wiring.unit.test.ts`.
-- **Signing out ends the ISSUER'S session, not only this tab's**, by RP-Initiated Logout through
-  the discovered `end_session_endpoint`; the local half happens first and unconditionally:
-  `apps/web/src/components/SignOut.tsx`, `apps/web/src/services/oidc.unit.test.ts`.
-- **The answer to a question you asked is not an invitation** (owner, 2026-09-01): a granted
-  access request binds on the first sign-in with a VERIFIED address; an invitation still asks.
-  `tenant_member.origin` (managed migration 0021) records which (default `invited`):
-  `apps/api/src/routes/access-requests-operator.integration.test.ts`.
-- **`tenant_member.user_id` IS the token's `sub`; email is a label** (amended 2026-08-25). A new
-  `sub` orphans the membership, so account linking is decided before a second sign-in method is
-  offered, and no second method may become an account's only one. **Federation belongs in the
-  issuer, never in the app**: `scripts/a-second-door-with-the-linking-decided.unit.test.ts`,
-  `apps/api/src/middleware/a-label-that-follows-the-claim.unit.test.ts`.
+- **Signing out ends the ISSUER'S session, not only this tab's** (2026-09-01). `logout()`
+  cleared the store and `localStorage`, which left the issuer's cookie alive: pressing
+  "Sign in" afterwards completed the whole authorization-code round trip with no prompt
+  and put the same person straight back in. On a shared or borrowed machine that is an
+  account handover. The web app now follows `end_session_endpoint` from the discovery
+  document with `id_token_hint` and the registered `post_logout_redirect_uri` — plain
+  RP-Initiated Logout 1.0, no issuer-specific call, so the replaceability rule above
+  holds. The local half happens first and unconditionally: an issuer that publishes no
+  such endpoint, or cannot be reached, leaves somebody signed out here rather than stuck.
+- **The answer to a question you asked is not an invitation** (owner decision,
+  2026-09-01). Workplan 0099 made joining a question because `members.ts` lets anybody
+  inside an organisation add any address to it, and binding on sight meant reading your
+  own account joined you to a stranger's organisation. That stands. But a GRANTED ACCESS
+  REQUEST is a different event — the person asked, an operator said yes, and the
+  organisation was created for them with them as its only owner — and asking again is
+  asking the same question twice. `tenant_member.origin` (managed 0021) records which
+  event wrote the row: `requested` binds on the first sign-in with a VERIFIED address,
+  `invited` still asks. The default is `invited`, so an unrecorded origin fails towards
+  asking.
+
+### Amended 2026-08-25 — `sub` is the identity, email is a label
+
+Three questions arrived at once (a second sign-in method, changing your login
+address, and whether the seed-token box still has a job), and all three turn on
+one rule that was implied by the operative rules above and never written down.
+
+- **`tenant_member.user_id` IS the token's `sub`.** `lookupMemberships` filters
+  on it; `resolveTenant` refuses when it finds nothing. Email appears nowhere in
+  that lookup.
+- **A flow that PRESERVES `sub` is safe. A flow that mints a NEW `sub` orphans
+  the membership** — the person is still a member of an organisation their new
+  subject cannot reach, and the API answers 403 on every route.
+- So **changing somebody's email inside their existing account is safe by
+  construction**, and **a second account for the same person is the failure**.
+  This is the whole content of "configure account linking": not a preference,
+  a correctness requirement, and it has to be decided before a second sign-in
+  method is offered rather than after.
+- **A second method must never become the only method on an account.** Removing
+  the last remaining one strands the subject, and for somebody whose reason for
+  using this product is to leave a platform, making that platform the key to
+  their account is a dependency rebuilt in a new place.
+- **Federation belongs in the issuer, never in the app.** "Login with Google" as
+  app code is exactly what the third operative rule forbids, and
+  `no-issuer-lock-in.unit.test.ts` rejects it. Upstream providers are configured
+  in the issuer, which keeps `iss` ours, keeps `sub` ours, and keeps the
+  integration inside plain OIDC — which is the property that makes any of this
+  reversible.
+
+Nothing in this amendment is built. It records the decision the three tasks in
+`docs/workplans/0102-who-your-account-is.md` depend on.
 
 ## Context
 
@@ -232,27 +287,3 @@ and rejected for one reason: `POST /api/tenants` answers 501 because tenant crea
 cannot run on a tenant-scoped connection, so T6 needs a privileged path either way, and
 that path has to decide what a user IS before it can create one. Deciding that twice is
 the expensive way.
-
-## Amendment log
-
-- **2026-08-22** — Accepted the day it was proposed, on the condition that the issuer's
-  replaceability be confirmed rather than asserted (owner). Confirming it found the key-set URL
-  composed by string concatenation for two providers nobody had chosen; `getJWKS` now discovers
-  it and refuses a document naming another issuer. Record: *The condition, and what it found*.
-- **2026-08-22** — The browser half (workplan 0093 T5c): every endpoint discovered on both sides of
-  the wire, a public client proven by PKCE, and the Zitadel bullet reading "accepted", with
-  switching stated as four variables and a rebuild. Record: the operative bullets *Every endpoint
-  is DISCOVERED*, *The browser client is PUBLIC* and *Zitadel is the accepted issuer*, in
-  [history/0042-who-holds-the-passwords.md](./history/0042-who-holds-the-passwords.md).
-- **2026-08-25** — Amended: `sub` is the identity and email a label, so account linking is decided
-  before a second sign-in method is offered and federation stays in the issuer (workplan 0102 T0;
-  0102 T1–T3 built it the same day). Record: *Amended 2026-08-25 — `sub` is the identity, email
-  is a label*, inside the operative section of [history/0042-who-holds-the-passwords.md](./history/0042-who-holds-the-passwords.md).
-- **2026-09-01** — Signing out ends the issuer's session, not only this tab's (found by the owner).
-  Record: the operative bullet *Signing out ends the ISSUER'S session*, in the history file.
-- **2026-09-01** — A granted access request binds on the first verified sign-in; an invitation
-  still asks (owner decision; `tenant_member.origin`, managed migration 0021). Record: the operative
-  bullet *The answer to a question you asked is not an invitation*, in the history file.
-- **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
-  decided. Their earlier wording, with the reasons and examples the budget left out, is in the
-  record: [history/0042-who-holds-the-passwords.md](./history/0042-who-holds-the-passwords.md).

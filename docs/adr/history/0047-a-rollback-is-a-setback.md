@@ -1,18 +1,29 @@
+<!-- FROZEN RECORD (ADR-0051). Do not edit: this file is history, not a decision. -->
+
+> **This is the record, not the decision.** ADR-0047 as it read on 2026-10-03, before its
+> operative rules were cut to the budget of [ADR-0051](../0051-an-adr-reads-as-it-stands.md). The decision as it
+> stands is [ADR-0047](../0047-a-rollback-is-a-setback.md). Kept word for word, so that nothing the record said is
+> lost — the earlier operative wording carries reasons and examples the budget left out; only
+> relative links were re-based for this folder.
+
 # ADR-0047: A rollback is a setback
 
-- **Status:** **Accepted 2026-08-23** (the owner's definition); **built 2026-09-19**; amended
-  twice (2026-09-20, 2026-09-26). Dated history: the Amendment log below.
+- **Status:** **Accepted 2026-08-23** — the owner's definition, given that day and recorded in
+  [workplan 0101 §T5](../../workplans/0101-the-paths-no-gate-had-opened.md); **built 2026-09-19** as
+  one implementation with both callers over it, gated against a real ledger. Written up as an ADR
+  only now: a decision this heavy was living in a workplan section and a code comment, and for a
+  month the code held two answers to it.
 - **Date:** 2026-08-23 (decided); 2026-09-19 (recorded here, and built)
 - **Deciders:** owner
-- **Relates to:** [ADR-0005](./0005-idempotency-ledger-nondestructive.md) (non-destructive by
+- **Relates to:** [ADR-0005](../0005-idempotency-ledger-nondestructive.md) (non-destructive by
   default — the source is never written, which is exactly why the source IS the fallback),
-  [ADR-0024](./0024-explicit-owner-deletion-apply.md) (nothing on the target is removed by a
-  rollback either), [ADR-0026](./0026-one-operating-ui-one-contract.md) (lifecycle decisions live
+  [ADR-0024](../0024-explicit-owner-deletion-apply.md) (nothing on the target is removed by a
+  rollback either), [ADR-0026](../0026-one-operating-ui-one-contract.md) (lifecycle decisions live
   in `@openmig/shared` so both editions answer them identically), workplan 0117 D4 (after cutover
   the source is not the authority — the reason `continuous` comes back to `active`).
-- **Relates to workplan:** [0101 T5](../workplans/0101-the-paths-no-gate-had-opened.md) — the
-  finding; [0009](../workplans/0009-cutover-integration.md) — the cutover this sets back;
-  [0026 T3](../workplans/0026-promise-reconciliation.md) — reverse sync retracted, which this
+- **Relates to workplan:** [0101 T5](../../workplans/0101-the-paths-no-gate-had-opened.md) — the
+  finding; [0009](../../workplans/0009-cutover-integration.md) — the cutover this sets back;
+  [0026 T3](../../workplans/0026-promise-reconciliation.md) — reverse sync retracted, which this
   decision keeps retracted.
 
 ## Operative rules
@@ -21,33 +32,35 @@
      the narrative below stays append-only. Assembled into OPERATIVE.md by
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
-- A rollback is a **setback**: the cutover ledger goes to `ROLLED_BACK` and the mapping back to
-  `active` from `cutover` or `continuous`; nothing else. It never swaps source and target, writes
-  the source or DNS, or removes or copies anything on the target; the MX record is the operator's
-  hand. Guard: `cutover-rollback.unit.test.ts`.
-- **A rollback of one data type** (`--kind`, workplan 0128 T5 slice 5b) sets back its own ledger
-  and path alone; the migration's status is its paths' roll-up, and only mail has an MX record to
-  point back. A whole rollback leaves a data type kept on its own in the lane (owner, 0128 D9;
-  ADR-0048). Guard: `a-cutover-of-one-data-type.unit.test.ts`.
-- **One implementation**: `performRollback` (`@openmig/core`, `cutover-rollback.ts`). The CLI's
-  `rollback --yes` and the `run-rollback` job only gate, print and notify. Guards:
+- A rollback is a **setback**: the cutover ledger goes to `ROLLED_BACK`, and the mapping goes back
+  to `active` when it was `cutover` or `continuous`. That is the whole of it. It never swaps
+  source and target, never writes to the source, never removes or copies anything on the target,
+  and never writes DNS (verify-only, owner 2026-07-16 — reverting the MX record is the operator's
+  hand). **A rollback of one data type** (`--kind`, amended 2026-09-26, workplan 0128 T5 slice
+  5b) sets back its own ledger and its own path alone; the migration's status is then its paths'
+  roll-up, and only mail has an MX record to point back.
+- **One implementation**: `performRollback` in `@openmig/core` (`cutover-rollback.ts`). The
+  operator CLI (`rollback --yes`) and the `run-rollback` Trigger.dev job are callers that gate,
+  print and notify; neither decides anything. Guards: `cutover-rollback.unit.test.ts`,
   `cutover-commands.unit.test.ts`, `run-rollback.integration.test.ts`.
-- **Mapping first, ledger second, and every refusal before either write**: `ROLLED_BACK` admits
-  no second rollback, so the write that can be retried goes first. Guard:
-  `cutover-rollback.unit.test.ts`.
-- **A rollback can be attempted again** (owner, 2026-09-20, workplan 0009 T8): `start-cutover`
-  and the managed prepare job take `ROLLED_BACK → PREPARING`, as from `FAILED`, with the attempt
-  number; the trail keeps the first attempt. `COMPLETED` alone is terminal. Guard:
+- **Mapping first, ledger second, and every refusal before either write.** `ROLLED_BACK` admits
+  no second rollback, so the write that can be retried goes first. Half a rollback is the defect
+  this ADR ends.
+- **A rollback can be attempted again** (owner, 2026-09-20 — workplan 0009 T8): the state machine
+  admits `ROLLED_BACK → PREPARING`, as it always admitted `FAILED → PREPARING`. `start-cutover`
+  and the managed prepare job take that edge, recorded with the attempt number; the trail keeps
+  the first attempt. `COMPLETED` is the one terminal state. Guard: `cutover-state.unit.test.ts`.
+- The mapping half is decided by `rollbackTransition` in `@openmig/shared` (`lifecycle.ts`):
+  `cutover` and `continuous` → `active`; `active` and `paused` are left alone and the outcome says
+  why; `done` is **refused** — finishing is not undone by a rollback, for the same reason
+  `startTransition` refuses `done`. Guard: `a-rollback-is-a-setback.unit.test.ts`.
+- Which cutover states may roll back is the state machine's `isValidTransition(state,
+  'ROLLED_BACK')` — APPROVED, CUTOVER_IN_PROGRESS, GRACE_PERIOD and FAILED. `canRollback` derives
+  from it, and `rollbackAvailable` on a read is that predicate, never a constant. Guard:
   `cutover-state.unit.test.ts`.
-- **The mapping half is `rollbackTransition`** (shared `lifecycle.ts`): `cutover` and
-  `continuous` → `active`; `active`/`paused` untouched, saying why; `done` **refused**, as
-  `startTransition` refuses it. Guard: `a-rollback-is-a-setback.unit.test.ts`.
-- **Which states may roll back** is `isValidTransition(state, 'ROLLED_BACK')`: APPROVED,
-  CUTOVER_IN_PROGRESS, GRACE_PERIOD, FAILED. `canRollback` and a read's `rollbackAvailable` derive
-  from it, never a constant. Guard: `cutover-state.unit.test.ts`.
-- **Audited**: each mapping status change a rollback makes is a `mapping.status` record in
-  `audit_log` (`via: 'rollback'`), in the row's transaction (`mappingLifecyclePort`, ledger).
-  Guard: `run-rollback.integration.test.ts`.
+- Every mapping status change a rollback makes is recorded in `audit_log` as `mapping.status`
+  with `via: 'rollback'`, in the same transaction as the row (`mappingLifecyclePort` in
+  `@openmig/ledger`) — the record every other lifecycle write has left since workplan 0109.
 
 ## Context
 
@@ -126,7 +139,7 @@ and the code did not implement it once. Both are corrected here.
   still `active` throughout, and the rollback's mapping half is a no-op that says so. That is a
   finding about the cutover, not the rollback, and belongs to whichever plan next touches
   execution. **Fixed the same evening, as the owner's next pick —
-  [ADR-0048](./0048-the-mapping-hears-the-cutover.md): `execute` and `complete` now write the
+  [ADR-0048](../0048-the-mapping-hears-the-cutover.md): `execute` and `complete` now write the
   mapping through the same port, and the rollback's mapping half has something to resume.**
 - **A second attempt after a rollback (owner, 2026-09-20; workplan 0009 T8).** The state machine
   was written before this ADR, and it made a rollback the one outcome with no way forward:
@@ -153,22 +166,3 @@ and the code did not implement it once. Both are corrected here.
   silently, on an emergency path.
 - **A `POST …/cutover/rollback` route.** Rejected as above; revisit together with an execute
   route, if the API ever grows one.
-
-## Amendment log
-
-- **2026-08-23** — Accepted: the owner's definition, given that day and recorded in
-  [workplan 0101 §T5](../workplans/0101-the-paths-no-gate-had-opened.md). Record: *Context*.
-- **2026-09-19** — Built as one implementation with both callers over it, gated against a real
-  ledger. Written up as an ADR only now: a decision this heavy was living in a workplan section
-  and a code comment, and for a month the code held two answers to it. Record: *Decision*.
-- **2026-09-19** — The gap *Consequences* recorded rather than fixed (the cutover flow never
-  changed `mailbox_mapping.status`) became the owner's next pick the same evening:
-  [ADR-0048](./0048-the-mapping-hears-the-cutover.md). Not an amendment of this decision.
-- **2026-09-20** — Amended by the owner (workplan 0009 T8): a rollback can be attempted again,
-  `ROLLED_BACK → PREPARING`. Record: *Consequences*, "A second attempt after a rollback".
-- **2026-09-26** — Amended (workplan 0128 T5 slice 5b): a rollback of one data type (`--kind`)
-  sets back its own ledger and its own path alone. Record: the second operative rule above, and
-  the first operative bullet of [history/0047-a-rollback-is-a-setback.md](./history/0047-a-rollback-is-a-setback.md).
-- **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
-  decided. Their earlier wording, with the reasons and examples the budget left out, is in the
-  record: [history/0047-a-rollback-is-a-setback.md](./history/0047-a-rollback-is-a-setback.md).
