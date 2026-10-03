@@ -2,8 +2,8 @@
 
 - **Status:** **Accepted 2026-08-26** by the owner, as proposed, adding that the Drive assessment
   is intended **later** and that the client registered 2026-08-20 is the **test (OTA) client**,
-  with production getting its own client before real customers exist; amended six times (latest
-  2026-09-20); consolidated 2026-10-03 (ADR-0051)
+  with production getting its own client before real customers exist; amended seven times (latest
+  2026-10-03); consolidated 2026-10-03 (ADR-0051)
 - **Date:** 2026-08-20; accepted 2026-08-26; consolidated 2026-10-03
 - **Deciders:** owner
 - **Relates to:** [ADR-0003](./0003-two-editions-one-core.md) (two editions, one core),
@@ -253,6 +253,16 @@ holding a grant; Google already refuses a token without the scope.
 **Copying the deployment's pair into every connection's store** (the other option of 2026-09-01).
 Rotation becomes a migration.
 
+**The deployment's pair in the managed credential store**, encrypted by the key provider: this
+ADR's wording of 2026-08-26 (*"`@openmig/managed`, same store and key provider as every other
+credential"*), never built. Set aside by the owner on 2026-10-03 (*"stay on option B"*). The key
+that would encrypt it, `SECRET_ENCRYPTION_KEY`, sits in the same `.env` (ADR-0037's named gap),
+so it would protect nothing the `.env` does not already expose, and it would need a way to set
+and rotate a secret that one `.env` edit already gives. The client secret alone reads nobody's
+data: that takes a refresh token, which is encrypted in the database either way. ADR-0037's exit,
+platform injection, covers this pair along with every other secret, and option B needs no change
+to use it.
+
 **Overriding a connection's own pair.** It would silently take away the choice of owning a
 client.
 
@@ -322,6 +332,10 @@ cutover — the "sell a copy" model ADR-0014 defines this product against.
   the managed client is the deployment's configuration (option B), not a stored credential,
   Gmail's IMAP ceiling is metered (workplan 0090), and point 4 says read-only *posture* where it
   said read-only tokens, since `https://mail.google.com/` is full mail access.
+- **2026-10-03, later** — Option B confirmed as decision 2's answer: the managed client is the
+  deployment's configuration, and the 2026-08-26 wording (the managed credential store, under the
+  key provider) is set aside (owner: *"stay on option B"*). Record: *Alternatives considered*,
+  "The deployment's pair in the managed credential store".
 
 The full record, word for word as it read before this consolidation:
 [history/0041-who-owns-the-oauth-client.md](./history/0041-who-owns-the-oauth-client.md).

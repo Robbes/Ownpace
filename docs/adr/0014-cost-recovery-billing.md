@@ -39,18 +39,18 @@
   hold a slot; `ready`, `cutover` and `done` hold none; a stop releases one only in the lane,
   whose customer is first told the bill does not stop at cutover.
 - **The month bills its peak; the tier is derived, never picked.** Downgrade is automatic,
-  announced, never blocking a path. **Every step up is consented and paid for**: a path crossing
-  at activation, a data crossing by moving up or buying a one-off top-up (from Tiny, moving up).
-  Without that yes, a month bills the tier it was on.
-- **Setup is paid on the highest tier reached, in steps; a top-up is the setup fee again for
-  another data band** (a higher ceiling, never a rewound meter). Neither is built yet
-  (workplan 0109 T6).
+  announced, never blocking a path. Setup is paid on the highest tier reached, in steps. Billing
+  is not built yet (0109 T5–T6).
+- **Every step up is consented and paid for.** A path waits for the yes at activation; at the
+  data ceiling, new first copies wait for a move up or a one-off top-up (another band, for the
+  setup fee again: a higher ceiling, never a rewound meter). Without that yes, a month bills the
+  tier it was on.
 - **What a customer is told, and what we will not do, are rules** (*Decision*): every price
   published; no per-GB, compute or per-path figure; no billing past 12 months unconfirmed.
   *"No profit" STANDS*.
 - **Pending (proposed 2026-09-29, not in force):** Free replaces Tiny, no setup fees, a year
   costs six months, and the price pays for the work (0152 D9–D12). The table above holds until
-  the owner accepts.
+  accepted.
 
 ## Context
 
@@ -376,14 +376,15 @@ charged during the Alpha (0131 T3 (a)). What is built is the measurement the bil
 - **A free band as a sixth row below Tiny**, or **a €0 invoice for Tiny**: the free band is Tiny
   itself, and a €0 invoice still costs a payment instrument, a VAT treatment and a bookkeeping row.
 
-## Amendment 2026-10-03 — every step up is consented and paid for
+## Amendment 2026-10-03 — every step up is consented and paid for, and the ceiling holds until it is
 
 The record said two things. *"Downgrade is automatic; upgrade is consented"*, and leaving Tiny
 was *"consented, as every step up is"*; yet the data ceiling moved the tier *"automatically and
 announced, the same way crossing a path ceiling does"*, which a path crossing never did. The
 consolidation kept the narrower reading (automatic on data, consented from Tiny) and asked the
 owner, who answered on 2026-10-03: *"yes, but it needs consent (and payment) of moving up or
-buying a one-off top-on"*.
+buying a one-off top-on"*. Asked next what a migration does at the ceiling while the yes is
+awaited — keep copying, billed at the tier it was on, or hold — the owner answered *"Hold"*.
 
 - **Every step up is consented and paid for, on either axis.** A path crossing is consented when
   the path is activated, as before. A data crossing is the customer's choice between the two
@@ -391,6 +392,12 @@ buying a one-off top-on"*.
   lanes; top-ups buy room*), both offered from the warning at 80% — and nothing moves the tier
   without that yes.
 - **From Tiny, the only way out is moving up**: Tiny has no top-up, because its fee is nothing.
+- **At the data ceiling, new first copies hold until the yes.** Only what the meter counts
+  waits: an item's first copy. Updates to items already copied, and the moves and deletions a
+  pass notices, carry on, so what has been copied stays in sync. The hold is announced with both
+  prices, as the warning at 80% was — never a silent throttle — and the yes lifts it where it
+  stopped. This is the path axis's rule on the data axis: a path past the line waits for its yes
+  too.
 - **Without that yes, a month bills the tier it was on.** That is what *"a month it did not
   consent to leave Tiny is billed as Tiny"* said for Tiny, now said for every tier: under-billing,
   never a surprise invoice.
@@ -401,17 +408,20 @@ consented*, the sentence beginning *"On the **data** axis the tier moves automat
 Tiny parenthesis. The data ceiling stays a price, not a policy: crossing it costs a top-up or a
 step up, priced in advance and chosen by the customer.
 
-The terms already say it (§6: *"We move you to a paid tier only after you confirm it"*). They do
-not mention top-ups yet; those join §6 when workplan 0109 T6 builds them. Nothing is billed today
-(*Billing a tier is not built yet*), but one screen still follows the old rule. The Billing
-page's *What this puts you on* (`apps/web/src/pages/Billing.tsx`, from `observedTier`) names the
-tier the data has reached, with no yes. 0109 T6 builds the yes, and with it that screen shows two
-things: the tier the measurement needs, and the tier the customer agreed to.
+**The hold is not the halt that *Downgrade is automatic* rules out.** *"If the arithmetic is ever
+wrong it must under-bill, never halt a migration"* is about a wrong number; the hold is the
+published ceiling, reached, said in advance, and lifted by a yes. The number must still err low.
+The meter that decides the hold is the one consequence 5 describes, in which an item whose
+source gave no size counts as nothing, so an unmeasured item never brings a migration to the
+ceiling.
 
-**Not decided here: what a migration does at the ceiling while the yes is awaited.** It can keep
-copying new items, billed at the tier it was on, or it can hold new first copies until the
-customer chooses, while everything already copied stays in sync. This is the owner's to answer
-before 0109 T6 builds the yes.
+The terms already say that a step up waits for a yes (§6: *"We move you to a paid tier only after
+you confirm it"*). Neither they nor the pricing page say what waits at the ceiling, and the terms
+do not mention top-ups; both join when workplan 0109 T6 builds the hold and the top-up. Nothing
+is billed or held today (*Billing a tier is not built yet*), but one screen still follows the old
+rule. The Billing page's *What this puts you on* (`apps/web/src/pages/Billing.tsx`, from
+`observedTier`) names the tier the data has reached, with no yes. 0109 T6 builds the yes and the
+hold, and with them that screen says when the ceiling is reached, what waits, and the two ways on.
 
 ## Pending — Free, a year at the price of six months, no setup fees, and the price pays for the work (proposed 2026-09-29, 0152 D9–D12; not in force)
 
@@ -517,6 +527,11 @@ list alone:
      simpler to invoice. But a year paid on Medium stays Medium when its paths finish, which
      is the opposite of *finishing lowers your bill*.
 
+**Question 1, answered 2026-10-03: (b).** The owner: *"Take b"*. A top-up costs the tier's
+monthly price, once. *Tiers buy lanes; top-ups buy room* stays, with its own line on the page and
+on the invoice, and the warning at 80% and the hold at the ceiling (*Amendment 2026-10-03*,
+above) still offer it beside the step up. Question 2 is still open.
+
 **What follows once accepted:**
 
 - **The operative rules**, amended in place, and `OPERATIVE.md` regenerated
@@ -563,9 +578,12 @@ list alone:
 - **2026-10-03** — Consolidated in place (ADR-0051): the decision as it stands, written once.
   Nothing was decided by the consolidation.
 - **2026-10-03, later** — Every step up is consented and paid for: a data crossing too, by moving
-  up or buying a one-off top-up; without that yes, a month bills the tier it was on (owner).
-  What a migration does at the ceiling meanwhile is still open. Record: *Amendment 2026-10-03 —
-  every step up is consented and paid for*.
+  up or buying a one-off top-up; at the ceiling, new first copies hold until the yes; without
+  it, a month bills the tier it was on (owner, two answers). Record: *Amendment 2026-10-03 —
+  every step up is consented and paid for, and the ceiling holds until it is*.
+- **2026-10-03, later still** — The pending proposal's question 1 answered: (b), a top-up costs the
+  tier's monthly price, once (owner). The proposal is still not in force, and its question 2 is
+  open. Its text: *Pending*.
 
 The full record, word for word as it read before this consolidation:
 [history/0014-cost-recovery-billing.md](./history/0014-cost-recovery-billing.md).

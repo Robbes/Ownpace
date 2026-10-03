@@ -102,18 +102,18 @@ live in [README.md](./README.md), the register.
   hold a slot; `ready`, `cutover` and `done` hold none; a stop releases one only in the lane,
   whose customer is first told the bill does not stop at cutover.
 - **The month bills its peak; the tier is derived, never picked.** Downgrade is automatic,
-  announced, never blocking a path. **Every step up is consented and paid for**: a path crossing
-  at activation, a data crossing by moving up or buying a one-off top-up (from Tiny, moving up).
-  Without that yes, a month bills the tier it was on.
-- **Setup is paid on the highest tier reached, in steps; a top-up is the setup fee again for
-  another data band** (a higher ceiling, never a rewound meter). Neither is built yet
-  (workplan 0109 T6).
+  announced, never blocking a path. Setup is paid on the highest tier reached, in steps. Billing
+  is not built yet (0109 T5–T6).
+- **Every step up is consented and paid for.** A path waits for the yes at activation; at the
+  data ceiling, new first copies wait for a move up or a one-off top-up (another band, for the
+  setup fee again: a higher ceiling, never a rewound meter). Without that yes, a month bills the
+  tier it was on.
 - **What a customer is told, and what we will not do, are rules** (*Decision*): every price
   published; no per-GB, compute or per-path figure; no billing past 12 months unconfirmed.
   *"No profit" STANDS*.
 - **Pending (proposed 2026-09-29, not in force):** Free replaces Tiny, no setup fees, a year
   costs six months, and the price pays for the work (0152 D9–D12). The table above holds until
-  the owner accepts.
+  accepted.
 
 ## [ADR-0015: Backup scope — stack DR vs end-user data vs optional extra backup](./0015-backup-scope.md)
 

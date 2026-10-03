@@ -45,7 +45,7 @@ first.
 | [0011](./0011-targets-managed-eu-no-selfhosted-mail.md) | Targets default to managed EU/CH; self-hosted targets are user-operated | Accepted |
 | [0012](./0012-graph-over-ews-davmail.md) | Prefer Microsoft Graph; avoid EWS/DavMail | Accepted |
 | [0013](./0013-i18n-english-dev-bilingual-ui.md) | English for development; bilingual (EN+NL) end-user UI | Accepted — bilingual UI built 2026-08-02 |
-| [0014](./0014-cost-recovery-billing.md) | Managed billing | Accepted; amended 2026-08-20 (five tiers on two axes), 2026-09-10, 2026-09-24 (Tiny is free), 2026-09-26 and 2026-10-03 (every step up consented and paid for); **consolidated 2026-10-03**. **Proposed 2026-09-29**, not in force: Free, a year at six months, no setup fees |
+| [0014](./0014-cost-recovery-billing.md) | Managed billing | Accepted; amended 2026-08-20 (five tiers on two axes), 2026-09-10, 2026-09-24 (Tiny is free), 2026-09-26 and 2026-10-03 (every step up consented and paid for; the ceiling holds until then); **consolidated 2026-10-03**. **Proposed 2026-09-29**, not in force: Free, a year at six months, no setup fees, a top-up at a month's price |
 | [0015](./0015-backup-scope.md) | Backup scope — stack DR vs end-user data vs optional extra backup | Accepted — extra-backup bullet retracted 2026-08-02 |
 | [0016](./0016-ledger-schema-v1.md) | Ledger schema v1 | Accepted — access-layer clause superseded by 0023; managed tables moved by 0036 |
 | [0017](./0017-migration-tooling.md) | Migration tooling — Drizzle Kit (+ Atlas lint), not Liquibase | Accepted — authoring/applying half superseded by 0045 (2026-09-09); Atlas lint (built 2026-08-02) and the Liquibase/Flyway rejection stand; two chains since 0036 |
@@ -72,7 +72,7 @@ first.
 | [0038](./0038-operative-rules-and-the-growing-record.md) | Operative rules — keeping a growing decision record loadable | Accepted 2026-08-19 (this convention); amended by 0051 |
 | [0039](./0039-no-open-core-and-what-ops-privacy-means.md) | No open-core — closed with a trigger; and what "private ops" means | Accepted 2026-08-19 (resolves the 0009 vs 0036 conflict) |
 | [0040](./0040-the-service-is-ownpace.md) | The service is Ownpace; the project keeps its own name | Accepted 2026-08-20 — repository renamed and the mark asserted in NOTICE; still open (the owner's): an EUTM filing, the proprietor named in NOTICE, backup naming |
-| [0041](./0041-who-owns-the-oauth-client.md) | Who owns the OAuth client — managed brings its own, the appliance never does | Accepted 2026-08-26; **consolidated 2026-10-03** |
+| [0041](./0041-who-owns-the-oauth-client.md) | Who owns the OAuth client — managed brings its own, the appliance never does | Accepted 2026-08-26; **consolidated 2026-10-03**; option B (the deployment's `.env`) confirmed 2026-10-03 |
 | [0042](./0042-who-holds-the-passwords.md) | Who holds the passwords — an issuer we can replace | Accepted 2026-08-22 on the owner's condition (confirming replaceability found the key-set URL guessed); amended four times (latest 2026-09-01); **consolidated 2026-10-03** |
 | [0043](./0043-a-migration-is-silent-by-default.md) | A migration is silent by default — outward mail is a human-pressed action | Accepted 2026-08-25 |
 | [0044](./0044-the-books-are-not-ours.md) | The books are not ours — an external bookkeeping system is the record for invoices | Accepted 2026-08-28 |

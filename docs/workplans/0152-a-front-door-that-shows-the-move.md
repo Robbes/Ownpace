@@ -4,6 +4,12 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-10-03: the owner answered the amendment's top-up question: (b)** (*"Take b"*). Top-ups
+stay, at the tier's monthly price, once. The year question is still open, and the amendment still
+waits for acceptance; the answer is recorded in ADR-0014's *Pending* section. The rules in force
+changed the same day: every step up is consented and paid for, and at the data ceiling new first
+copies hold until the yes (ADR-0014, *Amendment 2026-10-03*).
+
 **2026-09-29, morning: T6 (g)'s ADR-0014 amendment is drafted, for the owner's acceptance**
 (R8 step 11's first need; the owner's answer 9, *"Yes"*, after checking it had not landed). The
 amendment is appended to ADR-0014 as proposed, and the operative rules are unchanged until the

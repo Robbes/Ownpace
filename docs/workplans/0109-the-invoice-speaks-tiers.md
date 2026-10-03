@@ -446,10 +446,11 @@ rule needs to be monotonic about.
 
 **Since 2026-10-03 every step up is consented and paid for**, on the data axis too: at the ceiling
 the customer chooses between moving up and a one-off top-up, nothing moves the tier without that
-yes, and a month without it bills the tier it was on (ADR-0014, *Amendment 2026-10-03*). So T6
-builds the yes as well, and the Billing page's *What this puts you on* learns to tell the tier
-the measurement needs from the tier the customer agreed to. One question there is the owner's
-before T6 starts: what a migration does at the ceiling while the yes is awaited.
+yes, and a month without it bills the tier it was on. Until the yes, **new first copies hold** at
+the ceiling, announced with both prices, while updates and everything already copied carry on
+(owner: *"Hold"*). ADR-0014, *Amendment 2026-10-03*. So T6 builds the yes and the hold as well,
+and the Billing page's *What this puts you on*, which names the tier the data reached without a
+yes, learns to say when the ceiling is reached, what waits, and the two ways on.
 
 ## T7 — extend the leakage guard before the table exists, not after
 
