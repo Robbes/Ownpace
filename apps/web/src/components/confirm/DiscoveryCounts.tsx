@@ -176,13 +176,8 @@ export const DiscoveryCounts: React.FC<{
                     <span>{d.targetExisting}</span>
                   )}
                 </td>
-                {/* Verbatim, never summarised — §11.2's honest passthrough. Or,
-                    on an account a person connected themselves, that it failed
-                    and why the words are not shown (ADR-0035 decision 5): the
-                    server kept them back. */}
-                <td className="py-1 text-red-700">
-                  {d.lastErrorWithheld ? t('discovery.errorWithheld') : (d.lastError ?? '')}
-                </td>
+                {/* Verbatim, never summarised — §11.2's honest passthrough. */}
+                <td className="py-1 text-red-700">{d.lastError ?? ''}</td>
               </tr>
             ))}
           </tbody>

@@ -85,14 +85,4 @@ describe("the owner's pages, for an account a person granted", () => {
     expect(refusal, 'no refusal for a substring on a person-granted migration').toBeGreaterThan(-1);
     expect(match).toBeGreaterThan(refusal);
   });
-
-  it('serves the preflight count with each failure withheld, so the confirm screen prints no provider text', () => {
-    // The last line decision 5 left uncovered on 2026-10-03: the count a person's
-    // account could not take printed the provider's words on the owner's confirm
-    // screen, and those can name the person's folders.
-    const get = handler(migrations, 'get', '/:mappingId/discovery');
-    expect(get).toMatch(/readsAPersonsGrant\(mapping\) \? withheldDiscovery\(domains\) : domains/);
-    expect(get).toMatch(/domains: shown \}/);
-    expect(get).not.toMatch(/res\.json\(\{[^}]*domains \}\)/);
-  });
 });

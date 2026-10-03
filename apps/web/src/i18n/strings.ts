@@ -170,8 +170,6 @@ const en = {
   // ADR-0035 decision 5, the owner's option C (2026-10-03): for an account the
   // person connected through their own grant, the provider's words and the
   // items' names stay off the owner's pages.
-  'discovery.errorWithheld':
-    "This could not be counted. The provider's own message is not shown: the person connected this account themselves, and it can name their files.",
   'failure.withheld':
     "The provider's own message is not shown: the person connected this account themselves, and it can name their files. Support can read it by the reference.",
   'failures.withheld':
@@ -3234,8 +3232,6 @@ const nl: Record<keyof typeof en, string> = {
   'discovery.unlisted.strong.one': 'wordt niet gemigreerd',
   'discovery.unlisted.strong.many': 'worden niet gemigreerd',
   'discovery.unlisted.post': '— er verandert niets op uw oude server.',
-  'discovery.errorWithheld':
-    'Dit kon niet worden geteld. De eigen melding van de aanbieder wordt niet getoond: de persoon heeft dit account zelf gekoppeld, en de melding kan hun bestanden noemen.',
   'failure.withheld':
     'De eigen melding van de aanbieder wordt niet getoond: de persoon heeft dit account zelf gekoppeld, en de melding kan hun bestanden noemen. Support kan haar lezen via de referentie.',
   'failures.withheld':

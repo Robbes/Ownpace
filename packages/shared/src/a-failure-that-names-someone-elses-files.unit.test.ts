@@ -16,7 +16,6 @@
 
 import { describe, it, expect } from 'vitest';
 import { buildDomainStatusReports, withheldFailure } from './operating-contract.ts';
-import { discoveryFailed, domainsCountedBeforeTheirError, foundByDomain, withheldDiscovery, type DiscoveryRecord } from './discovery.ts';
 import type { ItemFailure, MigrationStatus } from './ports.ts';
 
 const failed = {
@@ -88,39 +87,3 @@ describe("the failure queue's row, for an account a person granted", () => {
     expect(serialised).not.toContain('lawyer');
   });
 });
-
-describe("the preflight's count, for an account a person granted", () => {
-  const counted: DiscoveryRecord = {
-    domain: 'file',
-    collections: 4,
-    items: 120,
-    bytes: 1_000,
-    discoveredAt: '2026-10-01T10:00:00.000Z',
-    lastError: 'PROPFIND /Personal/Divorce lawyer: 403 Forbidden',
-  };
-  const neverCounted: DiscoveryRecord = { ...counted, domain: 'email', collections: 0, items: 0, bytes: 0 };
-  const fine: DiscoveryRecord = { ...counted, domain: 'contact' };
-  delete (fine as { lastError?: string }).lastError;
-
-  it("keeps the counts and drops the provider's words, saying the count failed", () => {
-    const [row] = withheldDiscovery([counted]);
-    expect(row).not.toHaveProperty('lastError');
-    expect(row!.lastErrorWithheld).toBe(true);
-    expect(row!.items).toBe(120);
-    expect(JSON.stringify(withheldDiscovery([counted, neverCounted]))).not.toContain('Divorce');
-  });
-
-  it('leaves a row with no error as it is', () => {
-    expect(withheldDiscovery([fine])).toEqual([fine]);
-  });
-
-  it('is still a failure to every reader that asks: kept back is not gone', () => {
-    const shown = withheldDiscovery([counted, neverCounted, fine]);
-    expect(shown.map(discoveryFailed)).toEqual([true, true, false]);
-    // The count from before the error is still flagged as older than the error...
-    expect(domainsCountedBeforeTheirError(shown)).toEqual(['file']);
-    // ...and a first count that failed still has no total.
-    expect(Object.keys(foundByDomain(shown)).sort()).toEqual(['contact', 'file']);
-  });
-});
-

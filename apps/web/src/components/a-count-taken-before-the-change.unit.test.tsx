@@ -111,11 +111,6 @@ describe('the rows that answer the count the screen asked for', () => {
     ]);
   });
 
-  it('keeps a row whose error was withheld, whatever its age: kept back is still an answer', () => {
-    const withheld = { domain: 'file', discoveredAt: BEFORE, lastErrorWithheld: true as const };
-    expect(countedSinceChange([withheld], CHANGED)).toEqual([withheld]);
-  });
-
   it('keeps every row while the migration’s time is unknown or unreadable', () => {
     for (const changedAt of [undefined, 'not a time']) {
       expect(countedSinceChange([row(BEFORE)], changedAt), String(changedAt)).toEqual([row(BEFORE)]);

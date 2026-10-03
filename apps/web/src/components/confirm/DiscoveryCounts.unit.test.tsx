@@ -53,13 +53,6 @@ describe('the counts', () => {
     expect(screen.queryByText('0 B')).not.toBeInTheDocument();
   });
 
-  it("says a count failed without the provider's words, when the server kept them back (ADR-0035 decision 5)", () => {
-    render(<DiscoveryCounts domains={[record({ domain: 'file', items: 0, collections: 0, lastErrorWithheld: true })]} expected={['file']} />);
-    expect(screen.getByText(/This could not be counted\. The provider's own message is not shown/)).toBeInTheDocument();
-    // A withheld error has landed: nothing is still being counted.
-    expect(screen.queryByText(/Still counting/)).not.toBeInTheDocument();
-  });
-
   it('shows the adoption count when the destination already holds matching items', () => {
     render(<DiscoveryCounts domains={[record({ targetExisting: 40, targetColliding: 12 })]} />);
     expect(screen.getByText('40 (12 kept as-is)')).toBeInTheDocument();
