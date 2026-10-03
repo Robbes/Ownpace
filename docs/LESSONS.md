@@ -100,6 +100,7 @@ reading a file drops off its entry by itself.
 ### `CHANGELOG.md`
 
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
+- [a-signature-checked-under-either-name](../scripts/a-signature-checked-under-either-name.unit.test.ts) — Every documented `cosign verify` accepts the images signed under either of the repository's names, and nothing else (ADR-0040).
 
 ### `CONTRIBUTING.md`
 
@@ -109,6 +110,10 @@ reading a file drops off its entry by itself.
 ### `SECURITY.md`
 
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
+
+### `TRADEMARK.md`
+
+- [notice-and-trademark](../scripts/notice-and-trademark.unit.test.ts) — NOTICE carries the one restriction this project places on an otherwise permissive licence (ADR-0040), so it gets a guard.
 
 ### `apps/api/Dockerfile`
 
@@ -3885,6 +3890,14 @@ Reads:
 
 - `deploy/compose/setup-zitadel.sh`
 
+### [a-signature-checked-under-either-name](../scripts/a-signature-checked-under-either-name.unit.test.ts)
+
+Every documented `cosign verify` accepts the images signed under either of the repository's names, and nothing else (ADR-0040).
+
+Reads:
+
+- `CHANGELOG.md`
+
 ### [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts)
 
 A SITE ANOTHER STACK'S TEARDOWN DELETED.
@@ -4519,6 +4532,10 @@ Reads:
 ### [notice-and-trademark](../scripts/notice-and-trademark.unit.test.ts)
 
 NOTICE carries the one restriction this project places on an otherwise permissive licence (ADR-0040), so it gets a guard.
+
+Reads:
+
+- `TRADEMARK.md`
 
 ### [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts)
 
