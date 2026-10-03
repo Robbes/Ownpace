@@ -188,10 +188,12 @@ words changed with them** (0131 §6, R8).
 person has the page managed gives each person, and it is the appliance's landing once every
 migration has started.
 
-- **The landing** (`landingPath` in `apps/selfhost/src/index.ts`): `GET /` redirects to
-  `/ui/people/implicit` once none of the configured migrations is `paused`. Until then, with
-  nothing configured, or when a status cannot be read, it is `/ui/confirm`, as before. A migration
-  paused again brings it back to Review & confirm, where it is started.
+- **The landing** (`apps/selfhost/src/landing.ts`): `GET /` redirects to `/ui/people/implicit`
+  once every configured migration has been started, and to `/ui/confirm` until then, as before.
+  Started means ever started (the owner, 2026-10-03: *"was ever started"*): a migration paused
+  since, or finished, leaves the landing on the person's page, where it shows as paused. One
+  added to the config directory later, and not started yet, brings Review & confirm back. With
+  nothing configured, or when a status cannot be read, the landing is Review & confirm.
 - **The rows on the appliance** come from `/status`, which every appliance page polls, since it
   has no list of migrations (ADR-0034). `/status` now names each migration's destination
   (`targetType`), and its `name` when its file gives one. One with no name is called by where it
@@ -206,15 +208,18 @@ migration has started.
   route renders it, which `AppRoutes.unit.test.tsx` now proves for both editions.
 - **Proved by:**
   - `pglite-startup.unit.test.ts` (+2): a real appliance on PGlite lands on Review & confirm while
-    its migration is paused and on the person's page once it runs, and `/status` names the
-    destination and no name its file lacks;
+    its migration was never started and on the person's page once it runs, and `/status` names
+    the destination and no name its file lacks;
+  - `landing.unit.test.ts` (5): nothing configured, one never started, all started, one paused
+    since it ran, and one added later;
   - `status.unit.test.ts` (+1), `Person.unit.test.tsx` (+3), `AppRoutes.unit.test.tsx` (+2, and
     the person's page left the managed-only list), `Layout.unit.test.tsx` (+1).
 
-  Nine mutations each fail their cases: the landing never the person's page, or blind to a paused
-  migration; the status without the destination; the appliance's rows read from the managed list;
-  no last pass; no name from where it goes; the back link on the appliance; the route managed
-  only; and no menu entry.
+  Ten mutations each fail their cases: the landing never the person's page; blind to a migration
+  never started; reading the status alone, so a pause after Start would bring Review & confirm
+  back; the status without the destination; the appliance's rows read from the managed list; no
+  last pass; no name from where it goes; the back link on the appliance; the route managed only;
+  and no menu entry.
 
 **2026-10-03: the person's page says what waits for their grant (T5 (b); start when granted, per
 person).** Beside each migration of theirs that waits for their grant, the page says what the

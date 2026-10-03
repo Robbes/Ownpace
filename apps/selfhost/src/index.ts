@@ -62,7 +62,6 @@ import {
   setupStepsFor,
   summariseSetup,
   implicitPeople,
-  IMPLICIT_PERSON_ID,
   ONE_PERSON_HERE,
 } from '@openmig/shared';
 import type {
@@ -90,6 +89,7 @@ import { claimLegacyMappingRows, loadConfigDir, uuidFromString, type LoadedMappi
 import { buildStatusReport, type MappingStatusInput } from './status.ts';
 import { startTransition, finishTransition, updateTransition } from './lifecycle.ts';
 import { serveUi, UI_MOUNT } from './static-ui.ts';
+import { landingPath, type LandingFacts } from './landing.ts';
 import { createVerifyRunner } from './verify-run.ts';
 import { applianceOpener } from '@openmig/orchestration';
 import {
@@ -807,23 +807,29 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     });
 
   /**
-   * Where `GET /` lands (workplan 0153 T8; the owner's D5): the person's page
-   * once every migration in the config directory has started, which is when
-   * none of them is `paused`, and Review & confirm until then. A paused one,
-   * never started or paused since, is started from there, so it brings the
-   * landing back. With nothing configured, or a status that cannot be read, it
-   * is Review & confirm too, which says why.
+   * Where `GET /` lands (`landing.ts`, workplan 0153 T8): the person's page
+   * once every migration in the config directory was ever started, and Review
+   * & confirm until then. A status that cannot be read lands there too, which
+   * says why.
    */
-  const landingPath = async (): Promise<string> => {
-    if (mappings.length === 0) return '/confirm';
+  const landing = async (): Promise<string> => {
     try {
+      const facts: LandingFacts[] = [];
       for (const m of mappings) {
-        if ((await mappingStatus(m)) === 'paused') return '/confirm';
+        facts.push({
+          status: await mappingStatus(m),
+          hasPaths: await withTenantContext(m.config.tenantId as string, async (client) => {
+            const { rows } = await client.query(`SELECT 1 FROM path_lifecycle WHERE mapping_id = $1 LIMIT 1`, [
+              m.mailboxMappingId,
+            ]);
+            return rows.length > 0;
+          }),
+        });
       }
+      return landingPath(facts);
     } catch {
       return '/confirm';
     }
-    return `/people/${IMPLICIT_PERSON_ID}`;
   };
 
   /**
@@ -1578,8 +1584,8 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       if (await serveUi(req, res, { rootDir: uiDir })) return;
 
       // The appliance's landing page is the React confirm screen (ADR-0026),
-      // until every migration has started; then it is the person's page
-      // (`landingPath`, 0153 T8).
+      // until every migration has been started; then it is the person's page
+      // (`landing.ts`, 0153 T8).
       //
       // This used to render `confirm-page.ts` — 135 lines of hand-rolled HTML
       // that were the appliance's only UI. Folding it into the React app is the
@@ -1587,7 +1593,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // TWICE, in two languages, and had already drifted. One redirect is what
       // is left of it.
       if (req.method === 'GET' && (req.url === '/' || req.url === '')) {
-        res.writeHead(302, { location: `${UI_MOUNT}${await landingPath()}` });
+        res.writeHead(302, { location: `${UI_MOUNT}${await landing()}` });
         res.end();
         return;
       }
