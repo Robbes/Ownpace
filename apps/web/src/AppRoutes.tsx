@@ -264,15 +264,10 @@ const AppRoutes: React.FC = () => {
           }
         />
         {/* A page per person (0153 T5). `/people`, not `/moves`: that is the
-            appliance's moved-items queue. Managed only, as Migrations is. */}
-        <Route
-          path="people/:personId"
-          element={
-            <ManagedOnly>
-              <Person />
-            </ManagedOnly>
-          }
-        />
+            appliance's moved-items queue. Both editions: the appliance shows
+            its one implicit person here, and lands here once every migration
+            has started (0153 T8). Its list and create screens stay managed. */}
+        <Route path="people/:personId" element={<Person />} />
         {/* Start a migration (0153 T4): who, from where, what, to where.
             Managed only, as the wizard it will replace is, for the same
             reason: it creates migrations through the managed /api. */}

@@ -13,15 +13,29 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AxiosError, AxiosHeaders } from 'axios';
-import { lifecycleCounts, type MappingAttention, type Person as PersonShape, type PersonMigration } from '@openmig/shared';
+import {
+  implicitPeople,
+  lifecycleCounts,
+  type DomainStatusReport,
+  type MappingAttention,
+  type Person as PersonShape,
+  type PersonMigration,
+  type StatusReport,
+} from '@openmig/shared';
 import Person from './Person.tsx';
 import { mappingApi, type MappingListItem } from '../services/mapping-service.ts';
-import { fetchAttention, fetchPeople } from '../services/operating-service.ts';
+import { fetchAttention, fetchPeople, fetchStatus } from '../services/operating-service.ts';
 import { personLinkApi } from '../services/grant-link-service.ts';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('../services/mapping-service', () => ({ mappingApi: { list: vi.fn() } }));
-vi.mock('../services/operating-service', () => ({ fetchPeople: vi.fn(), fetchAttention: vi.fn() }));
+vi.mock('../services/operating-service', () => ({ fetchPeople: vi.fn(), fetchAttention: vi.fn(), fetchStatus: vi.fn() }));
+// Which edition this is: managed, unless a case says the appliance (0153 T8).
+const edition = vi.hoisted(() => ({ selfhost: false }));
+vi.mock('../services/edition', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/edition.ts')>()),
+  isSelfHost: () => edition.selfhost,
+}));
 vi.mock('../services/grant-link-service', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/grant-link-service.ts')>()),
   personLinkApi: { list: vi.fn(), issue: vi.fn(), revoke: vi.fn(), awaiting: vi.fn() },
@@ -89,6 +103,7 @@ const step = (key: string) => document.querySelector(`[data-step="${key}"]`) as 
 
 beforeEach(() => {
   vi.resetAllMocks();
+  edition.selfhost = false;
   listMock.mockResolvedValue([MAIL, FILES]);
   peopleMock.mockResolvedValue({ people: [ANNA], unassigned: [] });
   vi.mocked(personLinkApi.list).mockResolvedValue([]);
@@ -317,4 +332,77 @@ describe('what waits for their grant, on their page (start when granted, per per
     await screen.findByRole('heading', { level: 1, name: 'Anna Jansen' });
     return row(id);
   }
+});
+
+describe('the appliance’s one person (0153 T8)', () => {
+  const row = (id: string) => document.querySelector(`[data-migration="${id}"]`) as HTMLElement;
+  const domain = (over: Partial<DomainStatusReport>): DomainStatusReport => ({
+    domain: 'email',
+    state: 'pending',
+    itemsSynced: 0,
+    itemsFailed: 0,
+    bytesTransferred: 0,
+    itemsRetrying: 0,
+    itemsNeedingDecision: 0,
+    ...over,
+  });
+  // What the appliance's /status answers: one migration its file names, one it does not.
+  const STATUS: StatusReport = {
+    status: 'ok',
+    mappings: [
+      {
+        mappingId: 'mail',
+        migrationStatus: 'active',
+        sourceType: 'gmail',
+        targetType: 'jmap',
+        name: 'Mail',
+        domains: [domain({ domain: 'email', state: 'completed', lastSyncedAt: '2026-09-28T09:00:00Z' })],
+      },
+      { mappingId: 'files', migrationStatus: 'active', sourceType: 'dropbox', targetType: 'webdav', domains: [domain({ domain: 'file' })] },
+    ],
+  };
+
+  beforeEach(() => {
+    edition.selfhost = true;
+    peopleMock.mockResolvedValue(
+      implicitPeople([
+        { id: 'mail', status: 'active' },
+        { id: 'files', status: 'active' },
+      ]),
+    );
+    vi.mocked(fetchStatus).mockResolvedValue(STATUS);
+    attentionMock.mockResolvedValue({ mappings: [quiet('mail'), quiet('files')] });
+  });
+
+  it('shows every migration it is configured with, from its status, named by its file or by where it goes', async () => {
+    renderAt('/people/implicit');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Your migrations' })).toBeInTheDocument();
+    expect(within(row('mail')).getByText('Mail')).toBeInTheDocument();
+    expect(within(row('files')).getByText('Dropbox to WebDAV')).toBeInTheDocument();
+    expect(within(row('mail')).getByRole('link', { name: 'Details →' })).toHaveAttribute('href', '/mappings/mail');
+    // The last pass is the latest any of its data types completed.
+    expect(within(row('mail')).getByText(/^Last pass/)).toBeInTheDocument();
+    expect(within(row('files')).getByText('No pass yet')).toBeInTheDocument();
+    expect(document.querySelectorAll('[data-step]')).toHaveLength(7);
+    // The appliance has no list of migrations to read (ADR-0034).
+    expect(fetchStatus).toHaveBeenCalled();
+    expect(listMock).not.toHaveBeenCalled();
+  });
+
+  it('has no Migrations page to go back to, no Add a migration, and no links', async () => {
+    renderAt('/people/implicit');
+    await screen.findByRole('heading', { level: 1, name: 'Your migrations' });
+    expect(screen.queryByRole('link', { name: '← Migrations' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Add a migration')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: /^For / })).not.toBeInTheDocument();
+    expect(personLinkApi.list).not.toHaveBeenCalled();
+    expect(personLinkApi.awaiting).not.toHaveBeenCalled();
+  });
+
+  it('says its status could not be read, rather than that it has no migrations (hard rule 9)', async () => {
+    vi.mocked(fetchStatus).mockRejectedValue(new Error('down'));
+    renderAt('/people/implicit');
+    expect(await screen.findByText('Could not load this person.')).toBeInTheDocument();
+    expect(document.querySelector('[data-migration]')).toBeNull();
+  });
 });

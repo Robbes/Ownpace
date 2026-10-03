@@ -331,6 +331,13 @@ omissions"). Nothing has been copied yet. Once you're satisfied, click
 **Start migration** — this flips the mapping `paused`→`active` and the
 in-process scheduler picks it up on its normal cron from then on.
 
+Once every configured mapping has started, the root opens **Migrations**
+instead (`/ui/people/implicit`): every migration on the box with its data
+types, their stages and last passes, and the steps before you switch, each
+summed across them. **Review** in the menu still leads to the confirm screen,
+and a mapping that is paused again brings the root back there, where it is
+started.
+
 The same information is available as JSON, if you'd rather script it:
 
 ```sh

@@ -167,6 +167,15 @@ describe('the green light', () => {
     expect(mine?.migrationStatus).toBe('paused');
   });
 
+  it('says where each migration goes, for its one person’s page, and no name its file does not give (0153 T8)', async () => {
+    const body = (await (await fetch(`http://127.0.0.1:${handle!.port}/status`)).json()) as {
+      mappings: Array<{ mappingId: string; sourceType?: string; targetType?: string; name?: string }>;
+    };
+    const mine = body.mappings.find((m) => m.mappingId === MAPPING_ID);
+    expect(mine).toMatchObject({ sourceType: 'imap-oauth2', targetType: 'jmap' });
+    expect(mine).not.toHaveProperty('name');
+  });
+
   it('answers JSON, not the 303 redirect the deleted HTML form needed', async () => {
     // The old confirm page was a form, so this was Post/Redirect/Get. The React
     // screen calls it with fetch, which FOLLOWS a redirect silently — the
@@ -201,6 +210,14 @@ describe('the green light', () => {
       mappings: Array<{ mappingId: string; migrationStatus: string }>;
     };
     expect(body.mappings.find((m) => m.mappingId === MAPPING_ID)?.migrationStatus).toBe('active');
+  });
+
+  it('lands on its one person’s page once every migration has started (0153 T8)', async () => {
+    // Before Start the landing was Review & confirm (above); with the one
+    // migration it holds running, it is the person's page.
+    const res = await fetch(`http://127.0.0.1:${handle!.port}/`, { redirect: 'manual' });
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('/ui/people/implicit');
   });
 
   it('404s an unknown mapping instead of inventing one', async () => {

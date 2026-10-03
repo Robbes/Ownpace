@@ -488,6 +488,19 @@ export interface StatusReport {
      * guess. Absent is not `'unknown'` and must not be read as one.
      */
     readonly sourceType?: string;
+    /**
+     * The mapping's DESTINATION type, named as `sourceType` names its source,
+     * for the person's page on the appliance (workplan 0153 T8), whose lines
+     * draw where each migration goes. Optional for the same reason: absent is
+     * "not said", and is not `'unknown'`.
+     */
+    readonly targetType?: string;
+    /**
+     * What the operator called this migration in its file
+     * (`MappingConfig.name`), when they did. Absent means no name was given:
+     * a page then says where it goes rather than show the mapping's id.
+     */
+    readonly name?: string;
     readonly domains: readonly DomainStatusReport[];
     /**
      * Each data type's stop, as the page offers it (workplan 0128 T4, slice
