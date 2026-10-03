@@ -606,6 +606,8 @@ export const DiscoveryRecordSchema = z.object({
   perCollection: z.array(DiscoveryCollectionSchema).optional(),
   discoveredAt: z.string(),
   lastError: z.string().optional(),
+  /** The count stopped, and its text is kept from this page (ADR-0035 decision 5). */
+  lastErrorWithheld: z.literal(true).optional().catch(undefined),
 });
 export const DiscoveryResponseSchema = z.object({
   mappingId: z.string(),

@@ -176,8 +176,12 @@ export const DiscoveryCounts: React.FC<{
                     <span>{d.targetExisting}</span>
                   )}
                 </td>
-                {/* Verbatim, never summarised — §11.2's honest passthrough. */}
-                <td className="py-1 text-red-700">{d.lastError ?? ''}</td>
+                {/* Verbatim, never summarised — §11.2's honest passthrough.
+                    Unless the text is the person's to keep (ADR-0035
+                    decision 5): then the row still says the count stopped. */}
+                <td className="py-1 text-red-700">
+                  {d.lastError ?? (d.lastErrorWithheld ? t('discovery.errorWithheld.cell') : '')}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -221,6 +225,12 @@ export const DiscoveryCounts: React.FC<{
           {t('discovery.countedEarlier', {
             domains: countedEarlier.map((d) => t(DOMAIN_KEY[d])).join(', '),
           })}
+        </p>
+      )}
+
+      {domains.some((d) => d.lastErrorWithheld) && (
+        <p className="mt-2 text-sm text-gray-700" role="note">
+          {t('discovery.errorWithheld')}
         </p>
       )}
 
