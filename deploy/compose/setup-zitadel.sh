@@ -1396,11 +1396,12 @@ fi
 # subject unless something links the two — they would find themselves locked out
 # of an organisation they are still a member of, with no way to see why.
 #
-# So every provider here carries `autoLinking: EMAIL`: Zitadel asks "is this
-# you?" when the upstream's VERIFIED email matches an existing account, and the
-# person confirms. Not a silent merge — a prompt. And Zitadel shows no prompt
-# at all when several users match, which is the ambiguous case failing closed
-# rather than guessing.
+# So every provider here carries `autoLinking: EMAIL`: when the upstream's
+# VERIFIED email matches exactly one existing account with that verified email,
+# Zitadel links the two. Zitadel's API documentation calls this a prompt; the
+# login this stack runs (login v1, v4.19.2) links directly, without a page
+# asking first. ADR-0042 decided a prompt (2026-08-25) and records that it is
+# not held. When several accounts match, nothing is linked.
 #
 # `isAutoUpdate` IS OFF, and that is not laziness. Workplan 0102 T3 makes
 # `tenant_member.email` follow the verified claim on every sign-in. Turning auto
