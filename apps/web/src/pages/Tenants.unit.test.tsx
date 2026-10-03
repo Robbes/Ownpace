@@ -30,6 +30,7 @@ const {
   memberInvite,
   memberUpdateRole,
   memberRemove,
+  memberResend,
   auth,
 } =
   vi.hoisted(() => ({
@@ -41,6 +42,7 @@ const {
     memberInvite: vi.fn(),
     memberUpdateRole: vi.fn(),
     memberRemove: vi.fn(),
+    memberResend: vi.fn(),
     auth: {
       user: { id: 'user-owner', email: 'owner@acme.nl', name: 'Owner', role: 'owner' },
       tenantId: 'acme',
@@ -59,6 +61,7 @@ vi.mock('../services/mapping-service', () => ({
     invite: memberInvite,
     updateRole: memberUpdateRole,
     remove: memberRemove,
+    resend: memberResend,
   },
 }));
 
@@ -150,6 +153,31 @@ describe('inviting', () => {
     await waitFor(() => expect(memberList).toHaveBeenCalledTimes(2));
   });
 
+  // 0156 T3: the invitation is mailed, and the form says what became of the
+  // mail, because every outcome but the first leaves telling them to you.
+  it.each([
+    ['sent', 'Invitation emailed to nieuw@acme.nl.'],
+    ['off', 'Invitation saved for nieuw@acme.nl, but this installation sends no email: tell them yourself.'],
+    ['failed', 'Invitation saved for nieuw@acme.nl, but its email could not be sent. Send it again, or tell them yourself.'],
+    ['limited', "Invitation saved for nieuw@acme.nl, but today's invitation emails are used up. Send it again tomorrow, or tell them yourself."],
+  ])('says what became of the mail when it was %s', async (notified, said) => {
+    memberInvite.mockResolvedValue({ ...MEMBERS[1], id: 'm-3', email: 'nieuw@acme.nl', notified });
+    renderScreen();
+    await screen.findByText('collega@acme.nl');
+
+    await userEvent.type(screen.getByLabelText('Email address'), 'nieuw@acme.nl');
+    await userEvent.click(screen.getByRole('button', { name: /Invite/ }));
+
+    expect(await screen.findByText(said)).toBeInTheDocument();
+  });
+
+  it('no longer says that no email goes out', async () => {
+    renderScreen();
+    await screen.findByText('collega@acme.nl');
+    expect(screen.queryByText(/No email yet/)).not.toBeInTheDocument();
+    expect(screen.getByText(/We email them where to sign in/)).toBeInTheDocument();
+  });
+
   it("renders the server's refusal verbatim when the invite fails", async () => {
     memberInvite.mockRejectedValue({
       response: { data: { error: 'Validation error', message: 'Failed to invite member' } },
@@ -161,6 +189,51 @@ describe('inviting', () => {
     await userEvent.click(screen.getByRole('button', { name: /Invite/ }));
 
     expect(await screen.findByText('Failed to invite member')).toBeInTheDocument();
+  });
+});
+
+describe('an open invitation, mailed again (0156 T3)', () => {
+  it('offers Send again on an invitation this page made, and says what became of it', async () => {
+    memberResend.mockResolvedValue('sent');
+    renderScreen();
+    await screen.findByText('collega@acme.nl');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send again' }));
+
+    await waitFor(() => expect(memberResend).toHaveBeenCalledWith('acme', 'm-2'));
+    expect(await screen.findByText('Invitation emailed to collega@acme.nl.')).toBeInTheDocument();
+  });
+
+  it("renders the server's refusal verbatim, such as sending again too soon", async () => {
+    memberResend.mockRejectedValue({
+      response: {
+        data: {
+          error: 'too_soon',
+          message: 'This invitation was emailed less than 10 minutes ago. Send it again in 7 minute(s).',
+        },
+      },
+    });
+    renderScreen();
+    await screen.findByText('collega@acme.nl');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send again' }));
+
+    expect(await screen.findByText(/Send it again in 7 minute/)).toBeInTheDocument();
+  });
+
+  it('offers no Send again on a granted access request, an active member or a declined one', async () => {
+    memberList.mockResolvedValue([
+      MEMBERS[0],
+      { ...MEMBERS[1], origin: 'requested' },
+      { ...MEMBERS[1], id: 'm-4', email: 'nee@acme.nl', status: 'declined' },
+    ]);
+    renderScreen();
+    await screen.findByText('nee@acme.nl');
+
+    expect(screen.queryByRole('button', { name: 'Send again' })).not.toBeInTheDocument();
+    // A declined invitation is a row like the others (it made the whole
+    // list unreadable while the schema did not know the status).
+    expect(screen.getByText('Declined')).toBeInTheDocument();
   });
 });
 

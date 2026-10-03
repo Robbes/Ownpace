@@ -871,6 +871,42 @@ export type NotificationEvent =
        * a regulator rather than to us.
        */
       readonly kind: 'access_declined';
+    }
+  | {
+      /**
+       * Somebody was invited into an organisation (workplan 0156 T3).
+       *
+       * Until 2026-10-03 an invitation wrote a `tenant_member` row and mailed
+       * nobody: the form said "No email yet; tell them yourself". The owner
+       * tested it, asked why nobody heard, and chose that the invited person
+       * is mailed. Like `access_granted` it is read by somebody who is not a
+       * member yet, so it says what to DO, and it carries an ADDRESS, never a
+       * token: the issuer owns identity (ADR-0042), the invitation binds to
+       * the address the issuer says it verified (migration 0006), and a mail
+       * that authorises nothing is harmless to forward or intercept.
+       *
+       * Unlike `access_granted`, the reader never asked us for anything. So
+       * it says who invited them, and it closes with what we keep about them
+       * and where the privacy policy is (privacy §4.6; GDPR Art. 14(3)(b) asks
+       * for that at the first communication), as the share mail does.
+       */
+      readonly kind: 'member_invited';
+      /** What the organisation is called, so they recognise it. */
+      readonly organisation: string;
+      /**
+       * Who invited them, by the address that person signs in with. Absent
+       * when the inviter's token carried no address; the mail then says only
+       * that they are invited, in its own language, rather than a stand-in.
+       */
+      readonly invitedBy?: string;
+      /** Where to sign in. An address, never a token (see `access_granted`). */
+      readonly appUrl: string;
+      /** The address the invitation is bound to, which they must sign in with. */
+      readonly email: string;
+      /** The privacy policy's address, in the mail's language (`privacyPolicyUrl`). */
+      readonly privacyPolicy: string;
+      /** The deployment runs the alpha (workplan 0131 T1), as on `access_granted`. */
+      readonly alpha?: boolean;
     };
 
 /**
@@ -939,6 +975,7 @@ const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string
     access_requested: 'Ownpace — somebody asked for access',
     access_granted: 'Ownpace — your access is ready',
     access_declined: 'Ownpace — about your request',
+    member_invited: 'Ownpace — you are invited to join an organisation',
   },
   nl: {
     decision_raised: 'Ownpace — een wijziging vraagt uw beslissing',
@@ -949,6 +986,7 @@ const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string
     access_requested: 'Ownpace — iemand vraagt toegang',
     access_granted: 'Ownpace — uw toegang staat klaar',
     access_declined: 'Ownpace — over uw aanvraag',
+    member_invited: 'Ownpace — u bent uitgenodigd voor een organisatie',
   },
 };
 
@@ -977,6 +1015,12 @@ interface EventLines {
   readonly grantedAlpha: string;
   readonly declinedIntro: string;
   readonly declinedReply: string;
+  readonly invitedIntro: string;
+  readonly invitedFrom: string;
+  readonly invitedUseThisAddress: string;
+  readonly invitedVerify: string;
+  readonly invitedIgnore: string;
+  readonly invitedPrivacy: string;
 }
 
 const EVENT_BODY: Record<NotificationLocale, EventLines> = {
@@ -1036,6 +1080,23 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     declinedReply:
       'If you think we have misunderstood what you need, reply to this email and it will reach ' +
       'a person.',
+    // The invitation (0156 T3). Who asked comes first: the reader never
+    // asked us for anything, and a mail from a stranger that names nobody
+    // they know reads as phishing.
+    invitedIntro: 'You are invited to join this organisation on Ownpace.',
+    invitedFrom: 'The invitation is from:',
+    invitedUseThisAddress:
+      'Use this email address — it is the one your invitation is tied to:',
+    invitedVerify:
+      'If you do not have an account yet, create one there with that address and confirm the ' +
+      'confirmation email. You are then asked whether to join the organisation or decline.',
+    invitedIgnore:
+      'If you did not expect this, you can ignore it: nothing happens unless you sign in and join.',
+    // Privacy §4.6's bullet for the people a customer invites, as the share
+    // mail closes with its own (`share-announcement.ts`).
+    invitedPrivacy:
+      'Ownpace, the migration service that sent this message, keeps your address, the role you ' +
+      'were invited with and whether you joined; its privacy policy says why, and for how long:',
     act: 'Open the app to act on this.',
   },
   nl: {
@@ -1078,6 +1139,21 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     declinedReply:
       'Denkt u dat wij verkeerd hebben begrepen wat u nodig heeft, beantwoord deze e-mail dan; ' +
       'hij komt bij een mens terecht.',
+    invitedIntro: 'U bent uitgenodigd voor deze organisatie bij Ownpace.',
+    invitedFrom: 'De uitnodiging komt van:',
+    invitedUseThisAddress:
+      'Gebruik dit e-mailadres — hieraan is uw uitnodiging gekoppeld:',
+    invitedVerify:
+      'Heeft u nog geen account, maak er daar dan een aan met dat adres en bevestig de ' +
+      'bevestigingsmail. Daarna wordt u gevraagd of u de organisatie wilt toetreden of de ' +
+      'uitnodiging afwijst.',
+    invitedIgnore:
+      'Verwachtte u dit niet, dan kunt u deze e-mail negeren: er gebeurt niets tenzij u zich ' +
+      'aanmeldt en toetreedt.',
+    invitedPrivacy:
+      'Ownpace, de migratiedienst die dit bericht verstuurde, bewaart uw adres, de rol waarvoor ' +
+      'u bent uitgenodigd en of u bent toegetreden; waarom en hoelang staat in de ' +
+      'privacyverklaring:',
     act: 'Open de app om actie te ondernemen.',
   },
 };
@@ -1134,6 +1210,22 @@ export function renderEvent(
     case 'access_declined':
       lines.push(b.declinedIntro, '', b.declinedReply);
       break;
+    case 'member_invited':
+      // The steps of `access_granted`, with who asked first and what we keep
+      // last (0156 T3).
+      lines.push(`${b.grantedOrganisation}: ${event.organisation}`, '');
+      lines.push(
+        event.invitedBy ? `${b.invitedIntro} ${b.invitedFrom} ${event.invitedBy}` : b.invitedIntro,
+        '',
+      );
+      lines.push(`${b.grantedSignIn} ${event.appUrl}`, '');
+      lines.push(`${b.invitedUseThisAddress} ${event.email}`, '');
+      lines.push(b.invitedVerify, '');
+      lines.push(b.grantedNoLink, '');
+      lines.push(b.invitedIgnore);
+      if (event.alpha) lines.push('', b.grantedAlpha);
+      lines.push('', `${b.invitedPrivacy} ${event.privacyPolicy}`);
+      break;
     case 'rollback_finished':
       lines.push(`${b.migration}: ${mappingLabel(event.mapping)}`, '');
       lines.push(b.rolledBack, '');
@@ -1144,11 +1236,14 @@ export function renderEvent(
       break;
   }
 
-  // Every event closes with "open the app to take action" — except the two read
-  // by somebody who has no account. Telling them to open an app they cannot open
-  // is the sentence that makes an otherwise clear email confusing, and it is
+  // Every event closes with "open the app to take action" — except the three
+  // read by somebody who has no account. Telling them to open an app they cannot
+  // open is the sentence that makes an otherwise clear email confusing, and it is
   // worse than confusing on a refusal.
-  const readerHasAnApp = event.kind !== 'access_granted' && event.kind !== 'access_declined';
+  const readerHasAnApp =
+    event.kind !== 'access_granted' &&
+    event.kind !== 'access_declined' &&
+    event.kind !== 'member_invited';
   if (readerHasAnApp) lines.push('', b.act);
   return { subject, body: lines.join('\n') };
 }
