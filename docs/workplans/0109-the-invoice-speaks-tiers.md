@@ -452,6 +452,14 @@ the ceiling, announced with both prices, while updates and everything already co
 and the Billing page's *What this puts you on*, which names the tier the data reached without a
 yes, learns to say when the ceiling is reached, what waits, and the two ways on.
 
+**And the preflight says it first** (owner, 2026-10-03: *"ok, you have a go"*). On the Start
+step, managed only, the data already moved plus what the preflight measured for the migrations
+being started is compared with the ceiling; past it, the step names both prices, and the
+customer chooses then or starts anyway and chooses at the hold. It never blocks *Start*. A
+crossing on the path axis asks before it starts. The public calculator shows the top-up beside
+the bigger tier when data decides it, priced by whichever list is in force when it is built
+(0152 T6 (d) brings the list without setup fees).
+
 ## T7 — extend the leakage guard before the table exists, not after
 
 `apps/selfhost/src/no-managed-leakage.unit.test.ts` forbids the appliance's import graph from

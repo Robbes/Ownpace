@@ -102,18 +102,17 @@ live in [README.md](./README.md), the register.
   hold a slot; `ready`, `cutover` and `done` hold none; a stop releases one only in the lane,
   whose customer is first told the bill does not stop at cutover.
 - **The month bills its peak; the tier is derived, never picked.** Downgrade is automatic,
-  announced, never blocking a path. Setup is paid on the highest tier reached, in steps. Billing
-  is not built yet (0109 T5–T6).
+  announced, never blocking a path. Setup is paid on the highest tier reached, in steps. Not
+  built yet (0109 T5–T6).
 - **Every step up is consented and paid for.** A path waits for the yes at activation; at the
   data ceiling, new first copies wait for a move up or a one-off top-up (another band, for the
   setup fee again: a higher ceiling, never a rewound meter). Without that yes, a month bills the
   tier it was on.
 - **What a customer is told, and what we will not do, are rules** (*Decision*): every price
-  published; no per-GB, compute or per-path figure; no billing past 12 months unconfirmed.
-  *"No profit" STANDS*.
-- **Pending (proposed 2026-09-29, not in force):** Free replaces Tiny, no setup fees, a year
-  costs six months, and the price pays for the work (0152 D9–D12). The table above holds until
-  accepted.
+  published; *Start* warns when the preflight will not fit; no per-GB, compute or per-path
+  figure; no billing past 12 months unconfirmed. *"No profit" STANDS*.
+- **Pending (proposed 2026-09-29, not in force):** Free replaces Tiny, no setup fees, a year at
+  six months' price, and the price pays for the work (0152 D9–D12).
 
 ## [ADR-0015: Backup scope — stack DR vs end-user data vs optional extra backup](./0015-backup-scope.md)
 
@@ -155,9 +154,11 @@ live in [README.md](./README.md), the register.
   hand, and nothing runs it automatically: the appliance warns at start-up when an active
   migration's ledger is empty (`apps/selfhost/src/lost-ledger-warning.unit.test.ts`), and the
   managed edition does not.
-- **Content-hash fallback** for Message-ID-less items (`packages/shared/src/generated-message-id.ts`);
-  **cursors are non-authoritative**; **backups are the fast path, not the safety net** (decisions
-  4–6 below).
+- **Mail without a Message-ID is keyed by a SHA-256 of its raw bytes**, written into the copy as a
+  generated `Message-ID` (`generated-message-id.ts`); Graph leaves such mail unmigrated. Not yet
+  checked on Microsoft 365, whose bytes may change: if they do, the key becomes a normalised hash.
+- **Cursors are non-authoritative**; **backups are the fast path, not the safety net** (decisions
+  5–6 below).
 
 ## [ADR-0021: Optional knowledge-enrichment add-in (OKF) — a parallel, opt-in `KnowledgeSink`](./0021-knowledge-enrichment-okf-addin.md)
 
@@ -390,15 +391,15 @@ live in [README.md](./README.md), the register.
   (`CONTRIBUTING.md`).
 - **An image already published never moves.** Tags up to `v0.1.0-rc.1` live at
   `ghcr.io/robbes/open-migrate-selfhost` forever; `v0.1.0` on lives at `ownpace-selfhost`.
-  `scripts/upgrade-drill.sh` derives its registry from the tag; the cosign identity regexp
-  matches **both** repo paths.
-- **The mark is asserted in `NOTICE`** as an **unregistered** claim (no `®`, no "registered trade mark of"), stating what needs
-  **no** permission (nominative use, forking, private instances) as explicitly as what does:
-  `scripts/notice-and-trademark.unit.test.ts`.
-- **Still OPEN, the owner's, not to be inferred:** whether to file an EUTM (*The trade-mark
-  check*); the legal proprietor named in `NOTICE`, currently "the Ownpace project maintainers"
-  rather than a company; and whether the post-cutover backup gets its own brand or is a plan name
-  under Ownpace.
+  `scripts/upgrade-drill.sh` derives its registry from the tag; every documented cosign identity
+  regexp accepts **both** repository names and no other
+  (`a-signature-checked-under-either-name.unit.test.ts`).
+- **The mark is Archico B.V.'s; the copyright stays The Ownpace authors'** (owner, 2026-10-03).
+  `NOTICE` names the owner `TRADEMARK.md` names, claims no registration (no `®`), and states what
+  needs **no** permission as explicitly as what does: `scripts/notice-and-trademark.unit.test.ts`.
+- **Still OPEN, the owner's, not to be inferred:** whether to file an EUTM (`TRADEMARK.md` says
+  an EU application follows), and whether the post-cutover backup gets its own brand (ADR-0014
+  sells no separate backup).
 
 ## [ADR-0041: Who owns the OAuth client — the managed edition brings its own, the appliance never does](./0041-who-owns-the-oauth-client.md)
 
@@ -445,9 +446,9 @@ live in [README.md](./README.md), the register.
   tenancy model, no issuer-side roles. Guards:
   `apps/api/src/middleware/no-issuer-lock-in.unit.test.ts`, `issuer-is-replaceable.unit.test.ts`.
 - **`tenant_member.user_id` IS the token's `sub`; email is a label.** A new `sub` orphans the
-  membership, so linking is decided before a second sign-in method is offered, and none must
-  become an account's only one (not yet held: *Decision* 3). **Federation belongs in the issuer**:
-  `scripts/a-second-door-with-the-linking-decided.unit.test.ts`.
+  membership, so linking is decided before a second method is offered. A provider may be an
+  account's only method (owner, 2026-10-03). What is not held: *Decision* 3. **Federation belongs
+  in the issuer**: `scripts/a-second-door-with-the-linking-decided.unit.test.ts`.
 - **Every endpoint is DISCOVERED, never composed**: `jwks_uri` by the API; `authorization_endpoint`,
   `token_endpoint` and `end_session_endpoint` by the browser, a **PUBLIC client, no secret**,
   whose PKCE verifier (S256) never leaves the tab that minted it. A document naming
@@ -514,6 +515,9 @@ live in [README.md](./README.md), the register.
 - **The mirror is managed-chain data** (ADR-0036): the appliance carries no invoice tables'
   behaviour and no Moneybird credential (`apps/selfhost/src/no-managed-leakage.unit.test.ts`).
   Credentials ride `.env` (hard rule 3), never git, never the appliance image.
+- **Pending (decided 2026-08-29, confirmed 2026-10-03, not in force):** on erasure the mirror is
+  purged and only the Moneybird invoice numbers are kept (workplan 0111 T10). Until it is built,
+  erasure detaches the invoices and keeps them (`offboarding.ts`; *Pending* below).
 
 ## [ADR-0045: Migrations are hand-written SQL, applied by our own runner](./0045-migrations-are-hand-written-sql.md)
 

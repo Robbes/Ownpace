@@ -1,6 +1,7 @@
 # Solution Architecture — Ownpace
 
-**Version:** 1.12 (2026-09-29) — canonical copy, lives in `docs/architecture/`.
+**Version:** 1.13 (2026-10-03) — canonical copy, lives in `docs/architecture/`.
+**v1.13 change:** §10's natural key for mail without a `Message-ID` says what is built (ADR-0020's amendment of 2026-10-03): a SHA-256 of the raw message, written into the copy as a generated `Message-ID`, where it said a hash of normalised headers and body; the Graph source leaves such mail unmigrated.
 **v1.12 change:** §16 and §17.1 say what review of workplan 0138 T3 step 2 added: the system role belongs to no role and no role belongs to it (either way `SET ROLE` would join rights to its `BYPASSRLS`), a grant to PUBLIC counts among its grants, the bring-up clears any setting left on it, and the upload of the task environment asks about it as the bring-up does.
 **v1.11 change:** §16 and §17.1 say what workplan 0138 T3 step 2 changed: the three scheduled jobs that span organisations whole, the split jobs' list and every task's audit key connect as a system role that bypasses row security and is not a superuser, with the grants their statements need and no others, and no Trigger.dev task holds the database owner's connection string any more.
 **v1.10 change:** §16 and §17.1 say where row security holds after workplan 0138 T2: the digest, the drift detector and group discovery read their list of organisations on the database owner's connection and each organisation's own rows as the application role, so row security binds those reads too, and only the three scheduled jobs that span organisations whole (the sync tick, retention, the purge) still connect as the owner.
@@ -198,7 +199,7 @@ Proton's E2E/zero-access encryption is exactly what blocks openness — no CalDA
 ## 10. Data domains & idempotency
 | Domain | Natural key | Change detection | Engine |
 |---|---|---|---|
-| Email | `Message-ID` (fallback: hash of normalised headers+body) | hash + size | mail connector (IMAP/JMAP) |
+| Email | `Message-ID` (fallback: SHA-256 of the raw message, written into the copy as a generated `Message-ID`; Graph leaves such mail unmigrated — ADR-0020) | hash + size | mail connector (IMAP/JMAP) |
 | Calendar/Tasks | iCal `UID` (+ `RECURRENCE-ID`) | ETag/hash | CalDAV connector |
 | Contacts | vCard `UID` | ETag/hash | CardDAV connector |
 | Files | normalised path | size + mtime + checksum | file connector (WebDAV/Graph, checksum) |

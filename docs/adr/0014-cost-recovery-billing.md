@@ -39,18 +39,17 @@
   hold a slot; `ready`, `cutover` and `done` hold none; a stop releases one only in the lane,
   whose customer is first told the bill does not stop at cutover.
 - **The month bills its peak; the tier is derived, never picked.** Downgrade is automatic,
-  announced, never blocking a path. Setup is paid on the highest tier reached, in steps. Billing
-  is not built yet (0109 T5–T6).
+  announced, never blocking a path. Setup is paid on the highest tier reached, in steps. Not
+  built yet (0109 T5–T6).
 - **Every step up is consented and paid for.** A path waits for the yes at activation; at the
   data ceiling, new first copies wait for a move up or a one-off top-up (another band, for the
   setup fee again: a higher ceiling, never a rewound meter). Without that yes, a month bills the
   tier it was on.
 - **What a customer is told, and what we will not do, are rules** (*Decision*): every price
-  published; no per-GB, compute or per-path figure; no billing past 12 months unconfirmed.
-  *"No profit" STANDS*.
-- **Pending (proposed 2026-09-29, not in force):** Free replaces Tiny, no setup fees, a year
-  costs six months, and the price pays for the work (0152 D9–D12). The table above holds until
-  accepted.
+  published; *Start* warns when the preflight will not fit; no per-GB, compute or per-path
+  figure; no billing past 12 months unconfirmed. *"No profit" STANDS*.
+- **Pending (proposed 2026-09-29, not in force):** Free replaces Tiny, no setup fees, a year at
+  six months' price, and the price pays for the work (0152 D9–D12).
 
 ## Context
 
@@ -401,6 +400,17 @@ awaited — keep copying, billed at the tier it was on, or hold — the owner an
 - **Without that yes, a month bills the tier it was on.** That is what *"a month it did not
   consent to leave Tiny is billed as Tiny"* said for Tiny, now said for every tier: under-billing,
   never a surprise invoice.
+- **The preflight says it first** (owner, 2026-10-03: *"ok, you have a go"*, to the
+  recommendation that follows). At *Start*, the data already moved and what the preflight
+  measured for the migrations being started are added up; if the total passes the ceiling, the
+  step says so with both prices, move up or top up, and the customer may choose then or start
+  anyway and choose at the ceiling, where new first copies hold. It does not block *Start*: the
+  hold is the safety net, and the forecast is an estimate (data types without a size count as
+  nothing, and items the destination already holds count although the meter will not). A
+  crossing on the **path** axis is different: *Start* asks before it starts, as *The tier is
+  derived* says. The public calculator, when data decides the tier, shows the top-up beside the
+  bigger tier with the break-even, so it no longer quotes the dearer way alone. Managed only:
+  the self-hosted edition has no tiers.
 
 This replaces two passages of the Decision above: in *Downgrade is automatic; upgrade is
 consented*, the sentence beginning *"On the **data** axis the tier moves automatically"*; and in
@@ -422,6 +432,8 @@ is billed or held today (*Billing a tier is not built yet*), but one screen stil
 rule. The Billing page's *What this puts you on* (`apps/web/src/pages/Billing.tsx`, from
 `observedTier`) names the tier the data has reached, with no yes. 0109 T6 builds the yes and the
 hold, and with them that screen says when the ceiling is reached, what waits, and the two ways on.
+None of the preflight's warning is built either: neither the Start step nor the start door reads
+the tier, the meter or the preflight today, and the calculator quotes only the bigger tier.
 
 ## Pending — Free, a year at the price of six months, no setup fees, and the price pays for the work (proposed 2026-09-29, 0152 D9–D12; not in force)
 
@@ -579,7 +591,8 @@ above) still offer it beside the step up. Question 2 is still open.
   Nothing was decided by the consolidation.
 - **2026-10-03, later** — Every step up is consented and paid for: a data crossing too, by moving
   up or buying a one-off top-up; at the ceiling, new first copies hold until the yes; without
-  it, a month bills the tier it was on (owner, two answers). Record: *Amendment 2026-10-03 —
+  it, a month bills the tier it was on; and *Start* warns when the preflight will not fit (owner,
+  three answers). Record: *Amendment 2026-10-03 —
   every step up is consented and paid for, and the ceiling holds until it is*.
 - **2026-10-03, later still** — The pending proposal's question 1 answered: (b), a top-up costs the
   tier's monthly price, once (owner). The proposal is still not in force, and its question 2 is

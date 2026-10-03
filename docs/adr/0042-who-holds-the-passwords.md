@@ -1,7 +1,8 @@
 # ADR-0042: Who holds the passwords — an issuer we can replace
 
-- **Status:** Accepted 2026-08-22, on the owner's condition; amended four times (latest
-  2026-09-01); consolidated 2026-10-03 (ADR-0051)
+- **Status:** Accepted 2026-08-22, on the owner's condition; amended five times (latest
+  2026-10-03: an upstream provider may be an account's only way in); consolidated 2026-10-03
+  (ADR-0051)
 - **Date:** 2026-08-22; consolidated 2026-10-03
 - **Deciders:** Owner, 2026-08-22 — accepted with a condition: *confirm* the issuer is
   replaceable rather than assert it (*Decision* 4)
@@ -29,9 +30,9 @@
   tenancy model, no issuer-side roles. Guards:
   `apps/api/src/middleware/no-issuer-lock-in.unit.test.ts`, `issuer-is-replaceable.unit.test.ts`.
 - **`tenant_member.user_id` IS the token's `sub`; email is a label.** A new `sub` orphans the
-  membership, so linking is decided before a second sign-in method is offered, and none must
-  become an account's only one (not yet held: *Decision* 3). **Federation belongs in the issuer**:
-  `scripts/a-second-door-with-the-linking-decided.unit.test.ts`.
+  membership, so linking is decided before a second method is offered. A provider may be an
+  account's only method (owner, 2026-10-03). What is not held: *Decision* 3. **Federation belongs
+  in the issuer**: `scripts/a-second-door-with-the-linking-decided.unit.test.ts`.
 - **Every endpoint is DISCOVERED, never composed**: `jwks_uri` by the API; `authorization_endpoint`,
   `token_endpoint` and `end_session_endpoint` by the browser, a **PUBLIC client, no secret**,
   whose PKCE verifier (S256) never leaves the tab that minted it. A document naming
@@ -102,12 +103,21 @@ organisation their new subject cannot reach, and the API answers 403 on every ro
   reconciles `tenant_member.email` to the verified claim on rows already carrying the subject
   (`a-label-that-follows-the-claim.unit.test.ts`).
 - **Account linking is decided before a second sign-in method is offered**: a prompt on a verified
-  email match, never a silent merge (owner, 2026-08-25; workplan 0102 T2).
-- **A second method must never become the only method on an account**: removing the last
-  remaining one strands the subject, and making the platform somebody is leaving the key to their
-  account rebuilds the dependency in a new place. **Not held yet:** `setup-zitadel.sh` lets an
-  upstream provider create an account (`isCreationAllowed`, `isAutoCreation`), whose only method is
-  then that provider — the owner's to resolve.
+  email match, never a silent merge (owner, 2026-08-25; workplan 0102 T2). **Not held, and the
+  owner's to resolve:** read in the pinned Zitadel's own code (v4.19.2, login v1, which this stack
+  runs), `autoLinking: EMAIL` links a single verified-email match directly, with no page asking
+  first, though `setup-zitadel.sh`'s comment and workplan 0102 describe a prompt. And a Microsoft
+  address arrives unverified on purpose (`emailVerified: false`, so that it cannot answer somebody
+  else's invitation), so it is never matched, and with creation on, a person who already has a
+  password and signs in with Microsoft can be given a second account. Not yet seen on a running
+  instance.
+- **An upstream provider may be an account's only sign-in method** (owner, 2026-10-03: *"we still
+  allow login with Google. People on Google might still use their account in for example Android,
+  while still leaving drive."*). Leaving Google Drive is not leaving the Google account, so
+  signing in with Google is not a dependency on what the person is leaving. `setup-zitadel.sh`
+  keeps creating such accounts (`isCreationAllowed`, `isAutoCreation`). An account that loses its
+  provider is recovered by an operator in the issuer's console, who sets a password or removes the
+  link, keeping the `sub` (`docs/managed-bring-up.md` §8c-bis).
 - **Federation belongs in the issuer, never in the app**: upstream providers are configured in the
   issuer (`deploy/compose/setup-zitadel.sh`), so `iss` and `sub` stay ours and the integration
   stays plain OIDC.
@@ -257,6 +267,13 @@ organisation. **Asking a granted requester again**: the same question twice.
 **A sign-out that clears only the tab**: the issuer's session survives it, and on a shared or
 borrowed machine that is an account handover (*Decision* 7).
 
+**Never letting a second method become an account's only one** (the rule of 2026-08-25), held by
+switching off account creation through a provider, so that a new person registers a password
+first and links Google afterwards. Reversed by the owner on 2026-10-03: *"we still allow login
+with Google. People on Google might still use their account in for example Android, while still
+leaving drive."* **Allowing it, but forcing a password after the first sign-in** was not
+available: the pinned Zitadel skips the password and passkey steps after an upstream sign-in.
+
 ## Amendment log
 
 - **2026-08-22** — Accepted the day it was proposed, on the condition that the issuer's
@@ -285,6 +302,11 @@ borrowed machine that is an account handover (*Decision* 7).
   (workplan 0093 T5b) is described as built, and a "Login with Google" button is said to be
   forbidden by the third operative rule, not caught by `no-issuer-lock-in.unit.test.ts`, which has
   no Google pattern (the migration code names Google throughout).
+- **2026-10-03, later** — An upstream provider may be an account's only sign-in method, recovered
+  by an operator in the issuer's console (owner: *"we still allow login with Google…"*), reversing
+  the rule of 2026-08-25. The same reading found the linking prompt of 2026-08-25 not held by the
+  pinned Zitadel, and Microsoft's unverified addresses able to make a second account; both the
+  owner's to resolve. Record: *Decision* 3, and *Alternatives considered*.
 
 The full record, word for word as it read before this consolidation:
 [history/0042-who-holds-the-passwords.md](./history/0042-who-holds-the-passwords.md).

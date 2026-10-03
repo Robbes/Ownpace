@@ -2,7 +2,8 @@
 
 - **Status:** Accepted 2026-08-20 — owner decision in conversation ("Ok, i picked ownpace.eu"),
   closing the naming question opened by [ADR-0039](./0039-no-open-core-and-what-ops-privacy-means.md)'s
-  finding that the trademark is the mission-compatible moat; updated three times the same day.
+  finding that the trademark is the mission-compatible moat; updated three times the same day;
+  amended once since (2026-10-03: who owns the mark, and the cosign regexp).
 - **Date:** 2026-08-20
 - **Deciders:** owner
 - **Relates to:** [ADR-0001](./0001-license-apache-2.0.md) (Apache-2.0 §6 grants no trade-mark
@@ -55,15 +56,15 @@
   (`CONTRIBUTING.md`).
 - **An image already published never moves.** Tags up to `v0.1.0-rc.1` live at
   `ghcr.io/robbes/open-migrate-selfhost` forever; `v0.1.0` on lives at `ownpace-selfhost`.
-  `scripts/upgrade-drill.sh` derives its registry from the tag; the cosign identity regexp
-  matches **both** repo paths.
-- **The mark is asserted in `NOTICE`** as an **unregistered** claim (no `®`, no "registered trade mark of"), stating what needs
-  **no** permission (nominative use, forking, private instances) as explicitly as what does:
-  `scripts/notice-and-trademark.unit.test.ts`.
-- **Still OPEN, the owner's, not to be inferred:** whether to file an EUTM (*The trade-mark
-  check*); the legal proprietor named in `NOTICE`, currently "the Ownpace project maintainers"
-  rather than a company; and whether the post-cutover backup gets its own brand or is a plan name
-  under Ownpace.
+  `scripts/upgrade-drill.sh` derives its registry from the tag; every documented cosign identity
+  regexp accepts **both** repository names and no other
+  (`a-signature-checked-under-either-name.unit.test.ts`).
+- **The mark is Archico B.V.'s; the copyright stays The Ownpace authors'** (owner, 2026-10-03).
+  `NOTICE` names the owner `TRADEMARK.md` names, claims no registration (no `®`), and states what
+  needs **no** permission as explicitly as what does: `scripts/notice-and-trademark.unit.test.ts`.
+- **Still OPEN, the owner's, not to be inferred:** whether to file an EUTM (`TRADEMARK.md` says
+  an EU application follows), and whether the post-cutover backup gets its own brand (ADR-0014
+  sells no separate backup).
 
 ## Context
 
@@ -185,6 +186,36 @@ nothing about unregistered rights, company-name registers, or common-law use.
 Asserting in `NOTICE` needs none of that — an unregistered mark is asserted by using it and
 saying so. **Filing does.**
 
+## Amendment 2026-10-03 — who owns the mark, and a regexp a rename broke
+
+**Who owns the mark.** `NOTICE` was written on 2026-08-20, before the repository recorded a
+company, and named *"the Ownpace project maintainers"*. On 2026-08-30 the mark was filed in
+**Archico B.V.**'s name (Benelux application 1556706, registration pending), as `TRADEMARK.md`,
+the README and `site/legal/` say; `NOTICE` was not changed with them. Asked whether the company
+should hold the copyright as well, the owner chose to keep the two apart: *"A, split the two"*.
+
+- **The mark is Archico B.V.'s**, and `NOTICE` says so, naming the same owner as `TRADEMARK.md`.
+  `NOTICE` is the file Apache-2.0 §4(d) makes every redistributor copy, so a stale owner there
+  travels into every copy; the guard now compares the two files.
+- **The copyright stays with The Ownpace authors.** Under Apache-2.0 §5 a contributor keeps the
+  copyright in what they contribute, so no contributor agreement is needed, and no single party
+  can relicense the code alone, which fits [ADR-0039](./0039-no-open-core-and-what-ops-privacy-means.md).
+  The other option, Archico B.V. everywhere, needed a written assignment, a contributor licence
+  agreement before the first outside pull request, and every header rewritten.
+- **Twenty-three files said *"Copyright 2026 OpenHands Agent"***, against the first operative rule
+  (every copyright header carries the one name). They name The Ownpace authors now; an agent that
+  wrote code holds no copyright in it.
+
+**A regexp a rename broke.** The rule that the documented cosign identity regexp matches both
+repository paths was written together with a blanket `open-migrate` → `ownpace` rename. That rename
+had turned three of the four `(open-migrate|Ownpace)` alternations into `(ownpace|Ownpace)`, one
+name in two spellings, so the command a reader copied refused an image signed under the old name,
+and the fourth, unanchored, also accepted any repository whose name began with `Ownpace`. All four
+read `^https://github\.com/Robbes/(open-migrate|ownpace|Ownpace)/` now, and
+`scripts/a-signature-checked-under-either-name.unit.test.ts` checks every documented pattern against
+both identities and against lookalikes. `CHANGELOG.md`'s `v0.1.0-rc.1` entry keeps the old identity:
+that release was signed under it.
+
 ## Amendment log
 
 - **2026-08-20** — The owner extended the decision: the repository and every copyright header take
@@ -196,3 +227,7 @@ saying so. **Filing does.**
 - **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
   decided. Their earlier wording, with the reasons and examples the budget left out, is in the
   record: [history/0040-the-service-is-ownpace.md](./history/0040-the-service-is-ownpace.md).
+- **2026-10-03, later** — The mark is Archico B.V.'s and `NOTICE` says so; the copyright stays with
+  The Ownpace authors (owner: *"A, split the two"*). The cosign identity regexp accepts both
+  repository names again, under a guard. Record: *Amendment 2026-10-03 — who owns the mark, and a
+  regexp a rename broke*.
