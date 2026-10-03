@@ -597,6 +597,26 @@ docker compose -f deploy/compose/managed.yml exec -T pgbouncer \
 Anything back, containing `transaction`, is the pooler serving in the right
 mode.
 
+**With `--with-demo`, the demo Nextcloud's database comes first** (workplan 0150). Its first
+install reads `POSTGRES_*` from `managed.yml` and connects as the role `nextcloud` to the database
+`nextcloud` in this Postgres, so the phase makes both before Nextcloud starts
+(`deploy/compose/nextcloud-db.sh`). A role it makes gets `.env`'s `NEXTCLOUD_DB_PASSWORD`, which
+`ensure-env-secrets.sh` generates. A role that exists keeps its password while a Nextcloud is
+installed: that Nextcloud connects with the value in its own `config.php`, and changing the role
+under it gives 500s until the two agree again. After Nextcloud answers, the phase says which
+database it uses, and the one step that makes the three agree:
+
+- **Still on SQLite**, an install from before this change: `./deploy/compose/nextcloud-to-postgres.sh --convert`.
+- **On Postgres, with another password in `config.php`**, like the OTA stack, which was moved by
+  hand: `./deploy/compose/nextcloud-to-postgres.sh --sync-password`. Nothing reads `.env`'s value
+  until a fresh install, so this can wait for a quiet moment.
+
+Both stop Nextcloud while they run, so pause the migrations that write into it first, and both
+start it again whatever happens. When a step of `--convert` fails, Nextcloud comes back on SQLite
+as it was. When `--sync-password` fails after writing `config.php`, it says so; running it again
+sets only the role. The script alone, or with `--check`, changes nothing and says where it stands. A database that still holds the tables of a Nextcloud whose volume is gone stops
+the phase, and prints the command that drops it; nothing here drops a database.
+
 ### 4. `demo` — the demo backends and the two demo tenants *(only with `--with-demo`)*
 
 Runs [`setup-managed-demo.sh`](../deploy/compose/setup-managed-demo.sh) — real

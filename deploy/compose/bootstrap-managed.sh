@@ -1161,9 +1161,115 @@ phase_data() {
   note "pgbouncer healthy, in transaction mode (auth_query in ${configured_db})"
 
   if [ "$WITH_DEMO" -eq 1 ]; then
+    nextcloud_database_ready
     up_wait nextcloud
     note "nextcloud healthy (demo DAV backend)"
+    note_nextcloud_database
   fi
+}
+
+# THE DEMO NEXTCLOUD'S DATABASE, BEFORE ITS FIRST START (workplan 0150). Its
+# first install reads POSTGRES_* (managed.yml) and connects as the role
+# `nextcloud` to the database `nextcloud`, so both must exist by then, with
+# .env's NEXTCLOUD_DB_PASSWORD on a role made here. A role that exists keeps
+# its password while a Nextcloud is installed: that one connects with the value
+# in its own config.php, and changing the role under it is the 2026-09-29
+# outage (nextcloud-db.sh says how). When the volume holds NO installed
+# Nextcloud (it is new, or that one is gone), the install to come connects with
+# .env's value, so the role takes it; and a database that still holds the old
+# install's tables is refused, because an install cannot go into them (it
+# retries for two minutes and stops at "The Login is already being used").
+# When config.php cannot be read, neither is done.
+nextcloud_database_ready() {
+  # shellcheck source=deploy/compose/nextcloud-db.sh
+  . "${SCRIPT_DIR}/nextcloud-db.sh"
+  nextcloud_db_init "$ENV_FILE" || die "the checkout's compose project could not be read (above)."
+  if [ -z "$NC_DB_PASSWORD" ]; then
+    # A .env from before the demo Nextcloud moved to Postgres. ensure-env-secrets.sh
+    # fills in a MISSING secret and never replaces a present one.
+    note "NEXTCLOUD_DB_PASSWORD is not in .env yet: generating it with ensure-env-secrets.sh (it fills in missing secrets only)"
+    "${SCRIPT_DIR}/ensure-env-secrets.sh"
+    nextcloud_db_init "$ENV_FILE" || die "the checkout's compose project could not be read (above)."
+  fi
+  [ -n "$NC_DB_PASSWORD" ] || die "NEXTCLOUD_DB_PASSWORD is still empty in ${ENV_FILE} after ensure-env-secrets.sh (above)."
+  local rc=0
+  nextcloud_db_ensure "$NC_DB_PASSWORD" || rc=$?
+  case "$rc" in
+    0) ;;
+    1) die "the demo Nextcloud's role is not one it should use: ${NC_DB_WHY}. Nothing was made; put the role right by hand, or drop it if nothing uses it, and run the data phase again." ;;
+    *) die "the demo Nextcloud's role and database could not be made or asked (over the socket, as ${DB_ROLES_OWNER}): ${NC_DB_WHY}" ;;
+  esac
+  if [ -n "$NC_DB_MADE" ]; then
+    note "made ${NC_DB_MADE} ${NC_DB_NAME} for the demo Nextcloud, in the stack's Postgres"
+  else
+    note "the demo Nextcloud's role and database (${NC_DB_NAME}) are present"
+  fi
+
+  # Is a Nextcloud installed in the volume? No volume: no. Otherwise its
+  # config.php says, read in the running container or a one-off one.
+  local installed=no how=stopped
+  if docker volume inspect "$NC_DB_VOLUME" >/dev/null 2>&1; then
+    [ -z "$("${COMPOSE[@]}" ps -q nextcloud 2>/dev/null)" ] || how=running
+    rc=0
+    nextcloud_config "$how" || rc=$?
+    if [ "$rc" -ne 0 ]; then
+      installed=unknown
+      note "the demo Nextcloud's config.php could not be read (${NC_DB_WHY}), so its role is left as it is"
+    elif [ "$NC_CFG_INSTALLED" = yes ]; then
+      installed=yes
+    fi
+  fi
+  [ "$installed" = no ] || return 0
+
+  if [[ "$NC_DB_MADE" != *database* ]]; then
+    nextcloud_db_tables || die "the ${NC_DB_NAME} database's tables could not be counted: ${NC_DB_WHY}"
+    if [ "$NC_DB_TABLES" -gt 0 ]; then
+      echo "!!! the ${NC_DB_NAME} database holds ${NC_DB_TABLES} tables of a Nextcloud that is not in its volume (${NC_DB_VOLUME}) any more, and a new install cannot go into them." >&2
+      echo "!!! If that Nextcloud is gone for good, drop the database by hand (nothing here drops one), then run the data phase again:" >&2
+      echo "!!!   ${COMPOSE[*]} exec -T postgres sh -c 'psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -c \"DROP DATABASE IF EXISTS ${NC_DB_NAME}\"'" >&2
+      exit 1
+    fi
+  fi
+  if [[ "$NC_DB_MADE" != *role* ]]; then
+    rc=0
+    nextcloud_db_ask "$NC_DB_PASSWORD" || rc=$?
+    case "$rc" in
+      0) ;;
+      1)
+        nextcloud_db_set "$NC_DB_PASSWORD" || die "the role ${NC_DB_ROLE} could not be given .env's value: ${NC_DB_WHY}"
+        note "the role ${NC_DB_ROLE} takes .env's NEXTCLOUD_DB_PASSWORD: no installed Nextcloud holds another"
+        ;;
+      *) die "whether the role ${NC_DB_ROLE} opens with .env's value could not be asked: ${NC_DB_WHY}" ;;
+    esac
+  fi
+}
+
+# Which database the demo Nextcloud uses, said after it is up. A NOTE, not a
+# refusal: an install still on SQLite worked before it, with the collisions
+# 0150 names, and moving it stops Nextcloud for minutes, which is the
+# operator's to choose with the migrations paused.
+note_nextcloud_database() {
+  local rc=0
+  nextcloud_config running || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    note "the demo Nextcloud's config.php could not be read: ${NC_DB_WHY}"
+    return 0
+  fi
+  case "$NC_CFG_TYPE" in
+    pgsql)
+      if [ "$NC_CFG_PW" = same ]; then
+        note "the demo Nextcloud is on Postgres (${NC_CFG_NAME}), with .env's NEXTCLOUD_DB_PASSWORD"
+      else
+        note "the demo Nextcloud is on Postgres (${NC_CFG_NAME}); its config.php holds another password than .env's NEXTCLOUD_DB_PASSWORD."
+        note "  Nothing reads .env's until a fresh install. To make them one, with the migrations paused: ./deploy/compose/nextcloud-to-postgres.sh --sync-password"
+      fi
+      ;;
+    sqlite | sqlite3)
+      note "!!! the demo Nextcloud is still on SQLite, one writer at a time: the gate's writes and the migrations' collide there ('database is locked', workplan 0150)."
+      note "    To move it, with the migrations paused: ./deploy/compose/nextcloud-to-postgres.sh --convert"
+      ;;
+    *) note "the demo Nextcloud's database: ${NC_CFG_TYPE:-not named in its config.php}" ;;
+  esac
 }
 
 # admit_demo_hosts — the demo's connections name `nextcloud` and `stalwart`,
