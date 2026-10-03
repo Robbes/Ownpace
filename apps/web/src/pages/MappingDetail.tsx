@@ -32,7 +32,7 @@ export { progressRefetchInterval, PROGRESS_POLL_ACTIVE_MS, PROGRESS_POLL_IDLE_MS
 import { progressRefetchInterval } from '../services/progress-poll.ts';
 import { mappingApi } from '../services/mapping-service.ts';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
-import { fetchAttention, fetchStatus } from '../services/operating-service.ts';
+import { fetchAllDiscovery, fetchAttention, fetchStatus } from '../services/operating-service.ts';
 import { fetchProgress } from '../services/progress-service.ts';
 import { checksOf } from '../services/cutover-steps.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
@@ -46,6 +46,8 @@ import LiveProgress from '../components/LiveProgress.tsx';
 import StateChip from '../components/StateChip.tsx';
 import { connectionKindName } from '../components/ProviderTile.tsx';
 import { CutoverSteps } from '../components/CutoverSteps.tsx';
+import { TimeBeforeStartLine } from '../components/TimeBeforeStartLine.tsx';
+import { timeBeforeStart } from '@openmig/shared';
 import { serverMessage } from '../services/api.ts';
 
 /**
@@ -152,6 +154,28 @@ const MappingDetail: React.FC = () => {
     refetchInterval: (query) => progressRefetchInterval(query.state.data?.mappings.flatMap((m) => m.domains)),
   });
 
+  // HOW LONG, UNTIL THE FIRST PASS REPORTS (0154 T3 (a)): from the count, as
+  // the review screen said it. Read once the migration's own read has said no
+  // pass completed, and not after, when the pass's own rate is the better
+  // answer (T3 (b)).
+  const firstPassIn = (
+    (isSelfHost()
+      ? status.data?.mappings.find((m) => m.mappingId === id)?.domains
+      : detail.data?.domainStatus) ?? []
+  ).some((d) => d.lastSyncedAt !== undefined);
+  const mappingDiscovery = useQuery({
+    queryKey: ['mapping-discovery', id],
+    queryFn: () => mappingApi.getDiscovery(id!),
+    enabled: Boolean(id) && !isSelfHost() && detail.isSuccess && !firstPassIn,
+    retry: false,
+  });
+  const allDiscovery = useQuery({
+    queryKey: ['discovery'],
+    queryFn: fetchAllDiscovery,
+    enabled: Boolean(id) && isSelfHost() && status.isSuccess && !firstPassIn,
+    retry: false,
+  });
+
   if (!id) {
     return <p className="text-sm text-amber-800">{t('hub.noId')}</p>;
   }
@@ -162,6 +186,16 @@ const MappingDetail: React.FC = () => {
   // Where this migration is in its life, for the steps that rest on it: the
   // detail read on managed, the status on the appliance.
   const lifecycleRead = isSelfHost() ? status : detail;
+  const counted = isSelfHost() ? allDiscovery.data?.[id] : mappingDiscovery.data?.domains;
+  const timeBefore =
+    firstPassIn || counted === undefined || counted.length === 0
+      ? undefined
+      : timeBeforeStart({
+          source: isSelfHost() ? status.data?.mappings.find((m) => m.mappingId === id)?.sourceType : detail.data?.sourceType,
+          ...(detail.data?.sourceConfig.host ? { sourceHost: detail.data.sourceConfig.host } : {}),
+          domains: isSelfHost() ? counted.map((d) => d.domain) : (detail.data?.syncConfig.domains ?? []),
+          mailBytes: counted.find((d) => d.domain === 'email' && d.lastError === undefined)?.bytes,
+        });
   const lifecycle = isSelfHost()
     ? status.data?.mappings.find((m) => m.mappingId === id)?.migrationStatus
     : detail.data?.status;
@@ -254,6 +288,8 @@ const MappingDetail: React.FC = () => {
           <LiveProgress domains={progressDomains} />
         </div>
       )}
+
+      {timeBefore && <TimeBeforeStartLine className="mt-4 text-sm text-gray-700" time={timeBefore} />}
 
       {/* The list IS a sequence (0034 T4), and since 0154 T4 one list with a
           person's page: each step with its count, its state in words, and

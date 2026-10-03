@@ -7,7 +7,8 @@ import {
   needsAcknowledgement,
 } from './confirm/native-refusals.tsx';
 import ScopeManifestPanel from './confirm/ScopeManifestPanel.tsx';
-import { scopeFamilyOfConnectionKind, scopeManifestFor, type DiscoveryDomain } from '@openmig/shared';
+import { scopeFamilyOfConnectionKind, scopeManifestFor, timeBeforeStart, type DiscoveryDomain } from '@openmig/shared';
+import { TimeBeforeStartLine } from './TimeBeforeStartLine.tsx';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { mappingApi, scopeManifestApi, type DiscoveryResponse } from '../services/mapping-service.ts';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
@@ -293,6 +294,20 @@ export function MigrationCountSection({
           that arrive are shown with the refusal under them. */}
       {(countRefused === null || domains.length > 0) && (
         <DiscoveryCounts domains={domains} expected={expected} slow={gaveUp} />
+      )}
+      {/* HOW LONG (0154 T3 (a)), once everything the migration carries is
+          counted: Gmail's mail by its published ceiling, anything else said
+          not to be known yet. Never while counting, when a Gmail mailbox's
+          size is not in yet and the line would say the other thing. */}
+      {expected !== undefined && !count.stillCounting && countRefused === null && (
+        <TimeBeforeStartLine
+          className="mt-2 text-sm text-gray-700"
+          time={timeBeforeStart({
+            source: count.sourceKind,
+            domains: expected,
+            mailBytes: domains.find((d) => d.domain === 'email' && d.lastError === undefined)?.bytes,
+          })}
+        />
       )}
       {countRefused !== null && (
         <p className="text-sm text-red-600" role="alert">

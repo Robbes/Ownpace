@@ -956,6 +956,12 @@ const en = {
   'hub.connections': 'From {source} to {target}',
   'hub.details': 'Details',
   'hub.migrationId': 'Migration ID:',
+  'timeLeft.label': 'How long:',
+  'timeLeft.gmailDays': 'About {low} to {high} days, because Google lets a mailbox download {ceiling} GB a day.',
+  'timeLeft.gmailWithinADay':
+    'Within a day, because this mailbox holds less than the {ceiling} GB a day Google lets one download.',
+  'timeLeft.notKnownYet': 'Depends on the provider; we will know after the first hour.',
+  'timeLeft.filesLater': 'The files: we will know after the first hour.',
   'mappings.action.pause.why':
     'No new passes are started. A pass already running stops starting new items within about fifteen seconds, and finishes the ones it has begun; a very large file can take longer. Nothing is lost: Review and start continues from where it stopped.',
   'mappings.action.startSync': 'Start sync',
@@ -3775,6 +3781,12 @@ const nl: Record<keyof typeof en, string> = {
   'hub.connections': 'Van {source} naar {target}',
   'hub.details': 'Details',
   'hub.migrationId': 'Migratie-ID:',
+  'timeLeft.label': 'Hoe lang:',
+  'timeLeft.gmailDays': 'Ongeveer {low} tot {high} dagen, omdat Google een mailbox {ceiling} GB per dag laat downloaden.',
+  'timeLeft.gmailWithinADay':
+    'Binnen een dag, omdat deze mailbox minder bevat dan de {ceiling} GB per dag die Google laat downloaden.',
+  'timeLeft.notKnownYet': 'Hangt af van de aanbieder; na het eerste uur weten we het.',
+  'timeLeft.filesLater': 'De bestanden: na het eerste uur weten we het.',
   'mappings.action.pause.why':
     'Er worden geen nieuwe rondes gestart. Een ronde die al loopt, begint binnen ongeveer vijftien seconden niets nieuws meer en maakt af waar ze al aan begonnen was; een heel groot bestand kan langer duren. Er gaat niets verloren: Controleren en starten gaat verder waar het gebleven was.',
   'mappings.action.startSync': 'Start synchronisatie',
