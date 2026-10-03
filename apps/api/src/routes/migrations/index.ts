@@ -3837,7 +3837,7 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
       const said =
         whose === undefined
           ? waiting
-          : `${waiting} It starts by itself once ${whose} has connected: another migration of theirs is running.`;
+          : `${waiting} It starts by itself once ${whose} has connected: another migration of theirs has been started.`;
       return void res.status(409).json({
         error: 'awaiting_grant',
         message: said,

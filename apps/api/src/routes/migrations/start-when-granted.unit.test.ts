@@ -4,7 +4,8 @@
  * START WHEN GRANTED, PER PERSON (ADR-0035's amendment; the owner,
  * 2026-10-03: *"Yes, but after the move was started in the first place. After
  * preflight the start needs to be given at least once, the grant may arrive
- * later."*, and *"Per person"*).
+ * later."*, and *"Per person"*; and, asked whether the move must be running or
+ * only have been started, *"was ever started"*).
  *
  * Anna's move runs: their IMAP mailbox was started. Three of their migrations
  * read a Google account: one never ran, one ran and was paused, and one runs.
@@ -14,6 +15,8 @@
  *  - Anna's draft starts: `active`, its path, the change recorded `via:
  *    'grant'` by the link, and its first pass enqueued;
  *  - nothing else moves, and nothing else is enqueued;
+ *  - it starts though Anna's move is paused or finished since, and a migration
+ *    Anna's owner paused after it ran stays paused;
  *  - an operator hold starts nothing;
  *  - *Start* on a draft that waits says it will start by itself, for Anna's
  *    and not for Bram's.
@@ -37,7 +40,7 @@ const U = (n: string) => `0153d7e0-e29b-41d4-a716-4466554430${n}`;
 const TENANT = U('01');
 const GOOGLE = U('11');
 const IMAP = U('12');
-/** Anna's: their IMAP mailbox, running, which is what makes their move run. */
+/** Anna's: their IMAP mailbox, running: their move was started. */
 const RUNNING = U('31');
 /** Anna's: a Google account, never started. The one a grant starts. */
 const DRAFT = U('32');
@@ -45,7 +48,7 @@ const DRAFT = U('32');
 const PAUSED = U('33');
 /** Anna's: a Google account that runs already. */
 const ALSO_RUNNING = U('34');
-/** Bram's one migration, never started; nothing of theirs runs. */
+/** Bram's one migration, never started; nothing of theirs was ever started. */
 const BRAMS = U('35');
 /** Nobody's. */
 const NOBODYS = U('36');
@@ -182,7 +185,7 @@ beforeEach(async () => {
   await q('DELETE FROM audit_log WHERE tenant_id = $1', [TENANT]);
 });
 
-describe('a grant lands on a migration of a person whose move runs', () => {
+describe('a grant lands on a migration of a person whose move was started', () => {
   it('starts the one that never ran: active, its path, the change recorded by the grant, and its first pass', async () => {
     expect(await startWhenGranted(driver, { tenantId: TENANT, mappingIds: [DRAFT] })).toEqual([DRAFT]);
 
@@ -217,28 +220,49 @@ describe('a grant lands on a migration of a person whose move runs', () => {
   });
 });
 
-describe('a grant lands where no move runs', () => {
-  it('starts nothing of a person nothing of whose runs, or of a paused move, or of nobody', async () => {
+describe('a grant lands where no move was ever started', () => {
+  it('starts nothing of a person nothing of whose was ever started, or of nobody', async () => {
     expect(await startWhenGranted(driver, { tenantId: TENANT, mappingIds: [BRAMS, NOBODYS] })).toEqual([]);
-    // Anna's move, paused: nothing of theirs runs any more.
-    await q(`UPDATE mailbox_mapping SET status = 'paused' WHERE id IN ($1, $2)`, [RUNNING, ALSO_RUNNING]);
-    expect(await startWhenGranted(driver, { tenantId: TENANT, mappingIds: [DRAFT] })).toEqual([]);
 
-    for (const id of [BRAMS, NOBODYS, DRAFT]) expect(await statusOf(id)).toBe('paused');
+    for (const id of [BRAMS, NOBODYS]) expect(await statusOf(id)).toBe('paused');
     expect(enqueued).toEqual([]);
   });
 });
 
+describe('a grant lands on a move started before and paused or finished since (the owner: "was ever started")', () => {
+  it('starts the draft though nothing of Anna’s runs now, and leaves the migration paused after it ran as it is', async () => {
+    // Anna's move, paused since it was started: their paths stay, which is what says it was.
+    await q(`UPDATE mailbox_mapping SET status = 'paused' WHERE id IN ($1, $2)`, [RUNNING, ALSO_RUNNING]);
+    expect(await startWhenGranted(driver, { tenantId: TENANT, mappingIds: [DRAFT, PAUSED] })).toEqual([DRAFT]);
+
+    expect(await statusOf(DRAFT)).toBe('active');
+    // A migration's own pause stands.
+    expect(await statusOf(PAUSED)).toBe('paused');
+    expect(enqueued.map((e) => e.payload.mappingId)).toEqual([DRAFT]);
+  });
+
+  it('starts the draft once the rest of Anna’s move has finished', async () => {
+    await q(`UPDATE mailbox_mapping SET status = 'done' WHERE id IN ($1, $2, $3)`, [RUNNING, ALSO_RUNNING, PAUSED]);
+    expect(await startWhenGranted(driver, { tenantId: TENANT, mappingIds: [DRAFT] })).toEqual([DRAFT]);
+    expect(await statusOf(DRAFT)).toBe('active');
+  });
+});
+
 describe('Start on a migration that waits for its grant', () => {
-  it('says it starts by itself once its person has connected, when their move runs', async () => {
-    const res = await request(app).post(`/api/migrations/${DRAFT}/start`).send({});
-    expect(res.status).toBe(409);
-    expect(res.body).toMatchObject({ error: 'awaiting_grant', startsWhenGranted: true });
-    expect(res.body.reason).toMatch(/ It starts by itself once Anna has connected: another migration of theirs is running\.$/);
+  it('says it starts by itself once its person has connected, when their move was started, paused since or not', async () => {
+    for (const status of ['active', 'paused']) {
+      await q(`UPDATE mailbox_mapping SET status = $3 WHERE id IN ($1, $2)`, [RUNNING, ALSO_RUNNING, status]);
+      const res = await request(app).post(`/api/migrations/${DRAFT}/start`).send({});
+      expect(res.status).toBe(409);
+      expect(res.body).toMatchObject({ error: 'awaiting_grant', startsWhenGranted: true });
+      expect(res.body.reason).toMatch(
+        / It starts by itself once Anna has connected: another migration of theirs has been started\.$/,
+      );
+    }
     expect(await statusOf(DRAFT)).toBe('paused');
   });
 
-  it('says only that it waits, when nothing of theirs runs', async () => {
+  it('says only that it waits, when nothing of theirs was ever started', async () => {
     const res = await request(app).post(`/api/migrations/${BRAMS}/start`).send({});
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('awaiting_grant');

@@ -327,7 +327,7 @@ describe('a person’s progress page', () => {
     ]);
   });
 
-  it('starts the migration a link sent before granted, when the person’s move runs (start when granted)', async () => {
+  it('starts the migration a link sent before granted, when the person’s move was started (start when granted)', async () => {
     await q(`UPDATE mailbox_mapping SET status = 'active' WHERE id = $1`, [OLD_MAIL]);
     const old = await withTenant(driver, TENANT, (db) =>
       issueMappingLink(db, { tenantId: TENANT, mappingId: CAL, purpose: 'grant', createdBy: 'pat', expiresAt: expiryFromDays(7) }),

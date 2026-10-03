@@ -184,6 +184,26 @@ words changed with them** (0131 §6, R8).
   at `5f74ebc`: T4 and T7 are still proposed, and no branch or open pull request of R's or M's
   touches them. 0131 §6 records the split.
 
+**2026-10-03, evening: start when granted, once the move was ever started (T5 (b); the owner's
+answer).** Asked whether a person's move must be running for a grant to start a migration of
+theirs, or only have been started, the owner answered: *"I think it ment: "was ever started". So
+when a grant arrives, it can continue. If it was started, but never had a grant, then we also start
+when the grant arrives."*
+
+- **The rule** (`personWhoseMoveStarted` in `start-when-granted.ts`, which replaces
+  `personWhoseMoveRuns`): another migration of the person is no draft, so it was started once,
+  though it may be paused or finished since. A migration that waits for a grant starts by itself
+  when it lands, as before; a migration the owner paused after it ran stays paused.
+- **Said in the same words everywhere it is said:** *Start*'s 409 (*"…: another migration of theirs
+  has been started."*), the person's page (*"Waits for Anna to connect, then starts by itself:
+  another migration of theirs has been started."*, Dutch *"…: een andere migratie van Anna is al
+  gestart."*), the spec, ADR-0035's bullet and decided section and its register row, and
+  `grant-links.md`.
+- **Proved by:** `start-when-granted.unit.test.ts` (+2: a paused move starts its draft and leaves the
+  migration paused after it ran as it is; a finished move starts it too; *Start* says so either
+  way) and `a-link-for-a-person.unit.test.ts` (+1: the person's page says *starts by itself* while
+  the move is paused). With the old rule put back, four cases fail.
+
 **2026-10-03: T8, the appliance shows its person's page (D5).** The appliance's one implicit
 person has the page managed gives each person, and it is the appliance's landing once every
 migration has started.

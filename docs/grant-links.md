@@ -200,10 +200,11 @@ on whether you have started their move:
 
 - **Not yet**: nothing of theirs has been started. The counts appear, on *Start a migration*'s
   last screen and on each migration's page, and you press **Start** once you have seen them.
-- **Started**: one of their migrations is running. Each migration of theirs that was waiting for
-  this grant starts by itself, ones you added later included. The record of it names the grant,
-  not you.
-- **Paused**: a move you paused stays paused, and so does a migration you paused after it ran.
+- **Started**: you have started one of their migrations, though you may have paused it since or
+  it may have finished. Each migration of theirs that was waiting for this grant starts by itself,
+  ones you added later included. The record of it names the grant, not you.
+- **Paused**: a migration you paused after it ran stays paused. Pausing their other migrations
+  does not keep a waiting one from starting when the grant lands.
 
 The person's page says which applies beside each migration of theirs that waits for the grant:
 *Waits for Anna to connect, then starts by itself*; *Waits for Anna to connect. Once they have,
