@@ -764,9 +764,13 @@ const en = {
   'settings.schedule': 'Sync schedule',
   'settings.schedule.default': 'Now: every 15 minutes, because this migration has no schedule of its own.',
   'settings.schedule.own': 'Now: {schedule}, set outside this page.',
-  'settings.schedule.hint': 'A pass runs at most 50 minutes; the next follows the schedule.',
+  // The first copy runs pass after pass whatever the schedule, and the
+  // schedule applies once every data type has been copied once (workplan
+  // 0156 T5; the owner, 2026-10-03). Until then this said a daily schedule
+  // copied for 50 minutes a day, which was true and was the defect.
+  'settings.schedule.hint': 'Passes run back to back until the first copy is done.',
   'settings.schedule.hint.why':
-    'A large first copy takes many passes. On a daily schedule it copies for 50 minutes a day. Hourly or every 15 minutes it copies with hardly a break, because a new pass never starts while one is still running.',
+    'A pass runs at most 50 minutes. Until every data type has been copied once in full, the next pass starts as soon as the last one ends, and no sooner than 15 minutes after it started, whatever this schedule says. A daily download limit at the source is waited out first. After that, passes follow this schedule and copy only what is new or changed. Items that could not be copied do not keep passes coming: they wait on the Failures screen.',
   'settings.schedule.save': 'Save this schedule',
   'settings.schedule.saving': 'Saving…',
   'settings.schedule.saved': 'Saved. The next pass follows it.',
@@ -782,7 +786,7 @@ const en = {
   'settings.kinds.consequence':
     'An added data type is copied from the next pass. Nothing already copied changes.',
   'settings.kinds.consequence.why':
-    'The new data type is copied in full on the next pass, the way every data type is copied the first time. The ones this migration already copies carry on where they were. A data type cannot be taken off again here: what it had copied would stay on the new system with nothing keeping it up to date.',
+    'The new data type is copied in full from the next pass on, the way every data type is copied the first time: pass after pass, whatever the schedule, until it has been copied once. The ones this migration already copies carry on where they were. A data type cannot be taken off again here: what it had copied would stay on the new system with nothing keeping it up to date.',
   'settings.kinds.failed': 'That was not added:',
   // STOP AND RESUME ONE DATA TYPE (workplan 0128 T4, slice 3c). Offered where
   // the stop door accepts the press; what a stop does is said before it.
@@ -891,7 +895,8 @@ const en = {
   'wizard.domain.file.hint': 'Attachments and documents',
   'wizard.domain.task.hint': 'To-do lists and their tasks',
   'wizard.schedule': 'Sync Schedule',
-  'wizard.scheduleHint': 'How often it repeats; the first sync starts when you press start.',
+  'wizard.scheduleHint':
+    'How often it repeats after the first copy, which starts when you press start and does not wait for this schedule.',
   'wizard.schedule.hourly': 'Hourly',
   'wizard.schedule.hourly.hint': 'Every hour',
   'wizard.schedule.daily': 'Daily',
@@ -3620,9 +3625,9 @@ const nl: Record<keyof typeof en, string> = {
   'settings.schedule': 'Synchronisatieschema',
   'settings.schedule.default': 'Nu: elk kwartier, omdat deze migratie geen eigen schema heeft.',
   'settings.schedule.own': 'Nu: {schedule}, buiten deze pagina ingesteld.',
-  'settings.schedule.hint': 'Een ronde duurt hoogstens 50 minuten; de volgende volgt het schema.',
+  'settings.schedule.hint': 'Rondes lopen direct na elkaar tot de eerste kopie klaar is.',
   'settings.schedule.hint.why':
-    'Een grote eerste kopie kost veel rondes. Met een dagelijks schema wordt er 50 minuten per dag gekopieerd. Met elk uur of elk kwartier gaat het kopiëren vrijwel zonder pauze door, omdat een nieuwe ronde nooit start terwijl er nog een loopt.',
+    'Een ronde duurt hoogstens 50 minuten. Tot elk gegevenstype één keer volledig is gekopieerd, start de volgende ronde zodra de vorige klaar is, en niet eerder dan 15 minuten na de start ervan, wat dit schema ook zegt. Een daglimiet voor downloaden bij de bron wordt eerst afgewacht. Daarna volgen de rondes dit schema en kopiëren ze alleen wat nieuw of gewijzigd is. Items die niet gekopieerd konden worden, houden de rondes niet aan de gang: ze wachten bij Mislukkingen.',
   'settings.schedule.save': 'Dit schema opslaan',
   'settings.schedule.saving': 'Opslaan…',
   'settings.schedule.saved': 'Opgeslagen. De volgende ronde volgt het.',
@@ -3635,7 +3640,7 @@ const nl: Record<keyof typeof en, string> = {
   'settings.kinds.consequence':
     'Een toegevoegd gegevenstype wordt vanaf de volgende ronde gekopieerd. Wat al gekopieerd is, verandert niet.',
   'settings.kinds.consequence.why':
-    'Het nieuwe gegevenstype wordt bij de volgende ronde volledig gekopieerd, zoals elk gegevenstype de eerste keer. De gegevenstypen die deze migratie al kopieert, gaan verder waar ze waren. Een gegevenstype kan hier niet meer worden weggehaald: wat het al had gekopieerd, zou op het nieuwe systeem blijven staan zonder dat iets het nog bijwerkt.',
+    'Het nieuwe gegevenstype wordt vanaf de volgende ronde volledig gekopieerd, zoals elk gegevenstype de eerste keer: ronde na ronde, wat het schema ook zegt, tot het één keer is gekopieerd. De gegevenstypen die deze migratie al kopieert, gaan verder waar ze waren. Een gegevenstype kan hier niet meer worden weggehaald: wat het al had gekopieerd, zou op het nieuwe systeem blijven staan zonder dat iets het nog bijwerkt.',
   'settings.kinds.failed': 'Dat is niet toegevoegd:',
   'settings.kinds.stop': '{kind} stoppen',
   'settings.kinds.resume': '{kind} hervatten',
@@ -3763,7 +3768,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.domain.task.hint': 'Takenlijsten en de taken daarin',
   'wizard.schedule': 'Synchronisatieschema',
   'wizard.scheduleHint':
-    'Hoe vaak het herhaalt; de eerste synchronisatie start zodra u op starten drukt.',
+    'Hoe vaak het herhaalt na de eerste kopie, die start zodra u op starten drukt en niet op dit schema wacht.',
   'wizard.schedule.hourly': 'Elk uur',
   'wizard.schedule.hourly.hint': 'Ieder uur',
   'wizard.schedule.daily': 'Dagelijks',

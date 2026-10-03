@@ -276,7 +276,9 @@ DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:${POSTG
 
 # The managed-sync-tick scheduled task (deployed via deploy-tasks.sh) picks
 # up the seeded mappings within a minute and starts their sync passes on
-# each mapping's own schedule (default */15).
+# each mapping's own schedule (default */15). Until a mapping's first copy is
+# finished it runs passes back to back instead, at most every 15 minutes,
+# whatever its schedule (workplan 0156 T5).
 ```
 
 Use each printed token as `Authorization: Bearer <token>` against the API, or drop it into the web
@@ -1945,6 +1947,19 @@ steps for a tester's report. The items below are causes it points to.
   `person_link`). A split job that fails with *"The list of organisations was asked on a
   connection that row security binds"* was handed a `SYSTEM_DATABASE_URL` whose role lacks
   `BYPASSRLS`, which the bring-up refuses before it uploads one.
+- **A migration on a daily schedule runs a pass every hour or so:** expected while its first copy
+  is unfinished (workplan 0156 T5; the owner, 2026-10-03). A pass stops itself at 50 minutes, and
+  until every data type it copies has completed a pass (`migration_status.completed_at` set on
+  each), the tick starts the next one 15 minutes after the last one started, or at the tick after
+  it ends, whatever the schedule says. The tick's summary line counts them as `firstCopies`. Once
+  every data type has completed a pass the schedule applies again. Three things still hold a first
+  copy back: a pass still running (never two at once), the back-off after
+  failures (`failing-backoff.ts`), and the caps (`MAX_PASSES_IN_FLIGHT`,
+  `MAX_PASSES_PER_ORGANISATION`). Failed items do not keep it going: the pass that parks them still
+  completes. A data type waiting for a provider's daily download ceiling waits until its window
+  resets, and one with a collection its source would not list follows the schedule
+  (`FIRST_COPY_UNFINISHED` in `apps/worker/src/jobs/managed-sync-tick.ts`). The appliance has no
+  pass deadline, so a first copy there runs in one pass however long it takes.
 - **"fail-closed" errors with no tenant context:** expected when a query runs without
   `app.current_tenant` set — that's RLS doing its job, not a bug. The request path must go through
   `withTenantDb`/`withTenant`.
