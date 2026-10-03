@@ -23,23 +23,26 @@
      node scripts/adr-operative.mjs --write -->
 
 - **The appliance never carries an Ownpace OAuth client secret**: bring-your-own is its only
-  mode, held by `no-managed-leakage`. **A managed deployment brings its own verified client**, so
-  a customer clicks **Allow** (*Decision* 1–2).
+  mode, held by shipping none — the deployment's pair lives in a managed `.env` that only
+  `managed.yml` names. **A managed deployment brings its own verified client**, so a customer
+  clicks **Allow** (points 1–2).
 - **A connection's own client pair always wins; the deployment's**
   (`GOOGLE_OAUTH_CLIENT_ID`/`_SECRET`, option B) **is a fallback**, and a connection using it
-  stores only its refresh token. **Both or neither**, at every door; the worker gets the pair too
+  stores only its refresh token. **Both or neither**, for the deployment's variables and at every
+  door: half a pair is no client, refused by the missing name. The worker gets the pair too
   (`a-client-the-worker-never-got.unit.test.ts`).
 - **The assessment buys convenience, never capability**: every source migrates free through the
   customer's own client. Ownpace's published client adds Gmail and Drive (restricted) only once an
-  assessment exists; Drive's is intended, not bought (*Decision* 3).
+  assessment exists; Drive's is intended, not bought, and mail stays outside it (point 3).
 - **What a deployment's own application carries is declared** (`GOOGLE_ACCOUNT_SCOPE_CLASS`,
   default `sensitive`), and is not a capability: served by `/api/provider-accounts`, never
   mirrored into a build, gating making a mapping, never running one
   (`a-ceiling-the-screen-could-not-see.unit.test.ts`).
-- **Owning a client never widens a grant**; the consent page shows the scopes as scopes, never a
-  friendly summary (`Grant.unit.test.tsx`, *Decision* 4).
-- **Never "External + Testing" for a real migration.** Refresh tokens die there after **seven
-  days**; setup steers to Internal or Production, and `invalid_grant` names that cause first
+- **Owning a client never widens a grant**; the consent page shows the scopes as scopes, not only
+  as a paraphrase (`Grant.unit.test.tsx`, *Decision* 4).
+- **Never "External + Testing" for a real migration.** Google expires refresh tokens after
+  **seven days** in that publishing status, which reads as a random `invalid_grant` weeks in;
+  setup steers to Internal or Production, and the refusal names that cause first
   (`google-token-provider.unit.test.ts`).
 - **The client is registered exactly** (*Registering the client*): callback
   `/api/migrations/google/callback`, never `/webhooks/…`; no JavaScript origin; a client per
@@ -115,7 +118,7 @@ scopes — "Ownpace wants to read your contacts", not "connect your account" —
 asymmetry: deleting a customer-owned client kills every token, their lever; a managed client's
 nuclear lever is ours.
 
-### A deployment's own application and its own client (owner, 2026-09-01)
+### A deployment's own application and its own client (2026-09-01 and 2026-09-02)
 
 **What a deployment's own application carries is a fact about that deployment, and it is
 declared.** Point 3 still binds the client Ownpace publishes to strangers. A deployment whose own
@@ -126,9 +129,9 @@ any other value means `sensitive` (the appliance has no application). This separ
 reference deployment's own client, in Testing status with listed users, where the population the
 restricted tier would be imposed on is the owner and people they named.
 
-- **A declaration is not a capability**: it decides which consent this product will **build**, and
-  Google still refuses at its own screen — a refusal with the scope in hand, never a silent
-  narrowing. Testing's seven-day cost is documented beside it
+- **A declaration is not a capability**: it decides which consent this product will **build**,
+  and if the application does not carry the scopes, Google still refuses at its own screen — a
+  refusal with the scope in hand, never a silent narrowing. Testing's seven-day cost is documented beside it
   ([`a-scope-class-the-product-does-not-decide.unit.test.ts`](../../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts)).
 - **It is served, never mirrored into a build** (`GET /api/provider-accounts`), and every failure
   to ask falls back to the narrow answer
@@ -139,8 +142,9 @@ restricted tier would be imposed on is the owner and people they named.
 **Option B.** `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` are configured once and
 read when a token is minted: nobody types a client secret into a wizard, **the connection stores
 neither half** (only its refresh token, the per-account half, never optional), and rotation is one
-`.env` edit and a restart. The cost: a connection no longer describes itself; moved to another
-deployment, it needs that deployment's client.
+`.env` edit and a restart. **Both variables or neither**: a half-set pair is no client, and the
+refusal names the missing variable — never mixed with the other half. The cost: a connection no
+longer describes itself; moved to another deployment, it needs that deployment's client.
 
 - **A connection carrying its own pair always wins** — a fallback, never an override, because
   owning a client is a real choice
@@ -149,9 +153,10 @@ deployment, it needs that deployment's client.
   refused by the missing name, never completed from the deployment's, and no consent runs on an
   application the caller did not name
   ([`google-deployment-client.ts`](../../packages/shared/src/google-deployment-client.ts)).
-- **Google connection kinds only.**
+- **Google connection kinds only**, so no other provider is ever handed Google's pair.
 - **The API and the worker are supplied separately, and both must be** (`managed.yml`,
-  `set-task-env.sh`): a worker without the pair fails every pass where nobody looks
+  `set-task-env.sh`, since a Trigger.dev task container inherits nothing from compose): a worker
+  without the pair fails every pass where nobody looks
   ([`a-client-the-worker-never-got.unit.test.ts`](../../scripts/a-client-the-worker-never-got.unit.test.ts)).
 
 ### Mail and files without the assessment
@@ -166,8 +171,9 @@ before acting on them**.
 So **personal Gmail may use an app password, opt-in and never the default** (0089 T7): a
 credential choice on the existing IMAP source, reached only without domain-wide delegation or a
 whole OAuth trio ([`gmail-source-factory.ts`](../../packages/orchestration/src/gmail-source-factory.ts)).
-It comes with Google's discouragement quoted, as the wider credential (the whole mailbox) revoked
-in the account's own app-password list, never as the only consumer on-ramp (Google may withdraw
+It comes with Google's discouragement quoted, as an unscoped credential rather than a grant (for
+mail no wider than `https://mail.google.com/`, but revoked only in the account's own app-password
+list), never as the only consumer on-ramp (Google may withdraw
 it), and under the same metered IMAP ceiling as OAuth (workplan 0090).
 
 Workspace cannot use one and needs none, since Internal consent is free. That leaves **Drive the
@@ -182,8 +188,9 @@ names it as a cause.
   the URIs registered in §4b of the verification document must carry the path the code serves.
 - **No authorized JavaScript origin.**
 - **Environments get separate clients**; one client serving both gets separate hosts at minimum.
-- **The canonical host is registered exactly** — the one the service, its privacy policy and home
-  page are served on, `www` or apex — because Google matches byte for byte before our redirects.
+- **The canonical host is registered exactly** — the host the service actually serves on, and the
+  same host the privacy policy and home page are verified on, `www` or apex — because Google
+  matches byte for byte before our redirects.
 - **Never "External + Testing" for a real migration.** Google expires refresh tokens after **seven
   days** in that publishing status, which reads as a random `invalid_grant` weeks in. Both
   editions' setup paths steer to Internal (Workspace) or Production (personal), and the
@@ -200,7 +207,8 @@ names it as a cause.
 ## Consequences
 
 - A managed customer connects contacts, calendar and tasks with one consent; mail and files wait
-  for an assessment or a declaration, and the page says which.
+  for an assessment on the client Ownpace publishes, while a deployment whose own application
+  carries them may declare them, and the page says which.
 - Ownpace becomes a Google-verified brand, held to an accurate privacy policy and minimal scopes.
 - The managed client is one new secret: its blast radius is a consent screen in our name, not
   customer data, since tokens are per user. The appliance keeps what the managed edition gives up:
@@ -210,9 +218,10 @@ names it as a cause.
   days to weeks of brand review. Internal consent costs Workspace nothing; this buys the
   personal-Google case.
 - **Open:** the verification submission (the owner's, 0089 T5); the production client
-  ([workplan 0140](../workplans/0140-consent-screens-a-tester-can-pass.md) T11); the class of
-  `.../auth/calendar`, the scope the product asks for (there is no `.../auth/caldav`, as this ADR
-  first had it): a Stage 6 question in `docs/owner-test-runbook.md`.
+  ([workplan 0140](../workplans/0140-consent-screens-a-tester-can-pass.md) T11); whether
+  `.../auth/calendar.readonly` suffices over CalDAV (a Stage 6 question in
+  `docs/owner-test-runbook.md`), and otherwise the class of the full `.../auth/calendar`, not yet
+  read in the console (there is no `.../auth/caldav`, as this ADR first had it).
 
 ## Alternatives considered
 
