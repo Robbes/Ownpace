@@ -751,6 +751,15 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    * written, so a re-run re-reads the message and still creates nothing.
    */
   readonly naturalKeyFromRaw?: (item: Item, raw: unknown) => string;
+  /**
+   * Keys this item may have been recorded under BEFORE its key was derived the
+   * way `naturalKeyFromRaw` derives it now, looked up only when that key finds
+   * no row (ADR-0020's amendment of 2026-10-03). A message copied under one is
+   * found by it and handled as that row, so changing how a key is derived does
+   * not copy everything it keyed a second time (hard rule 1). Mail returns the
+   * raw-bytes key every message without a Message-ID was given until then.
+   */
+  readonly legacyNaturalKeysFromRaw?: (item: Item, raw: unknown) => readonly string[];
   /** Compute content hash from raw data */
   readonly contentHash: (raw: unknown) => string;
   /**
@@ -1092,6 +1101,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     naturalKeyText,
     displayName,
     naturalKeyFromRaw,
+    legacyNaturalKeysFromRaw,
     contentHash,
     onCollision,
     ensureCollection,
@@ -1924,15 +1934,35 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           // items the key IS the content, so an item that changed necessarily
           // has a different natural key and arrives as a new item rather than
           // a changed one.
-          const derivedKey = naturalKeyHash;
+          let derivedKey = naturalKeyHash;
+          let knownAfterFetch = await timed(phases, 'ledgerReadMs', () =>
+            ledger.find(tenantId, mappingId, domain, derivedKey),
+          );
+          // THE KEY IT WAS COPIED UNDER, if not this one (ADR-0020's amendment
+          // of 2026-10-03). The way these keys are derived changed; a copy made
+          // before keeps its old key in the ledger and in its own Message-ID,
+          // so a miss on the new key asks the old one before anything is
+          // written, and a hit is that row: handled under its own key, never
+          // copied again.
+          if (!knownAfterFetch && legacyNaturalKeysFromRaw) {
+            for (const legacyKey of legacyNaturalKeysFromRaw(item, raw)) {
+              const legacyRow = await timed(phases, 'ledgerReadMs', () =>
+                ledger.find(tenantId, mappingId, domain, legacyKey),
+              );
+              if (legacyRow) {
+                derivedKey = legacyKey;
+                naturalKeyHash = legacyKey;
+                knownAfterFetch = legacyRow;
+                break;
+              }
+            }
+          }
           // Now that there IS a key, the item counts as seen. It was skipped by
           // the record at the top of the loop because the key did not exist
           // yet, and an item missing from that set reads as gone from the
-          // source.
+          // source. The key it was FOUND under, so an old row is not read as
+          // gone.
           seenHere.add(derivedKey);
-          const knownAfterFetch = await timed(phases, 'ledgerReadMs', () =>
-            ledger.find(tenantId, mappingId, domain, derivedKey),
-          );
           if (knownAfterFetch) {
             // A ROW IS NOT PROOF OF A COPY. This branch used to be
             // `skipped += 1; return`, which is precisely the bug

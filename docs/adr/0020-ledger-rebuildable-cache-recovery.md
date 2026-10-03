@@ -1,8 +1,8 @@
 # ADR-0020: The ledger is a rebuildable cache — recovery via target reindex (natural-key adoption)
 
 - **Status:** Accepted — amended twice: 2026-09-27 (the reindex is run by hand, workplan 0134
-  T3) and 2026-10-03 (the key of mail without a Message-ID is a hash of its bytes, to be checked
-  on Microsoft 365). See the amendments at the end.
+  T3) and 2026-10-03 (the key of mail without a Message-ID is a hash of the message normalised,
+  with a lookup by its old key). See the amendments at the end.
 - **Date:** 2026-06-21
 - **Relates to:** ADR-0005 (idempotency via ledger, non-destructive), ADR-0015 (backup scope), ADR-0016 (ledger schema), ADR-0018 (JMAP/DAV targets).
 
@@ -21,9 +21,10 @@
   hand, and nothing runs it automatically: the appliance warns at start-up when an active
   migration's ledger is empty (`apps/selfhost/src/lost-ledger-warning.unit.test.ts`), and the
   managed edition does not.
-- **Mail without a Message-ID is keyed by a SHA-256 of its raw bytes**, written into the copy as a
-  generated `Message-ID` (`generated-message-id.ts`); Graph leaves such mail unmigrated. Not yet
-  checked on Microsoft 365, whose bytes may change: if they do, the key becomes a normalised hash.
+- **Mail without a Message-ID is keyed by a hash of the message normalised** (owner,
+  2026-10-03), written into the copy as a generated `Message-ID`; a copy made under the old
+  raw-bytes key is found by it, never copied again
+  (`a-key-that-changed-how-it-is-made.unit.test.ts`). Graph leaves such mail unmigrated.
 - **Cursors are non-authoritative**; **backups are the fast path, not the safety net** (decisions
   5–6 below).
 
@@ -117,6 +118,31 @@ that nothing already copied is copied again, because every copy carries the old 
 `From` were in decision 4 to prevent. Re-keying to decision 4's own formula was not chosen: it
 copies every such message again for no gain.
 
+**Built the same day, without waiting for the check** (the owner: *"go with C, we can test with
+some imap access to microsoft i will arrange"*). `generateMessageId` hashes `keyMaterial`:
+
+- the sender's own headers only (`Date`, `From`, `Sender`, `Reply-To`, `To`, `Cc`, `Subject`,
+  `In-Reply-To`, `References`), unfolded, in a fixed order, their whitespace collapsed;
+- the body with line endings unified, every MIME boundary replaced by its order of appearance,
+  and trailing whitespace dropped;
+- read as latin1, so the key stays a function of the bytes whatever their charset.
+
+Nothing is decoded: a server that re-encodes a part (quoted-printable for 8-bit, say) still changes
+the key, and the Microsoft 365 check is what says whether that happens.
+
+**The old key is asked before anything is written.** When the normalised key finds no row, the
+pass looks up the raw-bytes key (`legacyNaturalKeysFromRaw`, from the bytes the source served with
+the id it prepended taken off), and a hit is that row, handled under its own key. Without it, the
+switch itself would have copied every such message again: the target's copy carries the old id, so
+its own existence check cannot see it either. One case stays open: a copy made before the switch
+whose source then serves other bytes matches neither key, and is copied once more. After that it
+carries the normalised key.
+
+`a-key-that-changed-how-it-is-made.unit.test.ts` pins all three: a pass served other bytes finds its
+copy; a message copied under the old key is not copied again; and without the lookup it would be.
+`generated-message-id.unit.test.ts` pins what the key ignores and what still tells two messages
+apart.
+
 ## Amendment log
 
 - **2026-09-27** — The operative rules say what is built: the reindex is the worker's command in
@@ -129,3 +155,6 @@ copies every such message again for no gain.
   SHA-256 of the raw bytes; to be checked on Microsoft 365, and normalised if its bytes change
   (owner: *"A. But we have to validate the behaviour of Microsoft 365 or we should go with C."*).
   Record: *Amendment, 2026-10-03: the key of mail without a Message-ID, as built*.
+- **2026-10-03, later** — The normalised key built, with a lookup by the old key (owner: *"go with
+  C"*); Microsoft 365 over IMAP to be tested once the owner arranges access. Record: the same
+  amendment, *Built the same day*.

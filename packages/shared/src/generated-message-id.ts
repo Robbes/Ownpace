@@ -53,11 +53,112 @@ export function readMessageId(rfc822: Uint8Array): string | undefined {
 
 /**
  * Derive the id this message would be given. Pure, and a function of the
- * message's bytes alone — so two runs, two machines, and two editions all agree.
+ * message alone — so two runs, two machines, and two editions all agree.
+ *
+ * A hash of the message NORMALISED (ADR-0020's amendment of 2026-10-03, the
+ * owner's option C), not of its raw bytes: a server that builds a message's
+ * MIME when it is asked for it — Exchange, Microsoft 365's IMAP — can return
+ * other bytes for the same message after an upgrade or a restore, and a key
+ * that moved with them would copy the message again. See `keyMaterial` for
+ * what is kept and what is left out.
  */
 export function generateMessageId(rfc822: Uint8Array): string {
+  const digest = createHash('sha256').update(keyMaterial(rfc822)).digest('hex');
+  return `<${digest}@${GENERATED_MESSAGE_ID_DOMAIN}>`;
+}
+
+/**
+ * The id this message was given before 2026-10-03: a hash of its raw bytes.
+ *
+ * Every copy made until then carries it in its `Message-ID`, and the ledger
+ * holds it as that copy's key, so a pass looks it up when the normalised id
+ * finds nothing (`legacyNaturalKeysFromRaw` in `reconcile.ts`). Without that
+ * lookup the switch itself would copy every such message a second time.
+ */
+export function legacyGeneratedMessageId(rfc822: Uint8Array): string {
   const digest = createHash('sha256').update(rfc822).digest('hex');
   return `<${digest}@${GENERATED_MESSAGE_ID_DOMAIN}>`;
+}
+
+/**
+ * Headers the SENDER writes, which no server on the way may rewrite: they are
+ * what tells two messages apart, `Date` and `From` above all (ADR-0020
+ * decision 4). Everything else in the header block is left out of the key:
+ * `Received`, `Return-Path`, `Delivered-To`, `X-…` and the rest are added or
+ * rewritten by the servers a message passes and the one that stores it.
+ */
+const KEYED_HEADERS = [
+  'date',
+  'from',
+  'sender',
+  'reply-to',
+  'to',
+  'cc',
+  'subject',
+  'in-reply-to',
+  'references',
+] as const;
+
+/**
+ * What the generated id hashes: the message with what a server may change
+ * between two fetches of it taken out.
+ *
+ * - **Line endings** are unified to LF: a server may store LF and serve CRLF.
+ * - **Headers** are the sender's own (`KEYED_HEADERS`), unfolded, in a fixed
+ *   order rather than the message's (a server may reorder them), with their
+ *   whitespace collapsed.
+ * - **MIME boundaries** are replaced by their order of appearance: a server
+ *   that rebuilds the MIME of a message mints new ones.
+ * - **Trailing whitespace** at the end of each line and of the body is dropped.
+ *
+ * Read as latin1, so every byte maps to one character and back: the key stays a
+ * function of the bytes, whatever their charset. A message with no blank line
+ * after its headers is read as all body, so two such messages that differ
+ * anywhere get two keys. Normalising further — decoding transfer encodings,
+ * say — would risk making two different messages one, and is not done.
+ */
+export function keyMaterial(rfc822: Uint8Array): Buffer {
+  const text = Buffer.from(rfc822).toString('latin1').replace(/\r\n?/g, '\n');
+  const split = text.indexOf('\n\n');
+  const headerBlock = split === -1 ? '' : text.slice(0, split);
+  let body = split === -1 ? text : text.slice(split + 2);
+
+  const fields = new Map<string, string[]>();
+  for (const line of headerBlock.replace(/\n[ \t]+/g, ' ').split('\n')) {
+    const colon = line.indexOf(':');
+    if (colon <= 0) continue;
+    const name = line.slice(0, colon).trim().toLowerCase();
+    if (!(KEYED_HEADERS as readonly string[]).includes(name)) continue;
+    const value = line.slice(colon + 1).replace(/\s+/g, ' ').trim();
+    fields.set(name, [...(fields.get(name) ?? []), value]);
+  }
+
+  // Every boundary the message declares, in order of first appearance, longest
+  // first when replacing, so one that contains another is not cut in half.
+  const boundaries: string[] = [];
+  for (const m of text.matchAll(/boundary\s*=\s*"?([^";\s\n]+)"?/gi)) {
+    if (!boundaries.includes(m[1]!)) boundaries.push(m[1]!);
+  }
+  for (const b of [...boundaries].sort((x, y) => y.length - x.length)) {
+    body = body.split(b).join(`=_b${boundaries.indexOf(b)}_=`);
+  }
+  body = body.replace(/[ \t]+$/gm, '').replace(/\n+$/, '');
+
+  const header = KEYED_HEADERS.flatMap((name) =>
+    (fields.get(name) ?? []).map((value) => `${name}:${value}`),
+  ).join('\n');
+  return Buffer.from(`${header}\n\n${body}`, 'latin1');
+}
+
+/**
+ * The bytes a message had before `ensureMessageId` gave it an id: the header
+ * it prepended taken off again. A message whose first line is not one of our
+ * generated ids is returned as it is.
+ */
+export function withoutGeneratedMessageId(rfc822: Uint8Array): Uint8Array {
+  const head = Buffer.from(rfc822.subarray(0, 160)).toString('latin1');
+  const m = /^Message-ID: <[0-9a-f]{64}@generated\.openmigrate\.invalid>(\r?\n)/.exec(head);
+  return m ? rfc822.subarray(m[0].length) : rfc822;
 }
 
 /** Was this id one we minted? */

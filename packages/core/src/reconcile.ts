@@ -3,8 +3,12 @@ import { applyTargetFolderPrefix,
   contentHash,
   displayNameForMessage,
   ensureMessageId,
+  isGeneratedMessageId,
+  legacyGeneratedMessageId,
   naturalKeyHash,
   normalizeMessageId,
+  readMessageId,
+  withoutGeneratedMessageId,
   mapWithConcurrency as _mapWithConcurrency,
   naturalKeyForItem,
   type RunShadowPass,
@@ -187,6 +191,17 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     naturalKey: (item) => ((item as MailItem).messageId ? naturalKeyForItem(item) : undefined),
     naturalKeyFromRaw: (_item, raw) =>
       naturalKeyHash(ensureMessageId((raw as RawMessage).rfc822).messageId),
+    // The key such a message was given before 2026-10-03, a hash of its raw
+    // bytes (ADR-0020's amendment): asked when the normalised key finds no row,
+    // so a copy made under it is not made again. From the bytes as the source
+    // served them, which is what that hash was taken of: the id `fetchRaw`
+    // prepended is taken off first.
+    legacyNaturalKeysFromRaw: (_item, raw) => {
+      const written = (raw as RawMessage).rfc822;
+      const id = readMessageId(written);
+      if (id === undefined || !isGeneratedMessageId(id)) return [];
+      return [naturalKeyHash(legacyGeneratedMessageId(withoutGeneratedMessageId(written)))];
+    },
     // The Message-ID a person would search their old mailbox for. Through the
     // SAME `ensureMessageId` the key uses when the listing had none, so the two
     // describe one message rather than two.

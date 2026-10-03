@@ -15,11 +15,14 @@
 //                                    changes for no reason
 
 import { describe, it, expect } from 'vitest';
+import { createHash } from 'node:crypto';
 import {
   ensureMessageId,
   generateMessageId,
+  legacyGeneratedMessageId,
   readMessageId,
   isGeneratedMessageId,
+  withoutGeneratedMessageId,
   GENERATED_MESSAGE_ID_DOMAIN,
 } from './generated-message-id.ts';
 import { naturalKeyHash } from './hash.ts';
@@ -91,6 +94,83 @@ describe('generateMessageId', () => {
   it('is recognisable as ours afterwards', () => {
     expect(isGeneratedMessageId(generateMessageId(WITHOUT_ID))).toBe(true);
     expect(isGeneratedMessageId('<real@example.com>')).toBe(false);
+  });
+});
+
+describe('generateMessageId is a hash of the message normalised (ADR-0020, 2026-10-03)', () => {
+  /**
+   * A server that builds a message's MIME when it is asked for it can serve
+   * other bytes for the same message. Each case below is one way it does, and
+   * each must give the same id, or the message is copied again.
+   */
+  const SENT = enc(
+    [
+      'Date: Fri, 3 Oct 2026 09:00:00 +0200',
+      'From: Anna <anna@example.com>',
+      'Subject: the minutes',
+      'Content-Type: multipart/mixed; boundary="AAA"',
+      '',
+      '--AAA',
+      'Content-Type: text/plain',
+      '',
+      'body',
+      '--AAA--',
+      '',
+    ].join('\r\n'),
+  );
+  const id = generateMessageId(SENT);
+  const variant = (f: (s: string) => string) => generateMessageId(enc(f(dec(SENT))));
+
+  it('ignores the line endings', () => {
+    expect(variant((s) => s.replace(/\r\n/g, '\n'))).toBe(id);
+  });
+
+  it('ignores headers a server adds on the way', () => {
+    expect(variant((s) => `Received: from mx by store; Fri, 3 Oct 2026\r\nX-Spam-Score: 0\r\n${s}`)).toBe(id);
+  });
+
+  it('ignores the order of the headers', () => {
+    expect(
+      variant((s) =>
+        s.replace(
+          'Date: Fri, 3 Oct 2026 09:00:00 +0200\r\nFrom: Anna <anna@example.com>\r\nSubject: the minutes',
+          'Subject: the minutes\r\nFrom: Anna <anna@example.com>\r\nDate: Fri, 3 Oct 2026 09:00:00 +0200',
+        ),
+      ),
+    ).toBe(id);
+  });
+
+  it('ignores a boundary the server minted again', () => {
+    expect(variant((s) => s.replaceAll('AAA', '_000_rebuilt_'))).toBe(id);
+  });
+
+  it('ignores whitespace at the ends of lines and of the body', () => {
+    expect(variant((s) => s.replace('body', 'body   ') + '\r\n\r\n')).toBe(id);
+  });
+
+  it('still tells messages apart by their date, their sender and their body', () => {
+    expect(variant((s) => s.replace('09:00:00', '09:30:00'))).not.toBe(id);
+    expect(variant((s) => s.replace('anna@example.com', 'bas@example.com'))).not.toBe(id);
+    expect(variant((s) => s.replace('body', 'another body'))).not.toBe(id);
+  });
+});
+
+describe('the key a message without one had before 2026-10-03', () => {
+  it('is the hash of its raw bytes, as every copy made until then carries it', () => {
+    const raw = createHash('sha256').update(WITHOUT_ID).digest('hex');
+    expect(legacyGeneratedMessageId(WITHOUT_ID)).toBe(`<${raw}@${GENERATED_MESSAGE_ID_DOMAIN}>`);
+  });
+
+  it('is computed from the bytes the source served, with the id we prepended taken off', () => {
+    const written = ensureMessageId(WITHOUT_ID).rfc822;
+    expect(withoutGeneratedMessageId(written)).toEqual(WITHOUT_ID);
+    expect(legacyGeneratedMessageId(withoutGeneratedMessageId(written))).toBe(
+      legacyGeneratedMessageId(WITHOUT_ID),
+    );
+  });
+
+  it('leaves a message whose first line is not an id of ours as it is', () => {
+    expect(withoutGeneratedMessageId(WITH_ID)).toEqual(WITH_ID);
   });
 });
 
