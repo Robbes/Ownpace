@@ -25,6 +25,18 @@ describe('NOTICE asserts the trade mark', () => {
     expect(notice).toContain('"Ownpace" is a trademark');
   });
 
+  it('names the same owner as TRADEMARK.md (ADR-0040, the owner 2026-10-03)', () => {
+    // NOTICE travels with every redistribution (Apache-2.0 §4(d)), so a stale
+    // owner here spreads into every copy. It still said "the Ownpace project
+    // maintainers" five weeks after the mark was filed in Archico B.V.'s name.
+    // The copyright stays with The Ownpace authors; only the mark has an owner.
+    const policy = readFileSync(join(REPO_ROOT, 'TRADEMARK.md'), 'utf8');
+    const owner = policy.match(/is a trademark of \*\*([^*]+)\*\*/)?.[1];
+    expect(owner, 'TRADEMARK.md no longer names the owner of the mark in bold').toBeDefined();
+    expect(notice).toContain(`"Ownpace" is a trademark of ${owner}`);
+    expect(notice).toContain('Copyright 2026 The Ownpace authors');
+  });
+
   it('cites Apache-2.0 §6 rather than merely asserting', () => {
     // The assertion without its basis reads as a preference. The licence
     // section is WHY the claim survives an otherwise permissive grant.
