@@ -29,7 +29,11 @@
  *    `mapping.granted` row each, naming the person's link.
  * 6. **The link is spent once every account on it is granted**, read in this
  *    same transaction after the writes. Until then it stays live, so a person
- *    with two accounts can grant one now and one later.
+ *    with two accounts can grant one now and one later. A link that asks
+ *    again (made while every account was connected, managed migration 0036)
+ *    takes the migrations just written off its list, and is spent once none of
+ *    those it still asks for is left: every account it asked for has then been
+ *    connected through it, not only held a token.
  *
  * ## One token, several migrations
  *
@@ -51,7 +55,12 @@ import { DEFAULT_MAPPING_VIEW_LINK_EXPIRY_DAYS, PgLedger, expiryFromDays, type L
 import { SecretStore } from '@openmig/core/secret-store';
 import { LINK_SPENT, log, organisationClosedRefusal, reasonPair, type Bilingual, type TenantId } from '@openmig/shared';
 import { personLink, personMigration } from '@openmig/managed/schema-managed';
-import { issuePersonLink, readOrganisationClosure, spendPersonLink } from '@openmig/managed';
+import {
+  connectedThroughPersonLink,
+  issuePersonLink,
+  readOrganisationClosure,
+  spendPersonLink,
+} from '@openmig/managed';
 import { withTenantDb } from '../../middleware/auth.ts';
 import { GRANT_ACTION, GRANT_ACTOR, GRANT_REFUSED_ACTION, type GrantedAccess, type GrantStoreResult } from './grant-ending.ts';
 import { namedAccount, readGrantRows, whereFromAndTo } from './grant-subject.ts';
@@ -204,12 +213,24 @@ export async function storePersonGrant(
         return { ok: false as const, ...reasonPair(NOTHING_LEFT_TO_GRANT), linkStillWorks: true };
       }
 
-      // Spent once every account on it is granted, read after the writes above.
+      // Spent once every account on it is granted, read after the writes
+      // above, and, for a link that asks again, once each migration it asks
+      // for that a sign-in can still serve has been connected through it.
+      const asksAgain = await connectedThroughPersonLink(db, {
+        tenantId: target.tenantId,
+        linkId: target.linkId,
+        mappingIds: written,
+      });
       const subject = await readPersonGrantSubject(db, target.tenantId, target.personId);
       const everyAccount = subject === null || subject.accounts.every((a) => a.granted);
-      const linkSpent = everyAccount
-        ? await spendPersonLink(db, { tenantId: target.tenantId, linkId: target.linkId, now })
-        : false;
+      const stillAsked =
+        subject !== null &&
+        asksAgain !== null &&
+        subject.accounts.some((a) => a.ask.ok && a.migrations.some((m) => asksAgain.includes(m.mappingId)));
+      const linkSpent =
+        everyAccount && !stillAsked
+          ? await spendPersonLink(db, { tenantId: target.tenantId, linkId: target.linkId, now })
+          : false;
       return { ok: true as const, granted: written, linkSpent };
     });
   } catch (error) {

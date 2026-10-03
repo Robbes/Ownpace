@@ -237,6 +237,27 @@ describe("a person's grant link, on their page", () => {
     await userEvent.click(within(section).getByRole('button', { name: 'Create grant link' }));
     expect(personLinkApi.issue).toHaveBeenCalledWith('p-anna', 'grant', 7);
     expect(await within(section).findByDisplayValue('https://app.example/grant/p.l-1.secret')).toBeInTheDocument();
+    expect(within(section).queryByText(/asks them to connect each one again/)).not.toBeInTheDocument();
+  });
+
+  it('says so when the link asks every account again, because each is connected (managed migration 0036)', async () => {
+    vi.mocked(personLinkApi.issue).mockResolvedValue({
+      id: 'l-3',
+      purpose: 'grant',
+      url: 'https://app.example/grant/p.l-3.secret',
+      expiresAt: '2026-10-06T00:00:00.000Z',
+      expiryDays: 7,
+      distribution: 'Send this to the person yourself.',
+      asksAgain: true,
+    });
+    renderAt();
+    const section = await screen.findByRole('region', { name: 'For Anna Jansen' });
+    await userEvent.click(within(section).getByRole('button', { name: 'Create grant link' }));
+    expect(
+      await within(section).findByText(
+        'Every Google account of theirs is connected, so this link asks them to connect each one again. Send it when a connection has stopped working.',
+      ),
+    ).toBeInTheDocument();
   });
 
   it('offers one progress link for all of their migrations too (slice 3), made with its own expiry', async () => {

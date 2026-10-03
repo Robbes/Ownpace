@@ -15,7 +15,10 @@
  *  - spending is once, and not after the kill switch or the date;
  *  - revoking names the person, and the live count is the grant links that
  *    can still be used;
- *  - deleting the person deletes their links.
+ *  - deleting the person deletes their links;
+ *  - a link that asks again (managed migration 0036) keeps the migrations it
+ *    asks for, says them when verified, and loses each as its account is
+ *    connected through it.
  *
  * PGlite as `app_user`, both chains. The names are invented.
  */
@@ -35,6 +38,7 @@ import { runManagedMigrations } from './migrate-managed.ts';
 import { createPerson, deletePerson } from './people.ts';
 import {
   countLivePersonGrantLinks,
+  connectedThroughPersonLink,
   isPersonLinkToken,
   issuePersonLink,
   listPersonLinks,
@@ -107,7 +111,7 @@ describe('verifying', () => {
     const verdict = await verifyPersonLink(driver, issued.token, { purpose: 'grant' });
     expect(verdict).toEqual({
       ok: true,
-      link: { id: issued.id, tenantId: OURS, personId: anna, purpose: 'grant', expiresAt: issued.expiresAt },
+      link: { id: issued.id, tenantId: OURS, personId: anna, purpose: 'grant', expiresAt: issued.expiresAt, asksAgain: null },
     });
   });
 
@@ -237,6 +241,59 @@ describe('spending, revoking and counting', () => {
     expect(await withTenant(driver, tenant, (db) => countLivePersonGrantLinks(db, tenant, inDays(2)))).toBe(2);
     // Under another organisation the count is that organisation's, and nothing here.
     expect(await withTenant(driver, OURS, (db) => countLivePersonGrantLinks(db, tenant))).toBe(0);
+  });
+});
+
+describe('a link that asks again (managed migration 0036)', () => {
+  const CAL = `${P}31`;
+  const MAIL = `${P}32`;
+
+  it('keeps what it asks for, says it when verified, and loses each as it is connected through it', async () => {
+    const issued = await withTenant(driver, OURS, (db) =>
+      issuePersonLink(db, {
+        tenantId: OURS,
+        personId: anna,
+        purpose: 'grant',
+        createdBy: 'owner-sub',
+        expiresAt: inDays(7),
+        asksAgain: [CAL, MAIL],
+      }),
+    );
+    const verdict = await verifyPersonLink(driver, issued.token, { purpose: 'grant' });
+    expect(verdict.ok && verdict.link.asksAgain).toEqual([CAL, MAIL]);
+
+    const connected = (mappingIds: string[]) =>
+      withTenant(driver, OURS, (db) => connectedThroughPersonLink(db, { tenantId: OURS, linkId: issued.id, mappingIds }));
+    expect(await connected([CAL])).toEqual([MAIL]);
+    expect(await connected([CAL])).toEqual([MAIL]);
+    expect(await connected([MAIL])).toEqual([]);
+    // Under another organisation the row is not there to change.
+    expect(
+      await withTenant(driver, THEIRS, (db) =>
+        connectedThroughPersonLink(db, { tenantId: THEIRS, linkId: issued.id, mappingIds: [MAIL] }),
+      ),
+    ).toBeNull();
+  });
+
+  it('asks for nothing again when made while something was not connected, and never for a progress link', async () => {
+    const first = await issue(OURS, anna);
+    expect(
+      await withTenant(driver, OURS, (db) =>
+        connectedThroughPersonLink(db, { tenantId: OURS, linkId: first.id, mappingIds: [CAL] }),
+      ),
+    ).toBeNull();
+    const view = await withTenant(driver, OURS, (db) =>
+      issuePersonLink(db, {
+        tenantId: OURS,
+        personId: anna,
+        purpose: 'view',
+        createdBy: 'owner-sub',
+        expiresAt: inDays(90),
+        asksAgain: [CAL],
+      }),
+    );
+    const [row] = await owner('SELECT asks_again FROM person_link WHERE id = $1', [view.id]);
+    expect(row?.asks_again).toBeNull();
   });
 });
 

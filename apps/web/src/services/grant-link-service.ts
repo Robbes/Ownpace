@@ -72,6 +72,9 @@ const IssuedSchema = z.object({
   expiresAt: z.string(),
   expiryDays: z.number(),
   distribution: z.string(),
+  // A person's grant link made while every account of theirs was connected
+  // asks each of them again (managed migration 0036). A migration's never does.
+  asksAgain: z.boolean().optional(),
 });
 export type IssuedGrantLink = z.infer<typeof IssuedSchema>;
 

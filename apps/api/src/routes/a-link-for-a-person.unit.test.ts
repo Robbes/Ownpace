@@ -18,7 +18,9 @@
  *    nothing on the others, with an audit row each;
  *  - stays live until every account is granted, and is spent then;
  *  - stores nothing for the wrong account, a revoked link, or a migration that
- *    left them since the page was opened.
+ *    left them since the page was opened;
+ *  - made while every account is connected, asks each of them again, and is
+ *    spent once each has been connected through it (managed migration 0036).
  *
  * PGlite as `app_user`, both chains. Google's token endpoint is the one thing
  * stubbed, as in `grant.unit.test.ts`. The names are invented.
@@ -247,10 +249,12 @@ beforeEach(async () => {
   await q('DELETE FROM person_link');
   await q('UPDATE mailbox_mapping SET source_secret_ref = NULL, grant_withdrawn_at = NULL');
   await q('DELETE FROM audit_log');
-  await q(
-    `INSERT INTO person_migration (mapping_id, person_id, tenant_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`,
-    [CONTACTS, ANNA, TENANT],
-  );
+  for (const m of [CONTACTS, WORK_MAIL]) {
+    await q(
+      `INSERT INTO person_migration (mapping_id, person_id, tenant_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`,
+      [m, ANNA, TENANT],
+    );
+  }
 });
 
 describe('issuing a person’s grant link', () => {
@@ -259,8 +263,9 @@ describe('issuing a person’s grant link', () => {
     expect(res.status, JSON.stringify(res.body)).toBe(201);
     expect(res.body.purpose).toBe('grant');
     expect(res.body.url).toMatch(/^https:\/\/app\.example\/grant\/p\.[0-9a-f-]{36}\./);
-    const rows = await q('SELECT person_id, purpose, created_by FROM person_link');
-    expect(rows).toEqual([{ person_id: ANNA, purpose: 'grant', created_by: 'pat' }]);
+    expect(res.body.asksAgain).toBe(false);
+    const rows = await q('SELECT person_id, purpose, created_by, asks_again FROM person_link');
+    expect(rows).toEqual([{ person_id: ANNA, purpose: 'grant', created_by: 'pat', asks_again: null }]);
 
     expect(documented('/api/people/{personId}/links', 'post', '201', res.body), JSON.stringify(res.body)).toBe(true);
 
@@ -428,6 +433,61 @@ describe('the grant lands on what the page listed', () => {
     expect(ended.status, ended.text).toBe(200);
     expect(await tokenOf(CAL)).toBe(REFRESH);
     expect(await tokenOf(CONTACTS)).toBeNull();
+  });
+});
+
+describe('a link made while every account is connected asks each again (managed migration 0036)', () => {
+  /** A token each of Anna's Google migrations holds, which Google may no longer honour. */
+  const OLD = '1//a-token-google-no-longer-honours';
+  const connectEverything = async () => {
+    const ref = JSON.stringify(SecretStore.encryptCredentials({ refreshToken: OLD }).encrypted);
+    await q('UPDATE mailbox_mapping SET source_secret_ref = $1 WHERE id IN ($2, $3, $4)', [ref, CAL, CONTACTS, WORK_MAIL]);
+  };
+  const again = (page: { body: { accounts: Array<{ again: boolean }> } }) => page.body.accounts.map((a) => a.again);
+
+  it('is issued rather than refused, says so, and remembers what it asks for', async () => {
+    await connectEverything();
+    const res = await issue(ANNA);
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.asksAgain).toBe(true);
+    expect(documented('/api/people/{personId}/links', 'post', '201', res.body)).toBe(true);
+    const [row] = await q('SELECT asks_again FROM person_link');
+    expect([...(row?.asks_again as string[])].sort()).toEqual([CAL, CONTACTS, WORK_MAIL].sort());
+  });
+
+  it('offers each account again, and is spent once each has been connected through it', async () => {
+    await connectEverything();
+    const token = tokenIn((await issue(ANNA)).body.url);
+    const page = await request(app).get(`/api/grant/${token}`);
+    expect(page.body.accounts.map((a: { granted: boolean }) => a.granted)).toEqual([true, true]);
+    expect(again(page)).toEqual([true, true]);
+    expect(documented('/api/grant/{link}', 'get', '200', page.body), JSON.stringify(page.body)).toBe(true);
+
+    expect((await (await grant(token, 'anna@gmail.com')).callback()).status).toBe(200);
+    expect(await tokenOf(CAL)).toBe(REFRESH);
+    expect(await tokenOf(CONTACTS)).toBe(REFRESH);
+    expect(await tokenOf(WORK_MAIL)).toBe(OLD);
+    const between = await request(app).get(`/api/grant/${token}`);
+    expect(between.status).toBe(200);
+    expect(again(between)).toEqual([false, true]);
+    const twice = await request(app).post(`/api/grant/${token}/google/authorize`).send({ account: 'anna@gmail.com' });
+    expect(twice.body.error).toBe('already_granted');
+
+    signsInAs = 'anna@work.example';
+    expect((await (await grant(token, 'anna@work.example')).callback()).status).toBe(200);
+    expect(await tokenOf(WORK_MAIL)).toBe(REFRESH);
+    const [row] = await q(`SELECT used_at, asks_again FROM person_link WHERE purpose = 'grant'`);
+    expect(row?.used_at).toBeTruthy();
+    expect(row?.asks_again).toEqual([]);
+  });
+
+  it('stops asking for a migration that left the person', async () => {
+    await connectEverything();
+    const token = tokenIn((await issue(ANNA)).body.url);
+    await q('DELETE FROM person_migration WHERE mapping_id = $1', [WORK_MAIL]);
+    expect((await (await grant(token, 'anna@gmail.com')).callback()).status).toBe(200);
+    const [row] = await q(`SELECT used_at FROM person_link WHERE purpose = 'grant'`);
+    expect(row?.used_at).toBeTruthy();
   });
 });
 

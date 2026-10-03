@@ -17,6 +17,12 @@
  * migration's own reason, so a link that works at issue is one the grant page
  * can serve (`person-grant-subject.ts` is both halves' reading).
  *
+ * **When every account of theirs is connected**, a grant link asks each of
+ * them again (`asksAgain`, managed migration 0036) instead of being refused: a
+ * connection can stop working while its token is still held, and the person's
+ * link is to be the only one made (the owner, 2026-10-03: *"yes, replace the
+ * per-migration links"*), so it is the one that has to be able to ask.
+ *
  * **A progress link too** (slice 3), now that the person's progress page
  * exists (`person-progress.ts`): `link-routes.ts`'s rule was that a purpose no
  * page honours is a link that opens nothing. As for a migration's, a progress
@@ -125,7 +131,10 @@ async function whyNothingToGrant(tenantId: string, name: string, migrations: rea
   });
   return (
     `None of ${name}'s migrations can be granted through a link. ` +
-    (reasons.length > 0 ? reasons.join(' ') : 'Each names a Google account that is connected already.')
+    (reasons.length > 0
+      ? reasons.join(' ')
+      : 'Each Google account of theirs is read through two different Google applications, so one sign-in ' +
+        'cannot serve its migrations. Set them up with the same one.')
   );
 }
 
@@ -153,17 +162,19 @@ router.post(
       const noAddress = viewLinkRefusal({ hasWebUrl: base !== null });
       if (noAddress) return void res.status(409).json({ error: noAddress.code, reason: noAddress.reason });
 
+      // A grant link asks for each account of theirs that is not connected,
+      // or, when every one is, for each again (the header says why).
+      let asksAgain: string[] | null = null;
       if (purpose === 'grant') {
         const subject = await withTenantDb(s.tenantId, pool(), (db) =>
           readPersonGrantSubject(db, s.tenantId, s.personId),
         );
-        if (!subject || subject.accounts.every((a) => a.granted || !a.ask.ok)) {
-          const reason =
-            subject && subject.accounts.some((a) => a.granted)
-              ? `Every Google account ${s.name}'s migrations read is connected already, so a link would ask for nothing.`
-              : await whyNothingToGrant(s.tenantId, s.name, s.migrations);
+        const askable = subject?.accounts.filter((a) => a.ask.ok) ?? [];
+        if (askable.length === 0) {
+          const reason = await whyNothingToGrant(s.tenantId, s.name, s.migrations);
           return void res.status(409).json({ error: 'nothing_to_grant', reason });
         }
+        if (askable.every((a) => a.granted)) asksAgain = askable.flatMap((a) => a.migrations.map((m) => m.mappingId));
       }
 
       const days = parsed.data.expiryDays ?? MAPPING_LINK_LIFETIMES[purpose].fallback;
@@ -174,6 +185,7 @@ router.post(
           purpose,
           createdBy: req.userId ?? 'unknown',
           expiresAt: expiryFromDays(days),
+          asksAgain,
         }),
       );
       if (outcome.kind === 'at_the_limit') {
@@ -192,6 +204,9 @@ router.post(
         url: `${base}/${purpose}/${issued.token}`,
         expiresAt: issued.expiresAt.toISOString(),
         expiryDays: days,
+        // Said, so the owner's screen can tell them why a link was made for
+        // somebody whose accounts all read as connected.
+        asksAgain: asksAgain !== null,
         distribution:
           'Send this to the person yourself — Ownpace does not email it, and cannot show it ' +
           'to you again. If it goes astray, revoke it and issue another.',

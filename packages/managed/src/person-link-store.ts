@@ -28,6 +28,18 @@
  *
  * Managed-only, because `person` is (ADR-0036): the appliance moves one
  * implicit person and issues no grant links.
+ *
+ * ## A link that asks again (managed migration 0036)
+ *
+ * A grant link made while every account of the person's is connected asks
+ * each of them again: a connection can stop working while its token is still
+ * held, and since the owner's answer of 2026-10-03 (*"yes, replace the
+ * per-migration links"*) no migration's own link is made to ask instead. Such
+ * a link remembers which migrations it asks for (`asksAgain`), each leaves the
+ * list as its account is connected through the link
+ * (`connectedThroughPersonLink`), and the link is spent once none is left. A
+ * link made while something was not connected has none (`null`), and asks
+ * only for that.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -62,6 +74,8 @@ export interface VerifiedPersonLink {
   readonly personId: string;
   readonly purpose: MappingLinkPurpose;
   readonly expiresAt: Date;
+  /** The migrations it asks to connect again, or null: see the header. */
+  readonly asksAgain: readonly string[] | null;
 }
 
 export type PersonLinkVerdict =
@@ -74,7 +88,9 @@ export type PersonLinkSummary = MappingLinkSummary;
 /**
  * Mint a link for one person, in the owner's own tenant transaction, so the
  * tenant policies hold the insert. Returns the full token EXACTLY ONCE:
- * nothing stores it, and re-issue is the remedy for a lost one.
+ * nothing stores it, and re-issue is the remedy for a lost one. `asksAgain`
+ * is for a grant link made while every account of theirs is connected: the
+ * migrations it asks to connect again.
  */
 export async function issuePersonLink(
   db: PgDatabase,
@@ -84,6 +100,7 @@ export async function issuePersonLink(
     purpose: MappingLinkPurpose;
     createdBy: string;
     expiresAt: Date;
+    asksAgain?: readonly string[] | null;
   },
 ): Promise<{ id: string; token: string; expiresAt: Date }> {
   const id = randomUUID();
@@ -96,6 +113,7 @@ export async function issuePersonLink(
     secretHash: hashLinkSecret(secret),
     createdBy: input.createdBy,
     expiresAt: input.expiresAt,
+    asksAgain: input.purpose === 'grant' && input.asksAgain ? [...input.asksAgain] : null,
   });
   return { id, token: `p.${id}.${secret}`, expiresAt: input.expiresAt };
 }
@@ -129,6 +147,7 @@ export async function verifyPersonLink(
         expiresAt: personLink.expiresAt,
         usedAt: personLink.usedAt,
         revokedAt: personLink.revokedAt,
+        asksAgain: personLink.asksAgain,
       })
       .from(personLink)
       .where(eq(personLink.id, id))
@@ -153,8 +172,27 @@ export async function verifyPersonLink(
       personId: row.personId,
       purpose: row.purpose,
       expiresAt: row.expiresAt,
+      asksAgain: row.asksAgain,
     },
   };
+}
+
+/**
+ * Take migrations off what a link asks to connect again, once their account
+ * has been connected through it, in the ending's tenant transaction. Answers
+ * what is left: null for a link that asks only for what is not connected,
+ * which has nothing to take off.
+ */
+export async function connectedThroughPersonLink(
+  db: PgDatabase,
+  input: { tenantId: string; linkId: string; mappingIds: readonly string[] },
+): Promise<readonly string[] | null> {
+  const where = and(eq(personLink.id, input.linkId), eq(personLink.tenantId, input.tenantId));
+  const [row] = await db.select({ asksAgain: personLink.asksAgain }).from(personLink).where(where);
+  if (!row || row.asksAgain === null) return null;
+  const left = row.asksAgain.filter((id) => !input.mappingIds.includes(id));
+  if (left.length < row.asksAgain.length) await db.update(personLink).set({ asksAgain: left }).where(where);
+  return left;
 }
 
 /**

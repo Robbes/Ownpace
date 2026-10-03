@@ -291,6 +291,7 @@ const LinkSection: React.FC<{
             {t('grantLink.issued.until', { date: dateTime(issued.expiresAt) })}
           </p>
           <p className="mt-1 text-sm text-gray-700">{t('grantLink.issued.youSend')}</p>
+          {issued.asksAgain && <p className="mt-1 text-sm text-gray-700">{t('personLink.asksAgain')}</p>}
         </div>
       )}
 
