@@ -95,15 +95,16 @@ is collected. Nothing has run on a machine.
   `access-notify`'s event test red (1). A scheme check removed left the guard green: no refused
   value had a host after a scheme that is not http(s). The guard gained
   `ftp://www.ownpace.eu`, and the mutation then turned it red (1).
-- **Gates, on this tree** (`main` merged in at `563b845a`, not rebased): `pnpm exec tsc
+- **Gates, on this tree** (`main` merged in at `fd42e324`, not rebased): `pnpm exec tsc
   --noEmit`, `test/ui`'s and `site`'s, and the web app's typecheck clean; ESLint clean on the
-  14 changed code files; the unit-browser project, 144 files and 2,811 tests, passes; the unit
-  project over `apps/api`, `scripts`, `site` and `packages`, 849 files and 12,326 tests, has
-  every test passing, with two `afterAll` clean-ups (`a-first-bring-up-of-live`,
-  `a-deploy-from-a-named-tag`) timing out at 10 seconds while removing their temporary folders
-  on this machine. Both do the same, run alone, with `main`'s `managed.yml` and
-  `setup-zitadel.sh`, so it is the machine. The workplan, lessons and ADR indexes, the
-  conflict-marker check and the commit convention pass.
+  14 changed code files; the unit-browser project, 144 files and 2,814 tests, passes; the unit
+  project over `apps/api`, `scripts`, `site` and `packages`, 851 files and 12,364 tests, has
+  every test passing, with three `afterAll` clean-ups (`a-first-bring-up-of-live`,
+  `a-deploy-from-a-named-tag`, `one-copy-before-each-update`) timing out at 10 seconds while
+  removing their temporary folders on this machine. The first two do the same, run alone, with
+  `main`'s `managed.yml` and `setup-zitadel.sh`; the third passes alone. So it is the machine.
+  The workplan, lessons and ADR indexes, the conflict-marker check and the commit convention
+  pass.
 - **Still not true.** Nothing is merged, and live runs none of it until a tag carries it. The
   links point at pages that answer only once the site is published (T10; live's `WWW_LIVE`).
   The sign-in page's step has not run against a real instance: the OTA instance gets it at the
