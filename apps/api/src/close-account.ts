@@ -26,7 +26,9 @@
  * From the commit on, nothing new starts (0085 T2; the owner's report of
  * 2026-09-28). The close does not touch the migrations; everything else reads
  * the organisation's status. The sync tick starts no pass for it, a pass under
- * way stops before its next data type, the credential builders refuse it, and
+ * way stops starting new items within about fifteen seconds and finishes the
+ * ones it has begun (it re-reads between data types and, since 2026-09-29,
+ * from inside one: `whyThisDataTypeStops`), the credential builders refuse it, and
  * every door that would start work or use the stored access answers 409
  * `account_closed` (`closed-organisation.ts`). A reopen sets the status back,
  * and all of it runs again.

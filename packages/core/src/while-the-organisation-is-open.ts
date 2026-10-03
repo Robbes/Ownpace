@@ -6,7 +6,9 @@
  * *Nothing uses your access after closing*).
  *
  * Since #1320 nothing new starts for a closed organisation: the tick starts no
- * pass, a pass under way stops before its next data type, and the builders of
+ * pass, a pass under way stops starting new items within about fifteen seconds
+ * and finishes the ones it has begun (it hears the close from inside a data
+ * type since 2026-09-29, through `PassClock.whyItStops`), and the builders of
  * every reader refuse. A verification, a confirmation or a discovery that was
  * already running had built its readers before the close, so the builders'
  * refusal never reached it; the close asks the orchestrator to cancel only the

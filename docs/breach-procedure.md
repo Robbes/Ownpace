@@ -20,8 +20,10 @@ Persoonsgegevens (step 4) is due within 72 hours of it where feasible.
   the sync tick starting passes, and it refuses every button that would start work (workplan
   0132 T6 (b)). How it works is in
   [Draining first](./managed-bring-up.md#draining-first-and-telling-customers-why).
-- **Stop the passes already running.** The hold lets them finish on their own clock. In the
-  Trigger.dev dashboard of live's plane, open each run that is still executing and cancel it.
+- **Stop the passes already running.** The hold lets them finish on their own clock. Pausing
+  the affected migrations stops their running passes starting new items within about fifteen
+  seconds; each finishes the items it has begun. The hard stop is still the Trigger.dev
+  dashboard of live's plane: open each run that is still executing and cancel it.
 - **A leaked key or password**: see [Keys](#keys) below before you change anything, because
   replacing a key can make stored data unreadable.
 - **A tester's own credential**: deleting the connection revokes what the provider lets us

@@ -125,8 +125,10 @@
     uses the access after closing: NOT YET FULLY TRUE. Since #1320
     (d7868276, 0085 T2), merged into this branch in c1413b53, nothing new
     starts once the account is closed. Work already running is not all
-    stopped: a sync pass or a discovery stops before its next data type, and
-    a verification or a confirmation already running reads to its end with
+    stopped: a sync pass stops starting new items within about fifteen
+    seconds and finishes the ones it has begun (2026-09-29), a discovery
+    stops before its next data type, and a verification or a confirmation
+    already running reads to its end with
     the stored access (terms briefing, precondition B, not fully done). The
     access is destroyed at erasure, at the end of the window the tester
     chose, as terms §11 now says.
