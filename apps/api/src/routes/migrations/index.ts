@@ -13,7 +13,7 @@ import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth.ts'
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { recordMappingStatusChange } from './mapping-status-audit.ts';
 import { activateAddedPath, endOrKeepDataType, movePathsWithMapping, stopOrResumeDataType } from './path-lifecycle-wiring.ts';
-import { eq, and, isNull } from 'drizzle-orm';
+import { eq, and, desc, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import {
   PgMigrationStatusStore,
@@ -28,6 +28,7 @@ import {
   readPathStopFacts,
   pathStopChoices,
   readGraceEnds,
+  readPathPhases,
 } from '@openmig/ledger';
 import {
   ARCHIVE_PROVIDERS,
@@ -38,8 +39,10 @@ import {
   asMappingId,
   asTenantId,
   buildDomainStatusReports,
+  checkFactsOf,
   DISCOVERY_DOMAINS,
   discoveryForSelection,
+  domainProgressOf,
   foundByDomain,
   grantWithdrawnRefusal,
   isArchiveProvider,
@@ -59,7 +62,9 @@ import type {
   DropboxNativeFilePolicies,
   GoogleNativeFilePolicy,
   MappingId,
+  MigrationProgressReport,
   NativeFilePolicies,
+  ProgressReport,
   TenantId,
 } from '@openmig/shared';
 import {
@@ -80,6 +85,8 @@ import { SCHEDULE_FLOOR_MINUTES, shortestGapMinutes } from '@openmig/orchestrati
 // this same router so they sit under /api/migrations/:mappingId/... alongside
 // discovery and start, which is where the appliance's equivalents live too.
 import operatingRoutes from './operating-routes.ts';
+// One reading of a verification run, shared with the progress read (0154 T1 (b)).
+import { runReportOf } from './operating-routes.ts';
 // The account kind's scope set, from the same table the consent screen uses
 // (workplan 0106 T3b) — so the door demands what the consent asked for.
 import { googleAccountScopeSentence } from './google-account-consent.ts';
@@ -2213,6 +2220,88 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
     });
   } catch (error) {
     serverFault(res, 'list_failed', 'listing your migrations', error);
+  }
+});
+
+/**
+ * GET /api/migrations/progress (workplan 0154 T1 (b) to (d))
+ *
+ * WHERE EACH DATA TYPE OF EACH MIGRATION IS, for the lines on a person's card
+ * and their page: each data type's pass state, phase and stop, the facts its
+ * stage is read from; its counts against what discovery found, for the
+ * sentence under the stage; and the migration's check, which the list does not
+ * carry, so a line can say *Ready to switch* and when the check passed.
+ *
+ * Read per migration, inside one tenant transaction, by the readers the
+ * migration's own page uses: the rows `buildDomainStatusReports` builds for
+ * `GET /:mappingId`, the phases a pass is gated by (`readPathPhases`), and the
+ * run `…/verify/report` serves (`runReportOf`). A data type the migration does
+ * not copy (`skipped`) has no line, as on the migration's page. Registered
+ * before `/:mappingId`, which would take *progress* for an id.
+ */
+router.get('/progress', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found in authentication context' });
+      return;
+    }
+    const mappings = await withTenantDb(tenantId, getSharedPool(), async (db) => {
+      const rows = await db
+        .select({ id: schema.mailboxMapping.id, status: schema.mailboxMapping.status })
+        .from(schema.mailboxMapping)
+        .where(eq(schema.mailboxMapping.tenantId, tenantId))
+        .orderBy(schema.mailboxMapping.createdAt, schema.mailboxMapping.id);
+      const out: MigrationProgressReport[] = [];
+      for (const { id: mappingId, status } of rows) {
+        const [statuses, adopted, discovery, scopeRows, phases, runs] = await Promise.all([
+          new PgMigrationStatusStore(db).getStatus(tenantId as TenantId, mappingId as MappingId),
+          new PgLedger(db).countAdoptedByDomain(tenantId as TenantId, mappingId as MappingId),
+          new schema.PgDiscoveryStore(db).getDiscovery(tenantId as TenantId, mappingId as MappingId),
+          db
+            .select({ domain: schema.scopeSelection.domain })
+            .from(schema.scopeSelection)
+            .where(
+              and(
+                eq(schema.scopeSelection.tenantId, tenantId),
+                eq(schema.scopeSelection.mappingId, mappingId),
+                eq(schema.scopeSelection.included, true),
+              ),
+            ),
+          readPathPhases(db, tenantId, mappingId),
+          db
+            .select()
+            .from(schema.verificationRun)
+            .where(
+              and(
+                eq(schema.verificationRun.tenantId, tenantId),
+                eq(schema.verificationRun.mappingId, mappingId),
+              ),
+            )
+            .orderBy(desc(schema.verificationRun.startedAt))
+            .limit(1),
+        ]);
+        // No failures read: a line counts none of them, and `domainProgressOf`
+        // keeps none of the counts they feed.
+        const reports = buildDomainStatusReports(
+          statuses,
+          [],
+          adopted,
+          foundByDomain(discoveryForSelection(discovery, scopeRows.map((r) => r.domain))),
+        );
+        out.push({
+          mappingId,
+          domains: reports
+            .filter((r) => r.state !== 'skipped')
+            .map((r) => domainProgressOf(r, phases ? phases.phaseOf(r.domain) : { phase: status })),
+          check: checkFactsOf(runReportOf(runs[0]), mappingId),
+        });
+      }
+      return out;
+    });
+    res.json({ mappings } satisfies ProgressReport);
+  } catch (error) {
+    serverFault(res, 'progress_read_failed', 'reading where each migration is', error);
   }
 });
 
