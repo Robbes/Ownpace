@@ -18,6 +18,11 @@ a unit test, so it is build output rather than a second source; ADR-0038). Rows 
 deliberately one sentence: the substance the long rows used to carry lives in the
 operative sections now, where the drift guard can see it.
 
+**A consolidated ADR reads as it stands** (ADR-0051): same number and file, rewritten as the
+decision holds today, with a dated amendment log. Its old text is kept word for word in
+[`history/`](./history/) — the record, frozen, never assembled into `OPERATIVE.md` and not
+for routine reading.
+
 New decision? Copy [`0000-template.md`](./0000-template.md) to the next free number.
 Read [`CONTRIBUTING.md`](../../CONTRIBUTING.md#architecture-decision-records-adrs)
 first.
@@ -39,7 +44,7 @@ first.
 | [0011](./0011-targets-managed-eu-no-selfhosted-mail.md) | Targets default to managed EU/CH; self-hosted targets are user-operated | Accepted |
 | [0012](./0012-graph-over-ews-davmail.md) | Prefer Microsoft Graph; avoid EWS/DavMail | Accepted |
 | [0013](./0013-i18n-english-dev-bilingual-ui.md) | English for development; bilingual (EN+NL) end-user UI | Accepted — bilingual UI built 2026-08-02 |
-| [0014](./0014-cost-recovery-billing.md) | Managed billing | **Amended 2026-08-20** — five tiers on paths at the same time and data moved, no per-GB/compute line; "no profit" retired (cross-subsidy). **Amended 2026-09-24**: Tiny is free, and free means no billing. **Proposed 2026-09-29**: Free, a year at six months, no setup fees |
+| [0014](./0014-cost-recovery-billing.md) | Managed billing | Accepted; amended 2026-08-20 (five tiers on two axes), 2026-09-10, 2026-09-24 (Tiny is free) and 2026-09-26; **consolidated 2026-10-03**. **Proposed 2026-09-29**, not in force: Free, a year at six months, no setup fees |
 | [0015](./0015-backup-scope.md) | Backup scope — stack DR vs end-user data vs optional extra backup | Accepted — extra-backup bullet retracted 2026-08-02 |
 | [0016](./0016-ledger-schema-v1.md) | Ledger schema v1 | Accepted — access-layer clause superseded by 0023; managed tables moved by 0036 |
 | [0017](./0017-migration-tooling.md) | Migration tooling — Drizzle Kit (+ Atlas lint), not Liquibase | Accepted — authoring/applying half superseded by 0045 (2026-09-09); Atlas lint (built 2026-08-02) and the Liquibase/Flyway rejection stand; two chains since 0036 |
@@ -52,30 +57,31 @@ first.
 | [0024](./0024-explicit-owner-deletion-apply.md) | `apply` — an explicit, gated exception to non-destructiveness | Accepted |
 | [0025](./0025-proton-drive-target-deferred.md) | Proton Drive as a files target — deferred on authentication, not on effort | Accepted (deferred) — extended 2026-08-02 to the whole Proton destination |
 | [0026](./0026-one-operating-ui-one-contract.md) | One operating UI, one contract, both editions | Accepted |
-| [0027](./0027-windows-packaging-shell.md) | The Windows appliance ships as a service with a shortcut, not a native shell | Accepted — amended thrice; scheduled task, bundled Node, premises measured 2026-08-09 |
+| [0027](./0027-windows-packaging-shell.md) | The Windows appliance ships as a service with a shortcut, not a native shell | Accepted — amended thrice: a **scheduled task**, not a Service, with bundled Node, premises measured 2026-08-09; **consolidated 2026-10-03** |
 | [0028](./0028-pglite-appliance-persistence.md) | PGlite as the appliance's embedded persistence (amends ADR-0023) | Accepted |
 | [0029](./0029-public-site-is-server-rendered-and-legible.md) | The public site is server-rendered, and legible to assistants | Accepted |
-| [0030](./0030-relocation-is-positive-evidence.md) | A correlated relocation is positive evidence, and may be applied | Accepted 2026-08-15 — gates hardened by same-day amendments |
+| [0030](./0030-relocation-is-positive-evidence.md) | A correlated relocation is positive evidence, and may be applied | Accepted 2026-08-15 — gates hardened the same day; pairing by Drive id (2026-09-23) and Dropbox id (2026-09-28); **consolidated 2026-10-03** |
 | [0031](./0031-auto-apply-relocations.md) | Auto-applying relocations — what unattended would require | Accepted 2026-08-16 — built the same day |
 | [0032](./0032-sharing-queue-target-native-invites.md) | The sharing queue — re-sharing on the target as an owner decision, invites through the target's own messaging | Accepted 2026-08-16 — first slice built |
 | [0033](./0033-domain-wide-delegation.md) | Whole-tenant Google migration — domain-wide delegation, opt-in and stated | Accepted 2026-08-17 — first slice built |
-| [0034](./0034-appliance-configuration-surface.md) | Personal / Organisation / Managed — naming the deployments, and giving each the configuration door it needs | Accepted 2026-09-20 (owner: "yes on all 3"); proposed 2026-08-17, open questions resolved 2026-08-19 |
-| [0035](./0035-who-signs-in-and-who-gets-a-link.md) | Who signs in, and who just gets a link | Accepted 2026-09-20 (owner: "yes on all 3"); substance owner-decided 2026-08-17, restated 2026-08-19; **amended 2026-09-29**: the link is per person (owner: *"yes"*), built by 0153 T5 (b); keeping sent links until they expire, and *start when granted*, are proposed |
+| [0034](./0034-appliance-configuration-surface.md) | Personal / Organisation / Managed — naming the deployments, and giving each the configuration door it needs | Accepted 2026-09-20 (owner: "yes on all 3"); open questions resolved 2026-08-19; **consolidated 2026-10-03** |
+| [0035](./0035-who-signs-in-and-who-gets-a-link.md) | Who signs in, and who just gets a link | Accepted 2026-09-20; **amended 2026-09-29**: the link is per person, built by 0153 T5 (b); **consolidated 2026-10-03**; keeping sent links until they expire, and *start when granted*, are proposed |
 | [0036](./0036-the-managed-edition-is-its-own-package-and-its-own-chain.md) | The managed edition is its own package and its own migration chain | Accepted 2026-08-19 — its parked two-repo options closed by 0039; the enforced boundary stands |
 | [0037](./0037-keys-credentials-and-transport-floors.md) | One credential store, two key providers, and TLS floors | Accepted 2026-08-19 |
-| [0038](./0038-operative-rules-and-the-growing-record.md) | Operative rules — keeping a growing decision record loadable | Accepted 2026-08-19 (this convention) |
+| [0038](./0038-operative-rules-and-the-growing-record.md) | Operative rules — keeping a growing decision record loadable | Accepted 2026-08-19 (this convention); amended by 0051 |
 | [0039](./0039-no-open-core-and-what-ops-privacy-means.md) | No open-core — closed with a trigger; and what "private ops" means | Accepted 2026-08-19 (resolves the 0009 vs 0036 conflict) |
 | [0040](./0040-the-service-is-ownpace.md) | The service is Ownpace; the project keeps its own name | Accepted 2026-08-20 — repository renamed and the mark asserted in NOTICE; still open (the owner's): an EUTM filing, the proprietor named in NOTICE, backup naming |
-| [0041](./0041-who-owns-the-oauth-client.md) | Who owns the OAuth client — managed brings its own, the appliance never does | Accepted 2026-08-26 |
+| [0041](./0041-who-owns-the-oauth-client.md) | Who owns the OAuth client — managed brings its own, the appliance never does | Accepted 2026-08-26; **consolidated 2026-10-03** |
 | [0042](./0042-who-holds-the-passwords.md) | Who holds the passwords — an issuer we can replace | Accepted 2026-08-22 — the first identity decision in the register. Accepted on condition the replaceability be confirmed; confirming it found the key-set URL was guessed and worked with neither candidate |
 | [0043](./0043-a-migration-is-silent-by-default.md) | A migration is silent by default — outward mail is a human-pressed action | Accepted 2026-08-25 |
 | [0044](./0044-the-books-are-not-ours.md) | The books are not ours — an external bookkeeping system is the record for invoices | Accepted 2026-08-28 |
 | [0045](./0045-migrations-are-hand-written-sql.md) | Migrations are hand-written SQL, applied by our own runner | Accepted 2026-09-09 — supersedes 0017's authoring-and-applying half, which credited a tool this repository has never used for it |
-| [0046](./0046-a-rendering-is-compared-by-its-parts.md) | A rendering is compared by its parts, not by its bytes | Accepted 2026-09-16: `export-office` differs only in its zip container. **Built (0042 T7), not yet reaching the ledger** (0042 T8 (e)). **Amended 2026-09-23**: no combination is refused for what it measured; every format carries every kind |
+| [0046](./0046-a-rendering-is-compared-by-its-parts.md) | A rendering is compared by its parts, not by its bytes | Accepted 2026-09-16; **built (0042 T7), not yet reaching the ledger** (0042 T8 (e)); amended 2026-09-23: no combination is refused for what it measured; **consolidated 2026-10-03** |
 | [0047](./0047-a-rollback-is-a-setback.md) | A rollback is a setback — one implementation, both callers, and the mapping resumes | Accepted 2026-08-23 (the owner's definition); built 2026-09-19 — `performRollback` in core, the CLI and the job over it, gated against a real ledger |
-| [0048](./0048-the-mapping-hears-the-cutover.md) | The mapping hears the cutover — `execute` and `complete` write the lifecycle they change | Accepted 2026-09-19; built 2026-09-20 — `enterCutover` / `closeCutover` in core, the CLI over them; what a cutover stops, a rollback resumes. **Amended 2026-09-24**: it copies until the grace period ends (0128 T2) |
+| [0048](./0048-the-mapping-hears-the-cutover.md) | The mapping hears the cutover — `execute` and `complete` write the lifecycle they change | Accepted 2026-09-19; built 2026-09-20; amended through 2026-09-27 (the grace period copies; a cutover per data type); **consolidated 2026-10-03** |
 | [0049](./0049-a-door-that-asked-nobody.md) | A door that asked nobody — the mapping update route consults the lifecycle | Accepted 2026-09-20 — `updateTransition` in shared (twenty-five cells, agreeing with the four doors beside it), `PUT /api/migrations/:id` answers 409 `lifecycle_refused` before any write; and the Finish page's lane switch sends the verb the route serves |
 | [0050](./0050-a-move-is-a-persons-migrations.md) | A move is a person's migrations | **Accepted 2026-09-28**, by the owner, as proposed; **amended 2026-09-28**: the name in code is *person*, because `/moves` is the moved-items queue. **The tables and the API are built** (workplan 0153 T2, #1332); the pages are 0153 T3 and T5 |
+| [0051](./0051-an-adr-reads-as-it-stands.md) | An ADR reads as it stands — a budget for the operative layer, and consolidation in place | Accepted 2026-10-03; amends 0038 |
 
 ## Reading the statuses
 
@@ -86,8 +92,8 @@ first.
 - **Amended / partially superseded** — the decision holds but a named part of it moved. `0010`
   → `0023` (SQLite dropped), `0023` → `0028` (PGlite for the appliance), `0019` → `0027`
   (Windows packaging), `0006` (the one-multi-tenant-app half retired 2026-08-09), `0015` and
-  `0016` (one clause each). **`0027` has been amended three times** and is the one most worth
-  reading in full rather than skimming its title.
+  `0016` (one clause each). **`0027` was amended three times** and its title still says
+  "service": it is a scheduled task, which its consolidated text (2026-10-03) says first.
 - **`0007` is the trap.** Its heading still reads "Reuse proven engines + a Graph rich
   extractor" and both halves have moved: the rich extractor is retracted, and there are no
   shell-out engines left at all (`0019`'s update). Read its status line before its Decision.

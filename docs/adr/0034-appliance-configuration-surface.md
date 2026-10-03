@@ -1,190 +1,93 @@
 # ADR-0034: Personal, Organisation, Managed — naming the deployments, and giving each the configuration door it needs
 
-- **Status:** Accepted 2026-09-20 — the owner's formal accept ("yes on all 3"); nothing below
-  changes. Proposed until then: the decisions below awaited an accept/reject, but two inputs to them
-  are settled owner decisions (2026-08-17): the **names** in decision 1 (Personal /
-  Organisation / Managed, with edition left as ADR-0003 defined it), and that an
-  Organisation deployment's ~1000 is **migrated accounts operated by a small admin team**,
-  not a thousand interactive logins.
-  **Amended 2026-08-19:** the two questions in "Decisions still OPEN" were recorded as
-  delegated to me on a *no preference* that the owner never gave. They are open, the owner
-  has a preference, and the text under them is a proposal rather than a decision.
-  **Resolved later the same day** — the owner answered both, and the answers reshaped
-  decisions 2–5: see "Now decided" below and [ADR-0037](./0037-keys-credentials-and-transport-floors.md).
-- **Date:** 2026-08-17
-- **Deciders:** owner — for the names and the ~1000 figure above, which were given in
-  conversation. **NOT for the two questions in "Decisions the owner left open" below: those
-  are OPEN, and the record previously said otherwise.** See the correction there.
-- **Relates to:** [ADR-0003](./0003-two-editions-one-core.md) (two editions, one core),
-  [ADR-0026](./0026-one-operating-ui-one-contract.md) (one operating UI, one contract —
-  this is that argument applied to configuration rather than to operation),
-  [ADR-0027](./0027-windows-packaging-shell.md) (the Windows appliance and the person it
-  is for), [ADR-0020](./0020-ledger-rebuildable-cache-recovery.md) (the ledger is a
-  rebuildable cache — which credentials are not), workplan 0010 (which chose the current
-  arrangement, as an implementation detail, and never claimed more than that).
+- **Status:** Accepted 2026-09-20 (owner: "yes on all 3"); amended 3 times while proposed
+  (latest 2026-08-19) and accepted as amended; consolidated 2026-10-03 (ADR-0051)
+- **Date:** 2026-08-17; consolidated 2026-10-03
+- **Deciders:** owner — the names and the ~1000 figure (2026-08-17), both open questions
+  (2026-08-19), the accept (2026-09-20)
+- **Relates to:** [ADR-0003](./0003-two-editions-one-core.md), [ADR-0026](./0026-one-operating-ui-one-contract.md),
+  [ADR-0027](./0027-windows-packaging-shell.md), [ADR-0035](./0035-who-signs-in-and-who-gets-a-link.md)
+  (restates decision 6), [ADR-0037](./0037-keys-credentials-and-transport-floors.md) (owns
+  decision 5's key mechanics)
+- **History:** the record as it read before consolidation, word for word —
+  [history/0034-appliance-configuration-surface.md](./history/0034-appliance-configuration-surface.md)
 
 ## Operative rules
 
-<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
-     the narrative below stays append-only. Assembled into OPERATIVE.md by
-     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+<!-- What holds NOW, within the ADR-0051 budget: 8 bullets, 60 words a bullet, 300 words in
+     all. Amend in place when a later decision changes it, then regenerate OPERATIVE.md:
+     node scripts/adr-operative.mjs --write -->
 
-- Deployments are named **Personal / Organisation / Managed** (orthogonal to edition); an Organisation's ~1000 is migrated accounts run by a small admin team.
-- **Split by concern (owner, 2026-08-19):** topology's door differs — **files are Organisation's sole door, the UI is Personal's, the API/UI is Managed's**; credentials & grants live in the one secret store everywhere (ADR-0037); `passwordFromEnv`/`tokenFromEnv` stays per connection. Files never hold secrets.
-- No two-door merge machinery (no ownership column, no collision check). File-seeded rows record their origin path; Organisation's UI shows file topology read-only, naming the file.
-- The deployment mode is **explicit** (Personal default); contradictions refuse loudly (Personal+files at start; Organisation topology writes via UI/API). Deleting a file-declared connection revokes/parks its stored credential.
-- Authentication is a prerequisite for Organisation (decision 6, restated by ADR-0035).
-- Formally accepted 2026-09-20 (owner: "yes on all 3"); the reasoning and consequences stand as written.
+- Deployments are named **Personal / Organisation / Managed**, a runtime axis beside the
+  edition; an Organisation's ~1000 is **migrated accounts run by a small admin team**, not
+  interactive logins. A deployment-shape question is never answered with `isSelfHost`
+  (decision 1).
+- **Split by concern (owner, 2026-08-19):** topology's door is **files on Organisation (its
+  sole door), the UI on Personal, the API/UI on Managed**; credentials and grants live in the
+  one secret store everywhere (ADR-0037); `passwordFromEnv`/`tokenFromEnv` stays per
+  connection. Files never hold secrets (decisions 2–4).
+- No merge machinery: no ownership column, no collision check, no precedence rule. File-seeded
+  rows record their origin path; Organisation's UI shows file topology read-only, naming the
+  file. Deleting a file-declared connection revokes or parks its stored credential via
+  `revokeStoredCredentials`, never orphans it (decision 4).
+- The deployment mode is **explicit**, Personal by default. Contradictions refuse loudly,
+  naming the fix: Personal with files in `CONFIG_DIR` refuses to start; Organisation refuses a
+  topology write through the UI/API (decisions 1, 3).
+- Key mechanics are ADR-0037's (the env key wins; Personal generates a key file at first
+  store). A key file plus a different `SECRET_ENCRYPTION_KEY` **refuses the start**; the key is
+  part of the backup; evidence collection reports its ACL, never its contents (decision 5).
+- **Authentication is a prerequisite for Organisation** (decision 6, restated by ADR-0035):
+  off loopback, credential-editing routes stay closed until an **admin login and session**
+  exist — not per-user identity, not RBAC. Personal keeps its loopback bind as the boundary;
+  migrated people get a link, never an account.
 
 ## Context
 
-### What is true today
+The appliance was built to be configured by a directory of JSON files and a set of environment
+variables, and nothing else. `loadConfigDir` reads every `*.json` under `CONFIG_DIR`
+(`/data/config`, or `C:\ProgramData\OpenMigrate\config` on Windows), validates each against the
+shared mapping schema and fails fast on an invalid file or a duplicate `mappingId`. A mapping
+never holds a secret: it names one (`passwordFromEnv`, `tokenFromEnv`), and on Windows that
+environment is `config\secrets.cmd`, a batch file of `set` lines filled in by hand. The
+appliance's `connection` rows are **bookkeeping, not configuration**: seeded
+`ON CONFLICT (id) DO NOTHING` with a placeholder `config`, read by no code path that opens a
+connection, there only because `mailbox` and `group_def` have foreign keys to them. A
+connections page on the appliance would have had **nothing to edit**.
 
-The appliance's configuration is a directory of JSON files and a set of environment
-variables, and nothing else:
+[Workplan 0066](../workplans/0066-deletion-overrides-and-editions.md) T3 had recorded "an
+appliance's connections come from mapping FILES" as settled architecture. It was
+[workplan 0010](../workplans/0010-selfhost-edition.md)'s implementation choice for a first
+slice; the owner asked why, and this ADR is the answer.
 
-- `apps/selfhost/src/config-dir.ts` reads every `*.json` under `CONFIG_DIR`
-  (`/data/config`, or `C:\ProgramData\OpenMigrate\config` on Windows), validates each
-  against the shared mapping schema, and fails fast on an invalid file or a duplicate
-  `mappingId`.
-- A mapping never holds a secret. It names one — `passwordFromEnv`, `tokenFromEnv` —
-  and the value comes from the process environment. On Windows that environment is
-  `config\secrets.cmd`, a batch file of `set` lines that the installer creates empty
-  and ACLs, and that the operator fills in by hand.
-- **The appliance has no secret storage at all.** `apps/selfhost` never imports
-  `SecretStore`; the `connection` rows it seeds are written with `config` and no
-  `secret_ref`.
+"Self-host" is one **edition** covering two **deployments** whose operators have almost nothing
+in common. An organisation's operator runs the Docker Compose stack for up to about a thousand
+end users, with GitOps, a secret manager and config in version control; for them a directory of
+mapping files is the only workable interface. One person installing the MSI on their own
+Windows machine, the person ADR-0027 exists for, is asked to edit JSON with no schema, add `set`
+lines to a batch script and restart a scheduled task. **Files scale up; the UI scales down.** The
+discriminator is how a deployment is configured and by whom, a runtime property, not `SELFHOST`,
+a build flag both deployments set. ADR-0026's precedent transfers: an appliance whose only
+configuration surface is Notepad does not serve the person the installer exists for.
 
-There is a detail here that I got wrong once already and that changes the argument, so
-it is worth stating precisely. The appliance's `connection` rows are **bookkeeping, not
-configuration**. They are inserted `ON CONFLICT (id) DO NOTHING`, their `config` JSONB is
-a placeholder (`{type:'imap',host:'stalwart',…}`, or `{tenantId}` for Graph), and no code
-path that opens a connection ever reads them: the sync pass constructs its connectors
-straight from the `MappingConfig` the file produced. They exist because `mailbox` and
-`group_def` have foreign keys that need something to point at. `buildDepsFromMapping` —
-the function that *does* read connection config and credentials out of the ledger — is
-imported only by `apps/worker`, which is the managed edition.
-
-So the true statement about the appliance is not "the file wins on restart". It is
-stronger and worse: **there is nothing for a UI to edit.** A connections page on the
-appliance today would render four rows of dev-fixture placeholders and write changes that
-no migration would ever read.
-
-### Why this is being decided now, and not earlier
-
-It should have been. Workplan 0066 recorded "an appliance's connections come from mapping
-FILES, which are the operator's source of truth and are version-controlled" as though it
-were settled architecture. It was not. It was workplan 0010's implementation choice for a
-first slice, and I restated my own inference about it as a decision the project had made.
-The owner asked *why*, which is how it got caught. That workplan's T3 is corrected in the
-same change as this ADR.
-
-### "Self-host" is one word for two deployments (decision 1 names them)
-
-This is the part the first draft of this ADR got wrong, and the owner corrected: I treated
-"self-host" as one persona and borrowed the SAD's word for them — *hobbyist*. It is one
-**edition** covering two **deployments** whose operators have almost nothing in common, and
-the edition flag does not tell them apart.
-
-**Self-host as a service.** An operator runs the Docker Compose stack on real hardware and
-migrates an organisation with it — the owner's stated ceiling is **around a thousand
-end users**. Operationally this is the managed service with a different owner of the box:
-GitOps, IaC, a secret manager, config in version control, CI, staged upgrades. For this
-person a directory of mapping files is not a tax, it is the **only** workable interface —
-a thousand mappings are generated, reviewed in a diff, and rolled back as a commit. Nobody
-types a thousand of anything into a wizard.
-
-**Self-host as a personal appliance.** One person installs the MSI on their own Windows
-machine to move their own mail, or their small company's. ADR-0027 exists for exactly this
-person and states the goal without hedging: a single `.msi`/`.exe` where **"end users never
-touch bash, a Linux filesystem, or Docker."** What they are asked to do today, after the
-installer finishes, is: copy a JSON example, edit it in a text editor with no schema, save
-it under a name ending `.json` and not `.example`, open a second file that is a Windows
-*batch script*, add `set` lines to it, and restart a scheduled task. When it does not work,
-the diagnosis is a log file. Every step is a text file edited by hand — bash's ergonomics
-with none of bash's tooling. The MSI got them to the front door and handed them a config
-file.
-
-**The managed operator**, for completeness: has neither problem. Everything is in the
-ledger, created through the same UI and the same API.
-
-### So the axis is not the edition, and files do not mean "small"
-
-The first draft implied that config files were the small deployment's path and the UI was
-the big one's. It is the reverse, and stating it correctly changes the design:
-
-> **Files scale up. The UI scales down.**
-
-A thousand mappings are declarative, generated and version-controlled; one mapping is a
-form somebody fills in once. The discriminator is therefore **how a deployment is
-configured and by whom** — a runtime property — not `SELFHOST`, which is a build flag that
-both of these deployments set. Any design keyed off the edition flag will serve one of
-these two people badly, which is precisely what shipping "connections management is
-managed-only" did.
-
-That also means this is not a two-way split with a middle. A served self-host deployment
-wants files for the bulk *and* the UI for the one-off correction, the credential rotation,
-the connection somebody added last week. Both doors, one deployment.
-
-### The scale claim contradicts the tree, and that is a finding
-
-The owner's "multi-end-user, possibly a thousand" is **not** what this repository currently
-says, in either the documents or the code:
-
-| Where | What it says today |
-|---|---|
-| SAD §3 | "self-host (**hobbyist**)" |
-| SAD §4.1, §7 | "NAS/Pi/Spark, **optionally single-user**" |
-| SAD §7.1 | heading: "Self-host edition (**the hobbyist**)" |
-| SAD §7.3 | Auth row: self-host = "**local / single-user**" |
-| SAD §8 | "there is a **single tenant**" |
-| `apps/selfhost/src/index.ts` | "**The bind IS the auth boundary** … the appliance has **NO authentication** — anyone who can reach port N can operate it, including apply and finish" |
-
-Recording that plainly rather than quietly adopting the new number, because the last
-correction in this area came from exactly the opposite mistake — writing an inference in
-the voice of a settled decision. The owner is the decider and the intent is now stated, so
-**the divergence is the tree's to fix**: §3/§4.1/§7/§7.1/§8's hobbyist and single-tenant
-language is wrong for the deployment the owner has in mind, and this ADR's Consequences
-name that as work rather than assuming it away.
-
-One consequence is immediate and not cosmetic — see decision 6.
-
-### The precedent this project already set
-
-ADR-0026 answered a structurally identical question about *operating* the appliance, and
-its sentence transfers without modification:
-
-> An MSI that installs an appliance whose only operating surface is `curl` does not serve
-> the person the installer exists for.
-
-Replace `curl` with Notepad and operating with configuring, and you have the argument of
-this ADR. ADR-0026 concluded that the appliance gets the real UI over the same contract,
-not a lesser one, because two editions from one core (ADR-0003) is about the *core*, and a
-person's first hour is not core.
-
-The owner's framing was that GitOps-style file configuration is reasonable for the managed
-service **and for a served self-host deployment**, and overkill for the personal Windows
-install. That is the same split, drawn between deployments rather than between editions —
-which is the only place it can be drawn, because the two people it separates are both
-"self-host".
-
-## The question
-
-Should the appliance be configurable through its own UI — and if so, what happens to the
-config files that a working fleet already depends on?
+The owner's scale is not what the tree says. The SAD calls self-host "hobbyist", "optionally
+single-user" and "single tenant", and the appliance, bound off loopback, warns at boot that it
+has **no authentication**. The divergence is the tree's to fix (Consequences), and the last of
+those facts is why decision 6 exists.
 
 ## Decision
 
+One table carries the shape, the **split by concern** that the owner's answers produced on
+2026-08-19; decisions 2–4 spell it out.
+
+| concern | Personal | Organisation | Managed |
+|---|---|---|---|
+| **topology** (mappings, connections, schedules) | UI | **files** (sole door) | API/UI |
+| **credentials & grants** | store (UI / grant link) | store (UI / grant link) | store |
+| escape hatch | — | `passwordFromEnv`/`tokenFromEnv`, per connection | — |
+
 ### 1. Name the two axes, and stop using one word for both
 
-The confusion above is not a writing problem, it is the **cause** of the wrong decision in
-workplan 0066: "the appliance configures itself from files" was a true statement about one
-deployment applied to a word that covers two. Fix the vocabulary first, because every other
-decision here refers to it.
-
-There are **two independent axes**, and conflating them is the original mistake:
-
-**Axis 1 — deployment shape: who operates it, and for how many people.**
+**Deployment shape**: who operates it, and for how many people.
 
 | Name | Who runs it | Whose data | Bind | Edition |
 |---|---|---|---|---|
@@ -192,31 +95,22 @@ There are **two independent axes**, and conflating them is the original mistake:
 | **Organisation** | a **small admin team**, on the org's hardware | that org's users — up to ~1000 **migrated accounts** | network | self-host |
 | **Managed** | us, for many organisations | many orgs' users | network | managed |
 
-The Organisation row's number is **migrated accounts, not interactive logins** (owner
-decision, 2026-08-17). A thousand people's mail moves; a handful of admins operate it, and
-the migrators never sign in. That bound is load-bearing — it is what makes decision 6's
-prerequisite an admin login rather than a multi-user identity programme.
+The Organisation figure is **migrated accounts, not interactive logins** (owner, 2026-08-17):
+a thousand people's mail moves, a handful of admins operate it, and the migrators never sign
+in. That bound is what keeps decision 6 small.
 
-**Edition stays what ADR-0003 made it** — `self-host` | `managed`, a *build* distinction —
-and gains a runtime companion, `deployment` ∈ `personal` | `organisation` | `managed`. The
-self-host edition serves the first two. That is the whole point: **the edition flag cannot
-tell Personal from Organisation, and almost every decision in this document depends on
-telling them apart.** Any code keyed off `isSelfHost` for a question that is really about
-deployment shape is a bug waiting for one of those two people.
+**Edition stays what ADR-0003 made it** (`self-host` | `managed`, a build distinction) and
+gains a runtime companion, `deployment` ∈ `personal` | `organisation` | `managed`, **declared
+explicitly in the environment, Personal by default**. The edition flag cannot tell Personal
+from Organisation, so code that keys a deployment-shape question off `isSelfHost` is a bug
+waiting for one of those two people.
 
-**Axis 2 — configuration surface: how an object got here.**
+**Configuration surface**: how an object got here. **Declared** means defined in a file under
+`CONFIG_DIR`, which is authoritative (GitOps-shaped); **Operated** means created through the
+UI or API, with the ledger authoritative. Which one applies follows from the concern and the
+deployment (the table above), never from a choice made per object.
 
-| Name | What it means |
-|---|---|
-| **Declared** | defined in a file under `CONFIG_DIR`; the file is authoritative; GitOps-shaped |
-| **Operated** | created through the UI/API; the ledger is authoritative |
-
-These are per **object**, not per deployment — decision 3 is exactly this — so an
-Organisation deployment can declare nine hundred mappings and operate the three somebody
-added last week, with no ambiguity about which is which.
-
-**Personas (people, not deployments)**, because the same human wears several hats in
-Personal and none of them in Managed:
+**Personas** are people, not deployments:
 
 | Persona | What they do | Personal | Organisation | Managed |
 |---|---|---|---|---|
@@ -224,370 +118,242 @@ Personal and none of them in Managed:
 | **Migration operator** | chooses scope, runs and verifies migrations | same human | the org's admin | the customer's admin |
 | **Platform operator** | owns the hardware, upgrades, secrets, backups | same human | the org's IT | **us** |
 
-Read down the columns and the design falls out. In **Personal** all three are one person, so
-there is nobody to authenticate against and nobody to keep secrets from — the UI is the only
-sane surface. In **Organisation** they are two or three different people and the migrators
-are a crowd, so authentication is not optional and files are the bulk interface. In
-**Managed** the platform operator is a different *company*, which is why that edition has had
-a real auth story from the start.
-
-The rest of this ADR uses these words. Where the tree uses "the appliance" to mean both
-Personal and Organisation, it now means whichever the sentence says.
+In Personal the three are one person: there is nobody to authenticate against, and the UI is
+the only sane surface. In Organisation they are different people and the migrators are a crowd:
+authentication is not optional, and files are the bulk interface. In Managed the platform
+operator is a different company.
 
 ### 2. The UI is a first-class configuration door on the self-host edition
 
-> **Amended 2026-08-19** — see "Now decided": the UI is the **topology** door on Personal
-> and the **credential** door everywhere; on Organisation, topology stays with files.
+The UI is **Personal's topology door and the credential door in every deployment**. The
+self-host edition serves the same connections and mapping-management contract as the managed
+edition, over the same routes, rendered by the same web app with no edition branch. A Personal
+user adds a source and a target, tests them, creates a mapping and runs it **without opening a
+text editor**, and without knowing that `CONFIG_DIR` exists. On Organisation the UI and the
+grant link (ADR-0035) carry credentials and grants, and the UI shows file topology read-only
+(decision 4); all of it subject to decision 6. It is not a reduced or "basic" mode: ADR-0026
+found that a deliberately lesser appliance UI serves nobody.
 
-The self-host edition serves the same connections and mapping-management contract the
-managed edition does, over the same routes, rendered by the same web app with no edition
-branch. A **Personal** user who installs the MSI can add a source, add a target, test them,
-create a mapping and run it **without opening a text editor**, and without knowing that a
-`CONFIG_DIR` exists. An **Organisation** deployment gets the same door for the work that is
-genuinely one-off — a rotation, a correction, the connection somebody added last week —
-subject to decision 6.
+For what the UI owns, the appliance builds its connectors from the **ledger**, through the same
+`buildDepsFromMapping` the managed worker uses, rather than from a `MappingConfig`: one
+contract, not two implementations of the same screen.
 
-This is not a reduced or "basic" mode. ADR-0026's finding was that a deliberately lesser
-appliance UI ends up serving nobody: the people who would tolerate it do not need it, and
-the people who need it are not served by it.
+### 3. Files are Organisation's sole topology door, first-class and not deprecated
 
-The mechanism follows from the "what is true today" section: for objects the UI owns, the
-appliance must build its connectors from the **ledger**, through the same
-`buildDepsFromMapping` the managed worker uses, rather than from a `MappingConfig`. That is
-the whole of the technical work, and it is the reason this is one contract rather than two
-implementations of the same screen.
+On Organisation, `CONFIG_DIR` keeps working exactly as it does: a mapping declared in a file is
+loaded, scheduled and run as today, and `loadConfigDir`'s fail-fast on an invalid file or a
+duplicate `mappingId` is unchanged. No "legacy" label, no warning banner: the fleet operator's
+arrangement is not a transitional state on the way to a database. `passwordFromEnv` /
+`tokenFromEnv` stays, per connection. It is the only way to configure a connection with **no
+secret at rest** in the appliance's own storage, which some operators specifically want and the
+store by definition cannot offer.
 
-### 3. Files stay, first-class, unchanged, and are not deprecated
+**Personal has no file door.** A contradiction between the declared mode and what is there
+refuses loudly and names the fix. Personal with files present in `CONFIG_DIR` refuses to start,
+naming the files and the mode switch; it never silently ignores configuration somebody wrote.
+Organisation refuses a **topology** write that arrives through the UI or the API, naming the
+file door; credential and grant writes are accepted everywhere. Today's file-configured fleet
+upgrades with one environment variable, which the refusal itself names.
 
-> **Amended 2026-08-19** — files survive as **Organisation's sole topology door**;
-> Personal has no file door at all. See "Now decided".
+### 4. The doors are split by concern, and never merged
 
-`CONFIG_DIR` keeps working exactly as it does. No migration step, no "legacy" label, no
-warning banner. The fleet operator's arrangement is not a transitional state on the way to
-a database, and a product that treats it as one has misread who is running it.
+Topology and credentials are disjoint by construction: files never hold secrets, and the
+credential flow never writes topology. Each concern has one door per deployment, so there is
+**nothing to merge**: no ownership column, no collision check, no two-door edit rules, no
+precedence rule, no "the file wins on restart". A merge fails in two ways and both are silent:
+the file overwrites what somebody typed into the UI, or the UI shadows the file an operator
+believes is authoritative.
 
-Concretely: a mapping declared in a file is loaded, scheduled and run the way it is today;
-`loadConfigDir`'s fail-fast on an invalid file or a duplicate `mappingId` is unchanged; the
-`passwordFromEnv` / `tokenFromEnv` indirection is unchanged, and remains the only way to
-configure the appliance with **no secret at rest in its own storage** — which is a property
-some operators specifically want, and which the UI path by definition cannot offer.
+Where the doors meet:
 
-### 4. Ownership is per object, and the two sources are never merged
-
-> **Amended 2026-08-19** — the two-door-per-object machinery this decision built
-> (ownership column, collision check) is **replaced** by the concern split in "Now
-> decided": topology and credentials are disjoint field sets, so there is nothing to
-> merge. What survives of this decision: the origin path recorded on file-seeded rows,
-> and the read-only-with-the-file-named UI treatment of file topology on Organisation.
-
-Every connection and every mapping is owned by exactly one of the two doors, and the row
-records which:
-
-- **File-owned** — seeded from a `*.json` under `CONFIG_DIR`, with the file's path stored
-  on the row. The UI **shows** it in full, and refuses to edit it by **naming the file**:
-  *"This mapping is defined in `C:\ProgramData\OpenMigrate\config\acme.json`. Edit it
-  there, or remove it there to manage it here."* Read-only, visible, and explained — not
-  hidden, and not silently editable.
-- **UI-owned** — created through the API, credentials in the appliance's own secret store,
-  never written to a file and never touched by the loader.
-
-There is no merge, no precedence rule, and no "the file wins on restart". A merge has
-exactly two failure modes and both are silent: the file quietly overwrites what somebody
-typed into the UI at the next restart, or the UI quietly shadows the file that an operator
-believes is their source of truth. A named refusal is worse for nobody and honest for
-everybody.
-
-Two edges follow, and both are decided rather than left to be discovered:
-
-- **A file disappears.** The rows it owned stop being scheduled, and are **kept** and
-  marked as declared by a file that is no longer present. They are not deleted: deleting a
-  connection cascades to its mailboxes and to the entire item ledger beneath them, which is
-  the reason the managed edition refuses that delete while anything uses it (workplan 0066
-  T1). The UI offers the two honest choices — *adopt it into the UI* (which requires
-  re-entering the credentials, since the environment variable it named may be gone) or
-  *delete it and its history*. Silently continuing to sync something the operator removed
-  from Git would be the worst of the three.
-- **Identity collisions cannot happen by accident**, because file-owned ids are derived
-  (`uuidFromString(tenantId + ':mapping:' + mappingId)`) and UI-owned ids are random. If
-  one ever does occur, the appliance refuses to start and names both claimants, matching
-  `loadConfigDir`'s existing behaviour for two files claiming one `mappingId`.
+- **File-seeded rows record their origin path.** Organisation's UI shows file topology in full
+  and refuses to edit it by **naming the file**: read-only, visible and explained; never
+  hidden, never silently editable.
+- **One lifecycle rule.** A file-declared connection may carry a store-held granted credential
+  (disjoint fields, same row). Deleting the file revokes or parks that credential through the
+  existing `revokeStoredCredentials` path; it is never orphaned.
+- **Widening lands on the credential side.** ADR-0035's per-person grants widen the one source
+  and target connection pair the appliance holds per tenant. The split is drawn so that
+  topology (host, folders) stays shared and identities do not.
 
 ### 5. The appliance gets a secret store, and generates its own key
 
-> **Amended 2026-08-19** — mechanics unchanged and now owned by
-> [ADR-0037](./0037-keys-credentials-and-transport-floors.md) (two providers: env wins,
-> generated file for Personal — on every platform), with one addition: the key is
-> required at **first store**, not at boot, so a pure files+env fleet gains no new knob.
+Credentials and grants live in the one store in every deployment, and `SecretStore` takes its
+key from `SECRET_ENCRYPTION_KEY`, which is precisely what the Windows user must not be asked
+for. The mechanics belong to [ADR-0037](./0037-keys-credentials-and-transport-floors.md) (one
+`KeyProvider` seam, exactly two providers). This decision fixes:
 
-Storing credentials from the UI requires an encryption key, and `SecretStore` currently
-demands `SECRET_ENCRYPTION_KEY` from the environment — which is precisely the thing the
-Windows user must not be asked for.
+- `SECRET_ENCRYPTION_KEY` **wins when set** (Organisation's secret manager, Managed), and no
+  key file is created.
+- Otherwise **Personal generates the key at first store**, not at boot, into its data directory
+  (`secret.key` beside the PGlite directory): mode `0600` on POSIX, and ACL'd on Windows to
+  exactly the principals `install-task.ps1` grants on `secrets.cmd` (Administrators, SYSTEM, the
+  run-as account). A deployment that never stores a secret gains no key and no new knob; a
+  credential that arrives where no key can be had is refused, naming the fix (ADR-0037).
+- A key file **and** a different environment key **refuse the start**, rather than starting up
+  and failing to decrypt every credential the appliance holds.
 
-On first run, if no key is configured, the appliance **generates one** into its data
-directory (`secret.key` beside the PGlite directory), mode `0600` on POSIX and ACL'd on
-Windows to exactly the principals `install-task.ps1` already grants on `secrets.cmd`
-(Administrators, SYSTEM, the run-as account — nobody else). `SECRET_ENCRYPTION_KEY` still
-wins when it is set, so the fleet operator who already manages keys in their environment
-keeps doing that and no key file is created. If a key file exists **and** the environment
-sets a different key, the appliance refuses to start and says so, rather than starting up
-and failing to decrypt every credential it holds.
-
-The limitation is stated rather than buried: **a key file beside the ciphertext is not
-protection against someone who can read the disk.** It protects against the realistic
-appliance accidents — a PGlite directory copied into a backup, a support bundle, a cloned
-VM, a disk sent for warranty — and against every other local user, which is the same
-threat `secrets.cmd`'s ACL addresses and the same bar. It is not a claim of protection
-against a compromised host, and `packages/core/src/secret-store.ts` already says so for
-the managed edition.
-
-Two consequences the runbook must carry: the key is **part of the backup** (losing it
-loses the stored credentials — recoverable by re-entering them, since ADR-0020 makes the
-ledger itself rebuildable, but not by any clever means), and `collect-evidence.ps1` reports
-the key file's **ACL and never its contents**, exactly as it already does for `secrets.cmd`.
+The limitation is stated, not buried: a key file beside the ciphertext is **no protection
+against someone who can read the disk**. It answers every other local user, and a database
+directory, dump or backup copied without it, which is the threat and the bar of `secrets.cmd`'s
+ACL. Full-disk encryption answers device theft (ADR-0037), and
+`packages/core/src/secret-store.ts` already disclaims a compromised host. The runbook carries two
+consequences. The key is **part of the backup**: losing it loses the stored credentials,
+recoverable only by re-entering them, because
+[ADR-0020](./0020-ledger-rebuildable-cache-recovery.md) makes the ledger rebuildable and
+credentials are not. And `collect-evidence.ps1` reports the key file's **ACL, never its
+contents**, as it does for `secrets.cmd`.
 
 ### 6. Authentication is a prerequisite for an Organisation deployment, not a later nicety
 
-The first draft of this ADR waved this through: *"the appliance stays single-operator behind
-its own perimeter; these routes get no authentication of their own, like every other
-appliance route."* That was true of the deployment I had in mind and false of the one the
-owner described, and the difference is not cosmetic — **this ADR is what makes it
-dangerous.**
+A door that **stores and edits credentials** cannot sit on today's unauthenticated surface: on
+it, anyone who can reach the port could add a source pointing at their own server, rotate a
+credential, or read which accounts are being migrated. On a machine serving hundreds of
+people's mailboxes the bind was never a sufficient boundary; it was adequate only while the
+surface was small and the secrets were elsewhere. So, as a hard sequencing constraint:
 
-Today the self-host edition holds no credentials at all (they live in the operator's
-environment) and its own boot log says the quiet part out loud: *"the appliance has NO
-authentication — anyone who can reach port N can operate it, including apply and finish."*
-Adding a UI that **stores and edits credentials** to an unauthenticated surface turns
-"anyone on the network can operate this" into "anyone on the network can add a source
-pointing at their own server, rotate a credential, or read which accounts are being
-migrated". On a machine serving hundreds of people's mailboxes, the bind is not a
-sufficient auth boundary and it never was; it was only ever adequate because the surface
-was small and the secrets were somewhere else.
+- **Personal** (loopback bind, one operator, one person's data) ships the UI door with the bind
+  as its boundary, unchanged.
+- **Anything bound off loopback must not expose the credential-editing routes without
+  authentication.** Until authentication exists, those routes refuse on a non-loopback bind, or
+  the deployment keeps to files and environment variables, the path it wants anyway.
 
-So, as a hard sequencing constraint rather than a wish:
+The prerequisite is small because of decision 1's bound: **an admin login and a session**, one
+identity boundary in front of the operator surface, and not per-user identity, not RBAC, not
+per-migrator scoping. ADR-0035 restates this decision and adds a second boundary of a different
+shape: migrated people authenticate to their own provider through a signed **link**, never to
+Ownpace, and hold no session, password or role here. The admin login stands in front of the
+operator surface and the link in front of that person's own migrations only; neither is RBAC.
 
-- **The personal appliance** (loopback bind, one operator, one person's data) may ship the
-  UI door with the bind as its boundary, unchanged. That is what it is today and this ADR
-  does not weaken it.
-- **A served deployment** — anything bound off loopback — **must not expose the
-  credential-editing routes without authentication.** Until authentication exists, the
-  honest options are that those routes refuse on a non-loopback bind, or that the
-  deployment keeps using files, which is the path it wants anyway.
-
-**And it is a small prerequisite, because of how the owner bounded the scale.** The ~1000 is
-migrated accounts, not interactive logins: the migrators never sign in, a handful of admins
-operate everything. So what decision 6 demands is **an admin login and a session** — one
-identity boundary in front of an operator surface — not per-user identity, not RBAC, not
-per-migrator scoping. That is a well-understood, contained piece of work, which is the
-difference between a prerequisite worth stating and one that would quietly kill the feature.
-
-If end-user login is ever wanted, the decisions that would need revisiting are named: this
-one, the ledger's single-tenant assumption on the self-host path, and every route that
-currently treats "the operator" as one person.
-
-Authentication for the self-host edition is still **its own decision and its own ADR**; SAD
-§7.3 records self-host auth as "local / single-user", which is the row that has to change
-first. What this ADR commits to is only the ordering: the credential-editing door does not
-reach an Organisation deployment ahead of it.
-
-> **Update 2026-08-17 — decision 6 is restated by [ADR-0035](./0035-who-signs-in-and-who-gets-a-link.md).**
-> Appended rather than edited, per hard rule 7. Decision 6 and its bound both **hold**: the
-> owner's "not a thousand interactive logins" survives, because ADR-0035 gives migrated
-> people a signed, mapping-scoped **link** rather than an account — they authenticate to
-> their own provider, never to Ownpace, and hold no session, password or role here.
-> What ADR-0035 adds is that there are now **two** boundaries of different shapes: the admin
-> login this decision demands, in front of the operator surface; and the migrator's link, in
-> front of exactly one mapping. Neither is RBAC. Read decision 6 with that addition — its
-> sequencing constraint is unchanged, and the credential-editing door still must not reach a
-> served deployment ahead of the admin login.
+Authentication for the self-host edition is its own decision and its own ADR, starting with
+SAD §7.3's self-host `Auth` row, "local / single-user", which becomes "admin login + session"
+(ADR-0035). This ADR commits only to the ordering: the credential-editing door does not reach
+an Organisation deployment ahead of the admin login. If end-user login is ever wanted, the
+decisions to revisit are named: this one, the ledger's single-tenant assumption on the self-host
+path, and every route that treats "the operator" as one person.
 
 ### 7. What does not change
 
-- Hard rule 5: both editions run the same core. This ADR adds a door; it does not add a
-  feature one edition has and the other lacks.
-- `no-managed-leakage` continues to hold. `@openmig/orchestration` is already inside the
-  appliance's permitted import graph, so reusing `buildDepsFromMapping` does not weaken it;
-  if a future change would, the lock is the thing that says so.
-
-## Decisions still OPEN — and a correction about how they got recorded
-
-### The correction, first, because this ADR asserted something untrue about its own owner
-
-This section previously opened: *"Both were put to the owner with a recommendation; both came
-back no preference."* **That did not happen.** The questions were put through an interactive
-picker, the owner did not answer it, and a *"no preference"* was recorded as though they had
-— so two judgement calls were written down as delegated when they had never been seen. The
-owner's actual position, stated 2026-08-19: **"I do have a preference."**
-
-Corrected rather than quietly rewritten, because the failure mode is worth keeping in front
-of whoever reads this next. **A decision log that can absorb a non-answer as an answer is
-worse than no log**: every other entry here is trustworthy precisely because the provenance
-is stated, and one fabricated attribution devalues the lot. The mechanism was mundane — an
-unanswered prompt returning a default that read like consent — which is exactly why it needs
-naming rather than fixing silently. *Nothing was decided; therefore nothing may be recorded
-as decided.*
-
-Two consequences follow, and both are now true of this file:
-
-1. **Both questions below are OPEN.** They await the owner, who has a preference on them.
-2. **The text under each is a PROPOSAL and nothing more.** It is my reasoning, offered to be
-   argued with — not a recommendation the owner declined to overrule.
-
-### The two questions, and what I would argue for
-
-Kept because the reasoning is still worth having in front of the decision. Read them as
-"here is a case", not as "here is what was chosen".
-
-**Do files survive at all?** *Proposed:* yes — decision 3. The alternative, "the UI becomes the only
-way and files become an import step", is a smaller product with less to explain, and it
-breaks the only workable interface an Organisation deployment has. At the owner's stated
-ceiling of ~1000 end users this is not a preference, it is arithmetic.
-
-**Where does the encryption key live?** *Proposed:* a generated file in the data directory
-— decision 5 — and the vocabulary makes the case sharper than it was. This is the **Personal**
-deployment's answer: there is one human, no secret manager, and the machine must come back
-from a power cut without them. An **Organisation** deployment already runs a secret manager
-and should set `SECRET_ENCRYPTION_KEY` from it, which decision 5 lets it do — so the key
-file is a default for the deployment that has nowhere better, not a recommendation for the
-one that does.
-
-The alternative worth taking seriously is prompting for a passphrase and deriving the key,
-which is genuinely stronger: the key is then not on the disk. Rejected because it makes the
-appliance **unable to start unattended**, and surviving a power cut without a human present
-is a stated value for intermittently attended hosts — proven deliberately on real hardware
-(runbook phase 3, hard kill mid-sync). If the owner wants the passphrase it should be an
-*option* on top of the key file, never the only path.
-
-### Now decided (owner, 2026-08-19) — and the shape the answers produced
-
-Both questions were answered in conversation, with reasoning in the owner's own words. The
-final shape was then **corrected twice against this repository's own record** before being
-written down, and both corrections are kept here because they changed the answer.
-
-**Question 1 — files.** The owner chose splitting by deployment: *Personal aims at
-Windows/Unix and simple Linux, people work 99% with the UI; Organisation fits DevOps/IT who
-want GitOps or at least control from files* — guessing that Organisation "might have more
-overlap with the managed version". Checked against the code, that overlap is real **but on
-the secrets axis, not the configuration axis**: real managed tenants configure through the
-API (the UI's door), so on configuration, Managed sits with Personal and Organisation is
-the odd one out. On secrets, Organisation and Managed both have someone who already runs
-secret management, and Personal has nobody. Both halves of that are now load-bearing below.
-
-**The first correction — a deployment split for *everything* contradicts ADR-0035.** "No
-secret store on Organisation" forces every credential into env vars, and a credential that
-arrives from a *person at runtime* — the grant link, the product's central flow — has no
-environment variable. The grown-up tier would be the one that cannot do the thing the
-product is built around.
-
-**The second correction came from the owner:** *"don't we mix up secrets the app uses to
-keep secrets in DB safe? why would we want to store all possible secrets in files, while we
-can hold them also in DB like with grants and the UI we have."* Exactly right, and it
-produced the final shape — **split by concern, not by deployment**:
-
-| concern | Personal | Organisation | Managed |
-|---|---|---|---|
-| **topology** (mappings, connections, schedules) | UI | **files** (sole door) | API/UI |
-| **credentials & grants** | store (UI / grant link) | store (UI / grant link) | store |
-| escape hatch | — | `passwordFromEnv`/`tokenFromEnv` stays, per connection | — |
-
-The concerns are disjoint by construction — files never hold secrets (already true), and
-the credential flow never writes topology — so **none of decision 4's merge machinery is
-needed**: no ownership column, no collision check, no two-door edit rules. That was the
-deployment split's entire prize, and it survives the correction.
-
-What the shape requires, stated rather than discovered later:
-
-- **The mode is explicit** (an env-declared deployment kind), defaulting to Personal, and
-  contradictions refuse loudly: Personal with files present in `CONFIG_DIR` refuses at
-  start naming the files and the mode switch — never silently ignores configuration
-  somebody wrote; Organisation refuses a **topology** write arriving via UI/API naming the
-  file door, while credential and grant writes are accepted everywhere. Today's fleet
-  upgrades with one env var, told to them by the refusal itself.
-- **One lifecycle rule where the doors touch one object:** a file-declared connection may
-  carry a store-held granted credential (disjoint fields, same row). Deleting the file
-  revokes or parks that credential through the existing `revokeStoredCredentials` path —
-  never orphans it.
-- **Forward note:** today's schema holds one source+target connection pair per tenant;
-  ADR-0035's per-person grants will widen that. The split is drawn so the widening lands
-  on the credential side only — topology (host, folders) is shared, identities are not.
-
-**Question 2 — the key.** The owner's threat model, per tier: Personal on Windows/Apple is
-*"basic protection against someone steals your laptop or logs in with your credentials"*;
-Organisation is hosted and *"secrets management should better fit that"*; Managed belongs
-in *"some vault/KMS-like secrets manager"* — with the practical rider that nothing exists
-yet on the current host and K8s-like hosting may come later. The mechanism, provider seam,
-per-platform answer (generated file everywhere, keystore deferred), the lazy-key rule, the
-post-quantum position and the TLS floors are all
-[ADR-0037](./0037-keys-credentials-and-transport-floors.md)'s to own, and live there.
+- Hard rule 5: both editions run the same core. This adds a door; it does not add a feature
+  one edition has and the other lacks.
+- `no-managed-leakage` holds. `@openmig/orchestration` is already inside the appliance's
+  permitted import graph, so reusing `buildDepsFromMapping` does not weaken it; if a future
+  change would, the guard says so.
 
 ## Consequences
 
 **Easier.** The Windows install becomes a product rather than a scaffold: install, open the
-shortcut, work through the setup checklist that workplan 0061 just built, add the
-connection it tells you to add, create the mapping. The setup checklist stops being advice
-about a form the appliance does not have. `docs/windows-appliance-runbook.md` loses its
-longest and most error-prone section — the one that currently has to explain an ACL bug and
-a `takeown` workaround for a file whose only purpose is to hold two passwords.
+shortcut, work through the setup checklist
+([workplan 0061](../workplans/0061-provider-setup-checklist.md)), add the connection it names,
+create the mapping. The [runbook](../windows-appliance-runbook.md) loses its most error-prone
+section, the `secrets.cmd` ACL and its `takeown` workaround. The shared web app needs no edition
+branch for these pages: one fewer `isSelfHost` in the UI.
 
-**Harder.** Two sources of configuration is genuinely more surface than one: two ways in,
-an ownership field on two tables, a refusal path, a startup collision check, and a UI that
-must render "you cannot edit this here" convincingly enough that nobody assumes it is a bug.
-The appliance also gains real secret storage, which is a thing it currently — and
-enviably — does not have to defend.
+**Harder.** An explicit deployment mode and its refusals; a read-only rendering of file topology
+convincing enough that nobody takes it for a bug; and real secret storage, which the appliance
+did not have to defend before.
 
-**Riskier, and worth naming.** The self-host edition's credentials are at rest on its own
-disk for the first time. Today a stolen or imaged appliance yields configuration and a
-migration ledger; after this it can yield credentials too, to anyone who takes the key file
-along with the database. That is the cost of the Personal user not having to edit
-`secrets.cmd`, it is the same cost the Managed edition already carries, and the operator who
-does not want to pay it keeps the Declared path, which is decision 3's other reason to exist.
+**Riskier.** Self-host credentials are at rest on the appliance's own disk for the first time:
+a stolen or imaged appliance can yield them to anyone who takes the key file along with the
+database. It is the cost Managed already carries and the price of the Personal user not editing
+`secrets.cmd`. An Organisation operator who will not pay it keeps env indirection per
+connection (decision 3).
 
-**Work this creates elsewhere, named rather than assumed.** (a) The SAD's self-host language
-— §3 "hobbyist", §4.1/§7 "optionally single-user", §7.1's heading, §7.3's "local /
-single-user" auth row, §8's "single tenant" — describes a product the owner is not building,
-and should be corrected to the three deployments named in decision 1. (b) Authentication for
-an Organisation deployment needs its own ADR, and decision 6 makes it a prerequisite rather
-than a follow-up. (c) `isSelfHost` is used today for questions that are really about
-deployment shape; each use needs re-reading against decision 1's two axes.
+**Work this creates elsewhere.** (a) The [SAD](../architecture/solution-architecture.md) still
+calls self-host "hobbyist" (§2, and §7.1's heading), "optionally single-user" (§3, §7), "local /
+single-user" (§7.3's `Auth` row) and "single tenant" (§8); it should name the three
+deployments. (b) Authentication for an Organisation deployment needs its own ADR, and none
+exists yet. (c) Each `isSelfHost` use needs re-reading against decision 1's two axes.
 
-**Neutral.** The shared web app needs no edition branch for these pages, which is one fewer
-`isSelfHost` in the UI — the same direction ADR-0026 pushed.
+**Built, as of 2026-10-03.** Not the appliance side. `apps/selfhost` has no deployment mode, no
+secret store or key file, no connections or credential routes and no origin-path column; it
+still configures from files and environment variables, and still warns at boot, off loopback,
+that it has no authentication. What has landed is the credential side the split anticipated:
+the per-mapping credential (`mailbox_mapping.source_secret_ref`, ledger migration 0032), which
+`buildDepsFromMapping` merges over the connection's and `revokeStoredCredentials` reads. The
+setup-checklist comment in `apps/selfhost/src/index.ts` still calls the missing connections
+management "a decision rather than an omission", the reasoning this ADR retracted.
 
 ## Alternatives considered
 
-**Leave it: files only, and document them better.** The status quo, and the honest version
-of what the code does today. Rejected because no amount of documentation converts "edit two
-files and restart a scheduled task" into something ADR-0027's persona will do, and because
-the setup checklist and connections work already shipped assumes a door the appliance does
-not have.
+**Leave it: files only, documented better.** The status quo. Rejected: no documentation turns
+"edit two files and restart a scheduled task" into something ADR-0027's person will do, and the
+setup checklist and connections work already shipped assume a door the appliance did not have.
 
-**UI only: config lives in the database, files become a one-time import.**
-Tidier, one source of truth, no ownership field, no collision check. Rejected because it
-takes the Organisation deployment's only workable interface away to solve a problem it does
-not have, and because `passwordFromEnv` is the only configuration path that keeps no secret
-at rest — a property worth keeping available even though most installs will not choose it.
+**UI only: config in the database, files a one-time import.** Tidier, with one source of truth.
+Rejected: it takes away the only workable interface an Organisation deployment has (at ~1000
+accounts that is arithmetic, not preference), and `passwordFromEnv` is the only configuration
+path that keeps no secret at rest.
 
-**Merge them: files seed defaults, the UI overrides.** The obvious compromise, and the one
-that fails quietly. Whichever side is chosen as the winner, the other side's edits vanish
-without an error — and the person who loses is the one who was most confident, because they
-were editing the thing they believed was authoritative. Per-object ownership costs one
-column and buys a refusal that names a file path.
+**Merge them: files seed defaults, the UI overrides.** The obvious compromise, and it fails
+quietly: whichever side wins, the other side's edits vanish without an error, and the loser is
+whoever was most confident they were editing the authoritative copy.
 
-**Keep one word and qualify it in prose** ("self-host, but the big kind"). Rejected: that
-is what the tree does today, and it is how "the appliance configures itself from files"
-became a rule applied to a deployment it was never true of. A distinction that only exists
-in the reader's head is not a distinction the code can honour — decision 1 gives it a name
-precisely so `isSelfHost` stops being asked a question it cannot answer.
+**Both doors on every object, ownership per row** (decisions 3 and 4 as first written). Files
+and the UI open on every self-host deployment; each connection and mapping owned by one door,
+recorded in an ownership column; file-owned ids derived and UI-owned ids random, with a startup
+refusal naming both claimants if they ever collided; a vanished file's rows kept unscheduled and
+offered for adoption into the UI or deletion with their history. Replaced on 2026-08-19 by the
+split by concern: with one door per concern per deployment there is nothing to own, collide or
+adopt, and that surface (two ways in, an ownership field on two tables, a collision check) goes.
 
-**Split the edition instead — make Personal a third edition.** Superficially cleaner: one
-axis, three values, and `isPersonal` answers everything. Rejected because Personal and
-Organisation run the *same build* and differ only in how they are deployed and by whom, so a
-third edition would fork packaging, CI and release for a difference that is entirely runtime.
-ADR-0003's two editions stay two; the deployment axis is the new one.
+**Split by deployment for everything: no secret store on Organisation.** The first shape of the
+owner's answer. Rejected: a credential that arrives from a person at runtime, ADR-0035's grant
+link and the product's central flow, has no environment variable, so the grown-up tier could not
+run it. The owner's own challenge settled the shape (2026-08-19): *"why would we want to store
+all possible secrets in files, while we can hold them also in DB like with grants and the UI we
+have."*
 
-**A UI that writes the config files.** Superficially the best of both: the fleet operator's
-files stay authoritative, the Windows user never opens an editor. Rejected because a
-generated file is not a file an operator owns — comments and formatting do not survive, a
-Git working tree acquires changes nobody made, and the moment the file is also
-hand-editable there is a read-modify-write race between a text editor and a web form. It
-also does not solve secrets, which are the actual pain: they are in the environment, not in
-the file, and a UI writing `secrets.cmd` is a web form generating a batch script.
+**One word, qualified in prose** ("self-host, but the big kind"). Rejected: that is how "the
+appliance configures itself from files" became a rule for a deployment it was never true of. A
+distinction that exists only in the reader's head is not one the code can honour.
+
+**Personal as a third edition.** One axis, three values, and `isPersonal` answers everything.
+Rejected: Personal and Organisation run the same build and differ only in how they are deployed
+and by whom, so a third edition would fork packaging, CI and release for a runtime difference.
+
+**A UI that writes the config files.** Rejected: a generated file is not one an operator owns.
+Comments and formatting do not survive, a Git working tree acquires changes nobody made, and a
+text editor and a web form race on read-modify-write. It does not solve secrets either: a UI
+writing `secrets.cmd` is a web form generating a batch script.
+
+**A passphrase-derived key.** Genuinely stronger, since the key is then not on the disk.
+Rejected as the only path: the appliance could not start unattended, and surviving a power cut
+with nobody present is a stated value, proven on real hardware (runbook phase 3, hard kill
+mid-sync). If it is ever wanted, it comes as an option on top of the key file (Argon2id,
+ADR-0037).
+
+**No authentication of its own, the bind as the boundary everywhere** (the first draft of
+decision 6). True of Personal and false of the deployment the owner described; rejected for
+anything bound off loopback, for the reasons in decision 6.
+
+## Amendment log
+
+- **2026-08-17** — Proposed, and revised the same day before anything was decided: the first
+  draft treated self-host as one persona (the SAD's "hobbyist") and let the new routes ship
+  without authentication. The owner set the names (decision 1) and the scale bound (~1000
+  migrated accounts, not interactive logins); the auth clause became decision 6. Record:
+  *"Self-host" is one word for two deployments (decision 1 names them)*, and decision 6.
+- **2026-08-17** — Decision 6 restated by ADR-0035: it holds, with a second boundary, because
+  migrated people get a signed link and not an account. Record: *Update 2026-08-17 — decision 6
+  is restated by ADR-0035*.
+- **2026-08-19** — Correction: the two open questions (do files survive; where does the key
+  live) had been recorded as delegated on a *"no preference"* the owner never gave, an
+  unanswered picker read as consent. Both were reopened as proposals; the owner: *"I do have a
+  preference."* A decision log that can absorb a non-answer as an answer is worse than no log.
+  Record: *The correction, first, because this ADR asserted something untrue about its own
+  owner*.
+- **2026-08-19** — Both questions answered by the owner; checked twice against the record, the
+  answers became the split by concern. Decisions 2–5 amended: the UI is Personal's topology door
+  and the credential door everywhere; files are Organisation's sole topology door and Personal
+  has none; decision 4's ownership machinery is replaced; the key's mechanics move to ADR-0037,
+  with the key required at first store. Record: *Now decided (owner, 2026-08-19) — and the shape
+  the answers produced*, and the "Amended 2026-08-19" notes under decisions 2–5.
+- **2026-09-20** — Accepted as amended (owner: "yes on all 3"); nothing changed.
+- **2026-10-03** — Consolidated in place
+  ([ADR-0051](./0051-an-adr-reads-as-it-stands.md)): written as the decision stands, decision
+  numbers 1–7 kept, decisions 3 and 4 retitled to their amended meaning; decision 5's threat
+  statement follows ADR-0037's.
+
+The full record, word for word as it read before this consolidation:
+[history/0034-appliance-configuration-surface.md](./history/0034-appliance-configuration-surface.md).

@@ -9,17 +9,27 @@
  * prose list drifted for weeks). So the file is GENERATED from each ADR's own
  * `## Operative rules` section, and this test regenerates and diffs: any state
  * where the two disagree is red, with the fix named.
+ *
+ * AND IT CANNOT GROW BACK INTO A CORPUS (ADR-0051). Drift was guarded; size
+ * was only asked for, in a template comment. Six weeks after ADR-0038 the
+ * assembled file had doubled to 12k words, one section held 27 bullets, and
+ * three of ADR-0014's amendments — the lane that never releases its slot among
+ * them — had never reached it at all. So the budget is now refused at
+ * assembly, an ADR's header says where it stands in 400 characters, a pending
+ * change is visible in the rules or nowhere, and an ADR rewritten to its
+ * current state keeps its whole record, word for word, in `docs/adr/history/`.
  */
 
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ADR_DIR = join(REPO_ROOT, 'docs', 'adr');
+const HISTORY_DIR = join(ADR_DIR, 'history');
 const GENERATOR = join(REPO_ROOT, 'scripts', 'adr-operative.mjs');
 
 const adrFiles = readdirSync(ADR_DIR)
@@ -64,28 +74,29 @@ describe('OPERATIVE.md is build output, not a second source', () => {
   });
 });
 
+/** Assemble fixture ADRs through the REAL generator; "OK" or "ERR: <message>". */
+function runOn(files: Record<string, string>) {
+  const dir = mkdtempSync(join(tmpdir(), 'adrop-'));
+  try {
+    for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, name), text);
+    return execFileSync(
+      'node',
+      [
+        '--input-type=module',
+        '-e',
+        `import { assemble } from '${GENERATOR}'; try { assemble('${dir}'); console.log('OK'); } catch (e) { console.log('ERR: ' + e.message); }`,
+      ],
+      { encoding: 'utf8' },
+    ).trim();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 describe('the generator refuses silence', () => {
   // A missing or empty section must be an error, never an omitted entry — an
   // ADR quietly absent from OPERATIVE.md would read as "no constraints", which
   // is the same lie as a skipped test reporting green.
-  function runOn(files: Record<string, string>) {
-    const dir = mkdtempSync(join(tmpdir(), 'adrop-'));
-    try {
-      for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, name), text);
-      return execFileSync(
-        'node',
-        [
-          '--input-type=module',
-          '-e',
-          `import { assemble } from '${GENERATOR}'; try { assemble('${dir}'); console.log('OK'); } catch (e) { console.log('ERR: ' + e.message); }`,
-        ],
-        { encoding: 'utf8' },
-      ).trim();
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  }
-
   it('a missing section is an error naming the file and the convention', () => {
     const out = runOn({ '0099-x.md': '# ADR-0099: X\n\n## Context\nwords\n' });
     expect(out).toContain('ERR:');
@@ -135,6 +146,186 @@ describe('the generator refuses silence', () => {
   });
 });
 
+/** The numbers the generator enforces, read from the generator rather than restated. */
+const BUDGET: { bullets: number; wordsPerBullet: number; wordsPerSection: number } = JSON.parse(
+  execFileSync(
+    'node',
+    ['--input-type=module', '-e', `import { BUDGET } from '${GENERATOR}'; console.log(JSON.stringify(BUDGET));`],
+    { encoding: 'utf8' },
+  ),
+);
+
+/** An ADR around one operative section, for the fixtures below. */
+const adrWith = (operative: string) => `# ADR-0099: X\n\n## Operative rules\n\n${operative}\n\n## Context\nwords\n`;
+const words = (n: number, word = 'rule') => Array.from({ length: n }, () => word).join(' ');
+
+describe('the operative layer has a budget, refused at assembly (ADR-0051)', () => {
+  // A template comment asked for "3–8 terse bullets" from 2026-08-19 on, and
+  // nothing read it: by 2026-10-03 one section had 27 bullets and 2,024 words.
+  // The fixtures sit exactly one past each limit, so a limit that drifts by one
+  // in either direction turns this red.
+  it('more bullets than the budget is refused, naming the file and the decision', () => {
+    const bullets = Array.from({ length: BUDGET.bullets + 1 }, () => '- a rule').join('\n');
+    const out = runOn({ '0099-x.md': adrWith(bullets) });
+    expect(out).toContain('ERR:');
+    expect(out).toContain('0099-x.md');
+    expect(out).toContain(`${BUDGET.bullets + 1} operative bullets`);
+    expect(out).toContain('ADR-0051');
+  });
+
+  it('exactly the budget assembles', () => {
+    const bullets = Array.from({ length: BUDGET.bullets }, () => `- ${words(Math.floor(BUDGET.wordsPerSection / BUDGET.bullets) - 1)}`).join('\n');
+    expect(runOn({ '0099-x.md': adrWith(bullets) })).toBe('OK');
+  });
+
+  it('a bullet one word over is refused, its continuation lines counted', () => {
+    // Two lines, so a counter that only read the bullet's first line would pass it.
+    const half = Math.floor(BUDGET.wordsPerBullet / 2);
+    const out = runOn({ '0099-x.md': adrWith(`- ${words(half)}\n  ${words(BUDGET.wordsPerBullet - half)}`) });
+    expect(out).toBe('OK');
+    const over = runOn({ '0099-x.md': adrWith(`- ${words(half)}\n  ${words(BUDGET.wordsPerBullet - half + 1)}`) });
+    expect(over).toContain(`is ${BUDGET.wordsPerBullet + 1} words`);
+  });
+
+  it('a section over the word budget is refused even when every bullet is within its own', () => {
+    const per = BUDGET.wordsPerBullet - 1;
+    const count = Math.ceil((BUDGET.wordsPerSection + 1) / per);
+    expect(count, 'the fixture must stay within the bullet count to test the section alone').toBeLessThanOrEqual(BUDGET.bullets);
+    const out = runOn({ '0099-x.md': adrWith(Array.from({ length: count }, () => `- ${words(per - 1)}`).join('\n')) });
+    expect(out).toContain('ERR:');
+    expect(out).toContain('the operative section is');
+  });
+
+  it('a sub-heading inside the section is refused — an amendment is not a rule', () => {
+    // ADR-0042 carried "### Amended 2026-08-25" inside its section, and
+    // OPERATIVE.md printed the amendment's narrative as one of the rules.
+    const out = runOn({ '0099-x.md': adrWith('- the rule\n\n### Amended 2026-01-01\n\nwhat changed') });
+    expect(out).toContain('ERR:');
+    expect(out).toContain('### Amended 2026-01-01');
+  });
+
+  it('table rows are data, not words — ADR-0014’s tier table is what two price guards read', () => {
+    const table = ['| tier | a | b |', '|---|---|---|', ...Array.from({ length: 40 }, () => `| **T** | ${words(20, 'x')} | y |`)].join('\n');
+    expect(runOn({ '0099-x.md': adrWith(`- the rule, and its table:\n\n  ${table.split('\n').join('\n  ')}`) })).toBe('OK');
+  });
+
+  it('every problem is listed at once, not the first', () => {
+    const bad = adrWith(Array.from({ length: BUDGET.bullets + 1 }, () => '- a rule').join('\n'));
+    const out = runOn({ '0098-a.md': bad, '0099-b.md': bad });
+    expect(out).toContain('0098-a.md');
+    expect(out).toContain('0099-b.md');
+  });
+
+  it('the template states the numbers the generator enforces', () => {
+    const template = readFileSync(join(ADR_DIR, '0000-template.md'), 'utf8');
+    expect(template).toContain(`${BUDGET.bullets} bullets`);
+    expect(template).toContain(`${BUDGET.wordsPerBullet} words a bullet`);
+    expect(template).toContain(`${BUDGET.wordsPerSection} words in all`);
+  });
+});
+
+/** The `**Status:**` entry of an ADR's header, its continuation lines joined. */
+function statusEntry(text: string): string {
+  const lines = text.split('\n');
+  const i = lines.findIndex((l) => /^(- )?\*\*Status:\*\*/.test(l));
+  if (i === -1) return '';
+  const out = [lines[i]!];
+  for (const l of lines.slice(i + 1)) {
+    if (!/^\s+\S/.test(l)) break;
+    out.push(l);
+  }
+  return out.map((l) => l.trim()).join(' ');
+}
+
+/** An ADR's operative section, sliced the way the price guards slice it. */
+function operativeOf(text: string): string {
+  const start = text.indexOf('\n## Operative rules');
+  const end = text.indexOf('\n## ', start + 1);
+  return text.slice(start, end === -1 ? undefined : end);
+}
+
+describe('an ADR says where it stands, in its header and its rules (ADR-0051)', () => {
+  it.each(adrFiles.map((f) => [f]))('%s has a Status entry of at most 400 characters', (f) => {
+    // ADR-0014's ran to 1,281 characters and ADR-0035's to 1,308: the
+    // amendment history, told in the one line meant to say where it stands.
+    const status = statusEntry(readFileSync(join(ADR_DIR, f), 'utf8'));
+    expect(status, `${f} has no **Status:** entry`).not.toBe('');
+    expect(status.length, `${f}: move the story into "## Amendment log"`).toBeLessThanOrEqual(400);
+  });
+
+  it.each(adrFiles.map((f) => [f]))('%s shows a pending change in its rules, or has none', (f) => {
+    // ADR-0014's proposed list sat at line 982 of 1,102 while OPERATIVE.md
+    // showed only the prices it would replace. A proposal is either visible
+    // in the rules, beside the text it would enact, or it is not a proposal.
+    const text = readFileSync(join(ADR_DIR, f), 'utf8');
+    const bullets = operativeOf(text)
+      .split('\n')
+      .filter((l) => /^- \*\*Pending\b/.test(l)).length;
+    const sections = text.split('\n').filter((l) => /^## Pending\b/.test(l)).length;
+    expect(bullets, `${f}: ${bullets} "**Pending" bullet(s) against ${sections} "## Pending" section(s)`).toBe(sections);
+  });
+});
+
+describe('an ADR consolidated in place keeps its whole record (ADR-0051)', () => {
+  const histories = existsSync(HISTORY_DIR) ? readdirSync(HISTORY_DIR).sort() : [];
+
+  it('history is never deleted: the eight records of 2026-10-03 are all still there', () => {
+    // A floor rather than an exact count: a record joins history/ when its ADR
+    // is consolidated, and nothing ever leaves it.
+    expect(histories.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it('every history file carries the file name of the ADR it was, which still exists', () => {
+    for (const h of histories) {
+      expect(h, `${h} is not an ADR's file name`).toMatch(/^\d{4}-.+\.md$/);
+      expect(adrFiles, `history/${h} has no ADR of the same name — a consolidation keeps the file name, so its citations hold`).toContain(h);
+    }
+  });
+
+  it('each consolidated ADR links its record and keeps an amendment log', () => {
+    for (const h of histories) {
+      const adr = readFileSync(join(ADR_DIR, h), 'utf8');
+      expect(adr, `${h} does not link ./history/${h}`).toContain(`](./history/${h})`);
+      expect(adr, `${h} has no "## Amendment log"`).toMatch(/^## Amendment log$/m);
+    }
+  });
+
+  it('each record says it is frozen, and where the decision now is', () => {
+    for (const h of histories) {
+      const record = readFileSync(join(HISTORY_DIR, h), 'utf8');
+      expect(record.startsWith('<!-- FROZEN RECORD (ADR-0051).'), `history/${h} lost its banner`).toBe(true);
+      expect(record, `history/${h} does not point at its ADR`).toContain(`](../${h})`);
+    }
+  });
+
+  it('a record is never assembled: OPERATIVE.md has one entry per ADR, and history/ adds none', () => {
+    const out = readFileSync(join(ADR_DIR, 'OPERATIVE.md'), 'utf8');
+    expect(out.split('\n').filter((l) => l.startsWith('## [')).length).toBe(adrFiles.length);
+  });
+
+  it('every relative link under docs/adr resolves — the records were re-based, not only copied', () => {
+    // A record moved one folder down keeps its links only if each was
+    // re-based; a copy that was not would point every ./00NN link at nothing.
+    const files = [...readdirSync(ADR_DIR).filter((f) => f.endsWith('.md')).map((f) => join(ADR_DIR, f)), ...histories.map((h) => join(HISTORY_DIR, h))];
+    let checked = 0;
+    const broken: string[] = [];
+    for (const file of files) {
+      const text = readFileSync(file, 'utf8').replace(/```[\s\S]*?```/g, '');
+      for (const m of text.matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
+        const target = m[1]!;
+        if (/^(https?:|mailto:|#|\/)/.test(target)) continue;
+        const path = decodeURI(target.split('#')[0]!);
+        if (!path) continue;
+        checked++;
+        if (!existsSync(resolve(dirname(file), path))) broken.push(`${relative(REPO_ROOT, file)} → ${target}`);
+      }
+    }
+    // A floor, so a link pattern that stopped matching cannot pass by finding nothing.
+    expect(checked).toBeGreaterThan(250);
+    expect(broken).toEqual([]);
+  });
+});
+
 describe('the register stays an index, not a second corpus', () => {
   const register = readFileSync(join(ADR_DIR, 'README.md'), 'utf8');
 
@@ -161,9 +352,18 @@ describe('the protocol is wired where agents read', () => {
     expect(agents).toContain('adr-operative.mjs --write');
   });
 
+  it('AGENTS.md hard rule 7 admits the one move a record may make (ADR-0051)', () => {
+    // "Append-only" with an exception nobody wrote down would make every
+    // consolidation look like a deletion to the next agent that reads rule 7.
+    const agents = readFileSync(join(REPO_ROOT, 'AGENTS.md'), 'utf8');
+    expect(agents).toContain('docs/adr/history/');
+    expect(agents).toContain('ADR-0051');
+  });
+
   it('CONTRIBUTING.md tells authors about the section and the regeneration', () => {
     const contributing = readFileSync(join(REPO_ROOT, 'CONTRIBUTING.md'), 'utf8');
     expect(contributing).toContain('## Operative rules');
     expect(contributing).toContain('adr-operative.mjs --write');
+    expect(contributing).toContain('ADR-0051');
   });
 });
