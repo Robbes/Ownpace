@@ -606,6 +606,8 @@ export const DiscoveryRecordSchema = z.object({
   perCollection: z.array(DiscoveryCollectionSchema).optional(),
   discoveredAt: z.string(),
   lastError: z.string().optional(),
+  /** The count failed, and its text is kept back: the account is a person's own (ADR-0035 decision 5). */
+  lastErrorWithheld: z.literal(true).optional(),
 });
 export const DiscoveryResponseSchema = z.object({
   mappingId: z.string(),

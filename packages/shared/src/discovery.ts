@@ -167,6 +167,39 @@ export interface DiscoveryRecord extends DomainDiscovery {
   readonly discoveredAt: string;
   /** Verbatim error from the last pass, if it failed (§11.2 honest passthrough); else absent. */
   readonly lastError?: string;
+  /**
+   * The last pass failed, and its text is kept back from this reader: the
+   * migration reads an account a person connected through their own link, and
+   * the provider's words can name their folders and files (ADR-0035 decision 5).
+   * Present INSTEAD of `lastError`, never beside it (`withheldDiscovery`).
+   */
+  readonly lastErrorWithheld?: true;
+}
+
+/**
+ * Whether a domain's last count failed, whether or not its text is shown.
+ *
+ * Every reader that asks "did this fail" asks it here, so a withheld error is
+ * still a failure: a row whose text is kept back has still landed, and its
+ * count is still from before the error.
+ */
+export function discoveryFailed(row: Pick<DiscoveryRecord, 'lastError' | 'lastErrorWithheld'>): boolean {
+  return Boolean(row.lastError) || row.lastErrorWithheld === true;
+}
+
+/**
+ * The rows as the owner may read them when the account is a person's own
+ * (ADR-0035 decision 5): each failure's text goes, and `lastErrorWithheld`
+ * says that it failed. The counts stay, because decision 2 lets the owner see
+ * counts and states. A row whose error is empty has no error (the store's own
+ * reading), so it is left as it is.
+ */
+export function withheldDiscovery(rows: readonly DiscoveryRecord[]): DiscoveryRecord[] {
+  return rows.map((row) => {
+    if (!row.lastError) return row;
+    const { lastError: _withheld, ...rest } = row;
+    return { ...rest, lastErrorWithheld: true as const };
+  });
 }
 
 /**
@@ -236,7 +269,7 @@ export function foundByDomain(
 ): Partial<Record<DiscoveryDomain, FoundCount>> {
   const found: Partial<Record<DiscoveryDomain, FoundCount>> = {};
   for (const row of rows) {
-    const counted = !row.lastError || row.collections > 0 || row.items > 0;
+    const counted = !discoveryFailed(row) || row.collections > 0 || row.items > 0;
     if (!counted) continue;
     found[row.domain] = { items: row.items, ...(row.bytes !== undefined ? { bytes: row.bytes } : {}) };
   }
@@ -268,7 +301,7 @@ export function domainsCountedBeforeTheirError(
     // Truthy rather than `!= null`: the store already reads an empty string as
     // no error at all (`row.lastError ? … : {}`), and a caveat raised by one
     // would contradict the blank error cell in the row it is about.
-    .filter((row) => Boolean(row.lastError) && (row.collections > 0 || row.items > 0))
+    .filter((row) => discoveryFailed(row) && (row.collections > 0 || row.items > 0))
     .map((row) => row.domain);
 }
 

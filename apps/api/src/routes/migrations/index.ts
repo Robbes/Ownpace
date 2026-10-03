@@ -43,6 +43,7 @@ import {
   checkFactsOf,
   DISCOVERY_DOMAINS,
   discoveryForSelection,
+  withheldDiscovery,
   domainProgressOf,
   foundByDomain,
   grantWithdrawnRefusal,
@@ -3866,7 +3867,13 @@ router.get('/:mappingId/discovery', authenticate, async (req: AuthenticatedReque
       ]);
       return discoveryForSelection(stored, scopeRows.map((r) => r.domain));
     });
-    res.json({ mappingId, discovered: domains.length > 0, domains });
+    // WHOSE DATA (ADR-0035 decision 5): a count that failed on an account a
+    // person connected through their own link says that it failed, never the
+    // provider's words, which can name that person's folders and files. Kept
+    // back here, so no browser receives it; the migration page withholds the
+    // same text the same way.
+    const shown = readsAPersonsGrant(mapping) ? withheldDiscovery(domains) : domains;
+    res.json({ mappingId, discovered: shown.length > 0, domains: shown });
   } catch (error) {
     serverFault(res, 'discovery_read_failed', 'reading the discovery result', error);
   }
