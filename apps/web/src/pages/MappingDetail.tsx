@@ -32,7 +32,7 @@ export { progressRefetchInterval, PROGRESS_POLL_ACTIVE_MS, PROGRESS_POLL_IDLE_MS
 import { progressRefetchInterval } from '../services/progress-poll.ts';
 import { mappingApi } from '../services/mapping-service.ts';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
-import { fetchAllDiscovery, fetchAttention, fetchStatus } from '../services/operating-service.ts';
+import { fetchAllDiscovery, fetchAttention, fetchRuns, fetchStatus } from '../services/operating-service.ts';
 import { fetchProgress } from '../services/progress-service.ts';
 import { checksOf } from '../services/cutover-steps.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
@@ -47,7 +47,9 @@ import StateChip from '../components/StateChip.tsx';
 import { connectionKindName } from '../components/ProviderTile.tsx';
 import { CutoverSteps } from '../components/CutoverSteps.tsx';
 import { TimeBeforeStartLine } from '../components/TimeBeforeStartLine.tsx';
-import { timeBeforeStart } from '@openmig/shared';
+import { TimeWhileCopyingLine } from '../components/TimeWhileCopyingLine.tsx';
+import { remainingItemsOf, timeBeforeStart, timeWhileCopying } from '@openmig/shared';
+import { providerName } from '../components/ProviderTile.tsx';
 import { serverMessage } from '../services/api.ts';
 
 /**
@@ -176,6 +178,16 @@ const MappingDetail: React.FC = () => {
     retry: false,
   });
 
+  // HOW LONG, DURING THE COPY (0154 T3 (b)): from the last passes' own pace,
+  // once a pass has reported. The run history's own query, so the panel below
+  // and this line share one read.
+  const runs = useQuery({
+    queryKey: ['runs', id],
+    queryFn: () => fetchRuns(id!),
+    enabled: Boolean(id) && firstPassIn,
+    refetchInterval: 30_000,
+  });
+
   if (!id) {
     return <p className="text-sm text-amber-800">{t('hub.noId')}</p>;
   }
@@ -196,6 +208,21 @@ const MappingDetail: React.FC = () => {
           domains: isSelfHost() ? counted.map((d) => d.domain) : (detail.data?.syncConfig.domains ?? []),
           mailBytes: counted.find((d) => d.domain === 'email' && d.lastError === undefined)?.bytes,
         });
+  // What is left, and whether the provider slowed it: from the strip's rows,
+  // the totals T2 set each count against. A data type with no total leaves it
+  // unknown, and the line says nothing (hard rule 9).
+  const sourceType = isSelfHost()
+    ? status.data?.mappings.find((m) => m.mappingId === id)?.sourceType
+    : detail.data?.sourceType;
+  const copyingRows = (progressDomains ?? []).filter((d) => d.state !== 'skipped');
+  const timeWhile =
+    firstPassIn && runs.data
+      ? timeWhileCopying({
+          remainingItems: remainingItemsOf(copyingRows),
+          passes: runs.data.runs,
+          slowed: copyingRows.some((d) => d.lastErrorCategory === 'rate_limited'),
+        })
+      : undefined;
   const lifecycle = isSelfHost()
     ? status.data?.mappings.find((m) => m.mappingId === id)?.migrationStatus
     : detail.data?.status;
@@ -290,6 +317,13 @@ const MappingDetail: React.FC = () => {
       )}
 
       {timeBefore && <TimeBeforeStartLine className="mt-4 text-sm text-gray-700" time={timeBefore} />}
+      {timeWhile && (
+        <TimeWhileCopyingLine
+          className="mt-4 text-sm text-gray-700"
+          time={timeWhile}
+          provider={providerName(sourceType ?? '', 'source')}
+        />
+      )}
 
       {/* The list IS a sequence (0034 T4), and since 0154 T4 one list with a
           person's page: each step with its count, its state in words, and
