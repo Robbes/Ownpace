@@ -83,10 +83,11 @@ the **system role, `ownpace_system`** (workplan 0138 T3 step 2). RLS is enforced
   not replicate, belongs to no role **and has no role belonging to it** (a role that belonged to
   it, `app_user` say, could `SET ROLE ownpace_system` and read every organisation's rows); it has
   **`BYPASSRLS`**, which their questions across organisations need (with no organisation set, a
-  role row security binds reads no row), and the grants their statements need and no others (the
-  migration lists them). **Never grant anything in this database to PUBLIC**: with `BYPASSRLS`, a
-  grant to PUBLIC is a grant to this role, past row security, and the integration guard counts
-  it. Managed migration 0033 creates it with no password; `ensure-env-secrets.sh` generates
+  role row security binds reads no row), and the grants their statements need and no others
+  (managed migration 0033 lists them, and 0035 the one for `person_link`, a table made after it).
+  **Never grant anything in this database to PUBLIC**: with `BYPASSRLS`, a grant to PUBLIC is a
+  grant to this role, past row security, and the integration guard counts it. Managed migration
+  0033 creates it with no password; `ensure-env-secrets.sh` generates
   `SYSTEM_DB_PASSWORD` into `.env`, and the bring-up (`bootstrap-managed.sh`, its `tasks` phase)
   asks Postgres that the role is still what the migration made it, **refuses to go on** if it is
   a superuser, may create roles or databases, replicates, belongs to a role, has a role belonging
@@ -1921,10 +1922,10 @@ steps for a tester's report. The items below are causes it points to.
   changed: the same phase sets `.env`'s value on the role and uploads the URL made from it.
   Retention and the purge of closed organisations connect with `SYSTEM_DATABASE_URL` alone, and a
   failure there naming *"permission denied for table …"* is a statement the system role was not
-  granted (managed migration 0033 lists what it was). A split job that fails with *"The list of
-  organisations was asked on a connection that row security binds"* was handed a
-  `SYSTEM_DATABASE_URL` whose role lacks `BYPASSRLS`, which the bring-up refuses before it uploads
-  one.
+  granted (managed migration 0033 lists what it was, and 0035 the one table made after it,
+  `person_link`). A split job that fails with *"The list of organisations was asked on a
+  connection that row security binds"* was handed a `SYSTEM_DATABASE_URL` whose role lacks
+  `BYPASSRLS`, which the bring-up refuses before it uploads one.
 - **"fail-closed" errors with no tenant context:** expected when a query runs without
   `app.current_tenant` set — that's RLS doing its job, not a bug. The request path must go through
   `withTenantDb`/`withTenant`.

@@ -15,9 +15,15 @@ import { lifecycleCounts, type MappingAttention, type Person as PersonShape, typ
 import Person from './Person.tsx';
 import { mappingApi, type MappingListItem } from '../services/mapping-service.ts';
 import { fetchAttention, fetchPeople } from '../services/operating-service.ts';
+import { personLinkApi } from '../services/grant-link-service.ts';
+import userEvent from '@testing-library/user-event';
 
 vi.mock('../services/mapping-service', () => ({ mappingApi: { list: vi.fn() } }));
 vi.mock('../services/operating-service', () => ({ fetchPeople: vi.fn(), fetchAttention: vi.fn() }));
+vi.mock('../services/grant-link-service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/grant-link-service.ts')>()),
+  personLinkApi: { list: vi.fn(), issue: vi.fn(), revoke: vi.fn() },
+}));
 
 const listMock = vi.mocked(mappingApi.list);
 const peopleMock = vi.mocked(fetchPeople);
@@ -83,6 +89,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   listMock.mockResolvedValue([MAIL, FILES]);
   peopleMock.mockResolvedValue({ people: [ANNA], unassigned: [] });
+  vi.mocked(personLinkApi.list).mockResolvedValue([]);
   attentionMock.mockResolvedValue({
     mappings: [quiet('m-mail', { deletionsWaiting: 2, failuresWaiting: 1 }), quiet('m-files', { sharingOpen: 5 })],
   });
@@ -200,5 +207,35 @@ describe("a person's page (0153 T5)", () => {
     renderAt('/people/p-nobody');
     expect(await screen.findByText('There is no such person here.')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Before you switch' })).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * FOR ANNA (ADR-0035, amended 2026-09-29; 0153 T5 (b)): one grant link for all
+ * of their Google accounts, made on their page, its URL said once.
+ */
+describe("a person's grant link, on their page", () => {
+  it('offers one link for all of their accounts, and says there is none yet', async () => {
+    renderAt();
+    const section = await screen.findByRole('region', { name: 'For Anna Jansen' });
+    expect(within(section).getByRole('heading', { name: 'One grant link for everything' })).toBeInTheDocument();
+    expect(await within(section).findByText('No link yet for this person.')).toBeInTheDocument();
+    expect(personLinkApi.list).toHaveBeenCalledWith('p-anna');
+  });
+
+  it('makes it with the chosen expiry, and shows the URL once', async () => {
+    vi.mocked(personLinkApi.issue).mockResolvedValue({
+      id: 'l-1',
+      purpose: 'grant',
+      url: 'https://app.example/grant/p.l-1.secret',
+      expiresAt: '2026-10-06T00:00:00.000Z',
+      expiryDays: 7,
+      distribution: 'Send this to the person yourself.',
+    });
+    renderAt();
+    const section = await screen.findByRole('region', { name: 'For Anna Jansen' });
+    await userEvent.click(within(section).getByRole('button', { name: 'Create grant link' }));
+    expect(personLinkApi.issue).toHaveBeenCalledWith('p-anna', 7);
+    expect(await within(section).findByDisplayValue('https://app.example/grant/p.l-1.secret')).toBeInTheDocument();
   });
 });

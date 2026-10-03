@@ -63,7 +63,7 @@ place, could become the one-candidate default, and was posted as the source of a
 - **Proved by** `StartMigration.unit.test.tsx` (33 cases) and `start-plan.unit.test.ts` (25),
   and by a walk in Chromium over a fixture API that answers a Google account with no token as
   the create door does (`error`). The walk goes in English and Dutch from *They do, with a link*,
-  through Anna's address and two grant links, one per migration, used, to *Start* and her page.
+  through Anna's address and two grant links, one per migration, used, to *Start* and their page.
   It found the closing line promising that each migration starts by itself once connected, which
   nothing does, in Dutch that read Anna as a woman (*haar account*). The line now says to start
   each one from its *Details*.
@@ -144,7 +144,7 @@ place, could become the one-candidate default, and was posted as the source of a
     the person's page. A failed read of the saved accounts is said, and a `?person=` naming
     nobody chooses nobody;
   - `managed-ui.ui.test.ts` in a real browser: from Anna's card through the six screens and
-    one *Start* to her page, with no call the API does not serve. With the card's link pointed
+    one *Start* to their page, with no call the API does not serve. With the card's link pointed
     back at the wizard, it fails;
   - `ConfirmMigration`'s own 68 cases pass unchanged;
   - a walk in Chromium over a fixture API, in English, Dutch and at phone width, found two
@@ -184,6 +184,25 @@ words changed with them** (0131 §6, R8).
   at `5f74ebc`: T4 and T7 are still proposed, and no branch or open pull request of R's or M's
   touches them. 0131 §6 records the split.
 
+**2026-09-29, morning: T5 (b)'s fourth slice, the owner makes the person's one link (ADR-0035's
+amendment of 2026-09-29).**
+
+- **The person's page** has *For Anna*: *One grant link for everything*, its states, *Create
+  grant link* and *Revoke*, from the same section a migration's page draws (`LinkSection`, now
+  given its doors). Not on the appliance, which issues no links, and not before the person has a
+  migration.
+- ***Start a migration*'s last screen** offers that one link where it offered one per migration
+  (#1386): one Google account read by two migrations is signed in to once. Each migration it
+  serves says its count appears once the person has connected, and *Start* waits. Only a link
+  used after the screen first read the person's links counts: a person chosen from the list may
+  have used one before these migrations were theirs.
+- **Not yet:** the migration's page still makes its own links, until the owner answers whether
+  the person's link replaces them (the amendment's proposals); the progress link (slice 3).
+- **Proved by** `Person.unit.test.tsx` (+2) and `StartMigration.unit.test.tsx` (+1, one *Create
+  grant link* for two migrations). Mutation: counting a link used before the screen fails the
+  new case. Walked in Chromium, English and Dutch, from *They do, with a link* to one link made,
+  both migrations started, and the person's page.
+
 **2026-09-29, morning: T5 (b)'s second slice, a person's link is issued, opened and granted
 (ADR-0035's amendment of 2026-09-29).**
 
@@ -198,14 +217,14 @@ words changed with them** (0131 §6, R8).
   (`googleAccountKey`), and asks each through `grantLinkAsk`, unchanged.
 - **The ending** (`person-grant-ending.ts`): in one transaction, the close, the link still live
   (`FOR UPDATE`), the account that signed in the one named, and only the migrations the page
-  listed that are still hers and still read that account take the token, with an audit row each.
+  listed that are still theirs and still read that account take the token, with an audit row each.
   The link is spent once every account is granted.
 - **Not yet:** the person's progress link and page (slice 3), and the owner's side (slice 4).
   Reports from a person's page are not offered yet: the report route takes a migration's link
   only.
 - **Proved by** `a-link-for-a-person.unit.test.ts` (13, PGlite as `app_user`, both chains,
   Google's token endpoint stubbed), `Grant.unit.test.tsx` (20 → 24) and
-  `grant-service.unit.test.ts` (+2). Mutations: granting a migration that left her, and spending
+  `grant-service.unit.test.ts` (+2). Mutations: granting a migration that left them, and spending
   the link after the first account, each fail their cases. The closed-organisation and
   conditions sweeps count the new doors, and the spec documents them, with its checker taught
   `nullable`.
@@ -263,7 +282,7 @@ the owner's word *"continue on the rest"*)**, in #1353, stacked on #1349.
   - `Person.unit.test.tsx` (10 cases) and `cutover-steps.unit.test.ts` (8 cases). With an
     unread count on a link shown as *(0)*, the hard-rule-9 case fails;
   - the routes, the menu (Migrations lit on a person's page) and the card's links;
-  - `managed-ui.ui.test.ts` in a real browser: from Anna's card to her page and its seven
+  - `managed-ui.ui.test.ts` in a real browser: from Anna's card to their page and its seven
     steps.
 
 **2026-09-29, night: T1 (b), Gmail's app password is drawn (0131 §6, R8 step 1, built beside R at

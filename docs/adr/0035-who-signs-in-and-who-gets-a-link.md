@@ -335,7 +335,7 @@ answered below as a recommendation, marked **(proposed)** where it waits for the
 Decision 1 said people being migrated *are* mappings. ADR-0050 has since given them a row of
 their own, the **person**, whose migrations a move is. The link followed the old shape, and a
 walk of *Start a migration* for somebody else (0153 T4, #1386) shows the cost: Anna has one
-Google account; going to Soverin and to a Nextcloud makes two migrations, so she was sent two
+Google account; going to Soverin and to a Nextcloud makes two migrations, so they were sent two
 links to grant the same account twice. A person grants their own accounts, so the link belongs to
 the person. This decision's own alternatives already called the compromise *"a per-person
 copy-link"*.

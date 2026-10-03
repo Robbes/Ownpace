@@ -1,0 +1,58 @@
+-- The system role purges a person's links (workplan 0138 T3 step 2, after
+-- workplan 0153 T5 (b)).
+--
+-- ## Why this is a migration of its own
+--
+-- Managed migration 0033 made the tasks' system role, `ownpace_system`, and
+-- granted it DELETE on every table the purge of closed organisations empties
+-- (`PURGED_TABLES`, `packages/managed/src/offboarding.ts`), each readable by
+-- the one column that picks its rows. Managed migration 0034 then made
+-- `person_link`, a person's grant and progress links, put it in that list
+-- ("Purged on erasure"), and granted it to `app_user` alone. The two were
+-- built at the same time on two branches, and neither file names the other's
+-- table or role, so git merges them without a word: and the purge, running as
+-- this role, sends `DELETE FROM person_link WHERE tenant_id = …`, which
+-- Postgres refuses, "permission denied for table person_link". The erasure is
+-- one transaction, so it rolls back whole: the organisation stays closed and
+-- past its window, its stored credentials revoked at the provider (that runs
+-- first, outside the transaction) and its data all still here, and the next
+-- hourly purge fails the same way. No closed organisation would be erased.
+--
+-- The grant cannot go in 0033. The runner applies every version it has not
+-- recorded in file-name order (`runMigrations`, `packages/ledger/src/
+-- migrate.ts`), so on a fresh database 0033 runs before 0034, and a GRANT on
+-- a table that does not exist yet stops the migration: asked of a database
+-- with the ledger chain and managed 0001 to 0033, it answered `relation
+-- "public.person_link" does not exist`. Here, after 0034, it holds in both
+-- orders a database can meet them in: a fresh one runs 0033, 0034, 0035; a
+-- stack that applied 0034 from `main` before 0033 arrived runs 0033 and then
+-- this, and 0033 names no table 0034 makes. And the role has no default
+-- privileges, on purpose (0033, "What it may do, and nothing more"): a table
+-- added later is not the role's until a migration says so. This is that
+-- migration.
+--
+-- ## What it grants, and why only that
+--
+-- What 0033 grants every other table the purge only empties: the purge's
+-- DELETE, and SELECT on `tenant_id` alone, the one column its WHERE reads.
+-- Nothing else the role runs touches `person_link`. The sync tick reads the
+-- migrations and their runs, never a link; retention prunes runs, their
+-- events, declined requests and the log page, never a link; the split jobs'
+-- list reads `tenant.id`; the audit key reads `deployment_key`. A link is
+-- issued, verified, spent, revoked and counted against the tier's live-link
+-- limit on the API's request path, as `app_user`, under row security, and
+-- nothing sweeps expired ones. So the role never reads a link's secret hash,
+-- its person, its purpose, who made it or when it runs out: a column it does
+-- not need is a column a run that had been taken over could not read either,
+-- past row security, for every organisation at once.
+--
+-- The person's key and the organisation's cascade to this table, and a
+-- cascade runs as the table's owner, as Postgres runs every referential
+-- action; the purge names the table anyway, before `person`, so the erasure
+-- receipt counts its rows.
+--
+-- `a-system-role-that-is-not-the-owner.integration.test.ts` holds the role to
+-- exactly this, `person_link: SELECT (tenant_id), DELETE` among the rest, and
+-- runs the purge as the role over an organisation with a person's link.
+
+GRANT SELECT (tenant_id), DELETE ON TABLE public.person_link TO ownpace_system;
