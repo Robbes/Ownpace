@@ -591,7 +591,7 @@ const ASKS_AT_ALL = /\b(refusedAsClosed|closedOrganisation|enqueueUnlessHeld|rea
  * credential, or reaching a provider with one. A call, not a definition.
  */
 const USES_STORED_ACCESS =
-  /(?<!function\s+)\b(?:SecretStore\.decryptCredentials|storedCredentials|probeSourceConnection|probeTargetConnection|qualifyAccount|qualifyAndRemember|tenantInventoryScans|createNextcloudShare|exchangeCode|storeGrantedToken|storePersonGrant)\s*\(/g;
+  /(?<!function\s+)\b(?:SecretStore\.decryptCredentials|storedCredentials|probeSourceConnection|probeTargetConnection|qualifyAccount|qualifyAndRemember|tenantInventoryScans|migrationInventoryScans|sourceCredentialsFor|createNextcloudShare|exchangeCode|storeGrantedToken|storePersonGrant)\s*\(/g;
 
 /**
  * Where the API uses the stored access today, counted per file. A new use
@@ -607,7 +607,7 @@ const USES_BY_FILE: Readonly<Record<string, number>> = {
   'routes/migrations/index.ts': 3,
   'routes/migrations/operating-routes.ts': 3,
   'routes/migrations/person-grant-subject.ts': 2,
-  'routes/permissions.ts': 5,
+  'routes/permissions.ts': 9,
   'routes/withdraw-grant.ts': 1,
 };
 

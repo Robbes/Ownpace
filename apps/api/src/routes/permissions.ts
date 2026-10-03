@@ -50,6 +50,7 @@ import { authenticate, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import {
   googleMailboxDelegationNotRead,
+  grantWithdrawnRefusal,
   log,
   permissionsNotDiscoverable,
   resolveGoogleClient,
@@ -78,6 +79,7 @@ import {
   directorySourceOf,
   microsoftSourceKinds,
 } from '@openmig/orchestration/source-face-builders';
+import { sourceCredentialsFor } from '@openmig/orchestration/build-deps-from-mapping';
 import { measureTargetScheduling } from '@openmig/orchestration/target-scheduling';
 import {
   qualificationReportLines,
@@ -183,13 +185,23 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
     // address somebody typed: one test against the member's limit (0136 T3).
     if (refusedOverTestLimit(req, res)) return;
 
-    const scans = await tenantInventoryScans(tenantId, mailbox);
-
+    // A migration's report reads THAT migration's source and target, never
+    // whatever else the organisation connected (the owner, 2026-10-03: the
+    // Finish page of a Microsoft migration listed a Google migration's Drive
+    // shares). An address asked for directly names no migration, and keeps
+    // the organisation-wide answer it always had.
+    const scans =
+      mappingId !== '' && asked === ''
+        ? await migrationInventoryScans(tenantId, mappingId, mailbox)
+        : await tenantInventoryScans(tenantId, mailbox);
 
     // The target's side of the story (0105 T0): measured live at report
     // time, same derive-on-every-read philosophy as the scans. Undefined for
     // a tenant with no DAV target — the section then does not appear.
-    const measureTargetConduct = await tenantTargetConduct(tenantId);
+    const measureTargetConduct =
+      mappingId !== '' && asked === ''
+        ? await migrationTargetConduct(tenantId, mappingId)
+        : await tenantTargetConduct(tenantId);
 
     const markdown = await runPermissionInventory({
       mappingLabel: mailbox,
@@ -282,6 +294,45 @@ async function tenantTargetConduct(
   );
   const target = rows[0];
   if (!target) return undefined;
+  return targetConductOf(tenantId, target);
+}
+
+/**
+ * The same measurement, of ONE migration's own target: its target mailbox's
+ * connection with the migration's overrides merged over it, as a pass opens
+ * it (`loadDomainConnections`). A migration whose target is not DAV-shaped
+ * gets no section, even when the organisation has another migration's
+ * Nextcloud connected. Only a migration whose target mailbox names no
+ * connection, a row older than that column, falls back to the organisation's.
+ */
+async function migrationTargetConduct(
+  tenantId: string,
+  mappingId: string,
+): Promise<(() => Promise<readonly string[]>) | undefined> {
+  const rows = await inTenant(tenantId, (db) =>
+    rowsOf<{ secret_ref: string | null; config: unknown; kind: string; override: unknown }>(
+      db,
+      sql`SELECT c.secret_ref, c.config, c.kind, mm.target_config_override AS override
+       FROM mailbox_mapping mm
+       JOIN mailbox mb ON mb.id = mm.target_mailbox_id AND mb.tenant_id = mm.tenant_id
+       JOIN connection c ON c.id = mb.connection_id AND c.tenant_id = mm.tenant_id
+      WHERE mm.tenant_id = ${tenantId} AND mm.id = ${mappingId}`,
+    ),
+  );
+  const target = rows[0];
+  if (!target) return tenantTargetConduct(tenantId);
+  if (!['caldav', 'nextcloud', 'webdav'].includes(target.kind)) return undefined;
+  return targetConductOf(tenantId, {
+    ...target,
+    config: { ...((target.config ?? {}) as object), ...((target.override ?? {}) as object) },
+  });
+}
+
+/** Measure one DAV-shaped target connection: the qualification, or the scheduling verdict. */
+function targetConductOf(
+  tenantId: string,
+  target: { secret_ref: string | null; config: unknown; kind: string },
+): () => Promise<readonly string[]> {
   return async () => {
     const config = (target.config ?? {}) as Record<string, unknown> & {
       credentials?: Record<string, string>;
@@ -314,9 +365,10 @@ async function tenantTargetConduct(
 
 /**
  * The two §14.2 scans for one tenant's mailbox, resolved from what the tenant
- * actually connected (workplan 0029 T1/T5) — used by the report route above
- * AND by the sharing queue's rescan (ADR-0032), so the queue can never know
- * more or less than the report.
+ * actually connected (workplan 0029 T1/T5). Only for an address asked for
+ * directly, which names no migration: a migration's report and its sharing
+ * checklist read its own source, through `migrationInventoryScans` below, so
+ * the queue can never know more or less than the report.
  *
  * A Google Drive source's outbound shares are readable with the Drive scope
  * the connection already holds — no extra consent decision, unlike
@@ -327,16 +379,7 @@ async function tenantTargetConduct(
 export async function tenantInventoryScans(
   tenantId: string,
   mailbox: string,
-): Promise<{
-  scanCalendars: () => Promise<PermissionListing>;
-  scanDrive: () => Promise<PermissionListing>;
-  /**
-   * Mailbox delegation, unread, worded for THIS tenant's source. Carried here
-   * rather than called inline by each consumer so the report and the sharing
-   * checklist cannot say different things about the same account.
-   */
-  delegationReason: string;
-}> {
+): Promise<InventoryScans> {
   // The three lookups, in one transaction in the caller's organisation.
   const { microsoftRows, driveRows, davRows } = await inTenant(tenantId, async (db) => ({
     // EVERY MICROSOFT KIND, not `o365` alone (workplan 0141 T11). A tenant whose
@@ -381,7 +424,148 @@ export async function tenantInventoryScans(
       WHERE tenant_id = ${tenantId} AND role = 'source' AND kind IN ('nextcloud', 'webdav') LIMIT 1`,
     ),
   }));
+  const stored = (row: { secret_ref: string | null; config: unknown }): ScanConnection => ({
+    config: row.config,
+    credentials: () => storedCredentials(row.secret_ref, row.config),
+  });
+  return inventoryScansFrom(mailbox, {
+    microsoftRows,
+    driveRows: driveRows.map(stored),
+    davRows: davRows.map(stored),
+  });
+}
 
+/**
+ * The two scans for ONE MIGRATION, from its own source connection and nothing
+ * else the organisation connected (the owner's report of 2026-10-03).
+ *
+ * THE DEFECT. The report and the sharing checklist are per migration, and
+ * `share_grant` is keyed by it (ADR-0032), but the scans that fill them were
+ * resolved by `tenantInventoryScans` above: every Microsoft source in the
+ * organisation, its first Google Drive source and its first DAV source, Drive
+ * asked first. An organisation running a Microsoft migration beside a Google
+ * one therefore got the Google account's Drive shares on the Microsoft
+ * migration's Finish page, saved into its checklist by a rescan, and the
+ * Google migration's report took Microsoft's wording for its mailbox. The pass
+ * itself had the same defect once and was fixed in `loadDomainConnections`
+ * (`build-deps-from-mapping.ts`): this is that resolution, migration →
+ * source mailbox → connection, with the migration's override merged over the
+ * connection's config and its own grant applied, as a pass opens the source.
+ *
+ * A WITHDRAWN GRANT READS NOTHING (ADR-0035): each scan answers with the same
+ * sentence the pass refuses with, and no credential is decrypted.
+ *
+ * A migration whose source mailbox names no connection, a row older than that
+ * column, keeps the organisation-wide answer it has always had, said in the
+ * log, as the pass falls back for the same rows.
+ */
+export async function migrationInventoryScans(
+  tenantId: string,
+  mappingId: string,
+  mailbox: string,
+): Promise<InventoryScans> {
+  const rows = await inTenant(tenantId, (db) =>
+    rowsOf<{
+      kind: string;
+      config: unknown;
+      secret_ref: string | null;
+      override: unknown;
+      mapping_secret_ref: string | null;
+      grant_withdrawn_at: Date | string | null;
+    }>(
+      db,
+      sql`SELECT c.kind, c.config, c.secret_ref, mm.source_config_override AS override,
+             mm.source_secret_ref AS mapping_secret_ref, mm.grant_withdrawn_at
+       FROM mailbox_mapping mm
+       JOIN mailbox mb ON mb.id = mm.source_mailbox_id AND mb.tenant_id = mm.tenant_id
+       JOIN connection c ON c.id = mb.connection_id AND c.tenant_id = mm.tenant_id
+      WHERE mm.tenant_id = ${tenantId} AND mm.id = ${mappingId}`,
+    ),
+  );
+  const source = rows[0];
+  if (!source) {
+    log.warn(
+      `[permissions] migration ${mappingId}: its source mailbox names no connection; ` +
+        "reading the organisation's source connections instead. Fine for an organisation " +
+        'with one source; ambiguous the moment there are two.',
+    );
+    return tenantInventoryScans(tenantId, mailbox);
+  }
+  if (source.grant_withdrawn_at) {
+    const withdrawn: PermissionListing = {
+      kind: 'not_discoverable',
+      reason: permissionsNotDiscoverable(
+        grantWithdrawnRefusal(new Date(source.grant_withdrawn_at)).en,
+      ),
+    };
+    return {
+      ...inventoryScansFrom(mailbox, { microsoftRows: [], driveRows: [], davRows: [] }),
+      scanCalendars: async () => withdrawn,
+      scanDrive: async () => withdrawn,
+    };
+  }
+  const config = {
+    ...((source.config ?? {}) as Record<string, unknown>),
+    ...((source.override ?? {}) as Record<string, unknown>),
+  };
+  const own: ScanConnection = {
+    config,
+    credentials: () =>
+      sourceCredentialsFor(
+        source.kind,
+        'source',
+        storedCredentials(source.secret_ref, config),
+        source.mapping_secret_ref,
+      ),
+  };
+  return inventoryScansFrom(mailbox, {
+    microsoftRows: microsoftSourceKinds().includes(source.kind)
+      ? [{ kind: source.kind, config }]
+      : [],
+    driveRows: connectionKindsWithFace('file', 'google-drive').includes(source.kind) ? [own] : [],
+    davRows: source.kind === 'nextcloud' || source.kind === 'webdav' ? [own] : [],
+  });
+}
+
+/** What the two scans and the delegation sentence are resolved from. */
+interface ScanSources {
+  readonly microsoftRows: ReadonlyArray<{ kind: string; config: unknown }>;
+  readonly driveRows: ReadonlyArray<ScanConnection>;
+  readonly davRows: ReadonlyArray<ScanConnection>;
+}
+
+/**
+ * A source connection a scan reads. Its credentials are resolved when the
+ * scan runs, inside the scan's own handling, as they always were.
+ */
+interface ScanConnection {
+  readonly config: unknown;
+  readonly credentials: () => Record<string, string>;
+}
+
+/** The two scans, and the delegation sentence beside them. */
+export interface InventoryScans {
+  scanCalendars: () => Promise<PermissionListing>;
+  scanDrive: () => Promise<PermissionListing>;
+  /**
+   * Mailbox delegation, unread, worded for THIS source. Carried here rather
+   * than called inline by each consumer so the report and the sharing
+   * checklist cannot say different things about the same account.
+   */
+  delegationReason: string;
+}
+
+/** A connection's own stored credentials: its secret, or what its config carries. */
+function storedCredentials(secretRef: string | null, config: unknown): Record<string, string> {
+  return secretRef
+    ? SecretStore.decryptCredentials(secretRef)
+    : (((config ?? {}) as { credentials?: Record<string, string> }).credentials ?? {});
+}
+
+function inventoryScansFrom(
+  mailbox: string,
+  { microsoftRows, driveRows, davRows }: ScanSources,
+): InventoryScans {
   const microsoftSource = directorySourceOf(microsoftRows);
   const graphTenantId = (microsoftSource?.config as { tenantId?: string } | undefined)?.tenantId;
   const available = directoryAvailability(process.env, graphTenantId, microsoftSource?.kind);
@@ -454,12 +638,7 @@ export async function tenantInventoryScans(
     scanDrive: async () => {
       if (googleDriveConnection) {
         try {
-          const config = (googleDriveConnection.config ?? {}) as {
-            credentials?: Record<string, string>;
-          };
-          const creds = googleDriveConnection.secret_ref
-            ? SecretStore.decryptCredentials(googleDriveConnection.secret_ref)
-            : (config.credentials ?? {});
+          const creds = googleDriveConnection.credentials();
           // THE DEPLOYMENT MAY CARRY THE CLIENT (ADR-0041). An account
           // connection made through Connect with Google stores the refresh
           // token and, when the deployment has its own application, no client
@@ -500,11 +679,8 @@ export async function tenantInventoryScans(
           host?: string;
           port?: number;
           useSsl?: boolean;
-          credentials?: Record<string, string>;
         };
-        const creds = davSourceConnection.secret_ref
-          ? SecretStore.decryptCredentials(davSourceConnection.secret_ref)
-          : (config.credentials ?? {});
+        const creds = davSourceConnection.credentials();
         const webdavUrl =
           config.baseUrl ??
           `${config.useSsl === false ? 'http' : 'https'}://${config.host}${config.port ? `:${config.port}` : ''}`;

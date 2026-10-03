@@ -13,10 +13,11 @@
  *   to the migration's own page as *Details*: its run history, its schedule,
  *   its settings and its controls stay there;
  * - *Before you switch*: the hub's seven steps as one ordered list, each
- *   summed across the person's migrations, with its state in words
- *   (`cutover-steps.ts`, 0154 T4). A step opens each migration's own page for
- *   it, and on a queue's step each link carries that migration's own count,
- *   so the person sees which one the work is in;
+ *   summed across the person's migrations, with its state in words, and the
+ *   check as it last ran (`CutoverSteps`, the list a migration's own page
+ *   draws too; 0154 T4). A step opens each migration's own page for it, and
+ *   on a queue's step each link carries that migration's own count, so the
+ *   person sees which one the work is in;
  * - *Add a migration*.
  *
  * - *For {name}*: one grant link for all of their Google accounts (ADR-0035,
@@ -34,8 +35,10 @@
  * (`rowsFromStatus`), named by its file or by where it goes. There is no
  * Migrations page to go back to, no *Add a migration*, and no links.
  *
- * NOT YET HERE, and said in the plan: the one-line progress on each data type
- * (0154 T1 (b) and (d), which read T2's totals).
+ * EACH DATA TYPE'S LINE (0154 T1 (b) and (d)) has its own stage and the
+ * sentence under it, from the progress read: the progress route on managed,
+ * the status and the last check on the appliance. The person's stage is the
+ * least advanced of their lines'.
  *
  * THREE READS, as on Migrations. A failed read of the people or the list is a
  * failure on screen (hard rule 9). A step whose count could not be read says
@@ -50,38 +53,18 @@ import { mappingApi, type MappingListItem } from '../services/mapping-service.ts
 import { fetchAttention, fetchPeople, fetchStatus } from '../services/operating-service.ts';
 import { serverMessage } from '../services/api.ts';
 import { waitingOn } from '../services/needs-you.ts';
-import { personSteps, type Step, type StepState } from '../services/cutover-steps.ts';
+import { checksOf } from '../services/cutover-steps.ts';
 import StateChip from '../components/StateChip.tsx';
-import { MigrationLines, listStage } from '../components/MigrationLines.tsx';
+import { MigrationLines, lineStages } from '../components/MigrationLines.tsx';
+import { CutoverSteps } from '../components/CutoverSteps.tsx';
+import { fetchProgress } from '../services/progress-service.ts';
+import { progressRefetchInterval } from '../services/progress-poll.ts';
+import { linesProgressOf } from '../services/stage-line.ts';
 import { providerName } from '../components/ProviderTile.tsx';
-import { SCREENS } from './hub-screens.ts';
 import { PersonGrantLinkSection, PersonViewLinkSection } from '../components/MappingLinksPanel.tsx';
 import { personLinkApi, type AwaitingGrant } from '../services/grant-link-service.ts';
 import { isSelfHost } from '../services/edition.ts';
 import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
-
-/** The hub's step for each of the seven, for its name, its line and its path. */
-const SCREEN_OF: Readonly<Record<Step['key'], (typeof SCREENS)[number]>> = {
-  deletions: SCREENS.find((s) => s.path === 'deletions')!,
-  moves: SCREENS.find((s) => s.path === 'moves')!,
-  failures: SCREENS.find((s) => s.path === 'failures')!,
-  sharing: SCREENS.find((s) => s.path === 'sharing')!,
-  check: SCREENS.find((s) => s.path === 'verify')!,
-  confirmed: SCREENS.find((s) => s.path === 'confirmed')!,
-  finish: SCREENS.find((s) => s.path === 'finish')!,
-};
-
-const STATE_WORD: Readonly<Record<StepState, StringKey>> = {
-  done: 'person.state.done',
-  needsYou: 'person.state.needsYou',
-  notYet: 'person.state.notYet',
-};
-
-const STATE_TONE: Readonly<Record<StepState, string>> = {
-  done: 'bg-green-50 text-green-800',
-  needsYou: 'bg-amber-100 text-amber-900',
-  notYet: 'bg-gray-100 text-gray-700',
-};
 
 /** What a person's grant does to a migration that waits for it, in words. */
 const ONCE_GRANTED_WORDS: Readonly<Record<AwaitingGrant['then'], StringKey>> = {
@@ -89,9 +72,6 @@ const ONCE_GRANTED_WORDS: Readonly<Record<AwaitingGrant['then'], StringKey>> = {
   review_and_start: 'person.awaiting.reviewAndStart',
   ran_before: 'person.awaiting.ranBefore',
 };
-
-/** The steps that count a queue, whose link to each migration carries that migration's own count. */
-const QUEUE_STEPS: ReadonlySet<Step['key']> = new Set(['deletions', 'moves', 'failures', 'sharing']);
 
 /**
  * What the page reads of each migration: the list's row on managed. The
@@ -149,6 +129,14 @@ const Person: React.FC = () => {
   const rows: readonly PersonRow[] | undefined = selfHost ? statusQuery.data : listQuery.data;
   const peopleQuery = useQuery({ queryKey: ['people'], queryFn: fetchPeople });
   const attentionQuery = useQuery({ queryKey: ['attention'], queryFn: fetchAttention });
+  // Where each data type is (0154 T1 (b)), for each line's own stage and the
+  // sentence under it: the progress route on managed, the status and the last
+  // check on the appliance. A failed read leaves the lines what the rows carry.
+  const progressQuery = useQuery({
+    queryKey: ['progress'],
+    queryFn: fetchProgress,
+    refetchInterval: (query) => progressRefetchInterval(query.state.data?.mappings.flatMap((m) => m.domains)),
+  });
   // Their one grant link (ADR-0035, amended 2026-09-29; 0153 T5 (b)). Managed
   // only: the appliance moves one implicit person and serves no links.
   const linksQuery = useQuery({
@@ -214,7 +202,9 @@ const Person: React.FC = () => {
   const attention = attentionQuery.isSuccess
     ? new Map(attentionQuery.data.mappings.map((a) => [a.mappingId, a]))
     : undefined;
-  const stage = leastAdvancedStage(migrations.map(listStage));
+  const linesOf = (m: PersonRow) =>
+    linesProgressOf(progressQuery.data, m.id, attention?.get(m.id), attentionQuery.isSuccess);
+  const stage = leastAdvancedStage(migrations.flatMap((m) => lineStages(m, linesOf(m))));
   const awaiting = new Map((awaitingQuery.data ?? []).map((a) => [a.mappingId, a.then]));
   const theirName = person.displayName ?? '';
   const from = names(migrations, 'sourceType');
@@ -229,31 +219,6 @@ const Person: React.FC = () => {
     }
     needs += n;
   }
-
-  const steps = personSteps(migrations, attentionQuery.isLoading ? undefined : attention);
-
-  const countWords = (step: Step): string => {
-    if (step.key === 'check') {
-      if (step.count === undefined) return t('person.step.unread');
-      if (step.state === 'done') return t('person.step.check.passed');
-      return step.count > 0
-        ? t('person.step.check.partly', { n: step.count, total: migrations.length })
-        : t('person.step.check.notYet');
-    }
-    if (step.key === 'confirmed') {
-      if (step.state === undefined) return t('person.step.unread');
-      return step.state === 'done' ? t('person.step.confirmed.done') : t('person.step.confirmed.notYet');
-    }
-    if (step.key === 'finish') {
-      return step.state === 'done' ? t('person.step.finish.done') : t('person.step.finish.notYet');
-    }
-    if (step.count === undefined) return t('person.step.unread');
-    if (step.count === 0) return t('person.step.none');
-    if (step.key === 'failures') {
-      return step.count === 1 ? t('person.step.failures.one') : t('person.step.failures.many', { n: step.count });
-    }
-    return t(`person.step.${step.key}` as StringKey, { n: step.count });
-  };
 
   return (
     <div className="space-y-6">
@@ -293,7 +258,7 @@ const Person: React.FC = () => {
                   <span>{t(ONCE_GRANTED_WORDS[awaiting.get(m.id)!], { name: theirName })}</span>
                 </p>
               )}
-              <MigrationLines migration={m} />
+              <MigrationLines migration={m} progress={linesOf(m)} />
             </div>
           ))
         )}
@@ -327,61 +292,12 @@ const Person: React.FC = () => {
             {t('person.steps.title')}
           </h2>
           <p className="mt-1 text-sm text-gray-600">{t('person.steps.hint')}</p>
-          <ol className="mt-3 divide-y divide-gray-100">
-            {steps.map((step) => {
-              const screen = SCREEN_OF[step.key];
-              const only = migrations.length === 1 ? migrations[0]! : undefined;
-              const name = t(screen.nameKey);
-              return (
-                <li key={step.key} data-step={step.key} className="py-3">
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                    {only ? (
-                      <Link
-                        to={`/mappings/${encodeURIComponent(only.id)}/${screen.path}`}
-                        className="font-medium text-blue-700 hover:underline"
-                      >
-                        {name}
-                      </Link>
-                    ) : (
-                      <span className="font-medium text-gray-900">{name}</span>
-                    )}
-                    <span className="text-sm text-gray-700">{countWords(step)}</span>
-                    {step.state && (
-                      <span className={`text-xs font-medium rounded-full px-2 py-0.5 ${STATE_TONE[step.state]}`}>
-                        {t(STATE_WORD[step.state])}
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-1 text-sm text-gray-500">{t(screen.blurbKey)}</p>
-                  {!only && (
-                    <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                      {migrations.map((m) => {
-                        // Which migration holds what the row sums, so the
-                        // person knows which of the links has work behind it.
-                        const own = QUEUE_STEPS.has(step.key)
-                          ? step.perMigration.find((p) => p.id === m.id)
-                          : undefined;
-                        return (
-                          <li key={m.id}>
-                            <Link
-                              to={`/mappings/${encodeURIComponent(m.id)}/${screen.path}`}
-                              className="text-blue-700 hover:underline"
-                            >
-                              {own === undefined
-                                ? label(m)
-                                : own.count === undefined
-                                  ? t('person.step.linkUnread', { name: label(m) })
-                                  : `${label(m)} (${own.count})`}
-                            </Link>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
+          <CutoverSteps
+            migrations={migrations.map((m) => ({ id: m.id, status: m.status, label: label(m) }))}
+            attention={attention}
+            checks={checksOf(progressQuery.data)}
+            pending={{ queues: attentionQuery.isPending, check: progressQuery.isPending, lifecycle: false }}
+          />
         </section>
       )}
 

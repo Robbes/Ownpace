@@ -114,7 +114,7 @@ import { SecretStore } from '@openmig/core/secret-store';
 import { createNextcloudShare } from '@openmig/connectors';
 import type { ShareGrantRow } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
-import { resolveMappingMailbox, tenantInventoryScans } from '../permissions.ts';
+import { migrationInventoryScans, resolveMappingMailbox } from '../permissions.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { recordMappingStatusChange } from './mapping-status-audit.ts';
 import { movePathsWithMapping } from './path-lifecycle-wiring.ts';
@@ -562,7 +562,9 @@ router.post(
             'be inventoried.',
         });
       }
-      const scans = await tenantInventoryScans(s.tenantId, mailbox);
+      // This migration's own source, never the organisation's others: the
+      // rows are saved under this migration's id (the owner, 2026-10-03).
+      const scans = await migrationInventoryScans(s.tenantId, s.mappingId, mailbox);
       const result = await refreshShareGrants({
         tenantId: s.tenantId as TenantId,
         mappingId: s.mappingId as MappingId,
@@ -1216,7 +1218,15 @@ async function latestRunReport(s: Scoped): Promise<VerificationRunReport> {
       .orderBy(desc(schema.verificationRun.startedAt))
       .limit(1),
   );
-  const row = rows[0];
+  return runReportOf(rows[0]);
+}
+
+/**
+ * A migration's latest verification run, as the report route serves it: one
+ * reading of the row, shared with the progress read (0154 T1 (b)), so a
+ * person's line and the Check page cannot say two things about one run.
+ */
+export function runReportOf(row: typeof schema.verificationRun.$inferSelect | undefined): VerificationRunReport {
   if (!row) return { state: 'never-run' };
   const startedAt = row.startedAt.toISOString();
   if (row.state === 'running') return { state: 'running', startedAt };

@@ -12,41 +12,29 @@
  * The links are the deliverable and must not depend on anything loading —
  * the detail card above them is best-effort (managed has a mapping API; a
  * failure to read it degrades to the links, never to a dead end).
+ *
+ * THE STEPS, AS ONE LIST (workplan 0154 T4): the seven in cutover order, each
+ * with its count, its state in words and what it is, as a person's page draws
+ * them (`CutoverSteps`). The queues are counted by the read the queue pages
+ * share, the check is what the progress read says it last did, and Finish
+ * and Sharing rest on the migration's lifecycle. A count that could not be
+ * read says so; one still being read says nothing.
  */
 
 import React from 'react';
 import { Link, useParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pause } from 'lucide-react';
-import { SCREENS } from './hub-screens.ts';
 import { isSelfHost } from '../services/edition.ts';
 
-/**
- * HOW OFTEN THE LIVE STRIP ASKS AGAIN, from what it is currently showing.
- *
- * `pending` and `in_progress` are the two states where the numbers are still
- * moving, so they are the two that earn the fast rate. Everything else —
- * `completed`, `failed`, `skipped`, and a mapping with no domains yet — falls
- * back to the idle rate rather than to `false`: a migration STARTED from
- * another screen has to become visible here without a reload too, and that is
- * the same bug one step further out.
- *
- * Exported because both editions read it, and because a rule this small is
- * cheaper to assert directly than through two rendered components.
- */
-export const PROGRESS_POLL_ACTIVE_MS = 10_000;
-export const PROGRESS_POLL_IDLE_MS = 30_000;
-
-export function progressRefetchInterval(
-  domains: ReadonlyArray<{ readonly state: string }> | undefined,
-): number {
-  return domains?.some((d) => d.state === 'pending' || d.state === 'in_progress')
-    ? PROGRESS_POLL_ACTIVE_MS
-    : PROGRESS_POLL_IDLE_MS;
-}
+// The strip's refresh rule, shared with a person's lines (0154 T1 (b)).
+export { progressRefetchInterval, PROGRESS_POLL_ACTIVE_MS, PROGRESS_POLL_IDLE_MS } from '../services/progress-poll.ts';
+import { progressRefetchInterval } from '../services/progress-poll.ts';
 import { mappingApi } from '../services/mapping-service.ts';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
-import { fetchStatus } from '../services/operating-service.ts';
+import { fetchAttention, fetchStatus } from '../services/operating-service.ts';
+import { fetchProgress } from '../services/progress-service.ts';
+import { checksOf } from '../services/cutover-steps.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
 import RunsPanel from '../components/RunsPanel.tsx';
 import MappingLinksPanel from '../components/MappingLinksPanel.tsx';
@@ -56,6 +44,7 @@ import MigrationKindsPanel from '../components/MigrationKindsPanel.tsx';
 import CompletionReportDownload from '../components/CompletionReportDownload.tsx';
 import LiveProgress from '../components/LiveProgress.tsx';
 import StateChip from '../components/StateChip.tsx';
+import { CutoverSteps } from '../components/CutoverSteps.tsx';
 import { serverMessage } from '../services/api.ts';
 
 /**
@@ -147,6 +136,17 @@ const MappingDetail: React.FC = () => {
       progressRefetchInterval(query.state.data?.mappings.find((m) => m.mappingId === id)?.domains),
   });
 
+  // The steps' counts (0154 T4): the queues from the read the queue pages and
+  // the menu share, and the check from the progress read a person's lines
+  // read, under the same keys, so the three pages agree and share a refresh.
+  const attentionQuery = useQuery({ queryKey: ['attention'], queryFn: fetchAttention, enabled: Boolean(id) });
+  const progressQuery = useQuery({
+    queryKey: ['progress'],
+    queryFn: fetchProgress,
+    enabled: Boolean(id),
+    refetchInterval: (query) => progressRefetchInterval(query.state.data?.mappings.flatMap((m) => m.domains)),
+  });
+
   if (!id) {
     return <p className="text-sm text-amber-800">{t('hub.noId')}</p>;
   }
@@ -154,6 +154,12 @@ const MappingDetail: React.FC = () => {
   const progressDomains = isSelfHost()
     ? status.data?.mappings.find((m) => m.mappingId === id)?.domains
     : detail.data?.domainStatus;
+  // Where this migration is in its life, for the steps that rest on it: the
+  // detail read on managed, the status on the appliance.
+  const lifecycleRead = isSelfHost() ? status : detail;
+  const lifecycle = isSelfHost()
+    ? status.data?.mappings.find((m) => m.mappingId === id)?.migrationStatus
+    : detail.data?.status;
 
   return (
     <div>
@@ -237,30 +243,29 @@ const MappingDetail: React.FC = () => {
         </div>
       )}
 
-      {/* The list IS a sequence (0034 T4): the runbook's cutover order was a
-          real IA decision that no screen ever stated — a first-time operator
-          had no way to know the five links are steps, or where they were in
-          them. Numbered, with one intro sentence; no wizard, no gating — the
-          screens already gate themselves (Finish refuses over open failures). */}
-      <p className="mt-6 text-sm text-gray-600">{t('hub.orderIntro')}</p>
-      <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-        {SCREENS.map((s, i) => (
-          <li key={s.path}>
-            <Link
-              to={`/mappings/${encodeURIComponent(id)}/${s.path}`}
-              className="flex items-start gap-3 p-4 h-full bg-white border border-gray-200 rounded-lg hover:border-blue-400 hover:shadow-sm"
-            >
-              <s.icon className="w-5 h-5 mt-0.5 text-gray-500 flex-shrink-0" />
-              <span>
-                <span className="block text-sm font-medium text-gray-900">
-                  {i + 1}. {t(s.nameKey)}
-                </span>
-                <span className="block mt-0.5 text-sm text-gray-600">{t(s.blurbKey)}</span>
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      {/* The list IS a sequence (0034 T4), and since 0154 T4 one list with a
+          person's page: each step with its count, its state in words, and
+          what it is, in cutover order with its number. No wizard and no
+          gating: the screens gate themselves (Finish refuses over open
+          failures). The names link whatever loads. */}
+      <section aria-labelledby="before-you-switch" className="mt-6">
+        <h3 id="before-you-switch" className="text-base font-semibold text-gray-900">
+          {t('person.steps.title')}
+        </h3>
+        <p className="mt-1 text-sm text-gray-600">{t('hub.orderIntro')}</p>
+        <CutoverSteps
+          migrations={[{ id, status: lifecycle, label: detail.data?.name ?? id }]}
+          attention={
+            attentionQuery.isSuccess ? new Map(attentionQuery.data.mappings.map((a) => [a.mappingId, a])) : undefined
+          }
+          checks={checksOf(progressQuery.data)}
+          pending={{
+            queues: attentionQuery.isPending,
+            check: progressQuery.isPending,
+            lifecycle: lifecycleRead.isPending,
+          }}
+        />
+      </section>
 
       {/* WHAT HAPPENS TO THIS MIGRATION'S GOOGLE DOCS (0125 T3).
           The remedy on every `policy_refused` item says to set an export

@@ -30,6 +30,7 @@ import {
   fetchAttention,
   fetchPeople,
 } from '../services/operating-service.ts';
+import { fetchProgress } from '../services/progress-service.ts';
 
 vi.mock('../services/mapping-service', () => ({
   mappingApi: { list: vi.fn(), triggerSync: vi.fn(), delete: vi.fn(), pause: vi.fn() },
@@ -40,6 +41,7 @@ vi.mock('../services/operating-service', () => ({
   createPerson: vi.fn(),
   addMigrationToPerson: vi.fn(),
 }));
+vi.mock('../services/progress-service', () => ({ fetchProgress: vi.fn() }));
 
 const listMock = vi.mocked(mappingApi.list);
 const syncMock = vi.mocked(mappingApi.triggerSync);
@@ -49,6 +51,7 @@ const peopleMock = vi.mocked(fetchPeople);
 const attentionMock = vi.mocked(fetchAttention);
 const createPersonMock = vi.mocked(createPerson);
 const addMock = vi.mocked(addMigrationToPerson);
+const progressMock = vi.mocked(fetchProgress);
 
 const renderMappings = (path = '/mappings', queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false } },
@@ -117,6 +120,9 @@ beforeEach(() => {
   vi.resetAllMocks();
   peopleMock.mockResolvedValue({ people: [], unassigned: [] });
   attentionMock.mockResolvedValue({ mappings: [] });
+  // Unread unless a case says otherwise: the lines then say what the list
+  // carries, which is what every case before 0154 T1 (b) described.
+  progressMock.mockRejectedValue(new Error('the progress read is not part of this case'));
 });
 
 describe('Migrations — a failed read is never an empty list (hard rule 9)', () => {
@@ -603,5 +609,117 @@ describe('Migrations — filtering by lifecycle state (0074)', () => {
     expect(await screen.findByText(/Showing only:/)).toBeInTheDocument();
     expect(screen.queryByText('Active one')).toBeNull();
     expect(screen.queryByText('Paused one')).toBeNull();
+  });
+});
+
+/**
+ * EACH LINE'S OWN STAGE, AND THE SENTENCE UNDER IT (workplan 0154 T1 (b) to
+ * (d)), from the progress read. Without it the lines say what the list
+ * carries, which the cases above hold.
+ */
+describe('Migrations — a line per data type says where it is (0154 T1 (b))', () => {
+  const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
+  const MAIL = sampleMapping({
+    id: 'm-mail',
+    name: 'Anna — Google to Soverin',
+    sourceType: 'google',
+    targetType: 'soverin',
+    domains: ['email', 'calendar'],
+    lastSyncAt: ago(120_000),
+  });
+  const ANNA = person('p-anna', 'Anna', [{ id: 'm-mail', status: 'active' }]);
+  const line = (over: Record<string, unknown>) => ({
+    domain: 'email' as const,
+    state: 'completed' as const,
+    phase: 'active',
+    itemsSynced: 18_234,
+    itemsFound: 19_000,
+    bytesTransferred: 3_000_000,
+    lastSyncedAt: ago(120_000),
+    ...over,
+  });
+
+  beforeEach(() => {
+    listMock.mockResolvedValue([MAIL]);
+    peopleMock.mockResolvedValue({ people: [ANNA], unassigned: [] });
+    attentionMock.mockResolvedValue({ mappings: [quiet('m-mail')] });
+  });
+
+  const lineOf = async (domain: string) => {
+    const card = await screen.findByRole('region', { name: 'Anna' });
+    await waitFor(() => expect(card.querySelector(`[data-domain="${domain}"][data-stage]`)).not.toBeNull());
+    return card.querySelector(`[data-domain="${domain}"]`) as HTMLElement;
+  };
+
+  it("gives each data type its own stage and how far it is, and the person the least advanced", async () => {
+    progressMock.mockResolvedValue({
+      mappings: [
+        {
+          mappingId: 'm-mail',
+          domains: [line({}), line({ domain: 'calendar', state: 'in_progress', itemsSynced: 1_204, itemsFound: 2_000, lastSyncedAt: undefined })],
+          check: { state: 'not_run' },
+        },
+      ],
+    });
+
+    renderMappings();
+
+    const email = await lineOf('email');
+    expect(within(email).getByText('Kept in step')).toBeInTheDocument();
+    expect(within(email).getByText('18,234 of ~19,000 · last pass 2 minutes ago')).toBeInTheDocument();
+    const calendar = await lineOf('calendar');
+    expect(within(calendar).getByText('Copying')).toBeInTheDocument();
+    expect(within(calendar).getByText('1,204 of ~2,000')).toBeInTheDocument();
+    const card = screen.getByRole('region', { name: 'Anna' });
+    const heading = within(card).getByRole('heading', { name: 'Anna' }).parentElement!;
+    await waitFor(() => expect(within(heading).getByText('Copying')).toBeInTheDocument());
+  });
+
+  it('says Ready to switch, and when the check passed, once nothing blocks Finish', async () => {
+    progressMock.mockResolvedValue({
+      mappings: [{ mappingId: 'm-mail', domains: [line({}), line({ domain: 'calendar' })], check: { state: 'passed', at: ago(86_400_000) } }],
+    });
+
+    renderMappings();
+
+    const email = await lineOf('email');
+    await waitFor(() => expect(within(email).getByText('Ready to switch')).toBeInTheDocument());
+    expect(within(email).getByText('The check passed yesterday')).toBeInTheDocument();
+  });
+
+  it('stays Kept in step while failures block Finish, or could not be counted', async () => {
+    progressMock.mockResolvedValue({
+      mappings: [{ mappingId: 'm-mail', domains: [line({}), line({ domain: 'calendar' })], check: { state: 'passed', at: ago(86_400_000) } }],
+    });
+    attentionMock.mockResolvedValue({ mappings: [quiet('m-mail', { failuresWaiting: 2 })] });
+
+    renderMappings();
+
+    const email = await lineOf('email');
+    expect(within(email).getByText('Kept in step')).toBeInTheDocument();
+    expect(within(email).queryByText(/The check passed/)).not.toBeInTheDocument();
+  });
+
+  it('says a stopped data type is paused, and the person with it', async () => {
+    progressMock.mockResolvedValue({
+      mappings: [{ mappingId: 'm-mail', domains: [line({}), line({ domain: 'calendar', stopped: true })], check: { state: 'not_run' } }],
+    });
+
+    renderMappings();
+
+    const calendar = await lineOf('calendar');
+    expect(within(calendar).getByText('Paused')).toBeInTheDocument();
+    const card = screen.getByRole('region', { name: 'Anna' });
+    const heading = within(card).getByRole('heading', { name: 'Anna' }).parentElement!;
+    await waitFor(() => expect(within(heading).getByText('Paused')).toBeInTheDocument());
+  });
+
+  it('keeps what the list carries where the progress read failed, and claims nothing more', async () => {
+    renderMappings();
+
+    const card = await screen.findByRole('region', { name: 'Anna' });
+    await waitFor(() => expect(within(card).getAllByText('Last pass 2 minutes ago')).toHaveLength(2));
+    expect(within(card).queryByText(/of ~/)).not.toBeInTheDocument();
+    expect(within(card).queryByText('Ready to switch')).not.toBeInTheDocument();
   });
 });
