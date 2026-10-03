@@ -96,14 +96,15 @@ live in [README.md](./README.md), the register.
   | **Large** | 50 | 7.5 TB | €50 | €39 |
   | **Extra large** | 200 | 15 TB | €150 | €99 |
 
-- **Tiny is free, and free means no billing**: no payment method, no invoice, no top-up; leaving
-  it is consented, on either axis. Guard: `site/site.unit.test.ts` (*free*, never *€0*).
+- **Tiny is free, and free means no billing**: no payment method, no invoice, no top-up. Guard:
+  `site/site.unit.test.ts` (*free*, never *€0*).
 - **`holdsASlot` (`@openmig/ledger`) is the slot rule**: `active`, `paused` and `continuous`
   hold a slot; `ready`, `cutover` and `done` hold none; a stop releases one only in the lane,
   whose customer is first told the bill does not stop at cutover.
 - **The month bills its peak; the tier is derived, never picked.** Downgrade is automatic,
-  announced, never blocking a path. A path crossing is consented when activated; a data
-  crossing moves the tier automatically and announced, from Tiny only after a yes.
+  announced, never blocking a path. **Every step up is consented and paid for**: a path crossing
+  at activation, a data crossing by moving up or buying a one-off top-up (from Tiny, moving up).
+  Without that yes, a month bills the tier it was on.
 - **Setup is paid on the highest tier reached, in steps; a top-up is the setup fee again for
   another data band** (a higher ceiling, never a rewound meter). Neither is built yet
   (workplan 0109 T6).

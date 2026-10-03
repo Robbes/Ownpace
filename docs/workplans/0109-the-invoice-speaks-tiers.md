@@ -444,6 +444,13 @@ pinned per tenant on first use (`packages/managed/src/tenant-pricing.ts:42-82`) 
 row, overwritten, with no place for *setup already paid*, which a step-up-charges-the-difference
 rule needs to be monotonic about.
 
+**Since 2026-10-03 every step up is consented and paid for**, on the data axis too: at the ceiling
+the customer chooses between moving up and a one-off top-up, nothing moves the tier without that
+yes, and a month without it bills the tier it was on (ADR-0014, *Amendment 2026-10-03*). So T6
+builds the yes as well, and the Billing page's *What this puts you on* learns to tell the tier
+the measurement needs from the tier the customer agreed to. One question there is the owner's
+before T6 starts: what a migration does at the ceiling while the yes is awaited.
+
 ## T7 — extend the leakage guard before the table exists, not after
 
 `apps/selfhost/src/no-managed-leakage.unit.test.ts` forbids the appliance's import graph from

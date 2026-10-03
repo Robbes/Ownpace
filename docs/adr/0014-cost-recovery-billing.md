@@ -1,6 +1,6 @@
 # ADR-0014: Cost-recovery billing for the managed edition
 
-- **Status:** Accepted 2026-06-20; amended five times and retitled once (latest 2026-09-26); one
+- **Status:** Accepted 2026-06-20; amended six times and retitled once (latest 2026-10-03); one
   amendment proposed 2026-09-29, not in force; consolidated 2026-10-03 (ADR-0051)
 - **Date:** 2026-06-20; consolidated 2026-10-03
 - **Deciders:** owner
@@ -33,14 +33,15 @@
   | **Large** | 50 | 7.5 TB | €50 | €39 |
   | **Extra large** | 200 | 15 TB | €150 | €99 |
 
-- **Tiny is free, and free means no billing**: no payment method, no invoice, no top-up; leaving
-  it is consented, on either axis. Guard: `site/site.unit.test.ts` (*free*, never *€0*).
+- **Tiny is free, and free means no billing**: no payment method, no invoice, no top-up. Guard:
+  `site/site.unit.test.ts` (*free*, never *€0*).
 - **`holdsASlot` (`@openmig/ledger`) is the slot rule**: `active`, `paused` and `continuous`
   hold a slot; `ready`, `cutover` and `done` hold none; a stop releases one only in the lane,
   whose customer is first told the bill does not stop at cutover.
 - **The month bills its peak; the tier is derived, never picked.** Downgrade is automatic,
-  announced, never blocking a path. A path crossing is consented when activated; a data
-  crossing moves the tier automatically and announced, from Tiny only after a yes.
+  announced, never blocking a path. **Every step up is consented and paid for**: a path crossing
+  at activation, a data crossing by moving up or buying a one-off top-up (from Tiny, moving up).
+  Without that yes, a month bills the tier it was on.
 - **Setup is paid on the highest tier reached, in steps; a top-up is the setup fee again for
   another data band** (a higher ceiling, never a rewound meter). Neither is built yet
   (workplan 0109 T6).
@@ -375,6 +376,43 @@ charged during the Alpha (0131 T3 (a)). What is built is the measurement the bil
 - **A free band as a sixth row below Tiny**, or **a €0 invoice for Tiny**: the free band is Tiny
   itself, and a €0 invoice still costs a payment instrument, a VAT treatment and a bookkeeping row.
 
+## Amendment 2026-10-03 — every step up is consented and paid for
+
+The record said two things. *"Downgrade is automatic; upgrade is consented"*, and leaving Tiny
+was *"consented, as every step up is"*; yet the data ceiling moved the tier *"automatically and
+announced, the same way crossing a path ceiling does"*, which a path crossing never did. The
+consolidation kept the narrower reading (automatic on data, consented from Tiny) and asked the
+owner, who answered on 2026-10-03: *"yes, but it needs consent (and payment) of moving up or
+buying a one-off top-on"*.
+
+- **Every step up is consented and paid for, on either axis.** A path crossing is consented when
+  the path is activated, as before. A data crossing is the customer's choice between the two
+  ways out this ADR already prices — **move up a tier, or buy a one-off top-up** (*Tiers buy
+  lanes; top-ups buy room*), both offered from the warning at 80% — and nothing moves the tier
+  without that yes.
+- **From Tiny, the only way out is moving up**: Tiny has no top-up, because its fee is nothing.
+- **Without that yes, a month bills the tier it was on.** That is what *"a month it did not
+  consent to leave Tiny is billed as Tiny"* said for Tiny, now said for every tier: under-billing,
+  never a surprise invoice.
+
+This replaces two passages of the Decision above: in *Downgrade is automatic; upgrade is
+consented*, the sentence beginning *"On the **data** axis the tier moves automatically"*; and in
+*What it will not do*, *"Crossing it moves the tier, automatically and announced"*, with its
+Tiny parenthesis. The data ceiling stays a price, not a policy: crossing it costs a top-up or a
+step up, priced in advance and chosen by the customer.
+
+The terms already say it (§6: *"We move you to a paid tier only after you confirm it"*). They do
+not mention top-ups yet; those join §6 when workplan 0109 T6 builds them. Nothing is billed today
+(*Billing a tier is not built yet*), but one screen still follows the old rule. The Billing
+page's *What this puts you on* (`apps/web/src/pages/Billing.tsx`, from `observedTier`) names the
+tier the data has reached, with no yes. 0109 T6 builds the yes, and with it that screen shows two
+things: the tier the measurement needs, and the tier the customer agreed to.
+
+**Not decided here: what a migration does at the ceiling while the yes is awaited.** It can keep
+copying new items, billed at the tier it was on, or it can hold new first copies until the
+customer chooses, while everything already copied stays in sync. This is the owner's to answer
+before 0109 T6 builds the yes.
+
 ## Pending — Free, a year at the price of six months, no setup fees, and the price pays for the work (proposed 2026-09-29, 0152 D9–D12; not in force)
 
 <!-- The record's text, word for word. On acceptance (ADR-0051): fold it into the Decision and
@@ -524,6 +562,10 @@ list alone:
   and the price pays for the work (0152 D9–D12). Its text: *Pending*, above.
 - **2026-10-03** — Consolidated in place (ADR-0051): the decision as it stands, written once.
   Nothing was decided by the consolidation.
+- **2026-10-03, later** — Every step up is consented and paid for: a data crossing too, by moving
+  up or buying a one-off top-up; without that yes, a month bills the tier it was on (owner).
+  What a migration does at the ceiling meanwhile is still open. Record: *Amendment 2026-10-03 —
+  every step up is consented and paid for*.
 
 The full record, word for word as it read before this consolidation:
 [history/0014-cost-recovery-billing.md](./history/0014-cost-recovery-billing.md).
