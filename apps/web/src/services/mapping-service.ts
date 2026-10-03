@@ -560,6 +560,8 @@ export const DiscoveryCollectionSchema = z.object({
   items: z.number(),
   bytes: z.number().optional(),
   generatedIdItems: z.number().optional(),
+  /** Items in this collection the source could not list; NOT migrated. */
+  unlistedItems: z.number().optional(),
   /** Why this collection will NOT be migrated, when it will not be. */
   excluded: z.string().optional(),
 });
@@ -568,8 +570,10 @@ export const DiscoveryRecordSchema = z.object({
   collections: z.number(),
   items: z.number(),
   bytes: z.number().optional(),
-  /** Items the source holds but cannot migrate; NOT part of `items`. */
+  /** Messages migrated under a generated Message-ID: a subset of `items`. */
   generatedIdItems: z.number().optional(),
+  /** Items the source holds but could not list, so cannot migrate; NOT part of `items`. */
+  unlistedItems: z.number().optional(),
   /** What the destination already holds, and how much of it we will adopt. */
   targetExisting: z.number().optional(),
   targetColliding: z.number().optional(),

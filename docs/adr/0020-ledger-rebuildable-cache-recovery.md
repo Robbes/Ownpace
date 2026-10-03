@@ -98,7 +98,10 @@ validate the behaviour of Microsoft 365 or we should go with C."*
   folders is one copy. Two different messages with identical bytes are one copy too, losing
   nothing.
 - **IMAP sources do this, Gmail's included. The Graph source does not:** it counts a message
-  without an `internetMessageId`, logs it, and leaves it unmigrated (`graph-mail-source.ts`).
+  without an `internetMessageId`, logs it, and leaves it unmigrated (`graph-mail-source.ts`). The
+  preflight says so before *Start*: such a message is counted as left behind (`unlisted`, shown
+  as *will not be migrated*), apart from the generated-id count, where it had been counted until
+  this amendment.
 
 **What has to be checked: Microsoft 365.** A server that keeps a message's original bytes (Gmail,
 Dovecot) returns the same bytes on every fetch. Exchange builds the MIME of a message when it is

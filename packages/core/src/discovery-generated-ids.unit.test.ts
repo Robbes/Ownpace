@@ -21,7 +21,7 @@
 // migration just as badly as hiding them did.
 
 import { describe, it, expect } from 'vitest';
-import type { SyncCursor } from '@openmig/shared';
+import { unlistedFromCollections, type SyncCursor } from '@openmig/shared';
 import { discoverSource, type ListingSource } from './discovery.ts';
 
 interface Folder {
@@ -36,7 +36,7 @@ const CURSOR: SyncCursor = { value: 'c' };
 
 /** A source whose folders each hold some listable items and some unkeyable ones. */
 function source(
-  folders: Array<{ name: string; items: Item[]; unkeyable?: number }>,
+  folders: Array<{ name: string; items: Item[]; unkeyable?: number; unlisted?: number }>,
 ): ListingSource<Folder, Item> {
   return {
     async listFolders() {
@@ -48,6 +48,7 @@ function source(
         items: found.items,
         nextCursor: CURSOR,
         ...(found.unkeyable ? { unkeyable: found.unkeyable } : {}),
+        ...(found.unlisted ? { unlisted: found.unlisted } : {}),
       };
     },
   };
@@ -103,6 +104,30 @@ describe('discovery reports what cannot be migrated', () => {
 
     expect(result.generatedIdItems).toBeUndefined();
     expect(result.items).toBe(1);
+  });
+
+  it('counts what the source could not list apart, as left behind and never as given an id', async () => {
+    // Graph mail with no internetMessageId: the source cannot derive an id, so
+    // it does not list the message at all. Until 2026-10-03 that arrived as
+    // `unkeyable`, and the confirm screen promised a generated id on a copy no
+    // pass would make (ADR-0020's amendment of that date).
+    const result = await discoverSource(
+      source([
+        { name: 'Inbox', items: [{ id: 'a' }, { id: 'b' }], unlisted: 2 },
+        { name: 'Archive', items: [{ id: 'c' }], unlisted: 1 },
+      ]),
+    );
+
+    expect(result.unlistedItems).toBe(3);
+    expect(result.generatedIdItems).toBeUndefined();
+    // Not part of what will be moved.
+    expect(result.items).toBe(3);
+    const byName = Object.fromEntries(
+      (result.perCollection ?? []).map((c) => [c.name, c.unlistedItems]),
+    );
+    expect(byName).toEqual({ Inbox: 2, Archive: 1 });
+    // The read side totals the stored breakdown back to the same number.
+    expect(unlistedFromCollections(result.perCollection)).toBe(3);
   });
 
   it('works with sources that do not report the field at all', async () => {

@@ -159,6 +159,14 @@ const en = {
   'discovery.generatedId.strong': 'the copy on your new server',
   'discovery.generatedId.post':
     '— the original on your old server is not changed; they migrate with the rest.',
+  // The other half of the same absence (ADR-0020's amendment of 2026-10-03):
+  // a source that cannot give a message an id, Microsoft 365 through Graph,
+  // leaves it behind. Said here, before Start, and never as a generated id.
+  'discovery.unlisted.pre.one': 'message has no Message-ID, and this connection cannot give it one, so it',
+  'discovery.unlisted.pre.many': 'messages have no Message-ID, and this connection cannot give them one, so they',
+  'discovery.unlisted.strong.one': 'will not be migrated',
+  'discovery.unlisted.strong.many': 'will not be migrated',
+  'discovery.unlisted.post': '— nothing on your old server changes.',
   'discovery.colliding.pre.one': 'item already on your destination matches something in your source. We will',
   'discovery.colliding.pre.many': 'items already on your destination match something in your source. We will',
   'discovery.colliding.strong': "keep the destination's copy",
@@ -3174,6 +3182,11 @@ const nl: Record<keyof typeof en, string> = {
   'discovery.generatedId.strong': 'de kopie op uw nieuwe server',
   'discovery.generatedId.post':
     '— het origineel op uw oude server verandert niet; ze migreren met de rest mee.',
+  'discovery.unlisted.pre.one': 'bericht heeft geen Message-ID, en deze verbinding kan het er geen geven, dus het',
+  'discovery.unlisted.pre.many': 'berichten hebben geen Message-ID, en deze verbinding kan ze er geen geven, dus ze',
+  'discovery.unlisted.strong.one': 'wordt niet gemigreerd',
+  'discovery.unlisted.strong.many': 'worden niet gemigreerd',
+  'discovery.unlisted.post': '— er verandert niets op uw oude server.',
   'discovery.colliding.pre.one': 'item dat al op uw bestemming staat, komt overeen met iets in uw bron. We',
   'discovery.colliding.pre.many': 'items die al op uw bestemming staan, komen overeen met iets in uw bron. We',
   'discovery.colliding.strong': 'behouden de kopie op de bestemming',

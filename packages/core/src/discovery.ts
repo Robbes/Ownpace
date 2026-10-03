@@ -26,6 +26,8 @@ export interface ListingSource<F, I> {
     nextCursor: SyncCursor;
     /** Items with no natural key of their own; the sync generates one. */
     unkeyable?: number;
+    /** Items the source could not list at all, for want of a key: NOT migrated. */
+    unlisted?: number;
   }>;
 }
 
@@ -142,6 +144,7 @@ export async function discoverSource<F, I>(
   let bytes = 0;
   let anyBytes = false;
   let generatedId = 0;
+  let unlistedItems = 0;
   let excludedItems = 0;
   const perCollection: DiscoveryCollection[] = [];
 
@@ -153,8 +156,12 @@ export async function discoverSource<F, I>(
     // Each collection is one read of the account: asked about before it.
     await refuseOnceClosed(options.organisationIsOpen);
     // Metadata-only: listSince returns item descriptors; bodies come from fetch(), never called here.
-    const { items: folderItems, unkeyable } = await source.listSince(folder);
+    const { items: folderItems, unkeyable, unlisted } = await source.listSince(folder);
     const folderGeneratedId = unkeyable ?? 0;
+    // Left behind, not given an id: the source could not list them at all
+    // (Graph mail with no `internetMessageId`). Counted apart from `items` and
+    // from `generatedIdItems`, which both mean "will be on the target".
+    const folderUnlisted = unlisted ?? 0;
 
     let folderBytes = 0;
     let folderHasBytes = false;
@@ -184,6 +191,7 @@ export async function discoverSource<F, I>(
 
     items += folderItems.length;
     generatedId += folderGeneratedId;
+    unlistedItems += folderUnlisted;
     if (folderHasBytes) {
       bytes += folderBytes;
       anyBytes = true;
@@ -193,6 +201,7 @@ export async function discoverSource<F, I>(
       items: folderItems.length,
       ...(folderHasBytes ? { bytes: folderBytes } : {}),
       ...(folderGeneratedId > 0 ? { generatedIdItems: folderGeneratedId } : {}),
+      ...(folderUnlisted > 0 ? { unlistedItems: folderUnlisted } : {}),
     });
   }
 
@@ -204,6 +213,7 @@ export async function discoverSource<F, I>(
     items,
     ...(anyBytes ? { bytes } : {}),
     ...(generatedId > 0 ? { generatedIdItems: generatedId } : {}),
+    ...(unlistedItems > 0 ? { unlistedItems } : {}),
     ...(excludedItems > 0 ? { excludedItems } : {}),
     perCollection,
   };
