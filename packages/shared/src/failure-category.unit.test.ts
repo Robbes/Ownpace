@@ -128,6 +128,45 @@ describe('the target refused the write', () => {
     expect(classifyFailure('500 Internal Server Error')).toBe('target_refused');
   });
 
+  it("reads the 413 that parked the owner's four largest files (2026-10-03)", () => {
+    // VERBATIM in shape from the failures queue, Nextcloud answering in the
+    // account's language, and it read `unknown`: "We could not classify this
+    // one", for a refusal whose remedy is a setting on the destination.
+    expect(
+      classifyFailure(
+        'PUT failed for 2021/Nog uitzoeken Onedrive/VID_20211003_095021.mp4 with status 413: ' +
+          'Sabre\\DAV\\Exception\\BadRequest — Verwachte bestandsgrootte van 1401302831 bytes maar ' +
+          'gelezen (van Nextcloud-client) en geschreven (naar Nextcloud-opslag) 0 bytes. Kan een ' +
+          'netwerkprobleem zijn aan de verzendende kant of een probleem met schrijven naar de opslag ' +
+          'aan de serverkant.',
+        'target',
+      ),
+    ).toBe('target_refused');
+    // And in Sabre's English, which goes on to suggest "a network problem".
+    expect(
+      classifyFailure(
+        'PUT failed for big.bin with status 413: Sabre\\DAV\\Exception\\BadRequest — Expected filesize ' +
+          'of 20971520 bytes but read (from Nextcloud client) and wrote (to Nextcloud storage) 0 bytes. ' +
+          'Could either be a network problem on the sending side or a problem writing to the storage on ' +
+          'the server side.',
+      ),
+    ).toBe('target_refused');
+  });
+
+  it.each([
+    '413 Request Entity Too Large',
+    'HTTP 413 Payload Too Large',
+    'upload refused: Content Too Large',
+  ])('reads a 413 by its reason phrase: %s', (message) => {
+    expect(classifyFailure(message)).toBe('target_refused');
+  });
+
+  it('reads a 413 on the SOURCE side as a source refusal, and a count of 413 as nothing', () => {
+    expect(classifyFailure('GET failed with status 413', 'source')).toBe('source_refused');
+    // As with 500: a status, never a bare number.
+    expect(classifyFailure('copied 413 files')).toBe('unknown');
+  });
+
   it('reads a 500 on the SOURCE side as a source refusal', () => {
     // The whole point of the sided rules: a destination that was never asked
     // must not be the thing the customer is sent to check.

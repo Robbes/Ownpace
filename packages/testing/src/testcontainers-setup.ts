@@ -292,6 +292,24 @@ async function waitForHttpEndpoint(
 }
 
 /**
+ * THE LARGEST REQUEST THE TEST NEXTCLOUD TAKES: 16 MiB (workplan 0156).
+ *
+ * The image puts Apache's `LimitRequestBody` at `APACHE_BODY_LIMIT`, 1 GiB
+ * unless set, and the owner's four largest files were refused with 413 by
+ * exactly that limit on the demo Nextcloud. At 1 GiB no test can reach it, so
+ * the integration Nextcloud runs with a limit a test CAN cross, the way a
+ * real deployment behind nginx or a CDN does every day:
+ * `a-file-larger-than-the-servers-request-limit.integration.test.ts` proves a
+ * file above it arrives in pieces, and that one request of it is refused.
+ *
+ * Far above anything else the suites send. A suite that one day sends a
+ * larger file in ONE request will be refused with 413, and the writer's
+ * sentence names this limit; that is the deployment it should be tested
+ * against. Exported to the suites as `NEXTCLOUD_BODY_LIMIT_BYTES`.
+ */
+export const NEXTCLOUD_BODY_LIMIT_BYTES = 16 * 1024 * 1024;
+
+/**
  * Start Nextcloud container for WebDAV testing.
  * Uses SQLite for lightweight testing.
  */
@@ -310,6 +328,7 @@ async function startNextcloud(): Promise<{
       NEXTCLOUD_ADMIN_USER: 'testadmin',
       NEXTCLOUD_ADMIN_PASSWORD: 'testadmin_password',
       NEXTCLOUD_TRUSTED_DOMAINS: 'localhost',
+      APACHE_BODY_LIMIT: String(NEXTCLOUD_BODY_LIMIT_BYTES),
     })
     .withExposedPorts(80)
     .withStartupTimeout(300000) // 5 minutes for Nextcloud to initialize

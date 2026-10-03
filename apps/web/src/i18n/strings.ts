@@ -172,6 +172,9 @@ const en = {
   'discovery.unlisted.strong.one': 'will not be migrated',
   'discovery.unlisted.strong.many': 'will not be migrated',
   'discovery.unlisted.post': '— nothing on your old server changes.',
+  'discovery.errorWithheld.cell': 'Stopped on an error',
+  'discovery.errorWithheld':
+    "The provider's message for a count that stopped is not shown: the person connected this account themselves, and it can name their files.",
   // ADR-0035 decision 5, the owner's option C (2026-10-03): for an account the
   // person connected through their own grant, the provider's words and the
   // items' names stay off the owner's pages.
@@ -1821,8 +1824,14 @@ const en = {
   // it under a file: "the text talking about 'full mailbox' is weird to read at
   // the Files-kind." Every remedy is shown under every kind, so none may name
   // one kind's storage.
+  //
+  // "A limit on the size of one upload" was added on 2026-10-03 (workplan
+  // 0156). The owner's four largest files were refused with 413 by a
+  // Nextcloud whose web server takes one request of at most 1 GiB, and the
+  // three causes this named were all fine. The item's own reason names the
+  // file's size and the setting; this is the line a whole group shares.
   'failure.targetRefused':
-    'The destination refused to accept this. Common causes are no space left, a read-only folder or missing permission on the target account. If it answered with an internal error, the reason is in the destination\u2019s own log rather than in what it sent back.',
+    'The destination refused to accept this. Common causes are no space left, a limit on the size of one upload, a read-only folder or missing permission on the target account. If it answered with an internal error, the reason is in the destination\u2019s own log rather than in what it sent back.',
   // "Rename it in the old account" was added on 2026-09-23. The export format
   // is a remedy only for a Google file, and a name the destination will never
   // store (Nextcloud refuses `.htaccess`) can come from any source.
@@ -3078,7 +3087,7 @@ const nl: Record<keyof typeof en, string> = {
   'failure.sourceRefused':
     'Niet gemigreerd: het oude account wilde dit niet afgeven, dus er is niets naar het nieuwe gestuurd \u2014 daar valt niets te controleren. Probeer opnieuw als dat veranderd is, of laat deze items achter.',
   'failure.targetRefused':
-    'De bestemming weigerde dit te accepteren. Veelvoorkomende oorzaken: geen ruimte meer, een alleen-lezen map, of ontbrekende rechten op het doelaccount. Antwoordde de bestemming met een interne fout, dan staat de reden in het logboek van de bestemming zelf en niet in het antwoord dat wij terugkregen.',
+    'De bestemming weigerde dit te accepteren. Veelvoorkomende oorzaken: geen ruimte meer, een grens aan de grootte van één upload, een alleen-lezen map, of ontbrekende rechten op het doelaccount. Antwoordde de bestemming met een interne fout, dan staat de reden in het logboek van de bestemming zelf en niet in het antwoord dat wij terugkregen.',
   'failure.formatRefused':
     'De bestemming accepteert dit SOORT bestand niet. Met het account zelf is niets mis \u2014 het is de indeling of de naam van dit bestand die daar niet is toegestaan. Geef het in het oude account een andere naam, wijzig het exportformaat op de koppeling, of laat deze items achter.',
   'failure.network':
@@ -3284,6 +3293,9 @@ const nl: Record<keyof typeof en, string> = {
   'discovery.unlisted.strong.one': 'wordt niet gemigreerd',
   'discovery.unlisted.strong.many': 'worden niet gemigreerd',
   'discovery.unlisted.post': '— er verandert niets op uw oude server.',
+  'discovery.errorWithheld.cell': 'Gestopt op een fout',
+  'discovery.errorWithheld':
+    'De melding van de aanbieder bij een telling die stopte wordt niet getoond: de persoon heeft dit account zelf gekoppeld, en de melding kan hun bestanden noemen.',
   'failure.withheld':
     'De eigen melding van de aanbieder wordt niet getoond: de persoon heeft dit account zelf gekoppeld, en de melding kan hun bestanden noemen. Support kan haar lezen via de referentie.',
   'failures.withheld':

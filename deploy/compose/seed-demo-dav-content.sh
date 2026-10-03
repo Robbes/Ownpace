@@ -589,10 +589,17 @@ END:VCARD")
       echo "[seed-dav] big file ${BIG_FILE_NAME}: HTTP ${code} (${BIG_FILE_MB} MB, sha256 ${big_sha})"
       case "$code" in
         201|204) ;;
-        # 413 is the one worth naming: Nextcloud's PHP limits, not this script.
+        # 413 is the one worth naming: a limit on the size of ONE REQUEST, in
+        # Apache (the image's LimitRequestBody, from APACHE_BODY_LIMIT) or a
+        # proxy in front of it. Not PHP's upload_max_filesize/post_max_size,
+        # which this hint named until 2026-10-03: those limit a form POST, and
+        # this is a WebDAV PUT (workplan 0156).
         413) fail "the ${BIG_FILE_MB} MB fixture was REFUSED as too large (413).
-    Raise upload_max_filesize/post_max_size in the Nextcloud container, or lower
-    SEED_DAV_BIG_FILE_MB — but never below 8, or it stops proving anything." ;;
+    A limit on the size of one request refused it: Apache's LimitRequestBody,
+    which the Nextcloud image sets from APACHE_BODY_LIMIT (managed.yml sets \"0\",
+    unlimited; recreate the container after changing it), or a proxy in front of
+    Nextcloud. Raise that, or lower SEED_DAV_BIG_FILE_MB — but never below 8, or
+    it stops proving anything." ;;
         *) fail "big file PUT ${BIG_FILE_NAME} returned ${code}" ;;
       esac
 

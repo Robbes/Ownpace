@@ -1574,6 +1574,20 @@ services:
       SMTP_PORT: "1025"
       MAIL_FROM_ADDRESS: calendar
       MAIL_DOMAIN: ownpace.invalid
+      # NO LIMIT ON THE SIZE OF ONE REQUEST (workplan 0156, 2026-10-03). The
+      # image sets Apache's LimitRequestBody from this, 1 GiB when unset, and
+      # past it Apache withholds the body: Sabre reads 0 bytes and answers
+      # 413. That parked the owner's four largest Dropbox files (1.3 GB to
+      # 4.5 GB) after five tries each, while a 1 GB file arrived. The writer
+      # now sends a file above 64 MiB to Nextcloud in pieces, each far below
+      # any limit, so this is for every other client of the demo: a desktop
+      # or web upload, the seed's own PUTs, and a file the writer sends in
+      # one request where the upload area is not available. "0" is Apache's
+      # unlimited. PHP's upload_max_filesize and post_max_size do not apply
+      # here: they limit a form POST, and WebDAV writes with PUT. Apache reads
+      # it when the container starts, and the next `up` recreates a container
+      # whose environment changed, so the next deploy applies it.
+      APACHE_BODY_LIMIT: "0"
     ports:
       # WHICH INTERFACE, AND THE DEFAULT IS LOOPBACK — the same rule mailpit
       # states above, for the same reason. This published on every interface

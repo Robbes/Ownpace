@@ -1,4 +1,8 @@
-import { startTestEnvironment, stopTestEnvironment } from './packages/testing/src/testcontainers-setup.ts';
+import {
+  NEXTCLOUD_BODY_LIMIT_BYTES,
+  startTestEnvironment,
+  stopTestEnvironment,
+} from './packages/testing/src/testcontainers-setup.ts';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -199,6 +203,9 @@ export default async function (ctx?: unknown) {
     process.env.NEXTCLOUD_WEBDAV_URL = testEnv.nextcloud.webdavUrl;
     process.env.NEXTCLOUD_USERNAME = testEnv.nextcloud.username;
     process.env.NEXTCLOUD_PASSWORD = testEnv.nextcloud.password;
+    // The size of the largest request it takes (workplan 0156), so a suite can
+    // send one larger than that on purpose.
+    process.env.NEXTCLOUD_BODY_LIMIT_BYTES = String(NEXTCLOUD_BODY_LIMIT_BYTES);
   }
 
   console.log('[Vitest Global Setup] Testcontainers environment ready.');

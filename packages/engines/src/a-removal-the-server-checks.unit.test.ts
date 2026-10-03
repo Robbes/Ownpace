@@ -289,13 +289,17 @@ describe('a rewrite', () => {
 });
 
 describe('a chunked WebDAV rewrite', () => {
-  it('keeps the read and the comparison, since chunks cannot carry If-Match', async () => {
-    // Each chunk is a PUT of its own, and a precondition would refuse the
-    // second. No production path turns chunks on (0149 §1), but a rewrite
-    // through them must not go unchecked.
+  it('with a weak version keeps the read and the comparison, and sends no piece over an edit', async () => {
+    // A file larger than one piece goes up as Nextcloud's chunked upload
+    // (workplan 0156). A STRONG version rides on the MOVE that assembles it,
+    // as a tagged `If`, and the server checks it there
+    // (`a-file-too-large-for-one-request`); a weak one cannot be matched by
+    // the server at all, so it keeps the read and the comparison, as the
+    // single PUT does (D4) — and a rewrite through pieces must not go
+    // unchecked either way.
     const s = davServer({ current: 'somebody-elses-edit' });
     const writer = new WebDAVTargetWriter(
-      { url: `${BASE}/files/alice/`, username: 'alice', password: 'pw', chunkedUploads: true, chunkSize: 2 },
+      { url: `${BASE}/files/alice/`, username: 'alice', password: 'pw', uploadChunkBytes: 2 },
       { ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: s.client },
     );
     const result = await writer.upsertFile(
@@ -304,12 +308,13 @@ describe('a chunked WebDAV rewrite', () => {
         item: { path: 'notes.txt', name: 'notes.txt', isDirectory: false, size: 5, modifiedAt: '', sourceRef: '' },
         content: new TextEncoder().encode('large'),
       } as never,
-      { overwrite: true, expectedTargetVersion: 'v1' },
+      { overwrite: true, expectedTargetVersion: 'W/v1' },
     );
 
     expect(result.conflicted).toBe(true);
     expect(s.of('HEAD')).toHaveLength(1);
-    expect(s.of('PUT'), 'no chunk went out over the edit').toHaveLength(0);
+    expect(s.of('MKCOL'), 'no upload was begun over the edit').toHaveLength(0);
+    expect(s.of('PUT'), 'no piece went out over the edit').toHaveLength(0);
   });
 });
 

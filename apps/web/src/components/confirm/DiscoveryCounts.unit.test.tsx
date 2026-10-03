@@ -332,6 +332,24 @@ describe('the numbers that came from an earlier check', () => {
     expect(screen.getByText('Tasks.Read not granted')).toBeInTheDocument();
   });
 
+  it('says a count stopped, without the provider\'s words, when they are the person\'s to keep (ADR-0035 decision 5)', () => {
+    render(
+      <DiscoveryCounts
+        domains={[record({ domain: 'file', collections: 0, items: 0, lastErrorWithheld: true }), record()]}
+      />,
+    );
+    expect(screen.getByText('Stopped on an error')).toBeInTheDocument();
+    expect(screen.getByRole('note')).toHaveTextContent(
+      "The provider's message for a count that stopped is not shown",
+    );
+  });
+
+  it('says a withheld count is an earlier one when it kept its numbers', () => {
+    render(<DiscoveryCounts domains={[record({ domain: 'file', items: 9, lastErrorWithheld: true })]} />);
+    const notes = screen.getAllByRole('note').map((n) => n.textContent ?? '');
+    expect(notes.some((n) => /earlier/i.test(n))).toBe(true);
+  });
+
   it('says nothing when every domain answered this time', () => {
     render(<DiscoveryCounts domains={[record({ domain: 'file' })]} />);
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
