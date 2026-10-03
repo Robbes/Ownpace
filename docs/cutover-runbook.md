@@ -361,9 +361,12 @@ If issues are detected during cutover or the grace period:
    data type the migration has. It is queued behind any pass already running
    on the migration, and the job waits for it and logs a count per data type.
    When the pass did not finish a data type (it stopped at its deadline or at
-   the day's download budget, or the migration was paused before it got
-   there), the job names that data type and does not mark the cutover ready:
-   the target is behind the source. That is recorded once and not retried;
+   the day's download budget, the migration was paused before it got there,
+   or the migration was paused, its permission withdrawn or its organisation
+   closed WHILE the pass copied it), the job names that data type and does not
+   mark the cutover ready: the target is behind the source. A data type its
+   owner stopped while the pass copied it is passed over, not unfinished, as
+   one stopped before the pass: the gate skips it too. That is recorded once and not retried;
    prepare again once the passes have caught up. A final pass that failed
    outright is recorded the same way: the pass has already been retried by
    its own task, so the job does not run it again three times over. Until 2026-09-24 the final

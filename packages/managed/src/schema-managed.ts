@@ -576,6 +576,13 @@ export const personLink = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     usedAt: timestamp('used_at', { withTimezone: true }),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    /**
+     * The migrations a grant link made while every account of the person's
+     * was connected asks to connect again (managed migration 0036). Each
+     * leaves as its account is connected through the link. NULL: the link
+     * asks only for what is not connected.
+     */
+    asksAgain: uuid('asks_again').array(),
   },
   (t) => [index('person_link_person_idx').on(t.personId, t.createdAt)],
 );

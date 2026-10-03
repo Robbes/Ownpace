@@ -29,27 +29,42 @@
  *    `mapping.granted` row each, naming the person's link.
  * 6. **The link is spent once every account on it is granted**, read in this
  *    same transaction after the writes. Until then it stays live, so a person
- *    with two accounts can grant one now and one later.
+ *    with two accounts can grant one now and one later. A link that asks
+ *    again (made while every account was connected, managed migration 0036)
+ *    takes the migrations just written off its list, and is spent once none of
+ *    those it still asks for is left: every account it asked for has then been
+ *    connected through it, not only held a token.
  *
  * ## One token, several migrations
  *
  * Every listed migration receives the same `{ refreshToken }`, the only half
  * that is the person's (`grant-ending.ts` says why the client is not copied).
  * Taking the grant back revokes that token at Google once and clears it from
- * each of them (slice 3).
+ * each of them (`person-progress.ts`).
+ *
+ * ## And then the person's progress link
+ *
+ * `mintPersonProgressLink`, after the grant has landed and never inside its
+ * transaction, as `mintProgressLink` is for a migration's.
  */
 
 import type { Pool } from 'pg';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
-import { PgLedger, type LedgerDriver } from '@openmig/ledger';
+import { DEFAULT_MAPPING_VIEW_LINK_EXPIRY_DAYS, PgLedger, expiryFromDays, type LedgerDriver } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import { LINK_SPENT, log, organisationClosedRefusal, reasonPair, type Bilingual, type TenantId } from '@openmig/shared';
 import { personLink, personMigration } from '@openmig/managed/schema-managed';
-import { readOrganisationClosure, spendPersonLink } from '@openmig/managed';
+import {
+  connectedThroughPersonLink,
+  issuePersonLink,
+  readOrganisationClosure,
+  spendPersonLink,
+} from '@openmig/managed';
 import { withTenantDb } from '../../middleware/auth.ts';
 import { GRANT_ACTION, GRANT_ACTOR, GRANT_REFUSED_ACTION, type GrantedAccess, type GrantStoreResult } from './grant-ending.ts';
 import { namedAccount, readGrantRows, whereFromAndTo } from './grant-subject.ts';
+import { progressPageUrl, type ProgressPageUrl } from './progress-page-url.ts';
 import { readPersonGrantSubject } from './person-grant-subject.ts';
 import {
   sameGoogleAccount,
@@ -198,12 +213,24 @@ export async function storePersonGrant(
         return { ok: false as const, ...reasonPair(NOTHING_LEFT_TO_GRANT), linkStillWorks: true };
       }
 
-      // Spent once every account on it is granted, read after the writes above.
+      // Spent once every account on it is granted, read after the writes
+      // above, and, for a link that asks again, once each migration it asks
+      // for that a sign-in can still serve has been connected through it.
+      const asksAgain = await connectedThroughPersonLink(db, {
+        tenantId: target.tenantId,
+        linkId: target.linkId,
+        mappingIds: written,
+      });
       const subject = await readPersonGrantSubject(db, target.tenantId, target.personId);
       const everyAccount = subject === null || subject.accounts.every((a) => a.granted);
-      const linkSpent = everyAccount
-        ? await spendPersonLink(db, { tenantId: target.tenantId, linkId: target.linkId, now })
-        : false;
+      const stillAsked =
+        subject !== null &&
+        asksAgain !== null &&
+        subject.accounts.some((a) => a.ask.ok && a.migrations.some((m) => asksAgain.includes(m.mappingId)));
+      const linkSpent =
+        everyAccount && !stillAsked
+          ? await spendPersonLink(db, { tenantId: target.tenantId, linkId: target.linkId, now })
+          : false;
       return { ok: true as const, granted: written, linkSpent };
     });
   } catch (error) {
@@ -212,5 +239,38 @@ export async function storePersonGrant(
       return { ok: false, reason: error.refusal.reason, reasonNl: error.refusal.reasonNl, linkStillWorks: true };
     }
     throw error;
+  }
+}
+
+/**
+ * Mint the person's progress link, AFTER their grant has landed (slice 3):
+ * `mintProgressLink` for a person. The same reasons hold, by that function's
+ * own words: outside the consent's transaction, so a page that could not be
+ * minted never undoes a consent; null when the deployment cannot say its
+ * address, or the write failed, which is logged; and a fresh one each time,
+ * because the table holds no secret to hand back. A person with two accounts
+ * who grants both is given two, both on the owner's list and revocable there.
+ */
+export async function mintPersonProgressLink(
+  source: Pool | LedgerDriver,
+  target: Pick<PersonGrantTarget, 'tenantId' | 'personId'>,
+): Promise<ProgressPageUrl | null> {
+  const base = process.env.WEB_URL?.replace(/\/+$/, '');
+  if (!base) return null;
+  try {
+    const issued = await withTenantDb(target.tenantId, source, (db) =>
+      issuePersonLink(db, {
+        tenantId: target.tenantId,
+        personId: target.personId,
+        purpose: 'view',
+        // Not a user id: nobody was signed in, as for a migration's.
+        createdBy: 'granted-by-link',
+        expiresAt: expiryFromDays(DEFAULT_MAPPING_VIEW_LINK_EXPIRY_DAYS),
+      }),
+    );
+    return progressPageUrl(base, issued.token);
+  } catch (error) {
+    log.error('[api] minting a person’s progress link after a grant failed:', error);
+    return null;
   }
 }

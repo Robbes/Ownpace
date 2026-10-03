@@ -55,8 +55,10 @@ const Domain = z.enum(DISCOVERY_DOMAINS as unknown as [DiscoveryDomain, ...Disco
  * What a PERSON'S link opens (ADR-0035, amended 2026-09-29; workplan 0153
  * T5 (b)): who asked, once, then each Google account the person's migrations
  * read, what its one consent asks for, where each of its migrations goes, and
- * whether it is connected already. No migration id: the button names the
- * account. A data type this page has no words for fails the parse, as above.
+ * whether it is connected already, or connected and asked for again (`again`,
+ * a link made while every account was connected). No migration id: the button
+ * names the account. A data type this page has no words for fails the parse,
+ * as above.
  */
 const PersonSubjectSchema = z.object({
   kind: z.literal('person'),
@@ -69,6 +71,8 @@ const PersonSubjectSchema = z.object({
       z.object({
         account: z.string(),
         granted: z.boolean(),
+        // An API a release behind does not say it, which means no.
+        again: z.boolean().default(false),
         domains: z.array(Domain),
         scope: z.string().nullable(),
         readOnlyAtProvider: z.boolean(),

@@ -200,6 +200,56 @@ describe("the pass's own report, read for the cutover", () => {
   });
 });
 
+describe('a data type the pass was told to stop while it copied it (2026-09-29)', () => {
+  // A pause, a withdrawn grant or a closed organisation is now heard INSIDE a
+  // data type's pass, not only between two of them. The data type it lands in
+  // was neither finished nor never reached: it was stopped while it copied,
+  // and the cutover must say so rather than call its target current.
+  it('names it unfinished, in the words of what stopped it, and still counts what it copied', () => {
+    for (const [why, sentence] of [
+      ['no_longer_runs', 'file stopped while copying, because the migration was paused or finished while the pass ran'],
+      [
+        'grant_withdrawn',
+        'file stopped while copying, because the person being migrated withdrew their permission while the pass ran',
+      ],
+      ['organisation_closed', 'file stopped while copying, because the organisation was closed while the pass ran'],
+    ] as const) {
+      const report = finalSyncReport({
+        asked: ['calendar', 'file'],
+        domains: { calendar: counts(1, 0, 3), file: { ...counts(4, 0, 9), stopped: 'halt', haltedBecause: why } },
+      });
+      expect(report.notFinished, why).toEqual([sentence]);
+      expect(report.passedOver, why).toEqual([]);
+      expect(report.total.created, why).toBe(5);
+    }
+  });
+
+  it('passes over one its owner stopped while the pass copied it, as the gate skips it (D6)', () => {
+    const report = finalSyncReport({
+      asked: ['email', 'file'],
+      domains: { email: counts(1, 0, 0), file: { ...counts(4, 0, 9), stopped: 'halt', haltedBecause: 'stopped_by_its_owner' } },
+    });
+
+    expect(report.notFinished).toEqual([]);
+    expect(report.passedOver).toEqual(['file: passed over, because you stopped it while the pass copied it']);
+    // What it copied before the stop is real, and counted.
+    expect(report.byDomain.file).toEqual(counts(4, 0, 9));
+    expect(report.total.created).toBe(5);
+  });
+
+  it('passes over one that stopped running passes of its own while the pass copied it', () => {
+    const report = finalSyncReport({
+      asked: ['email'],
+      domains: { email: { ...counts(2, 0, 0), stopped: 'halt', haltedBecause: 'data_type_no_longer_runs' } },
+    });
+
+    expect(report.notFinished).toEqual([]);
+    expect(report.passedOver).toEqual([
+      'email: passed over, because it no longer runs passes (past its own cutover, or ended) while the pass copied it',
+    ]);
+  });
+});
+
 describe('the preparation, with the final sync reporting per data type', () => {
   it('logs a count per data type and goes on to the gate', async () => {
     const { done, logs, runGate, state } = prepare(async () =>

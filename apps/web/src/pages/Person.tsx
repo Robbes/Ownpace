@@ -43,7 +43,7 @@ import StateChip from '../components/StateChip.tsx';
 import { MigrationLines, listStage } from '../components/MigrationLines.tsx';
 import { providerName } from '../components/ProviderTile.tsx';
 import { SCREENS } from './hub-screens.ts';
-import { PersonGrantLinkSection } from '../components/MappingLinksPanel.tsx';
+import { PersonGrantLinkSection, PersonViewLinkSection } from '../components/MappingLinksPanel.tsx';
 import { personLinkApi } from '../services/grant-link-service.ts';
 import { isSelfHost } from '../services/edition.ts';
 import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
@@ -317,6 +317,7 @@ const Person: React.FC = () => {
             {t('person.links.title', { name: person.displayName ?? '' })}
           </h2>
           <PersonGrantLinkSection personId={person.id} links={linksQuery.data} loadFailed={linksQuery.error != null} />
+          <PersonViewLinkSection personId={person.id} links={linksQuery.data} loadFailed={linksQuery.error != null} />
         </section>
       )}
     </div>

@@ -1093,9 +1093,10 @@ so a reopen needs nothing restored.
 - **No new pass.** The sync tick starts nothing for a closed organisation, in
   any state its migrations are in: active, in the continuous lane, a cutover
   still in its grace period, or a data type kept in the lane.
-- **A pass under way stops** before its next data type, before it builds any
-  credential, and its run log says the organisation was closed (the halt
-  `organisation_closed`). It ends without an error, so the plane does not retry
+- **A pass under way stops** starting new items within about fifteen seconds of
+  the close, and finishes the ones it has begun; one between data types
+  stops before it builds any credential. Its run log says the organisation was
+  closed (the halt `organisation_closed`). It ends without an error, so the plane does not retry
   it. This is what stops a pass the tick queued in the minute before the close,
   and a retry. The close asks the orchestrator to cancel only the runs whose
   rows say `running` or `queued` (`passesStopped`), and a pass has a row only
@@ -1997,6 +1998,28 @@ trigger-tls: TLS terminated on 127.0.0.1:3443 (HTTP 200)
   is for. If this is red, the dashboard is unreachable for every operator not
   sitting at the machine — see the white-screen entry above, which is the same
   fault seen from the browser.
+
+### What the database spends its time on
+
+The managed stack's postgres loads `pg_stat_statements` (workplan 0143 T8): each statement's
+calls, time and rows since the last reset, with its literal values replaced by placeholders.
+Utility statements are not kept, so a password change never reaches the view. The ten
+statements with the most total time:
+
+```bash
+docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrate -d openmigrate -c \
+  "SELECT round(total_exec_time) AS total_ms, calls, round(mean_exec_time::numeric, 1) AS mean_ms,
+          rows, left(regexp_replace(query, '\s+', ' ', 'g'), 160) AS statement
+     FROM pg_stat_statements
+    ORDER BY total_exec_time DESC
+    LIMIT 10;"
+```
+
+Read it for the statement whose time grows with the number of passes, not for one slow call.
+Before a measured sitting (0143 T9), `SELECT pg_stat_statements_reset();`, as the same owner,
+starts the count again. *"pg_stat_statements must be loaded via shared_preload_libraries"* means
+the database container still runs without the preload: it takes it when the bring-up's data
+phase recreates it.
 
 ## Related docs
 

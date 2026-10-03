@@ -62,11 +62,16 @@ describe('the delta-sync task', () => {
   });
 
   it('hands every branch its share, and none of them the whole pass', () => {
+    // Through `passStops` since 2026-09-29: the share, and beside it the
+    // question a pass asks to hear a Pause pressed while it copies. One
+    // object, so no branch can be handed its share without the question, and
+    // the share is still this type's and never the whole pass.
+    expect(LOOP).toMatch(/const passStops[^=]*=\s*\{\s*deadline: typeDeadline,/);
     for (const branch of BRANCHES) {
       const at = LOOP.indexOf(`await ${branch}(`);
       expect(at, `${branch} is no longer called in the loop`).toBeGreaterThan(-1);
       const call = LOOP.slice(at, LOOP.indexOf(')', LOOP.indexOf('}', at)) + 1);
-      expect(call, `${branch} is not handed its share`).toMatch(/deadline: typeDeadline\b/);
+      expect(call, `${branch} is not handed its share`).toMatch(/\.\.\.passStops\b/);
       expect(call, `${branch} is handed the whole pass`).not.toMatch(/[{,]\s*deadline\s*[,}]/);
     }
   });

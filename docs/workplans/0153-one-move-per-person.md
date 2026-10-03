@@ -184,6 +184,83 @@ words changed with them** (0131 §6, R8).
   at `5f74ebc`: T4 and T7 are still proposed, and no branch or open pull request of R's or M's
   touches them. 0131 §6 records the split.
 
+**2026-10-03: a person's link asks again for an account whose connection stopped working (T5 (b);
+ADR-0035's amendment, added the same day).** Found while replacing the per-migration links (the
+owner: *"yes, replace the per-migration links"*). The person's link was refused once every
+account of theirs read as connected. A token Google no longer honours still reads as connected:
+taken back at Google, lapsed, or expired after seven days while the Google application is in
+testing. Only a migration's own link could ask for it again, and those are going.
+
+- **The issue door** (`person-link-routes.ts`) now makes a link that asks every account again when
+  each is connected. It says so (`asksAgain`), and the person's page tells the owner. It still
+  refuses a person with nothing a link can serve.
+- **The row** remembers which migrations it asks for again: `person_link.asks_again`, managed
+  migration 0036. 0035 is taken by another session's branch (the system role's purge of this
+  table). Migration ids, not addresses.
+- **The grant page** offers such an account *Connect again with Google as …*, with a sentence
+  saying why (`grant.ts`, `Grant.tsx`).
+- **The ending** (`person-grant-ending.ts`) takes the migrations it wrote off the list. It spends
+  the link once every account is connected and none it still asks for is left among the person's
+  migrations.
+- **Proved by:**
+  - `a-link-for-a-person.unit.test.ts` (13 → 16; PGlite as `app_user`, both chains);
+  - `person-link-under-rls.unit.test.ts` (+2);
+  - `Grant.unit.test.tsx` (+1), `grant-service.unit.test.ts` (+1) and `Person.unit.test.tsx` (+1).
+
+  Three mutations each fail their cases: refusing a connected account whatever the link asks;
+  spending once every account holds a token; and still asking for a migration that left the
+  person.
+- **The spec** documents `asksAgain` and `again`. It now also says a person's progress link is
+  offered (slice 3 left the request body at `grant` only).
+
+**2026-10-03: *Report this link* from a person's pages (0108 T8 (d), for ADR-0035's amendment of
+2026-09-29).** The third slice's open end: a person's grant page and progress page now offer it,
+as a migration's pages do.
+
+- **The doors** (`link-reports.ts`) take a person's link at its own kind's door, and neither kind
+  at the other's.
+- **The ticket** (`link-report.ts`) names the link as a person's, the person, and every migration
+  of theirs on a line of its own (state, from, to, access), from the rows. Each line stays one
+  line whatever an organisation typed.
+- **Proved by** `a-person-link-that-can-be-reported.unit.test.ts` (4; PGlite as `app_user`, both
+  chains, Zammad stubbed), and `Grant.unit.test.tsx` and `View.unit.test.tsx` (+1 each). The
+  migration's own report test passes unchanged. Mutation: the doors taking a migration's link
+  only fails two cases.
+
+**2026-10-03: T5 (b)'s third slice, a person's progress page (ADR-0035's amendment of
+2026-09-29).**
+
+- **The page** (`GET /api/view/:link`, `person-progress.ts`, `View.tsx`): for a person's link,
+  every migration of theirs with the counts and states a migration's own page shows
+  (`migrationProgress`, now the one reading both use), under the Google account it reads, and the
+  others after. An account is named on the page by an opaque `ref`, never by its address, as a
+  migration's page carries none.
+- ***Take my grant back*, per account** (`POST /api/view/:link/withdraw` with `{ account }`):
+  - each token the account's migrations hold is revoked at Google once;
+  - then it is cleared from every one of them in one transaction, with a
+    `mapping.grant_withdrawn` row each, whatever Google answered;
+  - a `ref` that no longer matches what is held (given again, or taken back in another tab)
+    deletes nothing, and says so in both languages.
+- **The progress link:** the person's grant ending hands one over after the consent lands, as a
+  migration's does. The owner's door issues one (`purpose: 'view'`, 30, 90 or 180 days), and the
+  person's page offers *One progress link for everything* beside the grant link.
+- **Not yet:**
+  - *Report this link* from a person's pages: the report route takes a migration's link only;
+  - the migration's page still makes its own links, until the owner answers the amendment's
+    proposals.
+- **Proved by:**
+  - `a-progress-page-for-a-person.unit.test.ts` (8; PGlite as `app_user`, both chains, with
+    Google's token and revoke endpoints stubbed);
+  - `a-link-for-a-person.unit.test.ts` (13), whose progress-link case now issues one;
+  - `View.unit.test.tsx` (+5), `Person.unit.test.tsx` (+1) and the view service's test (+3).
+
+  Mutation: sending an account's withdrawal as a migration's fails two cases. The spec
+  documents the page and the body, and its checker learns `pattern`.
+- **Walked in Chromium**, English and Dutch, at 900 and 390 pixels wide, over a fixture API shaped
+  as `person-progress.ts` answers: two accounts and an IMAP mailbox, no sideways scroll, no call
+  the fixture does not serve, and one press withdrew the first account by its `ref`, after which
+  each of its migrations says copying stopped.
+
 **2026-09-29, morning: T5 (b)'s fourth slice, the owner makes the person's one link (ADR-0035's
 amendment of 2026-09-29).**
 

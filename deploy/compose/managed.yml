@@ -77,6 +77,19 @@ services:
     image: postgres:18-alpine
     container_name: ${COMPOSE_PROJECT_NAME}-db
     restart: unless-stopped
+    # QUERY STATISTICS (workplan 0143 T8). pg_stat_statements must be loaded
+    # at start-up; bootstrap-managed.sh's data phase creates the extension
+    # that reads it. Utility statements are not tracked, so an `ALTER ROLE …
+    # PASSWORD` (rotate-db-passwords.sh) never lands in the statistics view.
+    # Changing this line recreates the container: live takes it inside
+    # deploy-live.sh's hold and drain, the OTA stack at the gate's next
+    # redeploy from main.
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track_utility=off
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-openmigrate}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-openmigrate_password}

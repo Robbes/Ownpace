@@ -194,8 +194,9 @@ question before it acts (workplan 0108 T8 (c)). Pressing it:
 3. tells them which of the two happened. When Google did not confirm, they are sent to remove the
    app from their Google account themselves.
 
-From then on **nothing reads that account**: no pass starts, a pass already running stops before
-its next data type, and your **Start** and **Sync now** say who stopped it and when. That holds
+From then on **nothing reads that account**: no pass starts, a pass already running stops starting
+new items within about fifteen seconds and finishes the ones it has begun, and your **Start** and
+**Sync now** say who stopped it and when. That holds
 even where the source connection has a credential of its own: the person said no to being read,
 and falling back to another way in would read them anyway. Your migration's page says it at the
 top.

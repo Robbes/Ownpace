@@ -2347,7 +2347,9 @@ paths:
         a pause does; in the continuous lane it releases it (D2 (c)). The
         progress strip says `stopped`, the check that everything arrived skips
         it (D6), and the stop is recorded (`path.status`). Nothing is enqueued:
-        every pass reads the stop afresh.
+        every pass reads the stop afresh, and a pass already copying this data
+        type stops starting new items within about fifteen seconds, and
+        finishes the ones it has begun (a very large file can take longer).
       responses:
         '200':
           description: Stopped, or already stopped (`changed` false).
@@ -3124,7 +3126,10 @@ paths:
       - name: link
         in: path
         required: true
-        description: The whole credential — `<id>.<secret>`, one path segment.
+        description: |
+          The whole credential, one path segment: a migration's `<id>.<secret>`,
+          or a person's `p.<id>.<secret>`, whose report names the person and
+          every migration of theirs (ADR-0035, amended 2026-09-29).
         schema: { type: string }
     get:
       tags: [Grant links]
@@ -3239,7 +3244,9 @@ paths:
       - name: link
         in: path
         required: true
-        description: The whole credential — `<id>.<secret>`, one path segment.
+        description: |
+          The whole credential, one path segment: a migration's `<id>.<secret>`,
+          or a person's `p.<id>.<secret>` (ADR-0035, amended 2026-09-29).
         schema: { type: string }
     get:
       tags: [Grant links]
@@ -3264,6 +3271,11 @@ paths:
 
         Repeatable by design — `view` links are exempt from single-use, unlike
         the credential ones — so this is a GET that changes nothing.
+
+        For a person's link the answer is every migration of theirs (`kind:
+        person`, `PersonProgressPage`), each with the same counts and states,
+        grouped by the Google account it reads under an opaque `ref`, never
+        the address.
       security: []
       responses:
         '200':
@@ -3271,54 +3283,56 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  organisation: { type: string }
-                  state:
-                    type: string
-                    enum: [paused, active, cutover, done, continuous]
-                  started:
-                    type: boolean
-                    description: False when no pass has ever run — not the same as zero.
-                  expiresAt: { type: string, format: date-time }
-                  domains:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        domain: { type: string }
-                        state: { type: string }
-                        itemsSynced: { type: integer }
-                        itemsFailed: { type: integer }
-                        bytesTransferred: { type: integer }
-                        itemsRetrying: { type: integer }
-                        itemsNeedingDecision: { type: integer }
-                        lastSyncedAt: { type: string, format: date-time }
-                        lastActiveAt: { type: string, format: date-time }
-                        lastErrorCategory: { type: string }
-                        failedSide: { type: string, enum: [source, target] }
-                        pausedReason: { type: object }
-                  grant:
-                    description: |
-                      The grant this page may take back (workplan 0108 T8 (c)).
-                      `granted`: the migration reads the account on a grant
-                      given through a link. `withdrawn`: it was taken back, and
-                      when; nothing reads the account until somebody grants
-                      again. `none`: there is nothing here to take back.
-                    oneOf:
-                      - type: object
-                        required: [state]
-                        properties:
-                          state: { type: string, enum: [granted] }
-                      - type: object
-                        required: [state, withdrawnAt]
-                        properties:
-                          state: { type: string, enum: [withdrawn] }
-                          withdrawnAt: { type: string, format: date-time }
-                      - type: object
-                        required: [state]
-                        properties:
-                          state: { type: string, enum: [none] }
+                anyOf:
+                  - $ref: '#/components/schemas/PersonProgressPage'
+                  - type: object
+                    properties:
+                      organisation: { type: string }
+                      state:
+                        type: string
+                        enum: [paused, active, cutover, done, continuous]
+                      started:
+                        type: boolean
+                        description: False when no pass has ever run — not the same as zero.
+                      expiresAt: { type: string, format: date-time }
+                      domains:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            domain: { type: string }
+                            state: { type: string }
+                            itemsSynced: { type: integer }
+                            itemsFailed: { type: integer }
+                            bytesTransferred: { type: integer }
+                            itemsRetrying: { type: integer }
+                            itemsNeedingDecision: { type: integer }
+                            lastSyncedAt: { type: string, format: date-time }
+                            lastActiveAt: { type: string, format: date-time }
+                            lastErrorCategory: { type: string }
+                            failedSide: { type: string, enum: [source, target] }
+                            pausedReason: { type: object }
+                      grant:
+                        description: |
+                          The grant this page may take back (workplan 0108 T8 (c)).
+                          `granted`: the migration reads the account on a grant
+                          given through a link. `withdrawn`: it was taken back, and
+                          when; nothing reads the account until somebody grants
+                          again. `none`: there is nothing here to take back.
+                        oneOf:
+                          - type: object
+                            required: [state]
+                            properties:
+                              state: { type: string, enum: [granted] }
+                          - type: object
+                            required: [state, withdrawnAt]
+                            properties:
+                              state: { type: string, enum: [withdrawn] }
+                              withdrawnAt: { type: string, format: date-time }
+                          - type: object
+                            required: [state]
+                            properties:
+                              state: { type: string, enum: [none] }
         '401':
           description: |
             One sentence for every way a link can fail — unknown, forged,
@@ -3342,7 +3356,9 @@ paths:
       - name: link
         in: path
         required: true
-        description: The whole credential — `<id>.<secret>`, one path segment.
+        description: |
+          The whole credential, one path segment: a migration's `<id>.<secret>`,
+          or a person's `p.<id>.<secret>`.
         schema: { type: string }
     post:
       tags: [Grant links]
@@ -3360,14 +3376,35 @@ paths:
 
         From then on nothing reads the account, on that token or on any other
         credential the source connection holds: the tick starts no pass, a
-        running pass stops before its next data type, and Start and Sync now
-        refuse with `grant_withdrawn`. A new grant ends it. Only the grant a
-        link stored is ever deleted; the organisation's own credential, on the
-        connection, is never touched.
+        running pass stops starting new items within about fifteen seconds,
+        and finishes the ones it has begun (a very large file can take
+        longer), and Start and Sync now refuse with `grant_withdrawn`. A new
+        grant ends it. Only the grant a link stored is ever deleted; the
+        organisation's own credential, on the connection, is never touched.
 
-        A body-less POST. Link-authenticated like the grant route: the link is
-        the whole credential, and a credential (`grant`) link is refused here.
+        A body-less POST for a migration's link. Link-authenticated like the
+        grant route: the link is the whole credential, and a credential
+        (`grant`) link is refused here.
+
+        For a person's link it is per Google account (ADR-0035, amended
+        2026-09-29): the body names the account by the `ref` the page read.
+        Each token its migrations hold is revoked at Google, and every
+        migration of that account holding one is cleared, with a
+        `mapping.grant_withdrawn` row each. A `ref` that no longer matches what
+        is held (a grant given again, or taken back elsewhere) deletes nothing
+        and answers `changed`.
       security: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                account:
+                  type: string
+                  pattern: '^[0-9a-f]{32}$'
+                  description: For a person's link only, the account's `ref` as the page read it.
       responses:
         '200':
           description: Withdrawn here; `atGoogle` says whether Google confirmed it too.
@@ -3385,6 +3422,8 @@ paths:
                       `revoked` includes a token Google reports was already
                       invalid. `not_confirmed`: Google refused or could not be
                       reached; the person is told to remove the app themselves.
+        '400':
+          description: A person's link with no `account`, or not one a page could have read. Nothing was changed.
         '401':
           description: The link is not a live progress link. Nothing was changed.
         '409':
@@ -3393,7 +3432,8 @@ paths:
             link, or already withdrawn, with the day), the migration no longer
             exists (`not_found`), or a new grant landed while this one was being
             withdrawn (`changed`; nothing was deleted, press again). `reason` is
-            written for the person holding the link.
+            written for the person holding the link; for a person's link
+            `reasonNl` says it in Dutch.
         '500':
           description: Ours; nothing the person did.
 
@@ -3402,7 +3442,10 @@ paths:
       - name: link
         in: path
         required: true
-        description: The whole credential — `<id>.<secret>`, one path segment.
+        description: |
+          The whole credential, one path segment: a migration's `<id>.<secret>`,
+          or a person's `p.<id>.<secret>`, whose report names the person and
+          every migration of theirs (ADR-0035, amended 2026-09-29).
         schema: { type: string }
     get:
       tags: [Grant links]
@@ -4698,18 +4741,23 @@ paths:
       description: |
         One link for all of a person's migrations (ADR-0035, amended
         2026-09-29; workplan 0153 T5 (b)). Its page asks each Google account
-        the person's migrations read once, for everything those migrations
-        need, and the grant lands on each migration the page listed. It is
-        spent once every account on it is granted.
+        the person's migrations read that is not connected once, for
+        everything those migrations need, and the grant lands on each
+        migration the page listed. It is spent once every account on it is
+        granted.
+
+        When every account is connected already, the link asks each of them
+        again (`asksAgain`; managed migration 0036): a connection can stop
+        working while its token is still held. It is then spent once each
+        has been connected through it.
 
         As `POST /api/migrations/{mappingId}/links`: owner or admin, the URL
-        said once, sent by you and never by Ownpace, `expiryDays` of 1, 7 or
-        30 (default 7), within the organisation's live-link limit (a person's
-        link counts once), and waiting for the current texts while the
-        deployment asks. The token is `p.<id>.<secret>`.
-
-        A progress link for a person is not offered yet: its page comes with
-        the next slice, and a link no page honours opens nothing.
+        said once, sent by you and never by Ownpace, within the
+        organisation's live-link limit (a person's link counts once), and
+        waiting for the current texts while the deployment asks. The token is
+        `p.<id>.<secret>`. `expiryDays` is 1, 7 or 30 for a grant link
+        (default 7), and 30, 90 or 180 for a progress link (`purpose: view`,
+        default 90), which grants nothing and is not held to the limit.
       requestBody:
         required: false
         content:
@@ -4717,8 +4765,8 @@ paths:
             schema:
               type: object
               properties:
-                purpose: { type: string, enum: [grant] }
-                expiryDays: { type: integer, enum: [1, 7, 30], default: 7 }
+                purpose: { type: string, enum: [grant, view], default: grant }
+                expiryDays: { type: integer, enum: [1, 7, 30, 90, 180] }
       responses:
         '201':
           description: The link, said once.
@@ -4728,11 +4776,14 @@ paths:
                 type: object
                 properties:
                   id: { type: string, format: uuid }
-                  purpose: { type: string, enum: [grant] }
+                  purpose: { type: string, enum: [grant, view] }
                   url: { type: string }
                   expiresAt: { type: string, format: date-time }
                   expiryDays: { type: integer }
                   distribution: { type: string }
+                  asksAgain:
+                    type: boolean
+                    description: A grant link made while every account of the person's was connected, which asks each again.
         '400': { description: '`purpose` or `expiryDays` was not one of the offered values.' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -4745,7 +4796,7 @@ paths:
           description: |
             Nothing was written. `nothing_to_grant`: none of the person's
             migrations can be granted through a link (the reason lists each
-            migration's own), or every account they read is connected already.
+            migration's own).
             `web_url_unset`: the deployment cannot build the address.
             `grant_links_at_limit`: the organisation holds as many live grant
             links as it may. Or `conditions_not_accepted`
@@ -6886,6 +6937,12 @@ components:
             properties:
               account: { type: string, description: 'The address, and the only one whose sign-in is kept for it.' }
               granted: { type: boolean, description: 'Every one of its migrations has a way in already.' }
+              again:
+                type: boolean
+                description: |
+                  Granted, and asked for again all the same: the link was made
+                  while every account was connected, and this one has not been
+                  connected through it since.
               domains:
                 type: array
                 items: { type: string, enum: [email, calendar, contact, file, task] }
@@ -6914,6 +6971,71 @@ components:
                         account: { type: string, nullable: true }
                     granted: { type: boolean }
         expiresAt: { type: string, format: date-time }
+    PersonProgressPage:
+      type: object
+      description: |
+        What a PERSON'S progress link opens (ADR-0035, amended 2026-09-29;
+        workplan 0153 T5 (b), slice 3): every migration of theirs, with the
+        counts and states a migration's own page shows and nothing more. No
+        mapping id, no tenant id, no address: the Google account a migration
+        reads is named by an opaque `ref`, which a withdrawal sends back.
+      required: [kind, organisation, expiresAt, migrations, accounts]
+      properties:
+        kind: { type: string, enum: [person] }
+        organisation: { type: string }
+        expiresAt: { type: string, format: date-time }
+        migrations:
+          type: array
+          items:
+            type: object
+            required: [from, to, state, started, domains, account]
+            properties:
+              from: { type: string, description: "The source's kind, such as google or imap." }
+              to: { type: string, nullable: true, description: "The destination's kind; null when it has none." }
+              state:
+                type: string
+                enum: [paused, active, cutover, done, continuous]
+              started: { type: boolean, description: False when no pass has ever run — not the same as zero. }
+              domains:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    domain: { type: string }
+                    state: { type: string }
+                    itemsSynced: { type: integer }
+                    itemsFailed: { type: integer }
+                    bytesTransferred: { type: integer }
+                    itemsRetrying: { type: integer }
+                    itemsNeedingDecision: { type: integer }
+                    lastSyncedAt: { type: string, format: date-time }
+                    lastActiveAt: { type: string, format: date-time }
+                    lastErrorCategory: { type: string }
+                    failedSide: { type: string, enum: [source, target] }
+                    pausedReason: { type: object }
+              account: { type: string, nullable: true, description: "The ref of the Google account it reads; null when it reads none through a link." }
+        accounts:
+          type: array
+          items:
+            type: object
+            required: [ref, grant]
+            properties:
+              ref: { type: string, pattern: '^[0-9a-f]{32}$' }
+              grant:
+                oneOf:
+                  - type: object
+                    required: [state]
+                    properties:
+                      state: { type: string, enum: [granted] }
+                  - type: object
+                    required: [state, withdrawnAt]
+                    properties:
+                      state: { type: string, enum: [withdrawn] }
+                      withdrawnAt: { type: string, format: date-time }
+                  - type: object
+                    required: [state]
+                    properties:
+                      state: { type: string, enum: [none] }
     Refusal:
       type: object
       description: A refusal named by `error`, with the door's own sentence in `reason` or `message`.

@@ -126,3 +126,102 @@ export function phasesOfThePaths(
     return own?.stopped === true ? { ...phase, stopped: true } : phase;
   };
 }
+
+/**
+ * WHY A PASS STOPS, DECIDED HERE FOR BOTH EDITIONS (2026-09-29).
+ *
+ * The decision below lived in the managed worker (`stopping-a-pass.ts`) for as
+ * long as only the managed pass asked it, and only between data types. A pause
+ * pressed during a data type's pass then waited for that pass's own deadline,
+ * up to fifty minutes, so the pass now asks the same question from inside
+ * (`PassClock.whyItStops`), and the appliance asks it too. The appliance
+ * cannot import the worker, and a second reading of the lifecycle written out
+ * for it is exactly what `stopping-a-pass.ts` refuses: so the pure half moved
+ * here, and the worker re-exports it unchanged. Reading the rows stays with
+ * each edition's own reader.
+ */
+
+/**
+ * One migration as the decision needs it: the three facts `readPathPhases`
+ * (ledger) reads, typed by shape so this package stays free of the ledger.
+ * Null when the migration no longer exists. Its `MigrationPhases` is one.
+ */
+export type PassPhases = {
+  /** Whether any of its data types runs passes now (`MigrationPhases.anyRuns`). */
+  readonly anyRuns: boolean;
+  /** When the person who granted access took it back (0108 T8 (c)), or null. */
+  readonly grantWithdrawnAt: Date | null;
+  /** Each data type's phase. */
+  readonly phaseOf: PathPhaseOf;
+} | null;
+
+/**
+ * Why a pass stops before its next data type: the migration no longer runs
+ * (paused, finished or gone), the person who granted it access took the grant
+ * back (workplan 0108 T8 (c), ledger migration 0063), or the organisation was
+ * closed (workplan 0085 T2; the owner's report of 2026-09-28).
+ */
+export type PassHalt = 'no_longer_runs' | 'grant_withdrawn' | 'organisation_closed';
+
+/** Why a pass moved past one data type while the migration still ran. */
+export type PassSkip = 'data_type_no_longer_runs' | 'stopped_by_its_owner';
+
+/**
+ * What a pass does before one data type (workplan 0128 T5): stop, when the
+ * migration itself no longer runs, its grant was withdrawn, or its organisation
+ * was closed (0085 T2); move on past this data type, when the migration still
+ * runs and this data type does not (its own cutover past its grace period,
+ * ended, or stopped by its owner, 0128 T4), so the next one still gets its
+ * turn; and otherwise run it.
+ */
+export type PassStep =
+  | { readonly run: true }
+  | { readonly skip: PassSkip }
+  | { readonly halt: PassHalt };
+
+/**
+ * Why a pass ALREADY COPYING one data type must stop taking new work: any
+ * answer `PassStep` can give but "run". Inside a data type the two kinds end
+ * the same way, and the loop does not need to tell them apart; its caller
+ * does, and reads which one it was from the reason itself.
+ */
+export type PassStopReason = PassHalt | PassSkip;
+
+/**
+ * The migration's answer, from its phases: gone, or no longer running (paused,
+ * finished, or a cutover past its grace period, 0128 T2), or its grant taken
+ * back. Null when the pass may go on.
+ */
+export function haltFrom(phases: PassPhases): PassHalt | null {
+  if (phases === null) return 'no_longer_runs';
+  // No data type of it runs any more (0128 T5, slice 2b): the migration's own
+  // answer, or a path kept in the lane while another is past its cutover.
+  if (!phases.anyRuns) return 'no_longer_runs';
+  return phases.grantWithdrawnAt ? 'grant_withdrawn' : null;
+}
+
+/**
+ * The decision before one data type, from the phases already read.
+ *
+ * A data type's phase is its own path row's (slice 2b), its stop its owner's
+ * (0128 T4), and its grace window its own cutover ledger's, or the whole
+ * migration's where it has none (slice 4). So once mail is cut over on its own
+ * (slice 5), a pass moves on past it when its window closes, and the files
+ * after it keep their turn.
+ */
+export function stepFrom(phases: PassPhases, domain: string): PassStep {
+  const halt = haltFrom(phases);
+  if (halt) return { halt };
+  const path = phases!.phaseOf(domain);
+  // Its owner stopped it (0128 T4): said as such, not as an ending.
+  if (path.stopped === true) return { skip: 'stopped_by_its_owner' };
+  if (!pathRunsNow(path)) return { skip: 'data_type_no_longer_runs' };
+  return { run: true };
+}
+
+/** A step, as the one answer a pass inside a data type needs: why it stops, or null to go on. */
+export function stopReasonOf(step: PassStep): PassStopReason | null {
+  if ('halt' in step) return step.halt;
+  if ('skip' in step) return step.skip;
+  return null;
+}

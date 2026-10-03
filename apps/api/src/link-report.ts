@@ -92,17 +92,11 @@ export function parseLinkReport(body: unknown): LinkReport | ReportRefusal {
   return { description, replyTo: replyTo.data };
 }
 
-/** What the rows say about the reported link, for the owner to act on. */
-export interface LinkReportFacts {
-  readonly link: ReportedLink;
-  readonly linkId: string;
-  readonly tenantId: string;
-  readonly organisation: string;
+/** One migration as a report names it: from the rows, never from the body. */
+export interface ReportedMigration {
   readonly mappingId: string;
   /** The migration's lifecycle state, as its row holds it. */
   readonly state: string;
-  /** The member who issued the link, when they still are one. */
-  readonly issuedBy: string | null;
   /** The account the migration reads, when it names one. */
   readonly from: string | null;
   /** The destination, when it has one. */
@@ -110,10 +104,43 @@ export interface LinkReportFacts {
   readonly access: ViewGrant['state'];
 }
 
+/** What every reported link says about itself. */
+interface ReportedLinkFacts {
+  readonly link: ReportedLink;
+  readonly linkId: string;
+  readonly tenantId: string;
+  readonly organisation: string;
+  /** The member who issued the link, when they still are one. */
+  readonly issuedBy: string | null;
+}
+
+/** What the rows say about a migration's reported link, for the owner to act on. */
+export interface MigrationLinkFacts extends ReportedLinkFacts, ReportedMigration {}
+
+/**
+ * What the rows say about a PERSON'S reported link (ADR-0035, amended
+ * 2026-09-29; 0153 T5 (b)): the person, and every migration of theirs, each
+ * as a migration's report names it.
+ */
+export interface PersonLinkFacts extends ReportedLinkFacts {
+  readonly personId: string;
+  readonly migrations: readonly ReportedMigration[];
+}
+
+/** A migration's link, or a person's. */
+export type LinkReportFacts = MigrationLinkFacts | PersonLinkFacts;
+
+const isPersonFacts = (facts: LinkReportFacts): facts is PersonLinkFacts => 'personId' in facts;
+
 const LINK_NAME: Readonly<Record<ReportedLink, string>> = {
   grant: 'grant link',
   view: 'progress link',
 };
+
+/** `grant link`, or `person's grant link` when the link is a person's. */
+function linkName(facts: LinkReportFacts): string {
+  return isPersonFacts(facts) ? `person's ${LINK_NAME[facts.link]}` : LINK_NAME[facts.link];
+}
 
 const ACCESS: Readonly<Record<ViewGrant['state'], string>> = {
   granted: 'given: the migration can read the account',
@@ -122,7 +149,7 @@ const ACCESS: Readonly<Record<ViewGrant['state'], string>> = {
 };
 
 /** `nextcloud at cloud.example.org, as dest@example.org`, or as much of it as is known. */
-function destination(to: NonNullable<LinkReportFacts['to']>): string {
+function destination(to: NonNullable<ReportedMigration['to']>): string {
   const provider = oneLine(to.provider);
   const where = to.host ? `${provider} at ${oneLine(to.host)}` : provider;
   return to.account ? `${where}, as ${oneLine(to.account)}` : where;
@@ -130,19 +157,36 @@ function destination(to: NonNullable<LinkReportFacts['to']>): string {
 
 /** The title a link report goes by: fixed, since it is shown wherever the report is listed. */
 function linkReportTitle(facts: LinkReportFacts): string {
-  return `Ownpace: a ${LINK_NAME[facts.link]} was reported`;
+  return `Ownpace: a ${linkName(facts)} was reported`;
+}
+
+/** One migration of a person's, on one line, as each of a migration's facts is. */
+function migrationLine(m: ReportedMigration): string {
+  return (
+    `Migration: ${m.mappingId} (${m.state}); from ${m.from ? oneLine(m.from) : 'no account named'}; ` +
+    `to ${m.to ? destination(m.to) : 'no destination'}; access ${ACCESS[m.access]}`
+  );
 }
 
 /** The facts, one line each, from the rows; the ticket's note and the mail both start with them. */
 function factLines(report: LinkReport, facts: LinkReportFacts): string[] {
+  const about = isPersonFacts(facts)
+    ? [
+        `Person: ${facts.personId}, with ${facts.migrations.length} migration${facts.migrations.length === 1 ? '' : 's'}`,
+        ...(facts.issuedBy ? [`Issued by: ${oneLine(facts.issuedBy)}`] : []),
+        ...facts.migrations.map(migrationLine),
+      ]
+    : [
+        `Migration: ${facts.mappingId} (${facts.state})`,
+        ...(facts.issuedBy ? [`Issued by: ${oneLine(facts.issuedBy)}`] : []),
+        `From: ${facts.from ? oneLine(facts.from) : 'no account named'}`,
+        `To: ${facts.to ? destination(facts.to) : 'no destination'}`,
+        `Access: ${ACCESS[facts.access]}`,
+      ];
   return [
-    `Link: ${facts.linkId} (${LINK_NAME[facts.link]})`,
+    `Link: ${facts.linkId} (${linkName(facts)})`,
     `Organisation: ${oneLine(facts.organisation)} (${facts.tenantId})`,
-    `Migration: ${facts.mappingId} (${facts.state})`,
-    ...(facts.issuedBy ? [`Issued by: ${oneLine(facts.issuedBy)}`] : []),
-    `From: ${facts.from ? oneLine(facts.from) : 'no account named'}`,
-    `To: ${facts.to ? destination(facts.to) : 'no destination'}`,
-    `Access: ${ACCESS[facts.access]}`,
+    ...about,
     report.replyTo === undefined
       ? 'Reply to: none. The reporter left no address, so nobody can be answered'
       : `Reply to: ${report.replyTo} (typed by the reporter, not verified)`,

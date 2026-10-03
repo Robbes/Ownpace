@@ -954,7 +954,7 @@ const en = {
   'mappings.action.pause': 'Pause',
   'hub.connections': 'From {source} to {target}',
   'mappings.action.pause.why':
-    'No new passes are started. A pass already running finishes the data type it is on and then stops. Nothing is lost: Review and start continues from where it stopped.',
+    'No new passes are started. A pass already running stops starting new items within about fifteen seconds, and finishes the ones it has begun; a very large file can take longer. Nothing is lost: Review and start continues from where it stopped.',
   'mappings.action.startSync': 'Start sync',
   // 0037 T2: a paused mapping's row leads to the confirm screen — the Play
   // button it used to render could only earn a 409.
@@ -1121,6 +1121,12 @@ const en = {
   'personLink.blurb':
     'One link for all of this person’s Google accounts: they sign in to each once, and every migration that reads it is connected.',
   'personLink.empty': 'No link yet for this person.',
+  'personLink.asksAgain':
+    'Every Google account of theirs is connected, so this link asks them to connect each one again. Send it when a connection has stopped working.',
+  'personLink.view.title': 'One progress link for everything',
+  'personLink.view.blurb':
+    'One page where this person follows all of their migrations, with no account, and can take back the access they gave.',
+  'personLink.view.empty': 'No progress link yet for this person.',
   'grantLink.loadError': 'Could not read the links for this migration.',
   'grantLink.issuedBy': 'Issued {date} by {who}',
   'grantLink.issuedByGrant': 'Created {date}, when they gave access',
@@ -1194,6 +1200,9 @@ const en = {
   'grant.person.where': '{account}, {place}',
   'grant.person.connect': 'Continue with Google as {account}',
   'grant.person.connected': 'Connected. Nothing more is needed for this account.',
+  'grant.person.again':
+    'This account was connected before. Whoever sent this link asks you to connect it again, for instance because the connection stopped working.',
+  'grant.person.connectAgain': 'Connect again with Google as {account}',
   'grant.connecting': 'Opening Google…',
   'grant.disclosure': 'By continuing you accept how your data is handled:',
   'grant.privacy': 'Privacy policy',
@@ -1284,6 +1293,17 @@ const en = {
   'view.withdrawn.removeYourself': 'To be sure, remove the app yourself from the apps with access:',
   'view.withdrawn.since': 'Nothing more is read from your account. To continue later, ask for a new link.',
   'view.withdrawn.check': 'Your Google account lists the apps that still have access:',
+  // A PERSON'S progress page (ADR-0035, amended 2026-09-29; 0153 T5 (b), slice 3).
+  'view.person.title': 'Your migrations',
+  'view.person.who': '{organisation} is moving your accounts to new providers. Here is where each migration stands.',
+  'view.person.none': 'There are no migrations here yet.',
+  'view.person.account.only': 'Your Google account',
+  'view.person.account': 'Google account {n}',
+  'view.person.others': 'Your other migrations',
+  'view.person.route': '{from} to {to}',
+  'view.person.grant.body': '{organisation} reads this Google account for the migrations above because you allowed it.',
+  'view.person.withdrawn.notConfirmed':
+    'Deleted here, so these migrations cannot use it. Google did not confirm withdrawing it.',
   // Report this link (workplan 0108 T8 (d)): on the grant and progress pages,
   // to the owner's helpdesk, never to the organisation that asked.
   'linkReport.open': 'Report this link',
@@ -3700,7 +3720,7 @@ const nl: Record<keyof typeof en, string> = {
   'mappings.action.pause': 'Pauzeren',
   'hub.connections': 'Van {source} naar {target}',
   'mappings.action.pause.why':
-    'Er worden geen nieuwe rondes gestart. Een ronde die al loopt maakt het huidige gegevenstype af en stopt dan. Er gaat niets verloren: Controleren en starten gaat verder waar het gebleven was.',
+    'Er worden geen nieuwe rondes gestart. Een ronde die al loopt, begint binnen ongeveer vijftien seconden niets nieuws meer en maakt af waar ze al aan begonnen was; een heel groot bestand kan langer duren. Er gaat niets verloren: Controleren en starten gaat verder waar het gebleven was.',
   'mappings.action.startSync': 'Start synchronisatie',
   'mappings.action.reviewAndStart': 'Controleren en starten',
   'mappings.action.open': 'Openen',
@@ -3844,6 +3864,12 @@ const nl: Record<keyof typeof en, string> = {
   'personLink.blurb':
     'Eén link voor alle Google-accounts van deze persoon: bij elk account één keer aanmelden, en elke migratie die het leest is verbonden.',
   'personLink.empty': 'Nog geen link voor deze persoon.',
+  'personLink.asksAgain':
+    'Elk Google-account van deze persoon is verbonden, dus deze link vraagt om elk account opnieuw te verbinden. Stuur hem als een verbinding niet meer werkt.',
+  'personLink.view.title': 'Eén voortgangslink voor alles',
+  'personLink.view.blurb':
+    'Eén pagina waarop deze persoon alle eigen migraties volgt, zonder account, en gegeven toegang kan intrekken.',
+  'personLink.view.empty': 'Nog geen voortgangslink voor deze persoon.',
   'grantLink.loadError': 'Kon de links van deze migratie niet lezen.',
   'grantLink.issuedBy': 'Gemaakt op {date} door {who}',
   'grantLink.issuedByGrant': 'Gemaakt op {date}, toen zij toegang gaven',
@@ -3896,6 +3922,9 @@ const nl: Record<keyof typeof en, string> = {
   'grant.person.where': '{account}, {place}',
   'grant.person.connect': 'Doorgaan met Google als {account}',
   'grant.person.connected': 'Verbonden. Voor dit account is niets meer nodig.',
+  'grant.person.again':
+    'Dit account was al verbonden. Wie u deze link stuurde, vraagt u het opnieuw te verbinden, bijvoorbeeld omdat de verbinding niet meer werkt.',
+  'grant.person.connectAgain': 'Opnieuw verbinden met Google als {account}',
   'grant.connecting': 'Google wordt geopend…',
   'grant.disclosure': 'Door door te gaan gaat u akkoord met hoe uw gegevens worden behandeld:',
   'grant.privacy': 'Privacybeleid',
@@ -3964,6 +3993,17 @@ const nl: Record<keyof typeof en, string> = {
   'view.withdrawn.removeYourself': 'Verwijder voor de zekerheid zelf de app bij de apps met toegang:',
   'view.withdrawn.since': 'Er wordt niets meer uit uw account gelezen. Later verder? Vraag om een nieuwe link.',
   'view.withdrawn.check': 'Uw Google-account toont welke apps nog toegang hebben:',
+  // De voortgangspagina van een PERSOON (ADR-0035, gewijzigd 2026-09-29; 0153 T5 (b), deel 3).
+  'view.person.title': 'Uw migraties',
+  'view.person.who': '{organisation} migreert uw accounts naar nieuwe providers. Hier ziet u hoe elke migratie ervoor staat.',
+  'view.person.none': 'Er zijn hier nog geen migraties.',
+  'view.person.account.only': 'Uw Google-account',
+  'view.person.account': 'Google-account {n}',
+  'view.person.others': 'Uw andere migraties',
+  'view.person.route': '{from} naar {to}',
+  'view.person.grant.body': '{organisation} leest dit Google-account voor de migraties hierboven, omdat u dat toestond.',
+  'view.person.withdrawn.notConfirmed':
+    'Hier verwijderd, dus deze migraties kunnen die niet gebruiken. Google bevestigde het intrekken niet.',
   'linkReport.open': 'Deze link melden',
   'linkReport.intro': 'Uw melding gaat naar het team van Ownpace, niet naar {organisation}.',
   'linkReport.description': 'Waarom twijfelt u aan deze link?',

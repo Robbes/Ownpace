@@ -18,15 +18,20 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { AxiosError, AxiosHeaders } from 'axios';
 import { LocaleProvider } from '../i18n/index.tsx';
 
-const { readMock, authorizeMock, serverMessageMock, assignMock } = vi.hoisted(() => ({
+const { readMock, authorizeMock, serverMessageMock, assignMock, reportAvailableMock } = vi.hoisted(() => ({
   readMock: vi.fn(),
   authorizeMock: vi.fn(),
   serverMessageMock: vi.fn(() => 'a server sentence'),
   assignMock: vi.fn(),
+  reportAvailableMock: vi.fn(async () => false),
 }));
 
 vi.mock('../services/grant-service.ts', () => ({
   grantApi: { read: readMock, authorize: authorizeMock },
+}));
+// Whether *Report this link* can reach anybody; no helpdesk unless a case says so.
+vi.mock('../services/link-report-service.ts', () => ({
+  linkReportApi: { available: reportAvailableMock, send: vi.fn() },
 }));
 vi.mock('../services/api.ts', () => ({ default: {}, serverMessage: serverMessageMock }));
 
@@ -326,6 +331,13 @@ describe("a person's link", () => {
     readMock.mockResolvedValue(PERSON);
   });
 
+  it('offers Report this link, for the person’s own link (0108 T8 (d))', async () => {
+    reportAvailableMock.mockResolvedValue(true);
+    renderPage();
+    expect(await screen.findByRole('button', { name: 'Report this link' })).toBeInTheDocument();
+    expect(reportAvailableMock).toHaveBeenCalledWith('grant', 'abc.def');
+  });
+
   it('draws a card per account, saying where each of its migrations goes and what it copies', async () => {
     renderPage();
     expect(await screen.findByRole('heading', { level: 2, name: 'anna@gmail.com' })).toBeInTheDocument();
@@ -343,6 +355,19 @@ describe("a person's link", () => {
     expect(screen.getByText('Two applications, one sign-in.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /as anna@old\.example/ })).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Continue with Google as/ })).toHaveLength(1);
+  });
+
+  it('offers a connected account again when the link asks for it, and says why (managed migration 0036)', async () => {
+    const [connected, ...rest] = PERSON.accounts;
+    readMock.mockResolvedValue({ ...PERSON, accounts: [{ ...connected, again: true }, ...rest] });
+    authorizeMock.mockResolvedValue({ url: 'https://accounts.google.com/o/oauth2/v2/auth?z=3' });
+    renderPage();
+    expect(
+      await screen.findByText(/^This account was connected before\. Whoever sent this link asks you to connect it again/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Connected. Nothing more is needed for this account.')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Connect again with Google as anna@gmail.com' }));
+    await waitFor(() => expect(authorizeMock).toHaveBeenCalledWith('abc.def', 'en', 'anna@gmail.com'));
   });
 
   it('asks for the account whose button was pressed, and follows the URL the server built', async () => {

@@ -20,20 +20,30 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { AxiosError, AxiosHeaders } from 'axios';
 
-const { readMock, withdrawMock, serverMessageMock } = vi.hoisted(() => ({
+const { readMock, withdrawMock, withdrawAccountMock, serverMessageMock, reportAvailableMock } = vi.hoisted(() => ({
   readMock: vi.fn(),
   withdrawMock: vi.fn(),
+  withdrawAccountMock: vi.fn(),
   serverMessageMock: vi.fn(() => 'a server sentence'),
+  reportAvailableMock: vi.fn(async () => false),
+}));
+
+// Whether *Report this link* can reach anybody; no helpdesk unless a case says so.
+vi.mock('../services/link-report-service.ts', () => ({
+  linkReportApi: { available: reportAvailableMock, send: vi.fn() },
 }));
 
 vi.mock('../services/view-service.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../services/view-service.ts')>();
-  return { ...actual, viewApi: { read: readMock, withdraw: withdrawMock } };
+  return {
+    ...actual,
+    viewApi: { read: readMock, withdraw: withdrawMock, withdrawAccount: withdrawAccountMock },
+  };
 });
 vi.mock('../services/api.ts', () => ({ default: {}, serverMessage: serverMessageMock }));
 
@@ -295,5 +305,118 @@ describe('the access they gave, and taking it back (0108 T8 (c))', () => {
     expect(await screen.findByText('Your things are being copied across now.')).toBeInTheDocument();
     expect(screen.queryByText('The access you gave')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Withdraw access' })).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * A PERSON'S PAGE (ADR-0035, amended 2026-09-29; 0153 T5 (b), slice 3): every
+ * migration of theirs under the Google account it reads, and the access they
+ * gave taken back per account, never named by its address.
+ */
+describe('a person’s progress page', () => {
+  const ACCOUNT = 'a'.repeat(32);
+  const WORK = 'b'.repeat(32);
+  const personPayload = (over: Record<string, unknown> = {}) => ({
+    kind: 'person' as const,
+    organisation: 'Example family',
+    expiresAt: IN_A_MONTH,
+    migrations: [
+      {
+        from: 'google',
+        to: 'nextcloud',
+        state: 'active' as const,
+        started: true,
+        domains: [row({ domain: 'calendar', itemsSynced: 12 })],
+        account: ACCOUNT,
+      },
+      { from: 'google', to: 'soverin', state: 'paused' as const, started: false, domains: [], account: ACCOUNT },
+      { from: 'imap', to: 'soverin', state: 'active' as const, started: true, domains: [row()], account: null },
+    ],
+    accounts: [{ ref: ACCOUNT, grant: { state: 'granted' as const } }],
+    ...over,
+  });
+
+  it('draws each migration under the account it reads, and the others after', async () => {
+    readMock.mockResolvedValue(personPayload());
+    renderPage();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Your migrations' })).toBeInTheDocument();
+    expect(screen.getByText(/Example family is moving your accounts to new providers/)).toBeInTheDocument();
+
+    const account = screen.getByRole('region', { name: 'Your Google account' });
+    expect(within(account).getByRole('heading', { name: 'Google to Nextcloud' })).toBeInTheDocument();
+    expect(within(account).getByText('12 copied')).toBeInTheDocument();
+    expect(within(account).getByText('Your things are being copied across now.')).toBeInTheDocument();
+    expect(within(account).getByRole('heading', { name: 'Google to Soverin' })).toBeInTheDocument();
+    expect(within(account).getByText('Nothing has been copied yet.')).toBeInTheDocument();
+    expect(within(account).getByText(/reads this Google account for the migrations above/)).toBeInTheDocument();
+
+    const others = screen.getByRole('region', { name: 'Your other migrations' });
+    expect(within(others).getByText('4211 copied')).toBeInTheDocument();
+    expect(within(others).queryByRole('button', { name: 'Withdraw access' })).not.toBeInTheDocument();
+  });
+
+  it('offers Report this link, for the person’s own progress link (0108 T8 (d))', async () => {
+    readMock.mockResolvedValue(personPayload());
+    reportAvailableMock.mockResolvedValue(true);
+    renderPage();
+    expect(await screen.findByRole('button', { name: 'Report this link' })).toBeInTheDocument();
+    expect(reportAvailableMock).toHaveBeenCalledWith('view', 'abc.def');
+  });
+
+  it('numbers the accounts when there are two, and names neither by its address', async () => {
+    const payload = personPayload({
+      accounts: [
+        { ref: ACCOUNT, grant: { state: 'granted' } },
+        { ref: WORK, grant: { state: 'none' } },
+      ],
+    });
+    payload.migrations[1] = { ...payload.migrations[1]!, account: WORK };
+    readMock.mockResolvedValue(payload);
+    renderPage();
+    expect(await screen.findByRole('region', { name: 'Google account 1' })).toBeInTheDocument();
+    const work = screen.getByRole('region', { name: 'Google account 2' });
+    expect(within(work).getByRole('heading', { name: 'Google to Soverin' })).toBeInTheDocument();
+    expect(within(work).queryByRole('button', { name: 'Withdraw access' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Withdraw access' })).toHaveLength(1);
+  });
+
+  it('takes one account’s access back by its ref, and says what Google answered', async () => {
+    readMock.mockResolvedValue(personPayload());
+    withdrawAccountMock.mockResolvedValue({ withdrawnAt: YESTERDAY, atGoogle: 'not_confirmed' });
+    renderPage();
+    const account = await screen.findByRole('region', { name: 'Your Google account' });
+    fireEvent.click(within(account).getByRole('button', { name: 'Withdraw access' }));
+    fireEvent.click(within(account).getByRole('button', { name: 'Yes, withdraw it' }));
+    expect(await within(account).findByText(/so these migrations cannot use it/)).toBeInTheDocument();
+    expect(withdrawAccountMock).toHaveBeenCalledWith('abc.def', ACCOUNT);
+    expect(withdrawMock).not.toHaveBeenCalled();
+  });
+
+  it('says on each of an account’s migrations that copying stopped, once its access is withdrawn', async () => {
+    readMock.mockResolvedValue(
+      personPayload({ accounts: [{ ref: ACCOUNT, grant: { state: 'withdrawn', withdrawnAt: YESTERDAY } }] }),
+    );
+    renderPage();
+    const account = await screen.findByRole('region', { name: 'Your Google account' });
+    expect(within(account).getAllByText(/Copying has stopped: on .* you withdrew the access you gave\./)).toHaveLength(2);
+    expect(within(account).queryByRole('button', { name: 'Withdraw access' })).not.toBeInTheDocument();
+  });
+
+  it('shows a refused withdrawal in the page’s language, from the server’s two halves', async () => {
+    readMock.mockResolvedValue(personPayload());
+    const refused = new AxiosError('Request failed with status code 409');
+    refused.response = {
+      status: 409,
+      statusText: '',
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+      data: { error: 'changed', reason: 'It changed since this page was opened.', reasonNl: 'Het is gewijzigd.' },
+    };
+    withdrawAccountMock.mockRejectedValue(refused);
+    renderPage();
+    const account = await screen.findByRole('region', { name: 'Your Google account' });
+    fireEvent.click(within(account).getByRole('button', { name: 'Withdraw access' }));
+    fireEvent.click(within(account).getByRole('button', { name: 'Yes, withdraw it' }));
+    expect(await within(account).findByText('It changed since this page was opened.')).toBeInTheDocument();
   });
 });

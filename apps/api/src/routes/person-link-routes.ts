@@ -17,9 +17,17 @@
  * migration's own reason, so a link that works at issue is one the grant page
  * can serve (`person-grant-subject.ts` is both halves' reading).
  *
- * **Only grant links, for now.** `link-routes.ts`'s rule is that a purpose no
- * page honours is a link that opens nothing, and the person's progress page is
- * slice 3's. The body's `purpose` is refused as anything but `grant` until then.
+ * **When every account of theirs is connected**, a grant link asks each of
+ * them again (`asksAgain`, managed migration 0036) instead of being refused: a
+ * connection can stop working while its token is still held, and the person's
+ * link is to be the only one made (the owner, 2026-10-03: *"yes, replace the
+ * per-migration links"*), so it is the one that has to be able to ask.
+ *
+ * **A progress link too** (slice 3), now that the person's progress page
+ * exists (`person-progress.ts`): `link-routes.ts`'s rule was that a purpose no
+ * page honours is a link that opens nothing. As for a migration's, a progress
+ * link grants nothing, so the texts are not asked and the limit does not count
+ * it; only the deployment's address is.
  */
 
 import { Router } from 'express';
@@ -27,7 +35,9 @@ import type { Response } from 'express';
 import { z } from 'zod';
 import {
   MAPPING_LINK_LIFETIMES,
+  MAPPING_LINK_PURPOSES,
   expiryFromDays,
+  type MappingLinkPurpose,
 } from '@openmig/ledger';
 import { listPersonLinks, readPerson, revokePersonLink } from '@openmig/managed';
 import { PERSON_NOT_FOUND } from '@openmig/shared';
@@ -54,16 +64,19 @@ const MAY_ISSUE = ['owner', 'admin'] as const;
 /** An id's shape, checked before it reaches a uuid column (`people.ts`'s). */
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const GRANT_DAYS = MAPPING_LINK_LIFETIMES.grant.days;
-
-const IssueSchema = z.object({
-  purpose: z.literal('grant').optional(),
-  expiryDays: z
-    .number()
-    .int()
-    .refine((d) => (GRANT_DAYS as readonly number[]).includes(d), 'not an offered expiry')
-    .optional(),
-});
+/** Both purposes, and the expiry checked against the purpose, as `link-routes.ts` does. */
+const IssueSchema = z
+  .object({
+    purpose: z.enum(MAPPING_LINK_PURPOSES).optional(),
+    expiryDays: z.number().int().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.expiryDays === undefined) return;
+    const allowed: readonly number[] = MAPPING_LINK_LIFETIMES[value.purpose ?? 'grant'].days;
+    if (!allowed.includes(value.expiryDays)) {
+      ctx.addIssue({ code: 'custom', path: ['expiryDays'], message: 'not an offered expiry' });
+    }
+  });
 
 /** The browser-facing address, or null when this deployment cannot say. */
 function webUrl(): string | null {
@@ -118,7 +131,10 @@ async function whyNothingToGrant(tenantId: string, name: string, migrations: rea
   });
   return (
     `None of ${name}'s migrations can be granted through a link. ` +
-    (reasons.length > 0 ? reasons.join(' ') : 'Each names a Google account that is connected already.')
+    (reasons.length > 0
+      ? reasons.join(' ')
+      : 'Each Google account of theirs is read through two different Google applications, so one sign-in ' +
+        'cannot serve its migrations. Set them up with the same one.')
   );
 }
 
@@ -132,38 +148,44 @@ router.post(
       if (!s) return;
       const parsed = IssueSchema.safeParse(req.body ?? {});
       if (!parsed.success) {
+        const offered = MAPPING_LINK_PURPOSES.map((p) => `${p}: ${MAPPING_LINK_LIFETIMES[p].days.join(', ')}`).join('; ');
         return void res.status(400).json({
           error: 'invalid_body',
-          reason:
-            `Send { purpose: 'grant', expiryDays }. The expiries offered, in days, are ${GRANT_DAYS.join(', ')}. ` +
-            "A person's progress link is not offered yet.",
+          reason: `Send { purpose, expiryDays }. The expiries offered, in days, are — ${offered}.`,
         });
       }
-      if (await refusedUntilAccepted(res, s.tenantId, req.userId, pool())) return;
+      const purpose: MappingLinkPurpose = parsed.data.purpose ?? 'grant';
+      // A progress link grants nothing, and is not asked about (0139 T3).
+      if (purpose === 'grant' && (await refusedUntilAccepted(res, s.tenantId, req.userId, pool()))) return;
 
       const base = webUrl();
       const noAddress = viewLinkRefusal({ hasWebUrl: base !== null });
       if (noAddress) return void res.status(409).json({ error: noAddress.code, reason: noAddress.reason });
 
-      const subject = await withTenantDb(s.tenantId, pool(), (db) =>
-        readPersonGrantSubject(db, s.tenantId, s.personId),
-      );
-      if (!subject || subject.accounts.every((a) => a.granted || !a.ask.ok)) {
-        const reason =
-          subject && subject.accounts.some((a) => a.granted)
-            ? `Every Google account ${s.name}'s migrations read is connected already, so a link would ask for nothing.`
-            : await whyNothingToGrant(s.tenantId, s.name, s.migrations);
-        return void res.status(409).json({ error: 'nothing_to_grant', reason });
+      // A grant link asks for each account of theirs that is not connected,
+      // or, when every one is, for each again (the header says why).
+      let asksAgain: string[] | null = null;
+      if (purpose === 'grant') {
+        const subject = await withTenantDb(s.tenantId, pool(), (db) =>
+          readPersonGrantSubject(db, s.tenantId, s.personId),
+        );
+        const askable = subject?.accounts.filter((a) => a.ask.ok) ?? [];
+        if (askable.length === 0) {
+          const reason = await whyNothingToGrant(s.tenantId, s.name, s.migrations);
+          return void res.status(409).json({ error: 'nothing_to_grant', reason });
+        }
+        if (askable.every((a) => a.granted)) asksAgain = askable.flatMap((a) => a.migrations.map((m) => m.mappingId));
       }
 
-      const days = parsed.data.expiryDays ?? MAPPING_LINK_LIFETIMES.grant.fallback;
+      const days = parsed.data.expiryDays ?? MAPPING_LINK_LIFETIMES[purpose].fallback;
       const outcome = await withTenantDb(s.tenantId, pool(), (db) =>
         issuePersonLinkWithinTheLimit(db, {
           tenantId: s.tenantId,
           personId: s.personId,
-          purpose: 'grant',
+          purpose,
           createdBy: req.userId ?? 'unknown',
           expiresAt: expiryFromDays(days),
+          asksAgain,
         }),
       );
       if (outcome.kind === 'at_the_limit') {
@@ -177,16 +199,20 @@ router.post(
       const { issued } = outcome;
       res.status(201).json({
         id: issued.id,
-        purpose: 'grant',
-        url: `${base}/grant/${issued.token}`,
+        purpose,
+        // The path is the purpose's own word, as for a migration's link.
+        url: `${base}/${purpose}/${issued.token}`,
         expiresAt: issued.expiresAt.toISOString(),
         expiryDays: days,
+        // Said, so the owner's screen can tell them why a link was made for
+        // somebody whose accounts all read as connected.
+        asksAgain: asksAgain !== null,
         distribution:
           'Send this to the person yourself — Ownpace does not email it, and cannot show it ' +
           'to you again. If it goes astray, revoke it and issue another.',
       });
     } catch (error) {
-      serverFault(res, 'person_link_issue_failed', "issuing this person's grant link", error);
+      serverFault(res, 'person_link_issue_failed', "issuing this person's link", error);
     }
   },
 );

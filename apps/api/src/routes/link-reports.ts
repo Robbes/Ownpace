@@ -13,6 +13,10 @@
  * page cannot report either: nothing more can happen through it, and a person
  * who granted keeps the progress link to report from.
  *
+ * A person's link reports through the same doors (ADR-0035, amended
+ * 2026-09-29; 0153 T5 (b)). Its ticket names the person and every migration of
+ * theirs, each as a migration's report names it.
+ *
  * ## Nobody is signed in, so the limits are the link's and the service's
  *
  * The signed-in form limits each person. Here there is no person to count,
@@ -42,10 +46,11 @@ import type { RequestHandler, Response } from 'express';
 import type { Pool } from 'pg';
 import { and, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
-import type { LedgerDriver } from '@openmig/ledger';
+import type { LedgerDriver, PgDatabase } from '@openmig/ledger';
 import { log, newAppEvent, newReference, recordAppEvent, viewGrantFor } from '@openmig/shared';
-import { authenticateMappingLink, getDbPool, withTenantDb } from '../middleware/auth.ts';
-import type { MappingLinkRequest } from '../types/api.ts';
+import { personMigration } from '@openmig/managed/schema-managed';
+import { authenticateGrantLink, getDbPool, withTenantDb } from '../middleware/auth.ts';
+import type { PersonLinkRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
 import { createKnockLimiter, type KnockLimiter } from '../knock-limit.ts';
 import { isRefusal } from '../problem-report.ts';
@@ -54,7 +59,10 @@ import {
   linkReportTicketFor,
   parseLinkReport,
   type LinkReportFacts,
+  type MigrationLinkFacts,
+  type PersonLinkFacts,
   type ReportedLink,
+  type ReportedMigration,
 } from '../link-report.ts';
 import { createZammadTicket, ZammadRefused, zammadOwnUserId } from '../services/zammad.ts';
 import {
@@ -64,6 +72,7 @@ import {
   type ReportMailTransport,
 } from '../services/report-channel.ts';
 import { namedAccount, readAskedBy, readGrantRows, whereFromAndTo } from './migrations/grant-subject.ts';
+import { readPersonLinkAskedBy } from './migrations/person-grant-subject.ts';
 
 /** Three reports a day, per link. */
 export const LINK_REPORT_PER_LINK = { windowMs: 24 * 60 * 60 * 1000, max: 3 } as const;
@@ -90,12 +99,35 @@ export interface LinkReportDeps {
   readonly source?: () => Pool | LedgerDriver;
 }
 
+/** One migration as a report names it, inside the caller's tenant transaction. */
+async function readReportedMigration(
+  db: PgDatabase,
+  tenantId: string,
+  mapping: {
+    readonly id: string;
+    readonly state: string;
+    readonly sourceSecretRef: string | null;
+    readonly grantWithdrawnAt: Date | null;
+  },
+): Promise<ReportedMigration> {
+  // Best effort: a migration whose source or destination is gone is still
+  // worth reporting, and says so in the ticket.
+  const grantRows = await readGrantRows(db, tenantId, mapping.id);
+  return {
+    mappingId: mapping.id,
+    state: mapping.state,
+    from: grantRows ? namedAccount(grantRows) : null,
+    to: grantRows ? (whereFromAndTo(grantRows)?.to ?? null) : null,
+    access: viewGrantFor(mapping).state,
+  };
+}
+
 /** What the rows say about the link and its migration. */
 async function readFacts(
   source: Pool | LedgerDriver,
   link: ReportedLink,
   ids: { linkId: string; tenantId: string; mappingId: string },
-): Promise<LinkReportFacts | null> {
+): Promise<MigrationLinkFacts | null> {
   const { linkId, tenantId, mappingId } = ids;
   return withTenantDb(tenantId, source, async (db) => {
     const rows = await db
@@ -110,20 +142,53 @@ async function readFacts(
       .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId)));
     const mapping = rows[0];
     if (!mapping) return null;
-    // Best effort past this point: a migration whose source or destination
-    // is gone is still worth reporting, and says so in the ticket.
-    const grantRows = await readGrantRows(db, tenantId, mappingId);
     return {
       link,
       linkId,
       tenantId,
       organisation: mapping.organisation,
-      mappingId,
-      state: mapping.state,
       issuedBy: await readAskedBy(db, tenantId, linkId),
-      from: grantRows ? namedAccount(grantRows) : null,
-      to: grantRows ? (whereFromAndTo(grantRows)?.to ?? null) : null,
-      access: viewGrantFor(mapping).state,
+      ...(await readReportedMigration(db, tenantId, { id: mappingId, ...mapping })),
+    };
+  });
+}
+
+/**
+ * What the rows say about a PERSON'S link (ADR-0035, amended 2026-09-29; 0153
+ * T5 (b)): who issued it, and every migration of theirs, each named as a
+ * migration's report names it. Null when the organisation is gone.
+ */
+async function readPersonFacts(
+  source: Pool | LedgerDriver,
+  link: ReportedLink,
+  ids: { linkId: string; tenantId: string; personId: string },
+): Promise<PersonLinkFacts | null> {
+  const { linkId, tenantId, personId } = ids;
+  return withTenantDb(tenantId, source, async (db) => {
+    const org = await db.select({ name: schema.tenant.name }).from(schema.tenant).where(eq(schema.tenant.id, tenantId));
+    const organisation = org[0]?.name;
+    if (organisation === undefined) return null;
+    const theirs = await db
+      .select({
+        id: schema.mailboxMapping.id,
+        state: schema.mailboxMapping.status,
+        sourceSecretRef: schema.mailboxMapping.sourceSecretRef,
+        grantWithdrawnAt: schema.mailboxMapping.grantWithdrawnAt,
+      })
+      .from(personMigration)
+      .innerJoin(schema.mailboxMapping, eq(schema.mailboxMapping.id, personMigration.mappingId))
+      .where(and(eq(personMigration.personId, personId), eq(personMigration.tenantId, tenantId)))
+      .orderBy(personMigration.addedAt, personMigration.mappingId);
+    const migrations: ReportedMigration[] = [];
+    for (const mapping of theirs) migrations.push(await readReportedMigration(db, tenantId, mapping));
+    return {
+      link,
+      linkId,
+      tenantId,
+      organisation,
+      issuedBy: await readPersonLinkAskedBy(db, tenantId, linkId),
+      personId,
+      migrations,
     };
   });
 }
@@ -135,15 +200,16 @@ export function linkReportRoutes(link: ReportedLink, deps: LinkReportDeps = {}):
 
   let pool: Pool | LedgerDriver | null = null;
   const source = (): Pool | LedgerDriver => (pool ??= (deps.source ?? getDbPool)());
+  // A migration's link or a person's (0153 T5 (b)), each at its own kind's door.
   const linkAuth: RequestHandler = (req, res, next) =>
-    authenticateMappingLink(link, source())(req, res, next);
+    authenticateGrantLink(link, source())(req, res, next);
 
   /** Whether to offer the report at all: a report that can reach nobody is not offered. */
   router.get('/:link/report', linkAuth, (_req, res: Response) => {
     res.json({ available: reportChannel(deps.env) !== undefined });
   });
 
-  router.post('/:link/report', linkAuth, async (req: MappingLinkRequest, res: Response) => {
+  router.post('/:link/report', linkAuth, async (req: PersonLinkRequest, res: Response) => {
     const channel = reportChannel(deps.env);
     if (!channel) {
       res.status(503).json({
@@ -157,7 +223,8 @@ export function linkReportRoutes(link: ReportedLink, deps: LinkReportDeps = {}):
       res.status(parsed.status).json({ error: 'invalid_report', field: parsed.field, reason: parsed.reason });
       return;
     }
-    const { linkId, tenantId, mappingId } = req.mappingLink!;
+    const person = req.personLink;
+    const { linkId, tenantId } = person ?? req.mappingLink!;
     if (!perLink.take(linkId)) {
       res.set('Retry-After', String(perLink.retryAfterSeconds(linkId)));
       res.status(429).json({
@@ -177,7 +244,9 @@ export function linkReportRoutes(link: ReportedLink, deps: LinkReportDeps = {}):
 
     let facts: LinkReportFacts | null;
     try {
-      facts = await readFacts(source(), link, { linkId, tenantId, mappingId });
+      facts = person
+        ? await readPersonFacts(source(), link, { linkId, tenantId, personId: person.personId })
+        : await readFacts(source(), link, { linkId, tenantId, mappingId: req.mappingLink!.mappingId });
     } catch (error) {
       res.locals.tenantId = tenantId;
       serverFault(res, 'link_report_failed', 'reading the migration this link belongs to', error);

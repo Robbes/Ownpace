@@ -55,6 +55,15 @@ const read = (rel: string): string => code(readFileSync(join(REPO_ROOT, rel), 'u
 
 const APPLIANCE = 'packages/orchestration/src/orchestration.ts';
 const MANAGED = 'apps/worker/src/jobs/run-delta-sync.ts';
+const SELFHOST = 'apps/selfhost/src/index.ts';
+
+/** The nearest `if (` before `call` in `src`, up to the call: the condition that guards it. */
+function guardOf(src: string, call: string): string {
+  const at = src.indexOf(call);
+  expect(at, `${call} is no longer made at all`).toBeGreaterThan(-1);
+  const before = src.slice(0, at);
+  return before.slice(before.lastIndexOf('if ('));
+}
 
 describe('a pass that stopped at the day’s ceiling is not marked completed', () => {
   for (const [what, path] of [
@@ -128,3 +137,75 @@ describe('the managed worker times the pass it ran, and bills nothing', () => {
     expect(src).not.toContain('recordApiCallForRun');
   });
 });
+
+/**
+ * A PASS TOLD TO STOP WHILE IT COPIED IS NOT A FINISH EITHER (2026-09-29).
+ *
+ * The owner pressed Pause during a file pass and the writes went on for most
+ * of an hour: neither dispatcher could tell the loop, only refuse the next data
+ * type. Both now hand every data type's pass a question to ask from inside
+ * (`whyItStops`), and the loop answers a yes with a third pause, `haltPause`.
+ * The same two holes the byte ceiling fell into are open for it: a branch
+ * that drops the pause calls a stopped data type completed, and a relocation
+ * auto-apply run after it removes copies on the target after the owner said
+ * stop.
+ */
+describe('a pass told to stop while it copied is not marked completed', () => {
+  for (const [what, path] of [
+    ['the appliance (orchestration.runOneDomain)', APPLIANCE],
+    ['the managed worker (run-delta-sync)', MANAGED],
+  ] as const) {
+    it(`${what} reads the pass's haltPause`, () => {
+      expect(read(path), `${path} no longer reads the pass's haltPause`).toContain('haltPause');
+    });
+  }
+
+  it('the appliance carries the stop out of EVERY domain branch, and hands each the question', () => {
+    const src = read(APPLIANCE);
+    expect((src.match(/haltPause = result\.haltPause;/g) ?? []).length).toBe(5);
+    expect((src.match(/\.\.\.askedWhy\(domain\)/g) ?? []).length).toBe(5);
+  });
+
+  it('the managed worker hands the question to all five passes, and no bare deadline to any', () => {
+    const src = read(MANAGED);
+    for (const run of ['runShadowPass', 'runCalendarSync', 'runContactSync', 'runTaskSync', 'runFileSync']) {
+      expect(src, `${run} is not handed ...passStops`).toMatch(new RegExp(`${run}\\(\\{\\s*\\.\\.\\.deps,\\s*\\.\\.\\.passStops,`));
+    }
+    // Once, where the question is built beside it; never again at a call,
+    // where it would be a deadline without its question.
+    expect((src.match(/deadline: typeDeadline/g) ?? []).length).toBe(1);
+  });
+
+  it('the managed mail branch carries the stop through the result it reshapes by hand', () => {
+    expect(read(MANAGED)).toContain('...(pass.haltPause ? { haltPause: pass.haltPause } : {})');
+  });
+
+  it('neither dispatcher auto-applies a relocation after a pass that was told to stop', () => {
+    // It removes the old copy on the target: exactly the write a Pause, a
+    // withdrawal or a close forbids.
+    expect(guardOf(read(MANAGED), 'await autoApplyOpenRelocations(')).toMatch(/toldToStop === null/);
+    expect(guardOf(read(APPLIANCE), 'await autoApplyRelocations(')).toMatch(/toldToStop === null/);
+  });
+
+  it('and both ask the question again right before it, not only read what the pass last heard', () => {
+    // Found in review (2026-09-29). The pass asks at its gates, at most once
+    // every PASS_REREAD_EVERY_MS, and its last gate is before its last item:
+    // a Pause pressed during the last large upload was never heard, the
+    // pass's haltPause stayed empty, and the apply ran on it. So the answer
+    // the apply is guarded by is the pass's, or a fresh asking when it has
+    // none.
+    expect(read(MANAGED)).toMatch(
+      /const toldToStop =\s*result\.haltPause\?\.reason \?\? \(await whyThisDataTypeStops\(pool, tenantId, mappingId, 'file'\)\);/,
+    );
+    expect(read(APPLIANCE)).toMatch(
+      /const toldToStop = haltPause\?\.reason \?\? \(whyItStops \? await whyItStops\('file'\) : null\);/,
+    );
+  });
+
+  it('the appliance asks the migration, per data type, from the reader every gate asks', () => {
+    const src = read(SELFHOST);
+    const call = src.slice(src.indexOf('await runAllDomains('));
+    expect(call.slice(0, call.indexOf(');'))).toMatch(/stopReasonOf\(stepFrom\(/);
+  });
+});
+

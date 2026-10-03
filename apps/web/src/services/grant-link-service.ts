@@ -72,6 +72,9 @@ const IssuedSchema = z.object({
   expiresAt: z.string(),
   expiryDays: z.number(),
   distribution: z.string(),
+  // A person's grant link made while every account of theirs was connected
+  // asks each of them again (managed migration 0036). A migration's never does.
+  asksAgain: z.boolean().optional(),
 });
 export type IssuedGrantLink = z.infer<typeof IssuedSchema>;
 
@@ -102,9 +105,8 @@ export const grantLinkApi = {
 
 /**
  * A PERSON'S link (ADR-0035, amended 2026-09-29; workplan 0153 T5 (b)): one
- * grant link for all of their migrations, at `/people/:personId/links`. The
- * same shapes as a migration's, and a grant link only until the person's
- * progress page exists.
+ * grant link and one progress link for all of their migrations, at
+ * `/people/:personId/links`. The same shapes as a migration's.
  */
 export const personLinkApi = {
   list: async (personId: string): Promise<GrantLink[]> => {
@@ -112,9 +114,9 @@ export const personLinkApi = {
     return z.array(GrantLinkSchema).parse(res.data.links);
   },
 
-  issue: async (personId: string, expiryDays: number): Promise<IssuedGrantLink> => {
+  issue: async (personId: string, purpose: MappingLinkPurpose, expiryDays: number): Promise<IssuedGrantLink> => {
     const res = await apiClient.post(`/people/${encodeURIComponent(personId)}/links`, {
-      purpose: 'grant',
+      purpose,
       expiryDays,
     });
     return IssuedSchema.parse(res.data);
