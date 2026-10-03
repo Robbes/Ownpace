@@ -1863,7 +1863,7 @@ system_role_ready() {
 
 # ---------------------------------------------------------------------------
 phase_tasks() {
-  say tasks "the system role, task environment variables, the deploy, then the owner names forgotten"
+  say tasks "the system role, task environment variables, the plane's limit, the deploy, then the owner names forgotten"
   load_env
   [ -n "$(env_get TRIGGER_PROJECT_REF)" ] ||
     die "TRIGGER_PROJECT_REF is not set — the 'account' phase has not been completed."
@@ -1876,6 +1876,10 @@ phase_tasks() {
   # compose; a deploy that lands before the environment exists runs once
   # against no database and fails in a way that reads like a broken task.
   "${SCRIPT_DIR}/set-task-env.sh"
+  # THE PLANE'S LIMIT (workplan 0143 T1 step 3, open question 9): the tick's
+  # cap plus two, set before the deploy, because the deploy is what carries
+  # it into the run queue. Read back, and said.
+  "${SCRIPT_DIR}/plane-limit.sh"
   "${SCRIPT_DIR}/deploy-tasks.sh"
   # The names the database owner went up under (DATABASE_URL until 0138 T3
   # step 2, DIRECT_DATABASE_URL until step 1), deleted from the store only now,
