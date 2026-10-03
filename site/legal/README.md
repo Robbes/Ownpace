@@ -449,7 +449,7 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   (`access.privacy`) are reworded, in both languages: *"we store only a hash of it, in the
   sign-in service we run"*; *"no backups, apart from one copy before each update, kept up to 7
   days"*; *"We keep what you type to decide on your request and to answer you; asking creates no
-  account."* Built (0139 T4, 2026-09-29), merged the same day as #1375: all three, in English
+  account."* Built (0139 T4, 2026-09-29), merged the same day in #1375: all three, in English
   and Dutch, and the grant mail's alpha paragraph with the note, whose words it shares. Since
   2026-10-03 (0139 T4, not merged) the request form's line also names privacy §9's period for a
   request, and links the policy, and the Alpha conditions during the alpha.
@@ -458,10 +458,10 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   privacy-share-mail-notice (a)): one sentence and a link to the policy, in both languages, in
   `packages/shared/src/share-announcement.ts` and its copy in
   `docs/cutover-communication-templates.md`, before the first tester uses the feature. Built on
-  the same branch, merged the same day as #1375: on the managed service the mail closes with
+  the same branch, merged the same day in #1375: on the managed service the mail closes with
   *"Ownpace, the migration service that sent this message, keeps your address and the names
-  of these items; its privacy policy says why, and for how long:"* and the policy's address in the mail's
-  language, and Template 6 carries the same line. The address is on the site the app links:
+  of these items; its privacy policy says why, and for how long:"* and the policy's address in
+  the mail's language, and Template 6 carries the same line. The address is on the site the app links:
   `managed.yml` hands `VITE_LEGAL_SITE_URL` to the api as `LEGAL_SITE_URL`
   (`packages/shared/src/privacy-policy-link.ts`). An appliance's mail has no such line; its
   owner sends it, and this policy is not theirs. **Still to do:** live runs a tag that carries

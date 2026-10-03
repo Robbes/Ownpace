@@ -95,19 +95,23 @@ is collected. Nothing has run on a machine.
   `access-notify`'s event test red (1). A scheme check removed left the guard green: no refused
   value had a host after a scheme that is not http(s). The guard gained
   `ftp://www.ownpace.eu`, and the mutation then turned it red (1).
-- **Gates, on this tree:** `pnpm exec tsc --noEmit` and the web app's typecheck clean; ESLint
-  clean on every changed file; the unit-browser project, 139 files and 2,690 tests, passes; the
-  unit project over `apps/api`, `scripts`, `site` and `packages`, 834 files and 12,061 tests,
-  passes, with two `afterAll` clean-ups (`a-first-bring-up-of-live`, `a-deploy-from-a-named-tag`)
-  timing out at 10 seconds while removing their temporary folders on this machine. The first
-  does the same with `main`'s `managed.yml` and `setup-zitadel.sh`, so it is the machine. The
-  workplan and lessons indexes, the conflict-marker check and the commit convention pass.
+- **Gates, on this tree** (`main` merged in at `563b845a`, not rebased): `pnpm exec tsc
+  --noEmit`, `test/ui`'s and `site`'s, and the web app's typecheck clean; ESLint clean on the
+  14 changed code files; the unit-browser project, 144 files and 2,811 tests, passes; the unit
+  project over `apps/api`, `scripts`, `site` and `packages`, 849 files and 12,326 tests, has
+  every test passing, with two `afterAll` clean-ups (`a-first-bring-up-of-live`,
+  `a-deploy-from-a-named-tag`) timing out at 10 seconds while removing their temporary folders
+  on this machine. Both do the same, run alone, with `main`'s `managed.yml` and
+  `setup-zitadel.sh`, so it is the machine. The workplan, lessons and ADR indexes, the
+  conflict-marker check and the commit convention pass.
 - **Still not true.** Nothing is merged, and live runs none of it until a tag carries it. The
   links point at pages that answer only once the site is published (T10; live's `WWW_LIVE`).
   The sign-in page's step has not run against a real instance: the OTA instance gets it at the
   first gate run after the merge. The tester guide's link beside the conditions (0131 T1 (b),
-  0144 T1) and the conditions' link in the alpha note itself are not built. The lawyer reads the
-  new sentences with the rest (T1).
+  0144 T1) and the conditions' link in the alpha note itself are not built. The invitation mail
+  (0156 T3, #1430, merged into this branch with `main`) carries the same alpha paragraph as the
+  grant mail, but not the conditions' line after it: it closes with the privacy policy only.
+  The lawyer reads the new sentences with the rest (T1).
 
 **2026-09-29: the close stops what is running (T7; terms briefing, precondition B),
 reviewed and fixed**, on branch `claude/ownpace-public-readiness-y7orc6-the-close-stops-what-is-running`,

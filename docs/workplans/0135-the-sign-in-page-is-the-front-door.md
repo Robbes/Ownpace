@@ -15,7 +15,6 @@ says what differs from the proposal and why, and 0139's Status block of the same
 guard's counts and the mutations. Not yet run against a real instance: the next E2E (managed)
 run applies it to the OTA instance, and live's first bring-up to live's.
 
-
 **2026-09-29, later still: open question 13 answered, and built: a removed member's sign-in
 account goes 7 days after the removal (T8)**, not merged, on branch
 `claude/ownpace-public-readiness-y7orc6-a-removed-member-goes-after-seven-days`.
