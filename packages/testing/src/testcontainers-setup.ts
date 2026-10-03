@@ -1,4 +1,4 @@
-// Copyright 2026 OpenHands Agent (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 // Testcontainers setup for integration tests.
 // Spins up Postgres and Stalwart programmatically.
 //

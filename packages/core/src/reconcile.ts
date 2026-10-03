@@ -1,4 +1,4 @@
-// Copyright 2026 OpenHands Agent (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 import { applyTargetFolderPrefix,
   contentHash,
   displayNameForMessage,
