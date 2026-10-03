@@ -1981,15 +1981,25 @@ const en = {
   'support.export.stopped': 'The download stopped: {message}',
   'support.export.kept': 'Lines saved: {count}. The field holds where to carry on.',
   'confirm.progress.heading': 'Live progress',
-  'confirm.progress.synced': 'synced',
+  // OF ABOUT HOW MANY (0154 T2): what arrived, set against what discovery
+  // found. *About* is literal: discovery is a snapshot, and the source keeps
+  // changing. One sentence for the items and for the bytes (*"3.1 of about
+  // 3.4 GB"*).
+  'confirm.progress.ofAbout': '{done} of about {total}',
+  // Discovery has no count of this data type: the copies stand alone, and the
+  // row says so rather than *"of 0"* (hard rule 9).
+  'confirm.progress.totalNotKnown': '{done} copied · total not known',
+  // Discovery counted none, and none arrived: a real answer, not a gap.
+  'confirm.progress.noneFound': 'none found to copy',
   'confirm.progress.failed': 'failed',
   'confirm.progress.retrying': 'retrying',
   // LEFT ALONE IS NOT COPIED (0124 T2). Two different rows wear the ledger's
   // `adopted` status — an item the target already held, and one we wrote that
   // the customer has since edited — and the ledger cannot tell them apart after
   // the fact. One sentence true of both; inventing the split would be a worse
-  // lie than the silence this replaces.
-  'confirm.progress.leftAsIs': 'left as they are',
+  // lie than the silence this replaces. Its meaning is on screen since 0154 T2,
+  // where it lived only in a tooltip; the longer reassurance stays there.
+  'confirm.progress.leftAsIs': '{count} left as they are: already on the new system, or changed there since',
   'confirm.progress.leftAsIs.why':
     'These were already on the new system, or have been changed there since, so they were left exactly as they are. Nothing was copied over them and nothing was lost: this tool never overwrites what it did not write. They are counted here rather than among the copies because nothing happened to them — which is the point.',
   // When a pass last touched this data type — NOT when it last finished.
@@ -4384,10 +4394,12 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.introStarted':
     'Migraties hier zijn gestart. Live voortgang staat per migratie; de scan blijft als momentopname.',
   'confirm.progress.heading': 'Live voortgang',
-  'confirm.progress.synced': 'gesynchroniseerd',
+  'confirm.progress.ofAbout': '{done} van ongeveer {total}',
+  'confirm.progress.totalNotKnown': '{done} gekopieerd · totaal niet bekend',
+  'confirm.progress.noneFound': 'niets gevonden om te kopiëren',
   'confirm.progress.failed': 'mislukt',
   'confirm.progress.retrying': 'in nieuwe poging',
-  'confirm.progress.leftAsIs': 'ongemoeid gelaten',
+  'confirm.progress.leftAsIs': '{count} ongemoeid gelaten: stonden al op het nieuwe systeem, of zijn daar sindsdien gewijzigd',
   'confirm.progress.leftAsIs.why':
     'Deze stonden al op het nieuwe systeem, of zijn daar sindsdien gewijzigd, en zijn daarom precies gelaten zoals ze zijn. Er is niets overheen gekopieerd en er is niets verloren gegaan: dit gereedschap overschrijft nooit wat het niet zelf heeft geschreven. Ze staan hier apart van de kopieën omdat er niets met ze is gebeurd — en dat is precies het punt.',
   'confirm.progress.lastActive': 'laatst actief',
