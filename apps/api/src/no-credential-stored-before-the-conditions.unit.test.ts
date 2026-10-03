@@ -272,6 +272,9 @@ const CHECKS_BY_FILE: Readonly<Record<string, number>> = {
   // Issuing a grant link: the member's door to what a family member's consent
   // stores (`grant-ending.ts`, below).
   'routes/migrations/link-routes.ts': 1,
+  // Issuing a PERSON'S grant link (0153 T5 (b)): the member's door to what
+  // that person's consent stores (`person-grant-ending.ts`, below).
+  'routes/person-link-routes.ts': 1,
 };
 
 /** Where the API seals a credential to store it: a call, not a definition. */
@@ -282,6 +285,7 @@ const SEALS_BY_FILE: Readonly<Record<string, number>> = {
   'routes/connections.ts': 2,
   'routes/migrations/index.ts': 2,
   'routes/migrations/grant-ending.ts': 1,
+  'routes/migrations/person-grant-ending.ts': 1,
   'scripts/seed-managed.ts': 2,
 };
 
@@ -292,6 +296,10 @@ const SEALED_WITHOUT_ASKING: Readonly<Record<string, string>> = {
     'account to accept them with. The member’s door to it is issuing the link, ' +
     '`POST /api/migrations/{mappingId}/links` (`link-routes.ts`), which asks, so no grant link reaches ' +
     'anybody from a member who has not accepted the current versions.',
+  'routes/migrations/person-grant-ending.ts':
+    'a person’s grant link’s consent (0153 T5 (b)), for grant-ending.ts’s reason: the person granting is not ' +
+    'a party to the terms. The member’s door to it is issuing the link, `POST /api/people/{personId}/links` ' +
+    '(`person-link-routes.ts`), which asks.',
   'scripts/seed-managed.ts':
     'the operator’s seed of the demo tenants, run by hand on a stack as the database owner. It is no ' +
     'door anybody signs in to, and a stack that asks for acceptance is not seeded.',

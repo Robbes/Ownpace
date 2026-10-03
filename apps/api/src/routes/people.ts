@@ -44,6 +44,7 @@ import {
 import { authenticate, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
+import personLinkRoutes from './person-link-routes.ts';
 
 const router = Router();
 
@@ -197,5 +198,9 @@ router.delete('/:personId', authenticate, async (req: AuthenticatedRequest, res:
     serverFault(res, 'person_delete_failed', 'deleting this person', error);
   }
 });
+
+// A person's links (ADR-0035, amended 2026-09-29; 0153 T5 (b)): owner or admin,
+// under `/:personId/links`.
+router.use('/', personLinkRoutes);
 
 export default router;

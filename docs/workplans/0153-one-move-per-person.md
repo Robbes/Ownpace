@@ -184,6 +184,32 @@ words changed with them** (0131 §6, R8).
   at `5f74ebc`: T4 and T7 are still proposed, and no branch or open pull request of R's or M's
   touches them. 0131 §6 records the split.
 
+**2026-09-29, morning: T5 (b)'s second slice, a person's link is issued, opened and granted
+(ADR-0035's amendment of 2026-09-29).**
+
+- **The owner's doors:** `POST`/`GET`/`DELETE /api/people/:personId/links`
+  (`person-link-routes.ts`), owner or admin, the texts accepted, within the limit, grant only.
+  A person with nothing a link can serve is refused with each migration's own reason.
+- **The page** (`GET /api/grant/:link`, `Grant.tsx`): for a person's link, who asked once, then
+  a card per Google account with where each migration goes, the scope in Google's words and its
+  own *Continue with Google as …*. A connected account shows *Connected*; one whose migrations
+  run through two Google clients says so, for the person to forward. No migration id reaches the
+  page. `person-grant-subject.ts` groups the migrations by account as the ending binds a sign-in
+  (`googleAccountKey`), and asks each through `grantLinkAsk`, unchanged.
+- **The ending** (`person-grant-ending.ts`): in one transaction, the close, the link still live
+  (`FOR UPDATE`), the account that signed in the one named, and only the migrations the page
+  listed that are still hers and still read that account take the token, with an audit row each.
+  The link is spent once every account is granted.
+- **Not yet:** the person's progress link and page (slice 3), and the owner's side (slice 4).
+  Reports from a person's page are not offered yet: the report route takes a migration's link
+  only.
+- **Proved by** `a-link-for-a-person.unit.test.ts` (13, PGlite as `app_user`, both chains,
+  Google's token endpoint stubbed), `Grant.unit.test.tsx` (20 → 24) and
+  `grant-service.unit.test.ts` (+2). Mutations: granting a migration that left her, and spending
+  the link after the first account, each fail their cases. The closed-organisation and
+  conditions sweeps count the new doors, and the spec documents them, with its checker taught
+  `nullable`.
+
 **2026-09-29, morning: T5 (b)'s first slice, a person's link as a row (ADR-0035's amendment of
 2026-09-29).** No page issues or opens one yet: the doors come with the grant page that opens
 them, by `link-routes.ts`'s own rule that a link no page honours opens nothing.

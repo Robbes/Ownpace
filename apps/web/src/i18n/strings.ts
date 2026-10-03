@@ -1182,6 +1182,14 @@ const en = {
   'grant.inAppBrowser':
     'If this page opened inside another app, such as a chat or mail app, use that app\'s \'Open in browser\' option or copy the link into Safari or Chrome. The link still works.',
   'grant.connect': 'Continue with Google',
+  // A person's link (ADR-0035, amended 2026-09-29; workplan 0153 T5 (b)): one
+  // card per Google account, each asked once.
+  'grant.person.asking':
+    '{organisation} is moving your accounts to a new provider, and needs your permission to read what is in them. Each account below asks once.',
+  'grant.person.migration': 'To {where}: {reads}.',
+  'grant.person.where': '{account}, {place}',
+  'grant.person.connect': 'Continue with Google as {account}',
+  'grant.person.connected': 'Connected. Nothing more is needed for this account.',
   'grant.connecting': 'Opening Google…',
   'grant.disclosure': 'By continuing you accept how your data is handled:',
   'grant.privacy': 'Privacy policy',
@@ -3872,6 +3880,12 @@ const nl: Record<keyof typeof en, string> = {
   'grant.inAppBrowser':
     'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar Safari of Chrome. De link blijft werken.',
   'grant.connect': 'Doorgaan met Google',
+  'grant.person.asking':
+    '{organisation} migreert uw accounts naar een nieuwe provider en heeft uw toestemming nodig om te lezen wat erin zit. Elk account hieronder vraagt het één keer.',
+  'grant.person.migration': 'Naar {where}: {reads}.',
+  'grant.person.where': '{account}, {place}',
+  'grant.person.connect': 'Doorgaan met Google als {account}',
+  'grant.person.connected': 'Verbonden. Voor dit account is niets meer nodig.',
   'grant.connecting': 'Google wordt geopend…',
   'grant.disclosure': 'Door door te gaan gaat u akkoord met hoe uw gegevens worden behandeld:',
   'grant.privacy': 'Privacybeleid',

@@ -89,7 +89,8 @@ const MOUNTS: ReadonlyArray<{ prefix: string; files: string[]; mountedIn?: strin
     ],
   },
   // The person a migration is for (ADR-0050, amended 2026-09-28).
-  { prefix: '/api/people', files: ['src/routes/people.ts'] },
+  // A person's links (0153 T5 (b)) are their own file, mounted on the people router.
+  { prefix: '/api/people', files: ['src/routes/people.ts', 'src/routes/person-link-routes.ts'] },
   { prefix: '/api/decisions', files: ['src/routes/decisions.ts'] },
   // Every queue at once, for the screen that showed only the one above.
   { prefix: '/api/attention', files: ['src/routes/attention.ts'] },
@@ -477,11 +478,24 @@ describe('the link pages’ wire (0145 T6)', () => {
   const op = (path: string, method: 'get' | 'post') => spec.paths?.[path]?.[method] as Documented | undefined;
 
   it('the grant page’s subject names the data types, not a sentence', () => {
-    const subject = op('/api/grant/{link}', 'get')?.responses?.['200']?.content?.['application/json']?.schema
-      ?.properties;
+    // Two shapes since a person's link (0153 T5 (b)): a migration's page, and
+    // a person's, per account (`PersonGrantPage`). Both name the data types.
+    type Props = Record<string, { items?: { enum?: string[]; properties?: Record<string, { items?: { enum?: string[] } }> } }>;
+    const schema = op('/api/grant/{link}', 'get')?.responses?.['200']?.content?.['application/json']?.schema as
+      | { anyOf?: Array<{ properties?: Props; $ref?: string }> }
+      | undefined;
+    const subject = schema?.anyOf?.find((alt) => alt.properties && 'from' in alt.properties)?.properties;
     expect(subject, 'the subject schema should be found').toBeDefined();
     expect(subject).not.toHaveProperty('reads');
     expect([...(subject?.domains?.items?.enum ?? [])].sort()).toEqual([...DISCOVERY_DOMAINS].sort());
+
+    expect(schema?.anyOf?.some((alt) => alt.$ref === '#/components/schemas/PersonGrantPage')).toBe(true);
+    const person = (spec.components as { schemas?: Record<string, { properties?: Props }> } | undefined)?.schemas
+      ?.PersonGrantPage?.properties;
+    const account = person?.accounts?.items?.properties;
+    expect(account, "the person's page names each account").toBeDefined();
+    expect(account).not.toHaveProperty('reads');
+    expect([...(account?.domains?.items?.enum ?? [])].sort()).toEqual([...DISCOVERY_DOMAINS].sort());
   });
 
   // Each route that reads the page's language off the body, found by the

@@ -1,0 +1,216 @@
+// Copyright 2026 The Ownpace authors (Apache-2.0)
+
+/**
+ * A PERSON'S GRANT LANDS (ADR-0035, amended 2026-09-29; workplan 0153 T5 (b),
+ * slice 2).
+ *
+ * `grant-ending.ts` stores one migration's token and nothing sees it. This is
+ * the same ending for a person's link, where one consent serves every
+ * migration that reads the account they signed in to. The rules are that
+ * file's, and so is its order; what differs is what one consent writes.
+ *
+ * ## The order
+ *
+ * 1. **A closed organisation takes nothing** (0085 T2), asked in this
+ *    transaction before anything is written.
+ * 2. **The link must still be live**: not revoked, not expired, not spent.
+ *    Read `FOR UPDATE`, so a revoke that lands while this runs waits for it or
+ *    wins before it, and a revoked link stores nothing.
+ * 3. **The account that signed in must be the one the page named** (0108
+ *    T8 (b)), or nothing is written and the link still works for the right
+ *    one. The refusal is recorded after the rollback, as a migration's is.
+ * 4. **Only what the page showed is granted.** The consent was begun for the
+ *    migrations listed when the button was pressed (the pending state carries
+ *    them). Each is written only if it is still this person's and still reads
+ *    this account: a migration added since asks again, because its destination
+ *    is new to them, and one moved to another person or another account is not
+ *    theirs to grant any more.
+ * 5. **The token lands on each of them** in this one transaction, with a
+ *    `mapping.granted` row each, naming the person's link.
+ * 6. **The link is spent once every account on it is granted**, read in this
+ *    same transaction after the writes. Until then it stays live, so a person
+ *    with two accounts can grant one now and one later.
+ *
+ * ## One token, several migrations
+ *
+ * Every listed migration receives the same `{ refreshToken }`, the only half
+ * that is the person's (`grant-ending.ts` says why the client is not copied).
+ * Taking the grant back revokes that token at Google once and clears it from
+ * each of them (slice 3).
+ */
+
+import type { Pool } from 'pg';
+import { and, eq, gt, isNull } from 'drizzle-orm';
+import * as schema from '@openmig/ledger';
+import { PgLedger, type LedgerDriver } from '@openmig/ledger';
+import { SecretStore } from '@openmig/core/secret-store';
+import { LINK_SPENT, log, organisationClosedRefusal, reasonPair, type Bilingual, type TenantId } from '@openmig/shared';
+import { personLink, personMigration } from '@openmig/managed/schema-managed';
+import { readOrganisationClosure, spendPersonLink } from '@openmig/managed';
+import { withTenantDb } from '../../middleware/auth.ts';
+import { GRANT_ACTION, GRANT_ACTOR, GRANT_REFUSED_ACTION, type GrantedAccess, type GrantStoreResult } from './grant-ending.ts';
+import { namedAccount, readGrantRows, whereFromAndTo } from './grant-subject.ts';
+import { readPersonGrantSubject } from './person-grant-subject.ts';
+import {
+  sameGoogleAccount,
+  signedInAccountRefusal,
+  type SignedInAccountRefusal,
+  type SignedInAccountRefusalCode,
+} from './signed-in-account.ts';
+
+/** The person's consent, as the pending state recorded it when the button was pressed. */
+export interface PersonGrantTarget {
+  readonly linkId: string;
+  readonly tenantId: string;
+  readonly personId: string;
+  /** The account the page named, and the only one whose sign-in is kept. */
+  readonly account: string;
+  /** The migrations the page listed under it. */
+  readonly mappingIds: readonly string[];
+}
+
+/** When every migration the page listed has gone from this person or this account since. */
+export const NOTHING_LEFT_TO_GRANT: Bilingual = {
+  en:
+    'The migrations this page listed for this account have changed since it was opened, so nothing was ' +
+    'stored. Open your link again to see what it asks for now.',
+  nl:
+    'De migraties die deze pagina voor dit account toonde zijn gewijzigd sinds hij werd geopend, dus er is ' +
+    'niets opgeslagen. Open uw link opnieuw om te zien waar hij nu om vraagt.',
+};
+
+/** Thrown to roll the transaction back when the wrong account signed in. */
+class AnotherAccountSignedIn extends Error {
+  readonly refusal: SignedInAccountRefusal;
+  constructor(refusal: SignedInAccountRefusal) {
+    super('the account that signed in is not the one the page named');
+    this.refusal = refusal;
+  }
+}
+
+/** Record a refused sign-in against each listed migration, after the rollback, as `grant-ending.ts` does. */
+async function recordRefusedSignIn(
+  source: Pool | LedgerDriver,
+  target: PersonGrantTarget,
+  code: SignedInAccountRefusalCode,
+): Promise<void> {
+  try {
+    await withTenantDb(target.tenantId, source, async (db) => {
+      for (const mappingId of target.mappingIds) {
+        await new PgLedger(db).recordAuditEvent(target.tenantId as TenantId, {
+          actor: GRANT_ACTOR,
+          action: GRANT_REFUSED_ACTION,
+          entity: 'mapping',
+          detail: { mappingId, personLinkId: target.linkId, refused: code },
+        });
+      }
+    });
+  } catch (error) {
+    log.error('[api] recording a refused grant sign-in on a person’s link failed:', error);
+  }
+}
+
+/** What landed: the migrations that took the token, and whether the link is now spent. */
+export type PersonGrantStoreResult =
+  | { readonly ok: true; readonly granted: readonly string[]; readonly linkSpent: boolean }
+  | Exclude<GrantStoreResult, { ok: true }>;
+
+/**
+ * Store a person's granted token on every migration the page listed for the
+ * account, or refuse having stored nothing. The refusal for a link that can no
+ * longer be used is the one sentence every link uses.
+ */
+export async function storePersonGrant(
+  source: Pool | LedgerDriver,
+  target: PersonGrantTarget,
+  granted: GrantedAccess,
+): Promise<PersonGrantStoreResult> {
+  const encrypted = JSON.stringify(SecretStore.encryptCredentials({ refreshToken: granted.refreshToken }).encrypted);
+
+  try {
+    return await withTenantDb(target.tenantId, source, async (db) => {
+      const closure = await readOrganisationClosure(db, target.tenantId);
+      if (closure) {
+        const refusal = organisationClosedRefusal(closure);
+        return { ok: false as const, reason: refusal.en, reasonNl: refusal.nl, linkUnused: true };
+      }
+
+      const now = new Date();
+      const live = await db
+        .select({ id: personLink.id })
+        .from(personLink)
+        .where(
+          and(
+            eq(personLink.id, target.linkId),
+            eq(personLink.tenantId, target.tenantId),
+            eq(personLink.personId, target.personId),
+            eq(personLink.purpose, 'grant'),
+            isNull(personLink.usedAt),
+            isNull(personLink.revokedAt),
+            gt(personLink.expiresAt, now),
+          ),
+        )
+        .for('update');
+      if (live.length === 0) return { ok: false as const, ...reasonPair(LINK_SPENT) };
+
+      const refusal = signedInAccountRefusal(target.account, granted.signedInAs);
+      if (refusal) throw new AnotherAccountSignedIn(refusal);
+
+      const written: string[] = [];
+      for (const mappingId of target.mappingIds) {
+        const stillTheirs = await db
+          .select({ mappingId: personMigration.mappingId })
+          .from(personMigration)
+          .where(
+            and(
+              eq(personMigration.mappingId, mappingId),
+              eq(personMigration.personId, target.personId),
+              eq(personMigration.tenantId, target.tenantId),
+            ),
+          );
+        if (stillTheirs.length === 0) continue;
+        const rows = await readGrantRows(db, target.tenantId, mappingId);
+        const named = rows ? namedAccount(rows) : null;
+        if (!rows || !named || !sameGoogleAccount(named, target.account)) continue;
+
+        const updated = await db
+          .update(schema.mailboxMapping)
+          // A new grant ends a withdrawal, as `grant-ending.ts` records.
+          .set({ sourceSecretRef: encrypted, grantWithdrawnAt: null, updatedAt: now })
+          .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, target.tenantId)))
+          .returning({ id: schema.mailboxMapping.id });
+        if (updated.length === 0) continue;
+
+        await new PgLedger(db).recordAuditEvent(target.tenantId as TenantId, {
+          actor: GRANT_ACTOR,
+          action: GRANT_ACTION,
+          entity: 'mapping',
+          detail: {
+            mappingId,
+            personLinkId: target.linkId,
+            account: granted.signedInAs,
+            to: whereFromAndTo(rows)?.to ?? null,
+          },
+        });
+        written.push(mappingId);
+      }
+      if (written.length === 0) {
+        return { ok: false as const, ...reasonPair(NOTHING_LEFT_TO_GRANT), linkStillWorks: true };
+      }
+
+      // Spent once every account on it is granted, read after the writes above.
+      const subject = await readPersonGrantSubject(db, target.tenantId, target.personId);
+      const everyAccount = subject === null || subject.accounts.every((a) => a.granted);
+      const linkSpent = everyAccount
+        ? await spendPersonLink(db, { tenantId: target.tenantId, linkId: target.linkId, now })
+        : false;
+      return { ok: true as const, granted: written, linkSpent };
+    });
+  } catch (error) {
+    if (error instanceof AnotherAccountSignedIn) {
+      await recordRefusedSignIn(source, target, error.refusal.code);
+      return { ok: false, reason: error.refusal.reason, reasonNl: error.refusal.reasonNl, linkStillWorks: true };
+    }
+    throw error;
+  }
+}

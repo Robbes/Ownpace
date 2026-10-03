@@ -663,10 +663,12 @@ jobs:
   # TypeScript. Note what that claim is NOT: this file said until 2026-08-11
   # that "the workspace declares no native dependency", which was true of the
   # MANIFESTS and false of the TREE — `better-sqlite3` (via drizzle-orm) and
-  # `libxmljs2` (via the CycloneDX SBOM tool) are both installed and both
+  # `libxmljs2` (via the CycloneDX SBOM tool) were both installed and both
   # native. They resolve arm64 prebuilds and the arm64 leg below passes, so the
   # conclusion held; the evidence for it did not, and a reason that is wrong
-  # is worse than no reason. See workplan 0026 row 26.
+  # is worse than no reason. See workplan 0026 row 26. Since 2026-10-03
+  # `libxmljs2` is not installed at all (pnpm-workspace.yaml's overrides say
+  # why), so `better-sqlite3` is the native module left.
   #
   # On a PULL REQUEST it runs twice, amd64 and arm64, both free 4-vCPU hosted
   # runners. On a PUSH it stays a single self-hosted run — the Spark is already

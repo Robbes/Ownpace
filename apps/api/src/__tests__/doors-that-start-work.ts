@@ -175,6 +175,9 @@ const ANNOTATIONS = new Set(['description', 'examples', 'example', 'format', 'ti
 /** Words this checker applies. Anything else fails loudly rather than passing unread. */
 const CONSTRAINTS = new Set([
   '$ref', 'type', 'enum', 'required', 'properties', 'additionalProperties', 'oneOf', 'anyOf', 'allOf', 'items',
+  // OpenAPI 3.0's `nullable: true`: null is allowed beside the type. Applied
+  // below, first, so a null never reaches the type check it would fail.
+  'nullable',
 ]);
 
 function typeOf(value: unknown): string {
@@ -219,6 +222,7 @@ export function specChecker(specPath: string): SpecChecker {
         throw new Error(`this checker does not apply "${word}"; teach it before trusting its answer`);
       }
     }
+    if (value === null && schema.nullable === true) return true;
     const branches = (word: string) => (schema[word] as Schema[] | undefined)?.filter((b) => satisfies(b, value));
     if (schema.oneOf && branches('oneOf')!.length !== 1) return false;
     if (schema.anyOf && branches('anyOf')!.length === 0) return false;

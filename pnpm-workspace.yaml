@@ -30,7 +30,6 @@ allowBuilds:
   # its reason attached is the thing a list like this is for.
   cpu-features: false
   esbuild: true
-  libxmljs2: true
   protobufjs: true
   ssh2: true
 catalog:
@@ -53,8 +52,13 @@ overrides:
   # retired on 2026-09-09 — see the note down there for what was actually measured.
   body-parser@<1.20.6: ^1.20.6
   brace-expansion@<1.1.16: ^1.1.16
-  brace-expansion@>=2.0.0 <2.1.4: ^2.1.4
-  brace-expansion@>=4.0.0 <5.0.9: ^5.0.9
+  # Raised 2026-10-03 for three more on both lines (dev-only: minimatch under eslint, glob and
+  # testcontainers), each with its own floor, so the highest of them is the bound:
+  #   GHSA-qhr7-859c-m2p7 (HIGH)     nested brace groups exhaust the stack — 2.1.6 / 5.0.11
+  #   GHSA-6j4f-fj2g-mc7p (HIGH)     recursion in parseCommaParts          — 2.1.5 / 5.0.10
+  #   GHSA-q2hr-2g5m-vwhr (MODERATE) quadratic `{a},b}` rewrite            — 2.1.7 / 5.0.12
+  brace-expansion@>=2.0.0 <2.1.7: ^2.1.7
+  brace-expansion@>=4.0.0 <5.0.12: ^5.0.12
   engine.io@>=4.1.0 <6.6.7: ^6.6.7
   # 2026-08-04 sweep. Scoped per major, like the entries above, so a package
   # that legitimately wants a different line is not forced off it.
@@ -78,7 +82,9 @@ overrides:
   #   ip-address leading-zero octets decoded as decimal
   #   tar        uncontrolled recursion in mapHas/filesFilter
   #   undici     five advisories, one fix (>=8.9.0)
-  fast-uri@<3.1.6: ^3.1.6
+  # Raised 2026-10-03: GHSA-hrr3-gc8f-f4qj (MODERATE, dev-only via ajv), host case
+  # normalised inconsistently through percent-encoded octets, fixed in 3.1.8.
+  fast-uri@<3.1.8: ^3.1.8
   ip-address@<10.3.1: ^10.3.1
   socket.io-parser@>=4.0.0 <4.2.7: ^4.2.7
   tar@<7.5.21: ^7.5.21
@@ -158,6 +164,27 @@ overrides:
   # (scripts/how-migrations-are-authored.mjs), because generating into the real migration chain is
   # what it used to do.
   esbuild@<0.25.0: ^0.25.0
+  #
+  # 2026-10-03. Six HIGH and three MODERATE, every one DEV-ONLY, published after the gate last
+  # ran on main. brace-expansion and fast-uri are raised in place, above; these two are new.
+  #
+  # @grpc/grpc-js GHSA-m9gg-hp2v-232j (HIGH), via dockerode <- testcontainers: in some
+  # configurations getAuthContext reports an unauthorised certificate as authorised. Fixed in
+  # 1.14.5; the tree has one copy, on 1.x.
+  "@grpc/grpc-js@<1.14.5": ^1.14.5
+  #
+  # libxmljs2 is NOT INSTALLED, on purpose. It is optional for the CycloneDX SBOM tool (an
+  # optional dependency of cyclonedx-npm and an optional peer of cyclonedx-library), which uses it
+  # for one thing: validating an XML SBOM against its schema. The security scan writes JSON
+  # (`--output-format JSON`), so it was never called. It was still installed, a native module built
+  # from source on every install, and it carried node-gyp -> make-fetch-happen ->
+  # http-cache-semantics into the tree, where GHSA-ch52-4w7c-c8xp (HIGH) is fixed in a 4.2.1
+  # nobody has published. No pin could lift that, and the gate blocks every pull request at high.
+  # "-" removes the package from every path, the optional dependency and the library's optional
+  # peer alike, so the path is gone instead of waiting for a release. Its build approval went with
+  # it (`allowBuilds`, above). An XML SBOM would need it back: take this line out with that switch,
+  # and approve the build again.
+  libxmljs2: "-"
 # A COOLDOWN ON BRAND-NEW RELEASES. Owner's decision, 2026-09-09: three days.
 #
 # THE UNIT IS MINUTES, NOT DAYS. 4320 = 3 days. Writing `3` here means three MINUTES and
@@ -202,8 +229,6 @@ overrides:
 # a version the lockfile actually has, and that no entry is a bare name.
 minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
-  - brace-expansion@2.1.4
-  - brace-expansion@5.0.9
   - socket.io-parser@4.2.7
   - qs@6.16.0
   - js-yaml@4.3.2
