@@ -213,6 +213,10 @@ words changed with them** (0131 §6, R8).
 
   Mutation: sending an account's withdrawal as a migration's fails two cases. The spec
   documents the page and the body, and its checker learns `pattern`.
+- **Walked in Chromium**, English and Dutch, at 900 and 390 pixels wide, over a fixture API shaped
+  as `person-progress.ts` answers: two accounts and an IMAP mailbox, no sideways scroll, no call
+  the fixture does not serve, and one press withdrew the first account by its `ref`, after which
+  each of its migrations says copying stopped.
 
 **2026-09-29, morning: T5 (b)'s fourth slice, the owner makes the person's one link (ADR-0035's
 amendment of 2026-09-29).**
