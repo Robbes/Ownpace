@@ -24,11 +24,10 @@
 # security is FORCEd with a SELECT policy (an operator's own rows) and an
 # INSERT policy, and none for DELETE. A log the app could shorten would not be
 # the record 0110 built it to be. One task does delete from it: the purge of
-# closed organisations, an erased organisation's rows (`PURGED_TABLES`). Today
-# it runs as the owner, since every Trigger.dev run still receives the owner's
-# URL as DATABASE_URL (set-task-env.sh). 0138 T3 step 2 moves the tasks to
-# their system role, `ownpace_system`, whose grant here is SELECT on
-# `tenant_id` and DELETE: it can pick rows by organisation, never by their
+# closed organisations, an erased organisation's rows (`PURGED_TABLES`). Since
+# 0138 T3 step 2 it runs as the tasks' system role, `ownpace_system`, whose
+# grant here is SELECT on `tenant_id` and DELETE: it can pick rows by
+# organisation, never by their
 # age, though it could delete every row with no organisation at once, and the
 # purge is the only task that deletes here. The 12-month prune picks rows by
 # age, so it stays at the machine on the owner's connection: this runs `psql`

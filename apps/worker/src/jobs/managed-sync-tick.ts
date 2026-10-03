@@ -10,8 +10,11 @@
  * Every minute: enumerate `status = 'active'` mappings across ALL tenants,
  * of open organisations only (`tenant.status = 'active'`; a closed one gets
  * no pass, workplan 0085 T2)
- * (the owner `DATABASE_URL` connection bypasses RLS for this trusted,
- * system-level enumeration — the exact trust boundary the poller documented),
+ * (the system role's `SYSTEM_DATABASE_URL` connection bypasses RLS for this
+ * trusted, system-level enumeration — the exact trust boundary the poller
+ * documented; `ownpace_system` has BYPASSRLS and the grants this job's
+ * statements need, and is not a superuser, workplan 0138 T3 step 2: until
+ * then this was the owner's `DATABASE_URL`, a superuser, in every run),
  * evaluate each mapping's own `schedule` cron via `isSyncDue`, and trigger
  * `run-delta-sync` for the due ones with the mapping's ENABLED domains passed
  * explicitly (the scheduler's scope_selection query — a job must never touch
@@ -72,11 +75,19 @@ import {
 } from '@openmig/orchestration/failing-backoff';
 import { runDeltaSync } from './run-delta-sync.ts';
 
-const DATABASE_URL = process.env.DATABASE_URL;
-if (!DATABASE_URL) {
-  throw new Error('DATABASE_URL environment variable is required');
+// The system role, `ownpace_system`, which spans organisations and is not a
+// superuser (workplan 0138 T3 step 2; managed migration 0033 grants it what
+// this job sends and nothing else). Never DATABASE_URL, the database owner,
+// which no run holds any more: there is no fallback to it.
+const SYSTEM_DATABASE_URL = process.env.SYSTEM_DATABASE_URL?.trim();
+if (!SYSTEM_DATABASE_URL) {
+  throw new Error(
+    'SYSTEM_DATABASE_URL is required: managed-sync-tick spans organisations as the system role, ownpace_system, ' +
+      'and never as the database owner (DATABASE_URL), which no run holds. ' +
+      'deploy/compose/set-task-env.sh uploads it (workplan 0138 T3 step 2).',
+  );
 }
-const pool = new Pool({ connectionString: DATABASE_URL });
+const pool = new Pool({ connectionString: SYSTEM_DATABASE_URL });
 // Each audit event this task records, also as one JSON line on its output (0129 T4).
 setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
 // Its errors go to the operator's log page too (0129 T1), under the reference
@@ -426,9 +437,9 @@ export const managedSyncTick = schedules.task({
      * drain has finished, and having to go and count it in SQL is how somebody
      * ends up deploying over a live pass.
      *
-     * Read through the owner pool, which bypasses RLS — the same trust
-     * boundary the mapping enumeration below documents, and the reason no
-     * `app.current_user` is set here.
+     * Read through the system role's pool, which bypasses RLS — the same
+     * trust boundary the mapping enumeration below documents, and the reason
+     * no `app.current_user` is set here.
      */
     const hold = await readOpenPause(drizzle(pool));
     if (hold) {

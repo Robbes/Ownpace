@@ -17,7 +17,7 @@ import { describe, it, expect } from 'vitest';
 // without either URL: app_user's and, for the audit key, the owner's); no
 // query is made here.
 process.env.APP_DATABASE_URL ??= 'postgres://discovery.test.invalid/none';
-process.env.DATABASE_URL ??= 'postgres://discovery.test.invalid/none';
+process.env.SYSTEM_DATABASE_URL ??= 'postgres://discovery.test.invalid/none';
 
 const { discoveryQueue } = await import('./run-discovery.ts');
 

@@ -47,7 +47,7 @@ import { DISCOVERY_DOMAINS, type DiscoveryDomain } from '@openmig/shared';
 // either URL: app_user's, and the owner's for the audit key. Nothing here
 // connects — `pg` builds the pool lazily and every query below is the stub.
 process.env.APP_DATABASE_URL ??= 'postgres://discovery.test.invalid/none';
-process.env.DATABASE_URL ??= 'postgres://discovery.test.invalid/none';
+process.env.SYSTEM_DATABASE_URL ??= 'postgres://discovery.test.invalid/none';
 
 const { domainsToCount } = await import('./run-discovery.ts');
 

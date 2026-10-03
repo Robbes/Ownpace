@@ -74,7 +74,9 @@
  * `TEST_DATABASE_URL` and derives `app_user`'s URL from it, as
  * `a-pause-nobody-could-press.integration.test.ts` does, and never reads or
  * sets `DATABASE_URL`: the third assertion hands `openTaskPools` an
- * environment of its own, built from the same two URLs. The builders are
+ * environment of its own, `app_user`'s URL and the system role's (the owner's
+ * connection with its role set to `ownpace_system` at the start, 0138 T3
+ * step 2), both from the same one. The builders are
  * called with the pool, as every job calls them. The addresses are invented
  * and nothing here is contacted.
  *
@@ -131,6 +133,18 @@ function asAppUser(url: string): string {
   const parsed = new URL(url);
   parsed.username = 'app_user';
   parsed.password = 'app_password';
+  return parsed.toString();
+}
+
+/**
+ * The system role, which a run's audit key is read as since 0138 T3 step 2:
+ * the owner's connection with its role set at the start to `ownpace_system`,
+ * so every statement runs as that role and nothing needs its password, which
+ * only `a-system-role-that-is-not-the-owner` sets.
+ */
+function asSystemRole(url: string): string {
+  const parsed = new URL(url);
+  parsed.searchParams.set('options', '-c role=ownpace_system');
   return parsed.toString();
 }
 
@@ -391,8 +405,8 @@ describe('second: an unscoped probe on the handle a store was given counts its o
 });
 
 describe('third: a pass on the pools its task opens runs as the application role, and all of it works there', () => {
-  /** The two URLs a run receives (set-task-env.sh), for this database: app_user's and the owner's. */
-  const taskEnv = () => ({ APP_DATABASE_URL: asAppUser(PG_CONNECTION_STRING), DATABASE_URL: PG_CONNECTION_STRING });
+  /** The two URLs a run receives (set-task-env.sh), for this database: app_user's and the system role's. */
+  const taskEnv = () => ({ APP_DATABASE_URL: asAppUser(PG_CONNECTION_STRING), SYSTEM_DATABASE_URL: asSystemRole(PG_CONNECTION_STRING) });
 
   /** The audit lines the task's sink printed, and what it warned. */
   let lines: string[];
@@ -538,13 +552,16 @@ describe('third: a pass on the pools its task opens runs as the application role
     expect((second.Attributes as Record<string, unknown>)['ownpace.tenant.id']).toBe(A);
 
     // Read on the key's own pool, which is not app_user: app_user may not read
-    // deployment_key (ledger 0062), and there the line is lost. One connection.
+    // deployment_key (ledger 0062), and there the line is lost. One connection,
+    // the system role's, no longer the owner's (0138 T3 step 2).
     expect(asked).toContain(pools.tenant);
     keyPools.push(...asked.filter((p) => p !== pools.tenant));
     expect(keyPools).toHaveLength(1);
     expect(keyPools[0]!.options.max).toBe(1);
-    const key = await keyPools[0]!.query<{ role: string }>('SELECT current_user AS role');
-    expect(key.rows[0]!.role).not.toBe('app_user');
+    const key = await keyPools[0]!.query<{ role: string; superuser: string }>(
+      "SELECT current_user AS role, current_setting('is_superuser') AS superuser",
+    );
+    expect(key.rows[0]).toEqual({ role: 'ownpace_system', superuser: 'off' });
   });
 
   it('writes the operator\'s log page on the application role, which may insert an event and read none', async () => {

@@ -57,9 +57,10 @@ This is a core promise of the architecture (SAD §17, §17.1), not just a policy
   known-placeholder `JWT_SECRET` — with the tenant-membership gate (0020 T1), that secret
   is the tenancy boundary.
 
-### The two database roles (why there are two DB URLs)
+### The database roles (why there are three DB URLs)
 
-Migration `0001_baseline` creates a **non-owner `app_user`** role. RLS is enforced through it:
+Migration `0001_baseline` creates a **non-owner `app_user`** role, and managed migration `0033`
+the **system role, `ownpace_system`** (workplan 0138 T3 step 2). RLS is enforced through the first:
 
 - `DATABASE_URL` → the DB **owner** (`POSTGRES_USER`). In the postgres image the bootstrap user is a
   **superuser**, which **bypasses RLS even under FORCE**. Not the API's request path: no route
@@ -67,42 +68,61 @@ Migration `0001_baseline` creates a **non-owner `app_user`** role. RLS is enforc
   0138 T6). The API also holds the owner, as `DIRECT_DATABASE_URL`, for its migrations and its
   audit key's one connection, which requests do reach: the audit lines and the operator's audit
   download read the pseudonym key through it, and no tenant's rows. It is held
-  by the scripts that act at the machine: `bootstrap-managed.sh` (migrations), `seed-managed.sh`
-  (the demo tenants), `operator.sh` (appointments, memberships, `check`/`clean`) and
-  `set-task-env.sh`, which uploads it into the Trigger.dev task environment, where **the three jobs
-  that span organisations whole connect with it**, the three split jobs read their list of
-  organisations with it, and every task that opens `openTaskPools` reads its audit key with it
-  (below). `docs/rls-guide.md` §2 carries the full table, and a guard fails if a script composes
-  an owner URL without appearing in it.
+  by the scripts that act at the machine: `bootstrap-managed.sh` (migrations, and setting the
+  system role's password), `seed-managed.sh` (the demo tenants) and `operator.sh` (appointments,
+  memberships, `check`/`clean`). **No Trigger.dev task holds it** since 0138 T3 step 2:
+  `set-task-env.sh` uploads no URL composed from it, and its forget run
+  (`set-task-env.sh --forget-owner-names`, which the bring-up makes after `deploy-tasks.sh` has
+  gone through) deletes the owner's names from the task environment. `docs/rls-guide.md` §2 carries the full table, and a guard fails if a script
+  composes an owner URL without appearing in it.
 - `APP_DATABASE_URL` → the **`app_user`** role. The API connects through this for tenant data, so
   row-level security is in force on its request path (workplan 0011 T1). If you ever point the
   app at the owner URL, tenant isolation silently disappears — don't.
+- `SYSTEM_DATABASE_URL` → the **system role, `ownpace_system`**, for the Trigger.dev jobs that span
+  organisations and nothing else. It is **not a superuser**, may create no role or database, does
+  not replicate, belongs to no role **and has no role belonging to it** (a role that belonged to
+  it, `app_user` say, could `SET ROLE ownpace_system` and read every organisation's rows); it has
+  **`BYPASSRLS`**, which their questions across organisations need (with no organisation set, a
+  role row security binds reads no row), and the grants their statements need and no others (the
+  migration lists them). **Never grant anything in this database to PUBLIC**: with `BYPASSRLS`, a
+  grant to PUBLIC is a grant to this role, past row security, and the integration guard counts
+  it. Managed migration 0033 creates it with no password; `ensure-env-secrets.sh` generates
+  `SYSTEM_DB_PASSWORD` into `.env`, and the bring-up (`bootstrap-managed.sh`, its `tasks` phase)
+  asks Postgres that the role is still what the migration made it, **refuses to go on** if it is
+  a superuser, may create roles or databases, replicates, belongs to a role, has a role belonging
+  to it, or lacks `BYPASSRLS` or `LOGIN`, then sets the password on it, clears every setting left
+  on it (a role may change its own settings and its own password, and every run holds its URL),
+  and proves it opens over the network and through the pooler, on every run. `set-task-env.sh`
+  asks the same question before every upload, run by the bring-up or by hand.
 - **The deployed Trigger.dev tasks: the eight per-tenant ones connect as `app_user`, three
   scheduled jobs read each organisation as `app_user`, and the three that span organisations whole
-  connect as the owner.** `set-task-env.sh` uploads two URLs, beside
-  `SECRET_ENCRYPTION_KEY` and the optional values, and every run receives both. Since workplan 0138
-  T1 step 2 the per-tenant tasks (a pass, a discovery, a verification, a confirmation, an apply, a
-  cutover's preparation, a rollback) take their pools from `openTaskPools`
-  (`apps/worker/src/jobs/task-pools.ts`): tenant data on `APP_DATABASE_URL`, under row security,
-  and one connection on `DATABASE_URL` for the audit export's key (`deployment_key`, which
-  `app_user` may not read). A task run without `APP_DATABASE_URL` refuses to start, naming it; it
-  never falls back to the owner. The digest, the drift detector and group discovery are split
-  since 0138 T2: each run asks the owner's connection once which organisations are active (ids
+  connect as the system role.** `set-task-env.sh` uploads two URLs, `SYSTEM_DATABASE_URL` and
+  `APP_DATABASE_URL`, beside `SECRET_ENCRYPTION_KEY` and the optional values, and every run
+  receives both. Since workplan 0138 T1 step 2 the per-tenant tasks (a pass, a discovery, a
+  verification, a confirmation, an apply, a cutover's preparation, a rollback) take their pools
+  from `openTaskPools` (`apps/worker/src/jobs/task-pools.ts`): tenant data on `APP_DATABASE_URL`,
+  under row security, and one connection on `SYSTEM_DATABASE_URL` for the audit export's key
+  (`deployment_key`, which `app_user` may not read). A task run without either refuses to start,
+  naming it; it never falls back to the owner. The digest, the drift detector and group discovery
+  are split since 0138 T2: each run asks the system role once which organisations are active (ids
   only, one connection, closed before it answers; `activeOrganisations`), and reads and writes each
   of them on the same tenant pool, in that organisation's scope. Without `APP_DATABASE_URL` they
   refuse to start too, and on a connection that cannot see every organisation the list refuses
   rather than come back empty. The other three scheduled jobs (the sync tick, retention, the purge
-  of closed organisations) still connect with `DATABASE_URL`, and there each query's own tenant
-  filter is what keeps one organisation's rows from another; 0138 T3 step 2 is the rest. The sync
-  tick needs `APP_DATABASE_URL` as well: it imports the pass's task (`run-delta-sync`) to enqueue it, and that module opens its
-  pools when it is loaded, so without it no tick runs. The API's request path, the per-tenant
-  tasks and the three split jobs now share `app_user`'s server connections at PgBouncer
-  (`pgbouncer.ini`, beside `default_pool_size`, says what that holds). `docs/rls-guide.md`, "Where row security holds
-  today", lists every connection and whether the policies bind it. Until 0138 T3 step 1,
-  `set-task-env.sh` uploaded a third, `DIRECT_DATABASE_URL` (the owner, straight to
-  `postgres:5432`), which no task read, since no task runs migrations. It no longer does, but a
-  plane that stored it keeps it until it is deleted once: `docs/managed-bring-up.md`, "Once, after
-  the pull that stopped uploading `DIRECT_DATABASE_URL`".
+  of closed organisations) connect with `SYSTEM_DATABASE_URL`, and there each query's own tenant
+  filter is still what keeps one organisation's rows from another: the system role reads past the
+  policies on the tables it is granted. What changed in T3 step 2 is that no run holds a
+  superuser's credential: none can run a program on the database server, read its files, change a
+  role or alter the schema. The sync tick needs `APP_DATABASE_URL` as well: it imports the pass's
+  task (`run-delta-sync`) to enqueue it, and that module opens its pools when it is loaded, so
+  without it no tick runs. The API's request path, the per-tenant tasks and the three split jobs
+  share `app_user`'s server connections at PgBouncer, and the jobs across organisations the system
+  role's (`pgbouncer.ini`, beside `default_pool_size`, says what that holds). `docs/rls-guide.md`,
+  "Where row security holds today", lists every connection and whether the policies bind it.
+  Until 0138 T3, `set-task-env.sh` uploaded the owner too: `DIRECT_DATABASE_URL` (straight to
+  `postgres:5432`) until step 1, `DATABASE_URL` (through the pooler) until step 2. It deletes both
+  names from the store on every run now and fails when the list it reads back still holds either;
+  `docs/managed-bring-up.md`, "The owner's names in the task environment", says what to do then.
 
 Change `APP_DB_PASSWORD` from the migration default (`app_password`) before any real deployment, and
 rotate it in the DB to match: `./deploy/compose/rotate-db-passwords.sh --sync` sets `app_user` and
@@ -1001,9 +1021,8 @@ role every request runs as, cannot delete from this log: 0009 grants it `SELECT`
 and `INSERT` on it and revokes `UPDATE` and `DELETE`, and its row security is
 forced with no policy for `DELETE`. As `app_user`, a `DELETE` answers
 `permission denied for table support_read`. The purge of closed organisations
-deletes an erased organisation's rows; today it runs as the owner, since every
-Trigger.dev run still receives the owner's URL as `DATABASE_URL`. 0138 T3 step 2
-moves it to the tasks' system role, `ownpace_system`, whose grant on this log is
+deletes an erased organisation's rows; since 0138 T3 step 2 it runs as the
+tasks' system role, `ownpace_system`, whose grant on this log is
 `SELECT` on `tenant_id` and `DELETE`: it can pick rows by organisation and never
 by their age (it could still delete every row with no organisation at once), and
 the purge is the only task that deletes here. The 12-month prune picks rows by
@@ -1893,9 +1912,18 @@ steps for a tester's report. The items below are causes it points to.
   `set-task-env.sh` uploads. **The sync tick fails the same way**, every tick, and with it every
   scheduled sync: it imports `run-delta-sync`, which opens its pools when it is loaded. **So do the
   digest, the drift detector and group discovery**, each at the start of its daily run (workplan
-  0138 T2). Retention and the purge of closed organisations connect with `DATABASE_URL` alone.
-  A split job that fails with *"The list of organisations was asked on a connection that row
-  security binds"* was handed a `DATABASE_URL` that is not the owner's.
+  0138 T2). Every task needs `SYSTEM_DATABASE_URL` too, for its audit key, and the jobs that span
+  organisations for everything (0138 T3 step 2): a run that fails at once with
+  *"SYSTEM_DATABASE_URL is required"* is a task environment without it; re-run the bring-up's
+  `tasks` phase, which sets the role's password and uploads it. A run that fails with *"password
+  authentication failed for user "ownpace_system""* holds a URL from before the password last
+  changed: the same phase sets `.env`'s value on the role and uploads the URL made from it.
+  Retention and the purge of closed organisations connect with `SYSTEM_DATABASE_URL` alone, and a
+  failure there naming *"permission denied for table …"* is a statement the system role was not
+  granted (managed migration 0033 lists what it was). A split job that fails with *"The list of
+  organisations was asked on a connection that row security binds"* was handed a
+  `SYSTEM_DATABASE_URL` whose role lacks `BYPASSRLS`, which the bring-up refuses before it uploads
+  one.
 - **"fail-closed" errors with no tenant context:** expected when a query runs without
   `app.current_tenant` set — that's RLS doing its job, not a bug. The request path must go through
   `withTenantDb`/`withTenant`.

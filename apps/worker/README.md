@@ -41,18 +41,26 @@ TRIGGER_SECRET_KEY=tr_prod_...
   host-perspective `TRIGGER_API_URL` into runners, so any task that calls
   `.trigger()` from inside a runner (the tick does) must
   `configure({ baseURL: process.env.TRIGGER_API_URL_IN_NETWORK ?? 'http://trigger-api:3000' })`.
-- Task-runtime env (`DATABASE_URL`, `APP_DATABASE_URL`,
+- Task-runtime env (`SYSTEM_DATABASE_URL`, `APP_DATABASE_URL`,
   `SECRET_ENCRYPTION_KEY`) is uploaded once per environment with
   `deploy/compose/set-task-env.sh` — runners do not read the compose `.env`.
+  No run holds the database owner's `DATABASE_URL`: the script stopped
+  uploading it and deletes it from the store (workplan 0138 T3 step 2).
   The per-tenant tasks take their pools from `openTaskPools`
   (`src/jobs/task-pools.ts`): tenant data on `APP_DATABASE_URL`, as `app_user`
-  under row security, and one connection on `DATABASE_URL` for the audit
-  export's key alone. A run without `APP_DATABASE_URL` refuses to start; it
-  never falls back to the owner. The digest, the drift detector and group
-  discovery take their pools the same way, in their run, and read on
-  `DATABASE_URL` only the list of active organisations (`activeOrganisations`,
-  ids only, workplan 0138 T2). The other three scheduled jobs connect with
-  `DATABASE_URL` (workplan 0138, `docs/rls-guide.md`).
+  under row security, and one connection on `SYSTEM_DATABASE_URL`, the system
+  role `ownpace_system`, for the audit export's key alone. A run without
+  either refuses to start; it never falls back to the owner. The digest, the
+  drift detector and group discovery take their pools the same way, in their
+  run, and read on `SYSTEM_DATABASE_URL` only the list of active
+  organisations (`activeOrganisations`, ids only, workplan 0138 T2). The
+  other three scheduled jobs (the sync tick, retention, the purge) connect
+  with `SYSTEM_DATABASE_URL`: a role that bypasses row security, which their
+  questions across organisations need, and is not a superuser, may create no
+  role or database, belongs to no role and has no role belonging to it, and
+  holds the grants its statements need and no others, a grant to PUBLIC
+  counted among them (managed migration 0033; workplan 0138,
+  `docs/rls-guide.md`).
 
 ## Deploy
 
@@ -92,8 +100,9 @@ pnpm exec tsx apps/worker/src/index.ts --config mapping.json --once
 Secrets come from env only, never the config file. It takes its pools the
 way the per-tenant tasks do (`openTaskPools`, workplan 0138 T1), so it needs
 both URLs: `APP_DATABASE_URL`, `app_user`, for the ledger, whose every
-statement runs in the config's tenant's scope, and `DATABASE_URL`, the
-owner's, for the audit key alone. It calls the same `runAllDomains` the editions run, so it cannot
+statement runs in the config's tenant's scope, and `SYSTEM_DATABASE_URL`, the
+system role's (`ownpace_system`, which has no password until one is set on it,
+as the bring-up does), for the audit key alone. It calls the same `runAllDomains` the editions run, so it cannot
 drift from them silently, and the sync it runs is the ordinary
 non-destructive shadow pass. Use it to debug a connector or reproduce a
 support case end to end without booting an edition; it has no live caller

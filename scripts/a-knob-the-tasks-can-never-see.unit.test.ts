@@ -76,15 +76,16 @@ describe('every variable a scheduled task reads is one somebody uploads', () => 
   it('found the jobs and their reads, rather than passing on an empty list', () => {
     expect(names.length).toBeGreaterThan(1);
     expect(reads.length).toBeGreaterThan(names.length);
-    // The one every job needs. If this is missing the scan is looking at
-    // nothing, whatever else it reports.
-    expect(names).toContain('DATABASE_URL');
+    // The one every job that spans organisations needs (the system role's,
+    // workplan 0138 T3 step 2; the owner's DATABASE_URL until then). If this
+    // is missing the scan is looking at nothing, whatever else it reports.
+    expect(names).toContain('SYSTEM_DATABASE_URL');
   });
 
   /**
    * The two shapes an upload actually takes, and nothing else.
    *
-   *   DATABASE_URL: process.env.TASK_DATABASE_URL   the required object
+   *   SYSTEM_DATABASE_URL: process.env.TASK_SYSTEM_DATABASE_URL   the required object
    *   "SMTP_HOST"                                   the optional list
    *
    * NOT a bare mention. The first version matched only the quoted form and
@@ -92,9 +93,15 @@ describe('every variable a scheduled task reads is one somebody uploads', () => 
    * bare name would have passed on the PROSE two lines above the list, which
    * now names all three of the variables this rule exists for. A rule its own
    * documentation satisfies is not a rule.
+   *
+   * Nor the list of names the script DELETES (workplan 0138 T3 step 2):
+   * `const OWNER_NAMES = ["DATABASE_URL", "DIRECT_DATABASE_URL"]` quotes the
+   * owner's names in the optional list's own shape, and a job that read
+   * `DATABASE_URL` again passed here on the line that takes it away.
    */
+  const uploaded = setTaskEnv.replace(/^\s*const OWNER_NAMES = \[[^\]\n]*\];\s*$/m, '');
   const uploads = (name: string) =>
-    new RegExp(`"${name}"|\\b${name}\\s*:\\s*process\\.env\\.`).test(setTaskEnv);
+    new RegExp(`"${name}"|\\b${name}\\s*:\\s*process\\.env\\.`).test(uploaded);
 
   it.each(names)('set-task-env.sh uploads %s', (name) => {
     if (NOT_UPLOADED[name]) return;
