@@ -5,8 +5,8 @@
 ## Status — 2026-10-03 (update this block at the end of every session)
 
 **2026-10-03, later: a guard in the unit tier for a table the purge could not empty**, on branch
-`claude/ownpace-public-readiness-y7orc6-a-table-the-purge-could-not-empty`, not merged (after
-#1403's review).
+`claude/ownpace-public-readiness-y7orc6-a-table-the-purge-could-not-empty`, not merged; from the
+review of #1403, which merged 2026-10-03 as `10ccc800` with `0035`.
 
 - **`packages/managed/src/a-table-the-purge-could-not-empty.unit.test.ts`** reads every migration
   of both chains as text and asks, for each table in `PURGED_TABLES`, whether one grants
@@ -26,6 +26,7 @@
   without `SYSTEM_DATABASE_URL`. ⏳ **Owner's choice:** require branches to be up to date
   before merging, or a merge queue, or, as a habit, update a branch and let CI run again before
   merging one whose green is older than `main`.
+
 
 **2026-10-03, latest: the purge granted a person's links in a migration of its own, `0035`
 (blocking), on branch `claude/ownpace-public-readiness-y7orc6-the-system-role-purges-a-persons-link`,

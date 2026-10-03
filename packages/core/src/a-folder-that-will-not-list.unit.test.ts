@@ -29,7 +29,9 @@ import {
   setAppEventSink,
   setLogLevel,
   resetLogLevel,
+  withFailureCategory,
   type AppEvent,
+  type FailureCategory,
   type UpsertResult,
 } from '@openmig/shared';
 
@@ -58,6 +60,8 @@ interface Item {
 function files(initial: Record<string, ReadonlyArray<string>>) {
   const listing = new Map(Object.entries(initial));
   const refusing = new Map<string, string>();
+  /** A category the source's own code states on a refusal, as a throw site can. */
+  const stating = new Map<string, FailureCategory>();
   const ledger = new MemoryLedger();
   const cursors = new MemoryCursorStore();
   /** The folders this pass asked the source to list, in order. */
@@ -81,7 +85,10 @@ function files(initial: Record<string, ReadonlyArray<string>>) {
       listSince: async (folder) => {
         asked.push(folder.path);
         const refusal = refusing.get(folder.path);
-        if (refusal !== undefined) throw new Error(refusal);
+        if (refusal !== undefined) {
+          const stated = stating.get(folder.path);
+          throw stated ? withFailureCategory(stated, new Error(refusal)) : new Error(refusal);
+        }
         return {
           items: (listing.get(folder.path) ?? []).map((key) => ({ key })),
           nextCursor: { value: `pass-${pass}` },
@@ -102,6 +109,7 @@ function files(initial: Record<string, ReadonlyArray<string>>) {
   return {
     listing,
     refusing,
+    stating,
     ledger,
     asked,
     run,
@@ -165,6 +173,18 @@ describe('a folder the source will not list', () => {
 
     expect(result.unreadCollections).toEqual([
       expect.objectContaining({ collection: 'Shared', category: 'source_refused' }),
+    ]);
+  });
+
+  it('files it as its throw site stated, which no wording of the error could give', async () => {
+    const w = files({ Invoices: ['Invoices/1'], Shared: ['Shared/1'] });
+    w.refusing.set('Shared', 'Dropbox answered 409 on files/list_folder: path/restricted_content');
+    w.stating.set('Shared', 'policy_refused');
+
+    const result = await w.run();
+
+    expect(result.unreadCollections).toEqual([
+      expect.objectContaining({ collection: 'Shared', category: 'policy_refused' }),
     ]);
   });
 

@@ -99,3 +99,28 @@ export const grantLinkApi = {
     );
   },
 };
+
+/**
+ * A PERSON'S link (ADR-0035, amended 2026-09-29; workplan 0153 T5 (b)): one
+ * grant link for all of their migrations, at `/people/:personId/links`. The
+ * same shapes as a migration's, and a grant link only until the person's
+ * progress page exists.
+ */
+export const personLinkApi = {
+  list: async (personId: string): Promise<GrantLink[]> => {
+    const res = await apiClient.get(`/people/${encodeURIComponent(personId)}/links`);
+    return z.array(GrantLinkSchema).parse(res.data.links);
+  },
+
+  issue: async (personId: string, expiryDays: number): Promise<IssuedGrantLink> => {
+    const res = await apiClient.post(`/people/${encodeURIComponent(personId)}/links`, {
+      purpose: 'grant',
+      expiryDays,
+    });
+    return IssuedSchema.parse(res.data);
+  },
+
+  revoke: async (personId: string, linkId: string): Promise<void> => {
+    await apiClient.delete(`/people/${encodeURIComponent(personId)}/links/${encodeURIComponent(linkId)}`);
+  },
+};
