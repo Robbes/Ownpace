@@ -1109,6 +1109,7 @@ reading a file drops off its entry by itself.
 - [a-count-the-gate-took-for-a-fourth-level](../scripts/a-count-the-gate-took-for-a-fourth-level.unit.test.ts) — A COUNT CALLED `items`, AND A GATE THAT TOOK IT FOR A FOURTH LEVEL.
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-fixture-smaller-than-a-chunk](../scripts/a-fixture-smaller-than-a-chunk.unit.test.ts) — Every fixture was smaller than a chunk, so the buffering was never tested.
+- [a-link-the-gate-asked-of-a-migration](../scripts/a-link-the-gate-asked-of-a-migration.unit.test.ts) — A LINK THE GATE STILL ASKED OF A MIGRATION (E2E (managed) #232, 2026-10-03).
 - [a-person-opened-in-the-wrong-organisation](../scripts/a-person-opened-in-the-wrong-organisation.unit.test.ts) — A SEARCH THAT FINDS ONE PERSON IN TWO ORGANISATIONS, AND A GATE THAT OPENED WHICHEVER ROW POSTGRES HAPPENED TO RETURN FIRST.
 - [a-port-the-gate-assumed](../scripts/a-port-the-gate-assumed.unit.test.ts) — A PORT THE GATE ASSUMED.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
@@ -3151,6 +3152,14 @@ Reads:
 - `apps/api/src/knock-limit.ts`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
+
+### [a-link-the-gate-asked-of-a-migration](../scripts/a-link-the-gate-asked-of-a-migration.unit.test.ts)
+
+A LINK THE GATE STILL ASKED OF A MIGRATION (E2E (managed) #232, 2026-10-03).
+
+Reads:
+
+- `deploy/compose/smoke-managed.sh`
 
 ### [a-list-somebody-deletes-on-the-strength-of](../scripts/a-list-somebody-deletes-on-the-strength-of.unit.test.ts)
 
