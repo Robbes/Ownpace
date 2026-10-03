@@ -32,12 +32,13 @@
 - **The link is per person** (owner, 2026-09-29; ADR-0050): one grant link and one progress
   link for all their migrations, a grant asked and bound per Google account, covering only what
   the page showed. Only the grant link is built (`a-link-for-a-person.unit.test.ts`);
-  per-migration links serve meanwhile.
+  per-migration links are issued and honoured as before.
 - The person can **take their grant back** from the progress page: revoked at Google where it
   will, always deleted here, and told which; until they grant again nothing reads that account
   for that migration, on any credential (`withdraw-grant.ts`).
-- A link can be **reported** from either page to the Ownpace team's helpdesk or support mailbox,
-  never to the organisation that asked; a reply address is optional (`link-reports.ts`).
+- A migration's link can be **reported** from either page to the Ownpace team's helpdesk or
+  support mailbox, never to the organisation that asked; a reply address is optional
+  (`link-reports.ts`). A person's link cannot be reported yet.
 - **Pending (proposed 2026-09-29, not in force):** no new per-migration links, those sent work
   until they expire, a migration with no person gets one first, and a *Start* before the grant
   runs once it lands (*Pending* below).
@@ -70,8 +71,8 @@ any deployment. They are **persons** ([ADR-0050](./0050-a-move-is-a-persons-migr
 with their migrations: a family is one account and three mappings, or more, under three persons.
 
 **Vocabulary:** `tenant_member.role` already uses **`member`** to mean a person who can sign in
-with limited rights, so nothing calls a migrated person that; "migrator" is the shorthand and
-*person* the row. Reusing `member` for both populations is a bug waiting for a maintainer.
+with limited rights, so this ADR, the UI and the schema must not call a migrated person that;
+"migrator" is the shorthand and *person* the row. Reusing `member` for both populations is a bug waiting for a maintainer.
 
 ### 2. The link is the migrator's whole interface
 
@@ -85,37 +86,48 @@ One mechanism — signed, expiring, revocable — with two jobs:
   admin login.
 
 The two jobs get different lifetimes, because they carry different risk. The credential step is
-**short-lived and single-use**; the progress page is **longer-lived but revocable**, and carries
+**short-lived and spent once its work is done**; the progress page is **longer-lived but
+revocable**, and carries
 counts and states rather than content, which is what makes the longer window acceptable. The owner
 picks the expiry at issue: a grant link 1, 7 or 30 days (accepted 2026-09-20), a progress link 30,
-90 or 180 (`packages/ledger/src/mapping-link-store.ts`).
+90 or 180 (`packages/ledger/src/mapping-link-store.ts`); the progress link shown to a person as
+their own grant ends lives 90 days.
 
 **The admin distributes the link. We never do.** [ADR-0032](./0032-sharing-queue-target-native-invites.md)
 already keeps Ownpace from mailing third parties; here the reason is stronger: a mail from an
-unfamiliar domain asking for access to a mailbox is indistinguishable from an attack. The admin
-copies the link and sends it through a channel their people already trust. Showing a person their
+unfamiliar domain asking for access to a mailbox is indistinguishable from an attack, and
+training people to click it is a harm that outlives the migration. The admin copies the link and
+sends it through a channel their people already trust, which also takes deliverability,
+spam-listing and "why is this vendor emailing our staff" out of the product. Showing a person their
 progress link as their own grant ends is not sending (workplan 0122 T7).
 
 **The link is per person** (the amendment of 2026-09-29; the owner: *"yes, a per-person link
 instead of the per-migration links"*): a person grants their own accounts, so they get **one grant
-link and one progress link for all their migrations**. The grant page asks **per Google account**,
-binding each sign-in as 0108 T8 does (`login_hint`, the verified address, a refusal naming both);
+link and one progress link for all their migrations**. The grant page asks **per Google account**:
+it names each account the person's migrations read, with the migrations each one feeds (from, to,
+what), and one *Sign in as …* per account, binding each sign-in as 0108 T8 does (`login_hint`, the
+verified address, a refusal naming both);
 a grant lands, as decision 4 says, on each migration of that account **that the page listed**, in
-one transaction, one `mapping.granted` row each, and a migration added later asks again. The grant
-link is spent once every account on it is granted. The progress page shows all their migrations,
+one transaction, one `mapping.granted` row each, and a migration added later asks again, because
+its destination is new to them. The grant link is spent once every account on it is granted;
+until then it stays live within its expiry, so a person with a personal and a work account can do
+one now and one later. The progress page shows all their migrations,
 and *Take my grant back* works per account: revoked at Google once, cleared from every migration
-holding the token. The live-link limit counts the link once. It is a managed row, `person_link`
+holding the token. The live-link limit counts a person's grant link once. It is a managed row, `person_link`
 (managed migration 0034), shaped like `mapping_link`, since `person` is managed-only
 ([ADR-0036](./0036-the-managed-edition-is-its-own-package-and-its-own-chain.md)); the appliance has
 one implicit person and no grant links.
 
 **Built** (0153 T5 (b), slices 1–2; `apps/api/src/routes/a-link-for-a-person.unit.test.ts`): the
 row, the owner's doors `/api/people/:personId/links` and the grant page. **Not yet** (slices 3–4):
-the person's progress link, which the door refuses, and the owner's screens. Meanwhile each
+the person's progress link, which the door refuses; the owner's screens; and reporting a person's
+link (the report doors take a migration's link only). Meanwhile each
 migration's own links are issued and honoured as before; their future is *Pending*.
 
-Taking a grant back (0108 T8 (c)) is stated in the operative rules. A report of a link (0108 T8
-(d)) is a helpdesk ticket or, with no helpdesk, a mail to the support mailbox
+**Taking a grant back** (0108 T8 (c)): from the progress page, revoked at Google where it will,
+always deleted here, and the person told which; until they grant again nothing reads that account
+for that migration, on any credential. A report of a link (0108 T8
+(d)) is a helpdesk ticket or, with no helpdesk, a mail to the support mailbox for the alpha
 (`apps/api/src/services/report-channel.ts`); it is not offered where neither is set up, and one
 without a reply address (filed under the helpdesk's own user) cannot be answered.
 
@@ -154,16 +166,19 @@ migrators have no session to isolate. **An admin signs in and sees their tenant.
 
 The exception is **`lastError`**, verbatim by design (SAD §11.2) and kept free of **secrets**,
 not of *data*: `SELECT "Personal/Divorce lawyer" failed` on a parent's dashboard is a content leak.
-So **the migrator's own page shows the verbatim error**, where hard rule 9 can be acted on by the
-person holding the credential, and **the admin's board shows a classified error**: a category and
-a suggested action or, unrecognised, a sentence saying to ask the person. The admin may **see, and
-nudge — never act on someone's behalf**: see who is stuck, re-issue a link, never hold the
-credential.
+So, as decided, **the migrator's own page shows the verbatim error**, where hard rule 9 can be
+acted on by the person holding the credential, and **the admin's board shows a classified error**:
+a category and a suggested action or, unrecognised, a sentence saying to ask the person, rather
+than guessing or passing the string through. The admin may **see, and nudge — never act on
+someone's behalf**: see who is stuck, re-issue a link, never hold the credential. That is the
+support burden this ADR buys, accepted knowingly.
 
-**Built otherwise, and open:** the progress page shows the category and never the provider's text
-(`packages/shared/src/migration-view.ts`, holding decision 2's counts and states); the failure
-queue shows the verbatim `lastError` under the category's remedy (`apps/web/src/pages/Failures.tsx`,
-workplan 0110 T3). Workplan 0137 leaves the admin's half to a later plan.
+**Built otherwise, and open** — read the paragraph above as the decision and this as the code: the
+progress page shows the category and never the provider's text
+(`packages/shared/src/migration-view.ts`, holding decision 2's counts and states); the owner's
+migration page (`apps/web/src/components/LiveProgress.tsx`) and failure queue
+(`apps/web/src/pages/Failures.tsx`, workplan 0110 T3) show the verbatim `lastError` under the
+category. Workplan 0137 leaves the admin's half to a later plan.
 
 ### 6. There are no seats, and this ADR must not invent one
 
@@ -171,7 +186,8 @@ workplan 0110 T3). Workplan 0137 leaves the admin's half to a later plan.
 person is never billed (ADR-0050). So **issuing a link is free, and adding a `tenant_member` is
 free.** This is a decision, not an omission: **per-migrator pricing would penalise the private
 option**, giving a customer a reason to switch to one category-C credential for everyone — the
-arrangement where the organisation *can* read everyone's mail. Seat pricing would need its own ADR
+arrangement where the organisation *can* read everyone's mail. A cost-recovery product must not
+build an incentive that argues against its own security model. Seat pricing would need its own ADR
 **amending ADR-0014**: it departs from cost recovery, and is not a tariff detail.
 
 ### 7. What this restates in ADR-0034
@@ -210,8 +226,9 @@ here. As built, a grant link asks Google only (`source_not_google`, `grant-link-
 **Honest about Managed.** We hold the encrypted tokens: the promise is "your admin cannot read
 this", never "nobody can". On self-host the customer's machine holds them. Say so to customers.
 
-**Still open**, besides what decisions 2, 5 and 7 name: start and pause on the progress page (0122
-T8), and links outside managed, whose grant and progress pages are managed-only
+**Still open**, besides what decisions 2, 5 and 7 name: decision 3's per-mapping category and its
+sentence, which nothing records yet; start and pause on the progress page (0122 T8); and links
+outside managed, whose grant and progress pages are managed-only
 (`apps/web/src/AppRoutes.tsx`).
 
 ## Alternatives considered
@@ -225,9 +242,9 @@ people who visit about twice.
 the owner's decision; it is also where a stolen appliance yields every mailbox.
 
 **We email the links.** Forty links is forty copy-pastes. Rejected on ADR-0032's precedent, and
-because the message that matters must come from someone the recipient already trusts. If the
-friction proves real, the fix is better distribution (a per-person copy-link, a bulk export), never
-us becoming the sender.
+because the message that matters must come from someone the recipient already trusts. A
+per-person copy-link and a bulk export is the compromise; if the friction proves real, the fix is
+better distribution ergonomics, never us becoming the sender.
 
 **Charge per migrator.** Rejected in decision 6: it prices customers away from the private option
 and departs from ADR-0014 without saying so.
@@ -294,14 +311,17 @@ Start (decision 2's *"their own start and pause"* is the progress page's, and un
 - **2026-09-24** — A link can be reported from its grant or progress page, never to the organisation
   that asked; a reply address is optional (the owner, 2026-09-24; built by 0108 T8 (d)). Record:
   *Operative rules*, seventh bullet.
+- **2026-09-28** — With no helpdesk set up, a report goes by mail to the support mailbox, for the
+  alpha (the owner; `apps/api/src/services/report-channel.ts`, workplan 0108). Record: none — the
+  record said a report is offered only where a helpdesk is set up.
 - **2026-09-29** — The amendment of 2026-09-29: the link is per person (owner: *"yes, a per-person
   link instead of the per-migration links"*; workplan 0153 T5 (b)). What becomes of the
   per-migration link, and *start when granted*, were proposed and are not accepted: *Pending*,
   above. Record: *Amendment 2026-09-29 — the link is per person (workplan 0153 T5 (b))*.
 - **2026-10-03** — Consolidated in place (ADR-0051). Nothing was decided by the consolidation. Where
-  the record and the code differ, the Decision says what is built: a report also goes by mail where
-  there is no helpdesk (the owner, 2026-09-28, in `report-channel.ts` and workplan 0108); decision
-  5's error split; links on managed only.
+  the record and the code differ, the Decision states the decision and says what is built:
+  decision 5's error split, decision 3's per-mapping category (not built), and links on managed
+  only.
 
 The full record, word for word as it read before this consolidation:
 [history/0035-who-signs-in-and-who-gets-a-link.md](./history/0035-who-signs-in-and-who-gets-a-link.md).
