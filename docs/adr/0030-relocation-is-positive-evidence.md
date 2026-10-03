@@ -13,11 +13,11 @@
      node scripts/adr-operative.mjs --write -->
 
 - A **relocation** (a disappeared item paired, by **content hash**, with an arrival of the same pass under a new key) is **positive evidence**: `apply` may remove the **old** copy. Recorded by key (`movedToNaturalKeyHash`), so a move and a rename are one event, never a phantom deletion (`move-detection.unit.test.ts`).
-- **ADR-0024's gates stand**, behind the same `allowApplyDeletions` switch; gate 3 admits the relocation through `relocationCheck`: the arrival is **ours** (`copied`/`updated`, never `adopted`), holds the **same `contentHash`**, is neither the old key nor its target object, and **no third item shares the hash**; else `relocation_unconfirmed` (`apply-relocation.unit.test.ts`).
+- **ADR-0024's gates stand**, behind the same `allowApplyDeletions` switch; gate 3 admits the relocation through `relocationCheck`: the arrival is **ours** (`copied`/`updated`, never `adopted`), holds the **same `contentHash`** under another key and in another target object, and **no third item shares the hash**; else `relocation_unconfirmed` (`apply-relocation.unit.test.ts`).
 - **The target is asked** (`hasItem`, for the arrival) immediately before removal. An error is not absence; a target that cannot be asked refuses (`target_cannot_confirm`). The port: `TargetPresenceCheck` (`ports.ts`).
 - **Gate 6 has two halves** on one threshold: pending deletions, and open relocations (`mass_relocation_suspected`). **Gate 7's** `UPDATE` re-checks the arrival and `keep` in the same statement; `keep` and `apply` exclude each other (`already_kept`). Held by `ledger.integration.test.ts`.
 - A renamed or moved **exported document** (Google Doc, Sheet, Slides deck or Drawing; Dropbox Paper doc) is paired by its **Drive or Dropbox id**: a bytes pair where both copies' bytes match, else `moved_by_identity`, whose `apply` asks for the **same id** (`source_ref`) in place of the bytes checks (owner, 2026-09-23; 0150 D8; `a-rename-the-bytes-could-not-pair.unit.test.ts`).
-- Both editions serve a manual apply: the appliance answers once the old copy is gone; the managed edition queues `run-apply-relocation` and answers on a `relocation` receipt. Unattended apply is ADR-0031's and leaves identity pairs for a person (`paired_by_identity`). Held by `apply-routes.integration.test.ts`.
+- Both editions serve manual apply: the appliance answers once the old copy is gone; the managed edition queues `run-apply-relocation` and answers on a `relocation` receipt. Unattended apply is ADR-0031's and leaves identity pairs for a person (`paired_by_identity`). Held by `apply-routes.integration.test.ts`.
 
 ## Context
 
@@ -37,9 +37,9 @@ Either way the target kept both copies. The rename was missed because correlatio
 Drive customer is a target nobody works in that follows the source, **including moves**.
 
 An exported document has no bytes of its own. Two Office or OpenDocument exports of an unchanged
-Google document differ (measured, workplan 0042 T3), so a renamed one was never paired: two clean
-passes later it was reported **deleted in Google** while both copies stayed (0042 T10). Nothing
-promises that two exports of a Dropbox Paper doc match either.
+Google document are not byte-identical (measured, workplan 0042 T3), so a renamed one was never
+paired: two clean passes later it was reported **deleted in Google** while both copies stayed
+(0042 T10). Nothing promises that two exports of a Dropbox Paper doc match either.
 
 ## Decision
 
@@ -80,8 +80,7 @@ export, carries its **Dropbox id**. A rename changes neither.
 
 ### 3. The gates, in the order `applyRelocation` runs them
 
-`applyRelocation` sits beside `applyDeletion` in `apply-deletion.ts`. Every refusal is a sentence
-an operator can act on.
+`applyRelocation` sits beside `applyDeletion` in `apply-deletion.ts`, one destructive path to read.
 
 - **Gate 1, opt-in:** `allowApplyDeletions`. One capability, one switch: a second would refuse
   the safer operation to an owner who opted into the more dangerous one.
@@ -116,9 +115,7 @@ an operator can act on.
   NULL`: the first of two answers wins), and an `EXISTS` **re-checks the arrival in the same
   statement** (another key, `copied`/`updated`, the same non-empty hash or, for an identity pair,
   `source_ref`), so a concurrent apply on the arrival cannot take both copies. It tombstones the
-  row and closes any deletion entry on it. `ledger.integration.test.ts` runs it on Postgres; its
-  `moved_to_natural_key_hash IS NOT NULL` clause, implied by the `EXISTS`, is commented as
-  known-redundant.
+  row and closes any deletion entry on it. `ledger.integration.test.ts` runs it on Postgres.
 
 ### 4. Who presses it
 
@@ -128,11 +125,11 @@ an operator can act on.
   `apply-deletion-evaluate.unit.test.ts`), then queues `run-apply-relocation`, which re-runs every
   gate, asks the target, and lands the outcome on the relocation's own receipt
   (`apply_receipt.action`, migration 0010).
-- The Moves screen shows the button only where `mayOfferRelocationApply` allows (an open
-  relocation), and arms before it acts; the server decides.
-- **Unattended apply is [ADR-0031](./0031-auto-apply-relocations.md)'s**, behind four more gates,
-  and leaves an identity pair for a person (`paired_by_identity`): its argument is that the bytes
-  are the proof when nobody is looking.
+- The Moves screen offers the button only where `mayOfferRelocationApply` allows (an open
+  relocation), and arms it before acting; the server decides.
+- **Unattended apply is [ADR-0031](./0031-auto-apply-relocations.md)'s**, where a mapping opts in,
+  behind four more gates. It leaves an identity pair for a person (`paired_by_identity`): its
+  argument is that the bytes are the proof when nobody is looking.
 
 ## Consequences
 
@@ -142,8 +139,9 @@ an operator can act on.
   refusal says what to do: close the entries with `keep`, which clears the count, and tidy the old
   copies in the target system. It is ADR-0024's trade for a mass deletion: at that share this
   code cannot tell a reorganisation from an accident.
-- **`keep` is final here.** Nothing in this product re-opens a carried-out decision; an owner who
-  changes their mind acts in the target system.
+- **`keep` is final here** for the move it answered; a later move to another folder or key is a
+  new question. Nothing in this product re-opens a carried-out decision, so an owner who changes
+  their mind acts in the target system.
 - **A duplicate may be reported as a relocation.** Copying a file and deleting the original in
   one pass looks like a rename, with the same outcome. The report must not claim to know which
   happened.
@@ -155,6 +153,8 @@ an operator can act on.
 - **A relocation's tombstone is not an erasure.** If the source lists the old key again,
   `classifyKnownItem` returns `relocated-away` and the item is copied again; a deletion's
   tombstone never is (`move-detection.unit.test.ts`).
+- **The schema changes are additive** (migrations 0009, 0010 and 0058); existing rows read as
+  before.
 
 ## Alternatives considered
 
@@ -166,9 +166,9 @@ an operator can act on.
 - **Report relocations as `reported` deletions.** It reuses `apply` untouched and is a lie:
   nothing reported anything, and gate 3 stops being readable once that class stops meaning "the
   source told us".
-- **Key files by an opaque source id instead of the path.** Moves and renames would become
-  invisible. Rejected under ADR-0020 and in workplan 0042 T2: a content hash is recoverable from
-  the target, a Drive `fileId` never is. The id in §2 only pairs; the key stays the path.
+- **Key files by an opaque source id.** Moves and renames would become invisible. Rejected under
+  ADR-0020 and in workplan 0042 T2: a content hash is recoverable from the target, a Drive
+  `fileId` never is. The id in §2 only pairs; the key stays the path.
 - **Have the sync loop move the target copy.** Most writers have no move or rename (a JMAP
   `Email/set` move is not a file rename; plain DAV servers vary on `MOVE`), and the loop would
   become destructive, which hard rule 2 forbids.
@@ -183,7 +183,8 @@ an operator can act on.
   discarding a source's own deletion report is a bigger change to the destructive path than the
   duplicate entry it tidies. An identity pair does clear it: its id is listed under the new name.
 - **One receipt per item for both destructive actions.** One item can be in both queues (renamed,
-  then the new name deleted), and a poller must be answered about the question it asked.
+  then the new name deleted), and a poller must be answered about the question it asked; a second
+  press joins only a queued receipt for the same action.
 - **Let unattended apply take identity pairs.** Its safety rests on the bytes being the proof
   when nobody is looking, and an identity pair has no such proof.
 - **Auto-apply as part of this decision.** "The bytes are demonstrably elsewhere" makes one
@@ -218,17 +219,18 @@ an operator can act on.
 - **2026-09-23** — Correction: the operative rule added on 2026-08-19 (ADR-0038) said manual
   relocation apply was appliance-only; both editions have served it since 2026-08-16. Record:
   the last bullet of the history file's *Operative rules*.
-- **2026-09-23** — The owner: a renamed Google document is paired by its Drive id, and `apply`
-  may remove its old copy; unattended apply leaves such pairs for a person (workplan 0042 T10,
-  migration 0058). Record: *Amendment, 2026-09-23: a renamed Google document is paired by its
-  Drive id*.
+- **2026-09-23** — The owner: *"Yes, pair renamed Google documents by their Drive id"* and *"Yes,
+  Apply may remove the old copy of a renamed Google filetype/document."* Unattended apply leaves
+  such pairs for a person (workplan 0042 T10, migration 0058). Record: *Amendment, 2026-09-23: a
+  renamed Google document is paired by its Drive id*.
 - **2026-09-28** — A Dropbox Paper doc, now copied as an export, is paired by its Dropbox id the
   same way (workplan 0150 D8, T3 and T4). Record: *2026-09-28: a Dropbox Paper doc is paired by
   its Dropbox id (workplan 0150 D8)*.
 - **2026-10-03** — Consolidated in place (ADR-0051). One reason was restated to match the code:
   the record said an applied mass relocation could not be undone by restoring the source, because
-  `classifyKnownItem` will not re-create a tombstone. A relocation's tombstone has been re-copied
-  since the same day (`relocated-away`), so the breaker rests on the pairing being in doubt.
+  `classifyKnownItem` will not re-create a tombstone. Since 2026-08-15, an item listed again at a
+  relocation's old key is copied again (`relocated-away`), so the breaker rests on the pairing
+  being in doubt.
 
 The full record, word for word as it read before this consolidation:
 [history/0030-relocation-is-positive-evidence.md](./history/0030-relocation-is-positive-evidence.md).

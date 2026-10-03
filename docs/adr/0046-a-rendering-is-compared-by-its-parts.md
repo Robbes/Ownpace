@@ -16,7 +16,7 @@
 
 ## Operative rules
 
-<!-- What holds NOW, within the ADR-0051 budget: 8 bullets, 60 words a bullet, 250 words in
+<!-- What holds NOW, within the ADR-0051 budget: 8 bullets, 60 words a bullet, 300 words in
      all. Amend in place when a later decision changes it, then regenerate OPERATIVE.md:
      node scripts/adr-operative.mjs --write -->
 
@@ -26,23 +26,25 @@
   `a-content-hash-built-from-thirty-two-bits`.
 - **Only a rendering this product asked for** (rule 3): bytes marked `RawFileItem.rendering` by
   Drive's `files.export` or Dropbox's `files/export`; a customer's own `.zip` is compared by its
-  bytes.
-- **A stored hash carries its scheme; schemes are never compared across** (rule 4, cited as
-  (d)): another scheme is **not evidence of change** — recompute and store, never re-copy.
-  `sameFingerprintVersion`; guard `a-hash-compared-against-a-different-scheme`.
-- **Verification says what it compared** (rule 5): the claim `container-parts`, the target re-read
-  in the row's scheme. **No part is declared "not the document"** (rule 6): the hash settles a
-  `.docx` and an `.xlsx`, not a `.pptx` or an `.odt`.
-- **Built, not reaching the ledger** (0042 T8 (e)): the file pass's `fetchRaw` drops the marker,
-  so every export is stored with a whole-file hash; passing it through is still open.
-- **A rewrite follows the source's version, never an export's bytes; a renamed export is paired
-  by its source id** ([ADR-0030](./0030-relocation-is-positive-evidence.md)). So **nothing is
-  refused for what it measured**. Tests: `a-deck-copied-once-not-nightly`,
-  `a-paper-doc-exported-once` (Dropbox Paper, since 2026-09-28).
+  bytes. Guard `a-deck-that-would-be-rewritten-nightly`.
+- **A stored hash carries its scheme; schemes are never compared across**
+  (rule 4, cited as (d)): another scheme is **not evidence of change** — recompute and store,
+  never re-copy. `sameFingerprintVersion`; guard `a-hash-compared-against-a-different-scheme`.
+- **Verification says what it compared** (rule 5): §20's report and the confirmed list's
+  `container-parts` ([confirmed-list.ts](../../packages/shared/src/confirmed-list.ts)), the
+  target re-read in the row's scheme. **No part is declared "not the document"** (rule 6): the hash settles a `.docx`
+  and an `.xlsx`, not a `.pptx` or an `.odt`.
+- **Built, not reaching the ledger** (0042 T8 (e)): `fetchRaw` in
+  [dav-sync.ts](../../packages/core/src/dav-sync.ts) drops the marker, so every export is stored
+  with a whole-file hash; passing it through is still open.
+- **A rewrite follows the source's version, never an export's bytes, and a renamed export is
+  paired by its Drive or Dropbox id** ([ADR-0030](./0030-relocation-is-positive-evidence.md)).
+  So **nothing is refused for what it measured**. Tests: `a-deck-copied-once-not-nightly`,
+  `a-paper-doc-exported-once`.
 - **`nativeFilePolicy` defaults to `refuse`**; the owner chooses per migration and per kind
   (0042 T9), and every format carries every kind. `EXPORT_STABILITY` records the measurements,
-  taken through the connector like any caller, and decides nothing. The confirm screen names a
-  kind left behind.
+  taken through the connector like any caller (`an-instrument-that-cannot-take-its-own-reading`),
+  and decides nothing. The confirm screen names a kind left behind.
 
 ## Context
 
@@ -68,8 +70,8 @@ rows, so it is a decision, not a patch.
 For a file this product obtained by asking a provider to render a document that has no bytes of
 its own, **when the rendering is a zip, `contentHash` is computed over a canonical form of the
 container** rather than over its raw bytes. The rules keep their accepted numbers; code also
-cites four by the letter of the workplan 0042 T7 item that built each: rule (a) is rule 1, rule
-(b) is rule 2, rule (c) is rule 5, and rule (d) is rule 4.
+cites four by the letter of the workplan 0042 T7 item that built each:
+rule (a) is rule 1, rule (b) is rule 2, rule (c) is rule 5, and rule (d) is rule 4.
 
 1. **(a) The canonical form is the parts, not the packaging.** Member names sorted, and for
    each, the sha256 of its **uncompressed** bytes. Excluded: member modification timestamps,
@@ -89,13 +91,15 @@ cites four by the letter of the workplan 0042 T7 item that built each: rule (a) 
 4. **(d) A stored hash records the scheme that produced it (`zip1:` on its front for parts),
    and schemes are never compared across.** A row whose stored scheme differs from the current
    one is **not evidence of change**: recompute, store, and do not re-copy on that basis alone.
-   Otherwise adopting the scheme would rewrite every already-migrated native file once, the
-   disease arriving through the cure. `sameFingerprintVersion` ([fingerprint-scheme.ts](../../packages/shared/src/fingerprint-scheme.ts))
+   Otherwise adopting the scheme would make every already-migrated native file read as changed,
+   the disease arriving through the cure. `sameFingerprintVersion` ([fingerprint-scheme.ts](../../packages/shared/src/fingerprint-scheme.ts))
    is the one implementation; `scripts/a-hash-compared-against-a-different-scheme.unit.test.ts`
    holds every comparison site to it.
-5. **(c) Verification says what it compared.** A row hashed structurally reads `container-parts`
-   on the confirmed list (*"by the document's parts"*), and the target is re-read in the row's
-   own scheme, so nobody has to guess which of two meanings a green row carries.
+5. **(c) Verification says what it compared.** For rows hashed structurally, §20's report states
+   that the comparison was over the container's parts: a reader must never have to guess which of
+   two meanings a green row carries. Built so far on the confirmed list — a row reads
+   `container-parts` (*"by the document's parts"*), and the target is re-read in the row's own
+   scheme; §20's sample does not say it yet (*Consequences*).
 6. **This ADR does not rescue `export-odf`, and declares no part "not the document".** A `.odt`'s
    `settings.xml` really changes, as do five parts of a deck's `.pptx` (below), so no container
    normalisation helps. Declaring named parts "not the document" is a claim about a format's
@@ -119,8 +123,8 @@ records them.
 | Doc, Sheet, Slide | `.pdf` | not a zip; **stable** as whole files: 195869, 54591 and 2017 bytes, one hash ×5 each |
 
 So the parts hash settles a Doc and a Sheet under `export-office`, not every `export-office`
-file. What moves in the deck is plumbing, no `ppt/slides/slideN.xml`, read from the zip index
-without inflating a member. The PDF greens are narrow: the deck measured is thin (2017 bytes as
+file. What moves in the deck is plumbing, not slides (no `ppt/slides/slideN.xml`), as read from
+the zip index without inflating a member. The PDF greens are narrow: the deck measured is thin (2017 bytes as
 PDF, 34833 as `.pptx`), so a content-rich deck is unmeasured (0042 T3).
 
 ### A rewrite follows the version, so nothing is refused for what it measured
@@ -131,7 +135,7 @@ last modification: for a Google document, its `modifiedTime`. A renamed Google d
 paired by its Drive id ([ADR-0030](./0030-relocation-is-positive-evidence.md), amended
 2026-09-23). An export that differs on every draw is copied once, and again only after an edit.
 
-So **no combination is refused for what it measured**, the owner's aim on 2026-09-23: *"My goal
+So **no combination is refused for what it measured**. The owner's aim, 2026-09-23: *"My goal
 would however be that we have working fileformats that suite the user."* The connector does not
 read `EXPORT_STABILITY`, and the measurement script exports through it like any caller.
 `NATIVE_POLICY_COVERAGE` has every kind under every format, each kind has its own select offering
@@ -171,8 +175,9 @@ stored hash. Whether to pass the marker through, and what that changes for those
 - **The contract is renderer-specific, and Google can break it**: if an export starts varying a
   member's content (a generated id inside `document.xml`, say), the parts hash moves again.
   `scripts/drive-export-stability.ts` is the detector, and running it is the habit (0042 T6).
-- §20's content sample re-reads the target whole, so a `zip1:` row would count there as
-  unavailable (rule 4), not as a parts comparison (rule 5). Moot while no such row exists.
+- **Rule 5 is not yet met by §20's content sample**, which re-reads the target whole, so a `zip1:`
+  row would count there as unavailable (rule 4) rather than as a parts comparison. Moot while no
+  such row exists; it has to be closed with 0042 T8 (e).
 - Refusals recorded before 2026-09-23 are parked, as every refusal is, and leave the Failures
   screen on Try again (per row or per group).
 - Open: 0042 T8 (e); 0150 open question 3 (b); a content-rich deck under `export-pdf`; the
@@ -218,9 +223,10 @@ owner chose to amend this one, and the two rules carry over to a Paper doc uncha
 ## Amendment log
 
 - **2026-09-16** — A Sheet and a Slide measured after acceptance: the hash settles a Doc and a
-  Sheet, not a deck. The same day the connector began refusing a deck under `export-office` and
-  a Doc under `export-odf` (lifted 2026-09-23). Record: *Measured after acceptance — 2026-09-16,
-  the same day*.
+  Sheet, not a deck. By the owner's decision the same day, the connector refused a deck under
+  `export-office` (and a Doc under `export-odf`) per item, counted on the confirm screen before
+  the run; the refusal was lifted 2026-09-23, the count stays. Record: *Measured after
+  acceptance — 2026-09-16, the same day*.
 - **2026-09-16** — `export-pdf` measured stable on a Sheet and a Slide; the refusal named a
   format measured to carry the refused file, derived from the table (`stablePoliciesFor`).
   Superseded 2026-09-23. Record: *2026-09-16, later still: the deck has a way out, and the

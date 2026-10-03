@@ -32,10 +32,11 @@
   boundary's three guards each need one repo — the leakage walk's single import graph, the
   both-bundles build, and `two-chains` applying both chains to one database. Reconsider only
   on a *social* trigger (a separate contributor community around the core), never a technical one.
-- **"Private ops" means instance facts and secrets, never the recipe**: `deploy/` is public — how
-  an MSP runs its own managed instance; instance facts ride env vars and repository variables;
-  secrets are gitignored, never in git. A private ops repo only if instance facts outgrow env
-  vars, holding only them and pointing at the public recipe (*The ops-privacy correction*).
+- **"Private ops" means instance facts and secrets, never the recipe**: `deploy/` is public by
+  design, how an MSP runs its own managed instance. Instance facts ride env and repository
+  variables; secrets are gitignored, never in git. A private ops repo comes only when instance
+  facts outgrow env vars, and holds only them, pointing at the public recipe (*The ops-privacy
+  correction*).
 - The trademark is the **mission-compatible moat** — Apache-2.0 §6 grants no trade-mark rights.
   This ADR recommended asserting it in `NOTICE` and did not decide it; it is asserted under
   [ADR-0040](./0040-the-service-is-ownpace.md), guarded by

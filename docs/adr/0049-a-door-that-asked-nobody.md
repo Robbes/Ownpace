@@ -42,6 +42,9 @@
   (`CREATABLE_STATUSES`), and refuses `cutover`, `done` and `continuous` with a 400 on `status`
   naming their doors: the cutover, Finish and Keep copying. Guard:
   `path-lifecycle-wiring.unit.test.ts`.
+- **`POST …/cutover` asks `prepareTransition`** (core's `cutover-state.ts`, the rule the job
+  follows) before it enqueues: 409 `cutover_refused` with a stable `code`, or a 202 saying what
+  the job will do (0009 T10). See *Consequences*.
 
 ## Context
 

@@ -27,18 +27,20 @@
   hand. Guard: `cutover-rollback.unit.test.ts`.
 - **A rollback of one data type** (`--kind`, workplan 0128 T5 slice 5b) sets back its own ledger
   and path alone; the migration's status is its paths' roll-up, and only mail has an MX record to
-  point back. Guard: `a-cutover-of-one-data-type.unit.test.ts`.
+  point back. A whole rollback leaves a data type kept on its own in the lane (owner, 0128 D9;
+  ADR-0048). Guard: `a-cutover-of-one-data-type.unit.test.ts`.
 - **One implementation**: `performRollback` (`@openmig/core`, `cutover-rollback.ts`). The CLI's
   `rollback --yes` and the `run-rollback` job only gate, print and notify. Guards:
   `cutover-commands.unit.test.ts`, `run-rollback.integration.test.ts`.
 - **Mapping first, ledger second, and every refusal before either write**: `ROLLED_BACK` admits
-  no second rollback, so the write that can be retried goes first.
+  no second rollback, so the write that can be retried goes first. Guard:
+  `cutover-rollback.unit.test.ts`.
 - **A rollback can be attempted again** (owner, 2026-09-20, workplan 0009 T8): `start-cutover`
   and the managed prepare job take `ROLLED_BACK → PREPARING`, as from `FAILED`, with the attempt
   number; the trail keeps the first attempt. `COMPLETED` alone is terminal. Guard:
   `cutover-state.unit.test.ts`.
 - **The mapping half is `rollbackTransition`** (shared `lifecycle.ts`): `cutover` and
-  `continuous` → `active`; `active` and `paused` untouched, saying why; `done` **refused**, as
+  `continuous` → `active`; `active`/`paused` untouched, saying why; `done` **refused**, as
   `startTransition` refuses it. Guard: `a-rollback-is-a-setback.unit.test.ts`.
 - **Which states may roll back** is `isValidTransition(state, 'ROLLED_BACK')`: APPROVED,
   CUTOVER_IN_PROGRESS, GRACE_PERIOD, FAILED. `canRollback` and a read's `rollbackAvailable` derive

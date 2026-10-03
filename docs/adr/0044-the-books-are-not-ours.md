@@ -23,32 +23,28 @@
      the narrative below stays append-only. Assembled into OPERATIVE.md by
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
-- **The legal system of record for invoices is Moneybird, not this product.**
-  Moneybird assigns the number, applies the tax rate, renders the document and
-  files it for the retention period. Ownpace is UPSTREAM of the record (it
-  pushes the billable period) and a MIRROR of it (number, issue date, PDF,
-  status pulled back).
-- **Ownpace never assigns an invoice number.** Gapless sequential numbering is
-  the artefact auditors check; it belongs to the system that owns it
-  (Moneybird's `invoice_sequence_id`). No code path may mint, alter or reuse a
-  number.
-- **Ownpace never renders an invoice document.** The customer — on the billing
-  page, by email, or via an operator (workplan 0110) — is served Moneybird's
-  PDF. Exactly one document may exist per sale; a second, self-rendered
-  artefact is the failure mode this rule exists to prevent.
-- **Creation is idempotent by `reference`.** Ownpace sets a period-derived
-  `reference` on create and looks it up (`find_by_reference`) before creating,
-  so a retried push cannot double-invoice — hard rule 1, satisfied at the seam.
-- **No VAT percentage lives in product code.** The treatment is selected as a
-  Moneybird `tax_rate_id` per invoice (workplan 0111 T3). `pricing.ts`'s
-  `VAT_RATE` constant is legacy display logic pending that task and must not
-  spread.
-- **An issued invoice is immutable in the mirror; a correction is a credit
-  note** issued by Moneybird and mirrored like any other document — never an
-  UPDATE to an issued row.
-- **The mirror is managed-chain data** (ADR-0036): the appliance carries no
-  invoice tables' behaviour and no Moneybird credential. Credentials ride the
-  vault/`.env`, never git, never the appliance image.
+- **The legal system of record for invoices is Moneybird, not this product.** Moneybird assigns
+  the number, applies the tax rate, renders the document and files it. Ownpace is UPSTREAM of the
+  record (it pushes the billable period) and a MIRROR of it (number, issue date, PDF, status
+  pulled back): `packages/managed/src/moneybird-sales-invoices.ts`.
+- **Ownpace never assigns an invoice number.** No code path may mint, alter or reuse one; the
+  sequence is Moneybird's `invoice_sequence_id`:
+  `packages/managed/src/moneybird-sales-invoices.unit.test.ts`.
+- **Ownpace never renders an invoice document.** The customer, on the billing page, by email or
+  via an operator (workplan 0110), is served Moneybird's PDF: one document per sale
+  (*Consequences* below).
+- **Creation is idempotent by `reference`**: a period-derived `reference` is set on create and
+  looked up (`find_by_reference`) first, so a retried push cannot double-invoice (hard rule 1):
+  `packages/managed/src/moneybird-sales-invoices.unit.test.ts`.
+- **No VAT percentage lives in product code.** The treatment is a Moneybird `tax_rate_id` per
+  invoice (`packages/managed/src/moneybird-tax-rates.ts`); the legacy `VAT_RATE` in `pricing.ts`
+  must not spread: `scripts/a-rate-that-must-not-spread.unit.test.ts`.
+- **An issued invoice is immutable in the mirror; a correction is a credit note** issued by
+  Moneybird and mirrored, never an UPDATE to an issued row:
+  `packages/managed/src/invoice-refusal-under-rls.unit.test.ts` (managed migration 0014).
+- **The mirror is managed-chain data** (ADR-0036): the appliance carries no invoice tables'
+  behaviour and no Moneybird credential (`apps/selfhost/src/no-managed-leakage.unit.test.ts`).
+  Credentials ride `.env` (hard rule 3), never git, never the appliance image.
 
 ## Context
 
@@ -94,3 +90,36 @@ workplan 0111 T1–T3.
 - **A Merchant of Record as the seller**: a commercial decision, recorded as
   business records outside this repository (ADR-0009's boundary); the product
   consequence is simply that Ownpace remains the seller and this ADR applies.
+
+## Operative rules at length (as they read until 2026-10-03)
+
+The operative section above was cut to the ADR-0051 budget on 2026-10-03. Below are its
+bullets as they read before, word for word: the same rules, with the reasons and examples
+that no longer fit there. This is a record; the section above is what holds.
+
+- **The legal system of record for invoices is Moneybird, not this product.**
+  Moneybird assigns the number, applies the tax rate, renders the document and
+  files it for the retention period. Ownpace is UPSTREAM of the record (it
+  pushes the billable period) and a MIRROR of it (number, issue date, PDF,
+  status pulled back).
+- **Ownpace never assigns an invoice number.** Gapless sequential numbering is
+  the artefact auditors check; it belongs to the system that owns it
+  (Moneybird's `invoice_sequence_id`). No code path may mint, alter or reuse a
+  number.
+- **Ownpace never renders an invoice document.** The customer — on the billing
+  page, by email, or via an operator (workplan 0110) — is served Moneybird's
+  PDF. Exactly one document may exist per sale; a second, self-rendered
+  artefact is the failure mode this rule exists to prevent.
+- **Creation is idempotent by `reference`.** Ownpace sets a period-derived
+  `reference` on create and looks it up (`find_by_reference`) before creating,
+  so a retried push cannot double-invoice — hard rule 1, satisfied at the seam.
+- **No VAT percentage lives in product code.** The treatment is selected as a
+  Moneybird `tax_rate_id` per invoice (workplan 0111 T3). `pricing.ts`'s
+  `VAT_RATE` constant is legacy display logic pending that task and must not
+  spread.
+- **An issued invoice is immutable in the mirror; a correction is a credit
+  note** issued by Moneybird and mirrored like any other document — never an
+  UPDATE to an issued row.
+- **The mirror is managed-chain data** (ADR-0036): the appliance carries no
+  invoice tables' behaviour and no Moneybird credential. Credentials ride the
+  vault/`.env`, never git, never the appliance image.

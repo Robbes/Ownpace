@@ -79,11 +79,12 @@ The shape is one table, the **split by concern** that the owner's answers produc
 | **Organisation** | a **small admin team**, on the org's hardware | that org's users — up to ~1000 **migrated accounts** | network | self-host |
 | **Managed** | us, for many organisations | many orgs' users | network | managed |
 
-The Organisation figure is **migrated accounts, not interactive logins** (owner, 2026-08-17):
-the migrators never sign in, which keeps decision 6 small. **Edition stays what ADR-0003 made
-it**, a build distinction, beside a runtime `deployment` ∈ `personal` | `organisation` |
-`managed`, **declared in the environment, Personal by default**. The edition flag cannot tell
-Personal from Organisation, so keying a deployment-shape question off `isSelfHost` is a bug.
+The Organisation figure is **migrated accounts, not a thousand interactive logins** (owner,
+2026-08-17): the migrators never sign in, which keeps decision 6 small. **Edition stays what
+ADR-0003 made it**, a build distinction, beside a runtime `deployment` ∈ `personal` |
+`organisation` | `managed`, **declared in the environment, Personal by default**. The edition
+flag cannot tell Personal from Organisation, so keying a deployment-shape question off
+`isSelfHost` is a bug.
 
 The second axis, **configuration surface**: an object is **Declared** (a file under
 `CONFIG_DIR` is authoritative) or **Operated** (UI or API; the ledger is), by concern and
@@ -102,8 +103,8 @@ edition's contract, over the same routes, in the same web app with no edition br
 reduced "basic" mode (ADR-0026: a lesser appliance UI serves nobody). A Personal user goes from
 source to running mapping **without opening a text editor**. On Organisation the UI and the grant
 link (ADR-0035) carry credentials and grants, subject to decision 6. For what the UI owns, the
-appliance builds its connectors from the **ledger** through the managed worker's
-`buildDepsFromMapping`, not from a `MappingConfig`.
+appliance builds its connectors from the **ledger** through the same `buildDepsFromMapping` the
+managed worker uses, not from a `MappingConfig`.
 
 ### 3. Files are Organisation's sole topology door, first-class and not deprecated
 
@@ -113,15 +114,16 @@ an invalid file or a duplicate `mappingId`, with no "legacy" label and no banner
 rest** in the appliance's storage. **Personal has no file door.** Contradictions refuse loudly
 and name the fix: Personal with files in `CONFIG_DIR` refuses to start, naming the files and the
 mode switch; Organisation refuses a **topology** write through the UI or API, naming the file
-door, and accepts credential and grant writes. A file-configured fleet upgrades by setting the
-one environment variable the refusal names.
+door. The mode refuses no credential or grant write. A file-configured fleet upgrades by setting
+the one environment variable the refusal names.
 
 ### 4. The doors are split by concern, and never merged
 
 Topology and credentials are disjoint by construction (files never hold secrets; the credential
 flow never writes topology), and each has one door per deployment. So there is **nothing to
-merge**: no ownership column, no collision check, no two-door edit rules, no "the file wins on
-restart", whose two failure modes are both silent. Where the doors meet:
+merge**: no ownership column, no collision check, no two-door edit rules, no precedence such as
+"the file wins on restart". A merge fails silently either way: the file overwrites what somebody
+typed, or the UI shadows the file an operator believes is authoritative. Where the doors meet:
 
 - **File-seeded rows record their origin path.** Organisation's UI shows file topology in full
   and refuses to edit it by **naming the file**.
@@ -148,9 +150,10 @@ asked for. [ADR-0037](./0037-keys-credentials-and-transport-floors.md) owns the 
 
 The key file is **no protection against someone who can read the disk**. It answers other local
 users and a database or backup copied without it; full-disk encryption answers device theft
-(ADR-0037). The key is **part of the backup**, since without it the credentials must be
-re-entered ([ADR-0020](./0020-ledger-rebuildable-cache-recovery.md) rebuilds only the ledger),
-and `collect-evidence.ps1` reports its **ACL, never its contents**.
+(ADR-0037). The runbook must say the key is **part of the backup**: without it the stored
+credentials can only be re-entered, because [ADR-0020](./0020-ledger-rebuildable-cache-recovery.md)
+makes the ledger rebuildable and credentials are not. `collect-evidence.ps1` reports the key
+file's **ACL, never its contents**.
 
 ### 6. Authentication is a prerequisite for an Organisation deployment, not a later nicety
 
@@ -167,8 +170,8 @@ read which accounts are being migrated. So, as a hard sequencing constraint:
 The prerequisite is small because of decision 1's bound: **an admin login and a session** in
 front of the operator surface, not per-user identity, not RBAC, not per-migrator scoping.
 ADR-0035 restates this decision and adds a second boundary: migrated people get a signed
-**link** in front of their own migrations only, authenticate to their own provider, and hold no
-session, password or role here. Neither boundary is RBAC.
+**link** in front of exactly the migrations it names, authenticate to their own provider, and
+hold no session, password or role here. Neither boundary is RBAC.
 
 Self-host authentication gets its own ADR, starting with SAD §7.3's self-host `Auth` row ("local
 / single-user" becomes "admin login + session", ADR-0035); this ADR fixes only the ordering.
@@ -192,12 +195,13 @@ mapping. The [runbook](../windows-appliance-runbook.md) loses its most error-pro
 **Harder and riskier.** A mode switch and its refusals; a read-only view of file topology that
 nobody mistakes for a bug; and credentials at rest on the appliance's disk for the first time,
 which a stolen or imaged appliance yields to whoever also takes the key file. Managed already
-carries that cost; an Organisation operator who will not keeps env indirection per connection.
+carries that cost; an Organisation operator who will not pay it keeps env indirection per
+connection.
 
 **Work elsewhere.** (a) The [SAD](../architecture/solution-architecture.md) still says
-"hobbyist" (§2, §7.1), "optionally single-user" (§3, §7), "local / single-user" (§7.3) and
-"single tenant" (§8); it should name the three deployments. (b) Organisation authentication needs
-its own ADR; none exists yet. (c) Each `isSelfHost` use needs re-reading against decision 1.
+"hobbyist", "optionally single-user", "local / single-user" and "single tenant" (§2, §3, §7,
+§7.1, §7.3, §8); it should name the three deployments. (b) Organisation authentication needs its
+own ADR; none exists yet. (c) Each `isSelfHost` use needs re-reading against decision 1.
 
 **Built, as of 2026-10-03.** None of the appliance side: `apps/selfhost` has no mode, store, key
 file, credential routes or origin path, still warns at boot, off loopback, that it has no
@@ -213,16 +217,15 @@ mapping (`mailbox_mapping.source_secret_ref`, ledger migration 0032), merged by
 - **UI only, files as a one-time import.** Rejected: it removes an Organisation deployment's
   only workable interface (at ~1000 accounts, arithmetic rather than preference) and the only
   path that keeps no secret at rest.
-- **Merge: files seed defaults, the UI overrides.** Rejected: whichever side wins, the other's
-  edits vanish without an error, and the loser is whoever was surest of editing the
-  authoritative copy.
+- **Merge: files seed defaults, the UI overrides.** Rejected: it fails silently either way
+  (decision 4), and the loser is whoever was surest of editing the authoritative copy.
 - **Both doors on every object, ownership per row** (decisions 3 and 4 as first written): an
   ownership column, a startup refusal if derived and random ids collided, a vanished file's rows
   kept for adoption into the UI or deletion. Replaced on 2026-08-19 by the split by concern: with
   one door per concern there is nothing to own, collide or adopt.
-- **Split by deployment for everything: no secret store on Organisation** (the owner's first
-  shape). Rejected: a credential that arrives from a person at runtime, ADR-0035's grant link,
-  has no environment variable. The owner, 2026-08-19: *"why would we want to store all possible
+- **Split by deployment for everything: no secret store on Organisation** (an earlier draft of
+  the 2026-08-19 answers). Rejected: a credential that arrives from a person at runtime,
+  ADR-0035's grant link, has no environment variable. The owner, 2026-08-19: *"why would we want to store all possible
   secrets in files, while we can hold them also in DB like with grants and the UI we have."*
 - **One word, qualified in prose** ("self-host, but the big kind"). Rejected: a distinction that
   exists only in the reader's head is not one the code can honour.
@@ -240,11 +243,11 @@ mapping (`mailbox_mapping.source_secret_ref`, ledger migration 0032), merged by
 
 ## Amendment log
 
-- **2026-08-17** — Proposed, and revised the same day before anything was decided: the first
-  draft treated self-host as one persona (the SAD's "hobbyist") and let the new routes ship
-  without authentication. The owner set the names (decision 1) and the scale bound (~1000
-  migrated accounts, not interactive logins); the auth clause became decision 6. Record:
-  *"Self-host" is one word for two deployments (decision 1 names them)*, and decision 6.
+- **2026-08-17** — Proposed, and revised the same day: the first draft treated self-host as one
+  persona (the SAD's "hobbyist") and let the new routes ship without authentication. The owner
+  set the names (decision 1) and the scale bound (~1000 migrated accounts, not interactive
+  logins); the auth clause became decision 6. Record: *"Self-host" is one word for two
+  deployments (decision 1 names them)*, and decision 6.
 - **2026-08-17** — Decision 6 restated by ADR-0035: it holds, with a second boundary, because
   migrated people get a signed link and not an account. Record: *Update 2026-08-17 — decision 6
   is restated by ADR-0035*.
@@ -254,7 +257,7 @@ mapping (`mailbox_mapping.source_secret_ref`, ledger migration 0032), merged by
   preference."* A decision log that can absorb a non-answer as an answer is worse than no log.
   Record: *The correction, first, because this ADR asserted something untrue about its own
   owner*.
-- **2026-08-19** — Both questions answered by the owner; checked twice against the record, the
+- **2026-08-19** — Both questions answered by the owner; corrected twice against the record, the
   answers became the split by concern. Decisions 2–5 amended: the UI is Personal's topology door
   and the credential door everywhere; files are Organisation's sole topology door and Personal
   has none; decision 4's ownership machinery is replaced; the key's mechanics move to ADR-0037,
@@ -264,7 +267,7 @@ mapping (`mailbox_mapping.source_secret_ref`, ledger migration 0032), merged by
 - **2026-10-03** — Consolidated in place
   ([ADR-0051](./0051-an-adr-reads-as-it-stands.md)): written as the decision stands, decision
   numbers 1–7 kept, decisions 3 and 4 retitled to their amended meaning; decision 5's threat
-  statement follows ADR-0037's.
+  statement follows ADR-0037's, and decision 6 names the link's scope as ADR-0035 now does.
 
 The full record, word for word as it read before this consolidation:
 [history/0034-appliance-configuration-surface.md](./history/0034-appliance-configuration-surface.md).

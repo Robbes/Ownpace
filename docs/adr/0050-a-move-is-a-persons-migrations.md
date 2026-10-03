@@ -19,17 +19,17 @@
 
 - **Built**: tables and `/api/people` (0153 T2, #1332); on managed, the Migrations page lists
   people, each with a page (`Mappings.tsx`, `Person.tsx`).
-- **The name in code is *person*** (the amendment below) — tables, API (`/people`) and shapes
-  (`packages/shared/src/people.ts`) — never *move*, which names the moved-items queue (`/moves`,
+- **The name in code is *person*** (the amendment below): tables, `/people` and
+  `packages/shared/src/people.ts`. Never *move*, which names the moved-items queue (`/moves`,
   `MovesQueue`). On screen the grouping has no noun; the person's name titles it (0153 D6).
 - **A person is someone being moved**: a display name, optionally an email address for grant
   links, in one tenant.
 - **A migration belongs to at most one person** (`person_migration`'s key is the migration), or
   to nobody: `unassigned`, shown without a person. **Deleting a person deletes no migration**;
-  deleting a migration, only its `person_migration` row.
-- **A person changes nothing about a migration** and is never billed: engine, ledger and
-  ADR-0014's paths stay per migration. **It has no state of its own**: it reads its migrations'
-  states, counted, and stages (`leastAdvancedStage`, 0154 T1).
+  theirs become `unassigned`. Deleting a migration deletes only its `person_migration` row.
+- **A person changes nothing about a migration**: the engine runs migrations, the ledger keys
+  items per migration, ADR-0014 bills paths, never a person. **It has no state of its own**: it
+  reads its migrations' states, counted, and stages (`leastAdvancedStage`, 0154 T1).
 - **Rows, never a column on `mailbox_mapping`** (hard rule 5): `person` and `person_migration` in
   `packages/managed/migrations` (0031), forced row security; a key holds a row to its tenant's
   person, the policy to its tenant's migration. Erasure purges both (`PURGED_TABLES`). Guard:
@@ -39,8 +39,8 @@
   `one-person-on-the-appliance.unit.test.ts`; `no-managed-leakage.unit.test.ts` names both tables.
 - **The API**: `GET` and `POST /api/people`, `POST /api/people/{personId}/migrations`,
   `DELETE /api/people/{personId}`, with the migration routes' tenant checks, in the OpenAPI spec.
-  Re-adding a migration changes nothing; one that is somebody else's stays theirs (409
-  `with_another_person`). Guard: `people.unit.test.ts`.
+  Re-adding changes nothing; another person's migration stays theirs (409 `with_another_person`).
+  Guard: `people.unit.test.ts`.
 
 ## Context
 

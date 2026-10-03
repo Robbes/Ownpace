@@ -13,16 +13,17 @@
 
 ## Operative rules
 
-<!-- What holds NOW, within the ADR-0051 budget: 8 bullets, 60 words a bullet, 250 words in
+<!-- What holds NOW, within the ADR-0051 budget: 8 bullets, 60 words a bullet, 300 words in
      all. Amend in place when a later decision changes it, then regenerate OPERATIVE.md:
      node scripts/adr-operative.mjs --write -->
 
 - **`execute` and `complete` write the mapping as well as the ledger**: `active` or `paused`
-  becomes `cutover`; `cutover`, `continuous`, `done` stay. Decided by `cutoverTransition`
-  (shared), the mirror of `rollbackTransition`. Guard: `cutover-lifecycle.integration.test.ts`.
+  becomes `cutover`; `cutover`, `continuous`, `done` stay (`done` with a warning). Decided by
+  `cutoverTransition` (shared), the mirror of `rollbackTransition`. Guard:
+  `cutover-lifecycle.integration.test.ts`.
 - **The mapping first, the ledger second, every refusal before either write.** Row, paths and a
-  `mapping.status` record (`via: 'cutover'`) commit together; only paths in the phase the mapping
-  leaves move (`pathFollows`). See *One transaction, and the paths*.
+  `mapping.status` record (`via: 'cutover'`) commit together, through the rollback's port; only
+  paths in the phase the mapping leaves move (`pathFollows`). See *One transaction, and the paths*.
 - **A migration `active` at `execute` copies until its grace period ends**, mirroring no deletion
   and holding no slot; a `paused` one stays stopped. Gates ask `runsPassesNow` with the ledger's
   window. Guard: `a-grace-period-that-copies.unit.test.ts`; see *The window rule*.
@@ -31,7 +32,8 @@
   overlap (`cutoverBeginRefusal`). See *One data type cut over on its own*.
 - **`complete` closes the ledger, not the migration.** Each data type is then ended (`done`,
   refused over its unresolved failures unless forced) or kept copying, by `endOrKeepPath`; one
-  whose grace period ended unchosen is named on the Finish page and in the digest (D7).
+  whose grace period ended unchosen is named on the Finish page and in the digest (D7). See *One
+  data type ended or kept*.
 - **A propagation timeout leaves the mapping `cutover`** and the ledger FAILED: no pass runs, and
   `rollback` is the explicit undo. Guard: `cutover-commands.unit.test.ts`.
 - **The operator CLI is the only executor, for both editions.** `run-cutover` and `POST …/cutover`
@@ -41,17 +43,17 @@
 ## Context
 
 ADR-0047 found that **the cutover flow never changed `mailbox_mapping.status`**: `execute` and
-`complete` moved the cutover ledger and left the mapping `active`. The passes believe the mapping
-(`runsPasses` schedules them; `sourceAuthorityFor(status)` decides whether the deletion detectors
-are assembled), so a CLI-driven cutover kept reading a source that was no longer the authority on
-what exists: workplan 0117 §3a's loop, a deletion the person makes on the old account after the
-switch mirrored onto the new one, which [0117 D4](../workplans/0117-the-conveyor-belt-not-the-home.md)
-was decided to close. And the rollback, which puts a `cutover` mapping back to `active`, found
-nothing to resume.
+`complete` moved the cutover ledger and left the mapping `active`. The passes believed the mapping
+(`runsPasses` scheduled them; `sourceAuthorityFor(status)` decided whether the deletion detectors
+were assembled), so a CLI-driven cutover kept reading a source that was no longer the authority on
+what exists: workplan 0117 §3a's loop, a deletion made on the old account after the switch
+mirrored onto the new one, which [0117 D4](../workplans/0117-the-conveyor-belt-not-the-home.md) was
+decided to close. And the rollback found no `cutover` mapping to put back to `active`.
 
-The owner picked the fix on 2026-09-19, the evening ADR-0047 recorded the gap: *"Go ahead with
-the CLI cutover row."* Workplan 0128 later made the grace period copy (D1 (a)) and made a cutover,
-and its ending, each data type's own (D8, D3, D7).
+The owner picked the fix the evening ADR-0047 recorded the gap, 2026-09-19: *"Go ahead with the
+CLI cutover row."* Workplan 0128 later made the grace period copy (D1 (a)), made a cutover and
+its ending each data type's own (D8, D3), and has the owner told when a grace period ends unchosen
+(D7).
 
 ## Decision
 
@@ -60,13 +62,13 @@ one port, in one order.**
 
 ### The mapping half
 
-`cutoverTransition(status)` is in `@openmig/shared` beside `rollbackTransition`, so both editions
-answer it alike (ADR-0026), and the two agree row by row: whatever a cutover stops, a rollback puts
+`cutoverTransition(status)` sits in `@openmig/shared` beside `rollbackTransition`, so both editions
+answer alike (ADR-0026); the two agree row by row, and whatever a cutover stops, a rollback puts
 back to `active`.
 
 | from | to | why |
 |---|---|---|
-| `active` | `cutover` | the source is no longer the authority. The row this exists for |
+| `active` | `cutover` | the source is no longer the authority |
 | `paused` | `cutover` | else Start could resume it after cutover, detectors present; a rollback resumes it |
 | `cutover` | — | already stopped, or a re-run: converges (hard rule 1) |
 | `continuous` | — | copies after cutover by design (0117 T1), detectors absent |
@@ -78,86 +80,86 @@ Only an unknown status refuses (hard rule 9), and a refusal writes nothing, not 
 
 `enterCutover` performs `execute`'s half: the mapping, then APPROVED → CUTOVER_IN_PROGRESS, its
 event recording `stoppedSync`, `mappingStatus` and `copiesThroughGrace`; the CLI then waits for the
-MX change to propagate and enters GRACE_PERIOD. `closeCutover` performs `complete`: the mapping,
-then GRACE_PERIOD → COMPLETED, so a mapping an older cutover left `active` stops before its ledger
-closes. Both are in `packages/core/src/cutover-lifecycle.ts`, sharing a port with `performRollback`.
+MX change to propagate and enters GRACE_PERIOD. `closeCutover` performs `complete` (the mapping,
+then GRACE_PERIOD → COMPLETED), so a mapping left `active` by a cutover executed before this
+decision stops before its ledger closes. Both are in `packages/core/src/cutover-lifecycle.ts`, sharing a port with `performRollback`.
 
 **The mapping first, the ledger second, every refusal before either write** (ADR-0047's order): a
-mapping moved beside a ledger still APPROVED is a state a re-run finishes; CUTOVER_IN_PROGRESS
-beside a running mapping is the defect itself. **A propagation timeout leaves the mapping
-`cutover`** and the ledger FAILED: whether the MX record moved is exactly what is unknown, so no
-pass runs, and `rollback` is the explicit undo.
+mapping moved beside an APPROVED ledger is a state a re-run finishes; CUTOVER_IN_PROGRESS beside a
+running mapping is the defect itself. **A propagation timeout leaves the mapping `cutover`**, the
+ledger FAILED: whether the MX record moved is unknown, so no pass runs; `rollback` is the explicit
+undo.
 
 ### One transaction, and the paths
 
 The write goes through `mappingLifecyclePort` (ledger), the rollback's port: the row, its paths and
-an `audit_log` record, `mapping.status` with **`via: 'cutover'`**, in one transaction
+an `audit_log` record (`mapping.status`, **`via: 'cutover'`**) in one transaction
 (`applyMappingStatusChange`; workplan 0109 T1). The paths follow one rule at every door
-(`pathFollows`, `paths-follow-the-mapping.ts`; 0109 T1b): where the path rows add up to the status
-the mapping leaves, only the paths in that phase move, `done` ends all, and a start also starts one
-that never ran; where they do not (a status written alone), all move. So a pause or a start of the
-rest never moves a data type cut over on its own back to its deletion detectors (0117 D4).
+(`pathFollows`, `paths-follow-the-mapping.ts`; 0109 T1b): where their rows add up to the status the
+mapping leaves, only the paths in that phase move, `done` ends all, and a start also starts one
+that never ran; where they do not (a status written alone), all move. So pausing or starting the
+rest never returns a data type cut over on its own to its deletion detectors (0117 D4).
 
 A `cutover` path holds no slot (`holdsASlot`, ADR-0014): `execute` and `complete` release slots,
 and a rollback takes them back. The month's peak, a managed table the ledger does not write, rises
-with the slots in the same transaction: at the API's doors, the continuous lane's entry included,
-and through `onSlotsTaken` from the CLI and the `run-rollback` job (0109 T2).
+with the slots in their transaction: at the API's doors, the continuous lane's entry included, and
+through `onSlotsTaken` from the CLI and the `run-rollback` job, where the database keeps one (0109
+T2).
 
 ### The grace period copies, by the window rule
 
 The owner, 2026-09-24, D1 (a): *"bounded by the grace period, and slotless"*. The grace period
 promises both systems active, and mail still reaches the old server while the MX record
-propagates. So until it ends, a migration that was `active` at `execute` keeps being scheduled, and
-a running pass keeps going, under the after-cutover rules: no deletion detectors, nothing deleted
-on the target because it went at the source, no slot held; what it copies joins the data meter.
-Then passes stop, and finishing, or the lane, stays the owner's. **A paused migration stays
-stopped**: `execute` records, while it still sees the status, whether it copies
-(`keepsCopyingThroughGrace`; `copies_through_grace` on the ledger row, ledger migration 0064). One
-already `cutover` at `execute` (declared earlier, or a re-run after a failed ledger write; nothing
-tells them apart) copies nothing nobody asked for; the continuous lane is its way to copy.
+propagates. So until it ends, a migration `active` at `execute` keeps being scheduled, and a running
+pass keeps going, under the after-cutover rules: no deletion detectors, nothing deleted on the
+target because it went at the source, no slot held; its copies join the data meter. Then passes
+stop; finishing, or the lane, stays the owner's. **A paused migration stays stopped**: `execute`
+records, while it still sees the status, whether it copies (`keepsCopyingThroughGrace`;
+`copies_through_grace`, ledger migration 0064). One already `cutover` at `execute` (declared
+earlier, or a re-run after a failed ledger write; nothing tells them apart) copies nothing nobody
+asked for; the continuous lane is its way to copy.
 
 **The window rule.** A window is a cutover ledger row's: in GRACE_PERIOD it ends
 `grace_period_hours` after `grace_period_started_at`; in CUTOVER_IN_PROGRESS, as long after
 `updated_at`, so an `execute` that never finished cannot copy forever; other states copy nothing.
-`cutover_state` and `cutover_event` carry a `domain` (ledger migration 0067): a data type's window
-is its own row's, or the whole migration's where it has none. Every gate asks
+A data type's window is its own row's (`cutover_state` and `cutover_event` carry a `domain`, ledger
+migration 0067), or the whole migration's (the row with no data type) where it has none. Every
+gate asks
 `runsPassesNow(status, cutoverStillCopies)`: `CUTOVER_STILL_COPIES_WHERE` in SQL,
 `cutoverStillCopiesAt` in TypeScript. The managed tick schedules a migration while any window is
-open; the managed pass and the appliance's startup scan, per-pass re-read and Sync now ask the one
-reader's `anyRuns` (`readPathPhases`), which skips a data type whose own window is closed and runs
-one kept in the lane after the migration's window closes.
+open; the managed pass and the appliance's startup scan, per-pass re-read and Sync now ask the
+reader's `anyRuns` (`readPathPhases`). A pass moves past each data type whose own window is closed,
+and runs one kept in the lane after the migration's window closes.
 
 ### One data type cut over on its own (the 5b amendment)
 
-The owner's D8: mail can be cut over and stop while files run on until their own cutover. `--kind
-<data type>` runs `enterCutover` and `closeCutover` unchanged over that data type's own ledger
-(`bindCutoverLedger`) and path (`pathLifecyclePort`): `cutoverTransition` asked of the path's
-phase, recorded as `path.phase`. The migration's status is its paths' roll-up, recorded as
-`mapping.status` when it moves: mail cut over beside running calendars leaves it `active`; with
-every data type cut over, it is `cutover`. Only mail has DNS: any other data type enters its grace
-period at `execute`.
+The owner's D8: mail can be cut over and stop while files run on. `--kind <data type>` runs
+`enterCutover` and `closeCutover` unchanged over that data type's own ledger (`bindCutoverLedger`)
+and path (`pathLifecyclePort`): `cutoverTransition` asked of the path's phase, recorded as
+`path.phase`. The migration's status is the paths' roll-up, recorded as `mapping.status` when it
+moves: mail cut over beside running calendars leaves it `active`; all cut over, `cutover`. Only
+mail has DNS; any other data type enters its grace period at `execute`.
 
 A data type's own cutover does not begin while the whole migration's is under way, nor the whole
 migration's once a data type has its own (`cutoverBeginRefusal`, core): in the CLI, the managed
 preparation and its door, and the store. The managed preparation takes a data type
 (`POST /api/migrations/:id/cutover` with a `domain`, slice 5c): its own ledger, final sync and
-gate, for a data type the migration carries. Approval and execution stay the CLI's.
+gate, if the migration carries it. Approval and execution stay the CLI's.
 
 ### One data type ended or kept on its own (the 2026-09-26 amendment, slice 7a)
 
-**`complete` closes the ledger, not the migration.** `done` is `finishTransition`'s, with its rule
-about unresolved failures, and the CLI says the mapping is `cutover`. The owner's D3 and D8 put
-the ending per data type: on the Finish page *End* makes one `done` and *Keep copying* puts it in
-the lane (`continuous`), through one door for both editions (`endOrKeepPath`, ledger;
-`POST …/domains/{domain}/end` and `…/keep`). End is refused over the data type's own unresolved
-failures unless forced, as Finish is, and a forced End is recorded as forced. Before its cutover
-either press is its cutover too, on step 4's attestation (D3): End is one move; Keep is recorded as
-the cutover, then the lane. The migration's status is the roll-up, in the same transaction: `done`
-once every data type has ended.
+**`complete` closes the ledger, not the migration**: `done` is `finishTransition`'s, with its rule
+about unresolved failures, and the CLI says the mapping is `cutover`. The owner's D3 and D8 put the
+ending per data type: on the Finish page *End* makes one `done` and *Keep copying* puts it in the
+lane, through one door for both editions (`endOrKeepPath`, ledger; `POST …/domains/{domain}/end`
+and `…/keep`). End is refused over the data type's own unresolved failures unless forced, as Finish
+is; a forced End is recorded as forced. Before its cutover either press is its cutover too, on step
+4's attestation (D3): End is one move; Keep is recorded as the cutover, then the lane. The
+migration's status is the roll-up, in the same transaction: `done` once every data type has ended.
 
 A press on the whole migration moves only the paths in the phase it leaves, as the owner confirmed
-on 2026-09-27 (0128 D9 and D10, both (a)): a whole rollback leaves a data type kept on its own in
-the lane, and the whole *Keep copying* leaves one ended on its own ended.
+on 2026-09-27 (0128 D9 and D10, both (a)): a whole rollback leaves a kept data type in the lane,
+and the whole *Keep copying* leaves an ended one ended.
 
 ### A grace period that ended while nobody chose (D7)
 
@@ -170,10 +172,10 @@ digest names those (`readGraceEndedWithoutAChoice`). One ended or kept has chose
 ### Where it is said, and who executes
 
 The `--yes` confirmation names the mapping half for this mapping, including whether it copies
-through the grace period; `status` prints until when a cutover still copies; the Finish page's note
-for `cutover` says it copies until the grace period ends if it was running. `run-cutover` only
-prepares (to READY_FOR_CUTOVER) and the API executes no cutover: the operator CLI is the only
-executor, for both editions, so the decision is in `shared` and the write in `core` and the ledger.
+through the grace period; `status` prints until when a cutover copies, and the Finish page's note
+for `cutover` says so. `run-cutover` only prepares
+(to READY_FOR_CUTOVER) and the API executes no cutover: the operator CLI is the only executor, for
+both editions, so the decision is in `shared` and the write in `core` and the ledger.
 
 ## Consequences
 
@@ -199,8 +201,8 @@ executor, for both editions, so the decision is in `shared` and the write in `co
 
 - **Refuse `execute` on a `paused` mapping.** Rejected: a refusal holds only while the operator is
   at the terminal (the Finish page can pause in the grace window too), and it leaves Start open
-  after cutover, the accident D4 exists to prevent. The confirmation names it instead, and the call
-  stays the operator's.
+  after cutover, the accident D4 exists to prevent. Naming it in the confirmation keeps the
+  operator's call.
 - **Put the mapping back to `active` on a propagation timeout.** Rejected: the MX record may have
   moved for some resolvers and not others, and a pass then is the D4 loop. FAILED invites the
   rollback, the explicit undo.
@@ -213,19 +215,19 @@ executor, for both editions, so the decision is in `shared` and the write in `co
 - **A separate port per door.** Rejected: one `mappingLifecyclePort`, naming the door (`via`) per
   write, keeps one audit shape and one transaction helper; two ports are two places to forget the
   record.
-- **Stop every pass at `execute`** (as first built), **or copy a paused migration too** (D1 (a)
-  alone). Rejected: the first left mail reaching the old server during propagation, and edits in the
-  old account, copied by nothing for the grace period's 72 hours; the second would have a cutover
-  restart what the operator had stopped.
+- **Stop every pass at `execute`** (as first built), **or copy a paused migration too.** Rejected
+  (D1 (a)): the first left mail reaching the old server during propagation, and edits in the old
+  account, uncopied for the grace period's 72 hours; the second would have a cutover restart what
+  the operator had stopped.
 - **Move every included path with the mapping** (the 2026-09-24 correction's rule). Replaced once a
-  data type can be cut over on its own: a pause or a start of the rest would move it back before its
-  cutover, where its deletion detectors come back.
+  data type can be cut over on its own: a pause or a start of the rest would return it to its
+  deletion detectors.
 - **Begin the whole migration's cutover beside a data type's own.** Refused
   (`cutoverBeginRefusal`): a whole rollback would move back a data type cut over on its own, and the
   tick's question, whether any ledger row still copies, would stop being each data type's.
 - **Let a press on the whole migration undo a data type's own ending** (0128 D9 (b), D10 (b)).
-  Rejected by the owner: that data type was kept or ended on purpose (mail ends because the old
-  mailbox closes), and a rollback is about the cutover that went wrong.
+  Rejected by the owner, as 0128 recommended: that data type was kept or ended on purpose (mail ends
+  because the old mailbox closes), and a rollback is about the cutover that went wrong.
 
 ## Amendment log
 
