@@ -24,6 +24,7 @@ reading a file drops off its entry by itself.
 
 ### `.github/workflows/ci.yml`
 
+- [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
@@ -1276,6 +1277,7 @@ reading a file drops off its entry by itself.
 
 ### `docs/LESSONS.md`
 
+- [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 - [a-count-every-merge-made-stale](../scripts/a-count-every-merge-made-stale.unit.test.ts) — A COUNT EVERY MERGE MADE STALE: both generated indexes opened with a total across every plan or guard, so every merge changed a line that every other open pull request carried too (workplan 0147, 2026-09-28).
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
@@ -1348,6 +1350,7 @@ reading a file drops off its entry by itself.
 
 ### `docs/managed-bring-up.md`
 
+- [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
@@ -1426,6 +1429,10 @@ reading a file drops off its entry by itself.
 
 - [workplan-index](../scripts/workplan-index.unit.test.ts) — The workplan index cannot fall behind the plans again (workplan 0147 T1).
 
+### `docs/workplans/0099-an-invitation-you-can-answer.md`
+
+- [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
+
 ### `docs/workplans/0115-the-account-apple-will-not-hand-over.md`
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
@@ -1440,6 +1447,7 @@ reading a file drops off its entry by itself.
 
 ### `docs/workplans/README.md`
 
+- [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 - [a-count-every-merge-made-stale](../scripts/a-count-every-merge-made-stale.unit.test.ts) — A COUNT EVERY MERGE MADE STALE: both generated indexes opened with a total across every plan or guard, so every merge changed a line that every other open pull request carried too (workplan 0147, 2026-09-28).
 
 ### `drizzle.config.ts`
@@ -1994,6 +2002,7 @@ reading a file drops off its entry by itself.
 
 ### `pnpm-lock.yaml`
 
+- [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 - [a-gate-that-was-never-switched-on](../scripts/a-gate-that-was-never-switched-on.unit.test.ts) — A supply-chain gate with an exclude list, an escape hatch, and no gate.
 
 ### `pnpm-workspace.yaml`
@@ -2074,6 +2083,10 @@ reading a file drops off its entry by itself.
 ### `scripts/bootstrap-managed.unit.test.ts`
 
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
+
+### `scripts/conflict-markers.mjs`
+
+- [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 
 ### `scripts/dav-target-probe.mjs`
 
@@ -2161,6 +2174,10 @@ reading a file drops off its entry by itself.
 ### `scripts/local-pg.sh`
 
 - [a-database-without-a-container](../scripts/a-database-without-a-container.unit.test.ts) — A DATABASE YOU CAN ASK, ON A MACHINE WITH NO CONTAINER RUNTIME.
+
+### `scripts/nothing-ever-parsed-the-bring-up.unit.test.ts`
+
+- [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 
 ### `scripts/package-appliance.mjs`
 
@@ -2511,6 +2528,21 @@ Reads:
 - `packages/managed/migrations/0001_the_managed_service.sql`
 - `scripts/how-migrations-are-authored.mjs`
 - `scripts/squash-migrations.sh`
+
+### [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts)
+
+A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
+
+Reads:
+
+- `.github/workflows/ci.yml`
+- `docs/LESSONS.md`
+- `docs/managed-bring-up.md`
+- `docs/workplans/0099-an-invitation-you-can-answer.md`
+- `docs/workplans/README.md`
+- `pnpm-lock.yaml`
+- `scripts/conflict-markers.mjs`
+- `scripts/nothing-ever-parsed-the-bring-up.unit.test.ts`
 
 ### [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts)
 
