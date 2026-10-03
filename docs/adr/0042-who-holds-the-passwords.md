@@ -29,25 +29,25 @@
   tenancy model, no issuer-side roles. Guards:
   `apps/api/src/middleware/no-issuer-lock-in.unit.test.ts`, `issuer-is-replaceable.unit.test.ts`.
 - **`tenant_member.user_id` IS the token's `sub`; email is a label.** A new `sub` orphans the
-  membership, so account linking is decided before a second sign-in method is offered, and none
-  may become an account's only one. **Federation belongs in the issuer, never in the app**:
+  membership, so linking is decided before a second sign-in method is offered, and none must
+  become an account's only one (not yet held: *Decision* 3). **Federation belongs in the issuer**:
   `scripts/a-second-door-with-the-linking-decided.unit.test.ts`.
 - **Every endpoint is DISCOVERED, never composed**: `jwks_uri` by the API; `authorization_endpoint`,
-  `token_endpoint` and `end_session_endpoint` by the browser, a **PUBLIC client holding no
-  secret**, whose PKCE verifier (S256) never leaves the tab that minted it. A document naming
-  another `issuer` is refused (OIDC Discovery §4.3); `JWT_JWKS_URI` is an escape hatch:
-  `issuer-is-replaceable.unit.test.ts`, `apps/web/src/services/oidc.unit.test.ts`.
+  `token_endpoint` and `end_session_endpoint` by the browser, a **PUBLIC client, no secret**,
+  whose PKCE verifier (S256) never leaves the tab that minted it. A document naming
+  another `issuer` is refused (OIDC Discovery §4.3); `JWT_JWKS_URI` is the escape hatch:
+  `issuer-is-replaceable.unit.test.ts`, `oidc.unit.test.ts`.
 - **Zitadel is the accepted issuer**, self-hosted on the managed Postgres. Pinned by version;
   upgrades are deliberate, never automatic (`scripts/a-pin-that-knows-it-is-behind.unit.test.ts`).
   Switching is four variables and a rebuild: `JWT_ISSUER`, `JWT_AUDIENCE`, `VITE_OIDC_ISSUER`,
   `VITE_OIDC_CLIENT_ID` (`scripts/idp-wiring.unit.test.ts`).
 - **Signing out ends the ISSUER'S session, not only this tab's**: RP-Initiated Logout through the
   discovered `end_session_endpoint`, with `id_token_hint` and the registered
-  `post_logout_redirect_uri`. The local half happens first and unconditionally:
+  `post_logout_redirect_uri`. The local half happens before the browser leaves for the issuer:
   `apps/web/src/components/SignOut.tsx`, `oidc.unit.test.ts`.
 - **The answer to a question you asked is not an invitation** (owner, 2026-09-01): a granted
-  access request (`tenant_member.origin` `requested`, managed migration 0021) binds on the first
-  sign-in with a VERIFIED address; an invitation (`invited`, the default) still asks:
+  access request (`tenant_member.origin` `requested`, managed migration 0021) binds at the first
+  VERIFIED sign-in; an invitation (`invited`, the default) still asks:
   `apps/api/src/routes/access-requests-operator.integration.test.ts`.
 
 ## Context
@@ -65,7 +65,8 @@ a session acts on, which `tenant_member` answers from `sub`. So the issuer has t
 `email`, standard OIDC, and nothing else: the least trouble that is a real OIDC issuer with a
 login page, by the owner's criteria (open source, low management effort, stable, scales far
 enough, fits the product). That meant a hosted login UI, so reset, MFA and lockout screens are
-not ours to build; invite-based user creation; tens to low thousands of users; one owner-operator
+not ours to build; invite-only access (an invitation is a `tenant_member` row; the account is the
+person's own); tens to low thousands of users; one owner-operator
 on an already large compose stack; and EU jurisdiction, because a US-controlled identity layer in
 a product about leaving US cloud is a contradiction a customer can point at.
 
@@ -102,9 +103,11 @@ organisation their new subject cannot reach, and the API answers 403 on every ro
   (`a-label-that-follows-the-claim.unit.test.ts`).
 - **Account linking is decided before a second sign-in method is offered**: a prompt on a verified
   email match, never a silent merge (owner, 2026-08-25; workplan 0102 T2).
-- **A second method never becomes an account's only one**: losing the last other method strands
-  the subject, and making the platform somebody is leaving the key to their account rebuilds the
-  dependency in a new place.
+- **A second method must never become the only method on an account**: removing the last
+  remaining one strands the subject, and making the platform somebody is leaving the key to their
+  account rebuilds the dependency in a new place. **Not held yet:** `setup-zitadel.sh` lets an
+  upstream provider create an account (`isCreationAllowed`, `isAutoCreation`), whose only method is
+  then that provider — the owner's to resolve.
 - **Federation belongs in the issuer, never in the app**: upstream providers are configured in the
   issuer (`deploy/compose/setup-zitadel.sh`), so `iss` and `sub` stay ours and the integration
   stays plain OIDC.
@@ -113,7 +116,8 @@ organisation their new subject cannot reach, and the API answers 403 on every ro
 
 The integration stays inside plain OIDC discovery + authorization-code + PKCE + JWKS: no
 issuer-specific API, no issuer-side tenancy model, no issuer-side roles.
-`no-issuer-lock-in.unit.test.ts` fails on a provider's name or endpoint path in shipped source,
+`no-issuer-lock-in.unit.test.ts` fails on an identity provider's name or endpoint path in shipped
+source (Zitadel, Keycloak, Auth0, Clerk, Okta, Authentik),
 and `issuer-is-replaceable.unit.test.ts` drives the real verification path with Zitadel's and
 Keycloak's discovery documents. Switching provider is `JWT_ISSUER` and `JWT_AUDIENCE` for the API,
 `VITE_OIDC_ISSUER` and `VITE_OIDC_CLIENT_ID` for the web build, and a rebuild.
@@ -153,8 +157,9 @@ in" completes without a prompt: on a shared or borrowed machine, an account hand
 (`apps/web/src/components/SignOut.tsx`) therefore also follows the discovered
 `end_session_endpoint` with `id_token_hint` and the registered `post_logout_redirect_uri`: plain
 RP-Initiated Logout 1.0 with no issuer-specific call, so *Decision* 4 holds. The local half
-happens first and unconditionally, so an issuer with no such endpoint, or out of reach, leaves
-somebody signed out here rather than stuck (`oidc.unit.test.ts`).
+happens before the browser leaves for the issuer, so an issuer with no such endpoint, or one that
+refuses, leaves somebody signed out here rather than stuck (`oidc.unit.test.ts`); one that hangs
+delays it, since discovery has no timeout.
 
 ### 8. The answer to a question you asked is not an invitation
 
@@ -177,8 +182,9 @@ asking. Migration 0006's policy still authorises the binding; `origin` only narr
   environment handling, `BASEURI` path gotchas), upgrades replaying projections for a time
   proportional to the event log; more than one write-up calls it brittle for multi-tenant
   production. Bought down three ways: none of the churned surface (its tenancy, its management
-  API) is used, the pin moves deliberately against the technical advisories, and the exit is cheap
-  by construction.
+  API) is used by the product's code — `setup-zitadel.sh` provisions through its v1 admin and
+  management APIs, which is where the churn lands — the pin moves deliberately against the
+  technical advisories, and the exit is cheap by construction.
 - **Its core is AGPL-3.0** since v3 (2025-03-31); proto definitions, APIs and SDKs stay
   Apache-2.0. Run unmodified as a separate service it binds nothing of ours, but **a patch to
   Zitadel would be AGPL and must be published**. [ADR-0001](./0001-license-apache-2.0.md)
@@ -241,7 +247,8 @@ operative rule forbids. Federation belongs in the issuer, where `iss` and `sub` 
 and is locked out of an organisation they still belong to.
 
 **A platform as an account's only sign-in method**: a dependency rebuilt in a new place, for
-people whose reason to be here is leaving that platform.
+people whose reason to be here is leaving that platform. (Rejected, and not yet prevented: see
+*Decision* 3.)
 
 **Binding every invitation on sight**: workplan 0099's defect. Anybody inside an organisation can
 add any address (`members.ts`), so reading your own account would join you to a stranger's
@@ -276,8 +283,8 @@ borrowed machine that is an account handover (*Decision* 7).
   fallen behind the code, this text follows the code: the stack runs PostgreSQL 18 (the record
   said 16), Zitadel has its own database rather than a schema, the narrowed claim surface
   (workplan 0093 T5b) is described as built, and a "Login with Google" button is said to be
-  forbidden by the third operative rule, not caught by `no-issuer-lock-in.unit.test.ts`, which
-  matches no Google name because the product's own migration code uses it.
+  forbidden by the third operative rule, not caught by `no-issuer-lock-in.unit.test.ts`, which has
+  no Google pattern (the migration code names Google throughout).
 
 The full record, word for word as it read before this consolidation:
 [history/0042-who-holds-the-passwords.md](./history/0042-who-holds-the-passwords.md).

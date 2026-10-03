@@ -147,8 +147,8 @@ kept the reasons and grew the files it was meant to shrink.)
 - **Every rewrite was checked by a reader who had not written it**, against its record and the
   code; what the checks found — rules dropped or weakened, claims the code contradicts, labels that
   no longer resolved — was corrected before this change was finished.
-- **Result**: `OPERATIVE.md` from 12,136 to {{OPERATIVE_AFTER}} words; the ADR files a reader
-  opens from {{ADR_FILES_BEFORE}} to {{ADR_FILES_AFTER}} words, with {{HISTORY_WORDS}} words of
+- **Result**: `OPERATIVE.md` from 12,136 to 7,679 words; the ADR files a reader
+  opens from 84,007 to 69,699 words, with 60,957 words of
   record in `history/`. Every ADR is within every limit, so the budget is a hard limit from its
   first day, not a ratchet.
 

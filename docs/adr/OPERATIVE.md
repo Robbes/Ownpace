@@ -443,25 +443,25 @@ live in [README.md](./README.md), the register.
   tenancy model, no issuer-side roles. Guards:
   `apps/api/src/middleware/no-issuer-lock-in.unit.test.ts`, `issuer-is-replaceable.unit.test.ts`.
 - **`tenant_member.user_id` IS the token's `sub`; email is a label.** A new `sub` orphans the
-  membership, so account linking is decided before a second sign-in method is offered, and none
-  may become an account's only one. **Federation belongs in the issuer, never in the app**:
+  membership, so linking is decided before a second sign-in method is offered, and none must
+  become an account's only one (not yet held: *Decision* 3). **Federation belongs in the issuer**:
   `scripts/a-second-door-with-the-linking-decided.unit.test.ts`.
 - **Every endpoint is DISCOVERED, never composed**: `jwks_uri` by the API; `authorization_endpoint`,
-  `token_endpoint` and `end_session_endpoint` by the browser, a **PUBLIC client holding no
-  secret**, whose PKCE verifier (S256) never leaves the tab that minted it. A document naming
-  another `issuer` is refused (OIDC Discovery §4.3); `JWT_JWKS_URI` is an escape hatch:
-  `issuer-is-replaceable.unit.test.ts`, `apps/web/src/services/oidc.unit.test.ts`.
+  `token_endpoint` and `end_session_endpoint` by the browser, a **PUBLIC client, no secret**,
+  whose PKCE verifier (S256) never leaves the tab that minted it. A document naming
+  another `issuer` is refused (OIDC Discovery §4.3); `JWT_JWKS_URI` is the escape hatch:
+  `issuer-is-replaceable.unit.test.ts`, `oidc.unit.test.ts`.
 - **Zitadel is the accepted issuer**, self-hosted on the managed Postgres. Pinned by version;
   upgrades are deliberate, never automatic (`scripts/a-pin-that-knows-it-is-behind.unit.test.ts`).
   Switching is four variables and a rebuild: `JWT_ISSUER`, `JWT_AUDIENCE`, `VITE_OIDC_ISSUER`,
   `VITE_OIDC_CLIENT_ID` (`scripts/idp-wiring.unit.test.ts`).
 - **Signing out ends the ISSUER'S session, not only this tab's**: RP-Initiated Logout through the
   discovered `end_session_endpoint`, with `id_token_hint` and the registered
-  `post_logout_redirect_uri`. The local half happens first and unconditionally:
+  `post_logout_redirect_uri`. The local half happens before the browser leaves for the issuer:
   `apps/web/src/components/SignOut.tsx`, `oidc.unit.test.ts`.
 - **The answer to a question you asked is not an invitation** (owner, 2026-09-01): a granted
-  access request (`tenant_member.origin` `requested`, managed migration 0021) binds on the first
-  sign-in with a VERIFIED address; an invitation (`invited`, the default) still asks:
+  access request (`tenant_member.origin` `requested`, managed migration 0021) binds at the first
+  VERIFIED sign-in; an invitation (`invited`, the default) still asks:
   `apps/api/src/routes/access-requests-operator.integration.test.ts`.
 
 ## [ADR-0043: A migration is silent by default — outward mail is a human-pressed action](./0043-a-migration-is-silent-by-default.md)
