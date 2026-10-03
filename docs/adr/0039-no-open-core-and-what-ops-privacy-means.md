@@ -23,20 +23,23 @@
 
 - **No open-core, no private monorepo, no filtered mirror.** ADR-0009's answer stands and the
   question is **closed**, not open — superseding ADR-0036's "remains open" on this point only.
+  See *What the conflict actually was*.
 - **Revisit needs all three, not any:** the managed service has become the primary funding for
   sustained work; a resourced competitor has actually forked and is outcompeting us; and cost
-  recovery has demonstrably failed. Absent all three, this stays closed.
+  recovery has demonstrably failed. Absent all three, this stays closed. Why: *The reasoning,
+  including the premise that was wrong*.
 - **Two public Apache-2.0 repos** (the variant neither prior ADR named) is **declined**: the
   boundary's three guards each need one repo — the leakage walk's single import graph, the
   both-bundles build, and `two-chains` applying both chains to one database. Reconsider only
   on a *social* trigger (a separate contributor community around the core), never a technical one.
-- **"Private ops" means instance facts and secrets, never the recipe.** `deploy/` is public by
-  design — it is how an MSP runs their own managed instance. Instance facts (hostnames, IPs,
-  runner paths, project refs) ride env vars and repository variables; secrets are gitignored
-  and never in git. A private ops repo is warranted only if instance facts outgrow env vars,
-  and it holds *only* those, pointing at the public recipe.
-- The trademark is the **mission-compatible moat** — Apache-2.0 §6 grants no trade-mark
-  rights — but asserting it in `NOTICE` is **recommended, not yet decided**.
+- **"Private ops" means instance facts and secrets, never the recipe**: `deploy/` is public — how
+  an MSP runs its own managed instance; instance facts ride env vars and repository variables;
+  secrets are gitignored, never in git. A private ops repo only if instance facts outgrow env
+  vars, holding only them and pointing at the public recipe (*The ops-privacy correction*).
+- The trademark is the **mission-compatible moat** — Apache-2.0 §6 grants no trade-mark rights.
+  This ADR recommended asserting it in `NOTICE` and did not decide it; it is asserted under
+  [ADR-0040](./0040-the-service-is-ownpace.md), guarded by
+  `scripts/notice-and-trademark.unit.test.ts`.
 
 ## What the conflict actually was
 
@@ -153,3 +156,26 @@ is the only unbounded line.
 
 **Asserting our trademark in `NOTICE`** is recommended above and not decided. `NOTICE` today
 disclaims Microsoft's marks and asserts nothing about ours.
+
+## Operative rules at length (as they read until 2026-10-03)
+
+The operative section above was cut to the ADR-0051 budget on 2026-10-03. Below are its
+bullets as they read before, word for word: the same rules, with the reasons and examples
+that no longer fit there. This is a record; the section above is what holds.
+
+- **No open-core, no private monorepo, no filtered mirror.** ADR-0009's answer stands and the
+  question is **closed**, not open — superseding ADR-0036's "remains open" on this point only.
+- **Revisit needs all three, not any:** the managed service has become the primary funding for
+  sustained work; a resourced competitor has actually forked and is outcompeting us; and cost
+  recovery has demonstrably failed. Absent all three, this stays closed.
+- **Two public Apache-2.0 repos** (the variant neither prior ADR named) is **declined**: the
+  boundary's three guards each need one repo — the leakage walk's single import graph, the
+  both-bundles build, and `two-chains` applying both chains to one database. Reconsider only
+  on a *social* trigger (a separate contributor community around the core), never a technical one.
+- **"Private ops" means instance facts and secrets, never the recipe.** `deploy/` is public by
+  design — it is how an MSP runs their own managed instance. Instance facts (hostnames, IPs,
+  runner paths, project refs) ride env vars and repository variables; secrets are gitignored
+  and never in git. A private ops repo is warranted only if instance facts outgrow env vars,
+  and it holds *only* those, pointing at the public recipe.
+- The trademark is the **mission-compatible moat** — Apache-2.0 §6 grants no trade-mark
+  rights — but asserting it in `NOTICE` is **recommended, not yet decided**.

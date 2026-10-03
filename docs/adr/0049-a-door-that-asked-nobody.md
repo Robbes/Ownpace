@@ -19,29 +19,29 @@
      the narrative below stays append-only. Assembled into OPERATIVE.md by
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
-- **`PUT /api/migrations/:id` asks `updateTransition` in `@openmig/shared` before it writes a
-  status**, on the status read inside its own transaction, and answers **409 `lifecycle_refused`**
-  — with a stable `code`, a `hint` naming the right door, and nothing written — when the move is
-  one the lifecycle does not make through this door.
-- **After cutover stays after cutover.** `cutover`, `done` and `continuous` do not go back to
-  `active` or `paused` by an update (`after_cutover`). Only a rollback does that, recorded as one.
-- **`done` is terminal** with one exit, the continuous lane (`finished` for everything else).
+- **`PUT /api/migrations/:id` asks `updateTransition` (shared) before it writes a status**, on
+  the status read in its own transaction. A move the lifecycle does not make through this door is
+  **409 `lifecycle_refused`**: a stable `code`, a `hint` naming the right door, nothing written.
+  Guards: the `a-door-that-asked-nobody` unit and integration tests in `apps/api`.
+- **After cutover stays after cutover** (`after_cutover`): `cutover`, `done` and `continuous` do
+  not go back to `active` or `paused` by an update. Only a rollback does, recorded as one.
+- **`done` is terminal** (`finished`) but for the continuous lane, which is entered only after
+  cutover, from `cutover` or `done` (`before_cutover`).
 - **A transition with its own door is refused here and sent there** (`own_door`): `active` is
-  `POST …/start` (it refuses a grant still being waited on and runs the first pass); `done` is
+  `POST …/start` (it refuses a grant still awaited and runs the first pass); `done` is
   `POST …/finish` (it refuses over unresolved failures unless forced).
-- **The lane is entered after cutover** — from `cutover` or `done` — and from nowhere else
-  (`before_cutover`).
-- What the door still does: `active`/`paused` → `cutover` (the declaration), `active` → `paused`
-  (pause), `cutover` ↔ `continuous` and `done` → `continuous` (the lane and its stop). Restating
-  the status a mapping already has is a request, not a transition: 200, nothing recorded.
-- **The lane's switch is `PUT`**, the verb this path is served by, for a caller of the API. The
-  Finish page no longer sends it (amended 2026-09-26, workplan 0128 T5 slice 7b): it keeps each
-  data type copying through that data type's own door (`POST …/domains/{domain}/keep`, ADR-0048's
-  amendment of that day), and ends each through `…/end`, so the web's verb pin went with the
-  call it pinned.
-- **`POST /api/migrations` creates a migration `paused` (the default) or `active`**, and refuses
-  `cutover`, `done` and `continuous` with a 400 on `status` that names their doors: a migration
-  reaches them once it exists, through the cutover, Finish and Keep copying.
+- **What the door does**: `active`/`paused` → `cutover` (the declaration), `active` → `paused`,
+  `cutover` ↔ `continuous` and `done` → `continuous` (the lane and its stop). Restating the
+  current status is 200, nothing recorded. Table: *Decision*, pinned by shared's
+  `a-door-that-asked-nobody.unit.test.ts`.
+- **The lane's switch is `PUT`**, the verb this path serves, for a caller of the API. The Finish
+  page does not send it: it keeps or ends each data type at its own door
+  (`POST …/domains/{domain}/keep`, `…/end`; ADR-0048). Guard:
+  `an-ending-either-edition-presses.unit.test.ts`.
+- **`POST /api/migrations` creates a migration `paused` (the default) or `active`**
+  (`CREATABLE_STATUSES`), and refuses `cutover`, `done` and `continuous` with a 400 on `status`
+  naming their doors: the cutover, Finish and Keep copying. Guard:
+  `path-lifecycle-wiring.unit.test.ts`.
 
 ## Context
 
@@ -157,3 +157,33 @@ the axios instance without a `patch` at all, so a regression fails as a missing 
 - **Let `paused → active` through as a resume.** Rejected: Start is where the awaiting-grant
   refusal and the first pass live (workplan 0108 T4, task "run the first sync at activation");
   a resume that skips both is a migration that believes it started and did not.
+
+## Operative rules at length (as they read until 2026-10-03)
+
+The operative section above was cut to the ADR-0051 budget on 2026-10-03. Below are its
+bullets as they read before, word for word: the same rules, with the reasons and examples
+that no longer fit there. This is a record; the section above is what holds.
+
+- **`PUT /api/migrations/:id` asks `updateTransition` in `@openmig/shared` before it writes a
+  status**, on the status read inside its own transaction, and answers **409 `lifecycle_refused`**
+  — with a stable `code`, a `hint` naming the right door, and nothing written — when the move is
+  one the lifecycle does not make through this door.
+- **After cutover stays after cutover.** `cutover`, `done` and `continuous` do not go back to
+  `active` or `paused` by an update (`after_cutover`). Only a rollback does that, recorded as one.
+- **`done` is terminal** with one exit, the continuous lane (`finished` for everything else).
+- **A transition with its own door is refused here and sent there** (`own_door`): `active` is
+  `POST …/start` (it refuses a grant still being waited on and runs the first pass); `done` is
+  `POST …/finish` (it refuses over unresolved failures unless forced).
+- **The lane is entered after cutover** — from `cutover` or `done` — and from nowhere else
+  (`before_cutover`).
+- What the door still does: `active`/`paused` → `cutover` (the declaration), `active` → `paused`
+  (pause), `cutover` ↔ `continuous` and `done` → `continuous` (the lane and its stop). Restating
+  the status a mapping already has is a request, not a transition: 200, nothing recorded.
+- **The lane's switch is `PUT`**, the verb this path is served by, for a caller of the API. The
+  Finish page no longer sends it (amended 2026-09-26, workplan 0128 T5 slice 7b): it keeps each
+  data type copying through that data type's own door (`POST …/domains/{domain}/keep`, ADR-0048's
+  amendment of that day), and ends each through `…/end`, so the web's verb pin went with the
+  call it pinned.
+- **`POST /api/migrations` creates a migration `paused` (the default) or `active`**, and refuses
+  `cutover`, `done` and `continuous` with a 400 on `status` that names their doors: a migration
+  reaches them once it exists, through the cutover, Finish and Keep copying.

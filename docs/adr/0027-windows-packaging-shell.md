@@ -1,6 +1,6 @@
 # ADR-0027: The Windows appliance ships as a service with a shortcut, not a native shell
 
-- **Status:** Accepted 2026-07-30; amended three times (2026-08-06 bundled Node, 2026-08-07 scheduled task, 2026-08-09 premises measured on real Windows) plus one undated build correction; consolidated 2026-10-03 (ADR-0051). **Despite the title, it is a scheduled task, not a Windows Service.**
+- **Status:** Accepted 2026-07-30; updated three times — amended 2026-08-06 (bundled Node) and 2026-08-07 (scheduled task), measured on real Windows 2026-08-09 — plus one undated build correction; consolidated 2026-10-03 (ADR-0051). **Despite the title, it is a scheduled task, not a Windows Service.**
 - **Date:** 2026-07-30; consolidated 2026-10-03
 - **Supersedes:** the "optional Tauri tray variant (planned)" in [ADR-0019](./0019-packaging-runtime-targets.md) §2, as the *first* packaging target. Tauri is not rejected — it is deferred, with a named revisit condition below.
 - **Relates to:** [ADR-0023](./0023-persistence-postgres-only.md) (Postgres everywhere), [ADR-0026](./0026-one-operating-ui-one-contract.md) (one operating UI), [ADR-0028](./0028-pglite-appliance-persistence.md) (PGlite for the appliance), workplans [0015](../workplans/0015-native-windows-installer.md) T2–T4 and [0016](../workplans/0016-pglite-adoption.md), the [Windows runbook](../windows-appliance-runbook.md).
@@ -8,7 +8,7 @@
 
 ## Operative rules
 
-<!-- What holds NOW, within the ADR-0051 budget: 8 bullets, 60 words a bullet, 250 words in
+<!-- What holds NOW, within the ADR-0051 budget: 8 bullets, 60 words a bullet, 300 words in
      all. Amend in place when a later decision changes it, then regenerate OPERATIVE.md:
      node scripts/adr-operative.mjs --write -->
 
@@ -66,7 +66,7 @@ Beside the task, a Start-menu shortcut opens the operating UI, and there is no n
   installer, because a thing that installs and cannot be removed is not finished — **does not
   delete it**: it is the migration ledger, the record of what has already been copied and the
   reason a re-run converges instead of duplicating a customer's mailbox (hard rule 2).
-  `-IncludeData` deletes it, for someone who means it, after a warning.
+  `-IncludeData` exists for someone who means it, and prompts.
 - **The installer is WiX or Inno Setup — whichever proves less painful at 0015 T3.** Nothing in
   this decision depends on which. Until it exists, the two scripts, shipped in the payload
   with `.cmd` wrappers, are the install.
@@ -141,10 +141,9 @@ fewer binary in a payload that already ships a Node runtime.
   will not find one; "is it running?" is answered by Task Scheduler and the UI itself, and the
   runbook says so. If that proves a real support burden, it is evidence for the revisit
   condition, not a surprise.
-- **Nothing in CI runs the Windows shell.** The gates test the artefact; the five defects the
-  2026-08-09 run found (the record lists them) all lived in what happens after somebody
-  downloads it, and each was found by a person at the machine. A change to `scripts/windows/`
-  is verified only by somebody running it.
+- **Nothing in CI runs the Windows shell**, so a change to `scripts/windows/` is verified only
+  by somebody running it. The gates test the artefact; the five defects the 2026-08-09 run
+  found (the record lists them) lived in what happens after somebody downloads it.
 - **Built and run on real Windows 11** — install, hard kills, a migration and uninstall
   (2026-08-09), an in-place upgrade (2026-08-13). What remains is the MSI and code signing
   (workplan 0015 T3–T4).
@@ -205,14 +204,15 @@ Do **not** revisit on size alone. The Node runtime, not the shell, is the bulk.
   `scripts/windows/appliance-service.xml` was deleted, and `install-task.ps1` and
   `uninstall-task.ps1` replaced it. Its reasoning is now *Why a scheduled task, and no
   wrapper*. Record: *Second update, 2026-08-07 — Task Scheduler, not a Windows Service*.
-- **2026-08-09** — the third update: both premises measured on real Windows (the ledger
-  survives hard kills; the appliance runs with no Node installed), and five Windows-shell
-  defects found and fixed. Record: *Update, 2026-08-09 — both premises are now measured, not
-  argued*.
-- **2026-08-19** — `## Operative rules` added in the ADR-0038 backfill; the decision did not
-  change.
-- **2026-10-03** — consolidated in place (ADR-0051): the amendments above folded into the
-  Decision; title unchanged.
+- **2026-08-09** — the third update, a measurement rather than an amendment: both premises
+  measured on the owner's target machine (the ledger survives hard kills; the appliance runs
+  with no Node installed), and five Windows-shell defects found and fixed. Record: *Update,
+  2026-08-09 — both premises are now measured, not argued*.
+- **2026-08-19** — `## Operative rules` added in the ADR-0038 backfill (owner decision); the
+  decision did not change.
+- **2026-10-03** — consolidated in place under
+  [ADR-0051](./0051-an-adr-reads-as-it-stands.md) (owner decision): the updates above folded
+  into the Decision; title unchanged.
 
 The full record, word for word as it read before this consolidation:
 [history/0027-windows-packaging-shell.md](./history/0027-windows-packaging-shell.md).
