@@ -515,8 +515,8 @@ describe('a link made while every account is connected asks each again (managed 
 });
 
 describe('what a grant lets start (start when granted, per person; the owner, 2026-10-03)', () => {
-  it('starts the migrations it landed on that never ran, when Anna’s move already runs', async () => {
-    // Anna's old IMAP mailbox was started: their move runs.
+  it('starts the migrations it landed on that never ran, when Anna’s move was started', async () => {
+    // Anna's old IMAP mailbox was started: their move was.
     await q(`UPDATE mailbox_mapping SET status = 'active' WHERE id = $1`, [OLD_MAIL]);
     const token = tokenIn((await issue(ANNA)).body.url);
     expect((await (await grant(token, 'anna@gmail.com')).callback()).status).toBe(200);
@@ -534,7 +534,7 @@ describe('what a grant lets start (start when granted, per person; the owner, 20
     expect([...enqueued].sort()).toEqual([CAL, CONTACTS].sort());
   });
 
-  it('starts nothing when nothing of Anna’s runs: the counts appear, and the owner presses Start', async () => {
+  it('starts nothing when nothing of Anna’s was ever started: the counts appear, and the owner presses Start', async () => {
     const token = tokenIn((await issue(ANNA)).body.url);
     expect((await (await grant(token, 'anna@gmail.com')).callback()).status).toBe(200);
     expect(await q(`SELECT id FROM mailbox_mapping WHERE status = 'active'`)).toEqual([]);
@@ -546,7 +546,7 @@ describe('what Anna’s page is told waits for their grant', () => {
   const awaiting = (personId: string) => request(app).get(`/api/people/${personId}/awaiting-grant`);
   const withAToken = JSON.stringify(SecretStore.encryptCredentials({ refreshToken: REFRESH }).encrypted);
 
-  it('names each migration their link asks for, by account: the owner starts them while nothing of Anna’s runs', async () => {
+  it('names each migration their link asks for, by account: the owner starts them while nothing of Anna’s was ever started', async () => {
     const res = await awaiting(ANNA);
     expect(res.status).toBe(200);
     expect(documented('/api/people/{personId}/awaiting-grant', 'get', '200', res.body), JSON.stringify(res.body)).toBe(
@@ -562,7 +562,7 @@ describe('what Anna’s page is told waits for their grant', () => {
     });
   });
 
-  it('says they start by themselves once Anna’s move runs, which is what a grant then does', async () => {
+  it('says they start by themselves once Anna’s move was started, which is what a grant then does', async () => {
     await q(`UPDATE mailbox_mapping SET status = 'active' WHERE id = $1`, [OLD_MAIL]);
     expect((await awaiting(ANNA)).body.migrations).toEqual([
       { mappingId: CAL, then: 'starts_by_itself' },
@@ -575,6 +575,20 @@ describe('what Anna’s page is told waits for their grant', () => {
     expect((await (await grant(token, 'anna@gmail.com')).callback()).status).toBe(200);
     expect([...enqueued].sort()).toEqual([CAL, CONTACTS].sort());
     expect((await awaiting(ANNA)).body.migrations).toEqual([{ mappingId: WORK_MAIL, then: 'starts_by_itself' }]);
+  });
+
+  it('says they still start by themselves when Anna’s move is paused since it was started (the owner: "was ever started")', async () => {
+    // The old IMAP mailbox ran, and is paused now: its path stays.
+    await q(
+      `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state, first_activated_at, updated_at)
+       VALUES ($1,$2,'email','paused',now(),now())`,
+      [TENANT, OLD_MAIL],
+    );
+    expect((await awaiting(ANNA)).body.migrations).toEqual([
+      { mappingId: CAL, then: 'starts_by_itself' },
+      { mappingId: CONTACTS, then: 'starts_by_itself' },
+      { mappingId: WORK_MAIL, then: 'starts_by_itself' },
+    ]);
   });
 
   it('leaves out one connected or finished, and says one that ran is waiting to be connected again', async () => {

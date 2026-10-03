@@ -6,16 +6,17 @@
  * The owner: *"Yes, but after the move was started in the first place. After
  * preflight the start needs to be given at least once, the grant may arrive
  * later."* Asked whether that holds per person or per migration: *"Per
- * person"*.
+ * person"*. And asked whether the move must be running or only have been
+ * started: *"was ever started"*.
  *
  * So when a grant lands, each migration it was written to that has never run
- * starts by itself, as long as its person's move is under way: another
- * migration of theirs is running, which the owner started once its count was
- * in. Before that first Start, a grant only makes the counts appear, and the
- * owner presses Start. Three things stay as they are:
+ * starts by itself, as long as its person's move was ever started: another
+ * migration of theirs was started, which the owner did once its count was in,
+ * and it counts though it is paused or finished since. Before that first
+ * Start, a grant only makes the counts appear, and the owner presses Start.
+ * Three things stay as they are:
  *
- *  - a move nothing of which runs, because nothing was started yet or because
- *    the owner paused it;
+ *  - a move nothing of which was ever started;
  *  - a migration that ran before and was paused: the owner's pause stands;
  *  - a migration that is running already: its next pass reads the new grant.
  *
@@ -45,11 +46,11 @@
  *
  * The person's page says it beside each migration that waits for their grant
  * (`awaitingTheirGrant`), by the same two questions: whether it ever ran, and
- * whether their move runs. *Start* on such a migration says it too
+ * whether their move was ever started. *Start* on such a migration says it too
  * (`startsWhenGrantedFor`).
  */
 
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import * as schema from '@openmig/ledger';
 import { recordMappingStatusChange, type LedgerDriver, type PgDatabase } from '@openmig/ledger';
@@ -62,16 +63,15 @@ import { resolveSyncJob } from './job-resolution.ts';
 import { movePathsWithMapping } from './path-lifecycle-wiring.ts';
 import { readPersonGrantSubject } from './person-grant-subject.ts';
 
-/** The statuses in which a migration is running: started, and not paused or finished. */
-const RUNNING = ['active', 'continuous'] as const;
-
 /**
- * Whose move this migration is part of, when that move is running: another
- * migration of the same person is `active` or `continuous`. Undefined when the
- * migration belongs to nobody, or nothing else of theirs runs. Read inside the
- * caller's tenant transaction.
+ * Whose move this migration is part of, when that move was ever started (the
+ * owner, 2026-10-03: *"was ever started"*): another migration of the same
+ * person is no draft, so it was started once, though it may be paused or
+ * finished since. Undefined when the migration belongs to nobody, or nothing
+ * else of theirs was ever started. Read inside the caller's tenant
+ * transaction.
  */
-export async function personWhoseMoveRuns(
+export async function personWhoseMoveStarted(
   db: PgDatabase,
   tenantId: string,
   mappingId: string,
@@ -81,8 +81,8 @@ export async function personWhoseMoveRuns(
     .from(personMigration)
     .where(and(eq(personMigration.mappingId, mappingId), eq(personMigration.tenantId, tenantId)));
   if (!mine) return undefined;
-  const running = await db
-    .select({ id: schema.mailboxMapping.id })
+  const theirs = await db
+    .select({ id: schema.mailboxMapping.id, status: schema.mailboxMapping.status })
     .from(personMigration)
     .innerJoin(
       schema.mailboxMapping,
@@ -91,14 +91,12 @@ export async function personWhoseMoveRuns(
         eq(schema.mailboxMapping.tenantId, personMigration.tenantId),
       ),
     )
-    .where(
-      and(
-        eq(personMigration.personId, mine.personId),
-        eq(personMigration.tenantId, tenantId),
-        inArray(schema.mailboxMapping.status, [...RUNNING]),
-      ),
-    );
-  return running.some((r) => r.id !== mappingId) ? { personId: mine.personId } : undefined;
+    .where(and(eq(personMigration.personId, mine.personId), eq(personMigration.tenantId, tenantId)));
+  for (const other of theirs) {
+    if (other.id === mappingId) continue;
+    if (!(await isADraft(db, tenantId, other.id, other.status))) return { personId: mine.personId };
+  }
+  return undefined;
 }
 
 /**
@@ -118,7 +116,7 @@ async function isADraft(db: PgDatabase, tenantId: string, mappingId: string, sta
 
 /**
  * Whether this migration would start by itself once its grant lands: it has
- * never run, and its person's move is running. Answers that person's name, for
+ * never run, and its person's move was ever started. Answers that person's name, for
  * *Start* to say so instead of only that it waits; undefined otherwise.
  */
 export async function startsWhenGrantedFor(
@@ -128,12 +126,12 @@ export async function startsWhenGrantedFor(
   status: string,
 ): Promise<string | undefined> {
   if (!(await isADraft(db, tenantId, mappingId, status))) return undefined;
-  const runs = await personWhoseMoveRuns(db, tenantId, mappingId);
-  if (!runs) return undefined;
+  const started = await personWhoseMoveStarted(db, tenantId, mappingId);
+  if (!started) return undefined;
   const [named] = await db
     .select({ displayName: person.displayName })
     .from(person)
-    .where(and(eq(person.id, runs.personId), eq(person.tenantId, tenantId)));
+    .where(and(eq(person.id, started.personId), eq(person.tenantId, tenantId)));
   return named?.displayName;
 }
 
@@ -141,9 +139,9 @@ export async function startsWhenGrantedFor(
  * What their grant does to a migration of a person's that waits for it, once
  * it lands:
  *
- *  - `starts_by_itself`: it never ran, and their move runs, so it starts
+ *  - `starts_by_itself`: it never ran, and their move was started, so it starts
  *    (`startWhenGranted`);
- *  - `review_and_start`: it never ran, and nothing of theirs runs, so the
+ *  - `review_and_start`: it never ran, and nothing of theirs was ever started, so the
  *    owner reviews and starts it once its count is in;
  *  - `ran_before`: it ran, and has lost its way in since (the person took
  *    their grant back), so the grant gives it back.
@@ -184,7 +182,7 @@ export async function awaitingTheirGrant(
       if (!row || row.status === 'done') continue;
       const then: OnceGranted = !(await isADraft(db, tenantId, mappingId, row.status))
         ? 'ran_before'
-        : (await personWhoseMoveRuns(db, tenantId, mappingId))
+        : (await personWhoseMoveStarted(db, tenantId, mappingId))
           ? 'starts_by_itself'
           : 'review_and_start';
       out.push({ mappingId, then });
@@ -220,7 +218,7 @@ export async function startWhenGranted(
           .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId)))
           .for('update');
         if (!row || !(await isADraft(db, tenantId, mappingId, row.status))) return false;
-        if (!(await personWhoseMoveRuns(db, tenantId, mappingId))) return false;
+        if (!(await personWhoseMoveStarted(db, tenantId, mappingId))) return false;
 
         await db
           .update(schema.mailboxMapping)

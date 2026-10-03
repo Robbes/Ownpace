@@ -1584,7 +1584,7 @@ const en = {
   // A migration that waits for their grant, and what the grant does to it
   // when it lands (start when granted, per person; the owner, 2026-10-03).
   'person.awaiting.startsByItself':
-    'Waits for {name} to connect, then starts by itself: another migration of theirs is running.',
+    'Waits for {name} to connect, then starts by itself: another migration of theirs has been started.',
   'person.awaiting.reviewAndStart': 'Waits for {name} to connect. Once they have, open Details to review and start it.',
   'person.awaiting.ranBefore': 'Waits for {name} to connect again.',
   'person.awaiting.unread': 'Which of these wait for {name} to connect could not be read.',
@@ -4282,7 +4282,7 @@ const nl: Record<keyof typeof en, string> = {
   'person.details': 'Details',
   'person.rowName': '{from} naar {to}',
   'person.awaiting.startsByItself':
-    'Wacht tot {name} verbindt en start dan vanzelf: een andere migratie van {name} loopt al.',
+    'Wacht tot {name} verbindt en start dan vanzelf: een andere migratie van {name} is al gestart.',
   'person.awaiting.reviewAndStart': 'Wacht tot {name} verbindt. Open daarna Details om deze te controleren en te starten.',
   'person.awaiting.ranBefore': 'Wacht tot {name} opnieuw verbindt.',
   'person.awaiting.unread': 'Welke hiervan wachten tot {name} verbindt, kon niet worden gelezen.',

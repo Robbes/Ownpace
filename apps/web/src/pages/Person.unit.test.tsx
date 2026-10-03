@@ -301,7 +301,7 @@ describe('what waits for their grant, on their page (start when granted, per per
   const row = (id: string) => document.querySelector(`[data-migration="${id}"]`) as HTMLElement;
 
   it.each([
-    ['starts_by_itself', 'Waits for Anna Jansen to connect, then starts by itself: another migration of theirs is running.'],
+    ['starts_by_itself', 'Waits for Anna Jansen to connect, then starts by itself: another migration of theirs has been started.'],
     ['review_and_start', 'Waits for Anna Jansen to connect. Once they have, open Details to review and start it.'],
     ['ran_before', 'Waits for Anna Jansen to connect again.'],
   ] as const)('says beside the migration what their grant does to it: %s', async (then, words) => {

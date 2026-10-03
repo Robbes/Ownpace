@@ -2253,8 +2253,8 @@ paths:
             Nothing was changed. `Conflict`: the migration is past cutover.
             `grant_withdrawn` or `awaiting_grant`: nobody's grant lets a pass
             read the account, with `reason` saying whose. An `awaiting_grant`
-            for a migration that has never run, whose person's move is
-            running, also carries `startsWhenGranted: true`, and its `reason`
+            for a migration that has never run, whose person's move was ever
+            started, also carries `startsWhenGranted: true`, and its `reason`
             says it starts by itself once that person has connected (ADR-0035's
             amendment, start when granted). `platform_held`: an operator hold
             is open (`PlatformHeld`). `account_closed`: the organisation was
@@ -4854,9 +4854,10 @@ paths:
                           enum: [starts_by_itself, review_and_start, ran_before]
                           description: |
                             `starts_by_itself`: it never ran, and another
-                            migration of the person's runs, so it starts when
-                            the grant lands. `review_and_start`: it never ran,
-                            and nothing of theirs runs, so the owner reviews
+                            migration of the person's was ever started, so it
+                            starts when the grant lands. `review_and_start`: it
+                            never ran, and nothing of theirs was ever started,
+                            so the owner reviews
                             and starts it once its count is in. `ran_before`:
                             it ran, and lost its way in since.
         '401': { $ref: '#/components/responses/Unauthorized' }
