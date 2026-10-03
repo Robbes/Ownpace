@@ -168,6 +168,9 @@ const en = {
   'discovery.unlisted.strong.one': 'will not be migrated',
   'discovery.unlisted.strong.many': 'will not be migrated',
   'discovery.unlisted.post': '— nothing on your old server changes.',
+  'discovery.errorWithheld.cell': 'Stopped on an error',
+  'discovery.errorWithheld':
+    "The provider's message for a count that stopped is not shown: the person connected this account themselves, and it can name their files.",
   // ADR-0035 decision 5, the owner's option C (2026-10-03): for an account the
   // person connected through their own grant, the provider's words and the
   // items' names stay off the owner's pages.
@@ -3275,6 +3278,9 @@ const nl: Record<keyof typeof en, string> = {
   'discovery.unlisted.strong.one': 'wordt niet gemigreerd',
   'discovery.unlisted.strong.many': 'worden niet gemigreerd',
   'discovery.unlisted.post': '— er verandert niets op uw oude server.',
+  'discovery.errorWithheld.cell': 'Gestopt op een fout',
+  'discovery.errorWithheld':
+    'De melding van de aanbieder bij een telling die stopte wordt niet getoond: de persoon heeft dit account zelf gekoppeld, en de melding kan hun bestanden noemen.',
   'failure.withheld':
     'De eigen melding van de aanbieder wordt niet getoond: de persoon heeft dit account zelf gekoppeld, en de melding kan hun bestanden noemen. Support kan haar lezen via de referentie.',
   'failures.withheld':

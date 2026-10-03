@@ -43,6 +43,7 @@ import {
   checkFactsOf,
   DISCOVERY_DOMAINS,
   discoveryForSelection,
+  withheldDiscovery,
   domainProgressOf,
   foundByDomain,
   grantWithdrawnRefusal,
@@ -3866,7 +3867,14 @@ router.get('/:mappingId/discovery', authenticate, async (req: AuthenticatedReque
       ]);
       return discoveryForSelection(stored, scopeRows.map((r) => r.domain));
     });
-    res.json({ mappingId, discovered: domains.length > 0, domains });
+    // The provider's text of a count that stopped stays off the owner's
+    // confirm screen for an account a person granted (ADR-0035 decision 5),
+    // as it does on the migration page: it can name that person's files.
+    res.json({
+      mappingId,
+      discovered: domains.length > 0,
+      domains: readsAPersonsGrant(mapping) ? domains.map(withheldDiscovery) : domains,
+    });
   } catch (error) {
     serverFault(res, 'discovery_read_failed', 'reading the discovery result', error);
   }
