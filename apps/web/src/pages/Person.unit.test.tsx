@@ -212,7 +212,7 @@ describe("a person's page (0153 T5)", () => {
 
 /**
  * FOR ANNA (ADR-0035, amended 2026-09-29; 0153 T5 (b)): one grant link for all
- * of her Google accounts, made on her page, its URL said once.
+ * of their Google accounts, made on their page, its URL said once.
  */
 describe("a person's grant link, on their page", () => {
   it('offers one link for all of their accounts, and says there is none yet', async () => {
