@@ -123,6 +123,21 @@ describe('the runs panel', () => {
   });
 });
 
+/** 0154 T6: *Items: 912* read as a form field; a pass's count is said in words. */
+describe('a pass’s counts, in words', () => {
+  it('says how many items the round did, and how many errors, in the glossary’s words', async () => {
+    fetchRunsMock.mockResolvedValue({
+      runs: [run({ id: 'r1', itemsProcessed: 912 }), run({ id: 'r2', itemsProcessed: 1, errors: 3 })],
+      truncated: false,
+    });
+    renderPanel();
+    expect(await screen.findByText('912 items this pass')).toBeInTheDocument();
+    expect(screen.getByText('1 item this pass')).toBeInTheDocument();
+    expect(screen.getByText('3 errors')).toBeInTheDocument();
+    expect(screen.queryByText(/Items:/)).not.toBeInTheDocument();
+  });
+});
+
 describe('bounds honesty (0036 T3)', () => {
   it('labels the list only when the server SAYS it truncated', async () => {
     fetchRunsMock.mockResolvedValue({ runs: [run()], truncated: true });

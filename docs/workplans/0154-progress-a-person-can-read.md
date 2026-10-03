@@ -4,6 +4,60 @@
 
 ## Status — 2026-10-03 (update this block at the end of every session)
 
+**2026-10-03, night: T3 (a) is built: how long, before Start, as a range with its reason.**
+Under each migration's count on the review screens, and on a migration's page until its first pass
+reports: *How long: About 4 to 5 days, because Google lets a mailbox download 2.5 GB a day.*
+
+- **The rule** (`packages/shared/src/time-before-start.ts`):
+  - Mail from Gmail that the count measured takes the days Gmail's ceiling takes. The `gmail`
+    card reads it, and so does a Google account, whose mail face is that card. So does a plain
+    IMAP account pointed at `imap.gmail.com`, where the host is known.
+  - A download that needs n days' worth of the ceiling ends on the n-th day, n − 1 days after it
+    starts. So the range is *n − 1 to n days*, and one day's worth or less is *within a day*.
+  - Anything else says *Depends on the provider; we will know after the first hour* (the owner,
+    2026-09-29: *"You, say it."*). No rate is invented, and nothing unmeasured is counted.
+  - Files beside Gmail's mail are said apart: *The files: we will know after the first hour.*
+- **One ceiling.** The sentence reads the constant the rule divides by,
+  `GMAIL_IMAP_DOWNLOAD_BYTES_PER_DAY`, in the reader's decimals (*2,5 GB*). The site's calculator
+  states its own copy, since its script cannot import the workspace;
+  `site/calculator.unit.test.ts` now fails the day the two differ.
+- **Where:**
+  - Review & confirm and *Start a migration*'s last screen, which draw the same count section.
+    It says nothing while the count is still out, when a Gmail mailbox's size is not in yet.
+  - The appliance's review page, for a paused migration, from its own count.
+  - A migration's page, until a pass has completed. Once one has, the count is not even read:
+    the pass's own rate is T3 (b)'s.
+- **On the default daily schedule** a pass copies at most 50 minutes a day. Gmail's ceiling still
+  binds whenever the mailbox downloads faster than about 0.83 MB/s (2.5 GB in 50 minutes), so the
+  range holds there. A slower one ends later than it says, and T3 (b) measures that.
+- **Proved by:**
+  - `a-range-with-its-reason` (shared, 8);
+  - `a-time-before-start` (5, English and Dutch);
+  - the migration page (+4, the appliance's included);
+  - the appliance's review page (+2);
+  - the calculator's guard (+1).
+
+  **Mutations: eight of eight caught.** One slipped through at first: the page drew a count
+  cached from before the first pass, until the case seeded one.
+
+**2026-10-03, night: T6 is built: internals out of the way.**
+
+- **The migration's ID** left the spot under its title for a *Details* fold (*Migration ID:*), for a
+  support ticket.
+- **An item's hash** on the Deletions, Moves and Failures rows folds under *ID*, closed. Its title
+  keeps the whole value to copy.
+- **The connections line** says the card's name where the account's name was made from it: *From
+  Gmail (anna@gmail.com)*, where it read *From gmail · anna@gmail.com (anna@gmail.com)*. A name
+  somebody chose stays (*Anna's Soverin*), and a side with no name is its card's, never the kind
+  (*Nextcloud*, not *nextcloud*).
+- **The run history** says *912 items this pass* and *3 errors*, where it said *Items: 912*.
+  *Pass* is the glossary's English, as the panel's own line and a person's lines say it; the
+  plan's *round* is its Dutch, *912 items in deze ronde*.
+- *Left as they are* got its words in T2.
+- **Proved by:** the migration page (+2), the run history (+1) and Deletions (+1). **Mutations: seven
+  of seven caught.** Walked in Chromium, English and Dutch, at 900 and 390 pixels. No page or
+  console errors, and no sideways scroll.
+
 **2026-10-03, night: T4 is built: a migration's page lists its steps as a person's page does.**
 The seven cards on a migration's page are one numbered list. It is the list a person's page
 draws, now one component (`CutoverSteps`), so the two cannot order, name or count a step two
@@ -225,10 +279,10 @@ of a move after it. The evening's answer puts everything before.
 |---|---|---|
 | T1 One line that says where a person's migrations are | 🟡 **(a) merged in #1326; (b) and (d) merged in #1422 for a person's card and page; (c) built by 0153 T3 (c); the migration's own page next; before the first invitation** | §3. A stage in plain words, derived from the states the server already reports. One sentence, and what needs the person. On the person's card, their page and each migration. Drawing: `wf-person-page.svg`. |
 | T2 Totals: *of about how many* | ✅ **Merged in #1420: *"18,234 of ~19,000"*, a bar and the bytes, on each data type's row in both editions** | §3. Synced counts set against what discovery found, as a share and in bytes. *About*, because the source keeps changing. |
-| T3 Time left, as a range with its reason | 📋 **Proposed; before the first invitation** | §3. (a) Before Start, from the counts and the limits the product already knows (Gmail's 2.5 GB a day). (b) During the copy, from the rate of recent passes. Never a single number, and nothing when it cannot know. |
+| T3 Time left, as a range with its reason | 🟡 **(a) built: before Start, a range with its reason from Gmail's ceiling, and *we will know after the first hour* for the rest; (b) next; before the first invitation** | §3. (a) Before Start, from the counts and the limits the product already knows (Gmail's 2.5 GB a day). (b) During the copy, from the rate of recent passes. Never a single number, and nothing when it cannot know. |
 | T4 The cutover steps with counts and state | ✅ **Built: one list on a migration's page and a person's, each step with its count and state in words, and the check as it last ran** | §3. The seven cards become one ordered list. Each has its count and *done*, *needs you* or *not yet*, summed for the move across its migrations. |
 | T5 The report of what arrived, as a page | 📋 **Proposed; before the first invitation** | §3. The completion report is rendered in the app, per migration and per move, and downloadable. The word *Markdown* leaves the button. |
-| T6 Internals out of the way | 📋 **Proposed; before the first invitation** | §3. The UUID, the kinds, the doubled address and the item hashes fold away. *Left as they are* says what it means. |
+| T6 Internals out of the way | ✅ **Built: the ID and the hashes fold away, the connections line says the card, and the run history says its counts in words** | §3. The UUID, the kinds, the doubled address and the item hashes fold away. *Left as they are* says what it means. |
 | T7 An email when the first copy is in | 📋 **Decided by the owner 2026-09-28: one per person; before the first invitation** | §3. A milestone mail, *"Your mail is in your new system and is kept in step until you switch."* It is a new kind for 0030's email-only channel, so the owner decides. |
 | T8 The person's own progress page says the same | 📋 **Proposed; before the first invitation** | §3. `/view/:link` shows T1's line, T2's totals and T3's range, in the person's language (0145 T6). |
 

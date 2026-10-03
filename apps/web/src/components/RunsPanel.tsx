@@ -50,12 +50,16 @@ const RunRow: React.FC<{ run: RunReport }> = ({ run }) => {
         <span className="text-sm text-gray-700">
           {run.startedAt ? formatDateTime(run.startedAt, locale) : formatDateTime(run.createdAt, locale)}
         </span>
+        {/* In words, with the glossary's *pass* (*ronde*) (0154 T6): "912
+            items this pass", where it said "Items: 912". */}
         <span className="text-xs text-gray-500">
-          {t('runs.items')}: {formatNumber(run.itemsProcessed, locale)}
+          {run.itemsProcessed === 1
+            ? t('runs.items.one')
+            : t('runs.items.many', { n: formatNumber(run.itemsProcessed, locale) })}
         </span>
         {run.errors > 0 && (
           <span className="text-xs font-medium text-red-700">
-            {t('runs.errors')}: {formatNumber(run.errors, locale)}
+            {run.errors === 1 ? t('runs.errors.one') : t('runs.errors.many', { n: formatNumber(run.errors, locale) })}
           </span>
         )}
       </div>

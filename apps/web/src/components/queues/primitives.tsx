@@ -36,18 +36,27 @@ export const DomainTag: React.FC<{ domain: string }> = ({ domain }) => {
 };
 
 /**
- * The natural-key hash, shortened.
+ * The natural-key hash, shortened, and folded under *ID* (0154 T6).
  *
  * Shortened for reading, never for use: the full value is the handle every
  * action posts, and it stays in the `title` so an operator can copy it into a
  * ticket. §17 is why this is what identifies an item on screen at all — the
  * natural key itself is a Message-ID, an iCal UID or a file path.
+ *
+ * Folded because nobody recognises an item by twelve hex digits: the row
+ * says what it is and where, and the digits are for a support ticket.
  */
-export const HashChip: React.FC<{ hash: string }> = ({ hash }) => (
-  <code className="text-xs font-mono text-gray-500" title={hash}>
-    {hash.slice(0, 12)}
-  </code>
-);
+export const HashChip: React.FC<{ hash: string }> = ({ hash }) => {
+  const t = useT();
+  return (
+    <details className="text-xs text-gray-500">
+      <summary className="cursor-pointer select-none">{t('queue.itemId')}</summary>
+      <code className="font-mono" title={hash}>
+        {hash.slice(0, 12)}
+      </code>
+    </details>
+  );
+};
 
 /**
  * How we know an item is gone — the field ADR-0024 says to read first.
