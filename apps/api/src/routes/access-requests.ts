@@ -48,7 +48,13 @@ import { authenticateSubject, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { log } from '@openmig/shared';
-import { accessGrantedEvent, tell, tellOperator, type TellOutcome } from '../access-notify.ts';
+import {
+  accessGrantedEvent,
+  appUrl,
+  tell,
+  tellOperator,
+  type TellOutcome,
+} from '../access-notify.ts';
 import { serverFault } from '../server-fault.ts';
 import { createKnockLimiter, knockLimitFromEnv, type KnockLimiter } from '../knock-limit.ts';
 
@@ -283,28 +289,6 @@ const QUEUE_COLUMNS = {
   decisionNote: accessRequest.decisionNote,
   createdAt: accessRequest.createdAt,
 };
-
-/**
- * Where to send somebody to sign in, or null if this deployment cannot say.
- *
- * `WEB_URL` is the address a BROWSER uses — the same value the status page
- * probes and the identity provider registers its redirect against. Never
- * defaulted: a grant email carrying `http://localhost:3123` has told somebody
- * to go nowhere, and would go out looking exactly like a successful one.
- *
- * **And never thrown, either.** The first version of this threw, which turned a
- * missing variable into a 500 on a grant whose transaction had ALREADY
- * COMMITTED — the organisation existed and the operator was told it had failed.
- * That is precisely the inversion the send is placed after the commit to avoid,
- * reintroduced two lines away from the comment saying so. CI caught it.
- *
- * A deployment with no `WEB_URL` gets a warning at boot (`config-guards.ts`)
- * and, per grant, an operator who is told nobody was emailed.
- */
-function appUrl(): string | null {
-  const url = process.env.WEB_URL;
-  return url ? url.replace(/\/+$/, '') : null;
-}
 
 /**
  * GET /api/access-requests — the queue.

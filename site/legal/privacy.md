@@ -111,10 +111,13 @@
     for it. That is where NetBird GmbH is. Where its proxy and its log run,
     no NetBird source states (NetBird's own sources, below).
   - §4.5, §4.6, §7 and §9: Proton keeps the service's sent mail in the
-    support mailbox (the owner's "yes"). The service mails nobody a customer
-    invites (apps/api/src/routes/tenants/members.ts sends nothing; the app's
-    tenants.invite.hint: "No email yet; tell them yourself"), so §4.6's
-    invitees bullet needs no such sentence.
+    support mailbox (the owner's "yes"). The service mailed nobody a customer
+    invites until 2026-10-03, so §4.6's invitees bullet needed no such
+    sentence. Since workplan 0156 T3 (the owner: "Send an email") it mails
+    each invited person once, and again only when somebody presses Send again
+    (apps/api/src/routes/tenants/invitation-mail.ts), so the bullet says so,
+    in the share mail's words, and the mail itself closes with what we keep
+    and the policy's address (Art. 14(3)(b)).
   - §9: a sign-in account nobody let in goes 30 days after it was created,
     unless a request for access with that address is still open (the owner:
     "30 days is ok"; 0135 T8's rule, which now also spares an address with an
@@ -724,7 +727,9 @@ A migration touches people who never signed up with us. This is what we hold abo
   each such email stays in our support mailbox for as long as §9 says (§4.5). The list goes when
   you delete the migration it belongs to, or when your data is erased.
 - **People you invite** into your organisation: their address, their role, and whether they
-  joined.
+  joined. Each gets an email from support@ownpace.eu that says who invited them to which
+  organisation and where to sign in, and again only if you choose to send it again. A copy of
+  each such email stays in our support mailbox for as long as §9 says (§4.5).
 - **People who report a link** they were sent: see §4.5.
 - **Correspondents, and everyone else in your mail, contacts and calendars**: only what §4.2
   keeps about each item. Their name or address can appear there in a subject, as a contact's

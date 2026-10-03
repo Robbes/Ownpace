@@ -32,6 +32,7 @@ export * from './path-phase.ts';
 // the lifecycle and path phase beside it.
 export * from './stage.ts';
 export * from './progress.ts';
+export * from './time-before-start.ts';
 // ADR-0050 (amended 2026-09-28), workplan 0153 T2: the person a migration is
 // for, in the shapes both editions answer.
 export * from './people.ts';
@@ -75,6 +76,7 @@ export * from './failure-category.ts';
 export * from './needs-decision.ts';
 export * from './stated-failure-category.ts';
 export * from './unread-collections.ts';
+export * from './target-folder-missing.ts';
 export * from './config-revision.ts';
 export * from './kind-addition.ts';
 export * from './provider-accounts.ts';

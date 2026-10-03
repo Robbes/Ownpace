@@ -2737,6 +2737,7 @@ mailbox.
 |---|---|---|---|
 | *Ownpace — your access is ready* (`access_granted`; Dutch *uw toegang staat klaar*) | The API, when you grant their request, in the language they asked in | No. It says it is safe to forward. | Forward it to the address it was sent to. Or write them the same three facts yourself (the app's address, the address to register with, and that they must confirm the confirmation mail), and on live copy the alpha paragraph from the caught mail word for word, in the language it was sent in. |
 | *Ownpace — about your request* (`access_declined`; Dutch *over uw aanvraag*) | The API, when you decline with *Email them if you decline* ticked, which is the default | No | Forward it, or untick the box and write them yourself. |
+| *Ownpace — you are invited to join an organisation* (`member_invited`; Dutch *u bent uitgenodigd voor een organisatie*) | The API, when an owner or admin invites them on the Team page, or presses *Send again* on that row, in the organisation's summary language (workplan 0156 T3). At most 20 a day per organisation, and one invitation at most once in ten minutes | No. It says it is safe to forward. | Forward it to the address it was sent to. |
 | Verify your address | The identity provider, when they register, and at a first sign-in with Microsoft (above) | **Yes** | Pass the code on within the hour, by the rule below. |
 | Password reset | The identity provider, when they ask for one | **Yes** | The same. |
 | Password changed | The identity provider, after a reset or any other change of password | No | Nothing to pass on. |
@@ -2764,11 +2765,11 @@ or without a relay:
   `run-rollback` task when you start it with `notifyUsers`. Despite the name, it
   goes to `NOTIFY_TO`. If the migration is a tester's, tell them yourself.
 
-**Never mailed, relay or not.** An invitation to an organisation that exists:
-`apps/api/src/routes/tenants/members.ts` records it and sends nothing. The
-person finds it on the Invitations page when they sign in with that address,
-verified, so whoever invited them tells them. A grant link: *"You send the
-link. We never do."* ([grant-links.md](grant-links.md)).
+**Never mailed, relay or not.** A grant link: *"You send the link. We never
+do."* ([grant-links.md](grant-links.md)). An invitation to an organisation
+WAS in this paragraph until 2026-10-03: `members.ts` recorded it and sent
+nothing. Since workplan 0156 T3 it is mailed (the table above), and the Team
+page says when the mail was not sent, so the inviter knows to tell them.
 
 **Not sent from any screen today.** The fallback announcement for shares carried
 by hand (0104 T3). `POST /api/migrations/:mappingId/sharing/announce` mails each

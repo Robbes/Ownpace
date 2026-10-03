@@ -148,4 +148,24 @@ describe('what is offered', () => {
     expect(EN['wizard.schedule.sixHourly.hint']).toBe('Four times a day');
     expect(NL['wizard.schedule.sixHourly.hint']).toBe('Vier keer per dag');
   });
+
+  it('says a first copy does not wait for the schedule, in both languages (0156 T5)', () => {
+    // Until 2026-10-03 the panel said a daily schedule copied for 50 minutes a
+    // day, which was true and was the defect the owner asked to end: a first
+    // copy now runs pass after pass, and the schedule applies after it.
+    renderPanel('0 2 * * *');
+    expect(screen.getByText(EN['settings.schedule.hint'])).toBeInTheDocument();
+    expect(EN['settings.schedule.hint']).toBe('Passes run back to back until the first copy is done.');
+    expect(NL['settings.schedule.hint']).toBe('Rondes lopen direct na elkaar tot de eerste kopie klaar is.');
+    for (const [locale, why] of [
+      ['en', EN['settings.schedule.hint.why']],
+      ['nl', NL['settings.schedule.hint.why']],
+    ] as const) {
+      expect(why, locale).not.toMatch(/50 minutes a day|50 minuten per dag/);
+      expect(why, locale).toMatch(/15 minut/);
+    }
+    // The wizard, where the schedule is first chosen, says the same.
+    expect(EN['wizard.scheduleHint']).toContain('does not wait for this schedule');
+    expect(NL['wizard.scheduleHint']).toContain('niet op dit schema wacht');
+  });
 });

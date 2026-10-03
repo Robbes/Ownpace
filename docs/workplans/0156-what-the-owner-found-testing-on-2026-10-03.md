@@ -15,7 +15,7 @@ bulk"*, which is 0125 T8's option (a)).
 | Task | Status | Notes |
 |---|---|---|
 | T1 A migration's permission list reads its own source | ✅ **Done 2026-10-03** | §1. `migrationInventoryScans` resolves the migration's own source, migration → mailbox → connection, and the report measures its own target. The appliance reads the mapping asked about. The Finish page's blind-spot line follows the source. |
-| T2 A missing target folder is a finding, and the other data types are still verified | 📋 **Proposed** | §2. |
+| T2 A missing target folder is a finding, and the other data types are still verified | ✅ **Done 2026-10-04** | §2. A 404 on the listing's own folder is `TargetFolderMissingError`, a FAIL naming the folder with advice to restore it; any other listing failure is NOT_VERIFIABLE for its own data type; every other data type is still verified. |
 | T3 An invitation is mailed to the person invited | 📋 **Proposed** (owner, 2026-10-03: send it) | §3. Also: a declined invitation makes the member list unreadable. |
 | T4 Files over 1 GiB reach Nextcloud | 📋 **Proposed** | §4. Chunked upload, a 413 said as what it is, the demo Nextcloud's body limit. |
 | T5 A first copy runs back to back | 📋 **Proposed** (owner, 2026-10-03: 0125 T8's (a)) | §5. |
@@ -86,11 +86,34 @@ worker lands it `failed` (`apps/worker/src/jobs/run-verification.ts`). The listi
 is untyped and names `/` because the path it holds is relative to the target folder
 (`propfindChildren` in `packages/engines/src/webdav-target-writer.ts`).
 
-**To build.** A 404 on the target folder itself becomes a typed finding that names the folder as
-the server knows it; that data type is reported as such (not as an empty listing: hard rule 9),
-and every other data type is still verified. Any other listing failure of one data type makes
-that data type `NOT_VERIFIABLE` with the error quoted, which keeps a cutover blocked. A closed
-organisation still ends the run (0139 T7).
+**What was built.**
+
+- `TargetFolderMissingError` (`packages/shared/src/target-folder-missing.ts`), recognised by a tag
+  (`isTargetFolderMissing`) so a second copy of the module still knows it. The WebDAV writer's
+  listing throws it for a 404 on the folder it starts from, naming the folder as the server
+  knows it (`/Microsoft-Rhb`, from `targetFolderPrefix`); a 404 below the folder stays a plain
+  error, and both still carry the server's words.
+- `runVerification` catches per data type, around the measurement only (the ledger's own reads
+  still end the run). The folder missing is a FAIL with every recorded item missing and an issue
+  `TARGET_FOLDER_MISSING_<type>` naming the folder; any other listing failure is NOT_VERIFIABLE
+  with the error quoted (`TARGET_UNREAD_<type>`). Both hold the cutover. A closed organisation
+  still ends the run (0139 T7).
+- The advice for the folder is to restore it and verify again, not "Re-sync": the writer's
+  ledger fast-path skips every item the record says was copied, so a pass would copy none of
+  them back. A data type the target did not answer for is told to put that right, not to supply
+  a reindexer.
+
+**Proof.** `packages/core/src/a-target-folder-that-was-deleted.unit.test.ts`: with the files
+listing throwing the folder's 404, mail still PASSes, files FAIL with 3 of 3 missing and the
+folder named, the advice restores and does not re-sync; a 401 makes files NOT_VERIFIABLE with the
+status quoted while mail passes; a closed organisation still rejects the run.
+`dav-reindexers.unit.test.ts`: a prefixed folder's 404 is `TargetFolderMissingError` naming
+`/Microsoft-Rhb`; a 404 below it is not. Unit tiers of `packages`, `apps/worker`, `apps/selfhost`
+and `apps/api`: `Test Files 681 passed (681)`, `Tests 8197 passed (8197)`.
+
+**Not done.** The confirmation pass (`confirmation-reader.ts`) still marks every row of a data
+type whose listing failed `unchecked`, the folder missing included; it says nothing wrong, and
+could say more.
 
 ## 3. T3 — an invitation mailed nobody
 
