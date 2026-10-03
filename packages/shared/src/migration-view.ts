@@ -222,3 +222,51 @@ export const VIEW_ROW_FIELDS: readonly (keyof ViewDomainRow)[] = [
   'lastErrorCategory',
   'failedSide',
 ];
+
+/**
+ * A PERSON'S PROGRESS PAGE (ADR-0035, amended 2026-09-29; workplan 0153 T5 (b),
+ * slice 3): the whole answer `GET /api/view/:link` gives for a person's link.
+ *
+ * Every migration of theirs, each as a migration's own page shows it, with
+ * the same counts and states and nothing more. The one addition is what makes
+ * *Take my grant back* per account: the migrations that read one Google
+ * account are grouped, and the group is named by an opaque `ref`, never by
+ * the address, because this page, like a migration's, carries no address.
+ */
+export interface PersonView {
+  /** What tells this answer from a migration's, as the grant page's `kind` does. */
+  readonly kind: 'person';
+  readonly organisation: string;
+  readonly expiresAt: string;
+  /** In the order they were added to the person. */
+  readonly migrations: readonly PersonViewMigration[];
+  /** The Google accounts their migrations read, in the order first met. */
+  readonly accounts: readonly PersonViewAccount[];
+}
+
+/** One migration of a person's, as a stranger may read it. */
+export interface PersonViewMigration {
+  /** The source's kind (`google`, `imap`, …), for the page to name. */
+  readonly from: string;
+  /** The destination's kind, or null when it has none. */
+  readonly to: string | null;
+  readonly state: MappingLifecycle;
+  /** See `MigrationView.started`: absence is not zero. */
+  readonly started: boolean;
+  readonly domains: readonly ViewDomainRow[];
+  /** The `ref` of the account it reads, or null when it reads none through a link. */
+  readonly account: string | null;
+}
+
+/** One Google account a person's migrations read. */
+export interface PersonViewAccount {
+  /**
+   * Opaque. While a grant is held it is derived from the grants its
+   * migrations hold, so a withdrawal names exactly what the page read: when a
+   * grant changes, the ref changes, and a press on a stale page takes nothing
+   * (`changed`). Otherwise it only groups the page's migrations.
+   */
+  readonly ref: string;
+  /** Across its migrations: granted while any holds a grant, else withdrawn, else none. */
+  readonly grant: ViewGrant;
+}

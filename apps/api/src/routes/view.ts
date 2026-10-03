@@ -48,26 +48,21 @@
 import { Router } from 'express';
 import type { RequestHandler, Response } from 'express';
 import { and, eq } from 'drizzle-orm';
+import { z } from 'zod';
 import * as schema from '@openmig/ledger';
-import { PgLedger, PgMigrationStatusStore } from '@openmig/ledger';
 import { HttpTokenRevoker } from '@openmig/connectors';
 import {
-  MAPPING_LIFECYCLES,
   MIGRATION_GONE,
-  buildDomainStatusReports,
   reasonPair,
   viewGrantFor,
-  viewRowFor,
-  type MappingLifecycle,
-  type MappingId,
   type MigrationView,
-  type TenantId,
   type TokenRevoker,
 } from '@openmig/shared';
-import { authenticateMappingLink, getDbPool, withTenantDb } from '../middleware/auth.ts';
-import type { MappingLinkRequest } from '../types/api.ts';
+import { authenticateGrantLink, getDbPool, withTenantDb } from '../middleware/auth.ts';
+import type { PersonLinkRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
 import { withdrawGrant } from './withdraw-grant.ts';
+import { migrationProgress, readPersonView, withdrawPersonGrant, withdrawalRefusalBody } from './person-progress.ts';
 
 const router = Router();
 
@@ -84,9 +79,13 @@ function pool() {
  * eagerly would call `getDbPool()` at import, which throws when `DATABASE_URL`
  * is unset and makes merely importing the router depend on a configured
  * database.
+ *
+ * A migration's progress link or a person's (ADR-0035, amended 2026-09-29;
+ * 0153 T5 (b), slice 3): the middleware tells them apart by shape and attaches
+ * the one it verified, never both.
  */
 const linkAuth: RequestHandler = (req, res, next) =>
-  authenticateMappingLink('view', pool())(req, res, next);
+  authenticateGrantLink('view', pool())(req, res, next);
 
 /**
  * GET /api/view/:link — counts and states for the person being migrated.
@@ -99,8 +98,19 @@ const linkAuth: RequestHandler = (req, res, next) =>
 router.get(
   '/:link',
   linkAuth,
-  async (req: MappingLinkRequest, res: Response) => {
+  async (req: PersonLinkRequest, res: Response) => {
     try {
+      if (req.personLink) {
+        // A person's page: every migration of theirs, as `person-progress.ts`
+        // reads it. The person gone takes their links with them, so a null
+        // here is an organisation that is gone.
+        const { tenantId, personId, expiresAt } = req.personLink;
+        const view = await withTenantDb(tenantId, pool(), (db) =>
+          readPersonView(db, { tenantId, personId, expiresAt }),
+        );
+        if (!view) return void res.status(409).json({ error: 'not_found', ...reasonPair(MIGRATION_GONE) });
+        return void res.json(view);
+      }
       const { tenantId, mappingId, expiresAt } = req.mappingLink!;
 
       const read = await withTenantDb(tenantId, pool(), async (db) => {
@@ -124,20 +134,14 @@ router.get(
         const mapping = rows[0];
         if (!mapping) return null;
 
-        const [domainStatus, failures, adopted] = await Promise.all([
-          new PgMigrationStatusStore(db).getStatus(tenantId as TenantId, mappingId as MappingId),
-          // The same two counts the owner's board derives, from the same queue
-          // — `buildDomainStatusReports` is the ONE place that derivation lives
-          // (0033 T5), so this page cannot come to disagree with the owner's
-          // about how many items are waiting.
-          new PgLedger(db).listFailures(tenantId as TenantId, mappingId as MappingId),
-          // And what was left as it already was (0124 T2). This reader needs it
-          // more than the owner does, not less: they cannot go and look
-          // anywhere else, so a total that does not add up is the end of the
-          // road rather than a question they can ask somebody.
-          new PgLedger(db).countAdoptedByDomain(tenantId as TenantId, mappingId as MappingId),
-        ]);
-        return { mapping, domainStatus, failures, adopted };
+        // The same counts the owner's board derives, from the same queue, and
+        // what was left as it already was (0124 T2): `migrationProgress`, which
+        // a person's page reads each of their migrations through too. It
+        // throws on a lifecycle the contract has never heard of (hard rule 9):
+        // a state the CHECK constraint admits and the contract does not know is
+        // a bug that must be loud, not a page that guesses a word for it.
+        const progress = await migrationProgress(db, tenantId, mappingId, mapping.status);
+        return { mapping, progress };
       });
 
       if (!read) {
@@ -146,28 +150,16 @@ router.get(
         return void res.status(409).json({ error: 'not_found', ...reasonPair(MIGRATION_GONE) });
       }
 
-      const { mapping, domainStatus, failures, adopted } = read;
-      if (!MAPPING_LIFECYCLES.includes(mapping.status as MappingLifecycle)) {
-        // Throw rather than coerce, the same as `operating-routes.ts` and the
-        // appliance's `/status` (hard rule 9). A state the CHECK constraint
-        // admits and the contract has never heard of is a bug that must be
-        // loud, not a page that guesses a word for it.
-        throw new Error(
-          `mailbox_mapping.status is '${mapping.status}', which is not one of ` +
-            `${MAPPING_LIFECYCLES.join(', ')}. The database CHECK constraint should make this ` +
-            `impossible; refusing to guess what the migration's state is.`,
-        );
-      }
-
+      const { mapping, progress } = read;
       const body: MigrationView = {
         organisation: mapping.organisation,
-        state: mapping.status as MappingLifecycle,
+        state: progress.state,
         // Absence, not zero. No status row means no pass has ever touched this
         // mapping — the common case in the hour after somebody grants — and
         // five domains reading `0` would tell them it finished and moved
         // nothing. See `MigrationView.started`.
-        started: domainStatus.length > 0,
-        domains: buildDomainStatusReports(domainStatus, failures, adopted).map(viewRowFor),
+        started: progress.started,
+        domains: progress.domains,
         expiresAt: expiresAt.toISOString(),
         grant: viewGrantFor(mapping),
       };
@@ -186,20 +178,44 @@ router.get(
 let revoker: TokenRevoker | undefined;
 const tokenRevoker = (): TokenRevoker => (revoker ??= new HttpTokenRevoker());
 
+/** A person's withdrawal names the account, by the page's opaque `ref`. */
+const PersonWithdrawalSchema = z.object({ account: z.string().regex(/^[0-9a-f]{32}$/) });
+
 /**
  * POST /api/view/:link/withdraw — take back the grant this migration reads the
- * account on (workplan 0108 T8 (c), `withdraw-grant.ts`).
+ * account on (workplan 0108 T8 (c), `withdraw-grant.ts`), or, for a person's
+ * link, the grant one of their accounts holds (`person-progress.ts`).
  *
- * A body-less POST, deliberately: it changes something, so it is never a GET a
- * chat preview could follow. Answered 200 with what happened at Google, or 409
- * with the reason there was nothing to take back, in a sentence written for the
- * person holding the link.
+ * A POST, deliberately: it changes something, so it is never a GET a chat
+ * preview could follow. A migration's takes no body; a person's names the
+ * account by the `ref` the page read. Answered 200 with what happened at
+ * Google, or 409 with the reason there was nothing to take back, in a sentence
+ * written for the person holding the link.
  */
 router.post(
   '/:link/withdraw',
   linkAuth,
-  async (req: MappingLinkRequest, res: Response) => {
+  async (req: PersonLinkRequest, res: Response) => {
     try {
+      if (req.personLink) {
+        const parsed = PersonWithdrawalSchema.safeParse(req.body ?? {});
+        if (!parsed.success) {
+          return void res.status(400).json({
+            error: 'invalid_body',
+            reason: 'Send { account } as this page read it.',
+            reasonNl: 'Stuur { account } zoals deze pagina het las.',
+          });
+        }
+        const { tenantId, personId, linkId } = req.personLink;
+        const result = await withdrawPersonGrant(
+          pool(),
+          { tenantId, personId, linkId },
+          parsed.data.account,
+          tokenRevoker(),
+        );
+        if (!result.ok) return void res.status(409).json(withdrawalRefusalBody(result));
+        return void res.json(result.withdrawal);
+      }
       const { tenantId, mappingId, linkId } = req.mappingLink!;
       const result = await withdrawGrant(pool(), { tenantId, mappingId, linkId }, tokenRevoker());
       if (!result.ok) {
