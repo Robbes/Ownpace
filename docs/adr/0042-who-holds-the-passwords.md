@@ -24,14 +24,14 @@
 - **The issuer owns identity; `tenant_member` owns tenancy.** A token carries `sub` and `email`
   and nothing Ownpace-specific; tenant and role are read from `tenant_member` per request, never
   trusted from a claim: `apps/api/src/middleware/tenant-resolution.unit.test.ts`.
-- **The issuer is REPLACEABLE**: the integration must stay inside plain OIDC discovery +
-  authorization-code + PKCE + JWKS. No issuer-specific API, no issuer-side tenancy model, no
-  issuer-side roles. Guards: `apps/api/src/middleware/no-issuer-lock-in.unit.test.ts`,
-  `issuer-is-replaceable.unit.test.ts`.
+- **Because of that rule, the issuer is REPLACEABLE**: the integration must stay inside plain
+  OIDC discovery + authorization-code + PKCE + JWKS. No issuer-specific API, no issuer-side
+  tenancy model, no issuer-side roles. Guards:
+  `apps/api/src/middleware/no-issuer-lock-in.unit.test.ts`, `issuer-is-replaceable.unit.test.ts`.
 - **`tenant_member.user_id` IS the token's `sub`; email is a label.** A new `sub` orphans the
   membership, so account linking is decided before a second sign-in method is offered, and none
   may become an account's only one. **Federation belongs in the issuer, never in the app**:
-  `scripts/a-second-door-with-the-linking-decided.unit.test.ts` (*Decision* 3).
+  `scripts/a-second-door-with-the-linking-decided.unit.test.ts`.
 - **Every endpoint is DISCOVERED, never composed**: `jwks_uri` by the API; `authorization_endpoint`,
   `token_endpoint` and `end_session_endpoint` by the browser, a **PUBLIC client holding no
   secret**, whose PKCE verifier (S256) never leaves the tab that minted it. A document naming
@@ -52,11 +52,11 @@
 
 ## Context
 
-Workplan 0092 T4 found that the path from stranger to signed-in customer ended with the owner
-running `seed-managed.sh` and emailing a JWT, valid for seven days, to be pasted into a textarea
-(`apps/web/src/pages/Login.tsx`). Workplan 0093 replaced the front half (a request form, a route,
-a table); this ADR is the back half, what a granted request becomes. The API already verified
-tokens against a remote JWKS whenever `JWT_ISSUER` was set; which issuer had never been decided.
+Workplan 0092 T4 found that a customer signed in by pasting a JWT, valid for seven days, that the
+owner had minted with `seed-managed.sh` and emailed (`apps/web/src/pages/Login.tsx`). Workplan
+0093 built the front half (a request form, a route, a table); this ADR is the back half, what a
+granted request becomes. The API already verified tokens against a remote JWKS whenever
+`JWT_ISSUER` was set; which issuer had never been decided.
 
 **The finding that framed the choice**: "we are multi-tenant, so we need a multi-tenant IdP" is
 wrong here, because Ownpace already owns tenancy and enforces it in Postgres. The token's `role`
@@ -85,16 +85,17 @@ and no accounts (hard rule 5) and never gains an issuer dependency
 
 A token carries `sub` and `email` and nothing Ownpace-specific; the API requires exactly those two
 (`apps/api/src/middleware/auth.ts`), `email` because an invitation is addressed to one and a
-first sign-in has no row to look it up in. `resolveTenant` picks the tenant per request: one named
-by a header or a claim is only a candidate, a subject with several memberships is refused with the
-choices, and the role always comes from the `tenant_member` row (`tenant-resolution.unit.test.ts`).
+first sign-in has no row to look it up in. `resolveTenant` picks the tenant per request (a
+header, else a claim, else the subject's one membership, never a guess between several), and that
+only decides what is checked: an active `tenant_member` row must exist, and the role is that
+row's (`tenant-resolution.unit.test.ts`).
 
 ### 3. `sub` is the identity; email is a label
 
 `tenant_member.user_id` IS the token's `sub`: `lookupMemberships` filters on it, `resolveTenant`
 refuses when it finds nothing, and email is nowhere in that lookup. A flow that preserves `sub` is
-safe; one that mints a new `sub` orphans the membership, and the API answers 403 on every route to
-a person who is still a member. So:
+safe; one that mints a new `sub` orphans the membership: the person is still a member of an
+organisation their new subject cannot reach, and the API answers 403 on every route. So:
 
 - **Changing an address inside an account is safe**, and the label follows: `GET /api/me`
   reconciles `tenant_member.email` to the verified claim on rows already carrying the subject
@@ -112,17 +113,16 @@ a person who is still a member. So:
 
 The integration stays inside plain OIDC discovery + authorization-code + PKCE + JWKS: no
 issuer-specific API, no issuer-side tenancy model, no issuer-side roles.
-`no-issuer-lock-in.unit.test.ts` fails on a provider's name or endpoint path in the shipped source
-of `apps/api/src`, `apps/web/src` and `packages`; `issuer-is-replaceable.unit.test.ts` drives the
-real verification path with Zitadel's and Keycloak's discovery documents. Switching provider is
-`JWT_ISSUER` and `JWT_AUDIENCE` for the API, `VITE_OIDC_ISSUER` and `VITE_OIDC_CLIENT_ID` for the
-web build, and a rebuild.
+`no-issuer-lock-in.unit.test.ts` fails on a provider's name or endpoint path in shipped source,
+and `issuer-is-replaceable.unit.test.ts` drives the real verification path with Zitadel's and
+Keycloak's discovery documents. Switching provider is `JWT_ISSUER` and `JWT_AUDIENCE` for the API,
+`VITE_OIDC_ISSUER` and `VITE_OIDC_CLIENT_ID` for the web build, and a rebuild.
 
 The owner accepted on the condition that this be confirmed, and confirming it found it false:
 `getJWKS` composed `${jwtIssuer}/.well-known/jwks.json`, an Auth0/Clerk convention matching
 neither Zitadel's `{domain}/oauth/v2/keys` nor Keycloak's
-`{host}/realms/{realm}/protocol/openid-connect/certs`. So **every endpoint is discovered**: the
-API reads `jwks_uri` from `/.well-known/openid-configuration`, the browser reads
+`{host}/realms/{realm}/protocol/openid-connect/certs`. So **every endpoint is discovered, never
+composed**: the API reads `jwks_uri` from `/.well-known/openid-configuration`, the browser reads
 `authorization_endpoint`, `token_endpoint` and `end_session_endpoint` from it
 (`apps/web/src/services/oidc.ts`), and both refuse a document naming another `issuer` (OIDC
 Discovery §4.3), or a hijacked DNS record or a misconfigured proxy could point verification at a
@@ -151,10 +151,10 @@ its organisations, projects, roles or management API.
 Clearing the app's store and `localStorage` leaves the issuer's cookie alive, so the next "Sign
 in" completes without a prompt: on a shared or borrowed machine, an account handover. Signing out
 (`apps/web/src/components/SignOut.tsx`) therefore also follows the discovered
-`end_session_endpoint` with `id_token_hint` and the registered `post_logout_redirect_uri`, plain
-RP-Initiated Logout 1.0. The local half happens first and unconditionally, so an issuer with no
-such endpoint, or out of reach, leaves somebody signed out here rather than stuck
-(`oidc.unit.test.ts`).
+`end_session_endpoint` with `id_token_hint` and the registered `post_logout_redirect_uri`: plain
+RP-Initiated Logout 1.0 with no issuer-specific call, so *Decision* 4 holds. The local half
+happens first and unconditionally, so an issuer with no such endpoint, or out of reach, leaves
+somebody signed out here rather than stuck (`oidc.unit.test.ts`).
 
 ### 8. The answer to a question you asked is not an invitation
 
@@ -176,11 +176,14 @@ asking. Migration 0006's policy still authorises the binding; `origin` only narr
   v1 APIs deprecated, configuration "easy to get wrong and hard to diagnose" (init-time
   environment handling, `BASEURI` path gotchas), upgrades replaying projections for a time
   proportional to the event log; more than one write-up calls it brittle for multi-tenant
-  production. Bought down three ways: none of the churned surface is used, the pin moves
-  deliberately against the technical advisories, and the exit is cheap.
+  production. Bought down three ways: none of the churned surface (its tenancy, its management
+  API) is used, the pin moves deliberately against the technical advisories, and the exit is cheap
+  by construction.
 - **Its core is AGPL-3.0** since v3 (2025-03-31); proto definitions, APIs and SDKs stay
   Apache-2.0. Run unmodified as a separate service it binds nothing of ours, but **a patch to
-  Zitadel would be AGPL and must be published**. ADR-0001 and ADR-0039 are unaffected.
+  Zitadel would be AGPL and must be published**. [ADR-0001](./0001-license-apache-2.0.md)
+  (Apache-2.0) and [ADR-0039](./0039-no-open-core-and-what-ops-privacy-means.md) (no open-core)
+  are unaffected.
 - **One more service** in `deploy/compose/managed.yml`, one more database to back up, and a second
   place where a person exists, with `tenant_member` still the authority on what they may do.
 - **The product never creates an account at the provider**: a granted person registers their own
@@ -194,7 +197,8 @@ asking. Migration 0006's policy still authorises the binding; `origin` only narr
 by a documented base of **1250 MB of RAM plus ~300 MB non-heap**, more than the rest of the
 managed stack, on a box already running Stalwart, Postgres, Trigger.dev and ClickHouse; and by
 Red Hat/IBM, US-governed, at the centre of a product about leaving US cloud. **Kept as the named
-fallback**: a configuration change plus a user migration away.
+fallback** if Zitadel's churn proves worse than the mitigation: with only standard OIDC, it is a
+configuration change plus a user migration away.
 
 **Authentik.** MIT, the most polished admin UI. Rejected on operations: Python across a server, a
 worker and Redis besides the database, four moving parts where Zitadel is one, and majors with
@@ -239,14 +243,12 @@ and is locked out of an organisation they still belong to.
 **A platform as an account's only sign-in method**: a dependency rebuilt in a new place, for
 people whose reason to be here is leaving that platform.
 
-**Binding every invitation on sight**: workplan 0099's defect, since `members.ts` lets anybody
-inside an organisation add any address, so reading your own account would join you to a
-stranger's organisation. **Asking a granted requester again** is the opposite mistake: the same
-question twice.
+**Binding every invitation on sight**: workplan 0099's defect. Anybody inside an organisation can
+add any address (`members.ts`), so reading your own account would join you to a stranger's
+organisation. **Asking a granted requester again**: the same question twice.
 
-**A sign-out that clears only the tab**: the issuer's session survives it, which on a shared or
-borrowed machine is an account handover: the next person to press "Sign in" is in, having proved
-nothing.
+**A sign-out that clears only the tab**: the issuer's session survives it, and on a shared or
+borrowed machine that is an account handover (*Decision* 7).
 
 ## Amendment log
 
@@ -272,8 +274,10 @@ nothing.
   amendments, which the record kept inside its operative section, are folded into *Decision* 3
   to 8, and their rejected options into *Alternatives considered*. Where the record had
   fallen behind the code, this text follows the code: the stack runs PostgreSQL 18 (the record
-  said 16), Zitadel has its own database rather than a schema, and the narrowed claim surface
-  (workplan 0093 T5b) is described as built.
+  said 16), Zitadel has its own database rather than a schema, the narrowed claim surface
+  (workplan 0093 T5b) is described as built, and a "Login with Google" button is said to be
+  forbidden by the third operative rule, not caught by `no-issuer-lock-in.unit.test.ts`, which
+  matches no Google name because the product's own migration code uses it.
 
 The full record, word for word as it read before this consolidation:
 [history/0042-who-holds-the-passwords.md](./history/0042-who-holds-the-passwords.md).

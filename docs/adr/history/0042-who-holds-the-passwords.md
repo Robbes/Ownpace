@@ -1,9 +1,8 @@
 <!-- FROZEN RECORD (ADR-0051). Do not edit: this file is history, not a decision. -->
 
-> **This is the record, not the decision.** ADR-0042 as it read on 2026-10-03, before its
-> operative rules were cut to the budget of [ADR-0051](../0051-an-adr-reads-as-it-stands.md). The decision as it
-> stands is [ADR-0042](../0042-who-holds-the-passwords.md). Kept word for word, so that nothing the record said is
-> lost — the earlier operative wording carries reasons and examples the budget left out; only
+> **This is the record, not the decision.** ADR-0042 as it read on 2026-10-03, before it was
+> consolidated in place under [ADR-0051](../0051-an-adr-reads-as-it-stands.md). The decision as it stands is
+> [ADR-0042](../0042-who-holds-the-passwords.md). Kept word for word, so that nothing the record said is lost; only
 > relative links were re-based for this folder.
 
 # ADR-0042: Who holds the passwords — an issuer we can replace

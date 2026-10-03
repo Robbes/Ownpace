@@ -138,11 +138,15 @@ kept the reasons and grew the files it was meant to shrink.)
 
 ### 7. What this change did
 
-- **Consolidated in place**: ADR-0014, 0027, 0030, 0034, 0035, 0041, 0046 and 0048 — the six the
-  recommendation named, plus 0046 and 0048, whose five and eight dated changes after acceptance made
-  them the longest chains after 0014.
-- **Compressed**: the operative sections of ADR-0020, 0024, 0038, 0039, 0040, 0042, 0043, 0044,
-  0047, 0049 and 0050; the status entries of 0032, 0036, 0047 and 0050.
+- **Consolidated in place**: ADR-0014, 0027, 0030, 0034, 0035, 0041, 0042, 0046 and 0048 — the six
+  the recommendation named; 0046 and 0048, whose five and eight dated changes after acceptance made
+  them the longest chains after 0014; and 0042, whose four amendments had lived inside its
+  operative section, so that compressing it left their reasons out of the file a reader opens.
+- **Compressed**: the operative sections of ADR-0020, 0024, 0038, 0039, 0040, 0043, 0044, 0047,
+  0049 and 0050; the status entries of 0032, 0036, 0047 and 0050.
+- **Every rewrite was checked by a reader who had not written it**, against its record and the
+  code; what the checks found — rules dropped or weakened, claims the code contradicts, labels that
+  no longer resolved — was corrected before this change was finished.
 - **Result**: `OPERATIVE.md` from 12,136 to {{OPERATIVE_AFTER}} words; the ADR files a reader
   opens from {{ADR_FILES_BEFORE}} to {{ADR_FILES_AFTER}} words, with {{HISTORY_WORDS}} words of
   record in `history/`. Every ADR is within every limit, so the budget is a hard limit from its

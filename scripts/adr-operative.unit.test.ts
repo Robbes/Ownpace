@@ -271,7 +271,7 @@ describe('an ADR rewritten to its current state keeps its whole record (ADR-0051
 
   it('history is never deleted: the nineteen records of 2026-10-03 are all still there', () => {
     // A floor rather than an exact count: a record joins history/ when its ADR
-    // is rewritten (eight consolidated, eleven cut to the budget, ADR-0051), and
+    // is rewritten (nine consolidated, ten cut to the budget, ADR-0051), and
     // nothing ever leaves it.
     expect(histories.length).toBeGreaterThanOrEqual(19);
   });
