@@ -20,11 +20,13 @@
  * than they allow, so the server refuses to grant them and this screen offers
  * neither. A row that already holds one still shows it, and can be moved up.
  *
- * Inviting creates the membership row and nothing more: invitation email is
- * still not a thing the product sends, so the form says out loud that no email
- * goes out, rather than letting the word "invite" promise one. (The channel
- * built by 0030 sends what a migration needs a decision about — it does not
- * send invitations, and saying so here is cheaper than the support ticket.)
+ * Inviting creates the membership row and mails the invited person where to
+ * sign in, and with which address (workplan 0156 T3; until 2026-10-03 the form
+ * said "No email yet; tell them yourself", which was true). The answer says
+ * what became of the mail — sent, not sent because this installation sends
+ * none, failed, or over the day's allowance — and the form says it, because
+ * every outcome but the first leaves telling them to the inviter. An open
+ * invitation this page made can be mailed again from its row.
  *
  * The email-summary card is 0030 T4: how often this organization is emailed a
  * summary of what is waiting, read every morning by the `managed-digest` task.
@@ -37,6 +39,7 @@ import { Building2, Pencil, UserPlus } from 'lucide-react';
 import {
   tenantApi,
   memberApi,
+  type InvitationMailOutcome,
   type Member,
   type TenantNotificationPrefs,
 } from '../services/mapping-service.ts';
@@ -63,8 +66,25 @@ const ROLE_RANK: Record<Member['role'], number> = { owner: 3, admin: 2, member: 
 const STATUS_STYLE: Record<Member['status'], string> = {
   active: 'bg-green-50 text-green-700',
   invited: 'bg-blue-50 text-blue-700',
+  declined: 'bg-gray-100 text-gray-500',
   suspended: 'bg-amber-50 text-amber-700',
   removed: 'bg-gray-100 text-gray-500',
+};
+
+/** What became of an invitation's mail, in words (0156 T3). */
+const MAIL_OUTCOME: Record<InvitationMailOutcome, StringKey> = {
+  sent: 'tenants.invite.mail.sent',
+  off: 'tenants.invite.mail.off',
+  failed: 'tenants.invite.mail.failed',
+  limited: 'tenants.invite.mail.limited',
+};
+
+/** Green when they have it; amber when telling them is still the inviter's to do. */
+const MAIL_OUTCOME_TONE: Record<InvitationMailOutcome, string> = {
+  sent: 'text-green-700',
+  off: 'text-amber-700',
+  failed: 'text-amber-700',
+  limited: 'text-amber-700',
 };
 
 /**
@@ -90,6 +110,13 @@ const Tenants: React.FC = () => {
   const [inviteRole, setInviteRole] = React.useState<Member['role']>('admin');
   const [inviteBusy, setInviteBusy] = React.useState(false);
   const [inviteError, setInviteError] = React.useState<string | null>(null);
+  // What became of the last invitation's mail, said under the form (0156 T3).
+  const [inviteMail, setInviteMail] = React.useState<{
+    email: string;
+    notified: InvitationMailOutcome;
+  } | null>(null);
+  // The same, per row, after Send again.
+  const [rowMail, setRowMail] = React.useState<Record<string, InvitationMailOutcome>>({});
   const [rowErrors, setRowErrors] = React.useState<Record<string, string>>({});
   const [busyRow, setBusyRow] = React.useState<string | null>(null);
   const [armedRemove, setArmedRemove] = React.useState<string | null>(null);
@@ -134,8 +161,10 @@ const Tenants: React.FC = () => {
     e.preventDefault();
     setInviteBusy(true);
     setInviteError(null);
+    setInviteMail(null);
     try {
-      await memberApi.invite(tenantId, { email: inviteEmail.trim(), role: inviteRole });
+      const invited = await memberApi.invite(tenantId, { email: inviteEmail.trim(), role: inviteRole });
+      setInviteMail(invited.notified ? { email: invited.email, notified: invited.notified } : null);
       setInviteEmail('');
       setInviteRole('admin');
       await refetchMembers();
@@ -190,6 +219,24 @@ const Tenants: React.FC = () => {
     try {
       await memberApi.remove(tenantId, member.id);
       await refetchMembers();
+    } catch (err) {
+      setRowErrors((errors) => ({
+        ...errors,
+        [member.id]: errorText(err, t('common.requestFailed')),
+      }));
+    } finally {
+      setBusyRow(null);
+    }
+  };
+
+  // Mail an open invitation again (0156 T3). One press: it changes nothing
+  // but the invited person's inbox, and the server limits how often.
+  const resend = async (member: Member) => {
+    setBusyRow(member.id);
+    setRowErrors((errors) => ({ ...errors, [member.id]: '' }));
+    try {
+      const notified = await memberApi.resend(tenantId, member.id);
+      setRowMail((mail) => ({ ...mail, [member.id]: notified }));
     } catch (err) {
       setRowErrors((errors) => ({
         ...errors,
@@ -507,7 +554,19 @@ const Tenants: React.FC = () => {
                           {member.joinedAt ? dateTime(member.joinedAt) : '—'}
                         </td>
                         {canManage && (
-                          <td className="py-3 text-right">
+                          <td className="py-3 text-right whitespace-nowrap">
+                            {/* An invitation this page made, still open
+                                (0156 T3); a granted access request was mailed
+                                by its grant, and the server says so. */}
+                            {member.status === 'invited' && member.origin !== 'requested' && (
+                              <button
+                                onClick={() => resend(member)}
+                                disabled={busyRow === member.id}
+                                className="mr-2 px-3 py-1.5 text-sm font-medium rounded-lg text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+                              >
+                                {t('tenants.members.resend')}
+                              </button>
+                            )}
                             {!isSelf && (
                               <button
                                 onClick={() => remove(member)}
@@ -544,6 +603,16 @@ const Tenants: React.FC = () => {
                         <tr>
                           <td colSpan={canManage ? 6 : 5} className="pb-3 text-amber-700">
                             {rowErrors[member.id]}
+                          </td>
+                        </tr>
+                      )}
+                      {rowMail[member.id] && (
+                        <tr>
+                          <td
+                            colSpan={canManage ? 6 : 5}
+                            className={`pb-3 ${MAIL_OUTCOME_TONE[rowMail[member.id]!]}`}
+                          >
+                            {t(MAIL_OUTCOME[rowMail[member.id]!], { email: member.email })}
                           </td>
                         </tr>
                       )}
@@ -598,6 +667,11 @@ const Tenants: React.FC = () => {
               {t('tenants.invite.submit')}
             </button>
             {inviteError && <p className="w-full text-amber-700">{inviteError}</p>}
+            {inviteMail && (
+              <p role="status" className={`w-full ${MAIL_OUTCOME_TONE[inviteMail.notified]}`}>
+                {t(MAIL_OUTCOME[inviteMail.notified], { email: inviteMail.email })}
+              </p>
+            )}
           </form>
         </div>
       )}

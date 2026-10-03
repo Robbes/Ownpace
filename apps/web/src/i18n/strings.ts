@@ -2373,9 +2373,23 @@ const en = {
   'tenants.members.joinedHeader': 'Joined',
   'tenants.members.remove': 'Remove',
   'tenants.members.removeArmed': 'Confirm remove',
+  // An open invitation's mail, again (0156 T3).
+  'tenants.members.resend': 'Send again',
   'tenants.readOnly': 'Your role here is read-only. An owner or admin manages members.',
   'tenants.invite.heading': 'Invite someone',
-  'tenants.invite.hint': 'No email yet; tell them yourself, and they appear below as invited.',
+  // The invitation is mailed since 0156 T3 (the owner, 2026-10-03). The
+  // line said "No email yet; tell them yourself" until then, which was true.
+  'tenants.invite.hint':
+    'We email them where to sign in; they appear below as invited.',
+  // What became of the mail, after Invite or Send again. Each leaves the
+  // inviter a different thing to do, so each says it.
+  'tenants.invite.mail.sent': 'Invitation emailed to {email}.',
+  'tenants.invite.mail.off':
+    'Invitation saved for {email}, but this installation sends no email: tell them yourself.',
+  'tenants.invite.mail.failed':
+    'Invitation saved for {email}, but its email could not be sent. Send it again, or tell them yourself.',
+  'tenants.invite.mail.limited':
+    "Invitation saved for {email}, but today's invitation emails are used up. Send it again tomorrow, or tell them yourself.",
   'tenants.invite.email': 'Email address',
   'tenants.invite.role': 'Role',
   // Workplan 0137 T7: the two roles the alpha offers, and what the second one
@@ -2411,6 +2425,7 @@ const en = {
   'role.viewer': 'Viewer',
   'memberStatus.active': 'Active',
   'memberStatus.invited': 'Invited',
+  'memberStatus.declined': 'Declined',
   'memberStatus.suspended': 'Suspended',
   'memberStatus.removed': 'Removed',
   'nav.decisions': 'Needs you',
@@ -4752,10 +4767,18 @@ const nl: Record<keyof typeof en, string> = {
   'tenants.members.joinedHeader': 'Toegetreden',
   'tenants.members.remove': 'Verwijderen',
   'tenants.members.removeArmed': 'Bevestig verwijderen',
+  'tenants.members.resend': 'Opnieuw sturen',
   'tenants.readOnly': 'Uw rol hier is alleen-lezen. Een eigenaar of beheerder beheert de leden.',
   'tenants.invite.heading': 'Iemand uitnodigen',
   'tenants.invite.hint':
-    'Nog geen e-mail; vertel het zelf, en ze verschijnen hieronder als uitgenodigd.',
+    'We mailen hen waar ze zich aanmelden; ze verschijnen hieronder als uitgenodigd.',
+  'tenants.invite.mail.sent': 'Uitnodiging gemaild naar {email}.',
+  'tenants.invite.mail.off':
+    'Uitnodiging voor {email} opgeslagen, maar deze installatie verstuurt geen e-mail: vertel het zelf.',
+  'tenants.invite.mail.failed':
+    'Uitnodiging voor {email} opgeslagen, maar de e-mail kon niet worden verstuurd. Stuur hem opnieuw, of vertel het zelf.',
+  'tenants.invite.mail.limited':
+    'Uitnodiging voor {email} opgeslagen, maar de uitnodigingsmails van vandaag zijn op. Stuur hem morgen opnieuw, of vertel het zelf.',
   'tenants.invite.email': 'E-mailadres',
   'tenants.invite.role': 'Rol',
   'tenants.invite.adminCan':
@@ -4783,6 +4806,7 @@ const nl: Record<keyof typeof en, string> = {
   'role.viewer': 'Kijker',
   'memberStatus.active': 'Actief',
   'memberStatus.invited': 'Uitgenodigd',
+  'memberStatus.declined': 'Afgewezen',
   'memberStatus.suspended': 'Geschorst',
   'memberStatus.removed': 'Verwijderd',
   'nav.decisions': 'Wacht op u',
