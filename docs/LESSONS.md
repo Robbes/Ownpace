@@ -659,6 +659,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/bootstrap-managed.sh`
 
 - [a-database-that-counts-its-queries](../scripts/a-database-that-counts-its-queries.unit.test.ts) — A DATABASE THAT COUNTS ITS QUERIES (workplan 0143 T8).
+- [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts) — A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
 - [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
@@ -718,6 +719,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/db-roles.sh`
 
+- [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts) — A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
 - [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
@@ -762,6 +764,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/ensure-env-secrets.sh`
 
+- [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts) — A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-gate-that-leaves-the-alpha-alone](../scripts/a-gate-that-leaves-the-alpha-alone.unit.test.ts) — A GATE THAT LEAVES THE ALPHA ALONE: the nightly managed gate wrote into whichever persisted `.env` a repository variable named, and would have written into live's (workplan 0132 T1g, D7).
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2, its first and smallest part: Trigger.dev's own database).
@@ -776,6 +779,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/env-read.sh`
 
+- [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts) — A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
 - [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
@@ -854,6 +858,7 @@ reading a file drops off its entry by itself.
 
 - [a-build-that-reached-for-the-lan](../scripts/a-build-that-reached-for-the-lan.unit.test.ts) — A BUILD THAT REACHED FOR THE LAN (workplan 0132 T3 (a); E2E (managed) #201).
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+- [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts) — A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts) — A HELPDESK THE API WAS NEVER HANDED.
@@ -891,6 +896,7 @@ reading a file drops off its entry by itself.
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 - [a-database-that-counts-its-queries](../scripts/a-database-that-counts-its-queries.unit.test.ts) — A DATABASE THAT COUNTS ITS QUERIES (workplan 0143 T8).
+- [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts) — A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
 - [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
@@ -956,6 +962,19 @@ reading a file drops off its entry by itself.
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
 - [zitadel-image-matches-postgres](../scripts/zitadel-image-matches-postgres.unit.test.ts) — The identity provider and the database it initialises into are pinned in the same file, and they are not independent.
 
+### `deploy/compose/nextcloud-counters.sql`
+
+- [a-counter-no-default-names](../scripts/a-counter-no-default-names.unit.test.ts) — A COUNTER NO DEFAULT NAMES (workplan 0150, 2026-09-29; scripted 2026-10-03).
+- [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts) — A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
+
+### `deploy/compose/nextcloud-db.sh`
+
+- [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts) — A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
+
+### `deploy/compose/nextcloud-to-postgres.sh`
+
+- [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts) — A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
+
 ### `deploy/compose/operator.sh`
 
 - [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts) — A SENTENCE IN A DOCUMENT HAS NOTHING CHECKING IT, and this one was wrong for a month.
@@ -965,6 +984,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/own-addresses.sh`
 
+- [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts) — A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
 - [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
@@ -1110,6 +1130,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/stack-kind.sh`
 
+- [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts) — A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
 - [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
@@ -2585,6 +2606,14 @@ Reads:
 
 - `deploy/compose/smoke-managed.sh`
 
+### [a-counter-no-default-names](../scripts/a-counter-no-default-names.unit.test.ts)
+
+A COUNTER NO DEFAULT NAMES (workplan 0150, 2026-09-29; scripted 2026-10-03).
+
+Reads:
+
+- `deploy/compose/nextcloud-counters.sql`
+
 ### [a-credential-the-next-step-printed](../scripts/a-credential-the-next-step-printed.unit.test.ts)
 
 A CREDENTIAL THE NEXT STEP PRINTED.
@@ -2628,6 +2657,24 @@ Reads:
 - `packages/connectors/src/google-drive-source.ts`
 - `packages/core/src/a-deck-copied-once-not-nightly.unit.test.ts`
 - `packages/core/src/dav-sync.ts`
+
+### [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts)
+
+A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
+
+Reads:
+
+- `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/db-roles.sh`
+- `deploy/compose/ensure-env-secrets.sh`
+- `deploy/compose/env-read.sh`
+- `deploy/compose/managed.env.example`
+- `deploy/compose/managed.yml`
+- `deploy/compose/nextcloud-counters.sql`
+- `deploy/compose/nextcloud-db.sh`
+- `deploy/compose/nextcloud-to-postgres.sh`
+- `deploy/compose/own-addresses.sh`
+- `deploy/compose/stack-kind.sh`
 
 ### [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts)
 

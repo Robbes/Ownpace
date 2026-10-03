@@ -226,6 +226,15 @@ ensure ZITADEL_ADMIN_PASSWORD 16
 # ROLE on every run, so the volume never keeps an older one. The nightly gate
 # persists .env back after this script, so it is generated once per stack.
 ensure SYSTEM_DB_PASSWORD 24
+# The demo Nextcloud's database password (workplan 0150): the role `nextcloud`
+# in the stack's Postgres, which the bring-up's `data` phase makes with this
+# value before Nextcloud's first start, and which that install keeps in its own
+# config.php. SAFE to generate on a stack whose role exists already: the
+# bring-up never sets it on a role that exists, because an installed Nextcloud
+# connects with config.php's value, and it says when the two differ;
+# nextcloud-to-postgres.sh --sync-password makes them one (config.php first).
+# Generated on live too, where nothing reads it: live runs no demo.
+ensure NEXTCLOUD_DB_PASSWORD 24
 
 # NOT TRIGGER_DB_PASSWORD, on purpose (workplan 0132 T2). It is trigger-db's
 # password, and Postgres takes it only when the trigger_db_data volume is first
