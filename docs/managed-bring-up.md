@@ -597,6 +597,26 @@ docker compose -f deploy/compose/managed.yml exec -T pgbouncer \
 Anything back, containing `transaction`, is the pooler serving in the right
 mode.
 
+**With `--with-demo`, the demo Nextcloud's database comes first** (workplan 0150). Its first
+install reads `POSTGRES_*` from `managed.yml` and connects as the role `nextcloud` to the database
+`nextcloud` in this Postgres, so the phase makes both before Nextcloud starts
+(`deploy/compose/nextcloud-db.sh`). A role it makes gets `.env`'s `NEXTCLOUD_DB_PASSWORD`, which
+`ensure-env-secrets.sh` generates. A role that exists keeps its password while a Nextcloud is
+installed: that Nextcloud connects with the value in its own `config.php`, and changing the role
+under it gives 500s until the two agree again. After Nextcloud answers, the phase says which
+database it uses, and the one step that makes the three agree:
+
+- **Still on SQLite**, an install from before this change: `./deploy/compose/nextcloud-to-postgres.sh --convert`.
+- **On Postgres, with another password in `config.php`**, like the OTA stack, which was moved by
+  hand: `./deploy/compose/nextcloud-to-postgres.sh --sync-password`. Nothing reads `.env`'s value
+  until a fresh install, so this can wait for a quiet moment.
+
+Both stop Nextcloud while they run, so pause the migrations that write into it first, and both
+start it again whatever happens. When a step of `--convert` fails, Nextcloud comes back on SQLite
+as it was. When `--sync-password` fails after writing `config.php`, it says so; running it again
+sets only the role. The script alone, or with `--check`, changes nothing and says where it stands. A database that still holds the tables of a Nextcloud whose volume is gone stops
+the phase, and prints the command that drops it; nothing here drops a database.
+
 ### 4. `demo` — the demo backends and the two demo tenants *(only with `--with-demo`)*
 
 Runs [`setup-managed-demo.sh`](../deploy/compose/setup-managed-demo.sh) — real
@@ -3104,6 +3124,7 @@ No script can do these. The script checks each one before it changes anything.
      ZITADEL_EXTERNALDOMAIN=id.ownpace.eu ZITADEL_EXTERNALPORT=443 \
      ZITADEL_EXTERNALSECURE=true ZITADEL_TLS_MODE=external \
      NODE_ENV=production OWNPACE_STAGE=alpha BACKUP_RETENTION_DAYS=7 TRUST_PROXY=2 \
+     MAX_PASSES_IN_FLIGHT=6 \
      SMTP_HOST=<the relay's submission host> SMTP_PORT=587 SMTP_SECURE= \
      SMTP_USER=<the sending address> NOTIFY_FROM=<the sending address> \
      NOTIFY_TO=<an address you read> \
@@ -3143,6 +3164,21 @@ No script can do these. The script checks each one before it changes anything.
    header NetBird sets as their last field, whatever this says. Whether
    NetBird's own cluster adds a hop is not in its source; workplan 0132 T3
    (d)'s check, once live stands, settles it (*After the script*, step 6).
+
+   **`MAX_PASSES_IN_FLIGHT=6`** is live's cap on passes running at once, and the
+   bring-up sets live's task plane to it plus two, 8 (workplan 0143, open
+   questions 7 and 9). The OTA stack runs with 6 as well while it is the only
+   stack on the machine (the owner, 2026-10-03). Once live is stood up, put the
+   OTA stack back to 3, from its own checkout, in a shell with no
+   `COMPOSE_PROJECT_NAME` exported (*One shell, one stack*):
+
+   ```bash
+   ./deploy/compose/env-upsert.sh deploy/compose/.env MAX_PASSES_IN_FLIGHT=3
+   ./deploy/compose/bootstrap-managed.sh --only tasks
+   ```
+
+   The second line uploads the cap to the OTA stack's tick, sets its plane to
+   5 and deploys its tasks.
 
    **Mail goes through a real relay from the first day** (workplan 0133): live
    runs no catcher, and the sign-up's verification code is the first mail it

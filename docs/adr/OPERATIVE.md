@@ -293,19 +293,20 @@ live in [README.md](./README.md), the register.
 - The owner decides who gets a link to manage and **grant** their own migration, and
   **distributes it; we never do** (decision 2). Grant links live 1, 7 or 30 days; progress links
   longer, never showing content (`migration-view.ts`).
-- **The link is per person** (owner, 2026-09-29; ADR-0050): one grant link and one progress
-  link for all their migrations, a grant asked and bound per Google account, covering only what
-  the page showed. Only the grant link is built (`a-link-for-a-person.unit.test.ts`);
-  per-migration links are issued and honoured as before.
-- The person can **take their grant back** from the progress page: revoked at Google where it
-  will, always deleted here, and told which; until they grant again nothing reads that account
-  for that migration, on any credential (`withdraw-grant.ts`).
-- A migration's link can be **reported** from either page to the Ownpace team's helpdesk or
-  support mailbox, never to the organisation that asked; a reply address is optional
-  (`link-reports.ts`). A person's link cannot be reported yet.
-- **Pending (proposed 2026-09-29, not in force):** no new per-migration links, those sent work
-  until they expire, a migration with no person gets one first, and a *Start* before the grant
-  runs once it lands (*Pending* below).
+- **One link per person** (owner, 2026-09-29 and 2026-10-03; ADR-0050): a grant link and a
+  progress link for all their migrations, granting per Google account only what the page showed.
+  It replaces the per-migration link; one already sent is honoured until it expires.
+- **Start when granted, per person** (owner, 2026-10-03): once the owner has started a person's
+  move, each migration of theirs waiting for a grant starts when it lands (`via: 'grant'`).
+  Before that first *Start* a grant starts nothing; a migration the owner paused stays paused.
+- The person can **take their grant back**, per account: revoked at Google where it will, always
+  deleted here, and told which; until they grant again nothing reads that account
+  (`withdraw-grant.ts`).
+- A link can be **reported** from either page to the Ownpace team's helpdesk or support mailbox,
+  never to the organisation that asked; a reply address is optional (`link-reports.ts`).
+- **The provider's error text follows whose data it is** (owner, 2026-10-03; decision 5): the
+  progress page shows categories only; the owner sees the text for accounts the organisation
+  connected, and for one a person granted only the category and a reference. Not built yet.
 
 ## [ADR-0036: The managed edition is its own package and its own migration chain](./0036-the-managed-edition-is-its-own-package-and-its-own-chain.md)
 

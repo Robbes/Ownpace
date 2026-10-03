@@ -51,7 +51,12 @@ import React from 'react';
 import { useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isPauseReason, type FailureCategory, type MappingLifecycle } from '@openmig/shared';
-import { viewApi, type MigrationViewPayload, type ViewRow } from '../services/view-service.ts';
+import {
+  viewApi,
+  type MigrationViewPayload,
+  type PersonViewPayload,
+  type ViewRow,
+} from '../services/view-service.ts';
 import { serverMessage } from '../services/api.ts';
 import { linkRefusal } from '../services/link-refusal.ts';
 import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
@@ -64,6 +69,17 @@ import PausedBecause from '../components/PausedBecause.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
 import LanguageSwitch from '../components/LanguageSwitch.tsx';
 import ReportThisLink from '../components/ReportThisLink.tsx';
+import { providerName } from '../components/ProviderTile.tsx';
+
+/** The grant a page may take back: a migration's, or one account's on a person's page. */
+type PageGrant = MigrationViewPayload['grant'];
+
+/**
+ * A person's page, told apart by the `kind` the server sends. A local guard,
+ * not one from the service: this page's tests mock the service whole.
+ */
+const isPersonView = (v: MigrationViewPayload | PersonViewPayload): v is PersonViewPayload =>
+  'kind' in v && v.kind === 'person';
 
 /**
  * One sentence per lifecycle state, for a reader with no context.
@@ -176,13 +192,27 @@ const AppsWithAccess: React.FC = () => (
  * Google takes back is everything this person allowed the app, at once, which
  * is said before the first press rather than discovered after it.
  */
-const TheAccessTheyGave: React.FC<{ link: string; view: MigrationViewPayload }> = ({ link, view }) => {
+const TheAccessTheyGave: React.FC<{
+  link: string;
+  grant: PageGrant;
+  organisation: string;
+  /**
+   * On a person's page (0153 T5 (b), slice 3), the account this takes back,
+   * by the page's `ref`: its permission, from every migration that reads it.
+   */
+  account?: string;
+}> = ({ link, grant, organisation, account }) => {
   const t = useT();
+  const { locale } = useLocale();
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = React.useState(false);
+  const forAccount = account !== undefined;
+  // One section of a person's page sits under its account's heading.
+  const Title: 'h2' | 'h3' = forAccount ? 'h3' : 'h2';
+  const frame = forAccount ? 'mt-4 rounded-lg bg-gray-50 p-4' : 'mt-8 border-t border-gray-200 pt-6';
 
   const withdraw = useMutation({
-    mutationFn: () => viewApi.withdraw(link),
+    mutationFn: () => (forAccount ? viewApi.withdrawAccount(link, account) : viewApi.withdraw(link)),
     // Read the page again: its state line and this section now say withdrawn.
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['view', link] }),
   });
@@ -192,13 +222,15 @@ const TheAccessTheyGave: React.FC<{ link: string; view: MigrationViewPayload }> 
   // to check.
   if (withdraw.data) {
     return (
-      <section className="mt-8 border-t border-gray-200 pt-6">
-        <h2 className="text-base font-semibold text-gray-900">{t('view.grant.title')}</h2>
+      <section className={frame}>
+        <Title className="text-base font-semibold text-gray-900">{t('view.grant.title')}</Title>
         {withdraw.data.atGoogle === 'revoked' ? (
           <p className="mt-2 text-sm text-gray-900">{t('view.withdrawn.revoked')}</p>
         ) : (
           <>
-            <p className="mt-2 text-sm text-amber-800">{t('view.withdrawn.notConfirmed')}</p>
+            <p className="mt-2 text-sm text-amber-800">
+              {t(forAccount ? 'view.person.withdrawn.notConfirmed' : 'view.withdrawn.notConfirmed')}
+            </p>
             <p className="mt-1 text-sm text-amber-800">
               {t('view.withdrawn.removeYourself')} <AppsWithAccess />
             </p>
@@ -209,10 +241,10 @@ const TheAccessTheyGave: React.FC<{ link: string; view: MigrationViewPayload }> 
     );
   }
 
-  if (view.grant.state === 'withdrawn') {
+  if (grant.state === 'withdrawn') {
     return (
-      <section className="mt-8 border-t border-gray-200 pt-6">
-        <h2 className="text-base font-semibold text-gray-900">{t('view.grant.title')}</h2>
+      <section className={frame}>
+        <Title className="text-base font-semibold text-gray-900">{t('view.grant.title')}</Title>
         <p className="mt-2 text-sm text-gray-600">{t('view.withdrawn.since')}</p>
         <p className="mt-2 text-sm text-gray-600">
           {t('view.withdrawn.check')} <AppsWithAccess />
@@ -221,13 +253,13 @@ const TheAccessTheyGave: React.FC<{ link: string; view: MigrationViewPayload }> 
     );
   }
 
-  if (view.grant.state !== 'granted') return null;
+  if (grant.state !== 'granted') return null;
 
   return (
-    <section className="mt-8 border-t border-gray-200 pt-6">
-      <h2 className="text-base font-semibold text-gray-900">{t('view.grant.title')}</h2>
+    <section className={frame}>
+      <Title className="text-base font-semibold text-gray-900">{t('view.grant.title')}</Title>
       <p className="mt-2 text-sm text-gray-900">
-        {t('view.grant.body', { organisation: view.organisation })}
+        {t(forAccount ? 'view.person.grant.body' : 'view.grant.body', { organisation })}
       </p>
       <p className="mt-2 text-sm text-gray-600">{t('view.grant.whatHappens')}</p>
       <p className="mt-2 text-sm text-gray-600">{t('view.grant.wholeApp')}</p>
@@ -265,10 +297,112 @@ const TheAccessTheyGave: React.FC<{ link: string; view: MigrationViewPayload }> 
       )}
       {withdraw.error != null && (
         // The server's own sentence: nothing to take back, or it changed while
-        // it was being taken back. Both are written for this reader.
-        <p className="mt-2 text-sm text-amber-800">{serverMessage(withdraw.error)}</p>
+        // it was being taken back. Both are written for this reader; a
+        // person's page is answered in both languages, and shows its own.
+        <p className="mt-2 text-sm text-amber-800">
+          {forAccount ? linkRefusal(withdraw.error, locale, t) : serverMessage(withdraw.error)}
+        </p>
       )}
     </section>
+  );
+};
+
+/** One migration on a person's page: where it goes, where it is, and its rows. */
+const PersonMigration: React.FC<{ migration: PersonViewPayload['migrations'][number]; grant: PageGrant }> = ({
+  migration,
+  grant,
+}) => {
+  const t = useT();
+  const { dateTime } = useFormatters();
+  const from = providerName(migration.from, 'source');
+  return (
+    <div className="mt-4">
+      <h3 className="font-medium text-gray-900">
+        {migration.to ? t('view.person.route', { from, to: providerName(migration.to, 'target') }) : from}
+      </h3>
+      {/* A withdrawn grant is the whole story, as on a migration's page. */}
+      <p className="mt-1 text-gray-900">
+        {grant.state === 'withdrawn'
+          ? t('view.state.withdrawn', { date: dateTime(grant.withdrawnAt) })
+          : t(STATE_SENTENCE[migration.state])}
+      </p>
+      {!migration.started ? (
+        <p className="mt-1 text-sm text-gray-600">{t('view.notStarted')}</p>
+      ) : (
+        <ul className="mt-2">
+          {migration.domains.map((row) => (
+            <DomainRow key={row.domain} row={row} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
+/**
+ * A PERSON'S PROGRESS PAGE (ADR-0035, amended 2026-09-29; 0153 T5 (b), slice
+ * 3): their migrations under the Google account each reads, each as a
+ * migration's own page shows it, and *The access you gave* once per account,
+ * because one withdrawal takes that account's permission back from every
+ * migration that reads it. A migration that reads no Google account follows
+ * them. No account is named by its address: the page carries none.
+ *
+ * *Report this link* is offered as on a migration's page; the report names the
+ * person and every migration of theirs.
+ */
+const PersonProgress: React.FC<{ link: string; view: PersonViewPayload }> = ({ link, view }) => {
+  const t = useT();
+  const others = view.migrations.filter((m) => m.account === null);
+  return (
+    <>
+      <p className="mt-4 text-gray-900">{t('view.person.who', { organisation: view.organisation })}</p>
+      {view.migrations.length === 0 && <p className="mt-4 text-sm text-gray-600">{t('view.person.none')}</p>}
+      {view.accounts.map((account, i) => (
+        <section
+          key={account.ref}
+          aria-labelledby={`account-${account.ref}`}
+          className="mt-8 border-t border-gray-200 pt-6"
+        >
+          <h2 id={`account-${account.ref}`} className="text-base font-semibold text-gray-900">
+            {view.accounts.length === 1
+              ? t('view.person.account.only')
+              : t('view.person.account', { n: String(i + 1) })}
+          </h2>
+          {view.migrations
+            .filter((m) => m.account === account.ref)
+            .map((m, j) => (
+              <PersonMigration key={j} migration={m} grant={account.grant} />
+            ))}
+          <TheAccessTheyGave
+            link={link}
+            grant={account.grant}
+            organisation={view.organisation}
+            account={account.ref}
+          />
+        </section>
+      ))}
+      {others.length > 0 && (
+        <section aria-labelledby="other-migrations" className="mt-8 border-t border-gray-200 pt-6">
+          <h2 id="other-migrations" className="text-base font-semibold text-gray-900">
+            {t('view.person.others')}
+          </h2>
+          {others.map((m, j) => (
+            <PersonMigration key={j} migration={m} grant={{ state: 'none' }} />
+          ))}
+        </section>
+      )}
+      {/* Report this link (0108 T8 (d)), as on a migration's page. Withdrawing
+          is what stops the copying, so the answer points at it while any
+          account's access can be withdrawn. */}
+      <ReportThisLink
+        kind="view"
+        link={link}
+        organisation={view.organisation}
+        {...(view.accounts.some((a) => a.grant.state === 'granted')
+          ? { next: 'linkReport.next.withdraw' as const }
+          : {})}
+      />
+    </>
   );
 };
 
@@ -285,12 +419,14 @@ const View: React.FC = () => {
     retry: false,
   });
 
-  const moved = view.data?.domains.reduce((sum, d) => sum + d.bytesTransferred, 0) ?? 0;
+  const person = view.data && isPersonView(view.data) ? view.data : null;
+  const one = view.data && !isPersonView(view.data) ? view.data : null;
+  const moved = one?.domains.reduce((sum, d) => sum + d.bytesTransferred, 0) ?? 0;
 
   return (
     <main className="max-w-xl mx-auto px-6 py-12">
       <LanguageSwitch className="justify-end mb-4" />
-      <h1 className="text-xl font-semibold text-gray-900">{t('view.title')}</h1>
+      <h1 className="text-xl font-semibold text-gray-900">{t(person ? 'view.person.title' : 'view.title')}</h1>
 
       {view.isPending && (
         <p role="status" className="mt-4 text-sm text-gray-600">
@@ -308,21 +444,29 @@ const View: React.FC = () => {
         </p>
       )}
 
-      {view.data && (
+      {person && link && <PersonProgress link={link} view={person} />}
+      {person && (
+        <>
+          <p className="mt-8 text-sm text-gray-500">{t('view.until', { date: dateTime(person.expiresAt) })}</p>
+          <p className="mt-1 text-sm text-gray-500">{t('view.readOnly')}</p>
+        </>
+      )}
+
+      {one && (
         <>
           <p className="mt-4 text-gray-900">
-            {t('view.who', { organisation: view.data.organisation })}
+            {t('view.who', { organisation: one.organisation })}
           </p>
           {/* A withdrawn grant is the whole story until somebody grants again:
               the lifecycle may still say active, and "your things are being
               copied across now" would be untrue. */}
           <p className="mt-3 text-lg text-gray-900">
-            {view.data.grant.state === 'withdrawn'
-              ? t('view.state.withdrawn', { date: dateTime(view.data.grant.withdrawnAt) })
-              : t(STATE_SENTENCE[view.data.state])}
+            {one.grant.state === 'withdrawn'
+              ? t('view.state.withdrawn', { date: dateTime(one.grant.withdrawnAt) })
+              : t(STATE_SENTENCE[one.state])}
           </p>
 
-          {!view.data.started ? (
+          {!one.started ? (
             <Hint
               className="mt-4"
               tone="body"
@@ -332,7 +476,7 @@ const View: React.FC = () => {
           ) : (
             <>
               <ul className="mt-6">
-                {view.data.domains.map((row) => (
+                {one.domains.map((row) => (
                   <DomainRow key={row.domain} row={row} />
                 ))}
               </ul>
@@ -344,7 +488,7 @@ const View: React.FC = () => {
             </>
           )}
 
-          {link && <TheAccessTheyGave link={link} view={view.data} />}
+          {link && <TheAccessTheyGave link={link} grant={one.grant} organisation={one.organisation} />}
           {/* Report this link (0108 T8 (d)), for somebody who granted and then
               had doubts. Withdrawing is what stops the copying, so the answer
               points at it while there is access to withdraw. */}
@@ -352,13 +496,13 @@ const View: React.FC = () => {
             <ReportThisLink
               kind="view"
               link={link}
-              organisation={view.data.organisation}
-              {...(view.data.grant.state === 'granted' ? { next: 'linkReport.next.withdraw' as const } : {})}
+              organisation={one.organisation}
+              {...(one.grant.state === 'granted' ? { next: 'linkReport.next.withdraw' as const } : {})}
             />
           )}
 
           <p className="mt-8 text-sm text-gray-500">
-            {t('view.until', { date: dateTime(view.data.expiresAt) })}
+            {t('view.until', { date: dateTime(one.expiresAt) })}
           </p>
           <p className="mt-1 text-sm text-gray-500">{t('view.readOnly')}</p>
         </>

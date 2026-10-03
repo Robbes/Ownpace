@@ -31,6 +31,12 @@
  * cases are in `budget-pause.unit.test.ts`; what is asserted here that is not
  * asserted there is that both reasons reach the same four gates, because they
  * do it through one predicate rather than by naming themselves at each site.
+ *
+ * A third reason reaches them the same way since 2026-09-29: a pass told to
+ * stop while it runs (a Pause, a grant taken back, a closed organisation, a
+ * data type its owner stopped). Its cases are in
+ * `a-pass-told-to-stop.unit.test.ts`, and none of these had to change: a pass
+ * handed no question reads its clock exactly as these scripts expect.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';

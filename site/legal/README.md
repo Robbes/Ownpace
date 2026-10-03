@@ -361,13 +361,14 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   with all its pages, one download or one item; no other begins after it. **Still not true:**
   the close asks the orchestrator to cancel only the runs whose row names the orchestrator's
   run, which only a sync pass records, and a request that fails is only logged
-  (`apps/api/src/close-account.ts`); a sync pass the cancel did not stop reads to the end of
-  the data type it is on, and stops before the next. A discovery of a file source first walks
-  the whole folder tree, a request per folder on Google Drive, Box and Dropbox, and asks only
-  after it, so a close during that walk lets the walk finish. The daily shared-address
-  discovery and drift check read the list of open organisations once, when they start, so an
-  organisation closed while one runs is still read in that run. Until those stop too, or the
-  owner rewords the sentence to what the code does, precondition B is not fully done.
+  (`apps/api/src/close-account.ts`); a sync pass the cancel did not stop hears the close from
+  inside the data type it is on, begins no new item within about fifteen seconds and finishes
+  the ones it has begun (2026-09-29). A discovery of a file source first walks the whole folder
+  tree, a request per folder on Google Drive, Box and Dropbox, and asks only after it, so a
+  close during that walk lets the walk finish. The daily shared-address discovery and drift
+  check read the list of open organisations once, when they start, so an organisation closed
+  while one runs is still read in that run. Until those stop too, or the owner rewords the
+  sentence to what the code does, precondition B is not fully done.
 - *The copy made right before an update, never longer than 7 days* (privacy §9, Alpha
   conditions §6; rec-copies (a)): built (0139 T6, 2026-09-28, review fixes 2026-09-29).
   `deploy/compose/copy-before-update.sh`, one directory,

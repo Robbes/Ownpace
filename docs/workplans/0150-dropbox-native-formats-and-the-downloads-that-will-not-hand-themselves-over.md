@@ -2,7 +2,65 @@
 
 > **In one line:** Dropbox entries marked `is_downloadable: false` (Paper docs as `.paper` files, and any other kind T2 finds) refuse `files/download` with 409 `unsupported_file`; export each kind in the user's chosen format via `files/export`, or state a refusal and park it on first sight, as Drive does.
 
-## Status — 2026-09-29 (update this block at the end of every session)
+## Status — 2026-10-03 (update this block at the end of every session)
+
+**2026-10-03: the demo Nextcloud's follow-up built, a fresh install on Postgres and a script for
+one on SQLite** (the owner, 2026-09-29: *"You take that aswell"*), on branch
+`claude/mailbox-sync-errors-c2xsw2-a-demo-nextcloud-on-postgres`; merged the same day as #1411
+(`9eb978d`).
+
+- **A fresh install starts on Postgres.** `managed.yml` gives Nextcloud's first install
+  `POSTGRES_*`: host `postgres`, database and role `nextcloud`, and `.env`'s
+  `NEXTCLOUD_DB_PASSWORD`, which `ensure-env-secrets.sh` generates. It now waits for postgres to be
+  healthy. The bring-up's `data` phase makes the role (a login, nothing more) and the database
+  before the first start (`deploy/compose/nextcloud-db.sh`). After Nextcloud answers, it says which
+  database Nextcloud uses.
+- **A role an installed Nextcloud uses keeps its password.** That Nextcloud connects with the value
+  in its own `config.php`, so the bring-up never sets one on it; it says when the two differ. Only
+  when no Nextcloud is installed does an existing role take `.env`'s value. A database that still
+  holds a gone install's tables stops the phase, with the command that drops it: an install into
+  them retries for two minutes and stops at *"The Login is already being used"*.
+- **`deploy/compose/nextcloud-to-postgres.sh`** has three modes:
+  - `--check`, the default, changes nothing.
+  - `--convert` moves an install still on SQLite, with both of 2026-09-29's workarounds. It stops
+    Nextcloud first, so nothing writes to SQLite after the copy begins. It runs the converter in a
+    one-off container without `--all-apps`, giving it the password on standard input from a file.
+    It counts every table's rows on both sides, because Nextcloud 34's converter fails in its last
+    step after the copy and before it switches `config.php`, so its exit code cannot tell a whole
+    copy from half of one. It sets the counters with `nextcloud-counters.sql` (the morning's
+    statement) and writes `config.php`'s five database settings in one `occ config:import`.
+  - `--sync-password` makes `.env`'s value the one `config.php` and the role hold, `config.php`
+    first. It repairs the morning's state first: the role changed before `config.php`.
+
+  Both start Nextcloud again whatever happens. A failed step of `--convert` leaves it on SQLite as
+  it was; a `--sync-password` that fails after writing `config.php` says so, and a second run sets
+  only the role.
+- **Proved in Docker, on Nextcloud 34.0.4 and Postgres 18, with invented data:**
+  - A fresh stack through the real `data` phase: the role and the database made, and Nextcloud
+    installed on Postgres. It made no role of its own, and the database is closed to PUBLIC.
+  - A 34 install on SQLite, with accounts, files, an event, a contact, a preview, a disabled app
+    with a table, and a small job id beside Nextcloud's own. The converter stopped at
+    `oc_jobs_id_seq` (exit 7). 129 tables and 780 rows matched, 106 counters were set, and then
+    files, an event, a contact and a preview were written with new ids.
+  - A row Postgres refuses: the copy check stopped the move, `config.php` was put back, and
+    Nextcloud answered on SQLite. The next run cleared the half copy and finished.
+  - The morning's state: Nextcloud answering 500, then put right by `--sync-password`.
+- **Guards:**
+  - `scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts`, 45 cases, with a docker
+    stand-in. It runs the script as it is, and the bring-up's two functions as they are written.
+  - `scripts/a-counter-no-default-names.unit.test.ts`, 13 cases: the counter statement on PGlite.
+- **For the OTA stack, after the merge:** the next gate run generates `NEXTCLOUD_DB_PASSWORD`, and the
+  bring-up notes that `config.php` holds another value. With the migrations paused,
+  `./deploy/compose/nextcloud-to-postgres.sh --sync-password` makes them one.
+- **Done on the OTA stack the same evening, by the owner, before any gate run with it.**
+  `ensure-env-secrets.sh` made the value in the stack's one `.env` (the checkout's is the link to
+  it, *One stack, one `.env`*), which is where the gate would have put it. Then:
+  - `--check` said the role is on Postgres, `.env`'s value does not open it, and `config.php`
+    holds another, and pointed at `--sync-password`;
+  - `--sync-password` stopped Nextcloud, wrote `config.php` first and then the role, and started
+    Nextcloud again, which answered on Postgres: installed, out of maintenance, its accounts
+    listed;
+  - `--check` then said nothing to do: `.env`, the role and `config.php` hold one value.
 
 **2026-09-29: a move that keeps its key is reported once, not twice (found while testing #1384).**
 In the file domain `runDomainSync` runs both move detectors. The item loop saw an item listed in
@@ -87,7 +145,7 @@ database is locked"*.
   - the preview case;
   - generated ids beside old ones;
   - an empty table's.
-- **Still open, and this session's** (the owner, 2026-09-29: *"You take that aswell"*), after
+- **Still open, and this session's** (built and merged 2026-10-03, above, and the OTA stack moved onto it the same evening; the owner, 2026-09-29: *"You take that aswell"*), after
   #1358, which is rewriting `db-roles.sh`: a fresh demo install still starts on SQLite. New
   installs should start on Postgres, and an install still on SQLite should be converted by a
   script that carries the two workarounds above, not by hand. Neither `copy-before-update.sh` nor

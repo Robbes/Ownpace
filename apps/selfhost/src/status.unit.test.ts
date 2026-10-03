@@ -94,6 +94,17 @@ describe('buildStatusReport', () => {
     expect('endings' in without.mappings[0]!).toBe(false);
   });
 
+  it('names where a migration goes and what its file calls it, and says nothing of either when not given (0153 T8)', () => {
+    const report = buildStatusReport([
+      { mappingId: 'a', migrationStatus: 'active', sourceType: 'gmail', targetType: 'jmap', name: 'Mail', statuses: [] },
+      { mappingId: 'b', migrationStatus: 'paused', sourceType: 'gmail', statuses: [] },
+    ]);
+    expect(report.mappings[0]).toMatchObject({ sourceType: 'gmail', targetType: 'jmap', name: 'Mail' });
+    // Absent is "not said", not 'unknown' and not an empty name.
+    expect(report.mappings[1]).not.toHaveProperty('targetType');
+    expect(report.mappings[1]).not.toHaveProperty('name');
+  });
+
   it('omits lastError/lastSyncedAt when absent', () => {
     const report = buildStatusReport([{ mappingId: 'm', migrationStatus: 'paused', statuses: [status({ state: 'pending' })] }]);
     const d = report.mappings[0]!.domains[0]!;

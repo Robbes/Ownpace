@@ -43,7 +43,7 @@ import {
   qualificationReportLines,
   qualifyAccount,
 } from '@openmig/orchestration/account-qualification';
-import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow } from '@openmig/shared';
+import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow, stepFrom, stopReasonOf, HALT_IN_WORDS } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
 // three cannot drift apart in the explanations that stop somebody destroying
@@ -89,6 +89,7 @@ import { claimLegacyMappingRows, loadConfigDir, uuidFromString, type LoadedMappi
 import { buildStatusReport, type MappingStatusInput } from './status.ts';
 import { startTransition, finishTransition, updateTransition } from './lifecycle.ts';
 import { serveUi, UI_MOUNT } from './static-ui.ts';
+import { landingPath, type LandingFacts } from './landing.ts';
 import { createVerifyRunner } from './verify-run.ts';
 import { applianceOpener } from '@openmig/orchestration';
 import {
@@ -806,6 +807,32 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     });
 
   /**
+   * Where `GET /` lands (`landing.ts`, workplan 0153 T8): the person's page
+   * once every migration in the config directory was ever started, and Review
+   * & confirm until then. A status that cannot be read lands there too, which
+   * says why.
+   */
+  const landing = async (): Promise<string> => {
+    try {
+      const facts: LandingFacts[] = [];
+      for (const m of mappings) {
+        facts.push({
+          status: await mappingStatus(m),
+          hasPaths: await withTenantContext(m.config.tenantId as string, async (client) => {
+            const { rows } = await client.query(`SELECT 1 FROM path_lifecycle WHERE mapping_id = $1 LIMIT 1`, [
+              m.mailboxMappingId,
+            ]);
+            return rows.length > 0;
+          }),
+        });
+      }
+      return landingPath(facts);
+    } catch {
+      return '/confirm';
+    }
+  };
+
+  /**
    * Whether any of this migration's data types runs passes now: the reader's
    * `anyRuns` (`readPathPhases`, the one every gate asks; 0128 T5, slice 2b).
    * That is `runsPassesNow` of the migration, with its cutover's own window by
@@ -908,12 +935,25 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         readPathPhases(tdb, tenantId, mappingId),
       );
       const phaseOf = phases?.phaseOf ?? phasesOfTheMigration(currentStatus);
+      // AND ASKED AGAIN WHILE THE PASS RUNS (2026-09-29), because a firing on
+      // a first copy can run for days and the reading above is as old as it
+      // is: before each data type, and from inside each data type's pass at
+      // most once every PASS_REREAD_EVERY_MS. Read afresh each time, from the
+      // same reader, and decided by the same function the managed pass
+      // decides by (`stepFrom`), so a Finish, a pause set by hand or a data
+      // type its owner stopped stops the copy after what is in flight, not
+      // at the end of the firing. No organisation is read: the appliance's
+      // one organisation is always open (`organisation-open.ts`).
       const results = await runAllDomains(
         configWithCorrectMappingId,
         statusStore,
         phaseOf,
         ledgerOptions,
         (domain) => pathRunsNow(phaseOf(domain)),
+        (domain) =>
+          withTenant(persistenceBackend.driver, tenantId, (tdb) => readPathPhases(tdb, tenantId, mappingId)).then(
+            (current) => stopReasonOf(stepFrom(current, domain)),
+          ),
       );
       const created = results.reduce((n, r) => n + r.created, 0);
       // Disabled domains report placeholder zeros so status pollers see every
@@ -938,8 +978,11 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
               if (r.error) {
                 await runs.logEvent(tenantId, id, 'error', `${r.domain} sync failed: ${r.error}`, { domain: r.domain });
               } else {
+                // A data type stopped while it copied says so, and why, beside
+                // what it did copy: its counts alone would read as a finish.
                 await runs.logEvent(tenantId, id, 'info',
-                  `${r.domain}: ${passCounts(r)}`,
+                  `${r.domain}: ${passCounts(r)}` +
+                    (r.haltedBecause ? ` — stopped while copying: ${HALT_IN_WORDS[r.haltedBecause]}` : ''),
                   { domain: r.domain, created: r.created, updated: r.updated, adopted: r.adopted, skipped: r.skipped });
               }
             }
@@ -1540,7 +1583,9 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // never shadow an endpoint by accident.
       if (await serveUi(req, res, { rootDir: uiDir })) return;
 
-      // The appliance's landing page is the React confirm screen (ADR-0026).
+      // The appliance's landing page is the React confirm screen (ADR-0026),
+      // until every migration has been started; then it is the person's page
+      // (`landing.ts`, 0153 T8).
       //
       // This used to render `confirm-page.ts` — 135 lines of hand-rolled HTML
       // that were the appliance's only UI. Folding it into the React app is the
@@ -1548,7 +1593,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // TWICE, in two languages, and had already drifted. One redirect is what
       // is left of it.
       if (req.method === 'GET' && (req.url === '/' || req.url === '')) {
-        res.writeHead(302, { location: `${UI_MOUNT}/confirm` });
+        res.writeHead(302, { location: `${UI_MOUNT}${await landing()}` });
         res.end();
         return;
       }
@@ -1633,6 +1678,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             mappingId: m.config.mappingId,
             migrationStatus: await mappingStatus(m),
             sourceType: m.config.source.type,
+            // Where it goes, and what its file calls it: the person's page draws
+            // each migration's line from this row (0153 T8).
+            targetType: m.config.target.type,
+            ...(m.config.name?.trim() ? { name: m.config.name.trim() } : {}),
             statuses,
             failures,
             adopted,

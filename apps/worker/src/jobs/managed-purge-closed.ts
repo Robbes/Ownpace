@@ -11,10 +11,11 @@
  *
  * The pool is the system role's (`SYSTEM_DATABASE_URL`, `ownpace_system`,
  * workplan 0138 T3 step 2): it bypasses row security, which an erasure across
- * organisations needs, and is not a superuser. Managed migration 0033 grants
- * it DELETE on every table in `PURGED_TABLES`, reading each only by the
- * column that picks the organisation's rows, and the few reads and updates
- * the purge makes besides; until step 2 this was the owner's connection.
+ * organisations needs, and is not a superuser. Managed migration 0033 (and
+ * 0035, for `person_link`, which 0034 made after it) grants it DELETE on
+ * every table in `PURGED_TABLES`, reading each only by the column that picks
+ * the organisation's rows, and the few reads and updates the purge makes
+ * besides; until step 2 this was the owner's connection.
  *
  * ## Why it refuses to purge a tenant with a run in flight
  *
@@ -27,10 +28,12 @@
  *
  * Closing stops the sync tick picking the organisation's migrations up: the
  * tick reads the organisation's status, `tenant.status`, and not only each
- * migration's own (workplan 0085 T2). A pass already under way stops before
- * its next data type, and the credential builders refuse a closed
- * organisation. So a run still in flight here is one that was already copying
- * a data type when the close came, or a row a killed worker left behind.
+ * migration's own (workplan 0085 T2). A pass already under way stops starting
+ * new items within about fifteen seconds and finishes the ones it has begun (it
+ * re-reads between data types and, since 2026-09-29, from inside one), and the
+ * credential builders refuse a closed organisation. So a run still in flight
+ * here is one finishing the items it had begun before it heard the close, one
+ * whose single item is a very large file, or a row a killed worker left behind.
  *
  * ## Why waiting was not enough on its own (T8's second half)
  *
@@ -72,9 +75,9 @@ import { HttpTokenRevoker } from '@openmig/connectors';
 import { revokeStoredCredentials } from '@openmig/orchestration/revoke-stored-credentials';
 
 // The system role, `ownpace_system`, which spans organisations and is not a
-// superuser (workplan 0138 T3 step 2; managed migration 0033 grants it what
-// this job sends and nothing else). Never DATABASE_URL, the database owner,
-// which no run holds any more: there is no fallback to it.
+// superuser (workplan 0138 T3 step 2; managed migrations 0033 and 0035 grant
+// it what this job sends and nothing else). Never DATABASE_URL, the database
+// owner, which no run holds any more: there is no fallback to it.
 const SYSTEM_DATABASE_URL = process.env.SYSTEM_DATABASE_URL?.trim();
 if (!SYSTEM_DATABASE_URL) {
   throw new Error(

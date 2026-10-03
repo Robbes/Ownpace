@@ -400,6 +400,27 @@ describe('somebody who is in no organisation (the operator)', () => {
 });
 
 /**
+ * THE APPLIANCE'S ONE PERSON (0153 T8): its menu leads first to their page, as
+ * a member's Migrations leads to a person's, and lights it there. Its landing
+ * goes there too once every migration has started (`landingPath`).
+ */
+describe('the appliance’s menu opens its one person’s page first (0153 T8)', () => {
+  it('lists Migrations first, leading to the person’s page, and lights it there', () => {
+    editionFlag.selfhost = true;
+    renderLayout('/people/implicit');
+    const links = within(screen.getByRole('navigation')).getAllByRole('link');
+    expect(links[0]?.textContent?.trim()).toBe('Migrations');
+    expect(links[0]).toHaveAttribute('href', '/people/implicit');
+    expect(links[0]!.className, 'Migrations is not lit on the person’s page').toContain('bg-blue-50');
+    // Review & confirm stays, where each migration is started.
+    expect(within(screen.getByRole('navigation')).getByRole('link', { name: 'Review' })).toHaveAttribute(
+      'href',
+      '/confirm',
+    );
+  });
+});
+
+/**
  * THE MENU A MEMBER READS (0153 T3 (c), T6 (b); the owner's D7, 2026-09-28):
  * Migrations, Needs you, Accounts, Help, Team, and Billing for an owner or an
  * admin. The Dashboard went, and Migrations is the landing page. Help is the

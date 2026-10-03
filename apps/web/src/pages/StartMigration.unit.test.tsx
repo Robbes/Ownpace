@@ -14,8 +14,9 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DISCOVERY_DOMAINS, lifecycleCounts, type Person } from '@openmig/shared';
-import StartMigration from './StartMigration.tsx';
-import { grantLinkApi } from '../services/grant-link-service.ts';
+import StartMigration, { CheckStep } from './StartMigration.tsx';
+import type { PlannedMigration } from '../services/start-plan.ts';
+import { personLinkApi } from '../services/grant-link-service.ts';
 import { addMigrationToPerson, createPerson, fetchPeople } from '../services/operating-service.ts';
 import {
   connectionsApi,
@@ -29,7 +30,7 @@ import {
 
 vi.mock('../services/grant-link-service', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/grant-link-service.ts')>()),
-  grantLinkApi: { list: vi.fn(), issue: vi.fn(), revoke: vi.fn() },
+  personLinkApi: { list: vi.fn(), issue: vi.fn(), revoke: vi.fn() },
 }));
 vi.mock('../services/operating-service', () => ({
   fetchPeople: vi.fn(),
@@ -626,7 +627,7 @@ describe('Check, then start (screen 6)', () => {
 
 describe('someone else connects their own accounts, by a link where one reaches (T4, 0108)', () => {
   const createMock = vi.mocked(mappingApi.create);
-  const linksMock = vi.mocked(grantLinkApi.list);
+  const linksMock = vi.mocked(personLinkApi.list);
   const SOVERIN = account({ id: 'c-soverin', role: 'target', kind: 'soverin', displayName: 'Anna Soverin', knownValues: { username: 'anna@soverin.net' } });
 
   beforeEach(() => {
@@ -727,24 +728,141 @@ describe('someone else connects their own accounts, by a link where one reaches 
       expect.objectContaining({ sourceType: 'google', sourceConnectionId: 'c-google', sourceConfig: { username: 'anna@gmail.com' } }),
     );
     expect(await screen.findByText(/Waiting for Anna Jansen to connect/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Create grant link/ })).toBeInTheDocument();
+    // ONE link for the person (ADR-0035, amended 2026-09-29), not one per
+    // migration: the migration waits on it by name.
+    expect(screen.getAllByRole('button', { name: /Create grant link/ })).toHaveLength(1);
+    expect(screen.getByText('Its count appears here once Anna Jansen has connected through the link above.')).toBeInTheDocument();
+    expect(linksMock).toHaveBeenCalledWith(expect.any(String));
     expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
-    // Nothing starts by itself when the grant lands (grant-ending.ts starts
-    // nothing), so the sentence says where to start each one.
+    // Nothing of theirs is counted, so nothing could be started yet, and a
+    // grant starts nothing of a move that does not run (start when granted,
+    // the owner's answer of 2026-10-03): the sentence says where to start.
+    expect(screen.getByText('You can start once Anna Jansen has connected and a count is in.')).toBeInTheDocument();
     expect(
       screen.getByText(/Anna Jansen's page keeps these migrations: once they have connected, start each one from its Details/),
     ).toBeInTheDocument();
   });
 
+  const USED = {
+    id: 'l1',
+    purpose: 'grant' as const,
+    state: 'used' as const,
+    createdAt: '2026-09-29T08:00:00Z',
+    createdBy: 'owner',
+    expiresAt: '2026-10-06T08:00:00Z',
+    usedAt: '2026-09-29T08:10:00Z',
+    revokedAt: null,
+  };
+
   it('shows the count once their link was used, and Start goes', async () => {
-    linksMock.mockResolvedValue([
-      { id: 'l1', purpose: 'grant', state: 'used', createdAt: '2026-09-29T08:00:00Z', createdBy: 'owner', expiresAt: '2026-10-06T08:00:00Z', usedAt: '2026-09-29T08:10:00Z', revokedAt: null },
-    ]);
+    linksMock.mockResolvedValue([]);
+    vi.mocked(personLinkApi.issue).mockResolvedValue({
+      id: 'l1',
+      purpose: 'grant',
+      url: 'https://ownpace.test/grant/p.l1.secret',
+      expiresAt: USED.expiresAt,
+      expiryDays: 7,
+      distribution: 'Send this link to the person yourself.',
+    });
     const user = userEvent.setup();
     renderAt();
     await toCheckByLink(user);
+    // The link is made here, and the next read finds it used.
+    linksMock.mockResolvedValue([USED]);
+    await user.click(await screen.findByRole('button', { name: /Create grant link/ }));
     await screen.findByText('2000');
     expect(screen.queryByText(/Waiting for Anna Jansen to connect/)).not.toBeInTheDocument();
     await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Start' })).toBeEnabled());
+  });
+
+  it('does not take a link used before this screen for these migrations’ grant', async () => {
+    // A person chosen from the list may have used a link before these
+    // migrations were theirs; it granted none of them.
+    linksMock.mockResolvedValue([USED]);
+    const user = userEvent.setup();
+    renderAt();
+    await toCheckByLink(user);
+    expect(await screen.findByText(/Waiting for Anna Jansen to connect/)).toBeInTheDocument();
+    expect(screen.getByText('Its count appears here once Anna Jansen has connected through the link above.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
+  });
+});
+
+/**
+ * START WHEN GRANTED, PER PERSON (ADR-0035's amendment; the owner,
+ * 2026-10-03: *"After preflight the start needs to be given at least once, the
+ * grant may arrive later"*). With one migration counted and one waiting for
+ * the person's link, *Start* goes: it starts the counted one, and the waiting
+ * one starts by itself once they connect (`start-when-granted.ts`).
+ */
+describe('Start once one count is in, and the rest when they connect', () => {
+  const plan = (sourceConnectionId: string, provider: PlannedMigration['provider']): PlannedMigration => ({
+    provider,
+    sourceCard: provider === 'google' ? 'google' : 'imap',
+    sourceConnectionId,
+    sourceUsername: 'anna@example.org',
+    targetCard: 'soverin',
+    targetConnectionId: 'c-soverin',
+    types: ['calendar'],
+  });
+  const MAIL = plan('c-imap', 'imap');
+  const GOOGLE = plan('c-google', 'google');
+  const key = (m: PlannedMigration) => `${m.sourceConnectionId}→${m.targetConnectionId}`;
+
+  beforeEach(() => {
+    vi.mocked(mappingApi.start).mockReset().mockResolvedValue({} as never);
+    vi.mocked(mappingApi.discover).mockResolvedValue({} as never);
+    vi.mocked(mappingApi.get).mockResolvedValue({
+      id: 'm-mail', tenantId: 't1', name: 'm-mail', sourceType: 'imap', targetType: 'soverin', status: 'paused',
+      mode: 'mirror', syncConfig: { domains: ['calendar'] }, sourceConfig: {}, targetConfig: {},
+      domainStatus: [], createdAt: '2026-10-03T08:00:00Z', updatedAt: '2026-10-03T08:00:00Z',
+    } as never);
+    vi.mocked(mappingApi.getDiscovery).mockResolvedValue({
+      mappingId: 'm-mail',
+      discovered: true,
+      domains: [{ domain: 'calendar', collections: 1, items: 40, discoveredAt: '2026-10-03T08:05:00Z' }],
+    } as never);
+    vi.mocked(scopeManifestApi.get).mockResolvedValue({ version: 'v1', migrates: [], partial: [], doesNotMigrate: [] });
+    vi.mocked(personLinkApi.list).mockResolvedValue([]);
+  });
+
+  const renderCheck = (planned: PlannedMigration[], onStarted = vi.fn()) =>
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <CheckStep
+            planned={planned}
+            made={{
+              personId: 'p-anna',
+              migrations: { [key(MAIL)]: { id: 'm-mail' }, [key(GOOGLE)]: { id: 'm-google' } },
+            }}
+            titles={{ [key(MAIL)]: 'Old mail to Soverin', [key(GOOGLE)]: 'Google to Soverin' }}
+            onStarted={onStarted}
+            personName="Anna Jansen"
+            awaitsGrant={(m) => m.provider === 'google'}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+  it('starts the counted one, and says the one waiting for the link starts by itself', async () => {
+    const onStarted = vi.fn();
+    const user = userEvent.setup();
+    renderCheck([MAIL, GOOGLE], onStarted);
+
+    expect(await screen.findByText('Once you have started the others, it starts by itself when Anna Jansen connects.')).toBeInTheDocument();
+    const start = screen.getByRole('button', { name: 'Start' });
+    await vi.waitFor(() => expect(start).toBeEnabled());
+    await user.click(start);
+
+    await vi.waitFor(() => expect(onStarted).toHaveBeenCalled());
+    expect(vi.mocked(mappingApi.start).mock.calls).toEqual([['m-mail']]);
+  });
+
+  it('waits for a count when everything waits for the link', async () => {
+    renderCheck([GOOGLE]);
+    expect(await screen.findByText('You can start once Anna Jansen has connected and a count is in.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
+    expect(screen.queryByText(/starts by itself/)).not.toBeInTheDocument();
   });
 });

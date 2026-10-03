@@ -1200,13 +1200,48 @@ describe('a target the reindexer could not see is not a verified target (2026-09
    */
   const block = smoke.match(/^for domain in "\$\{REQUIRED_DOMAINS\[@\]\}"; do[\s\S]*?\ndone$/m)?.[0];
 
-  /** Drive the real loop with a report body and a required-domain list. */
+  /**
+   * Drive the real loop with a report body, a required-domain list, and how
+   * many rows the ledger holds tombstoned per domain, in the ledger's spelling.
+   *
+   * `q` is the script's psql helper, defined at the top of the script and not
+   * in this block. Left undefined, bash printed `q: command not found` into
+   * every unit run, the tombstone count came back empty, and every empty
+   * target took the "listing found nothing" branch: the spent-fixture branch
+   * beside it never ran here, and a mistake in it passed (the trap the
+   * `pick_fixture` stub above was written for). So `q` is stood in for, and it
+   * answers only the question the loop should ask: a count of this mapping's
+   * tombstoned rows in one domain. Anything else, or a count missing the
+   * tenant or the mapping, is said on stderr and fails the case.
+   */
+  function drive(rbody: string, required: string[], tombstoned: Record<string, number> = {}) {
+    const counts = Object.entries(tombstoned)
+      .map(([domain, n]) => `*"domain='${domain}'"*) echo ${n} ;;`)
+      .join('\n      ');
+    const q = `q() {
+    case "$1" in *"count(*) FROM item"*"status='tombstoned'"*) ;; *) echo "UNEXPECTED QUERY: $1" >&2; return 1 ;; esac
+    case "$1" in *"tenant_id='t-1'"*) ;; *) echo "UNSCOPED QUERY: $1" >&2; return 1 ;; esac
+    case "$1" in *"mapping_id='m-1'"*) ;; *) echo "UNSCOPED QUERY: $1" >&2; return 1 ;; esac
+    case "$1" in
+      ${counts}
+      *) echo 0 ;;
+    esac
+  }`;
+    const setup = `rbody='${rbody}'\nVERIFY_LABEL=test\nREQUIRED_DOMAINS=(${required.join(' ')})\ntenant=t-1\nmapping=m-1\n${q}`;
+    const r = spawnSync(
+      'bash',
+      ['-c', `${FAIL_PREAMBLE}\n${setup}\n${block}\nprintf '\\n--- verdict ---\\nFAIL=%s\\n%s' "$fail" "$FAIL_REASONS"`],
+      { encoding: 'utf8' },
+    );
+    expect(r.stderr).not.toMatch(/command not found|UNEXPECTED QUERY|UNSCOPED QUERY/);
+    const [out, verdictPart = ''] = r.stdout.split('\n--- verdict ---\n');
+    const [failLine = '', ...reasons] = verdictPart.split('\n');
+    return { out, fail: failLine.replace('FAIL=', ''), reasons: reasons.join('\n') };
+  }
+
+  /** The verdict alone, for the cases that have no tombstones behind them. */
   function verdict(rbody: string, required: string[]) {
-    const setup = `rbody='${rbody}'\nVERIFY_LABEL=test\nREQUIRED_DOMAINS=(${required.join(' ')})`;
-    const out = execFileSync('bash', ['-c', `${FAIL_PREAMBLE}\n${setup}\n${block}\necho "FAIL=$fail"`], {
-      encoding: 'utf8',
-    });
-    return out.trim().split('\n').pop()!.replace('FAIL=', '');
+    return drive(rbody, required).fail;
   }
 
   /** The real shape: per-domain blocks under a mapping id, each self-labelling. */
@@ -1264,5 +1299,38 @@ describe('a target the reindexer could not see is not a verified target (2026-09
     // the next person re-derives it from scratch.
     expect(block).toMatch(/matches nothing|found nothing/i);
     expect(block).toMatch(/listing query/i);
+  });
+
+  it('calls a domain whose every source item is tombstoned a spent fixture set, not a broken listing', () => {
+    // 2026-09-09: the demo stack answered task|tombstoned|2, both fixed task
+    // fixtures, and the gate sent its reader to a DAV query that was working.
+    // As many tombstones as source items is the edge: every one is spent.
+    const r = drive(report({ contacts: [6, 0] }), ['contacts'], { contact: 6 });
+    expect(r.fail).toBe('1');
+    expect(r.reasons).toContain('the fixture set is spent, not the listing broken');
+    expect(r.reasons).not.toContain('the target listing found nothing');
+    expect(r.out).toContain('seed-demo-dav-content.sh --fresh');
+  });
+
+  it('still points at the listing when only some of the source items are tombstoned', () => {
+    const r = drive(report({ contacts: [6, 0] }), ['contacts'], { contact: 5 });
+    expect(r.fail).toBe('1');
+    expect(r.out).toContain('5 of them are tombstoned');
+    expect(r.reasons).toContain('the target listing found nothing');
+    expect(r.reasons).not.toContain('the fixture set is spent');
+  });
+
+  it.each([
+    ['mail', 'email'],
+    ['tasks', 'task'],
+    ['contacts', 'contact'],
+    ['files', 'file'],
+    ['calendar', 'calendar'],
+  ])("asks the ledger about '%s' in the ledger's own spelling, '%s'", (reported, ledger) => {
+    // The report and the ledger spell four of the five domains differently. A
+    // count asked in the report's spelling matches no row and answers 0, and a
+    // spent fixture set then reads as a broken listing on every run.
+    const r = drive(report({ [reported]: [3, 0] }), [reported], { [ledger]: 3 });
+    expect(r.reasons).toContain('the fixture set is spent');
   });
 });

@@ -2,7 +2,13 @@
 
 > **In one line:** Umbrella for the managed alpha: its decisions (free, invite-only, Dutch, no backups), an alpha note on pages and grant mail, experimental labels on `SOURCE_CARDS`, Billing wording, end-of-alpha fate, go/no-go list for 0132 to 0150 and 0152 to 0154.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-10-03 (update this block at the end of every session)
+
+**2026-10-03: session M may run the managed gate on `main` itself after a merge** (§6). Asked
+whether it should dispatch E2E (managed) on `main` after a merge rather than wait for the
+nightly run, knowing that a dispatch deploys `main` to the OTA stack and restarts, for a few
+minutes, the containers the owner's own migrations write to, the owner answered *"Yes"*. The
+first such run was dispatched the same evening, on `main` with #1410 and #1411.
 
 **2026-09-28, late evening: the three UX plans are whole plans in the minimum, and R builds
 them as group R8.** Asked the three plans' open questions, the owner answered:
@@ -1104,6 +1110,15 @@ On 2026-09-24 the owner asked for the plans to be built. Three answers set how:
   is a **stack**: its pull requests are built in the order listed, and one that needs another
   group member's unmerged change is branched from that member's branch and says so. Each group
   belongs to one session, so that two sessions never edit the same files at once.
+
+On 2026-10-03 a fourth answer set when the managed gate runs:
+
+- **The gate after a merge:** asked whether session M should dispatch E2E (managed) on `main`
+  itself after a merge, rather than wait for the nightly run, the owner answered *"Yes"*. A
+  dispatch deploys `main` to the OTA stack and restarts, for a few minutes, the containers the
+  owner's migrations write to; the owner knew that when answering. M dispatches one after
+  merging a change to the bring-up or to what the stack runs, so that a bring-up that breaks has
+  one change to look at. Never on a branch: a dispatch deploys the branch it runs on.
 
 The two sessions are named here by their branch prefixes:
 

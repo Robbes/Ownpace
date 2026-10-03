@@ -17,6 +17,7 @@ import {
   Flag, Plug, BookOpen, DoorOpen, LifeBuoy, Link2, ArrowLeft, MessageSquareWarning, ScrollText, Mail } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { IMPLICIT_PERSON_ID } from '@openmig/shared';
 import { mappingApi } from '../services/mapping-service.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { isSelfHost } from '../services/edition.ts';
@@ -260,6 +261,12 @@ const Layout: React.FC = () => {
    * the menus they had.
    */
   const navigation: { name: string; href: string; icon: LucideIcon; also?: readonly string[] }[] = [
+    // The appliance's one person's page (0153 T8), first, as a member's
+    // Migrations is: every migration it is configured with, and the steps
+    // before switching. Its landing once every migration has started.
+    ...(selfHost
+      ? [{ name: t('nav.mappings'), href: `/people/${IMPLICIT_PERSON_ID}`, icon: FolderGit2, also: ['/people'] }]
+      : []),
     ...(member
       ? [
           // A person's page (0153 T5) is part of Migrations, so it lights it.

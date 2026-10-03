@@ -93,7 +93,7 @@ describe('the JIT stays off on the DAV target', () => {
     // over an empty or unrelated file that happened not to contradict them.
     // The container is named after the compose project since workplan 0132 T1.
     expect(compose).toContain('container_name: ${COMPOSE_PROJECT_NAME}-nextcloud');
-    expect(compose).toContain('SQLITE_DATABASE: nextcloud');
+    expect(compose).toContain('POSTGRES_DB: nextcloud');
     expect(ini.length).toBeGreaterThan(500);
   });
 });

@@ -29,6 +29,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { passClock } from '@openmig/shared';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -109,5 +110,27 @@ describe('every pass forwards the deadline it was given', () => {
         ).toBe(false);
       }
     }
+  });
+
+  it('forwards the question a pass is told to stop by, through the same helper (2026-09-29)', () => {
+    // A pause pressed during a pass is heard inside it because the dispatcher
+    // hands the loop `whyItStops` beside its deadline, and five wrappers stand
+    // between the two. Carried by `passClock`, every wrapper forwards it the
+    // moment it forwards the deadline, and none can forward one without the
+    // other; named at a call site, a sixth wrapper could forget it.
+    for (const { file } of CALLERS) {
+      for (const arg of callArguments(source(file))) {
+        expect(
+          /(^|[^.\w])whyItStops\s*:/.test(arg),
+          `${file}: a runDomainSync call names \`whyItStops:\` itself instead of spreading ` +
+            'passClock(deps).',
+        ).toBe(false);
+      }
+    }
+    const asked = async () => null;
+    expect(passClock({ whyItStops: asked }).whyItStops).toBe(asked);
+    // Absent stays absent: a pass nobody can stop reads no clock for it.
+    expect('whyItStops' in passClock({})).toBe(false);
+    expect('whyItStops' in passClock({ deadline: 1 })).toBe(false);
   });
 });

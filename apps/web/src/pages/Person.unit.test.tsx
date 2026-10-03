@@ -4,20 +4,42 @@
  * where to, one stage, what waits on them, their migrations' lines with a way
  * to each migration's own page, and their steps before they switch as one
  * ordered list (0154 T4). A failed read is a failure on screen, and a count
- * that could not be read says so (hard rule 9).
+ * that could not be read says so (hard rule 9). Beside a migration that waits
+ * for their grant, what the grant does to it when it lands (start when granted,
+ * per person).
  */
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AxiosError, AxiosHeaders } from 'axios';
-import { lifecycleCounts, type MappingAttention, type Person as PersonShape, type PersonMigration } from '@openmig/shared';
+import {
+  implicitPeople,
+  lifecycleCounts,
+  type DomainStatusReport,
+  type MappingAttention,
+  type Person as PersonShape,
+  type PersonMigration,
+  type StatusReport,
+} from '@openmig/shared';
 import Person from './Person.tsx';
 import { mappingApi, type MappingListItem } from '../services/mapping-service.ts';
-import { fetchAttention, fetchPeople } from '../services/operating-service.ts';
+import { fetchAttention, fetchPeople, fetchStatus } from '../services/operating-service.ts';
+import { personLinkApi } from '../services/grant-link-service.ts';
+import userEvent from '@testing-library/user-event';
 
 vi.mock('../services/mapping-service', () => ({ mappingApi: { list: vi.fn() } }));
-vi.mock('../services/operating-service', () => ({ fetchPeople: vi.fn(), fetchAttention: vi.fn() }));
+vi.mock('../services/operating-service', () => ({ fetchPeople: vi.fn(), fetchAttention: vi.fn(), fetchStatus: vi.fn() }));
+// Which edition this is: managed, unless a case says the appliance (0153 T8).
+const edition = vi.hoisted(() => ({ selfhost: false }));
+vi.mock('../services/edition', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/edition.ts')>()),
+  isSelfHost: () => edition.selfhost,
+}));
+vi.mock('../services/grant-link-service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/grant-link-service.ts')>()),
+  personLinkApi: { list: vi.fn(), issue: vi.fn(), revoke: vi.fn(), awaiting: vi.fn() },
+}));
 
 const listMock = vi.mocked(mappingApi.list);
 const peopleMock = vi.mocked(fetchPeople);
@@ -81,8 +103,11 @@ const step = (key: string) => document.querySelector(`[data-step="${key}"]`) as 
 
 beforeEach(() => {
   vi.resetAllMocks();
+  edition.selfhost = false;
   listMock.mockResolvedValue([MAIL, FILES]);
   peopleMock.mockResolvedValue({ people: [ANNA], unassigned: [] });
+  vi.mocked(personLinkApi.list).mockResolvedValue([]);
+  vi.mocked(personLinkApi.awaiting).mockResolvedValue([]);
   attentionMock.mockResolvedValue({
     mappings: [quiet('m-mail', { deletionsWaiting: 2, failuresWaiting: 1 }), quiet('m-files', { sharingOpen: 5 })],
   });
@@ -200,5 +225,184 @@ describe("a person's page (0153 T5)", () => {
     renderAt('/people/p-nobody');
     expect(await screen.findByText('There is no such person here.')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Before you switch' })).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * FOR ANNA (ADR-0035, amended 2026-09-29; 0153 T5 (b)): one grant link for all
+ * of their Google accounts, made on their page, its URL said once.
+ */
+describe("a person's grant link, on their page", () => {
+  it('offers one link for all of their accounts, and says there is none yet', async () => {
+    renderAt();
+    const section = await screen.findByRole('region', { name: 'For Anna Jansen' });
+    expect(within(section).getByRole('heading', { name: 'One grant link for everything' })).toBeInTheDocument();
+    expect(await within(section).findByText('No link yet for this person.')).toBeInTheDocument();
+    expect(personLinkApi.list).toHaveBeenCalledWith('p-anna');
+  });
+
+  it('makes it with the chosen expiry, and shows the URL once', async () => {
+    vi.mocked(personLinkApi.issue).mockResolvedValue({
+      id: 'l-1',
+      purpose: 'grant',
+      url: 'https://app.example/grant/p.l-1.secret',
+      expiresAt: '2026-10-06T00:00:00.000Z',
+      expiryDays: 7,
+      distribution: 'Send this to the person yourself.',
+    });
+    renderAt();
+    const section = await screen.findByRole('region', { name: 'For Anna Jansen' });
+    await userEvent.click(within(section).getByRole('button', { name: 'Create grant link' }));
+    expect(personLinkApi.issue).toHaveBeenCalledWith('p-anna', 'grant', 7);
+    expect(await within(section).findByDisplayValue('https://app.example/grant/p.l-1.secret')).toBeInTheDocument();
+    expect(within(section).queryByText(/asks them to connect each one again/)).not.toBeInTheDocument();
+  });
+
+  it('says so when the link asks every account again, because each is connected (managed migration 0036)', async () => {
+    vi.mocked(personLinkApi.issue).mockResolvedValue({
+      id: 'l-3',
+      purpose: 'grant',
+      url: 'https://app.example/grant/p.l-3.secret',
+      expiresAt: '2026-10-06T00:00:00.000Z',
+      expiryDays: 7,
+      distribution: 'Send this to the person yourself.',
+      asksAgain: true,
+    });
+    renderAt();
+    const section = await screen.findByRole('region', { name: 'For Anna Jansen' });
+    await userEvent.click(within(section).getByRole('button', { name: 'Create grant link' }));
+    expect(
+      await within(section).findByText(
+        'Every Google account of theirs is connected, so this link asks them to connect each one again. Send it when a connection has stopped working.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('offers one progress link for all of their migrations too (slice 3), made with its own expiry', async () => {
+    vi.mocked(personLinkApi.issue).mockResolvedValue({
+      id: 'l-2',
+      purpose: 'view',
+      url: 'https://app.example/view/p.l-2.secret',
+      expiresAt: '2026-12-28T00:00:00.000Z',
+      expiryDays: 90,
+      distribution: 'Send this to the person yourself.',
+    });
+    renderAt();
+    const section = await screen.findByRole('region', { name: 'For Anna Jansen' });
+    expect(within(section).getByRole('heading', { name: 'One progress link for everything' })).toBeInTheDocument();
+    expect(await within(section).findByText('No progress link yet for this person.')).toBeInTheDocument();
+    await userEvent.click(within(section).getByRole('button', { name: 'Create progress link' }));
+    expect(personLinkApi.issue).toHaveBeenCalledWith('p-anna', 'view', 90);
+    expect(await within(section).findByDisplayValue('https://app.example/view/p.l-2.secret')).toBeInTheDocument();
+  });
+});
+
+describe('what waits for their grant, on their page (start when granted, per person)', () => {
+  const row = (id: string) => document.querySelector(`[data-migration="${id}"]`) as HTMLElement;
+
+  it.each([
+    ['starts_by_itself', 'Waits for Anna Jansen to connect, then starts by itself: another migration of theirs has been started.'],
+    ['review_and_start', 'Waits for Anna Jansen to connect. Once they have, open Details to review and start it.'],
+    ['ran_before', 'Waits for Anna Jansen to connect again.'],
+  ] as const)('says beside the migration what their grant does to it: %s', async (then, words) => {
+    vi.mocked(personLinkApi.awaiting).mockResolvedValue([{ mappingId: 'm-mail', then }]);
+    renderAt();
+    expect(await within(await waitForRow('m-mail')).findByText(words)).toBeInTheDocument();
+    expect(personLinkApi.awaiting).toHaveBeenCalledWith('p-anna');
+    // Only beside the one that waits.
+    expect(row('m-files').querySelector('[data-awaiting-grant]')).toBeNull();
+  });
+
+  it('says nothing when nothing of theirs waits', async () => {
+    renderAt();
+    await screen.findByRole('heading', { level: 1, name: 'Anna Jansen' });
+    await vi.waitFor(() => expect(personLinkApi.awaiting).toHaveBeenCalled());
+    expect(document.querySelector('[data-awaiting-grant]')).toBeNull();
+    expect(screen.queryByText(/could not be read/)).not.toBeInTheDocument();
+  });
+
+  it('says it could not read what waits, rather than that nothing does (hard rule 9)', async () => {
+    vi.mocked(personLinkApi.awaiting).mockRejectedValue(new Error('down'));
+    renderAt();
+    expect(await screen.findByText('Which of these wait for Anna Jansen to connect could not be read.')).toBeInTheDocument();
+    expect(document.querySelector('[data-awaiting-grant]')).toBeNull();
+  });
+
+  async function waitForRow(id: string): Promise<HTMLElement> {
+    await screen.findByRole('heading', { level: 1, name: 'Anna Jansen' });
+    return row(id);
+  }
+});
+
+describe('the appliance’s one person (0153 T8)', () => {
+  const row = (id: string) => document.querySelector(`[data-migration="${id}"]`) as HTMLElement;
+  const domain = (over: Partial<DomainStatusReport>): DomainStatusReport => ({
+    domain: 'email',
+    state: 'pending',
+    itemsSynced: 0,
+    itemsFailed: 0,
+    bytesTransferred: 0,
+    itemsRetrying: 0,
+    itemsNeedingDecision: 0,
+    ...over,
+  });
+  // What the appliance's /status answers: one migration its file names, one it does not.
+  const STATUS: StatusReport = {
+    status: 'ok',
+    mappings: [
+      {
+        mappingId: 'mail',
+        migrationStatus: 'active',
+        sourceType: 'gmail',
+        targetType: 'jmap',
+        name: 'Mail',
+        domains: [domain({ domain: 'email', state: 'completed', lastSyncedAt: '2026-09-28T09:00:00Z' })],
+      },
+      { mappingId: 'files', migrationStatus: 'active', sourceType: 'dropbox', targetType: 'webdav', domains: [domain({ domain: 'file' })] },
+    ],
+  };
+
+  beforeEach(() => {
+    edition.selfhost = true;
+    peopleMock.mockResolvedValue(
+      implicitPeople([
+        { id: 'mail', status: 'active' },
+        { id: 'files', status: 'active' },
+      ]),
+    );
+    vi.mocked(fetchStatus).mockResolvedValue(STATUS);
+    attentionMock.mockResolvedValue({ mappings: [quiet('mail'), quiet('files')] });
+  });
+
+  it('shows every migration it is configured with, from its status, named by its file or by where it goes', async () => {
+    renderAt('/people/implicit');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Your migrations' })).toBeInTheDocument();
+    expect(within(row('mail')).getByText('Mail')).toBeInTheDocument();
+    expect(within(row('files')).getByText('Dropbox to WebDAV')).toBeInTheDocument();
+    expect(within(row('mail')).getByRole('link', { name: 'Details →' })).toHaveAttribute('href', '/mappings/mail');
+    // The last pass is the latest any of its data types completed.
+    expect(within(row('mail')).getByText(/^Last pass/)).toBeInTheDocument();
+    expect(within(row('files')).getByText('No pass yet')).toBeInTheDocument();
+    expect(document.querySelectorAll('[data-step]')).toHaveLength(7);
+    // The appliance has no list of migrations to read (ADR-0034).
+    expect(fetchStatus).toHaveBeenCalled();
+    expect(listMock).not.toHaveBeenCalled();
+  });
+
+  it('has no Migrations page to go back to, no Add a migration, and no links', async () => {
+    renderAt('/people/implicit');
+    await screen.findByRole('heading', { level: 1, name: 'Your migrations' });
+    expect(screen.queryByRole('link', { name: '← Migrations' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Add a migration')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: /^For / })).not.toBeInTheDocument();
+    expect(personLinkApi.list).not.toHaveBeenCalled();
+    expect(personLinkApi.awaiting).not.toHaveBeenCalled();
+  });
+
+  it('says its status could not be read, rather than that it has no migrations (hard rule 9)', async () => {
+    vi.mocked(fetchStatus).mockRejectedValue(new Error('down'));
+    renderAt('/people/implicit');
+    expect(await screen.findByText('Could not load this person.')).toBeInTheDocument();
+    expect(document.querySelector('[data-migration]')).toBeNull();
   });
 });

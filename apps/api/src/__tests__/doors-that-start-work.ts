@@ -178,6 +178,9 @@ const CONSTRAINTS = new Set([
   // OpenAPI 3.0's `nullable: true`: null is allowed beside the type. Applied
   // below, first, so a null never reaches the type check it would fail.
   'nullable',
+  // A string's shape, as JSON Schema reads it: unanchored unless the spec
+  // anchors it, as a person's opaque account `ref` does (0153 T5 (b)).
+  'pattern',
 ]);
 
 function typeOf(value: unknown): string {
@@ -233,6 +236,9 @@ export function specChecker(specPath: string): SpecChecker {
       if (!allowed.some((t) => t === actual || (t === 'number' && actual === 'integer'))) return false;
     }
     if (Array.isArray(schema.enum) && !schema.enum.includes(value)) return false;
+    if (typeof schema.pattern === 'string' && typeof value === 'string' && !new RegExp(schema.pattern, 'u').test(value)) {
+      return false;
+    }
     // Every element, for an array: the list of texts a refusal names (0139 T3).
     if (schema.items && Array.isArray(value) && !value.every((v) => satisfies(schema.items as Schema, v))) return false;
     if (typeOf(value) === 'object') {

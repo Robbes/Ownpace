@@ -41,7 +41,9 @@
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
 - **Owners sign in; migrated people get links, not accounts** — and the owner decides who gets a link to manage and **grant** their own migration (restated 2026-08-19).
-- **The link is per person** (owner, 2026-09-29; ADR-0050's person): one grant link and one progress link for all of a person's migrations, a grant asked and bound per Google account, and covering only the migrations the page showed. Built by workplan 0153 T5 (b); until then links are per migration, and a per-migration link already sent is honoured until it expires.
+- **The link is per person** (owner, 2026-09-29; ADR-0050's person): one grant link and one progress link for all of a person's migrations, a grant asked and bound per Google account, and covering only the migrations the page showed. Built by workplan 0153 T5 (b).
+- **It replaces the per-migration link** (owner, 2026-10-03): no migration's page issues one any more. A per-migration link already sent is honoured until it expires, listed on the migration's page and revocable there, and a migration that belongs to nobody is given a person first (*Who is this for?*).
+- **Start when granted, per person** (owner, 2026-10-03): once the owner has started a person's move (*Start*, after a count they saw), each migration of theirs that waits for a grant starts by itself when the grant lands, recorded `via: 'grant'`, though the move is paused or finished since (*"was ever started"*). Before that first Start a grant starts nothing, and a migration the owner paused after it ran stays paused.
 - Only the migrated person holds their own source credential, never the organisation; admins see their whole family/organisation's progress.
 - `tenant_member` rows sign in; mappings get links. Organisation-held credentials (Box CCG, app-only Graph, DWD) **cannot be narrowed** — stated, not hidden.
 - Formally accepted 2026-09-20 (owner: "yes on all 3"); the 1/7/30-day link expiry presets stand.
@@ -336,13 +338,14 @@ private option and depart from ADR-0014 without saying so.
 *"yes, a per-person link instead of the per-migration links. Perhapse replace it, or do we still
 need the per-migration-link?"* The first sentence is the decision. The question after it is
 answered below as a recommendation, marked **(proposed)** where it waits for the owner's word.
+On 2026-10-03 the owner answered it: *"yes, replace the per-migration links"*.
 
 ### Why
 
 Decision 1 said people being migrated *are* mappings. ADR-0050 has since given them a row of
 their own, the **person**, whose migrations a move is. The link followed the old shape, and a
 walk of *Start a migration* for somebody else (0153 T4, #1386) shows the cost: Anna has one
-Google account; going to Soverin and to a Nextcloud makes two migrations, so she was sent two
+Google account; going to Soverin and to a Nextcloud makes two migrations, so they were sent two
 links to grant the same account twice. A person grants their own accounts, so the link belongs to
 the person. This decision's own alternatives already called the compromise *"a per-person
 copy-link"*.
@@ -364,6 +367,13 @@ copy-link"*.
   because its destination is new to them.
 - **The grant link is spent when every account on it is granted.** Until then it stays live
   within its expiry, so a person with a personal and a work account can do one now and one later.
+- **A link made while every account is connected asks each of them again** (added 2026-10-03,
+  managed migration 0036). A connection can stop working while its token is still held: taken
+  back at Google, lapsed, or expired after seven days while the Google application is in testing.
+  The account still reads as connected, and a migration's own link, which asked whatever its
+  migration needed, was the way back. So the person's link remembers which migrations it asks
+  for again, offers each of their accounts *Connect again*, and is spent once each has been
+  connected through it. A link made while something was not connected asks only for that.
 - **The progress page is the person's.** It shows every migration of theirs. *Take my grant back*
   is per account: the token is revoked at Google once, and cleared from every migration that holds
   it (0108 T8 (c)'s rules otherwise unchanged).
@@ -374,7 +384,10 @@ copy-link"*.
   a purpose, an expiry, used and revoked, and the same row security, including a link seeing only
   itself. The appliance has one implicit person and no grant links; nothing there changes.
 
-### What the question after the decision is answered with (proposed)
+### What the question after the decision is answered with (decided 2026-10-03)
+
+The owner: *"yes, replace the per-migration links"*. The three points below were the proposal it
+answers, and stand as written.
 
 - **Replace, as the one link that is issued.** Neither the migration's page nor *Start a
   migration* issues a per-migration link once the person's link is built.
@@ -387,10 +400,27 @@ copy-link"*.
   (the Migrations page's *Not with a person yet*). Its page offers *Who is this for?* where the link panel
   was, so there is still one kind of link to explain.
 
-### One more choice for the owner (proposed)
+### One more choice for the owner (decided 2026-10-03)
 
-**Start when granted.** Today nothing starts when a grant lands (`grant-ending.ts`), and *Start*
-is refused with `awaiting_grant` until then, so the person starting the migrations must come
-back. Proposed: *Start* on a migration that waits for a grant is accepted and recorded, and the
-migration starts itself when its grant lands, with the audit row saying so. It stays the owner's
-Start (decision 2's *"their own start and pause"* is the progress page's, and unchanged).
+**Start when granted.** Until then nothing started when a grant landed (`grant-ending.ts`), and
+*Start* was refused with `awaiting_grant`, so the person starting the migrations had to come back.
+The proposal was that *Start* on a migration that waits for a grant is accepted and recorded, and
+the migration starts itself when its grant lands, with the audit row saying so.
+
+The owner: *"Yes, but after the move was started in the first place. After preflight the start
+needs to be given at least once, the grant may arrive later."* Asked whether that holds per
+person or per migration: *"Per person"*. So:
+
+- **Nothing of a person's starts by a grant until the owner has started their move**: pressed
+  *Start* once, after a count (the preflight) they have seen. Before that, a grant only makes the
+  counts appear.
+- **Once one of their migrations has been started**, each migration of theirs that waits for a
+  grant starts by itself when the grant lands, ones added later included. The status change is
+  recorded `via: 'grant'`, by the link. It holds though that migration is paused or finished
+  since: asked whether the move must be running or only have been started, the owner answered
+  *"was ever started"* (2026-10-03).
+- **A migration's own pause stands.** A migration the owner paused after it ran is not started by
+  a grant.
+- It stays the owner's Start (decision 2's *"their own start and pause"* is the progress page's,
+  and unchanged). The tick for files a format would refuse is not asked of a migration that starts
+  by itself: *"at least once"* is the owner's. What it could not copy shows in its queues.

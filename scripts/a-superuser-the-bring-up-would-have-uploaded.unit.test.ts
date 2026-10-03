@@ -43,8 +43,8 @@
  * `system_role_ready` are taken out of `bootstrap-managed.sh` as they are and
  * run in a bash of their own, under the script's own `set -euo pipefail`,
  * with `db-roles.sh` a stand-in whose question answers what a case says, and
- * `set-task-env.sh`, `deploy-tasks.sh` and `ensure-env-secrets.sh`
- * stand-ins that record that they ran and with what. A refusal commented out,
+ * `set-task-env.sh`, `plane-limit.sh`, `deploy-tasks.sh` and
+ * `ensure-env-secrets.sh` stand-ins that record that they ran and with what. A refusal commented out,
  * skipped on a path, or answered and ignored runs the upload, and is red. The
  * first version read the text, and all three of those stayed green under it
  * (0138 T3 step 2 review).
@@ -247,7 +247,7 @@ describe('every bring-up runs the question, and stops, before set-task-env.sh', 
 
   /**
    * phase_tasks, as bootstrap-managed.sh writes it, run under its own
-   * `set -euo pipefail`, with db-roles.sh and the three scripts it calls as
+   * `set -euo pipefail`, with db-roles.sh and the scripts it calls as
    * stand-ins answering what `answers` says.
    */
   function phaseTasks(answers: Record<string, string> = {}, env = 'TRIGGER_PROJECT_REF=proj_stand_in\n'): Ran {
@@ -269,6 +269,7 @@ describe('every bring-up runs the question, and stops, before set-task-env.sh', 
     );
     for (const [script, exitWith] of [
       ['set-task-env.sh', 'STAND_IN_UPLOAD'],
+      ['plane-limit.sh', 'STAND_IN_PLANE'],
       ['deploy-tasks.sh', 'STAND_IN_DEPLOY'],
       ['ensure-env-secrets.sh', 'STAND_IN_ENSURE'],
     ] as const) {
@@ -308,7 +309,15 @@ describe('every bring-up runs the question, and stops, before set-task-env.sh', 
   it('a fit role: asked, set, proven, then the upload, the deploy, and only then the owner names forgotten', () => {
     const r = phaseTasks({}, withPassword());
     expect(r.status, r.out).toBe(0);
-    expect(r.steps).toEqual(['fit', 'set', 'prove', 'set-task-env.sh', 'deploy-tasks.sh', 'set-task-env.sh --forget-owner-names']);
+    expect(r.steps).toEqual([
+      'fit',
+      'set',
+      'prove',
+      'set-task-env.sh',
+      'plane-limit.sh',
+      'deploy-tasks.sh',
+      'set-task-env.sh --forget-owner-names',
+    ]);
   });
 
   it.each([
@@ -334,7 +343,13 @@ describe('every bring-up runs the question, and stops, before set-task-env.sh', 
   it('a deploy that fails leaves the owner names stored, for the tasks still deployed, and stops', () => {
     const r = phaseTasks({ STAND_IN_DEPLOY: '1' }, withPassword());
     expect(r.status, r.out).not.toBe(0);
-    expect(r.steps).toEqual(['fit', 'set', 'prove', 'set-task-env.sh', 'deploy-tasks.sh']);
+    expect(r.steps).toEqual(['fit', 'set', 'prove', 'set-task-env.sh', 'plane-limit.sh', 'deploy-tasks.sh']);
+  });
+
+  it("a plane limit that could not be set deploys nothing and forgets nothing (0143 T1 step 3)", () => {
+    const r = phaseTasks({ STAND_IN_PLANE: '1' }, withPassword());
+    expect(r.status, r.out).not.toBe(0);
+    expect(r.steps).toEqual(['fit', 'set', 'prove', 'set-task-env.sh', 'plane-limit.sh']);
   });
 
   it('an upload that fails deploys nothing and forgets nothing', () => {
@@ -366,12 +381,14 @@ describe('every bring-up runs the question, and stops, before set-task-env.sh', 
       .map((l) => l.trim())
       .filter((l) => l !== '' && !l.startsWith('#'));
     expect(statements).toEqual([
-      'say tasks "the system role, task environment variables, the deploy, then the owner names forgotten"',
+      'say tasks "the system role, task environment variables, the plane\'s limit, the deploy, then the owner names forgotten"',
       'load_env',
       '[ -n "$(env_get TRIGGER_PROJECT_REF)" ] ||',
       'die "TRIGGER_PROJECT_REF is not set — the \'account\' phase has not been completed."',
       'system_role_ready',
       '"${SCRIPT_DIR}/set-task-env.sh"',
+      // The plane's limit before the deploy that carries it (0143 T1 step 3).
+      '"${SCRIPT_DIR}/plane-limit.sh"',
       '"${SCRIPT_DIR}/deploy-tasks.sh"',
       '"${SCRIPT_DIR}/set-task-env.sh" --forget-owner-names',
     ]);

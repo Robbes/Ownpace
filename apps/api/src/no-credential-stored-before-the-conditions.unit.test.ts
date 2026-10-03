@@ -20,10 +20,13 @@
  *  - giving a connection a new key (`PUT /api/connections/{id}/credentials`);
  *  - creating a migration (`POST /api/migrations`), which stores the source's
  *    and the destination's access in the same transaction;
- *  - issuing a grant link (`POST /api/migrations/{mappingId}/links`), the
+ *  - issuing a person's grant link (`POST /api/people/{personId}/links`), the
  *    member's door to the access a family member then gives through it (review
  *    of 2026-09-29: the migration may predate the check, or a text may have a
  *    new version since it was created, so its creation proves nothing now).
+ *    A migration's own link is issued no more (the owner, 2026-10-03: *"yes,
+ *    replace the per-migration links"*); its door refuses before anything,
+ *    and asks nothing.
  *
  * Two places seal a credential and do not ask, each for its reason below: a
  * grant link's consent, whose holder is no party to the terms (terms §1) and
@@ -269,11 +272,9 @@ const ASKS = /\brefusedUntilAccepted\s*\(/g;
 const CHECKS_BY_FILE: Readonly<Record<string, number>> = {
   'routes/connections.ts': 2,
   'routes/migrations/index.ts': 1,
-  // Issuing a grant link: the member's door to what a family member's consent
-  // stores (`grant-ending.ts`, below).
-  'routes/migrations/link-routes.ts': 1,
   // Issuing a PERSON'S grant link (0153 T5 (b)): the member's door to what
-  // that person's consent stores (`person-grant-ending.ts`, below).
+  // that person's consent stores (`person-grant-ending.ts` and `grant-ending.ts`,
+  // below). Since 2026-10-03 it is the only grant link issued.
   'routes/person-link-routes.ts': 1,
 };
 
@@ -292,10 +293,10 @@ const SEALS_BY_FILE: Readonly<Record<string, number>> = {
 /** The files that seal a credential and never ask, and why that is right. */
 const SEALED_WITHOUT_ASKING: Readonly<Record<string, string>> = {
   'routes/migrations/grant-ending.ts':
-    'a grant link’s consent. The person granting is not a party to the terms (terms §1) and has no ' +
-    'account to accept them with. The member’s door to it is issuing the link, ' +
-    '`POST /api/migrations/{mappingId}/links` (`link-routes.ts`), which asks, so no grant link reaches ' +
-    'anybody from a member who has not accepted the current versions.',
+    'a migration’s grant link’s consent. The person granting is not a party to the terms (terms §1) and ' +
+    'has no account to accept them with. The member’s door to it was issuing the link, which asked; since ' +
+    '2026-10-03 no migration’s link is issued at all (the person’s replaced it), and one already sent was ' +
+    'issued behind that check and is honoured until it expires.',
   'routes/migrations/person-grant-ending.ts':
     'a person’s grant link’s consent (0153 T5 (b)), for grant-ending.ts’s reason: the person granting is not ' +
     'a party to the terms. The member’s door to it is issuing the link, `POST /api/people/{personId}/links` ' +
@@ -362,13 +363,18 @@ describe('the sweep: every door that stores a credential asks whether the condit
     expect(asks, 'creating a migration: no check').toBeGreaterThan(-1);
     expect(create.indexOf('withTenantDb('), 'creating a migration: writes before it asks').toBeGreaterThan(asks);
 
-    const links = code(join(SRC, 'routes', 'migrations', 'link-routes.ts'));
-    const issue = links.slice(links.indexOf("'/:mappingId/links'"), links.indexOf('router.get('));
+    // The one grant link issued: a person's.
+    const people = code(join(SRC, 'routes', 'person-link-routes.ts'));
+    const issue = people.slice(people.indexOf("'/:personId/links'"), people.indexOf('router.get('));
     const linkAsks = issue.search(ASKS);
-    expect(linkAsks, 'issuing a grant link: no check').toBeGreaterThan(-1);
-    expect(issue.indexOf('issueWithinTheLimit('), 'issuing a grant link: writes before it asks').toBeGreaterThan(
-      linkAsks,
-    );
+    expect(linkAsks, "issuing a person's grant link: no check").toBeGreaterThan(-1);
+    expect(
+      issue.indexOf('issuePersonLinkWithinTheLimit('),
+      "issuing a person's grant link: writes before it asks",
+    ).toBeGreaterThan(linkAsks);
+    // And a migration's door issues nothing at all, so it has nothing to ask.
+    const links = code(join(SRC, 'routes', 'migrations', 'link-routes.ts'));
+    expect(links, "a migration's door issues a link again").not.toMatch(/\bissue(MappingLink|WithinTheLimit)\s*\(/);
   });
 });
 

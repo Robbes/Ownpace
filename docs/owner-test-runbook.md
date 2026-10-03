@@ -432,16 +432,19 @@ one of them.
    **Expect:** the progress moves, and the first pass ends `completed` in the target you
    provided. Write down what the preflight found, what was copied and what was skipped, per data
    type.
-5. **A progress link.** On the migration's page (`/mappings/<id>`), under *Voortgangslinks* /
-   *Progress links*, press *Voortgangslink maken* / *Create progress link*. Open the link signed
-   out, in a private window.
-   **Expect:** the page (`/view/<link>`) shows the migration's progress, and nothing that reads
-   or changes the migration.
-6. **A grant link (A only).** Grant links are for Google sources only. On A's migration page,
-   under *Toegangslinks*, choose how long it works and press *Toegangslink maken*
-   ([`grant-links.md`](./grant-links.md), *Issuing one*).
-   - Open it in a private window, press *Doorgaan met Google*, and at Google sign in with the
-     second Google account (*Before you start*).
+5. **A progress link.** Links are made per person (ADR-0035, amended 2026-09-29). Open the
+   person the migration is for from *Migraties* / *Migrations* (`/people/<id>`). A migration made
+   by hand belongs to nobody yet: its page (`/mappings/<id>`) asks *Voor wie is dit?* / *Who is
+   this for?* under *Links* first. On the person's page, under *Eén voortgangslink voor alles* /
+   *One progress link for everything*, press *Voortgangslink maken* / *Create progress link*.
+   Open the link signed out, in a private window.
+   **Expect:** the page (`/view/<link>`) shows each of their migrations' progress, and nothing
+   that reads or changes a migration.
+6. **A grant link (A only).** Grant links are for Google sources only. On the person's page of
+   A's migration, under *Eén toegangslink voor alles*, choose how long it works and press
+   *Toegangslink maken* ([`grant-links.md`](./grant-links.md), *Issuing one*).
+   - Open it in a private window, press *Doorgaan met Google als …* on the account's card, and at
+     Google sign in with the second Google account (*Before you start*).
      **Expect:** it is refused. The page after Google names both addresses and says *"Er is
      niets opgeslagen, en uw link werkt nog."* / *"Nothing was stored, and your link still
      works."* If Google's own screen stops the account first, it is not on the test-user list:
@@ -449,7 +452,7 @@ one of them.
    - Open it again and sign in as A. **Expect:** it is accepted.
    - Open it a third time. **Expect:** it cannot be used. The grant page says *"Deze link kan
      niet worden gebruikt. Misschien is hij al gebruikt, …"* / *"This link cannot be used. It may
-     have been used already, …"*, and on the migration page the link reads *"Op … is toegang
+     have been used already, …"*, and on the person's page the link reads *"Op … is toegang
      gegeven. Deze link is verbruikt."*
 
    Since #1208 (0145 T6), that refusal and the page after Google come in the language the grant
@@ -598,8 +601,10 @@ The steps, on each phone:
    **Expect:** each step starts at the top of the page, and the screen reader reads its
    heading, such as *"Stap 2 van 4: Doel"* (T3 (a)). The four steps are *Bron*, *Doel*,
    *Migratie* and *Controleren*.
-6. For each app on each phone, issue a fresh grant link (Stage 8's step 6, *Toegangslink
-   maken*), because a link that has been accepted is spent. Send it to the phone in that app, one
+6. For each app on each phone, issue a fresh grant link on the person's page (Stage 8's step 6,
+   *Toegangslink maken*), because a link that has been accepted is spent. Once the account is
+   connected, the new link asks for it again (*Opnieuw verbinden met Google als …*), which is
+   what this step needs. Send it to the phone in that app, one
    in WhatsApp and one in your mail app, and open it from there.
    **Expect:** the grant page, Google's return and the page after it are all in Dutch (T6), and
    that last page fits the screen (#1137). Each app's browser goes in the table below.

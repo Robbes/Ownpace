@@ -22,16 +22,28 @@
  */
 
 import type { Pool } from 'pg';
-import { pathRunsNow } from '@openmig/shared';
-import type { TenantId, MappingId } from '@openmig/shared';
-import { organisationIsOpen, readPathPhases, withTenant, type MigrationPhases } from '@openmig/ledger';
+import { haltFrom, stepFrom, stopReasonOf } from '@openmig/shared';
+import type { TenantId, MappingId, PassHalt, PassStep, PassStopReason } from '@openmig/shared';
+import { organisationIsOpen, readPathPhases, withTenant } from '@openmig/ledger';
+
+/**
+ * The decision itself lives in `@openmig/shared` (`path-phase.ts`) since
+ * 2026-09-29, beside `pathRunsNow`, because the appliance asks it too now and
+ * cannot import this worker; a second copy written out for it is the second
+ * reading of the lifecycle this file's comments refuse. Re-exported so every
+ * caller here (`final-sync.ts`, `run-delta-sync.ts`, the tests) reads it
+ * where it always did.
+ */
+export { haltFrom, stepFrom, type PassHalt, type PassSkip, type PassStep } from '@openmig/shared';
 
 /**
  * Is this mapping still one a pass may run for?
  *
  * Read BETWEEN DOMAINS, because the tick's answer is only current at the
  * moment it enqueued: a run already in the queue — or already copying — knows
- * nothing of the PATCH that paused it.
+ * nothing of the PATCH that paused it. And, since 2026-09-29, from INSIDE one
+ * too, through `whyThisDataTypeStops` below: between domains alone let a
+ * Pause pressed during a file pass wait for that pass's own deadline.
  *
  * The predicate is the reader's `anyRuns` (0128 T5, slice 2b): `runsPassesNow`,
  * the same function the lifecycle module defines for every other caller, asked
@@ -61,14 +73,6 @@ export async function mappingStillRuns(
 }
 
 /**
- * Why a pass stops before its next data type: the migration no longer runs
- * (paused, finished or gone), the person who granted it access took the grant
- * back (workplan 0108 T8 (c), ledger migration 0063), or the organisation was
- * closed (workplan 0085 T2; the owner's report of 2026-09-28).
- */
-export type PassHalt = 'no_longer_runs' | 'grant_withdrawn' | 'organisation_closed';
-
-/**
  * `mappingStillRuns`, saying which of the three it is, because the run log and
  * the cutover's refusal owe the owner different sentences: *paused* is
  * something they did, *withdrawn* is something somebody else did, and it needs
@@ -95,40 +99,10 @@ export async function whyThePassStops(
 }
 
 /**
- * The migration's answer, from its phases: gone, or no longer running (paused,
- * finished, or a cutover past its grace period, 0128 T2), or its grant taken
- * back. Null when the pass may go on.
+ * What a pass does before one data type (workplan 0128 T5): `stepFrom`, from
+ * the organisation's status and the migration's phases read in one
+ * transaction. See `PassStep` (shared) for the three answers.
  */
-export function haltFrom(phases: MigrationPhases | null): PassHalt | null {
-  if (phases === null) return 'no_longer_runs';
-  // No data type of it runs any more (0128 T5, slice 2b): the migration's own
-  // answer, or a path kept in the lane while another is past its cutover.
-  if (!phases.anyRuns) return 'no_longer_runs';
-  return phases.grantWithdrawnAt ? 'grant_withdrawn' : null;
-}
-
-/**
- * What a pass does before one data type (workplan 0128 T5): stop, when the
- * migration itself no longer runs, its grant was withdrawn, or its organisation
- * was closed (0085 T2); move on past this data type, when the migration still
- * runs and this data type does not (its own
- * cutover past its grace period, ended, or stopped by its owner, 0128 T4), so the
- * next one still gets its turn; and otherwise run it.
- *
- * A data type's phase is its own path row's (slice 2b), its stop its owner's
- * (0128 T4), and its grace window its own cutover ledger's, or the whole
- * migration's where it has none (slice 4). So once mail is cut over on its own
- * (slice 5), a pass moves on past it when its window closes, and the files
- * after it keep their turn.
- */
-export type PassStep =
-  | { readonly run: true }
-  | { readonly skip: PassSkip }
-  | { readonly halt: PassHalt };
-
-/** Why a pass moved past one data type while the migration still ran. */
-export type PassSkip = 'data_type_no_longer_runs' | 'stopped_by_its_owner';
-
 export async function passStepBefore(
   db: Pool,
   tenantId: TenantId,
@@ -142,13 +116,31 @@ export async function passStepBefore(
   });
 }
 
-/** `passStepBefore`'s decision, from the phases already read. */
-export function stepFrom(phases: MigrationPhases | null, domain: string): PassStep {
-  const halt = haltFrom(phases);
-  if (halt) return { halt };
-  const path = phases!.phaseOf(domain);
-  // Its owner stopped it (0128 T4): said as such, not as an ending.
-  if (path.stopped === true) return { skip: 'stopped_by_its_owner' };
-  if (!pathRunsNow(path)) return { skip: 'data_type_no_longer_runs' };
-  return { run: true };
+/**
+ * THE QUESTION A DATA TYPE'S PASS ASKS FROM INSIDE (2026-09-29): has it been
+ * told to stop, and why? `passStepBefore`'s answer, said as the one reason the
+ * loop needs, or null to go on.
+ *
+ * The owner pressed Pause while a file pass was writing into a Nextcloud
+ * target, and the writes went on for most of an hour: this file's re-read ran
+ * between data types only, and inside one the pass stopped for nothing short
+ * of its own deadline. `run-delta-sync` now hands each data type's pass this
+ * question beside its deadline (`PassClock.whyItStops`), and the loop asks it
+ * at most once every `PASS_REREAD_EVERY_MS`. So all four doors that stop a
+ * pass between data types — a Pause, a grant taken back, a closed
+ * organisation, a data type its owner stopped — stop it inside one too, the
+ * way its deadline does.
+ *
+ * The same read as `passStepBefore`, deliberately, rather than a narrower one:
+ * one reading of the lifecycle, asked from two places, cannot disagree with
+ * itself. Handed its pool like everything here, so
+ * `a-pause-nobody-could-press.integration.test.ts` runs it against real rows.
+ */
+export async function whyThisDataTypeStops(
+  db: Pool,
+  tenantId: TenantId,
+  mappingId: MappingId,
+  domain: string,
+): Promise<PassStopReason | null> {
+  return stopReasonOf(await passStepBefore(db, tenantId, mappingId, domain));
 }

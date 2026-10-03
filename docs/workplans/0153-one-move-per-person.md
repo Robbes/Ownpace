@@ -2,7 +2,7 @@
 
 > **In one line:** The Migrations page lists people: one flow (who, from where, what, to where) takes a person from one or more old accounts to a new home and creates their migrations underneath, and protocols, kinds and ids stay off screen until needed. Four faults the audit found go first.
 
-## Status — 2026-09-29 (update this block at the end of every session)
+## Status — 2026-10-03 (update this block at the end of every session)
 
 **2026-09-29, morning: a sign-in's example goes when its box is clicked (T6, T7; the owner's
 answer).** Asked whether *Username* should read *Email address* where an address is what goes
@@ -63,7 +63,7 @@ place, could become the one-candidate default, and was posted as the source of a
 - **Proved by** `StartMigration.unit.test.tsx` (33 cases) and `start-plan.unit.test.ts` (25),
   and by a walk in Chromium over a fixture API that answers a Google account with no token as
   the create door does (`error`). The walk goes in English and Dutch from *They do, with a link*,
-  through Anna's address and two grant links, one per migration, used, to *Start* and her page.
+  through Anna's address and two grant links, one per migration, used, to *Start* and their page.
   It found the closing line promising that each migration starts by itself once connected, which
   nothing does, in Dutch that read Anna as a woman (*haar account*). The line now says to start
   each one from its *Details*.
@@ -144,7 +144,7 @@ place, could become the one-candidate default, and was posted as the source of a
     the person's page. A failed read of the saved accounts is said, and a `?person=` naming
     nobody chooses nobody;
   - `managed-ui.ui.test.ts` in a real browser: from Anna's card through the six screens and
-    one *Start* to her page, with no call the API does not serve. With the card's link pointed
+    one *Start* to their page, with no call the API does not serve. With the card's link pointed
     back at the wizard, it fails;
   - `ConfirmMigration`'s own 68 cases pass unchanged;
   - a walk in Chromium over a fixture API, in English, Dutch and at phone width, found two
@@ -184,6 +184,240 @@ words changed with them** (0131 §6, R8).
   at `5f74ebc`: T4 and T7 are still proposed, and no branch or open pull request of R's or M's
   touches them. 0131 §6 records the split.
 
+**2026-10-03, evening: start when granted, once the move was ever started (T5 (b); the owner's
+answer).** Asked whether a person's move must be running for a grant to start a migration of
+theirs, or only have been started, the owner answered: *"I think it ment: "was ever started". So
+when a grant arrives, it can continue. If it was started, but never had a grant, then we also start
+when the grant arrives."*
+
+- **The rule** (`personWhoseMoveStarted` in `start-when-granted.ts`, which replaces
+  `personWhoseMoveRuns`): another migration of the person is no draft, so it was started once,
+  though it may be paused or finished since. A migration that waits for a grant starts by itself
+  when it lands, as before; a migration the owner paused after it ran stays paused.
+- **Said in the same words everywhere it is said:** *Start*'s 409 (*"…: another migration of theirs
+  has been started."*), the person's page (*"Waits for Anna to connect, then starts by itself:
+  another migration of theirs has been started."*, Dutch *"…: een andere migratie van Anna is al
+  gestart."*), the spec, ADR-0035's bullet and decided section and its register row, and
+  `grant-links.md`.
+- **Proved by:** `start-when-granted.unit.test.ts` (+2: a paused move starts its draft and leaves the
+  migration paused after it ran as it is; a finished move starts it too; *Start* says so either
+  way) and `a-link-for-a-person.unit.test.ts` (+1: the person's page says *starts by itself* while
+  the move is paused). With the old rule put back, four cases fail.
+
+**2026-10-03: T8, the appliance shows its person's page (D5).** The appliance's one implicit
+person has the page managed gives each person, and it is the appliance's landing once every
+migration has started.
+
+- **The landing** (`apps/selfhost/src/landing.ts`): `GET /` redirects to `/ui/people/implicit`
+  once every configured migration has been started, and to `/ui/confirm` until then, as before.
+  Started means ever started (the owner, 2026-10-03: *"was ever started"*): a migration paused
+  since, or finished, leaves the landing on the person's page, where it shows as paused. One
+  added to the config directory later, and not started yet, brings Review & confirm back. With
+  nothing configured, or when a status cannot be read, the landing is Review & confirm.
+- **The rows on the appliance** come from `/status`, which every appliance page polls, since it
+  has no list of migrations (ADR-0034). `/status` now names each migration's destination
+  (`targetType`), and its `name` when its file gives one. One with no name is called by where it
+  goes (*"Dropbox to WebDAV"*). Its data types are those the status reports, and its last pass is
+  the latest any of them completed.
+- **The route** `people/:personId` is served on both editions. Migrations, *Start a migration* and
+  the wizard stay managed. On the appliance the page has no back link to a Migrations page, and,
+  as for any implicit person, no *Add a migration* and no links.
+- **The menu** opens with *Migrations*, leading to the page, as a member's does. *Review* stays.
+- **Not changed:** `appliance-bundle.unit.test.ts`, which the plan named. It asks what ships, and
+  the person's page has always shipped in both bundles, by a static import. What changed is that a
+  route renders it, which `AppRoutes.unit.test.tsx` now proves for both editions.
+- **Proved by:**
+  - `pglite-startup.unit.test.ts` (+2): a real appliance on PGlite lands on Review & confirm while
+    its migration was never started and on the person's page once it runs, and `/status` names
+    the destination and no name its file lacks;
+  - `landing.unit.test.ts` (5): nothing configured, one never started, all started, one paused
+    since it ran, and one added later;
+  - `status.unit.test.ts` (+1), `Person.unit.test.tsx` (+3), `AppRoutes.unit.test.tsx` (+2, and
+    the person's page left the managed-only list), `Layout.unit.test.tsx` (+1).
+
+  Ten mutations each fail their cases: the landing never the person's page; blind to a migration
+  never started; reading the status alone, so a pause after Start would bring Review & confirm
+  back; the status without the destination; the appliance's rows read from the managed list; no
+  last pass; no name from where it goes; the back link on the appliance; the route managed only;
+  and no menu entry.
+
+**2026-10-03: the person's page says what waits for their grant (T5 (b); start when granted, per
+person).** Beside each migration of theirs that waits for their grant, the page says what the
+grant does to it when it lands, by the rule that starts it:
+
+- *"Waits for Anna to connect, then starts by itself: another migration of theirs is running."*
+  when it never ran and their move runs;
+- *"Waits for Anna to connect. Once they have, open Details to review and start it."* when it
+  never ran and nothing of theirs runs;
+- *"Waits for Anna to connect again."* when it ran, and lost its way in since.
+
+`GET /api/people/:personId/awaiting-grant` answers it (`awaitingTheirGrant` in
+`start-when-granted.ts`): the migrations their link asks for that have no way in, read as the
+grant page reads them, and judged by the two questions `startWhenGranted` asks. An account two
+Google applications read is left out, as the grant page leaves it out, and so is a finished
+migration. A read that failed says so under the migrations. Managed only, as their links are.
+
+- **Proved by:** `a-link-for-a-person.unit.test.ts` (+5: each answer, a real grant that starts
+  what it said would start, what is left out, and who may read it) and `Person.unit.test.tsx`
+  (+5). Five mutations of the server's reading and three of the page each fail their cases.
+
+**2026-10-03: start when granted, per person (T5 (b); ADR-0035's amendment, decided).** The
+owner: *"Yes, but after the move was started in the first place. After preflight the start needs
+to be given at least once, the grant may arrive later."* Asked whether that holds per person or
+per migration: *"Per person"*.
+
+- **When a grant lands** (`start-when-granted.ts`, called by both endings after the grant's own
+  transaction):
+  - each migration it landed on that never ran starts by itself if another migration of its
+    person is running: `active`, its paths with the month's peak, the change recorded `via:
+    'grant'` by the link, and its first pass enqueued;
+  - a move nothing of which runs (not started yet, or paused) starts nothing, and neither does a
+    migration paused after it ran;
+  - a closed organisation or an operator hold starts nothing (`enqueueIfFree`, the hold's door
+    with nobody to answer).
+- ***Start* on a migration that waits** says, when its person's move runs, that it starts by
+  itself once they have connected (`startsWhenGranted: true`).
+- ***Start a migration*'s last screen** may start once one count is in. It starts the counted
+  migrations; one waiting for the person's link says *"Once you have started the others, it starts
+  by itself when Anna connects."* With nothing counted, *Start* waits, as before.
+- **Not asked of a migration that starts by itself:** the tick for files a format would refuse,
+  by the owner's *"at least once"*. What it could not copy shows in its queues.
+- **Proved by:**
+  - `start-when-granted.unit.test.ts` (6; PGlite as `app_user`, both chains);
+  - `a-link-for-a-person.unit.test.ts` (+2, through a person's grant);
+  - `a-progress-page-for-a-person.unit.test.ts` (+1, through a migration's link sent before);
+  - `StartMigration.unit.test.tsx` (+2), and the hold guard (+1: `enqueueIfFree` has one caller).
+
+  Six mutations each fail their cases: no running-move check, no never-ran check, the hold
+  ignored, either ending not calling it, and the wizard waiting for every count.
+
+**2026-10-03: the person's link replaces the per-migration links (T5 (b)'s fourth slice, the rest
+of it; ADR-0035's amendment, decided).** The owner, asked the amendment's question: *"yes, replace
+the per-migration links"*. Its two "keep" points stand as written.
+
+- **No migration's page makes a link any more.** `POST /api/migrations/:id/links` answers `409
+  links_are_per_person`. When the migration has a person, the answer names them, with their id
+  for a page to link to. When it has none, it says to say who the migration is for. Nothing is
+  written. The door stays rather than going, so an older page or a script is told where links are
+  made instead of meeting a 404.
+- **The migration's page**, under *Links*, points to the person's page: *Open Anna's page*. A
+  migration that belongs to nobody asks *Who is this for?* there first, with somebody on the
+  Migrations page or *Someone new*.
+- **Links sent before** are listed there with their states, and *Revoke* still works:
+  - they are honoured until they expire;
+  - one still counts in the live-link limit while it is live;
+  - a grant through one ends on the person's progress page when the migration has a person
+    (`mintProgressLinkForMigration`).
+- **The limit's door is the person's only.** `issueWithinTheLimit` is gone, and the lock's
+  integration test (`one-issue-at-a-time`) now issues people's links. On a real Postgres (16, two
+  connections) it passes, and fails without the lock. The conditions sweep's order check reads
+  `person-link-routes.ts`.
+- **The withdrawn-grant banner** on a migration's page says the new link is made per person.
+- **The docs** say where links are made now: `grant-links.md` (with *Links sent before*), the
+  Google guides, the Workspace setup, and the owner's and operator's runbooks.
+- **Proved by:**
+  - `link-routes.unit.test.ts` (rewritten, 11) and `a-person-link-within-the-limit.unit.test.ts`
+    (6, the limit's cases moved to the person's door);
+  - `a-progress-page-for-a-person.unit.test.ts` (+1, a migration's link hands over the person's
+    page);
+  - `MappingLinksPanel.unit.test.tsx` (rewritten, 22) and `MappingDetail.unit.test.tsx`.
+
+**2026-10-03: a person's link asks again for an account whose connection stopped working (T5 (b);
+ADR-0035's amendment, added the same day).** Found while replacing the per-migration links (the
+owner: *"yes, replace the per-migration links"*). The person's link was refused once every
+account of theirs read as connected. A token Google no longer honours still reads as connected:
+taken back at Google, lapsed, or expired after seven days while the Google application is in
+testing. Only a migration's own link could ask for it again, and those are going.
+
+- **The issue door** (`person-link-routes.ts`) now makes a link that asks every account again when
+  each is connected. It says so (`asksAgain`), and the person's page tells the owner. It still
+  refuses a person with nothing a link can serve.
+- **The row** remembers which migrations it asks for again: `person_link.asks_again`, managed
+  migration 0036. 0035 is taken by another session's branch (the system role's purge of this
+  table). Migration ids, not addresses.
+- **The grant page** offers such an account *Connect again with Google as …*, with a sentence
+  saying why (`grant.ts`, `Grant.tsx`).
+- **The ending** (`person-grant-ending.ts`) takes the migrations it wrote off the list. It spends
+  the link once every account is connected and none it still asks for is left among the person's
+  migrations.
+- **Proved by:**
+  - `a-link-for-a-person.unit.test.ts` (13 → 16; PGlite as `app_user`, both chains);
+  - `person-link-under-rls.unit.test.ts` (+2);
+  - `Grant.unit.test.tsx` (+1), `grant-service.unit.test.ts` (+1) and `Person.unit.test.tsx` (+1).
+
+  Three mutations each fail their cases: refusing a connected account whatever the link asks;
+  spending once every account holds a token; and still asking for a migration that left the
+  person.
+- **The spec** documents `asksAgain` and `again`. It now also says a person's progress link is
+  offered (slice 3 left the request body at `grant` only).
+
+**2026-10-03: *Report this link* from a person's pages (0108 T8 (d), for ADR-0035's amendment of
+2026-09-29).** The third slice's open end: a person's grant page and progress page now offer it,
+as a migration's pages do.
+
+- **The doors** (`link-reports.ts`) take a person's link at its own kind's door, and neither kind
+  at the other's.
+- **The ticket** (`link-report.ts`) names the link as a person's, the person, and every migration
+  of theirs on a line of its own (state, from, to, access), from the rows. Each line stays one
+  line whatever an organisation typed.
+- **Proved by** `a-person-link-that-can-be-reported.unit.test.ts` (4; PGlite as `app_user`, both
+  chains, Zammad stubbed), and `Grant.unit.test.tsx` and `View.unit.test.tsx` (+1 each). The
+  migration's own report test passes unchanged. Mutation: the doors taking a migration's link
+  only fails two cases.
+
+**2026-10-03: T5 (b)'s third slice, a person's progress page (ADR-0035's amendment of
+2026-09-29).**
+
+- **The page** (`GET /api/view/:link`, `person-progress.ts`, `View.tsx`): for a person's link,
+  every migration of theirs with the counts and states a migration's own page shows
+  (`migrationProgress`, now the one reading both use), under the Google account it reads, and the
+  others after. An account is named on the page by an opaque `ref`, never by its address, as a
+  migration's page carries none.
+- ***Take my grant back*, per account** (`POST /api/view/:link/withdraw` with `{ account }`):
+  - each token the account's migrations hold is revoked at Google once;
+  - then it is cleared from every one of them in one transaction, with a
+    `mapping.grant_withdrawn` row each, whatever Google answered;
+  - a `ref` that no longer matches what is held (given again, or taken back in another tab)
+    deletes nothing, and says so in both languages.
+- **The progress link:** the person's grant ending hands one over after the consent lands, as a
+  migration's does. The owner's door issues one (`purpose: 'view'`, 30, 90 or 180 days), and the
+  person's page offers *One progress link for everything* beside the grant link.
+- **Not yet:**
+  - *Report this link* from a person's pages: the report route takes a migration's link only;
+  - the migration's page still makes its own links, until the owner answers the amendment's
+    proposals.
+- **Proved by:**
+  - `a-progress-page-for-a-person.unit.test.ts` (8; PGlite as `app_user`, both chains, with
+    Google's token and revoke endpoints stubbed);
+  - `a-link-for-a-person.unit.test.ts` (13), whose progress-link case now issues one;
+  - `View.unit.test.tsx` (+5), `Person.unit.test.tsx` (+1) and the view service's test (+3).
+
+  Mutation: sending an account's withdrawal as a migration's fails two cases. The spec
+  documents the page and the body, and its checker learns `pattern`.
+- **Walked in Chromium**, English and Dutch, at 900 and 390 pixels wide, over a fixture API shaped
+  as `person-progress.ts` answers: two accounts and an IMAP mailbox, no sideways scroll, no call
+  the fixture does not serve, and one press withdrew the first account by its `ref`, after which
+  each of its migrations says copying stopped.
+
+**2026-09-29, morning: T5 (b)'s fourth slice, the owner makes the person's one link (ADR-0035's
+amendment of 2026-09-29).**
+
+- **The person's page** has *For Anna*: *One grant link for everything*, its states, *Create
+  grant link* and *Revoke*, from the same section a migration's page draws (`LinkSection`, now
+  given its doors). Not on the appliance, which issues no links, and not before the person has a
+  migration.
+- ***Start a migration*'s last screen** offers that one link where it offered one per migration
+  (#1386): one Google account read by two migrations is signed in to once. Each migration it
+  serves says its count appears once the person has connected, and *Start* waits. Only a link
+  used after the screen first read the person's links counts: a person chosen from the list may
+  have used one before these migrations were theirs.
+- **Not yet:** the migration's page still makes its own links, until the owner answers whether
+  the person's link replaces them (the amendment's proposals); the progress link (slice 3).
+- **Proved by** `Person.unit.test.tsx` (+2) and `StartMigration.unit.test.tsx` (+1, one *Create
+  grant link* for two migrations). Mutation: counting a link used before the screen fails the
+  new case. Walked in Chromium, English and Dutch, from *They do, with a link* to one link made,
+  both migrations started, and the person's page.
+
 **2026-09-29, morning: T5 (b)'s second slice, a person's link is issued, opened and granted
 (ADR-0035's amendment of 2026-09-29).**
 
@@ -198,14 +432,14 @@ words changed with them** (0131 §6, R8).
   (`googleAccountKey`), and asks each through `grantLinkAsk`, unchanged.
 - **The ending** (`person-grant-ending.ts`): in one transaction, the close, the link still live
   (`FOR UPDATE`), the account that signed in the one named, and only the migrations the page
-  listed that are still hers and still read that account take the token, with an audit row each.
+  listed that are still theirs and still read that account take the token, with an audit row each.
   The link is spent once every account is granted.
 - **Not yet:** the person's progress link and page (slice 3), and the owner's side (slice 4).
   Reports from a person's page are not offered yet: the report route takes a migration's link
   only.
 - **Proved by** `a-link-for-a-person.unit.test.ts` (13, PGlite as `app_user`, both chains,
   Google's token endpoint stubbed), `Grant.unit.test.tsx` (20 → 24) and
-  `grant-service.unit.test.ts` (+2). Mutations: granting a migration that left her, and spending
+  `grant-service.unit.test.ts` (+2). Mutations: granting a migration that left them, and spending
   the link after the first account, each fail their cases. The closed-organisation and
   conditions sweeps count the new doors, and the spec documents them, with its checker taught
   `nullable`.
@@ -263,7 +497,7 @@ the owner's word *"continue on the rest"*)**, in #1353, stacked on #1349.
   - `Person.unit.test.tsx` (10 cases) and `cutover-steps.unit.test.ts` (8 cases). With an
     unread count on a link shown as *(0)*, the hard-rule-9 case fails;
   - the routes, the menu (Migrations lit on a person's page) and the card's links;
-  - `managed-ui.ui.test.ts` in a real browser: from Anna's card to her page and its seven
+  - `managed-ui.ui.test.ts` in a real browser: from Anna's card to their page and its seven
     steps.
 
 **2026-09-29, night: T1 (b), Gmail's app password is drawn (0131 §6, R8 step 1, built beside R at
@@ -596,11 +830,11 @@ person, and a flow that fills it.
 | T1 Four faults the audit found | 🟡 **(a) in #1315 and (d) in #1316, each proved by its guard; (b) drawn and guarded (#1349); (c) is T4's, by construction; all before the first invitation** | §3. (a) Review & confirm listed every source's limits on managed. (b) The Gmail app password the guide names is not in the wizard. (c) The Microsoft consent is sent before the data types are chosen: T4 fixes it by construction (the owner, 2026-09-28: no press). (d) A raw state word on Finish. |
 | T2 ADR-0050: a move is a person's migrations | ✅ **ADR-0050 accepted 2026-09-28 (#1327), amended the same night: *person*. The tables and `/api/people` built, with the appliance's implicit person (#1332)** | §3. A `person` row and `person_migration` in `packages/managed/migrations` (0031). The appliance answers one implicit person. The billed unit (a path) and the migration (a mapping) do not change. Deleting a person deletes no migration. |
 | T3 The Migrations page lists people | 🟡 **Built in two halves: the page lists people (#1341); it is the landing page, the Dashboard is gone, and the menu is the drawing's (#1343). The menu counts beside *Needs you* what waits (#1346). The progress line and *Ready to switch* wait on 0154 T2. Before the first invitation** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
-| T4 *Start a migration*: who, from where, what, to where | 📋 **Proposed; before the first invitation** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
-| T5 A page per person | 🟡 **First slice built (#1353): the person, their migrations, and their steps before they switch. One link per person is decided (ADR-0035's amendment of 2026-09-29) and planned as T5 (b), four slices; the progress lines wait on 0154 T2. Before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
+| T4 *Start a migration*: who, from where, what, to where | 🟡 **Built (#1372, #1378), with *Someone else* by a grant link (#1386), one per person since T5 (b). Waiting: screen 6's time estimate (0154 T3 (a)), and the wizard retires once the reachability test passes through the flow (D5). Before the first invitation** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
+| T5 A page per person | 🟡 **First slice built (#1353): the person, their migrations, and their steps before they switch. One link per person (ADR-0035's amendment of 2026-09-29) is built, T5 (b)'s four slices (#1394, #1396, #1401, #1408), with *Report this link* (#1402), asking again (#1407), start when granted (#1409), and the page saying what waits for their grant (#1413); the progress lines wait on 0154 T2. Before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
 | T6 Words a family reads | 🟡 **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, before the first invitation. The Dutch says *migratie* everywhere the product speaks, with two guards (#1342). (c)'s two guards built (#1347)** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |
-| T7 Defaults a family can pass | 📋 **Proposed; before the first invitation, inside T4** | §3. Buttons that look like buttons, with the reason in text. A Soverin sign-in in two visible fields. A Nextcloud address, not a DAV URL. Business-only fields only on the business path. The limit blamed on the side that has it. Tiles and icons: `tiles.svg`, `icons.svg`. |
-| T8 The appliance shows its person's page | 📋 **Proposed; before the first invitation (D5)** | §3. The same page, fed by the appliance's one implicit grouping. No list or create screen (0034 stands). |
+| T7 Defaults a family can pass | ✅ **(a) to (f) built inside T4 (#1378); the wizard's progress line too (#1383)** | §3. Buttons that look like buttons, with the reason in text. A Soverin sign-in in two visible fields. A Nextcloud address, not a DAV URL. Business-only fields only on the business path. The limit blamed on the side that has it. Tiles and icons: `tiles.svg`, `icons.svg`. |
+| T8 The appliance shows its person's page | ✅ **Built: its landing once every migration has started, Review & confirm until then; the page's rows from `/status`; *Migrations* first in its menu** | §3. The same page, fed by the appliance's one implicit grouping. No list or create screen (0034 stands). |
 
 ## 1. What there is today
 
@@ -1087,8 +1321,9 @@ closing (`an-organisation-closed-at-every-door.unit.test.ts`), the log's redacti
 (`a-log-that-kept-the-link.unit.test.ts`) and the OpenAPI spec. Offboarding purges `person_link`
 before `person` (`offboarding.ts`'s `PURGED_TABLES`).
 
-**Waits for the owner:** *start when granted* (the amendment's last section). Slices 1 to 3 do not
-depend on it.
+**Start when granted** (the amendment's last section): decided by the owner on 2026-10-03, per
+person, and built the same day. Once a person's move runs, a migration of theirs that waits for a
+grant starts by itself when it lands; before that, a grant only makes the counts appear.
 
 ### T6 — words a family reads (before the first invitation, inside T3–T5)
 

@@ -177,4 +177,16 @@ describe("a person's page, as the page receives it (0153 T5 (b))", () => {
     });
     await expect(grantApi.read('p.abc.def')).rejects.toThrow();
   });
+
+  it('keeps an account the link asks for again, and reads an API that does not say as not asking', async () => {
+    getMock.mockResolvedValue({
+      data: { ...PERSON, accounts: [{ ...PERSON.accounts[0], granted: true, again: true }] },
+    });
+    const asked = await grantApi.read('p.abc.def');
+    expect(isPersonSubject(asked) && asked.accounts[0]?.again).toBe(true);
+
+    getMock.mockResolvedValue({ data: PERSON });
+    const silent = await grantApi.read('p.abc.def');
+    expect(isPersonSubject(silent) && silent.accounts[0]?.again).toBe(false);
+  });
 });

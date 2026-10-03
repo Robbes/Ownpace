@@ -1229,6 +1229,7 @@ export function authenticateGrantLink(
       tenantId: verdict.link.tenantId,
       purpose: verdict.link.purpose,
       expiresAt: verdict.link.expiresAt,
+      asksAgain: verdict.link.asksAgain,
     };
     next();
   };

@@ -37,8 +37,9 @@ for it, on a stack brought up with the demo:
 
 - `--seed N M` adds N rehearsal organisations with M migrations each. The sync tick starts no more
   of their passes at once than the stack's caps, `MAX_PASSES_IN_FLIGHT` and
-  `MAX_PASSES_PER_ORGANISATION` (workplan 0143 T1), so the sitting sets them to the numbers it
-  measures and runs `set-task-env.sh` first.
+  `MAX_PASSES_PER_ORGANISATION` (workplan 0143 T1), and the plane runs no more than the first plus
+  two (`plane-limit.sh`). So the sitting sets them to the numbers it measures and runs
+  `bootstrap-managed.sh --only tasks` first, which uploads them, sets the plane's limit and deploys.
 - `--sample` writes a line every 10 seconds: the task containers and their memory, the host's
   memory, swap and load, PgBouncer's waiting clients and longest wait, and Postgres' connections.
 - `--remove` takes the organisations back, with every row their passes wrote. It takes two runs:

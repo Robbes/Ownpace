@@ -22,7 +22,13 @@ export function listStage(m: Pick<MappingListItem, 'status' | 'lastSyncAt'>): St
   return stageOf({ phase: m.status, completedOnce: Boolean(m.lastSyncAt) });
 }
 
-export const MigrationLines: React.FC<{ migration: MappingListItem }> = ({ migration: m }) => {
+/**
+ * What a migration's lines read: the list's row on managed, and the status's
+ * on the appliance, which has no list (0153 T8).
+ */
+export type MigrationLineFacts = Pick<MappingListItem, 'sourceType' | 'targetType' | 'status' | 'domains' | 'lastSyncAt'>;
+
+export const MigrationLines: React.FC<{ migration: MigrationLineFacts }> = ({ migration: m }) => {
   const t = useT();
   const { relativeToNow } = useFormatters();
   const stage = listStage(m);

@@ -63,6 +63,30 @@ const ViewSchema = z.object({
 });
 export type MigrationViewPayload = z.infer<typeof ViewSchema>;
 
+/**
+ * A PERSON'S progress page (ADR-0035, amended 2026-09-29; 0153 T5 (b), slice
+ * 3): every migration of theirs, each with the rows a migration's page reads
+ * through the same `RowSchema`, and the Google account each reads named by an
+ * opaque `ref`, which a withdrawal sends back.
+ */
+const PersonViewSchema = z.object({
+  kind: z.literal('person'),
+  organisation: z.string(),
+  expiresAt: z.string(),
+  migrations: z.array(
+    z.object({
+      from: z.string(),
+      to: z.string().nullable(),
+      state: z.enum(MAPPING_LIFECYCLES as [MappingLifecycle, ...MappingLifecycle[]]),
+      started: z.boolean(),
+      domains: z.array(RowSchema),
+      account: z.string().nullable(),
+    }),
+  ),
+  accounts: z.array(z.object({ ref: z.string(), grant: GrantSchema })),
+});
+export type PersonViewPayload = z.infer<typeof PersonViewSchema>;
+
 // What happened when the grant was taken back: revoked at Google too, or
 // deleted here with Google not confirming, which the person then finishes.
 const WithdrawalSchema = z.object({
@@ -72,14 +96,24 @@ const WithdrawalSchema = z.object({
 export type WithdrawalPayload = z.infer<typeof WithdrawalSchema>;
 
 export const viewApi = {
-  /** Counts and states for one migration. Repeatable — nothing is spent. */
-  read: async (link: string): Promise<MigrationViewPayload> => {
+  /**
+   * Counts and states for one migration, or for every migration of a person's
+   * when the link is theirs (`kind: 'person'`). Repeatable — nothing is spent.
+   */
+  read: async (link: string): Promise<MigrationViewPayload | PersonViewPayload> => {
     const res = await client.get(`/view/${encodeURIComponent(link)}`);
-    return ViewSchema.parse(res.data);
+    const data: unknown = res.data;
+    const person = typeof data === 'object' && data !== null && (data as { kind?: unknown }).kind === 'person';
+    return person ? PersonViewSchema.parse(data) : ViewSchema.parse(data);
   },
   /** Take back the grant this migration reads the account on (0108 T8 (c)). */
   withdraw: async (link: string): Promise<WithdrawalPayload> => {
     const res = await client.post(`/view/${encodeURIComponent(link)}/withdraw`);
+    return WithdrawalSchema.parse(res.data);
+  },
+  /** Take back the grant one Google account of a person's holds, named by the page's `ref`. */
+  withdrawAccount: async (link: string, account: string): Promise<WithdrawalPayload> => {
+    const res = await client.post(`/view/${encodeURIComponent(link)}/withdraw`, { account });
     return WithdrawalSchema.parse(res.data);
   },
 };

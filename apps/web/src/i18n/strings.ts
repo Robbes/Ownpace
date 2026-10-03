@@ -954,7 +954,7 @@ const en = {
   'mappings.action.pause': 'Pause',
   'hub.connections': 'From {source} to {target}',
   'mappings.action.pause.why':
-    'No new passes are started. A pass already running finishes the data type it is on and then stops. Nothing is lost: Review and start continues from where it stopped.',
+    'No new passes are started. A pass already running stops starting new items within about fifteen seconds, and finishes the ones it has begun; a very large file can take longer. Nothing is lost: Review and start continues from where it stopped.',
   'mappings.action.startSync': 'Start sync',
   // 0037 T2: a paused mapping's row leads to the confirm screen — the Play
   // button it used to render could only earn a 409.
@@ -1004,7 +1004,7 @@ const en = {
   'hub.noId': 'No mapping id in the address.',
   'hub.detailError': "Could not read this migration's details — the screens below still work.",
   'hub.grantWithdrawn': 'On {date} the person being migrated withdrew their access. Nothing reads their account now.',
-  'hub.grantWithdrawn.next': 'If they agree to continue, create a grant link below and send it to them.',
+  'hub.grantWithdrawn.next': 'If they agree to continue, send them a new grant link. Links are made per person: see Links below.',
   'hub.deletions.name': 'Deletions',
   'hub.deletions.blurb': 'Deleted on the old system, still on the new; your call, per item.',
   'hub.moves.name': 'Moves',
@@ -1117,6 +1117,16 @@ const en = {
   'grantLink.copy': 'Copy',
   'grantLink.copied': 'Copied',
   'grantLink.empty': 'No links yet for this migration.',
+  'personLink.title': 'One grant link for everything',
+  'personLink.blurb':
+    'One link for all of this person’s Google accounts: they sign in to each once, and every migration that reads it is connected.',
+  'personLink.empty': 'No link yet for this person.',
+  'personLink.asksAgain':
+    'Every Google account of theirs is connected, so this link asks them to connect each one again. Send it when a connection has stopped working.',
+  'personLink.view.title': 'One progress link for everything',
+  'personLink.view.blurb':
+    'One page where this person follows all of their migrations, with no account, and can take back the access they gave.',
+  'personLink.view.empty': 'No progress link yet for this person.',
   'grantLink.loadError': 'Could not read the links for this migration.',
   'grantLink.issuedBy': 'Issued {date} by {who}',
   'grantLink.issuedByGrant': 'Created {date}, when they gave access',
@@ -1139,6 +1149,20 @@ const en = {
   'viewLink.issued.urlLabel': 'The progress link',
   'viewLink.empty': 'No progress links yet for this migration.',
   'viewLink.expiredNudge': 'Their page has stopped working. Create another if they still need it.',
+  // A migration's page, now that a link is the person's (ADR-0035, amended
+  // 2026-09-29; the owner, 2026-10-03: "yes, replace the per-migration links").
+  'migrationLinks.title': 'Links',
+  'migrationLinks.perPerson': 'Grant and progress links are made per person: one for all of {name}’s migrations.',
+  'migrationLinks.openPerson': 'Open {name}’s page',
+  'migrationLinks.whoFor': 'Who is this for?',
+  'migrationLinks.whoFor.why': 'Links are made per person, so first say who this migration is for.',
+  'migrationLinks.whoFor.save': 'Save',
+  'migrationLinks.peopleFailed': 'Could not read who this migration is for.',
+  'migrationLinks.sent.grant': 'Grant links sent before',
+  'migrationLinks.sent.view': 'Progress links sent before',
+  'migrationLinks.sent.blurb': 'They work until they expire. Revoke one here if it should stop sooner.',
+  'migrationLinks.sent.why':
+    'Links are made per person now. One this migration was given before keeps working until it expires, so whoever holds it is not left with a link that fails.',
   // The migrator's page. Written for somebody with no account and no reason to
   // trust us, so: second person, no jargon, and nothing they have to look up.
   'grant.title': 'Connect your account',
@@ -1190,6 +1214,9 @@ const en = {
   'grant.person.where': '{account}, {place}',
   'grant.person.connect': 'Continue with Google as {account}',
   'grant.person.connected': 'Connected. Nothing more is needed for this account.',
+  'grant.person.again':
+    'This account was connected before. Whoever sent this link asks you to connect it again, for instance because the connection stopped working.',
+  'grant.person.connectAgain': 'Connect again with Google as {account}',
   'grant.connecting': 'Opening Google…',
   'grant.disclosure': 'By continuing you accept how your data is handled:',
   'grant.privacy': 'Privacy policy',
@@ -1280,6 +1307,17 @@ const en = {
   'view.withdrawn.removeYourself': 'To be sure, remove the app yourself from the apps with access:',
   'view.withdrawn.since': 'Nothing more is read from your account. To continue later, ask for a new link.',
   'view.withdrawn.check': 'Your Google account lists the apps that still have access:',
+  // A PERSON'S progress page (ADR-0035, amended 2026-09-29; 0153 T5 (b), slice 3).
+  'view.person.title': 'Your migrations',
+  'view.person.who': '{organisation} is moving your accounts to new providers. Here is where each migration stands.',
+  'view.person.none': 'There are no migrations here yet.',
+  'view.person.account.only': 'Your Google account',
+  'view.person.account': 'Google account {n}',
+  'view.person.others': 'Your other migrations',
+  'view.person.route': '{from} to {to}',
+  'view.person.grant.body': '{organisation} reads this Google account for the migrations above because you allowed it.',
+  'view.person.withdrawn.notConfirmed':
+    'Deleted here, so these migrations cannot use it. Google did not confirm withdrawing it.',
   // Report this link (workplan 0108 T8 (d)): on the grant and progress pages,
   // to the owner's helpdesk, never to the organisation that asked.
   'linkReport.open': 'Report this link',
@@ -1518,6 +1556,9 @@ const en = {
   'start.check.waits': 'You can start once every count is in and each tick it asks for is ticked.',
   'start.check.waitsFor':
     'Waiting for {person} to connect. Make a link below and send it yourself: it is shown once. The count appears here once they have connected.',
+  'start.check.waitsForLink': 'Its count appears here once {person} has connected through the link above.',
+  'start.check.startsWhenGranted': 'Once you have started the others, it starts by itself when {person} connects.',
+  'start.check.waitsForACount': 'You can start once {person} has connected and a count is in.',
   'start.check.later':
     "You can close this page. {person}'s page keeps these migrations: once they have connected, start each one from its Details.",
   'start.company.question': 'Is this a company account with an administrator?',
@@ -1538,6 +1579,16 @@ const en = {
   'person.notFound': 'There is no such person here.',
   'person.loadFailed': 'Could not load this person.',
   'person.details': 'Details',
+  // An appliance migration whose file gives it no name (0153 T8), called by where it goes.
+  'person.rowName': '{from} to {to}',
+  // A migration that waits for their grant, and what the grant does to it
+  // when it lands (start when granted, per person; the owner, 2026-10-03).
+  'person.awaiting.startsByItself':
+    'Waits for {name} to connect, then starts by itself: another migration of theirs has been started.',
+  'person.awaiting.reviewAndStart': 'Waits for {name} to connect. Once they have, open Details to review and start it.',
+  'person.awaiting.ranBefore': 'Waits for {name} to connect again.',
+  'person.awaiting.unread': 'Which of these wait for {name} to connect could not be read.',
+  'person.links.title': 'For {name}',
   'person.steps.title': 'Before you switch',
   'person.steps.hint': 'Each step, summed across this person’s migrations.',
   'person.state.done': 'Done',
@@ -3694,7 +3745,7 @@ const nl: Record<keyof typeof en, string> = {
   'mappings.action.pause': 'Pauzeren',
   'hub.connections': 'Van {source} naar {target}',
   'mappings.action.pause.why':
-    'Er worden geen nieuwe rondes gestart. Een ronde die al loopt maakt het huidige gegevenstype af en stopt dan. Er gaat niets verloren: Controleren en starten gaat verder waar het gebleven was.',
+    'Er worden geen nieuwe rondes gestart. Een ronde die al loopt, begint binnen ongeveer vijftien seconden niets nieuws meer en maakt af waar ze al aan begonnen was; een heel groot bestand kan langer duren. Er gaat niets verloren: Controleren en starten gaat verder waar het gebleven was.',
   'mappings.action.startSync': 'Start synchronisatie',
   'mappings.action.reviewAndStart': 'Controleren en starten',
   'mappings.action.open': 'Openen',
@@ -3732,7 +3783,8 @@ const nl: Record<keyof typeof en, string> = {
   'hub.detailError':
     'De details van deze migratie konden niet worden gelezen — de schermen hieronder werken nog.',
   'hub.grantWithdrawn': 'Op {date} trok degene die gemigreerd wordt de toegang in. Er wordt niets meer gelezen.',
-  'hub.grantWithdrawn.next': 'Is die persoon akkoord om verder te gaan, stuur dan een nieuwe toegangslink (hieronder).',
+  'hub.grantWithdrawn.next':
+    'Is die persoon akkoord om verder te gaan, stuur dan een nieuwe toegangslink. Links worden per persoon gemaakt: zie Links hieronder.',
   'hub.deletions.name': 'Verwijderingen',
   'hub.deletions.blurb':
     'Verwijderd op het oude systeem, nog op het nieuwe; uw beslissing, per item.',
@@ -3834,6 +3886,16 @@ const nl: Record<keyof typeof en, string> = {
   'grantLink.copy': 'Kopiëren',
   'grantLink.copied': 'Gekopieerd',
   'grantLink.empty': 'Nog geen links voor deze migratie.',
+  'personLink.title': 'Eén toegangslink voor alles',
+  'personLink.blurb':
+    'Eén link voor alle Google-accounts van deze persoon: bij elk account één keer aanmelden, en elke migratie die het leest is verbonden.',
+  'personLink.empty': 'Nog geen link voor deze persoon.',
+  'personLink.asksAgain':
+    'Elk Google-account van deze persoon is verbonden, dus deze link vraagt om elk account opnieuw te verbinden. Stuur hem als een verbinding niet meer werkt.',
+  'personLink.view.title': 'Eén voortgangslink voor alles',
+  'personLink.view.blurb':
+    'Eén pagina waarop deze persoon alle eigen migraties volgt, zonder account, en gegeven toegang kan intrekken.',
+  'personLink.view.empty': 'Nog geen voortgangslink voor deze persoon.',
   'grantLink.loadError': 'Kon de links van deze migratie niet lezen.',
   'grantLink.issuedBy': 'Gemaakt op {date} door {who}',
   'grantLink.issuedByGrant': 'Gemaakt op {date}, toen zij toegang gaven',
@@ -3853,6 +3915,20 @@ const nl: Record<keyof typeof en, string> = {
   'viewLink.issued.urlLabel': 'De voortgangslink',
   'viewLink.empty': 'Nog geen voortgangslinks voor deze migratie.',
   'viewLink.expiredNudge': 'Hun pagina werkt niet meer. Maak een nieuwe als zij hem nog nodig hebben.',
+  // De pagina van een migratie, nu een link van de persoon is (ADR-0035,
+  // gewijzigd 2026-09-29; de eigenaar, 2026-10-03).
+  'migrationLinks.title': 'Links',
+  'migrationLinks.perPerson': 'Toegangs- en voortgangslinks worden per persoon gemaakt: één voor alle migraties van {name}.',
+  'migrationLinks.openPerson': 'Pagina van {name} openen',
+  'migrationLinks.whoFor': 'Voor wie is dit?',
+  'migrationLinks.whoFor.why': 'Links worden per persoon gemaakt, dus kies eerst voor wie deze migratie is.',
+  'migrationLinks.whoFor.save': 'Opslaan',
+  'migrationLinks.peopleFailed': 'Kon niet lezen voor wie deze migratie is.',
+  'migrationLinks.sent.grant': 'Eerder verstuurde toegangslinks',
+  'migrationLinks.sent.view': 'Eerder verstuurde voortgangslinks',
+  'migrationLinks.sent.blurb': 'Ze werken tot ze verlopen. Trek een link hier in als die eerder moet stoppen.',
+  'migrationLinks.sent.why':
+    'Links worden nu per persoon gemaakt. Een link die deze migratie eerder kreeg, blijft werken tot die verloopt, zodat wie hem heeft geen link krijgt die niet meer werkt.',
   'grant.title': 'Verbind uw account',
   'grant.loading': 'Een moment…',
   'grant.asking': '{organisation} migreert uw account naar een nieuwe provider en heeft uw toestemming nodig om te lezen wat erin zit.',
@@ -3886,6 +3962,9 @@ const nl: Record<keyof typeof en, string> = {
   'grant.person.where': '{account}, {place}',
   'grant.person.connect': 'Doorgaan met Google als {account}',
   'grant.person.connected': 'Verbonden. Voor dit account is niets meer nodig.',
+  'grant.person.again':
+    'Dit account was al verbonden. Wie u deze link stuurde, vraagt u het opnieuw te verbinden, bijvoorbeeld omdat de verbinding niet meer werkt.',
+  'grant.person.connectAgain': 'Opnieuw verbinden met Google als {account}',
   'grant.connecting': 'Google wordt geopend…',
   'grant.disclosure': 'Door door te gaan gaat u akkoord met hoe uw gegevens worden behandeld:',
   'grant.privacy': 'Privacybeleid',
@@ -3954,6 +4033,17 @@ const nl: Record<keyof typeof en, string> = {
   'view.withdrawn.removeYourself': 'Verwijder voor de zekerheid zelf de app bij de apps met toegang:',
   'view.withdrawn.since': 'Er wordt niets meer uit uw account gelezen. Later verder? Vraag om een nieuwe link.',
   'view.withdrawn.check': 'Uw Google-account toont welke apps nog toegang hebben:',
+  // De voortgangspagina van een PERSOON (ADR-0035, gewijzigd 2026-09-29; 0153 T5 (b), deel 3).
+  'view.person.title': 'Uw migraties',
+  'view.person.who': '{organisation} migreert uw accounts naar nieuwe providers. Hier ziet u hoe elke migratie ervoor staat.',
+  'view.person.none': 'Er zijn hier nog geen migraties.',
+  'view.person.account.only': 'Uw Google-account',
+  'view.person.account': 'Google-account {n}',
+  'view.person.others': 'Uw andere migraties',
+  'view.person.route': '{from} naar {to}',
+  'view.person.grant.body': '{organisation} leest dit Google-account voor de migraties hierboven, omdat u dat toestond.',
+  'view.person.withdrawn.notConfirmed':
+    'Hier verwijderd, dus deze migraties kunnen die niet gebruiken. Google bevestigde het intrekken niet.',
   'linkReport.open': 'Deze link melden',
   'linkReport.intro': 'Uw melding gaat naar het team van Ownpace, niet naar {organisation}.',
   'linkReport.description': 'Waarom twijfelt u aan deze link?',
@@ -4169,6 +4259,9 @@ const nl: Record<keyof typeof en, string> = {
   'start.check.waits': 'U kunt starten zodra elke telling binnen is en elk gevraagd vinkje staat.',
   'start.check.waitsFor':
     'Wacht tot {person} verbindt. Maak hieronder een link en stuur die zelf: hij wordt één keer getoond. De telling verschijnt hier zodra de verbinding er is.',
+  'start.check.waitsForLink': 'De telling verschijnt hier zodra {person} via de link hierboven verbonden is.',
+  'start.check.startsWhenGranted': 'Zodra u de andere hebt gestart, start deze vanzelf wanneer {person} verbindt.',
+  'start.check.waitsForACount': 'U kunt starten zodra {person} verbonden is en er een telling binnen is.',
   'start.check.later':
     'U kunt deze pagina sluiten. De pagina van {person} bewaart deze migraties: start elke migratie via Details zodra de verbinding er is.',
   'start.company.question': 'Is dit een bedrijfsaccount met een beheerder?',
@@ -4187,6 +4280,13 @@ const nl: Record<keyof typeof en, string> = {
   'person.notFound': 'Deze persoon bestaat hier niet.',
   'person.loadFailed': 'Kon deze persoon niet laden.',
   'person.details': 'Details',
+  'person.rowName': '{from} naar {to}',
+  'person.awaiting.startsByItself':
+    'Wacht tot {name} verbindt en start dan vanzelf: een andere migratie van {name} is al gestart.',
+  'person.awaiting.reviewAndStart': 'Wacht tot {name} verbindt. Open daarna Details om deze te controleren en te starten.',
+  'person.awaiting.ranBefore': 'Wacht tot {name} opnieuw verbindt.',
+  'person.awaiting.unread': 'Welke hiervan wachten tot {name} verbindt, kon niet worden gelezen.',
+  'person.links.title': 'Voor {name}',
   'person.steps.title': 'Voordat u overstapt',
   'person.steps.hint': 'Elke stap, opgeteld over de migraties van deze persoon.',
   'person.state.done': 'Klaar',

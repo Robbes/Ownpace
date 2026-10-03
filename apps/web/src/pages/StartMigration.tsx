@@ -80,8 +80,8 @@ import {
 import { MigrationCountSection, useMigrationCount } from '../components/ConfirmMigration.tsx';
 import { needsAcknowledgement } from '../components/confirm/native-refusals.tsx';
 import ScopeManifestPanel from '../components/confirm/ScopeManifestPanel.tsx';
-import { GrantLinkSection } from '../components/MappingLinksPanel.tsx';
-import { grantLinkApi } from '../services/grant-link-service.ts';
+import { PersonGrantLinkSection } from '../components/MappingLinksPanel.tsx';
+import { personLinkApi } from '../services/grant-link-service.ts';
 import { AccountForm } from '../components/AccountForm.tsx';
 import ProviderTile, { providerName } from '../components/ProviderTile.tsx';
 import { DataTypeIcon, DataTypeLabel } from '../components/icons/data-type-icons.tsx';
@@ -1472,6 +1472,14 @@ const NewDestination: React.FC<{
  * manifest's rows true of these sources, and one *Start*, which waits for
  * every count and every tick. Nothing copies before it; after it, the
  * person's page (T5).
+ *
+ * **Start when granted** (ADR-0035's amendment; the owner, 2026-10-03:
+ * *"After preflight the start needs to be given at least once, the grant may
+ * arrive later"*, per person). A migration that waits for its person's link
+ * is not waited for once another one's count is in: *Start* starts the
+ * counted ones, and the waiting one starts by itself when they connect, since
+ * their move is then running (`start-when-granted.ts`). With nothing counted
+ * yet, *Start* waits, as before.
  */
 export const CheckStep: React.FC<{
   planned: ReadonlyArray<PlannedMigration>;
@@ -1501,8 +1509,16 @@ export const CheckStep: React.FC<{
       ? []
       : [{ key: pairKey(m), id: one.id, notAdded: one.notAdded, byLink: awaitsGrant(m) }];
   });
-  const anyByLink = made_.some((m) => m.byLink);
-  const allReady = made_.every((m) => ready[m.id] === true);
+  const anyByLink = made_.some((m) => m.byLink) && made.personId !== undefined;
+  // Whether the person's one link was used: every account on it connected
+  // (ADR-0035, amended 2026-09-29). Until then each migration it serves waits.
+  const [granted, setGranted] = React.useState(false);
+  const waits = (m: (typeof made_)[number]) => m.byLink && anyByLink && !granted;
+  // What Start starts: every migration not waiting for the link. It may go once
+  // there is one, and each has its count and its tick; the waiting ones start
+  // by themselves when the person connects.
+  const counted = made_.filter((m) => !waits(m));
+  const allReady = counted.length > 0 && counted.every((m) => ready[m.id] === true);
 
   // The manifest's rows true of every source here, and of no other (0153 T1 (a)).
   const manifest = useQuery({ queryKey: ['scope-manifest'], queryFn: () => scopeManifestApi.get() });
@@ -1519,7 +1535,7 @@ export const CheckStep: React.FC<{
     setStarting(true);
     const now = new Set(started);
     const failed: Record<string, string> = {};
-    for (const m of made_) {
+    for (const m of counted) {
       if (now.has(m.id)) continue;
       try {
         await mappingApi.start(m.id);
@@ -1538,6 +1554,9 @@ export const CheckStep: React.FC<{
   return (
     <div className="space-y-6">
       <p className="text-sm text-gray-700">{t('start.check.intro')}</p>
+      {anyByLink && made.personId !== undefined && (
+        <PersonAwaitingGrant personId={made.personId} personName={personName} onGranted={setGranted} />
+      )}
       {made_.map((m) => {
         const check = (
           <MigrationCheck
@@ -1549,16 +1568,14 @@ export const CheckStep: React.FC<{
             {...(startFailed[m.id] === undefined ? {} : { failed: startFailed[m.id] })}
           />
         );
-        return m.byLink ? (
-          <AwaitingGrant
-            key={m.id}
-            mappingId={m.id}
-            title={titles[m.key] ?? ''}
-            personName={personName}
-            onReady={onReady}
-          >
-            {check}
-          </AwaitingGrant>
+        return waits(m) ? (
+          <div key={m.id} className="rounded-lg border border-gray-200 p-4">
+            <h3 className="text-sm font-medium text-gray-700">{titles[m.key] ?? ''}</h3>
+            <p className="mt-1 text-sm text-gray-600">{t('start.check.waitsForLink', { person: personName })}</p>
+            {counted.length > 0 && (
+              <p className="mt-1 text-sm text-gray-600">{t('start.check.startsWhenGranted', { person: personName })}</p>
+            )}
+          </div>
         ) : (
           check
         );
@@ -1581,7 +1598,7 @@ export const CheckStep: React.FC<{
         </button>
         {!allReady && (
           <p id={waitsId} className="mt-2 text-sm text-gray-600">
-            {t('start.check.waits')}
+            {t(counted.length === 0 ? 'start.check.waitsForACount' : 'start.check.waits', { person: personName })}
           </p>
         )}
         {!allReady && anyByLink && (
@@ -1593,35 +1610,41 @@ export const CheckStep: React.FC<{
 };
 
 /**
- * A migration whose account its person connects themselves (0108): until a
- * grant link is used, the link to send in place of its count, and Start
- * waits. The links are asked for again every ten seconds, so the count
- * appears here once they have granted it.
+ * The person's ONE link (ADR-0035, amended 2026-09-29; 0153 T5 (b)): until it
+ * is used, which is when every account on it is connected, the link to make
+ * and send, and Start waits. Asked for again every ten seconds, so the counts
+ * appear once they have connected. It replaces a link per migration: one
+ * Google account read by two migrations is signed in to once.
+ *
+ * Only a link used AFTER this screen first read them counts. A person chosen
+ * from the list may have used a link before these migrations were theirs, and
+ * that link granted none of them; one used since was spent only once every
+ * account of theirs was granted, these migrations' included.
  */
-const AwaitingGrant: React.FC<{
-  mappingId: string;
-  title: string;
+const PersonAwaitingGrant: React.FC<{
+  personId: string;
   personName: string;
-  onReady: (mappingId: string, ready: boolean) => void;
-  children: React.ReactNode;
-}> = ({ mappingId, title, personName, onReady, children }) => {
+  onGranted: (granted: boolean) => void;
+}> = ({ personId, personName, onGranted }) => {
   const { t } = useLocale();
   const links = useQuery({
-    queryKey: ['grant-links', mappingId],
-    queryFn: () => grantLinkApi.list(mappingId),
+    queryKey: ['person-links', personId],
+    queryFn: () => personLinkApi.list(personId),
     refetchInterval: 10_000,
     retry: false,
   });
-  const granted = links.data?.some((l) => l.purpose === 'grant' && l.state === 'used') ?? false;
-  React.useEffect(() => {
-    if (!granted) onReady(mappingId, false);
-  }, [granted, mappingId, onReady]);
-  if (granted) return <>{children}</>;
+  const usedBefore = React.useRef<ReadonlySet<string> | null>(null);
+  if (links.data !== undefined && usedBefore.current === null) {
+    usedBefore.current = new Set(links.data.filter((l) => l.state === 'used').map((l) => l.id));
+  }
+  const granted =
+    links.data?.some((l) => l.purpose === 'grant' && l.state === 'used' && !usedBefore.current?.has(l.id)) ?? false;
+  React.useEffect(() => onGranted(granted), [granted, onGranted]);
+  if (granted) return null;
   return (
     <div className="rounded-lg border border-gray-200 p-4">
-      <h3 className="text-sm font-medium text-gray-700">{title}</h3>
-      <p className="mt-1 text-sm text-gray-900">{t('start.check.waitsFor', { person: personName })}</p>
-      <GrantLinkSection mappingId={mappingId} links={links.data} loadFailed={links.isError} />
+      <p className="text-sm text-gray-900">{t('start.check.waitsFor', { person: personName })}</p>
+      <PersonGrantLinkSection personId={personId} links={links.data} loadFailed={links.isError} />
     </div>
   );
 };

@@ -76,6 +76,11 @@ export interface PersonLinkRequest extends MappingLinkRequest {
     readonly purpose: 'grant' | 'view';
     /** When the link stops working, for the page to say before the button. */
     readonly expiresAt: Date;
+    /**
+     * The migrations a grant link asks to connect again, made while every
+     * account of the person's was connected (managed migration 0036), or null.
+     */
+    readonly asksAgain: readonly string[] | null;
   };
 }
 

@@ -91,6 +91,7 @@ import microsoftOauthRoutes from './microsoft-oauth-routes.ts';
 // live behind their own middleware rather than behind `authenticate`.
 import linkRoutes from './link-routes.ts';
 import { awaitingGrantRefusal } from './grant-link-readiness.ts';
+import { startsWhenGrantedFor } from './start-when-granted.ts';
 // Its own module since 2026-09-23 (0108 T8a): the grant page names the same
 // accounts the detail route does, and importing this router to reach it would
 // load every migration route to answer one question.
@@ -3826,7 +3827,23 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
     }
     const waiting = await awaitingGrant(tenantId, mappingId, mapping.sourceSecretRef);
     if (waiting) {
-      return void res.status(409).json({ error: 'awaiting_grant', message: waiting, reason: waiting });
+      // When its person's move is running, a migration that never ran starts
+      // by itself once the grant lands (`start-when-granted.ts`; ADR-0035's
+      // amendment, the owner, 2026-10-03). Said, so pressing again is not
+      // read as the next step.
+      const whose = await withTenantDb(tenantId, getSharedPool(), (db) =>
+        startsWhenGrantedFor(db, tenantId, mappingId, mapping.status),
+      );
+      const said =
+        whose === undefined
+          ? waiting
+          : `${waiting} It starts by itself once ${whose} has connected: another migration of theirs has been started.`;
+      return void res.status(409).json({
+        error: 'awaiting_grant',
+        message: said,
+        reason: said,
+        ...(whose === undefined ? {} : { startsWhenGranted: true }),
+      });
     }
 
     const activated = mapping.status !== 'active';

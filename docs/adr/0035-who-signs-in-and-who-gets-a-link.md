@@ -1,8 +1,8 @@
 # ADR-0035: Who signs in, and who just gets a link
 
 - **Status:** Accepted 2026-09-20 (owner: "yes on all 3"), substance owner-decided 2026-08-17
-  and restated 2026-08-19; amended three times (latest 2026-09-29: the link is per person); two
-  proposals of 2026-09-29 pending, not in force; consolidated 2026-10-03 (ADR-0051)
+  and restated 2026-08-19; amended eight times (latest 2026-10-03: the error text follows whose
+  data it is); consolidated 2026-10-03 (ADR-0051)
 - **Date:** 2026-08-17; consolidated 2026-10-03
 - **Deciders:** owner
 - **Relates to:** [ADR-0034](./0034-appliance-configuration-surface.md) (its decision 6 is
@@ -29,19 +29,20 @@
 - The owner decides who gets a link to manage and **grant** their own migration, and
   **distributes it; we never do** (decision 2). Grant links live 1, 7 or 30 days; progress links
   longer, never showing content (`migration-view.ts`).
-- **The link is per person** (owner, 2026-09-29; ADR-0050): one grant link and one progress
-  link for all their migrations, a grant asked and bound per Google account, covering only what
-  the page showed. Only the grant link is built (`a-link-for-a-person.unit.test.ts`);
-  per-migration links are issued and honoured as before.
-- The person can **take their grant back** from the progress page: revoked at Google where it
-  will, always deleted here, and told which; until they grant again nothing reads that account
-  for that migration, on any credential (`withdraw-grant.ts`).
-- A migration's link can be **reported** from either page to the Ownpace team's helpdesk or
-  support mailbox, never to the organisation that asked; a reply address is optional
-  (`link-reports.ts`). A person's link cannot be reported yet.
-- **Pending (proposed 2026-09-29, not in force):** no new per-migration links, those sent work
-  until they expire, a migration with no person gets one first, and a *Start* before the grant
-  runs once it lands (*Pending* below).
+- **One link per person** (owner, 2026-09-29 and 2026-10-03; ADR-0050): a grant link and a
+  progress link for all their migrations, granting per Google account only what the page showed.
+  It replaces the per-migration link; one already sent is honoured until it expires.
+- **Start when granted, per person** (owner, 2026-10-03): once the owner has started a person's
+  move, each migration of theirs waiting for a grant starts when it lands (`via: 'grant'`).
+  Before that first *Start* a grant starts nothing; a migration the owner paused stays paused.
+- The person can **take their grant back**, per account: revoked at Google where it will, always
+  deleted here, and told which; until they grant again nothing reads that account
+  (`withdraw-grant.ts`).
+- A link can be **reported** from either page to the Ownpace team's helpdesk or support mailbox,
+  never to the organisation that asked; a reply address is optional (`link-reports.ts`).
+- **The provider's error text follows whose data it is** (owner, 2026-10-03; decision 5): the
+  progress page shows categories only; the owner sees the text for accounts the organisation
+  connected, and for one a person granted only the category and a reference. Not built yet.
 
 ## Context
 
@@ -118,15 +119,44 @@ holding the token. The live-link limit counts a person's grant link once. It is 
 ([ADR-0036](./0036-the-managed-edition-is-its-own-package-and-its-own-chain.md)); the appliance has
 one implicit person and no grant links.
 
-**Built** (0153 T5 (b), slices 1–2; `apps/api/src/routes/a-link-for-a-person.unit.test.ts`): the
-row, the owner's doors `/api/people/:personId/links` and the grant page. **Not yet** (slices 3–4):
-the person's progress link, which the door refuses; the owner's screens; and reporting a person's
-link (the report doors take a migration's link only). Meanwhile each
-migration's own links are issued and honoured as before; their future is *Pending*.
+**It replaces the per-migration link** (the owner, 2026-10-03: *"yes, replace the per-migration
+links"*). Neither a migration's page nor *Start a migration* issues one. A per-migration link
+already sent works until it expires — at most 30 days for a grant, 180 for a progress page —
+because breaking a link someone already received would teach them that links from their
+organisation fail, the habit this decision exists to avoid; the migration's page lists those
+links and can revoke them. A migration that belongs to nobody (the Migrations page's *Not with a
+person yet*) is given a person first, through *Who is this for?* where its link panel was, so
+there is one kind of link to explain.
 
-**Taking a grant back** (0108 T8 (c)): from the progress page, revoked at Google where it will,
-always deleted here, and the person told which; until they grant again nothing reads that account
-for that migration, on any credential. A report of a link (0108 T8
+**A link made while every account is connected asks each of them again** (managed migration
+0036). A connection can stop working while its token is still held — taken back at Google,
+lapsed, or expired after seven days while the Google application is in testing — and the account
+still reads as connected. So the person's link remembers which migrations it asks for again,
+offers each of their accounts *Connect again*, and is spent once each has been connected through
+it. A link made while something was not connected asks only for that.
+
+**Start when granted, per person** (the owner, 2026-10-03: *"Yes, but after the move was started
+in the first place. After preflight the start needs to be given at least once, the grant may
+arrive later"*; asked per person or per migration, *"Per person"*; asked whether the move must be
+running, *"was ever started"*). Nothing of a person's starts by a grant until the owner has
+pressed *Start* once, after a count (the preflight) they have seen; before that, a grant only
+makes the counts appear. Once one of their migrations has been started, each migration of theirs
+that waits for a grant starts by itself when the grant lands, ones added later included, recorded
+`via: 'grant'`, though the move is paused or finished since. A migration the owner paused after it
+ran is not started by a grant. It stays the owner's *Start* (the progress page's *"their own start
+and pause"* is unchanged), and the tick for files a format would refuse is not asked of a
+migration that starts by itself: *"at least once"* is the owner's. What it could not copy shows in
+its queues.
+
+**Built** (0153 T5 (b), its four slices, #1394–#1408): the managed row and the owner's doors
+(`/api/people/:personId/links`), the grant page, the person's progress page
+(`apps/api/src/routes/person-progress.ts`), and the owner's screens; *Report this link* from a
+person's pages (#1402), asking again (#1407), start when granted (#1409, #1417), and the person's page
+saying what waits for their grant (#1413).
+
+**Taking a grant back** (0108 T8 (c)): from the progress page, per account, revoked at Google
+where it will, always deleted here, and the person told which; until they grant again nothing reads
+that account for those migrations, on any credential. A report of a link (0108 T8
 (d)) is a helpdesk ticket or, with no helpdesk, a mail to the support mailbox for the alpha
 (`apps/api/src/services/report-channel.ts`); it is not offered where neither is set up, and one
 without a reply address (filed under the helpdesk's own user) cannot be answered.
@@ -164,21 +194,32 @@ over the connection's credentials key by key. That is `source_config_override`'s
 The progress board is **almost free**: RLS scopes every table by `app.current_tenant`, and
 migrators have no session to isolate. **An admin signs in and sees their tenant.**
 
-The exception is **`lastError`**, verbatim by design (SAD §11.2) and kept free of **secrets**,
-not of *data*: `SELECT "Personal/Divorce lawyer" failed` on a parent's dashboard is a content leak.
-So, as decided, **the migrator's own page shows the verbatim error**, where hard rule 9 can be
-acted on by the person holding the credential, and **the admin's board shows a classified error**:
-a category and a suggested action or, unrecognised, a sentence saying to ask the person, rather
-than guessing or passing the string through. The admin may **see, and nudge — never act on
-someone's behalf**: see who is stuck, re-issue a link, never hold the credential. That is the
-support burden this ADR buys, accepted knowingly.
+The exception is **`lastError`**, the provider's own text, verbatim by design (SAD §11.2) and kept
+free of **secrets**, not of *data*: `SELECT "Personal/Divorce lawyer" failed` on a parent's
+dashboard is a content leak. Every failure is also stored with a **category** and a suggested
+action (`classifyFailure`). **The text follows whose data it is** (the owner, 2026-10-03, choosing
+*"C"* of three options):
 
-**Built otherwise, and open** — read the paragraph above as the decision and this as the code: the
-progress page shows the category and never the provider's text
-(`packages/shared/src/migration-view.ts`, holding decision 2's counts and states); the owner's
-migration page (`apps/web/src/components/LiveProgress.tsx`) and failure queue
-(`apps/web/src/pages/Failures.tsx`, workplan 0110 T3) show the verbatim `lastError` under the
-category. Workplan 0137 leaves the admin's half to a later plan.
+- **The person's progress page shows the category, never the text.** It is a bearer link that can
+  be forwarded and lives up to 180 days, and decision 2 keeps it to counts and states
+  (`packages/shared/src/migration-view.ts`); its sentence says the person running the move can see
+  more.
+- **The owner sees the text for an account the organisation connected itself**, under its category
+  (`apps/web/src/components/LiveProgress.tsx`, `apps/web/src/pages/Failures.tsx`): the organisation
+  holds that credential, and the owner is who chooses Retry, Accept or Reconnect.
+- **For an account a person connected through their own grant** (`mailbox_mapping.source_secret_ref`),
+  **the owner sees the category, the side and a reference**, never the text: it can name that
+  person's folders and files, which decision 4's promise — the organisation cannot read this
+  person's data — would otherwise leak through an error message. Support finds the full line by the
+  reference, so the failure is surfaced, not masked (hard rule 9).
+
+The admin may **see, and nudge — never act on someone's behalf**: see who is stuck, re-issue a
+link, never hold the credential. That is the support burden this ADR buys, accepted knowingly.
+
+**Not built yet.** The owner's pages show the text for every account (built before this ADR was
+accepted, workplan 0110 T3), so the third rule waits for its build, which belongs before an
+organisation migrates people other than its owner. **Still the owner's:** whether the item names in
+the failure queue, which are content too, follow the same rule.
 
 ### 6. There are no seats, and this ADR must not invent one
 
@@ -226,7 +267,7 @@ here. As built, a grant link asks Google only (`source_not_google`, `grant-link-
 **Honest about Managed.** We hold the encrypted tokens: the promise is "your admin cannot read
 this", never "nobody can". On self-host the customer's machine holds them. Say so to customers.
 
-**Still open**, besides what decisions 2, 5 and 7 name: decision 3's per-mapping category and its
+**Still open**, besides what decisions 5 and 7 name: decision 3's per-mapping category and its
 sentence, which nothing records yet; start and pause on the progress page (0122 T8); and links
 outside managed, whose grant and progress pages are managed-only
 (`apps/web/src/AppRoutes.tsx`).
@@ -256,41 +297,22 @@ Nextcloud, two links to grant the same account twice.
 **A person's link in the ledger's `mapping_link`.** Rejected: the shared ledger every appliance
 applies cannot point at the managed-only `person` (ADR-0036).
 
-## Pending — what becomes of the per-migration link, and *start when granted* (proposed 2026-09-29, not in force)
+**Ending the per-migration links already sent** when the person's link replaced them. Rejected
+(2026-10-03): a link someone already received that stops working teaches them that links from
+their organisation fail, the habit decision 2 exists to avoid. They expire on their own.
 
-**Status: proposed, for the owner's word.** Until it is accepted, each migration's own grant and
-progress links are issued and honoured as before, and *Start* on a migration that waits for a grant
-is refused with `awaiting_grant` (`apps/api/src/routes/migrations/index.ts`). Its text, word for word
-from the amendment of 2026-09-29:
+**A grant that starts a migration nobody has started** (the proposal of 2026-09-29, as written).
+Rejected by the owner: *"After preflight the start needs to be given at least once, the grant may
+arrive later."* **Start when granted per migration**, rather than per person: rejected, *"Per
+person"*.
 
-**Decided by the owner, asked whether *Start a migration* should give one link per person:**
-*"yes, a per-person link instead of the per-migration links. Perhapse replace it, or do we still
-need the per-migration-link?"* The first sentence is the decision. The question after it is
-answered below as a recommendation, marked **(proposed)** where it waits for the owner's word.
-
-### What the question after the decision is answered with (proposed)
-
-- **Replace, as the one link that is issued.** Neither the migration's page nor *Start a
-  migration* issues a per-migration link once the person's link is built.
-- **Keep: a per-migration link already sent works until it expires** (at most 30 days for a
-  grant, 180 for a progress page). Breaking a link someone already received would teach them that
-  links from their organisation fail, which is the habit decision 2 exists to avoid. The server
-  keeps verifying `mapping_link` for that window; the migration's page lists those links and can
-  revoke them, and says new links are made on the person's page.
-- **Keep: a migration with no person gets one first.** On managed a migration can belong to nobody
-  (the Migrations page's *Not with a person yet*). Its page offers *Who is this for?* where the link panel
-  was, so there is still one kind of link to explain.
-
-### One more choice for the owner (proposed)
-
-**Start when granted.** Today nothing starts when a grant lands (`grant-ending.ts`), and *Start*
-is refused with `awaiting_grant` until then, so the person starting the migrations must come
-back. Proposed: *Start* on a migration that waits for a grant is accepted and recorded, and the
-migration starts itself when its grant lands, with the audit row saying so. It stays the owner's
-Start (decision 2's *"their own start and pause"* is the progress page's, and unchanged).
-
-**When it is accepted** (ADR-0051): fold it into decision 2 and the operative rules, remove the
-*Pending* bullet and this section, and give the acceptance a line in the amendment log below.
+**The verbatim text on the person's page and a category on the owner's** (decision 5 as decided
+on 2026-08-17). Replaced on 2026-10-03: the person's page is a forwardable bearer link that
+decision 2 keeps to counts and states, and the owner, who chooses Retry or Reconnect, needs the
+text for the accounts the organisation connected. **The text for every account on the owner's
+pages** (as built) and **the text on the person's link** were the other two options; the first
+leaks a person's own data to their organisation, the second puts it on a link anyone can be
+forwarded.
 
 ## Amendment log
 
@@ -316,12 +338,26 @@ Start (decision 2's *"their own start and pause"* is the progress page's, and un
   record said a report is offered only where a helpdesk is set up.
 - **2026-09-29** — The amendment of 2026-09-29: the link is per person (owner: *"yes, a per-person
   link instead of the per-migration links"*; workplan 0153 T5 (b)). What becomes of the
-  per-migration link, and *start when granted*, were proposed and are not accepted: *Pending*,
-  above. Record: *Amendment 2026-09-29 — the link is per person (workplan 0153 T5 (b))*.
+  per-migration link, and *start when granted*, were proposed. Record: *Amendment 2026-09-29 — the
+  link is per person (workplan 0153 T5 (b))*.
+- **2026-10-03** — The person's link replaces the per-migration link; those sent are honoured until
+  they expire, and a migration with no person gets one first (owner: *"yes, replace the
+  per-migration links"*; #1408). Record: the 2026-09-29 amendment's *What the question after the
+  decision is answered with (decided 2026-10-03)*.
+- **2026-10-03** — Start when granted, per person, once the move was ever started (owner: *"Yes,
+  but after the move was started in the first place…"*, *"Per person"*, *"was ever started"*;
+  #1409, #1417). Record: the same amendment's *One more choice for the owner (decided 2026-10-03)*.
+- **2026-10-03** — A person's link made while every account is connected asks each of them again
+  (managed migration 0036; #1407). Record: the same amendment, *A link made while every account is
+  connected asks each of them again*.
 - **2026-10-03** — Consolidated in place (ADR-0051). Nothing was decided by the consolidation. Where
   the record and the code differ, the Decision states the decision and says what is built:
-  decision 5's error split, decision 3's per-mapping category (not built), and links on managed
-  only.
+  decision 3's per-mapping category (not built), and links on managed only.
+- **2026-10-03, later** — Decision 5: the provider's error text follows whose data it is — the
+  person's page shows categories only, the owner sees the text for the organisation's own accounts
+  and a category with a reference for one a person granted (owner: *"C"*). Asked because the code
+  had been built the other way round from decision 5. Not built yet. Record: *Decision* 5, and
+  *Alternatives considered*.
 
 The full record, word for word as it read before this consolidation:
 [history/0035-who-signs-in-and-who-gets-a-link.md](./history/0035-who-signs-in-and-who-gets-a-link.md).

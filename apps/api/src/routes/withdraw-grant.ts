@@ -128,7 +128,7 @@ function alreadyWithdrawn(at: Date): WithdrawalResult {
  * secret is still deleted: it is the grant, whatever state it is in, and the
  * person is then told Google did not confirm, which is true.
  */
-function grantedToken(secretRef: string): string | null {
+export function grantedToken(secretRef: string): string | null {
   try {
     const creds = SecretStore.decryptCredentials(secretRef) as Record<string, unknown>;
     const token = creds['refreshToken'];

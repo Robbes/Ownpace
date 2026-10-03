@@ -83,10 +83,11 @@ the **system role, `ownpace_system`** (workplan 0138 T3 step 2). RLS is enforced
   not replicate, belongs to no role **and has no role belonging to it** (a role that belonged to
   it, `app_user` say, could `SET ROLE ownpace_system` and read every organisation's rows); it has
   **`BYPASSRLS`**, which their questions across organisations need (with no organisation set, a
-  role row security binds reads no row), and the grants their statements need and no others (the
-  migration lists them). **Never grant anything in this database to PUBLIC**: with `BYPASSRLS`, a
-  grant to PUBLIC is a grant to this role, past row security, and the integration guard counts
-  it. Managed migration 0033 creates it with no password; `ensure-env-secrets.sh` generates
+  role row security binds reads no row), and the grants their statements need and no others
+  (managed migration 0033 lists them, and 0035 the one for `person_link`, a table made after it).
+  **Never grant anything in this database to PUBLIC**: with `BYPASSRLS`, a grant to PUBLIC is a
+  grant to this role, past row security, and the integration guard counts it. Managed migration
+  0033 creates it with no password; `ensure-env-secrets.sh` generates
   `SYSTEM_DB_PASSWORD` into `.env`, and the bring-up (`bootstrap-managed.sh`, its `tasks` phase)
   asks Postgres that the role is still what the migration made it, **refuses to go on** if it is
   a superuser, may create roles or databases, replicates, belongs to a role, has a role belonging
@@ -806,11 +807,20 @@ docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrat
 The link id is the part of a grant link's URL before the dot, so a link somebody forwards to you
 can be found in `mapping_link` and in these rows without the rest of it.
 
+**A person's link** (ADR-0035, amended 2026-09-29) is the one an owner makes now, for all of a
+person's migrations. Its URL reads `…/grant/p.<link id>.<secret>`, its row is in `person_link`
+(managed), and it writes the same three rows, with `personLinkId` in place of `linkId`: one row
+for each migration its grant landed on, refused on, or was taken back from. A migration's own
+link (`mapping_link`) is no longer made, and one sent before keeps working until it expires. A
+person's link made while every account of theirs was connected asks each again
+(`person_link.asks_again`, the migrations it still waits for).
+
 ### When a link is reported
 
 Since 2026-09-24 the person holding a link can report it from the grant page or the progress
 page (workplan 0108 T8 (d)). A report arrives on the helpdesk of bring-up step 8f as a ticket
-titled *Ownpace: a grant link was reported*, or *a progress link*. Its one article is an
+titled *Ownpace: a grant link was reported*, or *a progress link*, or *a person's grant link* or
+*a person's progress link*. Its one article is an
 internal note. Without a helpdesk, as on live during the alpha, it arrives as a mail to the
 support mailbox with the same title and note, and with no Reply-To: to answer, write a new mail
 to the reply address the note names, and leave the facts out. First come the facts, from the
@@ -818,6 +828,8 @@ rows, one line each:
 
 - the link's id, the organisation and the migration with their ids and state;
 - who issued the link, from, to, and whether access was given;
+- for a person's link, the person's id instead, and each migration of theirs on a line of its own,
+  with its state, from, to and access;
 - the reply address, which they typed and nobody verified, or *none* when they left none. A
   report without one is filed under the helpdesk user your `ZAMMAD_TOKEN` belongs to, and
   cannot be answered.
@@ -834,9 +846,17 @@ docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrat
     WHERE detail->>'mappingId' = '<migration id>' ORDER BY at;"
 ```
 
-A report changes nothing by itself. The organisation's owner can revoke the link from the
-migration's **Grant links** list, so ask them first. When it looks like abuse and they cannot be
-reached, switch a live link off at the database, which is what **Revoke** does:
+A report changes nothing by itself. The organisation's owner can revoke a person's link on the
+person's page, and a migration's link sent before on the migration's page, so ask them first.
+When it looks like abuse and they cannot be reached, switch a live link off at the database,
+which is what **Revoke** does. A person's link is in `person_link`:
+
+```bash
+docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrate -d openmigrate -c \
+  "UPDATE person_link SET revoked_at = now() WHERE id = '<link id>' AND revoked_at IS NULL;"
+```
+
+and a migration's in `mapping_link`:
 
 ```bash
 docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrate -d openmigrate -c \
@@ -1092,9 +1112,10 @@ so a reopen needs nothing restored.
 - **No new pass.** The sync tick starts nothing for a closed organisation, in
   any state its migrations are in: active, in the continuous lane, a cutover
   still in its grace period, or a data type kept in the lane.
-- **A pass under way stops** before its next data type, before it builds any
-  credential, and its run log says the organisation was closed (the halt
-  `organisation_closed`). It ends without an error, so the plane does not retry
+- **A pass under way stops** starting new items within about fifteen seconds of
+  the close, and finishes the ones it has begun; one between data types
+  stops before it builds any credential. Its run log says the organisation was
+  closed (the halt `organisation_closed`). It ends without an error, so the plane does not retry
   it. This is what stops a pass the tick queued in the minute before the close,
   and a retry. The close asks the orchestrator to cancel only the runs whose
   rows say `running` or `queued` (`passesStopped`), and a pass has a row only
@@ -1920,10 +1941,10 @@ steps for a tester's report. The items below are causes it points to.
   changed: the same phase sets `.env`'s value on the role and uploads the URL made from it.
   Retention and the purge of closed organisations connect with `SYSTEM_DATABASE_URL` alone, and a
   failure there naming *"permission denied for table …"* is a statement the system role was not
-  granted (managed migration 0033 lists what it was). A split job that fails with *"The list of
-  organisations was asked on a connection that row security binds"* was handed a
-  `SYSTEM_DATABASE_URL` whose role lacks `BYPASSRLS`, which the bring-up refuses before it uploads
-  one.
+  granted (managed migration 0033 lists what it was, and 0035 the one table made after it,
+  `person_link`). A split job that fails with *"The list of organisations was asked on a
+  connection that row security binds"* was handed a `SYSTEM_DATABASE_URL` whose role lacks
+  `BYPASSRLS`, which the bring-up refuses before it uploads one.
 - **"fail-closed" errors with no tenant context:** expected when a query runs without
   `app.current_tenant` set — that's RLS doing its job, not a bug. The request path must go through
   `withTenantDb`/`withTenant`.
@@ -1996,6 +2017,28 @@ trigger-tls: TLS terminated on 127.0.0.1:3443 (HTTP 200)
   is for. If this is red, the dashboard is unreachable for every operator not
   sitting at the machine — see the white-screen entry above, which is the same
   fault seen from the browser.
+
+### What the database spends its time on
+
+The managed stack's postgres loads `pg_stat_statements` (workplan 0143 T8): each statement's
+calls, time and rows since the last reset, with its literal values replaced by placeholders.
+Utility statements are not kept, so a password change never reaches the view. The ten
+statements with the most total time:
+
+```bash
+docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrate -d openmigrate -c \
+  "SELECT round(total_exec_time) AS total_ms, calls, round(mean_exec_time::numeric, 1) AS mean_ms,
+          rows, left(regexp_replace(query, '\s+', ' ', 'g'), 160) AS statement
+     FROM pg_stat_statements
+    ORDER BY total_exec_time DESC
+    LIMIT 10;"
+```
+
+Read it for the statement whose time grows with the number of passes, not for one slow call.
+Before a measured sitting (0143 T9), `SELECT pg_stat_statements_reset();`, as the same owner,
+starts the count again. *"pg_stat_statements must be loaded via shared_preload_libraries"* means
+the database container still runs without the preload: it takes it when the bring-up's data
+phase recreates it.
 
 ## Related docs
 
