@@ -347,7 +347,8 @@ const PersonMigration: React.FC<{ migration: PersonViewPayload['migrations'][num
  * migration that reads it. A migration that reads no Google account follows
  * them. No account is named by its address: the page carries none.
  *
- * No *Report this link* yet: the report route takes a migration's link only.
+ * *Report this link* is offered as on a migration's page; the report names the
+ * person and every migration of theirs.
  */
 const PersonProgress: React.FC<{ link: string; view: PersonViewPayload }> = ({ link, view }) => {
   const t = useT();
@@ -390,6 +391,17 @@ const PersonProgress: React.FC<{ link: string; view: PersonViewPayload }> = ({ l
           ))}
         </section>
       )}
+      {/* Report this link (0108 T8 (d)), as on a migration's page. Withdrawing
+          is what stops the copying, so the answer points at it while any
+          account's access can be withdrawn. */}
+      <ReportThisLink
+        kind="view"
+        link={link}
+        organisation={view.organisation}
+        {...(view.accounts.some((a) => a.grant.state === 'granted')
+          ? { next: 'linkReport.next.withdraw' as const }
+          : {})}
+      />
     </>
   );
 };

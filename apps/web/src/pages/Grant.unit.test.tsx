@@ -18,15 +18,20 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { AxiosError, AxiosHeaders } from 'axios';
 import { LocaleProvider } from '../i18n/index.tsx';
 
-const { readMock, authorizeMock, serverMessageMock, assignMock } = vi.hoisted(() => ({
+const { readMock, authorizeMock, serverMessageMock, assignMock, reportAvailableMock } = vi.hoisted(() => ({
   readMock: vi.fn(),
   authorizeMock: vi.fn(),
   serverMessageMock: vi.fn(() => 'a server sentence'),
   assignMock: vi.fn(),
+  reportAvailableMock: vi.fn(async () => false),
 }));
 
 vi.mock('../services/grant-service.ts', () => ({
   grantApi: { read: readMock, authorize: authorizeMock },
+}));
+// Whether *Report this link* can reach anybody; no helpdesk unless a case says so.
+vi.mock('../services/link-report-service.ts', () => ({
+  linkReportApi: { available: reportAvailableMock, send: vi.fn() },
 }));
 vi.mock('../services/api.ts', () => ({ default: {}, serverMessage: serverMessageMock }));
 
@@ -324,6 +329,13 @@ describe("a person's link", () => {
 
   beforeEach(() => {
     readMock.mockResolvedValue(PERSON);
+  });
+
+  it('offers Report this link, for the person’s own link (0108 T8 (d))', async () => {
+    reportAvailableMock.mockResolvedValue(true);
+    renderPage();
+    expect(await screen.findByRole('button', { name: 'Report this link' })).toBeInTheDocument();
+    expect(reportAvailableMock).toHaveBeenCalledWith('grant', 'abc.def');
   });
 
   it('draws a card per account, saying where each of its migrations goes and what it copies', async () => {

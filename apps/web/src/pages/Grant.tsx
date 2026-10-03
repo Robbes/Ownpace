@@ -189,6 +189,10 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
         </dl>
       )}
       <p className="mt-2 text-sm font-medium text-gray-900">{t('grant.check')}</p>
+      {/* The answer to that question when it is no (0108 T8 (d)), as a
+          migration's page offers it: the report names the person and every
+          migration of theirs. Offered only where a report can reach somebody. */}
+      <ReportThisLink kind="grant" link={link} organisation={data.organisation} next="linkReport.next.grant" />
 
       {data.accounts.map((a, i) => (
         <section
