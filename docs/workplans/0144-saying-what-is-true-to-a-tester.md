@@ -17,7 +17,9 @@ real screens (T0).
   `zo-begint-u`, `wat-experimenteel-is`, `hulp` and `stoppen`, and in English
   `what-the-alpha-is`, `before-you-start`, `how-to-start`, `what-is-experimental`, `help` and
   `stopping`. The site's renderer learnt `## Heading {#id}`, so T6 (c)'s link to `#hulp`
-  survives a reworded heading. The Dutch is about 950 words. It links the conditions
+  survives a reworded heading. Under *Zo begint u* two `###` headings carry ids too,
+  `google-koppelen` and `google-opnieuw` (`google-connect` and `google-again`). The Dutch is
+  about 1,050 words. It links the conditions
   (`./alpha.html`, the same language's), and says it is not a contract and that the conditions
   are what bind. The request page is `[[REQUEST_ACCESS]]` in the Markdown, which the build
   fills with that environment's address, as it fills the site's buttons.
@@ -40,11 +42,17 @@ real screens (T0).
   and the account is closed within 7 days (conditions §10). *Apply deletions* is described as
   0149 T1 to T3 made it: off until switched on, per item, only a copy Ownpace wrote, never a
   file, calendar entry or contact changed at the new provider, and for mail no such check. The
-  second switch, for moved files, is said to work without a choice per item. It says *Ownpace
+  second button, *Automatisch toepassen van verplaatsingen inschakelen*, is named, said to be
+  off by default and shown only once deletions are on, and to clear up the old copy of a moved
+  file without a choice per item. The target folder is promised for mail, and for files only
+  on a *WebDAV* or *Nextcloud* destination (see the review below). It says *Ownpace
   leest alleen*, never *alleen-lezen* (T3). It says "een kleine groep", with no number. It does
   not say that nothing uses the access after closing, which is not yet true (0139 T7).
 - **Left out, because it is not proven.** Also listed in the Dutch file's comment, for the
-  owner. Google's own Dutch words on its unverified-app screen (0140 T2 (a)). The sign-in
+  owner. Google's own Dutch words on its unverified-app screen (0140 T2 (a)): the guide says
+  only that a warning comes, that this is expected, to go on to Ownpace, and to tick everything
+  Ownpace asks for. It names no button, because whether a test user's screen has an advanced
+  option was not seen. The sign-in
   service's screens: registration and the confirmation mail. The number of testers (D1 says 10
   to 20; the conditions say "a small group"). 0145 T9 (a)'s paragraph on phones and screen
   readers, which is written after 0145 T10's walk on two phones. A list of what is experimental,
@@ -83,6 +91,44 @@ Dutch file (2), the module's own host (4), another web file naming the guide (1)
 without the stage (2), and the stage never read from the `.env` (1). Removing an id from a
 heading changes nothing, because each id equals its heading's slug today. Rewording *Hulp* to
 *Hulp krijgen* without its id fails the ids case, and passes with `{#hulp}`.
+
+**Review, 2026-10-03, fixed on the branch.** Ten findings on the text, all read against the
+code; nine fixed, one in part.
+
+- **Blocking: the target folder for files.** The guide said everything goes under the target
+  folder, for mail and files. For mail that holds (`reconcile.ts`). For files it holds only on
+  a WebDAV or Nextcloud destination: `WebDAVTargetWriter` is the one writer with
+  `ownsTargetFolderPrefix`, and `buildFileTargetFor` builds `JmapFileTarget` without the
+  folder. `dav-sync.ts` then prefixes only the directories, and the JMAP writer puts every file
+  at the account root under its source path: the split tree WebDAV had before 2026-09-22. The
+  wizard keeps `jmap` as the target for Drive, Dropbox, Box and the archive, and the API does
+  not refuse a folder there. The guide now promises the folder for mail, and for files only on
+  *WebDAV* or *Nextcloud*, and says to ask first. **Not fixed here, a follow-up:** the writer
+  itself, and the wizard's own hint `wizard.targetPrefix.hint` ("Alles komt onder deze map
+  terecht"), which makes the same promise for every target.
+- **The mail has no sign-in link.** Step 3 said "via de link in die e-mail", and the
+  access-granted mail says it holds no link or code. It now says to go to the address after
+  *Meld u hier aan*, the mail's own words.
+- **Google first, with a channel.** The bullet is first in *Voordat u begint* and names
+  `support@ownpace.eu`. Step 5 says to connect Google only after we answer.
+- **Google's warning screen.** A `###` *Als u Google koppelt* says a warning comes, that this is
+  expected, and to tick everything. It quotes no Google words (above).
+- **Deletions.** It now says what a deletion is (something deleted in the old account), and
+  names the second button and its default, in short sentences. Both languages say
+  *knop*/*button*.
+- **B1.** The reason for an empty destination is four short sentences, and "daar" is now *bij uw
+  nieuwe aanbieder*. *Wat de alfa is* opens with what Ownpace does and what a migration is.
+  *beheerde*, *token*, *issue* and *ronde* are gone.
+- **The by-hand route.** The target-folder bullet says it is not step 5's route.
+- **Headings.** *Als Google opnieuw vraagt* is a `###` with an id, so a heading list finds it.
+  The six `##` ids are unchanged.
+- **Length, in part.** Cut: the one-copy and acceptance details of *Na de alfa*, the version
+  example, and what the report form sends by itself. Not cut to the 750 words asked: the fixes
+  above add about 130 words a tester needs before connecting, and short sentences cost words.
+  The page went from about 945 words to about 1,050, now under eight headings a reader can scan.
+
+Linking the guide is unchanged by the review: the request page and the access-granted mail are
+on the other branch, and follow it.
 
 Follows, after the other branch merges (it changes `RequestAccess.tsx`, the access-granted mail
 and others): the link from the request page, and the link in the access-granted mail, beside
