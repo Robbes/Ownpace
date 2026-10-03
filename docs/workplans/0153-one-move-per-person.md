@@ -184,6 +184,20 @@ words changed with them** (0131 §6, R8).
   at `5f74ebc`: T4 and T7 are still proposed, and no branch or open pull request of R's or M's
   touches them. 0131 §6 records the split.
 
+**2026-10-03: *Report this link* from a person's pages (0108 T8 (d), for ADR-0035's amendment of
+2026-09-29).** The third slice's open end: a person's grant page and progress page now offer it,
+as a migration's pages do.
+
+- **The doors** (`link-reports.ts`) take a person's link at its own kind's door, and neither kind
+  at the other's.
+- **The ticket** (`link-report.ts`) names the link as a person's, the person, and every migration
+  of theirs on a line of its own (state, from, to, access), from the rows. Each line stays one
+  line whatever an organisation typed.
+- **Proved by** `a-person-link-that-can-be-reported.unit.test.ts` (4; PGlite as `app_user`, both
+  chains, Zammad stubbed), and `Grant.unit.test.tsx` and `View.unit.test.tsx` (+1 each). The
+  migration's own report test passes unchanged. Mutation: the doors taking a migration's link
+  only fails two cases.
+
 **2026-10-03: T5 (b)'s third slice, a person's progress page (ADR-0035's amendment of
 2026-09-29).**
 

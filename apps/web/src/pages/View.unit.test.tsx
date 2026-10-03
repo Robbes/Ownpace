@@ -25,11 +25,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { AxiosError, AxiosHeaders } from 'axios';
 
-const { readMock, withdrawMock, withdrawAccountMock, serverMessageMock } = vi.hoisted(() => ({
+const { readMock, withdrawMock, withdrawAccountMock, serverMessageMock, reportAvailableMock } = vi.hoisted(() => ({
   readMock: vi.fn(),
   withdrawMock: vi.fn(),
   withdrawAccountMock: vi.fn(),
   serverMessageMock: vi.fn(() => 'a server sentence'),
+  reportAvailableMock: vi.fn(async () => false),
+}));
+
+// Whether *Report this link* can reach anybody; no helpdesk unless a case says so.
+vi.mock('../services/link-report-service.ts', () => ({
+  linkReportApi: { available: reportAvailableMock, send: vi.fn() },
 }));
 
 vi.mock('../services/view-service.ts', async (importOriginal) => {
@@ -330,7 +336,7 @@ describe('a person’s progress page', () => {
     ...over,
   });
 
-  it('draws each migration under the account it reads, the others after, and no report link', async () => {
+  it('draws each migration under the account it reads, and the others after', async () => {
     readMock.mockResolvedValue(personPayload());
     renderPage();
     expect(await screen.findByRole('heading', { level: 1, name: 'Your migrations' })).toBeInTheDocument();
@@ -347,8 +353,14 @@ describe('a person’s progress page', () => {
     const others = screen.getByRole('region', { name: 'Your other migrations' });
     expect(within(others).getByText('4211 copied')).toBeInTheDocument();
     expect(within(others).queryByRole('button', { name: 'Withdraw access' })).not.toBeInTheDocument();
-    // The report route takes a migration's link only, so nothing offers it here.
-    expect(screen.queryByText('Report this link')).not.toBeInTheDocument();
+  });
+
+  it('offers Report this link, for the person’s own progress link (0108 T8 (d))', async () => {
+    readMock.mockResolvedValue(personPayload());
+    reportAvailableMock.mockResolvedValue(true);
+    renderPage();
+    expect(await screen.findByRole('button', { name: 'Report this link' })).toBeInTheDocument();
+    expect(reportAvailableMock).toHaveBeenCalledWith('view', 'abc.def');
   });
 
   it('numbers the accounts when there are two, and names neither by its address', async () => {

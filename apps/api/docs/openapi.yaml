@@ -3126,7 +3126,10 @@ paths:
       - name: link
         in: path
         required: true
-        description: The whole credential — `<id>.<secret>`, one path segment.
+        description: |
+          The whole credential, one path segment: a migration's `<id>.<secret>`,
+          or a person's `p.<id>.<secret>`, whose report names the person and
+          every migration of theirs (ADR-0035, amended 2026-09-29).
         schema: { type: string }
     get:
       tags: [Grant links]
@@ -3439,7 +3442,10 @@ paths:
       - name: link
         in: path
         required: true
-        description: The whole credential — `<id>.<secret>`, one path segment.
+        description: |
+          The whole credential, one path segment: a migration's `<id>.<secret>`,
+          or a person's `p.<id>.<secret>`, whose report names the person and
+          every migration of theirs (ADR-0035, amended 2026-09-29).
         schema: { type: string }
     get:
       tags: [Grant links]
