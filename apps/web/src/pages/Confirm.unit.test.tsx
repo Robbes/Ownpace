@@ -305,3 +305,23 @@ describe('the cutover order is shown, not just implied (0034 T4)', () => {
     expect(screen.queryByText(/Next, in cutover order/)).not.toBeInTheDocument();
   });
 });
+
+/** How long, before the green light (workplan 0154 T3 (a)), on the appliance's own review page. */
+describe('how long, before the start', () => {
+  it('says the days Gmail’s ceiling takes, from the appliance’s count', async () => {
+    const report = status('paused');
+    fetchStatus.mockResolvedValue({ ...report, mappings: [{ ...report.mappings[0]!, sourceType: 'gmail' }] });
+    fetchAllDiscovery.mockResolvedValue({ 'acme-mail': [{ ...discovery['acme-mail'][0], bytes: 6e9 }] });
+    renderScreen();
+    expect(
+      await screen.findByText('About 2 to 3 days, because Google lets a mailbox download 2.5 GB a day.'),
+    ).toBeInTheDocument();
+  });
+
+  it('says it will know after the first hour, for a source with no published ceiling', async () => {
+    const report = status('paused');
+    fetchStatus.mockResolvedValue({ ...report, mappings: [{ ...report.mappings[0]!, sourceType: 'imap' }] });
+    renderScreen();
+    expect(await screen.findByText('Depends on the provider; we will know after the first hour.')).toBeInTheDocument();
+  });
+});

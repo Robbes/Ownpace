@@ -35,6 +35,7 @@ import {
   topUpAgainstStepUp,
   freeTier,
 } from './calculator.mjs';
+import { GMAIL_IMAP_DOWNLOAD_BYTES_PER_DAY } from '../packages/shared/src/rate-budget.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -85,6 +86,16 @@ describe('the band and the ceiling', () => {
     expect(gmailMailDays(160)).toBe(64);
     expect(gmailMailDays(0.5)).toBe(1);
     expect(gmailMailDays(0)).toBe(0);
+  });
+
+  /**
+   * ONE CEILING, SAID TWICE (workplan 0154 T3 (a)). The page's script cannot
+   * import the workspace, so it states Gmail's ceiling itself; the app's time
+   * before start reads `packages/shared`'s. A day the two differ, the site and
+   * the review screen promise a mailbox different numbers of days.
+   */
+  it('is the ceiling the app reads, in the same decimal gigabytes', () => {
+    expect(GMAIL_IMAP_GB_PER_DAY * 1_000_000_000).toBe(GMAIL_IMAP_DOWNLOAD_BYTES_PER_DAY);
   });
 });
 
