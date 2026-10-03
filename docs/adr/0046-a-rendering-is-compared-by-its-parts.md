@@ -29,11 +29,11 @@
   bytes. Guard `a-deck-that-would-be-rewritten-nightly`.
 - **A stored hash carries its scheme; schemes are never compared across**
   (rule 4, cited as (d)): another scheme is **not evidence of change** — recompute and store,
-  never re-copy. `sameFingerprintVersion`; guard `a-hash-compared-against-a-different-scheme`.
-- **Verification says what it compared** (rule 5): §20's report and the confirmed list's
-  `container-parts` ([confirmed-list.ts](../../packages/shared/src/confirmed-list.ts)), the
-  target re-read in the row's scheme. **No part is declared "not the document"** (rule 6): the hash settles a `.docx`
-  and an `.xlsx`, not a `.pptx` or an `.odt`.
+  never re-copy on that alone. `sameFingerprintVersion`; guard `a-hash-compared-against-a-different-scheme`.
+- **Verification says what it compared** (rule 5): the confirmed list's `container-parts`
+  ([confirmed-list.ts](../../packages/shared/src/confirmed-list.ts)), the target re-read in the
+  row's scheme; §20's sample not yet (*Consequences*). **No part is declared "not the
+  document"** (rule 6): the hash settles `.docx`, `.xlsx`, `.ods`, `.odp`; not `.pptx` or `.odt`.
 - **Built, not reaching the ledger** (0042 T8 (e)): `fetchRaw` in
   [dav-sync.ts](../../packages/core/src/dav-sync.ts) drops the marker, so every export is stored
   with a whole-file hash; passing it through is still open.
@@ -53,8 +53,9 @@ A Google Doc has no bytes of its own. Migrating one means asking Drive to **expo
 Dropbox Paper doc is the same case: Dropbox hands it over only through `files/export`.
 
 This product stores a hash of the bytes it writes as `contentHash`: the **verification basis**,
-what relocation correlates by ([ADR-0030](./0030-relocation-is-positive-evidence.md)), and until
-#1083 (2026-09-22) the change signal. Each use assumes that an unchanged document produces
+what relocation correlates by ([ADR-0030](./0030-relocation-is-positive-evidence.md)), and, when
+this was decided, assumed to be the change signal — it never was: a version decides, which Drive
+supplies since #1083 (0042 T8 (d)). Each use assumes that an unchanged document produces
 unchanged bytes, and **for Google's exports that is false**. Measured on the owner's tenant on
 2026-09-16, a Doc's `.docx` came back at 17644 bytes every time with five different hashes, yet
 all nine members were byte-identical: only the zip's own stamps moved.
@@ -77,11 +78,11 @@ rule (a) is rule 1, rule (b) is rule 2, rule (c) is rule 5, and rule (d) is rule
    each, the sha256 of its **uncompressed** bytes. Excluded: member modification timestamps,
    member order, compression method and level, extra fields, and the archive comment — every
    field that describes the zip rather than the document. Bytes that will not canonicalise are
-   hashed whole: a possible rewrite, never a missed change.
+   hashed whole: a stricter comparison, never a looser one.
 2. **(b) sha256 of inflated bytes, never the zip's stored CRC-32.** `scripts/drive-export-members.ts`
    reads each member's CRC-32 from the index because it is free and answers "what moved"; a
-   `contentHash` decides whether a customer's file is rewritten, and CRC-32 is 32 bits and not
-   collision-resistant. A swap passes every behavioural test, so
+   `contentHash` decides whether a copy reads verified and whether a move is paired, and CRC-32
+   is 32 bits and not collision-resistant. A swap passes every behavioural test, so
    `scripts/a-content-hash-built-from-thirty-two-bits.unit.test.ts` guards the source.
 3. **It applies ONLY to a rendering this product asked a provider to produce**: bytes marked
    `RawFileItem.rendering` by the code that asked (Drive's `files.export`, Dropbox's
@@ -97,11 +98,12 @@ rule (a) is rule 1, rule (b) is rule 2, rule (c) is rule 5, and rule (d) is rule
    holds every comparison site to it.
 5. **(c) Verification says what it compared.** For rows hashed structurally, §20's report states
    that the comparison was over the container's parts: a reader must never have to guess which of
-   two meanings a green row carries. Built so far on the confirmed list — a row reads
+   two meanings a green row carries. Built so far on the confirmed list — a `zip1:` row would read
    `container-parts` (*"by the document's parts"*), and the target is re-read in the row's own
    scheme; §20's sample does not say it yet (*Consequences*).
-6. **This ADR does not rescue `export-odf`, and declares no part "not the document".** A `.odt`'s
-   `settings.xml` really changes, as do five parts of a deck's `.pptx` (below), so no container
+6. **This ADR does not rescue a Doc under `export-odf`, and declares no part "not the document".**
+   (A Sheet and a Slide under `export-odf` are container-only and settled by the same hash,
+   measured 2026-09-17 — `google-drive-source.types.ts`.) A `.odt`'s `settings.xml` really changes, as do five parts of a deck's `.pptx` (below), so no container
    normalisation helps. Declaring named parts "not the document" is a claim about a format's
    semantics, a separate decision with a separate risk, and no ADR has made it.
 
@@ -125,7 +127,9 @@ records them.
 So the parts hash settles a Doc and a Sheet under `export-office`, not every `export-office`
 file. What moves in the deck is plumbing, not slides (no `ppt/slides/slideN.xml`), as read from
 the zip index without inflating a member. The PDF greens are narrow: the deck measured is thin (2017 bytes as
-PDF, 34833 as `.pptx`), so a content-rich deck is unmeasured (0042 T3).
+PDF, 34833 as `.pptx`), so a content-rich deck — where font subset tags and image recompression
+could vary — is unmeasured (0042 T3). And a measurement is asymmetric: one red disproves
+stability, while five greens mean only *measured, and not disproved*.
 
 ### A rewrite follows the version, so nothing is refused for what it measured
 
@@ -157,7 +161,7 @@ is 0150 open question 3 (b).
 
 ### Built, and not yet reaching the ledger (0042 T8 (e))
 
-Rules 1–5 are built (0042 T7), and none of it is reached: the file pass's `fetchRaw`
+Rules 1–4 are built, and rule 5 on the confirmed list (0042 T7), and none of it is reached: the file pass's `fetchRaw`
 (`packages/core/src/dav-sync.ts`) rebuilds the raw item from `item`, `content` and `body` only,
 so the `rendering` marker never reaches `contentHash`. Every export is stored with a whole-file
 hash and no row carries `zip1:`; the wiring's guard reads source text, so it stayed green. No
@@ -226,7 +230,7 @@ owner chose to amend this one, and the two rules carry over to a Paper doc uncha
   Sheet, not a deck. By the owner's decision the same day, the connector refused a deck under
   `export-office` (and a Doc under `export-odf`) per item, counted on the confirm screen before
   the run; the refusal was lifted 2026-09-23, the count stays. Record: *Measured after
-  acceptance — 2026-09-16, the same day*.
+  acceptance — 2026-09-16, the same day*, and the record's Status for the refusal.
 - **2026-09-16** — `export-pdf` measured stable on a Sheet and a Slide; the refusal named a
   format measured to carry the refused file, derived from the table (`stablePoliciesFor`).
   Superseded 2026-09-23. Record: *2026-09-16, later still: the deck has a way out, and the
@@ -234,8 +238,8 @@ owner chose to amend this one, and the two rules carry over to a Paper doc uncha
 - **2026-09-23** — Correction (0042 T8 (e)): built, but the marker does not reach the ledger. The
   status had said "not yet built" and the first rule "built, and live"; neither was true.
   Record: *2026-09-23: built, and not reaching the ledger*.
-- **2026-09-23** — Amended (0042 T10 (c), and T9 for the per-kind choice): no combination is
-  refused for what it measured, and every format carries every kind. Record: *2026-09-23,
+- **2026-09-23** — Amended (0042 T10 (c), and T9 for the per-kind choice; the owner's aim): no
+  combination is refused for what it measured, and every format carries every kind. Record: *2026-09-23,
   later: no combination is refused for what it measured*.
 - **2026-09-28** — Amended (workplan 0150 D8, the owner's choice of 2026-09-26): a Dropbox Paper
   doc follows the same two rules. Record: *2026-09-28: a Dropbox Paper doc follows the same two

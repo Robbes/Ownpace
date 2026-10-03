@@ -116,7 +116,7 @@ is consolidated **in place**:
   Alternatives considered, every accepted amendment folded in, written as if decided now. Every
   rule in force survives, and so does **every rejected alternative with its reason** — the *why
   not* is what stops a decision being argued again.
-- **Labels cited elsewhere keep their meaning**: ADR-0046's rules (a)–(e), ADR-0035's numbered
+- **Labels cited elsewhere keep their meaning**: ADR-0046's rules (a)–(d), ADR-0035's numbered
   decisions, ADR-0014's schema consequences 1–5.
 - **A pending proposal stays in the file**, under its `## Pending` section: it is live, not
   history.
