@@ -94,6 +94,11 @@ export const DiscoveryCounts: React.FC<{
   const countedEarlier = domainsCountedBeforeTheirError(domains);
   // A subset of `items`: these ARE migrated. Shown because we modify them.
   const generatedId = domains.reduce((sum, d) => sum + (d.generatedIdItems ?? 0), 0);
+  // NOT a subset of `items`: messages the source could not list at all
+  // (Microsoft 365 mail without an internetMessageId, read through Graph). They
+  // stay behind, so the owner reads that before Start rather than finding it
+  // out from a mailbox that came up short.
+  const unlisted = domains.reduce((sum, d) => sum + (d.unlistedItems ?? 0), 0);
   // Items the destination already holds under a key matching something in the
   // source: we keep the destination's copy. Non-destructive and the right
   // default, but it decides what the customer ends up with, so it belongs here
@@ -225,6 +230,17 @@ export const DiscoveryCounts: React.FC<{
           {t(generatedId === 1 ? 'discovery.generatedId.pre.one' : 'discovery.generatedId.pre.many')}{' '}
           <strong>{t('discovery.generatedId.strong')}</strong>{' '}
           {t('discovery.generatedId.post')}
+        </p>
+      )}
+
+      {unlisted > 0 && (
+        <p className="mt-2 text-sm text-amber-700" role="note">
+          {unlisted}{' '}
+          {t(unlisted === 1 ? 'discovery.unlisted.pre.one' : 'discovery.unlisted.pre.many')}{' '}
+          <strong>
+            {t(unlisted === 1 ? 'discovery.unlisted.strong.one' : 'discovery.unlisted.strong.many')}
+          </strong>{' '}
+          {t('discovery.unlisted.post')}
         </p>
       )}
 

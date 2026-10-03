@@ -1,4 +1,4 @@
-// Copyright 2026 OpenHands Agent (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * Generalized domain sync loop - mirrors the proven reconcile.ts pattern.
  * 
@@ -540,6 +540,20 @@ function decided(
 }
 
 /**
+ * A key an item may have been recorded under before its key changed how it is
+ * made, and the item as it was written under it (ADR-0020's amendment of
+ * 2026-10-03; `legacyKeysFromRaw`).
+ */
+export interface LegacyKey {
+  /** The key as the ledger holds it. */
+  readonly naturalKeyHash: string;
+  /** Its text, for the row, as `naturalKeyText` gives the current one. */
+  readonly naturalKey: string;
+  /** The item as it was written under that key: what is written, if it must be, and hashed. */
+  readonly raw: unknown;
+}
+
+/**
  * Dependency bundle for a domain sync operation.
  * Domain-specific functions are injected to keep the loop generic.
  */
@@ -751,6 +765,25 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    * written, so a re-run re-reads the message and still creates nothing.
    */
   readonly naturalKeyFromRaw?: (item: Item, raw: unknown) => string;
+  /**
+   * What this item was keyed and written as BEFORE its key was derived the way
+   * `naturalKeyFromRaw` derives it now (ADR-0020's amendment of 2026-10-03),
+   * asked only when that key finds no row. An item found under one, in the
+   * ledger or on the target (`legacyCopyOnTarget`), is that copy's: handled
+   * under its key and written, if it must be, as it was written then, so
+   * changing how a key is derived copies nothing a second time (hard rule 1).
+   * Mail returns the raw-bytes key every message without a Message-ID was
+   * given until then.
+   */
+  readonly legacyKeysFromRaw?: (item: Item, raw: unknown) => ReadonlyArray<LegacyKey>;
+  /**
+   * Does the target hold a copy under this earlier key? The existence check
+   * beside the ledger for it, so an empty ledger still never duplicates
+   * (ADR-0020): a copy made before the switch carries the earlier key, and the
+   * writer's own check asks for the current one. A lookup that fails throws;
+   * it is never "not there".
+   */
+  readonly legacyCopyOnTarget?: (collectionId: string, legacy: LegacyKey) => Promise<boolean>;
   /** Compute content hash from raw data */
   readonly contentHash: (raw: unknown) => string;
   /**
@@ -1092,6 +1125,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     naturalKeyText,
     displayName,
     naturalKeyFromRaw,
+    legacyKeysFromRaw,
+    legacyCopyOnTarget,
     contentHash,
     onCollision,
     ensureCollection,
@@ -1882,7 +1917,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         }
 
         // Fetch raw data
-        const { raw, sizeBytes } = await timed(phases, 'fetchMs', () => fetchRaw(item));
+        const fetched = await timed(phases, 'fetchMs', () => fetchRaw(item));
+        const { sizeBytes } = fetched;
+        // `let`: an item found under the key it had before its key changed how
+        // it is made is written as it was written then (ADR-0020; below).
+        let raw = fetched.raw;
 
         // THE NAME, NOW THE BYTES ARE HERE — for every item, not only the ones
         // that had no key.
@@ -1924,15 +1963,66 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           // items the key IS the content, so an item that changed necessarily
           // has a different natural key and arrives as a new item rather than
           // a changed one.
-          const derivedKey = naturalKeyHash;
+          let derivedKey = naturalKeyHash;
+          // THE KEY IT WAS COPIED UNDER, if not this one (ADR-0020's amendment
+          // of 2026-10-03). The way these keys are derived changed; a copy made
+          // before keeps its old key in the ledger and in its own Message-ID.
+          // So a miss on the new key asks the old one before anything is
+          // written: the ledger first, then the target, whose existence check
+          // is what keeps an empty ledger from duplicating and which knows only
+          // the id a copy carries. Found either way, the item is that copy's:
+          // handled under its key and written, if it must be, as it was written
+          // then, so the ledger, the target and verification keep naming each
+          // copy by one key.
+          const earlier = legacyKeysFromRaw?.(item, raw) ?? [];
+          let knownAfterFetch: LedgerRecord | undefined;
+          try {
+            knownAfterFetch = await timed(phases, 'ledgerReadMs', () =>
+              ledger.find(tenantId, mappingId, domain, derivedKey),
+            );
+            let under: LegacyKey | undefined;
+            if (!knownAfterFetch) {
+              for (const legacy of earlier) {
+                const legacyRow = await timed(phases, 'ledgerReadMs', () =>
+                  ledger.find(tenantId, mappingId, domain, legacy.naturalKeyHash),
+                );
+                if (legacyRow) {
+                  under = legacy;
+                  knownAfterFetch = legacyRow;
+                  break;
+                }
+              }
+            }
+            if (!knownAfterFetch && legacyCopyOnTarget && earlier.length > 0) {
+              const collectionId = await collectionIdOf();
+              for (const legacy of earlier) {
+                if (await timed(phases, 'upsertMs', () => legacyCopyOnTarget(collectionId, legacy))) {
+                  under = legacy;
+                  break;
+                }
+              }
+            }
+            if (under) {
+              derivedKey = under.naturalKeyHash;
+              naturalKeyHash = under.naturalKeyHash;
+              naturalKeyPlain = under.naturalKey;
+              raw = under.raw;
+            }
+          } catch (err) {
+            // NOT "not there" (hard rule 9), and no failure under the new key
+            // either while an old one is unasked: which key this item has is
+            // not settled, and a row under the new one would be retried under
+            // it, writing beside a copy the target may hold. So no row: the
+            // failure is counted and said below, and the next pass asks again.
+            if (earlier.length > 0) naturalKeyHash = undefined;
+            throw err;
+          }
           // Now that there IS a key, the item counts as seen. It was skipped by
           // the record at the top of the loop because the key did not exist
           // yet, and an item missing from that set reads as gone from the
-          // source.
+          // source. The key it was FOUND under, so an old row is not read as
+          // gone.
           seenHere.add(derivedKey);
-          const knownAfterFetch = await timed(phases, 'ledgerReadMs', () =>
-            ledger.find(tenantId, mappingId, domain, derivedKey),
-          );
           if (knownAfterFetch) {
             // A ROW IS NOT PROOF OF A COPY. This branch used to be
             // `skipped += 1; return`, which is precisely the bug
@@ -2160,15 +2250,18 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         const error = err as Error;
         const reason = error?.message ?? String(err);
 
-        // No natural key means the fetch failed before one could be derived
-        // (mail with no Message-ID, keyed by its own bytes). There is no
-        // idempotency anchor, so there is no row to write and nothing for a
-        // retry or accept to target — but it must still be counted and said
-        // out loud rather than vanishing.
+        // No natural key means the item failed before one was settled: the
+        // fetch failed before one could be derived (mail with no Message-ID,
+        // keyed by its own bytes), or the target could not say whether it
+        // holds a copy under the key the item had before (ADR-0020's amendment
+        // of 2026-10-03). There is no idempotency anchor, so there is no row to
+        // write and nothing for a retry or accept to target — but it must
+        // still be counted and said out loud rather than vanishing. The next
+        // pass reads it again from the start.
         if (naturalKeyHash === undefined) {
           log.warn(
-            `[sync] ${domain}: an item failed before its natural key could be derived, so it ` +
-              `cannot be tracked or retried individually: ${reason}`,
+            `[sync] ${domain}: an item failed before its natural key was settled, so it ` +
+              `cannot be tracked or retried individually; the next pass reads it again: ${reason}`,
           );
           if (consecutiveFailures >= ABORT_AFTER_CONSECUTIVE_FAILURES) {
             throw new PassAbortError(

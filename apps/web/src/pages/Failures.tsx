@@ -99,7 +99,7 @@ const Row: React.FC<{
         between a 507, a 403 and a parse error, and summarising it away removes
         the only thing that says whether Retry has a chance.
       */}
-      <div className="text-xs text-red-700 break-words">{f.lastError}</div>
+      {f.lastError !== '' && <div className="text-xs text-red-700 break-words">{f.lastError}</div>}
     </div>
     {/*
       A PARKED item is not a count. It was tried once — a policy that answers
@@ -159,11 +159,20 @@ const Failures: React.FC = () => {
             Offered only when there is something to group. With one failure on
             screen the per-row buttons say it better, and a form that matches a
             single item is a form somebody has to read to dismiss. */}
+        {queue.textWithheld && (
+          // WHOSE DATA (ADR-0035 decision 5): the person connected this account
+          // themselves, so the names and the provider's words stay with them.
+          // Each row still says what kind of failure it is and what to do.
+          <p className="mb-3 text-sm text-gray-700" role="note">
+            {t('failures.withheld')}
+          </p>
+        )}
         {queue.needsDecision.length + queue.retrying.length > 1 && (
           <FailureGroupPanel
             mappingId={mappingId}
             failures={[...queue.needsDecision, ...queue.retrying]}
             {...(queue.sourceKind ? { sourceKind: queue.sourceKind } : {})}
+            {...(queue.textWithheld ? { textWithheld: true } : {})}
           />
         )}
         <QueueSection

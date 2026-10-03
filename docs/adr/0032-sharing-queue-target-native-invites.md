@@ -1,11 +1,8 @@
 # ADR-0032: The sharing queue — re-sharing on the target as an owner decision, invites through the target's own messaging
 
 - **Status:** Accepted (owner decision, 2026-08-16 — "yes, accepted") — first slice built
-  the same day, with the owner's own addition: **every manual step is a trackable
-  checklist row**, not only the applicable ones (workplan 0052). **Amended 2026-09-26**: each
-  share waits for its own data type's cutover, and the shares carried by hand are announced once
-  per data type, at its cutover (workplan 0128 T5, slice 6, the owner's D8); see the amendment at
-  the end
+  the same day, the folder press 2026-09-19; **amended once**, 2026-09-26 (each share at its own
+  data type's cutover). Dated history: the Amendment log at the end.
 - **Date:** 2026-08-16
 - **Deciders:** owner
 - **Relates to:** workplan 0029 (the permission inventory — §14.2's read half; this is the
@@ -262,3 +259,19 @@ Group shares (needs the target's group model — Pattern D covers discovery), DA
 a target), and any automated re-pointing of the SOURCE's shares (the source is never
 written, rule 2 — the old links die when the source is retired, which is the cutover
 announcement's job to say).
+
+## Amendment log
+
+- **2026-08-16** — Accepted; first slice built the same day, with the owner's own addition:
+  **every manual step is a trackable checklist row**, not only the applicable ones (workplan
+  0052). Record: *Build record (2026-08-16, workplan 0052)*.
+- **2026-09-19** — Built: the folder press, the owner's call — `apply` over a folder scope,
+  behind a confirm-first gate (§6 applied to the whole folder at once) — and §8's audit row
+  gains `sentTo`. Record: *Build record (2026-09-19, the folder press)*.
+- **2026-09-19**, later — Built: the folder press proved on a real Nextcloud by the managed gate,
+  and `scanNextcloudShares` reads the `path` and `item_type` OCS returns. Record: *Build record
+  (2026-09-19, later: pressed on a real Nextcloud)*.
+- **2026-09-26** — **Amended**: each share waits for its own data type's cutover, and the shares
+  carried by hand are announced once per data type, at its cutover (workplan 0128 T5, slice 6,
+  the owner's D8); see the amendment at the end. Record: *Amendment, 2026-09-26: each share at
+  its own data type's cutover (workplan 0128 T5, slice 6)*.

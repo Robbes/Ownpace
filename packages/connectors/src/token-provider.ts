@@ -1,4 +1,4 @@
-// Copyright 2026 OpenHands Agent (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 // MSAL-based OAuth2 Token Provider with expiry-aware caching and single-flight refresh.
 // Supports client-credentials flow (client secret or certificate) and refresh-token flow (delegated).
 

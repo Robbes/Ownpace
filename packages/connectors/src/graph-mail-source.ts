@@ -10,7 +10,8 @@
  * - The natural key is `internetMessageId` — the SAME RFC 5322 Message-ID the
  *   IMAP source keys on, so an item copied over IMAP and re-listed over Graph
  *   is the same ledger row; switching transport cannot duplicate a mailbox.
- *   A message without one is counted in `unkeyable`, never silently dropped.
+ *   A message without one is counted in `unlisted`, never silently dropped:
+ *   unlike the IMAP sources, this one cannot derive an id, so it is not migrated.
  * - Special-use is resolved from Graph's WELL-KNOWN folders (inbox, sentitems,
  *   drafts, archive, junkemail, deleteditems) by id — authoritative even for
  *   localized display names — with the shared name conventions as fallback.
@@ -210,11 +211,11 @@ export class GraphMailSource implements SourceConnector {
   ): Promise<{
     items: ReadonlyArray<MailItem>;
     nextCursor: SyncCursor;
-    unkeyable?: number;
+    unlisted?: number;
     removed?: ReadonlyArray<string>;
   }> {
     const items: MailItem[] = [];
-    let unkeyable = 0;
+    let unlisted = 0;
     /**
      * Message ids Graph reported as DELETED on this poll — the delta query's
      * own removal report (0023's recorded follow-up, built as 0026 T1 item 2).
@@ -245,7 +246,7 @@ export class GraphMailSource implements SourceConnector {
       }
       const page = JSON.parse(res.body) as GraphPage<GraphMessage>;
       for (const m of page.value) {
-        // Removed entries are reported, not counted as unkeyable: they are
+        // Removed entries are reported, not counted as unlisted: they are
         // not messages that failed to list, they are the server stating
         // outright that a message is gone.
         if (m['@removed']) {
@@ -253,7 +254,7 @@ export class GraphMailSource implements SourceConnector {
           continue;
         }
         if (!m.internetMessageId) {
-          unkeyable += 1;
+          unlisted += 1;
           continue;
         }
         items.push({
@@ -273,9 +274,9 @@ export class GraphMailSource implements SourceConnector {
       // absence means we did not actually finish the listing.
       throw new Error(`Graph mail: delta listing for "${folder.path}" ended without a deltaLink`);
     }
-    if (unkeyable > 0) {
+    if (unlisted > 0) {
       log.warn(
-        `Graph mail: ${unkeyable} message(s) in "${folder.path}" carry no internetMessageId and were not listed`,
+        `Graph mail: ${unlisted} message(s) in "${folder.path}" carry no internetMessageId and were not listed`,
       );
     }
 
@@ -285,7 +286,7 @@ export class GraphMailSource implements SourceConnector {
     return {
       items,
       nextCursor,
-      ...(unkeyable > 0 ? { unkeyable } : {}),
+      ...(unlisted > 0 ? { unlisted } : {}),
       ...(removed.length > 0 ? { removed } : {}),
     };
   }

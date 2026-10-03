@@ -41,14 +41,15 @@ function directives(path: string): string {
 const setup = directives('setup-zitadel.sh');
 
 describe('the linking decision is configured, not left to a default', () => {
-  it('prompts to link on a verified email rather than merging silently', () => {
+  it('links on a verified email rather than creating a second account', () => {
     /**
-     * `AUTO_LINKING_OPTION_EMAIL` is Zitadel's *prompt* — "is this you?" — on a
-     * match of the upstream's VERIFIED email. The proto is explicit that when
-     * several users match, no prompt is shown at all, which is the ambiguous
-     * case failing closed rather than guessing. Leaving this unset
-     * (`UNSPECIFIED`) means every provider sign-in silently creates a second
-     * account.
+     * `AUTO_LINKING_OPTION_EMAIL` links a provider sign-in to the one existing
+     * account whose VERIFIED email matches the upstream's verified email; when
+     * several match, nothing is linked. Zitadel's proto calls this a prompt,
+     * but the login v1 this stack runs (v4.19.2) links directly, with no page
+     * asking first: ADR-0042 records that its decided prompt is not held.
+     * Leaving this unset (`UNSPECIFIED`) means every provider sign-in by
+     * somebody who already has an account creates a second one.
      */
     expect(
       setup,
@@ -56,6 +57,24 @@ describe('the linking decision is configured, not left to a default', () => {
         'already has an account creates a SECOND one — and orphans their\n' +
         'membership, which is keyed on the subject.',
     ).toMatch(/AUTO_LINKING_OPTION_EMAIL/);
+  });
+
+  it('lets no Microsoft sign-in create an account by itself (ADR-0042, the owner 2026-10-03)', () => {
+    /**
+     * Microsoft's addresses arrive unverified on purpose, so linking by email
+     * never matches one. With automatic creation, somebody who already had a
+     * password and pressed "Microsoft" was given a second account, with a new
+     * `sub` and none of their memberships. Without it, Zitadel asks them to link
+     * to the account they have or to create one. Google keeps automatic
+     * creation: its verified addresses do match.
+     */
+    const microsoftOptions = /configure_idp "Microsoft"[\s\S]*?--argjson o "\$(\w+)"/.exec(setup)?.[1];
+    expect(microsoftOptions, 'the Microsoft provider is created with the shared options').toBe(
+      'IDP_OPTIONS_MICROSOFT',
+    );
+    expect(setup).toMatch(/IDP_OPTIONS_MICROSOFT="\$\(jq -c '\.isAutoCreation = false' <<<"\$IDP_OPTIONS"\)"/);
+    const googleOptions = /configure_idp "Google"[\s\S]*?--argjson o "\$(\w+)"/.exec(setup)?.[1];
+    expect(googleOptions).toBe('IDP_OPTIONS');
   });
 
   it('leaves auto-update OFF, so an upstream cannot move somebody\'s address', () => {

@@ -1,4 +1,4 @@
-// Copyright 2026 OpenHands Agent (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 // Integration tests for shared mailbox migration (Pattern-S, B-T5).
 // Tests that the shared mailbox's mail including its Sent folder mirrors idempotently to the dedicated target.
 

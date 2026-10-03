@@ -73,11 +73,11 @@ const QUEUE: readonly ItemFailure[] = [
   failure({ naturalKeyHash: 'c1', domain: 'calendar', lastError: 'the server said: 552 too large' }),
 ];
 
-function renderPanel(failures: readonly ItemFailure[] = QUEUE) {
+function renderPanel(failures: readonly ItemFailure[] = QUEUE, textWithheld = false) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <FailureGroupPanel mappingId="m-1" failures={failures} />
+      <FailureGroupPanel mappingId="m-1" failures={failures} textWithheld={textWithheld} />
     </QueryClientProvider>,
   );
 }
@@ -124,6 +124,21 @@ describe('the filter is the server’s filter', () => {
     // must not quietly mean something else in the meantime.
     expect(matchingFailures(QUEUE, {})).toHaveLength(QUEUE.length);
     expect(matchingFailures(QUEUE, { errorContains: '' })).toHaveLength(QUEUE.length);
+  });
+});
+
+describe('a migration whose account a person granted (ADR-0035 decision 5)', () => {
+  it('offers no box for part of the error: there is no text here to match, and the server refuses one', () => {
+    renderPanel(
+      QUEUE.map((f) => ({ ...f, lastError: '', category: 'target_refused' as const })),
+      true,
+    );
+    expect(screen.queryByLabelText('Error contains')).toBeNull();
+  });
+
+  it('keeps the box where the text is shown', () => {
+    renderPanel();
+    expect(screen.getByLabelText('Error contains')).toBeInTheDocument();
   });
 });
 
