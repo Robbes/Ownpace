@@ -101,6 +101,29 @@
  *      It reads each file's own imports: an owner's pool handed on through a
  *      module none of them imports directly would be out of its sight. No
  *      file on CROSS_TENANT exports a pool.
+ *   8. No task reads the owner's URL at all (0138 T3 step 2). The files on
+ *      CROSS_TENANT are of two kinds, each closed. ON_THE_SYSTEM_ROLE: the
+ *      three jobs that span organisations whole and `task-pools.ts` (the
+ *      split jobs' list and the audit key's pool), which run in a task and
+ *      read `SYSTEM_DATABASE_URL` and no other database URL: the system role,
+ *      `ownpace_system`, which is not a superuser, may not create roles or
+ *      databases, and holds `BYPASSRLS` and the grants its statements need
+ *      (managed migration 0033). AT_THE_MACHINE: the operator's CLI and
+ *      `direct-url.ts`, which never run in a task and may read the owner's
+ *      URL for the person who runs them, and never read the system role's.
+ *      No other file reads `SYSTEM_DATABASE_URL`. Until step 2 the four read
+ *      `DATABASE_URL`, the owner, a superuser, and `set-task-env.sh` uploaded
+ *      it to every run; it uploads the system role's URL now and deletes the
+ *      owner's from the store (`a-run-that-carries-no-superuser`). There is
+ *      no fallback either way: a file that read both names would be one
+ *      `DATABASE_URL` in `.env` away from the owner again. And no fallback
+ *      this cannot see: the machine's files export exactly what is listed for
+ *      them (`direct-url.ts` its OWNER_URL_HELPERS, the CLI nothing), a file on
+ *      ON_THE_SYSTEM_ROLE imports nothing of theirs, and reads the environment
+ *      only by a name it spells (`process.env.X`, `env['X']`): no computed key,
+ *      no `process.env` handed on whole. Review put the owner back behind a
+ *      new `direct-url.ts` export and behind `process.env[`${p}DATABASE_URL`]`,
+ *      each with every guard green (0138 T3 step 2).
  *
  * Until T1's second step there was a second list, KNOWN_REMOVED_BY_T1, of the
  * per-tenant readers the ratchet let stand: eleven when it landed, the three
@@ -120,8 +143,8 @@
  * WHAT "READS A DATABASE URL" MEANS HERE. Any name ending in `DATABASE_URL`
  * other than `APP_DATABASE_URL` (so `DATABASE_URL`, `DIRECT_DATABASE_URL`, the
  * builders' old `TEST_DATABASE_URL || DATABASE_URL` fallback, and T3 step 2's
- * system variable, which the T3 guard, `a-run-that-carries-no-superuser`, only
- * lets go up under such a name), used as a property (`process.env.X`,
+ * `SYSTEM_DATABASE_URL`, which the T3 guard, `a-run-that-carries-no-superuser`,
+ * only lets go up under such a name), used as a property (`process.env.X`,
  * `env.X`), an element (`env['X']`), a destructured binding (`{ X } = …`) or a
  * string whose whole text is the name (`getEnv('X')`). Parsed, not grepped: a
  * comment or an error message that mentions the name is not a read.
@@ -163,25 +186,52 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CROSS_TENANT: Record<string, string> = {
   'apps/worker/src/jobs/managed-sync-tick.ts':
     'which mappings are due across every organisation, how many runs are in flight, ' +
-    'whether the platform is on hold (0138 T2)',
+    'whether the platform is on hold (0138 T2); as the system role since T3 step 2',
   'apps/worker/src/jobs/managed-retention.ts':
-    'prunes across organisations, each one only as far as its last issued invoice (0138 T2)',
+    'prunes across organisations, each one only as far as its last issued invoice (0138 T2); ' +
+    'as the system role since T3 step 2',
   'apps/worker/src/jobs/managed-purge-closed.ts':
     'finds closed organisations whose window has run out, revokes their stored ' +
-    'credentials and removes their data (0138 T2)',
+    'credentials and removes their data (0138 T2); as the system role since T3 step 2',
   'apps/worker/src/cli/index.ts':
     "the operator's cutover CLI, run at the machine by whoever runs the deployment, never as a task",
   'apps/worker/src/jobs/task-pools.ts':
-    "the owner's URL for two things that hold no organisation's rows. The audit key's pool: one " +
-    'connection, reading deployment_key, which ledger migration 0062 closes to app_user (0138 T1 ' +
-    "part 5). And the list of organisations the SPLIT jobs visit (activeOrganisations): one " +
+    "the system role's URL for two things that hold no organisation's rows. The audit key's pool: " +
+    'one connection, reading deployment_key, which ledger migration 0062 closes to app_user (0138 ' +
+    "T1 part 5). And the list of organisations the SPLIT jobs visit (activeOrganisations): one " +
     "connection, one statement, the ids of the active organisations and nothing else, closed " +
-    'before it returns (0138 T2). Every tenant read and write goes to APP_DATABASE_URL; T3 step 2 ' +
-    'moves both to the system role',
+    'before it returns (0138 T2). Every tenant read and write goes to APP_DATABASE_URL. Both were ' +
+    "the owner's until T3 step 2",
   'packages/ledger/src/direct-url.ts':
     'migrationConnectionString reads the variables from an environment its caller ' +
     'passes; its callers are the API and the seed, and no task calls it',
 };
+
+/**
+ * The CROSS_TENANT files that run in a task (rule 8, 0138 T3 step 2). Each
+ * reads `SYSTEM_DATABASE_URL`, the system role, and no other database URL:
+ * never `DATABASE_URL`, the owner, a superuser on the managed stack, which
+ * `set-task-env.sh` no longer uploads and deletes from the store.
+ */
+const ON_THE_SYSTEM_ROLE: readonly string[] = Object.freeze([
+  'apps/worker/src/jobs/managed-sync-tick.ts',
+  'apps/worker/src/jobs/managed-retention.ts',
+  'apps/worker/src/jobs/managed-purge-closed.ts',
+  'apps/worker/src/jobs/task-pools.ts',
+]);
+
+/**
+ * The CROSS_TENANT files that never run in a task (rule 8): they read the
+ * owner's URL, or the direct one, for the person who runs them at the
+ * machine, and never the system role's.
+ */
+const AT_THE_MACHINE: readonly string[] = Object.freeze([
+  'apps/worker/src/cli/index.ts',
+  'packages/ledger/src/direct-url.ts',
+]);
+
+/** The one database URL a task reads across organisations (rule 8). */
+const SYSTEM_URL = 'SYSTEM_DATABASE_URL';
 
 /**
  * The per-tenant tasks: each asks about one organisation, and takes its pools
@@ -290,6 +340,55 @@ const OWNER_URL_HELPERS: Record<string, string> = {
   migrationConnectionString: 'packages/ledger/src/direct-url.ts',
   poolerInFront: 'packages/ledger/src/direct-url.ts',
 };
+
+/**
+ * What each AT_THE_MACHINE file exports as a value, closed (rule 8). They may
+ * read the owner's URL, so a value one of them hands out is a way for a task
+ * to reach it without naming it: `direct-url.ts` hands out its two helpers,
+ * which rule 1's case keeps out of every other file, and the CLI nothing.
+ */
+const AT_THE_MACHINE_EXPORTS: Record<string, readonly string[]> = {
+  'packages/ledger/src/direct-url.ts': Object.keys(OWNER_URL_HELPERS).sort(),
+  'apps/worker/src/cli/index.ts': [],
+};
+
+/** A module specifier that names one of the AT_THE_MACHINE files. */
+const NAMES_A_MACHINE_FILE = (specifier: string): boolean =>
+  /(?:^|\/)direct-url(?:\.[cm]?[jt]s)?$/.test(specifier) || /(?:^|\/)cli(?:\/index)?(?:\.[cm]?[jt]s)?$/.test(specifier);
+
+/**
+ * Where a file reads the environment by a name it does not spell (rule 8): an
+ * element of `process.env`, or of an object called `env` or `…Env`, by
+ * anything but a string, and `process.env` used whole (handed on, spread,
+ * assigned, enumerated) anywhere but as a parameter's default.
+ */
+function envReadsByNoName(file: string, text: string): string[] {
+  if (!/\benv\b|Env\b/.test(text)) return [];
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const found: string[] = [];
+  const isProcessEnv = (e: ts.Node): boolean =>
+    ts.isPropertyAccessExpression(e) && e.name.text === 'env' && ts.isIdentifier(e.expression) && e.expression.text === 'process';
+  const isAnEnv = (e: ts.Expression): boolean => {
+    const b = bare(e);
+    return isProcessEnv(b) || (ts.isIdentifier(b) && /^(?:env|\w*Env)$/.test(b.text));
+  };
+  const visit = (node: ts.Node) => {
+    if (ts.isElementAccessExpression(node) && isAnEnv(node.expression) && !ts.isStringLiteralLike(node.argumentExpression)) {
+      found.push(`${node.getText(sf)} (${whereIs(sf, node)})`);
+    } else if (isProcessEnv(node)) {
+      let up = node.parent;
+      while (up && (ts.isParenthesizedExpression(up) || ts.isNonNullExpression(up) || ts.isAsExpression(up))) up = up.parent;
+      const byName =
+        (ts.isPropertyAccessExpression(up) || ts.isElementAccessExpression(up)) &&
+        bare(up.expression) === node;
+      const aDefault = ts.isParameter(up) && up.initializer !== undefined;
+      if (!byName && !aDefault) found.push(`process.env, whole (${whereIs(sf, node)})`);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return found;
+}
 
 const JOBS_DIR = 'apps/worker/src/jobs';
 
@@ -1136,7 +1235,7 @@ describe('who reads a database URL other than the application role', () => {
     // If the parse or the walk stops matching, this goes red rather than every
     // case below passing over nothing.
     expect(files.length).toBeGreaterThan(100);
-    expect(readers.get('apps/worker/src/jobs/managed-sync-tick.ts')).toEqual(['DATABASE_URL']);
+    expect(readers.get('apps/worker/src/jobs/managed-sync-tick.ts')).toEqual(['SYSTEM_DATABASE_URL']);
     expect(readers.get('apps/worker/src/cli/index.ts')).toEqual(['DATABASE_URL']);
     // The fallback the builders carried until T1 part 2, both halves a read.
     expect(
@@ -1193,6 +1292,105 @@ describe('who reads a database URL other than the application role', () => {
           'on CROSS_TENANT with its reason, and its own entry in OWNER_URL_HELPERS.',
       ).toEqual([]);
     }
+  });
+});
+
+describe("no task reads the owner's URL: the jobs across organisations read the system role's (rule 8)", () => {
+  it('CROSS_TENANT is the system role\'s task files and the machine\'s, each once', () => {
+    expect([...ON_THE_SYSTEM_ROLE, ...AT_THE_MACHINE].sort()).toEqual(Object.keys(CROSS_TENANT).sort());
+    expect(new Set([...ON_THE_SYSTEM_ROLE, ...AT_THE_MACHINE]).size).toBe(ON_THE_SYSTEM_ROLE.length + AT_THE_MACHINE.length);
+  });
+
+  it.each(ON_THE_SYSTEM_ROLE.map((f) => [f]))('%s reads SYSTEM_DATABASE_URL, and no other database URL', (file) => {
+    expect(
+      readers.get(file) ?? [],
+      `${file} reads ${readers.get(file)?.join(', ') ?? 'no database URL'}. A task that spans organisations\n` +
+        `connects as the system role, ${SYSTEM_URL}, and nothing else: DATABASE_URL is the database owner,\n` +
+        'a superuser on the managed stack, which set-task-env.sh no longer uploads and deletes from the store\n' +
+        '(0138 T3 step 2). A fallback from one to the other is one DATABASE_URL in .env away from the owner.',
+    ).toEqual([SYSTEM_URL]);
+  });
+
+  it.each(AT_THE_MACHINE.map((f) => [f]))('%s runs at the machine and reads no SYSTEM_DATABASE_URL', (file) => {
+    expect(readers.has(file), `${file} reads no database URL: its entry is stale`).toBe(true);
+    expect(readers.get(file)).not.toContain(SYSTEM_URL);
+  });
+
+  it('no file but the system role\'s task files reads SYSTEM_DATABASE_URL', () => {
+    const reading = [...readers.entries()].filter(([f, names]) => names.includes(SYSTEM_URL) && !ON_THE_SYSTEM_ROLE.includes(f));
+    expect(
+      reading.map(([f]) => f),
+      `${reading.map(([f]) => f).join(', ')} reads ${SYSTEM_URL}, the system role, which reads past row security\n` +
+        'on every table it is granted. A per-tenant task or a split job reads APP_DATABASE_URL (0138 T1, T2).',
+    ).toEqual([]);
+  });
+
+  it.each(Object.keys(AT_THE_MACHINE_EXPORTS).map((f) => [f]))('%s exports exactly what is listed for it, and nothing a task could reach the owner through', (file) => {
+    expect(AT_THE_MACHINE).toContain(file);
+    expect(
+      valueExports(file, texts.get(file)!),
+      `${file} runs at the machine and may read the database owner's URL. A value it exports is a way for a\n` +
+        "task to reach the owner without naming it: review added `pooledConnectionString(env)` to direct-url.ts,\n" +
+        'returning env.DATABASE_URL, imported it in a job through @openmig/ledger, and every guard stayed green.',
+    ).toEqual([...AT_THE_MACHINE_EXPORTS[file]!]);
+  });
+
+  it.each(ON_THE_SYSTEM_ROLE.map((f) => [f]))('%s imports nothing from the files at the machine', (file) => {
+    const machine = new Set(valueExports('packages/ledger/src/direct-url.ts', texts.get('packages/ledger/src/direct-url.ts')!));
+    const taken = valueImports(file, texts.get(file)!).filter((entry) => {
+      const [from, name] = entry.split(': ') as [string, string];
+      return NAMES_A_MACHINE_FILE(from) || (from === '@openmig/ledger' && (machine.has(name) || name === '* as'));
+    });
+    expect(taken, `${file} runs in a task as the system role, and takes ${taken.join(', ')} from where the owner's URL is read`).toEqual([]);
+  });
+
+  it.each(ON_THE_SYSTEM_ROLE.map((f) => [f]))('%s reads the environment only by names it spells', (file) => {
+    const unnamed = envReadsByNoName(file, texts.get(file)!);
+    expect(
+      unnamed,
+      `${file} reads the environment by a name it does not spell: ${unnamed.join('; ')}.\n` +
+        "A computed key is a read this guard cannot name: review read `process.env[`${p}DATABASE_URL`]` behind\n" +
+        'the visible SYSTEM_DATABASE_URL, and every guard stayed green.',
+    ).toEqual([]);
+  });
+
+  it('sees a read by no name, and an owner helper by another name, in each shape review found', () => {
+    const shape = (code: string) => envReadsByNoName('shape.ts', code);
+    expect(
+      shape(
+        "const u = process.env.SYSTEM_DATABASE_URL?.trim() || ['', 'DIRECT_'].map((p) => process.env[`${p}DATABASE_URL`]?.trim()).find(Boolean);",
+      ),
+    ).toHaveLength(1);
+    expect(shape("const k = 'DATABASE_URL'; const u = process.env[k];")).toHaveLength(1);
+    expect(shape('function f(env: E) { const n = pick(); return env[n]; }')).toHaveLength(1);
+    expect(shape('const all = { ...process.env };')).toHaveLength(1);
+    expect(shape('const v = Object.values(process.env).find((x) => x?.startsWith("postgres"));')).toHaveLength(1);
+    expect(shape('const e = process.env; const u = e.DATABASE_URL;')).toHaveLength(1);
+    expect(shape('open(process.env);')).toHaveLength(1);
+    // By a name it spells, or a parameter's default: none.
+    expect(shape("const a = process.env.SYSTEM_DATABASE_URL; const b = process.env['LOG_LEVEL']; const c = process.env[`MAX`];")).toEqual([]);
+    expect(shape('export function f(env: E = process.env) { return env.SYSTEM_DATABASE_URL ?? env["X"]; }')).toEqual([]);
+    // A new export beside the two helpers is an export this closes.
+    expect(
+      valueExports(
+        'packages/ledger/src/direct-url.ts',
+        `${texts.get('packages/ledger/src/direct-url.ts')!}\nexport function pooledConnectionString(env: { DATABASE_URL?: string }) { return env.DATABASE_URL?.trim() || undefined; }\n`,
+      ),
+    ).toEqual(['migrationConnectionString', 'pooledConnectionString', 'poolerInFront']);
+    expect(NAMES_A_MACHINE_FILE('@openmig/ledger/direct-url')).toBe(true);
+    expect(NAMES_A_MACHINE_FILE('../../packages/ledger/src/direct-url.ts')).toBe(true);
+    expect(NAMES_A_MACHINE_FILE('../cli/index.ts')).toBe(true);
+    expect(NAMES_A_MACHINE_FILE('./task-pools.ts')).toBe(false);
+  });
+
+  it("no scanned file that runs in a task reads the owner's names, DATABASE_URL or DIRECT_DATABASE_URL", () => {
+    const owners = [...readers.entries()].filter(
+      ([f, names]) => !AT_THE_MACHINE.includes(f) && names.some((n) => n === 'DATABASE_URL' || n === 'DIRECT_DATABASE_URL'),
+    );
+    expect(
+      owners.map(([f, names]) => `${f}: ${names.join(', ')}`),
+      "No task run holds the owner's URL since 0138 T3 step 2, and none may read it.",
+    ).toEqual([]);
   });
 });
 

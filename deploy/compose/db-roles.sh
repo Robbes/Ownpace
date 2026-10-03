@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# db-roles.sh — the two database roles' passwords: asked over the network, set
-# over the socket, and never a value on a command line (workplan 0132 T2).
+# db-roles.sh — the database roles' passwords: asked over the network, set
+# over the socket, and never a value on a command line (workplan 0132 T2); and
+# the system role the tasks across organisations connect as, asked what it may
+# do before its password is set (workplan 0138 T3 step 2).
 #
 # A ROLE KEEPS THE PASSWORD IT WAS CREATED WITH, WHATEVER .env SAYS NOW.
 # Postgres reads POSTGRES_PASSWORD once, when initdb creates the volume, and
@@ -36,6 +38,39 @@
 #   db_roles_prove <owner-password> <app-password>
 #       each role opens with its value over the network AND through the
 #       pooler: 0, 1 (one refuses) or 2 (one could not be asked).
+#
+# THE SYSTEM ROLE (workplan 0138 T3 step 2). `ownpace_system`, by the name
+# managed migration 0033 creates it under, which is not .env's to choose: the
+# migration grants to it by name. The Trigger.dev jobs that span organisations
+# (the sync tick, retention, the purge), the split jobs' list and every task's
+# audit key connect as it through SYSTEM_DATABASE_URL, which set-task-env.sh
+# uploads to every run. The migration made it with no password and nothing a
+# superuser has but BYPASSRLS; what the database holds now is asked, not
+# assumed, every time its URL is about to go up: by the bring-up's tasks phase
+# before it sets the password, and by set-task-env.sh before every upload, the
+# bring-up's or one run by hand.
+#
+#   db_roles_system_fit
+#       asks the catalog, over the socket as the owner, for the role's
+#       attributes, the roles it belongs to and the roles that belong to it:
+#       0 fit (a login role that is no superuser, may create no role or
+#       database, does not replicate, belongs to no role, has no role
+#       belonging to it, and has BYPASSRLS), 1 unfit or missing (DB_ROLES_WHY
+#       names every reason), 2 could not ask. Membership counts both ways: a
+#       role it belongs to lends it that role's rights with SET ROLE, and a
+#       role that belongs to it (`GRANT ownpace_system TO app_user`) takes its
+#       BYPASSRLS and grants the same way.
+#   db_roles_system_set <password>
+#       ALTER ROLE with .env's SYSTEM_DB_PASSWORD, over the socket as the
+#       owner, the value passed by name as db_roles_set passes its two; and,
+#       in the same transaction, every setting on the role cleared, for every
+#       database and for this one. An ordinary role may change its own
+#       password and its own settings, and every run holds its URL: a run
+#       taken over could leave `default_transaction_read_only = on` on it,
+#       which stops every write the jobs make and survives a new password.
+#   db_roles_system_prove <password>
+#       the role opens with it over the network AND through the pooler,
+#       where the tasks connect: 0, 1 (refused) or 2 (could not be asked).
 #
 # HOW A PASSWORD IS ASKED. Inside the database container the socket and
 # 127.0.0.1 are trusted (the image's pg_hba.conf), so a password asked there
@@ -81,6 +116,43 @@ BEGIN;
 \set app_pw `printf '%s' "$DB_ROLES_NEW_APP_PASSWORD"`
 ALTER ROLE :"app_role" PASSWORD :'app_pw';
 ALTER ROLE :"owner_role" PASSWORD :'owner_pw';
+COMMIT;
+SQL
+
+# The system role's name: managed migration 0033's, never .env's.
+DB_ROLES_SYSTEM='ownpace_system'
+
+# The question db_roles_system_fit asks: one line, `|`-separated, in this
+# order: superuser, create role, create database, replication, BYPASSRLS,
+# login, how many roles it is a member of, and how many roles are members of
+# it. No line: no such role. The name goes by a psql variable, never into the
+# text. a-system-role-that-is-not-the-owner (integration) asks it of a real
+# database.
+read -r -d '' DB_ROLES_SYSTEM_FIT_SQL <<'SQL' || true
+SELECT r.rolsuper, r.rolcreaterole, r.rolcreatedb, r.rolreplication, r.rolbypassrls, r.rolcanlogin,
+       (SELECT count(*) FROM pg_auth_members m WHERE m.member = r.oid),
+       (SELECT count(*) FROM pg_auth_members m WHERE m.roleid = r.oid)
+  FROM pg_roles r
+ WHERE r.rolname = :'system_role';
+SQL
+
+# The statements db_roles_system_set sends: the value by a psql variable, read
+# inside the container from the environment Compose was told to pass on by
+# name, and the statements kept out of the database's log, failed or not. With
+# the password, in one transaction, every setting on the role: the ones for
+# every database, and the ones for this one (DBNAME, psql's own variable for
+# the database it is connected to), which RESET ALL without IN DATABASE leaves
+# in place. a-system-role-that-is-not-the-owner (integration) runs the two
+# RESET lines against a real database after the role has set both kinds.
+read -r -d '' DB_ROLES_SYSTEM_SET_SQL <<'SQL' || true
+SET log_statement = 'none';
+SET log_min_duration_statement = -1;
+SET log_min_error_statement = panic;
+BEGIN;
+\set system_pw `printf '%s' "$DB_ROLES_NEW_SYSTEM_PASSWORD"`
+ALTER ROLE :"system_role" PASSWORD :'system_pw';
+ALTER ROLE :"system_role" RESET ALL;
+ALTER ROLE :"system_role" IN DATABASE :"DBNAME" RESET ALL;
 COMMIT;
 SQL
 
@@ -203,6 +275,75 @@ db_roles_prove() { # db_roles_prove <owner-password> <app-password>
     done
   done
   # A refusal is an answer; a question that could not be asked is not.
+  [ "$refused" -eq 0 ] || return 1
+  [ "$unasked" -eq 0 ] || return 2
+  return 0
+}
+
+# The system role, asked of the catalog before its password is set and its URL
+# uploaded: every reason it is unfit, at once, in DB_ROLES_WHY.
+db_roles_system_fit() { # 0 fit, 1 unfit or missing, 2 could not ask
+  local out rc super createrole createdb replication bypass login members held joined reason
+  local -a unfit=()
+  DB_ROLES_WHY=''
+  out=$("${COMPOSE[@]}" exec -T postgres psql -X -q -At -F '|' -U "$DB_ROLES_OWNER" -d "$DB_ROLES_DB" \
+    -v ON_ERROR_STOP=1 -v system_role="$DB_ROLES_SYSTEM" 2>&1 <<<"$DB_ROLES_SYSTEM_FIT_SQL") && rc=0 || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    DB_ROLES_WHY="$(db_roles_masked "$out")"
+    return 2
+  fi
+  if [ -z "$out" ]; then
+    DB_ROLES_WHY="${DB_ROLES_SYSTEM} is not a role in this database: managed migration 0033 creates it, and the api applies the migrations when it starts (the app phase)"
+    return 1
+  fi
+  IFS='|' read -r super createrole createdb replication bypass login members held <<<"$out"
+  [ "$super" = f ] || unfit+=('it is a superuser, whom row security never binds and who may run programs on the database server')
+  [ "$createrole" = f ] || unfit+=('it may create roles, and so change its own')
+  [ "$createdb" = f ] || unfit+=('it may create databases')
+  [ "$replication" = f ] || unfit+=('it may replicate the whole cluster')
+  [ "$members" = 0 ] || unfit+=("it belongs to ${members} role(s), whose rights it takes with SET ROLE")
+  [ "$held" = 0 ] || unfit+=("${held:-an unknown number of} role(s) belong to it, and take its BYPASSRLS and grants with SET ROLE: every organisation's rows")
+  [ "$bypass" = t ] || unfit+=('it lacks BYPASSRLS, so the jobs across organisations would find no organisation and call it a quiet night')
+  [ "$login" = t ] || unfit+=('it cannot log in')
+  [ "${#unfit[@]}" -eq 0 ] && return 0
+  joined=''
+  for reason in "${unfit[@]}"; do joined+="${joined:+; }${reason}"; done
+  DB_ROLES_WHY="${DB_ROLES_SYSTEM}: ${joined}"
+  return 1
+}
+
+# The system role's password, set the way db_roles_set sets the other two,
+# and every setting on the role cleared with it.
+db_roles_system_set() { # db_roles_system_set <password>
+  local out rc
+  DB_ROLES_WHY=''
+  if [ -z "${1:-}" ]; then
+    # An empty value would CLEAR the password: Postgres takes '' as none.
+    DB_ROLES_WHY='an empty password was given; nothing was set'
+    return 1
+  fi
+  out=$(DB_ROLES_NEW_SYSTEM_PASSWORD="$1" \
+    "${COMPOSE[@]}" exec -T -e DB_ROLES_NEW_SYSTEM_PASSWORD postgres \
+    psql -X -q -U "$DB_ROLES_OWNER" -d "$DB_ROLES_DB" -v ON_ERROR_STOP=1 \
+    -v system_role="$DB_ROLES_SYSTEM" 2>&1 <<<"$DB_ROLES_SYSTEM_SET_SQL") && rc=0 || rc=$?
+  [ "$rc" -eq 0 ] && return 0
+  DB_ROLES_WHY="$(db_roles_masked "$out")"
+  return 1
+}
+
+# The system role with its value, over the network and through the pooler:
+# the two ways a task reaches Postgres (DB_HOST=postgres is the pooler's
+# rollback).
+db_roles_system_prove() { # db_roles_system_prove <password>
+  local refused=0 unasked=0 rc channel
+  DB_ROLES_PROOF=''
+  for channel in network pooler; do
+    rc=0
+    db_roles_ask "$channel" "$DB_ROLES_SYSTEM" "${1:-}" || rc=$?
+    DB_ROLES_PROOF+="${DB_ROLES_SYSTEM}|${channel}|${rc}|${DB_ROLES_WHY}"$'\n'
+    [ "$rc" -ne 1 ] || refused=1
+    [ "$rc" -ne 2 ] || unasked=1
+  done
   [ "$refused" -eq 0 ] || return 1
   [ "$unasked" -eq 0 ] || return 2
   return 0

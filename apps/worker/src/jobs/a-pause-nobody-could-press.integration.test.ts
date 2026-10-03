@@ -30,9 +30,11 @@
  *
  * The subject lives in `stopping-a-pass.ts` rather than in the task that uses
  * it, precisely so this file can import it having been HANDED a database:
- * `run-delta-sync.ts` builds a `Pool` from `DATABASE_URL` at import, and
- * setting that from a test is the thing
- * `an-integration-test-is-handed-its-database.unit.test.ts` exists to refuse.
+ * `run-delta-sync.ts` opens its pools at import from the environment
+ * (`openTaskPools`: `APP_DATABASE_URL`, and `SYSTEM_DATABASE_URL` for the
+ * audit key), and a test that reaches for a database through the environment
+ * is the thing `an-integration-test-is-handed-its-database.unit.test.ts`
+ * exists to refuse.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';

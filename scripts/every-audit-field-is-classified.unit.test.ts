@@ -179,8 +179,10 @@ describe('every process that writes audit events points its lines at its output'
     expect(sink, `${TASK_POOLS} points no audit line anywhere`).toContain('auditExportOn(');
     expect(sink).toContain('auditKey');
     expect(sink).not.toContain('tenant');
-    // One connection, on the owner's URL, as the API's is.
-    expect(pools).toMatch(/new Pool\(\{ connectionString: ownerUrl, max: 1\b/);
+    // One connection, on the system role's URL (0138 T3 step 2), as the API's
+    // is on the owner's: a role that may read deployment_key, and is no superuser.
+    expect(pools).toMatch(/new Pool\(\{ connectionString: systemUrl, max: 1\b/);
+    expect(pools).toMatch(/const systemUrl = env\.SYSTEM_DATABASE_URL\?\.trim\(\);/);
   });
 });
 

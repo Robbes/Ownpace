@@ -28,7 +28,7 @@
  * bound holds rather than trusting the interval literal to be in the right
  * place.
  *
- * Importing the tick has side effects (a Pool at import), so DATABASE_URL is
+ * Importing the tick has side effects (a Pool at import), so SYSTEM_DATABASE_URL is
  * set before a dynamic import — the same shape as the two tests beside it.
  */
 
@@ -105,7 +105,7 @@ async function lastErrorCategory(category: string | null): Promise<void> {
 }
 
 beforeAll(async () => {
-  process.env.DATABASE_URL ??= 'postgres://unused:unused@127.0.0.1:5432/none';
+  process.env.SYSTEM_DATABASE_URL ??= 'postgres://unused:unused@127.0.0.1:5432/none';
   // And the pass it triggers, run-delta-sync, opens its pools at import through
   // openTaskPools, which refuses without APP_DATABASE_URL (0138 T1).
   process.env.APP_DATABASE_URL ??= 'postgres://unused:unused@tick.test.invalid/none';

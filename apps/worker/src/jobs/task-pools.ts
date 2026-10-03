@@ -16,16 +16,19 @@
  * answered 2026-09-28, "split them"). The digest, the drift detector and group
  * discovery each need to know which organisations to visit, and nothing else
  * across them. `activeOrganisations` answers that, and only that: the ids of
- * the active organisations, read on the owner's URL on a pool of one that is
- * closed before it answers. Everything the job then reads or writes for one
+ * the active organisations, read on the system role's URL
+ * (`SYSTEM_DATABASE_URL`, `ownpace_system`, 0138 T3 step 2; the owner's
+ * `DATABASE_URL` until then) on a pool of one that is closed before it
+ * answers. Everything the job then reads or writes for one
  * organisation (its row, members, migrations, queues, sources, decisions,
  * groups, audit rows) goes through that organisation's scope on the tenant
  * pool below. The list is read where it can be read: on `app_user`, with no
  * organisation set, `tenant` answers no row, and a job handed that empty list
  * would visit nobody and report a quiet morning. So it first asks whether its
- * connection sees every organisation (a superuser, or `BYPASSRLS`, which T3
- * step 2's system role will have), and refuses when it does not. It never
- * reads `APP_DATABASE_URL`, and it never falls back to it.
+ * connection sees every organisation (a superuser, or `BYPASSRLS`, which the
+ * system role has and nothing else it holds), and refuses when it does not.
+ * It never reads `APP_DATABASE_URL`, and it never falls back to it, nor to
+ * `DATABASE_URL`, the owner, which no run holds since T3 step 2.
  *
  * WHAT THIS HANDS OUT, AND NOTHING MORE (0138 T2's review). Review added one
  * export here that asked the role question and then handed its caller the
@@ -34,9 +37,10 @@
  * `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts` (rule 7) now holds
  * this module to three values, `openTaskPools`, `activeOrganisations` and
  * `ACTIVE_ORGANISATIONS_SQL`, and types; to its own short list of imports, so
- * no query builder and no schema; to naming each pool it builds on the owner's
- * URL (the key's and the list's) only to ask it one of its two statements by
- * name, end it, hear its errors or, the key's, hand it to the audit sink; and
+ * no query builder and no schema; to naming each pool it builds on the system
+ * role's URL (the key's and the list's) only to ask it one of its two
+ * statements by name, end it, hear its errors or, the key's, hand it to the
+ * audit sink; and
  * `activeOrganisations` to answering `rows.map((row) => row.id)`, declared
  * `Promise<string[]>`. And it holds each file that imports this to what its
  * kind may take: a per-tenant job and the standalone worker `openTaskPools`, a
@@ -54,18 +58,21 @@
  *     operator's log page's events, which `app_user` may insert (ledger 0059).
  *     Until 0138 T1's second step every job built its pool from `DATABASE_URL`,
  *     the owner, a superuser on the managed stack, whom Postgres never binds.
- *   - the audit key's, on `DATABASE_URL`: the owner, ONE connection, closed a
- *     second after its last use, for the one read `app_user` may not make: the
- *     deployment's pseudonym key in `deployment_key` (ledger 0062). The audit
- *     export reads it the first time a line is written. On the tenant pool the
- *     read is refused, and the event is kept while its line is lost, every
- *     line. It is the API's `auditKeyPool` (`apps/api/src/index.ts`), in a
- *     task. It reads no organisation's rows. T3 step 2 moves it to the system
- *     role, which is granted `deployment_key`.
+ *   - the audit key's, on `SYSTEM_DATABASE_URL`: the system role,
+ *     `ownpace_system`, ONE connection, closed a second after its last use,
+ *     for the one read `app_user` may not make: the deployment's pseudonym key
+ *     in `deployment_key` (ledger 0062). The audit export reads it the first
+ *     time a line is written. On the tenant pool the read is refused, and the
+ *     event is kept while its line is lost, every line. It is the API's
+ *     `auditKeyPool` (`apps/api/src/index.ts`), in a task, on a role that is
+ *     not a superuser: managed migration 0033 grants it `deployment_key`, and
+ *     it reads no organisation's rows here. Until 0138 T3 step 2 this was the
+ *     owner, `DATABASE_URL`, a superuser, in every run.
  *
  * THE JOB GETS THE TENANT POOL ALONE. The key's pool goes to the audit sink
- * and nowhere else: it is the owner, whom row security never binds, and a job
- * handed it could read and write tenant data on it in one token. Until 0138 T1
+ * and nowhere else: it is the system role, which reads past row security on
+ * every table it is granted, and a job handed it could read tenant data on it
+ * in one token (the owner, until T3 step 2, could read and write all of it). Until 0138 T1
  * step 2's review it was handed back, as `auditKey`, and three such one-token
  * changes to three jobs left all 486 tests of every guard green. The
  * `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts` guard now holds
@@ -90,8 +97,12 @@
  * never used in its place. The API's `getDbPool` falls back to `DATABASE_URL`
  * for the appliance's sake; a task that did would quietly be back on the owner,
  * and every scope in it would change nothing again, with nothing to say so.
- * `DATABASE_URL` unset refuses too: every audit line the task writes would be
- * lost, and that is not a state to start in (hard rule 9).
+ * `SYSTEM_DATABASE_URL` unset refuses too: every audit line the task writes
+ * would be lost, and that is not a state to start in (hard rule 9). Nor does
+ * it fall back to `DATABASE_URL`, the owner, which `set-task-env.sh` stopped
+ * uploading and deletes from the store (0138 T3 step 2):
+ * `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts` (rule 8) fails
+ * if this module reads that name at all.
  *
  * NOTHING AT IMPORT. A job imports this at its top, and a test imports the
  * job's helpers from the job. Building a pool or pointing a sink is what
@@ -107,7 +118,9 @@
  * THE POOLER. Every pool here goes through PgBouncer in transaction mode, the
  * tenant pool as `app_user`, and shares that user's server connections with
  * the API's request path since T1's second step (docs/rls-guide.md, "Where
- * row security holds today"; 0138 Status, 2026-09-28, for the sizing). Every
+ * row security holds today"; 0138 Status, 2026-09-28, for the sizing), and
+ * the key's and the list's as `ownpace_system`, whose own pair serves the
+ * three jobs that span organisations as well (T3 step 2). Every
  * scope here is one transaction, so a server connection is held for the scope
  * and not for the pass. The three split jobs run once a day each, at 06:30,
  * 07:00 and 08:00 UTC, one organisation and one scope at a time: one more of
@@ -146,7 +159,8 @@ export interface TaskPoolOptions {
  * Build a per-tenant task's two pools and point this process's sinks at them:
  * the operator's log page at the tenant pool, the audit export at the key's.
  * Refuses without `APP_DATABASE_URL` (never `DATABASE_URL` in its place) and
- * without `DATABASE_URL` (the key's). See the file header.
+ * without `SYSTEM_DATABASE_URL` (the key's; never `DATABASE_URL` in its place
+ * either). See the file header.
  */
 export function openTaskPools(env: TaskEnv = process.env, options: TaskPoolOptions = {}): TaskPools {
   const appUrl = env.APP_DATABASE_URL?.trim();
@@ -157,19 +171,20 @@ export function openTaskPools(env: TaskEnv = process.env, options: TaskPoolOptio
         'deploy/compose/set-task-env.sh uploads it (workplan 0138 T1).',
     );
   }
-  const ownerUrl = env.DATABASE_URL?.trim();
-  if (!ownerUrl) {
+  const systemUrl = env.SYSTEM_DATABASE_URL?.trim();
+  if (!systemUrl) {
     throw new Error(
-      "DATABASE_URL is required, for the audit key's pool alone: app_user may not read deployment_key " +
+      "SYSTEM_DATABASE_URL is required, for the audit key's pool alone: app_user may not read deployment_key " +
         '(ledger migration 0062), so without it every audit line this task writes would be lost ' +
-        '(workplan 0138 T1 part 5).',
+        '(workplan 0138 T1 part 5). It is the system role, ownpace_system, never DATABASE_URL, the database ' +
+        'owner, which no run holds (workplan 0138 T3 step 2). deploy/compose/set-task-env.sh uploads it.',
     );
   }
 
   const tenant = new Pool({ connectionString: appUrl });
   // One connection, closed a second after its last use, whose error handler
   // keeps a dropped idle connection from ending the process: the API's.
-  const auditKey = new Pool({ connectionString: ownerUrl, max: 1, idleTimeoutMillis: 1_000 });
+  const auditKey = new Pool({ connectionString: systemUrl, max: 1, idleTimeoutMillis: 1_000 });
   auditKey.on('error', (err) => log.warn(`[audit-export] the key's connection closed: ${err.message}`));
 
   // This process's errors and warnings go to the operator's log page (0129
@@ -202,22 +217,24 @@ const SEES_EVERY_ORGANISATION_SQL =
 
 /**
  * The organisations a split job visits: the ids of the active ones, read on
- * the owner's URL (`DATABASE_URL`) on a pool of one, closed before this
- * returns. Refuses without `DATABASE_URL` (never `APP_DATABASE_URL` in its
- * place), and refuses on a connection row security binds, where the list would
- * come back empty and read as nothing to do. See the file header.
+ * the system role's URL (`SYSTEM_DATABASE_URL`) on a pool of one, closed
+ * before this returns. Refuses without `SYSTEM_DATABASE_URL` (never
+ * `APP_DATABASE_URL` in its place, and never `DATABASE_URL`, the owner), and
+ * refuses on a connection row security binds, where the list would come back
+ * empty and read as nothing to do. See the file header.
  */
 export async function activeOrganisations(env: TaskEnv = process.env): Promise<string[]> {
-  const ownerUrl = env.DATABASE_URL?.trim();
-  if (!ownerUrl) {
+  const systemUrl = env.SYSTEM_DATABASE_URL?.trim();
+  if (!systemUrl) {
     throw new Error(
-      'DATABASE_URL is required, for the list of organisations alone: a job split in two asks which ' +
-        'organisations are active on the connection that sees them all, and reads each one on ' +
-        'APP_DATABASE_URL in its own scope; never APP_DATABASE_URL for the list, where it would find ' +
-        'none (workplan 0138 T2).',
+      'SYSTEM_DATABASE_URL is required, for the list of organisations alone: a job split in two asks which ' +
+        'organisations are active on the connection that sees them all, the system role ownpace_system, and ' +
+        'reads each one on APP_DATABASE_URL in its own scope; never APP_DATABASE_URL for the list, where it ' +
+        'would find none, and never DATABASE_URL, the database owner, which no run holds (workplan 0138 T2, ' +
+        'T3 step 2).',
     );
   }
-  const list = new Pool({ connectionString: ownerUrl, max: 1 });
+  const list = new Pool({ connectionString: systemUrl, max: 1 });
   list.on('error', (err) => log.warn(`[organisations] the list's connection closed: ${err.message}`));
   try {
     const seen = await list.query<{ sees_every_organisation: boolean }>(SEES_EVERY_ORGANISATION_SQL);
@@ -225,7 +242,8 @@ export async function activeOrganisations(env: TaskEnv = process.env): Promise<s
       throw new Error(
         "The list of organisations was asked on a connection that row security binds: with no " +
           'organisation set it would find none, and the job would visit nobody and call that ' +
-          "nothing to do. It is read on the owner's connection, DATABASE_URL (workplan 0138 T2).",
+          "nothing to do. It is read on the system role's connection, SYSTEM_DATABASE_URL, whose " +
+          'role has BYPASSRLS (workplan 0138 T2, T3 step 2).',
       );
     }
     const { rows } = await list.query<{ id: string }>(ACTIVE_ORGANISATIONS_SQL);

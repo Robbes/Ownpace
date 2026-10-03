@@ -96,7 +96,7 @@ describe('the document knows every script that holds the owner connection', () =
   );
 
   it('the runbook agrees with the guide about which scripts they are', () => {
-    // TWO DOCUMENTS, ONE FACT. The runbook's "The two database roles" section
+    // TWO DOCUMENTS, ONE FACT. The runbook's "The database roles" section
     // and the guide's §2 are read by different people at different moments —
     // the operator standing up a box, and whoever is changing the model — and
     // they were already allowed to drift once.
