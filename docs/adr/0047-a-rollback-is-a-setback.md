@@ -1,7 +1,7 @@
 # ADR-0047: A rollback is a setback
 
 - **Status:** **Accepted 2026-08-23** (the owner's definition); **built 2026-09-19**; amended
-  twice (2026-09-20, 2026-09-26). Dated history: the Amendment log below.
+  three times (2026-09-20, 2026-09-26, 2026-09-27). Dated history: the Amendment log below.
 - **Date:** 2026-08-23 (decided); 2026-09-19 (recorded here, and built)
 - **Deciders:** owner
 - **Relates to:** [ADR-0005](./0005-idempotency-ledger-nondestructive.md) (non-destructive by
@@ -28,7 +28,7 @@
 - **A rollback of one data type** (`--kind`, workplan 0128 T5 slice 5b) sets back its own ledger
   and path alone; the migration's status is its paths' roll-up, and only mail has an MX record to
   point back. A whole rollback leaves a data type kept on its own in the lane (owner, 0128 D9;
-  ADR-0048). Guard: `a-cutover-of-one-data-type.unit.test.ts`.
+  ADR-0048). Guards: `a-cutover-of-one-data-type.unit.test.ts`, `a-door-moves-only-its-own-paths`.
 - **One implementation**: `performRollback` (`@openmig/core`, `cutover-rollback.ts`). The CLI's
   `rollback --yes` and the `run-rollback` job only gate, print and notify. Guards:
   `cutover-commands.unit.test.ts`, `run-rollback.integration.test.ts`.
@@ -169,6 +169,8 @@ and the code did not implement it once. Both are corrected here.
 - **2026-09-26** — Amended (workplan 0128 T5 slice 5b): a rollback of one data type (`--kind`)
   sets back its own ledger and its own path alone. Record: the second operative rule above, and
   the first operative bullet of [history/0047-a-rollback-is-a-setback.md](./history/0047-a-rollback-is-a-setback.md).
+- **2026-09-27** — The owner's 0128 D9 (a): a rollback of the whole migration leaves a data type
+  kept on its own in the lane. Recorded in workplan 0128 and ADR-0048; stated here 2026-10-03.
 - **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
   decided. Their earlier wording, with the reasons and examples the budget left out, is in the
   record: [history/0047-a-rollback-is-a-setback.md](./history/0047-a-rollback-is-a-setback.md).

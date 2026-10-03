@@ -1,8 +1,8 @@
 # ADR-0050: A move is a person's migrations
 
 - **Status:** **Accepted 2026-09-28**, by the owner, as proposed; amended once, the same day (the
-  name in code is *person*). **The tables and the API are built** (workplan 0153 T2, #1332). The
-  pages are 0153's T3 and T5. Dated history: the Amendment log below.
+  name in code is *person*). **The tables, the API and the pages are built** (workplan 0153 T2,
+  #1332; T3, #1341; T5's first slice, #1353). Dated history: the Amendment log below.
 - **Date:** 2026-09-28; accepted 2026-09-28; amended 2026-09-28
 - **Deciders:** owner
 - **Relates to:** [ADR-0014](./0014-cost-recovery-billing.md) (a path is billed, never a move),
@@ -151,6 +151,8 @@ people · 1 needs you"* (0153 T3 (b)).
   *move* ([the amendment](#amendment-2026-09-28-the-name-in-code-is-person)). Record: the section
   "Amendment 2026-09-28: the name in code is *person*".
 - **2026-09-28** — The tables and the API built (workplan 0153 T2, #1332).
+- **2026-09-29** — The pages built: on managed, Migrations lists people, each with a page
+  (workplan 0153 T3, #1341; T5's first slice, #1353).
 - **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
   decided. Their earlier wording, with the reasons and examples the budget left out, is in the
   record: [history/0050-a-move-is-a-persons-migrations.md](./history/0050-a-move-is-a-persons-migrations.md).

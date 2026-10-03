@@ -1,8 +1,8 @@
 # ADR-0036: The managed edition is its own package and its own migration chain
 
-- **Status:** Accepted 2026-08-19 — owner decision, in two rounds; amended once, the same day, by
-  [ADR-0039](./0039-no-open-core-and-what-ops-privacy-means.md), which closed the two structural
-  options this ADR parked. Dated history: the Amendment log at the end.
+- **Status:** Accepted 2026-08-19 — owner decision, in two rounds; amended three times the same
+  day, once by [ADR-0039](./0039-no-open-core-and-what-ops-privacy-means.md), which closed the two
+  structural options this ADR parked. Dated history: the Amendment log at the end.
 - **Date:** 2026-08-19
 - **Deciders:** owner
 - **Relates to:** [ADR-0003](./0003-two-editions-one-core.md) (two editions from one core —
@@ -253,6 +253,10 @@ it the shared chain would have kept seven indexes pointing at tables it no longe
   repositories, and a private monorepo with a filtered public mirror — are **explicitly
   parked**, not rejected. This ADR is deliberately written so that neither is made harder by it.
   Record: *Decision*.
+- **2026-08-19** — The upgrade gate was right: the split is declared a pre-release schema break.
+  Record: *This is a pre-release schema break, and the upgrade gate said so*.
+- **2026-08-19** — The managed chain adopts a database that predates the split, carrying its data
+  into the managed tables (operative bullet 3). Record: the same section.
 - **2026-08-19** — Amended by [ADR-0039](./0039-no-open-core-and-what-ops-privacy-means.md): the
   two parked options are closed, not open, and a third this ADR never named (two public
   Apache-2.0 repos) is declined; the "remains open" in *Consequences* is superseded on that point

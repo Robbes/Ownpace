@@ -2,7 +2,7 @@
 
 - **Status:** **Accepted 2026-09-20** — found and built the night after ADR-0048, under the owner's
   standing "work autonomously"; the rules are the existing ones, applied to the one door that did
-  not apply them.
+  not apply them. Amended three times since (latest 2026-09-26).
 - **Date:** 2026-09-20
 - **Deciders:** built on the owner's earlier decisions (below); nothing new decided
 - **Relates to:** [ADR-0026](./0026-one-operating-ui-one-contract.md) (lifecycle decisions live in
@@ -23,8 +23,8 @@
   the status read in its own transaction. A move the lifecycle does not make through this door is
   **409 `lifecycle_refused`**: a stable `code`, a `hint` naming the right door, nothing written.
   Guards: the `a-door-that-asked-nobody` unit and integration tests in `apps/api`.
-- **After cutover stays after cutover** (`after_cutover`): `cutover`, `done` and `continuous` do
-  not go back to `active` or `paused` by an update. Only a rollback does, recorded as one.
+- **After cutover stays after cutover** (`after_cutover`): `cutover` and `continuous` do not go
+  back to `active` or `paused` by an update. Only a rollback does, recorded as one.
 - **`done` is terminal** (`finished`) but for the continuous lane, which is entered only after
   cutover, from `cutover` or `done` (`before_cutover`).
 - **A transition with its own door is refused here and sent there** (`own_door`): `active` is
@@ -36,15 +36,16 @@
   `a-door-that-asked-nobody.unit.test.ts`.
 - **The lane's switch is `PUT`**, the verb this path serves, for a caller of the API. The Finish
   page does not send it: it keeps or ends each data type at its own door
-  (`POST …/domains/{domain}/keep`, `…/end`; ADR-0048). Guard:
-  `an-ending-either-edition-presses.unit.test.ts`.
+  (`POST …/domains/{domain}/keep`, `…/end`; ADR-0048), and the web's verb pin went with the call
+  it pinned. Guard: `an-ending-either-edition-presses.unit.test.ts`.
 - **`POST /api/migrations` creates a migration `paused` (the default) or `active`**
   (`CREATABLE_STATUSES`), and refuses `cutover`, `done` and `continuous` with a 400 on `status`
   naming their doors: the cutover, Finish and Keep copying. Guard:
   `path-lifecycle-wiring.unit.test.ts`.
-- **`POST …/cutover` asks `prepareTransition`** (core's `cutover-state.ts`, the rule the job
-  follows) before it enqueues: 409 `cutover_refused` with a stable `code`, or a 202 saying what
-  the job will do (0009 T10). See *Consequences*.
+- **`POST …/cutover` asks `prepareTransition`** (core's `cutover-state.ts`) before it enqueues:
+  409 `cutover_refused` with the reason and a stable `code`, or a 202 saying what the job will
+  do; the job re-reads and stays the authority. Guards:
+  `the-press-that-answered-202-to-a-closed-ledger` tests.
 
 ## Context
 
@@ -163,6 +164,12 @@ the axios instance without a `patch` at all, so a regression fails as a missing 
 
 ## Amendment log
 
+- **2026-09-20** — The cutover door asks too: `POST …/cutover` relays `prepareTransition` (workplan
+  0009 T10). Record: *Consequences*, "The cutover door asks too".
+- **2026-09-24** — The create door asks too: `POST /api/migrations` creates only `paused` or
+  `active` (found mapping workplan 0128 T5). Record: *Consequences*, "The create door asks too".
+- **2026-09-26** — The Finish page presses per data type, so it no longer sends the lane's `PUT`
+  (workplan 0128 T5 slice 7b). Record: *Consequences*, "The Finish page presses per data type".
 - **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
   decided. Their earlier wording, with the reasons and examples the budget left out, is in the
   record: [history/0049-a-door-that-asked-nobody.md](./history/0049-a-door-that-asked-nobody.md).

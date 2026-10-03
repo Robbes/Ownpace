@@ -33,8 +33,8 @@
   both-bundles build, and `two-chains` applying both chains to one database. Reconsider only
   on a *social* trigger (a separate contributor community around the core), never a technical one.
 - **"Private ops" means instance facts and secrets, never the recipe**: `deploy/` is public by
-  design, how an MSP runs its own managed instance. Instance facts ride env and repository
-  variables; secrets are gitignored, never in git. A private ops repo comes only when instance
+  design, how an MSP runs its own instance. Instance facts ride env and repository
+  variables; secrets are gitignored, never in git. A private ops repo is warranted only if instance
   facts outgrow env vars, and holds only them, pointing at the public recipe (*The ops-privacy
   correction*).
 - The trademark is the **mission-compatible moat** — Apache-2.0 §6 grants no trade-mark rights.
@@ -160,6 +160,9 @@ disclaims Microsoft's marks and asserts nothing about ours.
 
 ## Amendment log
 
+- **2026-08-20** — The owner asked for the mark to be asserted; done in `NOTICE` under
+  [ADR-0040](./0040-the-service-is-ownpace.md), which settles what this ADR recommended and left
+  undecided. Operative bullet 5 restated to match on 2026-10-03.
 - **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
   decided. Their earlier wording, with the reasons and examples the budget left out, is in the
   record: [history/0039-no-open-core-and-what-ops-privacy-means.md](./history/0039-no-open-core-and-what-ops-privacy-means.md).
