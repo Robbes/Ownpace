@@ -159,6 +159,7 @@ const A_DECLINED = `${P}44`;
 const A_OLD_EVENT = `${P}45`;
 const C_REQUEST = `${P}46`;
 const C_PERSON = `${P}37`;
+const C_LINK = `${P}38`;
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const readRepo = (rel: string): string => readFileSync(join(REPO_ROOT, rel), 'utf8');
@@ -250,6 +251,10 @@ const EXPECTED: Record<string, readonly string[]> = {
   person: PURGED_ONLY(),
   // Who accepted which texts (workplan 0139 T3, managed 0032): in PURGED_TABLES since #1360.
   legal_acceptance: PURGED_ONLY(),
+  // A person's links (workplan 0153 T5 (b), managed 0034): in PURGED_TABLES since #1390, and
+  // granted in managed 0035, not 0033, which runs before the table exists on a fresh database.
+  // Never the secret's hash, the person or the expiry: the purge picks the rows by tenant.
+  person_link: PURGED_ONLY(),
 };
 
 /** What the role holds beyond tables: its schema's USAGE, and nothing else anywhere. */
@@ -479,7 +484,9 @@ describe('the role: no superuser, no role or database of its own, a member of no
 
   it('is granted DELETE on every table the purge empties, so no erasure stops on one', () => {
     for (const table of PURGED_TABLES) {
-      expect(EXPECTED[table], `${table} is in PURGED_TABLES and has no grant listed here`).toContain('DELETE');
+      // `?? []`: a table missing from EXPECTED reads "expected [] to include 'DELETE'"
+      // after its name, not an argument-type error about `undefined`.
+      expect(EXPECTED[table] ?? [], `${table} is in PURGED_TABLES and has no grant listed here`).toContain('DELETE');
     }
   });
 });
@@ -523,6 +530,7 @@ describe('it is refused what it was not given', () => {
     ['letting another role take its rights', `GRANT ${SYSTEM_ROLE} TO app_user`, /permission denied|must have admin option/],
     ["reading a purged table's rows", 'SELECT natural_key FROM item LIMIT 1', /permission denied/],
     ["reading a member's address", 'SELECT email FROM tenant_member LIMIT 1', /permission denied/],
+    ["reading a person's link", 'SELECT secret_hash, person_id, expires_at FROM person_link LIMIT 1', /permission denied/],
     ["reading a request's name", 'SELECT name, email FROM access_request LIMIT 1', /permission denied/],
     ['reading an invoice\'s amounts', 'SELECT total FROM invoice LIMIT 1', /permission denied/],
     ['reading who the operators are', 'SELECT * FROM platform_operator LIMIT 1', /permission denied/],
@@ -737,6 +745,11 @@ describe('the purge of a closed organisation runs as the system role', () => {
     await owner.execute(sql`
       INSERT INTO person_migration (mapping_id, person_id, tenant_id) VALUES (${C_MAPPING}, ${C_PERSON}, ${C})
       ON CONFLICT (mapping_id) DO NOTHING`);
+    // That person's grant link (managed migration 0034): a door left open, which the purge closes.
+    await owner.execute(sql`
+      INSERT INTO person_link (id, tenant_id, person_id, purpose, secret_hash, created_by, expires_at) VALUES
+        (${C_LINK}, ${C}, ${C_PERSON}, 'grant', 'h-0138f-c-link', 'user-0138f-c-owner', now() + interval '7 days')
+      ON CONFLICT (id) DO NOTHING`);
     await owner.execute(sql`
       INSERT INTO tenant_member (tenant_id, user_id, email, role, status) VALUES
         (${C}, 'user-0138f-c-owner', 'owner@c.system-role.example.invalid', 'owner', 'active')
@@ -783,6 +796,7 @@ describe('the purge of a closed organisation runs as the system role', () => {
     expect(receipt!.counts.tenant).toBe(1);
     expect(receipt!.counts.person).toBe(1);
     expect(receipt!.counts.person_migration).toBe(1);
+    expect(receipt!.counts.person_link).toBe(1);
   });
 
   it('and A and B are as they were', async () => {
