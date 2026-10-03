@@ -91,10 +91,7 @@
 --   decisions, members, budgets, VAT log, or the people being moved and
 --   which migration is whose (`person`, `person_migration`, managed
 --   migration 0031), or who accepted which texts (`legal_acceptance`,
---   managed migration 0032). A table the purge empties that a later
---   migration makes is granted by a later one, the same way: a person's
---   links (`person_link`, managed migration 0034) by 0035, since this one
---   runs before that table exists.
+--   managed migration 0032).
 --   The rest, each for its one job: the hold and the beat (the tick); the
 --   invoices' period and status (retention) and their detaching, with the
 --   buyer's name (the purge); declined access requests by their decision
