@@ -357,6 +357,13 @@ copy-link"*.
   because its destination is new to them.
 - **The grant link is spent when every account on it is granted.** Until then it stays live
   within its expiry, so a person with a personal and a work account can do one now and one later.
+- **A link made while every account is connected asks each of them again** (added 2026-10-03,
+  managed migration 0036). A connection can stop working while its token is still held: taken
+  back at Google, lapsed, or expired after seven days while the Google application is in testing.
+  The account still reads as connected, and a migration's own link, which asked whatever its
+  migration needed, was the way back. So the person's link remembers which migrations it asks
+  for again, offers each of their accounts *Connect again*, and is spent once each has been
+  connected through it. A link made while something was not connected asks only for that.
 - **The progress page is the person's.** It shows every migration of theirs. *Take my grant back*
   is per account: the token is revoked at Google once, and cleared from every migration that holds
   it (0108 T8 (c)'s rules otherwise unchanged).

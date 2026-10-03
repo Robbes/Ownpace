@@ -149,7 +149,17 @@ const NOT_THIS_ACCOUNT: Bilingual = {
   nl: 'Deze link vraagt niet om dat account. Open de link opnieuw en kies een account dat erop staat.',
 };
 
-/** When the account the button named is already connected. */
+/**
+ * Whether a person's link asks for this account again: it was made while
+ * every account of theirs was connected, and one of this account's
+ * migrations has not been connected through it since (managed migration
+ * 0036). A connection can stop working while its token is still held.
+ */
+function asksAgainFor(link: PersonLink, account: PersonGrantSubject['accounts'][number]): boolean {
+  return account.granted && account.migrations.some((m) => link.asksAgain?.includes(m.mappingId) ?? false);
+}
+
+/** When the account the button named is already connected, and not asked for again. */
 const ALREADY_GRANTED: Bilingual = {
   en: 'This account is already connected. Nothing more is needed for it.',
   nl: 'Dit account is al verbonden. Er is niets meer voor nodig.',
@@ -286,6 +296,8 @@ async function answerForAPerson(res: Response, link: PersonLink): Promise<void> 
     accounts: subject.accounts.map((a) => ({
       account: a.account,
       granted: a.granted,
+      // Connected, and asked for again all the same (`asksAgainFor`).
+      again: asksAgainFor(link, a),
       // What it will read and in which words, when one sign-in can serve it;
       // otherwise why not, in both languages, for the person to forward.
       ...(a.ask.ok
@@ -311,7 +323,9 @@ async function authorizeForAPerson(req: PersonLinkRequest, res: Response, link: 
   const account =
     typeof asked === 'string' ? subject.accounts.find((a) => sameGoogleAccount(a.account, asked)) : undefined;
   if (!account) return void res.status(409).json({ error: 'not_this_account', ...reasonPair(NOT_THIS_ACCOUNT) });
-  if (account.granted) return void res.status(409).json({ error: 'already_granted', ...reasonPair(ALREADY_GRANTED) });
+  if (account.granted && !asksAgainFor(link, account)) {
+    return void res.status(409).json({ error: 'already_granted', ...reasonPair(ALREADY_GRANTED) });
+  }
   if (!account.ask.ok) {
     return void res.status(409).json({ error: 'not_ready', ...reasonPair(account.ask.reason) });
   }
