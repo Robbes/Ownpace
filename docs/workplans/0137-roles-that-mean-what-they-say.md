@@ -10,8 +10,9 @@ follow whose data it is. For a migration whose account a person granted through 
 the owner's migration page and failure queue show the category, the side and a reference, and the
 server withholds the rest, so no browser receives it; the group action refuses a substring of text
 it does not show. Accounts the organisation connected show everything, as before. Guards: the two
-`a-failure-that-names-someone-elses-files.unit.test.ts`. Still open: what the privacy policy says
-about who sees which migration data (0139), which should now say this too.
+`a-failure-that-names-someone-elses-files.unit.test.ts`. The completion report and the preflight's
+count follow the same rule since (a stopped count says so, without the text). Still open: what the
+privacy policy says about who sees which migration data (0139), which should now say this too.
 
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found that a
 person with the role *viewer* in an organisation can delete a migration, replace the target's

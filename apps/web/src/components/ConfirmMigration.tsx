@@ -72,13 +72,15 @@ const POLL_CEILING_MS = 15 * 60 * 1000;
  * it rather than of the error, so its age says nothing about the error.
  * Without the migration's time, every row is shown, as it was.
  */
-export function countedSinceChange<T extends { readonly discoveredAt: string; readonly lastError?: string }>(
-  domains: ReadonlyArray<T>,
-  changedAt: string | undefined,
-): T[] {
+export function countedSinceChange<
+  T extends { readonly discoveredAt: string; readonly lastError?: string; readonly lastErrorWithheld?: true },
+>(domains: ReadonlyArray<T>, changedAt: string | undefined): T[] {
   const since = changedAt === undefined ? NaN : Date.parse(changedAt);
   if (Number.isNaN(since)) return [...domains];
-  return domains.filter((d) => d.lastError !== undefined || Date.parse(d.discoveredAt) >= since);
+  // A withheld error is an error all the same (ADR-0035 decision 5).
+  return domains.filter(
+    (d) => d.lastError !== undefined || d.lastErrorWithheld === true || Date.parse(d.discoveredAt) >= since,
+  );
 }
 
 /** One migration's count, as a green light reads it (`useMigrationCount`). */

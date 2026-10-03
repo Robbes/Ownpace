@@ -16,6 +16,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { buildDomainStatusReports, withheldFailure } from './operating-contract.ts';
+import { domainsCountedBeforeTheirError, withheldDiscovery, type DiscoveryRecord } from './discovery.ts';
 import type { ItemFailure, MigrationStatus } from './ports.ts';
 
 const failed = {
@@ -85,5 +86,33 @@ describe("the failure queue's row, for an account a person granted", () => {
     const serialised = JSON.stringify(withheldFailure(failure));
     expect(serialised).not.toContain('Divorce');
     expect(serialised).not.toContain('lawyer');
+  });
+});
+
+describe("the confirm screen's count, for an account a person granted", () => {
+  const stopped: DiscoveryRecord = {
+    domain: 'file',
+    collections: 4,
+    items: 120,
+    bytes: 1_000,
+    discoveredAt: '2026-10-03T09:00:00.000Z',
+    lastError: 'files.list: "Personal/Divorce lawyer" is not readable',
+  };
+
+  it('keeps the numbers and the fact that it stopped, and drops the text', () => {
+    const row = withheldDiscovery(stopped);
+    expect(row).not.toHaveProperty('lastError');
+    expect(row.lastErrorWithheld).toBe(true);
+    expect(row.items).toBe(120);
+    expect(JSON.stringify(row)).not.toContain('Divorce');
+  });
+
+  it('claims nothing was withheld when the count did not stop', () => {
+    const { lastError: _gone, ...clean } = stopped;
+    expect(withheldDiscovery(clean)).not.toHaveProperty('lastErrorWithheld');
+  });
+
+  it('still says its numbers come from an earlier count', () => {
+    expect(domainsCountedBeforeTheirError([withheldDiscovery(stopped)])).toEqual(['file']);
   });
 });
