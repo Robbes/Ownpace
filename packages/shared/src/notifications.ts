@@ -822,11 +822,22 @@ export type NotificationEvent =
        *
        * Set by the API from `OWNPACE_STAGE` (`accessGrantedEvent` in
        * `apps/api/src/access-notify.ts`); absent or false everywhere else, and
-       * the mail then says nothing about an alpha. 0131 T1 (b) adds the links
-       * to the alpha conditions and the tester guide to the same paragraph, once
-       * 0139 T10's module can build their addresses.
+       * the mail then says nothing about an alpha. The tester guide's link
+       * (0131 T1 (b), 0144 T1) joins the same paragraph once the site renders
+       * the guide.
        */
       readonly alpha?: boolean;
+      /**
+       * Where the Alpha conditions are, per language (0139 T4, with 0131 T1).
+       * The last line of the alpha paragraph, in the mail's own language, and
+       * only with `alpha`: outside the alpha there are no conditions to read.
+       *
+       * Both languages, not one, so the address cannot disagree with the
+       * language the mail is written in: `renderEvent` picks it with the same
+       * locale it writes every other line in. The API makes them from
+       * `LEGAL_SITE_URL` (`alphaConditionsUrl` in `privacy-policy-link.ts`).
+       */
+      readonly alphaConditions?: Readonly<Record<NotificationLocale, string>>;
     }
   | {
       /**
@@ -975,6 +986,7 @@ interface EventLines {
   readonly grantedVerify: string;
   readonly grantedNoLink: string;
   readonly grantedAlpha: string;
+  readonly grantedConditions: string;
   readonly declinedIntro: string;
   readonly declinedReply: string;
 }
@@ -1027,6 +1039,10 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'Alpha: a small invited group is trying this service out. Nothing is charged, and the alpha ' +
       'can end. There are no backups, apart from one copy before each update, kept up to 7 days. ' +
       'Keep your old account until you have checked what arrived.',
+    // Under the alpha paragraph, with the conditions' address after it (0139
+    // T4, with 0131 T1). The texts' own title, as the acceptance screen and
+    // the site name them.
+    grantedConditions: 'Read the Alpha conditions here:',
     // No reason, and no false hope. "We are not able to offer you a place right
     // now" is what is true; dressing it as "not yet" would be a promise nobody
     // made, and listing criteria would invite an argument about them.
@@ -1072,6 +1088,7 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'gebracht en de alfa kan stoppen. Er worden geen back-ups gemaakt, op één kopie vlak voor ' +
       'elke update na, die hoogstens 7 dagen wordt bewaard. Houd uw oude account tot u hebt ' +
       'gecontroleerd wat er is aangekomen.',
+    grantedConditions: 'Lees hier de voorwaarden voor de Alpha:',
     declinedIntro:
       'Bedankt voor uw interesse in Ownpace. Een mens heeft uw aanvraag gelezen en wij kunnen u ' +
       'op dit moment geen plek aanbieden.',
@@ -1127,9 +1144,13 @@ export function renderEvent(
       lines.push(b.grantedVerify, '');
       lines.push(b.grantedNoLink);
       // Last, as a paragraph of its own: the steps above stay together, and
-      // this is about the service rather than about signing in. 0131 T1 (b)'s
-      // links to the conditions and the tester guide belong in this paragraph.
-      if (event.alpha) lines.push('', b.grantedAlpha);
+      // this is about the service rather than about signing in. The link to
+      // the conditions ends it, in this mail's language (0139 T4, with 0131
+      // T1); the tester guide's joins it once the site renders the guide.
+      if (event.alpha) {
+        lines.push('', b.grantedAlpha);
+        if (event.alphaConditions) lines.push(`${b.grantedConditions} ${event.alphaConditions[locale]}`);
+      }
       break;
     case 'access_declined':
       lines.push(b.declinedIntro, '', b.declinedReply);

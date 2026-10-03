@@ -102,6 +102,10 @@ const en = {
   'report.reference': 'the reference on your screen: {reference}',
   'report.category': 'the kind of error: {category}',
   'report.replyTo': 'Replies go to {email}.',
+  // The policy beside what the form says it sends (0139 T4): privacy §4.5
+  // says why a report is kept, and §9 for how long. The link follows, named
+  // as the text names itself (`acceptance.doc.privacy`).
+  'report.privacy': 'Why we keep your report, and for how long:',
   // What the browser says of itself (workplan 0130 T6, Part B), as the form
   // lists it when the service's lines cannot be had. The server writes each
   // as a line of its own, in English, when they can.
@@ -438,6 +442,11 @@ const en = {
   // server has forgotten it, and a tap would end on its English "expired"
   // refusal. So the link goes, and this asks for the press that starts anew.
   'wizard.consent.windowExpired': 'The link to {provider}’s page has expired. Press {button} again.',
+  // Beside every Connect button, on the managed service (0139 T4;
+  // docs/google-oauth-verification.md §5: "Links to the privacy policy and
+  // terms sit beside the button, not in a footer."). The two links follow,
+  // named as the texts name themselves (`acceptance.doc.*`).
+  'wizard.consent.legal': 'What we do with your data, and on what terms:',
   // The deployment's own client (ADR-0041, owner decision 2026-09-01): the
   // pair becomes optional as a whole, and a half-typed pair is named rather
   // than silently completed with the deployment's other half.
@@ -2858,9 +2867,14 @@ const en = {
   'access.failed': 'We could not send that:',
   'access.failedFallback': 'the request did not complete.',
   // Privacy §4.4's two purposes, decided and answered (0139 T4,
-  // ops-app-sentences (a); it said "only to answer you" until then).
+  // ops-app-sentences (a); it said "only to answer you" until then), and
+  // since 2026-10-03 privacy §9's period for a request, in short sentences:
+  // open, declined, granted. The links to the policy and, during the alpha,
+  // the conditions follow it under the form.
   'access.privacy':
-    'We keep what you type to decide on your request and to answer you; asking creates no account.',
+    'We keep what you type to decide on your request and to answer you; asking creates no account. ' +
+    'We keep it while your request is open. If we decline it, we delete it 30 days after our decision. ' +
+    'If we grant it, it stays with your account and is erased with it.',
   'access.backToSignIn': 'Already have an account? Sign in',
 } as const;
 
@@ -2941,6 +2955,7 @@ const nl: Record<keyof typeof en, string> = {
   'report.reference': 'de referentie op uw scherm: {reference}',
   'report.category': 'het soort fout: {category}',
   'report.replyTo': 'Antwoorden gaan naar {email}.',
+  'report.privacy': 'Waarom we uw melding bewaren, en hoelang:',
   'report.browser.language': 'de taal van dit scherm: Nederlands',
   'report.browser.timeZone': 'uw tijdzone: {timeZone}',
   'report.browser.width': 'de breedte van dit venster: {width} pixels',
@@ -3364,6 +3379,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.consent.windowBlocked':
     'Uw browser heeft de pagina van {provider} niet geopend. Open die met deze link:',
   'wizard.consent.windowExpired': 'De link naar de pagina van {provider} is verlopen. Druk opnieuw op {button}.',
+  'wizard.consent.legal': 'Wat we met uw gegevens doen, en onder welke voorwaarden:',
   'wizard.google.deploymentClient':
     'Deze installatie heeft een eigen Google-client; vul beide in om uw eigen te gebruiken.',
   'wizard.google.connect.halfClient':
@@ -5117,7 +5133,9 @@ const nl: Record<keyof typeof en, string> = {
   'access.failed': 'Wij konden dat niet versturen:',
   'access.failedFallback': 'de aanvraag is niet voltooid.',
   'access.privacy':
-    'Wij bewaren wat u invult om over uw aanvraag te beslissen en u te antwoorden; een aanvraag maakt geen account aan.',
+    'Wij bewaren wat u invult om over uw aanvraag te beslissen en u te antwoorden; een aanvraag maakt geen account aan. ' +
+    'We bewaren het zolang uw aanvraag openstaat. Wijzen we die af, dan verwijderen we het 30 dagen na ons besluit. ' +
+    'Kennen we die toe, dan blijft het bij uw account en wordt het daarmee gewist.',
   'access.backToSignIn': 'Heeft u al een account? Aanmelden',
 };
 

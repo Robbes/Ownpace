@@ -2,7 +2,19 @@
 
 > **In one line:** Hardening Zitadel sign-in at `id.ownpace.eu` and the OTA instance via `setup-zitadel.sh`: public organisation registration off, `hasProjectCheck`, organisation counts, MFA and lockout, legal links, Dutch and English copy, release watch, orphan accounts.
 
-## Status — 2026-09-29 (update this block at the end of every session)
+## Status — 2026-10-03 (update this block at the end of every session)
+
+**2026-10-03: T5 built, with 0139 T4**, on branch
+`claude/ownpace-public-readiness-y7orc6-a-notice-where-data-is-collected`, not merged. Asked
+whether that change sets the sign-in page's links too, the owner chose *"Yes, include it"*; asked
+how the links behave before the texts are published, *"Always shown"*. `setup-zitadel.sh` now
+writes the instance privacy policy's terms and privacy links, the Dutch pages on the site
+`VITE_LEGAL_SITE_URL` names, on every run, after the page's languages, and reads them back on the
+instance and on the project's organisation; `managed.yml` sets them for a fresh instance. §3 T5
+says what differs from the proposal and why, and 0139's Status block of the same date has the
+guard's counts and the mutations. Not yet run against a real instance: the next E2E (managed)
+run applies it to the OTA instance, and live's first bring-up to live's.
+
 
 **2026-09-29, later still: open question 13 answered, and built: a removed member's sign-in
 account goes 7 days after the removal (T8)**, not merged, on branch
@@ -487,7 +499,7 @@ Names used from here on: **live** is the identity provider of `ownpace-live`, at
 | T2 The project admits its own organisation only | ✅ **done** in #1261, merged 2026-09-28 (`3be0ef03`): created with the check, an existing project updated and read back; in place on live before its first invitation (D2, D7) — *was:* 🔨 **Built 2026-09-27, not merged**; 📋 **Proposed** | §3. `hasProjectCheck` on the Ownpace project, set at creation and on an existing project, and read back. Live's project is created at its first bring-up. This sits beside `tenant_member`, not in its place. |
 | T3 One organisation, recorded and counted again | 📋 **Decided 2026-09-24** (D1) for the record; (a) the count on every run of `setup-zitadel.sh` ✅ **done** in #1272, merged 2026-09-28 (`3408c143`); live's daily count is 0132 T7's — *was:* (a) 🔨 built 2026-09-27, not merged; the count 📋 **Proposed** | §3. The owner's answer covers the OTA instance; live's starts with one. The count is per instance: a count anybody can repeat, a line in the bring-up's summary, daily on live by 0132 T7, nightly on the OTA instance by the gate's own run of `setup-zitadel.sh`. |
 | T4 Second factors for the accounts that hold the keys, and a lockout | ⏳ **Owner** for the enrolment; 📋 **Proposed** for the lockout and forced MFA | §3. The first human and every operator, on each instance, live first; the machine user cannot have one and relies on its token's short life. A lockout threshold. Whether a second factor is forced is open question 2. |
-| T5 Privacy and terms links on the registration and sign-in pages | 📋 **Proposed**; lands with 0139's publication (D5) | §3. The instance privacy policy, from `.env`, read back. Live's first. |
+| T5 Privacy and terms links on the registration and sign-in pages | 🔨 **Built 2026-10-03** with 0139 T4 on branch `claude/ownpace-public-readiness-y7orc6-a-notice-where-data-is-collected`, **not merged** (the owner, 2026-10-03, asked whether this change sets the sign-in page's links too: *"Yes, include it"*): `setup-zitadel.sh` writes the instance privacy policy's `tosLink` and `privacyLink`, the Dutch terms and privacy pages on the site `VITE_LEGAL_SITE_URL` names (empty: the production site), copies the other five fields back, and reads both links back on the instance and on the project's organisation; `managed.yml` sets them for a fresh instance; always shown, also before the texts are published (the owner: *"Always shown"*); `scripts/a-notice-before-a-password.unit.test.ts`; not yet run against a real instance — *was:* 📋 **Proposed**; lands with 0139's publication (D5) | §3. The instance privacy policy, from `.env`, read back. Live's first. |
 | T6 Dutch and English, in Ownpace's own words | 📋 **Decided 2026-09-24** (D4) for the languages, and (a) the languages ✅ **done** in #1286, merged 2026-09-28 (`a0897c0`); 📋 **Proposed** for the brand | §3. Only `nl` and `en` allowed, a default from `.env`, and the verification and reset mails rewritten. Logo, colours and the organisation's name follow; live's fresh instance can carry the name from its first start. |
 | T7 A watch on the pinned identity provider | ✅ **the pin moved to v4.19.1** in #1285, merged 2026-09-28 (`f839929`) (open question 11: go); the watch 📋 **decided 2026-09-28**: (a) the owner's GitHub subscription and (b) a weekly job, seven days (open question 5); (b) ✅ **done** in #1288, merged 2026-09-28 (`07dd8ff`); its first run found v4.19.2 (open question 12); the pin ✅ **moved to v4.19.2** in #1292, 2026-09-28, after the owner's dump with `dump-idp.sh`; E2E (managed) #210 applied it to the OTA instance (open question 12: go) — *was:* 📋 **Proposed**; the three releases after the pin read 2026-09-28: v4.18.0 fixes GHSA-4hgj-wm6c-q7p2 in login v1, which this stack serves (open question 11) | §3. Read the three newer releases now, choose a watch, set a response window, and take a dump before an upgrade. |
 | T8 Accounts nobody let in, and erasure that reaches the identity provider | ✅ **(a) done** in #1344, merged 2026-09-29 (`0bcbc25`): `idp-strays.sh`, and the runbook's two steps; ✅ **(b) done** in #1345, merged 2026-09-29 (`a4885a5`): the daily run on live, the owner's choice (0139), once live's timer is installed, which is the owner's step (copy the units again and reload); the review ✅ **fixed 2026-09-29**, merged as #1367 (`c9826dc`): an account that was let in and removed since is kept (the Team page's removal records `member.removed`), `--remove` refuses while the database has no operator row, only our own organisation's accounts with no role at the provider are weighed, and the listing is read to its end or refused; its review ✅ **fixed 2026-09-29**, in the same merge: a role at the provider read as the provider counts it, the Team page's record naming the row it deleted, a count below the accounts given refused, and the runbook holding the duty after a reset that keeps the provider's accounts; a removed member's account 📋 **Decided 2026-09-29**, removed 7 days after the removal (open question 13: *"Samen number of days"*, then *"7 days"*), 🔨 **built 2026-09-29**, not merged, with privacy §9's row in both languages; its review 🔨 **fixed the same day**, not merged: an account with no creation date held to its 7 days, and *Tenant offboarding* removing, at the purge, the account of a member removed less than 7 days before it — *was:* the owner's (open question 13); the retention period 📋 **Decided 2026-09-28**, 30 days (open question 6), and the rule gains a fifth condition, an open invitation — *was:* 📋 **Proposed**; the retention period is the owner's (→ 0139) | §3. A retention rule, an operator script in `deploy/compose`, and a runbook step. |
@@ -1013,6 +1025,24 @@ to social sign-ins, and sessions. That text is 0139's.
 
 - the script writes the privacy policy with both links taken from `.env`, and reads them back;
 - `managed.yml` passes them to a fresh instance.
+
+**As built (2026-10-03, with 0139 T4; not merged).** Three things differ from the proposal above,
+each for a reason recorded in 0139's Status block of that date:
+
+- **One key, not four.** The links are made from `VITE_LEGAL_SITE_URL`, the key the web app's
+  links and the api's mails already come from (0139 T10: *"0135 T5's `IDP_PRIVACY_URL` and
+  `IDP_TOS_URL` are set to the same addresses"*), by the same rule, and the file names are the
+  site build's (`LEGAL_FILES.nl`). `IDP_TOS_URL`, `IDP_PRIVACY_URL`, `IDP_HELP_URL` and
+  `IDP_SUPPORT_EMAIL` were not added; help and support are copied back as they were.
+- **No empty value that leaves the page bare.** Asked how the links behave before the texts are
+  published, the owner chose *"Always shown"*: empty is the production site, as for the app,
+  and testers arrive only after publication. So the step does not wait for publication either.
+- **Read back twice.** Also on the project's organisation, whose own policy would stand in
+  front of the instance's; the run stops if it does, and names how to put it back.
+
+The Dutch pages, as proposed above. The guard runs the script's own functions against a
+stand-in provider that refuses an update which changes nothing, as v4.19.2 does; nothing has
+been run against a real instance yet.
 
 ### T6 — Dutch and English, in Ownpace's own words
 

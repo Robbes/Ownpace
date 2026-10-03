@@ -800,6 +800,19 @@ services:
       # serves the form. setup-zitadel.sh sets it on an existing instance and
       # reads it back on both.
       ZITADEL_DEFAULTINSTANCE_RESTRICTIONS_DISALLOWPUBLICORGREGISTRATION: "true"
+      # THE NOTICE ON THE REGISTRATION PAGE (workplan 0135 T5, for 0139 T4).
+      # Upstream ships the instance privacy policy with no terms and no privacy
+      # link, so the page that takes a tester's name, address and password
+      # would link neither. Read once, at first init, like the two lines above:
+      # a fresh instance links the Dutch pages from its first start, on the
+      # site VITE_LEGAL_SITE_URL names (empty is the production site, as for
+      # the web build), and a bring-up that stops before setup-zitadel.sh's
+      # step still leaves them there. setup-zitadel.sh sets them on an existing
+      # instance, reads them back on both, and writes the address without the
+      # second slash a value ending in one would leave here. Why Dutch, and
+      # where the file names come from, is said beside that step.
+      ZITADEL_DEFAULTINSTANCE_PRIVACYPOLICY_TOSLINK: ${VITE_LEGAL_SITE_URL:-https://www.ownpace.eu}/nl/voorwaarden.html
+      ZITADEL_DEFAULTINSTANCE_PRIVACYPOLICY_PRIVACYLINK: ${VITE_LEGAL_SITE_URL:-https://www.ownpace.eu}/nl/privacy.html
       # NO DAILY REPORT TO ZITADEL (workplan 0139, 2026-09-28). `cmd/defaults.yaml`
       # at v4.19.2 ships `ServicePing.Enabled: true`: once a day, to
       # https://zitadel.com/api/ping, the version, the id, creation date and

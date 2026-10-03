@@ -2,9 +2,106 @@
 
 > **In one line:** Legal gate for the alpha: `site/legal` placeholders filled and published, a lawyer's pass, alpha conditions, acceptance recorded at first sign-in, notices where data is collected, sub-processors, retention, account closure, breach procedure, `SECURITY.md`.
 
-## Status — 2026-09-29 (update this block at the end of every session)
+## Status — 2026-10-03 (update this block at the end of every session)
 
-**2026-09-29, latest: the close stops what is running (T7; terms briefing, precondition B),
+**2026-10-03, latest: T4's notices built, the sign-in page's links with them (0135 T5)**, on
+branch `claude/ownpace-public-readiness-y7orc6-a-notice-where-data-is-collected`, not merged.
+The rest of T4's table: a notice, with a link in the reader's language, wherever a tester's data
+is collected. Nothing has run on a machine.
+
+- **The owner's two answers (2026-10-03).** Asked how the links behave before the texts are
+  published, the owner chose *"Always shown"*: every link points at the site's address, the
+  test site on the OTA stack and `www.ownpace.eu` on live, because testers arrive only after
+  publication. So no link waits for a switch, and an empty `VITE_LEGAL_SITE_URL` is the
+  production site, as it already was for the app. Asked whether this change also sets the
+  sign-in page's links, the owner chose *"Yes, include it"*: 0135 T5 is built here.
+- **One source for every address.** The web's links come from `services/legal-links.ts`
+  (`legalUrl`, `VITE_LEGAL_SITE_URL`), drawn once by a new `components/LegalLinks.tsx`: each text
+  named as it names itself (the acceptance screen's `acceptance.doc.*`), in a new tab, so a
+  half-typed form is still there. The api's come from `LEGAL_SITE_URL`
+  (`packages/shared/src/privacy-policy-link.ts`, which gains `alphaConditionsUrl`). The sign-in
+  page's come from the same `.env` key, by the same rule, with the site build's file names.
+- **The request form** (`RequestAccess.tsx`). Under the form, the privacy policy, and during
+  the alpha the Alpha conditions beside it (`isAlpha()`, the answer the note and the acceptance
+  screen use). `access.privacy` now also states privacy §9's period for a request. EN: *"We keep
+  what you type to decide on your request and to answer you; asking creates no account. We keep
+  it while your request is open. If we decline it, we delete it 30 days after our decision. If we
+  grant it, it stays with your account and is erased with it."* NL: *"Wij bewaren wat u invult om
+  over uw aanvraag te beslissen en u te antwoorden; een aanvraag maakt geen account aan. We
+  bewaren het zolang uw aanvraag openstaat. Wijzen we die af, dan verwijderen we het 30 dagen na
+  ons besluit. Kennen we die toe, dan blijft het bij uw account en wordt het daarmee gewist."*
+  The links read *Privacy policy · Alpha conditions* / *Privacyverklaring · Voorwaarden voor de
+  Alpha*.
+- **The Connect buttons.** Beside every provider's button, in both doors (the Connections
+  panel, `ProviderConsentPanel`, and the wizard's own button), through `ConsentLines`, which both
+  draw: EN *"What we do with your data, and on what terms:"* NL *"Wat we met uw gegevens doen, en
+  onder welke voorwaarden:"*, then *Privacy policy · Terms of service* / *Privacyverklaring ·
+  Servicevoorwaarden*. `docs/google-oauth-verification.md` §5's four lines are unchanged; a
+  paragraph under them says where the links now are. Not on the appliance: its owner runs it,
+  and this policy is not theirs.
+- **The report form** (`ReportProblem.tsx`). In the box that says where the report goes and
+  what goes with it: EN *"Why we keep your report, and for how long:"* NL *"Waarom we uw melding
+  bewaren, en hoelang:"*, then the privacy policy.
+- **The access-granted mail.** During the alpha (`alphaFrom`, `OWNPACE_STAGE`), the alpha
+  paragraph ends with EN *"Read the Alpha conditions here:"* NL *"Lees hier de voorwaarden voor
+  de Alpha:"* and the address in the mail's language, from `LEGAL_SITE_URL`. 0131 T1 names no
+  sentence of its own for the link, only that the paragraph carries it. Outside the alpha the
+  mail names no conditions. The event carries both addresses and `renderEvent` picks the one
+  for the language it writes in, so the two cannot disagree.
+- **The sign-in and registration pages (0135 T5).** `setup-zitadel.sh` writes the instance
+  privacy policy's `tosLink` and `privacyLink` on every run, after the page's languages, and
+  reads them back on the instance and on the project's organisation. They are the Dutch pages,
+  `nl/privacy.html` and `nl/voorwaarden.html`, on the site `VITE_LEGAL_SITE_URL` names: Zitadel
+  keeps one link per instance, its `{{.Lang}}` cannot express the site's layout, and the testers
+  are Dutch. The update replaces all seven fields at v4.19.2, so the other five are copied back,
+  and it is written only when a link differs, because Zitadel refuses an update that changes
+  nothing. A value the web build refuses stops the run before anything is written.
+  `managed.yml` gives a fresh instance both links. The summary prints them, and
+  `docs/managed-bring-up.md` §8b says what the run sets.
+- **Corrected here.** The T4 row said the two pieces built on 2026-09-29 were not merged; they
+  were merged that day as #1375 (`7cef571c`). `site/legal/README.md`'s two items said the same
+  and are corrected too. No comment in the privacy policy said the forms had no link, so the
+  texts do not change.
+- **Proved, guard first.** Each new check was run on the unchanged code first.
+  `apps/web/src/components/a-notice-where-data-is-collected.unit.test.tsx`: 18 of 20 red (the
+  two appliance cases green, as they should be), 20 green after. It renders the request form,
+  the Connect panel (Google, Microsoft, Dropbox) and the wizard's Google button, and the report
+  form, in both languages, and finds each link at the address `legal-links.ts` makes, with the
+  module's default moved to the OTA site so a page that wrote an address itself fails.
+  `apps/api/src/a-grant-mail-that-links-the-conditions.unit.test.ts`: 4 of 6 red (the two
+  outside the alpha green), 6 green after. `scripts/a-notice-before-a-password.unit.test.ts`
+  (0135 T5's name): 23 of 23 red on the unchanged script and `managed.yml`, 23 green after; it
+  runs the script's own functions against a stand-in provider that refuses what v4.19.2 refuses,
+  and holds the address to the web's for seven values and four refusals.
+  `a-policy-link-that-answers` gains 2 cases for the mail's conditions address, both red, then
+  green. `access-notify.unit.test.ts`'s event shape gains the two addresses.
+- **Nineteen mutations, each restored after; eighteen turned a guard red at once.** The request
+  form's privacy link gone (6 red); its conditions gone during the alpha (2); both Connect links
+  gone (8); the terms gone (8); the Connect links shown on the appliance (2); the report link gone
+  (2); `access.privacy` without its period (1); every link in English (8, all the Dutch cases);
+  the mail's conditions line gone (4); the English address in a Dutch mail (3); the mail's Dutch
+  file renamed (5, in two guards); the step not called (1); the write gone (5); a file name of the
+  script's own (13); only the two links sent (1); no read-back on the organisation (1);
+  `managed.yml` without the privacy link (1). The conditions in the event outside the alpha left
+  the mail guard green, because the mail renders them only in the alpha paragraph, and turned
+  `access-notify`'s event test red (1). A scheme check removed left the guard green: no refused
+  value had a host after a scheme that is not http(s). The guard gained
+  `ftp://www.ownpace.eu`, and the mutation then turned it red (1).
+- **Gates, on this tree:** `pnpm exec tsc --noEmit` and the web app's typecheck clean; ESLint
+  clean on every changed file; the unit-browser project, 139 files and 2,690 tests, passes; the
+  unit project over `apps/api`, `scripts`, `site` and `packages`, 834 files and 12,061 tests,
+  passes, with two `afterAll` clean-ups (`a-first-bring-up-of-live`, `a-deploy-from-a-named-tag`)
+  timing out at 10 seconds while removing their temporary folders on this machine. The first
+  does the same with `main`'s `managed.yml` and `setup-zitadel.sh`, so it is the machine. The
+  workplan and lessons indexes, the conflict-marker check and the commit convention pass.
+- **Still not true.** Nothing is merged, and live runs none of it until a tag carries it. The
+  links point at pages that answer only once the site is published (T10; live's `WWW_LIVE`).
+  The sign-in page's step has not run against a real instance: the OTA instance gets it at the
+  first gate run after the merge. The tester guide's link beside the conditions (0131 T1 (b),
+  0144 T1) and the conditions' link in the alpha note itself are not built. The lawyer reads the
+  new sentences with the rest (T1).
+
+**2026-09-29: the close stops what is running (T7; terms briefing, precondition B),
 reviewed and fixed**, on branch `claude/ownpace-public-readiness-y7orc6-the-close-stops-what-is-running`,
 not merged; `main` merged in at `7f45685e`, not rebased, both sides of this block kept.
 `site/legal/README.md`'s *To build or to do* said: *"A verification or a confirmation already
@@ -2789,7 +2886,7 @@ longer starts by pausing the nightly gate, which never touches live.
 | T1 A lawyer's pass before the first invitation | ⏳ **Owner**, deferred 2026-09-27 (*"legal: keep as is for now"*); the texts 🔨 **follow the owner's 71 answers of 2026-09-28**, on draft PR #1317, not merged: privacy 1.2 and terms 1.3 still drafts, the Alpha conditions 1.0 edited in place, `dpa.md` and `subprocessors.md` 0.2. The briefings mark each answered question and keep what is left for the lawyer (among them BW 3:15d without the address, the forum and language clauses, the paid-tier checks, Google's role for the test list, the legal bases); 📋 **Decided 2026-09-24** (D1) — *was:* revised 2026-09-28 for the owner's review, points 1, 2, 5 and 10 of §3 T1's list waiting on the owner or the lawyer | §3. The briefings at the top of `privacy.md`, `terms.md`, `alpha.md` and `dpa.md` are the brief. |
 | T2 The alpha conditions, in Dutch and English | 🔨 **1.0 edited in place 2026-09-28** with the owner's answers, on draft PR #1317, not merged: §2 (terms §12's 30 days give way to 7; acceptance in the app), §4 (a breach that affects your data; terms §10 still applies), §5 (updates not announced), §6 (the copy until the update is shown to work, never past 7 days), §9 and §10 (a family member's Google address; access as the app keeps it), §11 (erased 7 days after not accepting); alpha-version-number (a) keeps 1.0 until the first acceptance; the briefing rewritten (alpha-briefing-comment (a)); not rendered — *was:* drafted 2026-09-28, reviewed by the owner the same day, version 1.0, the lawyer's pass deferred (T1); 📋 **Decided 2026-09-24** (D1, D2) | §3. Free, a few weeks, no obligations, no backups, no availability promise, how it ends. The owner wrote them in the plan; an agent drafted them at the owner's word. |
 | T3 Acceptance recorded, with version and time, at first sign-in | 🔨 **Built 2026-09-28, review fixed 2026-09-29** on branch `claude/ownpace-public-readiness-y7orc6-a-text-accepted-with-its-version`, merged 2026-09-29 as #1360 (`2d3e113a`). Since the review: nobody is asked while any text is a draft (`LEGAL_DRAFTS`; 409 `acceptance_not_asked`), so live asks nobody until the release with the final texts, and a final text's words are pinned to its number (`ACCEPTED_WORDS`); issuing a grant link asks too; *Not now* ends the sign-in service's session; a door's refusal brings the screen up at once; only a bundle built for the Alpha asks on load; a member who leaves keeps their record until erasure. As built on 2026-09-28: `legal_acceptance` (managed 0032, appended and read, never changed), `LEGAL_VERSIONS` held to the texts by `scripts/a-version-the-tester-accepted.unit.test.ts`, `GET /api/me`'s `acceptance` and `POST /api/me/acceptance` (409 `version_not_current`), 409 `conditions_not_accepted` on adding a connection, a new key and creating a migration, the screen in front of every signed-in page, the conditions rendered by the site build, all while `OWNPACE_STAGE=alpha`; purged with the organisation (open question 4, answered 2026-09-29: *"Ok"*); Alpha §11's syncs waiting for the new conditions not built — *was:* 📋 **Decided 2026-09-28** (terms-acceptance-route (b), *"Build the in-app screen first"*); not built. The first invitation waits for it and its tests. The owner: *"People that are accepted in the Alpha do need to create a login for the app, accepting fits in there and should record what time/version the accepted of what document."* Terms §1, the Alpha conditions §2 and §11 and privacy §4.4 now describe it — *was:* 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. The same screen asks again for the new conditions after the Alpha (Alpha §11). Open question 4 (the record after erasure) is answered: purged with the organisation (2026-09-29). |
-| T4 A notice wherever a tester's data is collected | 📋 **Proposed**; two pieces 📋 **Decided 2026-09-28**, 🔨 **built 2026-09-29, review fixed the same day** on branch `claude/ownpace-public-readiness-y7orc6-what-the-app-says`, **not merged**: the app's own sentences reworded in both languages (ops-app-sentences (a): the grant mail, the Alpha note, the request form), and a privacy line and a link in the mail to people items were shared with (privacy-share-mail-notice (a)), its address from `VITE_LEGAL_SITE_URL`, handed to the api as `LEGAL_SITE_URL`, both before the first tester; the rest of the table not built | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form, the share mail (`packages/shared/src/share-announcement.ts`). The grant page's addresses were fixed in #1137, merged 2026-09-24. |
+| T4 A notice wherever a tester's data is collected | 🔨 **The rest of the table built 2026-10-03** on branch `claude/ownpace-public-readiness-y7orc6-a-notice-where-data-is-collected`, **not merged**: the privacy policy linked under the request form, with the Alpha conditions beside it during the alpha, and `access.privacy` naming privacy §9's period for a request; the privacy policy and the terms beside every Connect button, in both doors, on the managed service only; the privacy policy beside what the report form says it sends; the Alpha conditions linked in the access-granted mail during the alpha, in the mail's language, from `LEGAL_SITE_URL`; and the identity provider's registration and sign-in pages (0135 T5) linking the Dutch privacy policy and terms from `VITE_LEGAL_SITE_URL`, set and read back by `setup-zitadel.sh` and set for a fresh instance by `managed.yml`. Every link is always shown, also before the texts are published (the owner, 2026-10-03: *"Always shown"*), and the sign-in page's links are in this change (*"Yes, include it"*); ✅ **two pieces merged 2026-09-29 as #1375** (`7cef571c`): the app's own sentences reworded in both languages (ops-app-sentences (a): the grant mail, the Alpha note, the request form), and a privacy line and a link in the mail to people items were shared with (privacy-share-mail-notice (a)), its address from `VITE_LEGAL_SITE_URL`, handed to the api as `LEGAL_SITE_URL` — *was:* the two pieces 🔨 built 2026-09-29 and still marked **not merged** here after #1375 merged; the rest of the table 📋 **Proposed**, not built | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form, the share mail (`packages/shared/src/share-announcement.ts`), the access-granted mail. The grant page's addresses were fixed in #1137, merged 2026-09-24. Still owed: the tester guide's link beside the conditions (0131 T1 (b), 0144 T1). |
 | T5 The sub-processors named | 🔨 **Text done 2026-09-28** in the drafts, on draft PR #1317, not merged: privacy §7's table is the complete list and says so (rec-subprocessors-url (a)); NetBird GmbH, its terms and agreement accepted on 2026-08-01 and the agreement covering the proxy and its log (dpa-netbird-agreement (a); the owner, 2026-09-28), carries connections on through a WireGuard tunnel and keeps its own log of each request; Proton AG in Switzerland, with Art. 45 GDPR and Decision 2000/518/EC cited (privacy-switzerland-wording (b)); no hosting row, because no company houses the machine (subprocessors-machine-housed (a)); `subprocessors.md` unpublished until the first business customer; NetBird's own sub-processors read from its trust center 2026-09-28 (18 entries, none with a location); NetBird's sign-in (SSO), on for the hosts NetBird serves (*"No pin, but SSO on"*), to go off on every `ownpace.eu` host before the first invitation, the owner's choice (*"Off everywhere at launch"*), a precondition (privacy's to-do on NetBird, (d)), whose check ✅ is built, merged 2026-09-29 as #1362 (`bfdfbf66`): the exposure probe fails while NetBird's sign-in answers any of the four (item 8); the owner switched it off on 2026-09-29 (*"NetBird sign-in (SSO) is turned off"*), and a dispatch that passes is owed, once the repository variable `EXPOSURE_PROBE_LIVE_PORTS` is set; ⏳ **Owner**, not before the first invitation: NetBird asked where its proxy and log run, at which provider, and whether its own sub-processors receive either, the *Where* staying *Germany (EU)* by the owner's choice until it answers ((c)), and asked in writing whether the Alpha or a paid tier behind the proxy is commercial use under its terms §3.1, answered before the first paid tier at the latest ((e)); the agreement's sub-processors, their announcement, the right to object and the 7 days for the lawyer's pass ((b)) — *was:* NetBird's acceptance date, its agreement read, where its proxy and log run and at which provider, and whether its own sub-processors receive either still for the owner; before that, the text drafted 2026-09-28 with the entity name, the agreement, the proxy's location and whether a company houses the machine all to confirm; **nothing else receives anything** 🔨 **built 2026-09-28, review fixes 2026-09-29** on branch `claude/ownpace-public-readiness-y7orc6-nothing-phones-home`, merged 2026-09-29 as #1357 (`5f74ebc3`) (ops-telemetry (a)): Trigger.dev's two PostHog halves and the Prisma checkpoint its entrypoint sent, Zitadel's daily service ping, ClickHouse's crash reports, MinIO's release check and Mailpit's switched off; the demo's Nextcloud's update check, app store and connectivity check **not** switched off in this change (2026-09-29, later: a hook that did made the demo's first CalDAV write answer 500 in E2E (managed) #215, and #216 on `main`, which recreated the same container without it, passed; it holds fixtures only and is not on live; ⏳ a follow-up switches them off with a check that the demo's DAV writes still work); the demo's Stalwart's GitHub and jsDelivr downloads named and kept where it runs, the OTA stack, the self-host end-to-end run and a developer's machine, not live, as the owner preferred on 2026-09-29 (*"Perhaps not in live but yes in OTA?"*); `scripts/a-service-that-phones-home.unit.test.ts` — *was:* Nextcloud's switched off by a hook, and before that the demo's Nextcloud left on | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
 | T6 What is kept, and for how long, made true | 🔨 **The sharing list with its migration built 2026-09-29** (privacy-sharing-list (b)) on branch `claude/ownpace-public-readiness-y7orc6-the-sharing-list-goes-with-its-migration`, **not merged**: deleting a migration deletes its `share_grant` rows in the same transaction, and the rollback's `since` deletes them again with a migration deleted after the copy; its review fixed the same day: a sharing rescan writes no list for a migration deleted while it scanned (the list's writer holds the migration's row), and `operator.sh clean empty-tenant` deletes the lists left in an organisation it removes; 🔨 **The copy before an update, and the drill off live, built 2026-09-28, review fixes 2026-09-29** (rec-copies (a), rec-drill (a)), **merged 2026-09-29 as #1361** (`b65da810`), live still to run a tag that carries it: `copy-before-update.sh`, taken by `deploy-live.sh` right before its checkout (only while the daily duties' timer runs), deleted by the owner once the update is proven and by the daily duties after 6 days less an hour, a rollback that erases again what was erased after the copy (`since`), and no drill on live; `privacy.md`'s and `privacy.nl.md`'s comments, `README.md`'s two items and `alpha.md`'s briefing say so; 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 🔨 **built 2026-09-27**, merged as #1255; every period 📋 **Decided 2026-09-28** from the owner's answers and in privacy §9's draft: the copy before an update (rec-copies (a)), the drill off live (rec-drill (a)), support-screen searches and downloads 12 months (privacy-search-records (a): 🔨 built 2026-09-29 as `box-duties.sh`'s duty `searches`, `support-read-prune.sh --delete`, not merged, and running once live's timer is installed), the sharing list with its migration (privacy-sharing-list (b)), sent mail until resolved and then 6 months (privacy-sent-mail-copies (b)), the background tasks' records until the end of the Alpha (privacy-task-records (a)), the sign-in history checked first (privacy-signin-history (a)), accounts nobody let in removed by a daily script (ops-unadmitted-signin-cleanup (a), 0135 T8: ✅ built, merged 2026-09-29 as #1344 and #1345, and running once live's timer is installed; reviewed and fixed 2026-09-29, merged as #1367: an account that was let in is kept; a removed member's account 📋 **Decided 2026-09-29**, 7 days after the removal (0135 open question 13, *"Samen number of days"*, then *"7 days"*), 🔨 built the same day, not merged, with privacy §9's row in both languages), server logs with Docker's default (ops-log-driver (a), 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird`, not merged, 2026-09-28 and 2026-09-29: the journald step out of the managed guides, the breach procedure reading container output from Docker, and `stand-up-live.sh` refusing another driver; the check on the machine the owner's); the code for each of the rest 📋 **Proposed**, not built — *was:* the wording drafted 2026-09-28; the rest's code proposed | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. `site/legal/README.md`, *Before the draft markers come off*, lists what each needs. |
 | T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`; the identity provider's account ✅ **since 0135 T8 (a), merged 2026-09-29 as #1344** (0131 §6, M3's step 7): `idp-strays.sh --subject <sub> --remove` in the runbook's *Tenant offboarding*, refused while the account still belongs somewhere — *was:* by hand until 0135 T8; *nothing uses your access after closing* is not fully true yet: since #1320 (`d7868276`, merged 2026-09-28), on this branch since `main` was merged into it in `c1413b53`, nothing new starts for a closed organisation; 🔨 **work already running stops, built 2026-09-29, reviewed and fixed the same day** on branch `claude/ownpace-public-readiness-y7orc6-the-close-stops-what-is-running`, **not merged**: a verification, a confirmation and a discovery check the close between their steps (each listing of a target and each sample downloaded, each item read, each collection) and stop, and the confirmed list says *stopped* for a confirmation the close stopped; still not true: a sync pass the cancel did not stop reads to the end of its data type, a file source's discovery walks its whole folder tree before its first check, and the daily shared-address discovery and drift check still read an organisation closed while they run (terms briefing, precondition B) — *was:* work already running not all stopped, a verification or a confirmation reading to its end; a tester who does not accept the new conditions after the Alpha is closed that day and erased 7 days later (alpha-s11-erasure-window (b)), which `operator.sh close <tenant> 7` already does — *was:* (a) built; terms §11 and privacy §9 describing the close in the drafts of 2026-09-28 | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
@@ -2860,7 +2957,10 @@ edit 0086. Correcting its Status block belongs to whoever next works on 0086.
   *(2026-09-29: reworded in T4, ops-app-sentences (a); the Status block says where that stands.
   The line now says *"We keep what you type to decide on your request and to answer you; asking
   creates no account."* / *"Wij bewaren wat u invult om over uw aanvraag te beslissen en u te
-  antwoorden; een aanvraag maakt geen account aan."* It still has no link.)*
+  antwoorden; een aanvraag maakt geen account aan."* It still has no link.)* *(2026-10-03: T4
+  links the privacy policy under the form, and the Alpha conditions beside it during the alpha,
+  and the line names privacy §9's period for a request; the Status block says where that
+  stands.)*
 - **The grant page** (`Grant.tsx`) is the only screen that links the privacy policy and the
   terms. It used to link `https://www.ownpace.eu/privacy` and `/terms`, which are not files the
   build writes, and the site's nginx (`www-nginx.conf`, `try_files $uri $uri/ =404`) adds no
@@ -2873,12 +2973,15 @@ edit 0086. Correcting its Status block belongs to whoever next works on 0086.
 - **The Connect buttons** (`ProviderConsentPanel` in `ProviderConsent.tsx`, the one path for
   Google, Microsoft and Dropbox) link neither text.
   `docs/google-oauth-verification.md` §5 requires *"Links to the privacy policy and terms sit
-  beside the button, not in a footer."*
+  beside the button, not in a footer."* *(2026-10-03: T4 links both beside every Connect
+  button on the managed service, in both doors; the Status block says where that stands.)*
 - **The report form** (`ReportProblem.tsx`, 0130) collects a description and a screenshot with no
-  privacy link. 0130 T4 is 📋 Proposed.
+  privacy link. 0130 T4 is 📋 Proposed. *(2026-10-03: T4 links the policy beside what the form
+  says it sends; the Status block says where that stands.)*
 - **The mails** in `packages/shared/src/notifications.ts` link neither text. *(2026-09-29: the
   mail to people items were shared with, `share-announcement.ts`, links the privacy policy on
-  the managed service since T4; the Status block says where that stands.)*
+  the managed service since T4; the Status block says where that stands. 2026-10-03: the
+  access-granted mail links the Alpha conditions during the alpha, also T4.)*
 - **Acceptance.** Terms §1 says that creating an account or using the service is acceptance.
   Terms §7 relies on a customer's *"express request"* when the first migration is created. No
   screen presents the terms, and nothing in `apps/` or `packages/` records an acceptance. A search
@@ -3285,7 +3388,7 @@ final text's words are pinned to its number.
   `legal-acceptance-under-rls` test beside the other `*-under-rls` tests shows that an
   organisation reads only its own rows and that nobody can update or delete one.
 
-### T4 — a notice wherever a tester's data is collected (proposed)
+### T4 — a notice wherever a tester's data is collected (built 2026-10-03, not merged)
 
 | Where | What changes |
 |---|---|
@@ -3299,6 +3402,9 @@ final text's words are pinned to its number.
 **Guard.** `apps/web/src/components/a-notice-where-data-is-collected.unit.test.tsx` fails today.
 It renders the request form, the Connect panel and the report form in both languages, and finds
 the privacy link in the reader's language, taken from T10's module.
+*(2026-10-03: built, with the guard; beside it `apps/api/src/a-grant-mail-that-links-the-conditions.unit.test.ts`
+for the mail and `scripts/a-notice-before-a-password.unit.test.ts` for the identity provider's
+pages. The Status block says what each checks.)*
 
 ### T5 — the sub-processors named (owner for the names; proposed for the text)
 

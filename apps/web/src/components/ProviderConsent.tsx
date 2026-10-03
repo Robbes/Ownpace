@@ -56,7 +56,9 @@ import {
   sendConsentWindow,
 } from '../services/consent-window.ts';
 import { useLocale, useT, type StringKey } from '../i18n/index.tsx';
+import { isSelfHost } from '../services/edition.ts';
 import { Hint } from './Hint.tsx';
+import LegalLinks from './LegalLinks.tsx';
 
 /** A consent address no window was opened for, and when it was pressed for. */
 export interface UnopenedConsent {
@@ -394,6 +396,16 @@ export function consentAsks(
  * pressing. So each door's button points at them (`aria-describedby`, as 0148
  * did for its select), through `consentLineIds`, which names the ids this
  * component gives them.
+ *
+ * **The privacy policy and the terms, beside every provider's button**
+ * (workplan 0139 T4). `docs/google-oauth-verification.md` §5 asks it of the
+ * Google button in those words: *"Links to the privacy policy and terms sit
+ * beside the button, not in a footer."* A Microsoft or Dropbox consent hands
+ * over a mailbox or a drive just the same, so every provider gets the line,
+ * here, where both doors draw it. The links are `LegalLinks`', in the
+ * reader's language, and open in a new tab so a consent half set up is not
+ * lost. Not on the appliance: its owner runs it with their own app, and this
+ * policy is not theirs (the share mail's rule, `privacy-policy-link.ts`).
  */
 export const ConsentLines: React.FC<{
   /** The provider whose consent the button runs, from the descriptor. */
@@ -415,6 +427,11 @@ export const ConsentLines: React.FC<{
       )}
       {provider === 'google' && <Hint id={beforePressing} text={t('wizard.google.inAppBrowser')} />}
       {provider === 'microsoft' && <Hint id={beforePressing} text={t('wizard.microsoft.orgApproval')} />}
+      {!isSelfHost() && (
+        <p className="mt-1 text-sm text-gray-500">
+          {t('wizard.consent.legal')} <LegalLinks pages={['privacy', 'terms']} />
+        </p>
+      )}
     </>
   );
 };
