@@ -1,156 +1,172 @@
 # ADR-0035: Who signs in, and who just gets a link
 
-- **Status:** Accepted 2026-09-20 (owner: "yes on all 3"; the 1/7/30-day link expiry presets
-  stand). Proposed until then — but the substance below was decided by the owner on 2026-08-17 in
-  conversation: (a) **only the migrated person holds their own source credential, never the
-  organisation**; (b) migrated people get **links, not accounts**; (c) an admin — a parent, a
-  small-business owner — **must see the progress of everyone in their family or
-  organisation**; (d) the billing/seat question is answered **inside this ADR** rather than
-  alongside it. What awaits an accept/reject is the reasoning and the consequences, not
-  those four choices.
-  **Restated by the owner 2026-08-19, in these words: "owners login, and owner decides who
-  gets a link to manage and grant their migration."** That confirms (a), (b) and (c) and
-  sharpens who holds the initiative: **the owner is the only party who signs in**, and the
-  link is not merely a status view — it is how the migrated person GRANTS their own
-  migration, which is the only place their source credential is ever handled. The formal
-  accept/reject of the reasoning and consequences was outstanding until 2026-09-20, and was deliberately
-  NOT being inferred from this restatement — see ADR-0034's correction for why an
-  unstated answer must never be recorded as one.
-- **Date:** 2026-08-17
+- **Status:** Accepted 2026-09-20 (owner: "yes on all 3"), substance owner-decided 2026-08-17
+  and restated 2026-08-19; amended nine times (latest 2026-10-03: the error text and item names
+  follow whose data it is, built); consolidated 2026-10-03 (ADR-0051)
+- **Date:** 2026-08-17; consolidated 2026-10-03
 - **Deciders:** owner
-- **Relates to:** [ADR-0034](./0034-appliance-configuration-surface.md) (**decision 6 is
-  restated by this ADR** — see decision 7), [ADR-0033](./0033-domain-wide-delegation.md)
-  (whose credential-transport problem this largely removes, and whose honesty discipline
-  decision 3 borrows wholesale), [ADR-0032](./0032-sharing-queue-target-native-invites.md)
-  ("Ownpace never mails third parties itself" — which settles who sends the link),
-  [ADR-0014](./0014-cost-recovery-billing.md) (cost recovery — which settles the seat
-  question), [ADR-0006](./0006-o365-access-model.md), SAD §7.3 (the `Auth` row this
-  changes).
+- **Relates to:** [ADR-0034](./0034-appliance-configuration-surface.md) (its decision 6 is
+  restated here, decision 7), [ADR-0033](./0033-domain-wide-delegation.md),
+  [ADR-0032](./0032-sharing-queue-target-native-invites.md), [ADR-0014](./0014-cost-recovery-billing.md),
+  [ADR-0050](./0050-a-move-is-a-persons-migrations.md), [ADR-0006](./0006-o365-access-model.md),
+  SAD §7.3; workplans [0108](../workplans/0108-the-link-that-grants.md),
+  [0122](../workplans/0122-the-link-that-shows.md), [0153](../workplans/0153-one-move-per-person.md)
+- **History:** the record as it read before consolidation, word for word —
+  [history/0035-who-signs-in-and-who-gets-a-link.md](./history/0035-who-signs-in-and-who-gets-a-link.md)
 
 ## Operative rules
 
-<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
-     the narrative below stays append-only. Assembled into OPERATIVE.md by
-     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+<!-- What holds NOW, within the ADR-0051 budget: 8 bullets, 60 words a bullet, 300 words in
+     all. Amend in place when a later decision changes it, then regenerate OPERATIVE.md:
+     node scripts/adr-operative.mjs --write -->
 
-- **Owners sign in; migrated people get links, not accounts** — and the owner decides who gets a link to manage and **grant** their own migration (restated 2026-08-19).
-- **The link is per person** (owner, 2026-09-29; ADR-0050's person): one grant link and one progress link for all of a person's migrations, a grant asked and bound per Google account, and covering only the migrations the page showed. Built by workplan 0153 T5 (b).
-- **It replaces the per-migration link** (owner, 2026-10-03): no migration's page issues one any more. A per-migration link already sent is honoured until it expires, listed on the migration's page and revocable there, and a migration that belongs to nobody is given a person first (*Who is this for?*).
-- **Start when granted, per person** (owner, 2026-10-03): once the owner has started a person's move (*Start*, after a count they saw), each migration of theirs that waits for a grant starts by itself when the grant lands, recorded `via: 'grant'`, though the move is paused or finished since (*"was ever started"*). Before that first Start a grant starts nothing, and a migration the owner paused after it ran stays paused.
-- Only the migrated person holds their own source credential, never the organisation; admins see their whole family/organisation's progress.
-- `tenant_member` rows sign in; mappings get links. Organisation-held credentials (Box CCG, app-only Graph, DWD) **cannot be narrowed** — stated, not hidden.
-- Formally accepted 2026-09-20 (owner: "yes on all 3"); the 1/7/30-day link expiry presets stand.
-- The migrated person can **take their grant back** from their progress page: revoked at Google where Google will, deleted here whatever Google answers, and they are told which (0108 T8 (c), 2026-09-24). Until they grant again, nothing reads that account for that migration, on any credential.
-- The person holding a link can **report it** from the grant page or the progress page: a ticket on the owner's helpdesk, never a message to the organisation that asked, offered only where a helpdesk is set up (0108 T8 (d), 2026-09-24). A reply address is optional: a report without one is filed under the helpdesk's own user and cannot be answered (the owner, 2026-09-24).
+- **Owners sign in; migrated people get links, not accounts** (decisions 1, 7) — persons or
+  migrators, never `member`s. Admins see their whole family's or organisation's progress
+  (decision 5); nobody is a seat to bill (decision 6).
+- **Only the migrated person holds their own source credential, never the organisation**
+  (decision 4). Organisation-held credentials (Box CCG, app-only Graph, DWD) **cannot be
+  narrowed** — stated, not hidden (decision 3).
+- The owner decides who gets a link to manage and **grant** their own migration, and
+  **distributes it; we never do** (decision 2). Grant links live 1, 7 or 30 days; progress links
+  longer, never showing content (`migration-view.ts`).
+- **One link per person** (owner, 2026-09-29 and 2026-10-03; ADR-0050): a grant link and a
+  progress link for all their migrations, granting per Google account only what the page showed.
+  It replaces the per-migration link; one already sent is honoured until it expires.
+- **Start when granted, per person** (owner, 2026-10-03): once the owner has started a person's
+  move, each migration of theirs waiting for a grant starts when it lands (`via: 'grant'`).
+  Before that first *Start* a grant starts nothing; a migration the owner paused stays paused.
+- The person can **take their grant back**, per account: revoked at Google where it will, always
+  deleted here, and told which; until they grant again nothing reads that account
+  (`withdraw-grant.ts`).
+- A link can be **reported** from either page to the Ownpace team's helpdesk or support mailbox,
+  never to the organisation that asked; a reply address is optional (`link-reports.ts`).
+- **The provider's error text and failing items' names follow whose data it is** (owner, 2026-10-03;
+  decision 5): the progress page shows categories only; the owner sees them for accounts the
+  organisation connected, and for one a person granted only the category and a reference
+  (`whose-data.ts`).
 
 ## Context
 
-### A correction, first, because it changed my advice
+[ADR-0034](./0034-appliance-configuration-surface.md) decision 6 bounds authentication for an
+Organisation deployment to "an admin login and a session … **not per-user identity**, not RBAC,
+not per-migrator scoping", on the owner's "**not a thousand interactive logins**". The owner then
+chose (2026-08-17) that **only the migrated person may hold their own source credential**, which
+seems to need them present: the thousand logins again. A link answers both. It also removes the
+**transport** of each person's secret to an operator, which [ADR-0033](./0033-domain-wide-delegation.md)'s
+domain-wide delegation was answering.
 
-I told the owner that "21 ledger migrations and none create a user, account or membership
-table, so the product has no concept of a person today." That is false, and I reached it by
-reading migration *filenames* instead of opening the 83 KB baseline.
-
-What is actually there:
-
-- **`tenant_member`** (`0001_baseline.sql`): `tenant_id`, `user_id`, `email`, `role`
-  constrained to `owner | admin | member | viewer`, `status` constrained to
-  `active | invited | suspended | removed`, plus `invited_at` and `joined_at`. An invitation
-  lifecycle, already modelled.
-- **`apps/api/src/middleware/auth.ts`**: a real JWT boundary with `sub`, `tenantId`, `role`
-  and `email` claims — and it does **not** trust the token's role. It confirms
-  `(tenantId, sub)` is an *active* `tenant_member` row and takes the role from the database,
-  precisely so a forged `{tenantId: any, role: 'owner'}` cannot mint authority.
-  `assertProductionAuthConfig` refuses to boot on a placeholder `JWT_SECRET` rather than
-  "serve authenticated theater".
-- SAD §7.3's `Auth` row: **managed** is `IdP/SSO (Zitadel)`; **self-host** is
-  `local / single-user`.
-
-So Managed already has accounts, roles, and invitations. This ADR is therefore much smaller
-than it would otherwise be: for Managed it mostly *names* an existing model and adds one
-thing to it. The self-host side is where the work is.
-
-### Why this is being decided now
-
-[ADR-0034](./0034-appliance-configuration-surface.md) decision 6 made authentication a hard
-prerequisite for an Organisation deployment, and bounded it using an owner decision recorded
-in the same ADR — that an Organisation's ~1000 is "migrated accounts operated by a small
-admin team, **not a thousand interactive logins**". On that basis decision 6 asks for "an
-admin login and a session … **not per-user identity**, not RBAC, not per-migrator scoping."
-
-The owner then chose that **only the migrated person may hold their own source credential.**
-Those two do not obviously fit: a credential only that person can hold requires that person
-to be *present* to supply it, which sounds exactly like the thousand logins the bound ruled
-out.
-
-This ADR exists because there is a third answer that satisfies both, and because saying so
-requires being precise about what a "login" is for.
-
-### What "self-service" was actually solving
-
-ADR-0033 adopted domain-wide delegation because per-user OAuth "does not scale to a tenant":
-120 consent ceremonies, "each producing a secret somebody has to transport into a mapping",
-and an operator who "has every incentive to cut corners (one shared browser profile, tokens
-over chat)".
-
-Read that carefully: the problem named is **transport**, not consent count. A person
-authorising their own account in their own browser is not expensive; moving the resulting
-secret from that person to an operator is. Remove the transport and the ceremony count stops
-mattering — which is what this ADR does, and why it reduces the pressure toward DWD without
-retracting it.
-
-## The question
-
-Who needs an account, who holds which credential, what may an admin see — and does any of
-it create a seat to bill?
+Managed has accounts already: `tenant_member` (roles `owner | admin | member | viewer`) and a JWT
+boundary that takes the role from an active `tenant_member` row, never from the token
+(`apps/api/src/middleware/auth.ts`, [ADR-0042](./0042-who-holds-the-passwords.md)). The owner
+restated the substance on 2026-08-19: *"owners login, and owner decides who gets a link to manage
+and grant their migration."*
 
 ## Decision
 
 ### 1. Two populations. Only one of them gets accounts.
 
-**People who operate a migration** are `tenant_member` rows. They sign in, they configure the
-organisation's connections, they watch the progress board. There are a handful of them: an
-owner, maybe an admin or two.
+**People who operate a migration** are `tenant_member` rows: an owner, maybe an admin or two. They
+sign in, configure connections and watch the progress board.
 
-**People being migrated** are **mappings**. They get a link. No `tenant_member` row, no
-password, no session, no seat — in any deployment.
+**People being migrated** get a link. No `tenant_member` row, no password, no session, no seat — in
+any deployment. They are **persons** ([ADR-0050](./0050-a-move-is-a-persons-migrations.md)), each
+with their migrations: a family is one account and three mappings, or more, under three persons.
 
-A forty-person company is therefore one or two accounts and forty mappings. A family is one
-account and three mappings.
-
-**Vocabulary, and this matters:** `tenant_member.role` already uses **`member`** to mean a
-person who can sign in with limited rights. This ADR must not reuse that word for a migrated
-person, and neither should the UI or the schema. ADR-0034 already says **"migrated
-accounts"**; "migrator" is the shorthand. Reusing `member` for both populations is a bug
-waiting for a maintainer.
+**Vocabulary:** `tenant_member.role` already uses **`member`** to mean a person who can sign in
+with limited rights, so this ADR, the UI and the schema must not call a migrated person that;
+"migrator" is the shorthand and *person* the row. Reusing `member` for both populations is a bug waiting for a maintainer.
 
 ### 2. The link is the migrator's whole interface
 
-One mechanism, mapping-scoped, signed, expiring, revocable. It does two jobs:
+One mechanism — signed, expiring, revocable — with two jobs:
 
-- **Supply the credential**, once.
+- **Supply the credential**, once. The link is not merely a status view — it is how the migrated
+  person GRANTS their own migration, which is the only place their source credential is ever
+  handled.
 - **Be their page afterwards** — their own progress, their own start and pause. This is what
   "migrate at your own pace" actually requires; without it, pace belongs to whoever holds the
   admin login.
 
-The two jobs get different lifetimes, because they carry different risk. The credential step
-is **short-lived and single-use**; the progress page is **longer-lived but revocable**, and
-carries counts and states rather than content, which is what makes the longer window
-acceptable.
+The two jobs get different lifetimes, because they carry different risk. The credential step is
+**short-lived and spent once its work is done**; the progress page is **longer-lived but
+revocable**, and carries
+counts and states rather than content, which is what makes the longer window acceptable. The owner
+picks the expiry at issue: a grant link 1, 7 or 30 days (accepted 2026-09-20), a progress link 30,
+90 or 180 (`packages/ledger/src/mapping-link-store.ts`); the progress link shown to a person as
+their own grant ends lives 90 days.
 
 **The admin distributes the link. We never do.** [ADR-0032](./0032-sharing-queue-target-native-invites.md)
-already decided that Ownpace never mails third parties itself, routing share invites
-through the target's own messaging. The same reasoning applies with more force here: an
-email from an unfamiliar domain asking someone to authorise access to their mailbox is
-indistinguishable from an attack, and training people to click it is a harm that outlives
-the migration. So the UI gives the admin a copy-link per migrator, and the admin sends it
-through a channel their people already trust. This also removes deliverability, spam-listing
-and "why is this vendor emailing our staff" from the product entirely.
+already keeps Ownpace from mailing third parties; here the reason is stronger: a mail from an
+unfamiliar domain asking for access to a mailbox is indistinguishable from an attack, and
+training people to click it is a harm that outlives the migration. The admin copies the link and
+sends it through a channel their people already trust, which also takes deliverability,
+spam-listing and "why is this vendor emailing our staff" out of the product. Showing a person their
+progress link as their own grant ends is not sending (workplan 0122 T7).
+
+**The link is per person** (the amendment of 2026-09-29; the owner: *"yes, a per-person link
+instead of the per-migration links"*): a person grants their own accounts, so they get **one grant
+link and one progress link for all their migrations**. The grant page asks **per Google account**:
+it names each account the person's migrations read, with the migrations each one feeds (from, to,
+what), and one *Sign in as …* per account, binding each sign-in as 0108 T8 does (`login_hint`, the
+verified address, a refusal naming both);
+a grant lands, as decision 4 says, on each migration of that account **that the page listed**, in
+one transaction, one `mapping.granted` row each, and a migration added later asks again, because
+its destination is new to them. The grant link is spent once every account on it is granted;
+until then it stays live within its expiry, so a person with a personal and a work account can do
+one now and one later. The progress page shows all their migrations,
+and *Take my grant back* works per account: revoked at Google once, cleared from every migration
+holding the token. The live-link limit counts a person's grant link once. It is a managed row, `person_link`
+(managed migration 0034), shaped like `mapping_link`, since `person` is managed-only
+([ADR-0036](./0036-the-managed-edition-is-its-own-package-and-its-own-chain.md)); the appliance has
+one implicit person and no grant links.
+
+**It replaces the per-migration link** (the owner, 2026-10-03: *"yes, replace the per-migration
+links"*). Neither a migration's page nor *Start a migration* issues one. A per-migration link
+already sent works until it expires — at most 30 days for a grant, 180 for a progress page —
+because breaking a link someone already received would teach them that links from their
+organisation fail, the habit this decision exists to avoid; the migration's page lists those
+links and can revoke them. A migration that belongs to nobody (the Migrations page's *Not with a
+person yet*) is given a person first, through *Who is this for?* where its link panel was, so
+there is one kind of link to explain.
+
+**A link made while every account is connected asks each of them again** (managed migration
+0036). A connection can stop working while its token is still held — taken back at Google,
+lapsed, or expired after seven days while the Google application is in testing — and the account
+still reads as connected. So the person's link remembers which migrations it asks for again,
+offers each of their accounts *Connect again*, and is spent once each has been connected through
+it. A link made while something was not connected asks only for that.
+
+**Start when granted, per person** (the owner, 2026-10-03: *"Yes, but after the move was started
+in the first place. After preflight the start needs to be given at least once, the grant may
+arrive later"*; asked per person or per migration, *"Per person"*; asked whether the move must be
+running, *"was ever started"*). Nothing of a person's starts by a grant until the owner has
+pressed *Start* once, after a count (the preflight) they have seen; before that, a grant only
+makes the counts appear. Once one of their migrations has been started, each migration of theirs
+that waits for a grant starts by itself when the grant lands, ones added later included, recorded
+`via: 'grant'`, though the move is paused or finished since. A migration the owner paused after it
+ran is not started by a grant. It stays the owner's *Start* (the progress page's *"their own start
+and pause"* is unchanged), and the tick for files a format would refuse is not asked of a
+migration that starts by itself: *"at least once"* is the owner's. What it could not copy shows in
+its queues.
+
+**Built** (0153 T5 (b), its four slices: #1394, #1396, #1401, #1408): the managed row and the owner's doors
+(`/api/people/:personId/links`), the grant page, the person's progress page
+(`apps/api/src/routes/person-progress.ts`), and the owner's screens; *Report this link* from a
+person's pages (#1402), asking again (#1407), start when granted (#1409, #1417), and the person's page
+saying what waits for their grant (#1413).
+
+**Taking a grant back** (0108 T8 (c)): from the progress page, per account, revoked at Google
+where it will, always deleted here, and the person told which; until they grant again nothing reads
+that account for those migrations, on any credential. A report of a link (0108 T8
+(d)) is a helpdesk ticket or, with no helpdesk, a mail to the support mailbox for the alpha
+(`apps/api/src/services/report-channel.ts`); it is not offered where neither is set up, and one
+without a reply address (filed under the helpdesk's own user) cannot be answered.
 
 ### 3. Three credential categories — because the promise is not uniform
 
-"Only the person holds their credential" is **not achievable for every provider**, and the
-tree says so. From `sourceCredentialRecord`:
+"Only the person holds their credential" is **not achievable for every provider**. From
+`sourceCredentialRecord` (`apps/api/src/routes/migrations/index.ts`), for the kinds there were when
+this was decided:
 
 | Category | Providers | What is stored | Can the organisation read this person's data? |
 |---|---|---|---|
@@ -158,262 +174,216 @@ tree says so. From `sourceCredentialRecord`:
 | **B — person-supplied** | `imap`, and the targets | `{username, password}` | Not from us — the admin never sees it back. But it is a reusable password we hold, not a scoped token. |
 | **C — organisation-held by the provider's design** | **Box** `{clientId, clientSecret}` (CCG, subject in config); **`oauth2`/`graph`** `{username, tenantId, clientId, clientSecret}` (app-only, reads `/users/{mailbox}`); **Google DWD** `{serviceAccountKey, subject}` | the organisation's app credential | **Yes, by construction.** No link changes this. |
 
-Category C is not a gap to close. Box's own model has no per-user consent step — the comment
-in the tree explains why: "Box rotates refresh tokens on every use, so the Client Credentials
-Grant is used and the subject user id names whose files the token reads." A migrator's Box
-files are readable by whoever holds the organisation's Box app credentials, and that is Box's
-design, not ours.
-
-Therefore: **the category is recorded per mapping and stated in plain words**, on the
-migrator's own page and on the admin's board. For A, "only you can authorise this". For C,
-"your organisation's Box app can read this account." This is exactly the discipline ADR-0033
-already imposes — the tool "must be honest about what cannot be narrowed" — applied one level
-down.
-
-One pleasing consequence: **the link stays universal and only its meaning changes.** For
-category C it is not a consent, because there is nothing to consent to; it is a notification
-that this is happening, plus their progress page. Someone whose files are being read is owed
-that regardless of whether their click is what authorises it.
+Category C is not a gap to close: Box has no per-user consent (`packages/shared/src/config.ts`
+says why). So **the category is recorded per mapping and stated in plain words** on the migrator's
+page and the admin's board — for A, "only you can authorise this"; for C, "your organisation's Box
+app can read this account" — ADR-0033's honesty about "what cannot be narrowed", one level down.
+**The link stays universal; only its meaning changes:** for C it is a notice, plus their progress
+page, owed to anyone whose files are read.
 
 ### 4. Credentials need a per-mapping home
 
-`secret_ref` exists on exactly two tables — `connection` and `backup_target`. There is none on
-`mailbox_mapping`.
-
-That is the blocker. For a category-A Google source the stored record is
-`{clientId, clientSecret, refreshToken}` — **the organisation's app secret and the person's
-token in one encrypted blob**. Under this ADR they must separate: the app credential belongs
-to the connection, the person's token belongs to their mapping.
-
-So `mailbox_mapping` gains a nullable credential reference, and `buildDepsFromMapping` prefers
-it over the connection's when present. This is the same shape as `source_config_override`
-(migration 0021) — one nullable column, one key-by-key preference, NULL meaning "nothing of
-mine, use the connection's" — which is deliberate: the config split and the credential split
-are the same split, and should look like it.
+`secret_ref` was on `connection` and `backup_target` only, so a category-A Google source held **the
+organisation's app secret and the person's token in one encrypted blob**. They separate: the app
+credential stays on the connection, the person's token goes on their migration as
+`mailbox_mapping.source_secret_ref` (ledger migration 0032), which `buildDepsFromMapping` merges
+over the connection's credentials key by key. That is `source_config_override`'s shape (migration
+0021) on purpose: the config split and the credential split are the same split.
 
 ### 5. What an admin may see, and the one thing they may not
 
-The progress board is **almost free**. RLS already scopes every table by `app.current_tenant`,
-and `mailbox_mapping` already carries per-person status, counts and timings. Migrators have no
-session at all, so there is not even a member-isolation predicate to write. An admin signs in
-and sees their tenant, which is today's behaviour.
+The progress board is **almost free**: RLS scopes every table by `app.current_tenant`, and
+migrators have no session to isolate. **An admin signs in and sees their tenant.**
 
-The exception is **`lastError`**, and it is a real leak rather than a theoretical one. The
-secret-hygiene test states the contract: `lastError` is surfaced verbatim by design (SAD
-§11.2), and the guarantee asked of connectors is that they "must not embed **secrets** in
-error strings." Secrets — not *data*. Mail and file connectors routinely put a folder name or
-a filename in an error. That is harmless while the only reader is an operator who already has
-full access. It stops being harmless the moment an admin is deliberately not supposed to see a
-migrator's content: a verbatim `SELECT "Personal/Divorce lawyer" failed` on a parent's
-dashboard is a content leak delivered by an error string.
+The exception is **`lastError`**, the provider's own text, verbatim by design (SAD §11.2) and kept
+free of **secrets**, not of *data*: `SELECT "Personal/Divorce lawyer" failed` on a parent's
+dashboard is a content leak. Every failure is also stored with a **category** and a suggested
+action (`classifyFailure`). **The text follows whose data it is** (the owner, 2026-10-03, choosing
+*"C"* of three options):
 
-So: **the migrator's own page shows the verbatim error** — hard rule 9 survives exactly where
-it can be acted upon, by the person holding the credential. **The admin's board shows a
-classified error** — a category and a suggested action. When the classifier does not recognise
-something it says so and says to ask the person for the detail, rather than guessing or
-passing the string through.
+- **The person's progress page shows the category, never the text.** It is a bearer link that can
+  be forwarded and lives up to 180 days, and decision 2 keeps it to counts and states
+  (`packages/shared/src/migration-view.ts`); its sentence says the person running the move can see
+  more.
+- **The owner sees the text for an account the organisation connected itself**, under its category
+  (`apps/web/src/components/LiveProgress.tsx`, `apps/web/src/pages/Failures.tsx`): the organisation
+  holds that credential, and the owner is who chooses Retry, Accept or Reconnect.
+- **For an account a person connected through their own grant** (`mailbox_mapping.source_secret_ref`,
+  or `grant_withdrawn_at` once they took it back), **the owner sees the category, the side and a
+  reference**, never the text and never the items' names (the owner, 2026-10-03, on the names:
+  *"yes"*): they can name that person's folders and files, which decision 4's promise — the
+  organisation cannot read this person's data — would otherwise leak through an error message.
+  Support finds the full line by the reference, so the failure is surfaced, not masked (hard
+  rule 9).
+- **The Deletions and Moves queues keep naming that person's files and folders** to the owner
+  (the owner, 2026-10-03: *"b"*): the owner is who decides on them, and a decision has to know
+  what it is about. This decision covers a failure's text and the failing items' names, not those
+  queues.
 
-Which gives the admin's capability set its one-line statement: **see, and nudge — never act on
-someone's behalf.** They can see who is stuck and on what class of problem, and re-issue a
-link. They cannot fix it, because they cannot hold the credential. That is the support burden
-this ADR buys, accepted knowingly.
+The admin may **see, and nudge — never act on someone's behalf**: see who is stuck, re-issue a
+link, never hold the credential. That is the support burden this ADR buys, accepted knowingly.
+
+**Built** (2026-10-03), on the server, so no browser is sent what it must not show
+(`apps/api/src/routes/migrations/whose-data.ts`). The migration page's report carries
+`lastErrorWithheld` where it carried `lastError`, and says why; so does the completion report,
+whose JSON reaches the browser beside its Markdown. The failure queue's rows keep their
+category, domain and attempts with an empty text and no names (`withheldFailure`), the queue says
+`textWithheld`, and the group action refuses a substring of text it does not show, since the count
+it answers with would read that text one guess at a time. Guards: the two
+`a-failure-that-names-someone-elses-files.unit.test.ts` (`packages/shared`, `apps/api`), and the
+page tests. **Not covered yet:** the preflight's own error line for a data type it could not count,
+which the confirm screen prints as it is.
 
 ### 6. There are no seats, and this ADR must not invent one
 
-The owner asked for the billing question to be answered here. It answers itself from what is
-already built.
-
-`usage_metric.metric_type` is constrained to `storage | egress | compute | api_calls`.
-`tenant.pricing` is `{baseFee, storagePricePerGB, egressPricePerGB, computePricePerHour}`.
-ADR-0014 sets the model: cost recovery, "a low flat monthly per tenant for the shared baseline
-+ marginal pass-through for storage/egress", explicitly not profit-seeking. **Nothing anywhere
-counts people.** There is no seat today.
-
-So the decision is: **issuing a link is free, and adding a `tenant_member` is free.** A migrator
-costs nothing to *exist*; they cost storage, egress and compute when they migrate, and that is
-already metered against the tenant. Billing is untouched by this ADR, which is the correct
-amount for an identity decision to touch pricing.
-
-This is worth stating as a decision rather than an omission, because the obvious "improvement"
-is actively harmful. **Per-migrator pricing would penalise the private option.** A customer
-charged per link has a direct financial reason to stop issuing links and switch to a
-category-C credential instead — one Box app or one DWD key covering everyone, no per-person
-charge. Pricing would push customers toward the arrangement where the organisation *can* read
-everyone's mail. A cost-recovery product must not build an incentive that argues against its
-own security model.
-
-If seat pricing is ever wanted it needs its own ADR **amending ADR-0014**, because it is a
-departure from cost recovery and not a tariff detail. Note also `0007_tenant_pricing`'s
-discipline: `tenant.pricing` is pinned per tenant at first billing and never follows the
-operator's template afterwards, so a pricing change is a per-customer agreement, never a
-config edit.
+**Nothing counts people**: ADR-0014 bills a tier on paths at the same time and data moved, and a
+person is never billed (ADR-0050). So **issuing a link is free, and adding a `tenant_member` is
+free.** This is a decision, not an omission: **per-migrator pricing would penalise the private
+option**, giving a customer a reason to switch to one category-C credential for everyone — the
+arrangement where the organisation *can* read everyone's mail. A cost-recovery product must not
+build an incentive that argues against its own security model. Seat pricing would need its own ADR
+**amending ADR-0014**: it departs from cost recovery, and is not a tariff detail.
 
 ### 7. What this restates in ADR-0034
 
-**Decision 6 holds, and its bound holds — because a link is not a login.**
-
-ADR-0034 required an admin login and a session before credential-editing routes reach an
-Organisation deployment, and bounded that to "not per-user identity, not RBAC, not
-per-migrator scoping" on the owner's "not a thousand interactive logins". Every word of that
-survives. Migrators authenticate to **their own provider**, not to Ownpace; they hold a
-signed link, not a session; there is no user record, no password and no role for them. The
-thousand logins never happen.
-
-What decision 6 needs is one added sentence rather than a reversal: the admin login it demands
-is the boundary in front of the **operator** surface, and the migrator's link is a separate,
-narrower boundary in front of exactly one mapping. Two boundaries, different shapes, neither
-one RBAC.
-
-SAD §7.3's `Auth` row still has to change — self-host reads `local / single-user`, and an
-Organisation deployment is neither — but it changes to "admin login + session", not to a user
-directory.
+**Decision 6 holds, and its bound holds — because a link is not a login.** Migrators authenticate
+to **their own provider**; they hold a signed link, not a session, and no user record, password or
+role. Decision 6 gains a sentence, not a reversal: its admin login is the boundary in front of
+the **operator** surface, and the link a separate, narrower one in front of exactly the migrations
+it names — one mapping, or one person's. Two boundaries, different shapes, neither one RBAC. SAD
+§7.3's `Auth` row (self-host: `local / single-user`) still has to change, to "admin login +
+session", not to a user directory.
 
 ### 8. What does not change
 
-- **ADR-0033 is not retracted.** DWD stays for departed staff, shared mailboxes, and people who
-  will not engage. What changes is that it stops being the default path for a cooperative
-  tenant, because the transport problem that justified it is gone.
-- **Hard rule 5.** Both editions run the same core; this is one identity model with the admin
-  login optional on Personal (loopback, one person, their own machine) and mandatory anywhere
-  bound off loopback.
-- **Managed's existing auth.** Zitadel, the JWT boundary and `tenant_member` stay as they are.
-  This ADR adds the link and the per-mapping credential; it does not re-do sign-in.
+- **ADR-0033 is not retracted.** DWD stays for departed staff, shared mailboxes and people who will
+  not engage; it stops being the default for a cooperative tenant.
+- **Hard rule 5.** One identity model in both editions: the admin login optional on Personal
+  (loopback, one person, their own machine), mandatory anywhere bound off loopback.
+- **Managed's sign-in** — Zitadel (ADR-0042), the JWT boundary, `tenant_member` — is unchanged; this
+  ADR adds the link and the per-mapping credential.
 
 ## Consequences
 
-**Easier.** The migrator's experience is identical in all three deployments and involves no
-account anywhere. A parent sends their child a link; nobody registers for the household
-migration tool. Managed's half is mostly built. The admin progress board is close to free
-because RLS already does the scoping. And ADR-0034's hardest machinery — per-object file/DB
-provenance, collision refusals, adopt-or-delete — is largely unnecessary once configuration has
-an owner to point at.
+**Easier.** Nobody being migrated registers for anything: a parent sends their child a link. The
+design is one experience in all three deployments. ADR-0034's per-object provenance, collision
+refusals and adopt-or-delete are largely unnecessary.
 
-**Harder.** A signed link is a bearer credential, with everything that implies: expiry,
-revocation, re-issue, and a support path for "my link says invalid". The per-mapping credential
-is a schema change plus a preference rule in `buildDepsFromMapping`. Error classification is
-new work that did not exist when every reader was an operator.
+**Harder.** A link is a bearer credential: expiry, revocation, re-issue, and a support path for "my
+link says invalid". Error classification is new work.
 
-**Riskier, and named.** A link that lands on a **password form** is shaped exactly like
-phishing, and category B is where most self-host deployments will live. Partial mitigations —
-the page is on the organisation's own host, the admin announces it out of band, and app-specific
-passwords should be preferred where the provider offers them — do not make this go away. It is
-the sharpest edge in this ADR.
+**Riskier, and named.** A link that lands on a **password form** — category B, where most self-host
+deployments live — is shaped exactly like phishing. The organisation's own host, an announcement
+out of band and app-specific passwords reduce that; they do not remove it. It is the sharpest edge
+here. As built, a grant link asks Google only (`source_not_google`, `grant-link-readiness.ts`).
 
-**And one honest limit on Managed.** We hold the encrypted tokens; the customer's admin does not.
-The promise is therefore precisely "your admin cannot read this", never "nobody can" — we operate
-the service. On self-host the customer's own machine holds them and the promise is stronger. That
-difference should be stated to customers rather than smoothed over.
+**Honest about Managed.** We hold the encrypted tokens: the promise is "your admin cannot read
+this", never "nobody can". On self-host the customer's machine holds them. Say so to customers.
+
+**Still open**, besides what decisions 5 and 7 name: decision 3's per-mapping category and its
+sentence, which nothing records yet; start and pause on the progress page (0122 T8); and links
+outside managed, whose grant and progress pages are managed-only
+(`apps/web/src/AppRoutes.tsx`).
 
 ## Alternatives considered
 
-**An account for every migrated person.** The literal reading of "everyone logs in". Rejected: it
-reverses the owner's "not a thousand interactive logins", and it buys nothing the link does not —
-migrators authenticate to their *provider*, so an Ownpace password is a second credential
-protecting a page that shows counts. It also drags in registration, password reset, session
-management and support for a population that interacts with us roughly twice.
+**An account for every migrated person.** Rejected: it reverses "not a thousand interactive
+logins" and buys nothing — migrators authenticate to their *provider*, so an Ownpace password is a
+second credential guarding a page of counts — while adding registration, resets and sessions for
+people who visit about twice.
 
-**Keep organisation-held credentials and let the admin do everything.** Today's model, and the
-cheapest. Rejected by the owner's decision, and it is the arrangement where a stolen appliance
-yields every mailbox rather than the endpoints.
+**Keep organisation-held credentials and let the admin do everything.** The cheapest. Rejected by
+the owner's decision; it is also where a stolen appliance yields every mailbox.
 
-**We email the links.** Better admin ergonomics — forty links is forty copy-pastes. Rejected on
-ADR-0032's existing precedent and because the trust problem is fatal: the message that matters
-must arrive from someone the recipient already trusts. A per-person copy-link and a bulk export
-is the compromise; if the friction proves real, the fix is better distribution ergonomics, never
-us becoming the sender.
+**We email the links.** Forty links is forty copy-pastes. Rejected on ADR-0032's precedent, and
+because the message that matters must come from someone the recipient already trusts. A
+per-person copy-link and a bulk export is the compromise; if the friction proves real, the fix is
+better distribution ergonomics, never us becoming the sender.
 
-**Charge per migrator.** Rejected in decision 6 above: it would price customers away from the
-private option and depart from ADR-0014 without saying so.
+**Charge per migrator.** Rejected in decision 6: it prices customers away from the private option
+and departs from ADR-0014 without saying so.
 
-## Amendment 2026-09-29 — the link is per person (workplan 0153 T5 (b))
+**A link per migration as the person's interface** (until 2026-09-29). Rejected by the owner after
+*Start a migration* (0153 T4, #1386) sent Anna, one Google account going to Soverin and to a
+Nextcloud, two links to grant the same account twice.
 
-**Decided by the owner, asked whether *Start a migration* should give one link per person:**
-*"yes, a per-person link instead of the per-migration links. Perhapse replace it, or do we still
-need the per-migration-link?"* The first sentence is the decision. The question after it is
-answered below as a recommendation, marked **(proposed)** where it waits for the owner's word.
-On 2026-10-03 the owner answered it: *"yes, replace the per-migration links"*.
+**A person's link in the ledger's `mapping_link`.** Rejected: the shared ledger every appliance
+applies cannot point at the managed-only `person` (ADR-0036).
 
-### Why
+**Ending the per-migration links already sent** when the person's link replaced them. Rejected
+(2026-10-03): a link someone already received that stops working teaches them that links from
+their organisation fail, the habit decision 2 exists to avoid. They expire on their own.
 
-Decision 1 said people being migrated *are* mappings. ADR-0050 has since given them a row of
-their own, the **person**, whose migrations a move is. The link followed the old shape, and a
-walk of *Start a migration* for somebody else (0153 T4, #1386) shows the cost: Anna has one
-Google account; going to Soverin and to a Nextcloud makes two migrations, so they were sent two
-links to grant the same account twice. A person grants their own accounts, so the link belongs to
-the person. This decision's own alternatives already called the compromise *"a per-person
-copy-link"*.
+**A grant that starts a migration nobody has started** (the proposal of 2026-09-29, as written).
+Rejected by the owner: *"After preflight the start needs to be given at least once, the grant may
+arrive later."* **Start when granted per migration**, rather than per person: rejected, *"Per
+person"*.
 
-### What changes
+**The verbatim text on the person's page and a category on the owner's** (decision 5 as decided
+on 2026-08-17). Replaced on 2026-10-03: the person's page is a forwardable bearer link that
+decision 2 keeps to counts and states, and the owner, who chooses Retry or Reconnect, needs the
+text for the accounts the organisation connected. **The text for every account on the owner's
+pages** (as built) and **the text on the person's link** were the other two options; the first
+leaks a person's own data to their organisation, the second puts it on a link anyone can be
+forwarded.
 
-- **Decision 1 and 2: people being migrated are persons (ADR-0050), and each gets one grant link
-  and one progress link, not one per migration.** Everything else in decision 2 holds: the owner
-  distributes it and we never do; the grant link is short-lived and spent once its work is done;
-  the progress link is longer-lived and revocable.
-- **The grant page asks per account, not per migration.** It names each Google account the
-  person's migrations read, with the migrations each one feeds (from, to, what), and one *Sign in
-  as …* per account. 0108 T8's binding holds per account: `login_hint`, the ID token's verified
-  address, and a refusal naming both addresses when another account signs in.
-- **A grant covers what the page showed.** The token lands, as decision 4 says, on each migration
-  that reads that account and was listed when the person pressed the button, in one transaction,
-  with a `mapping.granted` row per migration. A migration added to the person later is not
-  granted by an earlier consent. It asks again, through a link that is still live or a new one,
-  because its destination is new to them.
-- **The grant link is spent when every account on it is granted.** Until then it stays live
-  within its expiry, so a person with a personal and a work account can do one now and one later.
-- **A link made while every account is connected asks each of them again** (added 2026-10-03,
-  managed migration 0036). A connection can stop working while its token is still held: taken
-  back at Google, lapsed, or expired after seven days while the Google application is in testing.
-  The account still reads as connected, and a migration's own link, which asked whatever its
-  migration needed, was the way back. So the person's link remembers which migrations it asks
-  for again, offers each of their accounts *Connect again*, and is spent once each has been
-  connected through it. A link made while something was not connected asks only for that.
-- **The progress page is the person's.** It shows every migration of theirs. *Take my grant back*
-  is per account: the token is revoked at Google once, and cleared from every migration that holds
-  it (0108 T8 (c)'s rules otherwise unchanged).
-- **The live-link limit counts a person's grant link once** (0108 T8 (d)).
-- **Where it lives.** `person` is a managed-only table (ADR-0036, `packages/managed`), and the
-  shared ledger cannot point at it. So the person's link is a managed-only row of its own
-  (`person_link`, in `packages/managed/migrations`), shaped like `mapping_link`: a hashed secret,
-  a purpose, an expiry, used and revoked, and the same row security, including a link seeing only
-  itself. The appliance has one implicit person and no grant links; nothing there changes.
+**The names off the Deletions and Moves queues too, with the person deciding on their own page**
+(asked 2026-10-03, once decision 5 was built). It would carry decision 4's promise into those
+queues, but it is a larger build and moves a decision the owner makes today; the owner chose to
+leave the queues as they are (*"b"*).
 
-### What the question after the decision is answered with (decided 2026-10-03)
+## Amendment log
 
-The owner: *"yes, replace the per-migration links"*. The three points below were the proposal it
-answers, and stand as written.
+- **2026-08-17** — Decided by the owner in conversation, recorded as Proposed: only the migrated
+  person holds their own source credential, never the organisation; migrated people get links, not
+  accounts; an admin sees the progress of everyone in their family or organisation; the seat
+  question is answered inside this ADR. Record: the *Status* entry, *Context* (with *A correction,
+  first, because it changed my advice*), *The question*, *Decision* 1–8, *Consequences* and
+  *Alternatives considered*.
+- **2026-08-19** — Restated by the owner: *"owners login, and owner decides who gets a link to
+  manage and grant their migration."* The owner is the only party who signs in, and the link is how
+  the migrated person grants. Not taken as the formal accept. Record: the *Status* entry.
+- **2026-09-20** — Accepted (owner: "yes on all 3", closing workplan 0108's review); the 1/7/30-day
+  link expiry presets stand. Record: the *Status* entry.
+- **2026-09-24** — The migrated person can take their grant back from their progress page, and
+  nothing then reads that account, on any credential (the owner, 2026-09-23, and 2026-09-24: *"yes,
+  the cautious option"*; built by 0108 T8 (c)). Record: *Operative rules*, sixth bullet.
+- **2026-09-24** — A link can be reported from its grant or progress page, never to the organisation
+  that asked; a reply address is optional (the owner, 2026-09-24; built by 0108 T8 (d)). Record:
+  *Operative rules*, seventh bullet.
+- **2026-09-28** — With no helpdesk set up, a report goes by mail to the support mailbox, for the
+  alpha (the owner; `apps/api/src/services/report-channel.ts`, workplan 0108). Record: none — the
+  record said a report is offered only where a helpdesk is set up.
+- **2026-09-29** — The amendment of 2026-09-29: the link is per person (owner: *"yes, a per-person
+  link instead of the per-migration links"*; workplan 0153 T5 (b)). What becomes of the
+  per-migration link, and *start when granted*, were proposed. Record: *Amendment 2026-09-29 — the
+  link is per person (workplan 0153 T5 (b))*.
+- **2026-10-03** — The person's link replaces the per-migration link; those sent are honoured until
+  they expire, and a migration with no person gets one first (owner: *"yes, replace the
+  per-migration links"*; #1408). Record: the 2026-09-29 amendment's *What the question after the
+  decision is answered with (decided 2026-10-03)*.
+- **2026-10-03** — Start when granted, per person, once the move was ever started (owner: *"Yes,
+  but after the move was started in the first place…"*, *"Per person"*, *"was ever started"*;
+  #1409, #1417). Record: the same amendment's *One more choice for the owner (decided 2026-10-03)*.
+- **2026-10-03** — A person's link made while every account is connected asks each of them again
+  (managed migration 0036; #1407). Record: the same amendment, *A link made while every account is
+  connected asks each of them again*.
+- **2026-10-03** — Consolidated in place (ADR-0051). Nothing was decided by the consolidation. Where
+  the record and the code differ, the Decision states the decision and says what is built:
+  decision 3's per-mapping category (not built), and links on managed only.
+- **2026-10-03, later** — Decision 5: the provider's error text follows whose data it is — the
+  person's page shows categories only, the owner sees the text for the organisation's own accounts
+  and a category with a reference for one a person granted (owner: *"C"*). Asked because the code
+  had been built the other way round from decision 5. Not built yet. Record: *Decision* 5, and
+  *Alternatives considered*.
+- **2026-10-03, last** — Decision 5 built, and the items' names follow the text (owner: *"yes"*).
+  Record: *Decision* 5.
+- **2026-10-03, after that** — The completion report withholds the text too: its JSON carried each
+  data type's error verbatim. Found in review of the build; nothing was decided. Record:
+  *Decision* 5.
+- **2026-10-03, after that** — The Deletions and Moves queues keep naming a person's files for the
+  owner, who decides on them (owner: *"b"*); decision 5 is a failure's text and names. Record:
+  *Decision* 5, and *Alternatives considered*.
 
-- **Replace, as the one link that is issued.** Neither the migration's page nor *Start a
-  migration* issues a per-migration link once the person's link is built.
-- **Keep: a per-migration link already sent works until it expires** (at most 30 days for a
-  grant, 180 for a progress page). Breaking a link someone already received would teach them that
-  links from their organisation fail, which is the habit decision 2 exists to avoid. The server
-  keeps verifying `mapping_link` for that window; the migration's page lists those links and can
-  revoke them, and says new links are made on the person's page.
-- **Keep: a migration with no person gets one first.** On managed a migration can belong to nobody
-  (the Migrations page's *Not with a person yet*). Its page offers *Who is this for?* where the link panel
-  was, so there is still one kind of link to explain.
-
-### One more choice for the owner (decided 2026-10-03)
-
-**Start when granted.** Until then nothing started when a grant landed (`grant-ending.ts`), and
-*Start* was refused with `awaiting_grant`, so the person starting the migrations had to come back.
-The proposal was that *Start* on a migration that waits for a grant is accepted and recorded, and
-the migration starts itself when its grant lands, with the audit row saying so.
-
-The owner: *"Yes, but after the move was started in the first place. After preflight the start
-needs to be given at least once, the grant may arrive later."* Asked whether that holds per
-person or per migration: *"Per person"*. So:
-
-- **Nothing of a person's starts by a grant until the owner has started their move**: pressed
-  *Start* once, after a count (the preflight) they have seen. Before that, a grant only makes the
-  counts appear.
-- **Once one of their migrations has been started**, each migration of theirs that waits for a
-  grant starts by itself when the grant lands, ones added later included. The status change is
-  recorded `via: 'grant'`, by the link. It holds though that migration is paused or finished
-  since: asked whether the move must be running or only have been started, the owner answered
-  *"was ever started"* (2026-10-03).
-- **A migration's own pause stands.** A migration the owner paused after it ran is not started by
-  a grant.
-- It stays the owner's Start (decision 2's *"their own start and pause"* is the progress page's,
-  and unchanged). The tick for files a format would refuse is not asked of a migration that starts
-  by itself: *"at least once"* is the owner's. What it could not copy shows in its queues.
+The full record, word for word as it read before this consolidation:
+[history/0035-who-signs-in-and-who-gets-a-link.md](./history/0035-who-signs-in-and-who-gets-a-link.md).

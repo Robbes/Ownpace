@@ -161,11 +161,16 @@ describe('and the two rules that make it safe to run', () => {
     const adr = read('docs/adr/0014-cost-recovery-billing.md');
     expect(adr).toContain(LANE);
     // Not merely mentioned: the ADR has to say it holds a slot, which is the
-    // decision, and name the obligation that comes with charging for it.
-    const amendment = /Amended 2026-09-10[^]*?released capacity[^]*?\n\n/.exec(adr);
-    expect(amendment, 'the 2026-09-10 amendment is not in ADR-0014').not.toBeNull();
-    expect(amendment![0]).toMatch(/holds a\s*\n?slot|\*\*holds a\s*\n?slot\*\*/);
-    expect(amendment![0]).toMatch(/bill does\s*\n?not stop at cutover/);
+    // decision, and name the obligation that comes with charging for it — in
+    // its OPERATIVE RULES, which is what holds. This used to read the
+    // 2026-09-10 amendment's own paragraph; that paragraph moved word for word
+    // to docs/adr/history/ when ADR-0014 was consolidated (ADR-0051), and a
+    // record is not where a rule in force is checked.
+    const start = adr.indexOf('\n## Operative rules');
+    const operative = adr.slice(start, adr.indexOf('\n## ', start + 1));
+    expect(operative, "ADR-0014's operative rules do not name the lane").toContain(`\`${LANE}\``);
+    expect(operative).toMatch(/hold\s+a\s+slot/);
+    expect(operative).toMatch(/bill\s+does\s+not\s+stop\s+at\s+cutover/);
   });
 });
 

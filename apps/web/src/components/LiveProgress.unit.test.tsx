@@ -128,6 +128,30 @@ describe('a failed domain says what to do about it', () => {
   });
 });
 
+describe("an account a person granted keeps the provider's words (ADR-0035 decision 5)", () => {
+  it('says why the text is missing, beside the remedy and the reference', () => {
+    render(
+      <LiveProgress
+        domains={[
+          row({
+            lastErrorCategory: 'auth_expired',
+            lastErrorWithheld: true,
+            lastErrorReference: '0a1b2c3d',
+          }),
+        ]}
+      />,
+    );
+    expect(screen.getByText(/press Reconnect or Replace credentials, whichever its row shows/i)).toBeTruthy();
+    expect(screen.getByText(/the person connected this account themselves/i)).toBeTruthy();
+    expect(screen.getByText(/0a1b2c3d/)).toBeTruthy();
+  });
+
+  it('says nothing about withholding where the text is shown', () => {
+    render(<LiveProgress domains={[row({ lastErrorCategory: 'auth_expired', lastError: 'invalid_grant' })]} />);
+    expect(screen.queryByText(/the person connected this account themselves/i)).toBeNull();
+  });
+});
+
 describe('every category can be said, in both languages', () => {
   it('has a non-empty sentence for every category in en and nl', () => {
     // A category with no sentence reaches a screen with nothing to say. The

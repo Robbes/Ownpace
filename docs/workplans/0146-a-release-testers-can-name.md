@@ -763,7 +763,7 @@ alpha changes the cost of only some of the names:
 
 - **The names a live stack carries.** From the first tester, `ownpace-live` holds data. A rename of
   its compose project, a volume, the database or a role detaches or strands that data, which is
-  ADR-0040's own warning (lines 53–57).
+  ADR-0040's own warning (its *Renamed to `ownpace-*`* rule).
 - **The npm scope.** Its 13 packages are private and unpublished, so no outside consumer exists, and
   the alpha does not change what a rename would cost. ADR-0040 measured that as a mechanical sweep.
 - **The database user names.** Asked whether the database passwords had been changed, the owner

@@ -1,371 +1,251 @@
 # ADR-0046: A rendering is compared by its parts, not by its bytes
 
-- **Status:** **Accepted 2026-09-16** — by the owner, as proposed, the same day it was written
-  and the same day the measurement landed. **Built in 0042 T7, but the ledger does not yet
-  receive the per-part hash** (0042 T8 (e), found 2026-09-22 and re-read 2026-09-23). The file
-  pass's `fetchRaw` rebuilds the raw item from `item`, `content` and `body` only, so the
-  `rendering` marker that Drive's export sets never reaches `contentHash`, and every export is
-  stored with a whole-file hash. Since #1083 a version, not this hash, decides whether a file is
-  rewritten. What else reads the hash is (e)'s open question. Until 2026-09-23 this line said
-  "NOT YET BUILT" while the first operative rule said "BUILT, and live". Neither was true.
-- **Date:** 2026-09-16; accepted 2026-09-16
+- **Status:** Accepted 2026-09-16; amended 5 times (latest 2026-09-28); consolidated 2026-10-03
+  (ADR-0051). Built (0042 T7); the per-part hash does not yet reach the ledger (0042 T8 (e)).
+- **Date:** 2026-09-16; consolidated 2026-10-03
 - **Deciders:** owner
-- **Relates to:** [ADR-0024](./0024-explicit-owner-deletion-apply.md) (what counts as
-  evidence before the migration acts), [ADR-0030](./0030-relocation-is-positive-evidence.md)
-  (the precedent for correlating by content hash, and therefore for caring what a content hash
-  means), [ADR-0037](./0037-keys-credentials-and-transport-floors.md) (the hash is stored
-  beside credentials under the same floors), [ADR-0041](./0041-who-owns-the-oauth-client.md)
-  (whose client reaches the Drive this was measured on).
-- **Relates to workplan:** [0042 T0 Q3 and T3](../workplans/0042-google-drive-source.md) — the
-  measurement this decision rests on, with the numbers.
-- **Enables:** [0042 T7](../workplans/0042-google-drive-source.md) — the build, and with it
-  `export-office` becoming a policy an owner can choose, which no export policy is today.
+- **Relates to:** [ADR-0030](./0030-relocation-is-positive-evidence.md) (correlating by content
+  hash, and pairing a renamed export by its source id), [ADR-0024](./0024-explicit-owner-deletion-apply.md)
+  (what counts as evidence before the migration acts), [ADR-0037](./0037-keys-credentials-and-transport-floors.md)
+  (the hash is stored beside credentials, under the same floors), [ADR-0041](./0041-who-owns-the-oauth-client.md)
+  (whose client reaches the Drive this was measured on); workplans
+  [0042](../workplans/0042-google-drive-source.md) (T3 measured it, T7 built it) and
+  [0150](../workplans/0150-dropbox-native-formats-and-the-downloads-that-will-not-hand-themselves-over.md) (D8)
+- **History:** the record as it read before consolidation, word for word —
+  [history/0046-a-rendering-is-compared-by-its-parts.md](./history/0046-a-rendering-is-compared-by-its-parts.md)
 
 ## Operative rules
 
-<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
-     the narrative below stays append-only. Assembled into OPERATIVE.md by
-     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+<!-- What holds NOW, within the ADR-0051 budget: 8 bullets, 60 words a bullet, 300 words in
+     all. Amend in place when a later decision changes it, then regenerate OPERATIVE.md:
+     node scripts/adr-operative.mjs --write -->
 
-- **BUILT, BUT NOT YET REACHING THE LEDGER (0042 T8 (e)).** A rendering a source marks as such
-  (`RawFileItem.rendering`, set by Drive's `files.export` branch and, since 2026-09-28, by
-  Dropbox's `files/export`) is meant to be hashed by
-  `containerContentHash`, with the target re-read in the row's own scheme and the confirmed list
-  saying `container-parts` rather than "by hash". All of that is built, and none of it is reached:
-  the file pass's `fetchRaw` drops the marker, so every export is stored with a whole-file hash.
-  `nativeFilePolicy` still defaults to `refuse` — that is the owner's per-migration choice and
-  always was — but choosing `export-office` is a supported thing to do.
-- **NO COMBINATION IS REFUSED FOR WHAT IT MEASURED (since 2026-09-23).** From 2026-09-16 the
-  connector refused a Google Slides file under `export-office` and a Doc under `export-odf`,
-  whose exports differ in content between two draws of an unchanged file, because copying one
-  meant copying it again on every pass. That no longer follows: a rewrite follows the source's
-  version, which for a Google document is its `modifiedTime` (#1083), and a renamed document is
-  paired by its Drive id ([ADR-0030](./0030-relocation-is-positive-evidence.md), amended), so
-  nothing depends on the bytes. Every format carries every kind, chosen per kind (0042 T9).
-  `EXPORT_STABILITY` stays as the record of what was measured, and the instrument measures
-  through the connector like any caller. The preflight still counts what a choice leaves behind,
-  a kind set not to export, and the confirm screen names it before the run.
-- **A DROPBOX PAPER DOC FOLLOWS THE SAME TWO RULES (workplan 0150 D8, since 2026-09-28).**
-  Exported through `files/export` in the format the migration chose, Markdown or HTML (0150 T3,
-  T4), it is rewritten when the listing's version moves (`content_hash`, else
-  `server_modified`), never on the export's bytes, and a renamed one is paired by its Dropbox id
-  ([ADR-0030](./0030-relocation-is-positive-evidence.md), amended). Neither format is a zip, so
-  its stored hash is the whole file's.
-- **A rendering this product asked Drive to export into a zip is compared by its PARTS.**
-  `contentHash` over a canonical form: member names sorted, and for each, the sha256 of its
-  uncompressed bytes. Excluded — member timestamps, member order, compression method and level,
-  extra fields, archive comment. Every field that describes the zip rather than the document.
-- **sha256 of inflated bytes, NEVER the zip's stored CRC-32.** `drive-export-members.ts`
-  fingerprints members by the stored CRC-32 because it is free and it answers "what moved".
-  CRC-32 is 32 bits and not collision-resistant, and `contentHash` decides whether a customer's
-  file is rewritten. That value must never be derived from it.
-- **ONLY a rendering we asked for.** A `.zip` a customer stored is compared by its bytes like
-  any other file, because for that file the container IS the content. The narrow trigger is the
-  safety argument, not an implementation detail.
-- **A stored hash records its scheme, and schemes are never compared across.** A row whose
-  stored scheme differs from the current one is NOT evidence of change: recompute, store, and
-  do not re-copy on that basis. Without this rule, adopting the scheme rewrites every
-  already-migrated native file once.
-- **Verification says what it compared.** For structurally hashed rows, §20's report states
-  that the comparison was over the container's parts.
-- **WHAT THIS RESCUES IS A DOC AND A SHEET, NOT EVERY `export-office` FILE.** Measured
-  2026-09-16, after this was accepted: a **Sheet** fails container-only exactly as a Doc does
-  (5659 bytes every draw, all 10 members byte-identical, only stamps moved) and the structural
-  hash settles it. A **Slide does not**: five members genuinely change content
-  (`ppt/_rels/presentation.xml.rels`, two more `.rels`, `ppt/theme/theme1.xml`,
-  `ppt/theme/theme2.xml`), and two draws still differ once the container is normalised. So a
-  migration carrying Google Slides would still rewrite every deck on every pass. Enabling
-  `export-office` remains a separate per-migration choice AND now depends on what the Drive
-  holds.
-- **`export-odf` is NOT rescued by this either**, for the same reason one step earlier: its
-  `settings.xml` genuinely changes.
-- **The measured facts hold independently of the decision**, and there are now five of them.
-  A **`.docx` from a Doc** is byte-unstable ONLY in its zip container — all nine members
-  byte-identical across five draws while the member timestamps moved. An **`.xlsx` from a
-  Sheet**: the same, all ten members. A **`.pptx` from a Slide**: NOT only the container —
-  five members change content and the length oscillates by one byte. A **`.odt`** varies
-  `settings.xml`. A **`.pdf`** was byte-identical over five draws.
+- **A rendering in a zip is compared by its parts** (rule 1): member names sorted, each with the
+  **sha256 of its inflated bytes, never the stored CRC-32** (rule 2, cited as (b)).
+  [container-hash.ts](../../packages/shared/src/container-hash.ts); guard
+  `a-content-hash-built-from-thirty-two-bits`.
+- **Only a rendering this product asked for** (rule 3): bytes marked `RawFileItem.rendering` by
+  Drive's `files.export` or Dropbox's `files/export`; a customer's own `.zip` is compared by its
+  bytes. Guard `a-deck-that-would-be-rewritten-nightly`.
+- **A stored hash carries its scheme; schemes are never compared across**
+  (rule 4, cited as (d)): another scheme is **not evidence of change** — recompute and store,
+  never re-copy on that alone. `sameFingerprintVersion`; guard `a-hash-compared-against-a-different-scheme`.
+- **Verification says what it compared** (rule 5): the confirmed list's `container-parts`
+  ([confirmed-list.ts](../../packages/shared/src/confirmed-list.ts)), the target re-read in the
+  row's scheme; §20's sample not yet (*Consequences*). **No part is declared "not the
+  document"** (rule 6): the hash settles `.docx`, `.xlsx`, `.ods`, `.odp`; not `.pptx` or `.odt`.
+- **Built, not reaching the ledger** (0042 T8 (e)): `fetchRaw` in
+  [dav-sync.ts](../../packages/core/src/dav-sync.ts) drops the marker, so every export is stored
+  with a whole-file hash; passing it through is still open.
+- **A rewrite follows the source's version, never an export's bytes, and a renamed export is
+  paired by its Drive or Dropbox id** ([ADR-0030](./0030-relocation-is-positive-evidence.md)).
+  So **nothing is refused for what it measured**. Tests: `a-deck-copied-once-not-nightly`,
+  `a-paper-doc-exported-once`.
+- **`nativeFilePolicy` defaults to `refuse`**; the owner chooses per migration and per kind
+  (0042 T9), and every format carries every kind. `EXPORT_STABILITY` records the measurements,
+  taken through the connector like any caller (`an-instrument-that-cannot-take-its-own-reading`),
+  and decides nothing. The confirm screen names a kind left behind.
 
 ## Context
 
-A Google Doc has no bytes of its own. Migrating one means asking Drive to EXPORT a rendering —
-`.docx`, `.odt`, `.pdf` — and whatever `files.export` returns is what gets written to the
-target.
+A Google Doc has no bytes of its own. Migrating one means asking Drive to **export a rendering**
+(`.docx`, `.odt`, `.pdf`), and what `files.export` returns is what is written to the target. A
+Dropbox Paper doc is the same case: Dropbox hands it over only through `files/export`.
 
-This product hashes the bytes it writes and stores that hash as `contentHash`. That one value
-does two jobs: it is the **change signal** (a differing hash on the next pass means re-copy)
-and it is the **verification basis** (§20's report compares source against target by it). Both
-jobs assume the same thing — that an unchanged document produces unchanged bytes.
+This product stores a hash of the bytes it writes as `contentHash`: the **verification basis**,
+what relocation correlates by ([ADR-0030](./0030-relocation-is-positive-evidence.md)), and, when
+this was decided, assumed to be the change signal — it never was: a version decides, which Drive
+supplies since #1083 (0042 T8 (d)). Each use assumes that an unchanged document produces
+unchanged bytes, and **for Google's exports that is false**. Measured on the owner's tenant on
+2026-09-16, a Doc's `.docx` came back at 17644 bytes every time with five different hashes, yet
+all nine members were byte-identical: only the zip's own stamps moved.
 
-**For Google's exports that assumption is false, and 0042 T3 now says exactly how false.**
-Measured on the owner's tenant, 2026-09-16, one Doc untouched throughout, exports three seconds
-apart, five draws per policy:
-
-| policy | bytes | what actually moved |
-| --- | --- | --- |
-| `export-office` | 17644 **every time**, five hashes | **nothing inside the document.** All 9 members byte-identical every draw; only the zip's own modification stamps changed |
-| `export-odf` | four sizes in a four-byte window | `settings.xml` genuinely changes content; the other 24 members only restamped |
-| `export-pdf` | 195869 and one hash, five times | nothing detectable |
-
-So `export-office` is refused today for a defect that is **entirely outside the document**.
-Google rebuilds the zip; the document inside it is bit-for-bit the same one. Hash the whole
-file and every pass sees a change and rewrites every document, nightly, forever, with every
-write succeeding and nothing looking broken. That is the failure 0042 exists to prevent, and it
-is currently preventing it by refusing the best policy available.
-
-**Why this is worth a decision rather than a patch.** `export-office` is the strongest of the
-three on three independent counts:
-
-1. **It is lossless and editable.** A `.docx` is a document somebody can open and change. A
-   `.pdf` is a picture of one — migrating a Doc as PDF trades the editable original for a fixed
-   rendering, and for a Sheet it silently discards every formula.
-2. **It is 11× smaller than the PDF** — 17644 against 195869 bytes for the same content. This
-   product meters first-copy bytes (0109 T3), sums them onto an invoice and prices tiers off
-   them, so the policy choice is also a choice about what a customer is billed.
-3. **Its instability is now understood**, not merely observed.
-
-And yet changing what `contentHash` means for one class of file is not a refactor. It changes
-what verification *is* for those rows, and §20's report would be asserting something different
-about them than about everything else. That belongs in the register.
+`export-office` is the strongest format: **lossless and editable** (a PDF is a picture of a
+document, and of a Sheet without its formulas), and **11× smaller than the PDF** (17644 against
+195869 bytes), which matters because first-copy bytes are metered and billed (0109 T3). But
+changing what `contentHash` means for one class of file changes what verification *is* for those
+rows, so it is a decision, not a patch.
 
 ## Decision
 
-**Accepted 2026-09-16.** For a file this product obtained by exporting a Google-native document
-into a zip container, `contentHash` is computed over a **canonical form of the container** rather than
-over its raw bytes.
+For a file this product obtained by asking a provider to render a document that has no bytes of
+its own, **when the rendering is a zip, `contentHash` is computed over a canonical form of the
+container** rather than over its raw bytes. The rules keep their accepted numbers; code also
+cites four by the letter of the workplan 0042 T7 item that built each:
+rule (a) is rule 1, rule (b) is rule 2, rule (c) is rule 5, and rule (d) is rule 4.
 
-1. **The canonical form is the parts, not the packaging.** Member names sorted, and for each,
-   the sha256 of its **uncompressed** bytes. Excluded: member modification timestamps, member
-   order, compression method and level, extra fields, and the archive comment — every field
-   that describes the zip rather than the document.
+1. **(a) The canonical form is the parts, not the packaging.** Member names sorted, and for
+   each, the sha256 of its **uncompressed** bytes. Excluded: member modification timestamps,
+   member order, compression method and level, extra fields, and the archive comment — every
+   field that describes the zip rather than the document. Bytes that will not canonicalise are
+   hashed whole: a stricter comparison, never a looser one.
+2. **(b) sha256 of inflated bytes, never the zip's stored CRC-32.** `scripts/drive-export-members.ts`
+   reads each member's CRC-32 from the index because it is free and answers "what moved"; a
+   `contentHash` decides whether a copy reads verified and whether a move is paired, and CRC-32
+   is 32 bits and not collision-resistant. A swap passes every behavioural test, so
+   `scripts/a-content-hash-built-from-thirty-two-bits.unit.test.ts` guards the source.
+3. **It applies ONLY to a rendering this product asked a provider to produce**: bytes marked
+   `RawFileItem.rendering` by the code that asked (Drive's `files.export`, Dropbox's
+   `files/export`), never inferred from an extension. A `.zip` a customer stored is compared by
+   its bytes: for that file the container *is* the content. The narrow trigger is the whole
+   safety argument: the blast radius is files that did not exist until we asked for them.
+4. **(d) A stored hash records the scheme that produced it (`zip1:` on its front for parts),
+   and schemes are never compared across.** A row whose stored scheme differs from the current
+   one is **not evidence of change**: recompute, store, and do not re-copy on that basis alone.
+   Otherwise adopting the scheme would make every already-migrated native file read as changed,
+   the disease arriving through the cure. `sameFingerprintVersion` ([fingerprint-scheme.ts](../../packages/shared/src/fingerprint-scheme.ts))
+   is the one implementation; `scripts/a-hash-compared-against-a-different-scheme.unit.test.ts`
+   holds every comparison site to it.
+5. **(c) Verification says what it compared.** For rows hashed structurally, §20's report states
+   that the comparison was over the container's parts: a reader must never have to guess which of
+   two meanings a green row carries. Built so far on the confirmed list — a `zip1:` row would read
+   `container-parts` (*"by the document's parts"*), and the target is re-read in the row's own
+   scheme; §20's sample does not say it yet (*Consequences*).
+6. **This ADR does not rescue a Doc under `export-odf`, and declares no part "not the document".**
+   (A Sheet and a Slide under `export-odf` are container-only and settled by the same hash,
+   measured 2026-09-17 — `google-drive-source.types.ts`.) A `.odt`'s `settings.xml` really changes, as do five parts of a deck's `.pptx` (below), so no container
+   normalisation helps. Declaring named parts "not the document" is a claim about a format's
+   semantics, a separate decision with a separate risk, and no ADR has made it.
 
-2. **sha256 of inflated bytes, never the zip's stored CRC-32.** The diagnostic in
-   `scripts/drive-export-members.ts` fingerprints members by the CRC-32 the index already
-   carries, because that is free and it is answering "what moved". A `contentHash` must not be
-   built that way: CRC-32 is 32 bits, is not collision-resistant, and this value decides whether
-   a customer's file is rewritten or left alone. The cheap read is the right instrument for the
-   diagnosis and the wrong primitive for the comparison.
+**Not decided here:** whether `export-office` becomes the default. That stays the owner's
+per-migration choice.
 
-3. **It applies ONLY to a rendering this product asked Drive to produce.** A `.zip` a customer
-   stored in their Drive is compared by its bytes like any other file, because for that file the
-   container *is* the content — its member order and timestamps are data the customer owns.
-   The narrow trigger is the whole safety argument: the blast radius is files that did not exist
-   until we asked for them.
+### What the hash settles, measured
 
-4. **A stored hash records the scheme that produced it, and schemes are never compared across.**
-   Without this, accepting the ADR silently re-labels every already-migrated native file: the
-   next pass reads a hash computed one way, computes another, sees a difference, and rewrites
-   the lot once — the exact disease, arriving through the cure. A row whose stored scheme
-   differs from the current one is **not evidence of change**: recompute, store, and do not
-   re-copy on that basis alone.
+Measured on the same tenant on 2026-09-16, five draws each, 3000 ms apart. The facts hold
+whatever is decided; `EXPORT_STABILITY` (`packages/connectors/src/google-drive-source.types.ts`)
+records them.
 
-5. **Verification says what it compared.** For rows hashed structurally, §20's report states
-   that the comparison was over the container's parts. A reader must never have to guess which
-   of two meanings a green row carries.
+| file | export | once the container is normalised |
+| --- | --- | --- |
+| Doc | `.docx` | **agree**: 9 members byte-identical, only stamps moved |
+| Sheet | `.xlsx`, 5659 bytes every draw | **agree**: 10 members byte-identical, only stamps moved |
+| Slide | `.pptx` | **still differ**: `ppt/_rels/presentation.xml.rels`, two more `.rels`, `ppt/theme/theme1.xml` and `ppt/theme/theme2.xml` change content; the length oscillates by one byte |
+| Doc | `.odt` | **still differ**: `settings.xml`; four sizes in a four-byte window |
+| Doc, Sheet, Slide | `.pdf` | not a zip; **stable** as whole files: 195869, 54591 and 2017 bytes, one hash ×5 each |
 
-6. **`export-odf` stays refused, and this ADR does not rescue it.** Its `settings.xml` really
-   changes, so no amount of container normalisation helps. Making it usable means declaring a
-   named part to be "not the document" — a claim about ODF's semantics, not about packaging, and
-   a separate decision with a separate risk.
+So the parts hash settles a Doc and a Sheet under `export-office`, not every `export-office`
+file. What moves in the deck is plumbing, not slides (no `ppt/slides/slideN.xml`), as read from
+the zip index without inflating a member. The PDF greens are narrow: the deck measured is thin (2017 bytes as
+PDF, 34833 as `.pptx`), so a content-rich deck — where font subset tags and image recompression
+could vary — is unmeasured (0042 T3). And a measurement is asymmetric: one red disproves
+stability, while five greens mean only *measured, and not disproved*.
 
-**What this deliberately does NOT decide:** whether `export-office` becomes the default, or is
-offered at all. That stays the owner's per-migration choice, and it still wants a **Sheet** and
-a **Slide** measured — different renderers, both unmeasured under every policy.
+### A rewrite follows the version, so nothing is refused for what it measured
+
+A file is rewritten when the **source's version** moves, never because an export's bytes differ
+(#1083). The version (`fileVersion`) is the provider's content hash where it keeps one, else the
+last modification: for a Google document, its `modifiedTime`. A renamed Google document is
+paired by its Drive id ([ADR-0030](./0030-relocation-is-positive-evidence.md), amended
+2026-09-23). An export that differs on every draw is copied once, and again only after an edit.
+
+So **no combination is refused for what it measured**. The owner's aim, 2026-09-23: *"My goal
+would however be that we have working fileformats that suite the user."* The connector does not
+read `EXPORT_STABILITY`, and the measurement script exports through it like any caller.
+`NATIVE_POLICY_COVERAGE` has every kind under every format, each kind has its own select offering
+all three (0042 T9), and `nativeFilePolicy` unset means `refuse`. The preflight counts a kind set
+not to export, and the confirm screen names it before the run. Held end to end by
+`packages/core/src/a-deck-copied-once-not-nightly.unit.test.ts`, with an export that differs on
+every fetch, and by `scripts/a-deck-that-would-be-rewritten-nightly.unit.test.ts` and
+`scripts/an-instrument-that-cannot-take-its-own-reading.unit.test.ts`.
+
+### A Dropbox Paper doc follows the same two rules (0150 D8)
+
+Dropbox exports a Paper doc through `files/export` in the format the migration chose, Markdown or
+HTML (0150 T3, T4), and the source marks the bytes as a rendering. It is rewritten when the
+listing's version moves (`content_hash`, else `server_modified`), never on the export's bytes, and
+a renamed one is paired by its Dropbox id (ADR-0030, amended 2026-09-28). Neither format is a zip,
+so its stored hash is the whole file's. `packages/core/src/a-paper-doc-exported-once.unit.test.ts`
+holds it, a rename included. Whether a Paper edit moves `content_hash` or only `server_modified`
+is 0150 open question 3 (b).
+
+### Built, and not yet reaching the ledger (0042 T8 (e))
+
+Rules 1–4 are built, and rule 5 on the confirmed list (0042 T7), and none of it is reached: the file pass's `fetchRaw`
+(`packages/core/src/dav-sync.ts`) rebuilds the raw item from `item`, `content` and `body` only,
+so the `rendering` marker never reaches `contentHash`. Every export is stored with a whole-file
+hash and no row carries `zip1:`; the wiring's guard reads source text, so it stayed green. No
+rewrite depends on this, since a version decides, but relocation and verification read the
+stored hash. Whether to pass the marker through, and what that changes for those two, is 0042 T8
+(e)'s open question.
 
 ## Consequences
 
-**Now that it is accepted:**
-
-- `export-office` becomes defensible for the first time, and with it the smallest and only
-  lossless way to carry a Google Doc.
-- A new code path inflates each member of an exported container and hashes it. Cost is
-  proportional to the export's size, which rule 3 bounds to documents we asked for — the 3 MB
-  ODT is the large end, not a 2 GB archive. It does not touch the streaming path that 0120 T6
-  built for genuinely large files.
-- Two hash schemes exist in the ledger at once, forever, and rule 4 is the only thing keeping
-  that from being a bug. It wants a guard, proved by breaking it.
-- **The contract is renderer-specific and Google can break it.** If a future export starts
-  varying a member's content — a generated id inside `document.xml`, say — the policy silently
-  becomes unstable again. The measurement script is the detector, and running it is the habit
-  that keeps this honest; 0042 T6 is where that lives.
-
-**Had it been rejected:** `refuse` would stand, Google Docs do not migrate at all unless the owner enables
-`export-pdf` and accepts the loss of editability and the 11× metered bytes. That is a coherent
-position — it trades a feature for a guarantee — and it should be recorded as chosen rather than
-defaulted into.
-
-**Either way, the measurement stands.** The facts in 0042 T3 are not contingent on this
-decision, and the hypothesis they replaced (`docProps/core.xml` timestamps, `w:rsid` values) was
-wrong — recorded there in full, because a workplan that quietly swaps a guess for a fact teaches
-nobody anything.
+- Inflating each member costs in proportion to the export's size, which rule 3 bounds to
+  documents we asked for (the 3 MB ODT is the large end, not a 2 GB archive); the streaming path
+  0120 T6 built for large files is untouched.
+- Two hash schemes can sit in the ledger at once, forever; rule 4 and its guard keep that from
+  being a bug.
+- **The contract is renderer-specific, and Google can break it**: if an export starts varying a
+  member's content (a generated id inside `document.xml`, say), the parts hash moves again.
+  `scripts/drive-export-stability.ts` is the detector, and running it is the habit (0042 T6).
+- **Rule 5 is not yet met by §20's content sample**, which re-reads the target whole, so a `zip1:`
+  row would count there as unavailable (rule 4) rather than as a parts comparison. Moot while no
+  such row exists; it has to be closed with 0042 T8 (e).
+- Refusals recorded before 2026-09-23 are parked, as every refusal is, and leave the Failures
+  screen on Try again (per row or per group).
+- Open: 0042 T8 (e); 0150 open question 3 (b); a content-rich deck under `export-pdf`; the
+  unwritten ADR that would declare a format's parts "not the document".
 
 ## Alternatives considered
 
-**Drive's own `version` as the change signal** (route 1 in 0042 T3). `files.get` returns a
-counter Drive increments on change, so an unchanged document re-exports to different bytes and
-still reports no change. Cheaper than anything here, and rejected as the primary route for a
-specific reason: it stops comparing content at all for a whole class of file. §20's report would
-be asserting "Google says it did not change", which is a different claim from "the bytes we
-carried match", and a reader of that report has no way to tell. Container normalisation keeps the
-comparison about content. `version` remains a reasonable *corroborating* signal and is not
-foreclosed.
+**Drive's own `version` as the change signal, in place of the hash** (route 1 in 0042 T3).
+Cheapest, and rejected as the primary route: it stops comparing content for a whole class of
+file, and §20's report would assert "Google says it did not change", not "the bytes we carried
+match", with no way for its reader to tell. It stayed open as a corroborating signal; since #1083
+a version decides *rewrites* (a native Doc's `modifiedTime`, not Drive's `version`, which moves on
+metadata alone: 0042 T8 (d)), and verification still compares content.
 
-**Re-export and compare semantically** — parse both renderings and compare documents rather than
-bytes. Needs a parser per format, makes the migration's correctness depend on that parser, and
-costs a full export per verification. Rejected as far more machinery for the same answer.
+**Re-export and compare semantically**, parsing both renderings: a parser per format, the
+migration's correctness resting on it, and a full export per verification. Far more machinery
+for the same answer.
 
-**Normalise content, not just the container** — strip `dcterms:modified` and friends from inside
-the parts. This is what `export-odf` would need. Rejected *for now* on scope: it requires knowing
-which fields of which formats may be discarded, which is a standing claim about every future
-version of those formats. Container normalisation needs to know only that a zip is a zip.
+**Normalise content, not just the container**: strip `dcterms:modified` and friends inside the
+parts, or call a deck's relationship files and themes "not the document". Rejected *for now* on
+scope: it is a standing claim about which fields of every future version of those formats may be
+discarded, where container normalisation needs to know only that a zip is a zip (rule 6).
 
-**Do nothing.** The honest baseline, and the one that was in force until this was decided.
+**Do nothing**: `refuse` stands, and a Google Doc migrates only under `export-pdf`, losing
+editability at 11× the metered bytes. Coherent, a feature traded for a guarantee, and the
+baseline until this was decided; recorded as not chosen rather than defaulted into.
 
-## Measured after acceptance — 2026-09-16, the same day
+**Refuse a combination measured unstable** (a deck under `export-office`, a Doc under
+`export-odf`, 2026-09-16 to 2026-09-23), because such an export looked like an edit on every pass.
+Removed once a rewrite followed the version and a rename was paired by id: it then protected
+nothing, parked the owner's decks on the Failures screen, and needed a private way past it for
+the instrument to keep measuring.
 
-This section is appended rather than folded into the text above, because what the decision
-rested on and what was learned afterwards are different things and a reader needs to see both.
-The **Consequences** section says `export-office` "becomes defensible for the first time". That
-is now true for a Doc and a Sheet and **false for a Slide**, and the operative bullets have been
-amended to say so.
+**A refusal sentence written out by hand**, while the refusal stood. Replaced on 2026-09-16 by
+one derived from the measurement table: the written one went stale within the day, naming a Doc
+to customers whose deck had been refused, and sending a Doc refused under `export-odf` to PDF
+where `export-office` was measured stable and editable. A gate that names no alternative is a
+wall.
 
-The ADR was accepted on **one Doc**, and it said so: *"it still wants a **Sheet** and a
-**Slide** measured — different renderers, both unmeasured under every policy."* Both were
-measured hours later, on the same tenant, same 3000 ms gap, five draws each.
+**A separate ADR for Dropbox exports** (0150 D8's other option). Not taken: on 2026-09-26 the
+owner chose to amend this one, and the two rules carry over to a Paper doc unchanged.
 
-| editor type | export | draws | verdict once the container is normalised |
-| --- | --- | --- | --- |
-| Doc | `.docx` | 5 | **agree** — 9 members byte-identical, only stamps moved |
-| Sheet | `.xlsx` | 5 | **agree** — 10 members byte-identical, only stamps moved |
-| Slide | `.pptx` | 5 | **still differ** — 5 members change content |
+## Amendment log
 
-The Sheet confirms the decision. The Slide refutes the general claim behind it: a container
-hash computes perfectly well for a `.pptx` and **still moves on every pass**, because what
-varies is inside the members rather than around them. A migration carrying Google Slides under
-`export-office` would rewrite every deck nightly — the exact failure this ADR exists to
-prevent, arriving through the fix for it.
+- **2026-09-16** — A Sheet and a Slide measured after acceptance: the hash settles a Doc and a
+  Sheet, not a deck. By the owner's decision the same day, the connector refused a deck under
+  `export-office` (and a Doc under `export-odf`) per item, counted on the confirm screen before
+  the run; the refusal was lifted 2026-09-23, the count stays. Record: *Measured after
+  acceptance — 2026-09-16, the same day*, and the record's Status for the refusal.
+- **2026-09-16** — `export-pdf` measured stable on a Sheet and a Slide; the refusal named a
+  format measured to carry the refused file, derived from the table (`stablePoliciesFor`).
+  Superseded 2026-09-23. Record: *2026-09-16, later still: the deck has a way out, and the
+  refusal names it*.
+- **2026-09-23** — Correction (0042 T8 (e)): built, but the marker does not reach the ledger. The
+  status had said "not yet built" and the first rule "built, and live"; neither was true.
+  Record: *2026-09-23: built, and not reaching the ledger*.
+- **2026-09-23** — Amended (0042 T10 (c), and T9 for the per-kind choice; the owner's aim): no
+  combination is refused for what it measured, and every format carries every kind. Record: *2026-09-23,
+  later: no combination is refused for what it measured*.
+- **2026-09-28** — Amended (workplan 0150 D8, the owner's choice of 2026-09-26): a Dropbox Paper
+  doc follows the same two rules. Record: *2026-09-28: a Dropbox Paper doc follows the same two
+  rules (workplan 0150 D8)*.
+- **2026-10-03** — Consolidated in place (ADR-0051). Rules 1–6 keep their numbers, and the 0042
+  T7 letters that code cites stand beside them.
 
-**This is the measurement asymmetry doing its work.** Five green draws on a Doc were never
-proof of a rule about `export-office`; one red draw on a Slide is a disproof of it. The cost of
-finding out was one command, and the cost of not finding out would have been an owner enabling
-`export-office` on the strength of an accepted ADR.
-
-**What varies is plumbing, and that is said narrowly.** The five members are three `.rels`
-relationship files and two themes; no `ppt/slides/slideN.xml` is among them, and the one-byte
-length oscillation is what a relationship id changing width looks like. That is an observation
-about **which members**, not a reading of what is inside them — `drive-export-members.ts`
-compares the zip index and never inflates a member, on purpose. Whether those five could be
-declared "not the document" is precisely the question rule 6 above declined to answer for
-`settings.xml`: a claim about a format's semantics rather than about packaging. It would be its
-own ADR, and it has not been written.
-
-**What this does not change.** The decision itself stands unaltered: a rendering this product
-asked Drive to export is compared by its parts, by sha256 of inflated bytes, never across
-schemes, only for renderings we asked for. Those rules were never contingent on which editor
-type produced the file. What narrowed is the SET OF FILES the rules rescue, and therefore what
-an owner may be told `export-office` is good for.
-
----
-
-## 2026-09-16, later still: the deck has a way out, and the refusal names it
-
-The section above ends on *"what an owner may be told `export-office` is good for"*. This is the
-other half of that sentence: what an owner may be told to do **instead**.
-
-`export-pdf` was measured the same day on the same tenant, on the same Sheet and the same Slide,
-five draws each, three seconds apart:
-
-| type | bytes | verdict |
-| --- | --- | --- |
-| Doc | 195869, one hash ×5 | **stable** (measured earlier) |
-| Sheet | 54591, one hash ×5 | **stable** |
-| Slide | 2017, one hash ×5 | **stable** |
-
-A PDF is not a zip, so **this ADR's hash is not involved in any of those greens**. They are
-byte-identical draws, settled by the ordinary whole-file sha256, and `containerContentHash`
-returning `null` on a non-zip is exactly what makes that work with no PDF-specific branch
-anywhere. The decision is untouched again; what changes is the shape of the refusal it produces.
-
-**A gate that names no alternative is a wall.** Until this run, `export-office` refusing a deck
-told a customer their decks could not be carried and offered nothing. Now the refusal names a
-format measured to carry the same file. The sentence is **derived** from the measurement table
-(`stablePoliciesFor`) rather than written out, because the written-out version had already gone
-stale: it read *"export-pdf is stable for a Doc"*, composed when a Doc was the only measurement
-in existence, and it said **Doc** to every customer whose **deck** had just been refused — the
-wrong file type, in the one sentence whose whole job is saying what to do next. Deriving it also
-corrected a second defect nobody had reported: a Doc refused under `export-odf` is now sent to
-`export-office`, measured stable for it and **still editable**, where the fixed clause sent it
-to PDF and lost that for no reason.
-
-**The evidence, stated at its real width.** The deck measured renders to 2017 bytes — a thin
-one. Its `.pptx` is 34833 bytes and the five members that moved there are `.rels` files and
-themes: packaging around not much content. Images, embedded fonts and charts are the surface a
-PDF renderer is known to vary on (font subset tags, image recompression), so a content-rich deck
-is a different question and an unmeasured one. The green is real, the asymmetry still holds, and
-the next measurement worth taking is named in workplan 0042 T3.
-
-## 2026-09-23: built, and not reaching the ledger
-
-Workplan 0042 T8 (e) found that the build stops one step short. Drive's `fetch` marks an export
-`rendering: true`, and `contentHash` in the file pass branches on that marker. But the file
-pass's `fetchRaw` rebuilds the raw item from `item`, `content` and `body` only, so the marker
-never arrives. Every export has been stored with a whole-file hash, no row carries `zip1:`, and
-the confirmed list has never had cause to say `container-parts`. The guard for the wiring reads
-source text, which is why it stayed green.
-
-This is not the nightly rewrite the decision was written against. Since #1083 (2026-09-22) the
-file domain's change signal is the source's version, and a Google-native file's version is its
-`modifiedTime`, so an unstable export no longer causes a rewrite at all. What still reads the
-stored hash is relocation (ADR-0030 correlates by content hash) and verification. Whether the
-marker should now be passed through, and what that changes for those two, is 0042 T8 (e)'s
-open question. The status line and the first operative rule were corrected the same day; they
-had said "not yet built" and "built, and live", and neither was true.
-
-## 2026-09-23, later: no combination is refused for what it measured
-
-The refusal this ADR added on 2026-09-16 (a Slides deck under `export-office`, and the same day a
-Doc under `export-odf`) protected against one failure: an export that differs between two draws
-of an unchanged document looked like an edit on every pass, and was copied again, nightly. Two
-changes took that failure away before this one. Since #1083 (2026-09-22) the file domain's change
-signal is the source's version, and a Google document's version is its `modifiedTime`, so a
-document is exported again only when Drive says it was edited. Since ADR-0030's amendment of
-2026-09-23, a renamed Google document is paired by its Drive id, which was the last place found
-where the bytes of a fresh export decided anything.
-
-So the refusal protected nothing, and it went. The owner's aim, the same day: *"My goal would
-however be that we have working fileformats that suite the user."* The connector no longer reads
-`EXPORT_STABILITY` at all, `NATIVE_POLICY_COVERAGE` has every kind under every format, and the
-per-kind selects offer all three. The refusal's sentence, which named the formats measured to
-carry a refused file, went with it, and so did the instrument's private way past the refusal:
-with nothing refused, it measures through the connector exactly as a migration does.
-
-The measurements stand as facts and stay recorded; a Doc's `.odt` still rewrites its
-`settings.xml`, and a deck's `.pptx` still changes five members. What they no longer do is decide
-whether a file is copied. `packages/core/src/a-deck-copied-once-not-nightly.unit.test.ts` holds
-what protects against the nightly rewrite now: through the real Drive connector and the real file
-pass, with an export that differs on every fetch, a deck and a Doc are copied once, not again
-while Drive's modified time holds (not even exported), and once more when it moves.
-
-Refusals already recorded on a live migration are parked, as every refusal is, and leave the
-Failures screen when somebody presses Try again (per row or per group).
-
-## 2026-09-28: a Dropbox Paper doc follows the same two rules (workplan 0150 D8)
-
-On 2026-09-28 the owner moved Paper export before the alpha: *"yes, paper export before the
-alpha"*. Dropbox hands a Paper doc over only through `files/export`, so its bytes are a rendering
-this product asks for, as a Google document's are, and nothing promises that two exports of an
-unchanged doc are the same bytes. 0150 D8 chose to amend this ADR rather than write another.
-
-The two rules that took the nightly rewrite away for Drive carry over unchanged. A rewrite
-follows the source's version, which for a Paper doc is the listing's (`content_hash`, else
-`server_modified`), so a doc is exported again only when Dropbox lists it as changed. A renamed
-Paper doc is paired by its Dropbox id, which the source sets as the item's identity, as Drive
-sets the Drive id. The source marks the export as a rendering. Neither Markdown nor HTML is a
-zip, so the marker changes no hash: the stored one is the whole file's.
-
-`packages/core/src/a-paper-doc-exported-once.unit.test.ts` holds it through the real Dropbox
-connector and the real file pass, with an export that differs on every fetch: a Paper doc is
-copied once, not again while the listing's version holds (not even exported), again when an
-edit moves it, and reported as moved, by its id, when it is renamed. Whether an edit in Paper
-moves `content_hash` or only `server_modified` is 0150 open question 3 (b), which the owner's
-listing answers.
+The full record, word for word as it read before this consolidation:
+[history/0046-a-rendering-is-compared-by-its-parts.md](./history/0046-a-rendering-is-compared-by-its-parts.md).

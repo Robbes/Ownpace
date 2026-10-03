@@ -75,9 +75,17 @@ export interface SourceConnector {
     items: ReadonlyArray<MailItem>;
     nextCursor: SyncCursor;
     /**
-     * Items in this folder that could NOT be listed because they carry no
-     * natural key — mail with no Message-ID, which cannot be tracked
-     * idempotently and is therefore not migrated.
+     * Items LISTED without a natural key — mail with no Message-ID — which the
+     * sync still migrates: it derives a Message-ID from the message's bytes,
+     * writes it into the copy and keys the ledger by it (ADR-0020). Counted,
+     * because the customer is told how many of their messages were given an
+     * id. The IMAP sources report it. Omitted (or 0) when there were none.
+     */
+    unkeyable?: number;
+    /**
+     * Items in this folder that could NOT be listed, because they carry no
+     * natural key and this source cannot derive one — Graph mail with no
+     * `internetMessageId` — and that are therefore NOT migrated.
      *
      * They used to be dropped with a bare `continue`. Nothing counted them, so
      * they were invisible everywhere at once: absent from the ledger, absent
@@ -87,9 +95,12 @@ export interface SourceConnector {
      * agreed on nothing and reported PASS.
      *
      * Reporting the count is what makes "leave them behind" an honest choice
-     * rather than a silent one. Omitted (or 0) when there were none.
+     * rather than a silent one. Until 2026-10-03 Graph reported them as
+     * `unkeyable`, which every reader of that field takes to mean "migrated
+     * under a generated id", so the confirm screen promised a copy that never
+     * came. Omitted (or 0) when there were none.
      */
-    unkeyable?: number;
+    unlisted?: number;
     /**
      * Source refs the server REPORTED as removed on this poll — Graph's
      * delta `@removed` entries, the mail equivalent of CalDAV's

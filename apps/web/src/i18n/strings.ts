@@ -159,6 +159,21 @@ const en = {
   'discovery.generatedId.strong': 'the copy on your new server',
   'discovery.generatedId.post':
     '— the original on your old server is not changed; they migrate with the rest.',
+  // The other half of the same absence (ADR-0020's amendment of 2026-10-03):
+  // a source that cannot give a message an id, Microsoft 365 through Graph,
+  // leaves it behind. Said here, before Start, and never as a generated id.
+  'discovery.unlisted.pre.one': 'message has no Message-ID, and this connection cannot give it one, so it',
+  'discovery.unlisted.pre.many': 'messages have no Message-ID, and this connection cannot give them one, so they',
+  'discovery.unlisted.strong.one': 'will not be migrated',
+  'discovery.unlisted.strong.many': 'will not be migrated',
+  'discovery.unlisted.post': '— nothing on your old server changes.',
+  // ADR-0035 decision 5, the owner's option C (2026-10-03): for an account the
+  // person connected through their own grant, the provider's words and the
+  // items' names stay off the owner's pages.
+  'failure.withheld':
+    "The provider's own message is not shown: the person connected this account themselves, and it can name their files. Support can read it by the reference.",
+  'failures.withheld':
+    "Item names and the provider's messages are not shown: the person connected this account themselves, and they can name their files. Each failure still says what kind it is and what to do.",
   'discovery.colliding.pre.one': 'item already on your destination matches something in your source. We will',
   'discovery.colliding.pre.many': 'items already on your destination match something in your source. We will',
   'discovery.colliding.strong': "keep the destination's copy",
@@ -187,23 +202,35 @@ const en = {
   // The tick-box beside that sentence. Named counts, never "some files": a
   // person who reads "3 items" goes hunting through their Drive.
   'confirm.refusedAck': 'I understand that {kinds} ({n} files) will not be copied.',
-  'applyFlag.readFailed': 'Could not read whether applying deletions is enabled:',
-  'applyFlag.on': 'Applying deletions is ON for this migration.',
-  'applyFlag.off': 'Applying deletions is OFF for this migration (the default).',
+  // The Deletions page's two switches (workplan 0156 T6). They shared a verb,
+  // "applying", and the owner read "Applying deletions is ON" as deletions
+  // happening by themselves. The first only lets the delete buttons work, one
+  // item at a time; the second removes moved files' old copies unattended.
+  // So the first says BY HAND and the second AUTOMATIC, and neither borrows
+  // the other's words.
+  'applyFlag.readFailed': 'Could not read whether deleting by hand is on:',
+  'applyFlag.on': 'Deleting by hand is ON for this migration.',
+  'applyFlag.off': 'Deleting by hand is OFF for this migration (the default).',
+  'applyFlag.onMeans': 'Nothing is removed until you press a delete button on an item.',
   'applyFlag.turnOff': 'Turn off',
   'applyFlag.refusesUntilOn':
     'The server refuses every delete button on this screen until it is turned on.',
   'applyFlag.config.pre': "On this appliance the value lives in the mapping's config file",
   'applyFlag.config.post': '; edit the file and restart to change it. No API changes it.',
-  'applyFlag.turnOn': 'Turn on applying deletions',
-  'applyFlag.turnOnArmed': 'Confirm: enable deletions',
-  'autoApply.on': 'Auto-applying relocations is ON for this migration.',
-  'autoApply.off': 'Auto-applying relocations is OFF for this migration (the default).',
-  'autoApply.hint': 'Old copies of moved files go after strict checks; deletions never do.',
+  'applyFlag.turnOn': 'Turn on deleting by hand',
+  'applyFlag.turnOnArmed': 'Confirm: turn on deleting by hand',
+  'autoApply.on': "Automatic removal of moved files' old copies is ON for this migration.",
+  'autoApply.off': "Automatic removal of moved files' old copies is OFF for this migration (the default).",
+  // Stored ON while deleting by hand is off, which only the appliance's file
+  // can say (the managed switch turns both off): it waits, and does nothing.
+  'autoApply.onButWaiting':
+    "Automatic removal of moved files' old copies is set ON, and does nothing while deleting by hand is off.",
+  'autoApply.hint': 'It runs without you: old copies of moved files only, never deletions.',
   'autoApply.why':
-    'Only where the same bytes are confirmed present under the new name, the pairing is unique, the report survived a full pass, and no mass event is suspected. Everything it refuses stays in this queue for you. Deletions are never applied automatically.',
-  'autoApply.turnOn': 'Enable auto-apply for relocations',
-  'autoApply.turnOnArmed': 'Confirm: auto-apply relocations unattended',
+    'Only where the same bytes are confirmed present under the new name, the pairing is unique, the report survived a full pass, and no mass event is suspected. Everything it refuses stays on the Moves screen for you. Deletions are never removed automatically.',
+  'autoApply.turnOn': 'Turn on automatic removal',
+  'autoApply.turnOnArmed': 'Confirm: remove old copies unattended',
+  'autoApply.turnOff': 'Turn off automatic removal',
   'scope.migrates': 'Migrates',
   'scope.partial': 'Partial',
   'scope.doesNotMigrate': 'Does not migrate',
@@ -1009,7 +1036,7 @@ const en = {
   'hub.deletions.blurb': 'Deleted on the old system, still on the new; your call, per item.',
   'hub.moves.name': 'Moves',
   'hub.moves.blurb':
-    'Items the old system reorganised since they were copied. Reported, never acted on.',
+    'Items the old system reorganised since they were copied. An old copy goes only when you remove it, or by automatic removal if you turned that on.',
   'hub.failures.name': 'Failures',
   'hub.failures.blurb':
     'Items that could not be copied and now wait on a person. These block finishing.',
@@ -2353,12 +2380,14 @@ const en = {
   'tenants.invite.role': 'Role',
   // Workplan 0137 T7: the two roles the alpha offers, and what the second one
   // may do. Checked against the API's owner-only routes: close and reopen
-  // (tenants/index.ts), the applying-deletions and auto-applying-relocations
-  // flags, owner-only in both directions (operating-routes.ts), and granting
-  // owner (members.ts). `a-role-that-promises-less-than-it-allows.unit.test.ts`
-  // in apps/api pins that set and fails when it changes.
+  // (tenants/index.ts), the deleting-by-hand and automatic-removal switches
+  // (`allowApplyDeletions`, `autoApplyRelocations`), owner-only in both
+  // directions (operating-routes.ts), and granting owner (members.ts).
+  // `a-role-that-promises-less-than-it-allows.unit.test.ts` in apps/api pins
+  // that set and fails when it changes. The switches are named as the
+  // Deletions panel names them (0156 T6).
   'tenants.invite.adminCan':
-    'An admin can do everything an owner can, except close or reopen the organisation, turn applying deletions or auto-applying relocations on or off, and make somebody an owner.',
+    "An admin can do everything an owner can, except close or reopen the organisation, turn deleting by hand or the automatic removal of moved files' old copies on or off, and make somebody an owner.",
   'tenants.ownerOrAdminOnly': 'During the alpha, a person can only be an owner or an admin.',
   'tenants.notify.heading': 'Email summaries',
   'tenants.notify.intro':
@@ -3203,6 +3232,15 @@ const nl: Record<keyof typeof en, string> = {
   'discovery.generatedId.strong': 'de kopie op uw nieuwe server',
   'discovery.generatedId.post':
     '— het origineel op uw oude server verandert niet; ze migreren met de rest mee.',
+  'discovery.unlisted.pre.one': 'bericht heeft geen Message-ID, en deze verbinding kan het er geen geven, dus het',
+  'discovery.unlisted.pre.many': 'berichten hebben geen Message-ID, en deze verbinding kan ze er geen geven, dus ze',
+  'discovery.unlisted.strong.one': 'wordt niet gemigreerd',
+  'discovery.unlisted.strong.many': 'worden niet gemigreerd',
+  'discovery.unlisted.post': '— er verandert niets op uw oude server.',
+  'failure.withheld':
+    'De eigen melding van de aanbieder wordt niet getoond: de persoon heeft dit account zelf gekoppeld, en de melding kan hun bestanden noemen. Support kan haar lezen via de referentie.',
+  'failures.withheld':
+    'Namen van items en de meldingen van de aanbieder worden niet getoond: de persoon heeft dit account zelf gekoppeld, en ze kunnen hun bestanden noemen. Elke fout zegt nog steeds wat voor fout het is en wat u kunt doen.',
   'discovery.colliding.pre.one': 'item dat al op uw bestemming staat, komt overeen met iets in uw bron. We',
   'discovery.colliding.pre.many': 'items die al op uw bestemming staan, komen overeen met iets in uw bron. We',
   'discovery.colliding.strong': 'behouden de kopie op de bestemming',
@@ -3217,24 +3255,30 @@ const nl: Record<keyof typeof en, string> = {
   'discovery.refusedNative.post':
     'met dit exportformaat. Kies er een die ze wel omvat, of laat ze achter.',
   'confirm.refusedAck': 'Ik begrijp dat {kinds} ({n} bestanden) niet worden gekopieerd.',
-  'applyFlag.readFailed': 'Kon niet lezen of het toepassen van verwijderingen is ingeschakeld:',
-  'applyFlag.on': 'Het toepassen van verwijderingen staat AAN voor deze migratie.',
-  'applyFlag.off': 'Het toepassen van verwijderingen staat UIT voor deze migratie (de standaard).',
+  'applyFlag.readFailed': 'Kon niet lezen of handmatig verwijderen aan staat:',
+  'applyFlag.on': 'Handmatig verwijderen staat AAN voor deze migratie.',
+  'applyFlag.off': 'Handmatig verwijderen staat UIT voor deze migratie (de standaard).',
+  'applyFlag.onMeans': 'Er wordt niets verwijderd totdat u bij een item op een verwijderknop drukt.',
   'applyFlag.turnOff': 'Uitschakelen',
   'applyFlag.refusesUntilOn':
     'De server weigert elke verwijderknop op dit scherm totdat dit is ingeschakeld.',
   'applyFlag.config.pre': 'Op deze appliance staat de waarde in het configuratiebestand van de mapping',
   'applyFlag.config.post': '; bewerk het bestand en herstart om dit te wijzigen. Geen API past dit aan.',
-  'applyFlag.turnOn': 'Toepassen van verwijderingen inschakelen',
-  'applyFlag.turnOnArmed': 'Bevestig: verwijderingen inschakelen',
-  'autoApply.on': 'Automatisch toepassen van verplaatsingen staat AAN voor deze migratie.',
-  'autoApply.off': 'Automatisch toepassen van verplaatsingen staat UIT voor deze migratie (de standaard).',
+  'applyFlag.turnOn': 'Handmatig verwijderen inschakelen',
+  'applyFlag.turnOnArmed': 'Bevestig: handmatig verwijderen inschakelen',
+  'autoApply.on':
+    'Automatisch verwijderen van oude kopieën van verplaatste bestanden staat AAN voor deze migratie.',
+  'autoApply.off':
+    'Automatisch verwijderen van oude kopieën van verplaatste bestanden staat UIT voor deze migratie (de standaard).',
+  'autoApply.onButWaiting':
+    'Automatisch verwijderen van oude kopieën van verplaatste bestanden staat AAN, en doet niets zolang handmatig verwijderen uit staat.',
   'autoApply.hint':
-    'Oude kopieën van verplaatste bestanden gaan na strenge controles; verwijderingen nooit.',
+    'Werkt zonder u: alleen oude kopieën van verplaatste bestanden, nooit verwijderingen.',
   'autoApply.why':
-    'Alleen wanneer dezelfde bytes aantoonbaar onder de nieuwe naam aanwezig zijn, de koppeling uniek is, de melding een volledige ronde heeft doorstaan en er geen massale gebeurtenis wordt vermoed. Alles wat wordt geweigerd blijft in deze wachtrij voor u staan. Verwijderingen worden nooit automatisch toegepast.',
-  'autoApply.turnOn': 'Automatisch toepassen van verplaatsingen inschakelen',
-  'autoApply.turnOnArmed': 'Bevestig: verplaatsingen onbeheerd automatisch toepassen',
+    'Alleen wanneer dezelfde bytes aantoonbaar onder de nieuwe naam aanwezig zijn, de koppeling uniek is, de melding een volledige ronde heeft doorstaan en er geen massale gebeurtenis wordt vermoed. Alles wat wordt geweigerd blijft op het scherm Verplaatsingen voor u staan. Verwijderingen worden nooit automatisch verwijderd.',
+  'autoApply.turnOn': 'Automatisch verwijderen inschakelen',
+  'autoApply.turnOnArmed': 'Bevestig: oude kopieën onbeheerd verwijderen',
+  'autoApply.turnOff': 'Automatisch verwijderen uitschakelen',
   'scope.migrates': 'Migreert',
   'scope.partial': 'Gedeeltelijk',
   'scope.doesNotMigrate': 'Migreert niet',
@@ -3818,7 +3862,7 @@ const nl: Record<keyof typeof en, string> = {
     'Verwijderd op het oude systeem, nog op het nieuwe; uw beslissing, per item.',
   'hub.moves.name': 'Verplaatsingen',
   'hub.moves.blurb':
-    'Items die het oude systeem heeft herschikt sinds ze zijn gekopieerd. Gemeld, nooit uitgevoerd.',
+    'Items die het oude systeem heeft herschikt sinds ze zijn gekopieerd. Een oude kopie gaat pas als u die verwijdert, of door automatisch verwijderen als u dat hebt aangezet.',
   'hub.failures.name': 'Mislukkingen',
   'hub.failures.blurb':
     'Items die niet gekopieerd konden worden en op een persoon wachten; ze blokkeren het afronden.',
@@ -4715,7 +4759,7 @@ const nl: Record<keyof typeof en, string> = {
   'tenants.invite.email': 'E-mailadres',
   'tenants.invite.role': 'Rol',
   'tenants.invite.adminCan':
-    'Een beheerder kan alles wat een eigenaar kan, behalve de organisatie sluiten of heropenen, het toepassen van verwijderingen of het automatisch toepassen van verplaatsingen aan- of uitzetten en iemand eigenaar maken.',
+    'Een beheerder kan alles wat een eigenaar kan, behalve de organisatie sluiten of heropenen, handmatig verwijderen of het automatisch verwijderen van oude kopieën van verplaatste bestanden aan- of uitzetten en iemand eigenaar maken.',
   'tenants.ownerOrAdminOnly': 'Tijdens de alfa kan iemand alleen eigenaar of beheerder zijn.',
   'tenants.notify.heading': 'E-mailsamenvattingen',
   'tenants.notify.intro':

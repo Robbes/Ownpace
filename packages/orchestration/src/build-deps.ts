@@ -1,4 +1,4 @@
-// Copyright 2026 OpenHands Agent (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 // Dependency bundle builder for the worker.
 // Wires together: Postgres ledger, IMAP source, JMAP target, cursor store.
 // Implements the full ReconcileDeps for runShadowPass.

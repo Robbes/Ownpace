@@ -162,6 +162,17 @@ export interface FailuresQueue extends QueueEnvelope {
    * the category alone, as before.
    */
   readonly sourceKind?: string;
+  /**
+   * The provider's text and the items' names are kept from this page
+   * (ADR-0035 decision 5, the owner's option C of 2026-10-03): the account was
+   * connected by the person being migrated, through their own grant, so the
+   * text can name THEIR folders and files, which their organisation's
+   * promise says it cannot read. Each row then carries its category, its
+   * domain and its attempts, with `lastError` empty and no `displayName` or
+   * `collection`; support reads the full row by its `naturalKeyHash`. Absent
+   * when the organisation connected the account itself.
+   */
+  readonly textWithheld?: true;
 }
 
 /**
@@ -254,6 +265,13 @@ export interface DomainStatusReport {
    * the customer's words find each other. Absent when nothing has failed.
    */
   readonly lastErrorReference?: string;
+  /**
+   * The provider's text of the last failure is kept from this page, for the
+   * reason `FailuresQueue.textWithheld` gives: the category, the side and the
+   * reference above still say what failed and how to find it. Absent when the
+   * text is shown, or when nothing failed.
+   */
+  readonly lastErrorWithheld?: true;
   /**
    * Where the last completed pass spent its time. Absent until a pass
    * completes; never invented as zeros, because zero durations read as
@@ -423,7 +441,14 @@ export function buildDomainStatusReports(
    * `itemsFound` and `bytesFound` absent on that row.
    */
   found?: Readonly<Partial<Record<DiscoveryDomain, FoundCount>>>,
+  /**
+   * Keep the provider's text from the report (ADR-0035 decision 5): set by the
+   * managed migration page for an account a person connected through their own
+   * grant. The appliance never sets it: it has no grant links.
+   */
+  options?: { readonly withholdProse?: boolean },
 ): DomainStatusReport[] {
+  const withhold = options?.withholdProse === true;
   return statuses.map((s) => {
     const mine = failures.filter((f) => f.domain === s.domain);
     const adoptedHere = adopted?.[s.domain];
@@ -440,7 +465,7 @@ export function buildDomainStatusReports(
       ...(foundHere !== undefined ? { itemsFound: foundHere.items } : {}),
       ...(foundHere?.bytes !== undefined ? { bytesFound: foundHere.bytes } : {}),
       ...(s.completedAt ? { lastSyncedAt: s.completedAt } : {}),
-      ...(s.lastError ? { lastError: s.lastError } : {}),
+      ...(s.lastError ? (withhold ? { lastErrorWithheld: true as const } : { lastError: s.lastError }) : {}),
       ...(s.lastErrorCategory ? { lastErrorCategory: s.lastErrorCategory } : {}),
       ...(s.failedSide ? { failedSide: s.failedSide } : {}),
       ...(s.lastErrorReference ? { lastErrorReference: s.lastErrorReference } : {}),
@@ -450,6 +475,19 @@ export function buildDomainStatusReports(
       ...(s.stoppedByOwner === true ? { stoppedByOwner: true as const } : {}),
     };
   });
+}
+
+/**
+ * One failure as the owner's queue may show it when the account was connected
+ * by the person being migrated (ADR-0035 decision 5, option C): the category,
+ * the domain, the attempts and the handle stay; the provider's text and the
+ * item's names go, because they can name that person's folders and files.
+ * `lastError` is emptied rather than dropped, since the queue's rows type it as
+ * always present; `FailuresQueue.textWithheld` says why it is empty.
+ */
+export function withheldFailure(f: ItemFailure): ItemFailure {
+  const { displayName: _name, collection: _collection, ...kept } = f;
+  return { ...kept, lastError: '' };
 }
 
 /**

@@ -17,11 +17,11 @@
 
 import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ShieldCheck, ShieldOff } from 'lucide-react';
+import { AlertTriangle, Bot, ShieldCheck, ShieldOff } from 'lucide-react';
 import { APPLY_FLAG_WARNING, APPLY_FLAG_WARNING_NL } from '@openmig/shared';
 import { useLocale, useT } from '../../i18n/index.tsx';
 import { Hint } from '../Hint.tsx';
-import { ActionButton, DestructiveButton, Refused } from './primitives.tsx';
+import { ActionButton, ConfirmButton, DestructiveButton, Refused } from './primitives.tsx';
 import {
   DecisionRefusedError,
   fetchApplyDeletionsFlag,
@@ -89,14 +89,46 @@ export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId
           {data.allowApplyDeletions ? t('applyFlag.on') : t('applyFlag.off')}
         </span>
         {data.source === 'mapping' && data.allowApplyDeletions && (
-          <ActionButton pending={pending} onClick={() => change({ allowApplyDeletions: false })}>
+          <ActionButton
+            pending={pending}
+            // BOTH OFF, when the second was on (workplan 0156 T6). Turning
+            // only this one off hid the automatic removal's section and left
+            // it stored ON, so turning this back on, past a warning about
+            // "your explicit per-item decision", re-armed unattended removal
+            // without a word.
+            onClick={() =>
+              change(
+                data.autoApplyRelocations
+                  ? { allowApplyDeletions: false, autoApplyRelocations: false }
+                  : { allowApplyDeletions: false },
+              )
+            }
+          >
             {t('applyFlag.turnOff')}
           </ActionButton>
         )}
       </div>
 
-      {!data.allowApplyDeletions && (
+      {data.allowApplyDeletions ? (
+        // What ON allows, said beside it: the owner read "ON" as deletions
+        // happening by themselves (0156 T6).
+        <p className="mt-1 text-gray-600">{t('applyFlag.onMeans')}</p>
+      ) : (
         <p className="mt-1 text-gray-600">{t('applyFlag.refusesUntilOn')}</p>
+      )}
+
+      {/* Stored ON under a first switch that is off: the appliance's file can
+          say so, and a row from before both went off together can too. It
+          waits and does nothing, and is never out of sight. */}
+      {!data.allowApplyDeletions && data.autoApplyRelocations && (
+        <div className="mt-2 flex items-center gap-2">
+          <span className="text-gray-700">{t('autoApply.onButWaiting')}</span>
+          {data.source === 'mapping' && (
+            <ActionButton pending={pending} onClick={() => change({ autoApplyRelocations: false })}>
+              {t('autoApply.turnOff')}
+            </ActionButton>
+          )}
+        </div>
       )}
 
       {data.source === 'config' ? (
@@ -142,7 +174,7 @@ export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId
                 pending={pending}
                 onClick={() => change({ autoApplyRelocations: false })}
               >
-                {t('applyFlag.turnOff')}
+                {t('autoApply.turnOff')}
               </ActionButton>
             )}
           </div>
@@ -156,8 +188,13 @@ export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId
           ) : (
             !data.autoApplyRelocations && (
               <div className="mt-2">
-                <DestructiveButton
+                {/* Two presses and red, because it acts unattended; no bin,
+                    because pressing it removes nothing. The bin beside "ON"
+                    above read as "deletions are not on yet" (0156 T6). */}
+                <ConfirmButton
                   pending={pending}
+                  tone="destructive"
+                  icon={<Bot className="w-3 h-3" />}
                   label={t('autoApply.turnOn')}
                   armedLabel={t('autoApply.turnOnArmed')}
                   onClick={() => change({ autoApplyRelocations: true })}
