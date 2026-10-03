@@ -1,459 +1,341 @@
 # ADR-0041: Who owns the OAuth client — the managed edition brings its own, the appliance never does
 
-- **Status:** **Accepted 2026-08-26** — by the owner, as proposed, with two additions recorded
-  under *Decision*: the Drive assessment is intended **later** (an intent, not a purchase), and
-  the client registered 2026-08-20 is the **test (OTA) client**, with production getting its own
-  client before real customers exist. Written 2026-08-20 after the owner hit the
-  Google Workspace setup manual while adding a contacts source and asked why it could not
-  simply be a consent popup.
-- **Date:** 2026-08-20; accepted 2026-08-26
+- **Status:** **Accepted 2026-08-26** by the owner, as proposed, adding that the Drive assessment
+  is intended **later** and that the client registered 2026-08-20 is the **test (OTA) client**,
+  with production getting its own client before real customers exist; amended seven times (latest
+  2026-10-03); consolidated 2026-10-03 (ADR-0051)
+- **Date:** 2026-08-20; accepted 2026-08-26; consolidated 2026-10-03
 - **Deciders:** owner
-- **Relates to:** [ADR-0003](./0003-two-editions-one-core.md) (two editions, one core — the
-  reason a single answer cannot serve both), [ADR-0033](./0033-domain-wide-delegation.md)
-  (the Google twin of the O365 access model; per-user tokens are the default, DWD is opt-in),
-  [ADR-0035](./0035-who-signs-in-and-who-gets-a-link.md) (*"the owner decides who gets a link
-  to manage and **grant** their own migration"* — the grant link is where a consent screen
-  belongs), [ADR-0036](./0036-the-managed-edition-is-its-own-package-and-its-own-chain.md)
-  (the boundary that keeps a managed-only secret out of the appliance, and the walk that
-  enforces it), [ADR-0037](./0037-keys-credentials-and-transport-floors.md) (one credential
-  store; the token this produces is stored exactly like any other),
-  [ADR-0014](./0014-cost-recovery-billing.md) (where the verification cost has to land).
-- **Enables:** [workplan 0089](../workplans/0089-a-consent-you-can-click.md).
+- **Relates to:** [ADR-0003](./0003-two-editions-one-core.md) (two editions, one core),
+  [ADR-0033](./0033-domain-wide-delegation.md) (domain-wide delegation, opt-in),
+  [ADR-0035](./0035-who-signs-in-and-who-gets-a-link.md) (the grant link),
+  [ADR-0036](./0036-the-managed-edition-is-its-own-package-and-its-own-chain.md) (the managed
+  boundary and its walk), [ADR-0037](./0037-keys-credentials-and-transport-floors.md) (one
+  credential store), [ADR-0014](./0014-cost-recovery-billing.md) (where a cost lands)
+- **Enables:** [workplan 0089](../workplans/0089-a-consent-you-can-click.md)
+- **History:** the record as it read before consolidation, word for word —
+  [history/0041-who-owns-the-oauth-client.md](./history/0041-who-owns-the-oauth-client.md)
 
 ## Operative rules
 
-<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
-     the narrative below stays append-only. Assembled into OPERATIVE.md by
-     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+<!-- What holds NOW, within the ADR-0051 budget: 8 bullets, 60 words a bullet, 300 words in
+     all. Amend in place when a later decision changes it, then regenerate OPERATIVE.md:
+     node scripts/adr-operative.mjs --write -->
 
-- **Verification has a published surface, and it is the same surface the GDPR needs.** A
-  privacy policy and terms on `ownpace.eu`, a support address that a person answers
-  (**support@ownpace.eu**), an app logo of at least 120×120, and an in-product disclosure before
-  the consent screen. Drafted in [`site/legal/`](../../site/legal/) and
-  [`site/brand/`](../../site/brand/); the checklist and every unverified Google claim are in
-  [`docs/google-oauth-verification.md`](../google-oauth-verification.md).
-- **The Limited Use commitments are made in the privacy policy and are true of the code**: the
-  data serves only the migration the user configured, goes only to the target they chose, is
-  never used for advertising or model training, and is never read by a person outside the
-  narrow cases the policy names. Two structural facts carry more weight than any promise —
-  **Google is never a migration target**, and **nothing is ever deleted at the source**.
-- **The redirect endpoint is `/api/migrations/google/callback`, never `/webhooks/…`.** An OAuth
-  redirect is a **browser GET carrying the user's authorization code**; a webhook is an
-  unauthenticated server-to-server POST. Filing the callback under a webhook path is how it ends
-  up mounted in a router that skips CSRF and accepts POST, which is precisely the mapping-hijack
-  that 0089 T1's signed `state` exists to prevent. Different trust model, different route tree,
-  different name. (This bullet originally named `/oauth/google/callback`; 0089 T1 shipped the
-  route at `/api/migrations/google/callback`, which keeps the same trust property, and the
-  registered URIs in [`docs/google-oauth-verification.md`](../google-oauth-verification.md) §4b
-  must carry the path the code actually serves.)
-- **No authorized JavaScript origin is registered.** The flow is server-side
-  authorization-code: the browser is redirected, and the token exchange happens on the server
-  with the client secret. A JS origin is only needed for browser-side OAuth, which this is not,
-  and registering one that nothing uses widens the client for no benefit.
-- **Environments get separate CLIENTS, not separate paths on one host.** Test and production
-  sharing an origin share a cookie jar and a `state`-signing context, so a bug in test reaches
-  production sessions. One client per environment also means a leaked test secret is not a
-  production incident. Where one client must serve both, they get separate **hosts** at
-  minimum — never `/x/` and `/_ota_/x/` on the same origin.
-- **The canonical host is decided once and registered exactly.** Google matches the redirect URI
-  byte-for-byte before any redirect of ours runs, so `www` vs apex is a real choice and not a
-  formatting detail: an apex-canonical site with a `www` URI registered fails before it starts.
-  Register the host the service actually serves on, and the same host the privacy policy and
-  home page are verified on.
-- **The appliance never carries an Ownpace OAuth client secret.** Shipping one publishes it,
-  which breaks Google's terms and makes one leak everybody's problem. Bring-your-own client
-  stays the appliance's only mode, and `no-managed-leakage` (ADR-0036) is what keeps it true.
-- **The managed edition brings its own verified client, and it is a managed-only secret** —
-  `@openmig/managed`, same store and key provider as every other credential (ADR-0037). A
-  managed customer clicks **Allow**; nobody opens a Google Cloud console.
-- **Verification is bought per scope class, cheapest first.** Contacts and calendar are
-  *sensitive* — brand review only. Gmail and Drive are *restricted* — brand review **plus** an
-  annual third-party security assessment. So contacts and calendar ship on the managed client
-  first, and mail and files stay bring-your-own until the assessment is actually paid for.
-  The owner's stated intent (2026-08-26) is to buy the assessment for **Drive, later**; mail
-  stays outside it — the app-password fallback (0089 T7) plus bring-your-own cover it. An
-  intent is not a purchase: nothing may be offered on the managed client until the assessment
-  actually exists. Whatever is not yet covered says so on the page rather than failing at the
-  consent screen.
-- **WHAT A DEPLOYMENT'S OWN APPLICATION CARRIES IS A FACT ABOUT THAT DEPLOYMENT, AND IT IS
-  DECLARED** (owner decision, 2026-09-01). The bullet above reads as a law about the product;
-  it was a law about *one* client, written when there was one. A deployment whose Google
-  application genuinely carries restricted scopes — because its owner registered them and
-  accepts the consequences — may offer all four faces on the account consent, and says so in
-  `GOOGLE_ACCOUNT_SCOPE_CLASS`. The default is `sensitive`, so nothing changes for a
-  deployment that does not answer, and the appliance never has an application at all.
-  **The bullet above still holds for the client Ownpace publishes to strangers**: that one
-  offers contacts and calendar until the assessment is paid for. What is now separable is the
-  reference deployment's own client, in Testing status with listed users, where the population
-  the restricted tier would be imposed on is the owner and people they named.
-- **A DECLARATION IS NOT A CAPABILITY.** Setting it does not make Google grant anything: the
-  application must actually carry the scopes, and Google refuses at its own screen if it does
-  not. What the declaration changes is which consent this product is willing to BUILD — so a
-  wrong answer costs a refusal at Google with the scope in hand, never a silent narrowing.
-  And in **External + Testing** it costs one more thing, which the setting's own documentation
-  must say: refresh tokens die after seven days (see the publishing-status bullet below).
-- **A DEPLOYMENT MAY CARRY ITS OWN CLIENT, AND THE CONNECTION THEN STORES NEITHER HALF OF IT**
-  (owner decision, 2026-09-01 — option B). `GOOGLE_OAUTH_CLIENT_ID` and
-  `GOOGLE_OAUTH_CLIENT_SECRET` are configured once, so nobody types a client secret into a
-  wizard: the connection keeps only the refresh token, which is the per-account half, and the
-  client is read at the moment a token is minted. The alternative — copying the pair into every
-  connection's encrypted store — works today and makes rotation a migration. This makes it one
-  `.env` edit and a restart. The cost, named because it is real: a connection is no longer
-  self-describing, and moving one to another deployment means that deployment needs a client
-  too. **A connection carrying its own pair always wins** — this is a fallback, never an
-  override, or owning a client would stop being a choice. **Both variables or neither**: half a
-  pair is refused with the missing name, never mixed with the other half. A connection's *own*
-  pair obeys the same rule at every door — wizard, API, add-form, rotation and the consent itself
-  alike: half of one is refused where it is sent, never completed with the deployment's other
-  half (nor a consent run against an application the caller did not name), because the
-  fallback fills only the missing key and a mixed pair fails at Google's token endpoint hours
-  later, from a sync log. And the fallback is gated on a GOOGLE connection kind, because
-  `clientId`/`clientSecret` are shared key names — Dropbox stores its App key and App secret
-  under exactly those.
-- **The API and the WORKER are supplied by different mechanisms, and both must be.** `managed.yml`
-  names the two variables on the API service; `set-task-env.sh` uploads them to the worker,
-  because a Trigger.dev task container inherits nothing from compose. Wiring only the first is
-  the worst available split: the consent is built, Google approves it, the connection tests
-  green, and every sync pass then fails to mint a token in a log nobody is watching.
-- **THE DECLARATION IS SERVED, NEVER MIRRORED INTO A BUILD.** It is read at run time by the API
-  and answered to clients at `GET /api/provider-accounts`; the browser bundle asks. There is
-  deliberately no `VITE_` twin — that would be two separately settable copies of one fact, which
-  is how a screen comes to offer what the server refuses, and worse, how a consent comes to ask
-  for scopes no mapping can carry. Every failure to ask falls back to the narrow answer, the one
-  that cannot over-ask.
-- **The declaration gates MAKING a mapping, never RUNNING one.** The consent this product
-  builds and the ticks the create door accepts follow it; the source builders do not. A grant is
-  the authority once it exists, so unsetting the variable must not break migrations that already
-  hold one — and a token that never carried the scope is refused by Google, which is the check
-  that actually matters.
-- **Owning a client never widens a grant.** Same scopes, same per-user consent, same read-only
-  posture, same revocation by the account holder in their own Google settings. What changes is
-  who registered the client, not what the token can read — and the consent screen must show the
-  scopes rather than a friendly summary of them.
+- **The appliance never carries an Ownpace OAuth client secret**: bring-your-own is its only
+  mode, held by shipping none — the deployment's pair lives in a managed `.env` that only
+  `managed.yml` names. **A managed deployment brings its own verified client**, so a customer
+  clicks **Allow** (points 1–2).
+- **A connection's own client pair always wins; the deployment's**
+  (`GOOGLE_OAUTH_CLIENT_ID`/`_SECRET`, option B) **is a fallback**, and a connection using it
+  stores only its refresh token. **Both or neither**, for the deployment's variables and at every
+  door: half a pair is no client, refused by the missing name. The worker gets the pair too
+  (`a-client-the-worker-never-got.unit.test.ts`).
+- **The assessment buys convenience, never capability**: every source migrates free through the
+  customer's own client. Ownpace's published client adds Gmail and Drive (restricted) only once an
+  assessment exists; Drive's is intended, not bought, and mail stays outside it (point 3).
+- **What a deployment's own application carries is declared** (`GOOGLE_ACCOUNT_SCOPE_CLASS`,
+  default `sensitive`), and is not a capability: served by `/api/provider-accounts`, never
+  mirrored into a build, gating making a mapping, never running one
+  (`a-ceiling-the-screen-could-not-see.unit.test.ts`).
+- **Owning a client never widens a grant**; the consent page shows the scopes as scopes, not only
+  as a paraphrase (`Grant.unit.test.tsx`, *Decision* 4).
 - **Never "External + Testing" for a real migration.** Google expires refresh tokens after
-  **seven days** in that publishing status, which reads as a random `invalid_grant` weeks in.
-  Both editions' setup paths must steer to Internal (Workspace) or Production (personal), and
-  the refusal for an expired token must name this cause first.
-- **The assessment buys CONVENIENCE, never CAPABILITY, so it is always deferrable.** Every
-  source is migratable today at zero cost through the customer's own client — Workspace via
-  Internal consent, personal Google via External+Production. What an assessment buys is a popup
-  instead of a console, for consumers, in the managed edition. Nothing is ever gated behind it,
-  and if it is paid it is funded like every other cost (ADR-0014), never as a line named after
-  a Google audit.
-- **An ACCOUNT password is closed; an APP password is not. Do not conflate them** — this ADR did,
-  in both directions, in one sitting. Google withdrew account-password sign-in for third-party
-  clients ([answer/6010255](https://support.google.com/mail/answer/6010255)) **and separately
-  keeps app passwords as the documented fallback** *"als Inloggen met Google niet beschikbaar is
-  voor de app"* ([answer/185833](https://support.google.com/accounts/answer/185833)), 2SV
-  required, and labelled *afgeraden*.
-- **Personal Gmail may therefore be connected with an app password, as an opt-in fallback that is
-  never the default.** Gmail is already an IMAP source (`gmail-source-factory.ts:218`) and
-  `imapflow-source.ts:129–132` already carries the plain-password branch, so this is a credential
-  choice rather than a connector — same folder view, same Message-ID natural key, no fidelity
-  loss. It must be offered with Google's own discouragement quoted, not laundered.
-- **It narrows the restricted-scope exposure to Drive alone**, which is the practical point:
-  contacts and calendar are *sensitive* (cheap verification), personal mail can avoid OAuth
-  entirely, and Drive is then the only product for which an assessment could ever be worth
-  buying. Workspace cannot use this (app passwords are withdrawn or admin-disabled there) and
-  does not need to — Internal consent is already free.
-- **Drive has no password path at all and we do not invent one.** No such protocol exists, and
-  Takeout is a snapshot rather than a sync — this product sells a period, not a copy.
-- **Gmail IMAP is always on since March 2025** (*"Vanaf maart 2025 is de optie om IMAP aan of uit
-  te zetten niet meer beschikbaar. IMAP-toegang staat altijd aan in Gmail"*), so no setup path
-  should ask a personal-account user to enable it, and no refusal should suggest it as a cause.
+  **seven days** in that publishing status, which reads as a random `invalid_grant` weeks in;
+  setup steers to Internal or Production, and the refusal names that cause first
+  (`google-token-provider.unit.test.ts`).
+- **The client is registered exactly** (*Registering the client*): callback
+  `/api/migrations/google/callback`, never `/webhooks/…`; no JavaScript origin; a client per
+  environment; one canonical host; a published surface; Limited Use true of the code.
+- **Personal Gmail may use an app password** (not the closed account password): opt-in, never the
+  default, Google's discouragement quoted (`gmail-source-factory.unit.test.ts`). Drive has no
+  password path; nothing asks anyone to enable IMAP.
 
 ## Context
 
-Every Google source authenticates with a per-user OAuth refresh token, and
-`docs/google-workspace-setup.md` is the manual for obtaining one. It runs to five sections and
-routes an operator through the Google Cloud console — create a project, enable an API,
-configure a consent screen, create an OAuth client, then mint the token in Google's **OAuth
-Playground**, a developer tool with its own gear icon and its own vocabulary.
+On 2026-08-20 minting a Google source's per-user refresh token took five sections of
+`docs/google-workspace-setup.md` and Google's **OAuth Playground**, and the owner asked: *why not
+just show me a Google popup, or take an app password?*
+[Workplan 0089](../workplans/0089-a-consent-you-can-click.md) T1 built the missing consent flow;
+the decision is the rest: *may Ownpace register **one** OAuth client that customers consent to, so
+that adding a Google source is a popup instead of a console?*
 
-The owner did this to migrate a contacts folder and asked the obvious question: *why not just
-show me a Google popup, or take an app password?*
+## Decision
 
-**Three separate things are tangled in that experience, and only one of them is forced.**
-
-**1. The Playground step is not required by anything.** A grep of the whole codebase for
-`redirect_uri`, `authorization_code` or any callback route finds nothing outside built `dist`
-bundles. Ownpace has no OAuth flow at all; it only ever *consumes* a refresh token obtained
-elsewhere. The wizard could perfectly well run the authorization-code round-trip itself against
-the customer's own client — same custody, same secret, three fewer steps and no developer tool.
-That is a missing feature rather than a trade-off, and it is [workplan
-0089](../workplans/0089-a-consent-you-can-click.md).
-
-**2. An app password is available for personal Gmail and for nothing else** — see *"Is there a
-way round the assessment?"* below. For contacts the door was never open at all: they go over
-CardDAV — `packages/orchestration/src/google-dav-source-factory.ts:51` requests
-`googleapis.com/carddav/v1/principals/…` with scope `.../auth/carddav`. Google's CardDAV and
-CalDAV endpoints have been OAuth-only from the start and never accepted a password of any kind.
-Separately, Google withdrew app-password and less-secure-app sign-in for Workspace accounts
-(believed September 2024 — **verify before quoting**). There is no password path to build.
-
-**3. Owning the OAuth client is the part that is genuinely a decision** — and it is this ADR.
-
-### Is there a way round the assessment? For mail yes, for files no
-
-Asked by the owner after the first draft: could mail go over IMAP with an app password, dodging
-the restricted Gmail scope, and does Drive have anything similar?
-
-**This section was written wrong twice before it was written right, and the reason is worth
-keeping**: Google publishes two withdrawal-shaped statements about two different credentials, and
-they read as one if you are not looking for the seam.
-
-> **The account password is gone.** *"Je kunt Gmail niet meer gebruiken met apps of apparaten van
-> derden waarmee je je gebruikersnaam en wachtwoord van Google moet delen … Zoek in plaats
-> daarvan de optie Inloggen met Google."*
-> ([answer/6010255](https://support.google.com/mail/answer/6010255))
->
-> **The app password is not.** *"Een app-wachtwoord is een toegangscode van 16 cijfers waarmee
-> een minder goed beveiligde app … toegang krijgt tot je Google-account … Als Inloggen met Google
-> niet beschikbaar is voor de app, kun je het volgende doen: App-wachtwoorden gebruiken."*
-> ([answer/185833](https://support.google.com/accounts/answer/185833)) — 2SV required, and
-> Google's own word for it is *afgeraden*.
-
-Both quoted as supplied by the owner: this sandbox's egress proxy blocks `support.google.com`,
-so neither page could be read here. **Re-read both before acting on this section.**
-
-So an app password is a *supported, discouraged, 2SV-gated fallback* — not a closed door, and
-not a blessed path either.
-
-**And it fits this product almost too neatly.** Gmail *is* already an IMAP source —
-`packages/orchestration/src/gmail-source-factory.ts:218` builds `buildImapSourceFrom({ host:
-'imap.gmail.com', port: 993, tls: true }, { authType: 'XOAUTH2', tokenProvider })` — and
-`imapflow-source.ts:129–132` carries a plain-password branch beside XOAUTH2, so a password
-credential would have been a *config change rather than a connector*, with no fidelity loss at
-all: same `GmailFolderView`, same dropped `\All`/`\Flagged`/`\Important` views, same
-Message-ID natural key.
-
-**So it is offered, and it is offered honestly.** An opt-in fallback for a **personal** Gmail,
-never the default, with three things said rather than smoothed over:
-
-- **Google discourages it**, in that word, and the setup path should say so instead of presenting
-  it as the easy option. Somebody who would rather use a consent screen should be able to see
-  that we agree with Google about which is better.
-- **It is not scoped.** An OAuth token carries `https://mail.google.com/`, which is already full
-  mail access, so for *mail* the width is the same — but an app password is a credential class
-  rather than a grant, and it is revoked from a different place. Say where: the account's own
-  app-password list, one row, revocable without touching Ownpace.
-- **It may be withdrawn.** Google's direction of travel is unambiguous even though the door is
-  open, so this cannot be the only consumer on-ramp. Its failure mode is not a rejected login at
-  setup time — it is a migration that runs for weeks and then stops, on the tier whose whole
-  promise is that it takes as long as you like.
-- **And it inherits a ceiling nobody here counts.** Gmail's IMAP endpoint is reported to cap
-  downloads around 2,500 MB/day, with a temporary account lockout as the penalty — and this
-  repository counts requests, not bytes, and wires no IMAP source to a budget at all. That
-  governs the **OAuth path already shipping** as much as this one, which is why it is
-  [workplan 0090](../workplans/0090-the-cap-we-do-not-count.md) rather than a caveat here.
-
-**Workspace cannot use it and does not need to.** App passwords are withdrawn or
-admin-disabled there, and Internal consent is already free and banner-free.
-
-**What this actually buys is a narrower question.** Contacts and calendar are *sensitive* —
-verification, no assessment. Personal mail can now skip OAuth entirely. So **Drive is the only
-product for which an assessment could ever be worth buying**, which is a much smaller decision
-than "do we pay for restricted scopes".
-
-One useful thing falls out of the first page: *"Vanaf maart 2025 is de optie om IMAP aan of
-uit te zetten niet meer beschikbaar. IMAP-toegang staat altijd aan in Gmail."* IMAP is always on
-for personal accounts, so no setup path should ask anyone to enable it and no refusal should
-offer it as a cause.
-
-**Drive never had anything equivalent, and inventing one would cost more than the assessment.**
-There is
-no password protocol — no IMAP, no WebDAV, no FTP. Three near-misses, and what each really is:
-
-- `drive.file` is genuinely non-restricted, but reaches only files the app created or the user
-  picked through the Google Picker. Whether a picked folder's grant survives as a durable
-  server-side refresh token is **unverified**, and per-selection consent fits continuous sync
-  badly.
-- **Google Takeout** needs no OAuth at all and therefore dodges everything — but it is a
-  one-shot snapshot: no deltas, no continuous sync, no cutover. That is the "sell a copy" model
-  ADR-0014 defines this product against. A fallback, never a substitute.
-- Borrowing another tool's published client id is a terms violation and is not considered.
-
-**And the reframe still matters more than either answer.** Underneath all of it is the thing
-that is easy to miss: the assessment is not standing between anyone and a migration. The customer's-own-client path is already free for
-everyone: Workspace through Internal consent, personal Google through External+Production, whose
-100-user cap is *per client* and so never binds when every customer has their own. **CASA buys a
-popup, not a capability.** It is deferrable for as long as we like, and the honest description of
-it is a convenience purchase for consumers in the managed edition.
-
-## The question
-
-May Ownpace register **one** OAuth client that customers consent to, so that adding a Google
-source is a popup instead of a console?
-
-## Decision (accepted 2026-08-26)
-
-**The owner accepted the four points below as proposed**, and added two things the proposal had
-left open:
+Accepted 2026-08-26: points 1–4 below as proposed, and two additions by the owner.
 
 1. **Drive, later.** The assessment is intended for Drive eventually — not bought now, not
-   scheduled, and nothing waits on it (it buys convenience, never capability). Mail stays
-   outside the assessment: bring-your-own plus the app-password fallback (0089 T7) cover it.
-2. **One client per environment, starting now.** The client registered 2026-08-20 is the
-   **test (OTA) client**; production gets its own client — with its own secret and exactly one
-   redirect URI — before real customers exist. The configuration record is
-   [`docs/google-oauth-verification.md`](../google-oauth-verification.md) §4b.
-
-One check remains open from the proposal and is the first gate of workplan 0089 T5: the scope
-classification of `.../auth/carddav` and `.../auth/caldav` (sensitive vs restricted), which
-decides whether the cheap slice is cheap. It needs a browser this sandbox has not got.
-
-**Closed 2026-09-20.** The owner read the console's *Data Access* page: `.../auth/carddav` is
-**sensitive**; `.../auth/calendar.readonly` is **sensitive** and listed under the CalDAV API;
-`drive.readonly` and every Gmail scope, `https://mail.google.com/` included, are **restricted**.
-The cheap slice is cheap. There is no `.../auth/caldav` scope — the calendar scope the product
-asks for is `.../auth/calendar`, and whether the read-only sibling suffices over CalDAV is now
-a Stage 6 question. The page, as displayed, is copied into
-[`docs/google-oauth-verification.md`](../google-oauth-verification.md) §2.
+   scheduled, and nothing waits on it. Mail stays outside the assessment: bring-your-own plus the
+   app-password fallback (0089 T7) cover it.
+2. **One client per environment, starting now.** The client registered 2026-08-20 is the **test
+   (OTA) client**; production gets its own client — with its own secret and exactly one redirect
+   URI — before real customers exist.
 
 ### 1. Not in the appliance. Ever.
 
-An appliance is software the customer runs. Embedding Ownpace's client secret in it means
-publishing it — that is what shipping a secret to every customer means — which breaks Google's
-terms and turns one extraction into everyone's incident. The appliance keeps bring-your-own,
-and `no-managed-leakage`'s transitive import walk is already the guard that would catch a
-regression, at no new cost.
-
-This is ADR-0003 biting in the ordinary way: two editions, one core, and the honest answer
-differs by who is running the software.
+An appliance is software the customer runs, so an Ownpace client secret inside it is published:
+against Google's terms, and one extraction is everyone's incident. Bring-your-own stays its only
+mode, and `no-managed-leakage`'s import walk
+([`no-managed-leakage.unit.test.ts`](../../apps/selfhost/src/no-managed-leakage.unit.test.ts))
+keeps managed-only code out. Two editions, one core (ADR-0003): the answer differs by who runs the
+software.
 
 ### 2. Yes in the managed edition, as a managed-only secret
 
-The managed service is a service. It already holds a payment integration, a pricing table and
-seven tables nothing else may import (ADR-0036). An OAuth client secret is the same shape of
-thing and lives in the same place, encrypted by the same key provider as every other credential
-(ADR-0037).
+A managed deployment holds its own verified client in its configuration, as it holds its payment
+integration (ADR-0036; option B, below): adding a Google source is **Connect**, Google's consent
+screen, **Allow**. The refresh token is stored like every other credential (ADR-0037).
 
-For a managed customer, adding a Google source becomes: click **Connect**, see Google's own
-consent screen, click **Allow**. No project, no console, no Playground.
-
-**And this is where ADR-0035's grant link finally pays off.** That ADR already decided that
-*"only the migrated person holds their own source credential"* and that the owner sends each
-person a link to grant their own migration. A link that opens a Google consent screen is that
-sentence made real; a link that opens a five-section manual is not.
+**And this is where ADR-0035's grant link finally pays off**: *"only the migrated person holds
+their own source credential"*, and a link that opens a consent screen makes that real.
 
 ### 3. The scope classes decide the order, because they decide the price
 
-Google sorts scopes into three classes, and the class — not the product — sets what
-verification costs.
+The classes as the owner read them in the project's console (2026-09-20; tasks 2026-09-23;
+[`docs/google-oauth-verification.md`](../google-oauth-verification.md) §2, the submission
+checklist):
 
 | class | examples | what Google requires |
 |---|---|---|
-| basic | `openid`, `email`, `profile` | nothing |
-| **sensitive** | contacts, calendar | brand verification: privacy policy, domain ownership, a demo video, a review |
+| **sensitive** | contacts, calendar, tasks | brand verification: privacy policy, domain ownership, a demo video, a review |
 | **restricted** | Gmail (`https://mail.google.com/`), Drive (`drive.readonly`) | all of the above **plus an annual third-party security assessment** |
 
-The exact classification of `.../auth/carddav` and `.../auth/caldav` — the two this product
-actually uses for contacts and calendar — is **not verified here** and is the first thing to
-check when this ADR is picked up, because it is the difference between a free path and a paid
-one. Google's own scope list is the source; this sandbox's egress proxy blocks
-`support.google.com`, so it could not be read while writing this.
+So **the sensitive faces go first on the managed client; mail and files stay bring-your-own until
+an assessment is paid for.** An intent is not a purchase, and what is not covered says so on the
+page, not at the consent screen.
 
-**Read 2026-09-20 from the console** (see the Decision section above): carddav and the read-only
-calendar scope are sensitive, Drive and every Gmail scope are restricted. The table above holds.
-
-So the order is cheapest-first: **contacts and calendar on the managed client, mail and files
-left bring-your-own** until somebody has actually decided to pay for an assessment. A tier that
-promises mail through a consent popup before that is a promise the product cannot keep.
+**The assessment buys convenience, never capability.** Every source migrates today at zero cost
+through the customer's own client — Workspace via Internal consent, personal Google via External
++ Production, whose 100-user cap never binds when every customer has their own. It buys consumers
+a popup instead of a console: always deferrable, nothing gated behind it, funded like every other
+cost (ADR-0014).
 
 ### 4. Owning a client widens nothing, and the page must not let anyone think it does
 
-Same scopes. Same per-user consent. Same read-only tokens. Same revocation, by the account
-holder, in their own Google security settings, without asking us. The only thing that changes is
-whose name appears on the consent screen — which is precisely why the consent screen must show
-the scopes rather than a friendly summary, and why "Ownpace wants to read your contacts" is the
-honest headline rather than "connect your account".
+Same scopes, per-user consent, read-only posture, and revocation by the account holder in their
+own Google settings. Only the name on the consent screen changes, so the page shows the scopes as
+scopes — "Ownpace wants to read your contacts", not "connect your account" — and says the
+asymmetry: deleting a customer-owned client kills every token, their lever; a managed client's
+nuclear lever is ours.
 
-There is a real asymmetry to state and not bury: with a customer-owned client, deleting the
-client kills every token instantly and that lever is theirs. With a managed client, revocation
-is per-account in Google's settings, and the nuclear lever belongs to us. That is a genuine
-reduction in customer control, bought with an enormous reduction in ceremony, and the managed
-customer should be told which trade they are taking.
+### A deployment's own application and its own client (2026-09-01 and 2026-09-02)
 
-## Where the cost is
+**What a deployment's own application carries is a fact about that deployment, and it is
+declared.** Point 3 still binds the client Ownpace publishes to strangers. A deployment whose own
+application genuinely carries the restricted scopes — its owner registered them and accepts the
+consequences — declares `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`, and its account consent may then
+offer mail and files ([`provider-accounts.ts`](../../packages/shared/src/provider-accounts.ts));
+any other value means `sensitive` (the appliance has no application). This separates the
+reference deployment's own client, in Testing status with listed users, where the population the
+restricted tier would be imposed on is the owner and people they named.
 
-Four places. Two are real money, one is real time, one is a trap that costs nothing to avoid
-and a lot to hit.
+- **A declaration is not a capability**: it decides which consent this product will **build**,
+  and if the application does not carry the scopes, Google still refuses at its own screen — a
+  refusal with the scope in hand, never a silent narrowing. Testing's seven-day cost is documented beside it
+  ([`a-scope-class-the-product-does-not-decide.unit.test.ts`](../../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts)).
+- **It is served, never mirrored into a build** (`GET /api/provider-accounts`), and every failure
+  to ask falls back to the narrow answer
+  ([`a-ceiling-the-screen-could-not-see.unit.test.ts`](../../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts)).
+- **It gates making a mapping, never running one**: the consent and the create door follow it,
+  the source builders do not (`build-deps-from-mapping.ts`).
 
-**0. First, what it is not: a blocker.** See *"Is there a way round the assessment?"* above.
-Every source migrates today at zero cost through the customer's own client — Workspace via
-Internal consent, personal Google via External+Production, whose 100-user cap is per client and
-so never binds — and personal mail has a second free path through an app password over the IMAP
-connector that already exists. The figures below price a *convenience*, and can be deferred
-indefinitely without any customer being unable to migrate anything.
+**Option B.** `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` are configured once and
+read when a token is minted: nobody types a client secret into a wizard, **the connection stores
+neither half** (only its refresh token, the per-account half, never optional), and rotation is one
+`.env` edit and a restart. **Both variables or neither**: a half-set pair is no client, and the
+refusal names the missing variable — never mixed with the other half. The cost: a connection no
+longer describes itself; moved to another deployment, it needs that deployment's client.
 
-**1. The annual security assessment (CASA) — the only large number, and only for mail and
-files.** Restricted scopes require a third-party assessment every year. Google's published
-guidance has historically quoted a wide band — roughly **$15,000–$75,000** — while an
-authorised-lab self-scan route (CASA Tier 2) has been reported far cheaper, in the **hundreds to
-low thousands**, and Google has at times subsidised it. **All of these figures are unverified
-and possibly stale; none may be quoted at a customer or put in a budget until re-checked.**
-What is certain is the shape: it recurs annually, it is per-project, and it applies to Gmail and
-Drive scopes. That is the whole reason for the cheapest-first ordering above.
+- **A connection carrying its own pair always wins** — a fallback, never an override, because
+  owning a client is a real choice
+  ([`deployment-application.ts`](../../packages/orchestration/src/deployment-application.ts)).
+- **Both or neither, at every door** — wizard, API, add-form, rotation, consent: half a pair is
+  refused by the missing name, never completed from the deployment's, and no consent runs on an
+  application the caller did not name
+  ([`google-deployment-client.ts`](../../packages/shared/src/google-deployment-client.ts)).
+- **Google connection kinds only**, so no other provider is ever handed Google's pair.
+- **The API and the worker are supplied separately, and both must be** (`managed.yml`,
+  `set-task-env.sh`, since a Trigger.dev task container inherits nothing from compose): a worker
+  without the pair fails every pass where nobody looks
+  ([`a-client-the-worker-never-got.unit.test.ts`](../../scripts/a-client-the-worker-never-got.unit.test.ts)).
 
-**2. Brand verification — time, not money.** A privacy policy on the verified domain, domain
-ownership, a demo video, and a review that has historically taken days to several weeks.
-`ownpace.eu` and ADR-0029's public site already supply most of the inputs. Cost: attention, and
-a delay before the managed consent screen stops showing a warning.
+### Mail and files without the assessment
 
-**3. Engineering — small, and mostly already paid.** Workplan 0089's flow is one redirect
-endpoint, one callback, one state parameter and a wizard button. It reuses
-`SecretStore.encryptCredentials` and follows the shape of the existing
-`/google-drive/shared-drives` route, which already takes credentials in a request and calls
-Google with them. The managed-client half is a config lookup on top of the same flow.
+**An account password is closed; an app password is not. Do not conflate them** — this ADR did,
+both ways, in one sitting. Google withdrew account-password sign-in for third-party clients
+([answer/6010255](https://support.google.com/mail/answer/6010255)) and keeps app passwords as the
+documented fallback ([answer/185833](https://support.google.com/accounts/answer/185833)), 2SV
+required, labelled *afgeraden*. Both rest on the owner's reading of Google's pages: **re-read both
+before acting on them**.
 
-**4. The seven-day trap — free to avoid, expensive to hit.** An External app in **Testing**
-publishing status has its refresh tokens expired by Google after seven days. A migration that
-runs for months therefore dies every week, with `invalid_grant`, weeks after the person who set
-it up stopped thinking about it. The current manual lists four causes of `invalid_grant` and
-this is not among them. Cost of avoiding: one sentence. Cost of hitting it: a migration that
-looks broken for reasons nobody can find.
+So **personal Gmail may use an app password, opt-in and never the default** (0089 T7): a
+credential choice on the existing IMAP source, reached only without domain-wide delegation or a
+whole OAuth trio ([`gmail-source-factory.ts`](../../packages/orchestration/src/gmail-source-factory.ts)).
+It comes with Google's discouragement quoted, as an unscoped credential rather than a grant (for
+mail no wider than `https://mail.google.com/`, but revoked only in the account's own app-password
+list), never as the only consumer on-ramp (Google may withdraw
+it), and under the same metered IMAP ceiling as OAuth (workplan 0090).
 
-**And where the cost is not.** The Internal path — a Workspace account consenting inside its own
-organisation — needs no verification, no assessment and shows no warning banner. It is free
-today, it stays free, and it is the right answer for every Workspace customer. This ADR buys
-nothing for them; it buys the personal-Google case, which is Tiny and Small in ADR-0014's
-table — the people for whom "create a Google Cloud project" is an unanswerable ask.
+Workspace cannot use one and needs none, since Internal consent is free. That leaves **Drive the
+only product an assessment could ever be worth buying for**, and Drive has no password path; we
+invent none. **Gmail IMAP is always on since March 2025**: nothing asks anyone to enable it or
+names it as a cause.
+
+### Registering the client
+
+- **The redirect endpoint is `/api/migrations/google/callback`, never `/webhooks/…`**
+  ([`google-oauth-routes.ts`](../../apps/api/src/routes/migrations/google-oauth-routes.ts)), and
+  the URIs registered in §4b of the verification document must carry the path the code serves.
+- **No authorized JavaScript origin.**
+- **Environments get separate clients**; one client serving both gets separate hosts at minimum.
+- **The canonical host is registered exactly** — the host the service actually serves on, and the
+  same host the privacy policy and home page are verified on, `www` or apex — because Google
+  matches byte for byte before our redirects.
+- **Never "External + Testing" for a real migration.** Google expires refresh tokens after **seven
+  days** in that publishing status, which reads as a random `invalid_grant` weeks in. Both
+  editions' setup paths steer to Internal (Workspace) or Production (personal), and the
+  expired-token refusal names this cause first (`hintFor` in
+  [`google-token-provider.ts`](../../packages/connectors/src/google-token-provider.ts)).
+- **Verification has a published surface, the same one the GDPR needs**: privacy policy and terms
+  on `ownpace.eu`, **support@ownpace.eu** answered by a person, a logo of at least 120×120, a
+  disclosure before consent ([`site/legal/`](../../site/legal/), [`site/brand/`](../../site/brand/)).
+- **The Limited Use commitments are made in the privacy policy and true of the code**: the
+  configured migration and chosen target only, no advertising or model training, nobody reading
+  the data outside the policy's narrow cases. **Google is never a migration target**; **nothing
+  is ever deleted at the source**.
 
 ## Consequences
 
-- A managed customer connects Google contacts and calendar in one click. Mail and files keep
-  the manual until an assessment is paid for, and the page says which is which.
-- A self-hoster's experience improves anyway, because workplan 0089's flow works against their
-  own client and removes the Playground regardless of how this ADR lands.
-- Ownpace becomes a Google-verified brand, with the ongoing obligations that carries: the
-  privacy policy must stay accurate, the scopes must stay minimal, and a scope added carelessly
-  can trigger re-verification.
-- A managed client is a compromise surface that did not previously exist. It is one secret, in
-  the managed store, and its blast radius is "attacker can run a consent screen in our name" —
-  not "attacker reads customer data", since tokens are still per-user and stored separately.
-- The appliance keeps a property the managed edition gives up: delete the client, kill every
-  token, no vendor involved.
+- A managed customer connects contacts, calendar and tasks with one consent; mail and files wait
+  for an assessment on the client Ownpace publishes, while a deployment whose own application
+  carries them may declare them, and the page says which.
+- Ownpace becomes a Google-verified brand, held to an accurate privacy policy and minimal scopes.
+- The managed client is one new secret: its blast radius is a consent screen in our name, not
+  customer data, since tokens are per user. The appliance keeps what the managed edition gives up:
+  delete the client, every token dies.
+- **The cost**: an annual, per-project assessment for restricted scopes only, at unverified
+  figures (hundreds to tens of thousands of dollars) never quoted or budgeted until re-checked;
+  days to weeks of brand review. Internal consent costs Workspace nothing; this buys the
+  personal-Google case.
+- **Open:** the verification submission (the owner's, 0089 T5); the production client
+  ([workplan 0140](../workplans/0140-consent-screens-a-tester-can-pass.md) T11); whether
+  `.../auth/calendar.readonly` suffices over CalDAV (a Stage 6 question in
+  `docs/owner-test-runbook.md`), and otherwise the class of the full `.../auth/calendar`, not yet
+  read in the console (there is no `.../auth/caldav`, as this ADR first had it).
 
 ## Alternatives considered
 
-**Publish one client and ship it in both editions.** The obvious answer, and it fails on the
-first question: a secret in the appliance is a published secret. Rejected on Google's terms and
-on ADR-0003.
+**One client, shipped in both editions.** A secret in the appliance is a published secret:
+against Google's terms and ADR-0003.
 
-**A "desktop app" client type with a loopback redirect, so the appliance can use a popup too.**
-Works only when the browser is on the same host as the appliance — which is exactly not the
-owner's setup, browsing to the box over the network. Kept as an open question for workplan 0089
-rather than a decision, along with Google's limited-input-device flow, whose supported scope
-list needs checking before anyone relies on it.
+**A loopback "desktop app" client, for an appliance popup.** It needs the browser on the
+appliance's host, unlike the owner's setup; an open question for workplan 0089, with Google's
+limited-input-device flow (scopes unchecked).
 
-**Domain-wide delegation for everybody.** Already decided in ADR-0033: it is a second mode,
-opt-in, for Workspace tenants with an admin in the loop. It solves the N-consents problem, not
-the one-person-with-a-personal-Gmail problem, and it needs a Cloud console too.
+**Domain-wide delegation for everybody.** ADR-0033's opt-in mode for Workspace admins solves N
+consents, not one person's Gmail, and needs a Cloud console too.
 
-**Charge separately for the managed client, to fund the assessment.** Rejected: ADR-0014 puts
-every cost in one cross-subsidised envelope, and a line item named after a Google audit is
-exactly the kind of cost-recovery-through-a-strange-name that amendment removed.
+**A separate charge to fund the assessment.** ADR-0014 keeps every cost in one cross-subsidised
+envelope; a line named after a Google audit is what its amendment removed.
 
-**Skip Google entirely for consumers and support only IMAP/CalDAV providers.** Rejected as
-absurd for a product whose stated purpose is moving people off US cloud: Google is the source
-that matters most.
+**Skip Google for consumers.** Absurd for a product moving people off US cloud: Google is the
+source that matters most.
+
+**Point 3 as a law for every deployment** (its reading until 2026-09-01). It was a law about one
+client.
+
+**A `VITE_` twin of the declaration.** Two settable copies of one fact: a screen offering what the
+server refuses, or a consent asking for scopes no mapping can carry.
+
+**Gating the source builders on the declaration.** Unsetting a variable would break migrations
+holding a grant; Google already refuses a token without the scope.
+
+**Copying the deployment's pair into every connection's store** (the other option of 2026-09-01).
+Rotation becomes a migration.
+
+**The deployment's pair in the managed credential store**, encrypted by the key provider: this
+ADR's wording of 2026-08-26 (*"`@openmig/managed`, same store and key provider as every other
+credential"*), never built. Set aside by the owner on 2026-10-03 (*"stay on option B"*). The key
+that would encrypt it, `SECRET_ENCRYPTION_KEY`, sits in the same `.env` (ADR-0037's named gap),
+so it would protect nothing the `.env` does not already expose, and it would need a way to set
+and rotate a secret that one `.env` edit already gives. The client secret alone reads nobody's
+data: that takes a refresh token, which is encrypted in the database either way. ADR-0037's exit,
+platform injection, covers this pair along with every other secret, and option B needs no change
+to use it.
+
+**Overriding a connection's own pair.** It would silently take away the choice of owning a
+client.
+
+**Completing a half pair from the deployment's.** A mixed pair fails at Google's token endpoint
+hours later, from a sync log.
+
+**The fallback for every connection kind.** Dropbox keeps its own pair under the same
+`clientId`/`clientSecret` names and would be handed Google's.
+
+**The callback under `/webhooks/…`.** A webhook is an unauthenticated server-to-server POST, not a
+browser GET carrying an authorization code; its path lands a callback in a router that skips CSRF
+and accepts POST — the mapping hijack 0089 T1's signed `state` prevents.
+
+**An authorized JavaScript origin.** The flow is server-side authorization-code; an origin nothing
+uses widens the client for no benefit.
+
+**Test and production as `/x/` and `/_ota_/x/` on one origin.** A shared cookie jar and
+`state`-signing context let a test bug reach production, and a leaked test secret becomes a
+production incident.
+
+**An app password for contacts, calendar or Workspace.** CardDAV and CalDAV are OAuth-only, and
+Workspace withdrew or admin-disables app passwords (believed September 2024 — verify before
+quoting).
+
+**`drive.file`, which is not restricted.** It reaches only files the app created or the user
+picked; a picked folder's durable grant is unverified; per-selection consent fits continuous sync
+badly.
+
+**Google Takeout for Drive.** No OAuth, but a one-shot snapshot without deltas, continuous sync or
+cutover — the "sell a copy" model ADR-0014 defines this product against.
+
+**Borrowing another tool's published client id.** A terms violation; not considered.
+
+## Amendment log
+
+- **2026-08-20** — Proposed after the owner met the setup manual (workplan 0089). Revised twice
+  the same day, before acceptance: an app password is open for personal Gmail, so the assessment
+  buys convenience and only Drive could need it (0089 T7, workplan 0090); and the client's
+  published surface, Limited Use and console rules. Record: *Operative rules*; *Is there a way
+  round the assessment? For mail yes, for files no*; *Where the cost is*.
+- **2026-08-26** — Accepted by the owner as proposed, adding *Drive, later* and *one client per
+  environment*; the redirect rule corrected from the planned `/oauth/google/callback` to the route
+  0089 T1 shipped. Record: *Decision (accepted 2026-08-26)*; the redirect bullet in *Operative
+  rules*.
+- **2026-09-01** — What a deployment's own application carries is declared in
+  `GOOGLE_ACCOUNT_SCOPE_CLASS`, and a declaration is not a capability (owner decision; #701).
+  Record: *Operative rules*, "WHAT A DEPLOYMENT'S OWN APPLICATION CARRIES…" and "A DECLARATION IS
+  NOT A CAPABILITY".
+- **2026-09-01** — The declaration is served, never mirrored into a build, and gates making a
+  mapping, never running one (built with the screen that reads it; #701). Record: *Operative
+  rules*, "THE DECLARATION IS SERVED…" and "The declaration gates MAKING a mapping…".
+- **2026-09-01** — A deployment may carry its own client and the connection stores neither half;
+  its own pair wins, both or neither, Google kinds only, API and worker both supplied (owner
+  decision, option B; 0089 T5, #703). Record: *Operative rules*, "A DEPLOYMENT MAY CARRY ITS OWN
+  CLIENT…" and "The API and the WORKER…".
+- **2026-09-01** — Half of a connection's own pair is refused at every door — wizard, API,
+  add-form, rotation — never completed with the deployment's other half (#707). Record:
+  *Operative rules*, "A DEPLOYMENT MAY CARRY ITS OWN CLIENT…".
+- **2026-09-02** — The consent itself joins those doors: none runs against an application the
+  caller did not name (#710). Record: the same bullet.
+- **2026-09-20** — The console's labels close 0089 T5's first gate: carddav and the read-only
+  calendar scope sensitive, Drive and every Gmail scope restricted, no `.../auth/caldav` scope
+  (#1031). Record: *Decision (accepted 2026-08-26)*, "Closed 2026-09-20"; point 3, "Read
+  2026-09-20 from the console".
+- **2026-10-03** — Consolidated in place (ADR-0051); nothing was decided. Where the record had
+  fallen behind the code, this text follows the code: tasks is a sensitive face (workplan 0126),
+  the managed client is the deployment's configuration (option B), not a stored credential,
+  Gmail's IMAP ceiling is metered (workplan 0090), and point 4 says read-only *posture* where it
+  said read-only tokens, since `https://mail.google.com/` is full mail access.
+- **2026-10-03, later** — Option B confirmed as decision 2's answer: the managed client is the
+  deployment's configuration, and the 2026-08-26 wording (the managed credential store, under the
+  key provider) is set aside (owner: *"stay on option B"*). Record: *Alternatives considered*,
+  "The deployment's pair in the managed credential store".
+
+The full record, word for word as it read before this consolidation:
+[history/0041-who-owns-the-oauth-client.md](./history/0041-who-owns-the-oauth-client.md).

@@ -61,7 +61,7 @@ workflow identity, keyless, in the public Sigstore log:
 
 ```sh
 cosign verify \
-  --certificate-identity-regexp 'https://github.com/Robbes/(ownpace|Ownpace)' \
+  --certificate-identity-regexp '^https://github\.com/Robbes/(open-migrate|ownpace|Ownpace)/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   ghcr.io/robbes/ownpace-selfhost:edge
 # The digest is in the verify output (and in

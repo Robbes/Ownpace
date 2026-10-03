@@ -1396,11 +1396,12 @@ fi
 # subject unless something links the two — they would find themselves locked out
 # of an organisation they are still a member of, with no way to see why.
 #
-# So every provider here carries `autoLinking: EMAIL`: Zitadel asks "is this
-# you?" when the upstream's VERIFIED email matches an existing account, and the
-# person confirms. Not a silent merge — a prompt. And Zitadel shows no prompt
-# at all when several users match, which is the ambiguous case failing closed
-# rather than guessing.
+# So every provider here carries `autoLinking: EMAIL`: when the upstream's
+# VERIFIED email matches exactly one existing account with that verified email,
+# Zitadel links the two. Zitadel's API documentation calls this a prompt; the
+# login this stack runs (login v1, v4.19.2) links directly, without a page
+# asking first. ADR-0042 decided a prompt (2026-08-25) and records that it is
+# not held. When several accounts match, nothing is linked.
 #
 # `isAutoUpdate` IS OFF, and that is not laziness. Workplan 0102 T3 makes
 # `tenant_member.email` follow the verified claim on every sign-in. Turning auto
@@ -1419,6 +1420,18 @@ IDP_OPTIONS="$(jq -nc '{
   isAutoUpdate: false,
   autoLinking: "AUTO_LINKING_OPTION_EMAIL"
 }')"
+
+# MICROSOFT CREATES NO ACCOUNT BY ITSELF (the owner, 2026-10-03; ADR-0042
+# decision 3). Its addresses arrive unverified on purpose (see its block
+# below), so `autoLinking: EMAIL` never matches one, and with automatic creation
+# somebody who already had a password and pressed "Microsoft" was given a new
+# account with a new `sub` and none of their memberships — or an error, where
+# the user names clashed — never the account they have. Without it, Zitadel
+# shows its own page instead: link this sign-in to the account you have, or
+# create one. Google keeps automatic creation, because its verified addresses do
+# match. A Microsoft provider that already exists keeps its options (this script
+# does not update one; see configure_idp): change it in the console.
+IDP_OPTIONS_MICROSOFT="$(jq -c '.isAutoCreation = false' <<<"$IDP_OPTIONS")"
 
 IDP_COUNT=0
 
@@ -1650,7 +1663,7 @@ if [ -n "$IDP_MICROSOFT_CLIENT_ID" ] && [ -n "$IDP_MICROSOFT_CLIENT_SECRET" ]; t
   # means what it says.
   configure_idp "Microsoft" /admin/v1/idps/azure "$(jq -nc \
     --arg c "$IDP_MICROSOFT_CLIENT_ID" --arg s "$IDP_MICROSOFT_CLIENT_SECRET" \
-    --argjson t "$tenant" --argjson o "$IDP_OPTIONS" \
+    --argjson t "$tenant" --argjson o "$IDP_OPTIONS_MICROSOFT" \
     '{name:"Microsoft", clientId:$c, clientSecret:$s, tenant:$t, emailVerified:false,
       scopes:["openid","profile","email","User.Read"], providerOptions:$o}')"
 else

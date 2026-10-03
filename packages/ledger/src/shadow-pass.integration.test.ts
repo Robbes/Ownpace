@@ -1,4 +1,4 @@
-// Copyright 2026 OpenHands Agent (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 // Integration tests for the shadow pass (T4) against real IMAP source + JMAP target + SQL ledger.
 // Tests idempotency: running twice creates 0 duplicates; delta: adding one message creates exactly 1.
 

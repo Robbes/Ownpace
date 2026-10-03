@@ -163,6 +163,21 @@ const en = {
   'discovery.generatedId.strong': 'the copy on your new server',
   'discovery.generatedId.post':
     '— the original on your old server is not changed; they migrate with the rest.',
+  // The other half of the same absence (ADR-0020's amendment of 2026-10-03):
+  // a source that cannot give a message an id, Microsoft 365 through Graph,
+  // leaves it behind. Said here, before Start, and never as a generated id.
+  'discovery.unlisted.pre.one': 'message has no Message-ID, and this connection cannot give it one, so it',
+  'discovery.unlisted.pre.many': 'messages have no Message-ID, and this connection cannot give them one, so they',
+  'discovery.unlisted.strong.one': 'will not be migrated',
+  'discovery.unlisted.strong.many': 'will not be migrated',
+  'discovery.unlisted.post': '— nothing on your old server changes.',
+  // ADR-0035 decision 5, the owner's option C (2026-10-03): for an account the
+  // person connected through their own grant, the provider's words and the
+  // items' names stay off the owner's pages.
+  'failure.withheld':
+    "The provider's own message is not shown: the person connected this account themselves, and it can name their files. Support can read it by the reference.",
+  'failures.withheld':
+    "Item names and the provider's messages are not shown: the person connected this account themselves, and they can name their files. Each failure still says what kind it is and what to do.",
   'discovery.colliding.pre.one': 'item already on your destination matches something in your source. We will',
   'discovery.colliding.pre.many': 'items already on your destination match something in your source. We will',
   'discovery.colliding.strong': "keep the destination's copy",
@@ -1009,7 +1024,7 @@ const en = {
   'lifecycle.paused':
     'This migration has not started, so nothing has been copied and nothing can have diverged.',
   'hub.fallbackTitle': 'Migration',
-  'hub.orderIntro': 'The screens below are in cutover order; work them top to bottom.',
+  'hub.orderIntro': 'Work them from the top, in this order.',
   'hub.noId': 'No mapping id in the address.',
   'hub.detailError': "Could not read this migration's details — the screens below still work.",
   'hub.grantWithdrawn': 'On {date} the person being migrated withdrew their access. Nothing reads their account now.',
@@ -1623,6 +1638,11 @@ const en = {
   'person.step.check.passed': 'Passed',
   'person.step.check.partly': 'Passed for {n} of {total}',
   'person.step.check.notYet': 'Not passed yet',
+  'person.step.check.notRun': 'Not run yet',
+  'person.step.check.running': 'Running now',
+  'person.step.check.couldNotRun': 'Could not run {when}',
+  'person.step.check.notPassedWhen': 'Did not pass {when}',
+  'person.step.check.passedWhen': 'Passed {when}',
   'person.step.confirmed.notYet': 'After the check',
   'person.step.confirmed.done': 'Ready to read',
   'person.step.finish.notYet': 'Switch mail delivery, then end',
@@ -3213,6 +3233,15 @@ const nl: Record<keyof typeof en, string> = {
   'discovery.generatedId.strong': 'de kopie op uw nieuwe server',
   'discovery.generatedId.post':
     '— het origineel op uw oude server verandert niet; ze migreren met de rest mee.',
+  'discovery.unlisted.pre.one': 'bericht heeft geen Message-ID, en deze verbinding kan het er geen geven, dus het',
+  'discovery.unlisted.pre.many': 'berichten hebben geen Message-ID, en deze verbinding kan ze er geen geven, dus ze',
+  'discovery.unlisted.strong.one': 'wordt niet gemigreerd',
+  'discovery.unlisted.strong.many': 'worden niet gemigreerd',
+  'discovery.unlisted.post': '— er verandert niets op uw oude server.',
+  'failure.withheld':
+    'De eigen melding van de aanbieder wordt niet getoond: de persoon heeft dit account zelf gekoppeld, en de melding kan hun bestanden noemen. Support kan haar lezen via de referentie.',
+  'failures.withheld':
+    'Namen van items en de meldingen van de aanbieder worden niet getoond: de persoon heeft dit account zelf gekoppeld, en ze kunnen hun bestanden noemen. Elke fout zegt nog steeds wat voor fout het is en wat u kunt doen.',
   'discovery.colliding.pre.one': 'item dat al op uw bestemming staat, komt overeen met iets in uw bron. We',
   'discovery.colliding.pre.many': 'items die al op uw bestemming staan, komen overeen met iets in uw bron. We',
   'discovery.colliding.strong': 'behouden de kopie op de bestemming',
@@ -3817,8 +3846,7 @@ const nl: Record<keyof typeof en, string> = {
   'lifecycle.paused':
     'Deze migratie is niet gestart, dus er is niets gekopieerd en niets kan zijn afgeweken.',
   'hub.fallbackTitle': 'Migratie',
-  'hub.orderIntro':
-    'De schermen hieronder staan in cutover-volgorde; werk ze van boven naar beneden af.',
+  'hub.orderIntro': 'Werk ze van boven af, in deze volgorde.',
   'hub.noId': 'Geen mapping-id in het adres.',
   'hub.detailError':
     'De details van deze migratie konden niet worden gelezen — de schermen hieronder werken nog.',
@@ -4346,6 +4374,11 @@ const nl: Record<keyof typeof en, string> = {
   'person.step.check.passed': 'Geslaagd',
   'person.step.check.partly': 'Geslaagd voor {n} van {total}',
   'person.step.check.notYet': 'Nog niet geslaagd',
+  'person.step.check.notRun': 'Nog niet uitgevoerd',
+  'person.step.check.running': 'Nu bezig',
+  'person.step.check.couldNotRun': 'Kon {when} niet worden uitgevoerd',
+  'person.step.check.notPassedWhen': 'Niet geslaagd {when}',
+  'person.step.check.passedWhen': 'Geslaagd {when}',
   'person.step.confirmed.notYet': 'Na de verificatie',
   'person.step.confirmed.done': 'Klaar om te lezen',
   'person.step.finish.notYet': 'Zet de e-mailbezorging om en rond dan af',

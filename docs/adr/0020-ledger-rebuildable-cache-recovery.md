@@ -1,6 +1,8 @@
 # ADR-0020: The ledger is a rebuildable cache — recovery via target reindex (natural-key adoption)
 
-- **Status:** Accepted — **amended 2026-09-27**: the operative rules say what is built. The reindex is the worker's command in both editions, run by hand; the appliance warns at start-up; nothing runs it automatically (workplan 0134 T3). See the amendment at the end.
+- **Status:** Accepted — amended twice: 2026-09-27 (the reindex is run by hand, workplan 0134
+  T3) and 2026-10-03 (the key of mail without a Message-ID is a hash of the message normalised,
+  with a lookup by its old key). See the amendments at the end.
 - **Date:** 2026-06-21
 - **Relates to:** ADR-0005 (idempotency via ledger, non-destructive), ADR-0015 (backup scope), ADR-0016 (ledger schema), ADR-0018 (JMAP/DAV targets).
 
@@ -10,9 +12,22 @@
      the narrative below stays append-only. Assembled into OPERATIVE.md by
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
-- The ledger is a **rebuildable cache + audit log**, never the source of truth for existence — that fact lives on the target via natural keys.
-- Writes are **create-if-absent by natural key** (target existence check beside the ledger fast-path); an empty ledger can never duplicate.
-- **Reindex/adopt** rehydrates the ledger from the target. It is the worker's command in both editions (`reindex --tenant <t> --mapping <m> --yes`), run by hand, and nothing runs it automatically: the appliance warns at start-up when an active migration's ledger is empty, and the managed edition does not. Content-hash fallback for Message-ID-less items; cursors are non-authoritative; backups are the fast path, not the safety net.
+- The ledger is a **rebuildable cache + audit log**, never the source of truth for existence:
+  that fact lives on the target, by natural key (*Key insight* below).
+- Writes are **create-if-absent by natural key** (a target existence check beside the ledger
+  fast-path), so an empty ledger can never duplicate: `packages/core/src/reconcile.unit.test.ts`.
+- **Reindex/adopt** rehydrates the ledger from the target. It is the worker's command in both
+  editions (`reindex --tenant <t> --mapping <m> --yes`, `apps/worker/src/cli/index.ts`), run by
+  hand, and nothing runs it automatically: the appliance warns at start-up when an active
+  migration's ledger is empty (`apps/selfhost/src/lost-ledger-warning.unit.test.ts`), and the
+  managed edition does not.
+- **Mail without a Message-ID is keyed by a hash of the message normalised** (owner,
+  2026-10-03), written into the copy as a generated `Message-ID`; a copy made under the old
+  raw-bytes key is found by it, in the ledger or on the target, and handled as it was then,
+  never copied again (`a-key-that-changed-how-it-is-made.unit.test.ts`). Graph leaves such mail
+  unmigrated.
+- **Cursors are non-authoritative**; **backups are the fast path, not the safety net** (decisions
+  5–6 below).
 
 ## Context
 A self-host user can lose their install (disk failure, no backup) and **reinstall fresh with an empty ledger**, pointing at the same O365 source and the same target. If migration relied solely on the local ledger to know what was already migrated, a fresh install would re-copy everything and risk **duplicating** it on the target. Correctness must survive ledger loss.
@@ -64,3 +79,94 @@ same database holds the organisations, their connections and stored credentials,
 and the audit log, and no target rebuilds those. The migration runner's downgrade refusal said
 *"nothing irreplaceable lives here"*. It now says that a database holding real data is restored
 from a backup, never dropped (`packages/ledger/src/migrate.ts`).
+
+## Amendment, 2026-10-03: the key of mail without a Message-ID, as built, and what still has to be checked
+
+Decision 4 said the natural key of mail without a Message-ID is *"synthesize[d] from
+`content_hash` + `Date` + `From`"*, where `content_hash` is *"normalized RFC822 / item bytes"*. It
+was built otherwise, and the architecture document described a third version (*"hash of
+normalised headers+body"*, §10). The owner chose to record what is built: *"A. But we have to
+validate the behaviour of Microsoft 365 or we should go with C."*
+
+**What holds** (`packages/shared/src/generated-message-id.ts`, `packages/core/src/reconcile.ts`):
+
+- A message without a `Message-ID` is keyed by the **SHA-256 of its raw bytes as the source
+  returns them**, headers and body, nothing left out. `Date` and `From` count because they are
+  part of those bytes. The key is written into the copy as a generated
+  `Message-ID: <hex@generated.openmigrate.invalid>`, so the target's own existence check
+  (decision 2) and a reindex (decision 3) find it again.
+- `content_hash` hashes the bytes as written, and no matching of mail uses it.
+- The same bytes give the same key on every pass and on every machine, and a message in two
+  folders is one copy. Two different messages with identical bytes are one copy too, losing
+  nothing.
+- **IMAP sources do this, Gmail's included. The Graph source does not:** it counts a message
+  without an `internetMessageId`, logs it, and leaves it unmigrated (`graph-mail-source.ts`). The
+  preflight says so before *Start*: such a message is counted as left behind (`unlisted`, shown
+  as *will not be migrated*), apart from the generated-id count, where it had been counted until
+  this amendment.
+
+**What has to be checked: Microsoft 365.** A server that keeps a message's original bytes (Gmail,
+Dovecot) returns the same bytes on every fetch. Exchange builds the MIME of a message when it is
+asked for it, so after an upgrade or a restore it may return other bytes: other boundaries, header
+order or line endings. If it does, the key changes and the message is copied a second time. The
+check is to fetch the same messages from a Microsoft 365 mailbox over IMAP more than once, over
+time, and compare their hashes.
+
+**If they differ, the key becomes a normalised hash** (the owner's *C*): headers that servers add
+or rewrite are left out and line endings unified before hashing, with a lookup by the old key so
+that nothing already copied is copied again, because every copy carries the old key in its
+`Message-ID`. Normalising too far would make two different messages one, which is what `Date` and
+`From` were in decision 4 to prevent. Re-keying to decision 4's own formula was not chosen: it
+copies every such message again for no gain.
+
+**Built the same day, without waiting for the check** (the owner: *"go with C, we can test with
+some imap access to microsoft i will arrange"*). `generateMessageId` hashes `keyMaterial`:
+
+- the sender's own headers only (`Date`, `From`, `Sender`, `Reply-To`, `To`, `Cc`, `Subject`,
+  `In-Reply-To`, `References`), unfolded, in a fixed order, their whitespace collapsed;
+- the body with line endings unified, every MIME boundary replaced by its order of appearance,
+  and trailing whitespace dropped;
+- read as latin1, so the key stays a function of the bytes whatever their charset.
+
+Nothing is decoded: a server that re-encodes a part (quoted-printable for 8-bit, say) still changes
+the key, and the Microsoft 365 check is what says whether that happens.
+
+**The old key is asked before anything is written.** When the normalised key finds no row, the
+pass asks for the raw-bytes key, computed from the bytes the source served (`asWrittenBefore`;
+`legacyKeysFromRaw` in `reconcile.ts`). It asks the ledger first, then the target
+(`legacyCopyOnTarget`): the target's copy carries the old id, so the writer's own existence check,
+which asks for the new one, cannot see it, and without this an empty ledger would duplicate it,
+against the second rule above. Found either way, the message is that copy's. It is handled under
+the old key, recorded under it when only the target had it (as a reindex records it), and written,
+if a failure before the switch left nothing on the target, as it was written then. That keeps the
+ledger, the target and verification naming each copy by one key. Until the old key has been asked
+of both, a failure leaves no row under the new one, since its retry would ask nothing more before
+writing: a lookup the target cannot answer is never read as "not there", and the message is counted
+as failed and read again on the next pass.
+One case stays open: a copy made before the switch whose source then serves other bytes matches
+neither key, and is copied once more. After that it carries the normalised key.
+
+`a-key-that-changed-how-it-is-made.unit.test.ts` pins these: a pass served other bytes finds its
+copy; a copy made under the old key is found through the ledger, and through the target when the
+ledger has forgotten it; a message that failed under the old key is written under it; and a lookup
+the target or the ledger cannot answer writes nothing and leaves no row. `generated-message-id.unit.test.ts`
+pins what the key ignores, what still tells two messages apart, and the old bytes reproduced exactly.
+
+## Amendment log
+
+- **2026-09-27** — The operative rules say what is built: the reindex is the worker's command in
+  both editions, run by hand; the appliance warns at start-up; nothing runs it automatically
+  (workplan 0134 T3). Record: *Amendment, 2026-09-27: what is built, not what was planned*.
+- **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
+  decided. Their earlier wording, with the reasons and examples the budget left out, is in the
+  record: [history/0020-ledger-rebuildable-cache-recovery.md](./history/0020-ledger-rebuildable-cache-recovery.md).
+- **2026-10-03, later** — Decision 4's key for mail without a Message-ID says what is built, a
+  SHA-256 of the raw bytes; to be checked on Microsoft 365, and normalised if its bytes change
+  (owner: *"A. But we have to validate the behaviour of Microsoft 365 or we should go with C."*).
+  Record: *Amendment, 2026-10-03: the key of mail without a Message-ID, as built*.
+- **2026-10-03, later** — The normalised key built, with a lookup by the old key (owner: *"go with
+  C"*); Microsoft 365 over IMAP to be tested once the owner arranges access. Record: the same
+  amendment, *Built the same day*.
+- **2026-10-03, later** — The old key is asked of the target too, so an empty ledger still never
+  duplicates a copy made before the switch, and a message found under it is recorded and written
+  under it. Found in review of the build; nothing was decided. Record: the same amendment.

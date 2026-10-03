@@ -6,6 +6,7 @@ import {
   type DomainDiscovery,
   type TenantId,
   type MappingId,
+  unlistedFromCollections,
 } from '@openmig/shared';
 import type { PgDatabase } from './db.ts';
 import { eq, and, sql } from 'drizzle-orm';
@@ -141,6 +142,12 @@ export class PgDiscoveryStore implements DiscoveryStore {
       .orderBy(schemaPg.migrationDiscovery.domain);
 
     return rows.map((row) => {
+      const perCollection = row.perCollection
+        ? (row.perCollection as DiscoveryRecord['perCollection'])
+        : undefined;
+      // Totalled from the stored breakdown: the count has no column (see
+      // `unlistedFromCollections`).
+      const unlistedItems = unlistedFromCollections(perCollection);
       const record: DiscoveryRecord = {
         domain: row.domain as DiscoveryDomain,
         collections: row.collections,
@@ -159,9 +166,8 @@ export class PgDiscoveryStore implements DiscoveryStore {
           ? { refusedNative: row.refusedNative as Readonly<Record<string, number>> }
           : {}),
         ...(row.targetColliding != null ? { targetColliding: Number(row.targetColliding) } : {}),
-        ...(row.perCollection
-          ? { perCollection: row.perCollection as DiscoveryRecord['perCollection'] }
-          : {}),
+        ...(unlistedItems > 0 ? { unlistedItems } : {}),
+        ...(perCollection ? { perCollection } : {}),
         ...(row.lastError ? { lastError: row.lastError } : {}),
       };
       return record;

@@ -259,6 +259,8 @@ jobs:
             CONTRIBUTING.md
             SECURITY.md
             CHANGELOG.md
+            TRADEMARK.md
+            NOTICE
             docs/workplans/0117-the-conveyor-belt-not-the-home.md
             **.ts
             **.tsx

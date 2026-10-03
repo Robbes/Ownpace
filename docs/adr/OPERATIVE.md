@@ -80,20 +80,13 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0014: Cost-recovery billing for the managed edition](./0014-cost-recovery-billing.md)
 
-- **A PATH is one kind of thing, from one account, to one account.** Mail, contacts, calendar
-  and files are **separate paths** — that is the customer-facing unit and it must be said
-  plainly wherever a price appears, because it is the number every tier is counted in. In the
-  schema it is one **`scope_selection` row**: `(mapping_id, domain)`, one per domain, created
-  with the mapping (`apps/api/src/routes/migrations/index.ts:1421`).
-- **A tier has TWO axes, and you are on the higher of them.** How many paths run at the same
-  time — Tiny 1 · Small 4 · Medium 20 · Large 50 · XL 200 — and how much data you have moved:
-  Tiny 250 GB · Small 750 GB · Medium 2 TB · Large 7.5 TB · XL 15 TB. One path and 400 GB is
-  **Small**, because size says so. Past XL on either axis, **talk to us** — that is the one
-  place a number is not published, because past the end of the scale we have to actually look.
-- **The tiers, as they hold now.** The price guards (`site/site.unit.test.ts`,
-  `packages/managed/src/tier-calculator.unit.test.ts`) parse THIS table, so a price change is
-  made here, in place, and the site and the managed code follow or turn red. The table in the
-  narrative below is the 2026-08-20 record and is not read by anything.
+- **A path is one kind of thing, from one account, to one account**: mail, contacts, calendar,
+  files and tasks are separate paths, and every price says so. Only a data type the migration
+  carries is a path (`scope_selection.included`).
+- **A tier has two axes, and you are on the higher of them**: paths at the same time, and data
+  moved — cumulative, each item's first successful copy. Past Extra large: *talk to us*.
+  `site/site.unit.test.ts` and `packages/managed/src/tier-calculator.unit.test.ts` parse this
+  table: prices change here.
 
   | tier | paths at the same time | data moved | setup | monthly |
   |---|---|---|---|---|
@@ -103,124 +96,23 @@ live in [README.md](./README.md), the register.
   | **Large** | 50 | 7.5 TB | €50 | €39 |
   | **Extra large** | 200 | 15 TB | €150 | €99 |
 
-- **Tiny is free, and free means no billing** (the owner, 2026-09-24: *"make the Tiny tier
-  Free, no billing needed"*). No setup fee, no monthly, and no invoice: not a €0 invoice, which
-  would still cost a payment instrument, a VAT treatment and a bookkeeping row. An organisation
-  on Tiny registers no payment method and is not asked for billing details. **Leaving Tiny is
-  where billing starts**, so it is consented, as every step up is: a second migration at the
-  same time, or data past 250 GB, moves it to Small once it has said yes. A month it did not
-  consent to leave Tiny is billed as Tiny, which is nothing: under-billing, never a surprise
-  invoice.
-- **The data axis is CUMULATIVE and it counts each item's FIRST successful copy.** Not a monthly
-  allowance: the cost it stands for — the initial copy — is one-off, so a monthly allowance
-  would be blown in month one and idle ever after. Re-copies, retries, updates and delta passes
-  **do not count**; nobody pays twice for the same item, and a failed pass that runs again does
-  not eat the allowance. The meter therefore reads as *"how much of your stuff we have moved"*,
-  which is a number the customer can predict before starting — the same number the
-  pre-preflight estimates.
-- **Running out of room does not have to mean moving up. Pay your setup fee again and your
-  allowance grows by another whole band.** Tiny has no setup fee and so no top-up: its 250 GB is
-  the free band's edge, and past it the tier is Small. Small: €8 buys another 750 GB, on Small, at €4 a
-  month. **Tiers buy lanes; top-ups buy room** — and which one someone needs is a question they
-  can answer about themselves. Buyable repeatedly, never expiring, never refunded, and it is the
-  customer's own tier's fee, so the page gains a mechanism without gaining a price.
-- **Implement it as a higher ceiling, never as a reset meter.** Same thing to the customer —
-  *"another 750 GB"* — but the counter must stay monotonic or a past invoice stops being
-  reconstructible (schema consequence 5). Allowance goes up; the meter is never rewound.
-- **At 80%, offer BOTH and show the break-even.** *"You are at 80% of 750 GB. Another 750 GB is
-  €8 once and you stay at €4 a month; Medium is €7 now and €8 a month, and gives you 20 paths
-  instead of 4."* Topping up costs €1 more up front and saves €4 a month, so it pays back in
-  **about a week** — **say that**, and say plainly when the tier is the better buy, which on
-  data alone it now almost never is. Taking no profit means having no reason to steer, so we
-  do not.
-- **Paths fall; data does not — but room is purchasable.** The path axis is elastic and
-  downgrades automatically as paths end. The data axis only ever rises, so it sets a **floor**
-  under the tier unless the customer buys room instead. Say it on the page in those words:
-  *finishing paths lowers your bill; the size of what you moved sets a floor — or top up and
-  stay where you are.*
-  It is cost-honest — a big account is expensive on every later pass too, not only on the first
-  — and it is the reason a ratchet here is not the ratchet this project exists to be the
-  opposite of: it is bounded by the tier table, published in advance, and it stops when the last
-  path ends.
-- **No per-GB line and no compute line appears on any invoice**, and **no "per path per month"
-  figure is published either.** The monthly is not rent on a path; it is rent on an envelope
-  with two dimensions, which is why a one-path 700 GB account costs more than a one-path 5 GB
-  account. Publishing a division invites a question the model does not answer. Self-host stays
-  free.
-- **Flat within a band; no per-path price inside a tier.** Labour per path is **sublinear** —
-  one household is one relationship, one set of credentials, one cutover conversation — so a
-  per-path monthly would contradict the reason paths were chosen as the unit at all. The
-  linear component is the setup fee, and it is already handled by the step-up rule below.
-- **A tier is a CAPACITY — how many paths may run at the same time — not a tally of everything
-  ever touched.** A path takes a slot when it is first activated and gives it back when it ends.
-  Four states: **`ready`** (configured, connection-tested, proven working, never run — **free,
-  and the column default**) → **`active`** (running, holds a slot) → **`paused`** (ran, stopped
-  by the owner — **still holds a slot**; it is reserved capacity) → **`cutover`/`done`** (ended;
-  the slot is free from that instant). **Never write *concurrent* on a customer surface** —
-  write **"at the same time"**.
-- **Therefore pausing does not reduce a bill; finishing does.** That is deliberate — a paused
-  path holds state and can resume in a second — and it must be said on the pricing page, not
-  discovered on an invoice.
-- **The month's bill is set by the PEAK: the most paths running at the same time in that
-  calendar month.** Simultaneous, not cumulative — eight paths that finish and one that starts
-  afterwards is a peak of eight, not nine. Peak rather than a reading taken on the invoice date,
-  because a single sample makes the bill turn on an arbitrary instant. The invoice names the
-  peak with its date: *"Medium — 6 paths at the same time on 12 August."*
-- **The tier is DERIVED from measurement, never picked.** Nobody selects a plan; activating a
-  path that crosses a boundary states the new price at that moment and asks. The tier chooser on
-  the public page is therefore a **calculator, not a plan selector**, and must read as one.
-- **Downgrade is automatic; upgrade is consented.** A calendar month whose peak fits inside a
-  lower tier bills at that lower tier — announced in advance through the summary mail, never
-  applied retroactively, and never taken as a reason to stop, pause or block a path. If the
-  arithmetic is ever wrong it must **under-bill, never halt a migration**.
-- **The setup fee is on the HIGHEST tier ever reached, and it is paid in steps.** Each tier
-  splits into a one-off setup plus a monthly — Tiny free · Small €8 + €4 · Medium €15 + €8 ·
-  Large €50 + €39 · XL €150 + €99. A tier reached on the **data** axis charges its step the same
-  way a tier reached on the path axis does. Stepping up later costs the **difference** in setup, once; stepping down
-  refunds nothing, because the onboarding was consumed. This makes the total independent of
-  whether a customer ramped up or started at full size, so understating gains nothing and
-  guessing wrong costs nothing.
-- **The fill gauge shows PATHS, not a number.** Each path named, with its state, and finished
-  ones carrying the date they ended; the count summarises that list rather than replacing it.
-  The words are *"running at the same time"* — **never "used"**, which is what one says about
-  something spent and is exactly the cumulative misreading to avoid.
-- **The tier boundary is a SERVICE boundary.** Tiny/Small/Medium are self-service — a manual
-  and a ticket queue, no phone. Large/XL include real engagement. The price gap follows support, not
-  size; that is what makes it explicable.
-- **Prices are published in full on the public page.** No "contact sales", no quote-gating.
-  Deliberate contrast with the incumbents, and part of the same honesty claim as `SKIPPED`.
-- **The data ceiling is a PRICE, not a policy.** Crossing it moves the tier automatically and
-  announced, the same way crossing a path ceiling does — never a silent throttle, never a
-  surprise invoice — with a warning at 80% that names what the next band costs. From Tiny,
-  which is free, the move waits for the organisation's yes (above), because it is where billing
-  starts. Calling that
-  "fair use" was a hedge; a number that changes a bill is a price, and saying so is the more
-  explicit position, not the harsher one. **A residual fair-use clause remains** for what a
-  number cannot express — reselling, pathological churn — and for nothing else.
-- **There is no separate "backup" product or price.** Cutover is terminal, so keeping a copy in
-  sync is a NEW path with its own initial copy — and it is billed as one. A household that
-  finishes eight paths and keeps one running falls to Small the following month, by the
-  capacity rule and the automatic downgrade above rather than by a special case. A special case
-  would only have hidden the front-loaded cost.
-- **Start everything, or go one at a time: say both, and steer toward neither.** Everything at
-  once is faster, and its bill falls by itself as each path cuts over. One at a time is Tiny,
-  which is free (2026-09-24). The page says both in those words. Nobody is nudged into
-  rationing by fear of the next tier up, and nobody is sent past the free way by a page that
-  only praises the fast one.
-- **We do not take money from inattention.** A path billing with nothing to show gets a
-  periodic, one-click *"keep it or finish it"* through the existing summary mail — and billing
-  never runs past **12 months without an explicit re-confirmation**. A product promising "it
-  ends when you say" cannot fund itself on people forgetting, which is the pattern its
-  customers are leaving.
-- **Metering stays INTERNAL.** Bytes and compute are still measured, to check the tiers against
-  reality; they simply never reach an invoice. Tiers do not self-correct the way metering does,
-  so this is what keeps them honest.
-- **"No profit" STANDS.** Large/XL are priced above their own cost precisely to fund
-  Small/Medium — that is cross-subsidy inside one cost-recovery envelope, not margin. Owner's
-  ruling, 2026-08-20; the title is unchanged.
-- EU PSP (Mollie); the machinery lives in `@openmig/managed` (ADR-0036). Public page follows
-  [ADR-0029](./0029-public-site-is-server-rendered-and-legible.md) and leads with the free
-  preflight.
+- **Tiny is free, and free means no billing**: no payment method, no invoice, no top-up. Guard:
+  `site/site.unit.test.ts` (*free*, never *€0*).
+- **`holdsASlot` (`@openmig/ledger`) is the slot rule**: `active`, `paused` and `continuous`
+  hold a slot; `ready`, `cutover` and `done` hold none; a stop releases one only in the lane,
+  whose customer is first told the bill does not stop at cutover.
+- **The month bills its peak; the tier is derived, never picked.** Downgrade is automatic,
+  announced, never blocking a path. Setup is paid on the highest tier reached, in steps. Not
+  built yet (0109 T5–T6).
+- **Every step up is consented and paid for.** A path waits for the yes at activation; at the
+  data ceiling, new first copies wait for a move up or a one-off top-up (another band, for the
+  setup fee again: a higher ceiling, never a rewound meter). Without that yes, a month bills the
+  tier it was on.
+- **What a customer is told, and what we will not do, are rules** (*Decision*): every price
+  published; *Start* warns when the preflight will not fit; no per-GB, compute or per-path
+  figure; no billing past 12 months unconfirmed. *"No profit" STANDS*.
+- **Pending (accepted 2026-10-03; in force once built, 0152 T6 (d)):** Free replaces Tiny, no
+  setup fees, a year at six months' price; the price pays for the work.
 
 ## [ADR-0015: Backup scope — stack DR vs end-user data vs optional extra backup](./0015-backup-scope.md)
 
@@ -253,9 +145,22 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0020: The ledger is a rebuildable cache — recovery via target reindex (natural-key adoption)](./0020-ledger-rebuildable-cache-recovery.md)
 
-- The ledger is a **rebuildable cache + audit log**, never the source of truth for existence — that fact lives on the target via natural keys.
-- Writes are **create-if-absent by natural key** (target existence check beside the ledger fast-path); an empty ledger can never duplicate.
-- **Reindex/adopt** rehydrates the ledger from the target. It is the worker's command in both editions (`reindex --tenant <t> --mapping <m> --yes`), run by hand, and nothing runs it automatically: the appliance warns at start-up when an active migration's ledger is empty, and the managed edition does not. Content-hash fallback for Message-ID-less items; cursors are non-authoritative; backups are the fast path, not the safety net.
+- The ledger is a **rebuildable cache + audit log**, never the source of truth for existence:
+  that fact lives on the target, by natural key (*Key insight* below).
+- Writes are **create-if-absent by natural key** (a target existence check beside the ledger
+  fast-path), so an empty ledger can never duplicate: `packages/core/src/reconcile.unit.test.ts`.
+- **Reindex/adopt** rehydrates the ledger from the target. It is the worker's command in both
+  editions (`reindex --tenant <t> --mapping <m> --yes`, `apps/worker/src/cli/index.ts`), run by
+  hand, and nothing runs it automatically: the appliance warns at start-up when an active
+  migration's ledger is empty (`apps/selfhost/src/lost-ledger-warning.unit.test.ts`), and the
+  managed edition does not.
+- **Mail without a Message-ID is keyed by a hash of the message normalised** (owner,
+  2026-10-03), written into the copy as a generated `Message-ID`; a copy made under the old
+  raw-bytes key is found by it, in the ledger or on the target, and handled as it was then,
+  never copied again (`a-key-that-changed-how-it-is-made.unit.test.ts`). Graph leaves such mail
+  unmigrated.
+- **Cursors are non-authoritative**; **backups are the fast path, not the safety net** (decisions
+  5–6 below).
 
 ## [ADR-0021: Optional knowledge-enrichment add-in (OKF) — a parallel, opt-in `KnowledgeSink`](./0021-knowledge-enrichment-okf-addin.md)
 
@@ -275,10 +180,23 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0024: `apply` — an explicit, gated exception to non-destructiveness](./0024-explicit-owner-deletion-apply.md)
 
-- `apply` is the **only destructive code path**, per item, owner-called, never automatic (relocations gained a second caller under ADR-0030/0031 — same function, same gates).
-- Seven gates, all enforced and re-checked in the ledger's conditional UPDATE: per-mapping opt-in; `TargetRemover` capability; **positive evidence only** (`reported`/`trashed`, never `inferred`); ownership (`copied`/`updated` only — `adopted` is never touched); no-edit-since (`If-Match` with the recorded ETag on DAV, checked by the server in the DELETE itself; a read that must succeed on JMAP contacts and files; UIDVALIDITY on IMAP); mass-deletion breaker (20% of ≥20); concurrent-apply re-check.
-- **With no recorded version, nothing is removed** (`version_unknown`, workplan 0149 T3): a row without one, or with only a weak ETag, cannot say whether somebody changed the copy. JMAP mail, which records no version by design, is the one target this does not apply to.
-- Order is **remove-then-record**; rows are tombstoned, never deleted; a reappearance is **never re-copied**; outcomes state `kind: binned|deleted`, understating recoverability.
+- `apply` is the **only destructive code path**: per item, owner-called, never automatic.
+  Relocations remove through `applyRelocation` beside it (ADR-0030/0031): the same gates, gate 3
+  taking a recorded relocation as evidence and gate 6 counting relocations too.
+  `packages/core/src/apply-deletion.ts` holds the only calls to `removeItem`.
+- **Seven gates**, enforced by `applyDeletion`; evidence and ownership re-checked in the ledger's
+  conditional UPDATE:
+  (1) per-mapping opt-in; (2) `TargetRemover` capability; (3) **positive evidence only**,
+  `reported`/`trashed`, never `inferred`; (4) ownership, `copied`/`updated` only, never
+  `adopted`; (5) no edit since (DAV: the server's `If-Match`; JMAP contacts and files: a
+  successful read; IMAP: UIDVALIDITY); (6) mass-deletion breaker, 20% of ≥20; (7)
+  concurrent-apply re-check: `packages/core/src/apply-deletion.unit.test.ts`.
+- **With no recorded version, nothing is removed** (`version_unknown`, workplan 0149 T3); a weak
+  ETag counts as none. JMAP mail, which records no version by design, is exempt:
+  `packages/engines/src/a-removal-the-server-checks.unit.test.ts`.
+- Order is **remove-then-record**; rows are tombstoned, never deleted; a deleted item's
+  reappearance is **never re-copied** (a relocated one's is: ADR-0030) (`packages/core/src/tombstone-not-restored.unit.test.ts`); outcomes state
+  `kind: binned|deleted`, understating recoverability.
 
 ## [ADR-0025: Proton Drive as a files target — deferred on authentication, not on effort](./0025-proton-drive-target-deferred.md)
 
@@ -294,10 +212,12 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0027: The Windows appliance ships as a service with a shortcut, not a native shell](./0027-windows-packaging-shell.md)
 
-- The Windows appliance is a **Task Scheduler task** (At-Startup, `LocalService`) plus a Start-menu shortcut to the UI — **not** a Windows Service, and no wrapper binaries (WinSW/nssm rejected).
-- The payload ships its **own pinned Node runtime** (checksum-verified, opt-in at the packaging flag); PGlite's crash-safety under hard kill is proven, ledger included.
-- `install-task.ps1` must zero `ExecutionTimeLimit` (default 3 days would stop a healthy appliance — the likeliest quiet failure). The uninstaller preserves `C:\ProgramData\OpenMigrate` unless `-IncludeData`.
-- Tauri revisit: only when "must look native" becomes a stated requirement — never on size (the Node runtime is the bulk).
+- The Windows appliance is a **Task Scheduler task** (At-Startup, `NT AUTHORITY\LocalService`), **not a Windows Service** whatever the title says, plus a Start-menu shortcut to the operating UI. No native shell, no wrapper binary (WinSW, nssm rejected). Held by `scripts/windows/install-task.ps1`; reasons in *Decision*.
+- The Windows payload carries its **own pinned Node runtime** (`NODE_RUNTIME_VERSION`), staged by the opt-in `--with-node` flag and verified against the release's `SHASUMS256.txt` — a mismatch stops the build. Held by `scripts/package-appliance.mjs` and its unit test; `install-task.ps1` refuses a payload without `node.exe`.
+- **The no-wrapper decision rests on a hard kill being safe**: PGlite and the migration ledger survive `Stop-Process -Force` (measured on real Windows 2026-08-07 and 2026-08-09, *Decision*). Anything that breaks that reopens it.
+- `install-task.ps1` **must set `ExecutionTimeLimit` to zero** (no test checks it): the three-day default would stop a healthy appliance, the likeliest quiet failure.
+- Writable state lives in **`C:\ProgramData\OpenMigrate`**, outside the payload; `uninstall-task.ps1` **keeps it** (the migration ledger, hard rule 2) unless `-IncludeData` is passed.
+- **Tauri is deferred, not rejected:** revisit only when "it must look like a native application" becomes a stated requirement — never on size, since the Node runtime is the bulk. See *Revisit condition*.
 
 ## [ADR-0028: PGlite as the appliance's embedded persistence (amends ADR-0023)](./0028-pglite-appliance-persistence.md)
 
@@ -313,10 +233,12 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0030: A correlated relocation is positive evidence, and may be applied](./0030-relocation-is-positive-evidence.md)
 
-- A **correlated relocation** (disappearance + same-content-hash arrival in one pass) is positive evidence; `apply` may remove the OLD copy. Recorded by `movedToNaturalKeyHash` — a cross-folder move and a rename are the same event.
-- All ADR-0024 gates stand, plus: the arrival must be **ours** (`copied`/`updated`, same `contentHash`, never `adopted` — refusal `relocation_unconfirmed`); the target is **asked** (`hasItem`) immediately before removal; a two-halves mass-relocation breaker; `keep` enforced server-side.
-- A **renamed Google document** (a Doc, Sheet, Slides deck or Drawing, copied as an export) is paired by its **Drive file id**, because two Office or OpenDocument exports of it are not byte-identical (owner, 2026-09-23). A **renamed Dropbox Paper doc**, copied as an export since 2026-09-28, is paired the same way by its **Dropbox id** (workplan 0150 D8). Where the two exports' bytes still match (PDF, SVG), the pair is an ordinary bytes pair, as before. Where they differ, the pair is recorded as such (`moved_by_identity`), and its `apply` asks for the **same id** in place of the same `contentHash`: the arrival is ours (`copied`/`updated`) with the same `source_ref`, and the target is asked (`hasItem`) as for every relocation. Unattended apply (ADR-0031) leaves those pairs for a person.
-- Relocated rows no longer count as absent — no phantom deletions. Manual relocation apply is served by both editions: the appliance answers once the old copy is removed, and the managed edition queues `run-apply-relocation` and answers with a receipt (the managed route since 2026-08-16, workplan 0042 T2). ADR-0031's auto path applies them unattended where a mapping opts in.
+- A **relocation** (a disappeared item paired, by **content hash**, with an arrival of the same pass under a new key) is **positive evidence**: `apply` may remove the **old** copy. Recorded by key (`movedToNaturalKeyHash`), so a move and a rename are one event, never a phantom deletion; the old copy is copied again if its key returns (`relocated-away`; `move-detection.unit.test.ts`).
+- **ADR-0024's gates stand**, behind the same `allowApplyDeletions` switch; gate 3 admits the relocation through `relocationCheck`: the arrival is **ours** (`copied`/`updated`, never `adopted`), holds the **same `contentHash`** under another key and in another target object, and **no third item shares the hash**; else `relocation_unconfirmed` (`apply-relocation.unit.test.ts`).
+- **The target is asked** (`hasItem`, for the arrival) immediately before removal. An error is not absence; a target that cannot be asked refuses (`target_cannot_confirm`). The port: `TargetPresenceCheck` (`ports.ts`).
+- **Gate 6 has two halves** on one threshold and floor: pending deletions, and open relocations (`mass_relocation_suspected`). **Gate 7's** `UPDATE` re-checks the arrival and `keep` in the same statement; `keep` and `apply` exclude each other (`already_kept`). Held by `apply-relocation.unit.test.ts` and `ledger.integration.test.ts`.
+- A renamed or moved **exported document** (Google Doc, Sheet, Slides deck or Drawing; Dropbox Paper doc) is paired by its **Drive or Dropbox id**: a bytes pair where both copies' bytes match, else `moved_by_identity`, whose `apply` asks for the **same id** (`source_ref`) in place of the bytes checks (owner, 2026-09-23; 0150 D8; `a-rename-the-bytes-could-not-pair`, `a-paper-doc-exported-once`).
+- Both editions serve manual apply: the appliance answers once the old copy is gone; the managed edition queues `run-apply-relocation` and answers on a `relocation` receipt. Unattended apply is ADR-0031's and leaves identity pairs for a person (`paired_by_identity`). Held by `apply-routes.integration.test.ts`.
 
 ## [ADR-0031: Auto-applying relocations — what unattended would require](./0031-auto-apply-relocations.md)
 
@@ -339,24 +261,56 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0034: Personal, Organisation, Managed — naming the deployments, and giving each the configuration door it needs](./0034-appliance-configuration-surface.md)
 
-- Deployments are named **Personal / Organisation / Managed** (orthogonal to edition); an Organisation's ~1000 is migrated accounts run by a small admin team.
-- **Split by concern (owner, 2026-08-19):** topology's door differs — **files are Organisation's sole door, the UI is Personal's, the API/UI is Managed's**; credentials & grants live in the one secret store everywhere (ADR-0037); `passwordFromEnv`/`tokenFromEnv` stays per connection. Files never hold secrets.
-- No two-door merge machinery (no ownership column, no collision check). File-seeded rows record their origin path; Organisation's UI shows file topology read-only, naming the file.
-- The deployment mode is **explicit** (Personal default); contradictions refuse loudly (Personal+files at start; Organisation topology writes via UI/API). Deleting a file-declared connection revokes/parks its stored credential.
-- Authentication is a prerequisite for Organisation (decision 6, restated by ADR-0035).
-- Formally accepted 2026-09-20 (owner: "yes on all 3"); the reasoning and consequences stand as written.
+- Deployments are named **Personal / Organisation / Managed**, a runtime axis beside the
+  edition; an Organisation's ~1000 is **migrated accounts run by a small admin team**, not
+  interactive logins. A deployment-shape question is never answered with `isSelfHost`
+  (decision 1).
+- **Split by concern (owner, 2026-08-19):** topology's door is **files on Organisation (its
+  sole door), the UI on Personal, the API/UI on Managed**; credentials and grants live in the
+  one secret store everywhere (ADR-0037); `passwordFromEnv`/`tokenFromEnv` stays per
+  connection. Files never hold secrets (decisions 2–4).
+- No two-door merge machinery: no ownership column, no collision check, no file-versus-UI
+  precedence. File-seeded
+  rows record their origin path; Organisation's UI shows file topology read-only, naming the
+  file. Deleting a file-declared connection revokes or parks its stored credential via
+  `revokeCredentialRow`, never orphans it (decision 4).
+- The deployment mode is **explicit**, Personal by default. Contradictions refuse loudly,
+  naming the fix: Personal with files in `CONFIG_DIR` refuses to start; Organisation refuses a
+  topology write through the UI/API (decisions 1, 3).
+- Key mechanics are ADR-0037's (the env key wins; Personal generates a key file at first
+  store). A key file plus a different `SECRET_ENCRYPTION_KEY` **refuses the start**; the key is
+  part of the backup; evidence collection reports its ACL, never its contents (decision 5).
+- **Authentication is a prerequisite for Organisation** (decision 6, restated by ADR-0035):
+  off loopback, credential-editing routes stay closed until an **admin login and session**
+  exist — not per-user identity, not RBAC. Personal keeps its loopback bind as the boundary;
+  migrated people get a link, never an account.
 
 ## [ADR-0035: Who signs in, and who just gets a link](./0035-who-signs-in-and-who-gets-a-link.md)
 
-- **Owners sign in; migrated people get links, not accounts** — and the owner decides who gets a link to manage and **grant** their own migration (restated 2026-08-19).
-- **The link is per person** (owner, 2026-09-29; ADR-0050's person): one grant link and one progress link for all of a person's migrations, a grant asked and bound per Google account, and covering only the migrations the page showed. Built by workplan 0153 T5 (b).
-- **It replaces the per-migration link** (owner, 2026-10-03): no migration's page issues one any more. A per-migration link already sent is honoured until it expires, listed on the migration's page and revocable there, and a migration that belongs to nobody is given a person first (*Who is this for?*).
-- **Start when granted, per person** (owner, 2026-10-03): once the owner has started a person's move (*Start*, after a count they saw), each migration of theirs that waits for a grant starts by itself when the grant lands, recorded `via: 'grant'`, though the move is paused or finished since (*"was ever started"*). Before that first Start a grant starts nothing, and a migration the owner paused after it ran stays paused.
-- Only the migrated person holds their own source credential, never the organisation; admins see their whole family/organisation's progress.
-- `tenant_member` rows sign in; mappings get links. Organisation-held credentials (Box CCG, app-only Graph, DWD) **cannot be narrowed** — stated, not hidden.
-- Formally accepted 2026-09-20 (owner: "yes on all 3"); the 1/7/30-day link expiry presets stand.
-- The migrated person can **take their grant back** from their progress page: revoked at Google where Google will, deleted here whatever Google answers, and they are told which (0108 T8 (c), 2026-09-24). Until they grant again, nothing reads that account for that migration, on any credential.
-- The person holding a link can **report it** from the grant page or the progress page: a ticket on the owner's helpdesk, never a message to the organisation that asked, offered only where a helpdesk is set up (0108 T8 (d), 2026-09-24). A reply address is optional: a report without one is filed under the helpdesk's own user and cannot be answered (the owner, 2026-09-24).
+- **Owners sign in; migrated people get links, not accounts** (decisions 1, 7) — persons or
+  migrators, never `member`s. Admins see their whole family's or organisation's progress
+  (decision 5); nobody is a seat to bill (decision 6).
+- **Only the migrated person holds their own source credential, never the organisation**
+  (decision 4). Organisation-held credentials (Box CCG, app-only Graph, DWD) **cannot be
+  narrowed** — stated, not hidden (decision 3).
+- The owner decides who gets a link to manage and **grant** their own migration, and
+  **distributes it; we never do** (decision 2). Grant links live 1, 7 or 30 days; progress links
+  longer, never showing content (`migration-view.ts`).
+- **One link per person** (owner, 2026-09-29 and 2026-10-03; ADR-0050): a grant link and a
+  progress link for all their migrations, granting per Google account only what the page showed.
+  It replaces the per-migration link; one already sent is honoured until it expires.
+- **Start when granted, per person** (owner, 2026-10-03): once the owner has started a person's
+  move, each migration of theirs waiting for a grant starts when it lands (`via: 'grant'`).
+  Before that first *Start* a grant starts nothing; a migration the owner paused stays paused.
+- The person can **take their grant back**, per account: revoked at Google where it will, always
+  deleted here, and told which; until they grant again nothing reads that account
+  (`withdraw-grant.ts`).
+- A link can be **reported** from either page to the Ownpace team's helpdesk or support mailbox,
+  never to the organisation that asked; a reply address is optional (`link-reports.ts`).
+- **The provider's error text and failing items' names follow whose data it is** (owner, 2026-10-03;
+  decision 5): the progress page shows categories only; the owner sees them for accounts the
+  organisation connected, and for one a person granted only the category and a reference
+  (`whose-data.ts`).
 
 ## [ADR-0036: The managed edition is its own package and its own migration chain](./0036-the-managed-edition-is-its-own-package-and-its-own-chain.md)
 
@@ -378,25 +332,22 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0038: Operative rules — keeping a growing decision record loadable](./0038-operative-rules-and-the-growing-record.md)
 
-- Every ADR carries an **`## Operative rules`** section: 3–8 terse bullets stating what
-  holds NOW, amended **in place** when a later decision changes them. Everything below that
-  section stays append-only (hard rule 7 unchanged).
+- Every ADR carries an **`## Operative rules`** section stating what holds NOW, amended **in
+  place** when a later decision changes it, within ADR-0051's budget. Everything below it stays
+  append-only, or moves word for word to `docs/adr/history/` (ADR-0051).
 - **`OPERATIVE.md` is generated, never edited**: `node scripts/adr-operative.mjs --write`
   assembles it from the sections; the unit test fails any drift. It is build output of the
   ADRs, not a second source.
-- **Reading protocol** (AGENTS.md carries it): load `OPERATIVE.md` for constraints; open a
-  full ADR only to challenge or amend that decision; never bulk-read `docs/adr/`.
+- **Reading protocol** (AGENTS.md carries it): load `OPERATIVE.md` for constraints; open a full
+  ADR only to challenge or amend that decision; never bulk-read `docs/adr/`.
 - **Register rows are one sentence** — status, date, one qualifier. The register is the
   status index; the operative sections carry the substance; a row over ~400 characters
   fails the guard.
 - Where a rule is mechanically checkable, **the guard is the rule** (the ADR points at the
   test); prose that a test enforces cannot drift.
-- **Consolidation ADRs are the escape valve, used without hesitation** when a cluster stops
-  being followable across supersessions/conflicts: one new ADR restates the cluster's live
-  rules; the old files stay, gain a "superseded by" banner, and their operative sections
-  shrink to a pointer. A **conflict between Accepted ADRs is never resolved by
-  consolidation** — it is flagged in both operative sections and goes to the owner
-  (current instance: ADR-0009 vs ADR-0036 on open-core).
+- **Consolidation is used without hesitation** once a decision stops being followable: a single
+  ADR in place (ADR-0051), a cluster by one new ADR restating its live rules. A **conflict
+  between Accepted ADRs is never resolved by consolidation** — it goes to the owner.
 - Workplans follow the same interface rule going forward: the **Status block is the
   workplan's interface**; nobody should need the narrative to learn what was proved.
 
@@ -404,342 +355,173 @@ live in [README.md](./README.md), the register.
 
 - **No open-core, no private monorepo, no filtered mirror.** ADR-0009's answer stands and the
   question is **closed**, not open — superseding ADR-0036's "remains open" on this point only.
+  See *What the conflict actually was*.
 - **Revisit needs all three, not any:** the managed service has become the primary funding for
   sustained work; a resourced competitor has actually forked and is outcompeting us; and cost
-  recovery has demonstrably failed. Absent all three, this stays closed.
+  recovery has demonstrably failed. Absent all three, this stays closed. Why: *The reasoning,
+  including the premise that was wrong*.
 - **Two public Apache-2.0 repos** (the variant neither prior ADR named) is **declined**: the
   boundary's three guards each need one repo — the leakage walk's single import graph, the
   both-bundles build, and `two-chains` applying both chains to one database. Reconsider only
   on a *social* trigger (a separate contributor community around the core), never a technical one.
-- **"Private ops" means instance facts and secrets, never the recipe.** `deploy/` is public by
-  design — it is how an MSP runs their own managed instance. Instance facts (hostnames, IPs,
-  runner paths, project refs) ride env vars and repository variables; secrets are gitignored
-  and never in git. A private ops repo is warranted only if instance facts outgrow env vars,
-  and it holds *only* those, pointing at the public recipe.
-- The trademark is the **mission-compatible moat** — Apache-2.0 §6 grants no trade-mark
-  rights — but asserting it in `NOTICE` is **recommended, not yet decided**.
+- **"Private ops" means instance facts and secrets, never the recipe**: `deploy/` is public by
+  design, how an MSP runs its own instance. Instance facts ride env and repository
+  variables; secrets are gitignored, never in git. A private ops repo is warranted only if instance
+  facts outgrow env vars, and holds only them, pointing at the public recipe (*The ops-privacy
+  correction*).
+- The trademark is the **mission-compatible moat** — Apache-2.0 §6 grants no trade-mark rights.
+  This ADR recommended asserting it in `NOTICE` and did not decide it; it is asserted under
+  [ADR-0040](./0040-the-service-is-ownpace.md), guarded by
+  `scripts/notice-and-trademark.unit.test.ts`.
 
 ## [ADR-0040: The service is Ownpace; the project keeps its own name](./0040-the-service-is-ownpace.md)
 
-- **One name: Ownpace** (`ownpace.eu`) — service *and* project. The repository, every
-  copyright header, `NOTICE`, the README title, the API title and the root package all say
-  Ownpace. The project/service split this ADR first recorded lasted one day and is superseded
-  by the owner's 2026-08-20 instruction; the reasoning that produced it is kept above.
-- **Never draw a name from the category's own vocabulary.** Three rounds found a prior user
-  each time: *migrate* → TSG's OpenMigrate (2006); *safe* → SETsafe; *keep* → Keepit A/S.
-  A candidate gets a prior-user check **before** a domain is bought, not after.
-- **A domain is not clearance.** DNS availability is a hint (port 43 and RDAP are blocked from
-  our sandbox, so even "unregistered" is unproven); **TMview classes 9, 38 and 42** before any
-  filing or any assertion of the mark.
-- The **GDPR Article 20 framing belongs in the copy, never in the name** — "transmitted
-  directly from one controller to another, where technically feasible" is a claim no competitor
-  can take and no registry has to grant.
-- **Renamed to `ownpace-*`:** compose project, container, network and volume names, the
-  persist directory, and future GHCR image names. **This is not a rename on a live stack** —
-  a compose project rename detaches its volumes, so an operator with data must destroy the old
-  project deliberately (`docker compose -p <old> down -v`) rather than discover it. Done here
-  only because nothing was live.
-- **Kept, deliberately:** the npm scope **`@openmig/*`** (13 packages, all `private: true`), and
-  everything that follows it — the `openmigrate` Postgres role/database and the
-  **`openmigrate_*` Prometheus metric prefix**, which a rename would silently break for every
-  existing dashboard and alert. Rule of thumb: rename what is named after the *product*, keep
-  what is named after the *scope*.
+- **One name: Ownpace** (`ownpace.eu`), service *and* project: the repository, every copyright
+  header, `NOTICE`, the README and API titles and the root package. The split this ADR first
+  recorded is superseded (owner, 2026-08-20; the updates above).
+- **Never draw a name from the category's own vocabulary**: a candidate gets a prior-user check
+  **before** a domain is bought (*Context*). The **GDPR Article 20 framing belongs in the copy,
+  never in the name** (*Alternatives considered*).
+- **A domain is not clearance.** DNS availability is a hint; **TMview classes 9, 38 and 42**
+  before any filing or any assertion of the mark (*The trade-mark check*).
+- **Renamed to `ownpace-*`:** compose project, container, network and volume names, the persist
+  directory, and GHCR image names after the rename. **This is not a rename on a live stack**: it
+  detaches the volumes, so an operator with data destroys the old project deliberately
+  (`docker compose -p <old> down -v`): `docs/managed-bring-up.md`.
+- **Kept, deliberately:** the npm scope **`@openmig/*`** (13 packages, all `private: true`), the
+  `openmigrate` Postgres role/database and the **`openmigrate_*` Prometheus metric prefix**.
+  Rename what is named after the *product*, keep what is named after the *scope*
+  (`CONTRIBUTING.md`).
 - **An image already published never moves.** Tags up to `v0.1.0-rc.1` live at
   `ghcr.io/robbes/open-migrate-selfhost` forever; `v0.1.0` on lives at `ownpace-selfhost`.
-  `scripts/upgrade-drill.sh` derives its registry from the tag for exactly this reason — a
-  hardcoded path makes the drill pull a tag that does not exist, silently, from the script whose
-  job is proving upgrades work. The cosign identity regexp matches **both** repo paths.
-- **The mark is asserted in `NOTICE`** — the one restriction on an otherwise permissive
-  licence, guarded by `scripts/notice-and-trademark.unit.test.ts`. It is an **unregistered**
-  claim: no `®`, no "registered trade mark of". The assertion states what needs **no**
-  permission (nominative use, forking, private instances) as explicitly as what does, so it
-  cannot be misread as a restriction on the code.
-- **Still OPEN, the owner's, not to be inferred:** whether to file an EUTM (a separate step
-  from asserting — see the two extra searches named below); the legal proprietor named in
-  `NOTICE`, currently "the Ownpace project maintainers" rather than a company; and whether the
-  post-cutover backup gets its own brand or is a plan name under Ownpace.
+  `scripts/upgrade-drill.sh` derives its registry from the tag; every documented cosign identity
+  regexp accepts **both** repository names and no other
+  (`a-signature-checked-under-either-name.unit.test.ts`).
+- **The mark is Archico B.V.'s; the copyright stays The Ownpace authors'** (owner, 2026-10-03).
+  `NOTICE` names the owner `TRADEMARK.md` names, claims no registration (no `®`), and states what
+  needs **no** permission as explicitly as what does: `scripts/notice-and-trademark.unit.test.ts`.
+- **An EU application follows the Benelux one**, after the two searches *The trade-mark check*
+  names; **the post-cutover backup has no brand of its own**, being the continuous lane of
+  ADR-0014 (owner, 2026-10-03: *"yes"*).
 
 ## [ADR-0041: Who owns the OAuth client — the managed edition brings its own, the appliance never does](./0041-who-owns-the-oauth-client.md)
 
-- **Verification has a published surface, and it is the same surface the GDPR needs.** A
-  privacy policy and terms on `ownpace.eu`, a support address that a person answers
-  (**support@ownpace.eu**), an app logo of at least 120×120, and an in-product disclosure before
-  the consent screen. Drafted in [`site/legal/`](../../site/legal/) and
-  [`site/brand/`](../../site/brand/); the checklist and every unverified Google claim are in
-  [`docs/google-oauth-verification.md`](../google-oauth-verification.md).
-- **The Limited Use commitments are made in the privacy policy and are true of the code**: the
-  data serves only the migration the user configured, goes only to the target they chose, is
-  never used for advertising or model training, and is never read by a person outside the
-  narrow cases the policy names. Two structural facts carry more weight than any promise —
-  **Google is never a migration target**, and **nothing is ever deleted at the source**.
-- **The redirect endpoint is `/api/migrations/google/callback`, never `/webhooks/…`.** An OAuth
-  redirect is a **browser GET carrying the user's authorization code**; a webhook is an
-  unauthenticated server-to-server POST. Filing the callback under a webhook path is how it ends
-  up mounted in a router that skips CSRF and accepts POST, which is precisely the mapping-hijack
-  that 0089 T1's signed `state` exists to prevent. Different trust model, different route tree,
-  different name. (This bullet originally named `/oauth/google/callback`; 0089 T1 shipped the
-  route at `/api/migrations/google/callback`, which keeps the same trust property, and the
-  registered URIs in [`docs/google-oauth-verification.md`](../google-oauth-verification.md) §4b
-  must carry the path the code actually serves.)
-- **No authorized JavaScript origin is registered.** The flow is server-side
-  authorization-code: the browser is redirected, and the token exchange happens on the server
-  with the client secret. A JS origin is only needed for browser-side OAuth, which this is not,
-  and registering one that nothing uses widens the client for no benefit.
-- **Environments get separate CLIENTS, not separate paths on one host.** Test and production
-  sharing an origin share a cookie jar and a `state`-signing context, so a bug in test reaches
-  production sessions. One client per environment also means a leaked test secret is not a
-  production incident. Where one client must serve both, they get separate **hosts** at
-  minimum — never `/x/` and `/_ota_/x/` on the same origin.
-- **The canonical host is decided once and registered exactly.** Google matches the redirect URI
-  byte-for-byte before any redirect of ours runs, so `www` vs apex is a real choice and not a
-  formatting detail: an apex-canonical site with a `www` URI registered fails before it starts.
-  Register the host the service actually serves on, and the same host the privacy policy and
-  home page are verified on.
-- **The appliance never carries an Ownpace OAuth client secret.** Shipping one publishes it,
-  which breaks Google's terms and makes one leak everybody's problem. Bring-your-own client
-  stays the appliance's only mode, and `no-managed-leakage` (ADR-0036) is what keeps it true.
-- **The managed edition brings its own verified client, and it is a managed-only secret** —
-  `@openmig/managed`, same store and key provider as every other credential (ADR-0037). A
-  managed customer clicks **Allow**; nobody opens a Google Cloud console.
-- **Verification is bought per scope class, cheapest first.** Contacts and calendar are
-  *sensitive* — brand review only. Gmail and Drive are *restricted* — brand review **plus** an
-  annual third-party security assessment. So contacts and calendar ship on the managed client
-  first, and mail and files stay bring-your-own until the assessment is actually paid for.
-  The owner's stated intent (2026-08-26) is to buy the assessment for **Drive, later**; mail
-  stays outside it — the app-password fallback (0089 T7) plus bring-your-own cover it. An
-  intent is not a purchase: nothing may be offered on the managed client until the assessment
-  actually exists. Whatever is not yet covered says so on the page rather than failing at the
-  consent screen.
-- **WHAT A DEPLOYMENT'S OWN APPLICATION CARRIES IS A FACT ABOUT THAT DEPLOYMENT, AND IT IS
-  DECLARED** (owner decision, 2026-09-01). The bullet above reads as a law about the product;
-  it was a law about *one* client, written when there was one. A deployment whose Google
-  application genuinely carries restricted scopes — because its owner registered them and
-  accepts the consequences — may offer all four faces on the account consent, and says so in
-  `GOOGLE_ACCOUNT_SCOPE_CLASS`. The default is `sensitive`, so nothing changes for a
-  deployment that does not answer, and the appliance never has an application at all.
-  **The bullet above still holds for the client Ownpace publishes to strangers**: that one
-  offers contacts and calendar until the assessment is paid for. What is now separable is the
-  reference deployment's own client, in Testing status with listed users, where the population
-  the restricted tier would be imposed on is the owner and people they named.
-- **A DECLARATION IS NOT A CAPABILITY.** Setting it does not make Google grant anything: the
-  application must actually carry the scopes, and Google refuses at its own screen if it does
-  not. What the declaration changes is which consent this product is willing to BUILD — so a
-  wrong answer costs a refusal at Google with the scope in hand, never a silent narrowing.
-  And in **External + Testing** it costs one more thing, which the setting's own documentation
-  must say: refresh tokens die after seven days (see the publishing-status bullet below).
-- **A DEPLOYMENT MAY CARRY ITS OWN CLIENT, AND THE CONNECTION THEN STORES NEITHER HALF OF IT**
-  (owner decision, 2026-09-01 — option B). `GOOGLE_OAUTH_CLIENT_ID` and
-  `GOOGLE_OAUTH_CLIENT_SECRET` are configured once, so nobody types a client secret into a
-  wizard: the connection keeps only the refresh token, which is the per-account half, and the
-  client is read at the moment a token is minted. The alternative — copying the pair into every
-  connection's encrypted store — works today and makes rotation a migration. This makes it one
-  `.env` edit and a restart. The cost, named because it is real: a connection is no longer
-  self-describing, and moving one to another deployment means that deployment needs a client
-  too. **A connection carrying its own pair always wins** — this is a fallback, never an
-  override, or owning a client would stop being a choice. **Both variables or neither**: half a
-  pair is refused with the missing name, never mixed with the other half. A connection's *own*
-  pair obeys the same rule at every door — wizard, API, add-form, rotation and the consent itself
-  alike: half of one is refused where it is sent, never completed with the deployment's other
-  half (nor a consent run against an application the caller did not name), because the
-  fallback fills only the missing key and a mixed pair fails at Google's token endpoint hours
-  later, from a sync log. And the fallback is gated on a GOOGLE connection kind, because
-  `clientId`/`clientSecret` are shared key names — Dropbox stores its App key and App secret
-  under exactly those.
-- **The API and the WORKER are supplied by different mechanisms, and both must be.** `managed.yml`
-  names the two variables on the API service; `set-task-env.sh` uploads them to the worker,
-  because a Trigger.dev task container inherits nothing from compose. Wiring only the first is
-  the worst available split: the consent is built, Google approves it, the connection tests
-  green, and every sync pass then fails to mint a token in a log nobody is watching.
-- **THE DECLARATION IS SERVED, NEVER MIRRORED INTO A BUILD.** It is read at run time by the API
-  and answered to clients at `GET /api/provider-accounts`; the browser bundle asks. There is
-  deliberately no `VITE_` twin — that would be two separately settable copies of one fact, which
-  is how a screen comes to offer what the server refuses, and worse, how a consent comes to ask
-  for scopes no mapping can carry. Every failure to ask falls back to the narrow answer, the one
-  that cannot over-ask.
-- **The declaration gates MAKING a mapping, never RUNNING one.** The consent this product
-  builds and the ticks the create door accepts follow it; the source builders do not. A grant is
-  the authority once it exists, so unsetting the variable must not break migrations that already
-  hold one — and a token that never carried the scope is refused by Google, which is the check
-  that actually matters.
-- **Owning a client never widens a grant.** Same scopes, same per-user consent, same read-only
-  posture, same revocation by the account holder in their own Google settings. What changes is
-  who registered the client, not what the token can read — and the consent screen must show the
-  scopes rather than a friendly summary of them.
+- **The appliance never carries an Ownpace OAuth client secret**: bring-your-own is its only
+  mode, held by shipping none — the deployment's pair lives in a managed `.env` that only
+  `managed.yml` names. **A managed deployment brings its own verified client**, so a customer
+  clicks **Allow** (points 1–2).
+- **A connection's own client pair always wins; the deployment's**
+  (`GOOGLE_OAUTH_CLIENT_ID`/`_SECRET`, option B) **is a fallback**, and a connection using it
+  stores only its refresh token. **Both or neither**, for the deployment's variables and at every
+  door: half a pair is no client, refused by the missing name. The worker gets the pair too
+  (`a-client-the-worker-never-got.unit.test.ts`).
+- **The assessment buys convenience, never capability**: every source migrates free through the
+  customer's own client. Ownpace's published client adds Gmail and Drive (restricted) only once an
+  assessment exists; Drive's is intended, not bought, and mail stays outside it (point 3).
+- **What a deployment's own application carries is declared** (`GOOGLE_ACCOUNT_SCOPE_CLASS`,
+  default `sensitive`), and is not a capability: served by `/api/provider-accounts`, never
+  mirrored into a build, gating making a mapping, never running one
+  (`a-ceiling-the-screen-could-not-see.unit.test.ts`).
+- **Owning a client never widens a grant**; the consent page shows the scopes as scopes, not only
+  as a paraphrase (`Grant.unit.test.tsx`, *Decision* 4).
 - **Never "External + Testing" for a real migration.** Google expires refresh tokens after
-  **seven days** in that publishing status, which reads as a random `invalid_grant` weeks in.
-  Both editions' setup paths must steer to Internal (Workspace) or Production (personal), and
-  the refusal for an expired token must name this cause first.
-- **The assessment buys CONVENIENCE, never CAPABILITY, so it is always deferrable.** Every
-  source is migratable today at zero cost through the customer's own client — Workspace via
-  Internal consent, personal Google via External+Production. What an assessment buys is a popup
-  instead of a console, for consumers, in the managed edition. Nothing is ever gated behind it,
-  and if it is paid it is funded like every other cost (ADR-0014), never as a line named after
-  a Google audit.
-- **An ACCOUNT password is closed; an APP password is not. Do not conflate them** — this ADR did,
-  in both directions, in one sitting. Google withdrew account-password sign-in for third-party
-  clients ([answer/6010255](https://support.google.com/mail/answer/6010255)) **and separately
-  keeps app passwords as the documented fallback** *"als Inloggen met Google niet beschikbaar is
-  voor de app"* ([answer/185833](https://support.google.com/accounts/answer/185833)), 2SV
-  required, and labelled *afgeraden*.
-- **Personal Gmail may therefore be connected with an app password, as an opt-in fallback that is
-  never the default.** Gmail is already an IMAP source (`gmail-source-factory.ts:218`) and
-  `imapflow-source.ts:129–132` already carries the plain-password branch, so this is a credential
-  choice rather than a connector — same folder view, same Message-ID natural key, no fidelity
-  loss. It must be offered with Google's own discouragement quoted, not laundered.
-- **It narrows the restricted-scope exposure to Drive alone**, which is the practical point:
-  contacts and calendar are *sensitive* (cheap verification), personal mail can avoid OAuth
-  entirely, and Drive is then the only product for which an assessment could ever be worth
-  buying. Workspace cannot use this (app passwords are withdrawn or admin-disabled there) and
-  does not need to — Internal consent is already free.
-- **Drive has no password path at all and we do not invent one.** No such protocol exists, and
-  Takeout is a snapshot rather than a sync — this product sells a period, not a copy.
-- **Gmail IMAP is always on since March 2025** (*"Vanaf maart 2025 is de optie om IMAP aan of uit
-  te zetten niet meer beschikbaar. IMAP-toegang staat altijd aan in Gmail"*), so no setup path
-  should ask a personal-account user to enable it, and no refusal should suggest it as a cause.
+  **seven days** in that publishing status, which reads as a random `invalid_grant` weeks in;
+  setup steers to Internal or Production, and the refusal names that cause first
+  (`google-token-provider.unit.test.ts`).
+- **The client is registered exactly** (*Registering the client*): callback
+  `/api/migrations/google/callback`, never `/webhooks/…`; no JavaScript origin; a client per
+  environment; one canonical host; a published surface; Limited Use true of the code.
+- **Personal Gmail may use an app password** (not the closed account password): opt-in, never the
+  default, Google's discouragement quoted (`gmail-source-factory.unit.test.ts`). Drive has no
+  password path; nothing asks anyone to enable IMAP.
 
 ## [ADR-0042: Who holds the passwords — an issuer we can replace](./0042-who-holds-the-passwords.md)
 
-- **The managed edition authenticates against an external OIDC issuer.** Ownpace stores
-  no passwords, and there is no password column in either migration chain. The
-  appliance is unaffected: it has one owner and no accounts (hard rule 5).
-- **The issuer owns identity; `tenant_member` owns tenancy.** A token carries `sub`
-  and `email` and nothing Ownpace-specific. Which tenant a session acts on, and with
-  what role, is read from `tenant_member` at request time — never trusted from a claim.
-- **Because of that rule, the issuer is REPLACEABLE**, and the integration must stay
-  inside plain OIDC discovery + authorization-code + PKCE + JWKS. No issuer-specific
-  API, no issuer-side tenancy model, no issuer-side roles. This is what makes the
-  choice below reversible, and it is the point of the ADR. **Enforced**, not
-  remembered: `apps/api/src/middleware/no-issuer-lock-in.unit.test.ts` scans the
-  shipped source of `apps/` and `packages/` and fails on a provider name or endpoint
-  path; `issuer-is-replaceable.unit.test.ts` drives the real verification path with
-  both providers' discovery documents.
-- **Every endpoint is DISCOVERED, never composed** — on both sides of the wire.
-  `getJWKS` reads `jwks_uri` from the issuer's `/.well-known/openid-configuration`,
-  and the browser reads `authorization_endpoint` and `token_endpoint` from the same
-  document (`apps/web/src/services/oidc.ts`). Both refuse a document whose `issuer`
-  does not match the configured one (OIDC Discovery §4.3). `JWT_JWKS_URI` exists as an
-  escape hatch and is not the normal path.
-- **The browser client is PUBLIC and holds no secret.** The web app is a single-page
-  app, so a confidential client would mean shipping a secret to every visitor. The code
-  exchange is proven by a PKCE verifier (S256) that never leaves the tab that minted it.
-- **Zitadel is the accepted issuer**, self-hosted beside the managed stack against the
-  Postgres it already runs. Pinned by version; upgrades are deliberate, never automatic.
-  Switching is four environment variables and a rebuild — `JWT_ISSUER`, `JWT_AUDIENCE`,
-  `VITE_OIDC_ISSUER`, `VITE_OIDC_CLIENT_ID` — which was the owner's condition for
-  accepting it.
-- **The appliance never gains an issuer dependency**, enforced by
+- **The managed edition authenticates against an external OIDC issuer; Ownpace stores no
+  passwords** (no password column in either migration chain). **The appliance never gains an
+  issuer dependency** (one owner, no accounts; hard rule 5):
   `apps/selfhost/src/no-managed-leakage.unit.test.ts`.
-- **Signing out ends the ISSUER'S session, not only this tab's** (2026-09-01). `logout()`
-  cleared the store and `localStorage`, which left the issuer's cookie alive: pressing
-  "Sign in" afterwards completed the whole authorization-code round trip with no prompt
-  and put the same person straight back in. On a shared or borrowed machine that is an
-  account handover. The web app now follows `end_session_endpoint` from the discovery
-  document with `id_token_hint` and the registered `post_logout_redirect_uri` — plain
-  RP-Initiated Logout 1.0, no issuer-specific call, so the replaceability rule above
-  holds. The local half happens first and unconditionally: an issuer that publishes no
-  such endpoint, or cannot be reached, leaves somebody signed out here rather than stuck.
-- **The answer to a question you asked is not an invitation** (owner decision,
-  2026-09-01). Workplan 0099 made joining a question because `members.ts` lets anybody
-  inside an organisation add any address to it, and binding on sight meant reading your
-  own account joined you to a stranger's organisation. That stands. But a GRANTED ACCESS
-  REQUEST is a different event — the person asked, an operator said yes, and the
-  organisation was created for them with them as its only owner — and asking again is
-  asking the same question twice. `tenant_member.origin` (managed 0021) records which
-  event wrote the row: `requested` binds on the first sign-in with a VERIFIED address,
-  `invited` still asks. The default is `invited`, so an unrecorded origin fails towards
-  asking.
-
-### Amended 2026-08-25 — `sub` is the identity, email is a label
-
-Three questions arrived at once (a second sign-in method, changing your login
-address, and whether the seed-token box still has a job), and all three turn on
-one rule that was implied by the operative rules above and never written down.
-
-- **`tenant_member.user_id` IS the token's `sub`.** `lookupMemberships` filters
-  on it; `resolveTenant` refuses when it finds nothing. Email appears nowhere in
-  that lookup.
-- **A flow that PRESERVES `sub` is safe. A flow that mints a NEW `sub` orphans
-  the membership** — the person is still a member of an organisation their new
-  subject cannot reach, and the API answers 403 on every route.
-- So **changing somebody's email inside their existing account is safe by
-  construction**, and **a second account for the same person is the failure**.
-  This is the whole content of "configure account linking": not a preference,
-  a correctness requirement, and it has to be decided before a second sign-in
-  method is offered rather than after.
-- **A second method must never become the only method on an account.** Removing
-  the last remaining one strands the subject, and for somebody whose reason for
-  using this product is to leave a platform, making that platform the key to
-  their account is a dependency rebuilt in a new place.
-- **Federation belongs in the issuer, never in the app.** "Login with Google" as
-  app code is exactly what the third operative rule forbids, and
-  `no-issuer-lock-in.unit.test.ts` rejects it. Upstream providers are configured
-  in the issuer, which keeps `iss` ours, keeps `sub` ours, and keeps the
-  integration inside plain OIDC — which is the property that makes any of this
-  reversible.
-
-Nothing in this amendment is built. It records the decision the three tasks in
-`docs/workplans/0102-who-your-account-is.md` depend on.
+- **The issuer owns identity; `tenant_member` owns tenancy.** A token carries `sub` and `email`
+  and nothing Ownpace-specific; tenant and role are read from `tenant_member` per request, never
+  trusted from a claim: `apps/api/src/middleware/tenant-resolution.unit.test.ts`.
+- **Because of that rule, the issuer is REPLACEABLE**: the integration must stay inside plain
+  OIDC discovery + authorization-code + PKCE + JWKS. No issuer-specific API, no issuer-side
+  tenancy model, no issuer-side roles. Guards:
+  `apps/api/src/middleware/no-issuer-lock-in.unit.test.ts`, `issuer-is-replaceable.unit.test.ts`.
+- **`tenant_member.user_id` IS the token's `sub`; email is a label.** A new `sub` orphans the
+  membership, so linking is decided before a second method is offered: a verified email links
+  unprompted; Microsoft creates no account by itself; a provider may be an account's only method
+  (owner, 2026-10-03). **Federation belongs in the issuer**:
+  `scripts/a-second-door-with-the-linking-decided.unit.test.ts`.
+- **Every endpoint is DISCOVERED, never composed**: `jwks_uri` by the API; `authorization_endpoint`,
+  `token_endpoint` and `end_session_endpoint` by the browser, a **PUBLIC client, no secret**,
+  whose PKCE verifier (S256) never leaves its tab. A document naming another `issuer` is
+  refused; `JWT_JWKS_URI` is the escape hatch:
+  `issuer-is-replaceable.unit.test.ts`, `oidc.unit.test.ts`.
+- **Zitadel is the accepted issuer**, self-hosted on the managed Postgres. Pinned by version;
+  upgrades are deliberate, never automatic (`scripts/a-pin-that-knows-it-is-behind.unit.test.ts`).
+  Switching is four variables and a rebuild: `JWT_ISSUER`, `JWT_AUDIENCE`, `VITE_OIDC_ISSUER`,
+  `VITE_OIDC_CLIENT_ID` (`scripts/idp-wiring.unit.test.ts`).
+- **Signing out ends the ISSUER'S session, not only this tab's**: RP-Initiated Logout through the
+  discovered `end_session_endpoint`, with `id_token_hint` and the registered
+  `post_logout_redirect_uri`. The local half happens before the browser leaves for the issuer:
+  `apps/web/src/components/SignOut.tsx`, `oidc.unit.test.ts`.
+- **The answer to a question you asked is not an invitation** (owner, 2026-09-01): a granted
+  access request (`tenant_member.origin` `requested`, managed migration 0021) binds at the first
+  VERIFIED sign-in; an invitation (`invited`, the default) still asks:
+  `apps/api/src/routes/access-requests-operator.integration.test.ts`.
 
 ## [ADR-0043: A migration is silent by default — outward mail is a human-pressed action](./0043-a-migration-is-silent-by-default.md)
 
-- **No write this product makes to a target may cause the target to send mail
-  or notifications to third parties, unless a person pressed a control that
-  says so.** The precedent is ADR-0032 / workplan 0052, which made every
-  share grant a one-at-a-time, human-confirmed action labelled as
-  outward-facing in the UI. This ADR generalises that posture to calendars —
-  where RFC 6638 makes a scheduling-enabled target the mailman *by default* —
-  and to any domain added later.
-- **The copy stays faithful; the side effects are what we suppress.**
-  `ATTENDEE` and `ORGANIZER` are data a person still wants in their own copy
-  of an event. They are never stripped. What changes is transport metadata:
-  `SCHEDULE-AGENT=CLIENT` on every `ATTENDEE` and `ORGANIZER` the calendar
-  writer PUTs (0103 T1), which RFC 6638 defines as "the server stores and
-  sends nothing". An explicit `SCHEDULE-AGENT=SERVER` from the source is
-  rewritten too — it was true where the event lived; carried over, it re-fires
-  years-old invitations. Explicit `CLIENT`/`NONE` are kept byte-for-byte.
-- **The same rule covers deletion.** Take-back and the gated apply-deletion
-  path delete organiser copies, which fans out CANCEL under the same RFC.
-  Neutralised objects do not CANCEL on honouring servers; `Schedule-Reply: F`
-  on our DELETEs (0103 T5) is the belt for attendee-side replies.
-- **Silence is proved, not assumed.** The managed gate seeds an
-  attendee-carrying event and asserts the catcher stays empty across sync and
-  take-back (0103 T2), and asserts the neutralised bytes on the target.
-  Whether a given customer target *honours* the parameter is a measured fact
-  per mapping (0103 T3), never an assumption — servers that ignore it exist.
-- **Target-side switches are an operator's migration-window decision, never a
-  silent default.** Nextcloud's `sendInvitations` and Stalwart's scheduling
-  toggle are instance-wide: flipping them on a customer's live server
-  silences their real users too. The tool documents them (0103 T4) and does
-  not touch them.
+- **No write this product makes to a target may cause the target to send mail or notifications
+  to third parties, unless a person pressed a control that says so.** This extends ADR-0032's
+  posture for shares (workplan 0052) to calendars, where RFC 6638 makes a scheduling target the
+  mailman by default, and to any domain added later:
+  `docs/workplans/0103-the-mail-a-migration-must-not-send.md`.
+- **The copy stays faithful; the side effects are what we suppress.** `ATTENDEE` and `ORGANIZER`
+  are never stripped: the calendar writer sets `SCHEDULE-AGENT=CLIENT` on every one it PUTs
+  (0103 T1). An explicit `SCHEDULE-AGENT=SERVER` from the source is rewritten too; explicit
+  `CLIENT`/`NONE` are kept byte-for-byte: `packages/shared/src/calendar-scheduling.unit.test.ts`.
+- **The same rule covers deletion.** Take-back and the gated apply-deletion path delete organiser
+  copies; neutralised objects send no CANCEL on honouring servers, and `Schedule-Reply: F` on our
+  DELETEs (0103 T5) is the belt for attendee-side replies:
+  `packages/engines/src/dav-remove.unit.test.ts`.
+- **Silence is proved, not assumed.** The managed gate seeds an attendee-carrying event and
+  asserts the catcher stays empty across sync and take-back, and the neutralised bytes on the
+  target (0103 T2): `scripts/the-mail-nobody-should-get.unit.test.ts`. Whether a customer target
+  *honours* the parameter is measured per mapping (0103 T3,
+  `packages/orchestration/src/target-scheduling.ts`), never assumed.
+- **Target-side switches are an operator's migration-window decision, never a silent default.**
+  Nextcloud's `sendInvitations` and Stalwart's scheduling toggle are instance-wide; the tool
+  documents them (0103 T4, `docs/dav-sync.md`) and does not touch them.
 
 ## [ADR-0044: The books are not ours — an external bookkeeping system is the record for invoices](./0044-the-books-are-not-ours.md)
 
-- **The legal system of record for invoices is Moneybird, not this product.**
-  Moneybird assigns the number, applies the tax rate, renders the document and
-  files it for the retention period. Ownpace is UPSTREAM of the record (it
-  pushes the billable period) and a MIRROR of it (number, issue date, PDF,
-  status pulled back).
-- **Ownpace never assigns an invoice number.** Gapless sequential numbering is
-  the artefact auditors check; it belongs to the system that owns it
-  (Moneybird's `invoice_sequence_id`). No code path may mint, alter or reuse a
-  number.
-- **Ownpace never renders an invoice document.** The customer — on the billing
-  page, by email, or via an operator (workplan 0110) — is served Moneybird's
-  PDF. Exactly one document may exist per sale; a second, self-rendered
-  artefact is the failure mode this rule exists to prevent.
-- **Creation is idempotent by `reference`.** Ownpace sets a period-derived
-  `reference` on create and looks it up (`find_by_reference`) before creating,
-  so a retried push cannot double-invoice — hard rule 1, satisfied at the seam.
-- **No VAT percentage lives in product code.** The treatment is selected as a
-  Moneybird `tax_rate_id` per invoice (workplan 0111 T3). `pricing.ts`'s
-  `VAT_RATE` constant is legacy display logic pending that task and must not
-  spread.
-- **An issued invoice is immutable in the mirror; a correction is a credit
-  note** issued by Moneybird and mirrored like any other document — never an
-  UPDATE to an issued row.
-- **The mirror is managed-chain data** (ADR-0036): the appliance carries no
-  invoice tables' behaviour and no Moneybird credential. Credentials ride the
-  vault/`.env`, never git, never the appliance image.
+- **The legal system of record for invoices is Moneybird, not this product.** Moneybird assigns
+  the number, applies the tax rate, renders the document and files it for the retention period. Ownpace is UPSTREAM of the
+  record (it pushes the billable period) and a MIRROR of it (number, issue date, PDF, status
+  pulled back): `packages/managed/src/moneybird-sales-invoices.ts`.
+- **Ownpace never assigns an invoice number.** No code path may mint, alter or reuse one; the
+  sequence is Moneybird's `invoice_sequence_id`:
+  `packages/managed/src/moneybird-sales-invoices.unit.test.ts`.
+- **Ownpace never renders an invoice document.** The customer, on the billing page, by email or
+  via an operator (workplan 0110), is served Moneybird's PDF: one document per sale
+  (*Consequences* below).
+- **Creation is idempotent by `reference`**: a period-derived `reference` is set on create and
+  looked up (`find_by_reference`) first, so a retried push cannot double-invoice (hard rule 1):
+  `packages/managed/src/moneybird-sales-invoices.unit.test.ts`.
+- **No VAT percentage lives in product code.** The treatment is a Moneybird `tax_rate_id` per
+  invoice (`packages/managed/src/moneybird-tax-rates.ts`); the legacy display logic's `VAT_RATE` in
+  `pricing.ts` must not spread: `scripts/a-rate-that-must-not-spread.unit.test.ts`.
+- **An issued invoice is immutable in the mirror; a correction is a credit note** issued by
+  Moneybird and mirrored, never an UPDATE to an issued row:
+  `packages/managed/src/invoice-refusal-under-rls.unit.test.ts` (managed migration 0014).
+- **The mirror is managed-chain data** (ADR-0036): the appliance carries no invoice tables'
+  behaviour and no Moneybird credential (`apps/selfhost/src/no-managed-leakage.unit.test.ts`).
+  Credentials ride `.env` (hard rule 3), never git, never the appliance image.
+- **Pending (decided 2026-08-29, confirmed 2026-10-03, not in force):** on erasure the mirror is
+  purged and only the Moneybird invoice numbers are kept (workplan 0111 T10). Until it is built,
+  erasure detaches the invoices and keeps them (`offboarding.ts`; *Pending* below).
 
 ## [ADR-0045: Migrations are hand-written SQL, applied by our own runner](./0045-migrations-are-hand-written-sql.md)
 
@@ -751,199 +533,162 @@ Nothing in this amendment is built. It records the decision the three tasks in
 
 ## [ADR-0046: A rendering is compared by its parts, not by its bytes](./0046-a-rendering-is-compared-by-its-parts.md)
 
-- **BUILT, BUT NOT YET REACHING THE LEDGER (0042 T8 (e)).** A rendering a source marks as such
-  (`RawFileItem.rendering`, set by Drive's `files.export` branch and, since 2026-09-28, by
-  Dropbox's `files/export`) is meant to be hashed by
-  `containerContentHash`, with the target re-read in the row's own scheme and the confirmed list
-  saying `container-parts` rather than "by hash". All of that is built, and none of it is reached:
-  the file pass's `fetchRaw` drops the marker, so every export is stored with a whole-file hash.
-  `nativeFilePolicy` still defaults to `refuse` — that is the owner's per-migration choice and
-  always was — but choosing `export-office` is a supported thing to do.
-- **NO COMBINATION IS REFUSED FOR WHAT IT MEASURED (since 2026-09-23).** From 2026-09-16 the
-  connector refused a Google Slides file under `export-office` and a Doc under `export-odf`,
-  whose exports differ in content between two draws of an unchanged file, because copying one
-  meant copying it again on every pass. That no longer follows: a rewrite follows the source's
-  version, which for a Google document is its `modifiedTime` (#1083), and a renamed document is
-  paired by its Drive id ([ADR-0030](./0030-relocation-is-positive-evidence.md), amended), so
-  nothing depends on the bytes. Every format carries every kind, chosen per kind (0042 T9).
-  `EXPORT_STABILITY` stays as the record of what was measured, and the instrument measures
-  through the connector like any caller. The preflight still counts what a choice leaves behind,
-  a kind set not to export, and the confirm screen names it before the run.
-- **A DROPBOX PAPER DOC FOLLOWS THE SAME TWO RULES (workplan 0150 D8, since 2026-09-28).**
-  Exported through `files/export` in the format the migration chose, Markdown or HTML (0150 T3,
-  T4), it is rewritten when the listing's version moves (`content_hash`, else
-  `server_modified`), never on the export's bytes, and a renamed one is paired by its Dropbox id
-  ([ADR-0030](./0030-relocation-is-positive-evidence.md), amended). Neither format is a zip, so
-  its stored hash is the whole file's.
-- **A rendering this product asked Drive to export into a zip is compared by its PARTS.**
-  `contentHash` over a canonical form: member names sorted, and for each, the sha256 of its
-  uncompressed bytes. Excluded — member timestamps, member order, compression method and level,
-  extra fields, archive comment. Every field that describes the zip rather than the document.
-- **sha256 of inflated bytes, NEVER the zip's stored CRC-32.** `drive-export-members.ts`
-  fingerprints members by the stored CRC-32 because it is free and it answers "what moved".
-  CRC-32 is 32 bits and not collision-resistant, and `contentHash` decides whether a customer's
-  file is rewritten. That value must never be derived from it.
-- **ONLY a rendering we asked for.** A `.zip` a customer stored is compared by its bytes like
-  any other file, because for that file the container IS the content. The narrow trigger is the
-  safety argument, not an implementation detail.
-- **A stored hash records its scheme, and schemes are never compared across.** A row whose
-  stored scheme differs from the current one is NOT evidence of change: recompute, store, and
-  do not re-copy on that basis. Without this rule, adopting the scheme rewrites every
-  already-migrated native file once.
-- **Verification says what it compared.** For structurally hashed rows, §20's report states
-  that the comparison was over the container's parts.
-- **WHAT THIS RESCUES IS A DOC AND A SHEET, NOT EVERY `export-office` FILE.** Measured
-  2026-09-16, after this was accepted: a **Sheet** fails container-only exactly as a Doc does
-  (5659 bytes every draw, all 10 members byte-identical, only stamps moved) and the structural
-  hash settles it. A **Slide does not**: five members genuinely change content
-  (`ppt/_rels/presentation.xml.rels`, two more `.rels`, `ppt/theme/theme1.xml`,
-  `ppt/theme/theme2.xml`), and two draws still differ once the container is normalised. So a
-  migration carrying Google Slides would still rewrite every deck on every pass. Enabling
-  `export-office` remains a separate per-migration choice AND now depends on what the Drive
-  holds.
-- **`export-odf` is NOT rescued by this either**, for the same reason one step earlier: its
-  `settings.xml` genuinely changes.
-- **The measured facts hold independently of the decision**, and there are now five of them.
-  A **`.docx` from a Doc** is byte-unstable ONLY in its zip container — all nine members
-  byte-identical across five draws while the member timestamps moved. An **`.xlsx` from a
-  Sheet**: the same, all ten members. A **`.pptx` from a Slide**: NOT only the container —
-  five members change content and the length oscillates by one byte. A **`.odt`** varies
-  `settings.xml`. A **`.pdf`** was byte-identical over five draws.
+- **A rendering in a zip is compared by its parts** (rule 1): member names sorted, each with the
+  **sha256 of its inflated bytes, never the stored CRC-32** (rule 2, cited as (b)).
+  [container-hash.ts](../../packages/shared/src/container-hash.ts); guard
+  `a-content-hash-built-from-thirty-two-bits`.
+- **Only a rendering this product asked for** (rule 3): bytes marked `RawFileItem.rendering` by
+  Drive's `files.export` or Dropbox's `files/export`; a customer's own `.zip` is compared by its
+  bytes. Guard `a-deck-that-would-be-rewritten-nightly`.
+- **A stored hash carries its scheme; schemes are never compared across**
+  (rule 4, cited as (d)): another scheme is **not evidence of change** — recompute and store,
+  never re-copy on that alone. `sameFingerprintVersion`; guard `a-hash-compared-against-a-different-scheme`.
+- **Verification says what it compared** (rule 5): the confirmed list's `container-parts`
+  ([confirmed-list.ts](../../packages/shared/src/confirmed-list.ts)), the target re-read in the
+  row's scheme; §20's sample not yet (*Consequences*). **No part is declared "not the
+  document"** (rule 6): the hash settles `.docx`, `.xlsx`, `.ods`, `.odp`; not `.pptx` or `.odt`.
+- **Built, not reaching the ledger** (0042 T8 (e)): `fetchRaw` in
+  [dav-sync.ts](../../packages/core/src/dav-sync.ts) drops the marker, so every export is stored
+  with a whole-file hash; passing it through is still open.
+- **A rewrite follows the source's version, never an export's bytes, and a renamed export is
+  paired by its Drive or Dropbox id** ([ADR-0030](./0030-relocation-is-positive-evidence.md)).
+  So **nothing is refused for what it measured**. Tests: `a-deck-copied-once-not-nightly`,
+  `a-paper-doc-exported-once`.
+- **`nativeFilePolicy` defaults to `refuse`**; the owner chooses per migration and per kind
+  (0042 T9), and every format carries every kind. `EXPORT_STABILITY` records the measurements,
+  taken through the connector like any caller (`an-instrument-that-cannot-take-its-own-reading`),
+  and decides nothing. The confirm screen names a kind left behind.
 
 ## [ADR-0047: A rollback is a setback](./0047-a-rollback-is-a-setback.md)
 
-- A rollback is a **setback**: the cutover ledger goes to `ROLLED_BACK`, and the mapping goes back
-  to `active` when it was `cutover` or `continuous`. That is the whole of it. It never swaps
-  source and target, never writes to the source, never removes or copies anything on the target,
-  and never writes DNS (verify-only, owner 2026-07-16 — reverting the MX record is the operator's
-  hand). **A rollback of one data type** (`--kind`, amended 2026-09-26, workplan 0128 T5 slice
-  5b) sets back its own ledger and its own path alone; the migration's status is then its paths'
-  roll-up, and only mail has an MX record to point back.
-- **One implementation**: `performRollback` in `@openmig/core` (`cutover-rollback.ts`). The
-  operator CLI (`rollback --yes`) and the `run-rollback` Trigger.dev job are callers that gate,
-  print and notify; neither decides anything. Guards: `cutover-rollback.unit.test.ts`,
+- A rollback is a **setback**: the cutover ledger goes to `ROLLED_BACK` and the mapping back to
+  `active` from `cutover` or `continuous`; nothing else. It never swaps source and target, writes
+  the source or DNS, or removes or copies anything on the target; the MX record is the operator's
+  hand. Guard: `cutover-rollback.unit.test.ts`.
+- **A rollback of one data type** (`--kind`, workplan 0128 T5 slice 5b) sets back its own ledger
+  and path alone; the migration's status is its paths' roll-up, and only mail has an MX record to
+  point back. A whole rollback leaves a data type kept on its own in the lane (owner, 0128 D9;
+  ADR-0048). Guards: `a-cutover-of-one-data-type.unit.test.ts`, `a-door-moves-only-its-own-paths`.
+- **One implementation**: `performRollback` (`@openmig/core`, `cutover-rollback.ts`). The CLI's
+  `rollback --yes` and the `run-rollback` job only gate, print and notify. Guards:
   `cutover-commands.unit.test.ts`, `run-rollback.integration.test.ts`.
-- **Mapping first, ledger second, and every refusal before either write.** `ROLLED_BACK` admits
-  no second rollback, so the write that can be retried goes first. Half a rollback is the defect
-  this ADR ends.
-- **A rollback can be attempted again** (owner, 2026-09-20 — workplan 0009 T8): the state machine
-  admits `ROLLED_BACK → PREPARING`, as it always admitted `FAILED → PREPARING`. `start-cutover`
-  and the managed prepare job take that edge, recorded with the attempt number; the trail keeps
-  the first attempt. `COMPLETED` is the one terminal state. Guard: `cutover-state.unit.test.ts`.
-- The mapping half is decided by `rollbackTransition` in `@openmig/shared` (`lifecycle.ts`):
-  `cutover` and `continuous` → `active`; `active` and `paused` are left alone and the outcome says
-  why; `done` is **refused** — finishing is not undone by a rollback, for the same reason
-  `startTransition` refuses `done`. Guard: `a-rollback-is-a-setback.unit.test.ts`.
-- Which cutover states may roll back is the state machine's `isValidTransition(state,
-  'ROLLED_BACK')` — APPROVED, CUTOVER_IN_PROGRESS, GRACE_PERIOD and FAILED. `canRollback` derives
-  from it, and `rollbackAvailable` on a read is that predicate, never a constant. Guard:
+- **Mapping first, ledger second, and every refusal before either write**: `ROLLED_BACK` admits
+  no second rollback, so the write that can be retried goes first. Guard:
+  `cutover-rollback.unit.test.ts`.
+- **A rollback can be attempted again** (owner, 2026-09-20, workplan 0009 T8): `start-cutover`
+  and the managed prepare job take `ROLLED_BACK → PREPARING`, as from `FAILED`, with the attempt
+  number; the trail keeps the first attempt. `COMPLETED` alone is terminal. Guard:
   `cutover-state.unit.test.ts`.
-- Every mapping status change a rollback makes is recorded in `audit_log` as `mapping.status`
-  with `via: 'rollback'`, in the same transaction as the row (`mappingLifecyclePort` in
-  `@openmig/ledger`) — the record every other lifecycle write has left since workplan 0109.
+- **The mapping half is `rollbackTransition`** (shared `lifecycle.ts`): `cutover` and
+  `continuous` → `active`; `active`/`paused` untouched, saying why; `done` **refused**, as
+  `startTransition` refuses it. Guard: `a-rollback-is-a-setback.unit.test.ts`.
+- **Which states may roll back** is `isValidTransition(state, 'ROLLED_BACK')`: APPROVED,
+  CUTOVER_IN_PROGRESS, GRACE_PERIOD, FAILED. `canRollback` and a read's `rollbackAvailable` derive
+  from it, never a constant. Guard: `cutover-state.unit.test.ts`.
+- **Audited**: each mapping status change a rollback makes is a `mapping.status` record in
+  `audit_log` (`via: 'rollback'`), in the row's transaction (`mappingLifecyclePort`, ledger).
+  Guard: `run-rollback.integration.test.ts`.
 
 ## [ADR-0048: The mapping hears the cutover](./0048-the-mapping-hears-the-cutover.md)
 
-- The cutover ledger's **`execute`** (APPROVED → CUTOVER_IN_PROGRESS) and **`complete`**
-  (GRACE_PERIOD → COMPLETED) write `mailbox_mapping.status` as well as the ledger. A mapping that
-  is `active` or `paused` becomes **`cutover`**, and the source is no longer the authority on what
-  exists. `cutover`, `continuous` and `done` are left where they are — `done` with a warning that
-  a rollback will be refused for it. **For one data type** (`--kind`, amended 2026-09-26, 0128 T5
-  slice 5b) the same two steps move its own ledger and its own path, by the same rule asked of the
-  path's phase, and the migration's status becomes its paths' roll-up; only mail waits for an MX
-  record.
-- **A migration that was `active` at `execute` keeps being copied until the grace period ends**
-  (amended 2026-09-24, workplan 0128 T2, the owner's D1 (a): "bounded by the grace period, and
-  slotless"), under the after-cutover rules: what is new or changed is copied, no deletion is
-  mirrored, and no slot is held. Then no pass runs, and a data type still in its cutover when
-  its grace period ended, which nobody ended or kept, is said so on the Finish page and in the
-  digest (amended 2026-09-27, 0128 D7, T5 slice 7c: `cutoverGraceEndedAt`). One that was `paused`
-  stays stopped. `execute`
-  records the answer on the ledger row (`copies_through_grace`, ledger migration 0064), and every
-  gate asks `runsPassesNow` with the ledger's window: `CUTOVER_STILL_COPIES_WHERE` in SQL (the
-  managed tick, the appliance), `cutoverStillCopiesAt` in TypeScript. Since 0128 T5 slice 2b the
-  pass and the appliance ask it through the one reader's `anyRuns`, which also asks it of each
-  data type's own row, so a data type kept in the lane runs after the migration's window closes.
-  **Since slice 4 each data type has its own window** (amended 2026-09-26): its own cutover
-  ledger row's (`cutover_state.domain`, ledger migration 0067), or the whole migration's where it
-  has none. The tick schedules a migration while any of its windows is open, and its pass moves
-  past each data type whose own window is closed.
-- The decision is **`cutoverTransition` in `@openmig/shared`**, beside `rollbackTransition`, and
-  the two agree row by row: whatever a cutover stops, a rollback puts back to `active`.
-- **The mapping first, the ledger second**, and every refusal before either write — the order
-  ADR-0047 set, for the same reason: the retryable write goes first, and CUTOVER_IN_PROGRESS beside
-  a running mapping is the defect itself.
-- The mapping write is recorded in `audit_log` as `mapping.status` with **`via: 'cutover'`**, in
-  the same transaction as the row, by the same port the rollback writes through. **The mapping's
-  paths move with it in that transaction** (corrected 2026-09-24): `execute` and `complete`
-  release their slots, and a rollback takes them back, as the API's doors do (workplan 0109 T1b).
-  Only the paths in the phase the mapping leaves move (amended 2026-09-26, 0128 T5 slice 5a),
-  where its rows add up to its status: a data type in another phase keeps its own, so a pause or a
-  start of the rest never moves one back that was cut over on its own.
-- **`complete` closes the ledger, not the migration.** `done` is the end of the shadow sync, decided
-  by `finishTransition` with its rule about unresolved failures, and it stays where that rule
-  lives — the Finish page. After `complete` the mapping is `cutover` and the CLI says so. **For one
-  data type** (amended 2026-09-26, 0128 T5 slice 7a) its own *End* and *Keep copying* decide its
-  `done` or its lane (`endOrKeepPath`, ledger), End by the same rule over its own failures, and
-  the migration's status is its paths' roll-up: `done` once every data type has ended.
-- **A propagation timeout leaves the mapping `cutover`.** Whether the MX record moved is exactly
-  what is unknown after a timeout, so no pass runs (FAILED is not a state that copies); `rollback`
-  is the explicit undo and resumes the sync.
-- The `run-cutover` job is prepare-only (it stops at READY_FOR_CUTOVER) and writes no lifecycle;
-  the API executes no cutover. The operator CLI is the only executor, for both editions.
+- **`execute` and `complete` write the mapping as well as the ledger**: `active` or `paused`
+  becomes `cutover`; `cutover`, `continuous`, `done` stay (`done` with a warning). Decided by
+  `cutoverTransition` (shared): whatever a cutover stops, a rollback puts back. Guard:
+  `cutover-lifecycle.integration.test.ts`.
+- **The mapping first, the ledger second, every refusal before either write.** Row, paths and a
+  `mapping.status` record (`via: 'cutover'`) commit together, through the rollback's port; only
+  paths in the phase the mapping leaves move, where its rows add up to its status (`pathFollows`).
+  See *One transaction, and the paths*.
+- **A migration `active` at `execute` copies until its grace period ends**, mirroring no deletion
+  and holding no slot; a `paused` one stays stopped. Gates ask `runsPassesNow` with each data
+  type's window. Guard: `a-grace-period-that-copies.unit.test.ts`; see *The window rule*.
+- **A data type can be cut over on its own** (`--kind`): its own ledger and path, the
+  migration's status their roll-up; only mail waits for DNS. A data type's own cutover never
+  begins while the whole one is under way, nor the whole once a data type has its own
+  (`cutoverBeginRefusal`). See *One data type cut over on its own*.
+- **`complete` closes the ledger, not the migration.** Each data type is ended (`done`,
+  refused over its unresolved failures unless forced) or kept copying, by `endOrKeepPath`; one
+  whose grace period ended unchosen is named on the Finish page and in the digest (D7). See *One
+  data type ended or kept*.
+- **A propagation timeout leaves the mapping `cutover`** and the ledger FAILED: no pass runs, and
+  `rollback` is the explicit undo. Guard: `cutover-commands.unit.test.ts`.
+- **The operator CLI is the only executor, for both editions.** `run-cutover` and `POST …/cutover`
+  only prepare (to READY_FOR_CUTOVER) and write no lifecycle. Guard:
+  `cutover-preparation.integration.test.ts`.
 
 ## [ADR-0049: A door that asked nobody](./0049-a-door-that-asked-nobody.md)
 
-- **`PUT /api/migrations/:id` asks `updateTransition` in `@openmig/shared` before it writes a
-  status**, on the status read inside its own transaction, and answers **409 `lifecycle_refused`**
-  — with a stable `code`, a `hint` naming the right door, and nothing written — when the move is
-  one the lifecycle does not make through this door.
-- **After cutover stays after cutover.** `cutover`, `done` and `continuous` do not go back to
-  `active` or `paused` by an update (`after_cutover`). Only a rollback does that, recorded as one.
-- **`done` is terminal** with one exit, the continuous lane (`finished` for everything else).
+- **`PUT /api/migrations/:id` asks `updateTransition` (shared) before it writes a status**, on
+  the status read in its own transaction. A move the lifecycle does not make through this door is
+  **409 `lifecycle_refused`**: a stable `code`, a `hint` naming the right door, nothing written.
+  Guards: the `a-door-that-asked-nobody` unit and integration tests in `apps/api`.
+- **After cutover stays after cutover** (`after_cutover`): `cutover` and `continuous` do not go
+  back to `active` or `paused` by an update. Only a rollback does, recorded as one.
+- **`done` is terminal** (`finished`) but for the continuous lane, which is entered only after
+  cutover, from `cutover` or `done` (`before_cutover`).
 - **A transition with its own door is refused here and sent there** (`own_door`): `active` is
-  `POST …/start` (it refuses a grant still being waited on and runs the first pass); `done` is
+  `POST …/start` (it refuses a grant still awaited and runs the first pass); `done` is
   `POST …/finish` (it refuses over unresolved failures unless forced).
-- **The lane is entered after cutover** — from `cutover` or `done` — and from nowhere else
-  (`before_cutover`).
-- What the door still does: `active`/`paused` → `cutover` (the declaration), `active` → `paused`
-  (pause), `cutover` ↔ `continuous` and `done` → `continuous` (the lane and its stop). Restating
-  the status a mapping already has is a request, not a transition: 200, nothing recorded.
-- **The lane's switch is `PUT`**, the verb this path is served by, for a caller of the API. The
-  Finish page no longer sends it (amended 2026-09-26, workplan 0128 T5 slice 7b): it keeps each
-  data type copying through that data type's own door (`POST …/domains/{domain}/keep`, ADR-0048's
-  amendment of that day), and ends each through `…/end`, so the web's verb pin went with the
-  call it pinned.
-- **`POST /api/migrations` creates a migration `paused` (the default) or `active`**, and refuses
-  `cutover`, `done` and `continuous` with a 400 on `status` that names their doors: a migration
-  reaches them once it exists, through the cutover, Finish and Keep copying.
+- **What the door does**: `active`/`paused` → `cutover` (the declaration), `active` → `paused`,
+  `cutover` ↔ `continuous` and `done` → `continuous` (the lane and its stop). Restating the
+  current status is 200, nothing recorded. Table: *Decision*, pinned by shared's
+  `a-door-that-asked-nobody.unit.test.ts`.
+- **The lane's switch is `PUT`**, the verb this path serves, for a caller of the API. The Finish
+  page does not send it: it keeps or ends each data type at its own door
+  (`POST …/domains/{domain}/keep`, `…/end`; ADR-0048), and the web's verb pin went with the call
+  it pinned. Guard: `an-ending-either-edition-presses.unit.test.ts`.
+- **`POST /api/migrations` creates a migration `paused` (the default) or `active`**
+  (`CREATABLE_STATUSES`), and refuses `cutover`, `done` and `continuous` with a 400 on `status`
+  naming their doors: the cutover, Finish and Keep copying. Guard:
+  `path-lifecycle-wiring.unit.test.ts`.
+- **`POST …/cutover` asks `prepareTransition`** (core's `cutover-state.ts`) before it enqueues:
+  409 `cutover_refused` with the reason and a stable `code`, or a 202 saying what the job will
+  do; the job re-reads and stays the authority. Guards:
+  `the-press-that-answered-202-to-a-closed-ledger` tests.
 
 ## [ADR-0050: A move is a person's migrations](./0050-a-move-is-a-persons-migrations.md)
 
-- **ACCEPTED; THE TABLES AND THE API BUILT, THE PAGES NOT YET (2026-09-28).** `person`,
-  `person_migration` and `/api/people` are 0153 T2's, built in #1332. The pages are 0153 T3 and T5: until
-  they land, the Migrations page lists migrations, and nothing on screen groups them.
-- **The name in code is *person*** (the amendment): the tables `person` and `person_migration`,
-  the API's `/people`, and the shapes in `packages/shared/src/people.ts`. Never *move*: `/moves`
-  and `MovesQueue` are the queue of items a source put somewhere else. On screen the grouping has
-  no noun; the person's name titles it (0153 D6).
-- **A person is someone being moved:** a display name, and optionally an email address for grant
+- **Built**: tables and `/api/people` (0153 T2, #1332); on managed, the Migrations page lists
+  people, each with a page (`Mappings.tsx`, `Person.tsx`).
+- **The name in code is *person*** (the amendment below): tables, `/people` and
+  `packages/shared/src/people.ts`. Never *move*, which names the moved-items queue (`/moves`,
+  `MovesQueue`). On screen the grouping has no noun; the person's name titles it (0153 D6).
+- **A person is someone being moved**: a display name, optionally an email address for grant
   links, in one tenant.
-- **A migration belongs to at most one person.** `person_migration`'s key is the migration. One
-  that belongs to nobody is `unassigned`, and the page shows it without a person.
-- **A person changes nothing about a migration.** The engine runs migrations, the ledger keys
-  items per migration, ADR-0014 counts paths, and a person is never billed.
-- **Rows, never a column on `mailbox_mapping`** (hard rule 5): `person` and `person_migration
-  (mapping_id, person_id, tenant_id)` in `packages/managed/migrations` (0031), with forced row
-  security. A key holds a row to a person of its own tenant, and the policy to a migration of
-  it. Erasure purges both (`PURGED_TABLES`). The appliance keeps no table: it answers `GET
-  /people` with one implicit person holding every configured migration, and refuses the writes
-  (`one_person_here`). `no-managed-leakage.unit.test.ts` names both tables.
-- **Deleting a person deletes no migration.** Their migrations belong to nobody again. Deleting a
-  migration deletes only its row in `person_migration`.
-- **The API is `GET /api/people`, `POST /api/people`, `POST /api/people/{personId}/migrations`
-  and `DELETE /api/people/{personId}`,** with the migration routes' tenant checks, and in the
-  OpenAPI spec. Adding a migration again changes nothing; one that is somebody else's stays
-  theirs (409 `with_another_person`).
-- **A person has no state of its own.** What a person reads is their migrations' states, counted
-  in the answer, and their stages (`leastAdvancedStage`, 0154 T1).
+- **A migration belongs to at most one person** (`person_migration`'s key is the migration), or
+  to nobody: `unassigned`, shown without a person. **Deleting a person deletes no migration**;
+  theirs become `unassigned`. Deleting a migration deletes only its `person_migration` row.
+- **A person changes nothing about a migration**: the engine runs migrations, the ledger keys
+  items per migration, ADR-0014 bills paths, never a person. **It has no state of its own**: it
+  reads its migrations' states, counted, and stages (`leastAdvancedStage`, 0154 T1).
+- **Rows, never a column on `mailbox_mapping`** (hard rule 5): `person` and `person_migration` in
+  `packages/managed/migrations` (0031), forced row security; a key holds a row to its tenant's
+  person, the policy to its tenant's migration. Erasure purges both (`PURGED_TABLES`). Guard:
+  `people-under-rls.unit.test.ts`.
+- **The appliance keeps no table**: `GET /people` answers one implicit person holding every
+  configured migration; writes are refused (`one_person_here`). Guards:
+  `one-person-on-the-appliance.unit.test.ts`; `no-managed-leakage.unit.test.ts` names both tables.
+- **The API**: `GET` and `POST /api/people`, `POST /api/people/{personId}/migrations`,
+  `DELETE /api/people/{personId}`, with the migration routes' tenant checks, in the OpenAPI spec.
+  Re-adding changes nothing; another person's migration stays theirs (409 `with_another_person`).
+  Guard: `people.unit.test.ts`.
+
+## [ADR-0051: An ADR reads as it stands — a budget for the operative layer, and consolidation in place](./0051-an-adr-reads-as-it-stands.md)
+
+- **An operative section has at most 8 bullets, 60 words a bullet and 300 words in all, and no
+  sub-headings** (table rows are not counted). `scripts/adr-operative.mjs` refuses to assemble
+  `OPERATIVE.md` otherwise, naming every file and limit at once.
+- **A bullet states the rule and points at what holds it** — a guard, a file, a section below.
+  Reasons and examples go in the body; earlier wording goes to `history/`; neither goes in it.
+- **An ADR's `**Status:**` entry is at most 400 characters**: where it stands and how many
+  amendments. The dated story is its `## Amendment log`.
+- **A change decided but not in force is a `**Pending`** bullet in the operative rules and a
+  `## Pending` section holding its text** — both, or neither.
+- **An ADR that can no longer be read without reconciling its amendments is consolidated in
+  place**: same number, file name and title, rewritten as it stands. Its old text moves word for
+  word to `docs/adr/history/`, linked from the amendment log; labels cited elsewhere keep their
+  meaning.
+- **A record is never edited or deleted.** Hard rule 7 reads *append-only, or moved word for word
+  to `docs/adr/history/`*. A cluster of several ADRs is still consolidated by a new ADR
+  (ADR-0038).
+- The guards: `scripts/adr-operative.unit.test.ts`.

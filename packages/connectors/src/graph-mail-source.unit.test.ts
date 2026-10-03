@@ -5,7 +5,7 @@
  *
  * A fake HTTP client scripted per-URL proves the wire behavior: well-known
  * folders drive special-use authoritatively (localized names included), delta
- * pages are followed to the deltaLink, unkeyable messages are COUNTED rather
+ * pages are followed to the deltaLink, unlisted messages are COUNTED rather
  * than dropped, `@removed` entries are skipped, and MIME comes back as the
  * exact bytes — never through a UTF-8 string round-trip.
  */
@@ -145,7 +145,7 @@ describe('listSince', () => {
 
     const s = source(client);
     await s.listFolders();
-    const { items, nextCursor, unkeyable } = await s.listSince(inboxFolder);
+    const { items, nextCursor, unlisted } = await s.listSince(inboxFolder);
 
     expect(items.map((i) => i.messageId)).toEqual(['<a@x>', '<b@x>']);
     expect(items[0]!.keywords).toEqual(['$seen', '$flagged']);
@@ -153,7 +153,7 @@ describe('listSince', () => {
     expect(items[0]!.sourceRef).toBe('g1');
     expect(items[1]!.keywords).toEqual(['$draft']);
     expect(nextCursor.value).toBe(`graph-mail-delta:${BASE}/delta-token-1`);
-    expect(unkeyable).toBeUndefined();
+    expect(unlisted).toBeUndefined();
   });
 
   it('resumes from a persisted deltaLink cursor without re-resolving the folder', async () => {
@@ -174,7 +174,7 @@ describe('listSince', () => {
     expect(seen).toEqual([`${BASE}/delta-token-1`]);
   });
 
-  it('counts unkeyable messages instead of dropping them silently', async () => {
+  it('counts the messages it cannot list instead of dropping them silently, as unlisted and never as unkeyable', async () => {
     const { client } = fakeClient(
       listingRoutes({
         [`${BASE}/me/mailFolders/id-inbox/messages/delta`]: json(200, {
@@ -189,12 +189,16 @@ describe('listSince', () => {
 
     const s = source(client);
     await s.listFolders();
-    const { items, unkeyable } = await s.listSince(inboxFolder);
+    const listed = await s.listSince(inboxFolder);
+    const { items, unlisted } = listed;
     expect(items).toHaveLength(1);
-    expect(unkeyable).toBe(1);
+    expect(unlisted).toBe(1);
+    // `unkeyable` means "migrated under a generated id" to every reader of it;
+    // Graph derives no id, so a message here is left behind, not given one.
+    expect('unkeyable' in listed).toBe(false);
   });
 
-  it('reports @removed entries by id — and does not count them as unkeyable', async () => {
+  it('reports @removed entries by id — and does not count them as unlisted', async () => {
     const { client } = fakeClient(
       listingRoutes({
         [`${BASE}/me/mailFolders/id-inbox/messages/delta`]: json(200, {
@@ -209,9 +213,9 @@ describe('listSince', () => {
 
     const s = source(client);
     await s.listFolders();
-    const { items, unkeyable, removed } = await s.listSince(inboxFolder);
+    const { items, unlisted, removed } = await s.listSince(inboxFolder);
     expect(items.map((i) => i.messageId)).toEqual(['<b@x>']);
-    expect(unkeyable).toBeUndefined();
+    expect(unlisted).toBeUndefined();
     // The id, because a removed entry has no internetMessageId left — it is
     // matched back to the ledger row through the sourceRef recorded at copy.
     expect(removed).toEqual(['g1']);

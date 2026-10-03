@@ -70,11 +70,19 @@ Significant decisions are captured as ADRs in `docs/adr/`.
 - Copy `docs/adr/0000-template.md` to the next number, e.g. `0011-my-decision.md`.
 - Status flow: Proposed -> Accepted -> (later) Superseded by `00xx`.
 - Keep them short (about one page): Context, Decision, Consequences, Alternatives.
-- **Every ADR carries an `## Operative rules` section** (ADR-0038): 3–8 terse bullets
-  stating what holds now, amended **in place** when a later decision changes them — the
-  rest of the file stays append-only. After amending, regenerate the assembled view:
-  `node scripts/adr-operative.mjs --write` (a unit test fails any drift). Readers load
-  `docs/adr/OPERATIVE.md`; the register (`docs/adr/README.md`) carries statuses only.
+- **Every ADR carries an `## Operative rules` section** (ADR-0038): what holds now, amended
+  **in place** when a later decision changes it — the rest of the file stays append-only.
+  It has a budget (ADR-0051): at most 8 bullets, 60 words a bullet, 300 words in all, each
+  bullet the rule plus a pointer to what holds it. After amending, regenerate the assembled
+  view: `node scripts/adr-operative.mjs --write` — it refuses a section over budget, and a
+  unit test fails any drift. Readers load `docs/adr/OPERATIVE.md`; the register
+  (`docs/adr/README.md`) carries statuses only.
+- **The `**Status:**` entry stays under 400 characters**; each later change is a dated line
+  in the ADR's `## Amendment log`. A change decided but not yet in force is a `**Pending`**
+  bullet plus a `## Pending` section (ADR-0051).
+- **When an ADR can no longer be read without reconciling its amendments, consolidate it in
+  place** (ADR-0051): same number, file name and title, rewritten as it stands; move the old
+  file word for word to `docs/adr/history/` and link it from the amendment log.
 - Reference the ADR id from code/PRs when relevant.
 
 ## Commits & branches
