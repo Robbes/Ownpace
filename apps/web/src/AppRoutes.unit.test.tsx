@@ -132,9 +132,9 @@ beforeEach(() => {
 describe('appliance builds redirect managed-only URLs to /confirm', () => {
   const managedOnly: Record<string, string> = {
     '/dashboard': 'screen:mappings',
+    // Migrations, the list of people, stays managed: the appliance has one
+    // (its person's page, below, 0153 T8).
     '/mappings': 'screen:mappings',
-    // A person's page (0153 T5) is managed-only, as Migrations is.
-    '/people/p-anna': 'screen:person',
     '/mappings/new': 'screen:create-mapping',
     // Start a migration (0153 T4) creates through the managed API, as the wizard does.
     '/start': 'screen:start-migration',
@@ -195,6 +195,23 @@ describe('managed builds redirect appliance-only URLs to /mappings, the landing 
 
       expect(await screen.findByText('screen:mappings')).toBeInTheDocument();
       expect(screen.queryByText(marker)).not.toBeInTheDocument();
+    });
+  }
+});
+
+describe("a person's page mounts on both editions (0153 T8)", () => {
+  // The appliance's one implicit person has the page managed gives each person,
+  // and its landing leads there once every migration has started.
+  for (const [selfhost, path] of [
+    [true, '/people/implicit'],
+    [false, '/people/p-anna'],
+  ] as const) {
+    it(`${path} mounts the person's page on ${selfhost ? 'the appliance' : 'managed'}`, async () => {
+      editionFlag.selfhost = selfhost;
+      renderAt(path);
+
+      expect(await screen.findByText('screen:person')).toBeInTheDocument();
+      expect(screen.queryByText('screen:confirm')).not.toBeInTheDocument();
     });
   }
 });

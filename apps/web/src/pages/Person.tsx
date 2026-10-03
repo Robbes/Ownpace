@@ -27,6 +27,13 @@
  *   granted, per person; the owner, 2026-10-03). Managed only, as their links
  *   are. A failed read says so under the migrations, and claims nothing.
  *
+ * ON THE APPLIANCE TOO (0153 T8; the owner's D5): the same page for its one
+ * implicit person, which is its landing once every migration has started
+ * (`landingPath` in `apps/selfhost`). It has no list of migrations (ADR-0034),
+ * so each migration's row is read from the status every appliance page polls
+ * (`rowsFromStatus`), named by its file or by where it goes. There is no
+ * Migrations page to go back to, no *Add a migration*, and no links.
+ *
  * NOT YET HERE, and said in the plan: the one-line progress on each data type
  * (0154 T2's totals).
  *
@@ -38,9 +45,9 @@ import React from 'react';
 import { Link, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Clock, Plus } from 'lucide-react';
-import { leastAdvancedStage } from '@openmig/shared';
+import { leastAdvancedStage, type StatusReport } from '@openmig/shared';
 import { mappingApi, type MappingListItem } from '../services/mapping-service.ts';
-import { fetchAttention, fetchPeople } from '../services/operating-service.ts';
+import { fetchAttention, fetchPeople, fetchStatus } from '../services/operating-service.ts';
 import { serverMessage } from '../services/api.ts';
 import { waitingOn } from '../services/needs-you.ts';
 import { personSteps, type Step, type StepState } from '../services/cutover-steps.ts';
@@ -86,8 +93,40 @@ const ONCE_GRANTED_WORDS: Readonly<Record<AwaitingGrant['then'], StringKey>> = {
 /** The steps that count a queue, whose link to each migration carries that migration's own count. */
 const QUEUE_STEPS: ReadonlySet<Step['key']> = new Set(['deletions', 'moves', 'failures', 'sharing']);
 
+/**
+ * What the page reads of each migration: the list's row on managed. The
+ * appliance has no list (ADR-0034), so its rows come from the status it serves
+ * (`rowsFromStatus`), where a migration has a name only if its file gives one.
+ */
+type PersonRow = Pick<MappingListItem, 'id' | 'sourceType' | 'targetType' | 'status' | 'domains' | 'lastSyncAt'> & {
+  readonly name?: string;
+};
+
+/**
+ * The appliance's rows (0153 T8): one per migration it is configured with,
+ * from `/status`. Its data types are the ones the status reports, and its last
+ * pass is the latest any of them completed.
+ */
+function rowsFromStatus(report: StatusReport): PersonRow[] {
+  return report.mappings.map((m) => {
+    let lastSyncAt: string | undefined;
+    for (const d of m.domains) {
+      if (d.lastSyncedAt && (lastSyncAt === undefined || d.lastSyncedAt > lastSyncAt)) lastSyncAt = d.lastSyncedAt;
+    }
+    return {
+      id: m.mappingId,
+      ...(m.name ? { name: m.name } : {}),
+      sourceType: m.sourceType ?? 'unknown',
+      targetType: m.targetType ?? 'unknown',
+      status: m.migrationStatus,
+      domains: m.domains.map((d) => d.domain),
+      lastSyncAt,
+    };
+  });
+}
+
 /** The names on one side of a person's migrations, once each, in the order met. */
-function names(migrations: readonly MappingListItem[], side: 'sourceType' | 'targetType'): string[] {
+function names(migrations: readonly PersonRow[], side: 'sourceType' | 'targetType'): string[] {
   const out: string[] = [];
   for (const m of migrations) {
     if (m[side] === 'unknown') continue;
@@ -102,7 +141,12 @@ const Person: React.FC = () => {
   const t = useT();
   const { list } = useFormatters();
 
-  const mappingsQuery = useQuery({ queryKey: ['mappings'], queryFn: mappingApi.list });
+  const selfHost = isSelfHost();
+  // Each migration's row: the list on managed, the status on the appliance.
+  const listQuery = useQuery({ queryKey: ['mappings'], queryFn: mappingApi.list, enabled: !selfHost });
+  const statusQuery = useQuery({ queryKey: ['status'], queryFn: fetchStatus, enabled: selfHost, select: rowsFromStatus });
+  const rowsQuery = selfHost ? statusQuery : listQuery;
+  const rows: readonly PersonRow[] | undefined = selfHost ? statusQuery.data : listQuery.data;
   const peopleQuery = useQuery({ queryKey: ['people'], queryFn: fetchPeople });
   const attentionQuery = useQuery({ queryKey: ['attention'], queryFn: fetchAttention });
   // Their one grant link (ADR-0035, amended 2026-09-29; 0153 T5 (b)). Managed
@@ -110,18 +154,18 @@ const Person: React.FC = () => {
   const linksQuery = useQuery({
     queryKey: ['person-links', personId],
     queryFn: () => personLinkApi.list(personId!),
-    enabled: Boolean(personId) && !isSelfHost(),
+    enabled: Boolean(personId) && !selfHost,
     retry: false,
   });
   // Which of their migrations wait for their grant, and what it does to each.
   const awaitingQuery = useQuery({
     queryKey: ['person-awaiting-grant', personId],
     queryFn: () => personLinkApi.awaiting(personId!),
-    enabled: Boolean(personId) && !isSelfHost(),
+    enabled: Boolean(personId) && !selfHost,
     retry: false,
   });
 
-  if (mappingsQuery.isLoading || peopleQuery.isLoading) {
+  if (rowsQuery.isLoading || peopleQuery.isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -129,13 +173,14 @@ const Person: React.FC = () => {
     );
   }
 
-  const back = (
+  // The appliance has no Migrations page to go back to: its menu leads here.
+  const back = selfHost ? null : (
     <Link to="/mappings" className="text-sm text-blue-700 hover:underline">
       {t('person.back')}
     </Link>
   );
 
-  const failure = mappingsQuery.error ?? peopleQuery.error;
+  const failure = rowsQuery.error ?? peopleQuery.error;
   if (failure != null) {
     return (
       <div className="space-y-4">
@@ -161,8 +206,11 @@ const Person: React.FC = () => {
     );
   }
 
-  const byId = new Map((mappingsQuery.data ?? []).map((m) => [m.id, m]));
-  const migrations = person.migrations.map((pm) => byId.get(pm.id)).filter((m): m is MappingListItem => Boolean(m));
+  const byId = new Map((rows ?? []).map((m) => [m.id, m]));
+  const migrations = person.migrations.map((pm) => byId.get(pm.id)).filter((m): m is PersonRow => Boolean(m));
+  // A migration's name, or where it goes when its file gives none (the appliance).
+  const label = (m: PersonRow): string =>
+    m.name ?? t('person.rowName', { from: providerName(m.sourceType, 'source'), to: providerName(m.targetType, 'target') });
   const attention = attentionQuery.isSuccess
     ? new Map(attentionQuery.data.mappings.map((a) => [a.mappingId, a]))
     : undefined;
@@ -234,7 +282,7 @@ const Person: React.FC = () => {
           migrations.map((m) => (
             <div key={m.id} data-migration={m.id} className="py-3 border-t border-gray-100 first:border-t-0">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm font-medium text-gray-900">{m.name}</span>
+                <span className="text-sm font-medium text-gray-900">{label(m)}</span>
                 <Link to={`/mappings/${encodeURIComponent(m.id)}`} className="text-sm text-blue-700 hover:underline">
                   {t('person.details')} →
                 </Link>
@@ -320,10 +368,10 @@ const Person: React.FC = () => {
                               className="text-blue-700 hover:underline"
                             >
                               {own === undefined
-                                ? m.name
+                                ? label(m)
                                 : own.count === undefined
-                                  ? t('person.step.linkUnread', { name: m.name })
-                                  : `${m.name} (${own.count})`}
+                                  ? t('person.step.linkUnread', { name: label(m) })
+                                  : `${label(m)} (${own.count})`}
                             </Link>
                           </li>
                         );
@@ -341,7 +389,7 @@ const Person: React.FC = () => {
           Google accounts, made, copied and revoked here (ADR-0035, amended
           2026-09-29). The server refuses one, in words, when nothing of
           theirs can be granted through it. */}
-      {!person.implicit && !isSelfHost() && migrations.length > 0 && (
+      {!person.implicit && !selfHost && migrations.length > 0 && (
         <section aria-labelledby="for-them" className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
           <h2 id="for-them" className="text-lg font-semibold text-gray-900">
             {t('person.links.title', { name: person.displayName ?? '' })}

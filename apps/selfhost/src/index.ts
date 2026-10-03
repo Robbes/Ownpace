@@ -89,6 +89,7 @@ import { claimLegacyMappingRows, loadConfigDir, uuidFromString, type LoadedMappi
 import { buildStatusReport, type MappingStatusInput } from './status.ts';
 import { startTransition, finishTransition, updateTransition } from './lifecycle.ts';
 import { serveUi, UI_MOUNT } from './static-ui.ts';
+import { landingPath, type LandingFacts } from './landing.ts';
 import { createVerifyRunner } from './verify-run.ts';
 import { applianceOpener } from '@openmig/orchestration';
 import {
@@ -804,6 +805,32 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       }
       return row.status as MappingLifecycle;
     });
+
+  /**
+   * Where `GET /` lands (`landing.ts`, workplan 0153 T8): the person's page
+   * once every migration in the config directory was ever started, and Review
+   * & confirm until then. A status that cannot be read lands there too, which
+   * says why.
+   */
+  const landing = async (): Promise<string> => {
+    try {
+      const facts: LandingFacts[] = [];
+      for (const m of mappings) {
+        facts.push({
+          status: await mappingStatus(m),
+          hasPaths: await withTenantContext(m.config.tenantId as string, async (client) => {
+            const { rows } = await client.query(`SELECT 1 FROM path_lifecycle WHERE mapping_id = $1 LIMIT 1`, [
+              m.mailboxMappingId,
+            ]);
+            return rows.length > 0;
+          }),
+        });
+      }
+      return landingPath(facts);
+    } catch {
+      return '/confirm';
+    }
+  };
 
   /**
    * Whether any of this migration's data types runs passes now: the reader's
@@ -1556,7 +1583,9 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // never shadow an endpoint by accident.
       if (await serveUi(req, res, { rootDir: uiDir })) return;
 
-      // The appliance's landing page is the React confirm screen (ADR-0026).
+      // The appliance's landing page is the React confirm screen (ADR-0026),
+      // until every migration has been started; then it is the person's page
+      // (`landing.ts`, 0153 T8).
       //
       // This used to render `confirm-page.ts` — 135 lines of hand-rolled HTML
       // that were the appliance's only UI. Folding it into the React app is the
@@ -1564,7 +1593,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // TWICE, in two languages, and had already drifted. One redirect is what
       // is left of it.
       if (req.method === 'GET' && (req.url === '/' || req.url === '')) {
-        res.writeHead(302, { location: `${UI_MOUNT}/confirm` });
+        res.writeHead(302, { location: `${UI_MOUNT}${await landing()}` });
         res.end();
         return;
       }
@@ -1649,6 +1678,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             mappingId: m.config.mappingId,
             migrationStatus: await mappingStatus(m),
             sourceType: m.config.source.type,
+            // Where it goes, and what its file calls it: the person's page draws
+            // each migration's line from this row (0153 T8).
+            targetType: m.config.target.type,
+            ...(m.config.name?.trim() ? { name: m.config.name.trim() } : {}),
             statuses,
             failures,
             adopted,

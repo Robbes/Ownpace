@@ -1579,6 +1579,8 @@ const en = {
   'person.notFound': 'There is no such person here.',
   'person.loadFailed': 'Could not load this person.',
   'person.details': 'Details',
+  // An appliance migration whose file gives it no name (0153 T8), called by where it goes.
+  'person.rowName': '{from} to {to}',
   // A migration that waits for their grant, and what the grant does to it
   // when it lands (start when granted, per person; the owner, 2026-10-03).
   'person.awaiting.startsByItself':
@@ -4278,6 +4280,7 @@ const nl: Record<keyof typeof en, string> = {
   'person.notFound': 'Deze persoon bestaat hier niet.',
   'person.loadFailed': 'Kon deze persoon niet laden.',
   'person.details': 'Details',
+  'person.rowName': '{from} naar {to}',
   'person.awaiting.startsByItself':
     'Wacht tot {name} verbindt en start dan vanzelf: een andere migratie van {name} loopt al.',
   'person.awaiting.reviewAndStart': 'Wacht tot {name} verbindt. Open daarna Details om deze te controleren en te starten.',

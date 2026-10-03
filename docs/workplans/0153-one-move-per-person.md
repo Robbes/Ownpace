@@ -184,6 +184,43 @@ words changed with them** (0131 §6, R8).
   at `5f74ebc`: T4 and T7 are still proposed, and no branch or open pull request of R's or M's
   touches them. 0131 §6 records the split.
 
+**2026-10-03: T8, the appliance shows its person's page (D5).** The appliance's one implicit
+person has the page managed gives each person, and it is the appliance's landing once every
+migration has started.
+
+- **The landing** (`apps/selfhost/src/landing.ts`): `GET /` redirects to `/ui/people/implicit`
+  once every configured migration has been started, and to `/ui/confirm` until then, as before.
+  Started means ever started (the owner, 2026-10-03: *"was ever started"*): a migration paused
+  since, or finished, leaves the landing on the person's page, where it shows as paused. One
+  added to the config directory later, and not started yet, brings Review & confirm back. With
+  nothing configured, or when a status cannot be read, the landing is Review & confirm.
+- **The rows on the appliance** come from `/status`, which every appliance page polls, since it
+  has no list of migrations (ADR-0034). `/status` now names each migration's destination
+  (`targetType`), and its `name` when its file gives one. One with no name is called by where it
+  goes (*"Dropbox to WebDAV"*). Its data types are those the status reports, and its last pass is
+  the latest any of them completed.
+- **The route** `people/:personId` is served on both editions. Migrations, *Start a migration* and
+  the wizard stay managed. On the appliance the page has no back link to a Migrations page, and,
+  as for any implicit person, no *Add a migration* and no links.
+- **The menu** opens with *Migrations*, leading to the page, as a member's does. *Review* stays.
+- **Not changed:** `appliance-bundle.unit.test.ts`, which the plan named. It asks what ships, and
+  the person's page has always shipped in both bundles, by a static import. What changed is that a
+  route renders it, which `AppRoutes.unit.test.tsx` now proves for both editions.
+- **Proved by:**
+  - `pglite-startup.unit.test.ts` (+2): a real appliance on PGlite lands on Review & confirm while
+    its migration was never started and on the person's page once it runs, and `/status` names
+    the destination and no name its file lacks;
+  - `landing.unit.test.ts` (5): nothing configured, one never started, all started, one paused
+    since it ran, and one added later;
+  - `status.unit.test.ts` (+1), `Person.unit.test.tsx` (+3), `AppRoutes.unit.test.tsx` (+2, and
+    the person's page left the managed-only list), `Layout.unit.test.tsx` (+1).
+
+  Ten mutations each fail their cases: the landing never the person's page; blind to a migration
+  never started; reading the status alone, so a pause after Start would bring Review & confirm
+  back; the status without the destination; the appliance's rows read from the managed list; no
+  last pass; no name from where it goes; the back link on the appliance; the route managed only;
+  and no menu entry.
+
 **2026-10-03: the person's page says what waits for their grant (T5 (b); start when granted, per
 person).** Beside each migration of theirs that waits for their grant, the page says what the
 grant does to it when it lands, by the rule that starts it:
@@ -777,7 +814,7 @@ person, and a flow that fills it.
 | T5 A page per person | 🟡 **First slice built (#1353): the person, their migrations, and their steps before they switch. One link per person (ADR-0035's amendment of 2026-09-29) is built, T5 (b)'s four slices (#1394, #1396, #1401, #1408), with *Report this link* (#1402), asking again (#1407), start when granted (#1409), and the page saying what waits for their grant (#1413); the progress lines wait on 0154 T2. Before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
 | T6 Words a family reads | 🟡 **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, before the first invitation. The Dutch says *migratie* everywhere the product speaks, with two guards (#1342). (c)'s two guards built (#1347)** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |
 | T7 Defaults a family can pass | ✅ **(a) to (f) built inside T4 (#1378); the wizard's progress line too (#1383)** | §3. Buttons that look like buttons, with the reason in text. A Soverin sign-in in two visible fields. A Nextcloud address, not a DAV URL. Business-only fields only on the business path. The limit blamed on the side that has it. Tiles and icons: `tiles.svg`, `icons.svg`. |
-| T8 The appliance shows its person's page | 📋 **Proposed; before the first invitation (D5)** | §3. The same page, fed by the appliance's one implicit grouping. No list or create screen (0034 stands). |
+| T8 The appliance shows its person's page | ✅ **Built: its landing once every migration has started, Review & confirm until then; the page's rows from `/status`; *Migrations* first in its menu** | §3. The same page, fed by the appliance's one implicit grouping. No list or create screen (0034 stands). |
 
 ## 1. What there is today
 
