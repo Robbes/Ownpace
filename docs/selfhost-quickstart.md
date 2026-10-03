@@ -128,7 +128,11 @@ cp deploy/selfhost/config/mapping.json.example \
 
 Edit `mapping.json` — set the source/target hosts and users, point
 `tokenFromEnv` / `passwordFromEnv` at the variable names you defined in `.env`,
-and set a `schedule.cron` (default is every 15 min). The mail domain uses the
+and set a `schedule.cron` (default is every 15 min). A pass on the appliance has
+no time limit, so a large first copy runs to the end in one pass whatever the
+cron says (unless the source's daily download limit stops it, when the next
+firing carries on); the cron decides how often it looks again after that, and
+a firing that comes while a pass still runs is skipped. The mail domain uses the
 top-level `source`/`target`; to also sync calendar/contacts/tasks/files, add a
 `domains` block (see `packages/shared/src/config.ts` for the schema — the keys
 are `mail`, `calendar`, `contacts`, `files`, `tasks`, and a key that is none of
