@@ -58,6 +58,30 @@ function envChannel(): ReturnType<typeof notifierFromEnv> {
   return channel;
 }
 
+/**
+ * Where to send somebody to sign in, or null if this deployment cannot say.
+ *
+ * `WEB_URL` is the address a BROWSER uses — the same value the status page
+ * probes and the identity provider registers its redirect against. Never
+ * defaulted: a grant email carrying `http://localhost:3123` has told somebody
+ * to go nowhere, and would go out looking exactly like a successful one.
+ *
+ * **And never thrown, either.** The first version of this threw, which turned a
+ * missing variable into a 500 on a grant whose transaction had ALREADY
+ * COMMITTED — the organisation existed and the operator was told it had failed.
+ * That is precisely the inversion the send is placed after the commit to avoid,
+ * reintroduced two lines away from the comment saying so. CI caught it.
+ *
+ * A deployment with no `WEB_URL` gets a warning at boot (`config-guards.ts`)
+ * and, per mail, a person who is told nobody was emailed. Moved here from the
+ * access-request route so the grant mail and the invitation (0156 T3) read
+ * one address.
+ */
+export function appUrl(env: { readonly WEB_URL?: string } = process.env): string | null {
+  const url = env.WEB_URL;
+  return url ? url.replace(/\/+$/, '') : null;
+}
+
 /** Whether the mail channel is configured at all — for routes that refuse a press up front. */
 export function channelIsOn(): boolean {
   return envChannel().config.enabled;
@@ -99,6 +123,32 @@ export function accessGrantedEvent(
     organisation: granted.organisation,
     appUrl: granted.appUrl,
     email: granted.email,
+    ...(alphaFrom(env) ? { alpha: true } : {}),
+  };
+}
+
+/**
+ * The mail an invited person receives (workplan 0156 T3), marked for the alpha
+ * the same way and for the same reason as `accessGrantedEvent`: the setting is
+ * read in one place, when the mail is written.
+ */
+export function memberInvitedEvent(
+  invited: {
+    readonly organisation: string;
+    readonly invitedBy?: string | undefined;
+    readonly appUrl: string;
+    readonly email: string;
+    readonly privacyPolicy: string;
+  },
+  env: { readonly OWNPACE_STAGE?: string } = process.env,
+): NotificationEvent {
+  return {
+    kind: 'member_invited',
+    organisation: invited.organisation,
+    ...(invited.invitedBy ? { invitedBy: invited.invitedBy } : {}),
+    appUrl: invited.appUrl,
+    email: invited.email,
+    privacyPolicy: invited.privacyPolicy,
     ...(alphaFrom(env) ? { alpha: true } : {}),
   };
 }

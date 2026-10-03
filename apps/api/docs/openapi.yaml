@@ -941,6 +941,13 @@ paths:
         something else wrong as well, answers the usual `Validation error`
         with every issue in `details`. Only an owner may invite somebody as
         owner (`403` for an admin).
+
+        The invited address is mailed after the row commits (workplan 0156
+        T3): who invited them to which organisation, where to sign in and
+        the address to sign in with, never a token. `notified` says what
+        became of the mail: `sent`; `off` when this deployment sends no mail
+        or has no `WEB_URL`; `failed`; or `limited` past 20 invitation mails
+        a day for the organisation. The invitation stands whatever it says.
       requestBody:
         required: true
         content:
@@ -948,10 +955,13 @@ paths:
             schema: { type: object }
       responses:
         '201':
-          description: The invited member.
+          description: The invited member, with `notified`.
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
+                properties:
+                  notified: { type: string, enum: [sent, off, failed, limited] }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -1024,6 +1034,46 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
           description: Refused — removing this member would leave the tenant without an owner.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /api/tenants/{tenantId}/members/{memberId}/resend:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - name: memberId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Tenants]
+      summary: Mail an open invitation again
+      description: |
+        Owner/admin only (workplan 0156 T3). Only an invitation made on the
+        Team page that is still open; a member who joined or declined, or a
+        granted access request, answers `409`. At most once in ten minutes
+        per invitation (`429` with `Retry-After`), and within the
+        organisation's 20 invitation mails a day (`notified: limited`).
+      responses:
+        '200':
+          description: What became of the mail.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  notified: { type: string, enum: [sent, off, failed, limited] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: No open invitation of this page to send again.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          description: Mailed less than ten minutes ago; `Retry-After` says when it may be sent.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }

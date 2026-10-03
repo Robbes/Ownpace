@@ -53,7 +53,10 @@ export const TenantUpdateSchema = z.object({
 });
 
 export const MemberRoleSchema = z.enum(['owner', 'admin', 'member', 'viewer']);
-export const MemberStatusSchema = z.enum(['active', 'invited', 'suspended', 'removed']);
+// `declined` since managed migration 0008 (an invitation answered No). It was
+// missing here, so one declined invitation made the whole member list fail to
+// read: "Could not read the member list" for everybody (0156 T3).
+export const MemberStatusSchema = z.enum(['active', 'invited', 'declined', 'suspended', 'removed']);
 
 export const MemberSchema = z.object({
   id: z.string(),
@@ -62,9 +65,22 @@ export const MemberSchema = z.object({
   email: z.string(),
   role: MemberRoleSchema,
   status: MemberStatusSchema,
+  /** Where the row came from: this page's invitation, or a granted access request. */
+  origin: z.enum(['invited', 'requested']).optional(),
   invitedAt: z.string().nullish(),
   joinedAt: z.string().nullish(),
 });
+
+/**
+ * What became of an invitation's mail (workplan 0156 T3), as the API says it:
+ * sent, off (this deployment sends none), failed, or limited (the
+ * organisation's mails for today are spent). The page says each in words.
+ */
+export const InvitationMailOutcomeSchema = z.enum(['sent', 'off', 'failed', 'limited']);
+export type InvitationMailOutcome = z.infer<typeof InvitationMailOutcomeSchema>;
+
+const InvitedMemberSchema = MemberSchema.extend({ notified: InvitationMailOutcomeSchema });
+const ResentInvitationSchema = z.object({ id: z.string(), notified: InvitationMailOutcomeSchema });
 
 /** PATCH /members/:id answers with the changed fields only, not the member. */
 export const MemberRoleUpdateSchema = z.object({
@@ -522,7 +538,13 @@ export const memberApi = {
 
   invite: async (tenantId: string, data: { email: string; role: Member['role'] }) => {
     const response = await apiClient.post(`/tenants/${tenantId}/members`, data);
-    return MemberSchema.parse(response.data);
+    return InvitedMemberSchema.parse(response.data);
+  },
+
+  /** Mail an open invitation again (0156 T3); answers what became of the mail. */
+  resend: async (tenantId: string, memberId: string) => {
+    const response = await apiClient.post(`/tenants/${tenantId}/members/${memberId}/resend`);
+    return ResentInvitationSchema.parse(response.data).notified;
   },
 
   updateRole: async (tenantId: string, memberId: string, role: Member['role']) => {
