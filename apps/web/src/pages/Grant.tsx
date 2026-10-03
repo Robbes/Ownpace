@@ -213,7 +213,7 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
               </li>
             ))}
           </ul>
-          {a.granted ? (
+          {a.granted && !a.again ? (
             <p className="mt-3 flex items-center gap-2 text-sm font-medium text-green-800">
               <CheckCircle2 className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
               {t('grant.person.connected')}
@@ -222,6 +222,10 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
             <p className="mt-3 text-sm text-amber-800">{locale === 'nl' ? a.notReady.reasonNl : a.notReady.reason}</p>
           ) : (
             <>
+              {/* Connected, and asked for again: a link made while every
+                  account was connected, because a connection can stop
+                  working while its token is still held. */}
+              {a.again && <p className="mt-3 text-sm text-gray-900">{t('grant.person.again')}</p>}
               <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
                 <p className="flex items-start gap-2 text-sm text-green-900">
                   <ShieldCheck className="w-5 h-5 flex-shrink-0" />
@@ -239,7 +243,9 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
                 disabled={starting !== null}
                 className="mt-3 min-h-[44px] px-4 py-2.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 break-all"
               >
-                {starting === a.account ? t('grant.connecting') : t('grant.person.connect', { account: a.account })}
+                {starting === a.account
+                  ? t('grant.connecting')
+                  : t(a.again ? 'grant.person.connectAgain' : 'grant.person.connect', { account: a.account })}
               </button>
               {failure?.account === a.account && (
                 <p role="alert" className="mt-3 text-sm text-amber-800">

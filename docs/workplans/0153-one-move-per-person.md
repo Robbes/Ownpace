@@ -184,6 +184,35 @@ words changed with them** (0131 §6, R8).
   at `5f74ebc`: T4 and T7 are still proposed, and no branch or open pull request of R's or M's
   touches them. 0131 §6 records the split.
 
+**2026-10-03: a person's link asks again for an account whose connection stopped working (T5 (b);
+ADR-0035's amendment, added the same day).** Found while replacing the per-migration links (the
+owner: *"yes, replace the per-migration links"*). The person's link was refused once every
+account of theirs read as connected. A token Google no longer honours still reads as connected:
+taken back at Google, lapsed, or expired after seven days while the Google application is in
+testing. Only a migration's own link could ask for it again, and those are going.
+
+- **The issue door** (`person-link-routes.ts`) now makes a link that asks every account again when
+  each is connected. It says so (`asksAgain`), and the person's page tells the owner. It still
+  refuses a person with nothing a link can serve.
+- **The row** remembers which migrations it asks for again: `person_link.asks_again`, managed
+  migration 0036. 0035 is taken by another session's branch (the system role's purge of this
+  table). Migration ids, not addresses.
+- **The grant page** offers such an account *Connect again with Google as …*, with a sentence
+  saying why (`grant.ts`, `Grant.tsx`).
+- **The ending** (`person-grant-ending.ts`) takes the migrations it wrote off the list. It spends
+  the link once every account is connected and none it still asks for is left among the person's
+  migrations.
+- **Proved by:**
+  - `a-link-for-a-person.unit.test.ts` (13 → 16; PGlite as `app_user`, both chains);
+  - `person-link-under-rls.unit.test.ts` (+2);
+  - `Grant.unit.test.tsx` (+1), `grant-service.unit.test.ts` (+1) and `Person.unit.test.tsx` (+1).
+
+  Three mutations each fail their cases: refusing a connected account whatever the link asks;
+  spending once every account holds a token; and still asking for a migration that left the
+  person.
+- **The spec** documents `asksAgain` and `again`. It now also says a person's progress link is
+  offered (slice 3 left the request body at `grant` only).
+
 **2026-10-03: *Report this link* from a person's pages (0108 T8 (d), for ADR-0035's amendment of
 2026-09-29).** The third slice's open end: a person's grant page and progress page now offer it,
 as a migration's pages do.

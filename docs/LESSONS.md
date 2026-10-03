@@ -665,6 +665,7 @@ reading a file drops off its entry by itself.
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-fallback-that-could-never-fire](../scripts/a-fallback-that-could-never-fire.unit.test.ts) — A FALLBACK THAT COULD NEVER FIRE.
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
+- [a-plane-a-little-above-the-cap](../scripts/a-plane-a-little-above-the-cap.unit.test.ts) — A PLANE A LITTLE ABOVE THE CAP (workplan 0143 T1 step 3's plane half; open question 9, answered 2026-09-29: "Yes").
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
@@ -739,6 +740,7 @@ reading a file drops off its entry by itself.
 - [a-build-that-reached-for-the-lan](../scripts/a-build-that-reached-for-the-lan.unit.test.ts) — A BUILD THAT REACHED FOR THE LAN (workplan 0132 T3 (a); E2E (managed) #201).
 - [a-bundle-built-from-a-stale-install](../scripts/a-bundle-built-from-a-stale-install.unit.test.ts) — A BUNDLE BUILT FROM A STALE INSTALL (workplan 0150 T8; the owner, 2026-09-28: *"yes, make deploy-tasks.sh run pnpm install"*).
 - [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
+- [a-plane-a-little-above-the-cap](../scripts/a-plane-a-little-above-the-cap.unit.test.ts) — A PLANE A LITTLE ABOVE THE CAP (workplan 0143 T1 step 3's plane half; open question 9, answered 2026-09-29: "Yes").
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
@@ -992,6 +994,11 @@ reading a file drops off its entry by itself.
 - [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
+
+### `deploy/compose/plane-limit.sh`
+
+- [a-plane-a-little-above-the-cap](../scripts/a-plane-a-little-above-the-cap.unit.test.ts) — A PLANE A LITTLE ABOVE THE CAP (workplan 0143 T1 step 3's plane half; open question 9, answered 2026-09-29: "Yes").
+- [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 
 ### `deploy/compose/redact-evidence.sh`
 
@@ -3365,6 +3372,16 @@ Reads:
 - `docs/managed-bring-up.md`
 - `docs/operator-runbook.md`
 
+### [a-plane-a-little-above-the-cap](../scripts/a-plane-a-little-above-the-cap.unit.test.ts)
+
+A PLANE A LITTLE ABOVE THE CAP (workplan 0143 T1 step 3's plane half; open question 9, answered 2026-09-29: "Yes").
+
+Reads:
+
+- `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/deploy-tasks.sh`
+- `deploy/compose/plane-limit.sh`
+
 ### [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts)
 
 A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
@@ -3915,6 +3932,7 @@ Reads:
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `deploy/compose/own-addresses.sh`
+- `deploy/compose/plane-limit.sh`
 - `deploy/compose/set-task-env.sh`
 - `deploy/compose/stack-kind.sh`
 - `deploy/compose/stand-up-live.sh`

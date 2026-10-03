@@ -357,6 +357,19 @@ describe("a person's link", () => {
     expect(screen.getAllByRole('button', { name: /Continue with Google as/ })).toHaveLength(1);
   });
 
+  it('offers a connected account again when the link asks for it, and says why (managed migration 0036)', async () => {
+    const [connected, ...rest] = PERSON.accounts;
+    readMock.mockResolvedValue({ ...PERSON, accounts: [{ ...connected, again: true }, ...rest] });
+    authorizeMock.mockResolvedValue({ url: 'https://accounts.google.com/o/oauth2/v2/auth?z=3' });
+    renderPage();
+    expect(
+      await screen.findByText(/^This account was connected before\. Whoever sent this link asks you to connect it again/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Connected. Nothing more is needed for this account.')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Connect again with Google as anna@gmail.com' }));
+    await waitFor(() => expect(authorizeMock).toHaveBeenCalledWith('abc.def', 'en', 'anna@gmail.com'));
+  });
+
   it('asks for the account whose button was pressed, and follows the URL the server built', async () => {
     authorizeMock.mockResolvedValue({ url: 'https://accounts.google.com/o/oauth2/v2/auth?y=2' });
     renderPage();

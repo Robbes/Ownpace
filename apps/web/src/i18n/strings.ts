@@ -1121,6 +1121,8 @@ const en = {
   'personLink.blurb':
     'One link for all of this person’s Google accounts: they sign in to each once, and every migration that reads it is connected.',
   'personLink.empty': 'No link yet for this person.',
+  'personLink.asksAgain':
+    'Every Google account of theirs is connected, so this link asks them to connect each one again. Send it when a connection has stopped working.',
   'personLink.view.title': 'One progress link for everything',
   'personLink.view.blurb':
     'One page where this person follows all of their migrations, with no account, and can take back the access they gave.',
@@ -1198,6 +1200,9 @@ const en = {
   'grant.person.where': '{account}, {place}',
   'grant.person.connect': 'Continue with Google as {account}',
   'grant.person.connected': 'Connected. Nothing more is needed for this account.',
+  'grant.person.again':
+    'This account was connected before. Whoever sent this link asks you to connect it again, for instance because the connection stopped working.',
+  'grant.person.connectAgain': 'Connect again with Google as {account}',
   'grant.connecting': 'Opening Google…',
   'grant.disclosure': 'By continuing you accept how your data is handled:',
   'grant.privacy': 'Privacy policy',
@@ -3859,6 +3864,8 @@ const nl: Record<keyof typeof en, string> = {
   'personLink.blurb':
     'Eén link voor alle Google-accounts van deze persoon: bij elk account één keer aanmelden, en elke migratie die het leest is verbonden.',
   'personLink.empty': 'Nog geen link voor deze persoon.',
+  'personLink.asksAgain':
+    'Elk Google-account van deze persoon is verbonden, dus deze link vraagt om elk account opnieuw te verbinden. Stuur hem als een verbinding niet meer werkt.',
   'personLink.view.title': 'Eén voortgangslink voor alles',
   'personLink.view.blurb':
     'Eén pagina waarop deze persoon alle eigen migraties volgt, zonder account, en gegeven toegang kan intrekken.',
@@ -3915,6 +3922,9 @@ const nl: Record<keyof typeof en, string> = {
   'grant.person.where': '{account}, {place}',
   'grant.person.connect': 'Doorgaan met Google als {account}',
   'grant.person.connected': 'Verbonden. Voor dit account is niets meer nodig.',
+  'grant.person.again':
+    'Dit account was al verbonden. Wie u deze link stuurde, vraagt u het opnieuw te verbinden, bijvoorbeeld omdat de verbinding niet meer werkt.',
+  'grant.person.connectAgain': 'Opnieuw verbinden met Google als {account}',
   'grant.connecting': 'Google wordt geopend…',
   'grant.disclosure': 'Door door te gaan gaat u akkoord met hoe uw gegevens worden behandeld:',
   'grant.privacy': 'Privacybeleid',
