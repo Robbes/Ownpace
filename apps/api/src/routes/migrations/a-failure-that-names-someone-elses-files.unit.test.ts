@@ -68,6 +68,15 @@ describe("the owner's pages, for an account a person granted", () => {
     );
   });
 
+  it('serves the confirm screen\'s counts with a stopped count\'s text withheld', () => {
+    const discovery = handler(migrations, 'get', '/:mappingId/discovery');
+    expect(discovery).toMatch(
+      /domains: readsAPersonsGrant\(mapping\) \? domains\.map\(withheldDiscovery\) : domains/,
+    );
+    // Nothing reaches the body unwithheld.
+    expect(discovery).not.toMatch(/res\.json\(\{ mappingId, discovered: domains\.length > 0, domains \}\)/);
+  });
+
   it('serves the failure queue with every row withheld, and says so', () => {
     const get = handler(operating, 'get', '/:mappingId/failures');
     expect(get).toMatch(/s\.personGranted \? all\.map\(withheldFailure\) : all/);

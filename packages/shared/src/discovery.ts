@@ -167,6 +167,23 @@ export interface DiscoveryRecord extends DomainDiscovery {
   readonly discoveredAt: string;
   /** Verbatim error from the last pass, if it failed (§11.2 honest passthrough); else absent. */
   readonly lastError?: string;
+  /**
+   * The last pass failed, and its text is kept from this reader (ADR-0035
+   * decision 5): the account was connected by the person being migrated, and
+   * the provider's words can name their files. Set in place of `lastError` by
+   * `withheldDiscovery`, never beside it.
+   */
+  readonly lastErrorWithheld?: true;
+}
+
+/**
+ * One count as the owner's confirm screen may show it when the account was
+ * connected by the person being migrated (ADR-0035 decision 5): the numbers
+ * stay, and an error stays an error, but the provider's text goes.
+ */
+export function withheldDiscovery(row: DiscoveryRecord): DiscoveryRecord {
+  const { lastError, ...kept } = row;
+  return lastError ? { ...kept, lastErrorWithheld: true } : kept;
 }
 
 /**
@@ -268,7 +285,9 @@ export function domainsCountedBeforeTheirError(
     // Truthy rather than `!= null`: the store already reads an empty string as
     // no error at all (`row.lastError ? … : {}`), and a caveat raised by one
     // would contradict the blank error cell in the row it is about.
-    .filter((row) => Boolean(row.lastError) && (row.collections > 0 || row.items > 0))
+    .filter(
+      (row) => (Boolean(row.lastError) || row.lastErrorWithheld === true) && (row.collections > 0 || row.items > 0),
+    )
     .map((row) => row.domain);
 }
 
