@@ -40,7 +40,7 @@ describe('what it says before anybody clicks', () => {
   });
 
   it('names the blind spot on screen, not only inside the document', () => {
-    render(<PermissionsHandover mappingId="m1" />);
+    render(<PermissionsHandover mappingId="m1" sourceKind="microsoft" />);
 
     // Somebody who never opens the file should still learn that FullAccess
     // and Send-As cannot be read at all.
@@ -49,7 +49,7 @@ describe('what it says before anybody clicks', () => {
   });
 
   it('does not promise file sharing this installation may not have read', () => {
-    render(<PermissionsHandover mappingId="m1" />);
+    render(<PermissionsHandover mappingId="m1" sourceKind="microsoft" />);
 
     // `Files.Read.All` is not consented by default (owner decision
     // 2026-08-04), so drive sharing is a stated blind spot in most
@@ -60,6 +60,44 @@ describe('what it says before anybody clicks', () => {
     // And it points at the document for the per-run answer, because that is
     // where the truth for THIS report lives.
     expect(screen.getByText(/which of the two it actually read/)).toBeInTheDocument();
+  });
+});
+
+describe("the blind spots are the migration's own source's (the owner, 2026-10-03)", () => {
+  // The Microsoft line was shown on every Finish page, a Google migration's
+  // included, beside a list that had read the organisation's other sources.
+
+  it('a Google migration is told its own two blind spots, not Exchange and OneDrive', () => {
+    render(<PermissionsHandover mappingId="m1" sourceKind="google" />);
+
+    expect(screen.getByText(/Gmail delegation and send-as/)).toBeInTheDocument();
+    expect(screen.getByText(/Sharing on Google Drive is read/)).toBeInTheDocument();
+    expect(screen.queryByText(/FullAccess or Send-As/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/OneDrive and SharePoint/)).not.toBeInTheDocument();
+  });
+
+  it("reads either vocabulary: the managed edition's kind and the appliance's type", () => {
+    const { unmount } = render(<PermissionsHandover mappingId="m1" sourceKind="o365" />);
+    expect(screen.getByText(/FullAccess or Send-As/)).toBeInTheDocument();
+    unmount();
+
+    render(<PermissionsHandover mappingId="m1" sourceKind="google-drive" />);
+    expect(screen.getByText(/Gmail delegation and send-as/)).toBeInTheDocument();
+  });
+
+  it('a source with no line of its own gets none, rather than another provider’s', () => {
+    render(<PermissionsHandover mappingId="m1" sourceKind="dropbox" />);
+
+    expect(screen.queryByText(/blind spots/)).not.toBeInTheDocument();
+    // The panel itself and its button stay: the document still names what
+    // it could not read, at the top.
+    expect(screen.getByRole('button', { name: /permission list/i })).toBeInTheDocument();
+  });
+
+  it('says nothing about blind spots while the source is not yet known', () => {
+    render(<PermissionsHandover mappingId="m1" />);
+
+    expect(screen.queryByText(/blind spots/)).not.toBeInTheDocument();
   });
 });
 

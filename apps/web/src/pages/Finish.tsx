@@ -307,7 +307,7 @@ const Finish: React.FC = () => {
                 'done' — including on a reload right after success. */}
             {m.lifecycle === 'done' && (
               <div className="mt-3">
-                <PermissionsHandover mappingId={id} />
+                <PermissionsHandover mappingId={id} sourceKind={failures.data?.[id]?.sourceKind} />
                 <div className="mt-3 text-sm">
                   <p className="font-medium text-gray-900">{t('finish.aftermath.title')}</p>
                   <ul className="mt-1 list-disc pl-5 text-gray-600">
@@ -359,7 +359,7 @@ const Finish: React.FC = () => {
                 carried across after delivery moves were missing for however
                 long that took.
               */}
-              <PermissionsHandover mappingId={id} />
+              <PermissionsHandover mappingId={id} sourceKind={failures.data?.[id]?.sourceKind} />
               <ol className="mt-4">
                 <Step
                   n={1}
