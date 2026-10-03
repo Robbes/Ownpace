@@ -241,9 +241,11 @@ vi.mock('@openmig/orchestration/build-deps-from-mapping', async (original) => ({
 
 // The jobs open their pools at import (openTaskPools) and refuse without
 // either URL. Nothing here connects through them: every function below is
-// handed the PGlite driver.
+// handed the PGlite driver. The audit key's pool is the system role's,
+// SYSTEM_DATABASE_URL (0138 T3 step 2), never the owner's DATABASE_URL, which
+// openTaskPools no longer reads.
 process.env.APP_DATABASE_URL ??= 'postgres://unused:unused@close.test.invalid/none';
-process.env.DATABASE_URL ??= 'postgres://unused:unused@close.test.invalid/none';
+process.env.SYSTEM_DATABASE_URL ??= 'postgres://unused:unused@close.test.invalid/none';
 
 const { runCutoverGate } = await import('./cutover-gate.ts');
 const { verifyForTheOwner } = await import('./run-verification.ts');
