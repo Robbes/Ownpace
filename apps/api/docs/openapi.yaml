@@ -2070,6 +2070,30 @@ paths:
                   - { $ref: '#/components/schemas/AccountClosed' }
                   - { $ref: '#/components/schemas/ConditionsNotAccepted' }
 
+  /api/migrations/progress:
+    get:
+      tags: [Migrations]
+      summary: Where each data type of each migration is
+      description: |
+        The lines on a person's card and their page (workplan 0154 T1 (b) to
+        (d)): for each migration of the organisation, each data type it copies
+        with the facts its stage is read from (`state`, `phase`, `stopped`),
+        its counts against what discovery found (`itemsFound`, `bytesFound`,
+        absent when discovery could not count), and the migration's `check`.
+
+        `check.state` is `not_run`, `running` (with `since`), `could_not_run`
+        (the run itself failed, with `at`), `passed` or `not_passed` (with
+        `at`, when the run finished). Passed is what the Finish page means by
+        it: the report says the migration can proceed to its cutover.
+
+        A data type the migration does not copy has no row.
+      responses:
+        '200':
+          description: Each migration's progress.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProgressReport' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /api/migrations/{mappingId}:
     parameters:
       - $ref: '#/components/parameters/MappingId'
@@ -2103,6 +2127,13 @@ paths:
         On a data type still in its cutover, `graceEndedAt` says when its
         grace period ended while nobody chose: it no longer copies (D7, slice
         7c).
+
+        Each `domainStatus` row carries what discovery found of its data type
+        (workplan 0154 T2): `itemsFound`, and `bytesFound` when the source has
+        cheap sizes. It is discovery's latest count that succeeded, kept
+        through a later error, and only for the data types the migration
+        carries, by the rule `…/discovery` reads by. Both are absent, never 0,
+        when discovery could not count the data type.
       responses:
         '200':
           description: The migration.
@@ -6973,6 +7004,50 @@ components:
                         account: { type: string, nullable: true }
                     granted: { type: boolean }
         expiresAt: { type: string, format: date-time }
+    ProgressReport:
+      type: object
+      required: [mappings]
+      properties:
+        mappings:
+          type: array
+          items:
+            type: object
+            required: [mappingId, domains, check]
+            properties:
+              mappingId: { type: string, format: uuid }
+              domains:
+                type: array
+                items:
+                  type: object
+                  required: [domain, state, phase, itemsSynced, bytesTransferred]
+                  properties:
+                    domain: { type: string }
+                    state: { type: string }
+                    phase: { type: string }
+                    stopped: { type: boolean, enum: [true] }
+                    itemsSynced: { type: integer }
+                    itemsFound: { type: integer }
+                    itemsAdopted: { type: integer }
+                    bytesTransferred: { type: integer }
+                    bytesFound: { type: integer }
+                    lastSyncedAt: { type: string, format: date-time }
+                    lastActiveAt: { type: string, format: date-time }
+              check:
+                oneOf:
+                  - type: object
+                    required: [state]
+                    properties:
+                      state: { type: string, enum: [not_run] }
+                  - type: object
+                    required: [state, since]
+                    properties:
+                      state: { type: string, enum: [running] }
+                      since: { type: string, format: date-time }
+                  - type: object
+                    required: [state, at]
+                    properties:
+                      state: { type: string, enum: [could_not_run, passed, not_passed] }
+                      at: { type: string, format: date-time }
     PersonProgressPage:
       type: object
       description: |

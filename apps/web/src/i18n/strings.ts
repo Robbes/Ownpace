@@ -1488,6 +1488,14 @@ const en = {
   'people.noneYet': 'Nothing for this person yet.',
   'people.lastPass': 'Last pass {when}',
   'people.noPassYet': 'No pass yet',
+  // THE SENTENCE UNDER A DATA TYPE'S STAGE (0154 T1 (b)), after its count:
+  // *18,234 of ~19,000 · last pass 2 minutes ago*. *Pass* is the
+  // glossary's word for a round of copying; *the check* is the verification,
+  // as the menu's *Check* names it, and the two are kept apart.
+  'people.line.lastPass': 'last pass {when}',
+  // What the count leaves out, short: its meaning is on the migration's page.
+  'people.line.leftAsIs': '{count} left as they are',
+  'people.line.checkPassed': 'The check passed {when}',
   'people.loadFailed': 'Could not load who each migration is for.',
   'people.unassigned.title': 'Not with a person yet',
   'people.unassigned.hint': 'Add each to the person it is for; it joins their card.',
@@ -1990,15 +1998,25 @@ const en = {
   'support.export.stopped': 'The download stopped: {message}',
   'support.export.kept': 'Lines saved: {count}. The field holds where to carry on.',
   'confirm.progress.heading': 'Live progress',
-  'confirm.progress.synced': 'synced',
+  // OF ABOUT HOW MANY (0154 T2): what arrived, set against what discovery
+  // found. *About* is literal: discovery is a snapshot, and the source keeps
+  // changing. One sentence for the items and for the bytes (*"3.1 of
+  // ~3.4 GB"*).
+  'confirm.progress.ofAbout': '{done} of ~{total}',
+  // Discovery has no count of this data type: the copies stand alone, and the
+  // row says so rather than *"of 0"* (hard rule 9).
+  'confirm.progress.totalNotKnown': '{done} copied · total not known',
+  // Discovery counted none, and none arrived: a real answer, not a gap.
+  'confirm.progress.noneFound': 'none found to copy',
   'confirm.progress.failed': 'failed',
   'confirm.progress.retrying': 'retrying',
   // LEFT ALONE IS NOT COPIED (0124 T2). Two different rows wear the ledger's
   // `adopted` status — an item the target already held, and one we wrote that
   // the customer has since edited — and the ledger cannot tell them apart after
   // the fact. One sentence true of both; inventing the split would be a worse
-  // lie than the silence this replaces.
-  'confirm.progress.leftAsIs': 'left as they are',
+  // lie than the silence this replaces. Its meaning is on screen since 0154 T2,
+  // where it lived only in a tooltip; the longer reassurance stays there.
+  'confirm.progress.leftAsIs': '{count} left as they are: already on the new system, or changed there since',
   'confirm.progress.leftAsIs.why':
     'These were already on the new system, or have been changed there since, so they were left exactly as they are. Nothing was copied over them and nothing was lost: this tool never overwrites what it did not write. They are counted here rather than among the copies because nothing happened to them — which is the point.',
   // When a pass last touched this data type — NOT when it last finished.
@@ -2410,6 +2428,12 @@ const en = {
     'Two blind spots: mailbox FullAccess or Send-As, and OneDrive and SharePoint sharing.',
   'permissions.blindSpot.more':
     'Who had full access to a mailbox or could send as it: Microsoft does not expose that to us at all, so you have to read it out of Exchange yourself. Sharing on the two file platforms is only included when this installation was given that extra permission. The document says which of the two it actually read, and how to cover the rest.',
+  // The same line for a Google source: Drive sharing IS read, so the two
+  // blind spots are the mailbox's and the calendar's.
+  'permissions.blindSpot.google':
+    'Two blind spots: Gmail delegation and send-as, and Google Calendar sharing.',
+  'permissions.blindSpot.google.more':
+    'Who could read or send from someone’s Gmail, and who could see whose calendar: this tool does not read either from Google yet, so note them yourself in the Gmail and Google Calendar settings. Sharing on Google Drive is read, and is in the list.',
   'permissions.download': 'Get the permission list',
   'permissions.failed': 'The permission list could not be fetched.',
   // Shared addresses, on Review & confirm (workplan 0027 T4).
@@ -4199,6 +4223,9 @@ const nl: Record<keyof typeof en, string> = {
   'people.noneYet': 'Nog niets voor deze persoon.',
   'people.lastPass': 'Laatste ronde {when}',
   'people.noPassYet': 'Nog geen ronde',
+  'people.line.lastPass': 'laatste ronde {when}',
+  'people.line.leftAsIs': '{count} ongemoeid gelaten',
+  'people.line.checkPassed': 'De verificatie is {when} geslaagd',
   'people.loadFailed': 'Kon niet laden bij wie elke migratie hoort.',
   'people.unassigned.title': 'Nog niet bij een persoon',
   'people.unassigned.hint': 'Voeg elke migratie toe aan de persoon voor wie ze is.',
@@ -4400,10 +4427,12 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.introStarted':
     'Migraties hier zijn gestart. Live voortgang staat per migratie; de scan blijft als momentopname.',
   'confirm.progress.heading': 'Live voortgang',
-  'confirm.progress.synced': 'gesynchroniseerd',
+  'confirm.progress.ofAbout': '{done} van ~{total}',
+  'confirm.progress.totalNotKnown': '{done} gekopieerd · totaal niet bekend',
+  'confirm.progress.noneFound': 'niets gevonden om te kopiëren',
   'confirm.progress.failed': 'mislukt',
   'confirm.progress.retrying': 'in nieuwe poging',
-  'confirm.progress.leftAsIs': 'ongemoeid gelaten',
+  'confirm.progress.leftAsIs': '{count} ongemoeid gelaten: stonden al op het nieuwe systeem, of zijn daar sindsdien gewijzigd',
   'confirm.progress.leftAsIs.why':
     'Deze stonden al op het nieuwe systeem, of zijn daar sindsdien gewijzigd, en zijn daarom precies gelaten zoals ze zijn. Er is niets overheen gekopieerd en er is niets verloren gegaan: dit gereedschap overschrijft nooit wat het niet zelf heeft geschreven. Ze staan hier apart van de kopieën omdat er niets met ze is gebeurd — en dat is precies het punt.',
   'confirm.progress.lastActive': 'laatst actief',
@@ -4757,6 +4786,10 @@ const nl: Record<keyof typeof en, string> = {
     'Twee blinde vlekken: FullAccess of Send-As op een postvak, en delen op OneDrive en SharePoint.',
   'permissions.blindSpot.more':
     'Wie volledige toegang tot een postvak had of eruit kon verzenden: Microsoft geeft ons dat helemaal niet, dat moet u zelf uit Exchange halen. Delen op de twee bestandsplatforms komt alleen mee als deze installatie die extra machtiging heeft gekregen. Het document zegt welke van de twee het werkelijk gelezen heeft, en hoe u de rest afdekt.',
+  'permissions.blindSpot.google':
+    'Twee blinde vlekken: Gmail-gemachtigden en verzenden-als, en delen in Google Agenda.',
+  'permissions.blindSpot.google.more':
+    'Wie iemands Gmail kon lezen of eruit kon verzenden, en wie wiens agenda kon zien: dit hulpmiddel leest geen van beide nog bij Google uit, dus noteer ze zelf in de instellingen van Gmail en Google Agenda. Delen op Google Drive wordt wel gelezen en staat in de lijst.',
   'permissions.download': 'Haal de rechtenlijst op',
   'permissions.failed': 'De rechtenlijst kon niet worden opgehaald.',
   'sharedAddresses.heading': 'Gevonden gedeelde adressen',

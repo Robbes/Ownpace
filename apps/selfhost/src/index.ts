@@ -43,7 +43,7 @@ import {
   qualificationReportLines,
   qualifyAccount,
 } from '@openmig/orchestration/account-qualification';
-import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow, stepFrom, stopReasonOf, HALT_IN_WORDS } from '@openmig/shared';
+import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, foundByDomain, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow, stepFrom, stopReasonOf, HALT_IN_WORDS } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
 // three cannot drift apart in the explanations that stop somebody destroying
@@ -1666,6 +1666,11 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             m.config.tenantId as TenantId,
             m.mailboxMappingId as MappingId,
           );
+          // What discovery found of each data type (0154 T2): the *about* in
+          // "18,234 of ~19,000", from the counts `/discovery` serves.
+          const found = foundByDomain(
+            await discoveryStore.getDiscovery(m.config.tenantId as TenantId, m.mailboxMappingId as MappingId),
+          );
           // Each data type's stop and ending as the pages offer them (0128 T4,
           // slice 3c; T5, slice 7b), by the rules the doors themselves decide by.
           const tenantId = m.config.tenantId as string;
@@ -1685,6 +1690,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             statuses,
             failures,
             adopted,
+            found,
             ...(facts === undefined ? {} : { stops: pathStopChoices(facts), endings: pathEndingChoices(facts, graceEnds) }),
           });
         }
@@ -2029,11 +2035,18 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // appliance's mappings actually configure (workplan 0029 T1/T5) — used
       // by the permission report below AND by the sharing queue's rescan
       // (ADR-0032), so the queue can never know more or less than the report.
-      const inventoryScansFor = (mailbox: string) => {
+      //
+      // `scope` is the mappings whose sources may be read: ONE migration's,
+      // when a migration is what was asked about, and every mapping only for
+      // an address asked for directly. Read from every mapping, a Microsoft
+      // migration's report listed a Google migration's Drive shares, and its
+      // rescan saved them into its own checklist (the owner, 2026-10-03; the
+      // managed edition's `migrationInventoryScans` says the same).
+      const inventoryScansFor = (mailbox: string, scope: typeof mappings) => {
         // The Graph tenant, from whichever mapping has a Graph source. An
         // appliance migrating only IMAP has none, which is a legitimate
         // configuration — every category then says so.
-        const graphSource = mappings
+        const graphSource = scope
           .map((m) => m.config.source)
           .find((src) => src.type.startsWith('graph-')) as { tenantId?: string } | undefined;
         // A Google Drive mapping (workplan 0029, the Google half): its
@@ -2051,13 +2064,13 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         // Drive credentials this deployment already holds in its environment,
         // so the scan is answerable whether or not that gap is closed — and a
         // blind spot nobody asked for is worse than a section that is right.
-        const hasGoogleDriveSource = mappings.some((m) =>
+        const hasGoogleDriveSource = scope.some((m) =>
           carriesGoogleNativeFiles(m.config.source.type),
         );
         // A Nextcloud/WebDAV files source: its outbound shares are one OCS
         // GET away (0104 T2) — before this, a DAV appliance's sharing was a
         // blind spot wearing a Graph-worded reason.
-        const davFilesSource = mappings
+        const davFilesSource = scope
           .map((m) => (m.config.domains?.files?.source ?? m.config.source) as
             | { type?: string; url?: string; user?: string; auth?: { passwordFromEnv?: string } }
             | undefined)
@@ -2341,7 +2354,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
               'be inventoried.',
           });
         }
-        const scans = inventoryScansFor(mailbox);
+        const scans = inventoryScansFor(mailbox, [m]);
         const result = await refreshShareGrants({
           tenantId: m.config.tenantId as TenantId,
           mappingId: m.mailboxMappingId as MappingId,
@@ -2592,9 +2605,13 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         // knows where a mapping's address lives per source kind.
         const askedMappingId = params.get('mappingId')?.trim();
         let mailbox = params.get('mailbox')?.trim();
+        // The mappings this report may read: the one migration asked about,
+        // or every mapping for an address asked for directly.
+        let scope = mappings;
         if (!mailbox && askedMappingId) {
           const m = mappings.find((x) => x.config.mappingId === askedMappingId);
           if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+          scope = [m];
           const coverage = resolveCoverage([
             { mappingId: m.config.mappingId, source: m.config.source },
           ]);
@@ -2619,12 +2636,13 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
               '(or ?mappingId=… to resolve it from a migration)',
           });
         }
-        const scans = inventoryScansFor(mailbox);
+        const scans = inventoryScansFor(mailbox, scope);
 
-        // The target's side of the story (0105 T0): the first mapping with a
-        // DAV-shaped calendar (or files) target, measured live at report
-        // time. Same passwordFromEnv resolution as every appliance credential.
-        const davTarget = mappings
+        // The target's side of the story (0105 T0): the first mapping in scope
+        // with a DAV-shaped calendar (or files) target, measured live at
+        // report time. Same passwordFromEnv resolution as every appliance
+        // credential.
+        const davTarget = scope
           .map(
             (m) =>
               (m.config.domains?.calendar?.target ?? m.config.target) as

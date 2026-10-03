@@ -1206,6 +1206,14 @@ R's or M's groups are changing:
 R builds the rest in the order above. 0154 T2's totals stay with R, because they change
 `apps/api`'s migration routes, which are R2's.
 
+**2026-10-03, the owner's word: the writing session takes the rest of R8.** Step 12's first half,
+0153 T8, was built out of turn and merged at the owner's *"If you don't see PRs from session R on
+what you already build (like 1415), then you proceed: you where first"* (#1415). Asked whether to
+take on the wizard's retirement and 0154's progress work next, the owner answered *"Take on
+both"*. So the writing session builds R8's steps 5 (0154 T2), 7's remainder (0154 T1 (b) to (d),
+T4 and T6), 8 (0154 T3, T5 and T8, with T7) and 12's second half (the four-step wizard's
+retirement). No pull request of R's or M's was open when the work began (`main` at `cd9a75e`).
+
 **Rules for both sessions.**
 
 - **A task's pull request** carries its guard, updates its plan's Status block, and names its

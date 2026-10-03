@@ -15,6 +15,7 @@
 
 import type {
   DiscoveryDomain,
+  FoundCount,
   ItemFailure,
   MigrationStatus,
   MappingLifecycle,
@@ -47,6 +48,12 @@ export interface MappingStatusInput {
    * which is what a screen needs in order to say nothing rather than "none".
    */
   readonly adopted?: Readonly<Partial<Record<DiscoveryDomain, number>>>;
+  /**
+   * What discovery found of each data type (0154 T2), from `foundByDomain`.
+   * Optional by `adopted`'s rule: omitted, the rows carry no `itemsFound`,
+   * and a page says the total is not known.
+   */
+  readonly found?: Readonly<Partial<Record<DiscoveryDomain, FoundCount>>>;
   /**
    * Each data type's stop as the page offers it (0128 T4, slice 3c), from
    * `pathStopChoices`. Omitted, the row has no `stops`, and the page offers
@@ -81,7 +88,7 @@ export function buildStatusReport(
     status: 'ok',
     ...(notifications ? { notifications } : {}),
     mappings: inputs.map(
-      ({ mappingId, migrationStatus, sourceType, targetType, name, statuses, failures = [], adopted, stops, endings }) => ({
+      ({ mappingId, migrationStatus, sourceType, targetType, name, statuses, failures = [], adopted, found, stops, endings }) => ({
         mappingId,
         migrationStatus,
         // Spread, not `sourceType: sourceType`: a caller that did not supply
@@ -94,7 +101,7 @@ export function buildStatusReport(
       // GET /migrations/{id} serves the SAME shape — before that, its raw
       // MigrationStatus rows lacked itemsRetrying/itemsNeedingDecision and a
       // UI reading them saw undefined where this edition served numbers.
-        domains: buildDomainStatusReports(statuses, failures, adopted),
+        domains: buildDomainStatusReports(statuses, failures, adopted, found),
         ...(stops === undefined ? {} : { stops }),
         ...(endings === undefined ? {} : { endings }),
       }),

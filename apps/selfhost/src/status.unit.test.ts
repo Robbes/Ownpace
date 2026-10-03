@@ -105,6 +105,23 @@ describe('buildStatusReport', () => {
     expect(report.mappings[1]).not.toHaveProperty('name');
   });
 
+  it('sets each data type beside what discovery found of it, and says nothing when not given (0154 T2)', () => {
+    const report = buildStatusReport([
+      {
+        mappingId: 'a',
+        migrationStatus: 'active',
+        statuses: [status({ domain: 'email' }), status({ domain: 'contact' })],
+        found: { email: { items: 19_000, bytes: 3_650_000_000 } },
+      },
+      { mappingId: 'b', migrationStatus: 'active', statuses: [status({ domain: 'email' })] },
+    ]);
+    const [email, contact] = report.mappings[0]!.domains;
+    expect(email).toMatchObject({ itemsFound: 19_000, bytesFound: 3_650_000_000 });
+    // Absent is "nobody counted", never 0 (hard rule 9).
+    expect(contact).not.toHaveProperty('itemsFound');
+    expect(report.mappings[1]!.domains[0]).not.toHaveProperty('itemsFound');
+  });
+
   it('omits lastError/lastSyncedAt when absent', () => {
     const report = buildStatusReport([{ mappingId: 'm', migrationStatus: 'paused', statuses: [status({ state: 'pending' })] }]);
     const d = report.mappings[0]!.domains[0]!;
