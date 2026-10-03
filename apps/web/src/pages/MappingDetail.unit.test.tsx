@@ -19,6 +19,7 @@ const {
   mappingApiGet,
   mappingDiscoveryMock,
   fetchAllDiscoveryMock,
+  fetchRunsMock,
   fetchStatusMock,
   fetchAttentionMock,
   fetchProgressMock,
@@ -27,6 +28,7 @@ const {
   mappingApiGet: vi.fn(),
   mappingDiscoveryMock: vi.fn(),
   fetchAllDiscoveryMock: vi.fn(),
+  fetchRunsMock: vi.fn(),
   fetchStatusMock: vi.fn(),
   fetchAttentionMock: vi.fn(),
   fetchProgressMock: vi.fn(),
@@ -47,7 +49,7 @@ vi.mock('../services/edition', () => ({
 // The runs panel has its own tests (RunsPanel.unit.test.tsx); here it only
 // needs to not fetch over the network while the hub's links are asserted.
 vi.mock('../services/operating-service', () => ({
-  fetchRuns: vi.fn().mockResolvedValue({ runs: [] }),
+  fetchRuns: fetchRunsMock,
   fetchStatus: fetchStatusMock,
   // The steps' counts (0154 T4): what waits in each queue.
   fetchAttention: fetchAttentionMock,
@@ -116,6 +118,7 @@ beforeEach(() => {
   fetchProgressMock.mockResolvedValue({ mappings: [{ mappingId: 'acme-mail', domains: [], check: { state: 'not_run' } }] });
   mappingDiscoveryMock.mockResolvedValue({ mappingId: 'acme-mail', discovered: false, domains: [] });
   fetchAllDiscoveryMock.mockResolvedValue({});
+  fetchRunsMock.mockResolvedValue({ runs: [] });
 });
 
 const step = (key: string) => document.querySelector(`[data-step="${key}"]`) as HTMLElement;
@@ -704,5 +707,107 @@ describe('how long, before the first pass reports (0154 T3 (a))', () => {
     expect(
       await screen.findByText('Within a day, because this mailbox holds less than the 2.5 GB a day Google lets one download.'),
     ).toBeInTheDocument();
+  });
+});
+
+/**
+ * HOW LONG, DURING THE COPY (workplan 0154 T3 (b)): once a pass has reported,
+ * from the last passes' own pace and what is left of T2's totals, in place of
+ * the count's estimate; nothing once nothing is left.
+ */
+describe('how long, during the copy (0154 T3 (b))', () => {
+  const DAY = 86_400_000;
+  const T0 = Date.parse('2026-10-01T02:00:00.000Z');
+  /** Newest first: a pass a day, each 50 minutes. */
+  const passes = (...items: number[]) =>
+    items.map((n, i) => {
+      const start = T0 + (items.length - 1 - i) * DAY;
+      return {
+        id: `r-${i}`,
+        mappingId: 'acme-mail',
+        type: 'delta',
+        kind: 'initial_copy',
+        status: 'success',
+        startedAt: new Date(start).toISOString(),
+        finishedAt: new Date(start + 50 * 60_000).toISOString(),
+        itemsProcessed: n,
+        errors: 0,
+        createdAt: new Date(start).toISOString(),
+        events: [],
+      };
+    });
+  const row = (over: Record<string, unknown> = {}) => ({
+    domain: 'email',
+    state: 'in_progress',
+    itemsSynced: 10_000,
+    itemsFound: 19_000,
+    itemsFailed: 0,
+    bytesTransferred: 0,
+    itemsRetrying: 0,
+    itemsNeedingDecision: 0,
+    lastSyncedAt: '2026-10-03T02:50:00.000Z',
+    ...over,
+  });
+
+  it('says the range the last passes’ pace gives, in place of the count’s estimate', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ sourceType: 'gmail', domainStatus: [row()] }));
+    fetchRunsMock.mockResolvedValue({ runs: passes(2_000, 1_500, 1_200) });
+    renderHub();
+    expect(await screen.findByText('About 4 to 8 days more, from the last 3 passes.')).toBeInTheDocument();
+    expect(mappingDiscoveryMock).not.toHaveBeenCalled();
+  });
+
+  it('leaves the count’s estimate in place while the first pass is still running', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({ sourceType: 'gmail', domainStatus: [row({ lastSyncedAt: undefined })] }),
+    );
+    mappingDiscoveryMock.mockResolvedValue({
+      mappingId: 'acme-mail',
+      discovered: true,
+      domains: [{ domain: 'email', collections: 4, items: 19_000, bytes: 10.4e9, discoveredAt: '2026-10-01T00:00:00.000Z' }],
+    });
+    fetchRunsMock.mockResolvedValue({ runs: passes(2_000, 1_500, 1_200) });
+    renderHub();
+    expect(
+      await screen.findByText('About 4 to 5 days, because Google lets a mailbox download 2.5 GB a day.'),
+    ).toBeInTheDocument();
+    await screen.findByText('2,000 items this pass');
+    expect(document.querySelector('[data-time-while-copying]')).toBeNull();
+  });
+
+  it('says it will know after three passes, and how many it has', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ sourceType: 'gmail', domainStatus: [row()] }));
+    fetchRunsMock.mockResolvedValue({ runs: passes(2_000) });
+    renderHub();
+    expect(await screen.findByText('We will know after three passes; 1 so far.')).toBeInTheDocument();
+  });
+
+  it('names the provider that slowed it, first', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({ sourceType: 'o365', domainStatus: [row({ lastErrorCategory: 'rate_limited' })] }),
+    );
+    fetchRunsMock.mockResolvedValue({ runs: passes(2_000, 1_500, 1_200) });
+    renderHub();
+    expect(
+      await screen.findByText('Slowed by Microsoft 365. About 4 to 8 days more, from the last 3 passes.'),
+    ).toBeInTheDocument();
+  });
+
+  /** Kept in step has no time left; a total nobody counted has no remainder (hard rule 9). */
+  it('says nothing once nothing is left, or where a total is not known', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({ sourceType: 'gmail', domainStatus: [row({ state: 'completed', itemsSynced: 19_000 })] }),
+    );
+    fetchRunsMock.mockResolvedValue({ runs: passes(2_000, 1_500, 1_200) });
+    const { unmount } = renderHub();
+    // The run history has landed, so the line had what it needed.
+    await screen.findByText('2,000 items this pass');
+    expect(screen.queryByText('How long:')).not.toBeInTheDocument();
+    unmount();
+
+    mappingApiGet.mockResolvedValue(aMapping({ sourceType: 'gmail', domainStatus: [row({ itemsFound: undefined })] }));
+    renderHub();
+    await screen.findByText('2,000 items this pass');
+    expect(screen.queryByText('How long:')).not.toBeInTheDocument();
   });
 });
