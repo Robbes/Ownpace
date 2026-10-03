@@ -199,6 +199,35 @@ export function discoveryForSelection(
   return rows.filter((row) => carried.has(row.domain));
 }
 
+/** What discovery found of one data type: its items, and its bytes when the source has cheap sizes. */
+export interface FoundCount {
+  readonly items: number;
+  readonly bytes?: number;
+}
+
+/**
+ * WHAT DISCOVERY FOUND, PER DATA TYPE, for the progress rows' *"of about how
+ * many"* (workplan 0154 T2).
+ *
+ * A type's latest count that succeeded. A row that holds an error and no count
+ * is a first attempt that failed (`recordDiscoveryError` writes zeros when it
+ * has nothing to keep), so it has no entry, and its row says the total is not
+ * known. A row that holds an error and a count kept the count from before the
+ * error, the same footprint `domainsCountedBeforeTheirError` reads: it is still
+ * the best *about* there is. A type with no row was never counted.
+ */
+export function foundByDomain(
+  rows: readonly DiscoveryRecord[],
+): Partial<Record<DiscoveryDomain, FoundCount>> {
+  const found: Partial<Record<DiscoveryDomain, FoundCount>> = {};
+  for (const row of rows) {
+    const counted = !row.lastError || row.collections > 0 || row.items > 0;
+    if (!counted) continue;
+    found[row.domain] = { items: row.items, ...(row.bytes !== undefined ? { bytes: row.bytes } : {}) };
+  }
+  return found;
+}
+
 /**
  * The domains whose counts predate their error.
  *

@@ -34,7 +34,7 @@
  * queue that cannot say where something went is not one anybody can act on.
  */
 
-import type { DiscoveryDomain } from './discovery.ts';
+import type { DiscoveryDomain, FoundCount } from './discovery.ts';
 import type { FailureCategory, FailureSide } from './failure-category.ts';
 import type { PauseReason } from './pause-reason.ts';
 import type { ConfirmedRowView, RowState } from './confirmed-list.ts';
@@ -284,6 +284,19 @@ export interface DomainStatusReport {
    */
   readonly itemsAdopted?: number;
   /**
+   * What discovery found of this data type: its latest count that succeeded,
+   * the *about* in *"18,234 of ~19,000"* (workplan 0154 T2).
+   *
+   * ABSENT when discovery never ran, or never counted this type, so a page
+   * says the total is not known rather than *"of 0"* (hard rule 9). A count
+   * kept from before a later error still stands: discovery is a snapshot, and
+   * the source keeps changing either way, which is why a page reads it as
+   * *about*. See `foundByDomain`.
+   */
+  readonly itemsFound?: number;
+  /** The bytes of that count, when the source has cheap sizes; absent otherwise. */
+  readonly bytesFound?: number;
+  /**
    * Why this domain stopped on purpose, when it did (migration 0041). Present
    * only while something is holding it up, and never for a failure — a paused
    * domain has nothing wrong with it, which is exactly why it needs saying.
@@ -403,10 +416,18 @@ export function buildDomainStatusReports(
    * on behalf of a caller that never took one.
    */
   adopted?: Readonly<Partial<Record<DiscoveryDomain, number>>>,
+  /**
+   * What discovery found of each data type, from `foundByDomain` (0154 T2).
+   * A FOURTH ARGUMENT for the reason `adopted` is the third: it is not
+   * something a pass records. Omitted, or missing a domain, leaves
+   * `itemsFound` and `bytesFound` absent on that row.
+   */
+  found?: Readonly<Partial<Record<DiscoveryDomain, FoundCount>>>,
 ): DomainStatusReport[] {
   return statuses.map((s) => {
     const mine = failures.filter((f) => f.domain === s.domain);
     const adoptedHere = adopted?.[s.domain];
+    const foundHere = found?.[s.domain];
     return {
       domain: s.domain,
       state: s.state,
@@ -416,6 +437,8 @@ export function buildDomainStatusReports(
       itemsRetrying: mine.filter((f) => !f.needsDecision).length,
       itemsNeedingDecision: mine.filter((f) => f.needsDecision).length,
       ...(adoptedHere !== undefined ? { itemsAdopted: adoptedHere } : {}),
+      ...(foundHere !== undefined ? { itemsFound: foundHere.items } : {}),
+      ...(foundHere?.bytes !== undefined ? { bytesFound: foundHere.bytes } : {}),
       ...(s.completedAt ? { lastSyncedAt: s.completedAt } : {}),
       ...(s.lastError ? { lastError: s.lastError } : {}),
       ...(s.lastErrorCategory ? { lastErrorCategory: s.lastErrorCategory } : {}),

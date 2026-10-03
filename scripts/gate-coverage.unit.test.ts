@@ -87,12 +87,16 @@ const NOT_ASKED: Record<string, string> = {
     'a payment provider\'s signed callback. Forging one proves the signature ' +
     'check can be fooled, which is worse than no coverage.',
   '/api/grant':
-    'the migrator\'s consent flow. Reaching it needs a link issued against a ' +
-    'source connection carrying a real Google client id and secret, written ' +
-    'from a script — hard rule 3 says no — and the flow it starts ends at ' +
-    'Google\'s own consent screen, which no gate can press. Covered by ' +
+    'the migrator\'s consent flow. Reaching it needs a link issued for a ' +
+    'person whose migration reads a Google account, through a source ' +
+    'connection carrying a real Google client id and secret, written from a ' +
+    'script — hard rule 3 says no — and the flow it starts ends at Google\'s ' +
+    'own consent screen, which no gate can press. Covered by ' +
     'routes/grant.unit.test.ts, which runs the whole flow against a real ' +
-    'database with only Google\'s token endpoint replaced.',
+    'database with only Google\'s token endpoint replaced. The gate asks it ' +
+    'once, for a refusal only: a person\'s progress token at the grant ' +
+    'address is refused on its purpose, which starts no consent (the ' +
+    'progress-link section; a-link-the-gate-asked-of-a-migration.unit.test.ts).',
   '/api/problem-reports':
     'sending one opens a real ticket on the owner\'s helpdesk, or, without one, ' +
     'mails the support mailbox. A stack this gate talks to has no helpdesk, and ' +

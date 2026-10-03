@@ -365,8 +365,12 @@ You get per-mapping, per-domain state derived from the ledger: `state`
 (pending/in_progress/completed/failed/skipped/stopped), `itemsSynced`, `itemsFailed`,
 `bytesTransferred`, `lastSyncedAt`, and `lastError` **verbatim** when a domain
 failed (nothing is masked). Each domain also carries `itemsRetrying` and
-`itemsNeedingDecision` — see the next section. `/status` only ever surfaces
-those fields — it never echoes your config or credentials.
+`itemsNeedingDecision` — see the next section. Once discovery has counted a
+domain, it carries `itemsFound` too, and `bytesFound` when the source has cheap
+sizes: discovery's latest count, which the pages set the copies against
+(*"18,234 of ~19,000"*). They are absent, never 0, for a domain discovery
+could not count. `/status` only ever surfaces those fields — it never echoes
+your config or credentials.
 
 `skipped` and `stopped` are both a data type your mapping file does not run.
 `skipped` has nothing on the target. `stopped` was switched off
