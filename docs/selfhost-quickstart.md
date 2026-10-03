@@ -368,7 +368,7 @@ failed (nothing is masked). Each domain also carries `itemsRetrying` and
 `itemsNeedingDecision` — see the next section. Once discovery has counted a
 domain, it carries `itemsFound` too, and `bytesFound` when the source has cheap
 sizes: discovery's latest count, which the pages set the copies against
-(*"18,234 of about 19,000"*). They are absent, never 0, for a domain discovery
+(*"18,234 of ~19,000"*). They are absent, never 0, for a domain discovery
 could not count. `/status` only ever surfaces those fields — it never echoes
 your config or credentials.
 

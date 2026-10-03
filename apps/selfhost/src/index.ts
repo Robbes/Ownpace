@@ -1667,7 +1667,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             m.mailboxMappingId as MappingId,
           );
           // What discovery found of each data type (0154 T2): the *about* in
-          // "18,234 of about 19,000", from the counts `/discovery` serves.
+          // "18,234 of ~19,000", from the counts `/discovery` serves.
           const found = foundByDomain(
             await discoveryStore.getDiscovery(m.config.tenantId as TenantId, m.mailboxMappingId as MappingId),
           );

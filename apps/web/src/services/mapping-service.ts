@@ -156,7 +156,7 @@ export const MappingDomainStatusSchema = z.object({
   itemsAdopted: z.number().optional(),
   /**
    * What discovery found of this domain, and its bytes (0154 T2): the *about*
-   * in *"18,234 of about 19,000"*. Optional by `itemsAdopted`'s rule: absent
+   * in *"18,234 of ~19,000"*. Optional by `itemsAdopted`'s rule: absent
    * is "discovery has no count", and the strip says the total is not known.
    */
   itemsFound: z.number().optional(),

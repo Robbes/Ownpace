@@ -1,8 +1,8 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * OF ABOUT HOW MANY (workplan 0154 T2): the rules that turn a progress row's
- * counts into *"18,234 of about 19,000"*, its bar, and *"3.1 of about
- * 3.4 GB"*. Each case is one sentence of the plan.
+ * counts into *"18,234 of ~19,000"*, its bar, and *"3.1 of ~3.4
+ * GB"*. Each case is one sentence of the plan.
  */
 import { describe, it, expect } from 'vitest';
 import { bytesOfAbout, progressTotals, wholePercent } from './progress-totals.ts';
@@ -112,7 +112,7 @@ describe('the bytes, as one quantity', () => {
     expect(bytesOfAbout({ itemsSynced: 612, bytesTransferred: 0, bytesFound: 4 * MB }, 'en')).toBeNull();
     // A row from before the bytes were read here.
     expect(bytesOfAbout({ itemsSynced: 612, bytesFound: 4 * MB }, 'en')).toBeNull();
-    // Nothing found and nothing arrived: *"0 of about 0 B"* says nothing.
+    // Nothing found and nothing arrived: *"0 of ~0 B"* says nothing.
     expect(bytesOfAbout({ itemsSynced: 0, bytesTransferred: 0, bytesFound: 0 }, 'en')).toBeNull();
   });
 });

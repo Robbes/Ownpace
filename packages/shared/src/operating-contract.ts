@@ -285,7 +285,7 @@ export interface DomainStatusReport {
   readonly itemsAdopted?: number;
   /**
    * What discovery found of this data type: its latest count that succeeded,
-   * the *about* in *"18,234 of about 19,000"* (workplan 0154 T2).
+   * the *about* in *"18,234 of ~19,000"* (workplan 0154 T2).
    *
    * ABSENT when discovery never ran, or never counted this type, so a page
    * says the total is not known rather than *"of 0"* (hard rule 9). A count

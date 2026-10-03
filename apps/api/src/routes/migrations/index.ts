@@ -2705,7 +2705,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
           // totals never added up and there was nothing to read instead.
           new PgLedger(db).countAdoptedByDomain(tenantId as TenantId, mappingId as MappingId),
           // What discovery found of each data type (0154 T2): the *about* in
-          // "18,234 of about 19,000", read in the same transaction as the
+          // "18,234 of ~19,000", read in the same transaction as the
           // counts it is set against.
           new schema.PgDiscoveryStore(db).getDiscovery(tenantId as TenantId, mappingId as MappingId),
           // What the stop door would accept for each data type (0128 T4,

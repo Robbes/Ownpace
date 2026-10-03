@@ -1983,9 +1983,9 @@ const en = {
   'confirm.progress.heading': 'Live progress',
   // OF ABOUT HOW MANY (0154 T2): what arrived, set against what discovery
   // found. *About* is literal: discovery is a snapshot, and the source keeps
-  // changing. One sentence for the items and for the bytes (*"3.1 of about
-  // 3.4 GB"*).
-  'confirm.progress.ofAbout': '{done} of about {total}',
+  // changing. One sentence for the items and for the bytes (*"3.1 of
+  // ~3.4 GB"*).
+  'confirm.progress.ofAbout': '{done} of ~{total}',
   // Discovery has no count of this data type: the copies stand alone, and the
   // row says so rather than *"of 0"* (hard rule 9).
   'confirm.progress.totalNotKnown': '{done} copied · total not known',
@@ -4394,7 +4394,7 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.introStarted':
     'Migraties hier zijn gestart. Live voortgang staat per migratie; de scan blijft als momentopname.',
   'confirm.progress.heading': 'Live voortgang',
-  'confirm.progress.ofAbout': '{done} van ongeveer {total}',
+  'confirm.progress.ofAbout': '{done} van ~{total}',
   'confirm.progress.totalNotKnown': '{done} gekopieerd · totaal niet bekend',
   'confirm.progress.noneFound': 'niets gevonden om te kopiëren',
   'confirm.progress.failed': 'mislukt',

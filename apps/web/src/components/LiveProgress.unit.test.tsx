@@ -246,17 +246,17 @@ describe('of about how many', () => {
 
   afterEach(() => window.localStorage.removeItem('ownpace.locale'));
 
-  it('reads "18,234 of about 19,000", with a bar that says the same in words', () => {
+  it('reads "18,234 of ~19,000", with a bar that says the same in words', () => {
     render(<LiveProgress domains={[mail()]} />);
-    expect(screen.getByText('18,234 of about 19,000')).toBeTruthy();
+    expect(screen.getByText('18,234 of ~19,000')).toBeTruthy();
     const bar = screen.getByRole('progressbar', { name: 'Email' });
     expect(bar.getAttribute('aria-valuenow')).toBe('95');
-    expect(bar.getAttribute('aria-valuetext')).toBe('18,234 of about 19,000');
+    expect(bar.getAttribute('aria-valuetext')).toBe('18,234 of ~19,000');
   });
 
   it('adds the bytes as one quantity, when both sides were measured', () => {
     render(<LiveProgress domains={[mail({ bytesTransferred: 3.1 * GB, bytesFound: 3.4 * GB })]} />);
-    expect(screen.getByText('18,234 of about 19,000 · 3.1 of about 3.4 GB')).toBeTruthy();
+    expect(screen.getByText('18,234 of ~19,000 · 3.1 of ~3.4 GB')).toBeTruthy();
   });
 
   it('in Dutch, with Dutch digits', () => {
@@ -266,7 +266,7 @@ describe('of about how many', () => {
         <LiveProgress domains={[mail({ bytesTransferred: 3.1 * GB, bytesFound: 3.4 * GB, itemsAdopted: 12 })]} />
       </LocaleProvider>,
     );
-    expect(screen.getByText('18.234 van ongeveer 19.000 · 3,1 van ongeveer 3,4 GB')).toBeTruthy();
+    expect(screen.getByText('18.234 van ~19.000 · 3,1 van ~3,4 GB')).toBeTruthy();
     expect(
       screen.getByText(/12 ongemoeid gelaten: stonden al op het nieuwe systeem, of zijn daar sindsdien gewijzigd/),
     ).toBeTruthy();
@@ -277,20 +277,20 @@ describe('of about how many', () => {
     render(<LiveProgress domains={[mail({ itemsFound: undefined, bytesTransferred: 3.1 * GB })]} />);
     expect(screen.getByText('18,234 copied · total not known')).toBeTruthy();
     expect(screen.queryByRole('progressbar')).toBeNull();
-    expect(screen.queryByText(/of about/)).toBeNull();
+    expect(screen.queryByText(/of ~/)).toBeNull();
   });
 
   it('says none were found when discovery counted none and none arrived', () => {
     render(<LiveProgress domains={[row({ domain: 'task', state: 'completed', itemsSynced: 0, itemsFailed: 0, itemsFound: 0 })]} />);
     expect(screen.getByText('none found to copy')).toBeTruthy();
-    expect(screen.queryByText(/of about 0/)).toBeNull();
+    expect(screen.queryByText(/of ~0/)).toBeNull();
     expect(screen.queryByRole('progressbar')).toBeNull();
   });
 
   /** About is literal: the total grows with what arrived, and the bar stops at 100%. */
   it('never shows more than all of it', () => {
     render(<LiveProgress domains={[mail({ itemsSynced: 19_250 })]} />);
-    expect(screen.getByText('19,250 of about 19,250')).toBeTruthy();
+    expect(screen.getByText('19,250 of ~19,250')).toBeTruthy();
     expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('100');
   });
 

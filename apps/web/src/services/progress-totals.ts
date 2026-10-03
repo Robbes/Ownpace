@@ -6,7 +6,7 @@
  * synced"* said how many had arrived, and not of how many. Discovery counted
  * the source before the first Start and kept the counts for Review & confirm;
  * both editions now serve them on each row (`itemsFound`, `bytesFound`), and
- * this reads the row into *"18,234 of about 19,000"*, a bar, and *"3.1 of
+ * this reads the row into *"18,234 of ~19,000"*, a bar, and *"3.1 of
  * about 3.4 GB"*.
  *
  * THE RULES, each a sentence of the plan:
@@ -24,7 +24,7 @@
  *   contacts alone does not end at 98% with nothing to say why.
  * - **Bytes only when both sides were measured.** No size from discovery, or a
  *   count of copies with no size recorded for any of them, and the row says
- *   nothing about bytes rather than *"0 of about 3.4 GB"*.
+ *   nothing about bytes rather than *"0 of ~3.4 GB"*.
  *
  * Pure, so a test can hold every rule; the strip draws what this returns.
  */
@@ -91,7 +91,7 @@ function inUnit(bytes: number, u: number, locale: Locale): string {
   );
 }
 
-/** *"3.1"* and *"3.4 GB"*, the two sides of *"3.1 of about 3.4 GB"*. */
+/** *"3.1"* and *"3.4 GB"*, the two sides of *"3.1 of ~3.4 GB"*. */
 export interface BytesOfAbout {
   readonly done: string;
   readonly total: string;
@@ -101,8 +101,8 @@ export interface BytesOfAbout {
  * The bytes pair, or nothing when either side was not measured.
  *
  * In the total's unit, so the pair reads as one quantity, and in the reader's
- * language: *"3,1 van ongeveer 3,4 GB"* in Dutch. A part too small to show in
- * that unit carries its own (*"5.0 MB of about 3.4 GB"*), because *"0.0 of
+ * language: *"3,1 van ~3,4 GB"* in Dutch. A part too small to show in
+ * that unit carries its own (*"5.0 MB of ~3.4 GB"*), because *"0.0 of
  * about 3.4 GB"* would say nothing had arrived.
  */
 export function bytesOfAbout(row: TotalsFacts, locale: Locale): BytesOfAbout | null {
