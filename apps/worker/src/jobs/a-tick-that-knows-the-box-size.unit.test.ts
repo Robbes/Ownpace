@@ -24,6 +24,9 @@
  *  4. The tick, read as text in the manner of `a-drain-that-only-said-so`:
  *     it counts, chooses after phase 2, and enqueues only what was chosen.
  *     Running it needs a database, a runner and a queue.
+ *  5. A first copy run at the floor whatever its schedule (workplan 0156 T5)
+ *     is decided in phase 1, after a running pass skips it and before the
+ *     back-off and these caps, so it starts no pass the caps would not.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -293,6 +296,33 @@ describe('the tick applies it', () => {
     expect(count('mapWithConcurrency(')).toBe(1);
     expect(count('runDeltaSync.trigger(')).toBe(1);
     expect(at('runDeltaSync.trigger(')).toBeGreaterThan(enqueue);
+  });
+
+  it('runs a first copy at the floor only where the schedule was asked, so the caps still choose (0156 T5)', () => {
+    // A migration whose first copy is unfinished is due at the floor whatever
+    // its schedule. That is ONE answer in phase 1, and everything that bounded
+    // a due migration before bounds this one: the pass already running skips
+    // it first (never two at once), the back-off holds a failing one after,
+    // and the caps choose among the due ones last. Moved anywhere else, the
+    // floor would start passes the box was never sized for.
+    const running = at('if (m.running) {');
+    const facts = at('const facts = { firstCopyUnfinished: m.first_copy_unfinished };');
+    const asked = at('isDue = isSyncDue(schedule, m.last_started, now, facts);');
+    const fallback = at('isDue = isSyncDue(defaultScheduleFor(m.id), m.last_started, now, facts);');
+    const heldBack = at('heldBackByFailures(');
+    const pushed = at('due.push(m);');
+    const choose = at('const capacity = withinCapacity(eligible, inFlight, caps);');
+    expect(running).toBeLessThan(facts);
+    expect(facts).toBeLessThan(asked);
+    expect(asked).toBeLessThan(fallback);
+    expect(fallback).toBeLessThan(heldBack);
+    expect(heldBack).toBeLessThan(pushed);
+    expect(pushed).toBeLessThan(choose);
+    // Asked in one place only: a second call without the fact would be a
+    // migration due by its schedule on one path and by the floor on another.
+    expect(count('isSyncDue(')).toBe(2);
+    // And the tick says how many it ran that way.
+    expect(TICK).toMatch(/^\s+firstCopies: rows\.filter\(\(m\) => m\.first_copy_unfinished\)\.length,$/m);
   });
 
   it('counts the held ones in the summary, and says how many in one line that names none of them', () => {

@@ -33,7 +33,8 @@ import {
   needsAcknowledgement,
 } from '../components/confirm/native-refusals.tsx';
 import ScopeManifestPanel from '../components/confirm/ScopeManifestPanel.tsx';
-import { scopeFamilyOf, scopeManifestFor } from '@openmig/shared';
+import { scopeFamilyOf, scopeManifestFor, timeBeforeStart } from '@openmig/shared';
+import { TimeBeforeStartLine } from '../components/TimeBeforeStartLine.tsx';
 import SharedAddresses from '../components/confirm/SharedAddresses.tsx';
 // The live strip is shared with the managed hub (0033 T5) — one component,
 // two data sources, same DomainStatusReport rows underneath.
@@ -224,6 +225,19 @@ const Confirm: React.FC = () => {
               // this page had anyway.
               <>
                 <DiscoveryCounts domains={domains} />
+                {/* HOW LONG (0154 T3 (a)), once a count is in: the data types
+                    are the ones the count answered for, since the appliance's
+                    status names none before a first pass. */}
+                {domains.length > 0 && (
+                  <TimeBeforeStartLine
+                    className="mt-2 text-sm text-gray-700"
+                    time={timeBeforeStart({
+                      source: m.sourceType,
+                      domains: domains.map((d) => d.domain),
+                      mailBytes: domains.find((d) => d.domain === 'email' && d.lastError === undefined)?.bytes,
+                    })}
+                  />
+                )}
                 <RefusedNativeAcknowledgement
                   domains={domains}
                   checked={acked.has(m.mappingId)}

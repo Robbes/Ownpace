@@ -111,6 +111,25 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+/**
+ * 0154 T6: nobody recognises an item by twelve hex digits. The row says what
+ * and where; the digest is folded under *ID*, for a support ticket, and keeps
+ * the whole value in its title to copy.
+ */
+describe('an item’s hash', () => {
+  it('is folded under ID, closed, with the whole value to copy', async () => {
+    const HASH = '9f2c1b6a4e7d0c3f8a5b2e9d6c1f4a7b0e3d6c9f2a5b8e1d4c7f0a3b6e9d2c5f';
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion({ naturalKeyHash: HASH, evidence: 'reported' })] }));
+    renderScreen();
+    const digest = await screen.findByText(HASH.slice(0, 12));
+    const fold = digest.closest('details');
+    expect(fold).not.toBeNull();
+    expect(fold).not.toHaveAttribute('open');
+    expect(fold!.querySelector('summary')?.textContent).toBe('ID');
+    expect(digest).toHaveAttribute('title', HASH);
+  });
+});
+
 describe('the apply gate', () => {
   it('offers apply for a reported deletion', async () => {
     fetchDeletions.mockResolvedValue(

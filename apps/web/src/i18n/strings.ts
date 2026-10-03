@@ -130,6 +130,7 @@ const en = {
   'asof.refresh': 'Refresh',
   'confirm.progress.lastSynced': 'last synced',
   'verify.checkedAt': 'Checked',
+  'queue.itemId': 'ID',
   'queue.loadFailed': 'Could not load this queue.',
   'queue.noMappings': 'No migrations configured.',
   'discovery.scanning': 'Scanning your source (read-only)…',
@@ -763,9 +764,13 @@ const en = {
   'settings.schedule': 'Sync schedule',
   'settings.schedule.default': 'Now: every 15 minutes, because this migration has no schedule of its own.',
   'settings.schedule.own': 'Now: {schedule}, set outside this page.',
-  'settings.schedule.hint': 'A pass runs at most 50 minutes; the next follows the schedule.',
+  // The first copy runs pass after pass whatever the schedule, and the
+  // schedule applies once every data type has been copied once (workplan
+  // 0156 T5; the owner, 2026-10-03). Until then this said a daily schedule
+  // copied for 50 minutes a day, which was true and was the defect.
+  'settings.schedule.hint': 'Passes run back to back until the first copy is done.',
   'settings.schedule.hint.why':
-    'A large first copy takes many passes. On a daily schedule it copies for 50 minutes a day. Hourly or every 15 minutes it copies with hardly a break, because a new pass never starts while one is still running.',
+    'A pass runs at most 50 minutes. Until every data type has been copied once in full, the next pass starts as soon as the last one ends, and no sooner than 15 minutes after it started, whatever this schedule says. A daily download limit at the source is waited out first. After that, passes follow this schedule and copy only what is new or changed. Items that could not be copied do not keep passes coming: they wait on the Failures screen.',
   'settings.schedule.save': 'Save this schedule',
   'settings.schedule.saving': 'Saving…',
   'settings.schedule.saved': 'Saved. The next pass follows it.',
@@ -781,7 +786,7 @@ const en = {
   'settings.kinds.consequence':
     'An added data type is copied from the next pass. Nothing already copied changes.',
   'settings.kinds.consequence.why':
-    'The new data type is copied in full on the next pass, the way every data type is copied the first time. The ones this migration already copies carry on where they were. A data type cannot be taken off again here: what it had copied would stay on the new system with nothing keeping it up to date.',
+    'The new data type is copied in full from the next pass on, the way every data type is copied the first time: pass after pass, whatever the schedule, until it has been copied once. The ones this migration already copies carry on where they were. A data type cannot be taken off again here: what it had copied would stay on the new system with nothing keeping it up to date.',
   'settings.kinds.failed': 'That was not added:',
   // STOP AND RESUME ONE DATA TYPE (workplan 0128 T4, slice 3c). Offered where
   // the stop door accepts the press; what a stop does is said before it.
@@ -890,7 +895,8 @@ const en = {
   'wizard.domain.file.hint': 'Attachments and documents',
   'wizard.domain.task.hint': 'To-do lists and their tasks',
   'wizard.schedule': 'Sync Schedule',
-  'wizard.scheduleHint': 'How often it repeats; the first sync starts when you press start.',
+  'wizard.scheduleHint':
+    'How often it repeats after the first copy, which starts when you press start and does not wait for this schedule.',
   'wizard.schedule.hourly': 'Hourly',
   'wizard.schedule.hourly.hint': 'Every hour',
   'wizard.schedule.daily': 'Daily',
@@ -980,6 +986,14 @@ const en = {
   'mappings.action.triggerSync': 'Trigger sync',
   'mappings.action.pause': 'Pause',
   'hub.connections': 'From {source} to {target}',
+  'hub.details': 'Details',
+  'hub.migrationId': 'Migration ID:',
+  'timeLeft.label': 'How long:',
+  'timeLeft.gmailDays': 'About {low} to {high} days, because Google lets a mailbox download {ceiling} GB a day.',
+  'timeLeft.gmailWithinADay':
+    'Within a day, because this mailbox holds less than the {ceiling} GB a day Google lets one download.',
+  'timeLeft.notKnownYet': 'Depends on the provider; we will know after the first hour.',
+  'timeLeft.filesLater': 'The files: we will know after the first hour.',
   'mappings.action.pause.why':
     'No new passes are started. A pass already running stops starting new items within about fifteen seconds, and finishes the ones it has begun; a very large file can take longer. Nothing is lost: Review and start continues from where it stopped.',
   'mappings.action.startSync': 'Start sync',
@@ -1120,8 +1134,10 @@ const en = {
   'runs.truncated': 'Showing the newest passes only — older ones exist but are not listed.',
   'runs.eventsTruncated': 'Newest log entries only — earlier ones are not shown.',
   'runs.error': "Could not read this migration's run history.",
-  'runs.items': 'Items',
-  'runs.errors': 'Errors',
+  'runs.items.one': '1 item this pass',
+  'runs.items.many': '{n} items this pass',
+  'runs.errors.one': '1 error',
+  'runs.errors.many': '{n} errors',
   'runs.events': 'Log',
   'grantLink.title': 'Grant links',
   'grantLink.blurb':
@@ -1796,8 +1812,14 @@ const en = {
   // it under a file: "the text talking about 'full mailbox' is weird to read at
   // the Files-kind." Every remedy is shown under every kind, so none may name
   // one kind's storage.
+  //
+  // "A limit on the size of one upload" was added on 2026-10-03 (workplan
+  // 0156). The owner's four largest files were refused with 413 by a
+  // Nextcloud whose web server takes one request of at most 1 GiB, and the
+  // three causes this named were all fine. The item's own reason names the
+  // file's size and the setting; this is the line a whole group shares.
   'failure.targetRefused':
-    'The destination refused to accept this. Common causes are no space left, a read-only folder or missing permission on the target account. If it answered with an internal error, the reason is in the destination\u2019s own log rather than in what it sent back.',
+    'The destination refused to accept this. Common causes are no space left, a limit on the size of one upload, a read-only folder or missing permission on the target account. If it answered with an internal error, the reason is in the destination\u2019s own log rather than in what it sent back.',
   // "Rename it in the old account" was added on 2026-09-23. The export format
   // is a remedy only for a Google file, and a name the destination will never
   // store (Nextcloud refuses `.htaccess`) can come from any source.
@@ -3047,7 +3069,7 @@ const nl: Record<keyof typeof en, string> = {
   'failure.sourceRefused':
     'Niet gemigreerd: het oude account wilde dit niet afgeven, dus er is niets naar het nieuwe gestuurd \u2014 daar valt niets te controleren. Probeer opnieuw als dat veranderd is, of laat deze items achter.',
   'failure.targetRefused':
-    'De bestemming weigerde dit te accepteren. Veelvoorkomende oorzaken: geen ruimte meer, een alleen-lezen map, of ontbrekende rechten op het doelaccount. Antwoordde de bestemming met een interne fout, dan staat de reden in het logboek van de bestemming zelf en niet in het antwoord dat wij terugkregen.',
+    'De bestemming weigerde dit te accepteren. Veelvoorkomende oorzaken: geen ruimte meer, een grens aan de grootte van één upload, een alleen-lezen map, of ontbrekende rechten op het doelaccount. Antwoordde de bestemming met een interne fout, dan staat de reden in het logboek van de bestemming zelf en niet in het antwoord dat wij terugkregen.',
   'failure.formatRefused':
     'De bestemming accepteert dit SOORT bestand niet. Met het account zelf is niets mis \u2014 het is de indeling of de naam van dit bestand die daar niet is toegestaan. Geef het in het oude account een andere naam, wijzig het exportformaat op de koppeling, of laat deze items achter.',
   'failure.network':
@@ -3226,6 +3248,7 @@ const nl: Record<keyof typeof en, string> = {
   'support.export.kept': 'Regels bewaard: {count}. In het veld staat waar je verder kunt gaan.',
   'confirm.progress.lastSynced': 'laatst gesynchroniseerd',
   'verify.checkedAt': 'Geverifieerd',
+  'queue.itemId': 'ID',
   'queue.loadFailed': 'Deze wachtrij kon niet worden geladen.',
   'queue.noMappings': 'Geen migraties geconfigureerd.',
   'discovery.scanning': 'Uw bron wordt gescand (alleen-lezen)…',
@@ -3608,9 +3631,9 @@ const nl: Record<keyof typeof en, string> = {
   'settings.schedule': 'Synchronisatieschema',
   'settings.schedule.default': 'Nu: elk kwartier, omdat deze migratie geen eigen schema heeft.',
   'settings.schedule.own': 'Nu: {schedule}, buiten deze pagina ingesteld.',
-  'settings.schedule.hint': 'Een ronde duurt hoogstens 50 minuten; de volgende volgt het schema.',
+  'settings.schedule.hint': 'Rondes lopen direct na elkaar tot de eerste kopie klaar is.',
   'settings.schedule.hint.why':
-    'Een grote eerste kopie kost veel rondes. Met een dagelijks schema wordt er 50 minuten per dag gekopieerd. Met elk uur of elk kwartier gaat het kopiëren vrijwel zonder pauze door, omdat een nieuwe ronde nooit start terwijl er nog een loopt.',
+    'Een ronde duurt hoogstens 50 minuten. Tot elk gegevenstype één keer volledig is gekopieerd, start de volgende ronde zodra de vorige klaar is, en niet eerder dan 15 minuten na de start ervan, wat dit schema ook zegt. Een daglimiet voor downloaden bij de bron wordt eerst afgewacht. Daarna volgen de rondes dit schema en kopiëren ze alleen wat nieuw of gewijzigd is. Items die niet gekopieerd konden worden, houden de rondes niet aan de gang: ze wachten bij Mislukkingen.',
   'settings.schedule.save': 'Dit schema opslaan',
   'settings.schedule.saving': 'Opslaan…',
   'settings.schedule.saved': 'Opgeslagen. De volgende ronde volgt het.',
@@ -3623,7 +3646,7 @@ const nl: Record<keyof typeof en, string> = {
   'settings.kinds.consequence':
     'Een toegevoegd gegevenstype wordt vanaf de volgende ronde gekopieerd. Wat al gekopieerd is, verandert niet.',
   'settings.kinds.consequence.why':
-    'Het nieuwe gegevenstype wordt bij de volgende ronde volledig gekopieerd, zoals elk gegevenstype de eerste keer. De gegevenstypen die deze migratie al kopieert, gaan verder waar ze waren. Een gegevenstype kan hier niet meer worden weggehaald: wat het al had gekopieerd, zou op het nieuwe systeem blijven staan zonder dat iets het nog bijwerkt.',
+    'Het nieuwe gegevenstype wordt vanaf de volgende ronde volledig gekopieerd, zoals elk gegevenstype de eerste keer: ronde na ronde, wat het schema ook zegt, tot het één keer is gekopieerd. De gegevenstypen die deze migratie al kopieert, gaan verder waar ze waren. Een gegevenstype kan hier niet meer worden weggehaald: wat het al had gekopieerd, zou op het nieuwe systeem blijven staan zonder dat iets het nog bijwerkt.',
   'settings.kinds.failed': 'Dat is niet toegevoegd:',
   'settings.kinds.stop': '{kind} stoppen',
   'settings.kinds.resume': '{kind} hervatten',
@@ -3751,7 +3774,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.domain.task.hint': 'Takenlijsten en de taken daarin',
   'wizard.schedule': 'Synchronisatieschema',
   'wizard.scheduleHint':
-    'Hoe vaak het herhaalt; de eerste synchronisatie start zodra u op starten drukt.',
+    'Hoe vaak het herhaalt na de eerste kopie, die start zodra u op starten drukt en niet op dit schema wacht.',
   'wizard.schedule.hourly': 'Elk uur',
   'wizard.schedule.hourly.hint': 'Ieder uur',
   'wizard.schedule.daily': 'Dagelijks',
@@ -3832,6 +3855,14 @@ const nl: Record<keyof typeof en, string> = {
   'mappings.action.triggerSync': 'Synchroniseer nu',
   'mappings.action.pause': 'Pauzeren',
   'hub.connections': 'Van {source} naar {target}',
+  'hub.details': 'Details',
+  'hub.migrationId': 'Migratie-ID:',
+  'timeLeft.label': 'Hoe lang:',
+  'timeLeft.gmailDays': 'Ongeveer {low} tot {high} dagen, omdat Google een mailbox {ceiling} GB per dag laat downloaden.',
+  'timeLeft.gmailWithinADay':
+    'Binnen een dag, omdat deze mailbox minder bevat dan de {ceiling} GB per dag die Google laat downloaden.',
+  'timeLeft.notKnownYet': 'Hangt af van de aanbieder; na het eerste uur weten we het.',
+  'timeLeft.filesLater': 'De bestanden: na het eerste uur weten we het.',
   'mappings.action.pause.why':
     'Er worden geen nieuwe rondes gestart. Een ronde die al loopt, begint binnen ongeveer vijftien seconden niets nieuws meer en maakt af waar ze al aan begonnen was; een heel groot bestand kan langer duren. Er gaat niets verloren: Controleren en starten gaat verder waar het gebleven was.',
   'mappings.action.startSync': 'Start synchronisatie',
@@ -3949,8 +3980,10 @@ const nl: Record<keyof typeof en, string> = {
   'runs.truncated': 'Alleen de nieuwste rondes worden getoond — oudere bestaan, maar staan niet in de lijst.',
   'runs.eventsTruncated': 'Alleen de nieuwste logregels — eerdere worden niet getoond.',
   'runs.error': 'Kon de uitvoeringsgeschiedenis van deze migratie niet lezen.',
-  'runs.items': 'Items',
-  'runs.errors': 'Fouten',
+  'runs.items.one': '1 item in deze ronde',
+  'runs.items.many': '{n} items in deze ronde',
+  'runs.errors.one': '1 fout',
+  'runs.errors.many': '{n} fouten',
   'runs.events': 'Logboek',
   'grantLink.title': 'Toegangslinks',
   'grantLink.blurb':
