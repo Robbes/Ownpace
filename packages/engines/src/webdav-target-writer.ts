@@ -27,18 +27,29 @@ import {
   containerContentHash,
   fileContentHash,
   streamingFileContentHash,
-  tooLargeToBuffer,
   isOnTarget,
   applyTargetFolderPrefix,
   TargetFolderMissingError,
+  bodyOfBytes,
+  markNeedsDecision,
+  type FileBody,
 } from '@openmig/shared';
 import { davRefusalBody, STREAMED_REQUEST_INIT, withFailureCategory } from '@openmig/shared';
 import { parseMultiStatus, isCollection, hrefRelativeTo, sizeOf } from './dav-multistatus.ts';
 import { requestWithDavRetry } from './dav-retry.ts';
 import { readEtag, readVersion, ownershipOf, ifMatchFor } from './dav-target-version.ts';
 import { removeDavResource, assertRemovableTargetId } from './dav-remove.ts';
+import {
+  ChunkSlicer,
+  NEXTCLOUD_CHUNK_BYTES,
+  NEXTCLOUD_MAX_CHUNKS,
+  chunkCount,
+  chunkName,
+  nextcloudUploadsUrl,
+} from './nextcloud-chunked-upload.ts';
 import { log } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
+import { randomUUID } from 'node:crypto';
 
 /**
  * Configuration for WebDAV target writer
@@ -69,11 +80,47 @@ export interface WebDAVTargetConfig {
    * before a prefix existed. `buildUrl` is the one place the two spaces meet.
    */
   targetFolderPrefix?: string;
-  /** Use chunked uploads for large files */
-  chunkedUploads?: boolean;
-  /** Chunk size for chunked uploads (in bytes) */
-  chunkSize?: number;
+  /**
+   * The size of one piece of a Nextcloud chunked upload, and so the size above
+   * which a file goes up in pieces (`NEXTCLOUD_CHUNK_BYTES`, 64 MiB, when
+   * absent). Nothing in production sets it; tests do, to cross the line
+   * without a 64 MiB fixture.
+   *
+   * REPLACES `chunkedUploads` and `chunkSize` (workplan 0156). Those switched
+   * on a path that PUT the same URL again and again with `Content-Range`,
+   * which Sabre refuses on any PUT (RFC 7231 §4.3.4: a server that allows PUT
+   * must answer one carrying `Content-Range` with 400), which needed the
+   * whole file in memory to slice, and which no caller in either edition ever
+   * switched on. A file the size it existed for went up as one request and
+   * met the server's request limit instead.
+   */
+  uploadChunkBytes?: number;
 }
+
+/** What one upload did, as `upsertFile` reads it. */
+interface UploadOutcome {
+  path: string;
+  etag?: string;
+  conflicted?: boolean;
+  contentHash?: string;
+  alreadyHeld?: boolean;
+}
+
+/**
+ * The answers to a MKCOL in the upload area that mean "there is no upload
+ * area here for you", and so "send this file as one request instead".
+ *
+ * 404 and 501 are a server, or a proxy in front of it, without the endpoint;
+ * 409 is Nextcloud's own answer for an account it has no upload area for
+ * (measured: *"Parent node does not exist"*); 405 is the endpoint refusing the
+ * method; 403 is a proxy or a policy that lets files through and not uploads.
+ * (A 501 is retried first, as every 5xx is by `dav-retry.ts`, so the first
+ * large file pays a few seconds for that answer.) Each is a fact about the
+ * server rather than about this file, so it is decided once and remembered.
+ * Falling back loses nothing: the single request is what every file used
+ * before, and its own answer is what the item then reads.
+ */
+const UPLOADS_UNAVAILABLE = new Set([403, 404, 405, 409, 501]);
 
 /**
  * WebDAV target writer implementation
@@ -128,6 +175,21 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
   private readonly rootDirs = new Set<string>();
   /** Whether `targetFolderPrefix`'s own chain has been created this session. */
   private prefixRootReady = false;
+  /**
+   * The account's Nextcloud upload area, or `undefined` when the files URL is
+   * not Nextcloud's shape (`nextcloudUploadsUrl`).
+   */
+  private readonly uploadsUrl: string | undefined;
+  /**
+   * WHETHER A LARGE FILE CAN GO UP IN PIECES HERE, decided once per writer
+   * (workplan 0156). `unknown` until the first large file's MKCOL answers:
+   * 201 makes it `supported`, an answer in `UPLOADS_UNAVAILABLE` makes it
+   * `unsupported`, and every later large file goes the way the first one
+   * learned. A URL that is not Nextcloud's shape starts out `unsupported`.
+   */
+  private chunking: 'unknown' | 'supported' | 'unsupported';
+  /** The log says once, per writer, that large files go up in one request here. */
+  private chunkingRefusalLogged = false;
 
   constructor(
     config: WebDAVTargetConfig,
@@ -143,6 +205,8 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     this.tenantId = deps.tenantId;
     this.mappingId = deps.mappingId;
     this.httpClient = deps.httpClient ?? createDefaultHttpClient();
+    this.uploadsUrl = nextcloudUploadsUrl(config.url);
+    this.chunking = this.uploadsUrl === undefined ? 'unsupported' : 'unknown';
   }
 
   /**
@@ -914,13 +978,17 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
    * DIRECTORY at the path too, and adopting one records an item whose bytes
    * were never written, the defect `findFileByNaturalKey` already refuses.
    */
-  private async heldAtPath(filePath: string): Promise<{ path: string; alreadyHeld: true }> {
+  private async heldAtPath(
+    filePath: string,
+    /** The request the 412 answered: the PUT, or the MOVE that ends a chunked upload. */
+    refused: 'PUT' | 'MOVE' = 'PUT',
+  ): Promise<{ path: string; alreadyHeld: true }> {
     const held = await this.findFileByNaturalKey('', filePath);
     if (held === undefined) {
       throw withFailureCategory(
         'target_refused',
         new Error(
-          `PUT for ${filePath} was refused with 412, and the target then answered that nothing ` +
+          `${refused} for ${filePath} was refused with 412, and the target then answered that nothing ` +
             'is at that path. Nothing was written, and nothing was recorded; the next pass tries ' +
             'again.',
         ),
@@ -933,24 +1001,20 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     raw: RawFileItem,
     overwrite = false,
     expectedTargetVersion?: string,
-  ): Promise<{ path: string; etag?: string; conflicted?: boolean; contentHash?: string; alreadyHeld?: boolean }> {
+  ): Promise<UploadOutcome> {
     // raw.item.path is root-relative and self-contained (see WebdavFileSource.toRelativePath);
     // resolve it directly instead of re-deriving it from a parent directory id.
     const filePath = this.normalizeRelativePath(raw.item.path);
 
-    // Ownership, checked by the server in the PUT itself when our version is
-    // strong, and by a read and a comparison when it is weak (workplan 0149
-    // T3). See the same guard in caldav-target-writer.ts. It covers the chunked
-    // branch too: a large file the owner has edited in the new system is no
-    // more ours to replace than a small one. Chunks cannot carry `If-Match`,
-    // since each is a PUT of its own and the precondition would refuse the
-    // second, so a chunked rewrite keeps the read and the comparison.
-    const chunked =
-      !raw.body &&
-      this.config.chunkedUploads === true &&
-      raw.content !== undefined &&
-      raw.content.length > (this.config.chunkSize || 10 * 1024 * 1024);
-    const ifMatch = overwrite && !chunked ? ifMatchFor(expectedTargetVersion) : undefined;
+    // Ownership, checked by the server in the write itself when our version
+    // is strong, and by a read and a comparison when it is weak (workplan 0149
+    // T3). See the same guard in caldav-target-writer.ts. It covers a file
+    // that goes up in pieces too: a large file the owner has edited in the
+    // new system is no more ours to replace than a small one. There the
+    // strong version rides on the MOVE that assembles the pieces, as RFC
+    // 4918's tagged `If` (`uploadChunked`), since `If-Match` on that MOVE is
+    // checked against the pieces rather than the file.
+    const ifMatch = overwrite ? ifMatchFor(expectedTargetVersion) : undefined;
     if (overwrite && expectedTargetVersion !== undefined && ifMatch === undefined) {
       const verdict = ownershipOf(expectedTargetVersion, await this.currentEtag(filePath));
       if (verdict === 'changed') {
@@ -979,6 +1043,23 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     }
 
     /**
+     * A FILE LARGER THAN ONE PIECE GOES UP IN PIECES, where the target takes
+     * them (workplan 0156; `nextcloud-chunked-upload.ts`).
+     *
+     * Whichever shape the source handed over: a buffered file larger than a
+     * piece is read through the same pieces, as a stream over the bytes
+     * already held, so the size a file can be on the target does not depend
+     * on how the source read it. `undefined` back means this target has no
+     * upload area, and the file goes the way every file went before.
+     */
+    const sizeBytes = raw.body?.sizeBytes ?? raw.content?.byteLength ?? 0;
+    if (sizeBytes > this.chunkBytes() && (raw.body || raw.content)) {
+      const body = raw.body ?? bodyOfBytes(raw.content!);
+      const chunked = await this.uploadChunked(filePath, raw, body, overwrite, ifMatch);
+      if (chunked !== undefined) return chunked;
+    }
+
+    /**
      * A STREAMED BODY GOES STRAIGHT OUT, hashed on the way past.
      *
      * This is the half of the memory ceiling that lives at the target: even
@@ -992,17 +1073,6 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
      */
     if (raw.body) {
       return this.uploadStreamed(filePath, raw, overwrite, ifMatch);
-    }
-
-    // Check if file is large and should use chunked upload (`chunked`, above)
-    if (chunked && raw.content) {
-      // No ETag from this path: the last chunk's response describes a chunk,
-      // not the assembled file. The item simply has no overwrite protection
-      // until something rewrites it in one piece, which is honest — inventing a
-      // version here would be worse than admitting we do not have one.
-      return {
-        path: await this.uploadFileChunked(filePath, raw.content, raw.item.mimeType),
-      };
     }
 
     // Simple PUT for small files - only if content exists
@@ -1019,10 +1089,9 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
           // The existence check and this write are separate requests, so on its
           // own that pairing is check-then-act and anything appearing at this
           // href in between would be silently REPLACED — which file writers are
-          // specified never to do (hard rule 2). NOT applied to the chunked
-          // path below: that PUTs the same href repeatedly with Content-Range,
-          // so a create-only precondition would reject every chunk after the
-          // first.
+          // specified never to do (hard rule 2). A file that goes up in pieces
+          // carries the same rule on the MOVE that assembles it, as
+          // `Overwrite: F` (`uploadChunked`).
           //
           // On the update path replacing IS the intent, and the ownership
           // decision was made upstream against the ledger. Sending the
@@ -1043,6 +1112,9 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
         if (overwrite) return { path: filePath, conflicted: true };
         return this.heldAtPath(filePath);
       }
+      if (response.status === 413) {
+        throw this.tooLargeForOneRequest(filePath, raw.content.byteLength, response);
+      }
       // RFC 4918 §9.7.1: PUT returns 201 (created) or 204 (existing resource replaced). Without
       // this check a failed write (e.g. the parent collection doesn't actually exist) was
       // silently treated as success, and the ledger recorded a false "copied" status that then
@@ -1062,11 +1134,9 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
    * PUT a file whose bytes nobody is holding.
    *
    * One request with a streaming body, which is what makes a file larger than
-   * this process possible at all. NOT the chunked path: that exists for
-   * servers with a per-request size limit and needs the whole file addressable
-   * to divide it, which is the ceiling being removed here. A deployment that
-   * needs both — a huge file AND a server that caps request size — is the
-   * resumable-upload work, and this refuses rather than pretending.
+   * this process possible at all. A file larger than one piece goes up in
+   * pieces instead where the target offers that (`uploadChunked`); this is
+   * every other file, and a large one on a target that does not.
    */
   private async uploadStreamed(
     filePath: string,
@@ -1074,13 +1144,8 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     overwrite: boolean,
     /** Our version as `If-Match`, when this is a rewrite and it is strong (0149 T3). */
     ifMatch?: string,
-  ): Promise<{ path: string; etag?: string; conflicted?: boolean; contentHash?: string; alreadyHeld?: boolean }> {
+  ): Promise<UploadOutcome> {
     const body = raw.body!;
-    if (this.config.chunkedUploads && body.sizeBytes > (this.config.chunkSize || 10 * 1024 * 1024)) {
-      // Saying so beats a request the server will cut off half way, which
-      // leaves a partial file at the href and an error that names neither.
-      throw tooLargeToBuffer('written to', 'this WebDAV server in one request', raw.item.path, body.sizeBytes);
-    }
     // ONE HASHER PER ATTEMPT, for the same reason as one stream per attempt:
     // a digest is a fact about the bytes that went out on the request the
     // server accepted. Hashing across a failed attempt and a successful one
@@ -1112,6 +1177,9 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
       if (overwrite) return { path: filePath, conflicted: true };
       return this.heldAtPath(filePath);
     }
+    if (response.status === 413) {
+      throw this.tooLargeForOneRequest(filePath, body.sizeBytes, response);
+    }
     if (response.status !== 201 && response.status !== 204) {
       throw new Error(
         `PUT failed for ${filePath} with status ${response.status}: ${davRefusalBody(response.body)}`,
@@ -1126,57 +1194,328 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     };
   }
 
+  /** The size of one piece of a chunked upload (`WebDAVTargetConfig.uploadChunkBytes`). */
+  private chunkBytes(): number {
+    return this.config.uploadChunkBytes ?? NEXTCLOUD_CHUNK_BYTES;
+  }
+
   /**
-   * THE TYPE A BIG FILE USED TO LOSE.
+   * A FILE LARGER THAN ONE PIECE, SENT AS SEVERAL (workplan 0156; the
+   * protocol, and what was measured of it, is in `nextcloud-chunked-upload.ts`).
    *
-   * Every other PUT in this writer sends `raw.item.mimeType` and falls back to
-   * `application/octet-stream` only when the source declared nothing. This one
-   * sent the fallback unconditionally, so a file was typed or untyped on the
-   * target according to its SIZE — and the ones that lost it are exactly the
-   * ones where the type matters most: photos and video.
+   * `undefined` when this target has no upload area — the files URL is not
+   * Nextcloud's shape, or the area refused the MKCOL that opens an upload (see
+   * `UPLOADS_UNAVAILABLE`) — and the caller sends the file as one request, as
+   * every file went before. Decided by the first large file and remembered for
+   * the rest (`chunking`).
    *
-   * Nothing about a chunk argues for the generic type. `Content-Range` is what
-   * says "this is a piece"; the entity being assembled is still the file, and
-   * the header describes the entity. A server assembling the pieces has the
-   * source's own answer on every chunk instead of a shrug on all of them.
+   * THE SAME ANSWERS AS THE SINGLE PUT, request for request:
    *
-   * Found 2026-09-22 while chasing why migrated Drive files with no extension
-   * would not open on Nextcloud. It is NOT the whole of that — a target may
-   * type a file by its name whatever the header says — but a type thrown away
-   * here could never have helped, and that had to stop being true before the
-   * rest could be measured.
+   *  - CREATE-ONLY on a new file. Nothing is at the destination until the
+   *    MOVE, and the MOVE carries `Overwrite: F`, so a path taken in the
+   *    meantime is refused with 412 exactly as `If-None-Match: *` refuses the
+   *    PUT, and asked about the same way (`heldAtPath`): adopted where it is a
+   *    file, refused where it is a directory. Measured: the 412 writes nothing.
+   *  - THE VERSION CHECK on a rewrite, by the server, in the MOVE: RFC 4918
+   *    §10.4's tagged `If: <destination> (["etag"])`. `If-Match` cannot carry
+   *    it, because Sabre checks `If-Match` against the request URL, which here
+   *    is `.file`: measured, the destination's own current ETag was refused
+   *    with 412. A weak or absent version keeps the read and the comparison
+   *    the caller already made, and the MOVE then carries no precondition, as
+   *    the PUT carries none.
+   *  - THE ETAG the MOVE answers with is recorded, as the PUT's is: Nextcloud
+   *    sends `ETag` and `OC-ETag` on the assembly (measured).
+   *  - THE HASH is the whole file's: one read of the source, through one
+   *    hasher, cut into pieces as it passes (`ChunkSlicer`).
+   *
+   * NO PARTIAL FILE, EVER (hard rule 1). A failure before the MOVE leaves
+   * pieces in the account's upload area and nothing among its files; the
+   * upload folder is then DELETEd on a best-effort basis, and the error that
+   * stopped the upload is the one thrown, verbatim (hard rule 9). A re-run
+   * starts a new upload under a new name, and the destination either is still
+   * free or is adopted.
+   *
+   * RETRIED AS THE SINGLE PUT IS (`dav-retry.ts`). The MKCOL, the MOVE and
+   * the cleanup are retried as they stand. A piece cannot be: its body is a
+   * window onto a stream that has moved on. So a transient answer to any
+   * piece retries the whole SEND — the source opened again, a fresh hasher,
+   * every piece PUT again into the same upload folder, where a piece of the
+   * same number is replaced — which is what `requestRebuilding` does for the
+   * one request. Never only the failed piece: a second read of a source that
+   * changed in between would assemble a file from two versions under a hash
+   * of one.
+   *
+   * WHAT IS NOT SENT: `X-OC-Mtime`. Nextcloud honours it on the MOVE
+   * (measured), but the single PUT does not send one, and a file's properties
+   * on the target must not depend on its size (`a-type-the-big-files-lost`).
+   * Setting the time is a decision for both paths or neither.
    */
-  private async uploadFileChunked(
+  private async uploadChunked(
     filePath: string,
-    content: Uint8Array,
-    mimeType?: string,
-  ): Promise<string> {
-    const chunkSize = this.config.chunkSize || 10 * 1024 * 1024; // 10MB default
-    const totalChunks = Math.ceil(content.length / chunkSize);
+    raw: RawFileItem,
+    body: FileBody,
+    overwrite: boolean,
+    /** Our version, quoted, when this is a rewrite and it is strong (0149 T3). */
+    ifMatch: string | undefined,
+  ): Promise<UploadOutcome | undefined> {
+    const uploads = this.uploadsUrl;
+    if (uploads === undefined) {
+      this.noteNoChunking(
+        "its files URL is not Nextcloud's …/dav/files/<user>/ shape, so it has no upload area " +
+          'this writer can find',
+      );
+      return undefined;
+    }
+    if (this.chunking === 'unsupported') return undefined;
 
-    for (let i = 0; i < totalChunks; i++) {
-      const start = i * chunkSize;
-      const end = Math.min(start + chunkSize, content.length);
-      const chunk = content.slice(start, end);
+    // Nextcloud numbers pieces 1 to 10000, so a file beyond 10000 pieces gets
+    // larger ones (from 625 GiB up, at 64 MiB).
+    const pieceBytes = Math.max(this.chunkBytes(), Math.ceil(body.sizeBytes / NEXTCLOUD_MAX_CHUNKS));
+    const pieces = chunkCount(body.sizeBytes, pieceBytes);
+    const destination = this.buildUrl(filePath);
+    const authorization = `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`;
+    const totalLength = String(body.sizeBytes);
+    // A NEW NAME FOR EVERY UPLOAD, never one derived from the file: two
+    // uploads of one path (a re-run beside a pass still going, an owner's own
+    // client) must never write pieces into each other's folder.
+    const transfer = `${uploads}ownpace-${randomUUID()}`;
 
-      const range = `bytes=${start}-${end - 1}/${content.length}`;
+    const opened = await this.requestWithRetry({
+      method: 'MKCOL',
+      url: transfer,
+      headers: { Destination: destination, Authorization: authorization },
+    });
+    const ownEarlierAttempt = opened.status === 405 && this.chunking === 'supported';
+    if (!ownEarlierAttempt && (opened.status < 200 || opened.status >= 300)) {
+      if (this.chunking === 'unknown' && UPLOADS_UNAVAILABLE.has(opened.status)) {
+        this.chunking = 'unsupported';
+        this.noteNoChunking(
+          `its upload area answered MKCOL with ${opened.status}: ${davRefusalBody(opened.body)}`,
+        );
+        return undefined;
+      }
+      throw new Error(
+        `Could not begin the upload of ${filePath} in pieces: MKCOL of the upload folder answered ` +
+          `${opened.status}: ${davRefusalBody(opened.body)}`,
+      );
+    }
+    // A 405 once the area is known to work is this same MKCOL's own earlier
+    // attempt, which landed behind a transient answer: the name is new to
+    // this upload, so nothing else could have made it.
+    this.chunking = 'supported';
 
-      const response = await this.requestWithRetry({
-        method: 'PUT',
-        url: this.buildUrl(filePath),
-        body: chunk,
+    let assembled = false;
+    try {
+      // ONE HASHER PER SEND, as one per attempt in `uploadStreamed`.
+      let hasher = streamingFileContentHash();
+      const sent = await requestWithDavRetry(async (): Promise<PieceAnswer> => {
+        hasher = streamingFileContentHash();
+        const slicer = new ChunkSlicer((await body.open()).pipeThrough(hasher.through), filePath);
+        try {
+          for (let n = 1; n <= pieces; n++) {
+            const bytes = Math.min(pieceBytes, body.sizeBytes - (n - 1) * pieceBytes);
+            let answer: HttpResponse;
+            try {
+              answer = await this.httpClient.request({
+                method: 'PUT',
+                url: `${transfer}/${chunkName(n)}`,
+                body: slicer.next(bytes),
+                headers: {
+                  // The source's own type, as every PUT here sends it. Nextcloud
+                  // types the assembled file by its name; what matters is that
+                  // nothing on the wire depends on the file's size.
+                  'Content-Type': raw.item.mimeType || 'application/octet-stream',
+                  // Each piece declares its own length, for the reason the
+                  // single PUT declares the file's.
+                  'Content-Length': String(bytes),
+                  // Required on every request of a v2 upload; v1 ignores it.
+                  Destination: destination,
+                  // Lets Nextcloud refuse a file its quota cannot hold before
+                  // the pieces are spent on it (507).
+                  'OC-Total-Length': totalLength,
+                  Authorization: authorization,
+                },
+              });
+            } catch (err) {
+              // A body that broke off reads, from fetch, as a failed request.
+              // When the SOURCE is why, its sentence is the one to keep.
+              throw slicer.failure ?? err;
+            }
+            if (answer.status < 200 || answer.status >= 300) {
+              return { status: answer.status, answer, piece: n, bytes };
+            }
+          }
+          // Read to the end: a longer source is refused here, before the
+          // assembly, and the hasher finishes.
+          await slicer.assertEnded(body.sizeBytes);
+          return { status: 201, piece: pieces, bytes: 0 };
+        } finally {
+          // Let go of the source, whichever way this send ended.
+          await slicer.cancel();
+        }
+      });
+      const refusal = sent.answer;
+      if (refusal !== undefined) {
+        if (refusal.status === 413) {
+          throw this.tooLargeForOneRequest(filePath, body.sizeBytes, refusal, {
+            piece: sent.piece,
+            of: pieces,
+            bytes: sent.bytes,
+          });
+        }
+        throw new Error(
+          `PUT failed for ${filePath} (piece ${sent.piece} of ${pieces}, ${sent.bytes} bytes, Nextcloud ` +
+            `chunked upload) with status ${refusal.status}: ${davRefusalBody(refusal.body)}`,
+        );
+      }
+
+      const moved = await this.requestWithRetry({
+        method: 'MOVE',
+        url: `${transfer}/.file`,
         headers: {
-          'Content-Type': mimeType || 'application/octet-stream',
-          'Content-Range': range,
-          Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
+          Destination: destination,
+          // Checked against what arrived: pieces that do not add up are
+          // refused, and nothing is written (measured, 400).
+          'OC-Total-Length': totalLength,
+          ...(overwrite
+            ? ifMatch !== undefined
+              ? { If: `<${destination}> ([${ifMatch}])` }
+              : {}
+            : { Overwrite: 'F' }),
+          Authorization: authorization,
         },
       });
-      if (response.status !== 200 && response.status !== 201 && response.status !== 204) {
-        throw new Error(`Chunked PUT failed for ${filePath} with status ${response.status}: ${davRefusalBody(response.body)}`);
+      if (moved.status === 201 || moved.status === 204) {
+        // Nextcloud removes the upload folder itself once it has assembled it.
+        assembled = true;
+        const version = readVersion(moved);
+        return {
+          path: filePath,
+          contentHash: hasher.digest(),
+          ...(version !== undefined ? { etag: version } : {}),
+        };
       }
+      // The answers the single PUT gives to the same refusals. No digest: the
+      // file was not assembled, and an adoption hashes the source.
+      if (moved.status === 412) {
+        if (overwrite) return { path: filePath, conflicted: true };
+        return await this.heldAtPath(filePath, 'MOVE');
+      }
+      // A tagged `If` on a destination that is not there answers 404 naming
+      // it, where `If-Match` on the PUT answers 412: the file we wrote is gone,
+      // which is the owner's doing as much as an edit is (0149 T3).
+      if (moved.status === 404 && overwrite && ifMatch !== undefined && (await this.isGone(filePath))) {
+        return { path: filePath, conflicted: true };
+      }
+      throw new Error(
+        `MOVE failed for ${filePath} (assembling ${pieces} pieces, Nextcloud chunked upload) with ` +
+          `status ${moved.status}: ${davRefusalBody(moved.body)}`,
+      );
+    } finally {
+      if (!assembled) await this.discardUpload(transfer, filePath, authorization);
     }
+  }
 
-    return filePath;
+  /**
+   * Is the file at this path gone? Only a confident 404 says yes; anything
+   * that cannot answer says no, and the caller then throws what it had.
+   */
+  private async isGone(filePath: string): Promise<boolean> {
+    try {
+      return !(await this.hasItem(filePath));
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Remove an upload folder that will never be assembled, BEST EFFORT.
+   *
+   * Never throws and never replaces the error that brought the upload here:
+   * that error is the item's reason, and a cleanup that failed is not. It is
+   * logged instead, and Nextcloud removes a folder left behind after 24 hours
+   * anyway. A 404 is a folder already gone, which is the state wanted.
+   */
+  private async discardUpload(transfer: string, filePath: string, authorization: string): Promise<void> {
+    try {
+      const response = await this.requestWithRetry({
+        method: 'DELETE',
+        url: transfer,
+        headers: { Authorization: authorization },
+      });
+      if (response.status === 404 || (response.status >= 200 && response.status < 300)) return;
+      log.warn(
+        `[webdav] the unfinished upload of ${filePath} could not be removed from the upload area ` +
+          `(DELETE answered ${response.status}: ${davRefusalBody(response.body)}); Nextcloud ` +
+          'removes it by itself after 24 hours',
+      );
+    } catch (err) {
+      log.warn(
+        `[webdav] the unfinished upload of ${filePath} could not be removed from the upload area ` +
+          `(${err instanceof Error ? err.message : String(err)}); Nextcloud removes it by itself ` +
+          'after 24 hours',
+      );
+    }
+  }
+
+  /** Say once, per writer, why large files go up in one request here. */
+  private noteNoChunking(reason: string): void {
+    if (this.chunkingRefusalLogged) return;
+    this.chunkingRefusalLogged = true;
+    let host = this.config.url;
+    try {
+      host = new URL(this.config.url).host;
+    } catch {
+      // The URL as configured, then.
+    }
+    log.warn(
+      `[webdav] files larger than ${sizeText(this.chunkBytes())} go up to ${host} in one request ` +
+        `each, not in pieces: ${reason}. A server or proxy that limits the size of one request ` +
+        'refuses such a file with 413.',
+    );
+  }
+
+  /**
+   * A 413, SAID AS WHAT IT IS (workplan 0156).
+   *
+   * Read as `unknown` until now — the classifier knew no 413 — so the owner's
+   * four largest files sat under *"We could not classify this one"* with
+   * Sabre's sentence about having read 0 bytes, which is true and names
+   * nothing anybody can change. The cause is a limit on the size of ONE
+   * REQUEST, set by the server or by something in front of it, and the
+   * remedy is that limit.
+   *
+   * The target's answer (`target_refused`), and the same answer on every
+   * pass until somebody changes the limit, so it waits for a person rather
+   * than being tried four more times (`markNeedsDecision`), as
+   * `tooLargeForThisJmapServer` does for the JMAP target's stated limit.
+   */
+  private tooLargeForOneRequest(
+    filePath: string,
+    fileBytes: number,
+    response: HttpResponse,
+    piece?: { readonly piece: number; readonly of: number; readonly bytes: number },
+  ): Error {
+    const refused =
+      piece === undefined
+        ? `this ${sizeText(fileBytes)} file (${fileBytes} bytes) in one request`
+        : `one ${sizeText(piece.bytes)} piece of this ${sizeText(fileBytes)} file`;
+    const onePiece =
+      piece === undefined && this.chunking === 'unsupported' && fileBytes > this.chunkBytes()
+        ? 'This target does not take a file in pieces, so the whole file has to fit in one request. '
+        : '';
+    const error = new Error(
+      `PUT failed for ${filePath}` +
+        (piece === undefined ? '' : ` (piece ${piece.piece} of ${piece.of}, Nextcloud chunked upload)`) +
+        ` with status 413: the target refused ${refused}. The server, or a proxy in front of it, ` +
+        "limits how large one request may be (Apache's LimitRequestBody, which Nextcloud's image " +
+        "sets from APACHE_BODY_LIMIT, 1 GiB unless changed; nginx's client_max_body_size; a CDN's " +
+        'upload limit), and this is larger. Nothing was copied and nothing was changed; every other ' +
+        `file continues. ${onePiece}Raise that limit, then press Try again. The server said: ` +
+        serverWords(response.body),
+    );
+    markNeedsDecision(error);
+    return withFailureCategory('target_refused', error);
   }
 
   /**
@@ -1287,6 +1626,42 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     // the front of every path it hands back.
     return asRoot ? `${baseUrl}/${encoded}/` : `${baseUrl}/${encoded}`;
   }
+}
+
+/**
+ * What one send of a chunked upload's pieces came back with: the first piece
+ * the server refused, or none (`answer` absent) when every piece landed.
+ */
+interface PieceAnswer {
+  readonly status: number;
+  readonly answer?: HttpResponse;
+  readonly piece: number;
+  readonly bytes: number;
+}
+
+/** A size as a file manager writes it: one decimal, in KB, MB or GB (as `jmap-file-target.ts`). */
+function sizeText(bytes: number): string {
+  const KB = 1024;
+  const MB = 1024 * KB;
+  const GB = 1024 * MB;
+  if (bytes >= GB) return `${(bytes / GB).toFixed(1)} GB`;
+  if (bytes >= MB) return `${(bytes / MB).toFixed(1)} MB`;
+  return `${(bytes / KB).toFixed(1)} KB`;
+}
+
+/**
+ * The server's own words for a refusal, as `davRefusalBody` reads them, with
+ * one addition: a bare HTML error page is named by its title. A 413 is often
+ * answered by Apache or a proxy before the DAV server ever sees the request,
+ * and its page is fifty lines of markup around one phrase, *"413 Request
+ * Entity Too Large"*. Where Sabre's own document follows the page, as it did
+ * on the owner's Nextcloud, `davRefusalBody` already finds Sabre's words.
+ */
+function serverWords(body: string): string {
+  const words = davRefusalBody(body);
+  if (!/<html[\s>]/i.test(words)) return words;
+  const title = /<title>([^<]*)<\/title>/i.exec(words)?.[1]?.trim();
+  return title ? `${title} (an HTML error page)` : words;
 }
 
 /**
