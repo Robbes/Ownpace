@@ -30,6 +30,7 @@ import {
   tooLargeToBuffer,
   isOnTarget,
   applyTargetFolderPrefix,
+  TargetFolderMissingError,
 } from '@openmig/shared';
 import { davRefusalBody, STREAMED_REQUEST_INIT, withFailureCategory } from '@openmig/shared';
 import { parseMultiStatus, isCollection, hrefRelativeTo, sizeOf } from './dav-multistatus.ts';
@@ -656,9 +657,18 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
       // Never degrade to an empty listing. A target that cannot be enumerated
       // looks identical to an empty one, and verification would report that as
       // total data loss (hard rule 9).
-      throw new Error(
-        `PROPFIND on ${dir || '/'} failed with status ${response.status}: ${davRefusalBody(response.body)}`,
-      );
+      const refused = `PROPFIND on ${dir || '/'} failed with status ${response.status}: ${davRefusalBody(response.body)}`;
+      if (response.status === 404 && this.normalizeRelativePath(dir) === '') {
+        // THE FOLDER ITSELF IS GONE (workplan 0156 T2): the owner deleted
+        // `/Microsoft-Rhb` and the verification ended for every data type on
+        // "PROPFIND on / failed with status 404". A 404 here is a definite
+        // answer, not a failure to read, so it is said as one, naming the
+        // folder as the server knows it rather than as `/`. Still thrown: a
+        // reader that does not know this error fails as loudly as before.
+        const prefix = this.config.targetFolderPrefix?.replace(/^\/+|\/+$/g, '') ?? '';
+        throw new TargetFolderMissingError(`/${prefix}`, refused);
+      }
+      throw new Error(refused);
     }
 
     const self = this.normalizeRelativePath(dir);

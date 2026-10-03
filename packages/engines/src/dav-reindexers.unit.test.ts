@@ -23,6 +23,7 @@ import {
   fileContentHash,
   calendarContentHash,
   contactContentHash,
+  isTargetFolderMissing,
   type Ledger,
 } from '@openmig/shared';
 import { CalDAVTargetWriter, type HttpClient as CalHttp } from './caldav-target-writer.ts';
@@ -446,6 +447,50 @@ describe('WebDAVTargetWriter.listEntries', () => {
     ]);
 
     await expect(collect(writer.listEntries())).rejects.toThrow(/failed with status 502/);
+  });
+
+  describe('a target folder that was deleted (workplan 0156 T2)', () => {
+    // The owner deleted `/Microsoft-Rhb` on Nextcloud, and the verification
+    // ended for every data type on "PROPFIND on / failed with status 404".
+    const SABRE_404 =
+      '<?xml version="1.0" encoding="utf-8"?><d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">' +
+      '<s:exception>Sabre\\DAV\\Exception\\NotFound</s:exception>' +
+      '<s:message>File with name /Microsoft-Rhb could not be located</s:message></d:error>';
+
+    it('is said as the folder missing, naming it as the server knows it', async () => {
+      const { client } = fakeHttp([{ match: /^PROPFIND/, status: 404, body: SABRE_404 }]);
+      const writer = new WebDAVTargetWriter(
+        { url: FILES_BASE, username: 'alice', password: 'pw', targetFolderPrefix: 'Microsoft-Rhb' },
+        { ledger, tenantId: TENANT, mappingId: MAPPING, httpClient: client as never },
+      );
+
+      const thrown = await collect(writer.listEntries()).then(
+        () => undefined,
+        (err: unknown) => err,
+      );
+
+      expect(isTargetFolderMissing(thrown), String(thrown)).toBe(true);
+      expect(isTargetFolderMissing(thrown) && thrown.folder).toBe('/Microsoft-Rhb');
+      // Still the server's own words, for a reader that does not know the error.
+      expect(String(thrown)).toContain('could not be located');
+    });
+
+    it('a 404 below the folder is not the folder missing: it stays an error', async () => {
+      // A subfolder that vanished between two PROPFINDs says nothing about
+      // the folder the listing started from.
+      const { writer } = fileWriter([
+        { match: /^PROPFIND .*\/files\/alice\/Documents/, status: 404, body: 'gone' },
+        { match: /^PROPFIND/, body: ROOT_LISTING },
+      ]);
+
+      const thrown = await collect(writer.listEntries()).then(
+        () => undefined,
+        (err: unknown) => err,
+      );
+
+      expect(thrown).toBeInstanceOf(Error);
+      expect(isTargetFolderMissing(thrown)).toBe(false);
+    });
   });
 
   it('ignores config.rootPath, which would shift every key out of alignment', async () => {

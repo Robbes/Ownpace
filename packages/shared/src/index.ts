@@ -75,6 +75,7 @@ export * from './failure-category.ts';
 export * from './needs-decision.ts';
 export * from './stated-failure-category.ts';
 export * from './unread-collections.ts';
+export * from './target-folder-missing.ts';
 export * from './config-revision.ts';
 export * from './kind-addition.ts';
 export * from './provider-accounts.ts';
