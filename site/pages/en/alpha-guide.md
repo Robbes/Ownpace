@@ -52,12 +52,12 @@ personally. The alpha lasts a few weeks.
   in such an app anyway, choose *Open in browser* there.
 - **Deletions are off.** Do you delete something in your old account? Then the copy at your new
   provider stays. Do you want that copy to go too? Then open the migration's *Deletions* page.
-  Choose *Turn on applying deletions*, and confirm. After that you choose per deletion: *Delete
-  it here too* or *Keep our copy*. Ownpace only deletes a copy it wrote itself. Was a file,
-  calendar entry or contact changed at your new provider? Then it does not delete it. With mail
-  it does not check that. Once deletions are on, you see a second button, also off by default:
-  *Enable auto-apply for relocations*. It clears up the old copy of a file you moved in your old
-  account. You then do not choose per file.
+  Choose *Turn on deleting by hand*, and confirm. After that you choose per deletion: *Delete it
+  here too* or *Keep our copy*. Ownpace only deletes a copy it wrote itself. Was a file, calendar
+  entry or contact changed at your new provider? Then it does not delete it. With mail it does
+  not check that. Once deleting by hand is on, you see a second button, also off by default:
+  *Turn on automatic removal*. It clears up the old copy of a file you moved in your old account.
+  You then do not choose per file.
 
 ## How to start {#how-to-start}
 

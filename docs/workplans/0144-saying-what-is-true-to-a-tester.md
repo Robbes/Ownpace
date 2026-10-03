@@ -127,6 +127,12 @@ code; nine fixed, one in part.
   above add about 130 words a tester needs before connecting, and short sentences cost words.
   The page went from about 945 words to about 1,050, now under eight headings a reader can scan.
 
+After merging main, the *Verwijderingen* bullet names the two switches as #1429 (0156 T6) renamed
+them: *Handmatig verwijderen inschakelen* and *Automatisch verwijderen inschakelen* (*Turn on
+deleting by hand*, *Turn on automatic removal*). The second still shows only once the first is
+on. Every label either page puts in italics was then checked against the app's strings on the
+merged head, and each is there.
+
 Linking the guide is unchanged by the review: the request page and the access-granted mail are
 on the other branch, and follow it.
 
