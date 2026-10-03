@@ -17,11 +17,11 @@
      all. Amend in place when a later decision changes it, then regenerate OPERATIVE.md:
      node scripts/adr-operative.mjs --write -->
 
-- **A path is one data type, from one account to one account**: mail, contacts, calendar and
-  files are four paths, and every price says so. Only a data type the migration carries is a
-  path (`scope_selection.included`).
-- **A tier has two axes, and you are on the higher**: paths at the same time, and data moved —
-  cumulative, each item's first successful copy only. Past Extra large: *talk to us*.
+- **A path is one kind of thing, from one account, to one account**: mail, contacts, calendar,
+  files and tasks are separate paths, and every price says so. Only a data type the migration
+  carries is a path (`scope_selection.included`).
+- **A tier has two axes, and you are on the higher of them**: paths at the same time, and data
+  moved — cumulative, each item's first successful copy. Past Extra large: *talk to us*.
   `site/site.unit.test.ts` and `packages/managed/src/tier-calculator.unit.test.ts` parse this
   table: prices change here.
 
@@ -33,20 +33,20 @@
   | **Large** | 50 | 7.5 TB | €50 | €39 |
   | **Extra large** | 200 | 15 TB | €150 | €99 |
 
-- **Tiny is free, and free means no billing**: no payment method, no invoice, no top-up. Leaving
-  Tiny is consented; a month that did not consent bills as Tiny.
-- **`holdsASlot` in `@openmig/ledger` is the slot rule**: `active`, `paused` and `continuous`
-  each hold a slot, and a stop releases it only in the continuous lane. Before the lane, the
-  customer is told the bill does not stop at cutover.
-- **The month bills its peak, and the tier is derived, never picked.** Downgrade is automatic
-  and announced, never retroactive, never blocking a path: under-bill, never halt. Upgrade is
-  consented at the crossing.
-- **Setup is paid on the highest tier ever reached, in steps; a top-up buys another data band
-  for the tier's setup fee again** — the ceiling rises, the meter is never rewound. At 80%,
-  offer both and show the break-even.
-- **The page, the gauge and the invoice follow the wording rules below**: every price
-  published, no per-GB or per-path figure, *at the same time* never *concurrent*, no billing
-  past 12 months unconfirmed. *"No profit" STANDS*.
+- **Tiny is free, and free means no billing**: no payment method, no invoice, no top-up; leaving
+  it is consented, on either axis. Guard: `site/site.unit.test.ts` (*free*, never *€0*).
+- **`holdsASlot` (`@openmig/ledger`) is the slot rule**: `active`, `paused` and `continuous`
+  hold a slot; `ready`, `cutover` and `done` hold none; a stop releases one only in the lane,
+  whose customer is first told the bill does not stop at cutover.
+- **The month bills its peak; the tier is derived, never picked.** Downgrade is automatic,
+  announced, never blocking a path. A path crossing is consented when activated; a data
+  crossing moves the tier automatically and announced, from Tiny only after a yes.
+- **Setup is paid on the highest tier reached, in steps; a top-up is the setup fee again for
+  another data band** (a higher ceiling, never a rewound meter). Neither is built yet
+  (workplan 0109 T6).
+- **What a customer is told, and what we will not do, are rules** (*Decision*): every price
+  published; no per-GB, compute or per-path figure; no billing past 12 months unconfirmed.
+  *"No profit" STANDS*.
 - **Pending (proposed 2026-09-29, not in force):** Free replaces Tiny, no setup fees, a year
   costs six months, and the price pays for the work (0152 D9–D12). The table above holds until
   the owner accepts.
@@ -76,17 +76,19 @@ before quoting any.)
 
 ### What a path is
 
-A path is one data type — mail, contacts, calendar or files — from one account to one account.
-One person moving everything is four paths. In the schema a path is one `scope_selection` row,
+**A path is one kind of thing, from one account, to one account.** Mail, contacts, calendar and
+files are separate paths — and tasks, since the ledger learned them as a fifth kind (workplan
+0113) — so one person moving mail, contacts, calendar and photos is four paths, which is how a
+customer describes their own situation. In the schema a path is one `scope_selection` row,
 `(mapping_id, domain)`, with its lifecycle in `path_lifecycle` at the same grain. Only a data
 type the migration carries is a path: a row left with `scope_selection.included = false` holds
-nothing. The public page shows the four things, named, before it shows a price, because every
-number on it is counted in paths.
+nothing. The public page shows the things, named, before it shows a price, because every number
+on it is counted in paths.
 
-### The tiers: two axes, and you are on the higher
+### The tiers: two axes, and you are on the higher of them
 
 A tier has two axes: **how many paths run at the same time**, and **how much data has been
-moved**. You are on the higher of the two, never the sum. One path and 400 GB is **Small**,
+moved**. **You are on the higher of them** — never the sum, never the average. One path and 400 GB is **Small**,
 because size says so. The table in the operative rules is the price list; past Extra large on
 either axis the answer is *talk to us* — the only number not published, because past the end of
 the scale the case has to be looked at. Sizes are decimal (1 TB = 1,000 GB), as the site
@@ -99,13 +101,15 @@ twice for one item, our own retries never eat an allowance, and a long-lived syn
 accumulating once it has caught up. The meter reads *"how much of your stuff we have moved"*,
 the same number the pre-preflight estimates before anyone connects.
 
-**Flat within a band; no per-path price inside a tier.** Labour per path is sublinear — one
-household is one relationship, one set of credentials, one cutover conversation — so a per-path
-monthly would assert that the sixteenth path costs what the first did. The linear component is
-the setup fee, and it is already handled by the step-up rule below. Medium is 20 paths rather
-than the arithmetic 16 so that a household of four keeps headroom: Medium → Large (€8 → €39) is
-the one steep step, and it should be crossed by an SME buying engagement, not by a family that
-added a Dropbox.
+**Flat within a band; no per-path price inside a tier.** Labour per path is **sublinear** —
+one household is one relationship, one set of credentials, one cutover conversation — so a
+per-path monthly would contradict the reason paths were chosen as the unit at all. The linear
+component is the setup fee, and it is already handled by the step-up rule below.
+
+Medium is 20 paths rather than the arithmetic 16 so that a household of four keeps headroom:
+Medium → Large (€8 → €39) is the one steep step, and it should be crossed by an SME buying
+engagement, not by a family that added a Dropbox. Small is 750 GB because a single person on a
+2 TB consumer plan a third full is still a single-person migration.
 
 **The tier boundary is a service boundary.** Tiny, Small and Medium are self-service — a manual
 and a ticket queue, no phone. Large and Extra large include real engagement. The price gap
@@ -117,8 +121,8 @@ The owner, 2026-09-24: *"make the Tiny tier Free, no billing needed."* Tiny — 
 time, up to 250 GB, ever — has no setup fee, no monthly and no invoice. Not a €0 invoice, which
 would still cost a payment instrument, a VAT treatment and a bookkeeping row: an organisation on
 Tiny registers no payment method and is not asked for billing details. **Leaving Tiny is where
-billing starts, so it is consented**, as every step up is: a second migration at the same time,
-or data past 250 GB, moves it to Small once it has said yes. A month it did not consent to leave
+billing starts, so it is consented, on either axis**: a second migration at the same time, or
+data past 250 GB, moves it to Small once it has said yes. A month it did not consent to leave
 Tiny is billed as Tiny, which is nothing. Tiny has no top-up — its setup fee is nothing, so a
 top-up would make the data axis mean nothing; past 250 GB the tier is Small. What still makes an
 unattended, credentialed byte-mover cost something to start is the invite-only access grant.
@@ -134,11 +138,12 @@ the count, a move into the lane and the operator's usage view all derive from it
 | `ready` | configured, connection-tested, never run — the column default | no |
 | `active` | running | yes |
 | `paused` | ran, then stopped by the owner — it resumes in a second | **yes**: reserved capacity |
-| `cutover` / `done` | ended, having run | no — released from that instant |
+| `cutover` / `done` | ended, having run | no — released from that instant; it still counts in the month's peak if it ran during it |
 | `continuous` | keeps copying after cutover and deletes nothing | **yes**, until the customer ends the lane |
 
-**Therefore pausing does not reduce a bill; finishing does**, and the pricing page says so
-rather than an invoice. The `continuous` lane (owner, 2026-09-10, 0117 D6: *"a. yes it holds a
+**Therefore pausing does not reduce a bill; finishing does** — deliberate, since a paused path
+holds state and resumes in a second, and said on the pricing page rather than discovered on an
+invoice. The `continuous` lane (owner, 2026-09-10, 0117 D6: *"a. yes it holds a
 slot"*) is the one state that does not end by itself, so **before somebody enters the lane they
 are told that their bill does not stop at cutover** (0117 T5).
 
@@ -159,7 +164,9 @@ roll-up, and a press on the whole migration moves only the paths in the phase it
 month — simultaneous, so eight that finish and one that starts afterwards is a peak of eight. A
 reading taken on the invoice date would make two identical households pay different tiers for
 finishing on the 30th or the 2nd. The invoice names the peak with its date: *"Medium — 6 paths at
-the same time on 12 August."*
+the same time on 12 August."* One case stays awkward whatever the copy says: finish everything on
+the 3rd and that month's invoice is still Medium. That is unavoidable under any period-based
+scheme; the honest handling is the invoice line, and the lower bill the month after.
 
 **The tier is derived from measurement, never picked.** Nobody selects a plan; activating a path
 that crosses a boundary states the new price at that moment and asks. The tier chooser on the
@@ -168,8 +175,11 @@ public page is a calculator, not a plan selector, and must read as one.
 **Downgrade is automatic; upgrade is consented.** A month whose peak fits strictly inside a lower
 tier bills at that tier — announced in advance in the summary mail, never applied
 retroactively, never a reason to stop, pause or block a path. If the arithmetic is ever wrong it
-must under-bill, never halt a migration. Upgrade is the opposite: immediate, on the customer's
-own action, priced at the moment they activate the path that crosses the line.
+must under-bill, never halt a migration. An upgrade on the **path** axis is the opposite:
+immediate, on the customer's own action, priced at the moment they activate the path that
+crosses the line. On the **data** axis the tier moves automatically and announced, with a warning
+at 80% (*What it will not do*, below) — except from Tiny, where it waits for the organisation's
+yes.
 
 **The setup fee is on the HIGHEST tier ever reached, and it is paid in steps.** Each tier is a
 one-off setup plus a monthly. Stepping up later costs the difference in setup, once; a tier
@@ -178,9 +188,11 @@ the onboarding was consumed. So the total depends only on the highest tier reach
 Tiny then Small then Medium costs €0 + €8 + €7 = €15 in setup, exactly what starting on Medium
 costs. Understating gains nothing and guessing wrong costs nothing.
 
-**Tiers buy lanes; top-ups buy room.** Running out of room does not have to mean moving up: pay
-your tier's setup fee again and the allowance grows by another whole band, on the same tier, at
-the same monthly — €8 buys another 750 GB on Small. Repeatable, never expiring, never refunded.
+**Tiers buy lanes; top-ups buy room.** **Running out of room does not have to mean moving up.
+Pay your setup fee again and your allowance grows by another whole band**, on the same tier, at
+the same monthly — €8 buys another 750 GB on Small. Buyable repeatedly, never expiring, never
+refunded, and it is the customer's own tier's fee, so the page gains a mechanism without gaining
+a price.
 **Implement it as a higher ceiling, never as a reset meter**: the counter stays monotonic so a
 past invoice stays reconstructible (consequence 5). A top-up is a purchase, opt-in and priced in
 advance, not a meter: €0.0067 to €0.0107 per GB, against ~€0.001/GB of transit and the €0.20/GB
@@ -191,6 +203,7 @@ once and you stay at €4 a month; Medium is €7 now and €8 a month, and give
 of 4."* Topping up costs €1 more up front and saves €4 a month, so it pays back in **about a
 week** — say that, and say plainly when the tier is the better buy. On data alone it almost never
 is, so the published guidance is *cross when you need more paths*, not *when you run out of room*.
+Taking no profit means having no reason to steer, so we do not.
 
 **Paths fall; data does not.** The path axis is elastic and downgrades by itself; the data axis
 only rises, so it sets a floor under the tier unless the customer buys room instead. That is
@@ -199,20 +212,38 @@ announced before it happens, and ended when the last path ends.
 
 ### What the page, the gauge and the invoice say
 
-- **Every price is published in full** — no contact-sales, no quote-gating (the one exception is
-  off the end of the scale). The page follows [ADR-0029](./0029-public-site-is-server-rendered-and-legible.md),
-  leads with the free preflight, and in this order: what it does and for whom; the free
-  preflight; *at your own pace* in three lines; what a path is; both axes in one table with the
-  word *higher* and the floor sentence (*"finishing paths lowers your bill; the size of what you
-  moved sets a floor — or top up and stay where you are"*); *tiers buy lanes, top-ups buy room*
-  with the break-even; the prices; what we do not do; self-host, prominently.
-- **No per-GB line and no compute line on any invoice, and no "per path per month" figure
-  anywhere.** The monthly is rent on an envelope with two dimensions, which is why a one-path
-  700 GB account costs more than a one-path 5 GB one; a published division (€2.00 · €1.00 · €0.40
-  · €0.78 · €0.50 at full fill, not monotonic) would invite a question it answers wrongly.
-- **The words:** *at the same time*, never *concurrent*; *free*, never *€0*; the fill gauge lists
-  the paths by name with their state and finished ones dated, and the count summarises the list —
-  never *used*, which is what one says about something spent.
+- **Prices are published in full on the public page** — no contact-sales, no quote-gating (the one
+  exception is off the end of the scale): a deliberate contrast with the incumbents, and part of
+  the same honesty claim as `SKIPPED`. The page follows
+  [ADR-0029](./0029-public-site-is-server-rendered-and-legible.md), and its order is an argument:
+  1. one sentence saying what it does and for whom;
+  2. **the free preflight as the first action** — no account, no email gate — showing what the
+     visitor actually has and what it would cost;
+  3. *at your own pace* in three lines;
+  4. what a path is, as the things named, before any price;
+  5. **both axes in one table, never two** (two tables read as two bills), with the word
+     *higher* and the floor sentence: *"finishing paths lowers your bill; the size of what you
+     moved sets a floor — or top up and stay where you are"*;
+  6. *tiers buy lanes; top-ups buy room*, the two prices side by side and the break-even said;
+  7. the prices in full — setup and monthly shown separately, the step-up rule stated, and the
+     sentence that finishing paths lowers the bill by itself;
+  8. **what we do not do**: `SKIPPED` means nobody checked; adopted files are not ours to delete;
+     some things cannot be moved, and we name them before you pay;
+  9. **self-host, prominently**: Apache-2.0, run it yourself, we would rather you moved than that
+     you paid us (ADR-0039's mission test).
+- **Advertise the total, not the monthly.** *"€39 to move your household, over three months"* is a
+  decision made in a minute; *"€8/month"* is a slower, subscription question. Same money. Every
+  typical total is `setup + monthly × months`, counting the first month as month one, and the
+  preflight knows the size, so it can show the total.
+- **No per-GB line and no compute line appears on any invoice, and no "per path per month" figure
+  is published either.** The monthly is rent on an envelope with two dimensions, which is why a
+  one-path 700 GB account costs more than a one-path 5 GB one; a published division (free · €1.00
+  · €0.40 · €0.78 · €0.50 at full fill, not monotonic) would invite a question it answers wrongly.
+- **The words:** *at the same time*, never *concurrent*; *free*, never *€0*. The fill gauge shows
+  **paths, not a number** — each path named, with its state, finished ones dated, the count
+  summarising the list — and never *used*, which is what one says about something spent. **Say
+  what frees a slot at the moment it frees**: when a path reaches `done`, the row says so and the
+  count visibly drops, or people build the tally model in their heads.
 - **Start everything, or go one at a time: say both, and steer toward neither.** Everything at
   once is faster and its bill falls as each path cuts over; one at a time is Tiny, which is free.
 - **Tone: numbers, not adjectives.** No "seamless", no "effortless", no "enterprise-grade".
@@ -223,44 +254,60 @@ announced before it happens, and ended when the last path ends.
   one-click *"keep it or finish it"* in the existing summary mail, and **billing never runs past
   12 months without an explicit re-confirmation.** A product promising "it ends when you say"
   cannot fund itself on people forgetting.
-- **There is no separate backup product or price.** A path that keeps copying after cutover is the
-  continuous lane, billed by the same slot rule as every other path.
+- **There is no separate backup product or price.** A path kept copying after cutover is the
+  continuous lane, and a copy to a third destination is a new path with its own initial copy;
+  both are billed as paths, by the same slot rule.
 - **The data ceiling is a price, not a policy.** Crossing it moves the tier, automatically and
   announced, with a warning at 80% naming what the next band costs — never a silent throttle,
   never a surprise invoice (from Tiny, only after the organisation's yes). A residual fair-use
   clause remains for what a number cannot express — reselling, pathological churn — and nothing
   else.
 - **Metering stays internal.** Bytes and compute are still measured, to check the tiers against
-  reality; they never reach an invoice.
+  reality; they never reach an invoice. Tiers do not self-correct the way metering does, so this is
+  what keeps them honest.
 
 ### The principle
 
 **"No profit" STANDS.** Large and Extra large are priced above their own cost precisely to fund
-Tiny, Small and Medium — cross-subsidy inside one cost-recovery envelope, not margin (owner,
-2026-08-20). Small is deliberately near cost: individuals are the mission's core, and
+Small and Medium — cross-subsidy inside one cost-recovery envelope, not margin (owner,
+2026-08-20) — and, since Tiny became free (2026-09-24), Tiny as well; workplan 0109 T8 recorded
+that cost before the decision: a free entry band anchors the published price at zero for the
+lightest case. Small is deliberately near cost: individuals are the mission's core, and
 [ADR-0039](./0039-no-open-core-and-what-ops-privacy-means.md) ruled that the mission outranks the
 subgoal. The self-host edition is free. The payment provider is an EU PSP (Mollie), and the
 machinery lives in `@openmig/managed` ([ADR-0036](./0036-the-managed-edition-is-its-own-package-and-its-own-chain.md)).
 
 ## Consequences
 
-**Schema consequences 1–5.** The 2026-08-20 record named five; all are now settled.
+**Billing a tier is not built yet.** `POST /api/billing/invoices/generate` refuses with a 409
+(`billing_model_retired`, `apps/api/src/routes/billing/no-bill-we-do-not-sell.ts`) rather than mint
+an invoice from the retired metered model; the tier invoice is workplan 0109 T5, and top-ups,
+step-ups and the floor are 0109 T6, *"published in ADR-0014, implemented nowhere"*. Nothing is
+charged during the Alpha (0131 T3 (a)). What is built is the measurement the bill will read.
+
+**Schema consequences 1–5.** The 2026-08-20 record named five, none solved then.
 
 1. **The billing key's default must be the free state.** Done: `path_lifecycle.state` defaults to
    `ready` (ledger migration 0035).
 2. **Something must record that a path ever ran.** Done: `path_lifecycle.first_activated_at`, set
    on the first activation and never cleared (ledger 0035); mapping status changes reach
    `audit_log` (`packages/ledger/src/mapping-status-audit.ts`).
-3. **The peak must be written as it happens.** Done: one raise-only row per tenant per month
-   (managed migration 0015, *the month remembers its peak*), lowering refused by a trigger.
+3. **A past month's invoice must be reconstructible in one read** — the month, the peak, when it
+   occurred, and the tier it implied. **Partly done**: the peak is written as it happens, one
+   raise-only row per tenant per month (managed migration 0015, a trigger refusing any lowering).
+   The data axis is not kept per month (`bytes_moved` is one lifetime total per tenant), and no
+   tier is stored, so a past month's tier cannot yet be re-derived from what is stored —
+   `scripts/half-the-array-was-a-recomputation.unit.test.ts` pins that asymmetry.
 4. **The billing unit and the lifecycle must share a grain.** Done: the lifecycle is per path
    (ledger 0035), each data type has its own cutover ledger (ledger 0067) and is cut over on its
    own, and the Finish page ends or keeps each data type (0128 T5).
 5. **The byte meter must be an append-only counter, beside an allowance.** The counter is built:
-   `bytes_moved` (managed migration 0016) counts first-copy bytes and only rises, erring towards
-   under-counting. The allowance — a sum of granted bands, so a top-up adds a row and nothing is
-   rewound — is not built yet: the site's calculator shows the top-up, the managed service does
-   not sell one.
+   `bytes_moved` (managed migration 0016) counts first-copy bytes and only rises. The allowance — a
+   sum of granted bands, so a top-up adds a row and nothing is rewound — is not built (0109 T6).
+   **Still open: coverage.** `size_bytes` is nullable, and an item whose source offered no size
+   counts as 0. Under-counting is the safe direction but still a lie, so coverage is to be asserted
+   per domain before the number reaches an invoice: an unmeasured thing is stated, not assumed to
+   be zero.
 
 **Other consequences.**
 
@@ -273,9 +320,9 @@ machinery lives in `@openmig/managed` ([ADR-0036](./0036-the-managed-edition-is-
 - The model is cheaper than BitTitan at every tier while selling more. Right for households; for
   a business buyer a price an order of magnitude under the consultancy alternative can read as
   unserious. Watched, not pre-emptively inflated.
-- The long tail is a continuous path on Small at €4. The number that decides whether the business
-  works is what fraction of customers keep a path running after cutover (ADR-0039); measure it
-  early.
+- The long tail is a path kept running after cutover — free on Tiny while the account is under
+  250 GB, otherwise usually Small at €4. The number that decides whether the business works is
+  what fraction of customers keep one running (ADR-0039); measure it early.
 
 ## Alternatives considered
 
@@ -285,17 +332,33 @@ machinery lives in `@openmig/managed` ([ADR-0036](./0036-the-managed-edition-is-
 - **For-profit pricing**: out of scope per project intent; the cross-subsidy is not margin.
 - **Per-seat or per-user pricing**, the market's default: pretends 25 seats are 25× the work, when
   labour per path is sublinear.
+- **An account pair as the unit** (the 2026-08-20 draft's): nobody says "two source accounts";
+  they say *"my mail, my contacts, my calendar and my photos"*, and `scope_selection` already stores
+  one row per domain. The ceilings doubled when the unit got smaller; the prices did not move.
 - **A start fee plus a monthly metered on the number or size of objects, capped**: reintroduces the
   per-unit line this decision removes, and the cap becomes the number everyone reads anyway — a
   tier wearing a meter's clothes. An object count is also not countable by the person paying.
 - **A per-path price inside each tier**: a flat one asserts something false (labour is sublinear),
   a decreasing one inverts so adding a path lowers the bill. The cliff it was meant to fix is
   fixed by putting Medium's ceiling at 20.
+- **Medium at €12 a month**: Google One 2 TB is €9.99, and the customer is leaving it while paying
+  their new provider too; at or above €10 a month the service costs more than the thing it
+  replaces, for something that is supposed to end. (The pending proposal below revisits the
+  list.)
+- **Small at 500 GB**: a single person on a 2 TB consumer plan a third full would be pushed to
+  Medium at twice the monthly for a single-person migration; the extra 250 GB costs ~€0.25 of
+  transit.
+- **The data ceiling as fair use** — *"we talk to you and move you a tier"*: a number that moves a
+  bill is a price, not a policy, and calling it fair use made it softer and less predictable.
 - **Counting paths cumulatively over the month**, so a slot never returns: bills the cutover month
   higher than the months of migrating, and buys only protection against slot churn, which the
-  data axis already bounds.
+  data axis (once called fair use) already bounds.
 - **Reading the count on the invoice date instead of the peak**: makes the bill a lottery on an
   arbitrary instant.
+- **No automatic downgrade**: a customer sitting on Medium while running one path *is* inattention,
+  and charging for it would make that rule decorative.
+- **A head fee charged on each tier entered**: it rewards staggering activations for billing
+  reasons; the setup fee paid in steps costs the same however the customer ramps.
 - **A monthly data allowance**: the cost is the initial copy, spent once; a monthly allowance
   matches no cost and cannot be predicted from the account's size.
 - **Counting every byte moved, including re-copies and deltas**: charges twice for one item, lets
@@ -313,6 +376,9 @@ machinery lives in `@openmig/managed` ([ADR-0036](./0036-the-managed-edition-is-
   itself, and a €0 invoice still costs a payment instrument, a VAT treatment and a bookkeeping row.
 
 ## Pending — Free, a year at the price of six months, no setup fees, and the price pays for the work (proposed 2026-09-29, 0152 D9–D12; not in force)
+
+<!-- The record's text, word for word. On acceptance (ADR-0051): fold it into the Decision and
+     the operative rules, remove the Pending bullet and this section, and log the acceptance. -->
 
 **Status: proposed, for the owner's acceptance.** Nothing in the operative rules above changes
 until the owner accepts it. The price guards (`site/site.unit.test.ts`,
@@ -433,9 +499,6 @@ list alone:
   gets a dated note: *"2026-09-29: amended by ADR-0014 (0152 D12). The price pays for what it
   takes to run and build the service (servers, support, and the time spent building and
   improving the software); running it yourself stays free."*
-
-**When it is accepted** (ADR-0051): fold it into the Decision and the operative rules, remove the
-*Pending* bullet and this section, and give its acceptance a line in the amendment log below.
 
 ## Amendment log
 

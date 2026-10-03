@@ -1,6 +1,6 @@
 # ADR-0027: The Windows appliance ships as a service with a shortcut, not a native shell
 
-- **Status:** Accepted 2026-07-30; updated three times — amended 2026-08-06 (bundled Node) and 2026-08-07 (scheduled task), measured on real Windows 2026-08-09 — plus one undated build correction; consolidated 2026-10-03 (ADR-0051). **Despite the title, it is a scheduled task, not a Windows Service.**
+- **Status:** Accepted 2026-07-30; updated three times — amended 2026-08-06 (bundled Node) and 2026-08-07 (scheduled task), measured on real Windows 2026-08-09 — plus a build correction (2026-07-31); consolidated 2026-10-03 (ADR-0051). **Despite the title, it is a scheduled task, not a Windows Service.**
 - **Date:** 2026-07-30; consolidated 2026-10-03
 - **Supersedes:** the "optional Tauri tray variant (planned)" in [ADR-0019](./0019-packaging-runtime-targets.md) §2, as the *first* packaging target. Tauri is not rejected — it is deferred, with a named revisit condition below.
 - **Relates to:** [ADR-0023](./0023-persistence-postgres-only.md) (Postgres everywhere), [ADR-0026](./0026-one-operating-ui-one-contract.md) (one operating UI), [ADR-0028](./0028-pglite-appliance-persistence.md) (PGlite for the appliance), workplans [0015](../workplans/0015-native-windows-installer.md) T2–T4 and [0016](../workplans/0016-pglite-adoption.md), the [Windows runbook](../windows-appliance-runbook.md).
@@ -14,8 +14,8 @@
 
 - The Windows appliance is a **Task Scheduler task** (At-Startup, `NT AUTHORITY\LocalService`), **not a Windows Service** whatever the title says, plus a Start-menu shortcut to the operating UI. No native shell, no wrapper binary (WinSW, nssm rejected). Held by `scripts/windows/install-task.ps1`; reasons in *Decision*.
 - The Windows payload carries its **own pinned Node runtime** (`NODE_RUNTIME_VERSION`), staged by the opt-in `--with-node` flag and verified against the release's `SHASUMS256.txt` — a mismatch stops the build. Held by `scripts/package-appliance.mjs` and its unit test; `install-task.ps1` refuses a payload without `node.exe`.
-- No wrapper is needed because **a hard kill is safe**: PGlite and the migration ledger survive `Stop-Process -Force`, measured on real Windows 2026-08-07 and 2026-08-09 (*Decision*).
-- `install-task.ps1` sets **`ExecutionTimeLimit` to zero**: the three-day default would stop a healthy appliance, the likeliest quiet failure.
+- **The no-wrapper decision rests on a hard kill being safe**: PGlite and the migration ledger survive `Stop-Process -Force` (measured on real Windows 2026-08-07 and 2026-08-09, *Decision*). Anything that breaks that reopens it.
+- `install-task.ps1` **must set `ExecutionTimeLimit` to zero** (no test checks it): the three-day default would stop a healthy appliance, the likeliest quiet failure.
 - Writable state lives in **`C:\ProgramData\OpenMigrate`**, outside the payload; `uninstall-task.ps1` **keeps it** (the migration ledger, hard rule 2) unless `-IncludeData` is passed.
 - **Tauri is deferred, not rejected:** revisit only when "it must look like a native application" becomes a stated requirement — never on size, since the Node runtime is the bulk. See *Revisit condition*.
 
@@ -53,7 +53,8 @@ Beside the task, a Start-menu shortcut opens the operating UI, and there is no n
   connections), registered by [`install-task.ps1`](../../scripts/windows/install-task.ps1).
   It delivers what the decision requires — the appliance *"starts on boot and keeps syncing
   whether or not anyone is logged in"*, which is what a background sync appliance *is*; an
-  application somebody can close is the wrong shape for it.
+  application somebody can close is the wrong shape for it. What a task does not deliver is an entry in the
+  Services panel, which is presentation rather than requirement.
 - It runs **the payload's own `node.exe`** through a generated `service-launch.cmd`, since Task
   Scheduler actions carry no environment; `install-task.ps1` refuses a payload without
   `node.exe`.
@@ -62,8 +63,8 @@ Beside the task, a Start-menu shortcut opens the operating UI, and there is no n
 - **A Start-menu shortcut opens the operating UI in the default browser**: an all-users
   `Ownpace.url` pointing at `http://127.0.0.1:8080/ui` by default.
 - **Writable state lives in `C:\ProgramData\OpenMigrate`**, outside the payload, and
-  [`uninstall-task.ps1`](../../scripts/windows/uninstall-task.ps1) — shipped with the
-  installer, because a thing that installs and cannot be removed is not finished — **does not
+  [`uninstall-task.ps1`](../../scripts/windows/uninstall-task.ps1) — written in the same commit
+  as `install-task.ps1`, because a thing that installs and cannot be removed is not finished — **does not
   delete it**: it is the migration ledger, the record of what has already been copied and the
   reason a re-run converges instead of duplicating a customer's mailbox (hard rule 2).
   `-IncludeData` exists for someone who means it, and prompts.
@@ -74,7 +75,7 @@ Beside the task, a Start-menu shortcut opens the operating UI, and there is no n
 ### The payload, and the Node runtime it carries
 
 `pnpm package:appliance` ([`scripts/package-appliance.mjs`](../../scripts/package-appliance.mjs))
-stages a relocatable directory an installer copies verbatim: a 2.8 MB esbuild bundle of
+stages a relocatable directory an installer copies verbatim: an esbuild bundle (2.8 MB when T3 built it) of
 `apps/selfhost/src/index.ts`, `start.mjs`, the migration SQL, the built UI and ~26 MB of PGlite
 WASM and data. **Bundling is not a risk, but it took three fixes:** PGlite stays *external*,
 because it finds its WASM through `import.meta.url` and, once bundled, would look beside the
@@ -89,12 +90,12 @@ stages `node.exe` beside `start.mjs`, so the installed directory runs on a machi
 nothing on it: an installer that must detect, prompt for or side-install a runtime is a
 terminal-shaped problem wearing a dialog box, and every branch of it lands on an end user who
 was promised none. The owner settled it on 2026-08-06 by uninstalling Node from the target
-laptop and asking why it was needed at all. The cost: 28.8 MB staged becomes 117.3 MB
-(`node.exe` is 88.5 MB), and a runtime we now patch. `NODE_RUNTIME_VERSION` is pinned
-(`v24.19.0`) so a bump is a reviewed edit, and the download is verified against the release's
+laptop and asking why it was needed at all. The cost, measured that day: 28.8 MB staged became
+117.3 MB (`node.exe` is 88.5 MB), and a runtime we now patch. `NODE_RUNTIME_VERSION` is pinned
+so a bump is a reviewed edit, and the download is verified against the release's
 own `SHASUMS256.txt` — a mismatch stops the build, because an unverified binary is a
 supply-chain hole with a progress bar. It is **opt-in** at the flag: a Linux dev build has a
-Node already.
+Node already and should not pay for a 93 MB download it will never run.
 
 ### Why a scheduled task, and no wrapper
 
@@ -135,7 +136,7 @@ fewer binary in a payload that already ships a Node runtime.
 
 - **A backend bundle step is required**, where the repo had none — new build surface, but
   required by every option, including the ones not chosen.
-- **The Node runtime is the bulk of the payload** (88.5 of 117.3 MB) unless a later SEA effort
+- **The Node runtime is the bulk of the payload** (88.5 of 117.3 MB on 2026-08-06) unless a later SEA effort
   removes it, and it is ours to patch: the obvious place to look if size becomes a complaint.
 - **No Services-panel entry, no tray icon, no window.** An administrator looking for a service
   will not find one; "is it running?" is answered by Task Scheduler and the UI itself, and the
@@ -160,7 +161,7 @@ WebView2 bootstrapper. Deferred, not rejected — see *Revisit condition*.
 
 **Node SEA + tray helper.** One binary, no Node install, no Rust. Rejected on two counts: SEA
 is still **experimental** and requires a **CommonJS** entry, which our three `import.meta.url`
-sites work against; and the ~26 MB of WASM ships alongside the executable regardless, so the
+sites (the migrations directory, the UI directory, the entrypoint check) work against; and the ~26 MB of WASM ships alongside the executable regardless, so the
 single-file story — the actual reason to want SEA — is not delivered. Taking an unstable API's
 constraints without its payoff is the worst of both.
 
@@ -190,7 +191,7 @@ Do **not** revisit on size alone. The Node runtime, not the shell, is the bulk.
 
 ## Amendment log
 
-- **Undated, in the record by 2026-08-04** — the T3 update note, re-measured when workplan 0015
+- **2026-07-31** — the T3 update note, re-measured when workplan 0015
   T3 built the payload: the bundle is 2.8 MB, not 3.6 (PGlite left external); 27.6 MB staged;
   `start()` gained a `migrationsDir` option; a third fix (`pg`'s `require('events')`) that the
   original list missed. The conclusion held. Record: *Re-measured when T3 actually built the
