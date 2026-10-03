@@ -205,7 +205,10 @@ on whether you have started their move:
   not you.
 - **Paused**: a move you paused stays paused, and so does a migration you paused after it ran.
 
-Pressing **Start** on a migration that waits for a grant says which of these applies.
+The person's page says which applies beside each migration of theirs that waits for the grant:
+*Waits for Anna to connect, then starts by itself*; *Waits for Anna to connect. Once they have,
+open Details to review and start it*; or, for one that ran before and lost its connection, *Waits
+for Anna to connect again*. Pressing **Start** on such a migration says it too.
 
 ## Managing them afterwards
 

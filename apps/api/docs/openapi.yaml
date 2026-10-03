@@ -4820,6 +4820,52 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /api/people/{personId}/awaiting-grant:
+    parameters:
+      - $ref: '#/components/parameters/PersonId'
+    get:
+      tags: [Grant links]
+      summary: Which of a person's migrations wait for their grant, and what it does to each
+      description: |
+        The migrations the person's grant link asks for that have no way in
+        yet, each with what the grant does when it lands (ADR-0035's
+        amendment, start when granted, per person; the owner, 2026-10-03).
+        An account the link cannot ask (two Google applications) is left
+        out, as the grant page leaves it out, and so is a finished
+        migration. Managed only, as the person's links are.
+      responses:
+        '200':
+          description: By Google account, in the order the person's grant page lists them.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [migrations]
+                properties:
+                  migrations:
+                    type: array
+                    items:
+                      type: object
+                      required: [mappingId, then]
+                      properties:
+                        mappingId: { type: string, format: uuid }
+                        then:
+                          type: string
+                          enum: [starts_by_itself, review_and_start, ran_before]
+                          description: |
+                            `starts_by_itself`: it never ran, and another
+                            migration of the person's runs, so it starts when
+                            the grant lands. `review_and_start`: it never ran,
+                            and nothing of theirs runs, so the owner reviews
+                            and starts it once its count is in. `ran_before`:
+                            it ran, and lost its way in since.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: '`person_not_found`: this organisation has no such person.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /api/decisions:
     get:
       tags: [Decisions]

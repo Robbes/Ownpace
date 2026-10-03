@@ -40,6 +40,13 @@
  * Its tick for files a format would refuse is not asked: the owner chose to
  * have the rest of a move start after one count (*"at least once"*). What it
  * could not copy shows in its queues, as for any pass.
+ *
+ * ## Said before it happens
+ *
+ * The person's page says it beside each migration that waits for their grant
+ * (`awaitingTheirGrant`), by the same two questions: whether it ever ran, and
+ * whether their move runs. *Start* on such a migration says it too
+ * (`startsWhenGrantedFor`).
  */
 
 import { and, eq, inArray } from 'drizzle-orm';
@@ -53,6 +60,7 @@ import { enqueueIfFree } from '../../enqueue-unless-held.ts';
 import { GRANT_ACTOR } from './grant-ending.ts';
 import { resolveSyncJob } from './job-resolution.ts';
 import { movePathsWithMapping } from './path-lifecycle-wiring.ts';
+import { readPersonGrantSubject } from './person-grant-subject.ts';
 
 /** The statuses in which a migration is running: started, and not paused or finished. */
 const RUNNING = ['active', 'continuous'] as const;
@@ -127,6 +135,62 @@ export async function startsWhenGrantedFor(
     .from(person)
     .where(and(eq(person.id, runs.personId), eq(person.tenantId, tenantId)));
   return named?.displayName;
+}
+
+/**
+ * What their grant does to a migration of a person's that waits for it, once
+ * it lands:
+ *
+ *  - `starts_by_itself`: it never ran, and their move runs, so it starts
+ *    (`startWhenGranted`);
+ *  - `review_and_start`: it never ran, and nothing of theirs runs, so the
+ *    owner reviews and starts it once its count is in;
+ *  - `ran_before`: it ran, and has lost its way in since (the person took
+ *    their grant back), so the grant gives it back.
+ */
+export type OnceGranted = 'starts_by_itself' | 'review_and_start' | 'ran_before';
+
+/** A migration of a person's that waits for their grant, and what the grant does to it. */
+export interface AwaitingTheirGrant {
+  readonly mappingId: string;
+  readonly then: OnceGranted;
+}
+
+/**
+ * Which of a person's migrations wait for their grant, each with what the
+ * grant does when it lands, for their page. These are the migrations their
+ * link asks for that have no way in, read as the grant page reads them
+ * (`readPersonGrantSubject`), and judged by the rule `startWhenGranted`
+ * applies. Left out: an account their link cannot ask (two Google
+ * applications), as the grant page leaves it out, and a finished migration,
+ * which waits for nothing. Read inside the caller's tenant transaction.
+ */
+export async function awaitingTheirGrant(
+  db: PgDatabase,
+  tenantId: string,
+  personId: string,
+): Promise<readonly AwaitingTheirGrant[]> {
+  const subject = await readPersonGrantSubject(db, tenantId, personId);
+  if (!subject) return [];
+  const out: AwaitingTheirGrant[] = [];
+  for (const account of subject.accounts) {
+    if (!account.ask.ok) continue;
+    for (const { mappingId, granted } of account.migrations) {
+      if (granted) continue;
+      const [row] = await db
+        .select({ status: schema.mailboxMapping.status })
+        .from(schema.mailboxMapping)
+        .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId)));
+      if (!row || row.status === 'done') continue;
+      const then: OnceGranted = !(await isADraft(db, tenantId, mappingId, row.status))
+        ? 'ran_before'
+        : (await personWhoseMoveRuns(db, tenantId, mappingId))
+          ? 'starts_by_itself'
+          : 'review_and_start';
+      out.push({ mappingId, then });
+    }
+  }
+  return out;
 }
 
 /**

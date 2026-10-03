@@ -4,7 +4,9 @@
  * where to, one stage, what waits on them, their migrations' lines with a way
  * to each migration's own page, and their steps before they switch as one
  * ordered list (0154 T4). A failed read is a failure on screen, and a count
- * that could not be read says so (hard rule 9).
+ * that could not be read says so (hard rule 9). Beside a migration that waits
+ * for their grant, what the grant does to it when it lands (start when granted,
+ * per person).
  */
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -22,7 +24,7 @@ vi.mock('../services/mapping-service', () => ({ mappingApi: { list: vi.fn() } })
 vi.mock('../services/operating-service', () => ({ fetchPeople: vi.fn(), fetchAttention: vi.fn() }));
 vi.mock('../services/grant-link-service', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/grant-link-service.ts')>()),
-  personLinkApi: { list: vi.fn(), issue: vi.fn(), revoke: vi.fn() },
+  personLinkApi: { list: vi.fn(), issue: vi.fn(), revoke: vi.fn(), awaiting: vi.fn() },
 }));
 
 const listMock = vi.mocked(mappingApi.list);
@@ -90,6 +92,7 @@ beforeEach(() => {
   listMock.mockResolvedValue([MAIL, FILES]);
   peopleMock.mockResolvedValue({ people: [ANNA], unassigned: [] });
   vi.mocked(personLinkApi.list).mockResolvedValue([]);
+  vi.mocked(personLinkApi.awaiting).mockResolvedValue([]);
   attentionMock.mockResolvedValue({
     mappings: [quiet('m-mail', { deletionsWaiting: 2, failuresWaiting: 1 }), quiet('m-files', { sharingOpen: 5 })],
   });
@@ -277,4 +280,41 @@ describe("a person's grant link, on their page", () => {
     expect(personLinkApi.issue).toHaveBeenCalledWith('p-anna', 'view', 90);
     expect(await within(section).findByDisplayValue('https://app.example/view/p.l-2.secret')).toBeInTheDocument();
   });
+});
+
+describe('what waits for their grant, on their page (start when granted, per person)', () => {
+  const row = (id: string) => document.querySelector(`[data-migration="${id}"]`) as HTMLElement;
+
+  it.each([
+    ['starts_by_itself', 'Waits for Anna Jansen to connect, then starts by itself: another migration of theirs is running.'],
+    ['review_and_start', 'Waits for Anna Jansen to connect. Once they have, open Details to review and start it.'],
+    ['ran_before', 'Waits for Anna Jansen to connect again.'],
+  ] as const)('says beside the migration what their grant does to it: %s', async (then, words) => {
+    vi.mocked(personLinkApi.awaiting).mockResolvedValue([{ mappingId: 'm-mail', then }]);
+    renderAt();
+    expect(await within(await waitForRow('m-mail')).findByText(words)).toBeInTheDocument();
+    expect(personLinkApi.awaiting).toHaveBeenCalledWith('p-anna');
+    // Only beside the one that waits.
+    expect(row('m-files').querySelector('[data-awaiting-grant]')).toBeNull();
+  });
+
+  it('says nothing when nothing of theirs waits', async () => {
+    renderAt();
+    await screen.findByRole('heading', { level: 1, name: 'Anna Jansen' });
+    await vi.waitFor(() => expect(personLinkApi.awaiting).toHaveBeenCalled());
+    expect(document.querySelector('[data-awaiting-grant]')).toBeNull();
+    expect(screen.queryByText(/could not be read/)).not.toBeInTheDocument();
+  });
+
+  it('says it could not read what waits, rather than that nothing does (hard rule 9)', async () => {
+    vi.mocked(personLinkApi.awaiting).mockRejectedValue(new Error('down'));
+    renderAt();
+    expect(await screen.findByText('Which of these wait for Anna Jansen to connect could not be read.')).toBeInTheDocument();
+    expect(document.querySelector('[data-awaiting-grant]')).toBeNull();
+  });
+
+  async function waitForRow(id: string): Promise<HTMLElement> {
+    await screen.findByRole('heading', { level: 1, name: 'Anna Jansen' });
+    return row(id);
+  }
 });

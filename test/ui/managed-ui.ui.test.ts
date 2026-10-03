@@ -224,6 +224,11 @@ const FIXTURES: Record<string, unknown> = {
    */
   [`GET /api/people/${PERSON}/links`]: { links: [] },
   /**
+   * WHAT WAITS FOR THEIR GRANT (start when granted, per person): their page
+   * asks beside the links, and nothing of theirs waits.
+   */
+  [`GET /api/people/${PERSON}/awaiting-grant`]: { migrations: [] },
+  /**
    * WHAT NEEDS EACH PERSON, counted on their card (0153 T3 (a)). `?all=true`
    * keeps the quiet migrations, so this one is here with nothing waiting.
    */
@@ -628,18 +633,30 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
   });
 
   it("opens a person's page from their card, with their steps before they switch (0153 T5)", async () => {
-    const l = await open('/mappings');
-    await l.page.getByRole('link', { name: 'Anna', exact: true }).click();
-    await l.page.waitForURL(`**/people/${PERSON}`, { timeout: 10_000 });
-    await l.page.getByRole('heading', { name: 'Before you switch' }).waitFor({ timeout: 10_000 });
-    expect(await l.page.getByRole('heading', { level: 1, name: 'Anna' }).count()).toBe(1);
-    expect(await l.page.locator('[data-step]').count()).toBe(7);
-    // Their one grant link (0153 T5 (b)): none made yet, read from its own door.
-    await l.page.getByRole('heading', { name: 'For Anna' }).waitFor({ timeout: 10_000 });
-    await l.page.getByText('No link yet for this person.').waitFor({ timeout: 10_000 });
-    expect(apiHits).toContain(`/api/people/${PERSON}/links`);
-    expectClean(l, "a person's page");
-    await l.page.close();
+    // Their one migration ran, and waits for them to connect again.
+    const waits = `GET /api/people/${PERSON}/awaiting-grant`;
+    const saved = FIXTURES[waits];
+    FIXTURES[waits] = { migrations: [{ mappingId: MAPPING, then: 'ran_before' }] };
+    try {
+      const l = await open('/mappings');
+      await l.page.getByRole('link', { name: 'Anna', exact: true }).click();
+      await l.page.waitForURL(`**/people/${PERSON}`, { timeout: 10_000 });
+      await l.page.getByRole('heading', { name: 'Before you switch' }).waitFor({ timeout: 10_000 });
+      expect(await l.page.getByRole('heading', { level: 1, name: 'Anna' }).count()).toBe(1);
+      expect(await l.page.locator('[data-step]').count()).toBe(7);
+      // Their one grant link (0153 T5 (b)): none made yet, read from its own door.
+      await l.page.getByRole('heading', { name: 'For Anna' }).waitFor({ timeout: 10_000 });
+      await l.page.getByText('No link yet for this person.').waitFor({ timeout: 10_000 });
+      expect(apiHits).toContain(`/api/people/${PERSON}/links`);
+      // What their grant does, beside the migration it waits on.
+      await l.page.getByText('Waits for Anna to connect again.').waitFor({ timeout: 10_000 });
+      expect(await l.page.locator(`[data-migration="${MAPPING}"] [data-awaiting-grant="ran_before"]`).count()).toBe(1);
+      expect(apiHits).toContain(`/api/people/${PERSON}/awaiting-grant`);
+      expectClean(l, "a person's page");
+      await l.page.close();
+    } finally {
+      FIXTURES[waits] = saved;
+    }
   });
 
   it('starts a migration for Anna from their card, through six screens and one Start, to their page (0153 T4)', async () => {

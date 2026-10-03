@@ -2,7 +2,7 @@
 
 > **In one line:** The Migrations page lists people: one flow (who, from where, what, to where) takes a person from one or more old accounts to a new home and creates their migrations underneath, and protocols, kinds and ids stay off screen until needed. Four faults the audit found go first.
 
-## Status — 2026-09-29 (update this block at the end of every session)
+## Status — 2026-10-03 (update this block at the end of every session)
 
 **2026-09-29, morning: a sign-in's example goes when its box is clicked (T6, T7; the owner's
 answer).** Asked whether *Username* should read *Email address* where an address is what goes
@@ -183,6 +183,26 @@ words changed with them** (0131 §6, R8).
   the writing session takes T4 with T7 and the rest of T5, R8 steps 6 and 7. Checked on `main`
   at `5f74ebc`: T4 and T7 are still proposed, and no branch or open pull request of R's or M's
   touches them. 0131 §6 records the split.
+
+**2026-10-03: the person's page says what waits for their grant (T5 (b); start when granted, per
+person).** Beside each migration of theirs that waits for their grant, the page says what the
+grant does to it when it lands, by the rule that starts it:
+
+- *"Waits for Anna to connect, then starts by itself: another migration of theirs is running."*
+  when it never ran and their move runs;
+- *"Waits for Anna to connect. Once they have, open Details to review and start it."* when it
+  never ran and nothing of theirs runs;
+- *"Waits for Anna to connect again."* when it ran, and lost its way in since.
+
+`GET /api/people/:personId/awaiting-grant` answers it (`awaitingTheirGrant` in
+`start-when-granted.ts`): the migrations their link asks for that have no way in, read as the
+grant page reads them, and judged by the two questions `startWhenGranted` asks. An account two
+Google applications read is left out, as the grant page leaves it out, and so is a finished
+migration. A read that failed says so under the migrations. Managed only, as their links are.
+
+- **Proved by:** `a-link-for-a-person.unit.test.ts` (+5: each answer, a real grant that starts
+  what it said would start, what is left out, and who may read it) and `Person.unit.test.tsx`
+  (+5). Five mutations of the server's reading and three of the page each fail their cases.
 
 **2026-10-03: start when granted, per person (T5 (b); ADR-0035's amendment, decided).** The
 owner: *"Yes, but after the move was started in the first place. After preflight the start needs
@@ -753,10 +773,10 @@ person, and a flow that fills it.
 | T1 Four faults the audit found | 🟡 **(a) in #1315 and (d) in #1316, each proved by its guard; (b) drawn and guarded (#1349); (c) is T4's, by construction; all before the first invitation** | §3. (a) Review & confirm listed every source's limits on managed. (b) The Gmail app password the guide names is not in the wizard. (c) The Microsoft consent is sent before the data types are chosen: T4 fixes it by construction (the owner, 2026-09-28: no press). (d) A raw state word on Finish. |
 | T2 ADR-0050: a move is a person's migrations | ✅ **ADR-0050 accepted 2026-09-28 (#1327), amended the same night: *person*. The tables and `/api/people` built, with the appliance's implicit person (#1332)** | §3. A `person` row and `person_migration` in `packages/managed/migrations` (0031). The appliance answers one implicit person. The billed unit (a path) and the migration (a mapping) do not change. Deleting a person deletes no migration. |
 | T3 The Migrations page lists people | 🟡 **Built in two halves: the page lists people (#1341); it is the landing page, the Dashboard is gone, and the menu is the drawing's (#1343). The menu counts beside *Needs you* what waits (#1346). The progress line and *Ready to switch* wait on 0154 T2. Before the first invitation** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
-| T4 *Start a migration*: who, from where, what, to where | 📋 **Proposed; before the first invitation** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
-| T5 A page per person | 🟡 **First slice built (#1353): the person, their migrations, and their steps before they switch. One link per person (ADR-0035's amendment of 2026-09-29) is built, T5 (b)'s four slices (#1394, #1396, #1401, the replacing of the per-migration links), with *Report this link* and asking again; the progress lines wait on 0154 T2. Before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
+| T4 *Start a migration*: who, from where, what, to where | 🟡 **Built (#1372, #1378), with *Someone else* by a grant link (#1386), one per person since T5 (b). Waiting: screen 6's time estimate (0154 T3 (a)), and the wizard retires once the reachability test passes through the flow (D5). Before the first invitation** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
+| T5 A page per person | 🟡 **First slice built (#1353): the person, their migrations, and their steps before they switch. One link per person (ADR-0035's amendment of 2026-09-29) is built, T5 (b)'s four slices (#1394, #1396, #1401, #1408), with *Report this link* (#1402), asking again (#1407), start when granted (#1409), and the page saying what waits for their grant (#1413); the progress lines wait on 0154 T2. Before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
 | T6 Words a family reads | 🟡 **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, before the first invitation. The Dutch says *migratie* everywhere the product speaks, with two guards (#1342). (c)'s two guards built (#1347)** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |
-| T7 Defaults a family can pass | 📋 **Proposed; before the first invitation, inside T4** | §3. Buttons that look like buttons, with the reason in text. A Soverin sign-in in two visible fields. A Nextcloud address, not a DAV URL. Business-only fields only on the business path. The limit blamed on the side that has it. Tiles and icons: `tiles.svg`, `icons.svg`. |
+| T7 Defaults a family can pass | ✅ **(a) to (f) built inside T4 (#1378); the wizard's progress line too (#1383)** | §3. Buttons that look like buttons, with the reason in text. A Soverin sign-in in two visible fields. A Nextcloud address, not a DAV URL. Business-only fields only on the business path. The limit blamed on the side that has it. Tiles and icons: `tiles.svg`, `icons.svg`. |
 | T8 The appliance shows its person's page | 📋 **Proposed; before the first invitation (D5)** | §3. The same page, fed by the appliance's one implicit grouping. No list or create screen (0034 stands). |
 
 ## 1. What there is today
