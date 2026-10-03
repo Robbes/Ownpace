@@ -285,9 +285,13 @@ describe('issuing a person’s grant link', () => {
     expect(await q('SELECT id FROM person_link')).toEqual([]);
   });
 
-  it('offers no progress link yet, and no expiry it does not offer', async () => {
-    expect((await issue(ANNA, { purpose: 'view' })).status).toBe(400);
+  it('offers a progress link too (slice 3), and no expiry it does not offer for the purpose', async () => {
+    const view = await issue(ANNA, { purpose: 'view' });
+    expect(view.status, JSON.stringify(view.body)).toBe(201);
+    expect(view.body.url).toMatch(/^https:\/\/app\.example\/view\/p\./);
+    expect(view.body.expiryDays).toBe(90);
     expect((await issue(ANNA, { expiryDays: 90 })).status).toBe(400);
+    expect((await issue(ANNA, { purpose: 'view', expiryDays: 7 })).status).toBe(400);
     expect((await issue(ANNA, { expiryDays: 30 })).status).toBe(201);
   });
 
@@ -386,7 +390,8 @@ describe('the grant lands on what the page listed', () => {
     expect(ended.status, ended.text).toBe(200);
     expect(await tokenOf(WORK_MAIL)).toBe(REFRESH);
 
-    const [row] = await q('SELECT used_at FROM person_link');
+    // The grant link: each ending also mints a progress link (slice 3).
+    const [row] = await q(`SELECT used_at FROM person_link WHERE purpose = 'grant'`);
     expect(row?.used_at).toBeTruthy();
     expect((await request(app).get(`/api/grant/${token}`)).status).toBe(401);
   });

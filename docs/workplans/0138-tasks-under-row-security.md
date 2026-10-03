@@ -4,6 +4,30 @@
 
 ## Status — 2026-10-03 (update this block at the end of every session)
 
+**2026-10-03, later: a guard in the unit tier for a table the purge could not empty**, on branch
+`claude/ownpace-public-readiness-y7orc6-a-table-the-purge-could-not-empty`, not merged; from the
+review of #1403, which merged 2026-10-03 as `10ccc800` with `0035`.
+
+- **`packages/managed/src/a-table-the-purge-could-not-empty.unit.test.ts`** reads every migration
+  of both chains as text and asks, for each table in `PURGED_TABLES`, whether one grants
+  `ownpace_system` DELETE on it, naming the table and the grant to add when none does. The
+  integration test `a-system-role-that-is-not-the-owner` asked the same and more, but only in the
+  integration job and only where a Postgres can start; this one runs in the unit tier on every
+  machine. It asks for DELETE only: which columns the role may read beside it stays the
+  integration test's `EXPECTED`, held against what Postgres granted. Proved: 48 of 48; with
+  `0035` taken out, 1 failed (*"person_link is in PURGED_TABLES … and no migration … grants
+  ownpace_system DELETE on it"*); with `legal_acceptance`'s grant taken out of `0033`, 1 failed,
+  naming it; each restored.
+- **Why CI did not catch #1358 and #1390 together.** #1358's last green was on 2026-09-29 at
+  09:47 UTC; #1390 merged 81 seconds later, and #1358 merged on 2026-10-03 on that green. `main`'s
+  branch rules do not require a branch to be up to date before it merges
+  (`strict_required_status_checks_policy: false`) and there is no merge queue, so a green older
+  than `main`'s head merges. The same route brought in #1377's unit test that fails at import
+  without `SYSTEM_DATABASE_URL`. ⏳ **Owner's choice:** require branches to be up to date
+  before merging, or a merge queue, or, as a habit, update a branch and let CI run again before
+  merging one whose green is older than `main`.
+
+
 **2026-10-03, latest: the purge granted a person's links in a migration of its own, `0035`
 (blocking), on branch `claude/ownpace-public-readiness-y7orc6-the-system-role-purges-a-persons-link`,
 not merged.** T3 step 2 was merged on 2026-10-03 as #1358 (`71a19e35`) at its head of 2026-09-29,

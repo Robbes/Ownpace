@@ -184,6 +184,40 @@ words changed with them** (0131 §6, R8).
   at `5f74ebc`: T4 and T7 are still proposed, and no branch or open pull request of R's or M's
   touches them. 0131 §6 records the split.
 
+**2026-10-03: T5 (b)'s third slice, a person's progress page (ADR-0035's amendment of
+2026-09-29).**
+
+- **The page** (`GET /api/view/:link`, `person-progress.ts`, `View.tsx`): for a person's link,
+  every migration of theirs with the counts and states a migration's own page shows
+  (`migrationProgress`, now the one reading both use), under the Google account it reads, and the
+  others after. An account is named on the page by an opaque `ref`, never by its address, as a
+  migration's page carries none.
+- ***Take my grant back*, per account** (`POST /api/view/:link/withdraw` with `{ account }`):
+  - each token the account's migrations hold is revoked at Google once;
+  - then it is cleared from every one of them in one transaction, with a
+    `mapping.grant_withdrawn` row each, whatever Google answered;
+  - a `ref` that no longer matches what is held (given again, or taken back in another tab)
+    deletes nothing, and says so in both languages.
+- **The progress link:** the person's grant ending hands one over after the consent lands, as a
+  migration's does. The owner's door issues one (`purpose: 'view'`, 30, 90 or 180 days), and the
+  person's page offers *One progress link for everything* beside the grant link.
+- **Not yet:**
+  - *Report this link* from a person's pages: the report route takes a migration's link only;
+  - the migration's page still makes its own links, until the owner answers the amendment's
+    proposals.
+- **Proved by:**
+  - `a-progress-page-for-a-person.unit.test.ts` (8; PGlite as `app_user`, both chains, with
+    Google's token and revoke endpoints stubbed);
+  - `a-link-for-a-person.unit.test.ts` (13), whose progress-link case now issues one;
+  - `View.unit.test.tsx` (+5), `Person.unit.test.tsx` (+1) and the view service's test (+3).
+
+  Mutation: sending an account's withdrawal as a migration's fails two cases. The spec
+  documents the page and the body, and its checker learns `pattern`.
+- **Walked in Chromium**, English and Dutch, at 900 and 390 pixels wide, over a fixture API shaped
+  as `person-progress.ts` answers: two accounts and an IMAP mailbox, no sideways scroll, no call
+  the fixture does not serve, and one press withdrew the first account by its `ref`, after which
+  each of its migrations says copying stopped.
+
 **2026-09-29, morning: T5 (b)'s fourth slice, the owner makes the person's one link (ADR-0035's
 amendment of 2026-09-29).**
 

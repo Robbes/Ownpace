@@ -1121,6 +1121,10 @@ const en = {
   'personLink.blurb':
     'One link for all of this person’s Google accounts: they sign in to each once, and every migration that reads it is connected.',
   'personLink.empty': 'No link yet for this person.',
+  'personLink.view.title': 'One progress link for everything',
+  'personLink.view.blurb':
+    'One page where this person follows all of their migrations, with no account, and can take back the access they gave.',
+  'personLink.view.empty': 'No progress link yet for this person.',
   'grantLink.loadError': 'Could not read the links for this migration.',
   'grantLink.issuedBy': 'Issued {date} by {who}',
   'grantLink.issuedByGrant': 'Created {date}, when they gave access',
@@ -1284,6 +1288,17 @@ const en = {
   'view.withdrawn.removeYourself': 'To be sure, remove the app yourself from the apps with access:',
   'view.withdrawn.since': 'Nothing more is read from your account. To continue later, ask for a new link.',
   'view.withdrawn.check': 'Your Google account lists the apps that still have access:',
+  // A PERSON'S progress page (ADR-0035, amended 2026-09-29; 0153 T5 (b), slice 3).
+  'view.person.title': 'Your migrations',
+  'view.person.who': '{organisation} is moving your accounts to new providers. Here is where each migration stands.',
+  'view.person.none': 'There are no migrations here yet.',
+  'view.person.account.only': 'Your Google account',
+  'view.person.account': 'Google account {n}',
+  'view.person.others': 'Your other migrations',
+  'view.person.route': '{from} to {to}',
+  'view.person.grant.body': '{organisation} reads this Google account for the migrations above because you allowed it.',
+  'view.person.withdrawn.notConfirmed':
+    'Deleted here, so these migrations cannot use it. Google did not confirm withdrawing it.',
   // Report this link (workplan 0108 T8 (d)): on the grant and progress pages,
   // to the owner's helpdesk, never to the organisation that asked.
   'linkReport.open': 'Report this link',
@@ -3844,6 +3859,10 @@ const nl: Record<keyof typeof en, string> = {
   'personLink.blurb':
     'Eén link voor alle Google-accounts van deze persoon: bij elk account één keer aanmelden, en elke migratie die het leest is verbonden.',
   'personLink.empty': 'Nog geen link voor deze persoon.',
+  'personLink.view.title': 'Eén voortgangslink voor alles',
+  'personLink.view.blurb':
+    'Eén pagina waarop deze persoon alle eigen migraties volgt, zonder account, en gegeven toegang kan intrekken.',
+  'personLink.view.empty': 'Nog geen voortgangslink voor deze persoon.',
   'grantLink.loadError': 'Kon de links van deze migratie niet lezen.',
   'grantLink.issuedBy': 'Gemaakt op {date} door {who}',
   'grantLink.issuedByGrant': 'Gemaakt op {date}, toen zij toegang gaven',
@@ -3964,6 +3983,17 @@ const nl: Record<keyof typeof en, string> = {
   'view.withdrawn.removeYourself': 'Verwijder voor de zekerheid zelf de app bij de apps met toegang:',
   'view.withdrawn.since': 'Er wordt niets meer uit uw account gelezen. Later verder? Vraag om een nieuwe link.',
   'view.withdrawn.check': 'Uw Google-account toont welke apps nog toegang hebben:',
+  // De voortgangspagina van een PERSOON (ADR-0035, gewijzigd 2026-09-29; 0153 T5 (b), deel 3).
+  'view.person.title': 'Uw migraties',
+  'view.person.who': '{organisation} migreert uw accounts naar nieuwe providers. Hier ziet u hoe elke migratie ervoor staat.',
+  'view.person.none': 'Er zijn hier nog geen migraties.',
+  'view.person.account.only': 'Uw Google-account',
+  'view.person.account': 'Google-account {n}',
+  'view.person.others': 'Uw andere migraties',
+  'view.person.route': '{from} naar {to}',
+  'view.person.grant.body': '{organisation} leest dit Google-account voor de migraties hierboven, omdat u dat toestond.',
+  'view.person.withdrawn.notConfirmed':
+    'Hier verwijderd, dus deze migraties kunnen die niet gebruiken. Google bevestigde het intrekken niet.',
   'linkReport.open': 'Deze link melden',
   'linkReport.intro': 'Uw melding gaat naar het team van Ownpace, niet naar {organisation}.',
   'linkReport.description': 'Waarom twijfelt u aan deze link?',

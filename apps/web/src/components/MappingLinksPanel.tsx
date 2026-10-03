@@ -142,17 +142,22 @@ const migrationDoors = (mappingId: string): LinkDoors => ({
 
 const personDoors = (personId: string): LinkDoors => ({
   queryKey: ['person-links', personId],
-  // A person's link is a grant link until their progress page exists.
-  issue: (_purpose, expiryDays) => personLinkApi.issue(personId, expiryDays),
+  issue: (purpose, expiryDays) => personLinkApi.issue(personId, purpose, expiryDays),
   revoke: (linkId) => personLinkApi.revoke(personId, linkId),
 });
 
-/** A person's grant link says what it covers: all of their accounts, once each. */
-const PERSON_WORDS: (typeof WORDS)['grant'] = {
-  ...WORDS.grant,
-  title: 'personLink.title',
-  blurb: 'personLink.blurb',
-  empty: 'personLink.empty',
+/**
+ * A person's links say what they cover: the grant link all of their
+ * accounts, once each; the progress link all of their migrations.
+ */
+const PERSON_WORDS: Record<MappingLinkPurpose, (typeof WORDS)[MappingLinkPurpose]> = {
+  grant: { ...WORDS.grant, title: 'personLink.title', blurb: 'personLink.blurb', empty: 'personLink.empty' },
+  view: {
+    ...WORDS.view,
+    title: 'personLink.view.title',
+    blurb: 'personLink.view.blurb',
+    empty: 'personLink.view.empty',
+  },
 };
 
 const LinkSection: React.FC<{
@@ -368,7 +373,20 @@ export const PersonGrantLinkSection: React.FC<{
   links: GrantLink[] | undefined;
   loadFailed: boolean;
 }> = ({ personId, ...props }) => (
-  <LinkSection {...props} doors={personDoors(personId)} purpose="grant" words={PERSON_WORDS} />
+  <LinkSection {...props} doors={personDoors(personId)} purpose="grant" words={PERSON_WORDS.grant} />
+);
+
+/**
+ * A PERSON'S progress link (slice 3): one page for all of their migrations,
+ * where they can also take back what they granted, per account. The grant
+ * ending hands one over by itself; this is the owner's way to make another.
+ */
+export const PersonViewLinkSection: React.FC<{
+  personId: string;
+  links: GrantLink[] | undefined;
+  loadFailed: boolean;
+}> = ({ personId, ...props }) => (
+  <LinkSection {...props} doors={personDoors(personId)} purpose="view" words={PERSON_WORDS.view} />
 );
 
 const MappingLinksPanel: React.FC<{ mappingId: string }> = ({ mappingId }) => {
