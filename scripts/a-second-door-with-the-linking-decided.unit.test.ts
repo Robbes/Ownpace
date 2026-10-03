@@ -59,6 +59,24 @@ describe('the linking decision is configured, not left to a default', () => {
     ).toMatch(/AUTO_LINKING_OPTION_EMAIL/);
   });
 
+  it('lets no Microsoft sign-in create an account by itself (ADR-0042, the owner 2026-10-03)', () => {
+    /**
+     * Microsoft's addresses arrive unverified on purpose, so linking by email
+     * never matches one. With automatic creation, somebody who already had a
+     * password and pressed "Microsoft" was given a second account, with a new
+     * `sub` and none of their memberships. Without it, Zitadel asks them to link
+     * to the account they have or to create one. Google keeps automatic
+     * creation: its verified addresses do match.
+     */
+    const microsoftOptions = /configure_idp "Microsoft"[\s\S]*?--argjson o "\$(\w+)"/.exec(setup)?.[1];
+    expect(microsoftOptions, 'the Microsoft provider is created with the shared options').toBe(
+      'IDP_OPTIONS_MICROSOFT',
+    );
+    expect(setup).toMatch(/IDP_OPTIONS_MICROSOFT="\$\(jq -c '\.isAutoCreation = false' <<<"\$IDP_OPTIONS"\)"/);
+    const googleOptions = /configure_idp "Google"[\s\S]*?--argjson o "\$(\w+)"/.exec(setup)?.[1];
+    expect(googleOptions).toBe('IDP_OPTIONS');
+  });
+
   it('leaves auto-update OFF, so an upstream cannot move somebody\'s address', () => {
     /**
      * Workplan 0102 T3 makes `tenant_member.email` follow the verified claim on
