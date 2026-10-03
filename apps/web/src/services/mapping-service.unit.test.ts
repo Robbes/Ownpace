@@ -77,6 +77,9 @@ const detailFixture = {
       itemsNeedingDecision: 1,
       lastSyncedAt: '2026-08-09T10:00:00.000Z',
       lastError: 'IMAP LIST failed: connection reset',
+      // What discovery found (0154 T2): the *about* the strip sets the copies against.
+      itemsFound: 50,
+      bytesFound: 2048,
       lastPass: {
         items: 42,
         wallMs: 1000,
@@ -168,6 +171,10 @@ describe('MappingSchema vs the detail route', () => {
       itemsNeedingDecision: 1,
       lastError: 'IMAP LIST failed: connection reset',
       lastSyncedAt: '2026-08-09T10:00:00.000Z',
+      // Optional, and kept: a field the schema did not name would be stripped,
+      // and the strip would say *total not known* about a total it was sent.
+      itemsFound: 50,
+      bytesFound: 2048,
     });
   });
 });
