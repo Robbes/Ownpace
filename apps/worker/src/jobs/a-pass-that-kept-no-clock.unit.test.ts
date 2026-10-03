@@ -37,9 +37,10 @@ describe('where a pass spent its time, on managed', () => {
 
   it('is kept before the pass decides whether it finished, so a stopped pass keeps it too', () => {
     const kept = loop.indexOf('if (result.metrics) domainMetrics[domain] = result.metrics;');
-    // The decision asks two things since 0055 T3 (e): whether the pass paused,
-    // and whether it left a folder unread. Either way it is not finished.
-    const decided = loop.indexOf('if (!pause && unread.length === 0) {');
+    // The decision asks three things: whether the pass paused, whether it
+    // left a folder unread (0055 T3 (e)), and whether new items waited at the
+    // data ceiling (0109 T6). Any of them, and it is not finished.
+    const decided = loop.indexOf('if (!pause && unread.length === 0 && held === 0) {');
     expect(kept, 'the measurements are no longer kept').toBeGreaterThan(-1);
     expect(decided).toBeGreaterThan(-1);
     expect(kept, 'kept only on the completed branch, so a stopped pass loses them').toBeLessThan(decided);

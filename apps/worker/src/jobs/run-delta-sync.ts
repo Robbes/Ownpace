@@ -46,7 +46,7 @@ import {
   PgMigrationStatusStore,
   RunStore,
 } from '@openmig/ledger';
-import { PgBytesMovedStore } from '@openmig/managed';
+import { PgBytesMovedStore, ceilingHoldReason, firstCopyGate, holdsAtCeiling, readCeiling } from '@openmig/managed';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import {
   log,
@@ -498,9 +498,22 @@ export const runDeltaSync = schemaTask({
           // after what it is copying at that moment, not at its deadline.
           // Spread into every pass below as one object, so a data type cannot
           // be handed its deadline without its question.
+          // THE HOLD AT THE DATA CEILING (workplan 0109 T6, ADR-0014's
+          // amendment of 2026-10-03). Every step up is consented and paid for:
+          // at the ceiling, new first copies wait for the customer's yes to a
+          // move up or a top-up, while updates to what is already copied carry
+          // on. Read fresh for each data type, after the one before it added
+          // its bytes to the meter (below). Not during the alpha (the owner,
+          // 2026-10-03: "A"), where nothing is charged and no yes is taken:
+          // this process learns the stage from OWNPACE_STAGE, which
+          // set-task-env.sh uploads to the task environment.
+          const ceiling = holdsAtCeiling(process.env.OWNPACE_STAGE)
+            ? await withTenant(pool, tenantId, (db) => readCeiling(db, tenantId))
+            : null;
           const passStops: PassClock = {
             deadline: typeDeadline,
             whyItStops: () => whyThisDataTypeStops(pool, tenantId, mappingId, domain),
+            ...(ceiling ? { firstCopyAllowed: firstCopyGate(ceiling) } : {}),
           };
 
           // Whether this domain rescans from scratch — per domain, so "redo the
@@ -522,6 +535,8 @@ export const runDeltaSync = schemaTask({
             adopted: number;
             skipped: number;
             firstCopyBytes?: number;
+            /** New first copies that waited at the data ceiling (0109 T6). */
+            heldAtCeiling?: number;
             budgetPause?: BudgetPause;
             deadlinePause?: DeadlinePause;
             haltPause?: HaltPause;
@@ -560,6 +575,7 @@ export const runDeltaSync = schemaTask({
                 ...(pass.firstCopyBytes !== undefined
                   ? { firstCopyBytes: pass.firstCopyBytes }
                   : {}),
+                ...(pass.heldAtCeiling ? { heldAtCeiling: pass.heldAtCeiling } : {}),
               };
             } finally {
               await deps.close();
@@ -716,7 +732,10 @@ export const runDeltaSync = schemaTask({
            * (`noteUnreadCollections`, below).
            */
           const unread = result.unreadCollections ?? [];
-          if (!pause && unread.length === 0) {
+          // And one whose new items waited at the data ceiling has not
+          // finished either: they are copied on the pass after the yes.
+          const held = result.heldAtCeiling ?? 0;
+          if (!pause && unread.length === 0 && held === 0) {
             await withTenant(pool, tenantId, async (db) => {
               await new PgMigrationStatusStore(db).markCompleted(tenantId, mappingId, domain, result.metrics);
             });
@@ -759,6 +778,35 @@ export const runDeltaSync = schemaTask({
               );
             });
           }
+          if (held > 0 && ceiling) {
+            // The customer's half, with both prices: the hold is theirs to
+            // lift, so it is on their screen, unlike the deadline. Not over a
+            // stop they were told about first (a Pause, a withdrawn grant) or
+            // the day's download budget, whose own sentence says when it
+            // resets; the next pass that holds says it then.
+            if (!result.haltPause && !result.budgetPause) {
+              await withTenant(pool, tenantId, async (db) => {
+                await new PgMigrationStatusStore(db).markPaused(
+                  tenantId,
+                  mappingId,
+                  domain,
+                  ceilingHoldReason(ceiling, held),
+                );
+              });
+            }
+            await withTenant(pool, tenantId, async (db) => {
+              await new RunStore(db).logEvent(
+                tenantId,
+                runId,
+                'info',
+                `${domain}: ${held} new item(s) wait at the organisation's data ceiling of ` +
+                  `${ceiling.allowance.ceilingGb} GB, for its yes to a move up or a top-up on the ` +
+                  'Billing page. Changes to what was already copied carried on, nothing failed, ' +
+                  'and the cursors stayed where they are, so the pass after the yes copies them.',
+                { domain, heldAtCeiling: held, ceilingGb: ceiling.allowance.ceilingGb },
+              );
+            });
+          }
           // After the pause's own write, which clears the last error, so the
           // note it would have cleared stands; and on every pass that returned,
           // so a note an earlier pass wrote goes once the collection is read.
@@ -792,7 +840,8 @@ export const runDeltaSync = schemaTask({
             // type its owner stopped differently (`final-sync.ts`).
             ...(result.haltPause
               ? { stopped: 'halt' as const, haltedBecause: result.haltPause.reason }
-              : result.deadlinePause ? { stopped: 'deadline' as const } : result.budgetPause ? { stopped: 'budget' as const } : {}),
+              : result.deadlinePause ? { stopped: 'deadline' as const } : result.budgetPause ? { stopped: 'budget' as const }
+              : held > 0 ? { stopped: 'ceiling' as const } : {}),
           };
           // The data axis (0109 T3): this pass's first-copy bytes join the
           // tenant's lifetime meter. Managed-side by construction — the
