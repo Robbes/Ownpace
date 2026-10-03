@@ -43,7 +43,7 @@ import {
   qualificationReportLines,
   qualifyAccount,
 } from '@openmig/orchestration/account-qualification';
-import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow, stepFrom, stopReasonOf, HALT_IN_WORDS } from '@openmig/shared';
+import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, foundByDomain, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow, stepFrom, stopReasonOf, HALT_IN_WORDS } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
 // three cannot drift apart in the explanations that stop somebody destroying
@@ -1666,6 +1666,11 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             m.config.tenantId as TenantId,
             m.mailboxMappingId as MappingId,
           );
+          // What discovery found of each data type (0154 T2): the *about* in
+          // "18,234 of ~19,000", from the counts `/discovery` serves.
+          const found = foundByDomain(
+            await discoveryStore.getDiscovery(m.config.tenantId as TenantId, m.mailboxMappingId as MappingId),
+          );
           // Each data type's stop and ending as the pages offer them (0128 T4,
           // slice 3c; T5, slice 7b), by the rules the doors themselves decide by.
           const tenantId = m.config.tenantId as string;
@@ -1685,6 +1690,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             statuses,
             failures,
             adopted,
+            found,
             ...(facts === undefined ? {} : { stops: pathStopChoices(facts), endings: pathEndingChoices(facts, graceEnds) }),
           });
         }

@@ -75,6 +75,10 @@ const EVERY_FIELD: Required<DomainStatusReport> = {
   itemsRetrying: 2,
   itemsNeedingDecision: 1,
   itemsAdopted: 17,
+  // Left out of the link until 0154 T8 gives the person's page the totals:
+  // what discovery found is the owner's page's for now (0154 T2).
+  itemsFound: 4402,
+  bytesFound: 95_000_000,
   lastSyncedAt: '2026-09-09T21:00:00.000Z',
   lastActiveAt: '2026-09-10T06:30:00.000Z',
   lastError: '550 5.7.1 rejected: /Documents/tax-return-2024.pdf',

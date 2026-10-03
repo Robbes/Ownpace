@@ -41,6 +41,7 @@ import {
   buildDomainStatusReports,
   DISCOVERY_DOMAINS,
   discoveryForSelection,
+  foundByDomain,
   grantWithdrawnRefusal,
   isArchiveProvider,
   isProviderAccountKind,
@@ -2634,7 +2635,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
     // Previously this handler returned hardcoded placeholder data (imap.example.com,
     // a fixed lastSyncAt, domains: ['email']) regardless of the mapping's actual
     // config or sync state — this is the real fix, not a Docker/environment issue.
-    const { mapping, sourceConn, targetConn, scopeRows, domainStatus, failures, adopted, stopFacts, graceEnds } =
+    const { mapping, sourceConn, targetConn, scopeRows, domainStatus, failures, adopted, discovery, stopFacts, graceEnds } =
       await withTenantDb(
       tenantId,
       pool,
@@ -2657,6 +2658,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
             scopeRows: [],
             domainStatus: [],
             failures: [],
+            discovery: [],
             stopFacts: undefined,
             graceEnds: undefined,
           };
@@ -2680,7 +2682,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
             .where(and(eq(schema.mailbox.id, mailboxId), eq(schema.mailbox.tenantId, tenantId)));
           return rows[0]?.connection ?? null;
         };
-        const [sourceConn, targetConn, scopeRows, domainStatus, failures, adopted, stopFacts, graceEnds] =
+        const [sourceConn, targetConn, scopeRows, domainStatus, failures, adopted, discovery, stopFacts, graceEnds] =
           await Promise.all([
           connectionOf(mapping.sourceMailboxId),
           connectionOf(mapping.targetMailboxId),
@@ -2703,6 +2705,10 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
           // happened to an item that this page had no counter for, so its
           // totals never added up and there was nothing to read instead.
           new PgLedger(db).countAdoptedByDomain(tenantId as TenantId, mappingId as MappingId),
+          // What discovery found of each data type (0154 T2): the *about* in
+          // "18,234 of ~19,000", read in the same transaction as the
+          // counts it is set against.
+          new schema.PgDiscoveryStore(db).getDiscovery(tenantId as TenantId, mappingId as MappingId),
           // What the stop door would accept for each data type (0128 T4,
           // slice 3c), read the way the door reads it.
           readPathStopFacts(db, tenantId, mappingId),
@@ -2719,6 +2725,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
           domainStatus,
           failures,
           adopted,
+          discovery,
           stopFacts,
           graceEnds,
         };
@@ -2840,12 +2847,21 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
       // renamed lastSyncedAt. Raw MigrationStatus rows lacked both counts,
       // so the hub's progress strip would have silently never shown a
       // retrying count on this edition (0033 T5).
+      //
+      // Since 0154 T2 each row carries what discovery found of it, by the
+      // discovery route's own rule: only the migration's own data types, so a
+      // count left by a type it never carried is no row's total.
+      //
       // The provider's text stays off this page for an account a person
       // granted (ADR-0035 decision 5): the category, side and reference say
       // what failed, and the text can name that person's files.
-      domainStatus: buildDomainStatusReports(domainStatus, failures, adopted, {
-        withholdProse: readsAPersonsGrant(mapping),
-      }),
+      domainStatus: buildDomainStatusReports(
+        domainStatus,
+        failures,
+        adopted,
+        foundByDomain(discoveryForSelection(discovery, scopeRows.map((r) => r.domain))),
+        { withholdProse: readsAPersonsGrant(mapping) },
+      ),
       lastSyncAt,
       // When the person who granted through a link took it back (0108 T8 (c)),
       // or null. The page says so above everything else: nothing reads the

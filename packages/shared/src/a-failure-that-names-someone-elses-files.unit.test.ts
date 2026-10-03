@@ -44,7 +44,7 @@ const failure: ItemFailure = {
 
 describe("the migration page's row, for an account a person granted", () => {
   it('keeps the category, the side and the reference, and drops the text', () => {
-    const [report] = buildDomainStatusReports([failed], [], undefined, { withholdProse: true });
+    const [report] = buildDomainStatusReports([failed], [], undefined, undefined, { withholdProse: true });
     expect(report).not.toHaveProperty('lastError');
     expect(report?.lastErrorWithheld).toBe(true);
     expect(report?.lastErrorCategory).toBe('source_refused');
@@ -60,7 +60,7 @@ describe("the migration page's row, for an account a person granted", () => {
 
   it('claims nothing was withheld when nothing failed', () => {
     const { lastError: _gone, ...clean } = failed;
-    const [report] = buildDomainStatusReports([clean as MigrationStatus], [], undefined, {
+    const [report] = buildDomainStatusReports([clean as MigrationStatus], [], undefined, undefined, {
       withholdProse: true,
     });
     expect(report).not.toHaveProperty('lastErrorWithheld');

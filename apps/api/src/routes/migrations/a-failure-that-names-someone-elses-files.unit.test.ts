@@ -55,7 +55,7 @@ describe("the owner's pages, for an account a person granted", () => {
 
   it('builds the migration page with the text withheld', () => {
     expect(migrations).toMatch(
-      /buildDomainStatusReports\(domainStatus, failures, adopted, \{\s*withholdProse: readsAPersonsGrant\(mapping\),\s*\}\)/,
+      /buildDomainStatusReports\(\s*domainStatus,\s*failures,\s*adopted,\s*foundByDomain\([^\n]*\),\s*\{ withholdProse: readsAPersonsGrant\(mapping\) \},\s*\)/,
     );
   });
 
