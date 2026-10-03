@@ -27,6 +27,19 @@ export interface DomainDiscovery {
    */
   readonly generatedIdItems?: number;
   /**
+   * Items the source holds but could not LIST, because they carry no natural
+   * key and the source cannot derive one — Microsoft 365 mail without an
+   * `internetMessageId`, read through Graph. They are NOT migrated, and are not
+   * part of `items`.
+   *
+   * Counted apart from `generatedIdItems`, which are migrated: until
+   * 2026-10-03 both arrived in that one field, and the confirm screen told the
+   * owner a copy would carry a generated id for messages no pass would copy.
+   * Stored inside `perCollection` and totalled when read, so it needs no
+   * column of its own.
+   */
+  readonly unlistedItems?: number;
+  /**
    * Items in collections that will be SKIPPED, and are therefore not part of
    * `items`.
    *
@@ -93,6 +106,8 @@ export interface DiscoveryCollection {
   readonly bytes?: number;
   /** Items in this collection that will be given a generated Message-ID. */
   readonly generatedIdItems?: number;
+  /** Items in this collection the source could not list, and will not migrate. */
+  readonly unlistedItems?: number;
   /**
    * Why this collection will NOT be migrated, when it will not be.
    *
@@ -255,4 +270,19 @@ export function domainsCountedBeforeTheirError(
     // would contradict the blank error cell in the row it is about.
     .filter((row) => Boolean(row.lastError) && (row.collections > 0 || row.items > 0))
     .map((row) => row.domain);
+}
+
+/**
+ * The domain's `unlistedItems`, totalled from its collections.
+ *
+ * The total has no column of its own: `perCollection` is stored whole, so the
+ * count travels inside it and the read adds it up. Zero when no collection
+ * carries one, which the caller reports by leaving the field out, so that
+ * "none were left behind" and a pass from before the count existed read alike:
+ * neither promised anything about these messages.
+ */
+export function unlistedFromCollections(
+  perCollection: ReadonlyArray<DiscoveryCollection> | undefined,
+): number {
+  return (perCollection ?? []).reduce((sum, c) => sum + (c.unlistedItems ?? 0), 0);
 }

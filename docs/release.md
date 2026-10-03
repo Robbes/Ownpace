@@ -79,7 +79,7 @@ time the `latest` channel exists — check it appeared.
 | Workflow | Produces | Check |
 |---|---|---|
 | `ci.yml` | the test gate on the release ref | green before announcing |
-| `images.yml` | `ownpace-{api,web,selfhost}:<X.Y.Z>` multi-arch on GHCR, cosign-signed by digest | `cosign verify ghcr.io/robbes/ownpace-selfhost:<X.Y.Z> --certificate-identity-regexp '^https://github.com/Robbes/(ownpace|Ownpace)/' --certificate-oidc-issuer https://token.actions.githubusercontent.com` |
+| `images.yml` | `ownpace-{api,web,selfhost}:<X.Y.Z>` multi-arch on GHCR, cosign-signed by digest | `cosign verify ghcr.io/robbes/ownpace-selfhost:<X.Y.Z> --certificate-identity-regexp '^https://github\.com/Robbes/(open-migrate|ownpace|Ownpace)/' --certificate-oidc-issuer https://token.actions.githubusercontent.com` |
 | `security-scan.yml` | the GitHub release itself, with `bom.json` (CycloneDX SBOM) attached and the generated body (pull lines, verify one-liner, changelog link) | the release page reads like a release, not an unlabelled SBOM |
 | `windows-payload.yml` | `ownpace-appliance-win-x64-v<X.Y.Z>.zip` attached to the release (unsigned — SmartScreen prompt documented in the runbook) | asset present; `SHA256SUMS.txt` inside |
 

@@ -83,6 +83,23 @@ describe('the two things the customer has to be told', () => {
     expect(note).toHaveTextContent(/not overwrite it/);
   });
 
+  it('says when messages will be LEFT BEHIND, and never as given an id', () => {
+    // Microsoft 365 through Graph cannot give a message without an
+    // internetMessageId an id, so it does not migrate it. Until 2026-10-03 that
+    // count arrived as `generatedIdItems`, and this screen promised a copy with a
+    // generated Message-ID that no pass would make (ADR-0020's amendment).
+    render(<DiscoveryCounts domains={[record({ unlistedItems: 2 })]} />);
+    const note = screen.getByRole('note');
+    expect(note).toHaveTextContent(/2 messages have no Message-ID/);
+    expect(note).toHaveTextContent(/will not be migrated/);
+    expect(note).not.toHaveTextContent(/migrate with the rest/);
+  });
+
+  it('says one message in the singular', () => {
+    render(<DiscoveryCounts domains={[record({ unlistedItems: 1 })]} />);
+    expect(screen.getByRole('note')).toHaveTextContent(/1 message has no Message-ID/);
+  });
+
   it('says neither when neither applies', () => {
     render(<DiscoveryCounts domains={[record()]} />);
     expect(screen.queryByRole('note')).not.toBeInTheDocument();

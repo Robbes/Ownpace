@@ -1,10 +1,12 @@
-// Copyright 2026 OpenHands Agent (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 import { applyTargetFolderPrefix,
+  asWrittenBefore,
   contentHash,
   displayNameForMessage,
   ensureMessageId,
   naturalKeyHash,
   normalizeMessageId,
+  readMessageId,
   mapWithConcurrency as _mapWithConcurrency,
   naturalKeyForItem,
   type RunShadowPass,
@@ -187,6 +189,30 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     naturalKey: (item) => ((item as MailItem).messageId ? naturalKeyForItem(item) : undefined),
     naturalKeyFromRaw: (_item, raw) =>
       naturalKeyHash(ensureMessageId((raw as RawMessage).rfc822).messageId),
+    // What such a message was keyed and written as before 2026-10-03, a hash
+    // of its raw bytes (ADR-0020's amendment): asked when the normalised key
+    // finds no row, so a copy made under it is not made again. From the bytes
+    // as the source served them, which is what that hash was taken of, under
+    // the id they carried then (`asWrittenBefore`).
+    legacyKeysFromRaw: (_item, raw) => {
+      const before = asWrittenBefore((raw as RawMessage).rfc822);
+      if (before === undefined) return [];
+      return [
+        {
+          naturalKeyHash: naturalKeyHash(before.messageId),
+          naturalKey: normalizeMessageId(before.messageId),
+          raw: { ...(raw as RawMessage), rfc822: before.rfc822 } satisfies RawMessage,
+        },
+      ];
+    },
+    // The target's own existence check, for the id such a copy carries: what
+    // keeps an empty ledger from copying it again (ADR-0020). Asked of the
+    // same `findByNaturalKey` the writers ask, which throws rather than answer
+    // "not there" when it cannot tell.
+    legacyCopyOnTarget: async (mailboxId, legacy) => {
+      const id = readMessageId((legacy.raw as RawMessage).rfc822);
+      return id !== undefined && (await target.findByNaturalKey(mailboxId, id)) !== undefined;
+    },
     // The Message-ID a person would search their old mailbox for. Through the
     // SAME `ensureMessageId` the key uses when the listing had none, so the two
     // describe one message rather than two.

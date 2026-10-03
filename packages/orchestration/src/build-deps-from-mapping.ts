@@ -1,4 +1,4 @@
-// Copyright 2026 OpenHands Agent (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 // Build dependencies from database-stored connections with encrypted credentials.
 // Used by Trigger.dev jobs to construct real source/target connectors.
 

@@ -256,7 +256,7 @@ jobs:
 
           \`\`\`
           cosign verify ghcr.io/robbes/ownpace-selfhost:${VER} \
-            --certificate-identity-regexp '^https://github.com/Robbes/(ownpace|Ownpace)/' \
+            --certificate-identity-regexp '^https://github\.com/Robbes/(open-migrate|ownpace|Ownpace)/' \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com
           \`\`\`
 

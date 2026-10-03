@@ -173,6 +173,33 @@ describe('the group panel is given every failed row, not just the parked ones', 
  * half that puts it on the screen, from the same map the domain strip and the
  * operator's support screen already share.
  */
+describe("an account a person granted keeps their names and the provider's words (ADR-0035 decision 5)", () => {
+  it('says why, and still says what to do', async () => {
+    // The server withheld them (`withheldFailure`): the row arrives with its
+    // category and an empty text, and no name.
+    const { collection: _name, ...withheld } = FAILURE;
+    fetchFailuresMock.mockResolvedValue(
+      queue({
+        needsDecision: [{ ...withheld, lastError: '', category: 'quota_exceeded' as const }],
+        textWithheld: true,
+      }),
+    );
+    renderScreen();
+
+    expect(await screen.findByText(/the person connected this account themselves/i)).toBeVisible();
+    expect(screen.getByText(/reached what its provider allows/i)).toBeVisible();
+    expect(screen.queryByText('INBOX/Archive')).toBeNull();
+  });
+
+  it('says nothing about withholding where everything is shown', async () => {
+    fetchFailuresMock.mockResolvedValue(queue());
+    renderScreen();
+
+    expect(await screen.findByText('IMAP APPEND failed: 507 over quota')).toBeVisible();
+    expect(screen.queryByText(/the person connected this account themselves/i)).toBeNull();
+  });
+});
+
 describe('a failed item says what to do about it', () => {
   it('shows the remedy for its category, above the provider prose', async () => {
     fetchFailuresMock.mockResolvedValue(

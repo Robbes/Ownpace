@@ -1,4 +1,4 @@
-// Copyright 2026 OpenHands Agent (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 // JMAP target writer for Stalwart and other JMAP servers.
 // Implements TargetWriter interface for mail import with idempotency support.
 // T3 from workplan 0001-first-slice-jmap-mail.

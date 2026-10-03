@@ -1,4 +1,4 @@
-// Copyright 2026 OpenHands Agent (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 // Integration tests for WebDAV source connector against a real Nextcloud WebDAV server.
 // Uses Testcontainers for containerized Nextcloud instance.
 //

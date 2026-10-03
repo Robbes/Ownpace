@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { recordMappingStatusChange } from './mapping-status-audit.ts';
+import { readsAPersonsGrant } from './whose-data.ts';
 import { activateAddedPath, endOrKeepDataType, movePathsWithMapping, stopOrResumeDataType } from './path-lifecycle-wiring.ts';
 import { eq, and, desc, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
@@ -2939,11 +2940,16 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
       // Since 0154 T2 each row carries what discovery found of it, by the
       // discovery route's own rule: only the migration's own data types, so a
       // count left by a type it never carried is no row's total.
+      //
+      // The provider's text stays off this page for an account a person
+      // granted (ADR-0035 decision 5): the category, side and reference say
+      // what failed, and the text can name that person's files.
       domainStatus: buildDomainStatusReports(
         domainStatus,
         failures,
         adopted,
         foundByDomain(discoveryForSelection(discovery, scopeRows.map((r) => r.domain))),
+        { withholdProse: readsAPersonsGrant(mapping) },
       ),
       lastSyncAt,
       // When the person who granted through a link took it back (0108 T8 (c)),

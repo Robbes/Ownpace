@@ -2,7 +2,9 @@
 
 - **Status:** Accepted 2026-08-20 — owner decision in conversation ("Ok, i picked ownpace.eu"),
   closing the naming question opened by [ADR-0039](./0039-no-open-core-and-what-ops-privacy-means.md)'s
-  finding that the trademark is the mission-compatible moat.
+  finding that the trademark is the mission-compatible moat; updated three times the same day;
+  amended once since (2026-10-03: who owns the mark, the EU filing, no backup brand, and the cosign
+  regexp).
 - **Date:** 2026-08-20
 - **Deciders:** owner
 - **Relates to:** [ADR-0001](./0001-license-apache-2.0.md) (Apache-2.0 §6 grants no trade-mark
@@ -37,43 +39,33 @@
      the narrative below stays append-only. Assembled into OPERATIVE.md by
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
-- **One name: Ownpace** (`ownpace.eu`) — service *and* project. The repository, every
-  copyright header, `NOTICE`, the README title, the API title and the root package all say
-  Ownpace. The project/service split this ADR first recorded lasted one day and is superseded
-  by the owner's 2026-08-20 instruction; the reasoning that produced it is kept above.
-- **Never draw a name from the category's own vocabulary.** Three rounds found a prior user
-  each time: *migrate* → TSG's OpenMigrate (2006); *safe* → SETsafe; *keep* → Keepit A/S.
-  A candidate gets a prior-user check **before** a domain is bought, not after.
-- **A domain is not clearance.** DNS availability is a hint (port 43 and RDAP are blocked from
-  our sandbox, so even "unregistered" is unproven); **TMview classes 9, 38 and 42** before any
-  filing or any assertion of the mark.
-- The **GDPR Article 20 framing belongs in the copy, never in the name** — "transmitted
-  directly from one controller to another, where technically feasible" is a claim no competitor
-  can take and no registry has to grant.
-- **Renamed to `ownpace-*`:** compose project, container, network and volume names, the
-  persist directory, and future GHCR image names. **This is not a rename on a live stack** —
-  a compose project rename detaches its volumes, so an operator with data must destroy the old
-  project deliberately (`docker compose -p <old> down -v`) rather than discover it. Done here
-  only because nothing was live.
-- **Kept, deliberately:** the npm scope **`@openmig/*`** (13 packages, all `private: true`), and
-  everything that follows it — the `openmigrate` Postgres role/database and the
-  **`openmigrate_*` Prometheus metric prefix**, which a rename would silently break for every
-  existing dashboard and alert. Rule of thumb: rename what is named after the *product*, keep
-  what is named after the *scope*.
+- **One name: Ownpace** (`ownpace.eu`), service *and* project: the repository, every copyright
+  header, `NOTICE`, the README and API titles and the root package. The split this ADR first
+  recorded is superseded (owner, 2026-08-20; the updates above).
+- **Never draw a name from the category's own vocabulary**: a candidate gets a prior-user check
+  **before** a domain is bought (*Context*). The **GDPR Article 20 framing belongs in the copy,
+  never in the name** (*Alternatives considered*).
+- **A domain is not clearance.** DNS availability is a hint; **TMview classes 9, 38 and 42**
+  before any filing or any assertion of the mark (*The trade-mark check*).
+- **Renamed to `ownpace-*`:** compose project, container, network and volume names, the persist
+  directory, and GHCR image names after the rename. **This is not a rename on a live stack**: it
+  detaches the volumes, so an operator with data destroys the old project deliberately
+  (`docker compose -p <old> down -v`): `docs/managed-bring-up.md`.
+- **Kept, deliberately:** the npm scope **`@openmig/*`** (13 packages, all `private: true`), the
+  `openmigrate` Postgres role/database and the **`openmigrate_*` Prometheus metric prefix**.
+  Rename what is named after the *product*, keep what is named after the *scope*
+  (`CONTRIBUTING.md`).
 - **An image already published never moves.** Tags up to `v0.1.0-rc.1` live at
   `ghcr.io/robbes/open-migrate-selfhost` forever; `v0.1.0` on lives at `ownpace-selfhost`.
-  `scripts/upgrade-drill.sh` derives its registry from the tag for exactly this reason — a
-  hardcoded path makes the drill pull a tag that does not exist, silently, from the script whose
-  job is proving upgrades work. The cosign identity regexp matches **both** repo paths.
-- **The mark is asserted in `NOTICE`** — the one restriction on an otherwise permissive
-  licence, guarded by `scripts/notice-and-trademark.unit.test.ts`. It is an **unregistered**
-  claim: no `®`, no "registered trade mark of". The assertion states what needs **no**
-  permission (nominative use, forking, private instances) as explicitly as what does, so it
-  cannot be misread as a restriction on the code.
-- **Still OPEN, the owner's, not to be inferred:** whether to file an EUTM (a separate step
-  from asserting — see the two extra searches named below); the legal proprietor named in
-  `NOTICE`, currently "the Ownpace project maintainers" rather than a company; and whether the
-  post-cutover backup gets its own brand or is a plan name under Ownpace.
+  `scripts/upgrade-drill.sh` derives its registry from the tag; every documented cosign identity
+  regexp accepts **both** repository names and no other
+  (`a-signature-checked-under-either-name.unit.test.ts`).
+- **The mark is Archico B.V.'s; the copyright stays The Ownpace authors'** (owner, 2026-10-03).
+  `NOTICE` names the owner `TRADEMARK.md` names, claims no registration (no `®`), and states what
+  needs **no** permission as explicitly as what does: `scripts/notice-and-trademark.unit.test.ts`.
+- **An EU application follows the Benelux one**, after the two searches *The trade-mark check*
+  names; **the post-cutover backup has no brand of its own**, being the continuous lane of
+  ADR-0014 (owner, 2026-10-03: *"yes"*).
 
 ## Context
 
@@ -194,3 +186,59 @@ nothing about unregistered rights, company-name registers, or common-law use.
 
 Asserting in `NOTICE` needs none of that — an unregistered mark is asserted by using it and
 saying so. **Filing does.**
+
+## Amendment 2026-10-03 — who owns the mark, and a regexp a rename broke
+
+**Who owns the mark.** `NOTICE` was written on 2026-08-20, before the repository recorded a
+company, and named *"the Ownpace project maintainers"*. On 2026-08-30 the mark was filed in
+**Archico B.V.**'s name (Benelux application 1556706, registration pending), as `TRADEMARK.md`,
+the README and `site/legal/` say; `NOTICE` was not changed with them. Asked whether the company
+should hold the copyright as well, the owner chose to keep the two apart: *"A, split the two"*.
+
+- **The mark is Archico B.V.'s**, and `NOTICE` says so, naming the same owner as `TRADEMARK.md`.
+  `NOTICE` is the file Apache-2.0 §4(d) makes every redistributor copy, so a stale owner there
+  travels into every copy; the guard now compares the two files.
+- **The copyright stays with The Ownpace authors.** Under Apache-2.0 §5 a contributor keeps the
+  copyright in what they contribute, so no contributor agreement is needed, and no single party
+  can relicense the code alone, which fits [ADR-0039](./0039-no-open-core-and-what-ops-privacy-means.md).
+  The other option, Archico B.V. everywhere, needed a written assignment, a contributor licence
+  agreement before the first outside pull request, and every header rewritten.
+- **Twenty-three files said *"Copyright 2026 OpenHands Agent"***, against the first operative rule
+  (every copyright header carries the one name). They name The Ownpace authors now; an agent that
+  wrote code holds no copyright in it.
+
+**A regexp a rename broke.** The rule that the documented cosign identity regexp matches both
+repository paths was written together with a blanket `open-migrate` → `ownpace` rename. That rename
+had turned three of the four `(open-migrate|Ownpace)` alternations into `(ownpace|Ownpace)`, one
+name in two spellings, so the command a reader copied refused an image signed under the old name,
+and the fourth, unanchored, also accepted any repository whose name began with `Ownpace`. All four
+read `^https://github\.com/Robbes/(open-migrate|ownpace|Ownpace)/` now, and
+`scripts/a-signature-checked-under-either-name.unit.test.ts` checks every documented pattern against
+both identities and against lookalikes. `CHANGELOG.md`'s `v0.1.0-rc.1` entry keeps the old identity:
+that release was signed under it.
+
+**The two items still open, closed the same day.** Asked whether an EU filing goes ahead, as
+`TRADEMARK.md` already said it would, and whether the post-cutover backup could be closed as
+needing no brand of its own, the owner answered *"yes"*. The EU application follows the Benelux
+one, and the two searches *The trade-mark check* says no `contains` search covers ("Own Pace", and
+the phonetic and visual neighbours) run before it is filed. There is no backup product to brand:
+keeping copying after cutover is ADR-0014's continuous lane, a part of Ownpace, priced as a path.
+
+## Amendment log
+
+- **2026-08-20** — The owner extended the decision: the repository and every copyright header take
+  the name too, so project and service share one. Record: *Update 2026-08-20*.
+- **2026-08-20** — The owner authorised the operational identifiers' rename ("nothing is live");
+  `@openmig/*` kept. Record: *Update 2026-08-20 (second)*.
+- **2026-08-20** — `ownpace.eu` registered, the TMView check run, and the mark asserted in `NOTICE`
+  at the owner's request. Record: *Update 2026-08-20 (third)* and *The trade-mark check*.
+- **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
+  decided. Their earlier wording, with the reasons and examples the budget left out, is in the
+  record: [history/0040-the-service-is-ownpace.md](./history/0040-the-service-is-ownpace.md).
+- **2026-10-03, later** — The mark is Archico B.V.'s and `NOTICE` says so; the copyright stays with
+  The Ownpace authors (owner: *"A, split the two"*). The cosign identity regexp accepts both
+  repository names again, under a guard. Record: *Amendment 2026-10-03 — who owns the mark, and a
+  regexp a rename broke*.
+- **2026-10-03, last** — The EU application follows the Benelux one, and the post-cutover backup
+  has no brand of its own (owner: *"yes"*); nothing is left open. Record: the same amendment, *The
+  two items still open, closed the same day*.
