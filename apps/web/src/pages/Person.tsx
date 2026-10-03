@@ -19,10 +19,11 @@
  *   so the person sees which one the work is in;
  * - *Add a migration*.
  *
+ * - *For {name}*: one grant link for all of their Google accounts (ADR-0035,
+ *   amended 2026-09-29; 0153 T5 (b)), on managed.
+ *
  * NOT YET HERE, and said in the plan: the one-line progress on each data type
- * (0154 T2's totals), and the grant and progress links per person, which wait
- * for *Start a migration* to ask who a migration is for (T4) and for 0108's
- * links per person.
+ * (0154 T2's totals), and the person's progress link (T5 (b)'s third slice).
  *
  * THREE READS, as on Migrations. A failed read of the people or the list is a
  * failure on screen (hard rule 9). A step whose count could not be read says
@@ -42,6 +43,9 @@ import StateChip from '../components/StateChip.tsx';
 import { MigrationLines, listStage } from '../components/MigrationLines.tsx';
 import { providerName } from '../components/ProviderTile.tsx';
 import { SCREENS } from './hub-screens.ts';
+import { PersonGrantLinkSection } from '../components/MappingLinksPanel.tsx';
+import { personLinkApi } from '../services/grant-link-service.ts';
+import { isSelfHost } from '../services/edition.ts';
 import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
 
 /** The hub's step for each of the seven, for its name, its line and its path. */
@@ -89,6 +93,14 @@ const Person: React.FC = () => {
   const mappingsQuery = useQuery({ queryKey: ['mappings'], queryFn: mappingApi.list });
   const peopleQuery = useQuery({ queryKey: ['people'], queryFn: fetchPeople });
   const attentionQuery = useQuery({ queryKey: ['attention'], queryFn: fetchAttention });
+  // Their one grant link (ADR-0035, amended 2026-09-29; 0153 T5 (b)). Managed
+  // only: the appliance moves one implicit person and serves no links.
+  const linksQuery = useQuery({
+    queryKey: ['person-links', personId],
+    queryFn: () => personLinkApi.list(personId!),
+    enabled: Boolean(personId) && !isSelfHost(),
+    retry: false,
+  });
 
   if (mappingsQuery.isLoading || peopleQuery.isLoading) {
     return (
@@ -292,6 +304,19 @@ const Person: React.FC = () => {
               );
             })}
           </ol>
+        </section>
+      )}
+
+      {/* For them (the drawing's "For Anna"): one grant link for all of their
+          Google accounts, made, copied and revoked here (ADR-0035, amended
+          2026-09-29). The server refuses one, in words, when nothing of
+          theirs can be granted through it. */}
+      {!person.implicit && !isSelfHost() && migrations.length > 0 && (
+        <section aria-labelledby="for-them" className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+          <h2 id="for-them" className="text-lg font-semibold text-gray-900">
+            {t('person.links.title', { name: person.displayName ?? '' })}
+          </h2>
+          <PersonGrantLinkSection personId={person.id} links={linksQuery.data} loadFailed={linksQuery.error != null} />
         </section>
       )}
     </div>

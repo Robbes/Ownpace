@@ -219,6 +219,11 @@ const FIXTURES: Record<string, unknown> = {
     unassigned: [],
   },
   /**
+   * THE PERSON'S ONE LINK (ADR-0035, amended 2026-09-29; 0153 T5 (b)): their
+   * page lists it, as `person-link-routes.ts` answers, and none is made yet.
+   */
+  [`GET /api/people/${PERSON}/links`]: { links: [] },
+  /**
    * WHAT NEEDS EACH PERSON, counted on their card (0153 T3 (a)). `?all=true`
    * keeps the quiet migrations, so this one is here with nothing waiting.
    */
@@ -629,11 +634,15 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
     await l.page.getByRole('heading', { name: 'Before you switch' }).waitFor({ timeout: 10_000 });
     expect(await l.page.getByRole('heading', { level: 1, name: 'Anna' }).count()).toBe(1);
     expect(await l.page.locator('[data-step]').count()).toBe(7);
+    // Their one grant link (0153 T5 (b)): none made yet, read from its own door.
+    await l.page.getByRole('heading', { name: 'For Anna' }).waitFor({ timeout: 10_000 });
+    await l.page.getByText('No link yet for this person.').waitFor({ timeout: 10_000 });
+    expect(apiHits).toContain(`/api/people/${PERSON}/links`);
     expectClean(l, "a person's page");
     await l.page.close();
   });
 
-  it('starts a migration for Anna from her card, through six screens and one Start, to her page (0153 T4)', async () => {
+  it('starts a migration for Anna from their card, through six screens and one Start, to their page (0153 T4)', async () => {
     // What the flow asks for, answered as the API would: Anna's saved mail
     // account and a saved Soverin, what this deployment serves, and the
     // create, the count and the start of one migration. Restored after, so no

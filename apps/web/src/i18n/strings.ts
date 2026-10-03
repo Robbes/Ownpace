@@ -1117,6 +1117,10 @@ const en = {
   'grantLink.copy': 'Copy',
   'grantLink.copied': 'Copied',
   'grantLink.empty': 'No links yet for this migration.',
+  'personLink.title': 'One grant link for everything',
+  'personLink.blurb':
+    'One link for all of this person’s Google accounts: they sign in to each once, and every migration that reads it is connected.',
+  'personLink.empty': 'No link yet for this person.',
   'grantLink.loadError': 'Could not read the links for this migration.',
   'grantLink.issuedBy': 'Issued {date} by {who}',
   'grantLink.issuedByGrant': 'Created {date}, when they gave access',
@@ -1518,6 +1522,7 @@ const en = {
   'start.check.waits': 'You can start once every count is in and each tick it asks for is ticked.',
   'start.check.waitsFor':
     'Waiting for {person} to connect. Make a link below and send it yourself: it is shown once. The count appears here once they have connected.',
+  'start.check.waitsForLink': 'Its count appears here once {person} has connected through the link above.',
   'start.check.later':
     "You can close this page. {person}'s page keeps these migrations: once they have connected, start each one from its Details.",
   'start.company.question': 'Is this a company account with an administrator?',
@@ -1538,6 +1543,7 @@ const en = {
   'person.notFound': 'There is no such person here.',
   'person.loadFailed': 'Could not load this person.',
   'person.details': 'Details',
+  'person.links.title': 'For {name}',
   'person.steps.title': 'Before you switch',
   'person.steps.hint': 'Each step, summed across this person’s migrations.',
   'person.state.done': 'Done',
@@ -3834,6 +3840,10 @@ const nl: Record<keyof typeof en, string> = {
   'grantLink.copy': 'Kopiëren',
   'grantLink.copied': 'Gekopieerd',
   'grantLink.empty': 'Nog geen links voor deze migratie.',
+  'personLink.title': 'Eén toegangslink voor alles',
+  'personLink.blurb':
+    'Eén link voor alle Google-accounts van deze persoon: bij elk account één keer aanmelden, en elke migratie die het leest is verbonden.',
+  'personLink.empty': 'Nog geen link voor deze persoon.',
   'grantLink.loadError': 'Kon de links van deze migratie niet lezen.',
   'grantLink.issuedBy': 'Gemaakt op {date} door {who}',
   'grantLink.issuedByGrant': 'Gemaakt op {date}, toen zij toegang gaven',
@@ -4169,6 +4179,7 @@ const nl: Record<keyof typeof en, string> = {
   'start.check.waits': 'U kunt starten zodra elke telling binnen is en elk gevraagd vinkje staat.',
   'start.check.waitsFor':
     'Wacht tot {person} verbindt. Maak hieronder een link en stuur die zelf: hij wordt één keer getoond. De telling verschijnt hier zodra de verbinding er is.',
+  'start.check.waitsForLink': 'De telling verschijnt hier zodra {person} via de link hierboven verbonden is.',
   'start.check.later':
     'U kunt deze pagina sluiten. De pagina van {person} bewaart deze migraties: start elke migratie via Details zodra de verbinding er is.',
   'start.company.question': 'Is dit een bedrijfsaccount met een beheerder?',
@@ -4187,6 +4198,7 @@ const nl: Record<keyof typeof en, string> = {
   'person.notFound': 'Deze persoon bestaat hier niet.',
   'person.loadFailed': 'Kon deze persoon niet laden.',
   'person.details': 'Details',
+  'person.links.title': 'Voor {name}',
   'person.steps.title': 'Voordat u overstapt',
   'person.steps.hint': 'Elke stap, opgeteld over de migraties van deze persoon.',
   'person.state.done': 'Klaar',
