@@ -36,6 +36,7 @@
 - **Owners sign in; migrated people get links, not accounts** — and the owner decides who gets a link to manage and **grant** their own migration (restated 2026-08-19).
 - **The link is per person** (owner, 2026-09-29; ADR-0050's person): one grant link and one progress link for all of a person's migrations, a grant asked and bound per Google account, and covering only the migrations the page showed. Built by workplan 0153 T5 (b).
 - **It replaces the per-migration link** (owner, 2026-10-03): no migration's page issues one any more. A per-migration link already sent is honoured until it expires, listed on the migration's page and revocable there, and a migration that belongs to nobody is given a person first (*Who is this for?*).
+- **Start when granted, per person** (owner, 2026-10-03): once the owner has started a person's move (*Start*, after a count they saw), each migration of theirs that waits for a grant starts by itself when the grant lands, recorded `via: 'grant'`. Before that, or while the move is paused, a grant starts nothing.
 - Only the migrated person holds their own source credential, never the organisation; admins see their whole family/organisation's progress.
 - `tenant_member` rows sign in; mappings get links. Organisation-held credentials (Box CCG, app-only Graph, DWD) **cannot be narrowed** — stated, not hidden.
 - Formally accepted 2026-09-20 (owner: "yes on all 3"); the 1/7/30-day link expiry presets stand.
@@ -392,10 +393,25 @@ answers, and stand as written.
   (the Migrations page's *Not with a person yet*). Its page offers *Who is this for?* where the link panel
   was, so there is still one kind of link to explain.
 
-### One more choice for the owner (proposed)
+### One more choice for the owner (decided 2026-10-03)
 
-**Start when granted.** Today nothing starts when a grant lands (`grant-ending.ts`), and *Start*
-is refused with `awaiting_grant` until then, so the person starting the migrations must come
-back. Proposed: *Start* on a migration that waits for a grant is accepted and recorded, and the
-migration starts itself when its grant lands, with the audit row saying so. It stays the owner's
-Start (decision 2's *"their own start and pause"* is the progress page's, and unchanged).
+**Start when granted.** Until then nothing started when a grant landed (`grant-ending.ts`), and
+*Start* was refused with `awaiting_grant`, so the person starting the migrations had to come back.
+The proposal was that *Start* on a migration that waits for a grant is accepted and recorded, and
+the migration starts itself when its grant lands, with the audit row saying so.
+
+The owner: *"Yes, but after the move was started in the first place. After preflight the start
+needs to be given at least once, the grant may arrive later."* Asked whether that holds per
+person or per migration: *"Per person"*. So:
+
+- **Nothing of a person's starts by a grant until the owner has started their move**: pressed
+  *Start* once, after a count (the preflight) they have seen. Before that, a grant only makes the
+  counts appear.
+- **Once one of their migrations runs**, each migration of theirs that waits for a grant starts
+  by itself when the grant lands, ones added later included. The status change is recorded
+  `via: 'grant'`, by the link.
+- **A pause stands.** A move nothing of which runs, because the owner paused it, starts nothing
+  by a grant, and neither does a migration the owner paused after it ran.
+- It stays the owner's Start (decision 2's *"their own start and pause"* is the progress page's,
+  and unchanged). The tick for files a format would refuse is not asked of a migration that starts
+  by itself: *"at least once"* is the owner's. What it could not copy shows in its queues.

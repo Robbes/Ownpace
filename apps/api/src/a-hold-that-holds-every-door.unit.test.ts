@@ -149,6 +149,21 @@ describe('the sweep: nothing in apps/api/src enqueues except through the one fun
     expect(calls).toEqual(DOORS_BY_FILE);
     expect(DOORS.length).toBe(Object.values(DOORS_BY_FILE).reduce((a, b) => a + b, 0));
   });
+
+  it('the one start nobody pressed asks the same two questions, from its one file', () => {
+    // A migration that starts by itself when its person's grant lands (ADR-0035's
+    // amendment, start when granted): `enqueueIfFree` asks the close and the hold
+    // as `enqueueUnlessHeld` does, with nobody to answer. Its cases, held
+    // included, are `start-when-granted.unit.test.ts`'s.
+    const calls: Record<string, number> = {};
+    for (const file of sourceFiles()) {
+      const rel = relative(SRC, file);
+      if (rel === THE_FUNCTION_FILE) continue;
+      const count = code(file).match(/\benqueueIfFree\s*\(/g)?.length ?? 0;
+      if (count > 0) calls[rel] = count;
+    }
+    expect(calls).toEqual({ 'routes/migrations/start-when-granted.ts': 1 });
+  });
 });
 
 // ─── 2. The doors ────────────────────────────────────────────────────────────
