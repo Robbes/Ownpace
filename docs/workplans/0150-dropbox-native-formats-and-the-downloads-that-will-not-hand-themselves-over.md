@@ -6,7 +6,8 @@
 
 **2026-10-03: the demo Nextcloud's follow-up built, a fresh install on Postgres and a script for
 one on SQLite** (the owner, 2026-09-29: *"You take that aswell"*), on branch
-`claude/mailbox-sync-errors-c2xsw2-a-demo-nextcloud-on-postgres`, not merged.
+`claude/mailbox-sync-errors-c2xsw2-a-demo-nextcloud-on-postgres`; merged the same day as #1411
+(`9eb978d`).
 
 - **A fresh install starts on Postgres.** `managed.yml` gives Nextcloud's first install
   `POSTGRES_*`: host `postgres`, database and role `nextcloud`, and `.env`'s
@@ -51,6 +52,15 @@ one on SQLite** (the owner, 2026-09-29: *"You take that aswell"*), on branch
 - **For the OTA stack, after the merge:** the next gate run generates `NEXTCLOUD_DB_PASSWORD`, and the
   bring-up notes that `config.php` holds another value. With the migrations paused,
   `./deploy/compose/nextcloud-to-postgres.sh --sync-password` makes them one.
+- **Done on the OTA stack the same evening, by the owner, before any gate run with it.**
+  `ensure-env-secrets.sh` made the value in the stack's one `.env` (the checkout's is the link to
+  it, *One stack, one `.env`*), which is where the gate would have put it. Then:
+  - `--check` said the role is on Postgres, `.env`'s value does not open it, and `config.php`
+    holds another, and pointed at `--sync-password`;
+  - `--sync-password` stopped Nextcloud, wrote `config.php` first and then the role, and started
+    Nextcloud again, which answered on Postgres: installed, out of maintenance, its accounts
+    listed;
+  - `--check` then said nothing to do: `.env`, the role and `config.php` hold one value.
 
 **2026-09-29: a move that keeps its key is reported once, not twice (found while testing #1384).**
 In the file domain `runDomainSync` runs both move detectors. The item loop saw an item listed in
@@ -135,7 +145,7 @@ database is locked"*.
   - the preview case;
   - generated ids beside old ones;
   - an empty table's.
-- **Still open, and this session's** (built 2026-10-03, above; the owner, 2026-09-29: *"You take that aswell"*), after
+- **Still open, and this session's** (built and merged 2026-10-03, above, and the OTA stack moved onto it the same evening; the owner, 2026-09-29: *"You take that aswell"*), after
   #1358, which is rewriting `db-roles.sh`: a fresh demo install still starts on SQLite. New
   installs should start on Postgres, and an install still on SQLite should be converted by a
   script that carries the two workarounds above, not by hand. Neither `copy-before-update.sh` nor

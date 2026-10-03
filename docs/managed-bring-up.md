@@ -3124,6 +3124,7 @@ No script can do these. The script checks each one before it changes anything.
      ZITADEL_EXTERNALDOMAIN=id.ownpace.eu ZITADEL_EXTERNALPORT=443 \
      ZITADEL_EXTERNALSECURE=true ZITADEL_TLS_MODE=external \
      NODE_ENV=production OWNPACE_STAGE=alpha BACKUP_RETENTION_DAYS=7 TRUST_PROXY=2 \
+     MAX_PASSES_IN_FLIGHT=6 \
      SMTP_HOST=<the relay's submission host> SMTP_PORT=587 SMTP_SECURE= \
      SMTP_USER=<the sending address> NOTIFY_FROM=<the sending address> \
      NOTIFY_TO=<an address you read> \
@@ -3163,6 +3164,21 @@ No script can do these. The script checks each one before it changes anything.
    header NetBird sets as their last field, whatever this says. Whether
    NetBird's own cluster adds a hop is not in its source; workplan 0132 T3
    (d)'s check, once live stands, settles it (*After the script*, step 6).
+
+   **`MAX_PASSES_IN_FLIGHT=6`** is live's cap on passes running at once, and the
+   bring-up sets live's task plane to it plus two, 8 (workplan 0143, open
+   questions 7 and 9). The OTA stack runs with 6 as well while it is the only
+   stack on the machine (the owner, 2026-10-03). Once live is stood up, put the
+   OTA stack back to 3, from its own checkout, in a shell with no
+   `COMPOSE_PROJECT_NAME` exported (*One shell, one stack*):
+
+   ```bash
+   ./deploy/compose/env-upsert.sh deploy/compose/.env MAX_PASSES_IN_FLIGHT=3
+   ./deploy/compose/bootstrap-managed.sh --only tasks
+   ```
+
+   The second line uploads the cap to the OTA stack's tick, sets its plane to
+   5 and deploys its tasks.
 
    **Mail goes through a real relay from the first day** (workplan 0133): live
    runs no catcher, and the sign-up's verification code is the first mail it
