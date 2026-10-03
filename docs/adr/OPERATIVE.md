@@ -105,9 +105,9 @@ live in [README.md](./README.md), the register.
   announced, never blocking a path. Setup is paid on the highest tier reached, in steps. Not
   built yet (0109 T5–T6).
 - **Every step up is consented and paid for.** A path waits for the yes at activation; at the
-  data ceiling, new first copies wait for a move up or a one-off top-up (another band, for the
-  setup fee again: a higher ceiling, never a rewound meter). Without that yes, a month bills the
-  tier it was on.
+  data ceiling, outside the alpha, new first copies wait for a move up or a one-off top-up
+  (another band for the setup fee again; the meter never rewinds). Without that yes, a month bills
+  the tier it was on.
 - **What a customer is told, and what we will not do, are rules** (*Decision*): every price
   published; *Start* warns when the preflight will not fit; no per-GB, compute or per-path
   figure; no billing past 12 months unconfirmed. *"No profit" STANDS*.
