@@ -1,8 +1,8 @@
 # ADR-0035: Who signs in, and who just gets a link
 
 - **Status:** Accepted 2026-09-20 (owner: "yes on all 3"), substance owner-decided 2026-08-17
-  and restated 2026-08-19; amended eight times (latest 2026-10-03: the error text follows whose
-  data it is); consolidated 2026-10-03 (ADR-0051)
+  and restated 2026-08-19; amended nine times (latest 2026-10-03: the error text and item names
+  follow whose data it is, built); consolidated 2026-10-03 (ADR-0051)
 - **Date:** 2026-08-17; consolidated 2026-10-03
 - **Deciders:** owner
 - **Relates to:** [ADR-0034](./0034-appliance-configuration-surface.md) (its decision 6 is
@@ -40,9 +40,10 @@
   (`withdraw-grant.ts`).
 - A link can be **reported** from either page to the Ownpace team's helpdesk or support mailbox,
   never to the organisation that asked; a reply address is optional (`link-reports.ts`).
-- **The provider's error text follows whose data it is** (owner, 2026-10-03; decision 5): the
-  progress page shows categories only; the owner sees the text for accounts the organisation
-  connected, and for one a person granted only the category and a reference. Not built yet.
+- **The provider's error text and item names follow whose data it is** (owner, 2026-10-03;
+  decision 5): the progress page shows categories only; the owner sees them for accounts the
+  organisation connected, and for one a person granted only the category and a reference
+  (`whose-data.ts`).
 
 ## Context
 
@@ -207,19 +208,26 @@ action (`classifyFailure`). **The text follows whose data it is** (the owner, 20
 - **The owner sees the text for an account the organisation connected itself**, under its category
   (`apps/web/src/components/LiveProgress.tsx`, `apps/web/src/pages/Failures.tsx`): the organisation
   holds that credential, and the owner is who chooses Retry, Accept or Reconnect.
-- **For an account a person connected through their own grant** (`mailbox_mapping.source_secret_ref`),
-  **the owner sees the category, the side and a reference**, never the text: it can name that
-  person's folders and files, which decision 4's promise — the organisation cannot read this
-  person's data — would otherwise leak through an error message. Support finds the full line by the
-  reference, so the failure is surfaced, not masked (hard rule 9).
+- **For an account a person connected through their own grant** (`mailbox_mapping.source_secret_ref`,
+  or `grant_withdrawn_at` once they took it back), **the owner sees the category, the side and a
+  reference**, never the text and never the items' names (the owner, 2026-10-03, on the names:
+  *"yes"*): they can name that person's folders and files, which decision 4's promise — the
+  organisation cannot read this person's data — would otherwise leak through an error message.
+  Support finds the full line by the reference, so the failure is surfaced, not masked (hard
+  rule 9).
 
 The admin may **see, and nudge — never act on someone's behalf**: see who is stuck, re-issue a
 link, never hold the credential. That is the support burden this ADR buys, accepted knowingly.
 
-**Not built yet.** The owner's pages show the text for every account (built before this ADR was
-accepted, workplan 0110 T3), so the third rule waits for its build, which belongs before an
-organisation migrates people other than its owner. **Still the owner's:** whether the item names in
-the failure queue, which are content too, follow the same rule.
+**Built** (2026-10-03), on the server, so no browser is sent what it must not show
+(`apps/api/src/routes/migrations/whose-data.ts`). The migration page's report carries
+`lastErrorWithheld` where it carried `lastError`, and says why. The failure queue's rows keep their
+category, domain and attempts with an empty text and no names (`withheldFailure`), the queue says
+`textWithheld`, and the group action refuses a substring of text it does not show, since the count
+it answers with would read that text one guess at a time. Guards: the two
+`a-failure-that-names-someone-elses-files.unit.test.ts` (`packages/shared`, `apps/api`), and the
+page tests. **Not covered yet:** the preflight's own error line for a data type it could not count,
+which the confirm screen prints as it is.
 
 ### 6. There are no seats, and this ADR must not invent one
 
@@ -358,6 +366,8 @@ forwarded.
   and a category with a reference for one a person granted (owner: *"C"*). Asked because the code
   had been built the other way round from decision 5. Not built yet. Record: *Decision* 5, and
   *Alternatives considered*.
+- **2026-10-03, last** — Decision 5 built, and the items' names follow the text (owner: *"yes"*).
+  Record: *Decision* 5.
 
 The full record, word for word as it read before this consolidation:
 [history/0035-who-signs-in-and-who-gets-a-link.md](./history/0035-who-signs-in-and-who-gets-a-link.md).

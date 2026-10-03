@@ -167,6 +167,13 @@ const en = {
   'discovery.unlisted.strong.one': 'will not be migrated',
   'discovery.unlisted.strong.many': 'will not be migrated',
   'discovery.unlisted.post': '— nothing on your old server changes.',
+  // ADR-0035 decision 5, the owner's option C (2026-10-03): for an account the
+  // person connected through their own grant, the provider's words and the
+  // items' names stay off the owner's pages.
+  'failure.withheld':
+    "The provider's own message is not shown: the person connected this account themselves, and it can name their files. Support can read it by the reference.",
+  'failures.withheld':
+    "Item names and the provider's messages are not shown: the person connected this account themselves, and they can name their files. Each failure still says what kind it is and what to do.",
   'discovery.colliding.pre.one': 'item already on your destination matches something in your source. We will',
   'discovery.colliding.pre.many': 'items already on your destination match something in your source. We will',
   'discovery.colliding.strong': "keep the destination's copy",
@@ -3187,6 +3194,10 @@ const nl: Record<keyof typeof en, string> = {
   'discovery.unlisted.strong.one': 'wordt niet gemigreerd',
   'discovery.unlisted.strong.many': 'worden niet gemigreerd',
   'discovery.unlisted.post': '— er verandert niets op uw oude server.',
+  'failure.withheld':
+    'De eigen melding van de aanbieder wordt niet getoond: de persoon heeft dit account zelf gekoppeld, en de melding kan hun bestanden noemen. Support kan haar lezen via de referentie.',
+  'failures.withheld':
+    'Namen van items en de meldingen van de aanbieder worden niet getoond: de persoon heeft dit account zelf gekoppeld, en ze kunnen hun bestanden noemen. Elke fout zegt nog steeds wat voor fout het is en wat u kunt doen.',
   'discovery.colliding.pre.one': 'item dat al op uw bestemming staat, komt overeen met iets in uw bron. We',
   'discovery.colliding.pre.many': 'items die al op uw bestemming staan, komen overeen met iets in uw bron. We',
   'discovery.colliding.strong': 'behouden de kopie op de bestemming',

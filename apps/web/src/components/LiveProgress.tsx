@@ -67,6 +67,8 @@ export interface LiveProgressRow {
   readonly itemsAdopted?: number;
   readonly lastSyncedAt?: string;
   readonly lastError?: string;
+  /** The provider's text is kept from this page (ADR-0035 decision 5). */
+  readonly lastErrorWithheld?: true;
   readonly lastErrorCategory?: FailureCategory;
   /** Which side the pass named when it failed (0094 T5); absent when it could not tell. */
   readonly failedSide?: FailureSide;
@@ -209,6 +211,13 @@ const LiveProgress: React.FC<{ domains: readonly LiveProgressRow[] }> = ({ domai
               // under the sentence above rather than instead of it — the
               // category is coarse and actionable, this is precise.
               <span className="basis-full font-mono text-xs text-red-800">{d.lastError}</span>
+            )}
+            {d.lastErrorWithheld && (
+              // WHOSE DATA (ADR-0035 decision 5): the person connected this
+              // account themselves, and the provider's words can name their
+              // files. The category above says what to do; the reference below
+              // is what support finds the whole message by.
+              <span className="basis-full text-xs text-gray-700">{t('failure.withheld')}</span>
             )}
             {d.lastErrorReference && (
               // What somebody quotes (0129 T1): the reference the failure was

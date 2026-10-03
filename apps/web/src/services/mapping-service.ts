@@ -171,6 +171,13 @@ export const MappingDomainStatusSchema = z.object({
    * rule as above.
    */
   lastErrorReference: z.string().regex(/^[0-9a-f]{8}$/).optional().catch(undefined),
+  /**
+   * The provider's text was kept from this page (ADR-0035 decision 5): the
+   * person connected the account themselves. Named here because `z.object`
+   * strips what it does not name, and without it the page could not say why
+   * the text is missing.
+   */
+  lastErrorWithheld: z.literal(true).optional().catch(undefined),
   /** PassMetrics — counts and durations only, never names or addresses. */
   lastPass: z.record(z.string(), z.number()).optional(),
   /**

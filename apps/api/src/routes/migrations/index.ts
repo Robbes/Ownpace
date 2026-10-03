@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { recordMappingStatusChange } from './mapping-status-audit.ts';
+import { readsAPersonsGrant } from './whose-data.ts';
 import { activateAddedPath, endOrKeepDataType, movePathsWithMapping, stopOrResumeDataType } from './path-lifecycle-wiring.ts';
 import { eq, and, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
@@ -2839,7 +2840,12 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
       // renamed lastSyncedAt. Raw MigrationStatus rows lacked both counts,
       // so the hub's progress strip would have silently never shown a
       // retrying count on this edition (0033 T5).
-      domainStatus: buildDomainStatusReports(domainStatus, failures, adopted),
+      // The provider's text stays off this page for an account a person
+      // granted (ADR-0035 decision 5): the category, side and reference say
+      // what failed, and the text can name that person's files.
+      domainStatus: buildDomainStatusReports(domainStatus, failures, adopted, {
+        withholdProse: readsAPersonsGrant(mapping),
+      }),
       lastSyncAt,
       // When the person who granted through a link took it back (0108 T8 (c)),
       // or null. The page says so above everything else: nothing reads the

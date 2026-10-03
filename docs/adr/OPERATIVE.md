@@ -305,9 +305,10 @@ live in [README.md](./README.md), the register.
   (`withdraw-grant.ts`).
 - A link can be **reported** from either page to the Ownpace team's helpdesk or support mailbox,
   never to the organisation that asked; a reply address is optional (`link-reports.ts`).
-- **The provider's error text follows whose data it is** (owner, 2026-10-03; decision 5): the
-  progress page shows categories only; the owner sees the text for accounts the organisation
-  connected, and for one a person granted only the category and a reference. Not built yet.
+- **The provider's error text and item names follow whose data it is** (owner, 2026-10-03;
+  decision 5): the progress page shows categories only; the owner sees them for accounts the
+  organisation connected, and for one a person granted only the category and a reference
+  (`whose-data.ts`).
 
 ## [ADR-0036: The managed edition is its own package and its own migration chain](./0036-the-managed-edition-is-its-own-package-and-its-own-chain.md)
 

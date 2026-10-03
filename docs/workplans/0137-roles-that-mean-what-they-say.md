@@ -4,6 +4,15 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-10-03: which errors an owner sees, decided and built** (the first item under *Not in this
+plan*). The owner chose ADR-0035 decision 5's option C: the provider's text and the items' names
+follow whose data it is. For a migration whose account a person granted through their own link,
+the owner's migration page and failure queue show the category, the side and a reference, and the
+server withholds the rest, so no browser receives it; the group action refuses a substring of text
+it does not show. Accounts the organisation connected show everything, as before. Guards: the two
+`a-failure-that-names-someone-elses-files.unit.test.ts`. Still open: what the privacy policy says
+about who sees which migration data (0139), which should now say this too.
+
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found that a
 person with the role *viewer* in an organisation can delete a migration, replace the target's
 credentials, prepare a cutover and, once the owner has allowed deletions, apply them. The owner

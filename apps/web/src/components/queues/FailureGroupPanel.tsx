@@ -174,7 +174,12 @@ export const FailureGroupPanel: React.FC<{
   failures: readonly ItemFailure[];
   /** The migration's source kind, from the queue, for the remedy (0150 D9). */
   sourceKind?: string;
-}> = ({ mappingId, failures, sourceKind }) => {
+  /**
+   * The rows carry no provider text (ADR-0035 decision 5), so there is nothing
+   * to match a substring against, and the server refuses one: the box goes.
+   */
+  textWithheld?: boolean;
+}> = ({ mappingId, failures, sourceKind, textWithheld = false }) => {
   const t = useT();
   const queryClient = useQueryClient();
   const [domain, setDomain] = React.useState('');
@@ -366,19 +371,21 @@ export const FailureGroupPanel: React.FC<{
               ))}
             </select>
           </label>
-          <label className="text-xs text-gray-700 flex-1 min-w-[12rem]">
-            <span className="block mb-1">{t('failures.group.error')}</span>
-            <input
-              type="text"
-              value={errorContains}
-              placeholder={t('failures.group.error.placeholder')}
-              onChange={(e) => {
-                setErrorContains(e.target.value);
-                setOutcome({ on: '', result: { state: 'idle' } });
-              }}
-              className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white"
-            />
-          </label>
+          {!textWithheld && (
+            <label className="text-xs text-gray-700 flex-1 min-w-[12rem]">
+              <span className="block mb-1">{t('failures.group.error')}</span>
+              <input
+                type="text"
+                value={errorContains}
+                placeholder={t('failures.group.error.placeholder')}
+                onChange={(e) => {
+                  setErrorContains(e.target.value);
+                  setOutcome({ on: '', result: { state: 'idle' } });
+                }}
+                className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white"
+              />
+            </label>
+          )}
         </div>
         <p className="mt-2 text-xs text-gray-600">
           {narrowed
