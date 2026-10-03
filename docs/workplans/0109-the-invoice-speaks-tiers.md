@@ -444,6 +444,22 @@ pinned per tenant on first use (`packages/managed/src/tenant-pricing.ts:42-82`) 
 row, overwritten, with no place for *setup already paid*, which a step-up-charges-the-difference
 rule needs to be monotonic about.
 
+**Since 2026-10-03 every step up is consented and paid for**, on the data axis too: at the ceiling
+the customer chooses between moving up and a one-off top-up, nothing moves the tier without that
+yes, and a month without it bills the tier it was on. Until the yes, **new first copies hold** at
+the ceiling, announced with both prices, while updates and everything already copied carry on
+(owner: *"Hold"*). ADR-0014, *Amendment 2026-10-03*. So T6 builds the yes and the hold as well,
+and the Billing page's *What this puts you on*, which names the tier the data reached without a
+yes, learns to say when the ceiling is reached, what waits, and the two ways on.
+
+**And the preflight says it first** (owner, 2026-10-03: *"ok, you have a go"*). On the Start
+step, managed only, the data already moved plus what the preflight measured for the migrations
+being started is compared with the ceiling; past it, the step names both prices, and the
+customer chooses then or starts anyway and chooses at the hold. It never blocks *Start*. A
+crossing on the path axis asks before it starts. The public calculator shows the top-up beside
+the bigger tier when data decides it, priced by whichever list is in force when it is built
+(0152 T6 (d) brings the list without setup fees).
+
 ## T7 — extend the leakage guard before the table exists, not after
 
 `apps/selfhost/src/no-managed-leakage.unit.test.ts` forbids the appliance's import graph from

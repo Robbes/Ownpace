@@ -1,4 +1,4 @@
-// Copyright 2026 OpenHands Agent (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 // Integration tests for the SQL-backed ledger against PostgreSQL.
 
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';

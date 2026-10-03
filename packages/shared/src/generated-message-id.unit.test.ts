@@ -15,11 +15,15 @@
 //                                    changes for no reason
 
 import { describe, it, expect } from 'vitest';
+import { createHash } from 'node:crypto';
 import {
+  asWrittenBefore,
   ensureMessageId,
   generateMessageId,
+  legacyGeneratedMessageId,
   readMessageId,
   isGeneratedMessageId,
+  withoutGeneratedMessageId,
   GENERATED_MESSAGE_ID_DOMAIN,
 } from './generated-message-id.ts';
 import { naturalKeyHash } from './hash.ts';
@@ -91,6 +95,111 @@ describe('generateMessageId', () => {
   it('is recognisable as ours afterwards', () => {
     expect(isGeneratedMessageId(generateMessageId(WITHOUT_ID))).toBe(true);
     expect(isGeneratedMessageId('<real@example.com>')).toBe(false);
+  });
+});
+
+describe('generateMessageId is a hash of the message normalised (ADR-0020, 2026-10-03)', () => {
+  /**
+   * A server that builds a message's MIME when it is asked for it can serve
+   * other bytes for the same message. Each case below is one way it does, and
+   * each must give the same id, or the message is copied again.
+   */
+  const SENT = enc(
+    [
+      'Date: Fri, 3 Oct 2026 09:00:00 +0200',
+      'From: Anna <anna@example.com>',
+      'Subject: the minutes',
+      'Content-Type: multipart/mixed; boundary="AAA"',
+      '',
+      '--AAA',
+      'Content-Type: text/plain',
+      '',
+      'body',
+      '--AAA--',
+      '',
+    ].join('\r\n'),
+  );
+  const id = generateMessageId(SENT);
+  const variant = (f: (s: string) => string) => generateMessageId(enc(f(dec(SENT))));
+
+  it('ignores the line endings', () => {
+    expect(variant((s) => s.replace(/\r\n/g, '\n'))).toBe(id);
+  });
+
+  it('ignores headers a server adds on the way', () => {
+    expect(variant((s) => `Received: from mx by store; Fri, 3 Oct 2026\r\nX-Spam-Score: 0\r\n${s}`)).toBe(id);
+  });
+
+  it('ignores the order of the headers', () => {
+    expect(
+      variant((s) =>
+        s.replace(
+          'Date: Fri, 3 Oct 2026 09:00:00 +0200\r\nFrom: Anna <anna@example.com>\r\nSubject: the minutes',
+          'Subject: the minutes\r\nFrom: Anna <anna@example.com>\r\nDate: Fri, 3 Oct 2026 09:00:00 +0200',
+        ),
+      ),
+    ).toBe(id);
+  });
+
+  it('ignores a boundary the server minted again', () => {
+    expect(variant((s) => s.replaceAll('AAA', '_000_rebuilt_'))).toBe(id);
+  });
+
+  it('ignores whitespace at the ends of lines and of the body', () => {
+    expect(variant((s) => s.replace('body', 'body   ') + '\r\n\r\n')).toBe(id);
+  });
+
+  it('still tells messages apart by their date, their sender and their body', () => {
+    expect(variant((s) => s.replace('09:00:00', '09:30:00'))).not.toBe(id);
+    expect(variant((s) => s.replace('anna@example.com', 'bas@example.com'))).not.toBe(id);
+    expect(variant((s) => s.replace('body', 'another body'))).not.toBe(id);
+  });
+});
+
+describe('the key a message without one had before 2026-10-03', () => {
+  it('is the hash of its raw bytes, as every copy made until then carries it', () => {
+    const raw = createHash('sha256').update(WITHOUT_ID).digest('hex');
+    expect(legacyGeneratedMessageId(WITHOUT_ID)).toBe(`<${raw}@${GENERATED_MESSAGE_ID_DOMAIN}>`);
+  });
+
+  it('is computed from the bytes the source served, with the id we prepended taken off', () => {
+    const written = ensureMessageId(WITHOUT_ID).rfc822;
+    expect(withoutGeneratedMessageId(written)).toEqual(WITHOUT_ID);
+    expect(legacyGeneratedMessageId(withoutGeneratedMessageId(written))).toBe(
+      legacyGeneratedMessageId(WITHOUT_ID),
+    );
+  });
+
+  it('leaves a message whose first line is not an id of ours as it is', () => {
+    expect(withoutGeneratedMessageId(WITH_ID)).toEqual(WITH_ID);
+  });
+});
+
+describe('a message as a pass before 2026-10-03 wrote it', () => {
+  it('is the bytes the source served under the id they were given then, as they were written then', () => {
+    const before = asWrittenBefore(ensureMessageId(WITHOUT_ID).rfc822);
+    expect(before?.messageId).toBe(legacyGeneratedMessageId(WITHOUT_ID));
+    // Byte for byte what `ensureMessageId` wrote when the id was the hash of
+    // the raw bytes: the header prepended the same way, with the same ending.
+    expect(dec(before!.rfc822)).toBe(`Message-ID: ${legacyGeneratedMessageId(WITHOUT_ID)}\r\n${dec(WITHOUT_ID)}`);
+    expect(readMessageId(before!.rfc822)).toBe(before!.messageId);
+  });
+
+  it('keeps a bare-LF message bare LF', () => {
+    const lf = enc('Subject: hi\nFrom: a@example.com\n\nbody');
+    const before = asWrittenBefore(ensureMessageId(lf).rfc822);
+    expect(dec(before!.rfc822)).toBe(`Message-ID: ${legacyGeneratedMessageId(lf)}\n${dec(lf)}`);
+  });
+
+  it('is nothing for a message that came with a Message-ID of its own', () => {
+    expect(asWrittenBefore(ensureMessageId(WITH_ID).rfc822)).toBeUndefined();
+  });
+
+  it('is nothing for a message whose generated id this pass did not give it', () => {
+    // An earlier migration's copy, read back as a source: its id is one of
+    // ours, but not the one these bytes would be given now.
+    const copied = enc(`Message-ID: ${legacyGeneratedMessageId(WITHOUT_ID)}\r\n${dec(WITHOUT_ID)}`);
+    expect(asWrittenBefore(copied)).toBeUndefined();
   });
 });
 

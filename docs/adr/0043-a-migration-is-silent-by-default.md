@@ -9,35 +9,27 @@
 
 ## Operative rules
 
-- **No write this product makes to a target may cause the target to send mail
-  or notifications to third parties, unless a person pressed a control that
-  says so.** The precedent is ADR-0032 / workplan 0052, which made every
-  share grant a one-at-a-time, human-confirmed action labelled as
-  outward-facing in the UI. This ADR generalises that posture to calendars —
-  where RFC 6638 makes a scheduling-enabled target the mailman *by default* —
-  and to any domain added later.
-- **The copy stays faithful; the side effects are what we suppress.**
-  `ATTENDEE` and `ORGANIZER` are data a person still wants in their own copy
-  of an event. They are never stripped. What changes is transport metadata:
-  `SCHEDULE-AGENT=CLIENT` on every `ATTENDEE` and `ORGANIZER` the calendar
-  writer PUTs (0103 T1), which RFC 6638 defines as "the server stores and
-  sends nothing". An explicit `SCHEDULE-AGENT=SERVER` from the source is
-  rewritten too — it was true where the event lived; carried over, it re-fires
-  years-old invitations. Explicit `CLIENT`/`NONE` are kept byte-for-byte.
-- **The same rule covers deletion.** Take-back and the gated apply-deletion
-  path delete organiser copies, which fans out CANCEL under the same RFC.
-  Neutralised objects do not CANCEL on honouring servers; `Schedule-Reply: F`
-  on our DELETEs (0103 T5) is the belt for attendee-side replies.
-- **Silence is proved, not assumed.** The managed gate seeds an
-  attendee-carrying event and asserts the catcher stays empty across sync and
-  take-back (0103 T2), and asserts the neutralised bytes on the target.
-  Whether a given customer target *honours* the parameter is a measured fact
-  per mapping (0103 T3), never an assumption — servers that ignore it exist.
-- **Target-side switches are an operator's migration-window decision, never a
-  silent default.** Nextcloud's `sendInvitations` and Stalwart's scheduling
-  toggle are instance-wide: flipping them on a customer's live server
-  silences their real users too. The tool documents them (0103 T4) and does
-  not touch them.
+- **No write this product makes to a target may cause the target to send mail or notifications
+  to third parties, unless a person pressed a control that says so.** This extends ADR-0032's
+  posture for shares (workplan 0052) to calendars, where RFC 6638 makes a scheduling target the
+  mailman by default, and to any domain added later:
+  `docs/workplans/0103-the-mail-a-migration-must-not-send.md`.
+- **The copy stays faithful; the side effects are what we suppress.** `ATTENDEE` and `ORGANIZER`
+  are never stripped: the calendar writer sets `SCHEDULE-AGENT=CLIENT` on every one it PUTs
+  (0103 T1). An explicit `SCHEDULE-AGENT=SERVER` from the source is rewritten too; explicit
+  `CLIENT`/`NONE` are kept byte-for-byte: `packages/shared/src/calendar-scheduling.unit.test.ts`.
+- **The same rule covers deletion.** Take-back and the gated apply-deletion path delete organiser
+  copies; neutralised objects send no CANCEL on honouring servers, and `Schedule-Reply: F` on our
+  DELETEs (0103 T5) is the belt for attendee-side replies:
+  `packages/engines/src/dav-remove.unit.test.ts`.
+- **Silence is proved, not assumed.** The managed gate seeds an attendee-carrying event and
+  asserts the catcher stays empty across sync and take-back, and the neutralised bytes on the
+  target (0103 T2): `scripts/the-mail-nobody-should-get.unit.test.ts`. Whether a customer target
+  *honours* the parameter is measured per mapping (0103 T3,
+  `packages/orchestration/src/target-scheduling.ts`), never assumed.
+- **Target-side switches are an operator's migration-window decision, never a silent default.**
+  Nextcloud's `sendInvitations` and Stalwart's scheduling toggle are instance-wide; the tool
+  documents them (0103 T4, `docs/dav-sync.md`) and does not touch them.
 
 ## Context
 
@@ -59,3 +51,9 @@ moves the mail to the second pass — are in workplan 0103 with sources.
 - A target that ignores `SCHEDULE-AGENT` can still mail. That residual risk
   is what T3's measurement and T4's documented switches exist for; the gate
   (T2) turns any regression on our own stack into a red run.
+
+## Amendment log
+
+- **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
+  decided. Their earlier wording, with the reasons and examples the budget left out, is in the
+  record: [history/0043-a-migration-is-silent-by-default.md](./history/0043-a-migration-is-silent-by-default.md).

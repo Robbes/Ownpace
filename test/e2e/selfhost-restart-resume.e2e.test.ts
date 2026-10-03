@@ -1,4 +1,4 @@
-// Copyright 2026 OpenHands Agent (Apache-2.0); assertions corrected 2026-07-20;
+// Copyright 2026 The Ownpace authors (Apache-2.0); assertions corrected 2026-07-20;
 // generalized to multi-domain 2026-07-22 (issue #114 follow-up).
 //
 // E2E test for restart-resume idempotency (workplan 0010 T5, extended to

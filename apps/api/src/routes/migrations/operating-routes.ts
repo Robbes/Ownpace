@@ -66,6 +66,7 @@ import {
   DELETION_GUIDANCE,
   earlierExportsQueue,
   FAILURE_GUIDANCE,
+  withheldFailure,
   MOVES_MEANING,
   MOVE_GUIDANCE,
   REPORTING_CLOSED,
@@ -118,6 +119,7 @@ import { migrationInventoryScans, resolveMappingMailbox } from '../permissions.t
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { recordMappingStatusChange } from './mapping-status-audit.ts';
 import { movePathsWithMapping } from './path-lifecycle-wiring.ts';
+import { readsAPersonsGrant } from './whose-data.ts';
 import { serverFault } from '../../server-fault.ts';
 import { refusedAsClosed } from '../../closed-organisation.ts';
 
@@ -133,6 +135,12 @@ interface Scoped {
   readonly tenantId: string;
   readonly mappingId: string;
   readonly lifecycle: MappingLifecycle;
+  /**
+   * The migration reads an account a person granted through their own link,
+   * so its failure text and item names stay off the owner's queue
+   * (ADR-0035 decision 5; `whose-data.ts`).
+   */
+  readonly personGranted: boolean;
 }
 
 /**
@@ -157,7 +165,11 @@ async function scope(req: AuthenticatedRequest, res: Response): Promise<Scoped |
 
   const rows = await withTenantDb(tenantId, pool(), (db) =>
     db
-      .select({ status: schema.mailboxMapping.status })
+      .select({
+        status: schema.mailboxMapping.status,
+        sourceSecretRef: schema.mailboxMapping.sourceSecretRef,
+        grantWithdrawnAt: schema.mailboxMapping.grantWithdrawnAt,
+      })
       .from(schema.mailboxMapping)
       .where(
         and(
@@ -178,7 +190,12 @@ async function scope(req: AuthenticatedRequest, res: Response): Promise<Scoped |
         `impossible; refusing to guess what the migration's state is.`,
     );
   }
-  return { tenantId, mappingId, lifecycle: row.status as MappingLifecycle };
+  return {
+    tenantId,
+    mappingId,
+    lifecycle: row.status as MappingLifecycle,
+    personGranted: readsAPersonsGrant(row),
+  };
 }
 
 /** Run something with a tenant-scoped ledger. */
@@ -351,7 +368,13 @@ router.get(
         targetType: gathered.targetType,
         lifecycle: s.lifecycle,
         generatedAt: new Date().toISOString(),
-        domains: buildDomainStatusReports(gathered.statuses, gathered.failures, gathered.adopted),
+        // The provider's text stays out of this document too, for an account a
+        // person granted (ADR-0035 decision 5): it reaches the owner's browser
+        // as JSON beside the Markdown, and the text can name that person's
+        // files. Failures, moves and deletions are only counted here.
+        domains: buildDomainStatusReports(gathered.statuses, gathered.failures, gathered.adopted, undefined, {
+          withholdProse: s.personGranted,
+        }),
         moves: gathered.moves,
         deletions: gathered.deletions,
         failures: gathered.failures,
@@ -402,6 +425,11 @@ router.get('/:mappingId/failures', authenticate, async (req: AuthenticatedReques
         .where(eq(schema.mailboxMapping.id, s.mappingId));
       return { all: failures, sourceKind: source?.kind };
     });
+    // WHOSE DATA (ADR-0035 decision 5, option C): for an account a person
+    // granted, each row keeps its category, domain and attempts, and loses the
+    // provider's text and the item's names, which can name that person's
+    // files. Withheld HERE, on the server, so no browser ever receives them.
+    const shown = s.personGranted ? all.map(withheldFailure) : all;
     const body: FailuresResponse = {
       [s.mappingId]: {
         migrationStatus: s.lifecycle,
@@ -409,8 +437,9 @@ router.get('/:mappingId/failures', authenticate, async (req: AuthenticatedReques
         // Split rather than left for the reader to filter: one is still being
         // worked on, the other is waiting on a person and will otherwise never
         // move.
-        needsDecision: all.filter((f) => f.needsDecision),
-        retrying: all.filter((f) => !f.needsDecision),
+        needsDecision: shown.filter((f) => f.needsDecision),
+        retrying: shown.filter((f) => !f.needsDecision),
+        ...(s.personGranted ? { textWithheld: true as const } : {}),
         howToResolve: FAILURE_GUIDANCE,
         ...(sourceKind ? { sourceKind } : {}),
       },
@@ -995,6 +1024,17 @@ router.post('/:mappingId/failures', authenticate, async (req: AuthenticatedReque
 
     const s = await scope(req, res);
     if (!s) return;
+    // A substring of text this page does not show would be a way to read it
+    // one guess at a time: the count of rows a match reaches answers the
+    // question "does any failure here mention X?" (ADR-0035 decision 5).
+    if (s.personGranted && errorContains !== undefined && errorContains !== '') {
+      return void res.status(400).json({
+        error: "this migration's failure text is not shown, so it cannot be matched",
+        hint:
+          'The account was connected by the person being migrated, and the text can name their ' +
+          'files (ADR-0035). Choose the group by data type and category.',
+      });
+    }
 
     const match = {
       ...(domain !== undefined ? { domain: domain as DiscoveryDomain } : {}),
