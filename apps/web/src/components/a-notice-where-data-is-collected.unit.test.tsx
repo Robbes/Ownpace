@@ -193,10 +193,15 @@ describe('the request form', () => {
       // our decision. Granted: kept with your account, and erased with it."
       const SAYS = {
         en: [/while your request is open/, /decline/, /30 days after our decision/, /grant/, /with your account/, /erased/],
-        nl: [/zolang uw aanvraag openstaat/, /wijzen we die af/i, /30 dagen na ons besluit/, /kennen we die toe/i, /bij uw account/, /gewist/],
+        nl: [/zolang uw aanvraag openstaat/, /wijzen wij die af/i, /30 dagen na ons besluit/, /kennen wij die toe/i, /bij uw account/, /gewist/],
       } as const;
       const line = STRINGS[locale]['access.privacy'];
       for (const says of SAYS[locale]) expect(line, `access.privacy in ${locale}`).toMatch(says);
+      // One speaker, one word for it (the review of 2026-10-03). The first
+      // sentence, from #1375, says "Wij", as the other `access.*` lines do; the
+      // sentences added after it said "We" and "we", so the paragraph changed
+      // voice halfway. Now it says "wij" throughout.
+      if (locale === 'nl') expect(line, 'access.privacy says "we" where it says "wij"').not.toMatch(/\bwe\b/i);
       wrap(locale, <RequestAccess />, '/request-access', '/request-access');
       expect(screen.getByText(line)).toBeInTheDocument();
     });

@@ -5134,8 +5134,8 @@ const nl: Record<keyof typeof en, string> = {
   'access.failedFallback': 'de aanvraag is niet voltooid.',
   'access.privacy':
     'Wij bewaren wat u invult om over uw aanvraag te beslissen en u te antwoorden; een aanvraag maakt geen account aan. ' +
-    'We bewaren het zolang uw aanvraag openstaat. Wijzen we die af, dan verwijderen we het 30 dagen na ons besluit. ' +
-    'Kennen we die toe, dan blijft het bij uw account en wordt het daarmee gewist.',
+    'Wij bewaren het zolang uw aanvraag openstaat. Wijzen wij die af, dan verwijderen wij het 30 dagen na ons besluit. ' +
+    'Kennen wij die toe, dan blijft het bij uw account en wordt het daarmee gewist.',
   'access.backToSignIn': 'Heeft u al een account? Aanmelden',
 };
 

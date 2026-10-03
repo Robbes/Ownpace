@@ -27,9 +27,10 @@ is collected. Nothing has run on a machine.
   what you type to decide on your request and to answer you; asking creates no account. We keep
   it while your request is open. If we decline it, we delete it 30 days after our decision. If we
   grant it, it stays with your account and is erased with it."* NL: *"Wij bewaren wat u invult om
-  over uw aanvraag te beslissen en u te antwoorden; een aanvraag maakt geen account aan. We
-  bewaren het zolang uw aanvraag openstaat. Wijzen we die af, dan verwijderen we het 30 dagen na
-  ons besluit. Kennen we die toe, dan blijft het bij uw account en wordt het daarmee gewist."*
+  over uw aanvraag te beslissen en u te antwoorden; een aanvraag maakt geen account aan. Wij
+  bewaren het zolang uw aanvraag openstaat. Wijzen wij die af, dan verwijderen wij het 30 dagen
+  na ons besluit. Kennen wij die toe, dan blijft het bij uw account en wordt het daarmee
+  gewist."*
   The links read *Privacy policy · Alpha conditions* / *Privacyverklaring · Voorwaarden voor de
   Alpha*.
 - **The Connect buttons.** Beside every provider's button, in both doors (the Connections
@@ -62,6 +63,13 @@ is collected. Nothing has run on a machine.
   were merged that day as #1375 (`7cef571c`). `site/legal/README.md`'s two items said the same
   and are corrected too. No comment in the privacy policy said the forms had no link, so the
   texts do not change.
+- **Reviewed (2026-10-03): two findings, both fixed.** `docs/google-oauth-verification.md` §5's
+  new paragraph said the grant page links both texts above its button. They sit in its
+  disclosure line, after the button; a page for one person has that line once, after all of
+  that person's accounts. The paragraph now says so. The Dutch `access.privacy` said *"Wij"* in
+  its first sentence, from #1375, and *"We"* and *"we"* in the sentences added here. It now says
+  *"wij"* throughout, as the other `access.*` lines do, and the request form's guard refuses a
+  *"we"* in it: red with the old sentences, green after.
 - **Proved, guard first.** Each new check was run on the unchanged code first.
   `apps/web/src/components/a-notice-where-data-is-collected.unit.test.tsx`: 18 of 20 red (the
   two appliance cases green, as they should be), 20 green after. It renders the request form,

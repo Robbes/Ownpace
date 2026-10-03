@@ -325,8 +325,10 @@ the wizard's own button — through the lines both draw (`ConsentLines` in
 `apps/web/src/components/ProviderConsent.tsx`). One line, *"What we do with your data, and on
 what terms:"*, then the privacy policy and the terms in the reader's language, at the addresses
 `apps/web/src/services/legal-links.ts` makes from `VITE_LEGAL_SITE_URL`. The grant page links
-both above its own button (#1137). `a-notice-where-data-is-collected.unit.test.tsx` finds both
-links in the button's own block, for Google, Microsoft and Dropbox, in both languages.
+both in its disclosure line, after its button (#1137). A page that asks one person for several
+accounts has that line once, after all of them. `a-notice-where-data-is-collected.unit.test.tsx`
+finds both links in the button's own block, for Google, Microsoft and Dropbox, in both
+languages.
 
 ## 6. The order to do this in
 
