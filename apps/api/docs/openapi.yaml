@@ -5548,6 +5548,14 @@ paths:
                   holds: { type: boolean }
                   moveUp: { type: [object, 'null'] }
                   topUp: { type: [object, 'null'] }
+                  breakEven:
+                    type: [object, 'null']
+                    description: |
+                      Both ways on side by side, when both are offered: what the
+                      top-up costs once over the move up (`extraOnceEur`, below zero
+                      when it costs less), what staying saves each month
+                      (`savedMonthlyEur`), and about how many days it takes to pay
+                      back (`paysBackInDays`).
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 

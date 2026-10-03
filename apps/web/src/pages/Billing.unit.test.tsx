@@ -19,7 +19,8 @@ const { authState } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('../services/billing-service', () => ({
+vi.mock('../services/billing-service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/billing-service.ts')>()),
   billingApi: {
     getCurrentUsage: vi.fn(),
     listInvoices: vi.fn(),
@@ -28,6 +29,8 @@ vi.mock('../services/billing-service', () => ({
     getBillingParty: vi.fn(),
     putBillingParty: vi.fn(),
     checkVat: vi.fn(),
+    getCeiling: vi.fn(),
+    sayYesToCeiling: vi.fn(),
   },
 }));
 
@@ -115,6 +118,20 @@ const invoiceFixture = (over: Partial<Invoice> = {}): Invoice => ({
   ...over,
 });
 
+/** Tiny, well under its ceiling: the ceiling card says where the data stands and offers nothing. */
+const UNDER_THE_CEILING = {
+  tier: { id: 'tiny' as const, name: 'Tiny', paths: 1, monthly: 0 },
+  ceilingGb: 250,
+  topUps: 0,
+  gbMoved: 10,
+  share: 0.04,
+  state: 'under' as const,
+  holds: true,
+  moveUp: { tierId: 'small' as const, name: 'Small', paths: 4, setupEur: 8, monthlyEur: 4, ceilingGb: 750 },
+  topUp: null,
+  breakEven: null,
+};
+
 const renderBilling = () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -140,6 +157,8 @@ beforeEach(() => {
   methodsMock.mockResolvedValue({ paymentMethods: [] });
   // The honest default: nobody has provided buyer details yet (0111 T1).
   partyMock.mockResolvedValue({ party: null, vatConsultation: null, vatTreatment: null });
+  // Well under the ceiling; the card has its own tests (DataCeiling.unit.test.tsx).
+  vi.mocked(billingApi.getCeiling).mockResolvedValue(UNDER_THE_CEILING);
 });
 
 describe('Billing — failed reads say so (hard rule 9)', () => {

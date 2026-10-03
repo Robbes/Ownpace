@@ -10,6 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   allowanceOf,
+  breakEvenOf,
   ceilingOf,
   decideYes,
   holdsAtCeiling,
@@ -101,6 +102,26 @@ describe('the ceiling', () => {
     const c = ceilingOf(allowanceOf([{ kind: 'tier', tierId: 'xl', bandGb: xl.dataGb }]), xl.dataGb);
     expect(c.moveUp).toBeNull();
     expect(c.topUp?.priceEur).toBe(xl.setup);
+  });
+});
+
+describe('the break-even', () => {
+  it('is ADR-0014\'s own example on Small: €1 more once, €4 a month saved, back in about a week', () => {
+    const c = ceilingOf(allowanceOf([{ kind: 'tier', tierId: 'small', bandGb: small.dataGb }]), 700);
+    expect(breakEvenOf(c)).toEqual({ extraOnceEur: 1, savedMonthlyEur: 4, paysBackInDays: 8 });
+  });
+
+  it('pays back at once when the top-up costs less outright', () => {
+    const c = ceilingOf(allowanceOf([{ kind: 'tier', tierId: 'medium', bandGb: medium.dataGb }]), 1900);
+    const b = breakEvenOf(c)!;
+    expect(b.extraOnceEur).toBeLessThan(0);
+    expect(b.paysBackInDays).toBe(0);
+  });
+
+  it('is not said when only one way on is offered', () => {
+    expect(breakEvenOf(ceilingOf(allowanceOf([]), 240))).toBeNull();
+    const xl = tier('xl');
+    expect(breakEvenOf(ceilingOf(allowanceOf([{ kind: 'tier', tierId: 'xl', bandGb: xl.dataGb }]), 1))).toBeNull();
   });
 });
 
