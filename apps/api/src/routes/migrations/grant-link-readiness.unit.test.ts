@@ -434,7 +434,7 @@ describe('the owner surface the router registers', () => {
     expect(routes().length).toBeGreaterThan(0);
   });
 
-  it('serves exactly issue, list and revoke', () => {
+  it('serves exactly list, revoke, and the issue door that now refuses', () => {
     expect(routes().map((r) => `${r.method} ${r.path}`).sort()).toEqual([
       'DELETE /:mappingId/links/:linkId',
       'GET /:mappingId/links',

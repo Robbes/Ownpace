@@ -1,12 +1,16 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
- * The owner's three calls for a migration's links (workplan 0108 T3, 0122 T2).
+ * The owner's calls for links (workplan 0108 T3, 0122 T2): a person's, which
+ * are made here since a link is the person's (ADR-0035, amended 2026-09-29),
+ * and a migration's, which are only listed and revoked since the owner's
+ * answer of 2026-10-03 (*"yes, replace the per-migration links"*).
  *
  * Its own file rather than another section of `mapping-service.ts`, because
- * what it carries is different in kind: `issue` returns the ONE response in
- * this application that ever contains a bearer secret. Keeping it visible in a
- * small file is the point — the next person to widen a cache, add a log line,
- * or persist a query result should be looking straight at the reason not to.
+ * what it carries is different in kind: `personLinkApi.issue` returns the ONE
+ * response in this application that ever contains a bearer secret. Keeping it
+ * visible in a small file is the point — the next person to widen a cache, add
+ * a log line, or persist a query result should be looking straight at the
+ * reason not to.
  *
  * ## Nothing here is stored, retried or remembered
  *
@@ -82,18 +86,6 @@ export const grantLinkApi = {
   list: async (mappingId: string): Promise<GrantLink[]> => {
     const res = await apiClient.get(`/migrations/${encodeURIComponent(mappingId)}/links`);
     return z.array(GrantLinkSchema).parse(res.data.links);
-  },
-
-  issue: async (
-    mappingId: string,
-    purpose: MappingLinkPurpose,
-    expiryDays: number,
-  ): Promise<IssuedGrantLink> => {
-    const res = await apiClient.post(`/migrations/${encodeURIComponent(mappingId)}/links`, {
-      purpose,
-      expiryDays,
-    });
-    return IssuedSchema.parse(res.data);
   },
 
   revoke: async (mappingId: string, linkId: string): Promise<void> => {

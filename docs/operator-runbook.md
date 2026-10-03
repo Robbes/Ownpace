@@ -807,11 +807,20 @@ docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrat
 The link id is the part of a grant link's URL before the dot, so a link somebody forwards to you
 can be found in `mapping_link` and in these rows without the rest of it.
 
+**A person's link** (ADR-0035, amended 2026-09-29) is the one an owner makes now, for all of a
+person's migrations. Its URL reads `…/grant/p.<link id>.<secret>`, its row is in `person_link`
+(managed), and it writes the same three rows, with `personLinkId` in place of `linkId`: one row
+for each migration its grant landed on, refused on, or was taken back from. A migration's own
+link (`mapping_link`) is no longer made, and one sent before keeps working until it expires. A
+person's link made while every account of theirs was connected asks each again
+(`person_link.asks_again`, the migrations it still waits for).
+
 ### When a link is reported
 
 Since 2026-09-24 the person holding a link can report it from the grant page or the progress
 page (workplan 0108 T8 (d)). A report arrives on the helpdesk of bring-up step 8f as a ticket
-titled *Ownpace: a grant link was reported*, or *a progress link*. Its one article is an
+titled *Ownpace: a grant link was reported*, or *a progress link*, or *a person's grant link* or
+*a person's progress link*. Its one article is an
 internal note. Without a helpdesk, as on live during the alpha, it arrives as a mail to the
 support mailbox with the same title and note, and with no Reply-To: to answer, write a new mail
 to the reply address the note names, and leave the facts out. First come the facts, from the
@@ -819,6 +828,8 @@ rows, one line each:
 
 - the link's id, the organisation and the migration with their ids and state;
 - who issued the link, from, to, and whether access was given;
+- for a person's link, the person's id instead, and each migration of theirs on a line of its own,
+  with its state, from, to and access;
 - the reply address, which they typed and nobody verified, or *none* when they left none. A
   report without one is filed under the helpdesk user your `ZAMMAD_TOKEN` belongs to, and
   cannot be answered.
@@ -835,9 +846,17 @@ docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrat
     WHERE detail->>'mappingId' = '<migration id>' ORDER BY at;"
 ```
 
-A report changes nothing by itself. The organisation's owner can revoke the link from the
-migration's **Grant links** list, so ask them first. When it looks like abuse and they cannot be
-reached, switch a live link off at the database, which is what **Revoke** does:
+A report changes nothing by itself. The organisation's owner can revoke a person's link on the
+person's page, and a migration's link sent before on the migration's page, so ask them first.
+When it looks like abuse and they cannot be reached, switch a live link off at the database,
+which is what **Revoke** does. A person's link is in `person_link`:
+
+```bash
+docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrate -d openmigrate -c \
+  "UPDATE person_link SET revoked_at = now() WHERE id = '<link id>' AND revoked_at IS NULL;"
+```
+
+and a migration's in `mapping_link`:
 
 ```bash
 docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrate -d openmigrate -c \

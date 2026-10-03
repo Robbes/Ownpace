@@ -1,34 +1,35 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * The owner's three routes, against a REAL database (workplan 0108 T3).
+ * A migration's own link doors, against a REAL database (workplan 0108 T3;
+ * ADR-0035, amended 2026-09-29; the owner, 2026-10-03: *"yes, replace the
+ * per-migration links"*).
  *
- * PGlite as `app_user`, the wiring `mapping-link-store.unit.test.ts` and
- * `mapping-link-auth.unit.test.ts` already use — because the property this file
- * exists to prove is *"a link that could not work is never written"*, and a
- * test that mocks the store cannot tell a row that was refused from a row that
- * was written and then hidden. Only the table can answer that, so the table is
- * asked directly after every refusal.
+ * Issuing is the person's now (`person-link-routes.ts`, proved by
+ * `a-link-for-a-person.unit.test.ts`, and its limit by
+ * `a-person-link-within-the-limit.unit.test.ts`). What this file proves is what
+ * is left on a migration:
  *
- * `grant-link-readiness.unit.test.ts` proves the DECISION. This proves the
- * route acts on it — a gap that was real: computing the refusal and dropping it
- * on the floor left that file entirely green.
+ * - **the issue door refuses in words**, naming the person whose page makes the
+ *   link, or saying the migration is given a person first, and writes nothing,
+ *   whatever the body asked for;
+ * - **a link already sent is listed** with its state and dates and never its
+ *   secret, to anyone who may see the migration;
+ * - **and can be revoked**, once, by an owner or admin of its own
+ *   organisation only.
  *
- * `authenticate` is the one thing stubbed. Everything else — RLS, the
- * mapping/mailbox/connection join, the store, the encryption — is the product's.
+ * PGlite as `app_user`, the wiring `mapping-link-store.unit.test.ts` uses, so
+ * every "writes nothing" is the table's answer. `authenticate` is the one
+ * thing stubbed.
  */
 
-// Set before the imports below, because `SecretStore` reads it at encrypt time
-// and the fixture credentials are encrypted in `beforeAll`. The same obviously
-// fake value the integration tests use — a test key is not a secret, and hard
-// rule 3 is about real ones (there is none in this repo, and never will be).
 process.env.SECRET_ENCRYPTION_KEY =
   '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { vi } from 'vitest';
+import { join } from 'node:path';
 import {
   pgliteDriver,
   runMigrations,
@@ -38,9 +39,7 @@ import {
   expiryFromDays,
 } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
-import { LEGAL_VERSIONS, recordAcceptance, runManagedMigrations } from '@openmig/managed';
-import { SecretStore } from '@openmig/core/secret-store';
-import { join } from 'node:path';
+import { runManagedMigrations } from '@openmig/managed';
 import { specChecker } from '../../__tests__/doors-that-start-work.ts';
 
 // UUID family 5f4f0000-…, unused elsewhere in the repo.
@@ -48,79 +47,32 @@ const TENANT = '5f4f0000-e29b-41d4-a716-446655441601';
 const OTHER_TENANT = '5f4f0000-e29b-41d4-a716-446655441602';
 const GOOGLE_CONN = '5f4f0000-e29b-41d4-a716-446655441611';
 const IMAP_CONN = '5f4f0000-e29b-41d4-a716-446655441612';
-const BARE_CONN = '5f4f0000-e29b-41d4-a716-446655441613';
 const GOOGLE_BOX = '5f4f0000-e29b-41d4-a716-446655441621';
 const IMAP_BOX = '5f4f0000-e29b-41d4-a716-446655441622';
-const BARE_BOX = '5f4f0000-e29b-41d4-a716-446655441623';
-/** A Google source with a client id AND secret: the one that may be granted. */
+/** A Google source, Anna's. */
 const READY_MAPPING = '5f4f0000-e29b-41d4-a716-446655441631';
-/** A Google source with no stored credentials at all. */
-const UNCONFIGURED_MAPPING = '5f4f0000-e29b-41d4-a716-446655441632';
-/** An IMAP source — nothing to consent to. */
+/** An IMAP source that belongs to nobody yet. */
 const IMAP_MAPPING = '5f4f0000-e29b-41d4-a716-446655441633';
-/** Somebody else's mapping, for the isolation check. */
+/** Somebody else's mapping, for the isolation checks. */
 const FOREIGN_MAPPING = '5f4f0000-e29b-41d4-a716-446655441634';
 const FOREIGN_CONN = '5f4f0000-e29b-41d4-a716-446655441614';
 const FOREIGN_BOX = '5f4f0000-e29b-41d4-a716-446655441624';
-/** The destination every mapping above copies to (0108 T8a: the page names it). */
 const TARGET_CONN = '5f4f0000-e29b-41d4-a716-446655441615';
 const TARGET_BOX = '5f4f0000-e29b-41d4-a716-446655441625';
-/** The ready mapping's source with no destination at all. */
-const NO_TARGET_MAPPING = '5f4f0000-e29b-41d4-a716-446655441635';
-/** A Google ACCOUNT source with no client of its own, copying one type (0108 T7). */
-const ACCOUNT_CONN = '5f4f0000-e29b-41d4-a716-446655441616';
-const ACCOUNT_BOX = '5f4f0000-e29b-41d4-a716-446655441626';
-const ACCOUNT_MAPPING = '5f4f0000-e29b-41d4-a716-446655441636';
-/** Gmail with no client of its own, for the deployment's-client tests alone. */
-const DEPLOYMENT_GMAIL_CONN = '5f4f0000-e29b-41d4-a716-446655441617';
-const DEPLOYMENT_GMAIL_BOX = '5f4f0000-e29b-41d4-a716-446655441627';
-const DEPLOYMENT_GMAIL_MAPPING = '5f4f0000-e29b-41d4-a716-446655441637';
-/** Gmail with a whole client of its own and NO account named (0108 T8 (b)). */
-const NAMELESS_CONN = '5f4f0000-e29b-41d4-a716-446655441618';
-const NAMELESS_BOX = '5f4f0000-e29b-41d4-a716-446655441628';
-const NAMELESS_MAPPING = '5f4f0000-e29b-41d4-a716-446655441638';
-/**
- * An organisation that has run nothing, so Tiny, for the live-link limit
- * (0108 T8 (d)): a Google source ready to grant, and a destination.
- */
-const LIMIT_TENANT = '5f4f0000-e29b-41d4-a716-446655441603';
-const LIMIT_CONN = '5f4f0000-e29b-41d4-a716-446655441619';
-const LIMIT_TARGET_CONN = '5f4f0000-e29b-41d4-a716-44665544161a';
-const LIMIT_BOX = '5f4f0000-e29b-41d4-a716-446655441629';
-const LIMIT_TARGET_BOX = '5f4f0000-e29b-41d4-a716-44665544162a';
-const LIMIT_MAPPING = '5f4f0000-e29b-41d4-a716-446655441639';
+/** The person READY_MAPPING is for. */
+const ANNA = '5f4f0000-e29b-41d4-a716-446655441641';
 
-/** Run `fn` on a deployment that carries its own Google client (ADR-0041). */
-async function onTheDeploymentsClient<T>(fn: () => Promise<T>, scopeClass?: string): Promise<T> {
-  process.env.GOOGLE_OAUTH_CLIENT_ID = 'deployment.apps.googleusercontent.com';
-  process.env.GOOGLE_OAUTH_CLIENT_SECRET = 'not-a-real-deployment-secret';
-  if (scopeClass) process.env.GOOGLE_ACCOUNT_SCOPE_CLASS = scopeClass;
-  try {
-    return await fn();
-  } finally {
-    delete process.env.GOOGLE_OAUTH_CLIENT_ID;
-    delete process.env.GOOGLE_OAUTH_CLIENT_SECRET;
-    delete process.env.GOOGLE_ACCOUNT_SCOPE_CLASS;
-  }
-}
+const CHECKER = specChecker(join(import.meta.dirname, '..', '..', '..', 'docs', 'openapi.yaml'));
+const LINKS_SPEC = '/api/migrations/{mappingId}/links';
 
 let driver: LedgerDriver;
 /** Set per test — the session `authenticate` pretends to have verified. */
 let caller: { tenantId?: string; userId?: string; userRole?: string } = {};
 
-// Every text final, so a deployment that runs the Alpha asks (0139 T3): which
-// texts really are drafts is `scripts/a-version-the-tester-accepted`'s.
-vi.mock('@openmig/managed', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openmig/managed')>();
-  return { ...actual, LEGAL_DRAFTS: { alpha: false, privacy: false, terms: false } };
-});
-
 vi.mock('../../middleware/auth.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../middleware/auth.ts')>();
   return {
     ...actual,
-    // The only stub. Verifying a JWT is `auth.unit.test.ts`'s job; what this
-    // file needs is a caller with a tenant and a role.
     authenticate: (req: express.Request, res: express.Response, next: express.NextFunction) => {
       if (!caller.tenantId) return void res.status(401).json({ error: 'Unauthorized' });
       Object.assign(req, caller);
@@ -148,328 +100,140 @@ async function asOwner(sql: string, params: unknown[] = []): Promise<unknown[]> 
 
 /** Read the table directly, outside any route, to see what really exists. */
 async function rowsFor(mappingId: string): Promise<Array<Record<string, unknown>>> {
-  const conn = await driver.acquire();
-  try {
-    const r = await conn.query('SELECT * FROM mapping_link WHERE mapping_id = $1', [mappingId]);
-    return r.rows as Array<Record<string, unknown>>;
-  } finally {
-    await conn.release();
-  }
+  return (await asOwner('SELECT * FROM mapping_link WHERE mapping_id = $1', [mappingId])) as Array<
+    Record<string, unknown>
+  >;
 }
+
+/** A link sent before the person's replaced it: written as the store wrote it then. */
+const sent = (mappingId: string, purpose: 'grant' | 'view' = 'grant') =>
+  withTenant(driver, TENANT, (db) =>
+    issueMappingLink(db, { tenantId: TENANT, mappingId, purpose, createdBy: 'pat', expiresAt: expiryFromDays(7) }),
+  );
 
 beforeAll(async () => {
   process.env.WEB_URL = 'https://app.example';
   driver = pgliteDriver({ role: 'app_user' });
   await runMigrations({ driver, logger: () => {} });
-  // The managed chain too: issuing a grant link reads the organisation's tier
-  // and the operator's number (0108 T8 (d)), as the API always does.
+  // The managed chain too: who a migration is for is a `person` row.
   await runManagedMigrations({ driver, logger: () => {} });
 
-  const withClient = async (fn: (q: (sql: string, p?: unknown[]) => Promise<unknown>) => Promise<void>) => {
-    const conn = await driver.acquire();
-    try {
-      await fn((sql, p) => conn.query(sql, p ?? []));
-    } finally {
-      await conn.release();
-    }
-  };
-
-  // `JSON.stringify(...encrypted)`, exactly as the create route stores it
-  // (`migrations/index.ts`): `secret_ref` is a text column and `.encrypted` is
-  // the EncryptedSecret OBJECT, so binding it raw writes "[object Object]" —
-  // which decrypts to nothing and reads, one refusal later, as an unconfigured
-  // client. The fixture has to lie the same way production tells the truth.
-  const googleCreds = JSON.stringify(
-    SecretStore.encryptCredentials({
-      username: 'someone@example.invalid',
-      clientId: 'client.apps.googleusercontent.com',
-      clientSecret: 'not-a-real-secret',
-    }).encrypted,
+  for (const [id, name] of [
+    [TENANT, 'links'],
+    [OTHER_TENANT, 'other'],
+  ]) {
+    await asOwner('INSERT INTO tenant (id, name) VALUES ($1,$2)', [id, name]);
+  }
+  await asOwner(
+    `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status) VALUES
+       ($1,$4,'source','gmail','g','{"user":"anna@example.invalid"}'::jsonb,'connected'),
+       ($2,$4,'source','imap','i','{}'::jsonb,'connected'),
+       ($3,$4,'target','nextcloud','nc','{"host":"cloud.example.org"}'::jsonb,'connected')`,
+    [GOOGLE_CONN, IMAP_CONN, TARGET_CONN, TENANT],
   );
-
-  // The same client, and no account: an OAuth row keeps its address in the
-  // connection's config, and this one has none there either.
-  const namelessCreds = JSON.stringify(
-    SecretStore.encryptCredentials({
-      clientId: 'client.apps.googleusercontent.com',
-      clientSecret: 'not-a-real-secret',
-    }).encrypted,
-  );
-
-  await withClient(async (q) => {
-    for (const [id, name] of [
-      [TENANT, 'links'],
-      [OTHER_TENANT, 'other'],
-      [LIMIT_TENANT, 'limit'],
-    ]) {
-      await q('INSERT INTO tenant (id, name) VALUES ($1,$2)', [id, name]);
-    }
-    // This file is about the routes, and issues many links for TENANT: it
-    // runs with room, set the way the operator sets it. The limit itself is
-    // proved on LIMIT_TENANT, which has none.
-    await q(
-      `INSERT INTO grant_link_allowance (tenant_id, live_links, set_by, note)
-       VALUES ($1, 1000, 'operator.sh fixture', 'the routes, not the limit')`,
-      [TENANT],
+  for (const [box, conn] of [
+    [GOOGLE_BOX, GOOGLE_CONN],
+    [IMAP_BOX, IMAP_CONN],
+    [TARGET_BOX, TARGET_CONN],
+  ]) {
+    await asOwner(
+      `INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address)
+       VALUES ($1,$2,$3,'user','m@example.invalid')`,
+      [box, TENANT, conn],
     );
-    await q(
-      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
-       VALUES ($1,$2,'source','gmail','g-limit','{}'::jsonb,'connected',$3)`,
-      [LIMIT_CONN, LIMIT_TENANT, googleCreds],
-    );
-    await q(
-      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
-       VALUES ($1,$2,'target','nextcloud','nc-limit','{"host":"cloud.example.org"}'::jsonb,'connected')`,
-      [LIMIT_TARGET_CONN, LIMIT_TENANT],
-    );
-    for (const [box, conn] of [
-      [LIMIT_BOX, LIMIT_CONN],
-      [LIMIT_TARGET_BOX, LIMIT_TARGET_CONN],
-    ]) {
-      await q(
-        `INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address)
-         VALUES ($1,$2,$3,'user','m@example.invalid')`,
-        [box, LIMIT_TENANT, conn],
-      );
-    }
-    await q(
+  }
+  for (const [mapping, box] of [
+    [READY_MAPPING, GOOGLE_BOX],
+    [IMAP_MAPPING, IMAP_BOX],
+  ]) {
+    await asOwner(
       `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, status)
        VALUES ($1,$2,$3,$4,'paused')`,
-      [LIMIT_MAPPING, LIMIT_TENANT, LIMIT_BOX, LIMIT_TARGET_BOX],
+      [mapping, TENANT, box, TARGET_BOX],
     );
-    await q(
-      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
-       VALUES ($1,$2,'source','gmail','g','{}'::jsonb,'connected',$3)`,
-      [GOOGLE_CONN, TENANT, googleCreds],
-    );
-    await q(
-      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
-       VALUES ($1,$2,'source','gmail','g-bare','{"user":"bare@example.invalid"}'::jsonb,'connected')`,
-      [BARE_CONN, TENANT],
-    );
-    await q(
-      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
-       VALUES ($1,$2,'source','imap','i','{}'::jsonb,'connected')`,
-      [IMAP_CONN, TENANT],
-    );
-    await q(
-      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
-       VALUES ($1,$2,'source','google','account','{"user":"account@example.invalid"}'::jsonb,'connected')`,
-      [ACCOUNT_CONN, TENANT],
-    );
-    await q(
-      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
-       VALUES ($1,$2,'source','gmail','g-deployment','{"user":"gmail@example.invalid"}'::jsonb,'connected')`,
-      [DEPLOYMENT_GMAIL_CONN, TENANT],
-    );
-    await q(
-      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
-       VALUES ($1,$2,'source','gmail','g-nameless','{}'::jsonb,'connected',$3)`,
-      [NAMELESS_CONN, TENANT, namelessCreds],
-    );
-    await q(
-      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
-       VALUES ($1,$2,'target','nextcloud','nc','{"host":"cloud.example.org"}'::jsonb,'connected')`,
-      [TARGET_CONN, TENANT],
-    );
-    for (const [box, conn] of [
-      [GOOGLE_BOX, GOOGLE_CONN],
-      [BARE_BOX, BARE_CONN],
-      [IMAP_BOX, IMAP_CONN],
-      [ACCOUNT_BOX, ACCOUNT_CONN],
-      [DEPLOYMENT_GMAIL_BOX, DEPLOYMENT_GMAIL_CONN],
-      [NAMELESS_BOX, NAMELESS_CONN],
-      [TARGET_BOX, TARGET_CONN],
-    ]) {
-      await q(
-        `INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address)
-         VALUES ($1,$2,$3,'user','m@example.invalid')`,
-        [box, TENANT, conn],
-      );
-    }
-    for (const [mapping, box, target] of [
-      [READY_MAPPING, GOOGLE_BOX, TARGET_BOX],
-      [UNCONFIGURED_MAPPING, BARE_BOX, TARGET_BOX],
-      [IMAP_MAPPING, IMAP_BOX, TARGET_BOX],
-      [NO_TARGET_MAPPING, GOOGLE_BOX, null],
-      [ACCOUNT_MAPPING, ACCOUNT_BOX, TARGET_BOX],
-      [DEPLOYMENT_GMAIL_MAPPING, DEPLOYMENT_GMAIL_BOX, TARGET_BOX],
-      [NAMELESS_MAPPING, NAMELESS_BOX, TARGET_BOX],
-    ]) {
-      await q(
-        `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, status)
-         VALUES ($1,$2,$3,$4,'paused')`,
-        [mapping, TENANT, box, target],
-      );
-    }
-    await q(
-      `INSERT INTO scope_selection (tenant_id, mapping_id, domain, included) VALUES ($1,$2,'contact',true)`,
-      [TENANT, ACCOUNT_MAPPING],
-    );
-    // The other tenant's own chain, so its mapping is a real one rather than a
-    // half-row: the isolation check has to fail on the TENANT, not on a
-    // constraint.
-    await q(
-      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
-       VALUES ($1,$2,'source','gmail','theirs','{}'::jsonb,'connected')`,
-      [FOREIGN_CONN, OTHER_TENANT],
-    );
-    await q(
-      `INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address)
-       VALUES ($1,$2,$3,'user','them@example.invalid')`,
-      [FOREIGN_BOX, OTHER_TENANT, FOREIGN_CONN],
-    );
-    await q(
-      `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, status)
-       VALUES ($1,$2,$3,'paused')`,
-      [FOREIGN_MAPPING, OTHER_TENANT, FOREIGN_BOX],
-    );
-  });
-  // 120s, not vitest's default 10s, for the reason every other PGlite fixture
-  // in this repository already carries it: this hook starts a cluster and runs
-  // the FULL migration chain, which under a loaded runner exceeds 10s while
-  // passing in isolation. That is the load-class flake #652 documented.
+  }
+  await asOwner(`INSERT INTO person (id, tenant_id, display_name) VALUES ($1, $2, 'Anna')`, [ANNA, TENANT]);
+  await asOwner('INSERT INTO person_migration (mapping_id, person_id, tenant_id) VALUES ($1, $2, $3)', [
+    READY_MAPPING,
+    ANNA,
+    TENANT,
+  ]);
+  // The other organisation's own chain, so its mapping is a real one: the
+  // isolation checks have to fail on the TENANT, not on a constraint.
+  await asOwner(
+    `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
+     VALUES ($1,$2,'source','gmail','theirs','{}'::jsonb,'connected')`,
+    [FOREIGN_CONN, OTHER_TENANT],
+  );
+  await asOwner(
+    `INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address)
+     VALUES ($1,$2,$3,'user','them@example.invalid')`,
+    [FOREIGN_BOX, OTHER_TENANT, FOREIGN_CONN],
+  );
+  await asOwner(
+    `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, status) VALUES ($1,$2,$3,'paused')`,
+    [FOREIGN_MAPPING, OTHER_TENANT, FOREIGN_BOX],
+  );
 }, 120_000);
 
 afterAll(async () => {
   await driver.end?.();
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   caller = { tenantId: TENANT, userId: 'pat', userRole: 'owner' };
+  await asOwner('DELETE FROM mapping_link WHERE tenant_id = $1', [TENANT]);
 });
 
-describe('issuing refuses BEFORE it writes', () => {
-  it('refuses a source that is not Google, and writes nothing', async () => {
-    const res = await request(app).post(`/api/migrations/${IMAP_MAPPING}/links`).send({});
+describe('issuing is the person’s now', () => {
+  it('refuses for a migration of a person, naming them and their page, and writes nothing', async () => {
+    const res = await request(app).post(`/api/migrations/${READY_MAPPING}/links`).send({ expiryDays: 7 });
+
+    expect(res.status, JSON.stringify(res.body)).toBe(409);
+    expect(res.body).toEqual({
+      error: 'links_are_per_person',
+      reason: "Links are made per person now: one for all of Anna's migrations. Make it on their page.",
+      personId: ANNA,
+    });
+    expect(await rowsFor(READY_MAPPING)).toEqual([]);
+    const { schema } = CHECKER.responseSchema({ name: 'issue', path: LINKS_SPEC, spec: LINKS_SPEC, accepted: 409 } as never, '409');
+    expect(CHECKER.satisfies(schema, res.body), 'the spec does not document this answer').toBe(true);
+  });
+
+  it('refuses for a migration of nobody, saying it is given a person first', async () => {
+    const res = await request(app).post(`/api/migrations/${IMAP_MAPPING}/links`).send({ purpose: 'view' });
+
     expect(res.status).toBe(409);
-    expect(res.body.error).toBe('source_not_google');
-    expect(res.body.reason).toContain('Gmail');
-    // The property the mocked version of this test could not have seen.
+    expect(res.body.error).toBe('links_are_per_person');
+    expect(res.body.reason).toBe(
+      'Links are made per person now, and this migration is not with a person yet. ' +
+        'Say who it is for on its page, then make the link on theirs.',
+    );
+    expect(res.body.personId).toBeUndefined();
     expect(await rowsFor(IMAP_MAPPING)).toEqual([]);
   });
 
-  it('refuses a Google source with no client stored, and writes nothing', async () => {
-    const res = await request(app).post(`/api/migrations/${UNCONFIGURED_MAPPING}/links`).send({});
-    expect(res.status).toBe(409);
-    expect(res.body.error).toBe('client_not_configured');
-    expect(await rowsFor(UNCONFIGURED_MAPPING)).toEqual([]);
-  });
-
-  it('refuses a migration that names no account, and writes nothing (0108 T8 (b))', async () => {
-    // Its client is whole and its destination is set: the one thing missing is
-    // the account every sign-in is held to, so no sign-in could be accepted.
-    const res = await request(app).post(`/api/migrations/${NAMELESS_MAPPING}/links`).send({});
-    expect(res.status).toBe(409);
-    expect(res.body.error).toBe('no_named_account');
-    expect(res.body.reason).toMatch(/names none/);
-    expect(await rowsFor(NAMELESS_MAPPING)).toEqual([]);
-  });
-
-  it('refuses a migration with no destination, and writes nothing', async () => {
-    const res = await request(app).post(`/api/migrations/${NO_TARGET_MAPPING}/links`).send({});
-    expect(res.status).toBe(409);
-    expect(res.body.error).toBe('no_target');
-    expect(await rowsFor(NO_TARGET_MAPPING)).toEqual([]);
-  });
-
-  it("refuses Gmail through the deployment's client until the class is declared", async () => {
-    await onTheDeploymentsClient(async () => {
-      const res = await request(app).post(`/api/migrations/${DEPLOYMENT_GMAIL_MAPPING}/links`).send({});
-      expect(res.status).toBe(409);
-      expect(res.body.error).toBe('restricted_scope');
-      expect(await rowsFor(DEPLOYMENT_GMAIL_MAPPING)).toEqual([]);
-    });
-  });
-
-  it('refuses when the deployment has no WEB_URL, and writes nothing', async () => {
-    const had = process.env.WEB_URL;
-    delete process.env.WEB_URL;
-    try {
-      const res = await request(app).post(`/api/migrations/${READY_MAPPING}/links`).send({});
-      expect(res.status).toBe(409);
-      expect(res.body.error).toBe('web_url_unset');
-      expect(await rowsFor(READY_MAPPING)).toEqual([]);
-    } finally {
-      process.env.WEB_URL = had;
+  it('answers the same whatever the body asks for, a progress link included', async () => {
+    for (const body of [{}, { purpose: 'grant', expiryDays: 30 }, { purpose: 'view', expiryDays: 90 }, { bogus: 1 }]) {
+      const res = await request(app).post(`/api/migrations/${READY_MAPPING}/links`).send(body);
+      expect(res.status, JSON.stringify(body)).toBe(409);
+      expect(res.body.error).toBe('links_are_per_person');
     }
-  });
-
-  it('refuses an expiry it does not offer, and writes nothing', async () => {
-    const res = await request(app).post(`/api/migrations/${READY_MAPPING}/links`).send({
-      expiryDays: 365,
-    });
-    expect(res.status).toBe(400);
-    expect(res.body.reason).toContain('1, 7, 30');
     expect(await rowsFor(READY_MAPPING)).toEqual([]);
   });
 
-  it("answers 404 for another tenant's mapping, and writes nothing", async () => {
-    const res = await request(app).post(`/api/migrations/${FOREIGN_MAPPING}/links`).send({});
-    expect(res.status).toBe(404);
-    expect(await rowsFor(FOREIGN_MAPPING)).toEqual([]);
-  });
-
-  it('refuses a viewer, whatever the mapping is like', async () => {
+  it('asks the role first, as every door that used to issue did, and the organisation', async () => {
     caller = { tenantId: TENANT, userId: 'someone', userRole: 'viewer' };
-    const res = await request(app).post(`/api/migrations/${READY_MAPPING}/links`).send({});
-    expect(res.status).toBe(403);
-    expect(await rowsFor(READY_MAPPING)).toEqual([]);
+    expect((await request(app).post(`/api/migrations/${READY_MAPPING}/links`).send({})).status).toBe(403);
+
+    caller = { tenantId: TENANT, userId: 'pat', userRole: 'owner' };
+    expect((await request(app).post(`/api/migrations/${FOREIGN_MAPPING}/links`).send({})).status).toBe(404);
   });
 });
 
-describe("a link through the deployment's client (0108 T6, T7)", () => {
-  it('is issued for Gmail with no client of its own, once the class is declared', async () => {
-    await onTheDeploymentsClient(async () => {
-      const res = await request(app).post(`/api/migrations/${DEPLOYMENT_GMAIL_MAPPING}/links`).send({});
-      expect(res.status).toBe(201);
-      expect(await rowsFor(DEPLOYMENT_GMAIL_MAPPING)).toHaveLength(1);
-    }, 'restricted');
-  });
-
-  it('is issued for a Google account migration', async () => {
-    await onTheDeploymentsClient(async () => {
-      const res = await request(app).post(`/api/migrations/${ACCOUNT_MAPPING}/links`).send({});
-      expect(res.status).toBe(201);
-      expect(await rowsFor(ACCOUNT_MAPPING)).toHaveLength(1);
-    });
-  });
-
-  it('is refused for it on a deployment with no client of its own, naming both ways out', async () => {
-    const before = (await rowsFor(ACCOUNT_MAPPING)).length;
-    const res = await request(app).post(`/api/migrations/${ACCOUNT_MAPPING}/links`).send({});
-    expect(res.status).toBe(409);
-    expect(res.body.error).toBe('client_not_configured');
-    expect(res.body.reason).toMatch(/GOOGLE_OAUTH_CLIENT_ID/);
-    expect(await rowsFor(ACCOUNT_MAPPING)).toHaveLength(before);
-  });
-});
-
-describe('a link that can work', () => {
-  it('is written once, returned once, and never stored in the clear', async () => {
-    const res = await request(app)
-      .post(`/api/migrations/${READY_MAPPING}/links`)
-      .send({ expiryDays: 1 });
-    expect(res.status).toBe(201);
-    expect(res.body.url).toMatch(/^https:\/\/app\.example\/grant\/[0-9a-f-]{36}\.[\w-]+$/);
-    expect(res.body.expiryDays).toBe(1);
-    expect(res.body.distribution).toMatch(/Send this to the person yourself/);
-
-    const secret = String(res.body.url).split('.').slice(1).join('.');
-    const rows = await rowsFor(READY_MAPPING);
-    expect(rows).toHaveLength(1);
-    // Not in ANY column, in any form — the table holds a hash.
-    expect(JSON.stringify(rows[0])).not.toContain(secret);
-    expect(rows[0]!.purpose).toBe('grant');
-    expect(rows[0]!.created_by).toBe('pat');
-
-    // A day, not the seven-day default: the owner's choice reached the row.
-    const expiresIn = new Date(String(rows[0]!.expires_at)).getTime() - Date.now();
-    expect(expiresIn).toBeGreaterThan(23 * 3_600_000);
-    expect(expiresIn).toBeLessThan(25 * 3_600_000);
-  });
-
-  it('lists it with state and dates, and no URL anywhere in the answer', async () => {
+describe('a link already sent', () => {
+  it('is listed with state and dates, and no URL anywhere in the answer', async () => {
+    await sent(READY_MAPPING);
     const res = await request(app).get(`/api/migrations/${READY_MAPPING}/links`);
     expect(res.status).toBe(200);
     expect(res.body.links).toHaveLength(1);
@@ -480,17 +244,25 @@ describe('a link that can work', () => {
   });
 
   it('lets a viewer SEE that a door exists, because seeing is not opening', async () => {
+    await sent(READY_MAPPING);
     caller = { tenantId: TENANT, userId: 'someone', userRole: 'viewer' };
     const res = await request(app).get(`/api/migrations/${READY_MAPPING}/links`);
     expect(res.status).toBe(200);
     expect(res.body.links).toHaveLength(1);
   });
+
+  it('appears wearing its own purpose', async () => {
+    await sent(IMAP_MAPPING, 'view');
+    const res = await request(app).get(`/api/migrations/${IMAP_MAPPING}/links`);
+    expect(res.body.links.map((l: { purpose: string; state: string }) => [l.purpose, l.state])).toEqual([
+      ['view', 'live'],
+    ]);
+  });
 });
 
-describe('revoking', () => {
+describe('revoking a link already sent', () => {
   it('revokes once, then answers the second press without erroring', async () => {
-    const links = await request(app).get(`/api/migrations/${READY_MAPPING}/links`);
-    const id = links.body.links[0].id;
+    const { id } = await sent(READY_MAPPING);
 
     const first = await request(app).delete(`/api/migrations/${READY_MAPPING}/links/${id}`);
     expect(first.status).toBe(200);
@@ -505,8 +277,7 @@ describe('revoking', () => {
   });
 
   it('answers 404 for a link id that is not on this migration', async () => {
-    const res = await request(app)
-      .delete(`/api/migrations/${READY_MAPPING}/links/${OTHER_TENANT}`);
+    const res = await request(app).delete(`/api/migrations/${READY_MAPPING}/links/${OTHER_TENANT}`);
     expect(res.status).toBe(404);
   });
 
@@ -514,8 +285,7 @@ describe('revoking', () => {
     // Knowing an id is the most an attacker gets from a leaked list, and the
     // id is in the URL of every link ever sent. Two layers say no — the
     // store's own `WHERE tenant_id`, and RLS on the tenant-scoped transaction
-    // — and this asserts the OUTCOME rather than either layer, so removing one
-    // is still caught by the other rather than by nothing.
+    // — and this asserts the OUTCOME rather than either layer.
     const foreign = await withTenant(driver, OTHER_TENANT, (db) =>
       issueMappingLink(db, {
         tenantId: OTHER_TENANT,
@@ -526,8 +296,7 @@ describe('revoking', () => {
       }),
     );
 
-    const res = await request(app)
-      .delete(`/api/migrations/${READY_MAPPING}/links/${foreign.id}`);
+    const res = await request(app).delete(`/api/migrations/${READY_MAPPING}/links/${foreign.id}`);
     expect(res.status).toBe(404);
 
     const still = await withTenant(driver, OTHER_TENANT, (db) =>
@@ -538,277 +307,9 @@ describe('revoking', () => {
   });
 
   it('refuses a viewer', async () => {
+    const { id } = await sent(READY_MAPPING);
     caller = { tenantId: TENANT, userId: 'someone', userRole: 'viewer' };
-    const res = await request(app).delete(`/api/migrations/${READY_MAPPING}/links/${READY_MAPPING}`);
+    const res = await request(app).delete(`/api/migrations/${READY_MAPPING}/links/${id}`);
     expect(res.status).toBe(403);
-  });
-});
-
-/**
- * The second lifetime (workplan 0122 T2), against the same real table.
- *
- * The property worth a real database here is that the two purposes are written
- * as different rows with different lifetimes — a mocked store would happily
- * agree with itself about that and prove nothing.
- */
-describe('a progress link is the other lifetime, not the same one', () => {
-  it('is issued for an IMAP source, which a grant link refuses outright', async () => {
-    // The same mapping the first test in this file proved a grant link cannot
-    // be issued for. A progress link runs no consent, so the three
-    // consent-shaped refusals do not apply — and this is the first surface in
-    // the product that can hand a link to somebody being migrated off a
-    // non-Google source.
-    const res = await request(app)
-      .post(`/api/migrations/${IMAP_MAPPING}/links`)
-      .send({ purpose: 'view' });
-    expect(res.status).toBe(201);
-    expect(res.body.purpose).toBe('view');
-    expect(res.body.url).toMatch(/^https:\/\/app\.example\/view\/[0-9a-f-]{36}\.[\w-]+$/);
-
-    const rows = await rowsFor(IMAP_MAPPING);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]!.purpose).toBe('view');
-    // The table holds a hash of this one too — the property is the row's, not
-    // the purpose's.
-    const secret = String(res.body.url).split('.').slice(1).join('.');
-    expect(JSON.stringify(rows[0])).not.toContain(secret);
-  });
-
-  it('defaults to ninety days, not the credential link’s seven', async () => {
-    const res = await request(app)
-      .post(`/api/migrations/${UNCONFIGURED_MAPPING}/links`)
-      .send({ purpose: 'view' });
-    expect(res.status).toBe(201);
-    expect(res.body.expiryDays).toBe(90);
-
-    const rows = await rowsFor(UNCONFIGURED_MAPPING);
-    const expiresIn = new Date(String(rows[0]!.expires_at)).getTime() - Date.now();
-    expect(expiresIn).toBeGreaterThan(89 * 24 * 3_600_000);
-    expect(expiresIn).toBeLessThan(91 * 24 * 3_600_000);
-  });
-
-  it('refuses the credential lifetimes on a progress link, and writes nothing', async () => {
-    // Seven days is a perfectly good number and the wrong one here: it is the
-    // credential's window, and a progress page that expired with it would
-    // leave somebody watching a migration they can no longer see.
-    const before = (await rowsFor(READY_MAPPING)).length;
-    const res = await request(app)
-      .post(`/api/migrations/${READY_MAPPING}/links`)
-      .send({ purpose: 'view', expiryDays: 7 });
-    expect(res.status).toBe(400);
-    expect(res.body.reason).toContain('view: 30, 90, 180');
-    expect(await rowsFor(READY_MAPPING)).toHaveLength(before);
-  });
-
-  it('refuses the progress lifetimes on a credential link, and writes nothing', async () => {
-    // The other direction, which is the one that matters: ninety days of a
-    // single-use bearer credential sitting in somebody's chat history.
-    const before = (await rowsFor(READY_MAPPING)).length;
-    const res = await request(app)
-      .post(`/api/migrations/${READY_MAPPING}/links`)
-      .send({ purpose: 'grant', expiryDays: 90 });
-    expect(res.status).toBe(400);
-    expect(await rowsFor(READY_MAPPING)).toHaveLength(before);
-  });
-
-  it('still refuses when the deployment has no WEB_URL — a link is only a URL', async () => {
-    const had = process.env.WEB_URL;
-    delete process.env.WEB_URL;
-    try {
-      const before = (await rowsFor(IMAP_MAPPING)).length;
-      const res = await request(app)
-        .post(`/api/migrations/${IMAP_MAPPING}/links`)
-        .send({ purpose: 'view' });
-      expect(res.status).toBe(409);
-      expect(res.body.error).toBe('web_url_unset');
-      expect(await rowsFor(IMAP_MAPPING)).toHaveLength(before);
-    } finally {
-      process.env.WEB_URL = had;
-    }
-  });
-
-  it('refuses a viewer, exactly as the credential link does', async () => {
-    // Deciding who may watch a migration is the same kind of decision as
-    // deciding who may connect one, so it is the same two roles.
-    caller = { tenantId: TENANT, userId: 'someone', userRole: 'viewer' };
-    const before = (await rowsFor(IMAP_MAPPING)).length;
-    const res = await request(app)
-      .post(`/api/migrations/${IMAP_MAPPING}/links`)
-      .send({ purpose: 'view' });
-    expect(res.status).toBe(403);
-    expect(await rowsFor(IMAP_MAPPING)).toHaveLength(before);
-  });
-
-  it('appears in the owner’s list wearing its own purpose', async () => {
-    // The list has never filtered by purpose, so before 0122 T5 the panel
-    // rendered a progress link with the credential list's words.
-    const res = await request(app).get(`/api/migrations/${IMAP_MAPPING}/links`);
-    expect(res.status).toBe(200);
-    expect(res.body.links).toHaveLength(1);
-    expect(res.body.links[0].purpose).toBe('view');
-    expect(res.body.links[0].state).toBe('live');
-  });
-});
-
-describe('as many live grant links as the tier runs migrations (0108 T8 (d))', () => {
-  const issue = (purpose?: 'grant' | 'view') =>
-    request(app)
-      .post(`/api/migrations/${LIMIT_MAPPING}/links`)
-      .send(purpose ? { purpose } : {});
-
-  beforeEach(async () => {
-    caller = { tenantId: LIMIT_TENANT, userId: 'pat', userRole: 'owner' };
-    await asOwner('DELETE FROM mapping_link WHERE tenant_id = $1', [LIMIT_TENANT]);
-    await asOwner('DELETE FROM person WHERE tenant_id = $1', [LIMIT_TENANT]);
-    await asOwner('DELETE FROM grant_link_allowance WHERE tenant_id = $1', [LIMIT_TENANT]);
-    await asOwner('DELETE FROM occupancy_peak WHERE tenant_id = $1', [LIMIT_TENANT]);
-  });
-
-  it('issues an organisation on Tiny one live grant link, and refuses the second, writing nothing', async () => {
-    expect((await issue()).status).toBe(201);
-
-    const second = await issue();
-
-    expect(second.status).toBe(409);
-    expect(second.body).toMatchObject({ error: 'grant_links_at_limit', live: 1, limit: 1 });
-    expect(second.body.reason).toBe(
-      'This organisation has 1 grant link that can still be used, and may hold 1 at once: ' +
-        'as many as its tier, Tiny, runs migrations at the same time. ' +
-        'Revoke one that is no longer needed, or wait until one is used or expires.',
-    );
-    expect(await rowsFor(LIMIT_MAPPING)).toHaveLength(1);
-  });
-
-  it("counts a person's live grant link in the same limit, once (ADR-0035's amendment of 2026-09-29)", async () => {
-    // A person's link covers all of their migrations and counts once. It is
-    // written here as the table holds it; issuing one is 0153 T5 (b)'s next
-    // slice, with the page that opens it.
-    const [person] = await asOwner(
-      `INSERT INTO person (tenant_id, display_name) VALUES ($1, 'Anna') RETURNING id`,
-      [LIMIT_TENANT],
-    );
-    const [link] = await asOwner(
-      `INSERT INTO person_link (tenant_id, person_id, purpose, secret_hash, created_by, expires_at)
-       VALUES ($1, $2, 'grant', repeat('0', 64), 'pat', now() + interval '7 days') RETURNING id`,
-      [LIMIT_TENANT, (person as { id: string }).id],
-    );
-
-    const refused = await issue();
-    expect(refused.status).toBe(409);
-    expect(refused.body).toMatchObject({ error: 'grant_links_at_limit', live: 1, limit: 1 });
-
-    await asOwner('UPDATE person_link SET revoked_at = now() WHERE id = $1', [(link as { id: string }).id]);
-    expect((await issue()).status).toBe(201);
-  });
-
-  it('never refuses a progress link: it grants nothing', async () => {
-    await issue();
-
-    expect((await issue('view')).status).toBe(201);
-  });
-
-  it('makes room when a link is revoked, used, or expires', async () => {
-    const revoked = await issue();
-    await request(app).delete(`/api/migrations/${LIMIT_MAPPING}/links/${revoked.body.id as string}`);
-    const used = await issue();
-    expect(used.status).toBe(201);
-    await asOwner('UPDATE mapping_link SET used_at = now() WHERE id = $1', [used.body.id]);
-    const expired = await issue();
-    expect(expired.status).toBe(201);
-    await asOwner("UPDATE mapping_link SET expires_at = now() - interval '1 second' WHERE id = $1", [
-      expired.body.id,
-    ]);
-
-    expect((await issue()).status).toBe(201);
-  });
-
-  it('grows with the tier: four at once, for an organisation that ran two migrations this month', async () => {
-    await asOwner(
-      `INSERT INTO occupancy_peak (tenant_id, month, peak_paths, peak_at)
-       VALUES ($1, date_trunc('month', now())::date, 2, now())`,
-      [LIMIT_TENANT],
-    );
-    for (let n = 0; n < 4; n++) expect((await issue()).status).toBe(201);
-
-    const fifth = await issue();
-
-    expect(fifth.body).toMatchObject({ error: 'grant_links_at_limit', live: 4, limit: 4 });
-    expect(fifth.body.reason).toContain('as many as its tier, Small, runs migrations at the same time');
-  });
-
-  it("holds the operator's number while it stands, and the tier's again once its day has passed", async () => {
-    await asOwner(
-      `INSERT INTO grant_link_allowance (tenant_id, live_links, until, set_by)
-       VALUES ($1, 3, now() + interval '1 day', 'operator.sh fixture')`,
-      [LIMIT_TENANT],
-    );
-    for (let n = 0; n < 3; n++) expect((await issue()).status).toBe(201);
-    const fourth = await issue();
-    expect(fourth.body).toMatchObject({ live: 3, limit: 3 });
-    expect(fourth.body.reason).toMatch(/: the number set for this organisation through \d{4}-\d{2}-\d{2}\. /);
-
-    await asOwner(`UPDATE grant_link_allowance SET until = now() - interval '1 second' WHERE tenant_id = $1`, [
-      LIMIT_TENANT,
-    ]);
-
-    expect((await issue()).body).toMatchObject({ live: 3, limit: 1 });
-  });
-});
-
-/**
- * A GRANT LINK WAITS FOR THE TEXTS (workplan 0139 T3; review of 2026-09-29).
- *
- * Issuing a grant link is the member's door to the access a family member
- * then gives through it, which `grant-ending.ts` stores. So while the
- * deployment asks (`OWNPACE_STAGE=alpha`), a member who has not accepted the
- * current version of each text is refused a grant link, as the three doors
- * that store a credential refuse them: 409 `conditions_not_accepted`, and
- * nothing written. A progress link grants nothing, and is issued as before.
- */
-describe('a grant link waits until the texts are accepted (0139 T3)', () => {
-  const CHECKER = specChecker(join(import.meta.dirname, '..', '..', '..', 'docs', 'openapi.yaml'));
-  const LINKS = {
-    name: 'issuing a grant link',
-    path: `/api/migrations/${READY_MAPPING}/links`,
-    spec: '/api/migrations/{mappingId}/links',
-    accepted: 201,
-  } as const;
-  const had = process.env.OWNPACE_STAGE;
-
-  beforeAll(async () => {
-    process.env.OWNPACE_STAGE = 'alpha';
-    await asOwner(`INSERT INTO tenant_member (tenant_id, user_id, email) VALUES ($1, 'pat', 'pat@example.invalid')`, [
-      TENANT,
-    ]);
-  });
-
-  afterAll(() => {
-    if (had === undefined) delete process.env.OWNPACE_STAGE;
-    else process.env.OWNPACE_STAGE = had;
-  });
-
-  it('is refused with 409 conditions_not_accepted to a member who has not accepted them, and writes nothing', async () => {
-    const before = (await rowsFor(READY_MAPPING)).length;
-    const res = await request(app).post(LINKS.path).send({ purpose: 'grant' });
-
-    expect(res.status, JSON.stringify(res.body)).toBe(409);
-    expect(res.body.error).toBe('conditions_not_accepted');
-    expect(await rowsFor(READY_MAPPING)).toHaveLength(before);
-    const { raw, schema } = CHECKER.responseSchema(LINKS, '409');
-    expect(JSON.stringify(raw)).toContain('ConditionsNotAccepted');
-    expect(CHECKER.satisfies(schema, res.body), `the spec does not document ${JSON.stringify(res.body)}`).toBe(true);
-  });
-
-  it('still issues a progress link, which grants nothing', async () => {
-    const res = await request(app).post(LINKS.path).send({ purpose: 'view' });
-    expect(res.status, JSON.stringify(res.body)).toBe(201);
-  });
-
-  it('is issued once the member has accepted the current version of each text', async () => {
-    const got = await withTenant(driver, TENANT, (db) => recordAcceptance(db, TENANT, 'pat', LEGAL_VERSIONS, 'nl'));
-    expect(got.kind).toBe('recorded');
-
-    const res = await request(app).post(LINKS.path).send({ purpose: 'grant' });
-    expect(res.status, JSON.stringify(res.body)).toBe(201);
   });
 });

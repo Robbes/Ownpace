@@ -9,12 +9,15 @@
 // first's link and be refused. Without the lock it would count only what was
 // committed, find room, and both would be the last one allowed.
 //
+// The link is a person's: since the owner's answer of 2026-10-03 it is the
+// one issued (ADR-0035, amended 2026-09-29).
+//
 // UUID Family: 7c1a0000-e29b-41d4-a716-44665544xxxx
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Pool } from 'pg';
 import { expiryFromDays, withTenant } from '@openmig/ledger';
-import { issueWithinTheLimit } from './live-link-limit.ts';
+import { issuePersonLinkWithinTheLimit } from './live-link-limit.ts';
 
 const PG = process.env.TEST_DATABASE_URL;
 if (!PG) throw new Error('TEST_DATABASE_URL is not set. Run: pnpm test:integration');
@@ -23,10 +26,14 @@ const TENANT = '7c1a0000-e29b-41d4-a716-446655440001';
 const CONN = '7c1a0000-e29b-41d4-a716-446655440011';
 const BOX = '7c1a0000-e29b-41d4-a716-446655440021';
 const MAPPING = '7c1a0000-e29b-41d4-a716-446655440031';
+const PERSON = '7c1a0000-e29b-41d4-a716-446655440041';
 
 let pool: Pool;
 
 async function clean(): Promise<void> {
+  await pool.query('DELETE FROM person_link WHERE tenant_id = $1', [TENANT]);
+  await pool.query('DELETE FROM person_migration WHERE tenant_id = $1', [TENANT]);
+  await pool.query('DELETE FROM person WHERE tenant_id = $1', [TENANT]);
   await pool.query('DELETE FROM mapping_link WHERE tenant_id = $1', [TENANT]);
   await pool.query('DELETE FROM mailbox_mapping WHERE tenant_id = $1', [TENANT]);
   await pool.query('DELETE FROM mailbox WHERE tenant_id = $1', [TENANT]);
@@ -52,6 +59,12 @@ beforeAll(async () => {
     `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, status) VALUES ($1, $2, $3, 'paused')`,
     [MAPPING, TENANT, BOX],
   );
+  await pool.query(`INSERT INTO person (id, tenant_id, display_name) VALUES ($1, $2, 'Anna')`, [PERSON, TENANT]);
+  await pool.query('INSERT INTO person_migration (mapping_id, person_id, tenant_id) VALUES ($1, $2, $3)', [
+    MAPPING,
+    PERSON,
+    TENANT,
+  ]);
 });
 
 afterAll(async () => {
@@ -63,7 +76,7 @@ describe('two issues at once, for an organisation that may hold one live grant l
   it('makes the second wait for the first, count its link, and be refused', async () => {
     const input = {
       tenantId: TENANT,
-      mappingId: MAPPING,
+      personId: PERSON,
       purpose: 'grant' as const,
       createdBy: 'one-at-a-time',
       expiresAt: expiryFromDays(7),
@@ -74,7 +87,7 @@ describe('two issues at once, for an organisation that may hold one live grant l
     const firstHasWritten = new Promise<void>((resolve) => (written = resolve));
 
     const first = withTenant(pool, TENANT, async (db) => {
-      const outcome = await issueWithinTheLimit(db, input);
+      const outcome = await issuePersonLinkWithinTheLimit(db, input);
       written();
       // Its link is written, and not yet committed.
       await held;
@@ -82,7 +95,7 @@ describe('two issues at once, for an organisation that may hold one live grant l
     });
     await firstHasWritten;
     let secondAnswered = false;
-    const second = withTenant(pool, TENANT, (db) => issueWithinTheLimit(db, input)).finally(() => {
+    const second = withTenant(pool, TENANT, (db) => issuePersonLinkWithinTheLimit(db, input)).finally(() => {
       secondAnswered = true;
     });
 
@@ -96,7 +109,7 @@ describe('two issues at once, for an organisation that may hold one live grant l
     expect(a.kind).toBe('issued');
     expect(b).toMatchObject({ kind: 'at_the_limit', live: 1, allowed: { limit: 1 } });
     const { rows } = await pool.query(
-      `SELECT count(*)::int AS n FROM mapping_link WHERE tenant_id = $1 AND purpose = 'grant'`,
+      `SELECT count(*)::int AS n FROM person_link WHERE tenant_id = $1 AND purpose = 'grant'`,
       [TENANT],
     );
     expect(rows).toEqual([{ n: 1 }]);

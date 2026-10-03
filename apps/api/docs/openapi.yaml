@@ -2762,85 +2762,36 @@ paths:
       - $ref: '#/components/parameters/MappingId'
     post:
       tags: [Grant links]
-      summary: Issue a grant link, and see it once
+      summary: Refused - a link is made per person now
       description: |
-        Mints a mapping-scoped bearer link so the person being migrated can
-        grant access to their own account without an Ownpace account, a
-        password or a session. The `url` in this response is the ONLY time it
-        exists: the table holds a hash, so nothing can show it again. A lost
-        link is re-issued, not recovered.
+        Issued nothing since the owner's answer of 2026-10-03 (*"yes, replace
+        the per-migration links"*; ADR-0035, amended 2026-09-29). A link is the
+        person's: one grant link and one progress link for all of their
+        migrations, made on their page (`POST /api/people/{personId}/links`).
 
-        **You distribute it.** Ownpace sends no email and stores no address for
-        the recipient — the person who decides who gets access is the person
-        who already knows who they are.
+        Answers 409 `links_are_per_person`, naming the person this migration
+        belongs to (with `personId`, for a page to link to), or saying that it
+        belongs to nobody yet and is given a person first. Nothing is written.
+        The door stays so that a bookmark, a script or an older page that
+        presses it is told where links are made now.
 
-        `expiryDays` is your choice of 1, 7 or 30, defaulting to 7. Expiry
-        bounds when the flow may BEGIN; revocation stops everything, including
-        a consent already in flight.
-
-        Refuses before writing anything when the link could not succeed: no
-        source connection, a source that is not one of the four Google kinds,
-        a source with no client id or secret stored, or a deployment with no
-        `WEB_URL` to build the address from. Each refusal names what to
-        configure — the alternative is an error landing on the one person who
-        cannot fix it.
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                expiryDays: { type: integer, enum: [1, 7, 30], default: 7 }
+        A migration's link already sent is honoured until it expires, listed
+        by `GET` below and revocable with `DELETE`.
       responses:
-        '201':
-          description: The link, said once.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  id: { type: string, format: uuid }
-                  url: { type: string }
-                  expiresAt: { type: string, format: date-time }
-                  expiryDays: { type: integer }
-                  distribution: { type: string }
-        '400': { description: '`expiryDays` was not one of the offered values.' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: |
-            Well-formed and permitted, but this migration or deployment cannot
-            support a grant link yet. `error` is one of `no_source_connection`,
-            `source_not_google`, `no_named_account`, `no_target`,
-            `nothing_to_ask`, `client_not_configured`, `restricted_scope` or
-            `web_url_unset`; `reason` names the remedy. Nothing was written.
-            `no_named_account`: the grant is bound to the account the migration
-            reads, so a migration that names none gets no link.
-
-            The consent runs against the source connection's own Google client,
-            or the deployment's (`GOOGLE_OAUTH_CLIENT_ID`/`_SECRET`) where the
-            connection stores none — for Gmail and Drive only where
-            `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted` is declared. A Google
-            account source asks for the data types the migration copies.
-
-            Or `conditions_not_accepted` (`ConditionsNotAccepted`), for a grant
-            link only: while the deployment asks, the caller has not yet
-            accepted the current version of each text (workplan 0139 T3). A
-            grant link is the door to the access a family member then gives
-            through it, so it waits for the texts as the doors that store a
-            credential do. A progress link grants nothing and is not asked
-            about.
+          description: A link is made per person now. Nothing was written.
           content:
             application/json:
               schema:
-                anyOf:
-                  - type: object
-                    properties:
-                      error: { type: string }
-                      reason: { type: string }
-                  - { $ref: '#/components/schemas/ConditionsNotAccepted' }
+                type: object
+                required: [error, reason]
+                properties:
+                  error: { type: string, enum: [links_are_per_person] }
+                  reason: { type: string }
+                  personId: { type: string, format: uuid }
     get:
       tags: [Grant links]
       summary: The links that exist, and their state

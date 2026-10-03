@@ -349,7 +349,8 @@ live in [README.md](./README.md), the register.
 ## [ADR-0035: Who signs in, and who just gets a link](./0035-who-signs-in-and-who-gets-a-link.md)
 
 - **Owners sign in; migrated people get links, not accounts** — and the owner decides who gets a link to manage and **grant** their own migration (restated 2026-08-19).
-- **The link is per person** (owner, 2026-09-29; ADR-0050's person): one grant link and one progress link for all of a person's migrations, a grant asked and bound per Google account, and covering only the migrations the page showed. Built by workplan 0153 T5 (b); until then links are per migration, and a per-migration link already sent is honoured until it expires.
+- **The link is per person** (owner, 2026-09-29; ADR-0050's person): one grant link and one progress link for all of a person's migrations, a grant asked and bound per Google account, and covering only the migrations the page showed. Built by workplan 0153 T5 (b).
+- **It replaces the per-migration link** (owner, 2026-10-03): no migration's page issues one any more. A per-migration link already sent is honoured until it expires, listed on the migration's page and revocable there, and a migration that belongs to nobody is given a person first (*Who is this for?*).
 - Only the migrated person holds their own source credential, never the organisation; admins see their whole family/organisation's progress.
 - `tenant_member` rows sign in; mappings get links. Organisation-held credentials (Box CCG, app-only Graph, DWD) **cannot be narrowed** — stated, not hidden.
 - Formally accepted 2026-09-20 (owner: "yes on all 3"); the 1/7/30-day link expiry presets stand.

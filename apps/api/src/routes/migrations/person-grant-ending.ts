@@ -59,10 +59,19 @@ import {
   connectedThroughPersonLink,
   issuePersonLink,
   readOrganisationClosure,
+  readPersonOfMigration,
   spendPersonLink,
 } from '@openmig/managed';
 import { withTenantDb } from '../../middleware/auth.ts';
-import { GRANT_ACTION, GRANT_ACTOR, GRANT_REFUSED_ACTION, type GrantedAccess, type GrantStoreResult } from './grant-ending.ts';
+import {
+  GRANT_ACTION,
+  GRANT_ACTOR,
+  GRANT_REFUSED_ACTION,
+  mintProgressLink,
+  type GrantedAccess,
+  type GrantStoreResult,
+  type GrantTarget,
+} from './grant-ending.ts';
 import { namedAccount, readGrantRows, whereFromAndTo } from './grant-subject.ts';
 import { progressPageUrl, type ProgressPageUrl } from './progress-page-url.ts';
 import { readPersonGrantSubject } from './person-grant-subject.ts';
@@ -273,4 +282,34 @@ export async function mintPersonProgressLink(
     log.error('[api] minting a person’s progress link after a grant failed:', error);
     return null;
   }
+}
+
+/**
+ * The progress page a MIGRATION'S link hands over when its grant lands, now
+ * that the link is the person's (ADR-0035, amended 2026-09-29; the owner,
+ * 2026-10-03: *"yes, replace the per-migration links"*). A migration's link
+ * sent before that is honoured until it expires, and the page it ends on is
+ * the person's when the migration has one, since that is the page there is now
+ * (`mintPersonProgressLink`). A migration that belongs to nobody hands over its
+ * own, as before (`mintProgressLink`). Null on any failure, logged, as both
+ * of those are: a page that could not be minted never undoes a consent.
+ */
+export async function mintProgressLinkForMigration(
+  source: Pool | LedgerDriver,
+  target: GrantTarget,
+): Promise<ProgressPageUrl | null> {
+  let personId: string | undefined;
+  try {
+    personId = (
+      await withTenantDb(target.tenantId, source, (db) =>
+        readPersonOfMigration(db, target.tenantId, target.mappingId),
+      )
+    )?.id;
+  } catch (error) {
+    log.error('[api] reading whose migration a granted link was for failed:', error);
+    return null;
+  }
+  return personId
+    ? mintPersonProgressLink(source, { tenantId: target.tenantId, personId })
+    : mintProgressLink(source, target);
 }

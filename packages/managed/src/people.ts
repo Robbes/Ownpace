@@ -91,6 +91,26 @@ export async function listPeople(db: PgDatabase, tenantId: string): Promise<Peop
   );
 }
 
+/**
+ * Who a migration is for: the person it belongs to, by id and name, or
+ * undefined when it belongs to nobody (or is not this organisation's). At most
+ * one person holds a migration (`person_migration`'s key). A link is made on
+ * that person's page (ADR-0035, amended 2026-09-29), so the migration's own
+ * doors name them.
+ */
+export async function readPersonOfMigration(
+  db: PgDatabase,
+  tenantId: string,
+  mappingId: string,
+): Promise<{ readonly id: string; readonly displayName: string } | undefined> {
+  const [row] = await db
+    .select({ id: person.id, displayName: person.displayName })
+    .from(personMigration)
+    .innerJoin(person, and(eq(person.id, personMigration.personId), eq(person.tenantId, personMigration.tenantId)))
+    .where(and(eq(personMigration.mappingId, mappingId), eq(personMigration.tenantId, tenantId)));
+  return row;
+}
+
 /** One person with their migrations, or undefined when the organisation has nobody by that id. */
 export async function readPerson(db: PgDatabase, tenantId: string, personId: string): Promise<Person | undefined> {
   const [row] = await db

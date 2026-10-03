@@ -29,7 +29,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import express from 'express';
 import request from 'supertest';
 import { join } from 'node:path';
-import { pgliteDriver, runMigrations } from '@openmig/ledger';
+import { expiryFromDays, issueMappingLink, pgliteDriver, runMigrations, withTenant } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
 import { runManagedMigrations } from '@openmig/managed';
 import { SecretStore } from '@openmig/core/secret-store';
@@ -240,6 +240,7 @@ beforeEach(async () => {
   revokeStatus = 200;
   revoked = [];
   await q('DELETE FROM person_link');
+  await q('DELETE FROM mapping_link');
   await q('UPDATE mailbox_mapping SET source_secret_ref = NULL, grant_withdrawn_at = NULL');
   await q('DELETE FROM audit_log');
 });
@@ -280,6 +281,31 @@ describe('a person’s progress page', () => {
     const page = await request(app).get(`/api/view/${url![1]}`);
     expect(page.status).toBe(200);
     expect(page.body.accounts.map((a: { grant: { state: string } }) => a.grant.state)).toEqual(['granted', 'none']);
+  });
+
+  it('is what a migration’s link sent before hands over, once the migration is theirs (the owner, 2026-10-03)', async () => {
+    // A migration's link sent before the person's replaced it is honoured
+    // until it expires; the progress page it ends on is the person's, since
+    // that is the page there is now.
+    const old = await withTenant(driver, TENANT, (db) =>
+      issueMappingLink(db, { tenantId: TENANT, mappingId: CAL, purpose: 'grant', createdBy: 'pat', expiresAt: expiryFromDays(7) }),
+    );
+    signsInAs = 'anna@gmail.com';
+    const started = await request(app).post(`/api/grant/${old.token}/google/authorize`).send({});
+    expect(started.status, JSON.stringify(started.body)).toBe(200);
+    const url = new URL(started.body.url);
+    askedScope = url.searchParams.get('scope')!;
+    askedClient = url.searchParams.get('client_id')!;
+    const ended = await request(app)
+      .get('/api/migrations/google/callback')
+      .query({ state: url.searchParams.get('state')!, code: 'c' });
+
+    expect(ended.status, ended.text).toBe(200);
+    expect(ended.text).toMatch(/https:\/\/app\.example\/view\/p\./);
+    expect(await q(`SELECT id FROM mapping_link WHERE purpose = 'view'`)).toEqual([]);
+    expect((await q(`SELECT created_by FROM person_link WHERE purpose = 'view'`)).map((r) => r.created_by)).toEqual([
+      'granted-by-link',
+    ]);
   });
 
   it('is not a grant link, and a grant link is not it', async () => {

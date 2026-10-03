@@ -9,25 +9,44 @@
  *    secret;
  *  - `DELETE /api/people/:personId/links/:linkId` is the kill switch.
  *
- * They are `link-routes.ts`'s, for a person instead of a migration: owner or
- * admin, the texts accepted before a grant link is made (0139 T3), the
- * deployment's web address known, the live-link limit held under the same lock
- * that holds a migration's links, and the owner's own expiry. A grant link is
- * refused while nothing of the person's can be granted through it, with each
- * migration's own reason, so a link that works at issue is one the grant page
- * can serve (`person-grant-subject.ts` is both halves' reading).
+ * They were `link-routes.ts`'s for a migration, and are the only doors that
+ * issue a link since the owner's answer of 2026-10-03 (*"yes, replace the
+ * per-migration links"*): owner or admin, the texts accepted before a grant
+ * link is made (0139 T3), the deployment's web address known, the live-link
+ * limit held under the same lock that still counts a migration's links sent
+ * before, and the owner's own expiry. A grant link is refused while nothing of
+ * the person's can be granted through it, with each migration's own reason, so
+ * a link that works at issue is one the grant page can serve
+ * (`person-grant-subject.ts` is both halves' reading).
  *
  * **When every account of theirs is connected**, a grant link asks each of
  * them again (`asksAgain`, managed migration 0036) instead of being refused: a
- * connection can stop working while its token is still held, and the person's
- * link is to be the only one made (the owner, 2026-10-03: *"yes, replace the
- * per-migration links"*), so it is the one that has to be able to ask.
+ * connection can stop working while its token is still held, and since that
+ * answer no migration's own link can be made to ask for it instead.
  *
  * **A progress link too** (slice 3), now that the person's progress page
  * exists (`person-progress.ts`): `link-routes.ts`'s rule was that a purpose no
  * page honours is a link that opens nothing. As for a migration's, a progress
  * link grants nothing, so the texts are not asked and the limit does not count
  * it; only the deployment's address is.
+ *
+ * ## The owner sends it, Ownpace never does
+ *
+ * ADR-0035: *"the admin distributes the link, we never do."* So issuing returns
+ * a URL to the owner's own screen and sends nothing: no email, no address
+ * stored. Ownpace never learns the address, so it cannot leak it, and the
+ * person deciding who gets access already knows who they are.
+ *
+ * ## Shown once
+ *
+ * The URL is in the `POST` response once. The table holds a sha256, so `GET`
+ * answers with states and dates and could not show a URL. An owner who loses a
+ * link revokes it and makes another.
+ *
+ * ## The refusal comes first
+ *
+ * Every reason a link could not work is checked before the row is written, so
+ * a refusal leaves nothing to clean up and no dead link to revoke.
  */
 
 import { Router } from 'express';
@@ -64,7 +83,12 @@ const MAY_ISSUE = ['owner', 'admin'] as const;
 /** An id's shape, checked before it reaches a uuid column (`people.ts`'s). */
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Both purposes, and the expiry checked against the purpose, as `link-routes.ts` does. */
+/**
+ * Both purposes, and the expiry checked against the purpose. The two lifetimes
+ * differ by design (ADR-0035): a grant link's 1, 7 or 30 days on a progress
+ * link would re-impose the credential's window on the page meant to outlive
+ * it. `purpose` defaults to `'grant'`.
+ */
 const IssueSchema = z
   .object({
     purpose: z.enum(MAPPING_LINK_PURPOSES).optional(),
@@ -200,13 +224,17 @@ router.post(
       res.status(201).json({
         id: issued.id,
         purpose,
-        // The path is the purpose's own word, as for a migration's link.
+        // The one time this exists in a response. The path is the purpose's
+        // own word, so neither page is reached through the other's address,
+        // and a token pasted into the wrong one is refused by the middleware.
         url: `${base}/${purpose}/${issued.token}`,
         expiresAt: issued.expiresAt.toISOString(),
         expiryDays: days,
         // Said, so the owner's screen can tell them why a link was made for
         // somebody whose accounts all read as connected.
         asksAgain: asksAgain !== null,
+        // In the payload, not only on the screen, so ADR-0035's division of
+        // labour survives a redesign.
         distribution:
           'Send this to the person yourself — Ownpace does not email it, and cannot show it ' +
           'to you again. If it goes astray, revoke it and issue another.',
