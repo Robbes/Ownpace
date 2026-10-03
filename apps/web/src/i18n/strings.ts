@@ -1000,7 +1000,7 @@ const en = {
   'lifecycle.paused':
     'This migration has not started, so nothing has been copied and nothing can have diverged.',
   'hub.fallbackTitle': 'Migration',
-  'hub.orderIntro': 'The screens below are in cutover order; work them top to bottom.',
+  'hub.orderIntro': 'Work them from the top, in this order.',
   'hub.noId': 'No mapping id in the address.',
   'hub.detailError': "Could not read this migration's details — the screens below still work.",
   'hub.grantWithdrawn': 'On {date} the person being migrated withdrew their access. Nothing reads their account now.',
@@ -1614,6 +1614,11 @@ const en = {
   'person.step.check.passed': 'Passed',
   'person.step.check.partly': 'Passed for {n} of {total}',
   'person.step.check.notYet': 'Not passed yet',
+  'person.step.check.notRun': 'Not run yet',
+  'person.step.check.running': 'Running now',
+  'person.step.check.couldNotRun': 'Could not run {when}',
+  'person.step.check.notPassedWhen': 'Did not pass {when}',
+  'person.step.check.passedWhen': 'Passed {when}',
   'person.step.confirmed.notYet': 'After the check',
   'person.step.confirmed.done': 'Ready to read',
   'person.step.finish.notYet': 'Switch mail delivery, then end',
@@ -3801,8 +3806,7 @@ const nl: Record<keyof typeof en, string> = {
   'lifecycle.paused':
     'Deze migratie is niet gestart, dus er is niets gekopieerd en niets kan zijn afgeweken.',
   'hub.fallbackTitle': 'Migratie',
-  'hub.orderIntro':
-    'De schermen hieronder staan in cutover-volgorde; werk ze van boven naar beneden af.',
+  'hub.orderIntro': 'Werk ze van boven af, in deze volgorde.',
   'hub.noId': 'Geen mapping-id in het adres.',
   'hub.detailError':
     'De details van deze migratie konden niet worden gelezen — de schermen hieronder werken nog.',
@@ -4330,6 +4334,11 @@ const nl: Record<keyof typeof en, string> = {
   'person.step.check.passed': 'Geslaagd',
   'person.step.check.partly': 'Geslaagd voor {n} van {total}',
   'person.step.check.notYet': 'Nog niet geslaagd',
+  'person.step.check.notRun': 'Nog niet uitgevoerd',
+  'person.step.check.running': 'Nu bezig',
+  'person.step.check.couldNotRun': 'Kon {when} niet worden uitgevoerd',
+  'person.step.check.notPassedWhen': 'Niet geslaagd {when}',
+  'person.step.check.passedWhen': 'Geslaagd {when}',
   'person.step.confirmed.notYet': 'Na de verificatie',
   'person.step.confirmed.done': 'Klaar om te lezen',
   'person.step.finish.notYet': 'Zet de e-mailbezorging om en rond dan af',

@@ -15,9 +15,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { STRINGS } from '../i18n/strings.ts';
 
-const { mappingApiGet, fetchStatusMock, editionFlag } = vi.hoisted(() => ({
+const { mappingApiGet, fetchStatusMock, fetchAttentionMock, fetchProgressMock, editionFlag } = vi.hoisted(() => ({
   mappingApiGet: vi.fn(),
   fetchStatusMock: vi.fn(),
+  fetchAttentionMock: vi.fn(),
+  fetchProgressMock: vi.fn(),
   editionFlag: { selfhost: false },
 }));
 
@@ -37,12 +39,17 @@ vi.mock('../services/edition', () => ({
 vi.mock('../services/operating-service', () => ({
   fetchRuns: vi.fn().mockResolvedValue({ runs: [] }),
   fetchStatus: fetchStatusMock,
+  // The steps' counts (0154 T4): what waits in each queue.
+  fetchAttention: fetchAttentionMock,
   // The links panel asks whose migration this is, since a link is the
   // person's (0153 T5 (b)): nobody's, here.
   fetchPeople: vi.fn().mockResolvedValue({ people: [], unassigned: [] }),
   createPerson: vi.fn(),
   addMigrationToPerson: vi.fn(),
 }));
+
+// And the check, from the progress read a person's lines read (0154 T1 (b)).
+vi.mock('../services/progress-service', () => ({ fetchProgress: fetchProgressMock }));
 
 import MappingDetail, {
   progressRefetchInterval,
@@ -94,24 +101,35 @@ beforeEach(() => {
   editionFlag.selfhost = false;
   mappingApiGet.mockResolvedValue(aMapping());
   fetchStatusMock.mockResolvedValue({ status: 'ok', mappings: [] });
+  fetchAttentionMock.mockResolvedValue({ mappings: [] });
+  fetchProgressMock.mockResolvedValue({ mappings: [{ mappingId: 'acme-mail', domains: [], check: { state: 'not_run' } }] });
 });
+
+const step = (key: string) => document.querySelector(`[data-step="${key}"]`) as HTMLElement;
 
 describe('the per-mapping navigation', () => {
   it('links every operating screen for THIS mapping, in the cutover order', async () => {
     renderHub();
 
-    // Numbered since 0034 T4 — the list IS the cutover sequence and says so.
-    expect(await screen.findByText('1. Deletions')).toBeInTheDocument();
-    expect(screen.getByText(/in cutover order/)).toBeInTheDocument();
+    // Numbered since 0034 T4 — the list IS the cutover sequence and says so,
+    // and since 0154 T4 it is one list with a person's page.
+    expect(await screen.findByRole('heading', { name: 'Before you switch' })).toBeInTheDocument();
+    expect(screen.getByText('Work them from the top, in this order.')).toBeInTheDocument();
+    const keys = [...document.querySelectorAll('[data-step]')].map((el) => el.getAttribute('data-step'));
+    expect(keys).toEqual(['deletions', 'moves', 'failures', 'sharing', 'check', 'confirmed', 'finish']);
+    expect(step('deletions').textContent).toMatch(/^1\.Deletions/);
+    expect(step('finish').textContent).toMatch(/^7\.Finish/);
     const expected: Record<string, string> = {
       Deletions: '/mappings/acme-mail/deletions',
       Moves: '/mappings/acme-mail/moves',
       Failures: '/mappings/acme-mail/failures',
       Check: '/mappings/acme-mail/verify',
+      Sharing: '/mappings/acme-mail/sharing',
+      Confirmed: '/mappings/acme-mail/confirmed',
       Finish: '/mappings/acme-mail/finish',
     };
     for (const [name, href] of Object.entries(expected)) {
-      const link = screen.getByRole('link', { name: new RegExp(name) });
+      const link = screen.getByRole('link', { name });
       expect(link.getAttribute('href')).toBe(href);
     }
   });
@@ -131,6 +149,111 @@ describe('the per-mapping navigation', () => {
     expect(screen.getByRole('link', { name: /Finish/ }).getAttribute('href')).toBe(
       '/mappings/acme-mail/finish',
     );
+  });
+});
+
+/**
+ * EACH STEP'S COUNT AND STATE, FOR THIS MIGRATION (workplan 0154 T4): the
+ * person's page's list, of one migration. The queues come from the read the
+ * queue pages share, the check from the progress read, and a step whose read
+ * failed says so and claims no state (hard rule 9).
+ */
+describe('the steps before a switch, with their counts (0154 T4)', () => {
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+  const attention = (over: Record<string, unknown> = {}) => ({
+    mappings: [
+      {
+        mappingId: 'acme-mail',
+        pendingDecisions: 0,
+        deletionsWaiting: 0,
+        movesWaiting: 0,
+        failuresWaiting: 0,
+        readyForCutover: false,
+        autoApplied: 0,
+        sharingOpen: 0,
+        ...over,
+      },
+    ],
+  });
+
+  it('says what waits in each queue, with its state in words', async () => {
+    fetchAttentionMock.mockResolvedValue(attention({ deletionsWaiting: 3, failuresWaiting: 12, sharingOpen: 4 }));
+    renderHub();
+    await vi.waitFor(() => expect(step('deletions').textContent).toContain('3 to decide'));
+    expect(step('deletions').textContent).toContain('Needs you');
+    expect(step('moves').textContent).toContain('None');
+    expect(step('moves').textContent).toContain('Done');
+    expect(step('failures').textContent).toContain('12 could not be copied');
+    // Sharing is worked after finishing.
+    expect(step('sharing').textContent).toContain('4 to go through');
+    expect(step('sharing').textContent).toContain('Not yet');
+    expect(step('finish').textContent).toContain('Switch mail delivery, then end');
+  });
+
+  it('says the check as it last ran, and when, and Confirmed follows it', async () => {
+    fetchProgressMock.mockResolvedValue({
+      mappings: [{ mappingId: 'acme-mail', domains: [], check: { state: 'passed', at: daysAgo(2) } }],
+    });
+    renderHub();
+    await vi.waitFor(() => expect(step('check').textContent).toContain('Passed 2 days ago'));
+    expect(step('check').textContent).toContain('Done');
+    expect(step('confirmed').textContent).toContain('Ready to read');
+  });
+
+  it('says a check nobody ran as not run, never as one that failed', async () => {
+    renderHub();
+    await vi.waitFor(() => expect(step('check').textContent).toContain('Not run yet'));
+    expect(step('check').textContent).toContain('Not yet');
+    expect(step('confirmed').textContent).toContain('After the check');
+  });
+
+  it('says a check that could not run as that, with when', async () => {
+    fetchProgressMock.mockResolvedValue({
+      mappings: [{ mappingId: 'acme-mail', domains: [], check: { state: 'could_not_run', at: daysAgo(1) } }],
+    });
+    renderHub();
+    await vi.waitFor(() => expect(step('check').textContent).toContain('Could not run yesterday'));
+  });
+
+  it('says a count could not be read, and claims no state, where its read failed', async () => {
+    fetchAttentionMock.mockRejectedValue(new Error('the database is unreachable'));
+    fetchProgressMock.mockRejectedValue(new Error('the database is unreachable'));
+    renderHub();
+    await vi.waitFor(() => expect(step('deletions').textContent).toContain('Could not be read'));
+    for (const key of ['deletions', 'moves', 'failures', 'sharing', 'check', 'confirmed']) {
+      expect(step(key).textContent, key).toContain('Could not be read');
+      expect(step(key).textContent, key).not.toMatch(/Done|Needs you|Not yet/);
+    }
+    // The links are the deliverable, whatever loads.
+    expect(screen.getByRole('link', { name: 'Check' }).getAttribute('href')).toBe('/mappings/acme-mail/verify');
+  });
+
+  it('says Finish could not be read when the migration itself could not be', async () => {
+    mappingApiGet.mockRejectedValue(new Error('boom'));
+    renderHub();
+    await vi.waitFor(() => expect(step('finish').textContent).toContain('Could not be read'));
+    expect(step('finish').textContent).not.toMatch(/Done|Needs you|Not yet/);
+  });
+
+  it('says nothing yet while the counts are still being read', async () => {
+    fetchAttentionMock.mockReturnValue(new Promise(() => undefined));
+    renderHub();
+    await screen.findByRole('heading', { name: 'Acme mail' });
+    expect(step('failures').textContent).not.toMatch(/Could not be read|None/);
+  });
+
+  it('selfhost: reads the lifecycle from /status, and the check from its last report', async () => {
+    editionFlag.selfhost = true;
+    fetchStatusMock.mockResolvedValue({
+      status: 'ok',
+      mappings: [{ mappingId: 'acme-mail', migrationStatus: 'cutover', domains: [] }],
+    });
+    renderHub();
+    // In its cutover: past its check, and Finish needs the person.
+    await vi.waitFor(() => expect(step('finish').textContent).toContain('Needs you'));
+    expect(step('check').textContent).toContain('Passed');
+    expect(step('check').textContent).toContain('Done');
+    expect(mappingApiGet).not.toHaveBeenCalled();
   });
 });
 
@@ -259,7 +382,7 @@ describe('the export-policy panel', () => {
     renderHub();
     // The hub's own content still arrives, so this is "the panel is not here"
     // rather than "nothing rendered".
-    expect(await screen.findByText(/cutover order/i)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Before you switch' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Google Docs')).toBeNull();
   });
 });
@@ -276,7 +399,7 @@ describe('the schedule panel (the owner, 2026-09-28)', () => {
   it('is not on the appliance, whose schedule is its owner’s mapping file', async () => {
     editionFlag.selfhost = true;
     renderHub();
-    expect(await screen.findByText(/cutover order/i)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Before you switch' })).toBeInTheDocument();
     expect(screen.queryByText('Sync schedule')).toBeNull();
     expect(mappingApiGet).not.toHaveBeenCalled();
   });
@@ -293,7 +416,7 @@ describe('Pause, where a pause is possible (0128)', () => {
     mappingApiGet.mockResolvedValue(aMapping({ status: 'continuous' }));
     renderHub();
     // The page has read the migration: its state chip is there.
-    expect(await screen.findByText(/cutover order/i)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Before you switch' })).toBeInTheDocument();
     await screen.findByText('Acme mail');
     expect(screen.queryByRole('button', { name: /^Pause/ })).not.toBeInTheDocument();
   });

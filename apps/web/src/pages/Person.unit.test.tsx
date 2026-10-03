@@ -113,6 +113,14 @@ const renderAt = (path = '/people/p-anna') =>
 
 const step = (key: string) => document.querySelector(`[data-step="${key}"]`) as HTMLElement;
 
+/** The progress read with these checks and no data types, as managed's route answers it. */
+const checksRead = (checks: Record<string, object>) =>
+  apiGet.mockImplementation(async (url: string) => {
+    if (url !== '/migrations/progress') throw new Error(`unexpected ${url}`);
+    return { data: { mappings: Object.entries(checks).map(([mappingId, check]) => ({ mappingId, domains: [], check })) } };
+  });
+const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+
 beforeEach(() => {
   vi.resetAllMocks();
   edition.selfhost = false;
@@ -156,8 +164,10 @@ describe("a person's page (0153 T5)", () => {
   });
 
   it('lists the steps before they switch, in cutover order, summed, with a state in words', async () => {
+    checksRead({ 'm-mail': { state: 'not_run' }, 'm-files': { state: 'not_passed', at: daysAgo(1) } });
     renderAt();
     await screen.findByRole('heading', { name: 'Before you switch' });
+    await vi.waitFor(() => expect(step('check').textContent).not.toContain('Could not be read'));
     const keys = [...document.querySelectorAll('[data-step]')].map((el) => el.getAttribute('data-step'));
     expect(keys).toEqual(['deletions', 'moves', 'failures', 'sharing', 'check', 'confirmed', 'finish']);
 
@@ -210,6 +220,42 @@ describe("a person's page (0153 T5)", () => {
     renderAt();
     await screen.findByRole('heading', { name: 'Before you switch' });
     expect(within(step('check')).getByRole('link', { name: 'Check' })).toHaveAttribute('href', '/mappings/m-mail/verify');
+  });
+
+  it('says the check of one migration as it last ran, and when (0154 T4)', async () => {
+    peopleMock.mockResolvedValue({ people: [person('p-anna', 'Anna Jansen', [{ id: 'm-mail', status: 'active' }])], unassigned: [] });
+    checksRead({ 'm-mail': { state: 'passed', at: daysAgo(2) } });
+    renderAt();
+    await vi.waitFor(() => expect(step('check').textContent).toContain('Passed 2 days ago'));
+    expect(step('check').textContent).toContain('Done');
+    expect(step('confirmed').textContent).toContain('Ready to read');
+  });
+
+  it('says not run, rather than not passed, when no check ran on any of them (0154 T4)', async () => {
+    checksRead({ 'm-mail': { state: 'not_run' }, 'm-files': { state: 'not_run' } });
+    renderAt();
+    await vi.waitFor(() => expect(step('check').textContent).toContain('Not run yet'));
+    expect(step('check').textContent).toContain('Not yet');
+  });
+
+  /** Hard rule 9: a check nobody could ask about is not one that never ran. */
+  it('says the check could not be read, and claims no state, when the progress read failed', async () => {
+    renderAt();
+    await screen.findByRole('heading', { name: 'Before you switch' });
+    await vi.waitFor(() => expect(step('check').textContent).toContain('Could not be read'));
+    expect(step('check').textContent).not.toContain('Not yet');
+    expect(step('confirmed').textContent).toContain('Could not be read');
+    // The queues have a read of their own, and say what it found.
+    expect(step('deletions').textContent).toContain('2 to decide');
+  });
+
+  it('says nothing yet while what waits is still being read, rather than that it could not be', async () => {
+    attentionMock.mockReturnValue(new Promise(() => undefined));
+    renderAt();
+    await screen.findByRole('heading', { name: 'Before you switch' });
+    expect(step('deletions').textContent).not.toContain('Could not be read');
+    expect(step('deletions').textContent).not.toContain('None');
+    expect(within(step('deletions')).getByRole('link', { name: 'Anna mail' })).toHaveAttribute('href', '/mappings/m-mail/deletions');
   });
 
   it('says a count could not be read, and claims no state, when what waits cannot be read', async () => {

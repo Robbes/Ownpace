@@ -4,12 +4,46 @@
 
 ## Status — 2026-10-03 (update this block at the end of every session)
 
+**2026-10-03, night: T4 is built: a migration's page lists its steps as a person's page does.**
+The seven cards on a migration's page are one numbered list. It is the list a person's page
+draws, now one component (`CutoverSteps`), so the two cannot order, name or count a step two
+ways. Each row has its count, its state in words and the step's own line, and its name opens the
+step's page.
+
+- **The check says what it last did** (`cutover-steps.ts`, from the progress read of T1 (b)):
+  *Not run yet*, *Running now*, *Could not run yesterday*, *Did not pass yesterday*, *Passed 2
+  days ago*. Until now the person's page could only say *Not passed yet*: its read said *ready to
+  finish* only for a migration already in its cutover, so a passed check, a failed one and none
+  at all read alike.
+  - Of a person's several: how many passed, and *Not run yet* only when none of them ran.
+  - A migration in or past its cutover has passed it, with its day where the read still has it.
+    The appliance holds no report after a restart.
+  - A migration the progress read does not list is unread, never *not run* (hard rule 9).
+- **Each row rests on its own read.** The queues rest on `GET /api/attention`. The check and
+  *Confirmed* rest on the progress read. *Finish* and *Sharing*'s state rest on the migration's
+  lifecycle, which on the migration's page is its detail, or the appliance's `/status`.
+  - A read that failed says *Could not be read* on the rows that rest on it, and nowhere else.
+  - A read still on its way says nothing. The person's page used to say *Could not be read*
+    while it loaded.
+- **On a phone** the row is two columns, the number and the rest, so a count or a state that
+  wraps stays under the step's name.
+- *Work them from the top, in this order.* replaces *The screens below are in cutover order*.
+  The steps' glossary row now lists the check's words.
+- **Proved by:**
+  - `cutover-steps.unit.test.ts` (15);
+  - the migration page (+8, and the navigation case rewritten);
+  - the person page (+4).
+
+  **Mutations: eight of eight caught.** Walked in Chromium, English and Dutch, at 900 and 390
+  pixels: the migration page, with failures and a check that did not pass, and with a check that
+  passed; and Anna's page. No page or console errors, and no sideways scroll.
+
 **2026-10-03, night: *of about* is *~* (the owner).** *"change the 'of about' into '~'"*, and of
 the three forms put to them, *"18,234 of ~19,000"*. The row reads *18,234 of ~19,000* and *3.1 of
 ~3.4 GB*, in Dutch *18.234 van ~19.000* and *3,1 van ~3,4 GB*: the word *of* stays, so the tilde
 reads as *about* and never as a range. The glossary's row says so first.
 
-**2026-10-03, evening: T1 (b) and (d) are built for a person's card and page.** Each data type's
+**2026-10-03, evening: T1 (b) and (d) are built for a person's card and page, and merged in #1422.** Each data type's
 line has its own stage and one sentence under it: *18,234 of ~19,000 · last pass 2 minutes
 ago*, or *The check passed yesterday*.
 
@@ -189,10 +223,10 @@ of a move after it. The evening's answer puts everything before.
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 One line that says where a person's migrations are | 🟡 **(a) merged in #1326; (b) and (d) built for a person's card and page; (c) built by 0153 T3 (c); the migration's own page next; before the first invitation** | §3. A stage in plain words, derived from the states the server already reports. One sentence, and what needs the person. On the person's card, their page and each migration. Drawing: `wf-person-page.svg`. |
+| T1 One line that says where a person's migrations are | 🟡 **(a) merged in #1326; (b) and (d) merged in #1422 for a person's card and page; (c) built by 0153 T3 (c); the migration's own page next; before the first invitation** | §3. A stage in plain words, derived from the states the server already reports. One sentence, and what needs the person. On the person's card, their page and each migration. Drawing: `wf-person-page.svg`. |
 | T2 Totals: *of about how many* | ✅ **Merged in #1420: *"18,234 of ~19,000"*, a bar and the bytes, on each data type's row in both editions** | §3. Synced counts set against what discovery found, as a share and in bytes. *About*, because the source keeps changing. |
 | T3 Time left, as a range with its reason | 📋 **Proposed; before the first invitation** | §3. (a) Before Start, from the counts and the limits the product already knows (Gmail's 2.5 GB a day). (b) During the copy, from the rate of recent passes. Never a single number, and nothing when it cannot know. |
-| T4 The cutover steps with counts and state | 🟡 **The person's half built on 0153 T5's page (#1353); the migration page's half next; before the first invitation** | §3. The seven cards become one ordered list. Each has its count and *done*, *needs you* or *not yet*, summed for the move across its migrations. |
+| T4 The cutover steps with counts and state | ✅ **Built: one list on a migration's page and a person's, each step with its count and state in words, and the check as it last ran** | §3. The seven cards become one ordered list. Each has its count and *done*, *needs you* or *not yet*, summed for the move across its migrations. |
 | T5 The report of what arrived, as a page | 📋 **Proposed; before the first invitation** | §3. The completion report is rendered in the app, per migration and per move, and downloadable. The word *Markdown* leaves the button. |
 | T6 Internals out of the way | 📋 **Proposed; before the first invitation** | §3. The UUID, the kinds, the doubled address and the item hashes fold away. *Left as they are* says what it means. |
 | T7 An email when the first copy is in | 📋 **Decided by the owner 2026-09-28: one per person; before the first invitation** | §3. A milestone mail, *"Your mail is in your new system and is kept in step until you switch."* It is a new kind for 0030's email-only channel, so the owner decides. |
