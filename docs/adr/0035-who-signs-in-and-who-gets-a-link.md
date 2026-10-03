@@ -40,7 +40,7 @@
   (`withdraw-grant.ts`).
 - A link can be **reported** from either page to the Ownpace team's helpdesk or support mailbox,
   never to the organisation that asked; a reply address is optional (`link-reports.ts`).
-- **The provider's error text and item names follow whose data it is** (owner, 2026-10-03;
+- **The provider's error text and failing items' names follow whose data it is** (owner, 2026-10-03;
   decision 5): the progress page shows categories only; the owner sees them for accounts the
   organisation connected, and for one a person granted only the category and a reference
   (`whose-data.ts`).
@@ -215,6 +215,10 @@ action (`classifyFailure`). **The text follows whose data it is** (the owner, 20
   organisation cannot read this person's data — would otherwise leak through an error message.
   Support finds the full line by the reference, so the failure is surfaced, not masked (hard
   rule 9).
+- **The Deletions and Moves queues keep naming that person's files and folders** to the owner
+  (the owner, 2026-10-03: *"b"*): the owner is who decides on them, and a decision has to know
+  what it is about. This decision covers a failure's text and the failing items' names, not those
+  queues.
 
 The admin may **see, and nudge — never act on someone's behalf**: see who is stuck, re-issue a
 link, never hold the credential. That is the support burden this ADR buys, accepted knowingly.
@@ -323,6 +327,11 @@ pages** (as built) and **the text on the person's link** were the other two opti
 leaks a person's own data to their organisation, the second puts it on a link anyone can be
 forwarded.
 
+**The names off the Deletions and Moves queues too, with the person deciding on their own page**
+(asked 2026-10-03, once decision 5 was built). It would carry decision 4's promise into those
+queues, but it is a larger build and moves a decision the owner makes today; the owner chose to
+leave the queues as they are (*"b"*).
+
 ## Amendment log
 
 - **2026-08-17** — Decided by the owner in conversation, recorded as Proposed: only the migrated
@@ -372,6 +381,9 @@ forwarded.
 - **2026-10-03, after that** — The completion report withholds the text too: its JSON carried each
   data type's error verbatim. Found in review of the build; nothing was decided. Record:
   *Decision* 5.
+- **2026-10-03, after that** — The Deletions and Moves queues keep naming a person's files for the
+  owner, who decides on them (owner: *"b"*); decision 5 is a failure's text and names. Record:
+  *Decision* 5, and *Alternatives considered*.
 
 The full record, word for word as it read before this consolidation:
 [history/0035-who-signs-in-and-who-gets-a-link.md](./history/0035-who-signs-in-and-who-gets-a-link.md).
