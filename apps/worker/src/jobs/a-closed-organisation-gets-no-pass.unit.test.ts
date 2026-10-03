@@ -38,7 +38,7 @@ import type { Pool } from 'pg';
 import { createPgliteDb, runMigrations, type LedgerDriver } from '@openmig/ledger';
 import { BILLABLE_RUN_KINDS } from '@openmig/managed';
 import { FAILURE_WINDOW_MINUTES, SELF_HEALING_CATEGORIES } from '@openmig/orchestration/failing-backoff';
-import { PASS_RUNNING_STATES, asMappingId, asTenantId } from '@openmig/shared';
+import { PASS_RUNNING_STATES, UNREAD_NOTE_PREFIX, asMappingId, asTenantId } from '@openmig/shared';
 import { passStepBefore, whyThePassStops } from './stopping-a-pass.ts';
 import { finalSyncReport } from './final-sync.ts';
 
@@ -71,6 +71,7 @@ async function theTickStartsIt(): Promise<boolean> {
     FAILURE_WINDOW_MINUTES,
     [...BILLABLE_RUN_KINDS],
     [...PASS_RUNNING_STATES],
+    UNREAD_NOTE_PREFIX,
   ]);
   return rows.some((r) => r.id === MAPPING);
 }

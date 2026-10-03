@@ -203,23 +203,35 @@ const en = {
   // The tick-box beside that sentence. Named counts, never "some files": a
   // person who reads "3 items" goes hunting through their Drive.
   'confirm.refusedAck': 'I understand that {kinds} ({n} files) will not be copied.',
-  'applyFlag.readFailed': 'Could not read whether applying deletions is enabled:',
-  'applyFlag.on': 'Applying deletions is ON for this migration.',
-  'applyFlag.off': 'Applying deletions is OFF for this migration (the default).',
+  // The Deletions page's two switches (workplan 0156 T6). They shared a verb,
+  // "applying", and the owner read "Applying deletions is ON" as deletions
+  // happening by themselves. The first only lets the delete buttons work, one
+  // item at a time; the second removes moved files' old copies unattended.
+  // So the first says BY HAND and the second AUTOMATIC, and neither borrows
+  // the other's words.
+  'applyFlag.readFailed': 'Could not read whether deleting by hand is on:',
+  'applyFlag.on': 'Deleting by hand is ON for this migration.',
+  'applyFlag.off': 'Deleting by hand is OFF for this migration (the default).',
+  'applyFlag.onMeans': 'Nothing is removed until you press a delete button on an item.',
   'applyFlag.turnOff': 'Turn off',
   'applyFlag.refusesUntilOn':
     'The server refuses every delete button on this screen until it is turned on.',
   'applyFlag.config.pre': "On this appliance the value lives in the mapping's config file",
   'applyFlag.config.post': '; edit the file and restart to change it. No API changes it.',
-  'applyFlag.turnOn': 'Turn on applying deletions',
-  'applyFlag.turnOnArmed': 'Confirm: enable deletions',
-  'autoApply.on': 'Auto-applying relocations is ON for this migration.',
-  'autoApply.off': 'Auto-applying relocations is OFF for this migration (the default).',
-  'autoApply.hint': 'Old copies of moved files go after strict checks; deletions never do.',
+  'applyFlag.turnOn': 'Turn on deleting by hand',
+  'applyFlag.turnOnArmed': 'Confirm: turn on deleting by hand',
+  'autoApply.on': "Automatic removal of moved files' old copies is ON for this migration.",
+  'autoApply.off': "Automatic removal of moved files' old copies is OFF for this migration (the default).",
+  // Stored ON while deleting by hand is off, which only the appliance's file
+  // can say (the managed switch turns both off): it waits, and does nothing.
+  'autoApply.onButWaiting':
+    "Automatic removal of moved files' old copies is set ON, and does nothing while deleting by hand is off.",
+  'autoApply.hint': 'It runs without you: old copies of moved files only, never deletions.',
   'autoApply.why':
-    'Only where the same bytes are confirmed present under the new name, the pairing is unique, the report survived a full pass, and no mass event is suspected. Everything it refuses stays in this queue for you. Deletions are never applied automatically.',
-  'autoApply.turnOn': 'Enable auto-apply for relocations',
-  'autoApply.turnOnArmed': 'Confirm: auto-apply relocations unattended',
+    'Only where the same bytes are confirmed present under the new name, the pairing is unique, the report survived a full pass, and no mass event is suspected. Everything it refuses stays on the Moves screen for you. Deletions are never removed automatically.',
+  'autoApply.turnOn': 'Turn on automatic removal',
+  'autoApply.turnOnArmed': 'Confirm: remove old copies unattended',
+  'autoApply.turnOff': 'Turn off automatic removal',
   'scope.migrates': 'Migrates',
   'scope.partial': 'Partial',
   'scope.doesNotMigrate': 'Does not migrate',
@@ -751,9 +763,13 @@ const en = {
   'settings.schedule': 'Sync schedule',
   'settings.schedule.default': 'Now: every 15 minutes, because this migration has no schedule of its own.',
   'settings.schedule.own': 'Now: {schedule}, set outside this page.',
-  'settings.schedule.hint': 'A pass runs at most 50 minutes; the next follows the schedule.',
+  // The first copy runs pass after pass whatever the schedule, and the
+  // schedule applies once every data type has been copied once (workplan
+  // 0156 T5; the owner, 2026-10-03). Until then this said a daily schedule
+  // copied for 50 minutes a day, which was true and was the defect.
+  'settings.schedule.hint': 'Passes run back to back until the first copy is done.',
   'settings.schedule.hint.why':
-    'A large first copy takes many passes. On a daily schedule it copies for 50 minutes a day. Hourly or every 15 minutes it copies with hardly a break, because a new pass never starts while one is still running.',
+    'A pass runs at most 50 minutes. Until every data type has been copied once in full, the next pass starts as soon as the last one ends, and no sooner than 15 minutes after it started, whatever this schedule says. A daily download limit at the source is waited out first. After that, passes follow this schedule and copy only what is new or changed. Items that could not be copied do not keep passes coming: they wait on the Failures screen.',
   'settings.schedule.save': 'Save this schedule',
   'settings.schedule.saving': 'Saving…',
   'settings.schedule.saved': 'Saved. The next pass follows it.',
@@ -769,7 +785,7 @@ const en = {
   'settings.kinds.consequence':
     'An added data type is copied from the next pass. Nothing already copied changes.',
   'settings.kinds.consequence.why':
-    'The new data type is copied in full on the next pass, the way every data type is copied the first time. The ones this migration already copies carry on where they were. A data type cannot be taken off again here: what it had copied would stay on the new system with nothing keeping it up to date.',
+    'The new data type is copied in full from the next pass on, the way every data type is copied the first time: pass after pass, whatever the schedule, until it has been copied once. The ones this migration already copies carry on where they were. A data type cannot be taken off again here: what it had copied would stay on the new system with nothing keeping it up to date.',
   'settings.kinds.failed': 'That was not added:',
   // STOP AND RESUME ONE DATA TYPE (workplan 0128 T4, slice 3c). Offered where
   // the stop door accepts the press; what a stop does is said before it.
@@ -878,7 +894,8 @@ const en = {
   'wizard.domain.file.hint': 'Attachments and documents',
   'wizard.domain.task.hint': 'To-do lists and their tasks',
   'wizard.schedule': 'Sync Schedule',
-  'wizard.scheduleHint': 'How often it repeats; the first sync starts when you press start.',
+  'wizard.scheduleHint':
+    'How often it repeats after the first copy, which starts when you press start and does not wait for this schedule.',
   'wizard.schedule.hourly': 'Hourly',
   'wizard.schedule.hourly.hint': 'Every hour',
   'wizard.schedule.daily': 'Daily',
@@ -1075,7 +1092,7 @@ const en = {
   'hub.deletions.blurb': 'Deleted on the old system, still on the new; your call, per item.',
   'hub.moves.name': 'Moves',
   'hub.moves.blurb':
-    'Items the old system reorganised since they were copied. Reported, never acted on.',
+    'Items the old system reorganised since they were copied. An old copy goes only when you remove it, or by automatic removal if you turned that on.',
   'hub.failures.name': 'Failures',
   'hub.failures.blurb':
     'Items that could not be copied and now wait on a person. These block finishing.',
@@ -2414,19 +2431,35 @@ const en = {
   'tenants.members.joinedHeader': 'Joined',
   'tenants.members.remove': 'Remove',
   'tenants.members.removeArmed': 'Confirm remove',
+  // An open invitation's mail, again (0156 T3).
+  'tenants.members.resend': 'Send again',
   'tenants.readOnly': 'Your role here is read-only. An owner or admin manages members.',
   'tenants.invite.heading': 'Invite someone',
-  'tenants.invite.hint': 'No email yet; tell them yourself, and they appear below as invited.',
+  // The invitation is mailed since 0156 T3 (the owner, 2026-10-03). The
+  // line said "No email yet; tell them yourself" until then, which was true.
+  'tenants.invite.hint':
+    'We email them where to sign in; they appear below as invited.',
+  // What became of the mail, after Invite or Send again. Each leaves the
+  // inviter a different thing to do, so each says it.
+  'tenants.invite.mail.sent': 'Invitation emailed to {email}.',
+  'tenants.invite.mail.off':
+    'Invitation saved for {email}, but this installation sends no email: tell them yourself.',
+  'tenants.invite.mail.failed':
+    'Invitation saved for {email}, but its email could not be sent. Send it again, or tell them yourself.',
+  'tenants.invite.mail.limited':
+    "Invitation saved for {email}, but today's invitation emails are used up. Send it again tomorrow, or tell them yourself.",
   'tenants.invite.email': 'Email address',
   'tenants.invite.role': 'Role',
   // Workplan 0137 T7: the two roles the alpha offers, and what the second one
   // may do. Checked against the API's owner-only routes: close and reopen
-  // (tenants/index.ts), the applying-deletions and auto-applying-relocations
-  // flags, owner-only in both directions (operating-routes.ts), and granting
-  // owner (members.ts). `a-role-that-promises-less-than-it-allows.unit.test.ts`
-  // in apps/api pins that set and fails when it changes.
+  // (tenants/index.ts), the deleting-by-hand and automatic-removal switches
+  // (`allowApplyDeletions`, `autoApplyRelocations`), owner-only in both
+  // directions (operating-routes.ts), and granting owner (members.ts).
+  // `a-role-that-promises-less-than-it-allows.unit.test.ts` in apps/api pins
+  // that set and fails when it changes. The switches are named as the
+  // Deletions panel names them (0156 T6).
   'tenants.invite.adminCan':
-    'An admin can do everything an owner can, except close or reopen the organisation, turn applying deletions or auto-applying relocations on or off, and make somebody an owner.',
+    "An admin can do everything an owner can, except close or reopen the organisation, turn deleting by hand or the automatic removal of moved files' old copies on or off, and make somebody an owner.",
   'tenants.ownerOrAdminOnly': 'During the alpha, a person can only be an owner or an admin.',
   'tenants.notify.heading': 'Email summaries',
   'tenants.notify.intro':
@@ -2450,6 +2483,7 @@ const en = {
   'role.viewer': 'Viewer',
   'memberStatus.active': 'Active',
   'memberStatus.invited': 'Invited',
+  'memberStatus.declined': 'Declined',
   'memberStatus.suspended': 'Suspended',
   'memberStatus.removed': 'Removed',
   'nav.decisions': 'Needs you',
@@ -3295,24 +3329,30 @@ const nl: Record<keyof typeof en, string> = {
   'discovery.refusedNative.post':
     'met dit exportformaat. Kies er een die ze wel omvat, of laat ze achter.',
   'confirm.refusedAck': 'Ik begrijp dat {kinds} ({n} bestanden) niet worden gekopieerd.',
-  'applyFlag.readFailed': 'Kon niet lezen of het toepassen van verwijderingen is ingeschakeld:',
-  'applyFlag.on': 'Het toepassen van verwijderingen staat AAN voor deze migratie.',
-  'applyFlag.off': 'Het toepassen van verwijderingen staat UIT voor deze migratie (de standaard).',
+  'applyFlag.readFailed': 'Kon niet lezen of handmatig verwijderen aan staat:',
+  'applyFlag.on': 'Handmatig verwijderen staat AAN voor deze migratie.',
+  'applyFlag.off': 'Handmatig verwijderen staat UIT voor deze migratie (de standaard).',
+  'applyFlag.onMeans': 'Er wordt niets verwijderd totdat u bij een item op een verwijderknop drukt.',
   'applyFlag.turnOff': 'Uitschakelen',
   'applyFlag.refusesUntilOn':
     'De server weigert elke verwijderknop op dit scherm totdat dit is ingeschakeld.',
   'applyFlag.config.pre': 'Op deze appliance staat de waarde in het configuratiebestand van de mapping',
   'applyFlag.config.post': '; bewerk het bestand en herstart om dit te wijzigen. Geen API past dit aan.',
-  'applyFlag.turnOn': 'Toepassen van verwijderingen inschakelen',
-  'applyFlag.turnOnArmed': 'Bevestig: verwijderingen inschakelen',
-  'autoApply.on': 'Automatisch toepassen van verplaatsingen staat AAN voor deze migratie.',
-  'autoApply.off': 'Automatisch toepassen van verplaatsingen staat UIT voor deze migratie (de standaard).',
+  'applyFlag.turnOn': 'Handmatig verwijderen inschakelen',
+  'applyFlag.turnOnArmed': 'Bevestig: handmatig verwijderen inschakelen',
+  'autoApply.on':
+    'Automatisch verwijderen van oude kopieën van verplaatste bestanden staat AAN voor deze migratie.',
+  'autoApply.off':
+    'Automatisch verwijderen van oude kopieën van verplaatste bestanden staat UIT voor deze migratie (de standaard).',
+  'autoApply.onButWaiting':
+    'Automatisch verwijderen van oude kopieën van verplaatste bestanden staat AAN, en doet niets zolang handmatig verwijderen uit staat.',
   'autoApply.hint':
-    'Oude kopieën van verplaatste bestanden gaan na strenge controles; verwijderingen nooit.',
+    'Werkt zonder u: alleen oude kopieën van verplaatste bestanden, nooit verwijderingen.',
   'autoApply.why':
-    'Alleen wanneer dezelfde bytes aantoonbaar onder de nieuwe naam aanwezig zijn, de koppeling uniek is, de melding een volledige ronde heeft doorstaan en er geen massale gebeurtenis wordt vermoed. Alles wat wordt geweigerd blijft in deze wachtrij voor u staan. Verwijderingen worden nooit automatisch toegepast.',
-  'autoApply.turnOn': 'Automatisch toepassen van verplaatsingen inschakelen',
-  'autoApply.turnOnArmed': 'Bevestig: verplaatsingen onbeheerd automatisch toepassen',
+    'Alleen wanneer dezelfde bytes aantoonbaar onder de nieuwe naam aanwezig zijn, de koppeling uniek is, de melding een volledige ronde heeft doorstaan en er geen massale gebeurtenis wordt vermoed. Alles wat wordt geweigerd blijft op het scherm Verplaatsingen voor u staan. Verwijderingen worden nooit automatisch verwijderd.',
+  'autoApply.turnOn': 'Automatisch verwijderen inschakelen',
+  'autoApply.turnOnArmed': 'Bevestig: oude kopieën onbeheerd verwijderen',
+  'autoApply.turnOff': 'Automatisch verwijderen uitschakelen',
   'scope.migrates': 'Migreert',
   'scope.partial': 'Gedeeltelijk',
   'scope.doesNotMigrate': 'Migreert niet',
@@ -3627,9 +3667,9 @@ const nl: Record<keyof typeof en, string> = {
   'settings.schedule': 'Synchronisatieschema',
   'settings.schedule.default': 'Nu: elk kwartier, omdat deze migratie geen eigen schema heeft.',
   'settings.schedule.own': 'Nu: {schedule}, buiten deze pagina ingesteld.',
-  'settings.schedule.hint': 'Een ronde duurt hoogstens 50 minuten; de volgende volgt het schema.',
+  'settings.schedule.hint': 'Rondes lopen direct na elkaar tot de eerste kopie klaar is.',
   'settings.schedule.hint.why':
-    'Een grote eerste kopie kost veel rondes. Met een dagelijks schema wordt er 50 minuten per dag gekopieerd. Met elk uur of elk kwartier gaat het kopiëren vrijwel zonder pauze door, omdat een nieuwe ronde nooit start terwijl er nog een loopt.',
+    'Een ronde duurt hoogstens 50 minuten. Tot elk gegevenstype één keer volledig is gekopieerd, start de volgende ronde zodra de vorige klaar is, en niet eerder dan 15 minuten na de start ervan, wat dit schema ook zegt. Een daglimiet voor downloaden bij de bron wordt eerst afgewacht. Daarna volgen de rondes dit schema en kopiëren ze alleen wat nieuw of gewijzigd is. Items die niet gekopieerd konden worden, houden de rondes niet aan de gang: ze wachten bij Mislukkingen.',
   'settings.schedule.save': 'Dit schema opslaan',
   'settings.schedule.saving': 'Opslaan…',
   'settings.schedule.saved': 'Opgeslagen. De volgende ronde volgt het.',
@@ -3642,7 +3682,7 @@ const nl: Record<keyof typeof en, string> = {
   'settings.kinds.consequence':
     'Een toegevoegd gegevenstype wordt vanaf de volgende ronde gekopieerd. Wat al gekopieerd is, verandert niet.',
   'settings.kinds.consequence.why':
-    'Het nieuwe gegevenstype wordt bij de volgende ronde volledig gekopieerd, zoals elk gegevenstype de eerste keer. De gegevenstypen die deze migratie al kopieert, gaan verder waar ze waren. Een gegevenstype kan hier niet meer worden weggehaald: wat het al had gekopieerd, zou op het nieuwe systeem blijven staan zonder dat iets het nog bijwerkt.',
+    'Het nieuwe gegevenstype wordt vanaf de volgende ronde volledig gekopieerd, zoals elk gegevenstype de eerste keer: ronde na ronde, wat het schema ook zegt, tot het één keer is gekopieerd. De gegevenstypen die deze migratie al kopieert, gaan verder waar ze waren. Een gegevenstype kan hier niet meer worden weggehaald: wat het al had gekopieerd, zou op het nieuwe systeem blijven staan zonder dat iets het nog bijwerkt.',
   'settings.kinds.failed': 'Dat is niet toegevoegd:',
   'settings.kinds.stop': '{kind} stoppen',
   'settings.kinds.resume': '{kind} hervatten',
@@ -3769,7 +3809,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.domain.task.hint': 'Takenlijsten en de taken daarin',
   'wizard.schedule': 'Synchronisatieschema',
   'wizard.scheduleHint':
-    'Hoe vaak het herhaalt; de eerste synchronisatie start zodra u op starten drukt.',
+    'Hoe vaak het herhaalt na de eerste kopie, die start zodra u op starten drukt en niet op dit schema wacht.',
   'wizard.schedule.hourly': 'Elk uur',
   'wizard.schedule.hourly.hint': 'Ieder uur',
   'wizard.schedule.daily': 'Dagelijks',
@@ -3946,7 +3986,7 @@ const nl: Record<keyof typeof en, string> = {
     'Verwijderd op het oude systeem, nog op het nieuwe; uw beslissing, per item.',
   'hub.moves.name': 'Verplaatsingen',
   'hub.moves.blurb':
-    'Items die het oude systeem heeft herschikt sinds ze zijn gekopieerd. Gemeld, nooit uitgevoerd.',
+    'Items die het oude systeem heeft herschikt sinds ze zijn gekopieerd. Een oude kopie gaat pas als u die verwijdert, of door automatisch verwijderen als u dat hebt aangezet.',
   'hub.failures.name': 'Mislukkingen',
   'hub.failures.blurb':
     'Items die niet gekopieerd konden worden en op een persoon wachten; ze blokkeren het afronden.',
@@ -4838,14 +4878,22 @@ const nl: Record<keyof typeof en, string> = {
   'tenants.members.joinedHeader': 'Toegetreden',
   'tenants.members.remove': 'Verwijderen',
   'tenants.members.removeArmed': 'Bevestig verwijderen',
+  'tenants.members.resend': 'Opnieuw sturen',
   'tenants.readOnly': 'Uw rol hier is alleen-lezen. Een eigenaar of beheerder beheert de leden.',
   'tenants.invite.heading': 'Iemand uitnodigen',
   'tenants.invite.hint':
-    'Nog geen e-mail; vertel het zelf, en ze verschijnen hieronder als uitgenodigd.',
+    'We mailen hen waar ze zich aanmelden; ze verschijnen hieronder als uitgenodigd.',
+  'tenants.invite.mail.sent': 'Uitnodiging gemaild naar {email}.',
+  'tenants.invite.mail.off':
+    'Uitnodiging voor {email} opgeslagen, maar deze installatie verstuurt geen e-mail: vertel het zelf.',
+  'tenants.invite.mail.failed':
+    'Uitnodiging voor {email} opgeslagen, maar de e-mail kon niet worden verstuurd. Stuur hem opnieuw, of vertel het zelf.',
+  'tenants.invite.mail.limited':
+    'Uitnodiging voor {email} opgeslagen, maar de uitnodigingsmails van vandaag zijn op. Stuur hem morgen opnieuw, of vertel het zelf.',
   'tenants.invite.email': 'E-mailadres',
   'tenants.invite.role': 'Rol',
   'tenants.invite.adminCan':
-    'Een beheerder kan alles wat een eigenaar kan, behalve de organisatie sluiten of heropenen, het toepassen van verwijderingen of het automatisch toepassen van verplaatsingen aan- of uitzetten en iemand eigenaar maken.',
+    'Een beheerder kan alles wat een eigenaar kan, behalve de organisatie sluiten of heropenen, handmatig verwijderen of het automatisch verwijderen van oude kopieën van verplaatste bestanden aan- of uitzetten en iemand eigenaar maken.',
   'tenants.ownerOrAdminOnly': 'Tijdens de alfa kan iemand alleen eigenaar of beheerder zijn.',
   'tenants.notify.heading': 'E-mailsamenvattingen',
   'tenants.notify.intro':
@@ -4869,6 +4917,7 @@ const nl: Record<keyof typeof en, string> = {
   'role.viewer': 'Kijker',
   'memberStatus.active': 'Actief',
   'memberStatus.invited': 'Uitgenodigd',
+  'memberStatus.declined': 'Afgewezen',
   'memberStatus.suspended': 'Geschorst',
   'memberStatus.removed': 'Verwijderd',
   'nav.decisions': 'Wacht op u',

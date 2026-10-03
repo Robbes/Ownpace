@@ -37,6 +37,7 @@ import { FAILURE_WINDOW_MINUTES, SELF_HEALING_CATEGORIES } from '@openmig/orches
 import { closeCutover, cutoverWindowOf, enterCutover, type CutoverState, type CutoverStatus } from '@openmig/core';
 import {
   PASS_RUNNING_STATES,
+  UNREAD_NOTE_PREFIX,
   asMappingId,
   asTenantId,
   cutoverStillCopiesAt,
@@ -125,6 +126,7 @@ async function theTickConsidersIt(): Promise<boolean> {
     FAILURE_WINDOW_MINUTES,
     [...BILLABLE_RUN_KINDS],
     [...PASS_RUNNING_STATES],
+    UNREAD_NOTE_PREFIX,
   ]);
   return rows.some((r) => r.id === MAPPING);
 }

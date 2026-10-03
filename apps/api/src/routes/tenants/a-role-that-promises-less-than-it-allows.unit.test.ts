@@ -229,8 +229,9 @@ describe('nobody is moved below admin', () => {
  *
  * The Team page says, in `tenants.invite.adminCan`, that an admin can do
  * everything an owner can except close or reopen the organisation, turn
- * applying deletions or auto-applying relocations on or off, and make somebody
- * an owner. That sentence is true only while the owner-only doors are exactly
+ * deleting by hand or the automatic removal of moved files' old copies on or
+ * off (`allowApplyDeletions`, `autoApplyRelocations`), and make somebody an
+ * owner. That sentence is true only while the owner-only doors are exactly
  * those, and the web test that holds it compares the string with a copy of
  * itself. T2 adding a `requireRole('owner')` route, or T3 (b) making "an admin
  * cannot demote or remove an owner" true, would make it false with every test

@@ -12,7 +12,12 @@
  */
 
 import type { TenantId, MappingId } from '@openmig/shared';
-import { sameFingerprintVersion } from '@openmig/shared';
+import {
+  ACCOUNT_CLOSED,
+  isCredentialRefusal,
+  isTargetFolderMissing,
+  sameFingerprintVersion,
+} from '@openmig/shared';
 import { refuseOnceClosed, type OrganisationIsOpen } from './while-the-organisation-is-open.ts';
 
 // The report SHAPES moved to @openmig/shared under ADR-0026 so the UI and both
@@ -234,6 +239,16 @@ function isDataTypeEnabled(
   }
 }
 
+/**
+ * The issue-id prefix of a data type whose target was asked and could not be
+ * read (0156 T2). Distinct from `NOT_VERIFIABLE_`, which says no reader exists
+ * at all, because the two need different advice.
+ */
+export const TARGET_UNREAD = 'TARGET_UNREAD';
+
+/** The issue-id prefix of a data type whose target folder does not exist (0156 T2). */
+export const TARGET_FOLDER_MISSING = 'TARGET_FOLDER_MISSING';
+
 /** A result for a domain that was not measured, with the reason attached. */
 function notMeasured(
   dataType: VerificationDomain,
@@ -241,6 +256,8 @@ function notMeasured(
   message: string,
   /** What the ledger says was copied, when that is known. */
   sourceCount = 0,
+  /** The issue's id prefix; the status itself unless the reason needs its own advice. */
+  issue: string = status,
 ): DataTypeVerification {
   return {
     dataType,
@@ -258,9 +275,39 @@ function notMeasured(
     totalBytesTarget: null,
     issues: [
       {
-        id: `${status}_${dataType}`,
+        id: `${issue}_${dataType}`,
         severity: status === 'NOT_VERIFIABLE' ? 'ERROR' : 'WARNING',
         message,
+      },
+    ],
+  };
+}
+
+/**
+ * A data type whose target folder does not exist (workplan 0156 T2): a
+ * definite answer, not a failure to read. Nothing is in a folder that is not
+ * there, so every item the ledger recorded as copied is missing on the target
+ * and the type FAILs, which holds the cutover. The issue names the folder and
+ * the one thing that brings the copies back: a pass will not, because the
+ * record says each was copied and the writer trusts the record.
+ */
+function targetFolderMissing(
+  dataType: VerificationDomain,
+  recorded: number,
+  folder: string,
+): DataTypeVerification {
+  return {
+    ...notMeasured(dataType, 'NOT_VERIFIABLE', '', recorded),
+    status: 'FAIL',
+    missingOnTarget: recorded,
+    issues: [
+      {
+        id: `${TARGET_FOLDER_MISSING}_${dataType}`,
+        severity: 'ERROR',
+        message:
+          `The folder ${folder} does not exist on the new system any more, so none of the ` +
+          `${recorded} ${dataType} item(s) copied into it are there. It was deleted or ` +
+          'renamed after the copy.',
       },
     ],
   };
@@ -361,7 +408,32 @@ export async function runVerification(
         recorded,
       );
     }
-    const measured = await verifyDataType({ ...deps, dataType });
+    let measured: Awaited<ReturnType<typeof verifyDataType>>;
+    try {
+      measured = await verifyDataType({ ...deps, dataType });
+    } catch (err) {
+      // ONE DATA TYPE'S TARGET, NOT THE WHOLE RUN (workplan 0156 T2). The
+      // types are measured one after another, and nothing caught between
+      // them: the owner deleted the files target folder, its listing threw,
+      // and mail, calendars and contacts got no verdict either. A target that
+      // cannot be read decides about its own data type only.
+      //
+      // A closed organisation still ends the run (0139 T7): it is read by
+      // nobody, and a report finished after the close would be one.
+      if (isCredentialRefusal(err) && err.refusal.code === ACCOUNT_CLOSED) throw err;
+      if (isTargetFolderMissing(err)) return targetFolderMissing(dataType, recorded, err.folder);
+      // Anything else: NOT_VERIFIABLE with the error quoted, which holds the
+      // cutover. Not an empty listing and not a pass (hard rule 9).
+      return notMeasured(
+        dataType,
+        'NOT_VERIFIABLE',
+        `${recorded} ${dataType} item(s) were copied, but the target could not be read for ` +
+          `this domain: ${err instanceof Error ? err.message : String(err)}. Cutover is ` +
+          'blocked: their completeness is unknown.',
+        recorded,
+        TARGET_UNREAD,
+      );
+    }
     if (measured.contentHeld) contentHeld.add(dataType);
     return measured.verification;
   };
@@ -960,11 +1032,26 @@ function generateRecommendations(
   }
   
   verifications.forEach(v => {
+    const said = (prefix: string) => v.issues.some((i) => i.id === `${prefix}_${v.dataType}`);
     if (v.status === 'NOT_VERIFIABLE') {
       recommendations.push(
-        `Cannot verify ${v.dataType}: no way to read the target for this domain. ` +
-          `Either supply a reindexer for it or turn ${v.dataType} verification off explicitly.`,
+        said(TARGET_UNREAD)
+          ? `Cannot verify ${v.dataType}: the new system did not answer for it (the issue ` +
+              'quotes its answer). Put that right and verify again.'
+          : `Cannot verify ${v.dataType}: no way to read the target for this domain. ` +
+              `Either supply a reindexer for it or turn ${v.dataType} verification off explicitly.`,
       );
+    }
+
+    if (said(TARGET_FOLDER_MISSING)) {
+      // Not "Re-sync": a pass skips every item the ledger records as copied,
+      // so it would copy none of these back (0156 T2).
+      recommendations.push(
+        `Restore the ${v.dataType} folder on the new system (on Nextcloud: Deleted files), then ` +
+          'verify again. A sync will not copy these back by itself: the record says they were ' +
+          'copied.',
+      );
+      return;
     }
 
     if (v.status === 'SKIPPED') {
