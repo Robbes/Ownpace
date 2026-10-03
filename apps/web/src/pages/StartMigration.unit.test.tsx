@@ -15,7 +15,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DISCOVERY_DOMAINS, lifecycleCounts, type Person } from '@openmig/shared';
 import StartMigration from './StartMigration.tsx';
-import { grantLinkApi } from '../services/grant-link-service.ts';
+import { personLinkApi } from '../services/grant-link-service.ts';
 import { addMigrationToPerson, createPerson, fetchPeople } from '../services/operating-service.ts';
 import {
   connectionsApi,
@@ -29,7 +29,7 @@ import {
 
 vi.mock('../services/grant-link-service', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/grant-link-service.ts')>()),
-  grantLinkApi: { list: vi.fn(), issue: vi.fn(), revoke: vi.fn() },
+  personLinkApi: { list: vi.fn(), issue: vi.fn(), revoke: vi.fn() },
 }));
 vi.mock('../services/operating-service', () => ({
   fetchPeople: vi.fn(),
@@ -626,7 +626,7 @@ describe('Check, then start (screen 6)', () => {
 
 describe('someone else connects their own accounts, by a link where one reaches (T4, 0108)', () => {
   const createMock = vi.mocked(mappingApi.create);
-  const linksMock = vi.mocked(grantLinkApi.list);
+  const linksMock = vi.mocked(personLinkApi.list);
   const SOVERIN = account({ id: 'c-soverin', role: 'target', kind: 'soverin', displayName: 'Anna Soverin', knownValues: { username: 'anna@soverin.net' } });
 
   beforeEach(() => {
@@ -727,7 +727,11 @@ describe('someone else connects their own accounts, by a link where one reaches 
       expect.objectContaining({ sourceType: 'google', sourceConnectionId: 'c-google', sourceConfig: { username: 'anna@gmail.com' } }),
     );
     expect(await screen.findByText(/Waiting for Anna Jansen to connect/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Create grant link/ })).toBeInTheDocument();
+    // ONE link for the person (ADR-0035, amended 2026-09-29), not one per
+    // migration: the migration waits on it by name.
+    expect(screen.getAllByRole('button', { name: /Create grant link/ })).toHaveLength(1);
+    expect(screen.getByText('Its count appears here once Anna Jansen has connected through the link above.')).toBeInTheDocument();
+    expect(linksMock).toHaveBeenCalledWith(expect.any(String));
     expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
     // Nothing starts by itself when the grant lands (grant-ending.ts starts
     // nothing), so the sentence says where to start each one.
@@ -736,15 +740,47 @@ describe('someone else connects their own accounts, by a link where one reaches 
     ).toBeInTheDocument();
   });
 
+  const USED = {
+    id: 'l1',
+    purpose: 'grant' as const,
+    state: 'used' as const,
+    createdAt: '2026-09-29T08:00:00Z',
+    createdBy: 'owner',
+    expiresAt: '2026-10-06T08:00:00Z',
+    usedAt: '2026-09-29T08:10:00Z',
+    revokedAt: null,
+  };
+
   it('shows the count once their link was used, and Start goes', async () => {
-    linksMock.mockResolvedValue([
-      { id: 'l1', purpose: 'grant', state: 'used', createdAt: '2026-09-29T08:00:00Z', createdBy: 'owner', expiresAt: '2026-10-06T08:00:00Z', usedAt: '2026-09-29T08:10:00Z', revokedAt: null },
-    ]);
+    linksMock.mockResolvedValue([]);
+    vi.mocked(personLinkApi.issue).mockResolvedValue({
+      id: 'l1',
+      purpose: 'grant',
+      url: 'https://ownpace.test/grant/p.l1.secret',
+      expiresAt: USED.expiresAt,
+      expiryDays: 7,
+      distribution: 'Send this link to the person yourself.',
+    });
     const user = userEvent.setup();
     renderAt();
     await toCheckByLink(user);
+    // The link is made here, and the next read finds it used.
+    linksMock.mockResolvedValue([USED]);
+    await user.click(await screen.findByRole('button', { name: /Create grant link/ }));
     await screen.findByText('2000');
     expect(screen.queryByText(/Waiting for Anna Jansen to connect/)).not.toBeInTheDocument();
     await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Start' })).toBeEnabled());
+  });
+
+  it('does not take a link used before this screen for these migrations’ grant', async () => {
+    // A person chosen from the list may have used a link before these
+    // migrations were theirs; it granted none of them.
+    linksMock.mockResolvedValue([USED]);
+    const user = userEvent.setup();
+    renderAt();
+    await toCheckByLink(user);
+    expect(await screen.findByText(/Waiting for Anna Jansen to connect/)).toBeInTheDocument();
+    expect(screen.getByText('Its count appears here once Anna Jansen has connected through the link above.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
   });
 });

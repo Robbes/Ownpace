@@ -4,11 +4,11 @@
  * ONE LINK PER PERSON, ISSUED, OPENED AND GRANTED (ADR-0035, amended
  * 2026-09-29; workplan 0153 T5 (b), slice 2).
  *
- * Anna has four migrations: her Google account's calendar to one destination
- * and its contacts to another, her work Gmail through that connection's own
+ * Anna has four migrations: their Google account's calendar to one destination
+ * and its contacts to another, their work Gmail through that connection's own
  * Google client, and an old IMAP mailbox. One link:
  *
- *  - is issued for her, and refused for a person with nothing a link can
+ *  - is issued for them, and refused for a person with nothing a link can
  *    serve, with each migration's own reason;
  *  - opens a page per Google account, naming where each migration goes, with
  *    no migration id and nothing of the IMAP mailbox;
@@ -18,7 +18,7 @@
  *    nothing on the others, with an audit row each;
  *  - stays live until every account is granted, and is spent then;
  *  - stores nothing for the wrong account, a revoked link, or a migration that
- *    left her since the page was opened.
+ *    left them since the page was opened.
  *
  * PGlite as `app_user`, both chains. Google's token endpoint is the one thing
  * stubbed, as in `grant.unit.test.ts`. The names are invented.
