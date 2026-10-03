@@ -148,7 +148,7 @@ and pause"* is unchanged), and the tick for files a format would refuse is not a
 migration that starts by itself: *"at least once"* is the owner's. What it could not copy shows in
 its queues.
 
-**Built** (0153 T5 (b), its four slices, #1394–#1408): the managed row and the owner's doors
+**Built** (0153 T5 (b), its four slices: #1394, #1396, #1401, #1408): the managed row and the owner's doors
 (`/api/people/:personId/links`), the grant page, the person's progress page
 (`apps/api/src/routes/person-progress.ts`), and the owner's screens; *Report this link* from a
 person's pages (#1402), asking again (#1407), start when granted (#1409, #1417), and the person's page
