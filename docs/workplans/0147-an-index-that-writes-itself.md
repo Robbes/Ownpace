@@ -4,28 +4,32 @@
 
 ## Status — 2026-10-03 (update this block at the end of every session)
 
-**2026-10-03: a merge conflict left in any file fails the unit suite, and 0099's markers are a
-quotation, not merged yet.** A suggested task asked for "stray merge markers" to be removed from
-0099 at lines 3071, 3074 and 3077. They stand inside a fenced code block in its lesson "Nothing
-ever parsed the bring-up", which quotes the #546 and #547 conflict on purpose, and they stay.
-Nothing in the repository looked for a real conflict at all.
-`scripts/a-conflict-left-in-a-file.unit.test.ts` now reads every file `git ls-files` lists, binary
-files aside and the lockfile and generated indexes included. It fails on git's marker sequence at
-column 0 (diff3's base section too), and on a lone `<<<<<<<` or `>>>>>>>` line that a hand
-resolution left behind, and names each file and line. A lone `=======` passes: in Markdown it
-underlines a heading. In Markdown, and only there, a conflict whose markers all stand inside one
-fenced block is a quotation and passes. The fence is the CommonMark rule the repeated-heading check
-below already uses, and a fence that never closes quotes nothing. Replayed with `git merge-tree`,
-354 of the 1,730 merge commits on the remote branches conflicted, in 567 files, 486 of them
-Markdown (202 in the index, 178 in plans, 56 in `docs/LESSONS.md`). None of them ever committed a
-marker. On the real tree: 2,368 files read, 5 binary passed over, 1 holding a fenced quotation
-(0099), no finding. It went red with a conflict appended to `docs/operator-runbook.md`, with one
-appended to `packages/shared/src/index.ts`, and with a stray marker appended to an untracked copy
-of 0099, whose own quotation still passed. Each of 6 mutations of the detector turns at least one
-of its 13 cases red. Not solved: the unit suite does not run on a docs-only change, so a conflict
-that a docs-only pull request leaves in a plan is caught by the next pull request that touches
-code. `docs-hygiene` runs on every change and could run the check if the detector moved into a
-plain `.mjs`.
+**2026-10-03: a merge conflict left in any file fails `docs-hygiene` and the unit suite, and
+0099's markers are a declared quotation, not merged yet.** A suggested task asked for "stray merge
+markers" to be removed from 0099 at lines 3071, 3074 and 3077. They stand inside a fenced code
+block in its lesson "Nothing ever parsed the bring-up", which quotes the #546 and #547 conflict on
+purpose, and they stay. Nothing in the repository looked for a real conflict at all.
+`scripts/conflict-markers.mjs` now reads every file `git ls-files` lists, binary files aside and
+the lockfile and generated indexes included, and `scripts/a-conflict-left-in-a-file.unit.test.ts`
+holds it. It fails on git's marker sequence at column 0 (diff3's base section too), and on a lone
+`<<<<<<<` or `>>>>>>>` line that a hand resolution left behind, and names each file and line. A
+lone `=======` passes: in Markdown it underlines a heading. In Markdown, and only there, a conflict
+whose markers all stand inside one fenced block is a quotation, and it passes only when the file
+declares it in the module's `QUOTATIONS`, with how many: today 0099, once. The fence is the
+CommonMark rule the repeated-heading check below already uses, and a fence that never closes quotes
+nothing. Replayed with `git merge-tree`, 354 of the 1,730 merge commits on the remote branches
+conflicted, in 567 files, 486 of them Markdown (202 in the index, 178 in plans, 56 in
+`docs/LESSONS.md`). None of them ever committed a marker. Two of the 852 conflicts git wrote in
+them landed whole inside an ```` ```ini ```` block of `docs/managed-bring-up.md` (merges f2e028d0
+and 57c94650), which is why a fence alone excuses nothing: resolving only that file's other
+conflicts in f2e028d0's result now fails on the fenced one, where the first version passed it. And
+`docs-hygiene` runs `node scripts/conflict-markers.mjs --check` on every change, because
+`unit-tests` does not run on a docs-only one and 176 of the 567 files were workplan bodies on paths
+it skips; a conflict appended to an untracked copy of this plan exits 1 there. On the real tree:
+2,370 files read, 5 binary passed over, 1 declared quotation (0099), no finding. Each of 13
+mutations of the detector turns at least one of the guard's 23 cases red, including the two that
+review found surviving the first version (a conflict that opens inside a fence and splits outside
+it, and a stray `<<<<<<<` above a fenced quotation).
 
 **2026-09-28: neither generated index carries a total (D6, T6), on branch
 `claude/ownpace-public-readiness-y7orc6-an-index-without-counts`, not merged.** The index opened

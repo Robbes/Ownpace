@@ -24,6 +24,7 @@ reading a file drops off its entry by itself.
 
 ### `.github/workflows/ci.yml`
 
+- [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
@@ -1338,6 +1339,7 @@ reading a file drops off its entry by itself.
 
 ### `docs/managed-bring-up.md`
 
+- [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
@@ -2070,6 +2072,10 @@ reading a file drops off its entry by itself.
 
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
 
+### `scripts/conflict-markers.mjs`
+
+- [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
+
 ### `scripts/dav-target-probe.mjs`
 
 - [a-listing-that-counted-closing-tags](../scripts/a-listing-that-counted-closing-tags.unit.test.ts) — A DIAGNOSTIC THAT LIES IS WORSE THAN NO DIAGNOSTIC.
@@ -2517,10 +2523,13 @@ A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 
 Reads:
 
+- `.github/workflows/ci.yml`
 - `docs/LESSONS.md`
+- `docs/managed-bring-up.md`
 - `docs/workplans/0099-an-invitation-you-can-answer.md`
 - `docs/workplans/README.md`
 - `pnpm-lock.yaml`
+- `scripts/conflict-markers.mjs`
 - `scripts/nothing-ever-parsed-the-bring-up.unit.test.ts`
 
 ### [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts)

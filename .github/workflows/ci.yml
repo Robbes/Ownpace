@@ -413,6 +413,16 @@ jobs:
           node scripts/lessons.mjs --check
           node scripts/adr-operative.mjs --check
           node scripts/workplan-index.mjs --check
+      - name: No file holds a merge conflict
+        # HERE for the reason the step above is: `detect-changes` skips
+        # `unit-tests` for a change to the workplans alone, and of the 567
+        # files that conflicted in 1,730 replayed merges, 176 were workplan
+        # bodies. A conflict a docs-only pull request left in one would merge
+        # green and turn the next, unrelated pull request red, which is #772.
+        # Plain node, no install. The rules, and the one file that quotes a
+        # conflict on purpose (0099), are in
+        # scripts/a-conflict-left-in-a-file.unit.test.ts.
+        run: node scripts/conflict-markers.mjs --check
 
   fixture-uuid-check:
     name: fixture-uuid-check
