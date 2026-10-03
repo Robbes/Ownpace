@@ -21,10 +21,11 @@
  * `outcome.refreshToken` fits into perfectly.
  *
  * So the parameter is not a `string`. `ProgressPageUrl` is a branded type, and
- * `progressPageUrl()` below is the only way to make one — called from the one
- * place that mints a `view` link. Passing a refresh token, an access token, a
- * client secret or any other string to the page is a **compile error**, in all
- * four `tsc` passes, rather than a review someone has to catch.
+ * `progressPageUrl()` below is the only way to make one — called from the two
+ * places that mint a `view` link, a migration's and a person's. Passing a
+ * refresh token, an access token, a client secret or any other string to the
+ * page is a **compile error**, in all four `tsc` passes, rather than a review
+ * someone has to catch.
  *
  * ## What is deliberately NOT claimed
  *
@@ -41,7 +42,8 @@ export type ProgressPageUrl = string & { readonly [progressPageUrlBrand]: true }
 
 /**
  * The only constructor. Deliberately not exported beyond this package's own
- * minting path — see `grant-ending.ts`, its single caller.
+ * minting paths — see `grant-ending.ts` for a migration's link and
+ * `person-grant-ending.ts` for a person's, its two callers.
  */
 export function progressPageUrl(base: string, token: string): ProgressPageUrl {
   return `${base}/view/${token}` as ProgressPageUrl;
