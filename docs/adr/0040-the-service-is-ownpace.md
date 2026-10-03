@@ -2,7 +2,7 @@
 
 - **Status:** Accepted 2026-08-20 — owner decision in conversation ("Ok, i picked ownpace.eu"),
   closing the naming question opened by [ADR-0039](./0039-no-open-core-and-what-ops-privacy-means.md)'s
-  finding that the trademark is the mission-compatible moat.
+  finding that the trademark is the mission-compatible moat; updated three times the same day.
 - **Date:** 2026-08-20
 - **Deciders:** owner
 - **Relates to:** [ADR-0001](./0001-license-apache-2.0.md) (Apache-2.0 §6 grants no trade-mark
@@ -57,7 +57,7 @@
   `ghcr.io/robbes/open-migrate-selfhost` forever; `v0.1.0` on lives at `ownpace-selfhost`.
   `scripts/upgrade-drill.sh` derives its registry from the tag; the cosign identity regexp
   matches **both** repo paths.
-- **The mark is asserted in `NOTICE`** as an **unregistered** claim (no `®`), stating what needs
+- **The mark is asserted in `NOTICE`** as an **unregistered** claim (no `®`, no "registered trade mark of"), stating what needs
   **no** permission (nominative use, forking, private instances) as explicitly as what does:
   `scripts/notice-and-trademark.unit.test.ts`.
 - **Still OPEN, the owner's, not to be inferred:** whether to file an EUTM (*The trade-mark
@@ -187,6 +187,12 @@ saying so. **Filing does.**
 
 ## Amendment log
 
+- **2026-08-20** — The owner extended the decision: the repository and every copyright header take
+  the name too, so project and service share one. Record: *Update 2026-08-20*.
+- **2026-08-20** — The owner authorised the operational identifiers' rename ("nothing is live");
+  `@openmig/*` kept. Record: *Update 2026-08-20 (second)*.
+- **2026-08-20** — `ownpace.eu` registered, the TMView check run, and the mark asserted in `NOTICE`
+  at the owner's request. Record: *Update 2026-08-20 (third)* and *The trade-mark check*.
 - **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
   decided. Their earlier wording, with the reasons and examples the budget left out, is in the
   record: [history/0040-the-service-is-ownpace.md](./history/0040-the-service-is-ownpace.md).

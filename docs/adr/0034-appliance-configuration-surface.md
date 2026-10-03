@@ -26,10 +26,11 @@
   sole door), the UI on Personal, the API/UI on Managed**; credentials and grants live in the
   one secret store everywhere (ADR-0037); `passwordFromEnv`/`tokenFromEnv` stays per
   connection. Files never hold secrets (decisions 2–4).
-- No merge machinery: no ownership column, no collision check, no precedence rule. File-seeded
+- No two-door merge machinery: no ownership column, no collision check, no file-versus-UI
+  precedence. File-seeded
   rows record their origin path; Organisation's UI shows file topology read-only, naming the
   file. Deleting a file-declared connection revokes or parks its stored credential via
-  `revokeStoredCredentials`, never orphans it (decision 4).
+  `revokeCredentialRow`, never orphans it (decision 4).
 - The deployment mode is **explicit**, Personal by default. Contradictions refuse loudly,
   naming the fix: Personal with files in `CONFIG_DIR` refuses to start; Organisation refuses a
   topology write through the UI/API (decisions 1, 3).
@@ -61,7 +62,12 @@ configuration surface is Notepad does not serve the person the installer exists 
 ## Decision
 
 The shape is one table, the **split by concern** that the owner's answers produced on
-2026-08-19. Decisions 2–4 spell it out.
+2026-08-19. Decisions 2–4 spell it out. The owner's reasons: people on Personal work 99% in the
+UI, and Organisation fits a DevOps or IT team that wants GitOps, or at least control from files.
+Checked against the code, Organisation's overlap with Managed is on **secrets**, not
+configuration: managed tenants configure through the API (the UI's door), so on topology Managed
+sits with Personal; on secrets, Organisation and Managed both have someone who already runs
+secret management, and Personal has nobody.
 
 | concern | Personal | Organisation | Managed |
 |---|---|---|---|
@@ -82,13 +88,15 @@ The shape is one table, the **split by concern** that the owner's answers produc
 The Organisation figure is **migrated accounts, not a thousand interactive logins** (owner,
 2026-08-17): the migrators never sign in, which keeps decision 6 small. **Edition stays what
 ADR-0003 made it**, a build distinction, beside a runtime `deployment` ∈ `personal` |
-`organisation` | `managed`, **declared in the environment, Personal by default**. The edition
+`organisation` | `managed`; the self-host edition serves the first two, **declared in the
+environment, Personal by default**. The edition
 flag cannot tell Personal from Organisation, so keying a deployment-shape question off
 `isSelfHost` is a bug.
 
 The second axis, **configuration surface**: an object is **Declared** (a file under
-`CONFIG_DIR` is authoritative) or **Operated** (UI or API; the ledger is), by concern and
-deployment, never per object.
+`CONFIG_DIR` is authoritative) or **Operated** (UI or API; the ledger is): by concern, and for
+topology by deployment; never chosen per object, except the environment escape hatch, which
+Organisation chooses per connection.
 
 **Personas** are people, not deployments: the **migrator** (whose mail moves), the **migration
 operator** (runs and verifies migrations) and the **platform operator** (hardware, upgrades,
@@ -120,18 +128,21 @@ the one environment variable the refusal names.
 ### 4. The doors are split by concern, and never merged
 
 Topology and credentials are disjoint by construction (files never hold secrets; the credential
-flow never writes topology), and each has one door per deployment. So there is **nothing to
+flow never writes topology), and each concern has one door in a deployment. So there is **nothing to
 merge**: no ownership column, no collision check, no two-door edit rules, no precedence such as
 "the file wins on restart". A merge fails silently either way: the file overwrites what somebody
 typed, or the UI shadows the file an operator believes is authoritative. Where the doors meet:
 
 - **File-seeded rows record their origin path.** Organisation's UI shows file topology in full
   and refuses to edit it by **naming the file**.
-- A file-declared connection may carry a store-held granted credential (disjoint fields, same
-  row). **Deleting the file revokes or parks that credential** through the existing
-  `revokeStoredCredentials` path; it is never orphaned.
-- ADR-0035's per-person grants widen the appliance's one source and target connection pair per
-  tenant on the credential side only: topology (host, folders) is shared, identities are not.
+- A file-declared connection or mapping may carry a store-held granted credential (disjoint
+  fields). **Deleting the file revokes or parks that credential** through `revokeCredentialRow`,
+  the per-row half of `revokeStoredCredentials`; it is never orphaned. What becomes of a removed
+  file's rows beyond its credential is not decided here — deleting them would cascade to their
+  mailboxes and the item ledger beneath them.
+- When grants by migrated people (ADR-0035) reach the appliance, they widen its one source and
+  target connection pair per tenant on the credential side only: topology (host, folders) is
+  shared, identities are not.
 
 ### 5. The appliance gets a secret store, and generates its own key
 
@@ -142,9 +153,10 @@ asked for. [ADR-0037](./0037-keys-credentials-and-transport-floors.md) owns the 
 - `SECRET_ENCRYPTION_KEY` **wins when set** (Organisation's secret manager, Managed); no key
   file is created.
 - Otherwise **Personal generates the key at first store**, not at boot: `secret.key` beside the
-  PGlite directory, mode `0600` on POSIX, ACL'd on Windows to the principals `install-task.ps1`
-  grants on `secrets.cmd` (Administrators, SYSTEM, the run-as account). Never storing a secret
-  means never needing a key.
+  PGlite directory on every platform, mode `0600` on POSIX, ACL'd on Windows to exactly the
+  principals `install-task.ps1` grants on `secrets.cmd` (Administrators, SYSTEM, the run-as
+  account), and nobody else: the same threat that ACL addresses, and the same bar — not a claim
+  of protection against a compromised host. Never storing a secret means never needing a key.
 - A key file **and** a different environment key **refuse the start**, rather than failing to
   decrypt every credential.
 
@@ -161,7 +173,7 @@ On today's unauthenticated surface, a door that **stores and edits credentials**
 anyone who reaches the port add a source pointing at their own server, rotate a credential or
 read which accounts are being migrated. So, as a hard sequencing constraint:
 
-- **Personal** (loopback bind, one operator, one person's data) ships the UI door with the bind
+- **Personal** (loopback bind, one operator, one person's data) may ship the UI door with the bind
   as its boundary.
 - **Anything bound off loopback must not expose the credential-editing routes without
   authentication.** Until it exists, those routes refuse on a non-loopback bind, or the
@@ -203,17 +215,19 @@ connection.
 §7.1, §7.3, §8); it should name the three deployments. (b) Organisation authentication needs its
 own ADR; none exists yet. (c) Each `isSelfHost` use needs re-reading against decision 1.
 
-**Built, as of 2026-10-03.** None of the appliance side: `apps/selfhost` has no mode, store, key
+**Built, as of 2026-10-03.** None of the appliance side: `apps/selfhost` has no mode, credential store, key
 file, credential routes or origin path, still warns at boot, off loopback, that it has no
 authentication, and still carries a comment calling the missing connections management "a
-decision rather than an omission". The credential side has landed: a granted token lives on its
+decision rather than an omission"; it stores no credential. On managed, the credential side has
+landed: a granted token lives on its
 mapping (`mailbox_mapping.source_secret_ref`, ledger migration 0032), merged by
-`buildDepsFromMapping` and read by `revokeStoredCredentials`.
+`buildDepsFromMapping` and revoked through `revokeCredentialRow`.
 
 ## Alternatives considered
 
 - **Files only, documented better** (the status quo). Rejected: no documentation turns "edit two
-  files and restart a scheduled task" into something ADR-0027's person will do.
+  files and restart a scheduled task" into something ADR-0027's person will do, and the setup
+  checklist and the connections work already shipped assume a door the appliance does not have.
 - **UI only, files as a one-time import.** Rejected: it removes an Organisation deployment's
   only workable interface (at ~1000 accounts, arithmetic rather than preference) and the only
   path that keeps no secret at rest.
@@ -221,8 +235,8 @@ mapping (`mailbox_mapping.source_secret_ref`, ledger migration 0032), merged by
   (decision 4), and the loser is whoever was surest of editing the authoritative copy.
 - **Both doors on every object, ownership per row** (decisions 3 and 4 as first written): an
   ownership column, a startup refusal if derived and random ids collided, a vanished file's rows
-  kept for adoption into the UI or deletion. Replaced on 2026-08-19 by the split by concern: with
-  one door per concern there is nothing to own, collide or adopt.
+  offered for adoption into the UI or deletion. Replaced on 2026-08-19 by the split by concern:
+  with one door per concern there is nothing to own, collide or adopt.
 - **Split by deployment for everything: no secret store on Organisation** (an earlier draft of
   the 2026-08-19 answers). Rejected: a credential that arrives from a person at runtime,
   ADR-0035's grant link, has no environment variable. The owner, 2026-08-19: *"why would we want to store all possible

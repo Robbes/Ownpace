@@ -1,6 +1,6 @@
 # ADR-0024: `apply` — an explicit, gated exception to non-destructiveness
 
-- **Status:** Accepted
+- **Status:** Accepted 2026-07-30; amended once (2026-09-27)
 - **Date:** 2026-07-30
 - **Relates to:** ADR-0005 (idempotency via ledger, non-destructive by default), ADR-0020 (ledger as rebuildable cache). Arch doc §11.1, §11.2, §20.
 
@@ -11,9 +11,11 @@
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
 - `apply` is the **only destructive code path**: per item, owner-called, never automatic.
-  Relocations are its second caller (ADR-0030/0031): same function, same gates.
+  Relocations remove through `applyRelocation` beside it (ADR-0030/0031): the same gates, gate 3
+  taking a recorded relocation as evidence and gate 6 counting relocations too.
   `packages/core/src/apply-deletion.ts` holds the only calls to `removeItem`.
-- **Seven gates**, enforced by `applyDeletion`, re-checked in the ledger's conditional UPDATE:
+- **Seven gates**, enforced by `applyDeletion`; evidence and ownership re-checked in the ledger's
+  conditional UPDATE:
   (1) per-mapping opt-in; (2) `TargetRemover` capability; (3) **positive evidence only**,
   `reported`/`trashed`, never `inferred`; (4) ownership, `copied`/`updated` only, never
   `adopted`; (5) no edit since (DAV: the server's `If-Match`; JMAP contacts and files: a
@@ -22,8 +24,8 @@
 - **With no recorded version, nothing is removed** (`version_unknown`, workplan 0149 T3); a weak
   ETag counts as none. JMAP mail, which records no version by design, is exempt:
   `packages/engines/src/a-removal-the-server-checks.unit.test.ts`.
-- Order is **remove-then-record**; rows are tombstoned, never deleted; a reappearance is **never
-  re-copied** (`packages/core/src/tombstone-not-restored.unit.test.ts`); outcomes state
+- Order is **remove-then-record**; rows are tombstoned, never deleted; a deleted item's
+  reappearance is **never re-copied** (a relocated one's is: ADR-0030) (`packages/core/src/tombstone-not-restored.unit.test.ts`); outcomes state
   `kind: binned|deleted`, understating recoverability.
 
 ## Context
@@ -95,6 +97,9 @@ made, not which rows are rewritten.
 
 ## Amendment log
 
+- **2026-09-27** — The server checks the version on removal and rewrite, and without a recorded
+  version nothing is removed (workplan 0149 T3). Record: *Amendment, 2026-09-27: the server checks
+  the version, and without one nothing is removed*.
 - **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
   decided. Their earlier wording, with the reasons and examples the budget left out, is in the
   record: [history/0024-explicit-owner-deletion-apply.md](./history/0024-explicit-owner-deletion-apply.md).

@@ -19,18 +19,20 @@
 
 - **`execute` and `complete` write the mapping as well as the ledger**: `active` or `paused`
   becomes `cutover`; `cutover`, `continuous`, `done` stay (`done` with a warning). Decided by
-  `cutoverTransition` (shared), the mirror of `rollbackTransition`. Guard:
+  `cutoverTransition` (shared): whatever a cutover stops, a rollback puts back. Guard:
   `cutover-lifecycle.integration.test.ts`.
 - **The mapping first, the ledger second, every refusal before either write.** Row, paths and a
   `mapping.status` record (`via: 'cutover'`) commit together, through the rollback's port; only
-  paths in the phase the mapping leaves move (`pathFollows`). See *One transaction, and the paths*.
+  paths in the phase the mapping leaves move, where its rows add up to its status (`pathFollows`).
+  See *One transaction, and the paths*.
 - **A migration `active` at `execute` copies until its grace period ends**, mirroring no deletion
-  and holding no slot; a `paused` one stays stopped. Gates ask `runsPassesNow` with the ledger's
-  window. Guard: `a-grace-period-that-copies.unit.test.ts`; see *The window rule*.
+  and holding no slot; a `paused` one stays stopped. Gates ask `runsPassesNow` with each data
+  type's window. Guard: `a-grace-period-that-copies.unit.test.ts`; see *The window rule*.
 - **A data type can be cut over on its own** (`--kind`): its own ledger and path, the
-  migration's status their roll-up; only mail waits for DNS. Whole and per-type cutovers never
-  overlap (`cutoverBeginRefusal`). See *One data type cut over on its own*.
-- **`complete` closes the ledger, not the migration.** Each data type is then ended (`done`,
+  migration's status their roll-up; only mail waits for DNS. A data type's own cutover never
+  begins while the whole one is under way, nor the whole once a data type has its own
+  (`cutoverBeginRefusal`). See *One data type cut over on its own*.
+- **`complete` closes the ledger, not the migration.** Each data type is ended (`done`,
   refused over its unresolved failures unless forced) or kept copying, by `endOrKeepPath`; one
   whose grace period ended unchosen is named on the Finish page and in the digest (D7). See *One
   data type ended or kept*.
@@ -97,7 +99,8 @@ an `audit_log` record (`mapping.status`, **`via: 'cutover'`**) in one transactio
 (`applyMappingStatusChange`; workplan 0109 T1). The paths follow one rule at every door
 (`pathFollows`, `paths-follow-the-mapping.ts`; 0109 T1b): where their rows add up to the status the
 mapping leaves, only the paths in that phase move, `done` ends all, and a start also starts one
-that never ran; where they do not (a status written alone), all move. So pausing or starting the
+that never ran; where they do not (a status written alone), all move, since the reader then
+believes the status for every data type. So pausing or starting the
 rest never returns a data type cut over on its own to its deletion detectors (0117 D4).
 
 A `cutover` path holds no slot (`holdsASlot`, ADR-0014): `execute` and `complete` release slots,
@@ -116,8 +119,8 @@ target because it went at the source, no slot held; its copies join the data met
 stop; finishing, or the lane, stays the owner's. **A paused migration stays stopped**: `execute`
 records, while it still sees the status, whether it copies (`keepsCopyingThroughGrace`;
 `copies_through_grace`, ledger migration 0064). One already `cutover` at `execute` (declared
-earlier, or a re-run after a failed ledger write; nothing tells them apart) copies nothing nobody
-asked for; the continuous lane is its way to copy.
+earlier, or a re-run after a failed ledger write; nothing tells them apart) copies nothing through
+the grace period; the continuous lane is its way to copy.
 
 **The window rule.** A window is a cutover ledger row's: in GRACE_PERIOD it ends
 `grace_period_hours` after `grace_period_started_at`; in CUTOVER_IN_PROGRESS, as long after
@@ -157,9 +160,9 @@ is; a forced End is recorded as forced. Before its cutover either press is its c
 4's attestation (D3): End is one move; Keep is recorded as the cutover, then the lane. The
 migration's status is the roll-up, in the same transaction: `done` once every data type has ended.
 
-A press on the whole migration moves only the paths in the phase it leaves, as the owner confirmed
-on 2026-09-27 (0128 D9 and D10, both (a)): a whole rollback leaves a kept data type in the lane,
-and the whole *Keep copying* leaves an ended one ended.
+A whole rollback leaves a data type kept on its own in the lane, and the whole *Keep copying*
+leaves one ended on its own ended (slice 5a's rule, as built; the owner, 2026-09-27, 0128 D9 and
+D10, both (a)). A whole Finish ends every path.
 
 ### A grace period that ended while nobody chose (D7)
 
@@ -195,13 +198,13 @@ both editions, so the decision is in `shared` and the write in `core` and the le
   `a-cutover-ledger-per-data-type`, `a-door-moves-only-its-own-paths`, `path-lifecycle-wiring`,
   `a-cutover-of-one-data-type`, `who-may-begin-a-cutover`, `an-ending-per-data-type`,
   `a-data-type-ended-or-kept`, `a-grace-period-that-ended`, `a-grace-period-nobody-chose`,
-  `a-grace-period-the-digest-names`.
+  `a-grace-period-the-digest-names`; for the peak raised with the slots, `a-peak-the-ledger-door-can-raise`
+  (ledger) and `the-peak-where-there-is-one` (worker).
 
 ## Alternatives considered
 
 - **Refuse `execute` on a `paused` mapping.** Rejected: a refusal holds only while the operator is
-  at the terminal (the Finish page can pause in the grace window too), and it leaves Start open
-  after cutover, the accident D4 exists to prevent. Naming it in the confirmation keeps the
+  at the terminal and closes the door, and it leaves Start open after cutover, the accident D4 exists to prevent. Naming it in the confirmation keeps the
   operator's call.
 - **Put the mapping back to `active` on a propagation timeout.** Rejected: the MX record may have
   moved for some resolvers and not others, and a pass then is the D4 loop. FAILED invites the
@@ -215,14 +218,15 @@ both editions, so the decision is in `shared` and the write in `core` and the le
 - **A separate port per door.** Rejected: one `mappingLifecyclePort`, naming the door (`via`) per
   write, keeps one audit shape and one transaction helper; two ports are two places to forget the
   record.
-- **Stop every pass at `execute`** (as first built), **or copy a paused migration too.** Rejected
-  (D1 (a)): the first left mail reaching the old server during propagation, and edits in the old
-  account, uncopied for the grace period's 72 hours; the second would have a cutover restart what
-  the operator had stopped.
+- **Stop every pass at `execute`** (as first built). Rejected by the owner (D1 (a)): it left mail
+  reaching the old server during propagation, and edits in the old account, uncopied for the grace
+  period's 72 hours.
+- **Copy a paused migration through the grace period too.** Rejected in the build (0128 T2): a
+  cutover would restart what the operator had stopped.
 - **Move every included path with the mapping** (the 2026-09-24 correction's rule). Replaced once a
   data type can be cut over on its own: a pause or a start of the rest would return it to its
   deletion detectors.
-- **Begin the whole migration's cutover beside a data type's own.** Refused
+- **Begin the whole migration's cutover once a data type has its own.** Refused
   (`cutoverBeginRefusal`): a whole rollback would move back a data type cut over on its own, and the
   tick's question, whether any ledger row still copies, would stop being each data type's.
 - **Let a press on the whole migration undo a data type's own ending** (0128 D9 (b), D10 (b)).
@@ -245,6 +249,9 @@ both editions, so the decision is in `shared` and the write in `core` and the le
   paths*. Its last sentence, that a rollback through the CLI "is trued up the next time the tier
   is read", was overtaken that night (workplan 0109, "a rollback's slots are in the month's
   peak"), which this record never said; the code's behaviour is stated above.
+- **2026-09-24, that night** — a rollback's slots are in the month's peak: the CLI and the
+  `run-rollback` job raise it in the same transaction (`onSlotsTaken`; workplan 0109 T2). Record:
+  none — the record never said it. Now *One transaction, and the paths*.
 - **2026-09-26** — a window per data type (0128 T5 slice 4, D8). Record: *Amendment, 2026-09-26:
   a window per data type (workplan 0128 T5, slice 4)*. Now *The window rule*.
 - **2026-09-26** — only the paths in the phase the mapping leaves (slice 5a). Record: *Amendment,

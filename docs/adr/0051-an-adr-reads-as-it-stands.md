@@ -139,7 +139,7 @@ kept the reasons and grew the files it was meant to shrink.)
 ### 7. What this change did
 
 - **Consolidated in place**: ADR-0014, 0027, 0030, 0034, 0035, 0041, 0046 and 0048 — the six the
-  recommendation named, plus 0046 and 0048, whose five and seven post-acceptance amendments made
+  recommendation named, plus 0046 and 0048, whose five and eight dated changes after acceptance made
   them the longest chains after 0014.
 - **Compressed**: the operative sections of ADR-0020, 0024, 0038, 0039, 0040, 0042, 0043, 0044,
   0047, 0049 and 0050; the status entries of 0032, 0036, 0047 and 0050.

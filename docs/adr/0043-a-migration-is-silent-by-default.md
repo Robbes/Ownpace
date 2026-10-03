@@ -11,7 +11,8 @@
 
 - **No write this product makes to a target may cause the target to send mail or notifications
   to third parties, unless a person pressed a control that says so.** This extends ADR-0032's
-  posture for shares to calendars and to any domain added later:
+  posture for shares (workplan 0052) to calendars, where RFC 6638 makes a scheduling target the
+  mailman by default, and to any domain added later:
   `docs/workplans/0103-the-mail-a-migration-must-not-send.md`.
 - **The copy stays faithful; the side effects are what we suppress.** `ATTENDEE` and `ORGANIZER`
   are never stripped: the calendar writer sets `SCHEDULE-AGENT=CLIENT` on every one it PUTs

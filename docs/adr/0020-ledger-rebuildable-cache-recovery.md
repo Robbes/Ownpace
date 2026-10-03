@@ -13,7 +13,7 @@
 - The ledger is a **rebuildable cache + audit log**, never the source of truth for existence:
   that fact lives on the target, by natural key (*Key insight* below).
 - Writes are **create-if-absent by natural key** (a target existence check beside the ledger
-  fast-path), so an empty ledger can never duplicate: `packages/core/src/reindex.unit.test.ts`.
+  fast-path), so an empty ledger can never duplicate: `packages/core/src/reconcile.unit.test.ts`.
 - **Reindex/adopt** rehydrates the ledger from the target. It is the worker's command in both
   editions (`reindex --tenant <t> --mapping <m> --yes`, `apps/worker/src/cli/index.ts`), run by
   hand, and nothing runs it automatically: the appliance warns at start-up when an active
@@ -76,6 +76,9 @@ from a backup, never dropped (`packages/ledger/src/migrate.ts`).
 
 ## Amendment log
 
+- **2026-09-27** — The operative rules say what is built: the reindex is the worker's command in
+  both editions, run by hand; the appliance warns at start-up; nothing runs it automatically
+  (workplan 0134 T3). Record: *Amendment, 2026-09-27: what is built, not what was planned*.
 - **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
   decided. Their earlier wording, with the reasons and examples the budget left out, is in the
   record: [history/0020-ledger-rebuildable-cache-recovery.md](./history/0020-ledger-rebuildable-cache-recovery.md).

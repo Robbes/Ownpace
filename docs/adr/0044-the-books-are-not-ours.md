@@ -24,7 +24,7 @@
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
 - **The legal system of record for invoices is Moneybird, not this product.** Moneybird assigns
-  the number, applies the tax rate, renders the document and files it. Ownpace is UPSTREAM of the
+  the number, applies the tax rate, renders the document and files it for the retention period. Ownpace is UPSTREAM of the
   record (it pushes the billable period) and a MIRROR of it (number, issue date, PDF, status
   pulled back): `packages/managed/src/moneybird-sales-invoices.ts`.
 - **Ownpace never assigns an invoice number.** No code path may mint, alter or reuse one; the
@@ -37,8 +37,8 @@
   looked up (`find_by_reference`) first, so a retried push cannot double-invoice (hard rule 1):
   `packages/managed/src/moneybird-sales-invoices.unit.test.ts`.
 - **No VAT percentage lives in product code.** The treatment is a Moneybird `tax_rate_id` per
-  invoice (`packages/managed/src/moneybird-tax-rates.ts`); the legacy `VAT_RATE` in `pricing.ts`
-  must not spread: `scripts/a-rate-that-must-not-spread.unit.test.ts`.
+  invoice (`packages/managed/src/moneybird-tax-rates.ts`); the legacy display logic's `VAT_RATE` in
+  `pricing.ts` must not spread: `scripts/a-rate-that-must-not-spread.unit.test.ts`.
 - **An issued invoice is immutable in the mirror; a correction is a credit note** issued by
   Moneybird and mirrored, never an UPDATE to an issued row:
   `packages/managed/src/invoice-refusal-under-rls.unit.test.ts` (managed migration 0014).
@@ -94,5 +94,7 @@ workplan 0111 T1–T3.
 ## Amendment log
 
 - **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
-  decided. Their earlier wording, with the reasons and examples the budget left out, is in the
+  decided. Two statements now say what holds: credentials ride `.env`, since there is no vault
+  (hard rule 3), and `VAT_RATE` is no longer "pending" its task (workplan 0111 T3, built
+  2026-08-29). Their earlier wording, with the reasons and examples the budget left out, is in the
   record: [history/0044-the-books-are-not-ours.md](./history/0044-the-books-are-not-ours.md).
