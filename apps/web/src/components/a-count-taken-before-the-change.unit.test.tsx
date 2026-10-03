@@ -111,6 +111,13 @@ describe('the rows that answer the count the screen asked for', () => {
     ]);
   });
 
+  it('keeps a row whose error is withheld, whatever its age (ADR-0035 decision 5)', () => {
+    // The owner's screen gets no text for a person-granted account, and the
+    // error is still the count's final answer: waiting on it would spin for ever.
+    const withheld = { domain: 'file', discoveredAt: BEFORE, lastErrorWithheld: true as const };
+    expect(countedSinceChange([withheld], CHANGED)).toEqual([withheld]);
+  });
+
   it('keeps every row while the migration’s time is unknown or unreadable', () => {
     for (const changedAt of [undefined, 'not a time']) {
       expect(countedSinceChange([row(BEFORE)], changedAt), String(changedAt)).toEqual([row(BEFORE)]);
