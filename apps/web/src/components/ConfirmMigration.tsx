@@ -7,6 +7,7 @@ import {
   needsAcknowledgement,
 } from './confirm/native-refusals.tsx';
 import ScopeManifestPanel from './confirm/ScopeManifestPanel.tsx';
+import DataCeilingNotice from './confirm/DataCeilingNotice.tsx';
 import { scopeFamilyOfConnectionKind, scopeManifestFor, type DiscoveryDomain } from '@openmig/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { mappingApi, scopeManifestApi, type DiscoveryResponse } from '../services/mapping-service.ts';
@@ -416,6 +417,10 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
             : t('confirm.startErrorFallback')}
         </p>
       )}
+
+      {/* What Start says first (ADR-0014, Amendment 2026-10-03): the data
+          against the ceiling, once the count is in. Never a block. */}
+      <DataCeilingNotice mappingIds={[mappingId]} ready={!stillCounting} />
 
       {/* Beside Start, so the greyed-out button says why, and when it opens
           without the count, that it did. See `stillCounting`. */}

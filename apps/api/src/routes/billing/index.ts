@@ -25,6 +25,7 @@ import {
   checkVat,
   decideVatTreatment,
   observedTier,
+  dataCeilingForecast,
   PgOccupancyPeakStore,
   PgBytesMovedStore,
   type ViesRequester,
@@ -34,8 +35,14 @@ import * as schema from '@openmig/managed/schema-managed';
 import { run as runTable } from '@openmig/ledger/schema-pg';
 // The live slot count, through the ONE authority on which states hold a slot
 // (`holdsASlot`, wrapped by `slotsHeld`) rather than a second list here.
-import { PgPathLifecycleStore } from '@openmig/ledger';
-import { log, type TenantId } from '@openmig/shared';
+import { PgDiscoveryStore, PgPathLifecycleStore } from '@openmig/ledger';
+import {
+  asMappingId,
+  discoveryForSelection,
+  foundByDomain,
+  log,
+  type TenantId,
+} from '@openmig/shared';
 import { NO_TIER_BILLING_CODE, NO_TIER_BILLING_REASON } from './no-bill-we-do-not-sell.ts';
 import {
   billingPartyColumns,
@@ -263,6 +270,88 @@ router.get('/usage', authenticate, requireBillingRead, async (req: Authenticated
     });
   } catch (error) {
     serverFault(res, 'usage_failed', 'reading your usage', error);
+  }
+});
+
+const StartForecastSchema = z.object({
+  mappingIds: z.array(z.string().uuid()).min(1).max(50),
+});
+
+/**
+ * POST /api/billing/start-forecast (ADR-0014, *Amendment 2026-10-03*; 0109 T6)
+ *
+ * What the Start step says before it starts: whether the data already moved,
+ * plus what the preflight measured for the migrations about to start, passes
+ * the ceiling of the tier the start lands on. Past it, the answer names both
+ * ways on (the next tier, and a top-up at the tier's monthly once), so nobody
+ * meets the hold at the ceiling without having been told. It never refuses a
+ * start, and it writes nothing: like `/usage`, it reads the peak without the
+ * true-up, because looking prices nothing.
+ *
+ * Only paths that have never run count as starting (`ready`, the state a path
+ * with no lifecycle row is read as): a running path is already holding its
+ * slot, and its copied data is already in the meter. Their bytes are the
+ * preflight's own, by the discovery route's rule (`discoveryForSelection`,
+ * `foundByDomain`), so a data type without a size counts as nothing, as the
+ * amendment says the forecast must, and a migration of another organisation
+ * reads as nothing under RLS.
+ */
+router.post('/start-forecast', authenticate, requireBillingRead, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
+    }
+    const { mappingIds } = StartForecastSchema.parse(req.body);
+    const t = asTenantId(tenantId);
+    const read = await withTenantDb(tenantId, getSharedPool(), async (db) => {
+      const lifecycle = new PgPathLifecycleStore(db);
+      const discovery = new PgDiscoveryStore(db);
+      let startingPaths = 0;
+      let startingBytes = 0;
+      for (const id of new Set(mappingIds)) {
+        const mappingId = asMappingId(id);
+        const starting = (await lifecycle.forMapping(t, mappingId)).filter((p) => p.state === 'ready');
+        if (starting.length === 0) continue;
+        startingPaths += starting.length;
+        const found = foundByDomain(
+          discoveryForSelection(await discovery.getDiscovery(t, mappingId), starting.map((p) => p.domain)),
+        );
+        for (const p of starting) startingBytes += found[p.domain]?.bytes ?? 0;
+      }
+      return {
+        peak: await new PgOccupancyPeakStore(db).forMonth(t, new Date()),
+        pathsNow: await lifecycle.slotsHeld(t),
+        bytesMoved: await new PgBytesMovedStore(db).total(t),
+        startingPaths,
+        startingBytes,
+      };
+    });
+    const pathsAfterStart = Math.max(read.peak?.peakPaths ?? 0, read.pathsNow + read.startingPaths);
+    const forecast = dataCeilingForecast(
+      pathsAfterStart,
+      Number(read.bytesMoved) / BYTES_PER_GB,
+      read.startingBytes / BYTES_PER_GB,
+    );
+    res.json({
+      forecast: forecast
+        ? {
+            tier: { id: forecast.tier.id, name: forecast.tier.name, dataGb: forecast.tier.dataGb },
+            forecastGb: forecast.forecastGb,
+            ceilingGb: forecast.ceilingGb,
+            next: forecast.next
+              ? { id: forecast.next.id, name: forecast.next.name, monthlyCents: forecast.next.monthlyCents }
+              : null,
+            topUpCents: forecast.topUpCents,
+          }
+        : null,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ error: 'Validation error', details: error.issues });
+    } else {
+      serverFault(res, 'start_forecast_failed', 'checking the data against your tier', error);
+    }
   }
 });
 
