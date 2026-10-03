@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { STRINGS } from '../i18n/strings.ts';
@@ -324,8 +324,43 @@ describe('whose account, on each side (owner, 2026-09-17)', () => {
       }),
     );
     renderHub();
-    expect(await screen.findByText(/From Acme Google to nextcloud/)).toBeInTheDocument();
+    // And a side with no name is its provider's, never the kind (0154 T6).
+    expect(await screen.findByText(/From Acme Google to Nextcloud$/)).toBeInTheDocument();
     expect(screen.queryByText(/\(\)/)).toBeNull();
+  });
+
+  /** 0154 T6: *From gmail · anna@gmail.com (anna@gmail.com)* said the account twice. */
+  it('says the provider’s name, not a name made from the account, and the account once', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({
+        sourceType: 'gmail',
+        targetType: 'soverin',
+        sourceConnection: { id: 'c1', name: 'gmail · anna@gmail.com', kind: 'gmail' },
+        targetConnection: { id: 'c2', name: 'soverin', kind: 'soverin' },
+        sourceConfig: { username: 'anna@gmail.com' },
+        targetConfig: { username: 'anna@soverin.example' },
+      }),
+    );
+    renderHub();
+    expect(
+      await screen.findByText('From Gmail (anna@gmail.com) to Soverin (anna@soverin.example)'),
+    ).toBeInTheDocument();
+  });
+});
+
+/** 0154 T6: the ID is for a support ticket, folded under Details, no longer under the title. */
+describe('the migration’s ID', () => {
+  it('sits folded under Details, where a support ticket can copy it', async () => {
+    renderHub();
+    await screen.findByRole('heading', { name: 'Acme mail' });
+    const id = screen.getByText('acme-mail', { selector: 'code' });
+    const fold = id.closest('details');
+    expect(fold).not.toBeNull();
+    expect(fold).not.toHaveAttribute('open');
+    expect(within(fold!).getByText('Details')).toBeInTheDocument();
+    expect(fold!.textContent).toContain('Migration ID: acme-mail');
+    // And nowhere else: not under the title, where it was.
+    expect(screen.getAllByText('acme-mail')).toHaveLength(1);
   });
 });
 

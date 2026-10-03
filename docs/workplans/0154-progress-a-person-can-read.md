@@ -4,6 +4,24 @@
 
 ## Status — 2026-10-03 (update this block at the end of every session)
 
+**2026-10-03, night: T6 is built: internals out of the way.**
+
+- **The migration's ID** left the spot under its title for a *Details* fold (*Migration ID:*), for a
+  support ticket.
+- **An item's hash** on the Deletions, Moves and Failures rows folds under *ID*, closed. Its title
+  keeps the whole value to copy.
+- **The connections line** says the card's name where the account's name was made from it: *From
+  Gmail (anna@gmail.com)*, where it read *From gmail · anna@gmail.com (anna@gmail.com)*. A name
+  somebody chose stays (*Anna's Soverin*), and a side with no name is its card's, never the kind
+  (*Nextcloud*, not *nextcloud*).
+- **The run history** says *912 items this pass* and *3 errors*, where it said *Items: 912*.
+  *Pass* is the glossary's English, as the panel's own line and a person's lines say it; the
+  plan's *round* is its Dutch, *912 items in deze ronde*.
+- *Left as they are* got its words in T2.
+- **Proved by:** the migration page (+2), the run history (+1) and Deletions (+1). **Mutations: seven
+  of seven caught.** Walked in Chromium, English and Dutch, at 900 and 390 pixels. No page or
+  console errors, and no sideways scroll.
+
 **2026-10-03, night: T4 is built: a migration's page lists its steps as a person's page does.**
 The seven cards on a migration's page are one numbered list. It is the list a person's page
 draws, now one component (`CutoverSteps`), so the two cannot order, name or count a step two
@@ -228,7 +246,7 @@ of a move after it. The evening's answer puts everything before.
 | T3 Time left, as a range with its reason | 📋 **Proposed; before the first invitation** | §3. (a) Before Start, from the counts and the limits the product already knows (Gmail's 2.5 GB a day). (b) During the copy, from the rate of recent passes. Never a single number, and nothing when it cannot know. |
 | T4 The cutover steps with counts and state | ✅ **Built: one list on a migration's page and a person's, each step with its count and state in words, and the check as it last ran** | §3. The seven cards become one ordered list. Each has its count and *done*, *needs you* or *not yet*, summed for the move across its migrations. |
 | T5 The report of what arrived, as a page | 📋 **Proposed; before the first invitation** | §3. The completion report is rendered in the app, per migration and per move, and downloadable. The word *Markdown* leaves the button. |
-| T6 Internals out of the way | 📋 **Proposed; before the first invitation** | §3. The UUID, the kinds, the doubled address and the item hashes fold away. *Left as they are* says what it means. |
+| T6 Internals out of the way | ✅ **Built: the ID and the hashes fold away, the connections line says the card, and the run history says its counts in words** | §3. The UUID, the kinds, the doubled address and the item hashes fold away. *Left as they are* says what it means. |
 | T7 An email when the first copy is in | 📋 **Decided by the owner 2026-09-28: one per person; before the first invitation** | §3. A milestone mail, *"Your mail is in your new system and is kept in step until you switch."* It is a new kind for 0030's email-only channel, so the owner decides. |
 | T8 The person's own progress page says the same | 📋 **Proposed; before the first invitation** | §3. `/view/:link` shows T1's line, T2's totals and T3's range, in the person's language (0145 T6). |
 

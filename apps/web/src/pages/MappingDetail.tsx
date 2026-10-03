@@ -44,6 +44,7 @@ import MigrationKindsPanel from '../components/MigrationKindsPanel.tsx';
 import CompletionReportDownload from '../components/CompletionReportDownload.tsx';
 import LiveProgress from '../components/LiveProgress.tsx';
 import StateChip from '../components/StateChip.tsx';
+import { connectionKindName } from '../components/ProviderTile.tsx';
 import { CutoverSteps } from '../components/CutoverSteps.tsx';
 import { serverMessage } from '../services/api.ts';
 
@@ -65,13 +66,17 @@ import { serverMessage } from '../services/api.ts';
  * account is unknown — an empty `()` would read as a connection with no
  * account rather than as a page that could not say.
  */
-function sideLabel(
-  name: string | null | undefined,
-  kind: string,
-  account: string | undefined,
-): string {
-  const head = name ?? kind;
-  return account === undefined || account === '' ? head : `${head} (${account})`;
+function sideLabel(name: string | null | undefined, kind: string, account: string | undefined): string {
+  const known = account !== undefined && account !== '';
+  // A NAME MADE FROM WHAT IT CONNECTS TO says nothing the provider and the
+  // address do not (0154 T6): the wizard named an account it was not given a
+  // name for `gmail · anna@gmail.com`, and the line read *From gmail ·
+  // anna@gmail.com (anna@gmail.com)*. Such a name, or none, is the provider
+  // card's own: *From Gmail (anna@gmail.com)*. A name somebody chose stays.
+  const provider = connectionKindName(kind) ?? kind;
+  const made = name == null || name === kind || name === provider || (known && name.includes(account));
+  const head = made ? provider : name;
+  return known ? `${head} (${account})` : head;
 }
 
 
@@ -195,7 +200,6 @@ const MappingDetail: React.FC = () => {
         </div>
       </div>
       {pauseFailed && <p className="mt-1 text-sm text-red-700">{pauseFailed}</p>}
-      <p className="mt-1 text-sm text-gray-500 font-mono">{id}</p>
       {/* WHICH accounts, by name — the mapping's own, not the tenant's first
           (the API read the wrong ones until 2026-09-11). A migration named
           "G to Sov" that is in fact wired to the Nextcloud target is a fact
@@ -227,6 +231,14 @@ const MappingDetail: React.FC = () => {
           <p className="mt-1">{t('hub.grantWithdrawn.next')}</p>
         </div>
       )}
+      {/* THE MIGRATION'S ID, folded under *Details* (0154 T6): it is for a
+          support ticket, not for reading, and it sat under the title. */}
+      <details className="mt-1 text-sm text-gray-500">
+        <summary className="cursor-pointer select-none">{t('hub.details')}</summary>
+        <p className="mt-1">
+          {t('hub.migrationId')} <code className="font-mono select-all">{id}</code>
+        </p>
+      </details>
       {/* The completion report (workplan 0047): every number on it already
           lives on some screen below — this is the ONE document version, for
           handing over. */}
