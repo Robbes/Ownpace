@@ -228,8 +228,59 @@ leaves `%` alone: `Q&A #2 (50%).pdf` was PUT to an address the server could not 
 
 ### Files — large files
 
-`WebDAVTargetWriter` (`packages/engines/src/webdav-target-writer.ts`) switches to a chunked upload
-above `chunkSize`, which **defaults to 10 MB** and is configurable via `WebDAVSyncConfig`.
+A file above 8 MB (`STREAM_FILES_LARGER_THAN_BYTES`) crosses as a stream, hashed as it passes,
+and is never held whole. How it reaches the target depends on its size and on the target
+(`packages/engines/src/webdav-target-writer.ts`, `nextcloud-chunked-upload.ts`; workplan 0156):
+
+- **Up to 64 MiB, or on a target with no upload area: one `PUT`**, with `Content-Length` and
+  `If-None-Match: *` (create) or `If-Match` (rewrite with a strong version).
+- **Above 64 MiB on Nextcloud: its chunked upload** — `MKCOL` of
+  `…/dav/uploads/<user>/ownpace-<uuid>` with `Destination`, the file `PUT` there in numbered
+  64 MiB pieces (`00001`, `00002`, …, each with its own `Content-Length`, `Destination` and
+  `OC-Total-Length`), then one `MOVE` of `<upload folder>/.file` to the destination
+  ([developer manual](https://docs.nextcloud.com/server/latest/developer_manual/client_apis/WebDAV/chunking.html)).
+  The upload area is derived from the files URL (`/dav/files/<user>/` → `/dav/uploads/<user>/`),
+  the same way the trashbin's is.
+
+There was a "chunked upload" here before, above a `chunkSize` this page said defaulted to 10 MB.
+It PUT the same URL repeatedly with `Content-Range`, which Sabre refuses on any PUT, it needed the
+whole file in memory, and nothing in either edition switched it on: every large file went up as
+one request. On 2026-10-03 the owner's four largest Dropbox files (1.3–4.5 GB) were refused with
+`413` by the demo Nextcloud, whose Apache takes one request of at most 1 GiB
+(`APACHE_BODY_LIMIT`), and parked as *"We could not classify this one"*.
+
+**Rule**: a file sent in pieces MUST give the same answers as the single PUT. Nothing is at the
+destination until the `MOVE`, which carries `Overwrite: F` on a create, so a path taken in the
+meantime is refused with 412 and adopted or refused exactly as `If-None-Match: *`'s 412 is. A
+rewrite with a strong version carries it as RFC 4918's tagged `If: <destination> (["etag"])`:
+`If-Match` on that `MOVE` is checked against `.file`, not the destination (measured on
+`nextcloud:34-apache`: the destination's own current ETag was refused with 412). The `MOVE`'s
+`ETag` is recorded as the PUT's is, and the recorded hash is the whole file's.
+
+**Rule**: a file sent in pieces is read ONCE per attempt and never buffered. One read of the
+source goes through one hasher and is cut into pieces as it passes (`ChunkSlicer`), so the pass
+holds a few of the source's own chunks, never a piece. A transient answer to a piece retries the
+whole send from a fresh read, as `requestRebuilding` does for one PUT, never only the failed
+piece: a second read of a source that changed would assemble two versions under one hash.
+
+**Rule**: a failed upload leaves no partial file, and its upload folder is `DELETE`d best-effort;
+the error that stopped it is the one surfaced. Nextcloud removes a folder left behind (a pass
+killed mid-file) after 24 hours. A re-run starts a new upload under a new name.
+
+**Rule**: whether the target has an upload area is decided ONCE per writer and said once in the
+log. A files URL that is not Nextcloud's shape, or an upload area that answers its `MKCOL` with
+403, 404, 405, 409 or 501, means one `PUT` per file, as before. Any other refusal of the `MKCOL`
+fails the file with the server's words.
+
+**Rule**: a `413` is said as what it is. The writer states `target_refused` with a sentence
+naming the file's size and the limit on one request (Apache's `LimitRequestBody` /
+`APACHE_BODY_LIMIT`, nginx's `client_max_body_size`, a CDN's upload limit), and parks the item for
+a person (`markNeedsDecision`) rather than trying four more times: a limit answers the same on
+every pass. `classifyFailure` reads `status 413` and its three reason phrases as `target_refused`
+for every other writer.
+
+Not done: resuming a partial upload across passes (each attempt starts from the first piece), and
+stopping mid-file at the pass deadline (it is checked between items).
 
 ## Target support
 
@@ -374,6 +425,7 @@ way out.
 | Second pass re-creates everything | Natural key unstable (e.g. UID case, or an unnormalized path) |
 | A domain reports 0 items from collections that exist | The `sync-collection` REPORT answered 207 with nothing. Since 2026-09-12 both DAV sources check that with a `calendar-query` / `addressbook-query` and log which path answered — look for `[caldav]` / `[carddav]` lines in the run's events |
 | `PUT` returns 404 naming a FOLDER, not the file | The parent collection was never created — an MKCOL whose status went unread, or a non-recursive one on a nested path |
+| A large file fails with `status 413` — on Nextcloud, often `BadRequest — Expected filesize of N bytes but read … 0 bytes` | A limit on the size of one request, in the web server or a proxy in front of it: the Nextcloud image's `APACHE_BODY_LIMIT` (1 GiB by default), nginx's `client_max_body_size`, a CDN's cap. Above 64 MiB the writer sends Nextcloud pieces; a 413 on a smaller file, on a piece, or on a target with no upload area means that limit is lower than the request — raise it and press *Try again*. See *Files — large files* |
 | `Response body object should not be disturbed or locked` on an upload | A retry re-sent a body that had already been consumed. The failure is OURS, not the target's — and it has replaced whatever the server actually said. See *Retrying a write whose body is a stream* above |
 | A folder of Google Docs stops a whole pass | A policy refusal counted as a broken world; a decision-class failure must be parked, not counted toward the tripwire (`isDecisionError`) |
 | A failed `PUT` in the ledger reads `status 500: <?xml version="1.0"` and nothing more | Nothing truncated it. Sabre's error document opens with over a hundred characters of XML declaration and namespace declarations, so any view with a width spends its budget before the first word of the reason. Since 2026-09-13 `davRefusalBody` unwraps it to `exception — message`; rows written before that date still carry the envelope, so read those with `SELECT last_error FROM item WHERE …` rather than through a table cell |
