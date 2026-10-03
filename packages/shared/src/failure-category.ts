@@ -265,6 +265,33 @@ const RULES: ReadonlyArray<{
     category: 'auth_expired',
     test: /\b(invalid_grant|invalid_token|token[\s_-]?expired|expired[\s_-]?token|authenticationfailed|authentication\s+failed|unauthorized|unauthorised|401|invalid_client|revoked)\b/i,
   },
+  // A LIMIT ON THE SIZE OF ONE REQUEST, and `unknown` until 2026-10-03. The
+  // owner's four largest Dropbox files were refused five times each by the
+  // demo Nextcloud with
+  //
+  //   PUT failed for 2021/…/VID_20211003_095021.mp4 with status 413:
+  //   Sabre\DAV\Exception\BadRequest — Verwachte bestandsgrootte van
+  //   1401302831 bytes maar gelezen … 0 bytes
+  //
+  // and read *"We could not classify this one"*. Apache's `LimitRequestBody`
+  // had withheld the body, so Sabre read nothing. The destination refused the
+  // write, and the remedy is a setting there (or on a proxy in front of it):
+  // `target_refused`. The WebDAV writer now STATES this on its own 413
+  // (`tooLargeForOneRequest`, workplan 0156), so this rule is for every other
+  // writer's 413, and for a refusal that only carries the reason phrase.
+  //
+  // 413 is SPECIFIED (RFC 9110 §15.5.14, "Content Too Large", which RFC 7231
+  // called "Payload Too Large" and RFC 2616 "Request Entity Too Large"; Apache
+  // still writes the oldest). Matched as a status and by those three phrases,
+  // never as a bare number, for the reason the 500 below gives. Ahead of
+  // `network` all the same: Sabre's sentence for an empty body goes on to
+  // call it possibly "a network problem on the sending side", which today's
+  // `network` words do not match and a broader rule tomorrow might.
+  {
+    category: 'target_refused',
+    test: /\b(status\s+413|request\s+entity\s+too\s+large|payload\s+too\s+large|content\s+too\s+large)\b/i,
+    whenSource: 'source_refused',
+  },
   // The network did not reach. Node/undici codes are the reliable part.
   {
     category: 'network',

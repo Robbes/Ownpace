@@ -8,7 +8,8 @@ import {
 } from './confirm/native-refusals.tsx';
 import ScopeManifestPanel from './confirm/ScopeManifestPanel.tsx';
 import DataCeilingNotice from './confirm/DataCeilingNotice.tsx';
-import { scopeFamilyOfConnectionKind, scopeManifestFor, type DiscoveryDomain } from '@openmig/shared';
+import { scopeFamilyOfConnectionKind, scopeManifestFor, timeBeforeStart, type DiscoveryDomain } from '@openmig/shared';
+import { TimeBeforeStartLine } from './TimeBeforeStartLine.tsx';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { mappingApi, scopeManifestApi, type DiscoveryResponse } from '../services/mapping-service.ts';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
@@ -72,13 +73,15 @@ const POLL_CEILING_MS = 15 * 60 * 1000;
  * it rather than of the error, so its age says nothing about the error.
  * Without the migration's time, every row is shown, as it was.
  */
-export function countedSinceChange<T extends { readonly discoveredAt: string; readonly lastError?: string }>(
-  domains: ReadonlyArray<T>,
-  changedAt: string | undefined,
-): T[] {
+export function countedSinceChange<
+  T extends { readonly discoveredAt: string; readonly lastError?: string; readonly lastErrorWithheld?: true },
+>(domains: ReadonlyArray<T>, changedAt: string | undefined): T[] {
   const since = changedAt === undefined ? NaN : Date.parse(changedAt);
   if (Number.isNaN(since)) return [...domains];
-  return domains.filter((d) => d.lastError !== undefined || Date.parse(d.discoveredAt) >= since);
+  // A withheld error is an error all the same (ADR-0035 decision 5).
+  return domains.filter(
+    (d) => d.lastError !== undefined || d.lastErrorWithheld === true || Date.parse(d.discoveredAt) >= since,
+  );
 }
 
 /** One migration's count, as a green light reads it (`useMigrationCount`). */
@@ -294,6 +297,20 @@ export function MigrationCountSection({
           that arrive are shown with the refusal under them. */}
       {(countRefused === null || domains.length > 0) && (
         <DiscoveryCounts domains={domains} expected={expected} slow={gaveUp} />
+      )}
+      {/* HOW LONG (0154 T3 (a)), once everything the migration carries is
+          counted: Gmail's mail by its published ceiling, anything else said
+          not to be known yet. Never while counting, when a Gmail mailbox's
+          size is not in yet and the line would say the other thing. */}
+      {expected !== undefined && !count.stillCounting && countRefused === null && (
+        <TimeBeforeStartLine
+          className="mt-2 text-sm text-gray-700"
+          time={timeBeforeStart({
+            source: count.sourceKind,
+            domains: expected,
+            mailBytes: domains.find((d) => d.domain === 'email' && d.lastError === undefined)?.bytes,
+          })}
+        />
       )}
       {countRefused !== null && (
         <p className="text-sm text-red-600" role="alert">

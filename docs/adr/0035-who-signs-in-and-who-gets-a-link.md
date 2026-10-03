@@ -231,8 +231,8 @@ category, domain and attempts with an empty text and no names (`withheldFailure`
 `textWithheld`, and the group action refuses a substring of text it does not show, since the count
 it answers with would read that text one guess at a time. Guards: the two
 `a-failure-that-names-someone-elses-files.unit.test.ts` (`packages/shared`, `apps/api`), and the
-page tests. **Not covered yet:** the preflight's own error line for a data type it could not count,
-which the confirm screen prints as it is.
+page tests. The preflight's count follows the same rule: a data type it could not count says that it
+stopped, without the provider's text (`withheldDiscovery`), and still reads as answered.
 
 ### 6. There are no seats, and this ADR must not invent one
 
@@ -384,6 +384,8 @@ leave the queues as they are (*"b"*).
 - **2026-10-03, after that** — The Deletions and Moves queues keep naming a person's files for the
   owner, who decides on them (owner: *"b"*); decision 5 is a failure's text and names. Record:
   *Decision* 5, and *Alternatives considered*.
+- **2026-10-03, after that** — The preflight's count withholds a stopped count's text too, the last
+  place decision 5's build had left open. Nothing was decided. Record: *Decision* 5.
 
 The full record, word for word as it read before this consolidation:
 [history/0035-who-signs-in-and-who-gets-a-link.md](./history/0035-who-signs-in-and-who-gets-a-link.md).

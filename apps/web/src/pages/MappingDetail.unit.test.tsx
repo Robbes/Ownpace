@@ -10,13 +10,23 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { STRINGS } from '../i18n/strings.ts';
 
-const { mappingApiGet, fetchStatusMock, fetchAttentionMock, fetchProgressMock, editionFlag } = vi.hoisted(() => ({
+const {
+  mappingApiGet,
+  mappingDiscoveryMock,
+  fetchAllDiscoveryMock,
+  fetchStatusMock,
+  fetchAttentionMock,
+  fetchProgressMock,
+  editionFlag,
+} = vi.hoisted(() => ({
   mappingApiGet: vi.fn(),
+  mappingDiscoveryMock: vi.fn(),
+  fetchAllDiscoveryMock: vi.fn(),
   fetchStatusMock: vi.fn(),
   fetchAttentionMock: vi.fn(),
   fetchProgressMock: vi.fn(),
@@ -24,7 +34,7 @@ const { mappingApiGet, fetchStatusMock, fetchAttentionMock, fetchProgressMock, e
 }));
 
 vi.mock('../services/mapping-service', () => ({
-  mappingApi: { get: mappingApiGet },
+  mappingApi: { get: mappingApiGet, getDiscovery: mappingDiscoveryMock },
 }));
 
 // VITE_EDITION is baked in by vite `define` (edition.unit.test.ts explains why
@@ -41,6 +51,8 @@ vi.mock('../services/operating-service', () => ({
   fetchStatus: fetchStatusMock,
   // The steps' counts (0154 T4): what waits in each queue.
   fetchAttention: fetchAttentionMock,
+  // What the count found, for how long before the first pass (0154 T3 (a)).
+  fetchAllDiscovery: fetchAllDiscoveryMock,
   // The links panel asks whose migration this is, since a link is the
   // person's (0153 T5 (b)): nobody's, here.
   fetchPeople: vi.fn().mockResolvedValue({ people: [], unassigned: [] }),
@@ -83,8 +95,7 @@ function aMapping(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function renderHub(id = 'acme-mail') {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function renderHub(id = 'acme-mail', qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={[`/mappings/${id}`]}>
@@ -103,6 +114,8 @@ beforeEach(() => {
   fetchStatusMock.mockResolvedValue({ status: 'ok', mappings: [] });
   fetchAttentionMock.mockResolvedValue({ mappings: [] });
   fetchProgressMock.mockResolvedValue({ mappings: [{ mappingId: 'acme-mail', domains: [], check: { state: 'not_run' } }] });
+  mappingDiscoveryMock.mockResolvedValue({ mappingId: 'acme-mail', discovered: false, domains: [] });
+  fetchAllDiscoveryMock.mockResolvedValue({});
 });
 
 const step = (key: string) => document.querySelector(`[data-step="${key}"]`) as HTMLElement;
@@ -324,8 +337,43 @@ describe('whose account, on each side (owner, 2026-09-17)', () => {
       }),
     );
     renderHub();
-    expect(await screen.findByText(/From Acme Google to nextcloud/)).toBeInTheDocument();
+    // And a side with no name is its provider's, never the kind (0154 T6).
+    expect(await screen.findByText(/From Acme Google to Nextcloud$/)).toBeInTheDocument();
     expect(screen.queryByText(/\(\)/)).toBeNull();
+  });
+
+  /** 0154 T6: *From gmail · anna@gmail.com (anna@gmail.com)* said the account twice. */
+  it('says the provider’s name, not a name made from the account, and the account once', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({
+        sourceType: 'gmail',
+        targetType: 'soverin',
+        sourceConnection: { id: 'c1', name: 'gmail · anna@gmail.com', kind: 'gmail' },
+        targetConnection: { id: 'c2', name: 'soverin', kind: 'soverin' },
+        sourceConfig: { username: 'anna@gmail.com' },
+        targetConfig: { username: 'anna@soverin.example' },
+      }),
+    );
+    renderHub();
+    expect(
+      await screen.findByText('From Gmail (anna@gmail.com) to Soverin (anna@soverin.example)'),
+    ).toBeInTheDocument();
+  });
+});
+
+/** 0154 T6: the ID is for a support ticket, folded under Details, no longer under the title. */
+describe('the migration’s ID', () => {
+  it('sits folded under Details, where a support ticket can copy it', async () => {
+    renderHub();
+    await screen.findByRole('heading', { name: 'Acme mail' });
+    const id = screen.getByText('acme-mail', { selector: 'code' });
+    const fold = id.closest('details');
+    expect(fold).not.toBeNull();
+    expect(fold).not.toHaveAttribute('open');
+    expect(within(fold!).getByText('Details')).toBeInTheDocument();
+    expect(fold!.textContent).toContain('Migration ID: acme-mail');
+    // And nowhere else: not under the title, where it was.
+    expect(screen.getAllByText('acme-mail')).toHaveLength(1);
   });
 });
 
@@ -579,5 +627,82 @@ describe('the live strip\'s refresh rate', () => {
 
   it('polls faster when active than when idle, whatever the numbers become', () => {
     expect(PROGRESS_POLL_ACTIVE_MS).toBeLessThan(PROGRESS_POLL_IDLE_MS);
+  });
+});
+
+/**
+ * HOW LONG, UNTIL THE FIRST PASS REPORTS (workplan 0154 T3 (a)): what the
+ * review screen said, from the same count, and nothing once a pass has
+ * reported, when the pass's own rate is the better answer.
+ */
+describe('how long, before the first pass reports (0154 T3 (a))', () => {
+  const counted = (bytes: number) => ({
+    domain: 'email',
+    collections: 4,
+    items: 18_000,
+    bytes,
+    discoveredAt: '2026-10-03T09:00:00.000Z',
+  });
+
+  it('says the days Gmail’s ceiling takes, and why, for a Gmail migration', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ status: 'paused', sourceType: 'gmail' }));
+    mappingDiscoveryMock.mockResolvedValue({ mappingId: 'acme-mail', discovered: true, domains: [counted(10.4e9)] });
+    renderHub();
+    expect(
+      await screen.findByText('About 4 to 5 days, because Google lets a mailbox download 2.5 GB a day.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('How long:')).toBeInTheDocument();
+  });
+
+  it('says it will know after the first hour, for a provider with no published ceiling', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ status: 'paused', sourceType: 'imap', sourceConfig: { host: 'mail.example.com' } }));
+    mappingDiscoveryMock.mockResolvedValue({ mappingId: 'acme-mail', discovered: true, domains: [counted(30e9)] });
+    renderHub();
+    expect(await screen.findByText('Depends on the provider; we will know after the first hour.')).toBeInTheDocument();
+  });
+
+  it('says nothing once a pass has reported, and does not ask for the count', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({
+        sourceType: 'gmail',
+        domainStatus: [
+          {
+            domain: 'email',
+            state: 'completed',
+            itemsSynced: 12,
+            itemsFailed: 0,
+            bytesTransferred: 0,
+            itemsRetrying: 0,
+            itemsNeedingDecision: 0,
+            lastSyncedAt: '2026-10-03T09:00:00.000Z',
+          },
+        ],
+      }),
+    );
+    mappingDiscoveryMock.mockResolvedValue({ mappingId: 'acme-mail', discovered: true, domains: [counted(10.4e9)] });
+    // The count as the page read it before the pass, still in the cache.
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(['mapping-discovery', 'acme-mail'], {
+      mappingId: 'acme-mail',
+      discovered: true,
+      domains: [counted(10.4e9)],
+    });
+    renderHub('acme-mail', qc);
+    await screen.findByRole('heading', { name: 'Acme mail' });
+    expect(screen.queryByText('How long:')).not.toBeInTheDocument();
+    expect(mappingDiscoveryMock).not.toHaveBeenCalled();
+  });
+
+  it('selfhost: reads the appliance’s count, keyed by this migration', async () => {
+    editionFlag.selfhost = true;
+    fetchStatusMock.mockResolvedValue({
+      status: 'ok',
+      mappings: [{ mappingId: 'acme-mail', migrationStatus: 'paused', sourceType: 'gmail', domains: [] }],
+    });
+    fetchAllDiscoveryMock.mockResolvedValue({ 'acme-mail': [counted(1.2e9)], other: [counted(99e9)] });
+    renderHub();
+    expect(
+      await screen.findByText('Within a day, because this mailbox holds less than the 2.5 GB a day Google lets one download.'),
+    ).toBeInTheDocument();
   });
 });

@@ -304,7 +304,10 @@ Een migratie raakt mensen die zich nooit bij ons hebben aangemeld. Dit bewaren w
   alleen als u die opnieuw laat versturen. Van elk van die e-mails blijft een kopie in onze
   supportmailbox staan, zo lang als §9 zegt (§4.5). De lijst verdwijnt wanneer u de migratie
   verwijdert waar die bij hoort, of wanneer uw gegevens worden gewist.
-- **Mensen die u uitnodigt** in uw organisatie: hun adres, hun rol, en of ze lid werden.
+- **Mensen die u uitnodigt** in uw organisatie: hun adres, hun rol, en of ze lid werden. Ieder
+  van hen krijgt een e-mail van support@ownpace.eu die zegt wie hen voor welke organisatie
+  uitnodigde en waar ze zich aanmelden; en nog eens alleen als u die opnieuw laat versturen. Van
+  elk van die e-mails blijft een kopie in onze supportmailbox staan, zo lang als §9 zegt (§4.5).
 - **Mensen die een link melden** die ze kregen: zie §4.5.
 - **Correspondenten, en iedereen verder in uw e-mail, contacten en agenda's**: alleen wat §4.2
   per item bewaart. Hun naam of adres kan daar staan in een onderwerpregel, als naam van een

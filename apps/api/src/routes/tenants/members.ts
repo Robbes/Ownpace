@@ -26,6 +26,7 @@ import {
   isSelfRemoval,
 } from './member-guards.ts';
 import { serverFault } from '../../server-fault.ts';
+import { mailInvitation, SEND_AGAIN_AFTER, sendAgainAfterSeconds } from './invitation-mail.ts';
 
 const router = Router();
 
@@ -133,6 +134,9 @@ router.get(
           email: schema.tenantMember.email,
           role: schema.tenantMember.role,
           status: schema.tenantMember.status,
+          // So the page offers Send again only for an invitation it made
+          // (0156 T3): a granted access request was mailed by its grant.
+          origin: schema.tenantMember.origin,
           invitedAt: schema.tenantMember.invitedAt,
           joinedAt: schema.tenantMember.joinedAt,
           createdAt: schema.tenantMember.createdAt,
@@ -222,13 +226,24 @@ router.post(
           message:
             result.duplicate.status === 'invited'
               ? `${body.email} already has an open invitation (as ${result.duplicate.role}). ` +
-                'Remove that invitation first if you want to send a new one.'
+                'Use Send again on that row, or remove it first if you want a new one.'
               : `${body.email} is already a member of this organization (as ${result.duplicate.role}).`,
         });
         return;
       }
 
-      res.status(201).json(result.inserted);
+      // THE INVITED PERSON IS TOLD (workplan 0156 T3; the owner, 2026-10-03).
+      // After the commit and outside it, as the access grant's mail is: the
+      // invitation exists whatever the mail server does, and the answer says
+      // what became of the mail so the screen can say what is left to do.
+      const inserted = result.inserted!;
+      const notified = await mailInvitation(
+        getSharedPool(),
+        tenantId,
+        { memberId: inserted.id, email: inserted.email },
+        inviterOf(req),
+      );
+      res.status(201).json({ ...inserted, notified });
     } catch (error) {
       if (error instanceof z.ZodError && refusedOverRole(error, req.body)) {
         res.status(400).json(OWNER_OR_ADMIN_ONLY);
@@ -244,9 +259,93 @@ router.post(
   }
 );
 
+/** Who an invitation mail says it is from: the inviter's address, when their token carried one. */
+function inviterOf(req: AuthenticatedRequest): string | undefined {
+  return req.userEmail?.trim() || undefined;
+}
+
+/**
+ * POST /api/tenants/:tenantId/members/:memberId/resend
+ *
+ * Mail an open invitation again (workplan 0156 T3): the first mail went to
+ * spam, or was never sent because this deployment had no mail then. Only an
+ * invitation somebody made on this page (`origin = 'invited'`) and that is
+ * still open; a person who joined or declined is not mailed about it again,
+ * and a granted access request got its own mail. At most once in ten minutes
+ * per invitation, and within the organisation's daily allowance.
+ */
+router.post(
+  '/:memberId/resend',
+  authenticate,
+  requireRole('owner', 'admin'),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const tenantId = req.tenantId;
+      const { memberId } = req.params;
+      if (!tenantId || !memberId || Array.isArray(memberId)) {
+        return res.status(400).json({
+          error: 'Bad Request',
+          message: 'Tenant ID and member ID required',
+        });
+      }
+
+      const [member] = await withTenantDb(tenantId, getSharedPool(), (db) =>
+        db
+          .select({
+            id: schema.tenantMember.id,
+            email: schema.tenantMember.email,
+            status: schema.tenantMember.status,
+            origin: schema.tenantMember.origin,
+          })
+          .from(schema.tenantMember)
+          .where(
+            and(
+              eq(schema.tenantMember.id, memberId),
+              eq(schema.tenantMember.tenantId, tenantId),
+            ),
+          ),
+      );
+      if (!member) {
+        return res.status(404).json({ error: 'Not found', message: 'Member not found' });
+      }
+      if (member.status !== 'invited' || member.origin !== 'invited') {
+        return res.status(409).json({
+          error: 'Conflict',
+          message:
+            member.status === 'invited'
+              ? `${member.email} asked for access and was granted it, and was mailed then; there ` +
+                'is no invitation of this page to send again.'
+              : `${member.email} has no open invitation to send again (${member.status}).`,
+        });
+      }
+      const wait = sendAgainAfterSeconds(member.id);
+      if (wait > 0) {
+        res.set('Retry-After', String(wait));
+        return res.status(429).json({
+          error: 'too_soon',
+          message:
+            `This invitation was emailed less than ${SEND_AGAIN_AFTER.windowMs / 60_000} minutes ` +
+            `ago. Send it again in ${Math.ceil(wait / 60)} minute(s).`,
+          retryAfterSeconds: wait,
+        });
+      }
+
+      const notified = await mailInvitation(
+        getSharedPool(),
+        tenantId,
+        { memberId: member.id, email: member.email },
+        inviterOf(req),
+      );
+      res.json({ id: member.id, notified });
+    } catch (error) {
+      serverFault(res, 'resend_failed', 'sending this invitation again', error);
+    }
+  },
+);
+
 /**
  * GET /api/tenants/:tenantId/members/:memberId
- * 
+ *
  * Get member details
  */
 router.get(
