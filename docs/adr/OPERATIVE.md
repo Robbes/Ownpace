@@ -156,8 +156,9 @@ live in [README.md](./README.md), the register.
   managed edition does not.
 - **Mail without a Message-ID is keyed by a hash of the message normalised** (owner,
   2026-10-03), written into the copy as a generated `Message-ID`; a copy made under the old
-  raw-bytes key is found by it, never copied again
-  (`a-key-that-changed-how-it-is-made.unit.test.ts`). Graph leaves such mail unmigrated.
+  raw-bytes key is found by it, in the ledger or on the target, and handled as it was then,
+  never copied again (`a-key-that-changed-how-it-is-made.unit.test.ts`). Graph leaves such mail
+  unmigrated.
 - **Cursors are non-authoritative**; **backups are the fast path, not the safety net** (decisions
   5–6 below).
 

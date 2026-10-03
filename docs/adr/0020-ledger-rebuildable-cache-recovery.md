@@ -23,8 +23,9 @@
   managed edition does not.
 - **Mail without a Message-ID is keyed by a hash of the message normalised** (owner,
   2026-10-03), written into the copy as a generated `Message-ID`; a copy made under the old
-  raw-bytes key is found by it, never copied again
-  (`a-key-that-changed-how-it-is-made.unit.test.ts`). Graph leaves such mail unmigrated.
+  raw-bytes key is found by it, in the ledger or on the target, and handled as it was then,
+  never copied again (`a-key-that-changed-how-it-is-made.unit.test.ts`). Graph leaves such mail
+  unmigrated.
 - **Cursors are non-authoritative**; **backups are the fast path, not the safety net** (decisions
   5–6 below).
 
@@ -131,17 +132,25 @@ Nothing is decoded: a server that re-encodes a part (quoted-printable for 8-bit,
 the key, and the Microsoft 365 check is what says whether that happens.
 
 **The old key is asked before anything is written.** When the normalised key finds no row, the
-pass looks up the raw-bytes key (`legacyNaturalKeysFromRaw`, from the bytes the source served with
-the id it prepended taken off), and a hit is that row, handled under its own key. Without it, the
-switch itself would have copied every such message again: the target's copy carries the old id, so
-its own existence check cannot see it either. One case stays open: a copy made before the switch
-whose source then serves other bytes matches neither key, and is copied once more. After that it
-carries the normalised key.
+pass asks for the raw-bytes key, computed from the bytes the source served (`asWrittenBefore`;
+`legacyKeysFromRaw` in `reconcile.ts`). It asks the ledger first, then the target
+(`legacyCopyOnTarget`): the target's copy carries the old id, so the writer's own existence check,
+which asks for the new one, cannot see it, and without this an empty ledger would duplicate it,
+against the second rule above. Found either way, the message is that copy's. It is handled under
+the old key, recorded under it when only the target had it (as a reindex records it), and written,
+if a failure before the switch left nothing on the target, as it was written then. That keeps the
+ledger, the target and verification naming each copy by one key. Until the old key has been asked
+of both, a failure leaves no row under the new one, since its retry would ask nothing more before
+writing: a lookup the target cannot answer is never read as "not there", and the message is counted
+as failed and read again on the next pass.
+One case stays open: a copy made before the switch whose source then serves other bytes matches
+neither key, and is copied once more. After that it carries the normalised key.
 
-`a-key-that-changed-how-it-is-made.unit.test.ts` pins all three: a pass served other bytes finds its
-copy; a message copied under the old key is not copied again; and without the lookup it would be.
-`generated-message-id.unit.test.ts` pins what the key ignores and what still tells two messages
-apart.
+`a-key-that-changed-how-it-is-made.unit.test.ts` pins these: a pass served other bytes finds its
+copy; a copy made under the old key is found through the ledger, and through the target when the
+ledger has forgotten it; a message that failed under the old key is written under it; and a lookup
+the target or the ledger cannot answer writes nothing and leaves no row. `generated-message-id.unit.test.ts`
+pins what the key ignores, what still tells two messages apart, and the old bytes reproduced exactly.
 
 ## Amendment log
 
@@ -158,3 +167,6 @@ apart.
 - **2026-10-03, later** — The normalised key built, with a lookup by the old key (owner: *"go with
   C"*); Microsoft 365 over IMAP to be tested once the owner arranges access. Record: the same
   amendment, *Built the same day*.
+- **2026-10-03, later** — The old key is asked of the target too, so an empty ledger still never
+  duplicates a copy made before the switch, and a message found under it is recorded and written
+  under it. Found in review of the build; nothing was decided. Record: the same amendment.

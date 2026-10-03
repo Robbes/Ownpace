@@ -17,6 +17,7 @@
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
 import {
+  asWrittenBefore,
   ensureMessageId,
   generateMessageId,
   legacyGeneratedMessageId,
@@ -171,6 +172,34 @@ describe('the key a message without one had before 2026-10-03', () => {
 
   it('leaves a message whose first line is not an id of ours as it is', () => {
     expect(withoutGeneratedMessageId(WITH_ID)).toEqual(WITH_ID);
+  });
+});
+
+describe('a message as a pass before 2026-10-03 wrote it', () => {
+  it('is the bytes the source served under the id they were given then, as they were written then', () => {
+    const before = asWrittenBefore(ensureMessageId(WITHOUT_ID).rfc822);
+    expect(before?.messageId).toBe(legacyGeneratedMessageId(WITHOUT_ID));
+    // Byte for byte what `ensureMessageId` wrote when the id was the hash of
+    // the raw bytes: the header prepended the same way, with the same ending.
+    expect(dec(before!.rfc822)).toBe(`Message-ID: ${legacyGeneratedMessageId(WITHOUT_ID)}\r\n${dec(WITHOUT_ID)}`);
+    expect(readMessageId(before!.rfc822)).toBe(before!.messageId);
+  });
+
+  it('keeps a bare-LF message bare LF', () => {
+    const lf = enc('Subject: hi\nFrom: a@example.com\n\nbody');
+    const before = asWrittenBefore(ensureMessageId(lf).rfc822);
+    expect(dec(before!.rfc822)).toBe(`Message-ID: ${legacyGeneratedMessageId(lf)}\n${dec(lf)}`);
+  });
+
+  it('is nothing for a message that came with a Message-ID of its own', () => {
+    expect(asWrittenBefore(ensureMessageId(WITH_ID).rfc822)).toBeUndefined();
+  });
+
+  it('is nothing for a message whose generated id this pass did not give it', () => {
+    // An earlier migration's copy, read back as a source: its id is one of
+    // ours, but not the one these bytes would be given now.
+    const copied = enc(`Message-ID: ${legacyGeneratedMessageId(WITHOUT_ID)}\r\n${dec(WITHOUT_ID)}`);
+    expect(asWrittenBefore(copied)).toBeUndefined();
   });
 });
 

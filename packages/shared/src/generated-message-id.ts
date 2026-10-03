@@ -71,9 +71,9 @@ export function generateMessageId(rfc822: Uint8Array): string {
  * The id this message was given before 2026-10-03: a hash of its raw bytes.
  *
  * Every copy made until then carries it in its `Message-ID`, and the ledger
- * holds it as that copy's key, so a pass looks it up when the normalised id
- * finds nothing (`legacyNaturalKeysFromRaw` in `reconcile.ts`). Without that
- * lookup the switch itself would copy every such message a second time.
+ * holds it as that copy's key, so a pass asks for it when the normalised id
+ * finds nothing (`asWrittenBefore`). Without that the switch itself would copy
+ * every such message a second time.
  */
 export function legacyGeneratedMessageId(rfc822: Uint8Array): string {
   const digest = createHash('sha256').update(rfc822).digest('hex');
@@ -159,6 +159,29 @@ export function withoutGeneratedMessageId(rfc822: Uint8Array): Uint8Array {
   const head = Buffer.from(rfc822.subarray(0, 160)).toString('latin1');
   const m = /^Message-ID: <[0-9a-f]{64}@generated\.openmigrate\.invalid>(\r?\n)/.exec(head);
   return m ? rfc822.subarray(m[0].length) : rfc822;
+}
+
+/**
+ * The message as a pass before 2026-10-03 wrote it, for one this pass gave an
+ * id: the bytes the source served, under the id they were given then
+ * (`legacyGeneratedMessageId`) instead of the one they are given now.
+ *
+ * A copy made then carries that id, and the ledger holds it as the copy's key.
+ * So a message found under it, in the ledger or on the target, is handled as
+ * it was then and written, if it must be, as it was written then: the ledger,
+ * the target and verification keep naming each copy by one key.
+ *
+ * `undefined` for any message whose first line is not the id this pass gave
+ * it, which is every message that came with a Message-ID of its own.
+ */
+export function asWrittenBefore(
+  written: Uint8Array,
+): { readonly messageId: string; readonly rfc822: Uint8Array } | undefined {
+  const served = withoutGeneratedMessageId(written);
+  if (served.byteLength === written.byteLength) return undefined;
+  if (readMessageId(written) !== generateMessageId(served)) return undefined;
+  const messageId = legacyGeneratedMessageId(served);
+  return { messageId, rfc822: prependHeader(served, `Message-ID: ${messageId}`) };
 }
 
 /** Was this id one we minted? */
