@@ -5,7 +5,8 @@
  * report of 2026-09-28), where every reader of an account is built.
  *
  * The tick starts no pass for a closed organisation, and a pass under way
- * stops before its next data type. What remains is every task that builds its
+ * stops starting new items within about fifteen seconds (2026-09-29; before,
+ * at its next data type). What remains is every task that builds its
  * readers without asking the tick: a pass or a retry that was already queued,
  * a discovery, a verification, a confirmation, an apply, a cutover's gate.
  * They all come through the two builders, so both refuse a closed

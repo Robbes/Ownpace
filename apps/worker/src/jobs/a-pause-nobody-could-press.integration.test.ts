@@ -242,4 +242,3 @@ describe('a pass finds out that it was paused', () => {
     );
   });
 });
-

@@ -3362,10 +3362,11 @@ paths:
 
         From then on nothing reads the account, on that token or on any other
         credential the source connection holds: the tick starts no pass, a
-        running pass stops before its next data type, and Start and Sync now
-        refuse with `grant_withdrawn`. A new grant ends it. Only the grant a
-        link stored is ever deleted; the organisation's own credential, on the
-        connection, is never touched.
+        running pass stops starting new items within about fifteen seconds,
+        and finishes the ones it has begun (a very large file can take
+        longer), and Start and Sync now refuse with `grant_withdrawn`. A new
+        grant ends it. Only the grant a link stored is ever deleted; the
+        organisation's own credential, on the connection, is never touched.
 
         A body-less POST. Link-authenticated like the grant route: the link is
         the whole credential, and a credential (`grant`) link is refused here.
