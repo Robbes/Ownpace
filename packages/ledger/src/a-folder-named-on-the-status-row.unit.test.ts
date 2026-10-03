@@ -160,6 +160,12 @@ describe('a pass that could not list a folder', () => {
     expect(after.last_error).toMatch(/^Not read on the last pass: /);
   });
 
+  it('keeps a category the pass was told, which no reading of the note would give', async () => {
+    await store.noteUnreadCollections(TENANT, MAPPING, 'file', [{ ...PHOTOS, category: 'policy_refused' }]);
+
+    expect((await row()).last_error_category).toBe('policy_refused');
+  });
+
   it('drops a reference of the wrong shape, and keeps the note', async () => {
     await store.noteUnreadCollections(TENANT, MAPPING, 'file', [{ ...PHOTOS, reference: 'not-a-ref' }]);
 
