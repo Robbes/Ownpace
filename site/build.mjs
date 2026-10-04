@@ -51,6 +51,7 @@ import { freeTier as free } from './calculator.mjs';
 import { securityTxt } from './security-txt.mjs';
 import { LOCALES, DEFAULT_LOCALE, localeRoot, COPY } from './copy.mjs';
 import { CUSTOMER_TYPES, INDICATIVE_PROFILES, OBJECT_TYPES, PROFILES_VERSION } from './profiles.mjs';
+import { PROOF_LINKS } from './proof.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, 'dist');
@@ -590,7 +591,7 @@ ${banner}
 ${body}
 </div></main>
 <footer class="site"><div class="wrap">
-  <div><strong>Ownpace</strong> — ${c.footerTag}<br />${c.footerOss}${
+  <div><strong>Ownpace</strong> — ${c.footerTag}<br />${c.footerOss(PROOF_LINKS)}${
     buildStamp() ? `<br /><span class="build">${buildStamp()}</span>` : ''
   }</div>
   <div>
@@ -638,7 +639,8 @@ const orderHref = (locale, tier) => {
 function cards(list) {
   return (
     '<div class="cards">' +
-    list.map(([h, p]) => `<div class="card"><h3>${h}</h3><p>${p}</p></div>`).join('') +
+    // A card whose words carry a claim's link takes them from proof.mjs (0152 T8).
+    list.map(([h, p]) => `<div class="card"><h3>${h}</h3><p>${typeof p === 'function' ? p(PROOF_LINKS) : p}</p></div>`).join('') +
     '</div>'
   );
 }
