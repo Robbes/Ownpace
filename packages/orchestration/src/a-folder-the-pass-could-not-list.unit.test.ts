@@ -196,7 +196,10 @@ describe("the managed worker's task", () => {
 
   it('marks a data type completed only when the pass neither paused nor left a folder unread', () => {
     expect(worker).toMatch(/const unread = result\.unreadCollections \?\? \[\];/);
-    expect(worker).toMatch(/if \(!pause && unread\.length === 0\) \{\s*await withTenant[\s\S]{0,160}?markCompleted\(/);
+    // Nor held new items at the data ceiling (0109 T6), the third thing it asks.
+    expect(worker).toMatch(
+      /if \(!pause && unread\.length === 0 && held === 0\) \{\s*await withTenant[\s\S]{0,160}?markCompleted\(/,
+    );
     expect(worker.match(/markCompleted\(/g)).toHaveLength(1);
   });
 
