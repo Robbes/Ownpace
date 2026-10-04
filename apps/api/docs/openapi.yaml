@@ -5551,6 +5551,59 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /api/billing/start-forecast:
+    post:
+      tags: [Billing]
+      summary: Whether a start will pass the tier's data ceiling
+      description: |
+        What Start says before it starts (ADR-0014; workplan 0109 T6). Only
+        paths that have never run count as starting, and their bytes are the
+        preflight's own. Past the ceiling, the answer names both ways on: the
+        next tier, and a top-up at the tier's monthly price once. It never
+        refuses a start and writes nothing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mappingIds]
+              properties:
+                mappingIds:
+                  type: array
+                  minItems: 1
+                  maxItems: 50
+                  items: { type: string, format: uuid }
+      responses:
+        '200':
+          description: '`forecast` is null when the start fits the tier it lands on.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  forecast:
+                    type: [object, 'null']
+                    properties:
+                      tier:
+                        type: object
+                        properties:
+                          id: { type: string }
+                          name: { type: string }
+                          dataGb: { type: number }
+                      forecastGb: { type: number }
+                      ceilingGb: { type: number }
+                      next:
+                        type: [object, 'null']
+                        properties:
+                          id: { type: string }
+                          name: { type: string }
+                          monthlyCents: { type: integer }
+                      topUpCents: { type: [integer, 'null'] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
   /api/billing/party:
     get:
       tags: [Billing]
