@@ -51,6 +51,13 @@
    * Pinned to the 500 step of those scales, which is what the names meant. */
   --color-success: #22c55e;
   --color-warning: #f59e0b;
+  /* The site's palette (TEAL and MINT in `site/build.mjs`), for the pages a
+   * person meets before they are inside the app: /login and /request-access
+   * (workplan 0152 T9). `scripts/one-look-from-the-site-to-the-app.unit.test.ts`
+   * holds both to the site's. The rest of the app keeps its colours until 0153
+   * reviews the palette with its layout. */
+  --color-site-teal: #0E4F4A;
+  --color-site-mint: #7FD4C1;
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);

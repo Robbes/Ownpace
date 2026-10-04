@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { LogIn } from 'lucide-react';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { useLocale } from '../i18n/index.tsx';
 import { beginSignIn, oidcConfig } from '../services/oidc.ts';
@@ -14,6 +13,8 @@ import StatusLink from '../components/StatusLink.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
 import AlphaNote from '../components/AlphaNote.tsx';
 import SupportLine from '../components/SupportLine.tsx';
+import SiteMark from '../components/SiteMark.tsx';
+import BackToSite from '../components/BackToSite.tsx';
 
 interface TokenClaims {
   sub: string;
@@ -245,7 +246,7 @@ const Login: React.FC = () => {
           rows={4}
           value={token}
           onChange={(e) => setToken(e.target.value)}
-          className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-mono"
+          className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-site-teal focus:border-site-teal sm:text-sm font-mono"
           placeholder="eyJhbGciOi..." // i18n-exempt: a token's opening characters, not words
         />
       </div>
@@ -260,7 +261,7 @@ const Login: React.FC = () => {
         <button
           type="submit"
           disabled={verifying}
-          className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+          className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-site-teal hover:bg-site-teal/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-site-teal disabled:opacity-50"
         >
           {verifying ? t('login.verifying') : t('login.submit')}
         </button>
@@ -279,10 +280,11 @@ const Login: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <div className="flex justify-center">
-            <div className="w-16 h-16 bg-blue-600 rounded-lg flex items-center justify-center">
-              <LogIn className="w-10 h-10 text-white" />
-            </div>
+          {/* The site's look, and the way back to it (workplan 0152 T9): a
+              visitor arrives here from the site's Sign in. */}
+          <BackToSite />
+          <div className="mt-6 flex justify-center">
+            <SiteMark className="w-16 h-16" />
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             {t('login.title')}
@@ -309,7 +311,7 @@ const Login: React.FC = () => {
                   type="button"
                   onClick={startSignIn}
                   disabled={redirecting}
-                  className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                  className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-site-teal hover:bg-site-teal/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-site-teal disabled:opacity-50"
                 >
                   {redirecting ? t('login.redirecting') : t('login.withProvider')}
                 </button>
@@ -339,7 +341,7 @@ const Login: React.FC = () => {
                   <p className="text-center text-sm">
                     <Link
                       to={`/request-access?locale=${locale}`}
-                      className="text-blue-600 hover:text-blue-500"
+                      className="text-site-teal hover:underline"
                     >
                       {t('login.requestAccess')}
                     </Link>
