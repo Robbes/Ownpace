@@ -727,6 +727,11 @@ link. The app builds both addresses through 0139 T10's module; until that lands,
 owner's own invitation carry the guide's link (0144 T1). Writing the tester guide, a
 known-limitations page and a close-account screen is not part of T1. They belong to 0144 (W14,
 §5).
+*(2026-10-03: 0139 T4 links the conditions in the access-granted mail, as the alpha paragraph's
+last line, in the mail's language: EN *"Read the Alpha conditions here:"*, NL *"Lees hier de
+voorwaarden voor de Alpha:"*, and the address. The request form links them under the form during
+the alpha. The note itself, and the tester guide's link, are still to do; 0139's Status block
+says where the rest stands.)*
 
 **Guards.** Each of these fails on today's code:
 
