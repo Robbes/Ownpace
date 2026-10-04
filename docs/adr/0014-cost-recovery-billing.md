@@ -430,7 +430,26 @@ pass asks whether the meter, with what it has copied, is still below the ceiling
 the collection keeps its cursor, and the status names what waits with both prices. The tasks learn
 the stage from `OWNPACE_STAGE`, which `set-task-env.sh` uploads. At *Start*, a note adds what the
 preflight measured to what has moved and, past the ceiling, names both prices; it never blocks.
-The ask on the path axis is not built.
+**The path axis (the owner, 2026-10-04).** Asked how a step up on the path axis is recorded,
+what *Start* offers, and who enforces it:
+
+- **One agreed tier for both axes** (*"A"*): a path yes is a row in the same append-only table
+  as a data yes (`data_allowance`, with `axis` saying which limit asked, managed 0039), and the
+  highest tier said yes to is the organisation's agreed tier on both axes. Each month still bills
+  what it used, never above the agreed tier. The data allowance stays cumulative, never per
+  month (*"Cumulative, as now"*).
+- **Side by side at *Start***: move up and start everything, or start what fits now.
+- **Enforced by the server**: a start that takes slots past the agreed tier's paths at the same
+  time is refused, at every door that takes one (Start, a migration created running, a status
+  change, a kind added to a running migration, a resume or a keep in the lane, a migration that
+  starts when its person connects), and nothing of it is kept. A start that takes no new slot is
+  never refused, so an organisation past its tier from the alpha can pause and resume. The
+  operator's cutover CLI and the rollback job are not asked: a recovery is not a step up. Not
+  during the alpha.
+
+Built (0109 T6): the server's check (`path-ceiling.ts`, refused in `path-lifecycle-wiring.ts` as
+409 `paths_need_a_yes`) and the `axis` column. The question at *Start*, with prices, follows the
+2026-09-29 list's pull request.
 
 This replaces two passages of the Decision above: in *Downgrade is automatic; upgrade is
 consented*, the sentence beginning *"On the **data** axis the tier moves automatically"*; and in
@@ -634,6 +653,9 @@ rules above are the prices the site quotes, and nothing is charged during the Al
   while the stage is `alpha`, and no yes is taken. The yes is built (managed 0037, 0109 T6's first
   slice), the Billing page that asks for it, with the break-even, the hold in the copy loop, and
   the note at *Start*. Record: *Amendment 2026-10-03*.
+- **2026-10-04** — The path axis: one agreed tier for both axes, both ways side by side at
+  *Start*, enforced by the server (owner: *"A"*, *"side by side"*, *"Enforced by the server"*); the
+  data allowance stays cumulative. The server's check is built. Record: *Amendment 2026-10-03*.
 
 The full record, word for word as it read before this consolidation:
 [history/0014-cost-recovery-billing.md](./history/0014-cost-recovery-billing.md).

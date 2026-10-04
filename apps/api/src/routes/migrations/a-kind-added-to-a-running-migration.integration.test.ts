@@ -76,6 +76,15 @@ describe('a kind added to a running migration', () => {
        ON CONFLICT (id) DO NOTHING`,
       [TENANT],
     );
+    // Room for the kinds this file adds: an agreed Extra large (workplan 0109
+    // T6). The running migration already holds two slots, past Tiny's one, and
+    // this file is not about the tier's paths, which
+    // `a-start-past-the-tier.unit.test.ts` holds.
+    await owner.query(
+      `INSERT INTO data_allowance (tenant_id, kind, tier_id, band_gb, price_eur, consented_by)
+       VALUES ($1, 'tier', 'xl', 15000, 0, 'room for the test')`,
+      [TENANT],
+    );
     await seedMembership(owner, TENANT, `user-${TENANT}`, 'owner');
 
     // Two Google accounts: one never measured, and one whose last Test found
