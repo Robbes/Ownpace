@@ -22,9 +22,10 @@ process.env.SECRET_ENCRYPTION_KEY =
 // a limit that would have refused the sixth real customer of the hour too.
 process.env.ACCESS_REQUEST_MAX_PER_HOUR = '1000';
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import { Pool } from 'pg';
 import supertest from 'supertest';
+import { log } from '@openmig/shared';
 
 const PG = process.env.TEST_DATABASE_URL;
 if (!PG) throw new Error('TEST_DATABASE_URL is not set. Run: pnpm test:integration');
@@ -174,5 +175,66 @@ describe('POST /api/access-requests', () => {
     for (const leak of ['token', 'tenantId', 'tenant_id', 'id', 'quiet@example.test']) {
       expect(body, `the answer carries ${leak}`).not.toContain(leak);
     }
+  });
+
+  /**
+   * THE TRAP (workplan 0093 T2d; the owner, 2026-10-04: "Honeypot now").
+   * `website` is a field the form hides from people. A request that fills it
+   * is answered as received and kept nowhere. The PGlite suite
+   * `a-knock-no-person-made.unit.test.ts` holds the mail and the limit with
+   * the channel on; this holds the row and the answer on a real server.
+   */
+  describe('a request that fills the trap', () => {
+    const BAIT = 'https://cheap-pills.example.test/buy-now';
+    let logged: string[] = [];
+
+    beforeEach(() => {
+      logged = [];
+      for (const level of ['error', 'warn', 'info', 'debug'] as const) {
+        vi.spyOn(log, level).mockImplementation((...args: unknown[]) => {
+          logged.push(args.map(String).join(' '));
+        });
+      }
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('is answered as an accepted request is, and nothing is kept', async () => {
+      const person = await request.post('/api/access-requests').send({ email: 'person@example.test' });
+      const bot = await request
+        .post('/api/access-requests')
+        .send({ email: 'bot@example.test', note: 'buy now', website: BAIT });
+
+      expect(bot.status).toBe(person.status);
+      expect(bot.body).toEqual(person.body);
+      expect(JSON.stringify(bot.body)).not.toContain(BAIT);
+      expect((await rows()).map((r) => r.email)).toEqual(['person@example.test']);
+    });
+
+    it('logs one marker line and nothing of the request', async () => {
+      await request
+        .post('/api/access-requests')
+        .send({ email: 'bot@example.test', name: 'Bot Name', website: BAIT });
+
+      expect(logged.filter((line) => /\btrap\b/.test(line))).toHaveLength(1);
+      // A person's request logs its address, and its mail outcome names it
+      // too. None of those lines may appear for a trapped one.
+      for (const secret of [BAIT, 'bot@example.test', 'Bot Name']) {
+        expect(logged.join('\n'), `the log carries ${secret}`).not.toContain(secret);
+      }
+    });
+
+    it('left empty, of spaces, or absent, is a person’s request as before', async () => {
+      await request.post('/api/access-requests').send({ email: 'a@example.test', website: '' });
+      await request.post('/api/access-requests').send({ email: 'b@example.test', website: '   ' });
+      await request.post('/api/access-requests').send({ email: 'c@example.test' });
+      expect((await rows()).map((r) => r.email)).toEqual([
+        'a@example.test',
+        'b@example.test',
+        'c@example.test',
+      ]);
+    });
   });
 });

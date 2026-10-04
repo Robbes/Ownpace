@@ -23,6 +23,9 @@
  * runs the alpha is `isAlpha()`, the same answer the note above the form and
  * the acceptance screen use (0131 T1). The links open in a new tab, so a
  * half-typed request is still here afterwards (`LegalLinks`).
+ *
+ * **One field is not for people** (workplan 0093 T2d; the owner, 2026-10-04,
+ * *"Honeypot now"*). See `TRAP_FIELD` below.
  */
 import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
@@ -47,6 +50,15 @@ import BackToSite from '../components/BackToSite.tsx';
  */
 const TIERS = ['Free', 'Small', 'Medium', 'Large', 'Extra large'] as const;
 
+/**
+ * THE TRAP (workplan 0093 T2d). A field a bot fills and a person never meets:
+ * drawn off-screen (not `display: none`, which some bots skip), under
+ * `aria-hidden`, out of the tab order, with autofill off. The API answers a
+ * request that fills it as received and keeps nothing
+ * (`apps/api/src/routes/access-requests.ts`, which names it the same).
+ */
+const TRAP_FIELD = 'website';
+
 interface AccessRequestBody {
   email: string;
   name?: string;
@@ -54,6 +66,7 @@ interface AccessRequestBody {
   note?: string;
   tier?: string;
   locale: string;
+  [TRAP_FIELD]?: string;
 }
 
 const RequestAccess: React.FC = () => {
@@ -101,7 +114,7 @@ const RequestAccess: React.FC = () => {
   });
 
   const send = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (trap: string) => {
       const body: AccessRequestBody = { email: email.trim(), locale };
       // Sent only when filled: an empty string is not the same as "left blank",
       // and the column is nullable precisely so the difference survives.
@@ -109,6 +122,9 @@ const RequestAccess: React.FC = () => {
       if (organisation.trim()) body.organisation = organisation.trim();
       if (note.trim()) body.note = note.trim();
       if (tier) body.tier = tier;
+      // The same rule for the trap, so a person's request is the one it was
+      // before the trap existed.
+      if (trap.trim()) body[TRAP_FIELD] = trap.trim();
       return (await apiClient.post('/access-requests', body)).data;
     },
   });
@@ -172,7 +188,11 @@ const RequestAccess: React.FC = () => {
           className="mt-8 space-y-6"
           onSubmit={(e) => {
             e.preventDefault();
-            send.mutate();
+            // The trap is read from the form, not kept in state: a script
+            // that writes the value straight into the page fires no change
+            // event, and its value must still be sent.
+            const trap = new FormData(e.currentTarget).get(TRAP_FIELD);
+            send.mutate(typeof trap === 'string' ? trap : '');
           }}
         >
           <div>
@@ -273,6 +293,25 @@ const RequestAccess: React.FC = () => {
                 </>
               )}
             </p>
+          </div>
+
+          {/* The trap (workplan 0093 T2d; `TRAP_FIELD` above). Off-screen
+              rather than undisplayed; the label is for the rare reader who
+              meets it anyway. The data- attributes ask password managers to
+              leave it alone too. */}
+          <div aria-hidden="true" className="absolute left-[-10000px] top-auto w-px h-px overflow-hidden">
+            <label htmlFor={TRAP_FIELD}>{t('access.trap')}</label>
+            <input
+              id={TRAP_FIELD}
+              name={TRAP_FIELD}
+              type="text"
+              tabIndex={-1}
+              autoComplete="off"
+              defaultValue=""
+              data-1p-ignore=""
+              data-lpignore="true"
+              data-bwignore=""
+            />
           </div>
 
           {send.isError && (

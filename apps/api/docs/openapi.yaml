@@ -465,12 +465,12 @@ paths:
       tags: [Access]
       summary: Ask to be let in
       description: |
-        **Unauthenticated and it WRITES**, which is the whole of its risk. Four
+        **Unauthenticated and it WRITES**, which is the whole of its risk. Five
         things carry that: the table grants `app_user` INSERT and nothing else;
-        every field is length-capped before the insert; a refusing rate limit
-        sized as a service-wide cap (without `TRUST_PROXY` every caller shares
-        the ingress's address); and **the response is identical whatever
-        happens**.
+        every stored field is length-capped before the insert; a refusing rate
+        limit sized as a service-wide cap (without `TRUST_PROXY` every caller
+        shares the ingress's address); a field people leave empty (`website`,
+        below); and **the response is identical whatever happens**.
 
         That last one is deliberate. It never says whether an address is
         already known, already granted, or new — a public endpoint that
@@ -481,6 +481,11 @@ paths:
         It holds no credentials and nothing about a mailbox. `tier` is
         indicative only — a tier is DERIVED from what actually runs, never
         picked.
+
+        `website` is a field people leave empty; the form hides it from them.
+        A request that fills it gets the same `201`, but nothing is stored and
+        no mail is sent (workplan 0093 T2d). The rate limit counts it first,
+        like any other request.
       security: []
       requestBody:
         required: true
@@ -489,7 +494,7 @@ paths:
             schema: { $ref: '#/components/schemas/AccessRequestCreate' }
       responses:
         '201':
-          description: Recorded. Says nothing about the address — see above.
+          description: Received. Says nothing about the address, and is the same for a request that filled `website` — see above.
           content:
             application/json:
               schema:
@@ -7877,6 +7882,11 @@ components:
           enum: [en, nl]
           default: en
           description: The language they asked in, and the language every reply comes back in.
+        website:
+          type: string
+          description: |
+            Leave empty, or leave it out. People never see this field. A
+            request that fills it is answered as received and is not kept.
       required: [email]
 
     AccessRequest:

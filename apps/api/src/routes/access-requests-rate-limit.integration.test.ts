@@ -80,4 +80,14 @@ describe('POST /api/access-requests — when somebody knocks too often', () => {
     expect(typeof refused.body.message).toBe('string');
     expect(refused.body.message.length).toBeGreaterThan(20);
   });
+
+  it('refuses a request that fills the trap the same way (workplan 0093 T2d)', async () => {
+    // The limit runs first, so a bot hammering the hidden field is throttled
+    // like anybody else, and is not told "received" past the limit.
+    const refused = await request
+      .post('/api/access-requests')
+      .send({ email: 'flood-5@example.test', website: 'https://cheap-pills.example.test/' });
+    expect(refused.status).toBe(429);
+    expect(Number(refused.headers['retry-after'])).toBeGreaterThan(0);
+  });
 });

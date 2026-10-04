@@ -11,16 +11,16 @@
  * of the service; granting is still the owner's own act.
  *
  * **Unauthenticated, on purpose, like `/health`, `/version` and `/metrics`** —
- * and unlike them it WRITES, which is the whole of the risk. Four things carry
+ * and unlike them it WRITES, which is the whole of the risk. Five things carry
  * that:
  *
  *  1. `access_request` grants `app_user` INSERT and nothing else, and its only
  *     RLS policy is for INSERT (migration 0002). Even if this route were
  *     tricked into reading, the database refuses — `permission denied for
  *     table access_request`, pinned by `access-request-under-rls.unit.test.ts`.
- *  2. Every field is length-capped here, before the insert. A public form is
- *     otherwise a free 100kb-per-request writeable store (express.json's
- *     default limit is the only other ceiling).
+ *  2. Every stored field is length-capped here, before the insert. A public
+ *     form is otherwise a free 100kb-per-request writeable store
+ *     (express.json's default limit is the only other ceiling).
  *  3. A refusing rate limit (`knock-limit.ts`), which is a nuisance gate and
  *     says so — the real protection is the ingress. Sized as a SERVICE-WIDE cap,
  *     because without `TRUST_PROXY` every caller shares the ingress's address.
@@ -29,6 +29,10 @@
  *     distinguishes those is an account-enumeration oracle. It is also honest —
  *     from the asker's side all four cases genuinely are "we have it, a human
  *     will read it".
+ *  5. A trap: one field, `website`, that the form hides from people
+ *     (workplan 0093 T2d; the owner, 2026-10-04). A request that fills it is
+ *     answered as received, and nothing is stored or mailed. See
+ *     `TRAP_FIELD` below.
  *
  * It holds NO credentials and nothing about a mailbox (hard rule 3, §17): an
  * email address, a name, an organisation, a sentence, and which tier they think
@@ -81,6 +85,22 @@ function limiter(): KnockLimiter {
 }
 
 /**
+ * THE TRAP (workplan 0093 T2d). The owner's answer of 2026-10-04: *"Honeypot
+ * now (Recommended)"* — one hidden field people never see or reach; a
+ * submission that fills it gets the same answer, nothing is stored, no mail is
+ * sent, and only a count is logged. Not chosen: a time check (the browser
+ * supplies the timing, a bot can fake it, and a fast person with autofill
+ * could be caught), and parking it behind the hourly limit.
+ *
+ * WHY `website`. A form-filling bot fills a field by that name readily, and a
+ * person never meets it: `RequestAccess.tsx` draws it off-screen, under
+ * `aria-hidden`, out of the tab order, with autofill off. No real field of
+ * this form, this route or the `access_request` table is called that, and it
+ * is not an autofill token (the one for a web address is `url`).
+ */
+const TRAP_FIELD = 'website';
+
+/**
  * Caps chosen so a person is never truncated and a script gets nowhere. `note`
  * is the only one anybody could bump into: 2000 characters is several
  * paragraphs about what somebody is moving.
@@ -95,7 +115,38 @@ const AccessRequestSchema = z.object({
    *  value is read by a human who knows what the tiers are called. */
   tier: z.string().trim().max(40).optional(),
   locale: z.enum(['en', 'nl']).default('en'),
+  /** The trap. Any value, judged by `trapFilled` below, never by the schema:
+   *  a type or a length check here would answer a filled trap with a 400 that
+   *  names it. It is never stored, so it needs no cap. */
+  [TRAP_FIELD]: z.unknown().optional(),
 });
+
+/**
+ * Did the request fill the trap? Absent, `null`, `''` or only spaces is a
+ * field left empty, which is what a person sends. Any other value is filled:
+ * a non-empty string, and anything that is not a string at all (a number, a
+ * list from a repeated form field), since no person can type one into it.
+ */
+const trapFilled = (value: unknown): boolean =>
+  value === undefined || value === null
+    ? false
+    : typeof value === 'string'
+      ? value.trim() !== ''
+      : true;
+
+/**
+ * What every accepted knock is told: a new one, a second one while the first
+ * is open (below), and one that filled the trap. One value, so the three
+ * cannot drift apart. It carries no id and nothing from a row, which is why a
+ * request that wrote no row can be answered with it exactly.
+ */
+const RECEIVED = {
+  received: true,
+  message: 'Thank you — we have your request. You will hear back by email.',
+} as const;
+
+/** Trapped requests since this process started: the only thing the log keeps of them. */
+let trappedSinceStart = 0;
 
 /**
  * Who is knocking, for the rate limit only.
@@ -130,6 +181,24 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
     const body = parsed.data;
+
+    // THE TRAP, after the limit and the validation, so it changes neither: a
+    // trapped request spends the caller's bucket like any other, and the answer
+    // depends only on what a person could have typed. Its value is not logged,
+    // stored or echoed, and neither is anything else from the request.
+    //
+    // Same status and body as an accepted request. It does not wait for a
+    // mail, so it can come back sooner; the code is public, so that hides
+    // nothing that matters.
+    if (trapFilled(body[TRAP_FIELD])) {
+      trappedSinceStart += 1;
+      log.info(
+        `[access-request] a request filled the trap field (${trappedSinceStart} since this ` +
+          'process started); answered as received, nothing kept',
+      );
+      res.status(201).json(RECEIVED);
+      return;
+    }
 
     // NOT `withTenantDb`: there is no tenant. That is the point of this row,
     // and the reason `access_request` has no `tenant_id` on the way in.
@@ -189,11 +258,8 @@ router.post('/', async (req: Request, res: Response) => {
       // this wrote `status: 'received'` where the real one says `received:
       // true` — a difference invisible to a person and perfectly visible to
       // anybody probing which addresses have already asked, which is the one
-      // thing this arm exists not to reveal.
-      res.status(201).json({
-        received: true,
-        message: 'Thank you — we have your request. You will hear back by email.',
-      });
+      // thing this arm exists not to reveal. Now both send `RECEIVED`.
+      res.status(201).json(RECEIVED);
       return;
     }
 
@@ -235,10 +301,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     // 201 and nothing about them. See point 4 above.
-    res.status(201).json({
-      received: true,
-      message: 'Thank you — we have your request. You will hear back by email.',
-    });
+    res.status(201).json(RECEIVED);
   } catch (error) {
     serverFault(res, 'access_request_failed', 'recording this request', error);
   }

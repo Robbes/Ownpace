@@ -3037,6 +3037,9 @@ const en = {
     'We keep it while your request is open. If we decline it, we delete it 30 days after our decision. ' +
     'If we grant it, it stays with your account and is erased with it.',
   'access.backToSignIn': 'Already have an account? Sign in',
+  // The label of the form's hidden trap field (workplan 0093 T2d). A person
+  // never meets it; this is for the rare reader that does.
+  'access.trap': 'Leave this field empty',
 } as const;
 
 const nl: Record<keyof typeof en, string> = {
@@ -5391,6 +5394,7 @@ const nl: Record<keyof typeof en, string> = {
     'Wij bewaren het zolang uw aanvraag openstaat. Wijzen wij die af, dan verwijderen wij het 30 dagen na ons besluit. ' +
     'Kennen wij die toe, dan blijft het bij uw account en wordt het daarmee gewist.',
   'access.backToSignIn': 'Heeft u al een account? Aanmelden',
+  'access.trap': 'Laat dit veld leeg',
 };
 
 export type Locale = 'en' | 'nl';
