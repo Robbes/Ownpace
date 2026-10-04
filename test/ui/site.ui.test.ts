@@ -162,6 +162,22 @@ describe('the public site renders', () => {
     await page.close();
   }, 60_000);
 
+  it('asks the pricing rules as questions, each answer closed until it is opened from the keyboard (0152 T6 (b))', async () => {
+    const { page } = await open('/pricing.html');
+    const questions = await page.$$eval('details.qa > summary', (s) => s.map((e) => e.textContent));
+    expect(questions.length, 'the pricing page has no questions').toBeGreaterThan(8);
+    const shown = () => page.evaluate((sel) => {
+      const p = [...document.querySelectorAll('details.qa')].find((d) => d.querySelector('summary')?.textContent === sel)?.querySelector('p');
+      return p?.checkVisibility({ visibilityProperty: true }) ?? false;
+    }, 'Does pausing lower it?');
+    expect(await shown(), 'an answer is open before anybody asks').toBe(false);
+    await page.focus('details.qa:nth-of-type(3) > summary');
+    expect(await page.evaluate(() => document.activeElement?.textContent)).toBe('Does pausing lower it?');
+    await page.keyboard.press('Enter');
+    expect(await shown(), 'Enter does not open the answer').toBe(true);
+    await page.close();
+  }, 60_000);
+
   it('opens the prices on yearly, and shows monthly by a click or the keyboard (0152 T6 (e), D10)', async () => {
     const { page } = await open('/pricing.html');
     const small = () =>

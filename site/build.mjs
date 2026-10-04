@@ -539,6 +539,22 @@ a.verdict { text-decoration: underline; text-decoration-thickness: 1px; }
 .tier .half { display: block; margin-top: 0.35rem; color: var(--teal); font-size: 0.85rem; font-weight: 650; }
 @media (prefers-color-scheme: dark) { .tier .half { color: var(--mint); } }
 
+/* The pricing page's rules as questions (0152 T6 (b)): each opens without a script. */
+.qas { border-top: 1px solid var(--line); margin: 1.25rem 0 0; }
+details.qa { border-bottom: 1px solid var(--line); }
+details.qa > summary {
+  list-style: none; cursor: pointer; padding: 0.85rem 0; font-weight: 650;
+  display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+}
+details.qa > summary::-webkit-details-marker { display: none; }
+details.qa > summary::after {
+  content: ""; flex: none; width: 0.45em; height: 0.45em; margin-right: 0.3em;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: translateY(-0.15em) rotate(45deg);
+}
+details.qa[open] > summary::after { transform: translateY(0.15em) rotate(-135deg); }
+details.qa > p { margin: 0 0 1rem; }
+
 /* calculator (workplan 0088 T3) */
 .calc fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.25rem 1.25rem; margin: 1.25rem 0; }
 .calc legend { font-weight: 650; padding: 0 0.4rem; }
@@ -1031,6 +1047,42 @@ ${cards(c.wont)}
 `;
 }
 
+/**
+ * The pricing page's rules as questions and answers (workplan 0152 T6 (b)).
+ *
+ * The Markdown says each rule as a paragraph led by its answer in bold, and the
+ * renderer escapes raw HTML, so the questions are added here: under the rules'
+ * heading, each `<p><strong>…</strong>` becomes a `<details>` whose summary is
+ * the question `copy.mjs` pairs with that lead, and the paragraph its answer,
+ * word for word. A paragraph there that is not the next lead in the list, or a
+ * list with a question left over, stops the build: a rule cannot reach the
+ * page without the question it answers.
+ */
+function asQuestions(body, { heading, questions }) {
+  const start = body.indexOf(`>${heading}</h2>`);
+  if (start === -1) throw new Error(`The pricing page has no heading "${heading}" to put its questions under.`);
+  const from = body.indexOf('\n', start) + 1;
+  const next = body.indexOf('<h2', from);
+  const to = next === -1 ? body.length : next;
+  const answers = body
+    .slice(from, to)
+    .trim()
+    .split('\n')
+    .filter((line) => line !== '')
+    .map((p, i) => {
+      const lead = /^<p><strong>([^<]+)<\/strong>/.exec(p)?.[1];
+      const [asked, question] = questions[i] ?? [];
+      if (lead === undefined || lead !== asked) {
+        throw new Error(`The pricing page's rule "${p.slice(0, 80)}" is not "${asked}", the next in copy.mjs's pricingRules.`);
+      }
+      return `<details class="qa"><summary>${question}</summary>${p}</details>`;
+    });
+  if (answers.length !== questions.length) {
+    throw new Error(`copy.mjs asks ${questions.length} pricing questions and the page has ${answers.length} rules.`);
+  }
+  return `${body.slice(0, from)}<div class="qas">${answers.join('\n')}</div>\n${body.slice(to)}`;
+}
+
 // -------------------------------------------------------------- calculator --
 
 /**
@@ -1420,6 +1472,7 @@ export function build({ alpha = ALPHA } = {}) {
               `<p class="fineprint">${beyond}</p>`,
           );
         }
+        if (key === 'pricing') body = asQuestions(body, c.pricingRules);
         if ((key === 'privacy' || key === 'terms') && c.translationNote) {
           body = `<blockquote><p>${c.translationNote}</p></blockquote>\n` + body;
         }
