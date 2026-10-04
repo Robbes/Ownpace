@@ -18,15 +18,18 @@
  * - a row that already holds member or viewer shows that role, and changing it
  *   offers owner and admin only;
  * - the server's refusal of a role below admin (`owner_or_admin_only`) reads
- *   in the reader's language, not in the server's English.
+ *   in the reader's language, not in the server's English;
+ * - an admin is offered no role select and no Remove on an owner's row, since
+ *   only an owner can change or remove an owner (0137 T3 (c), 2026-10-04).
+ *   That one is T3, not T7: it stays when T2's PR undoes T7.
  *
  * The API half is `apps/api/src/routes/tenants/a-role-that-promises-less-than-it-allows.unit.test.ts`.
- * T2's PR, which gates every write, undoes both and replaces them with T5's
- * and T6's tests.
+ * T2's PR, which gates every write, undoes the T7 cases above and replaces
+ * them with T5's and T6's tests; the owner's-row block (0137 T3 (c)) stays.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AxiosError, AxiosHeaders } from 'axios';
@@ -267,5 +270,101 @@ describe('the server’s refusal of a role below admin', () => {
     expect(
       await screen.findByText('During the Alpha, a person can only be an owner or an admin.'),
     ).toBeInTheDocument();
+  });
+});
+
+/**
+ * An owner's row, as an admin sees it (0137 T3 (c), the web half).
+ *
+ * Only an owner can change or remove an owner: the API answers an admin's
+ * PATCH or DELETE on an owner row with 403, whether that owner is active,
+ * invited or declined. The page still offered an admin the role select and
+ * Remove on those rows, so both always failed, with the server's English
+ * sentence on a Dutch page too. Now the admin sees the role as text, as
+ * somebody who manages nothing does, and no Remove. An owner keeps both on
+ * another owner's row, an admin keeps both on an admin's row, and Send again
+ * on an open invitation is not part of (c).
+ *
+ * The API half is `members.integration.test.ts` and `member-guards.unit.test.ts`.
+ */
+describe.each(['en', 'nl'] as const)('an owner’s row, in %s (0137 T3 (c))', (locale) => {
+  const words = STRINGS[locale];
+  const ADMIN = { id: 'user-m-2', email: 'beheerder@acme.nl', name: 'B', role: 'admin' };
+  const TEAM = [
+    ...MEMBERS,
+    member('m-5', 'tweede-eigenaar@acme.nl', 'owner'),
+    {
+      ...member('m-6', 'uitgenodigd@acme.nl', 'owner'),
+      status: 'invited',
+      invitedAt: '2026-10-01T09:00:00.000Z',
+      joinedAt: null,
+    },
+    {
+      ...member('m-7', 'afgeslagen@acme.nl', 'owner'),
+      status: 'declined',
+      invitedAt: '2026-10-01T09:00:00.000Z',
+      joinedAt: null,
+    },
+    member('m-8', 'tweede-beheerder@acme.nl', 'admin'),
+  ];
+
+  /** The member table's row for one address. */
+  const rowOf = (email: string) => {
+    const row = screen.getByText(email).closest('tr');
+    expect(row, `no row for ${email}`).not.toBeNull();
+    return row as HTMLElement;
+  };
+  const roleSelect = (row: HTMLElement) => within(row).queryByRole('combobox');
+  const removeButton = (row: HTMLElement) =>
+    within(row).queryByRole('button', { name: words['tenants.members.remove'] });
+
+  beforeEach(() => {
+    window.localStorage.setItem('ownpace.locale', locale);
+    memberList.mockResolvedValue(TEAM);
+  });
+
+  it.each([
+    ['active', 'tweede-eigenaar@acme.nl', false],
+    ['invited', 'uitgenodigd@acme.nl', true],
+    ['declined', 'afgeslagen@acme.nl', false],
+  ] as const)(
+    'an admin gets no role select and no Remove on an owner row that is %s',
+    async (_status, email, sendAgain) => {
+      auth.user = ADMIN;
+      renderScreen();
+      await screen.findByText(email);
+      const row = rowOf(email);
+
+      expect(roleSelect(row), 'an admin is offered a role change the server refuses (403)').toBeNull();
+      expect(within(row).getByText(words['role.owner']), 'the role still shows, as text').toBeInTheDocument();
+      expect(removeButton(row), 'an admin is offered a removal the server refuses (403)').toBeNull();
+      // Sending an open invitation again is not part of (c).
+      expect(
+        within(row).queryByRole('button', { name: words['tenants.members.resend'] }) !== null,
+      ).toBe(sendAgain);
+    },
+  );
+
+  it('an admin keeps both on another admin’s row', async () => {
+    auth.user = ADMIN;
+    renderScreen();
+    await screen.findByText('tweede-beheerder@acme.nl');
+    const row = rowOf('tweede-beheerder@acme.nl');
+
+    expect(roleSelect(row)).not.toBeNull();
+    expect(removeButton(row)).not.toBeNull();
+  });
+
+  it('an owner keeps both on another owner’s row, active or invited', async () => {
+    renderScreen();
+    await screen.findByText('tweede-eigenaar@acme.nl');
+
+    for (const email of ['tweede-eigenaar@acme.nl', 'uitgenodigd@acme.nl']) {
+      const row = rowOf(email);
+      expect(roleSelect(row), email).not.toBeNull();
+      expect(removeButton(row), email).not.toBeNull();
+    }
+    // And still nothing to remove on their own row.
+    expect(removeButton(rowOf('owner@acme.nl'))).toBeNull();
   });
 });

@@ -57,10 +57,20 @@
   ends the admin clause with *"and make somebody an owner"*. It now leaves out that an admin
   cannot change or remove an owner. It is the owner's text, version 1.0, pinned in
   `ACCEPTED_WORDS`, so the words are the owner's to change. 0139's Status says so too.
-- **Not changed: the Team page (T5).** An admin still gets an enabled role select and a Remove
-  button on every owner row, an invitation as owner included. Both now always answer 403, and
-  the page shows the server's English sentence as it is, in the Dutch interface too. Hiding
-  both controls from an admin on an owner row belongs with T5.
+- **The Team page follows (c).** On an owner's row, active, invited or declined, an admin now
+  sees the role as text, as a member or viewer does, and no Remove (`canChangeRow` in
+  `Tenants.tsx`). Before, the admin got an enabled role select and a Remove there, and both
+  always answered 403. An owner keeps both on another owner's row, an admin keeps both on an
+  admin's row, and *Send again* on an open invitation as owner stays: it is not part of (c).
+  Guard: `a-role-that-promises-less-than-it-allows.unit.test.tsx`, five cases, each in English
+  and Dutch. They are T3's, not T7's, so they stay when T2's PR undoes T7. On the page before this change 6 failed and 17 passed of 23; after, 23 of 23. Each
+  change below was made for one run and then undone. Leaving the role select, or leaving the
+  Remove, fails 6. Hiding both from an owner too fails 3. Hiding them only on an active owner's
+  row fails 4. If the owner answers (b) to open question 5, an invitation as owner gets both
+  controls back for an admin.
+- **Left for T5: other refusals read in English.** Every refusal but `owner_or_admin_only` (T7)
+  still shows the server's sentence as it is, in the Dutch interface too, such as *"Cannot
+  demote the last owner"*.
 - **Proved.** Red before, on `main`'s route and guards with this branch's tests:
   `members.integration.test.ts` 14 failed and 23 passed of 37, and `member-guards.unit.test.ts`
   10 failed and 8 passed of 18. After: 37 of 37 and 18 of 18. The integration file ran against
@@ -727,4 +737,5 @@ last, because it mirrors T2's table.
    - **(a)** No: 403. The invitation is a grant an owner made, so only an owner undoes it.
      *Built* on T3's branch.
    - **(b)** Yes: 204, as on `main`. An invitation is not an owner yet, and withdrawing it takes
-     power from nobody. Then PATCH should let an admin change one too.
+     power from nobody. Then PATCH should let an admin change one too, and the Team page should
+     offer an admin the role select and Remove on an invitation as owner again.
