@@ -4,6 +4,14 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04: the end of the alpha has a runbook.** [docs/ending-the-alpha.md](../ending-the-alpha.md)
+names every place the stage enters a process, what each does during the alpha and after it, what
+must be true first, the switch on live (`.env`, then `deploy-live.sh`), and the checks that it
+reached every part. One fact it surfaces for §3 T4's (b): the API asks for the texts **only while
+the stage is `alpha`** (`acceptanceAsked`), so emptying the stage as the code stands asks nobody
+to accept the new conditions. Guard: `scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts`
+(a file that starts reading the stage fails until the runbook names it).
+
 **2026-10-04, later still: T3's last two items decided; the measurement cards keep their
 figures, with neutral icons.** The owner answered the two items T3 still held as **Proposed**.
 
@@ -1055,6 +1063,11 @@ tester, and the source account, which no connector writes to.
 **Decided 2026-09-28: (b)** (open question 1). Everything carries on under new conditions,
 perhaps on another host than the reference machine. The first list below is what (b) needs; the
 second is what (a) needed, kept as it was written.
+
+**The switch itself** is [docs/ending-the-alpha.md](../ending-the-alpha.md): every place
+`OWNPACE_STAGE` enters a process, what each does during the alpha and after it, what must be true
+before the switch (this list among it), and the checks that it reached the api, the tasks, the web
+bundle and the site.
 
 **What (b) needs that does not exist yet.**
 
