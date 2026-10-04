@@ -44,6 +44,18 @@
  * same guard holds it to the web's `LEGAL_FILES` and to what the site build
  * writes. Only the managed service sends a grant mail; the appliance lets
  * nobody in.
+ *
+ * ## The tester guide too, for the grant mail and the invitation
+ *
+ * During the alpha the access-granted mail and the invitation (0156 T3) end
+ * the alpha paragraph with the conditions' address and then the tester
+ * guide's (0131 T1 (b), 0144 T1): `testerGuideUrl`, from the same key and by
+ * the same rule. The guide is not a legal text, so the web keeps its file in
+ * `apps/web/src/services/tester-guide-link.ts`, not in `LEGAL_FILES`; it is
+ * written out here a second time for the reason above, and the same guard
+ * holds it to that table and to the files an alpha build of the site writes.
+ * Only a site built for the alpha writes it (`ALPHA_ONLY` in
+ * `site/build.mjs`), and only the managed service sends either mail with it.
  */
 
 import type { NotificationLocale } from './notifications.ts';
@@ -100,7 +112,18 @@ export const ALPHA_CONDITIONS_FILE: Readonly<Record<NotificationLocale, string>>
   nl: 'nl/alpha.html',
 };
 
-/** The Alpha conditions' address, in the mail's language (the access-granted mail). */
+/** The Alpha conditions' address, in the mail's language (the grant mail and the invitation). */
 export function alphaConditionsUrl(locale: NotificationLocale, env: LegalSiteForMailEnv): string {
   return `${legalSiteForMailFrom(env)}/${ALPHA_CONDITIONS_FILE[locale]}`;
+}
+
+/** The tester guide's file on the site, per language, as an alpha build of the site names it. */
+export const TESTER_GUIDE_FILE: Readonly<Record<NotificationLocale, string>> = {
+  en: 'alpha-guide.html',
+  nl: 'nl/alpha-handleiding.html',
+};
+
+/** The tester guide's address, in the mail's language (the grant mail and the invitation). */
+export function testerGuideUrl(locale: NotificationLocale, env: LegalSiteForMailEnv): string {
+  return `${legalSiteForMailFrom(env)}/${TESTER_GUIDE_FILE[locale]}`;
 }

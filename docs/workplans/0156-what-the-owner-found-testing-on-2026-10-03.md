@@ -18,6 +18,12 @@ section. Two things for the owner's own test data: the *MS-2-NC* sharing list ke
 rows earlier rescans saved (§1, *Not done*), and the four parked Dropbox files go up once the
 demo Nextcloud is recreated with the new body limit and each is retried (§4, *Not done*).
 
+**2026-10-04, later: T3's invitation links the Alpha conditions and the tester guide** during the
+alpha, in the organisation's language (0131 T1 (b)), on
+`claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged. §3's follow-up says
+what changed. Guards first: `an-invitation-that-is-mailed` (Dutch and English) and
+`an-invitation-that-says-who-asked` failed on cd318823; green after.
+
 | Task | Status | Notes |
 |---|---|---|
 | T1 A migration's permission list reads its own source | ✅ **Done 2026-10-03** | §1. `migrationInventoryScans` resolves the migration's own source, migration → mailbox → connection, and the report measures its own target. The appliance reads the mapping asked about. The Finish page's blind-spot line follows the source. |
@@ -169,6 +175,18 @@ after; `409` for a declined invitation and for a granted request; twenty mails, 
 **Not done.** An invitation still matches the signed-in address exactly, case included
 (migration 0006): the mail names the exact address, but an address typed with capitals and
 registered in lower case still matches nothing.
+
+**Follow-up, 2026-10-04 (0131 T1 (b)), on
+`claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged.** During the alpha
+the invitation now ends its alpha paragraph with the Alpha conditions' address and the tester
+guide's, in the organisation's language, as the grant mail does; the privacy line stays last.
+`memberInvitedEvent` takes the mail's locale and makes both addresses inside the guard that
+turns a `LEGAL_SITE_URL` it cannot use into `failed`. `an-invitation-that-is-mailed` gained the
+case on the real route for a Dutch and for an English organisation, and
+`an-invitation-that-says-who-asked` the wording in both languages; all failed on cd318823. A
+third route case holds the guard: with `LEGAL_SITE_URL=www.ownpace.eu` the invitation is saved,
+answers `failed`, sends nothing and spends no allowance. It passed on cd318823 too, and fails
+with the guard removed (a 500 after the invitation committed).
 
 ## 4. T4 — files over 1 GiB never reached Nextcloud
 

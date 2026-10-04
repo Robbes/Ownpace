@@ -111,7 +111,7 @@ terminates TLS for the public names, not with a service. The page runs on the sa
    procedure](./breach-procedure.md) (0139 T8) takes over from here. Its clock starts when the owner
    becomes aware, not when the assessment ends.
 6. **Tell the tester,** in Dutch. Say what is known, what is not, and what they should do with their
-   old account: keep it, as 0131 T1's draft note says.
+   old account: keep it, as the Alpha mails and the tester guide say. The note no longer says it.
 7. **Say it plainly if data is gone.** There are no backups during the alpha (0142 D4, 0134). What
    was lost on the machine cannot be restored. The source account is untouched, because no
    connector writes to it (0131 T4), so a migration can be set up again.

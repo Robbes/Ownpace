@@ -1945,11 +1945,16 @@ together, and by mail the day's 50 above.
 
 ### 8g. The alpha note *(only on the stack testers use)*
 
-While the service is an alpha (workplan 0131 T1), every tester is told so: a
+During the Alpha (workplan 0131 T1), every tester is told so: a
 note at the top of every signed-in page and under the title of the sign-in and
-request pages, and a paragraph at the end of the access-granted mail, in
-English and Dutch. It is off unless you set it, and you set it only on the
-stack testers use:
+request pages, and a paragraph at the end of the access-granted mail and of
+the invitation mail, in English and Dutch. The note is the owner's welcome;
+each mail's paragraph opens with the same welcome and then says what the Alpha
+means. The note ends with two links, the
+Alpha conditions and the tester guide, in the reader's language; each mail's
+paragraph ends with the same two addresses, in the mail's language (0131 T1
+(b)). It is off unless you set it, and you set it only on the stack testers
+use:
 
 ```
 OWNPACE_STAGE=alpha
@@ -1968,10 +1973,15 @@ Open the sign-in page: the note is under the title. Empty, or any value but
 `alpha`, is no note and no paragraph. The appliance never shows it.
 
 The same setting decides whether the public site carries the tester guide
-(`/nl/alfa-handleiding.html` and `/alpha-guide.html`, workplan 0144 T1):
+(`/nl/alpha-handleiding.html` and `/alpha-guide.html`, workplan 0144 T1):
 `deploy-live.sh` hands live's value to every site build, so with
 `WWW_LIVE=true` the guide is published with the next deploy. Built by hand,
-the site needs it in the shell: `OWNPACE_STAGE=alpha node site/build.mjs …`.
+the site takes the stack's own value from its `.env`, as the site section
+below shows; without it the note's and the mails' guide links are 404s. The
+Dutch address was `/nl/alfa-handleiding.html` until 2026-10-04, when the owner
+chose the spelling *Alpha* (#1439). It had never been published (live's
+`WWW_LIVE` is false, and the OTA site was built without `OWNPACE_STAGE`), so no
+redirect exists.
 
 **The same setting asks for acceptance** (workplan 0139 T3), **once no text is
 still a draft**. With `alpha`, every tester who signs in meets one screen before
@@ -2181,10 +2191,18 @@ its own stack, deliberately, so that taking the app down does not take the site
 with it. To publish or re-publish:
 
 ```bash
-OWNPACE_APP_URL=https://app.ota.ownpace.eu node site/build.mjs   # test (OTA)
-OWNPACE_APP_URL=https://app.ownpace.eu     node site/build.mjs   # production
+. deploy/compose/env-read.sh
+OWNPACE_APP_URL=https://app.ota.ownpace.eu \
+OWNPACE_STAGE="$(env_value deploy/compose/.env OWNPACE_STAGE)" node site/build.mjs   # test (OTA)
+# production (live): deploy-live.sh builds it, with --public and live's own OWNPACE_STAGE (below)
 docker compose -f deploy/compose/www.yml up -d
 ```
+
+**The test site takes its stack's own `OWNPACE_STAGE`.** With `alpha` in that
+`.env`, the site carries the tester guide, which the app on the same stack
+links from its note and both mails (workplan 0131 T1 (b), 0144 T1). Empty is no
+guide, and no links to one. Live's site gets live's own value from
+`deploy-live.sh`, below.
 
 **A second copy beside it names its own project, with `-p`.** `ownpace-www`,
 `www.yml`'s project, is a default, and the container is named after the
@@ -2753,9 +2771,9 @@ mailbox.
 
 | Mail | Sent by, and when | Carries a code | What you do |
 |---|---|---|---|
-| *Ownpace — your access is ready* (`access_granted`; Dutch *uw toegang staat klaar*) | The API, when you grant their request, in the language they asked in | No. It says it is safe to forward. | Forward it to the address it was sent to. Or write them the same three facts yourself (the app's address, the address to register with, and that they must confirm the confirmation mail), and on live copy the alpha paragraph from the caught mail word for word, in the language it was sent in. |
+| *Ownpace — your access is ready* (`access_granted`; Dutch *uw toegang staat klaar*) | The API, when you grant their request, in the language they asked in | No. It says it is safe to forward. | Forward it to the address it was sent to. Or write them the same three facts yourself (the app's address, the address to register with, and that they must confirm the confirmation mail), and on live copy the Alpha paragraph from the caught mail word for word, in the language it was sent in, with its two lines after it: the Alpha conditions' address and the tester guide's. |
 | *Ownpace — about your request* (`access_declined`; Dutch *over uw aanvraag*) | The API, when you decline with *Email them if you decline* ticked, which is the default | No | Forward it, or untick the box and write them yourself. |
-| *Ownpace — you are invited to join an organisation* (`member_invited`; Dutch *u bent uitgenodigd voor een organisatie*) | The API, when an owner or admin invites them on the Team page, or presses *Send again* on that row, in the organisation's summary language (workplan 0156 T3). At most 20 a day per organisation, and one invitation at most once in ten minutes | No. It says it is safe to forward. | Forward it to the address it was sent to. |
+| *Ownpace — you are invited to join an organisation* (`member_invited`; Dutch *u bent uitgenodigd voor een organisatie*) | The API, when an owner or admin invites them on the Team page, or presses *Send again* on that row, in the organisation's summary language (workplan 0156 T3). During the Alpha it carries the same Alpha paragraph, with the conditions' and the guide's addresses in that language, before the privacy line (0131 T1 (b)). At most 20 a day per organisation, and one invitation at most once in ten minutes | No. It says it is safe to forward. | Forward it to the address it was sent to. |
 | Verify your address | The identity provider, when they register, and at a first sign-in with Microsoft (above) | **Yes** | Pass the code on within the hour, by the rule below. |
 | Password reset | The identity provider, when they ask for one | **Yes** | The same. |
 | Password changed | The identity provider, after a reset or any other change of password | No | Nothing to pass on. |

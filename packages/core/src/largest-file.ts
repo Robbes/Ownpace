@@ -44,7 +44,7 @@ function limitText(bytes: number): string {
  */
 export function fileTooLarge(path: string, sizeBytes: number, limitBytes: number): Error {
   const error = new Error(
-    `${path} is ${sizeText(sizeBytes)}. During the alpha this service copies files up to ` +
+    `${path} is ${sizeText(sizeBytes)}. During the Alpha this service copies files up to ` +
       `${limitText(limitBytes)}, because a larger file can take longer than one pass may run. ` +
       'Nothing was copied and nothing was changed; every other file continues. Copy this one by hand.',
   );

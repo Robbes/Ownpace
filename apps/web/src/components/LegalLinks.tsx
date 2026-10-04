@@ -26,12 +26,19 @@
  * *"Always shown"*): the links point at the site's address, the test site on
  * the OTA stack and `www.ownpace.eu` on live, and testers arrive only after
  * publication.
+ *
+ * **The alpha note draws its links here too** (workplan 0131 T1 (b)): the
+ * Alpha conditions, and after them the tester guide (0144 T1), with `guide`.
+ * The guide is not a legal text, so it is not a `LegalPage`; its address is
+ * `services/tester-guide-link.ts`'s, on the same site, and it is named by its
+ * own title (`alpha.note.guide`) and opens the same way.
  */
 
 import React from 'react';
 import { useLocale } from '../i18n/index.tsx';
 import type { StringKey } from '../i18n/strings.ts';
 import { legalUrl, type LegalPage } from '../services/legal-links.ts';
+import { testerGuideUrl } from '../services/tester-guide-link.ts';
 
 /** Each text's own title, in the reader's language: the acceptance screen's names. */
 const NAME: Readonly<Record<LegalPage, StringKey>> = {
@@ -43,20 +50,26 @@ const NAME: Readonly<Record<LegalPage, StringKey>> = {
 export const LegalLinks: React.FC<{
   /** The texts to link, in the order they are read. */
   readonly pages: ReadonlyArray<LegalPage>;
-}> = ({ pages }) => {
+  /** Also the tester guide, after them: the alpha note's links (0131 T1 (b)). */
+  readonly guide?: boolean;
+}> = ({ pages, guide = false }) => {
   const { t, locale } = useLocale();
+  const links: ReadonlyArray<{ key: string; href: string; name: StringKey }> = [
+    ...pages.map((page) => ({ key: page, href: legalUrl(page, locale), name: NAME[page] })),
+    ...(guide ? [{ key: 'guide', href: testerGuideUrl(locale), name: 'alpha.note.guide' as const }] : []),
+  ];
   return (
     <>
-      {pages.map((page, i) => (
-        <React.Fragment key={page}>
+      {links.map((link, i) => (
+        <React.Fragment key={link.key}>
           {i > 0 && ' · '}
           <a
-            href={legalUrl(page, locale)}
+            href={link.href}
             target="_blank"
             rel="noopener noreferrer"
             className="underline hover:no-underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
           >
-            {t(NAME[page])}
+            {t(link.name)}
             <span className="sr-only"> {t('acceptance.newTab')}</span>
           </a>
         </React.Fragment>

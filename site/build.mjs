@@ -117,13 +117,16 @@ if (!PUBLIC && APP_URL === PUBLIC_APP_URL) {
  * `OWNPACE_STAGE=alpha` (0131 T1; `alphaFrom` in `apps/api/src/access-notify.ts`
  * and `apps/web/src/services/stage.ts` hold the same rule). `alpha`, trimmed and
  * in any case, is the only value that turns it on; unset, empty or anything
- * else is off, which is every deployment but live during the alpha. The rule is
- * written out here rather than imported, because `site/` imports nothing.
+ * else is off, which is every deployment whose `.env` does not say alpha. The
+ * rule is written out here rather than imported, because `site/` imports
+ * nothing.
  *
  * It decides one thing: whether the pages in `ALPHA_ONLY` are rendered. A
  * build without it leaves them out, so they leave the site when the alpha ends.
  * `deploy-live.sh` hands every site build live's own value, read from its
- * `.env`, and never the shell's.
+ * `.env`, and never the shell's. The OTA site's documented build
+ * (`deploy/compose/www.yml`) hands its stack's own value the same way, because
+ * the app on that stack links the guide whenever its `.env` says alpha.
  */
 const ALPHA = (process.env.OWNPACE_STAGE ?? '').trim().toLowerCase() === 'alpha';
 
@@ -922,7 +925,7 @@ function calculatorPage(locale) {
  */
 export const SOURCE = {
   en: { how: 'pages/en/how-it-works.md', pricing: 'pages/en/pricing.md', privacy: 'legal/privacy.md', terms: 'legal/terms.md', alpha: 'legal/alpha.md', guide: 'pages/en/alpha-guide.md' },
-  nl: { how: 'pages/nl/hoe-het-werkt.md', pricing: 'pages/nl/prijzen.md', privacy: 'legal/privacy.nl.md', terms: 'legal/terms.nl.md', alpha: 'legal/alpha.nl.md', guide: 'pages/nl/alfa-handleiding.md' },
+  nl: { how: 'pages/nl/hoe-het-werkt.md', pricing: 'pages/nl/prijzen.md', privacy: 'legal/privacy.nl.md', terms: 'legal/terms.nl.md', alpha: 'legal/alpha.nl.md', guide: 'pages/nl/alpha-handleiding.md' },
 };
 
 const META = {
@@ -934,7 +937,7 @@ const META = {
     privacy: ['Privacy policy — Ownpace', 'What Ownpace holds, why, for how long, and what it never does.'],
     terms: ['Terms of service — Ownpace', 'The terms for the managed Ownpace service.'],
     alpha: ['Alpha conditions — Ownpace', 'The conditions for taking part in the Alpha of the managed Ownpace service.'],
-    guide: ['Guide to the alpha — Ownpace', 'For the people invited to the alpha: what it is, what to do before you start, how to start, where to get help and how to stop.'],
+    guide: ['Guide to the Alpha — Ownpace', 'For the people invited to the Alpha: what it is, what to do before you start, how to start, where to get help and how to stop.'],
   },
   nl: {
     home: ['Ownpace — neem uw gegevens mee, in uw eigen tempo', 'Migreer uw e-mail, contacten, agenda en bestanden van Google of Microsoft naar een Europese aanbieder, doorlopend, en stap over wanneer u er klaar voor bent.'],
@@ -944,7 +947,7 @@ const META = {
     privacy: ['Privacyverklaring — Ownpace', 'Wat Ownpace bewaart, waarom, hoe lang, en wat het nooit doet.'],
     terms: ['Servicevoorwaarden — Ownpace', 'De voorwaarden voor de beheerde Ownpace-dienst.'],
     alpha: ['Voorwaarden voor de Alpha — Ownpace', 'De voorwaarden voor deelname aan de Alpha van de beheerde Ownpace-dienst.'],
-    guide: ['Handleiding voor de alfa — Ownpace', 'Voor wie is uitgenodigd voor de alfa: wat het is, wat u vooraf doet, hoe u begint, waar u hulp krijgt en hoe u stopt.'],
+    guide: ['Handleiding voor de Alpha — Ownpace', 'Voor wie is uitgenodigd voor de Alpha: wat het is, wat u vooraf doet, hoe u begint, waar u hulp krijgt en hoe u stopt.'],
   },
 };
 

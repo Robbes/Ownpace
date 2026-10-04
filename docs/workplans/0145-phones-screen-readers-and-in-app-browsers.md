@@ -1390,13 +1390,13 @@ the CI minutes are the maintainer's decision (open question 4).
 **(a) Before the first invitation: one paragraph in the tester guide (0144 T1).** It is written
 after T10 and says only what T10 found. Dutch first:
 
-> Ownpace werkt op telefoon en computer. Voor de alfa is het geprobeerd op een iPhone (iOS 16.4
+> Ownpace werkt op telefoon en computer. Voor de Alpha is het geprobeerd op een iPhone (iOS 16.4
 > of nieuwer, met Safari) en een Android-telefoon met Chrome. Op een oudere iPhone kan de pagina
 > leeg blijven. Met een schermlezer, alleen met een toetsenbord of met sterke vergroting is het nog
 > niet volledig nagelopen. Gebruikt u een van die hulpmiddelen, laat het ons weten via [het adres
 > uit 0144 T0]; dan kijken we samen of het werkt.
 
-> Ownpace works on phones and computers. For the alpha it has been tried on an iPhone (iOS 16.4 or
+> Ownpace works on phones and computers. For the Alpha it has been tried on an iPhone (iOS 16.4 or
 > later, with Safari) and an Android phone with Chrome. On an older iPhone the page may stay blank.
 > It has not yet been checked in full with a screen reader, with a keyboard alone or at high
 > magnification. If you use one of these, tell us at [the address from 0144 T0], and we will see

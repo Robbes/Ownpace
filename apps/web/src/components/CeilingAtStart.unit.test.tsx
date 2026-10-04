@@ -94,7 +94,7 @@ describe('past the ceiling', () => {
     getCeiling.mockResolvedValue({ ...ON_SMALL, holds: false });
     renderNote(200 * GB);
     const note = await screen.findByRole('note');
-    expect(note.textContent).toContain('During the alpha nothing waits at the ceiling');
+    expect(note.textContent).toContain('During the Alpha nothing waits at the ceiling');
     expect(note.textContent).not.toContain('Move up to');
   });
 });

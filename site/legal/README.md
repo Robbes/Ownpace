@@ -451,8 +451,17 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   days"*; *"We keep what you type to decide on your request and to answer you; asking creates no
   account."* Built (0139 T4, 2026-09-29), merged the same day in #1375: all three, in English
   and Dutch, and the grant mail's alpha paragraph with the note, whose words it shares. Since
-  2026-10-03 (0139 T4, not merged) the request form's line also names privacy §9's period for a
-  request, and links the policy, and the Alpha conditions during the alpha.
+  2026-10-03 (0139 T4, merged in #1440) the request form's line also names privacy §9's period
+  for a request, and links the policy, and the Alpha conditions during the alpha. Since
+  2026-10-04 (0131 T1 (b), not merged) the Alpha note links the conditions and the tester
+  guide on every page it stands on, and the grant mail and the invitation end their alpha
+  paragraph with both addresses, in the mail's language. The app and the mails write *Alpha*,
+  as these texts do (the owner, 2026-10-04, on #1439). Since 2026-10-04, later (the owner's
+  welcome, 0131 D4's amendment, not merged), the Alpha note is the welcome and its two links.
+  The *"no backups, apart from one copy before each update, kept up to 7 days"* sentence is in
+  both mails, after the same welcome, and the conditions §6 say the same. The tester guide names
+  the one copy before an update, but not its 7 days.
+  `alpha.note.terms` is gone.
   **Still to do:** live runs a tag that carries it.
 - *A privacy line in the mail to people items were shared with* (privacy §4.6;
   privacy-share-mail-notice (a)): one sentence and a link to the policy, in both languages, in

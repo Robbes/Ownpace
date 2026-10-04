@@ -93,7 +93,7 @@ const refusal = (): AxiosError => {
     config: { headers: new AxiosHeaders() },
     data: {
       error: 'owner_or_admin_only',
-      message: 'During the alpha, a person can only be an owner or an admin.',
+      message: 'During the Alpha, a person can only be an owner or an admin.',
     },
   };
   return err;
@@ -250,9 +250,9 @@ describe('the server’s refusal of a role below admin', () => {
     await userEvent.click(screen.getByRole('button', { name: /Uitnodigen/ }));
 
     expect(
-      await screen.findByText('Tijdens de alfa kan iemand alleen eigenaar of beheerder zijn.'),
+      await screen.findByText('Tijdens de Alpha kan iemand alleen eigenaar of beheerder zijn.'),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/During the alpha/)).toBeNull();
+    expect(screen.queryByText(/During the alpha/i)).toBeNull();
   });
 
   it('and in English on an English page', async () => {
@@ -264,7 +264,7 @@ describe('the server’s refusal of a role below admin', () => {
     await userEvent.click(screen.getByRole('button', { name: /Invite/ }));
 
     expect(
-      await screen.findByText('During the alpha, a person can only be an owner or an admin.'),
+      await screen.findByText('During the Alpha, a person can only be an owner or an admin.'),
     ).toBeInTheDocument();
   });
 });

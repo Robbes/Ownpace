@@ -112,7 +112,7 @@ describe('a file larger than the deployment copies', () => {
       category: 'too_large',
       needsDecision: true,
       lastError:
-        'Videos/wedding.mov is 12.4 GB. During the alpha this service copies files up to 10 GB, ' +
+        'Videos/wedding.mov is 12.4 GB. During the Alpha this service copies files up to 10 GB, ' +
         'because a larger file can take longer than one pass may run. Nothing was copied and ' +
         'nothing was changed; every other file continues. Copy this one by hand.',
     });
@@ -149,7 +149,7 @@ describe('the sentence', () => {
     expect(sizeText(12.4 * GB)).toBe('12.4 GB');
     expect(sizeText(512 * 1024 * 1024)).toBe('512.0 MB');
     expect(fileTooLarge('a.iso', 12.4 * GB, 2048 * 1024 * 1024).message).toMatch(
-      /^a\.iso is 12\.4 GB\. During the alpha this service copies files up to 2 GB,/,
+      /^a\.iso is 12\.4 GB\. During the Alpha this service copies files up to 2 GB,/,
     );
     expect(fileTooLarge('a.iso', 3 * GB, 1500 * 1024 * 1024).message).toContain('up to 1500 MB,');
   });

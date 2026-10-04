@@ -2,7 +2,15 @@
 
 > **In one line:** The public site explains a move at a glance: old account and new home in one picture, the destinations named, the alpha said, a shorter menu, a calculator that ends in a button, monthly and yearly prices (a year costs six months), and a page per provider a person leaves.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-10-04 (update this block at the end of every session)
+
+**2026-10-04: a new question for the owner, open question 5: which line the site shows during
+the Alpha.** T1 (a) copies the app's alpha sentence to every site page. Since 0131 D4's
+amendment that sentence is the owner's welcome, *"Welcome to the Alpha! Try Ownpace at your own
+pace, and help others move to European alternatives more easily."*, and no longer the facts. So
+every visitor would read it, invited or not. §3 T1 (a) says why; the owner decides before T1 is
+built. The home wireframe's alpha line is now a placeholder (§5). Nothing here is built. On
+branch `claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged.
 
 **2026-10-03, night: T6 (d) is built, and the price list is in force** (the owner's *"go"* on
 the remaining work). One pull request changes ADR-0014's operative table, `site/prices.mjs` and
@@ -126,7 +134,7 @@ together, from one audit of the site and the app on `main` at `83eb73e` (§1).
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner reads the new copy | ⏳ **Owner; before the first invitation, before each task merges. D6's *migratie* is built on the site's own pages; the legal texts are 0139's** | §3. Site copy is the owner's to approve (0144 T0). Every new sentence here is a proposal, in both languages. It includes *migratie* for *verhuizing* (D6) and the new *Why it is priced this way* (T6 (g)). |
-| T1 The alpha, said on the site | 📋 **Proposed; before the first invitation** | §3. The app's alpha sentence on every site page while the alpha setting is on. The unbacked *"Most people"* and *"Meest gekozen"* become a fact about the tier. |
+| T1 The alpha, said on the site | 📋 **Proposed; before the first invitation**; (a)'s line waits for open question 5 (2026-10-04) | §3. The app's alpha sentence on every site page while the alpha setting is on. The unbacked *"Most people"* and *"Meest gekozen"* become a fact about the tier. *(2026-10-04: the app's sentence is now the owner's welcome (0131 D4's amendment), so copied as it is, every visitor would read the welcome. Open question 5.)* |
 | T2 A shorter menu, and a header that fits a phone | 📋 **Proposed; before the first invitation** | §3. The header reads Home · How it works · Pricing · Sign in, plus the language switch. Privacy and Terms move to the footer. On a phone the menu folds into a `<details>`, which needs no script. |
 | T3 The hero shows the move | 📋 **Proposed; before the first invitation** | §3. The drawing `hero-move.svg`, inlined: the old account's data, then Ownpace, then the new home, with our own icons (D4). Three facts sit under it, and a three-step strip links to *How it works*. An app screen joins it once 0153 T5 exists. |
 | T4 The destinations, named | 📋 **Proposed; before the first invitation** | §3. A *Where to* section names what the app supports, from a site copy of the app's list with a guard that it matches. It says plainly that the new account is one the person opens and pays for themselves. |
@@ -339,6 +347,10 @@ is the one 0144 T1 gives the site build for the tester guide. The sentence is th
 shows on `/login` and `/request-access`. It is copied into `copy.mjs`, and a guard compares it
 with the app's string, so the two cannot drift. Proposed placement: one line under the header, in
 the site's muted style, not a yellow banner.
+*(2026-10-04: the app's sentence is now the owner's welcome (0131 D4's amendment): *"Welcome to
+the Alpha! Try Ownpace at your own pace, and help others move to European alternatives more
+easily."* Copied as proposed, every visitor of the public site would read it, invited or not.
+Which line the site shows is for the owner to decide before this is built: open question 5.)*
 
 (b) **"Most people" becomes a fact about the tier.**
 
@@ -700,7 +712,7 @@ They are references for layout, order and wording, not specifications to the pix
 | `hero-move.svg` | T3 | It is inlined by `build.mjs`, never linked, so it needs no image request and nothing new in the CSP. A function returns it with its `<title>` and labels in the page's language. Its colours are the site's CSS custom properties (the palette `build.mjs` declares), so dark mode needs no second file. `role="img"` and an `aria-label` say what it shows in one sentence. On a phone it sits below the buttons. |
 | `icons.svg` | T3, T4, T5 | Six data-type icons (mail, calendar, contacts, files, photos, tasks), each a `<symbol>` in one inline sprite, used with `<use href="#…">`. The stroke is `currentColor`. They are the same drawings 0153 builds as React components, so the site and the app draw the same six. |
 | `tiles.svg` | T4, T5 | The neutral provider and destination tiles (D4): the initial on the site's teal, with the name written beside it. The same table of initials as 0153 §5. |
-| `wf-site-home.svg` | T1–T5, T6 (c) | The home page's order: the alpha line; the hero with its drawing, and the six *Leaving…* names under its buttons (T5 (b)); three facts; the three steps; *Where to*; the sections that stay; and one price line with its buttons. |
+| `wf-site-home.svg` | T1–T5, T6 (c) | The home page's order: the alpha line; the hero with its drawing, and the six *Leaving…* names under its buttons (T5 (b)); three facts; the three steps; *Where to*; the sections that stay; and one price line with its buttons. *(2026-10-04: the alpha line drew the app's note as it read before 2026-09-29, with *"nothing is backed up"*. It is now a placeholder until the owner answers open question 5.)* |
 | `wf-pricing.svg` | T6 | The labelled switch opening on yearly; the five cards on yearly (per month, the year's total in bold under it, *half the monthly price*); the calculator's button; one card on monthly; the renewal line; the questions and answers; and the principle. |
 
 ## Lessons that apply
@@ -736,3 +748,8 @@ They are references for layout, order and wording, not specifications to the pix
 4. ~~**The Dutch site at the root.**~~ **Answered 2026-09-29: English at the root** (*"English at
    root"*). `/` keeps serving English and Dutch stays under `/nl/`, so no URL moves; T2 makes the
    language switch more visible on phones.
+5. **Which line does the site show during the Alpha: the welcome, or another line?** (2026-10-04)
+   T1 (a) copies the app's alpha sentence. Since 0131 D4's amendment that is the owner's welcome,
+   *"Welcome to the Alpha! Try Ownpace at your own pace, and help others move to European
+   alternatives more easily."* On the site, every visitor would read it, invited or not. The
+   owner decides before T1 is built.

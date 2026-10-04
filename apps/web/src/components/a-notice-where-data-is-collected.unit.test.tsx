@@ -115,14 +115,27 @@ async function address(page: LegalLinks.LegalPage, locale: Locale): Promise<stri
   return actual.legalUrl(page, locale, OTA);
 }
 
-/** Every link on the page to that address; one is expected where a notice belongs. */
-const linksTo = (href: string): HTMLAnchorElement[] =>
-  Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href]')).filter((a) => a.href === href);
+/**
+ * Every link to that address, on the page or inside one part of it; one is
+ * expected where a notice belongs.
+ */
+const linksTo = (href: string, within: ParentNode = document): HTMLAnchorElement[] =>
+  Array.from(within.querySelectorAll<HTMLAnchorElement>('a[href]')).filter((a) => a.href === href);
 
-/** The one link to a text, opened in a new tab, so a half-typed form is still there afterwards. */
-async function theLink(page: LegalLinks.LegalPage, locale: Locale): Promise<HTMLAnchorElement> {
+/**
+ * The one link to a text, opened in a new tab, so a half-typed form is still
+ * there afterwards. Looked for inside `within` where the page links the same
+ * text twice: during the alpha the request page's note links the Alpha
+ * conditions too (0131 T1 (b)), above the form, and the form's own notice is
+ * the one this file is about.
+ */
+async function theLink(
+  page: LegalLinks.LegalPage,
+  locale: Locale,
+  within: ParentNode = document,
+): Promise<HTMLAnchorElement> {
   const href = await address(page, locale);
-  const found = linksTo(href);
+  const found = linksTo(href, within);
   expect(found, `no link to the ${page} text at ${href}, the address legal-links.ts makes, in ${locale}`).toHaveLength(1);
   const link = found[0]!;
   expect(link.target, `the ${page} link replaces the page it was opened from`).toBe('_blank');
@@ -178,8 +191,10 @@ describe('the request form', () => {
     it(`${locale}: during the alpha, the Alpha conditions beside it`, async () => {
       vi.stubEnv('VITE_OWNPACE_STAGE', 'alpha');
       wrap(locale, <RequestAccess />, '/request-access', '/request-access');
-      const privacy = await theLink('privacy', locale);
-      const alpha = await theLink('alpha', locale);
+      // In the form: the alpha note above it links the conditions as well.
+      const form = submit(locale).closest('form')!;
+      const privacy = await theLink('privacy', locale, form);
+      const alpha = await theLink('alpha', locale, form);
       expect(privacy.parentElement, 'the conditions are not beside the policy').toContainElement(alpha);
     });
 

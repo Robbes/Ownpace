@@ -24,9 +24,9 @@
 
      FOR THE OWNER (0144 T0), before publishing:
      - Read the Dutch against the real screens of ownpace-live.
-     - Spelling: the conditions and the acceptance screen write "Alpha", the
-       app's note and the access-granted mail "alfa". This page writes "alfa",
-       and names the conditions by their title.
+     - Spelling: "Alpha", a proper name with a capital, as the conditions
+       write it, in this page, the app and the mails alike (the owner,
+       2026-10-04, on #1439). The page names the conditions by their title.
      - Left out until proven: Google's own Dutch words on its "app not
        verified" screen (0140 T2 (a)). The page only says that a warning comes
        and to go on to Ownpace; add the screen's own words and buttons when
@@ -36,31 +36,31 @@
        readers (0145 T9 (a), written after 0145 T10's walk on two phones); a
        list of what is experimental (0144 T2's page). -->
 
-# Handleiding voor de alfa
+# Handleiding voor de Alpha
 
-Deze pagina is voor wie is uitgenodigd voor de alfa van Ownpace. Lees haar voordat u begint.
+Deze pagina is voor wie is uitgenodigd voor de Alpha van Ownpace. Lees haar voordat u begint.
 
 Deze handleiding is geen contract. Wat geldt, staat in de
 [Voorwaarden voor de Alpha](./alpha.html). Zegt deze pagina iets anders, dan gelden de
 voorwaarden.
 
-## Wat de alfa is {#wat-de-alfa-is}
+## Wat de Alpha is {#wat-de-alpha-is}
 
 Ownpace kopieert uw e-mail, agenda, contacten en bestanden van uw oude naar uw nieuwe
 aanbieder. In de app heet dat een migratie. Wij draaien de dienst voor u.
 
-De alfa is een proef met die dienst. Een kleine groep doet mee, en iedereen is persoonlijk
-uitgenodigd. De alfa duurt enkele weken.
+De Alpha is een proef met die dienst. Een kleine groep doet mee, en iedereen is persoonlijk
+uitgenodigd. De Alpha duurt enkele weken.
 
 - **Gratis.** Er wordt niets in rekening gebracht.
 - **Alleen voor huishoudens.** U doet mee met uw eigen accounts of die van uw gezin.
-- **Geen verplichtingen, aan beide kanten.** U mag op elk moment stoppen. Wij mogen de alfa
+- **Geen verplichtingen, aan beide kanten.** U mag op elk moment stoppen. Wij mogen de Alpha
   stoppen of opnieuw laten beginnen. Dat melden wij minstens 7 dagen van tevoren per e-mail. De
   dienst kan haperen.
 - **Geen back-ups.** Alleen vlak voor een update maken wij één kopie. Gaan de gegevens van de
   dienst verloren? Dan koppelt u uw accounts opnieuw en zet u uw migraties opnieuw op. Wat al bij
   uw nieuwe aanbieder staat, blijft daar.
-- **Na de alfa** gaat de dienst door, onder nieuwe voorwaarden.
+- **Na de Alpha** gaat de dienst door, onder nieuwe voorwaarden.
 
 ## Voordat u begint {#voordat-u-begint}
 
@@ -111,7 +111,7 @@ uitgenodigd. De alfa duurt enkele weken.
 ### Als u Google koppelt {#google-koppelen}
 
 Google toont eerst een waarschuwing dat Google de app niet heeft gecontroleerd. Dat hoort zo
-tijdens de alfa. Ga daar verder naar Ownpace. Zorg dat alles wat Ownpace vraagt een vinkje
+tijdens de Alpha. Ga daar verder naar Ownpace. Zorg dat alles wat Ownpace vraagt een vinkje
 heeft.
 
 ### Als Google opnieuw vraagt {#google-opnieuw}

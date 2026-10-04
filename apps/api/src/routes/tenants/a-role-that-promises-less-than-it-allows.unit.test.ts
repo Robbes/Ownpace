@@ -40,7 +40,7 @@ const TENANT = '5f610000-e29b-41d4-a716-446655441701';
 const OWNER = { tenantId: TENANT, userId: 'sub-owner-0137', userRole: 'owner' };
 const ADMIN = { tenantId: TENANT, userId: 'sub-admin-0137', userRole: 'admin' };
 
-const SENTENCE = 'During the alpha, a person can only be an owner or an admin.';
+const SENTENCE = 'During the Alpha, a person can only be an owner or an admin.';
 
 let driver: LedgerDriver;
 /** Set per test — the session `authenticate` pretends to have verified. */

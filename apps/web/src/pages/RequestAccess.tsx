@@ -155,7 +155,9 @@ const RequestAccess: React.FC = () => {
         </div>
 
         {/* The alpha note (workplan 0131 T1), under the title: somebody asking
-            to be let in reads what they are asking to join before they ask. */}
+            to be let in is welcomed, and finds the Alpha conditions and the
+            guide, before they ask. What the Alpha means reaches them in the
+            grant mail and on the acceptance screen (the owner, 2026-10-04). */}
         <AlphaNote />
 
         <form
