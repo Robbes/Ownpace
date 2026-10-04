@@ -6,11 +6,11 @@
 
 **2026-10-04, night: the Dutch guides say *migratie*.** A visitor without an account reads them
 now (0152, *the guides are public*), and they said a form of *verhuizen*, which the owner retired
-(0152 D6), 24 times in six guides. Each now says *migreren*, *migratie*, *gaat mee* or *wordt
+(0152 D6), 29 times in six guides. Each now says *migreren*, *migratie*, *gaat mee* or *wordt
 gekopieerd*, as `GLOSSARY.md` asks, and nothing else in them changed.
 `scripts/a-word-the-owner-retired.unit.test.ts` reads every guide in `docs/guides/nl` beside the
 product's sources, so the word cannot come back; putting it back in one guide fails it.
-**T0:** the 24 rewritten phrases, for the owner's reading.
+**T0:** the 27 rewritten lines, for the owner's reading.
 
 **2026-10-04: D10 no longer holds for the archive card on managed.** Once the wizard retired,
 *Start a migration* read a Takeout from the folder `Takeout` of the destination's own files (0153

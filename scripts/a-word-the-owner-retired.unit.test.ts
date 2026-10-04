@@ -21,7 +21,7 @@
  * THE DUTCH GUIDES ARE THE PRODUCT'S TOO. `Docs.tsx` inlines
  * `docs/guides/nl` at build time, and since 2026-10-04 a visitor without an
  * account reads them from the site's Leaving pages (0152). They said a form
- * of the word 24 times, and nothing read them, so every guide in that
+ * of the word 29 times, and nothing read them, so every guide in that
  * directory is read now.
  *
  * TEST FILES ARE NOT READ: a fixture may name a town *Verhuisd*
