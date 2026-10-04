@@ -4,6 +4,13 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04, later: a move up's `price_eur` stays its monthly** (the owner, 2026-10-04: *"2.
+A"*). Asked what a yes to a move up records now that there is no setup fee, the owner kept it as
+built: `data_allowance.price_eur` holds the new tier's monthly price, the one the card showed and
+the person agreed to, and a top-up holds its price once. Not taken: €0, with the invoice reading
+the list (B), or a separate column for the monthly (C). A keeps the promise that a later change of
+the list never re-prices what someone agreed to. Nothing in the code changes.
+
 **2026-10-04: the alpha's data does not count, and the Billing page says what the month bills**
 (the owner, 2026-10-04: *"In total for ever, and the alpha's data doesn't count"*). Data counts in
 total, for ever, never per month or per year, as built. What moved while the stage was `alpha`

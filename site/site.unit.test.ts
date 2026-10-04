@@ -185,6 +185,24 @@ describe('the published prices agree with the decision that set them', () => {
     expect(html('nl/index.html')).toContain('<strong>Small</strong>, voor één persoon die alles tegelijk migreert: €5 per maand');
   });
 
+  it('never promises a year back, and says what is left of it pays later months (ADR-0014, 2026-10-04)', async () => {
+    const { rendered } = (await import('./build.mjs')) as unknown as {
+      rendered: Array<{ file: string; html: string }>;
+    };
+    // The owner chose no refund of a year, and that credit left at its end
+    // keeps paying later months. A page that promised a year back, or a year
+    // that renews by itself, would sell what terms §8 refuses.
+    const page = (file: string) => rendered.find((p) => p.file === file)!.html;
+    expect(page('pricing.html')).toContain('the credit is not refunded, not even when you stop.');
+    expect(page('pricing.html')).toContain('it pays for the months that follow, at their monthly price, until it runs out.');
+    expect(page('nl/prijzen.html')).toContain('krijgt u het tegoed niet terug, ook niet als u stopt.');
+    expect(page('nl/prijzen.html')).toContain('het betaalt de maanden daarna, tegen hun maandprijs, tot het op is.');
+    for (const p of rendered.filter((p) => !/^(nl\/)?(privacy|terms|voorwaarden|alpha)\.html$/.test(p.file))) {
+      expect(p.html, `${p.file} promises a year back`).not.toMatch(/\b(is|are) refunded\b|\bkrijgt u terug\b|\b(wordt|worden) terugbetaald\b/i);
+      expect(p.html, `${p.file} says a year renews by itself`).not.toMatch(/\ba year renews\b|\bwordt (automatisch|vanzelf) verlengd\b/i);
+    }
+  });
+
   it('writes cents as a price, and refuses a price that is not whole cents', async () => {
     const { money } = await import('./prices.mjs');
     expect(money(500)).toBe('€5');

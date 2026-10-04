@@ -107,9 +107,9 @@ live in [README.md](./README.md), the register.
   data ceiling, outside the alpha, new first copies wait for a move up or a one-off top-up
   (another band for the tier's monthly, once; the meter never rewinds). Without that yes, a
   month bills the tier it was on.
-- **A year is credit at six months' price**: each month takes its own tier at half its monthly
-  price; what is left is refunded on stopping, or carried into the renewal. Not built yet
-  (0111).
+- **A year is credit at six months' price**: each month takes its tier at half price, at full
+  price after twelve months, until spent; then month to month. Never refunded (withdrawal
+  aside), never renewed. Not built (0111).
 - **What we tell, and will not do, are rules** (*Decision*): every price published, VAT
   included; *Start* warns when the preflight will not fit; no per-GB, compute or per-path
   figure; no billing past 12 months unconfirmed. **The price pays for the work**;

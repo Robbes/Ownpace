@@ -1,8 +1,7 @@
 # ADR-0014: Cost-recovery billing for the managed edition
 
-- **Status:** Accepted 2026-06-20; amended seven times and retitled once (latest 2026-10-03,
-  when the price list of 2026-09-29 came into force with 0152 T6 (d)); consolidated 2026-10-03
-  (ADR-0051)
+- **Status:** Accepted 2026-06-20; amended nine times and retitled once (latest 2026-10-04,
+  when a year stopped being refunded or renewed); consolidated 2026-10-03 (ADR-0051)
 - **Date:** 2026-06-20; consolidated 2026-10-03
 - **Deciders:** owner
 - **Relates to:** [ADR-0029](./0029-public-site-is-server-rendered-and-legible.md) (the public
@@ -45,9 +44,9 @@
   data ceiling, outside the alpha, new first copies wait for a move up or a one-off top-up
   (another band for the tier's monthly, once; the meter never rewinds). Without that yes, a
   month bills the tier it was on.
-- **A year is credit at six months' price**: each month takes its own tier at half its monthly
-  price; what is left is refunded on stopping, or carried into the renewal. Not built yet
-  (0111).
+- **A year is credit at six months' price**: each month takes its tier at half price, at full
+  price after twelve months, until spent; then month to month. Never refunded (withdrawal
+  aside), never renewed. Not built (0111).
 - **What we tell, and will not do, are rules** (*Decision*): every price published, VAT
   included; *Start* warns when the preflight will not fit; no per-GB, compute or per-path
   figure; no billing past 12 months unconfirmed. **The price pays for the work**;
@@ -500,6 +499,11 @@ the tier, the meter or the preflight today, and the calculator quotes only the b
 break-even against a setup difference, *"No profit" STANDS*), this amendment holds. The text
 below is the record as it was accepted, and its *"Status: proposed"* line is part of that record.
 
+**Amended 2026-10-04** (*Amendment 2026-10-04*, below): a year is never refunded and never
+renews, and what is left after its twelve months pays the months that follow. Where the record
+below says otherwise (D11, item 4's renewal and refund, question 2 (a)'s refund and renewal, and
+*What follows once accepted* on both), that amendment holds.
+
 **Status: proposed, for the owner's acceptance.** Nothing in the operative rules above changes
 until the owner accepts it. The price guards (`site/site.unit.test.ts`,
 `packages/managed/src/tier-calculator.unit.test.ts`) read the operative table, so the table
@@ -634,6 +638,48 @@ rules above are the prices the site quotes, and nothing is charged during the Al
   takes to run and build the service (servers, support, and the time spent building and
   improving the software); running it yourself stays free."*
 
+## Amendment 2026-10-04 — a year is never refunded and never renews
+
+The accepted list gave a year that renews by itself, can be stopped at any time, and refunds
+what was not used (D11, above). The draft terms §8 said the opposite: a prepaid year runs to its
+end, is not refunded, and runs month to month after it. Asked which should hold — rewrite §8 to
+D11 now, rewrite it later with the refunds (0152 T6 (f)), or go back on the decision: *no
+refund, and month to month after the year* (C) — the owner answered on 2026-10-04: *"C, nog
+refund of the first year"*. Asked then what happens to credit left at the year's end — (i) it
+keeps paying for later months until it runs out, also after the first year, and is never
+refunded; (ii) it lapses at the end of the first year; (iii) no credit, and a year buys one tier
+for twelve months — the owner answered *"i, go ahead"*. The second answer says how the first
+reads: nothing of a year is refunded.
+
+- **A year is credit, paid ahead at six months' price**, billed at its start. Each of its twelve
+  months takes that month's own tier at half its monthly price, so finishing paths still lowers
+  what a month costs, and a month on Free costs nothing: question 2 (a), unchanged.
+- **It is never refunded**, in whole or in part, also not on cancelling. The consumer's right
+  of withdrawal stands (terms §7): within the 14 days, what was paid above the proportionate
+  amount comes back.
+- **What is left after the twelve months is not lost.** It pays the months that follow, each at
+  its tier's full monthly price, until it runs out. A customer who cancels while credit is left
+  keeps using it until then, and nothing is billed after it.
+- **Then month to month**, cancellable at any time, effective at the end of the month.
+- **A year never renews as a year**: another year is the customer's choice. The reminder 30 days
+  before each renewal goes with the renewal. The withdrawal button stays: the law asks for it.
+
+**Read, not said by the owner:** after the twelve months the credit pays the *full* monthly
+price, because C makes the months after the year month to month, and half price is the price of
+paying a year ahead. If the owner meant half price for as long as the credit lasts, one sentence
+changes on each pricing page, in terms §8 and here.
+
+**What it replaces**, in *Amendment 2026-09-29* (its record stays word for word): D11's *"Auto-renew
+a year, refund"*; item 4's *renews by itself*, *refunds what was not used* and the reminder before
+each renewal; question 2 (a)'s *"What is left is refunded when you stop. It is carried into the
+next year when the year renews."*; and the renewal and refund among *What follows once accepted*.
+A credit note (0111) now refunds only a withdrawal, or corrects an invoice.
+
+**What follows:** the operative rule, amended in place, and `OPERATIVE.md` regenerated; the
+pricing page's year, in both languages; terms §8, in both languages, with question 27 in the
+lawyer's briefing; 0152 T6 (f) without renewal or refunds; and 0111's yearly invoice, which draws
+the credit month by month. Nothing is billed during the Alpha, so nobody has bought a year.
+
 ## Amendment log
 
 - **2026-06-20** — Accepted: cost recovery, with a flat baseline and a metered pass-through for
@@ -684,6 +730,11 @@ rules above are the prices the site quotes, and nothing is charged during the Al
   Data counts in total, for ever, and the alpha's never counts (owner: *"In total for ever, and
   the alpha's data doesn't count"*); the Billing page names what the month bills. Built. Record:
   *Amendment 2026-10-03*.
+- **2026-10-04, later** — A year is never refunded and never renews (owner: *"C, nog refund of the
+  first year"*; on what is left, *"i, go ahead"*): each of its twelve months still takes its tier
+  at half price; what is left after them pays the months that follow at the full monthly price
+  until it runs out; then month to month. The right of withdrawal stands. Replaces D11's renewal
+  and refund. Record: *Amendment 2026-10-04 — a year is never refunded and never renews*.
 
 The full record, word for word as it read before this consolidation:
 [history/0014-cost-recovery-billing.md](./history/0014-cost-recovery-billing.md).

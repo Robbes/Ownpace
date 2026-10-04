@@ -45,8 +45,10 @@ understating what you need.
 
 **A year costs six months.** Pay a year ahead and it costs half the monthly price. It works as
 credit: each month still takes its own tier, at half that tier's monthly price, so finishing a
-migration still lowers what a month costs, and a month on Free costs nothing. What is left
-when you stop is refunded.
+migration still lowers what a month costs, and a month on Free costs nothing. Apart from the
+14 days the law gives you to change your mind, the credit is not refunded, not even when you
+stop. What is left after the year is not lost: it pays for the months that follow, at their
+monthly price, until it runs out. Then you pay month by month. A year never renews by itself.
 
 **The data figure only counts the first copy of anything.** Re-copies, retries and ongoing
 changes do not count against it, and neither do our own mistakes. It is a measure of how

@@ -360,6 +360,27 @@
       The Alpha conditions §2 keep it. The owner: "draft the export function
       in a workplan". Workplan 0155 builds it; until then the export is
       made by hand.
+  27. §8: a year paid ahead (2026-10-04; ADR-0014, Amendment 2026-10-04).
+      The owner chose "no refund, and month to month after the year", and,
+      for what is left at the year's end, that "it keeps paying for later
+      months until it runs out, also after the first year, and is never
+      refunded" (the options as put; ADR-0014 quotes both answers). So §8
+      now says: a year is billed at its start, at six months' price, as credit
+      that each month of the year draws at half its tier's monthly price; it
+      is not refunded, in whole or in part; what is left when the year ends
+      pays the months after it, at their monthly price, until it runs out;
+      a customer who cancels while credit is left keeps using it until it
+      runs out, and nothing is billed after it; and a year never renews as
+      a year. §8's twelve-month bullet: a year is the confirmation for its
+      own twelve months only. The pricing page says the same in both
+      languages. Left for the lawyer, before the first paid tier
+      (terms-paid-tier-lawyer-checks (a)), with old questions 3 and 8: may
+      prepaid credit be kept from a consumer who cancels, beyond §7's
+      withdrawal (art. 6:236 and 6:237 BW; Directive 93/13/EEC)? What is
+      §7's proportionate amount for a year bought as credit: what its
+      months drew, or a share of the year's price? And may the credit run
+      with no end date, or must it have one; is what is left lost when the
+      customer closes the account (§11)?
 
   The questions of v1.1 and v1.2, with where each stands now:
 
@@ -395,7 +416,8 @@
      customer. QUESTION: confirm the wording, and whether a discounted prepaid
      term fits it, §7 and art. 6:236/6:237 BW. NOW: set aside during the
      Alpha; left for the lawyer's pass before the first paid tier
-     (terms-paid-tier-lawyer-checks (a)).
+     (terms-paid-tier-lawyer-checks (a)). Since 2026-10-04 the prepaid term
+     is a year of credit, never refunded: question 27.
   4. §10: the twelve-month cap with a consumer carve-out. NOW: replaced by
      v1.3's split; see question 13.
   5. §13: the EU ODR platform. The text does not name it. Our reviewer
@@ -413,6 +435,8 @@
   8. §8: a prepaid term counts as the twelve-month reconfirmation for the
      period it covers. NOW: set aside during the Alpha; left for the lawyer's
      pass before the first paid tier (terms-paid-tier-lawyer-checks (a)).
+     Since 2026-10-04 a year counts for its own twelve months, not for the
+     credit left after them: question 27.
   9. Entity facts: Archico B.V. (KvK 73922706, seat Wijhe), court in
      Overijssel. NOW: the name, the VAT number and the address are question
      22; the forum wording is question 14.
@@ -570,27 +594,29 @@ If you are a business customer, this section does not apply to you.
 ## 8. Billing, renewal, and not billing you for forgetting
 
 Billing is **monthly in arrears**, by the payment method you registered, through our payment
-provider Mollie. On Free nothing is billed, so there is nothing to register. If we offer a
-discounted term paid up front — a year, say — and you choose it, that term is billed at its
-start; the discount is the price of the commitment.
+provider Mollie. On Free nothing is billed, so there is nothing to register. If you choose to
+**pay a year ahead**, it is billed at its start, at six months' price, and it is credit: each
+month of the year takes its own tier, at half that tier's monthly price.
 
 **You can cancel a monthly subscription at any time**, effective at the end of the current
 month. There is no minimum term, no notice period and no cancellation fee.
 
-**A prepaid term runs to its end** if you cancel during it; it is not refunded pro rata,
-because the discount was already the price of the commitment. After an initial term, a
-subscription **continues month to month**, and you cancel it like any monthly subscription: at
-any time, effective at the end of the current month — for consumers that is the law, and we
-apply it to everyone. A prepaid term never renews as another prepaid term without you choosing
-it again.
+**A year paid ahead is not refunded**, in whole or in part, because the discount is the price
+of paying ahead; your right of withdrawal (§7) is not affected. What is left of it when the
+year ends **pays for the months after it**, each at its tier's monthly price, until it runs
+out. If you cancel while credit is left, it still pays for the months you use until it runs
+out, and nothing is billed after it. Otherwise, once it has run out, a subscription **continues
+month to month**, and you cancel it like any monthly subscription: at any time, effective at
+the end of the current month — for consumers that is the law, and we apply it to everyone. A
+year never renews as another year without you choosing it again.
 
 Two commitments that constrain us rather than you:
 
 - **We do not bill you for inattention.** If a migration is running with nothing to do, we ask
   you periodically whether to keep it or finish it, in one click.
 - **We do not bill beyond twelve months without your explicit confirmation.** A migration that
-  has been running a year needs you to say so again — a prepaid term counts as that
-  confirmation for the period it covers.
+  has been running a year needs you to say so again — a year paid ahead counts as that
+  confirmation for its own twelve months, not for the credit left after them.
 
 If a payment fails we will tell you and try again before anything is suspended. We will not
 delete your migration data because of a failed payment without warning you first.
