@@ -29,6 +29,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { DISCOVERY_DOMAINS } from '../packages/shared/src/discovery.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => readFileSync(join(REPO_ROOT, p), 'utf8');
@@ -93,7 +94,8 @@ describe('the hero is the drawing (0152 T3)', () => {
       expect(shapesOf(drawn), `${locale}: hero.mjs is not hero-move.svg`).toBe(shapesOf(asThePageDrawsIt(drawing)));
       // Every word is the page's own: none is left empty, none is the drawing's English in Dutch.
       expect(drawn).not.toMatch(/<text\b[^>]*><\/text>|undefined/);
-      for (const t of ['email', 'calendar', 'contact', 'file']) {
+      // The drawing carries the app's data types but tasks, which it does not draw.
+      for (const t of DISCOVERY_DOMAINS.filter((d) => d !== 'task')) {
         expect(drawn.split(`>${c.dataTypes[t]}</text>`).length - 1, `${locale}: ${t} is not on both sides`).toBe(2);
       }
       expect(drawn.split(`>${c.leaving.photos}</text>`).length - 1).toBe(2);
