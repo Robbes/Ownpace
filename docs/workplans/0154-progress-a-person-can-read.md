@@ -2,7 +2,43 @@
 
 > **In one line:** Each move and migration says where it is in one line: a stage in words, how much of what was found has arrived, time left as a range with its reason, and what needs the person. The cutover steps show counts and state, and the report of what arrived becomes a page.
 
-## Status — 2026-10-03 (update this block at the end of every session)
+## Status — 2026-10-04 (update this block at the end of every session)
+
+**2026-10-04, night: T7 is built: the first-copy email, once per person.** A `first_copy_complete`
+kind in 0030's channel, as the owner decided (*"One per person"*). It is sent once, when the last
+of a person's migrations finishes its first complete pass, and names the person and each data
+type: *"Everything has arrived: email, calendar and contacts. It is kept in step until you switch.
+Nothing is needed from you."*
+
+- **The rule** (`firstCopyOf`, shared): a data type has arrived when a pass over it reached the
+  end (`completed_at`, the stages' *copied once*). One its owner stopped, or one waiting to start
+  (photos waiting for an export), does not count, and does not hold the mail back. A migration
+  with nothing that counts has not arrived. `readFirstCopyFacts` (ledger) reads the facts for
+  both editions in one statement.
+- **Managed** (`the-first-copy-email.ts`):
+  - **When it asks.** A pass asks only when it has just finished a data type's first copy: after
+    its run closes, and on the way out of a failed one too. So nobody is told today about a copy
+    that arrived weeks ago.
+  - **Once.** `person.first_copy_announced_at` (managed migration 0038) is claimed by a
+    conditional update, so of two passes of one person finishing together, one mail goes. It is
+    claimed with or without SMTP.
+  - **To whom.** The tenant's active owners and admins, in its language, as the digest.
+  - **Never the pass's failure.** A send that fails is logged.
+- **The appliance:** its one person is every migration it has. It says it on the pass that finds
+  everything newly arrived, once, and names nobody.
+- **The mail does not end with *Open the app to act on this*:** it has just said nothing is
+  needed.
+- **Docs:** the operator runbook's email section.
+- **Proved by:**
+  - the rule (5);
+  - the mail in both languages (3, and the every-event check);
+  - the managed path over a real database under row security (5): not yet while one migration
+    has not arrived; one mail to the owners and admins in Dutch naming Anna, email and calendars;
+    never a second, asked again or twice at once; nothing for a migration nobody has; claimed
+    with no channel. A stopped data type and one waiting to start are among the fixtures;
+  - when each pass asks, read off its source (5).
+
+  **Mutations: ten of ten caught.**
 
 **2026-10-03, night: T8 is built: the person's own progress page says what the owner's pages
 say.** `/view/:link`, for a person's link and a migration's alike:
@@ -388,7 +424,7 @@ of a move after it. The evening's answer puts everything before.
 | T4 The cutover steps with counts and state | ✅ **Built: one list on a migration's page and a person's, each step with its count and state in words, and the check as it last ran** | §3. The seven cards become one ordered list. Each has its count and *done*, *needs you* or *not yet*, summed for the move across its migrations. |
 | T5 The report of what arrived, as a page | ✅ **Built: a page per migration and one per person, found beside arrived, *Download the report*, and the report and *Confirmed* linked** | §3. The completion report is rendered in the app, per migration and per move, and downloadable. The word *Markdown* leaves the button. |
 | T6 Internals out of the way | ✅ **Built: the ID and the hashes fold away, the connections line says the card, and the run history says its counts in words** | §3. The UUID, the kinds, the doubled address and the item hashes fold away. *Left as they are* says what it means. |
-| T7 An email when the first copy is in | 📋 **Decided by the owner 2026-09-28: one per person; before the first invitation** | §3. A milestone mail, *"Your mail is in your new system and is kept in step until you switch."* It is a new kind for 0030's email-only channel, so the owner decides. |
+| T7 An email when the first copy is in | ✅ **Built: once per person, from the pass that finishes the last first copy, on both editions** | §3. A milestone mail, *"Your mail is in your new system and is kept in step until you switch."* It is a new kind for 0030's email-only channel, so the owner decides. |
 | T8 The person's own progress page says the same | ✅ **Built: each data type's stage and the owner's line, and how long, on both link shapes** | §3. `/view/:link` shows T1's line, T2's totals and T3's range, in the person's language (0145 T6). |
 
 ## 1. What there is today

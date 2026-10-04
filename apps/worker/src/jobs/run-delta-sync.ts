@@ -12,7 +12,7 @@
 import './refuse-internal-addresses.ts';
 import { z } from 'zod';
 import { schemaTask, queue } from '@trigger.dev/sdk';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import {
   autoApplyRelocations,
   runShadowPass,
@@ -28,6 +28,7 @@ import {
 import { budgetPauseToReason, HALT_IN_WORDS } from '@openmig/shared';
 import { passStepBefore, whyThisDataTypeStops, type PassHalt, type PassSkip } from './stopping-a-pass.ts';
 import { leavesAReference, planeErrorFor } from './what-a-run-leaves.ts';
+import { announceFirstCopy } from './the-first-copy-email.ts';
 import type {
   TenantId,
   MappingId,
@@ -394,6 +395,47 @@ export const runDeltaSync = schemaTask({
           await new RunStore(db).logEvent(tenantId, runId, 'info', line);
         });
       }
+      // THE FIRST COPY, ASKED ABOUT ONCE (workplan 0154 T7): the data types
+      // with no completed pass when this one began, and whether it completed
+      // one of them. Only then is the person's first copy worth asking about.
+      // `completed_at` alone: the status read's counts over the item table are
+      // not wanted for a yes or no.
+      const unfinishedAtStart = new Set(
+        await withTenant(pool, tenantId, async (db) =>
+          (
+            await db
+              .select({ domain: schemaPg.migrationStatus.domain, completedAt: schemaPg.migrationStatus.completedAt })
+              .from(schemaPg.migrationStatus)
+              .where(
+                and(
+                  eq(schemaPg.migrationStatus.tenantId, tenantId),
+                  eq(schemaPg.migrationStatus.mappingId, mappingId),
+                ),
+              )
+          )
+            .filter((r) => r.completedAt !== null)
+            .map((r) => r.domain),
+        ).then((completed) => domains.filter((d) => !completed.includes(d))),
+      );
+      let finishedAFirstCopy = false;
+      // Everything of the person's in? Asked only by a pass that finished a
+      // first copy, once its data types are marked, and never allowed to fail
+      // the pass: a pass that copied everything is no less done for a mail
+      // that did not go. Asked on the way out of a failed pass too, since a
+      // data type that threw after another finished its first copy must not
+      // be why the person never hears.
+      const sayTheFirstCopy = async (): Promise<void> => {
+        if (!finishedAFirstCopy) return;
+        try {
+          const said = await announceFirstCopy(pool, tenantId, mappingId);
+          log.info(`[first-copy] ${mappingId}: ${said}`);
+        } catch (err) {
+          log.error(
+            `[first-copy] ${mappingId}: could not say the first copy is in:`,
+            err instanceof Error ? err.message : err,
+          );
+        }
+      };
       for (const domain of domains) {
         // THE MAPPING MAY HAVE BEEN PAUSED SINCE THIS RUN WAS ENQUEUED.
         //
@@ -739,6 +781,7 @@ export const runDeltaSync = schemaTask({
             await withTenant(pool, tenantId, async (db) => {
               await new PgMigrationStatusStore(db).markCompleted(tenantId, mappingId, domain, result.metrics);
             });
+            if (unfinishedAtStart.has(domain)) finishedAFirstCopy = true;
           } else if (pause) {
             /**
              * The customer's half of the same fact — but only for the ceiling.
@@ -985,6 +1028,8 @@ export const runDeltaSync = schemaTask({
           // Re-throw so Trigger.dev records the failure (hard rule 9 — no masking),
           // under the event's reference and category, and without its words: the
           // lines above keep those (0134, open question 3 (a); what-a-run-leaves.ts).
+          // A first copy this pass finished is said first (0154 T7).
+          await sayTheFirstCopy();
           throw await planeErrorFor(
             error,
             { task: 'run-delta-sync', tenantId, mappingId },
@@ -996,6 +1041,7 @@ export const runDeltaSync = schemaTask({
       log.info('Delta sync completed successfully');
 
       await closeRun('succeeded', 0);
+      await sayTheFirstCopy();
 
       const report: DeltaSyncOutput = {
         asked: domains,

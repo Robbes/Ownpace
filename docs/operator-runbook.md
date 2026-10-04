@@ -345,7 +345,7 @@ smoke does. Its evidence file is **secret-bearing** (runner logs print the task 
 
 ## Email notifications (workplan 0030)
 
-Two things send email on managed, both through the operator's own SMTP relay configured in
+Three things send email on managed, all through the operator's own SMTP relay configured in
 `.env` and uploaded by `set-task-env.sh`:
 
 - **`managed-digest`** — a scheduled task, daily at **08:00 UTC**. It asks each active tenant
@@ -355,6 +355,14 @@ Two things send email on managed, both through the operator's own SMTP relay con
   READY_FOR_CUTOVER. Counted from the same ledger calls the screens read, and read as that tenant,
   under row security (workplan 0138 T2): only the list of active tenants is read across them.
 - **the rollback notice** — only when `run-rollback` is submitted with `notifyUsers: true`.
+- **the first-copy email** (workplan 0154 T7) — once per person, from the pass that finishes the
+  last first copy of their migrations: *everything has arrived*, naming the person and each data
+  type, to the tenant's **active owners and admins** in its language. A pass asks only when it has
+  just finished a data type's first copy; `person.first_copy_announced_at` (managed migration
+  0038) makes it once, even when two of a person's passes finish together. It is claimed with or
+  without SMTP, so switching SMTP on later sends nothing about earlier copies. The pass logs
+  `[first-copy] <mapping>: sent`, or `not_yet`, `already`, `nobody`, `no_channel`,
+  `no_recipients`. A migration with no person sends none.
 
 Two behaviours worth knowing before you go looking for a missing email:
 
