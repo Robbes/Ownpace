@@ -187,6 +187,17 @@ describe('the Takeout reader over a file target', () => {
     expect(dav.requests.filter((r) => r.method === 'GET' && !r.headers?.Range)).toHaveLength(0);
   });
 
+  it('reads the folder a download’s parts were put in exactly as it reads the parts (0153 open question 5)', async () => {
+    // What *Start a migration* names: a folder of the destination's files, set
+    // before the export exists, so before any part has a name to point at.
+    const dav = new FakeDav();
+    dav.put('Takeout/takeout-20240506T070810Z-001.zip', PART_ONE);
+    dav.put('Takeout/takeout-20240506T070810Z-002.zip', PART_TWO);
+    const onDisk = await listing(localStore(), FOLDER);
+    expect(await listing(webdavStore(ENDPOINT, dav), 'Takeout')).toEqual(onDisk);
+    expect(dav.requests.filter((r) => r.method === 'GET' && !r.headers?.Range)).toHaveLength(0);
+  });
+
   it('reads a folder the person extracted into their target exactly as it reads it on disk', async () => {
     const dav = new FakeDav();
     dav.putTree(FOLDER, 'Photos export');

@@ -23,7 +23,7 @@ Two things, and neither of them is a password:
 | | |
 |---|---|
 | **Which export** | Google Takeout, or Apple Data & Privacy (to be tested: we cannot read it yet). This tells us how to read it — the two are laid out completely differently inside, and there is no way to tell from the files themselves. |
-| **Where it is** | The `.zip` you downloaded, or the folder you extracted it into. A download in several parts: any one of the parts, and we read them all. The folder can also be in the Nextcloud you are moving to: see [Your export in your own Nextcloud](#your-export-in-your-own-nextcloud). |
+| **Where it is** | The `.zip` you downloaded, the folder you put its parts in, or the folder you extracted it into. A download in several parts: any one of the parts, or the folder they are in, and we read them all. The folder can also be in the Nextcloud you are moving to: see [Your export in your own Nextcloud](#your-export-in-your-own-nextcloud). |
 
 That is the whole connection. We never sign in anywhere on your behalf for this, so there is
 no account to link and nothing to revoke afterwards.

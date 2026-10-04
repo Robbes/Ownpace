@@ -16,8 +16,11 @@
  *   may have Microsoft's mail read through its own app, with application
  *   permissions (`PlanChoices`, 0153 open question 5): the `graph` or `oauth2`
  *   card then carries the mail, and the account the rest;
- * - **where a provider's photos come from** (`photosThrough`): an export
- *   archive, never a sign-in, so *What moves?* says how and ticks nothing;
+ * - **a provider's export** (`exportOf`), under its own tile, since every
+ *   export has a provider (0153 open question 5, item 2): Google's Takeout is
+ *   a tick box, read from a folder of the destination's own files
+ *   (`exportMigration`), and Apple's export, which no reader opens yet, is a
+ *   line saying so;
  * - **which accounts to connect for what was ticked** (`connectionsFor`): one
  *   sign-in per provider for exactly the ticked types (T1 (c) by
  *   construction). Where this deployment has not declared Google's restricted
@@ -35,6 +38,7 @@
  * `GET /api/provider-accounts`, as the wizard reads it.
  */
 import {
+  ARCHIVE_READABLE_TARGETS,
   DISCOVERY_DOMAINS,
   PROVIDER_ACCOUNT_DOMAINS,
   TARGET_TYPE_DOMAINS,
@@ -138,19 +142,73 @@ export function carrierOf(
   return type === 'email' ? 'gmail' : 'google-drive';
 }
 
+/** A provider's export: which one, and whether this build reads it. */
+export interface ProviderExport {
+  readonly archive: ArchiveProvider;
+  /** `hasArchiveReader`: a tick box where it reads it, a line saying so where it does not. */
+  readonly readable: boolean;
+}
+
 /**
- * The export a provider's photos come through, where this build can read it
- * (`hasArchiveReader`): Google's Takeout today. Apple's export waits on its
- * reader (0148 T3), so Apple has none yet, and a provider with no photos of
- * its own has none at all.
+ * THE EXPORT UNDER A PROVIDER'S TILE (0153 open question 5, item 2; the owner,
+ * 2026-10-04: *"go with the recommendations"*). Every export has a provider,
+ * so it sits with that provider's data types rather than on a line of its own.
+ *
+ * Google's Takeout is the one way to a whole photo library: since March 2025
+ * Google's photos API reads only what an app uploaded itself. Apple's export
+ * carries iCloud Drive and photos, and no reader opens it yet (0148 D7, T3),
+ * so it is not `readable`. A provider with no export has none.
  */
-export function photosThrough(provider: StartProvider): ArchiveProvider | undefined {
+export function exportOf(provider: StartProvider): ProviderExport | undefined {
   const archive: Partial<Record<StartProvider, ArchiveProvider>> = {
     google: 'google-takeout',
     apple: 'apple-privacy',
   };
-  const through = archive[provider];
-  return through !== undefined && hasArchiveReader(through) ? through : undefined;
+  const found = archive[provider];
+  return found === undefined ? undefined : { archive: found, readable: hasArchiveReader(found) };
+}
+
+/**
+ * WHERE A TAKEOUT IS PUT: a folder of this name at the top of the
+ * destination's files (0148 D11). The flow names it before the export exists,
+ * so it cannot name a part, since Google stamps each download; the reader
+ * opens the parts the folder holds.
+ */
+export const TAKEOUT_FOLDER = 'Takeout';
+
+/**
+ * The destinations an export can be read from (0148 D11): files the reader can
+ * ask for by byte range. Nextcloud and WebDAV today; a JMAP destination's
+ * files cannot be, and the create door refuses it in those words.
+ */
+export function exportDestinations(): ReadonlyArray<WizardTargetType> {
+  return ARCHIVE_READABLE_TARGETS;
+}
+
+/** The card an export's migration is made with: the archive, as the create door knows it. */
+export const EXPORT_CARD = 'archive';
+
+/**
+ * AN EXPORT'S MIGRATION (0153 open question 5, item 2): from the folder the
+ * export is put in, to the files of the same destination. It has no account
+ * to sign in to, so its source is made with it (`sourceConnectionId` holds a
+ * key of the flow's own, never sent), and it carries files, which is what
+ * photos are in an export (owner decision D5, 2026-09-04).
+ */
+export function exportMigration(
+  provider: StartProvider,
+  to: { readonly card: WizardTargetType; readonly connectionId: string; readonly username?: string },
+): PlannedMigration {
+  return {
+    provider,
+    sourceCard: EXPORT_CARD,
+    sourceConnectionId: `export:${provider}`,
+    sourceUsername: '',
+    targetCard: to.card,
+    targetConnectionId: to.connectionId,
+    ...(to.username ? { targetUsername: to.username } : {}),
+    types: ['file'],
+  };
 }
 
 /**

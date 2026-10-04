@@ -11,12 +11,14 @@ import {
   carrierOf,
   connectionsFor,
   destinationsFor,
+  exportDestinations,
+  exportMigration,
+  exportOf,
   grantableByLink,
   migrationsFor,
   nextcloudAddress,
   nextcloudDavUrl,
   offers,
-  photosThrough,
   type Route,
 } from './start-plan.ts';
 
@@ -79,15 +81,33 @@ describe('which card carries a type, and whose verdict its tag reads (step 3)', 
   });
 });
 
-describe('where photos come from (step 3)', () => {
-  it('is Google’s Takeout export, since a reader for it is built', () => {
-    expect(photosThrough('google')).toBe('google-takeout');
+describe('the export under a provider’s tile (step 3; 0153 open question 5, item 2)', () => {
+  it('is Google’s Takeout, which this build reads', () => {
+    expect(exportOf('google')).toEqual({ archive: 'google-takeout', readable: true });
   });
 
-  it('is nothing yet for Apple, whose export waits on its reader, and nothing for a provider with no photos', () => {
-    expect(photosThrough('apple')).toBeUndefined();
-    expect(photosThrough('dropbox')).toBeUndefined();
-    expect(photosThrough('imap')).toBeUndefined();
+  it('is Apple’s export, which no reader opens yet, and nothing for a provider with no export', () => {
+    expect(exportOf('apple')).toEqual({ archive: 'apple-privacy', readable: false });
+    expect(exportOf('dropbox')).toBeUndefined();
+    expect(exportOf('imap')).toBeUndefined();
+  });
+
+  it('is read from destinations whose files serve byte ranges, and never from a JMAP destination', () => {
+    expect(exportDestinations()).toEqual(['webdav', 'nextcloud']);
+    for (const card of exportDestinations()) expect(destinationsFor('file')).toContain(card);
+  });
+
+  it('makes one migration of files from the archive to the destination, with no account to sign in to', () => {
+    expect(exportMigration('google', { card: 'nextcloud', connectionId: 'nc-1', username: 'anna' })).toEqual({
+      provider: 'google',
+      sourceCard: 'archive',
+      sourceConnectionId: 'export:google',
+      sourceUsername: '',
+      targetCard: 'nextcloud',
+      targetConnectionId: 'nc-1',
+      targetUsername: 'anna',
+      types: ['file'],
+    });
   });
 });
 

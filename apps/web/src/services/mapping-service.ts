@@ -474,6 +474,12 @@ export interface CreateMappingInput {
     provider?: string;
     /** Archive only: WHERE the export is — the folder it was extracted to, or the `.zip` itself. Not a secret. */
     path?: string;
+    /**
+     * Archive only (0148 T9): WHICH STORE `path` is in — `target`, a folder of
+     * the destination's own files, or `disk`. A plain string, as the server's
+     * schema names the two and refuses a third by name.
+     */
+    where?: string;
   };
   targetConfig: {
     /** WHERE the target is, and which pair says so depends on the type
