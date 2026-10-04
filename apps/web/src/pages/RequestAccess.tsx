@@ -35,6 +35,7 @@ import SupportLine from '../components/SupportLine.tsx';
 import LegalLinks from '../components/LegalLinks.tsx';
 import SiteMark from '../components/SiteMark.tsx';
 import BackToSite from '../components/BackToSite.tsx';
+import { answersSentence } from '../services/request-answers.ts';
 
 /**
  * ADR-0014's five, by name only.
@@ -86,7 +87,16 @@ const RequestAccess: React.FC = () => {
   const [email, setEmail] = useState(() => search.get('email')?.trim() ?? '');
   const [name, setName] = useState('');
   const [organisation, setOrganisation] = useState('');
-  const [note, setNote] = useState('');
+  /**
+   * Arrives with the answers the site's estimate or a *Leaving…* page already
+   * had (`?from=`, `?what=`, `?who=`; workplan 0152 T7 (a)), as one sentence
+   * the person edits like anything else they type. Matched against lists, as
+   * `?tier=` is, in `services/request-answers.ts`.
+   */
+  const [note, setNote] = useState(() => {
+    const asked = search.get('locale');
+    return answersSentence(search, asked === 'en' || asked === 'nl' ? asked : locale) ?? '';
+  });
   /**
    * Pre-filled from `?tier=` when the visitor got here by clicking "Start with
    * Medium" on the pricing page — asking them the same question twice is how a

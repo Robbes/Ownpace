@@ -4,6 +4,20 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04, night: T7 (a)'s form half is built.** The request form reads the answers the site
+already has: `?from=`, `?what=` and `?who=`, each matched against its list as `?tier=` is.
+*What are you moving?* arrives with one sentence built from them, in the language the site asked
+for: *"Moving away from Google: email, calendar, contacts, and files, for one person."*
+- **Nothing new is stored.** It is the note, which the person edits like anything they type. An
+  unknown value is left out, and with nothing known there is no sentence.
+- **The site half follows:** the estimate's *Request access* and each *Leaving…* page carry their
+  answers once #1476 and #1479 are on main, since both change the estimate's script.
+- **Guard:** `RequestAccess.unit.test.tsx`:
+  - the form arrives with the sentence, and sends what the person leaves in the field;
+  - it says it in Dutch when the site asks for Dutch, before the page switches;
+  - an unknown value is left out, and nothing known means no sentence.
+- **T0:** the sentence's words, in both languages.
+
 **2026-10-04, evening: T4 is built** (R8 step 9). The home page's *Where to*, after the hero
 until T3's three steps exist, names where a person's data can go:
 - **Soverin**, **Nextcloud**, **a JMAP server** such as Stalwart, and **any other provider** that
