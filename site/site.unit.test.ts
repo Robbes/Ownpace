@@ -495,10 +495,11 @@ describe('the tester guide is rendered for the alpha only (workplan 0144 T1)', (
     // The nav's links are root-relative: `/alpha-guide.html`, `/nl/alpha-handleiding.html`.
     const guideHrefs = Object.values(GUIDE).map((file) => `/${file}`);
     for (const p of pages) {
-      const nav = /<nav class="site">([\s\S]*?)<\/nav>/.exec(p.html)?.[1] ?? '';
+      // The header's nav and the phone's menu (0152 T2). The language switch
+      // sits beside them, and is the one header link a page has to its own
+      // other language, so the guide links the other guide there.
+      const nav = [...p.html.matchAll(/<nav class="(?:site|menu)"[^>]*>([\s\S]*?)<\/nav>/g)].map((m) => m[1]!).join('');
       expect(nav, `${p.file} has no nav`).not.toBe('');
-      // The language switch is the one nav link a page has to its own other
-      // language, so the guide links the other guide there; nothing else does.
       const links = [...nav.matchAll(/<a (?![^>]*class="lang")[^>]*href="([^"]+)"/g)].map((m) => m[1]!);
       for (const href of guideHrefs) {
         expect(links, `${p.file} has the guide in its nav`).not.toContain(href);
@@ -590,6 +591,66 @@ describe('the call to action leads somewhere the service can answer', () => {
       expect(page.html, `${page.file}: a <form> under form-action 'none' cannot submit`).not.toMatch(
         /<form[\s>]/,
       );
+    }
+  });
+});
+
+describe('the header is short, and no page is left without a link to it (workplan 0152 T2, T6 (c))', () => {
+  /** The links of a page's header nav (`site`, on a wide screen) or its phone menu (`menu`). */
+  const navLinks = (html: string, which: 'site' | 'menu') => {
+    const nav = new RegExp(`<nav class="${which}"[^>]*>([\\s\\S]*?)</nav>`).exec(html)?.[1];
+    expect(nav, `no <nav class="${which}">`).toBeDefined();
+    return [...nav!.matchAll(/<a href="([^"]+)"[^>]*>([^<]+)<\/a>/g)].map((m) => ({ href: m[1]!, text: m[2]! }));
+  };
+
+  it('lists Home, How it works, Pricing and Sign in, in both, on every page', async () => {
+    const { SIGN_IN_URL, APP_URL } = (await import('./prices.mjs')) as unknown as {
+      SIGN_IN_URL: string;
+      APP_URL: string;
+    };
+    expect(SIGN_IN_URL, 'Sign in is built from the app this build is for').toBe(`${APP_URL}/login`);
+    const expected: Record<string, string[]> = {
+      en: ['Home', 'How it works', 'Pricing', 'Sign in'],
+      nl: ['Home', 'Hoe het werkt', 'Prijzen', 'Aanmelden'],
+    };
+    for (const page of await renderedPages()) {
+      const wide = navLinks(page.html, 'site');
+      expect(wide.map((l) => l.text), `${page.file}: the header's pages`).toEqual(expected[page.locale]);
+      expect(wide.at(-1)!.href, `${page.file}: Sign in goes to the app's sign-in`).toBe(SIGN_IN_URL);
+      // The phone's menu is the same list, so neither can drift from the other.
+      expect(navLinks(page.html, 'menu'), `${page.file}: the phone's menu differs from the header`).toEqual(wide);
+      // The language switch stays in the header, outside the folded menu.
+      expect(page.html, `${page.file}: no language switch in the header`).toMatch(
+        /<\/nav>\s*<a class="lang" href="[^"]+" lang="(en|nl)">/,
+      );
+    }
+  });
+
+  it('keeps every page one link away: the estimate from pricing and home, Privacy and Terms from the footer', async () => {
+    const pages = await renderedPages();
+    const { COPY, localeRoot } = (await import('./copy.mjs')) as unknown as {
+      COPY: Record<string, { files: Record<string, string> }>;
+      localeRoot: (l: string) => string;
+    };
+    const href = (locale: string, key: string) => {
+      const file = COPY[locale]!.files[key]!;
+      return `${localeRoot(locale)}/${file === 'index.html' ? '' : file}`;
+    };
+    for (const locale of ['en', 'nl']) {
+      const own = pages.filter((p) => p.locale === locale);
+      const linksOn = (key: string) => {
+        const html = own.find((p) => p.key === key)!.html;
+        // Outside the header: a link a page carries in its body or its footer.
+        const body = html.slice(html.indexOf('</header>'));
+        return [...body.matchAll(/<a [^>]*href="([^"]+)"/g)].map((m) => m[1]!);
+      };
+      expect(linksOn('pricing'), `${locale}: pricing has no button to the estimate`).toContain(href(locale, 'calculator'));
+      expect(linksOn('home'), `${locale}: the home page's What it costs has no button to the estimate`).toContain(
+        href(locale, 'calculator'),
+      );
+      for (const key of ['privacy', 'terms']) {
+        expect(linksOn('home'), `${locale}: the footer lost ${key}`).toContain(href(locale, key));
+      }
     }
   });
 });
