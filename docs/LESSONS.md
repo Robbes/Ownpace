@@ -632,6 +632,7 @@ reading a file drops off its entry by itself.
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 - [a-pause-a-dispatcher-called-a-finish](../scripts/a-pause-a-dispatcher-called-a-finish.unit.test.ts) — Both dispatchers must tell a stop from a finish, and neither may bill a negative hour for it.
 - [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 
 ### `apps/worker/src/jobs/run-discovery.ts`
 
@@ -1072,6 +1073,7 @@ reading a file drops off its entry by itself.
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
 - [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
 
 ### `deploy/compose/setup-managed-demo.sh`
@@ -4241,8 +4243,10 @@ Reads:
 - `apps/web/src/components/AlphaNote.tsx`
 - `apps/web/src/components/an-alpha-said-out-loud.unit.test.tsx`
 - `apps/web/src/services/stage.ts`
+- `apps/worker/src/jobs/run-delta-sync.ts`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
+- `deploy/compose/set-task-env.sh`
 - `deploy/selfhost/compose.dev.yml`
 - `deploy/selfhost/compose.drill.yml`
 - `deploy/selfhost/compose.pglite.yml`

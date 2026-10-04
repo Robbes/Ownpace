@@ -46,10 +46,11 @@ import type { PassHalt, PassSkip } from './stopping-a-pass.ts';
 
 /**
  * Why a data type's pass stopped before it had finished: its own deadline, the
- * day's download budget, or because it was told to while it copied
- * (`haltedBecause` says by what).
+ * day's download budget, because it was told to while it copied
+ * (`haltedBecause` says by what), or because its new items waited at the
+ * organisation's data ceiling for a yes (0109 T6).
  */
-export type PassStop = 'deadline' | 'budget' | 'halt';
+export type PassStop = 'deadline' | 'budget' | 'halt' | 'ceiling';
 
 /** One data type's part of a pass, as `run-delta-sync` reports it. */
 export interface DomainOutcome extends PassCounts {
@@ -94,6 +95,7 @@ export interface FinalSyncReport {
 const STOPPED: Record<Exclude<PassStop, 'halt'>, string> = {
   deadline: "stopped at the pass's own deadline",
   budget: "stopped at the day's download budget",
+  ceiling: 'held its new items at the data ceiling, waiting for a move up or a top-up',
 };
 
 /** What stopped a data type's pass while it copied, as the end of a sentence (see `notReachedBecause`). */

@@ -11,7 +11,9 @@ import { describe, it, expect } from 'vitest';
 import {
   allowanceOf,
   breakEvenOf,
+  ceilingHoldReason,
   ceilingOf,
+  firstCopyGate,
   decideYes,
   holdsAtCeiling,
   topUpPriceEur,
@@ -152,6 +154,31 @@ describe('a yes', () => {
     const xl = tier('xl');
     const top = ceilingOf(allowanceOf([{ kind: 'tier', tierId: 'xl', bandGb: xl.dataGb }]), 1);
     expect(decideYes(top, { choice: 'move_up', tierId: 'xl', priceEur: 0 })).toEqual({ ok: false, reason: 'talk_to_us' });
+  });
+});
+
+describe('the hold', () => {
+  it('lets a first copy through while the meter, with this pass, is below the ceiling', () => {
+    const gate = firstCopyGate(ceilingOf(allowanceOf([]), 249));
+    expect(gate(0)).toBe(true);
+    expect(gate(999_999_999)).toBe(true);
+    expect(gate(1_000_000_000)).toBe(false);
+  });
+
+  it('holds every first copy from the first when the ceiling was reached before the pass', () => {
+    expect(firstCopyGate(ceilingOf(allowanceOf([]), 250))(0)).toBe(false);
+  });
+
+  it('says what waits and both ways on, with their prices', () => {
+    const c = ceilingOf(allowanceOf([{ kind: 'tier', tierId: 'small', bandGb: small.dataGb }]), 750);
+    expect(ceilingHoldReason(c, 3)).toEqual({
+      kind: 'data-ceiling',
+      ceilingGb: small.dataGb,
+      held: 3,
+      moveUp: { name: medium.name, setupEur: medium.setup - small.setup, monthlyEur: medium.monthly },
+      topUp: { bandGb: small.dataGb, priceEur: small.setup },
+    });
+    expect(ceilingHoldReason(ceilingOf(allowanceOf([]), 250), 1)).toMatchObject({ topUp: null });
   });
 });
 

@@ -234,6 +234,14 @@ export const MappingDomainStatusSchema = z.object({
         since: z.string(),
         message: z.string().optional(),
       }),
+      // The data ceiling (0109 T6): new first copies wait for the yes.
+      z.object({
+        kind: z.literal('data-ceiling'),
+        ceilingGb: z.number(),
+        held: z.number(),
+        moveUp: z.object({ name: z.string(), setupEur: z.number(), monthlyEur: z.number() }).nullable(),
+        topUp: z.object({ bandGb: z.number(), priceEur: z.number() }).nullable(),
+      }),
     ])
     .optional()
     .catch(undefined),

@@ -2103,7 +2103,10 @@ and read only their list of organisations with `SYSTEM_DATABASE_URL` (workplan
 0138 T2); the other three scheduled jobs connect with `SYSTEM_DATABASE_URL`, and
 every task that opens `openTaskPools` reads its audit key with it (T3 step 2).
 It also uploads `OWNPACE_REACHABLE_HOSTS`, and deletes it from the plane when
-`.env` leaves it empty, so the tasks admit exactly the names the API does.
+`.env` leaves it empty, so the tasks admit exactly the names the API does; and
+`OWNPACE_STAGE` the same way, so the sync pass holds nothing at an
+organisation's data ceiling during the alpha, when the API takes no yes, and
+holds again from the first run after the alpha ends (workplan 0109 T6).
 **It uploads nothing of the database owner's.** The two names the owner went
 up under, `DATABASE_URL` (until 0138 T3 step 2) and `DIRECT_DATABASE_URL`
 (until step 1), are deleted by its forget run, `set-task-env.sh

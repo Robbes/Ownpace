@@ -501,6 +501,8 @@ describe('the doors, read as text', () => {
     // Each stop under its own name: the deadline is not the budget.
     expect(pass).toMatch(/result\.deadlinePause \? \{ stopped: 'deadline' as const \}/);
     expect(pass).toMatch(/result\.budgetPause \? \{ stopped: 'budget' as const \}/);
+    // And new items held at the data ceiling are not finished either (0109 T6).
+    expect(pass).toMatch(/held > 0 \? \{ stopped: 'ceiling' as const \}/);
     expect(pass).toMatch(/stoppedBefore = domain;\s*stoppedBecause = halt;\s*break;/);
     // Its line says which: a withdrawn grant is not "paused or finished".
     expect(pass).toMatch(
