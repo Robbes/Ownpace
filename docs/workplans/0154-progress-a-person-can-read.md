@@ -4,6 +4,39 @@
 
 ## Status — 2026-10-03 (update this block at the end of every session)
 
+**2026-10-03, night: T8 is built: the person's own progress page says what the owner's pages
+say.** `/view/:link`, for a person's link and a migration's alike:
+
+- **Each data type's stage**, as a chip, and **the owner's line under it** in the same words
+  (`useLineSentence`, shared with the owner's lines): *4,211 of ~5,000 · last pass 2 minutes ago*,
+  or *The check passed yesterday*. The page's own *Up to date as of* stays where the line does not
+  say when. It is not said under *Paused* (*still copying* would contradict it) or under *Not
+  started*.
+- **How long** under each migration, by T3's rules: before any pass from the count, during the copy
+  from the passes, with who slowed it. Nothing past copying, on a migration held after it started,
+  or once the access is withdrawn.
+- **On the server**, `migrationProgress` reads what the owner's pages read: discovery and the scope
+  (T2's totals), each data type's phase and stop and the last check (the stage, `viewStageOf`), the
+  last passes and the source's kind and IMAP host (the time, `viewTimeOf`).
+  - The stage crosses and its inputs do not: whose stop a paused data type is stays home.
+  - The check crosses only as when it passed.
+  - The passes' events stay home.
+- **The link-holder guard** (`a-stranger-sees-counts-and-states`) moved from 13 fields to 16
+  (`itemsFound`, `bytesFound`, `stage`), with a test for each. The spec has one `ProgressRow` and a
+  `ProgressTime` where the two shapes each drew the row.
+- **A newer server does not blank an older page.** A stage or a time the page does not know is
+  dropped, and the row says what it said before.
+- **No new words:** the stage words, the line's and T3's are the owner's, in both languages.
+- **Proved by:**
+  - the stage and time rules (12);
+  - the route over a real database, each answer matched against the spec (5): a copy under way,
+    one waiting to start, one checked, a data type its owner stopped, and mail switching on its own
+    while calendars still copy;
+  - the page (9, Dutch included) and what it parses (4);
+  - the guard (3 more).
+
+  **Mutations: fifteen of fifteen caught.**
+
 **2026-10-03, night: T5 is built: the report of what arrived, as a page.**
 `/mappings/:mappingId/report` on both editions, and a person's at `/people/:personId/report`, one
 section per migration.
@@ -356,7 +389,7 @@ of a move after it. The evening's answer puts everything before.
 | T5 The report of what arrived, as a page | ✅ **Built: a page per migration and one per person, found beside arrived, *Download the report*, and the report and *Confirmed* linked** | §3. The completion report is rendered in the app, per migration and per move, and downloadable. The word *Markdown* leaves the button. |
 | T6 Internals out of the way | ✅ **Built: the ID and the hashes fold away, the connections line says the card, and the run history says its counts in words** | §3. The UUID, the kinds, the doubled address and the item hashes fold away. *Left as they are* says what it means. |
 | T7 An email when the first copy is in | 📋 **Decided by the owner 2026-09-28: one per person; before the first invitation** | §3. A milestone mail, *"Your mail is in your new system and is kept in step until you switch."* It is a new kind for 0030's email-only channel, so the owner decides. |
-| T8 The person's own progress page says the same | 📋 **Proposed; before the first invitation** | §3. `/view/:link` shows T1's line, T2's totals and T3's range, in the person's language (0145 T6). |
+| T8 The person's own progress page says the same | ✅ **Built: each data type's stage and the owner's line, and how long, on both link shapes** | §3. `/view/:link` shows T1's line, T2's totals and T3's range, in the person's language (0145 T6). |
 
 ## 1. What there is today
 

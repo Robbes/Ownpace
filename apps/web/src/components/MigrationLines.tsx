@@ -24,6 +24,7 @@ import {
   type LineFacts,
   type LinePart,
   type LinesProgress,
+  type SentenceFacts,
 } from '../services/stage-line.ts';
 import StateChip from './StateChip.tsx';
 import ProviderTile from './ProviderTile.tsx';
@@ -60,10 +61,18 @@ export function lineStages(m: MigrationLineFacts, progress?: LinesProgress): (St
   return m.domains.map((domain) => lineStage(factsOf(m, domain, progress)));
 }
 
-export const MigrationLines: React.FC<{ migration: MigrationLineFacts; progress?: LinesProgress }> = ({
-  migration: m,
-  progress,
-}) => {
+/** A line's sentence, and which parts it kept within the budget. */
+export interface LineSentence {
+  readonly text: string;
+  readonly says: readonly LinePart['kind'][];
+}
+
+/**
+ * The sentence under a stage, in the reader's language. The owner's lines and
+ * a person's progress page (0154 T8) say it with these words, so somebody on
+ * the phone to the person who sent them the link reads the same sentence.
+ */
+export function useLineSentence(): (stage: Stage | undefined, facts: SentenceFacts) => LineSentence {
   const t = useT();
   const { locale } = useLocale();
   const { relativeToNow } = useFormatters();
@@ -88,12 +97,27 @@ export const MigrationLines: React.FC<{ migration: MigrationLineFacts; progress?
         return t('people.line.checkPassed', { when: relativeToNow(part.at) });
     }
   };
+  return (stage, facts) => {
+    const parts = lineParts(stage, facts, locale);
+    // `fitLine` drops from the end, so what it keeps is the first parts.
+    const kept = fitLine(parts.map(say));
+    return { text: kept.join(' · '), says: parts.slice(0, kept.length).map((p) => p.kind) };
+  };
+}
+
+export const MigrationLines: React.FC<{ migration: MigrationLineFacts; progress?: LinesProgress }> = ({
+  migration: m,
+  progress,
+}) => {
+  const t = useT();
+  const { relativeToNow } = useFormatters();
+  const sentenceOf = useLineSentence();
   return (
     <ul className="mt-1">
       {m.domains.map((domain) => {
         const facts = progress ? factsOf(m, domain, progress) : undefined;
         const stage = facts ? lineStage(facts) : listStage(m);
-        const sentence = facts ? fitLine(lineParts(stage, facts, locale).map(say)).join(' · ') : undefined;
+        const sentence = facts ? sentenceOf(stage, facts).text : undefined;
         return (
           <li
             key={domain}
