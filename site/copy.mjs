@@ -157,9 +157,11 @@ export const COPY = {
         'Other O365 apps': 'the other Office 365 apps',
       },
       limitsTitle: 'Limits you should know',
-      // The app's guide sits behind its sign-in until the site has a help
-      // section of its own (0152 T5 (d), 0151), and the link says so.
-      guideLink: 'In the guide (sign in first)',
+      // The app's guides open without an account (0152; the owner,
+      // 2026-10-04: "Guide links on the Leaving pages: yes, make public"), so
+      // the link says only where it goes. It points at the site's own help
+      // section once there is one (0152 T5 (d), 0151).
+      guideLink: 'In the guide',
       limits: {
         gmailDaily: (gb) =>
           `Google lets a Gmail mailbox be read at up to ${gb} GB a day, so a large mailbox takes days. Ownpace keeps copying until all of it is in, and your old account works as usual meanwhile.`,
@@ -504,7 +506,7 @@ export const COPY = {
         'Other O365 apps': 'de andere Office 365-apps',
       },
       limitsTitle: 'Grenzen om te kennen',
-      guideLink: 'In de handleiding (eerst aanmelden)',
+      guideLink: 'In de handleiding',
       limits: {
         gmailDaily: (gb) =>
           `Google laat een Gmail-postbus lezen tot ${gb} GB per dag, dus een grote postbus kost dagen. Ownpace blijft kopiëren tot alles binnen is, en uw oude account werkt intussen gewoon.`,
