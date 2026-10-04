@@ -993,7 +993,16 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-api
     restart: unless-stopped
     environment:
-      NODE_ENV: ${NODE_ENV:-development}
+      # NO DEFAULT, on purpose (workplan 0132 T4; the owner, 2026-10-04). The
+      # default was `development`, and it won over the image's own
+      # `ENV NODE_ENV=production`: a .env that did not say its mode ran a
+      # development API, which lets a placeholder JWT_SECRET through, and
+      # nothing said so. Every stack names its mode in its .env: production on
+      # live (stand-up-live.sh and deploy-live.sh refuse anything else),
+      # development on the OTA stack (its self-signed test mail needs it; the
+      # nightly gate writes it when the key is absent). The message contains
+      # no closing brace or dollar sign, which would end or expand it early.
+      NODE_ENV: ${NODE_ENV:?set NODE_ENV in .env - production on live, development on a test stack (workplan 0132 T4)}
       PORT: 3001
       # DATABASE_URL = DB owner: the fallback for the migrations and the audit
       # key's pool when DIRECT_DATABASE_URL is unset. No route opens a pool on
@@ -1029,6 +1038,13 @@ services:
       # the provider exists.
       #
       # Changing provider is changing these two values. Nothing else.
+      #
+      # Never the first without the second: with JWT_ISSUER set and
+      # JWT_AUDIENCE empty the API refuses to start, on every NODE_ENV, since
+      # it would accept a token the issuer minted for any project (workplan
+      # 0132, 2026-10-04). setup-zitadel.sh writes both in one go; the
+      # audience is the sign-in project's id. Both stay optional here, because
+      # a fresh stack has neither until setup-zitadel.sh has run.
       JWT_ISSUER: ${JWT_ISSUER:-}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-}
       # The identity provider's own upstream callback, for the Redirect URIs
@@ -1345,7 +1361,9 @@ services:
       # WHO IS TOLD WHEN AN OWNPACE ROW GOES RED (workplan 0142 T1): the owner,
       # by e-mail, and only where ALERT_ENABLED is true. It defaults to false,
       # and it has to: gatus counts an alert with no value as ON. Live's .env
-      # turns it on; the OTA stack leaves it off.
+      # turns it on, and stand-up-live.sh and deploy-live.sh refuse a live .env
+      # without ALERT_ENABLED=true, because testers are on live (0142 T0; the
+      # owner, 2026-10-04). The OTA stack leaves it off.
       #
       # ONE RELAY LOGIN SERVES BOTH. Each setting falls back to the product's
       # own (SMTP_*, NOTIFY_FROM, NOTIFY_TO), and past those to a placeholder

@@ -215,14 +215,36 @@ async function getJWKS(): Promise<ReturnType<typeof createRemoteJWKSet>> {
 }
 
 /**
+ * What an issuer without an audience is told, at start-up and at the door
+ * (workplan 0132, 2026-10-04). setup-zitadel.sh writes both in one go, so
+ * this is the hand-set path's sentence: an issuer set by hand, alone. The
+ * sentence names no provider and no script of one (ADR-0042,
+ * no-issuer-lock-in): it names the setting, what it holds, and the guide.
+ */
+const ISSUER_WITHOUT_AUDIENCE =
+  'JWT_ISSUER is set and JWT_AUDIENCE is empty, so the API would accept a token the issuer ' +
+  "minted for any project. Set JWT_AUDIENCE to the sign-in project's id at the identity " +
+  "provider, which the managed bring-up's provider setup writes beside JWT_ISSUER " +
+  '(docs/managed-bring-up.md; workplan 0132, 2026-10-04).';
+
+/**
  * Verify a token using the managed (JWKS) path
  */
 async function verifyManagedToken(token: string): Promise<JwtPayload> {
   const jwtIssuer = process.env.JWT_ISSUER;
-  const jwtAudience = process.env.JWT_AUDIENCE;
+  // NEVER undefined, and never blank. With no audience jose checks none, and a
+  // token the issuer minted for any project passed (workplan 0132,
+  // 2026-10-04). `assertManagedAudience` keeps such a server from starting;
+  // this is the same rule at the door. It is refused before the issuer is
+  // asked anything, and outside the try below, which would turn it into a
+  // 401 that blames the caller's token for our configuration.
+  const jwtAudience = process.env.JWT_AUDIENCE?.trim();
 
   if (!jwtIssuer) {
     throw new Error('JWT_ISSUER not configured for managed mode');
+  }
+  if (!jwtAudience) {
+    throw new AuthNotConfiguredError(ISSUER_WITHOUT_AUDIENCE);
   }
 
   const jwks = await getJWKS();
@@ -251,10 +273,14 @@ async function verifyManagedToken(token: string): Promise<JwtPayload> {
   }
 }
 
-/** Thrown when neither JWT_SECRET nor JWT_ISSUER is configured in production. */
+/**
+ * Thrown when verification is not configured: neither JWT_SECRET nor
+ * JWT_ISSUER in production, or JWT_ISSUER without JWT_AUDIENCE anywhere. Its
+ * message names the setting, and is the 500's whole answer.
+ */
 class AuthNotConfiguredError extends Error {
-  constructor() {
-    super('JWT verification not configured (JWT_SECRET or JWT_ISSUER required)');
+  constructor(message = 'JWT verification not configured (JWT_SECRET or JWT_ISSUER required)') {
+    super(message);
     this.name = 'AuthNotConfiguredError';
   }
 }
@@ -896,6 +922,27 @@ export function assertProductionAuthConfig(env: NodeJS.ProcessEnv = process.env)
         'boundary: generate a real secret (openssl rand -hex 32), set it in .env, ' +
         'and re-mint any tokens signed with the old value.'
     );
+  }
+}
+
+/**
+ * Boot-time refusal of an issuer without an audience (workplan 0132,
+ * 2026-10-04).
+ *
+ * With JWT_ISSUER set (managed, JWKS mode) and JWT_AUDIENCE empty, the
+ * verifier had no audience to check, so any token the issuer minted, for any
+ * project, opened this API. Fatal on every NODE_ENV, not only production: the
+ * OTA stack runs development by the owner's choice (0132 T4) and holds
+ * sign-ins too. Separate from `assertProductionAuthConfig`, which returns
+ * early outside production. Both stacks get JWT_AUDIENCE from
+ * setup-zitadel.sh, beside the issuer, so this changes nothing there; it is
+ * for an issuer set by hand. Pure and exported for tests; index.ts calls it
+ * first at start-up.
+ */
+export function assertManagedAudience(env: NodeJS.ProcessEnv = process.env): void {
+  if (selectAuthMode(env.JWT_ISSUER, env.JWT_SECRET) !== 'managed') return;
+  if (!env.JWT_AUDIENCE?.trim()) {
+    throw new Error(ISSUER_WITHOUT_AUDIENCE);
   }
 }
 

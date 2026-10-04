@@ -96,7 +96,9 @@ function apiEnvironmentKeys(): string[] {
  * that somebody looked.
  */
 const NOT_FROM_COMPOSE: Record<string, string> = {
-  NODE_ENV: 'set in the api service already, and by the image as a fallback',
+  NODE_ENV:
+    'required in the api service (`${NODE_ENV:?…}`, workplan 0132 T4): every stack names its mode, ' +
+    "so it is never absent. The image's own ENV is no fallback under managed.yml, which always sets it",
 };
 
 describe('the mail the api could not send', () => {

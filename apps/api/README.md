@@ -62,7 +62,9 @@ NODE_ENV=development|production
 API_PORT=3001
 CORS_ORIGIN=http://localhost:3123     # the web app's dev origin
 JWT_ISSUER=https://auth.example.com   # switches verification to remote JWKS (jose);
-JWT_AUDIENCE=...                      #   takes precedence over JWT_SECRET when set
+JWT_AUDIENCE=...                      #   takes precedence over JWT_SECRET when set.
+                                      #   JWT_AUDIENCE is required whenever JWT_ISSUER
+                                      #   is set: the API refuses to start without it
 MOLLIE_API_KEY=...                    # billing; mocked in tests
 ```
 
