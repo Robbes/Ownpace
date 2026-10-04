@@ -483,6 +483,39 @@ describe('where the copies land (0153 open question 5, item 4)', () => {
   });
 });
 
+describe('where its files start (0153 open question 5, item 4)', () => {
+  const files = (kind: string, sourceConfig: Record<string, unknown>, domains = ['file']) =>
+    aMapping({ sourceConnection: { id: 'c-1', name: 'Anna', kind }, sourceConfig, syncConfig: { domains } });
+
+  it('names the one folder they are read from: a Dropbox path, and a Google folder by its id', async () => {
+    mappingApiGet.mockResolvedValue(files('dropbox', { rootPath: '/Holiday/2019' }));
+    const { unmount } = renderHub();
+    expect(await screen.findByText('Its files are read from /Holiday/2019 only.')).toBeInTheDocument();
+    unmount();
+    mappingApiGet.mockResolvedValue(files('google', { rootFolderId: 'f-1' }));
+    renderHub('acme-mail', new QueryClient({ defaultOptions: { queries: { retry: false } } }));
+    expect(await screen.findByText('Its files are read from one folder only: f-1.')).toBeInTheDocument();
+  });
+
+  it('says all of the account where no folder was chosen, as a person names it', async () => {
+    mappingApiGet.mockResolvedValue(files('google_drive', {}));
+    renderHub();
+    expect(await screen.findByText('Its files are read from all of My Drive.')).toBeInTheDocument();
+  });
+
+  it('says nothing for a migration with no files, or from a source with no folder to start from', async () => {
+    mappingApiGet.mockResolvedValue(files('google', {}, ['calendar']));
+    const { unmount } = renderHub();
+    await screen.findByRole('heading', { level: 2, name: 'Acme mail' });
+    expect(screen.queryByText(/Its files are read/)).toBeNull();
+    unmount();
+    mappingApiGet.mockResolvedValue(files('microsoft', {}));
+    renderHub('acme-mail', new QueryClient({ defaultOptions: { queries: { retry: false } } }));
+    await screen.findByRole('heading', { level: 2, name: 'Acme mail' });
+    expect(screen.queryByText(/Its files are read/)).toBeNull();
+  });
+});
+
 describe('Rename, beside the title (0153 open question 5, item 4)', () => {
   it('renames from beside the title, and the heading reads the stored name', async () => {
     mappingRenameMock.mockResolvedValue({ id: 'acme-mail', name: 'Anna’s mail', updatedAt: '2026-10-04T08:00:00Z' });

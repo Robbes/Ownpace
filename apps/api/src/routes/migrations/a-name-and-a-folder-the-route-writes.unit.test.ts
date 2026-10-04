@@ -14,7 +14,8 @@
  *
  * Against real rows: the name is written, trimmed, and a name of spaces is
  * refused; a folder is written into this migration's own override until the
- * ledger holds an item, and refused after, in the table's words; a source
+ * ledger holds an item (on a Google account too, whose files are Drive's),
+ * and refused after, in the table's words; a source
  * with no folder, and the other spelling, are refused by name; an empty folder
  * takes it off the override, except where the account itself holds one.
  *
@@ -33,6 +34,7 @@ import request from 'supertest';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
+import { parseGoogleDriveSource } from '@openmig/shared';
 
 const TENANT = '0153a500-e29b-41d4-a716-446655440101';
 const CONN = {
@@ -43,6 +45,7 @@ const CONN = {
   copied: '0153a500-e29b-41d4-a716-446655440115',
   twin: '0153a500-e29b-41d4-a716-446655440116',
   target: '0153a500-e29b-41d4-a716-446655440117',
+  account: '0153a500-e29b-41d4-a716-446655440118',
 } as const;
 const BOX = {
   drive: '0153a500-e29b-41d4-a716-446655440121',
@@ -52,6 +55,7 @@ const BOX = {
   copied: '0153a500-e29b-41d4-a716-446655440125',
   twin: '0153a500-e29b-41d4-a716-446655440126',
   target: '0153a500-e29b-41d4-a716-446655440127',
+  account: '0153a500-e29b-41d4-a716-446655440128',
 } as const;
 const MAPPING = {
   drive: '0153a500-e29b-41d4-a716-446655440131',
@@ -61,6 +65,7 @@ const MAPPING = {
   copied: '0153a500-e29b-41d4-a716-446655440135',
   twinA: '0153a500-e29b-41d4-a716-446655440136',
   twinB: '0153a500-e29b-41d4-a716-446655440137',
+  account: '0153a500-e29b-41d4-a716-446655440138',
 } as const;
 
 let driver: LedgerDriver;
@@ -77,7 +82,7 @@ vi.mock('../../middleware/auth.ts', async (importOriginal) => {
   };
 });
 
-const { default: migrationRoutes } = await import('./index.ts');
+const { default: migrationRoutes, sourceConfigOverride } = await import('./index.ts');
 
 const app = express();
 app.use(express.json());
@@ -116,6 +121,7 @@ beforeAll(async () => {
       ['dropboxOwnRoot', 'dropbox', { type: 'dropbox', rootPath: '/Werk' }],
       ['imap', 'imap', { type: 'imap', host: 'imap.example.invalid', port: 993 }],
       ['copied', 'google_drive', { type: 'google-drive' }],
+      ['account', 'google', { type: 'google', user: 'account@example.invalid' }],
     ];
     for (const [key, kind, config] of rows) {
       await q(
@@ -186,6 +192,12 @@ describe('a root folder, until something is copied', () => {
     expect(await overrideOf(MAPPING.drive)).toEqual({ rootFolderId: 'folder-abc' });
   });
 
+  it('sets a Google account’s folder, since its files are Drive’s (Only one folder, on Start a migration)', async () => {
+    const res = await put(MAPPING.account, { sourceConfig: { rootFolderId: 'folder-of-the-account' } });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(await overrideOf(MAPPING.account)).toEqual({ rootFolderId: 'folder-of-the-account' });
+  });
+
   it('sets a Dropbox path, which the route used to drop without a word', async () => {
     const res = await put(MAPPING.dropbox, { sourceConfig: { rootPath: '/Photos' } });
     expect(res.status, JSON.stringify(res.body)).toBe(200);
@@ -254,5 +266,21 @@ describe('the folder the copies land in, until something is copied', () => {
     const res = await request(app).get(`/api/migrations/${MAPPING.twinA}`);
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body.targetFolderPrefix).toBe('Anna');
+  });
+});
+
+describe('a Google account’s folder at create', () => {
+  it('is kept in the migration’s own override, and read by a pass as the folder its files start from', () => {
+    // Dropped here before, without a word: *Only one folder* on Start a
+    // migration sends it for the account as for the Drive row.
+    const override = sourceConfigOverride({
+      sourceType: 'google',
+      sourceConfig: { username: 'account@example.invalid', rootFolderId: 'folder-of-the-account' },
+    } as never);
+    expect(override).toEqual({ user: 'account@example.invalid', rootFolderId: 'folder-of-the-account' });
+    // Laid over the account's row key by key, as a pass lays it, and read by
+    // the account's file face, which is Drive's.
+    const runs = parseGoogleDriveSource({ type: 'google', user: 'account@example.invalid', ...override });
+    expect(runs.rootFolderId).toBe('folder-of-the-account');
   });
 });

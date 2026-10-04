@@ -60,6 +60,7 @@ import {
   scopeManifestApi,
   type ConnectionSummary,
   type CreateMappingInput,
+  type FolderListing,
   type TestConnectionResult,
 } from '../services/mapping-service.ts';
 import { serverMessage } from '../services/api.ts';
@@ -79,6 +80,10 @@ import {
   exportDestinations,
   exportMigration,
   exportOf,
+  folderKeyOf,
+  folderValue,
+  foldersListable,
+  offersOneFolder,
   sharesItsDestination,
   type ConnectionNeed,
   type MicrosoftMailThrough,
@@ -315,6 +320,11 @@ const StartMigration: React.FC = () => {
   // The folder each migration's copies land in, as typed (0153 open question
   // 5, item 4); a migration not touched follows `prefixOf`.
   const [prefixes, setPrefixes] = React.useState<Readonly<Record<string, string>>>({});
+  // Where the files start (0153 open question 5, item 4): the providers whose
+  // files move from one folder only, chosen on *What moves?*, and that folder
+  // for each card, as typed or picked once its account is connected.
+  const [oneFolder, setOneFolder] = React.useState<ReadonlyArray<StartProvider>>([]);
+  const [folders, setFolders] = React.useState<Readonly<Record<string, string>>>({});
 
   const people: ReadonlyArray<Person> = (peopleQuery.data?.people ?? []).filter(
     (p) => !p.implicit && p.displayName !== null,
@@ -345,6 +355,14 @@ const StartMigration: React.FC = () => {
     accounts.signed(
       accounts.choice(`source:${need.card}`, savedSources(accounts.saved, need.card, need.types), who.someoneElse),
     );
+  /**
+   * The folder a need's files start from, as typed or picked; undefined where
+   * all of them move, or it moves no files (0153 open question 5, item 4).
+   */
+  const folderFor = (need: ConnectionNeed): string | undefined =>
+    need.types.includes('file') && oneFolder.includes(need.provider) && folderKeyOf(need.card) !== undefined
+      ? (folders[need.card] ?? '')
+      : undefined;
   /** Whether the person connects this card themselves, by a grant link (0108). */
   const byLink = (card: string): boolean => who.someoneElse && grantableByLink(card, served);
   /** Every data type that travels, once, in the order a person reads them. */
@@ -457,11 +475,19 @@ const StartMigration: React.FC = () => {
     const folder = prefixOf(m).trim();
     return folder === '' ? {} : { targetFolderPrefix: folder };
   };
+  /** Where a migration's files start, where only one folder of them moves: after the account's own. */
+  const folderOf = (m: PlannedMigration) => {
+    const key = folderKeyOf(m.sourceCard);
+    if (key === undefined || !m.types.includes('file') || !oneFolder.includes(m.provider)) return {};
+    const folder = folderValue(m.sourceCard, folders[m.sourceCard] ?? '');
+    return folder === '' ? {} : { [key]: folder };
+  };
   /**
    * WHAT A MIGRATION IS MADE WITH: the two accounts chosen, whose data it is,
    * what a reused account must say again (Box's subject, a root folder), the
-   * formats chosen on *What moves?*, and the default schedule, daily at 02:00
-   * (T4, *Underneath*), and where its copies land.
+   * folder its files start from, the formats chosen on *What moves?*, the
+   * default schedule, daily at 02:00 (T4, *Underneath*), and where its copies
+   * land.
    */
   const inputFor = (m: PlannedMigration): CreateMappingInput => {
     if (m.sourceCard === EXPORT_CARD) {
@@ -488,6 +514,7 @@ const StartMigration: React.FC = () => {
       sourceConfig: {
         username: m.sourceUsername,
         ...(accounts.signed(m.sourceConnectionId)?.perMapping ?? {}),
+        ...folderOf(m),
         ...(files && (m.sourceCard === 'google' || m.sourceCard === 'google-drive')
           ? { nativeFilePolicies: { ...nativeFormats } }
           : {}),
@@ -582,7 +609,13 @@ const StartMigration: React.FC = () => {
           ? t('start.what.needOne')
           : undefined;
       case 'connect':
-        return needs.some((need) => sourceOf(need) === undefined) ? t('start.connect.needAll') : undefined;
+        if (needs.some((need) => sourceOf(need) === undefined)) return t('start.connect.needAll');
+        return needs.some((need) => {
+          const folder = folderFor(need);
+          return folder !== undefined && folderValue(need.card, folder) === '';
+        })
+          ? t('start.connect.needFolder')
+          : undefined;
       case 'to':
         return types.some((type) => accounts.signed(destinationOf(type)) === undefined) ||
           (exporting.length > 0 && exportTarget === undefined)
@@ -627,6 +660,8 @@ const StartMigration: React.FC = () => {
               onMicrosoftMail={setMicrosoftMail}
               exports={exportsTicked}
               onExports={setExportsTicked}
+              oneFolder={oneFolder}
+              onOneFolder={setOneFolder}
             />
           )}
           {step === 'connect' && (
@@ -636,6 +671,8 @@ const StartMigration: React.FC = () => {
               someoneElse={who.someoneElse}
               byLink={byLink}
               exporting={exporting}
+              folderFor={folderFor}
+              onFolder={(card, folder) => setFolders((prev) => ({ ...prev, [card]: folder }))}
             />
           )}
           {step === 'check' && (
@@ -917,6 +954,9 @@ export const WhatStep: React.FC<{
   /** The providers whose export was ticked under their tile (0153 open question 5, item 2). */
   exports?: ReadonlyArray<StartProvider>;
   onExports?: (next: ReadonlyArray<StartProvider>) => void;
+  /** The providers whose files move from one folder only (0153 open question 5, item 4). */
+  oneFolder?: ReadonlyArray<StartProvider>;
+  onOneFolder?: (next: ReadonlyArray<StartProvider>) => void;
 }> = ({
   providers,
   served,
@@ -930,10 +970,13 @@ export const WhatStep: React.FC<{
   onMicrosoftMail = () => undefined,
   exports = [],
   onExports = () => undefined,
+  oneFolder = [],
+  onOneFolder = () => undefined,
 }) => {
   const { t, locale } = useLocale();
   const { list } = useFormatters();
   const label = useProviderLabel();
+  const choices: PlanChoices = microsoftMail ? { microsoftMail } : {};
   const typeWords = (types: ReadonlyArray<DiscoveryDomain>) =>
     list(types.map((d) => t(DOMAIN_STRING_KEY[d]).toLocaleLowerCase(locale)));
   return (
@@ -982,6 +1025,16 @@ export const WhatStep: React.FC<{
                       </span>
                     </label>
                     {experimental && <ExperimentalWhy />}
+                    {on && type === 'file' && offersOneFolder(provider, served, choices) && (
+                      <FilesFrom
+                        provider={provider}
+                        card={carrierOf(provider, 'file', served, choices)}
+                        one={oneFolder.includes(provider)}
+                        onOne={(one) =>
+                          onOneFolder(one ? [...oneFolder, provider] : oneFolder.filter((p) => p !== provider))
+                        }
+                      />
+                    )}
                     {on && type === 'file' && provider === 'google' && (
                       <div className="ml-8 mt-1 mb-3">
                         <NativeFilePolicyChooser
@@ -1022,6 +1075,55 @@ export const WhatStep: React.FC<{
         );
       })}
     </div>
+  );
+};
+
+/** Where a card's files are, as a person names the whole of them: My Drive, Dropbox, Box. */
+function usePlaceName(): (card: string) => string {
+  const { t } = useLocale();
+  return (card) => (card === 'google' || card === 'google-drive' ? t('start.place.myDrive') : providerDisplayName(card));
+}
+
+/**
+ * WHICH FILES (0153 open question 5, item 4; the owner, 2026-10-04: *"go with
+ * the recommendations"*): all of the account, or only one folder, which is
+ * asked once the account is connected, when its folders can be listed. A
+ * shared drive is a folder here, as it is to a migration.
+ */
+const FilesFrom: React.FC<{
+  provider: StartProvider;
+  card: string;
+  one: boolean;
+  onOne: (one: boolean) => void;
+}> = ({ provider, card, one, onOne }) => {
+  const { t } = useLocale();
+  const place = usePlaceName();
+  const lineId = React.useId();
+  const name = `start-files-from-${provider}`;
+  return (
+    <fieldset className="ml-8 mt-1 mb-2">
+      <legend className="text-sm text-gray-700">{t('start.what.files.legend')}</legend>
+      <label className="flex min-h-[44px] cursor-pointer items-center gap-3">
+        <input type="radio" name={name} checked={!one} onChange={() => onOne(false)} className="h-4 w-4" />
+        <span className="text-gray-900">{t('start.what.files.all', { place: place(card) })}</span>
+      </label>
+      <label className="flex min-h-[44px] cursor-pointer items-center gap-3">
+        <input
+          type="radio"
+          name={name}
+          checked={one}
+          onChange={() => onOne(true)}
+          aria-describedby={one ? lineId : undefined}
+          className="h-4 w-4"
+        />
+        <span className="text-gray-900">{t('start.what.files.one')}</span>
+      </label>
+      {one && (
+        <p id={lineId} className="ml-7 text-sm text-gray-600">
+          {t('start.what.files.one.line')}
+        </p>
+      )}
+    </fieldset>
   );
 };
 
@@ -1377,7 +1479,18 @@ export const ConnectStep: React.FC<{
   byLink?: (card: string) => boolean;
   /** The providers whose export moves: it needs no sign-in, and the screen says so. */
   exporting?: ReadonlyArray<StartProvider>;
-}> = ({ needs, accounts, someoneElse = false, byLink = () => false, exporting = [] }) => {
+  /** The folder a need's files start from, where only one folder of them moves (0153 open question 5, item 4). */
+  folderFor?: (need: ConnectionNeed) => string | undefined;
+  onFolder?: (card: string, folder: string) => void;
+}> = ({
+  needs,
+  accounts,
+  someoneElse = false,
+  byLink = () => false,
+  exporting = [],
+  folderFor = () => undefined,
+  onFolder = () => undefined,
+}) => {
   const { t } = useLocale();
   const google = needs.filter((n) => n.provider === 'google');
   if (accounts.loading) return <p className="text-sm text-gray-500">{t('common.loading')}</p>;
@@ -1394,9 +1507,22 @@ export const ConnectStep: React.FC<{
       <ul className="space-y-4">
         {needs.map((need) =>
           byLink(need.card) ? (
-            <LinkedNeedRow key={need.card} need={need} accounts={accounts} />
+            <LinkedNeedRow
+              key={need.card}
+              need={need}
+              accounts={accounts}
+              folder={folderFor(need)}
+              onFolder={(folder) => onFolder(need.card, folder)}
+            />
           ) : (
-            <NeedRow key={need.card} need={need} accounts={accounts} someoneElse={someoneElse} />
+            <NeedRow
+              key={need.card}
+              need={need}
+              accounts={accounts}
+              someoneElse={someoneElse}
+              folder={folderFor(need)}
+              onFolder={(folder) => onFolder(need.card, folder)}
+            />
           ),
         )}
       </ul>
@@ -1405,10 +1531,18 @@ export const ConnectStep: React.FC<{
   );
 };
 
-const NeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts; someoneElse?: boolean }> = ({
+/** What a row asks of its files' folder: the folder as typed, where only one folder moves. */
+interface FolderAsked {
+  readonly folder?: string | undefined;
+  readonly onFolder?: (folder: string) => void;
+}
+
+const NeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts; someoneElse?: boolean } & FolderAsked> = ({
   need,
   accounts,
   someoneElse = false,
+  folder,
+  onFolder = () => undefined,
 }) => {
   const { t, locale } = useLocale();
   const { list } = useFormatters();
@@ -1503,6 +1637,16 @@ const NeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts; someoneElse?
           )}
         </div>
       )}
+      {signed !== undefined && folder !== undefined && (
+        // Keyed by the account, so a list read from another one is not shown for it.
+        <FolderToStartFrom
+          key={signed.connectionId}
+          card={need.card}
+          signed={signed}
+          value={folder}
+          onChange={onFolder}
+        />
+      )}
     </li>
   );
 };
@@ -1514,7 +1658,12 @@ const NeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts; someoneElse?
  * never holds that password. A saved account is offered, never chosen: one
  * may be the starter's own.
  */
-const LinkedNeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts }> = ({ need, accounts }) => {
+const LinkedNeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts } & FolderAsked> = ({
+  need,
+  accounts,
+  folder,
+  onFolder = () => undefined,
+}) => {
   const { t, locale } = useLocale();
   const { list } = useFormatters();
   const accountLabel = useAccountLabel();
@@ -1634,7 +1783,138 @@ const LinkedNeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts }> = ({
           )}
         </div>
       )}
+      {/* Their account is not connected yet, so its folders cannot be listed: typed or pasted.
+          Keyed by the account, as on the row above. */}
+      {signed !== undefined && folder !== undefined && (
+        <FolderToStartFrom
+          key={signed.connectionId}
+          card={need.card}
+          signed={signed}
+          value={folder}
+          onChange={onFolder}
+        />
+      )}
     </li>
+  );
+};
+
+/**
+ * THE FOLDER A MIGRATION'S FILES START FROM (0153 open question 5, item 4),
+ * once its account is chosen: typed, or its address pasted (`folderValue`
+ * reads the id or path out of it), or picked from the drives and folders
+ * shared with the account where those can be listed. The wizard's *Browse…*,
+ * reading the stored sign-in rather than a typed one; a folder in the
+ * account's own Drive is pasted, as it was there. An account whose sign-in
+ * does not work yet, or has none, offers no list.
+ */
+const FolderToStartFrom: React.FC<{
+  card: string;
+  signed: Signed;
+  value: string;
+  onChange: (value: string) => void;
+}> = ({ card, signed, value, onChange }) => {
+  const { t } = useLocale();
+  const inputId = React.useId();
+  const hintId = React.useId();
+  const [listing, setListing] = React.useState<FolderListing | 'loading' | undefined>(undefined);
+  const byPath = folderKeyOf(card) === 'rootPath';
+  const hint: StringKey =
+    card === 'box'
+      ? 'start.connect.folder.box.hint'
+      : byPath
+        ? 'start.connect.folder.dropbox.hint'
+        : 'start.connect.folder.google.hint';
+  const chosen = folderValue(card, value);
+  const browse = () => {
+    setListing('loading');
+    connectionsApi.folders(signed.connectionId).then(setListing, (error: unknown) =>
+      setListing({ ok: false, reason: serverMessage(error) }),
+    );
+  };
+  return (
+    <div className="mt-4 border-t border-gray-100 pt-3">
+      <label htmlFor={inputId} className="block text-sm font-medium text-gray-900">
+        {t(byPath ? 'start.connect.folder.path' : 'start.connect.folder.id')}
+      </label>
+      <input
+        id={inputId}
+        type="text"
+        autoComplete="off"
+        spellCheck={false}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-describedby={hintId}
+        className="input mt-1 min-h-[44px] w-full max-w-md"
+      />
+      <p id={hintId} className="mt-1 text-sm text-gray-600">
+        {t(hint)}
+      </p>
+      {signed.ready && foldersListable(card) && (
+        <button
+          type="button"
+          onClick={browse}
+          disabled={listing === 'loading'}
+          className="mt-2 min-h-[44px] px-4 py-2 bg-white border border-gray-300 text-gray-800 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+        >
+          {t(card === 'dropbox' ? 'start.connect.folder.browse.dropbox' : 'start.connect.folder.browse.google')}
+        </button>
+      )}
+      {listing === 'loading' && <p className="mt-2 text-sm text-gray-500">{t('common.loading')}</p>}
+      {listing !== undefined && listing !== 'loading' && !listing.ok && (
+        <p role="alert" className="mt-2 text-sm text-red-800">
+          <span className="font-medium">{t('start.connect.folder.refused')}</span> {listing.reason}
+        </p>
+      )}
+      {listing !== undefined && listing !== 'loading' && listing.ok && (
+        <>
+          {listing.folders.length === 0 ? (
+            <p className="mt-2 text-sm text-gray-700">{t('start.connect.folder.none')}</p>
+          ) : (
+            <fieldset className="mt-2">
+              <legend className="text-sm font-medium text-gray-900">{t('start.connect.folder.found')}</legend>
+              <div className="mt-1 space-y-1">
+                {listing.folders.map((f) =>
+                  f.value === undefined ? (
+                    <p key={`unchosen:${f.name}`} className="text-sm text-gray-600">
+                      {f.name}: {t('start.connect.folder.notAdded')}
+                    </p>
+                  ) : (
+                    <label key={f.value} className="flex min-h-[44px] cursor-pointer items-center gap-3">
+                      <input
+                        type="radio"
+                        name={`${inputId}-found`}
+                        checked={chosen === f.value}
+                        onChange={() => onChange(f.value!)}
+                        className="h-4 w-4"
+                      />
+                      <span className="text-gray-900">
+                        {f.name}
+                        {/* A space, not a margin: a screen reader reads the name and its tag apart. */}
+                        {(f.kind === 'shared-drive' || f.owner) && (
+                          <>
+                            {' '}
+                            <span className="text-sm text-gray-600">
+                              {f.kind === 'shared-drive'
+                                ? t('start.connect.folder.drive')
+                                : t('start.connect.folder.from', { owner: f.owner! })}
+                            </span>
+                          </>
+                        )}
+                      </span>
+                    </label>
+                  ),
+                )}
+              </div>
+            </fieldset>
+          )}
+          {listing.refused !== undefined && (
+            <p className="mt-2 text-sm text-amber-800">
+              <span className="font-medium">{t('start.connect.folder.refused')}</span> {listing.refused}
+            </p>
+          )}
+        </>
+      )}
+    </div>
   );
 };
 

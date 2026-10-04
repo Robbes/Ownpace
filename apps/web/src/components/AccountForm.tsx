@@ -83,6 +83,9 @@ import { nextcloudAddress, nextcloudDavUrl } from '../services/start-plan.ts';
 /** The fields a company path asks for (T7 (d)): an organisation's own registration, or Google's domain-wide key. */
 const COMPANY_FIELDS: ReadonlySet<string> = new Set(['serviceAccountKey', 'tenantId']);
 
+/** The folder a migration starts from: asked by the flow per migration, never on its account form. */
+const FOLDER_KEYS: ReadonlySet<string> = new Set(['rootFolderId', 'rootPath']);
+
 /**
  * The cards that ARE a company's own app (0153 open question 5): Microsoft's
  * mail with application permissions, through Graph or IMAP. Chosen behind the
@@ -274,14 +277,19 @@ export const AccountForm: React.FC<AccountFormProps> = ({
   /** Where the account is kept, as typed, for a Nextcloud (T7 (c)); its DAV root is derived from it. */
   const [address, setAddress] = React.useState(() => nextcloudAddress(values.url ?? ''));
   const addressId = React.useId();
-  const placement = (field: CredentialField): 'server' | 'company' | 'more' | 'alternative' | 'shown' => {
+  const placement = (
+    field: CredentialField,
+  ): 'server' | 'company' | 'more' | 'alternative' | 'migration' | 'shown' => {
     if (!flow) return 'shown';
     if (serverKeys.has(field.key)) return 'server';
     // Gmail's app password: a way in of its own, under the consent's button.
     if (field.key === 'appPassword') return 'alternative';
     if (COMPANY_FIELDS.has(field.key) && !organisationApp) return 'company';
-    // Where in the account a migration starts (a folder, a path): its own
-    // choice, which a family seldom needs.
+    // Where in the account a migration starts (a folder, a path) is the
+    // migration's, asked once the account is connected, under *Only one
+    // folder* (0153 open question 5, item 4). The flow's form does not draw it.
+    if (FOLDER_KEYS.has(field.key)) return 'migration';
+    // Any other choice of the migration's own, which a family seldom needs.
     if (field.perMapping && !field.required) return 'more';
     return 'shown';
   };

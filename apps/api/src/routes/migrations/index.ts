@@ -822,7 +822,12 @@ export function sourceConfigOverride(
       // reused account connection would silently inherit the first one's
       // export choice — and a person who picked PDF for their files would have
       // no way to leave them behind next time.
-      return keep({ user: cfg.username, ...exportFormatOverride(cfg) });
+      //
+      // And the folder its files start from, for the same reason (0153 open
+      // question 5, item 4): *Only one folder* on *Start a migration* sends it
+      // for the account as for the Drive row, and the face reads it with
+      // Drive's parser. Dropped here, it was dropped without a word.
+      return keep({ user: cfg.username, rootFolderId: cfg.rootFolderId, ...exportFormatOverride(cfg) });
     case 'graph':
       // The tenant is the app registration's, which the connection holds.
       return keep({ mailbox: cfg.username });

@@ -26,6 +26,8 @@ Het token is **gedelegeerd**: het leest de Drive van de persoon die toestemming 
 
 Het veld **Hoofdmap-ID** laat de migratie ergens anders beginnen dan in Mijn Drive. Een **gedeelde Drive** heeft een eigen ID, en een **map die iemand met dit account deelde** ook. "Gedeeld met mij" is een weergave en geen map, dus wat erin staat verschijnt nooit onder de boom van Mijn Drive; een aparte migratie die bij de ID van de gedeelde map begint, is hoe zo'n map verhuist. De ID's die dit token kan bereiken, ziet u met de knop **Gedeelde Drives en mappen bekijken…** in de stap Bron: een lijst, alleen lezend, via dezelfde koppeling die een migratie gebruikt. Losse gedeelde bestanden, die met u gedeeld zijn maar niet in een map staan waar u kunt beginnen, vallen erbuiten.
 
+**Bij Migratie starten** heet dezelfde keuze **Alleen één map**, onder **Bestanden** bij *Wat wilt u migreren?*, voor het Google-account zoals voor deze kaart. Is het account verbonden, plak dan het adres van de map uit Google Drive; de ID wordt eruit gelezen. Of druk op **Gedeelde drives en gedeelde mappen tonen** en kies er een. De pagina van de migratie zegt daarna uit welke map de bestanden worden gelezen. De map kan veranderen tot het eerste bestand is gekopieerd; daarna is een andere map een andere migratie.
+
 **Google Documenten, Spreadsheets, Presentaties en Tekeningen** hebben geen bestand om te kopiëren, alleen een weergave die Google maakt, en de wizard vraagt in welk formaat elke soort moet aankomen. Bij elke keuze zet Drive het document om; hier wordt niets geconverteerd.
 
 - Documenten komen aan als `.odt` (OpenDocument), `.docx` (Microsoft Office) of `.pdf`.
