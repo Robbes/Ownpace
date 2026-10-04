@@ -51,6 +51,8 @@ import { freeTier as free } from './calculator.mjs';
 import { securityTxt } from './security-txt.mjs';
 import { LOCALES, DEFAULT_LOCALE, localeRoot, COPY } from './copy.mjs';
 import { CUSTOMER_TYPES, INDICATIVE_PROFILES, OBJECT_TYPES, PROFILES_VERSION } from './profiles.mjs';
+import { DATA_TYPES, DESTINATIONS, PROTOCOL_NAMES } from './destinations.mjs';
+import { SPRITE, icon } from './icons.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, 'dist');
@@ -405,6 +407,15 @@ nav.menu a:first-child { border-top: 0; }
 
 /* cards */
 .cards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); margin: 1.5rem 0; }
+/* The data-type icons (icons.mjs): one sprite per page, each icon 24 px in the text's colour. */
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.icon { width: 1.25rem; height: 1.25rem; flex: none; color: var(--teal); }
+@media (prefers-color-scheme: dark) { .icon { color: var(--mint); } }
+/* Where to (0152 T4): each destination, and the data types it takes. */
+.dest .sub { color: var(--muted); margin: -0.5rem 0 0.75rem; font-size: 0.95rem; }
+.types { list-style: none; padding: 0; margin: 0; }
+.types li { display: flex; align-items: center; gap: 0.6rem; padding: 0.3rem 0; }
+.types .via { color: var(--muted); font-size: 0.85rem; margin-left: auto; }
 .card { border: 1px solid var(--line); border-radius: 12px; padding: 1.25rem; background: var(--panel); }
 .card h3 { margin-top: 0; }
 .card p:last-child { margin-bottom: 0; }
@@ -439,15 +450,22 @@ nav.menu a:first-child { border-top: 0; }
 .calc label.opt { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.2rem 0; cursor: pointer; }
 .calc .hint { color: var(--muted); font-size: 0.9rem; margin: 0.5rem 0 0; }
 .calc .amounts { display: grid; gap: 0.5rem 1rem; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); margin-top: 0.75rem; }
-.calc .amount { display: flex; align-items: baseline; gap: 0.5rem; }
+.calc .amount { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.5rem; min-width: 0; }
+/* The label on its own line, and the item count wrapping under the box rather
+   than running into the next field (0152 T7 (c): at 1280 pixels Calendar's
+   "2,000 items" ran into Files). */
+.calc .amount label { flex-basis: 100%; }
 .calc .amount input { width: 6.5rem; padding: 0.35rem 0.5rem; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; }
 .calc .amount .items { color: var(--muted); font-size: 0.8rem; }
 .calc .amount[data-off] { opacity: 0.45; }
 #paths-line { font-weight: 600; margin: 1.5rem 0 0.5rem; }
 .axes { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); margin: 1rem 0; }
-.axis { border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.25rem; position: relative; }
+.axis { border: 1px solid var(--line); border-radius: 12px; padding: 2.4rem 1.25rem 1rem; position: relative; }
 .axis .val { font-size: 1.6rem; font-weight: 700; }
-.axis .decides { display: none; position: absolute; top: 0.75rem; right: 1rem;
+/* Above the heading, in room both cards reserve, so it never covers the heading
+   (at 390 pixels it covered "Migrations at the same time") and both cards keep
+   their headings on one line whichever one decides. */
+.axis .decides { display: none; position: absolute; top: 0.75rem; left: 1.25rem;
   background: var(--mint); color: #06201c; font-size: 0.68rem; font-weight: 700;
   letter-spacing: 0.05em; text-transform: uppercase; padding: 0.15rem 0.5rem; border-radius: 999px; }
 .axis[data-decides] .decides { display: inline-block; }
@@ -678,6 +696,38 @@ function tierCards(locale) {
   );
 }
 
+/** The data-type icon each of the app's data types is drawn with (icons.mjs). */
+const ICON_OF = { email: 'mail', calendar: 'calendar', contact: 'contacts', file: 'files', task: 'tasks' };
+
+/**
+ * *Where to* (workplan 0152 T4): the destinations the app moves data into, from
+ * the guarded copy in `destinations.mjs`, each with the data types it takes,
+ * named as the app names them. The card that is four protocols says which
+ * protocol carries each.
+ */
+function whereTo(locale) {
+  const c = COPY[locale];
+  const card = (d) => {
+    const { name, sub } = c.destinations[d.id];
+    const many = d.types.length > 1;
+    const types = DATA_TYPES.filter((t) => d.takes[t])
+      .map(
+        (t) =>
+          `<li>${icon(ICON_OF[t])}<span>${c.dataTypes[t]}</span>${
+            many ? `<span class="via">${PROTOCOL_NAMES[d.takes[t]]}</span>` : ''
+          }</li>`,
+      )
+      .join('');
+    return `<div class="card dest"><h3>${name}</h3>${sub ? `<p class="sub">${sub}</p>` : ''}<ul class="types">${types}</ul></div>`;
+  };
+  return `
+<h2>${c.whereTitle}</h2>
+<p>${c.whereLede}</p>
+${SPRITE}
+<div class="cards">${DESTINATIONS.map(card).join('')}</div>
+`;
+}
+
 function landing(locale) {
   const c = COPY[locale];
   const small = TIERS.find((t) => t.id === 'small');
@@ -691,7 +741,7 @@ function landing(locale) {
   </div>
   <p class="fineprint">${c.heroFree(TIERS[0].name, size(TIERS[0].dataGb))} ${esc(c.vatIncluded)}</p>
 </section>
-
+${whereTo(locale)}
 <h2>${c.diffTitle}</h2>
 ${cards(c.diff)}
 
@@ -740,7 +790,6 @@ const CALC_GLUE = `
   var cfg = JSON.parse(document.getElementById('calc-config').textContent);
   var S = cfg.strings;
   function $(id) { return document.getElementById(id); }
-  function sizeOf(gb) { return gb >= 1000 ? (gb / 1000) + ' TB' : gb + ' GB'; }
   function radio(name) {
     var el = document.querySelector('input[name="' + name + '"]:checked');
     return el ? el.value : null;
@@ -900,6 +949,7 @@ function calculatorPage(locale) {
   </fieldset>
 </div>
 
+<div id="result" aria-live="polite">
 <p id="paths-line"></p>
 
 <div class="axes">
@@ -922,6 +972,7 @@ function calculatorPage(locale) {
   <p class="fine">${esc(COPY[locale].vatIncluded)}</p>
 </div>
 <p id="beyond-line" hidden>${esc(c.beyondLine)} <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
+</div>
 
 <p id="gmail-line" class="fine" hidden></p>
 <p id="topup-line" class="fine"></p>
