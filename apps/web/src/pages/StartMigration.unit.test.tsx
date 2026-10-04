@@ -370,7 +370,8 @@ describe('Connect your accounts (screen 4)', () => {
     expect(next()).toHaveAccessibleDescription('Connect each account first.');
 
     await user.type(screen.getByRole('textbox', { name: /^Host/ }), 'imap.example.nl');
-    await user.type(screen.getByRole('spinbutton', { name: /^Port/ }), '993');
+    // The usual port is filled in, and nobody types it (the owner, 2026-10-04).
+    expect(screen.getByRole('spinbutton', { name: /^Port/ })).toHaveValue(993);
     await user.type(screen.getByRole('textbox', { name: /^Username/ }), 'anna@example.nl');
     await user.type(screen.getByLabelText(/^Password/), 'secret');
     listMock.mockResolvedValue([
@@ -519,6 +520,17 @@ describe('Where does it go? (screen 5)', () => {
         values: expect.objectContaining({ url: 'https://cloud.example.eu/remote.php/dav', username: 'anna' }),
       }),
     );
+  });
+
+  it('fills in a protocol destination’s usual port, so only its server is typed (the owner, 2026-10-04)', async () => {
+    listMock.mockResolvedValue(SAVED_SOURCES);
+    const user = userEvent.setup();
+    renderAt();
+    await toWhereTo(user);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Where files goes' }), 'Add WebDAV');
+    const webdav = screen.getByRole('heading', { level: 3, name: 'Add WebDAV' }).closest('section')!;
+    expect(within(webdav).getByRole('spinbutton', { name: /^Port/ })).toHaveValue(443);
+    expect(within(webdav).getByRole('textbox', { name: /^Host/ })).toHaveValue('');
   });
 
   it('takes a saved destination that can take the data type, and draws no form for it', async () => {
