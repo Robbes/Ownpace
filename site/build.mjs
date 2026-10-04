@@ -51,6 +51,8 @@ import { freeTier as free } from './calculator.mjs';
 import { securityTxt } from './security-txt.mjs';
 import { LOCALES, DEFAULT_LOCALE, localeRoot, COPY } from './copy.mjs';
 import { CUSTOMER_TYPES, INDICATIVE_PROFILES, OBJECT_TYPES, PROFILES_VERSION } from './profiles.mjs';
+import { DATA_TYPES, DESTINATIONS, PROTOCOL_NAMES } from './destinations.mjs';
+import { SPRITE, icon } from './icons.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, 'dist');
@@ -405,6 +407,15 @@ nav.menu a:first-child { border-top: 0; }
 
 /* cards */
 .cards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); margin: 1.5rem 0; }
+/* The data-type icons (icons.mjs): one sprite per page, each icon 24 px in the text's colour. */
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.icon { width: 1.25rem; height: 1.25rem; flex: none; color: var(--teal); }
+@media (prefers-color-scheme: dark) { .icon { color: var(--mint); } }
+/* Where to (0152 T4): each destination, and the data types it takes. */
+.dest .sub { color: var(--muted); margin: -0.5rem 0 0.75rem; font-size: 0.95rem; }
+.types { list-style: none; padding: 0; margin: 0; }
+.types li { display: flex; align-items: center; gap: 0.6rem; padding: 0.3rem 0; }
+.types .via { color: var(--muted); font-size: 0.85rem; margin-left: auto; }
 .card { border: 1px solid var(--line); border-radius: 12px; padding: 1.25rem; background: var(--panel); }
 .card h3 { margin-top: 0; }
 .card p:last-child { margin-bottom: 0; }
@@ -712,6 +723,38 @@ function tierCards(locale) {
   );
 }
 
+/** The data-type icon each of the app's data types is drawn with (icons.mjs). */
+const ICON_OF = { email: 'mail', calendar: 'calendar', contact: 'contacts', file: 'files', task: 'tasks' };
+
+/**
+ * *Where to* (workplan 0152 T4): the destinations the app moves data into, from
+ * the guarded copy in `destinations.mjs`, each with the data types it takes,
+ * named as the app names them. The card that is four protocols says which
+ * protocol carries each.
+ */
+function whereTo(locale) {
+  const c = COPY[locale];
+  const card = (d) => {
+    const { name, sub } = c.destinations[d.id];
+    const many = d.types.length > 1;
+    const types = DATA_TYPES.filter((t) => d.takes[t])
+      .map(
+        (t) =>
+          `<li>${icon(ICON_OF[t])}<span>${c.dataTypes[t]}</span>${
+            many ? `<span class="via">${PROTOCOL_NAMES[d.takes[t]]}</span>` : ''
+          }</li>`,
+      )
+      .join('');
+    return `<div class="card dest"><h3>${name}</h3>${sub ? `<p class="sub">${sub}</p>` : ''}<ul class="types">${types}</ul></div>`;
+  };
+  return `
+<h2>${c.whereTitle}</h2>
+<p>${c.whereLede}</p>
+${SPRITE}
+<div class="cards">${DESTINATIONS.map(card).join('')}</div>
+`;
+}
+
 function landing(locale) {
   const c = COPY[locale];
   const small = TIERS.find((t) => t.id === 'small');
@@ -725,7 +768,7 @@ function landing(locale) {
   </div>
   <p class="fineprint">${c.heroFree(TIERS[0].name, size(TIERS[0].dataGb))} ${esc(c.vatIncluded)}</p>
 </section>
-
+${whereTo(locale)}
 <h2>${c.diffTitle}</h2>
 ${cards(c.diff)}
 

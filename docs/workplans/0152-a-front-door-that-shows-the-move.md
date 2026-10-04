@@ -36,6 +36,25 @@
   *No minimum term: stop whenever you like* and the rule, in both languages, are new words for the
   owner's reading, and for the lawyer's (0139).
 
+**2026-10-04, evening: T4 is built** (R8 step 9). The home page's *Where to*, after the hero
+until T3's three steps exist, names where a person's data can go:
+- **Soverin**, **Nextcloud**, **a JMAP server** such as Stalwart, and **any other provider** that
+  speaks IMAP, CalDAV, CardDAV or WebDAV. Each card lists the data types it takes, with the
+  drawing's icons and the app's own words for them (*Email*, *E-mail*). The card that is four
+  protocols says which protocol carries each type.
+- **The list is a guarded copy** (T4 (b)): `site/destinations.mjs` against the app's
+  `TARGET_TYPE_DOMAINS`, and `site/icons.mjs` against `docs/design/0152-0154/icons.svg`, the
+  sprite the app's `an-icon-drawn-twice` already expected the site to inline.
+- **No third-party claim** (T4 (c)): data types only, never a price, hosting or quality.
+- **Guard:** `scripts/where-to-is-the-apps-own-list.unit.test.ts`:
+  - every target type is on one card, and the site names none the app lacks;
+  - each card shows exactly what its types carry, by the type that carries it;
+  - the words are the app's `domain.*` strings, in both languages, and `targetTypeName`'s;
+  - the icons are the drawing's, character for character;
+  - both home pages draw it, with the sprite once and no price.
+- **T0:** *Where to* / *Waar naartoe* and its sentence, and *A JMAP server, such as Stalwart* /
+  *Any other provider, that speaks …*, in both languages, are new words for the owner's reading.
+
 **2026-10-04, evening: T1 (b) is built, with a defect it found.** No page says what *"most people"*
 choose any more, since nothing counts it.
 - **The home page's cost line** says *"**Small**, for one person moving everything at once: €5 a
@@ -253,7 +272,7 @@ together, from one audit of the site and the app on `main` at `83eb73e` (§1).
 | T1 The alpha, said on the site | 🟡 **(b) built 2026-10-04; (a)'s line waits for open question 5 (2026-10-04)** | §3. The app's alpha sentence on every site page while the alpha setting is on. The unbacked *"Most people"* and *"Meest gekozen"* become a fact about the tier. *(2026-10-04: the app's sentence is now the owner's welcome (0131 D4's amendment), so copied as it is, every visitor would read the welcome. Open question 5.)* |
 | T2 A shorter menu, and a header that fits a phone | ✅ **Built 2026-10-04, with T6 (c); its words wait for T0** | §3. The header reads Home · How it works · Pricing · Sign in, plus the language switch. Privacy and Terms move to the footer. On a phone the menu folds into a `<details>`, which needs no script. |
 | T3 The hero shows the move | 📋 **Proposed; before the first invitation** | §3. The drawing `hero-move.svg`, inlined: the old account's data, then Ownpace, then the new home, with our own icons (D4). Three facts sit under it, and a three-step strip links to *How it works*. An app screen joins it once 0153 T5 exists. |
-| T4 The destinations, named | 📋 **Proposed; before the first invitation** | §3. A *Where to* section names what the app supports, from a site copy of the app's list with a guard that it matches. It says plainly that the new account is one the person opens and pays for themselves. |
+| T4 The destinations, named | ✅ **Built 2026-10-04; its words wait for T0** | §3. A *Where to* section names what the app supports, from a site copy of the app's list with a guard that it matches. It says plainly that the new account is one the person opens and pays for themselves. |
 | T5 A page per provider a person leaves | 📋 **Proposed; before the first invitation (D5)** | §3. *Leaving Google*, *Leaving Microsoft 365*, *Leaving iCloud*, *Leaving Dropbox*, *Leaving Box*, *Leaving another mail provider*: what moves, the limits, what the person does, the destinations it can go to, a typical cost. Built from copies of the app's own verdicts, each guarded. |
 | T6 Pricing that reads in one pass | 🟡 **(a) done: the sentence by #1317, its guard beside D6's. (c) built 2026-10-04, with T2 (#1471). (d) built 2026-10-03, with (g)'s principle on the page. (e) built 2026-10-04. (f)'s words on the page and in the terms built 2026-10-04, its withdrawal button not. The rest proposed, before the first invitation (D5)** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) The withdrawal button, and the year's end (D11, amended 2026-10-04). (g) The principle, the price that pays for the work (D12). |
 | T7 A calculator that ends in a button | 📋 **Proposed; before the first invitation** | §3. (a) *Request access* carries the answers along. (b) *Until when?* says which payment suits it. (c) The layout faults and a live region. (d) Box as a source. |

@@ -76,6 +76,19 @@ export const COPY = {
     // price that could be billed, so the line says what free covers instead.
     heroFree: (name, data) =>
       `${name}: one migration at a time, up to ${data}. Every price is published in full — no quote, no sales call.`,
+    // Where to (workplan 0152 T4): what the app moves data into, from the
+    // guarded copy in destinations.mjs. The data types are named as the app
+    // names them (its 'domain.*' strings), and a guard holds them equal.
+    whereTitle: 'Where to',
+    whereLede:
+      'Your new home is an account you open with a European provider, paid to them. Ownpace moves your data into it and keeps it in step.',
+    destinations: {
+      soverin: { name: 'Soverin', sub: '' },
+      nextcloud: { name: 'Nextcloud', sub: '' },
+      jmap: { name: 'A JMAP server', sub: 'such as Stalwart' },
+      protocols: { name: 'Any other provider', sub: 'that speaks IMAP, CalDAV, CardDAV or WebDAV' },
+    },
+    dataTypes: { email: 'Email', calendar: 'Calendar', contact: 'Contacts', file: 'Files', task: 'Tasks' },
     diffTitle: 'What makes this different',
     diff: [
       ['It is a move, not a copy',
@@ -258,6 +271,16 @@ export const COPY = {
     ctaEstimate: 'Reken uit wat het u kost',
     heroFree: (name, data) =>
       `${name}: één migratie tegelijk, tot ${data}. Alle prijzen staan er volledig op — geen offerte, geen verkoopgesprek.`,
+    whereTitle: 'Waar naartoe',
+    whereLede:
+      'Uw nieuwe thuis is een account dat u opent bij een Europese aanbieder, en dat u aan hen betaalt. Ownpace migreert uw gegevens daarheen en houdt ze bij.',
+    destinations: {
+      soverin: { name: 'Soverin', sub: '' },
+      nextcloud: { name: 'Nextcloud', sub: '' },
+      jmap: { name: 'Een JMAP-server', sub: 'zoals Stalwart' },
+      protocols: { name: 'Elke andere aanbieder', sub: 'die IMAP, CalDAV, CardDAV of WebDAV spreekt' },
+    },
+    dataTypes: { email: 'E-mail', calendar: 'Agenda', contact: 'Contacten', file: 'Bestanden', task: 'Taken' },
     diffTitle: 'Wat dit anders maakt',
     diff: [
       ['Het is een migratie, geen kopie',
