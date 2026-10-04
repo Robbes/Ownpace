@@ -39,6 +39,7 @@ import {
   BEYOND,
   SUPPORT_EMAIL,
   REQUEST_ACCESS_URL,
+  SIGN_IN_URL,
   APP_URL,
   PUBLIC_APP_URL,
   STATUS_URL,
@@ -341,17 +342,41 @@ header.site { border-bottom: 1px solid var(--line); position: sticky; top: 0; ba
 header.site .wrap { display: flex; align-items: center; gap: 1.5rem; height: 4rem; }
 .brand { display: flex; align-items: center; gap: 0.6rem; font-weight: 650; text-decoration: none; color: var(--ink); }
 .brand img { width: 28px; height: 28px; border-radius: 7px; display: block; }
-nav.site { margin-left: auto; display: flex; gap: 1.25rem; flex-wrap: wrap; }
-nav.site a { text-decoration: none; color: var(--muted); font-size: 0.95rem; }
-nav.site a:hover, nav.site a[aria-current] { color: var(--ink); }
-nav.site a.lang {
+nav.site { margin-left: auto; display: flex; gap: 1.25rem; }
+nav.site a, nav.menu a { text-decoration: none; color: var(--muted); font-size: 0.95rem; white-space: nowrap; }
+nav.site a:hover, nav.site a[aria-current], nav.menu a:hover, nav.menu a[aria-current] { color: var(--ink); }
+header.site a.lang {
   border: 1px solid var(--line); border-radius: 999px; padding: 0.15rem 0.7rem; font-size: 0.85rem;
+  text-decoration: none; color: var(--muted); white-space: nowrap;
 }
-nav.site a.lang:hover { border-color: var(--teal); color: var(--teal); }
-@media (prefers-color-scheme: dark) { nav.site a.lang:hover { border-color: var(--mint); color: var(--mint); } }
+header.site a.lang:hover { border-color: var(--teal); color: var(--teal); }
+@media (prefers-color-scheme: dark) { header.site a.lang:hover { border-color: var(--mint); color: var(--mint); } }
+/* On a phone the pages fold into a menu that opens without a script (0152 T2). */
+details.menu { display: none; }
+details.menu > summary {
+  list-style: none; cursor: pointer; border: 1px solid var(--line); border-radius: 8px;
+  padding: 0.3rem 0.8rem; font-size: 0.95rem; color: var(--ink);
+}
+details.menu > summary::-webkit-details-marker { display: none; }
+/* A drawn chevron, with no text for a screen reader to read: the browser says open or closed. */
+details.menu > summary::after {
+  content: ""; display: inline-block; width: 0.4em; height: 0.4em; margin-left: 0.55em;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: translateY(-0.2em) rotate(45deg);
+}
+details.menu[open] > summary::after { transform: translateY(0.1em) rotate(-135deg); }
+nav.menu {
+  position: absolute; top: 100%; left: 0; right: 0; background: var(--bg);
+  border-bottom: 1px solid var(--line); padding: 0.25rem 1.25rem 0.75rem;
+  display: flex; flex-direction: column;
+}
+nav.menu a { padding: 0.75rem 0; border-top: 1px solid var(--line); font-size: 1rem; }
+nav.menu a:first-child { border-top: 0; }
 @media (max-width: 40rem) {
-  header.site .wrap { height: auto; padding-top: 0.75rem; padding-bottom: 0.75rem; flex-wrap: wrap; }
-  nav.site { margin-left: 0; width: 100%; gap: 0.9rem; }
+  header.site .wrap { height: 3.5rem; gap: 0.75rem; }
+  nav.site { display: none; }
+  header.site a.lang { margin-left: auto; }
+  details.menu { display: block; }
 }
 
 .draft {
@@ -456,6 +481,15 @@ footer.site .build { font-size: 0.8rem; opacity: 0.7; }
 const PAGE_KEYS = ['home', 'how', 'pricing', 'calculator', 'privacy', 'terms'];
 
 /**
+ * The pages the header lists, before *Sign in* and the language switch
+ * (workplan 0152 T2): *Home · How it works · Pricing · Sign in*. The estimate
+ * is linked from the pricing page and the home page's *What it costs* (T6 (c)),
+ * and Privacy and Terms from the footer. They stay in `PAGE_KEYS`, so the
+ * language switch and hreflang still reach them.
+ */
+const NAV_KEYS = ['home', 'how', 'pricing'];
+
+/**
  * Pages rendered in every locale like the ones above, with a file of their own
  * in each (`files` in `copy.mjs`, so the switcher and hreflang still work), and
  * left out of the nav.
@@ -517,11 +551,12 @@ function buildStamp() {
 
 function layout({ title, description, body, locale, key, draft }) {
   const c = COPY[locale];
-  const nav = PAGE_KEYS.map((k) => {
-    const href = urlFor(locale, k);
-    const current = k === key ? ' aria-current="page"' : '';
-    return `<a href="${href}"${current}>${c.nav[k]}</a>`;
-  }).join('');
+  const nav =
+    NAV_KEYS.map((k) => {
+      const href = urlFor(locale, k);
+      const current = k === key ? ' aria-current="page"' : '';
+      return `<a href="${href}"${current}>${c.nav[k]}</a>`;
+    }).join('') + `<a href="${esc(SIGN_IN_URL)}">${c.nav.signIn}</a>`;
 
   const other = LOCALES.find((l) => l !== locale);
   const alternates = LOCALES.map(
@@ -553,7 +588,9 @@ ${alternates}
 <a class="skip" href="#main">${c.skip}</a>
 <header class="site"><div class="wrap">
   <a class="brand" href="${urlFor(locale, 'home')}"><img src="/brand/logo-120.png" alt="" width="28" height="28" /> Ownpace</a>
-  <nav class="site">${nav}<a class="lang" href="${urlFor(other, key)}" lang="${COPY[other].htmlLang}">${c.otherLangName}</a></nav>
+  <nav class="site" aria-label="${c.navName}">${nav}</nav>
+  <a class="lang" href="${urlFor(other, key)}" lang="${COPY[other].htmlLang}">${c.otherLangName}</a>
+  <details class="menu"><summary>${c.menu}</summary><nav class="menu" aria-label="${c.navName}">${nav}</nav></details>
 </div></header>
 <main id="main"><div class="wrap">
 ${banner}
@@ -674,8 +711,8 @@ ${cards(c.wont)}
 <p>${c.costLede}</p>
 <p>${c.costPick(small.name, money(small.monthly), money(small.annual), small.paths, size(small.dataGb))}</p>
 <div class="cta">
-  <a class="btn btn-primary" href="${urlFor(locale, 'pricing')}">${c.ctaAllTiers}</a>
-  <a class="btn btn-ghost" href="${urlFor(locale, 'how')}">${c.ctaHow}</a>
+  <a class="btn btn-primary" href="${urlFor(locale, 'calculator')}">${c.ctaEstimate}</a>
+  <a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${c.ctaAllTiers}</a>
 </div>
 `;
 }
@@ -982,6 +1019,7 @@ export function build({ alpha = ALPHA } = {}) {
           body = body.replace(
             '<p>[[TIERS]]</p>',
             tierCards(locale) +
+              `<div class="cta"><a class="btn btn-ghost" href="${urlFor(locale, 'calculator')}">${c.ctaEstimate}</a></div>` +
               `<p class="fineprint">${esc(c.vatIncluded)}</p>` +
               `<p class="fineprint">${beyond}</p>`,
           );

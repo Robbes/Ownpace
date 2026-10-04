@@ -157,6 +157,13 @@ export const PUBLIC_APP_URL = 'https://app.ownpace.eu';
 export const REQUEST_ACCESS_URL = `${APP_URL}/request-access`;
 
 /**
+ * The app's sign-in page, which the header's *Sign in* links (workplan 0152
+ * T2). Built from APP_URL, like the request page, so a test site never sends
+ * anybody to production's sign-in.
+ */
+export const SIGN_IN_URL = `${APP_URL}/login`;
+
+/**
  * Where "is Ownpace down?" is answerable.
  *
  * DERIVED from APP_URL rather than configured beside it, for the reason
