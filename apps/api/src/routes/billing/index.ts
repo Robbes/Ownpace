@@ -31,6 +31,7 @@ import {
   breakEvenOf,
   decideYes,
   holdsAtCeiling,
+  monthlyEur,
   readCeiling,
   type Ceiling,
   type ViesRequester,
@@ -285,7 +286,7 @@ function ceilingBody(c: Ceiling, holds: boolean) {
       id: c.allowance.tier.id,
       name: c.allowance.tier.name,
       paths: c.allowance.tier.paths,
-      monthly: c.allowance.tier.monthly,
+      monthly: monthlyEur(c.allowance.tier),
     },
     ceilingGb: c.allowance.ceilingGb,
     topUps: c.allowance.topUps,
@@ -298,7 +299,6 @@ function ceilingBody(c: Ceiling, holds: boolean) {
           tierId: c.moveUp.tier.id,
           name: c.moveUp.tier.name,
           paths: c.moveUp.tier.paths,
-          setupEur: c.moveUp.setupEur,
           monthlyEur: c.moveUp.monthlyEur,
           ceilingGb: c.moveUp.ceilingGb,
         }
@@ -370,8 +370,8 @@ router.post('/ceiling/yes', authenticate, requireBillingWrite, async (req: Authe
       const reason =
         outcome.refused === 'offer_changed'
           ? 'What is offered has changed since the page was shown. Look at the new offer before saying yes.'
-          : outcome.refused === 'no_top_up_on_tiny'
-            ? 'Tiny has no top-up: from Tiny the way on is moving up.'
+          : outcome.refused === 'no_top_up_on_free'
+            ? 'Free has no top-up: from Free the way on is moving up.'
             : 'There is no tier past this one. Talk to us.';
       return void res.status(409).json({
         error: outcome.refused,

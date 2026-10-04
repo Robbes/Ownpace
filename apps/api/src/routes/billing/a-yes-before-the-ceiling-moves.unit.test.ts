@@ -7,7 +7,7 @@
  * Every step up is consented and paid for. These routes read the data ceiling
  * and take the customer's yes to one of the two ways on, over a real database
  * with every migration applied, so the table's own refusals are exercised:
- * the yes is append-only, Tiny is never a row, and the meter is never
+ * the yes is append-only, Free is never a row, and the meter is never
  * rewound by a top-up.
  */
 
@@ -22,6 +22,8 @@ const TENANT = '5f5e0000-e29b-41d4-a716-446655441901';
 const OTHER = '5f5e0000-e29b-41d4-a716-446655441902';
 const small = MANAGED_TIERS.find((t) => t.id === 'small')!;
 const medium = MANAGED_TIERS.find((t) => t.id === 'medium')!;
+/** A tier's monthly in whole euros: what a move up is agreed at, and a top-up costs once. */
+const eur = (t: (typeof MANAGED_TIERS)[number]) => t.monthlyCents / 100;
 
 let driver: LedgerDriver;
 let tenant: string;
@@ -93,15 +95,17 @@ afterEach(() => {
 });
 
 describe('GET /api/billing/ceiling', () => {
-  it('starts on Tiny, with no top-up and a move up to Small', async () => {
+  it('starts on Free, with no top-up and a move up to Small', async () => {
     await moved(100);
     const res = await request(app).get('/api/billing/ceiling');
     expect(res.status).toBe(200);
-    expect(res.body.tier.id).toBe('tiny');
+    expect(res.body.tier.id).toBe('free');
     expect(res.body.ceilingGb).toBe(250);
     expect(res.body.state).toBe('under');
     expect(res.body.topUp).toBeNull();
-    expect(res.body.moveUp).toMatchObject({ tierId: 'small', setupEur: small.setup, monthlyEur: small.monthly });
+    expect(res.body.moveUp).toMatchObject({ tierId: 'small', monthlyEur: 5 });
+    // No setup fee since the list of 2026-09-29: a move up has nothing to pay once.
+    expect(res.body.moveUp).not.toHaveProperty('setupEur');
     expect(res.body.holds).toBe(true);
   });
 
@@ -112,20 +116,20 @@ describe('GET /api/billing/ceiling', () => {
     expect((await request(app).get('/api/billing/ceiling')).body.state).toBe('reached');
   });
 
-  it('says the break-even when both ways on are offered, and none on Tiny', async () => {
+  it('says the break-even when both ways on are offered, and none on Free', async () => {
     await moved(200);
     expect((await request(app).get('/api/billing/ceiling')).body.breakEven).toBeNull();
     await owner(
       `INSERT INTO data_allowance (tenant_id, kind, tier_id, band_gb, price_eur, consented_by)
        VALUES ($1, 'tier', 'small', $2, $3, 'earlier')`,
-      [TENANT, small.dataGb, small.setup],
+      [TENANT, small.dataGb, eur(small)],
     );
     await moved(700);
     const res = await request(app).get('/api/billing/ceiling');
-    expect(res.body.tier).toMatchObject({ id: 'small', paths: small.paths });
+    expect(res.body.tier).toMatchObject({ id: 'small', paths: small.paths, monthly: 5 });
     expect(res.body.breakEven).toMatchObject({
-      extraOnceEur: small.setup - (medium.setup - small.setup),
-      savedMonthlyEur: medium.monthly - small.monthly,
+      extraOnceEur: eur(small),
+      savedMonthlyEur: eur(medium) - eur(small),
     });
   });
 
@@ -145,14 +149,14 @@ describe('POST /api/billing/ceiling/yes', () => {
     await moved(240);
     const res = await request(app)
       .post('/api/billing/ceiling/yes')
-      .send({ choice: 'move_up', tierId: 'small', priceEur: small.setup });
+      .send({ choice: 'move_up', tierId: 'small', priceEur: eur(small) });
     expect(res.status).toBe(200);
     expect(res.body.tier.id).toBe('small');
     expect(res.body.ceilingGb).toBe(small.dataGb);
     expect(res.body.state).toBe('under');
     const rows = await owner('SELECT kind, tier_id, band_gb, price_eur, consented_by FROM data_allowance');
     expect(rows.rows).toEqual([
-      { kind: 'tier', tier_id: 'small', band_gb: small.dataGb, price_eur: small.setup, consented_by: 'the-owner' },
+      { kind: 'tier', tier_id: 'small', band_gb: small.dataGb, price_eur: eur(small), consented_by: 'the-owner' },
     ]);
   });
 
@@ -160,12 +164,12 @@ describe('POST /api/billing/ceiling/yes', () => {
     await owner(
       `INSERT INTO data_allowance (tenant_id, kind, tier_id, band_gb, price_eur, consented_by)
        VALUES ($1, 'tier', 'small', $2, $3, 'earlier')`,
-      [TENANT, small.dataGb, small.setup],
+      [TENANT, small.dataGb, eur(small)],
     );
     await moved(750);
     const res = await request(app)
       .post('/api/billing/ceiling/yes')
-      .send({ choice: 'top_up', tierId: 'small', priceEur: small.setup });
+      .send({ choice: 'top_up', tierId: 'small', priceEur: eur(small) });
     expect(res.status).toBe(200);
     expect(res.body.tier.id).toBe('small');
     expect(res.body.ceilingGb).toBe(2 * small.dataGb);
@@ -177,24 +181,24 @@ describe('POST /api/billing/ceiling/yes', () => {
     await moved(240);
     const res = await request(app)
       .post('/api/billing/ceiling/yes')
-      .send({ choice: 'move_up', tierId: 'small', priceEur: small.setup + 1 });
+      .send({ choice: 'move_up', tierId: 'small', priceEur: eur(small) + 1 });
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('offer_changed');
-    expect(res.body.ceiling.moveUp.setupEur).toBe(small.setup);
+    expect(res.body.ceiling.moveUp.monthlyEur).toBe(eur(small));
     expect((await owner('SELECT count(*)::int AS n FROM data_allowance')).rows[0]).toEqual({ n: 0 });
   });
 
-  it('refuses a top-up on Tiny', async () => {
-    const res = await request(app).post('/api/billing/ceiling/yes').send({ choice: 'top_up', tierId: 'tiny', priceEur: 0 });
+  it('refuses a top-up on Free', async () => {
+    const res = await request(app).post('/api/billing/ceiling/yes').send({ choice: 'top_up', tierId: 'free', priceEur: 0 });
     expect(res.status).toBe(409);
-    expect(res.body.error).toBe('no_top_up_on_tiny');
+    expect(res.body.error).toBe('no_top_up_on_free');
   });
 
   it('takes no yes during the alpha, where nothing is charged', async () => {
     process.env.OWNPACE_STAGE = 'alpha';
     const res = await request(app)
       .post('/api/billing/ceiling/yes')
-      .send({ choice: 'move_up', tierId: 'small', priceEur: small.setup });
+      .send({ choice: 'move_up', tierId: 'small', priceEur: eur(small) });
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('nothing_charged_during_the_alpha');
     expect((await owner('SELECT count(*)::int AS n FROM data_allowance')).rows[0]).toEqual({ n: 0 });
@@ -202,7 +206,7 @@ describe('POST /api/billing/ceiling/yes', () => {
 
   it('takes one yes for two presses of the same offer', async () => {
     await moved(240);
-    const yes = { choice: 'move_up', tierId: 'small', priceEur: small.setup };
+    const yes = { choice: 'move_up', tierId: 'small', priceEur: eur(small) };
     const [a, b] = await Promise.all([
       request(app).post('/api/billing/ceiling/yes').send(yes),
       request(app).post('/api/billing/ceiling/yes').send(yes),
@@ -215,23 +219,23 @@ describe('POST /api/billing/ceiling/yes', () => {
     role = 'member';
     const res = await request(app)
       .post('/api/billing/ceiling/yes')
-      .send({ choice: 'move_up', tierId: 'small', priceEur: small.setup });
+      .send({ choice: 'move_up', tierId: 'small', priceEur: eur(small) });
     expect(res.status).toBe(403);
   });
 
   it('reads and writes only its own organisation', async () => {
     tenant = OTHER;
     await moved(240, OTHER);
-    await request(app).post('/api/billing/ceiling/yes').send({ choice: 'move_up', tierId: 'small', priceEur: small.setup });
+    await request(app).post('/api/billing/ceiling/yes').send({ choice: 'move_up', tierId: 'small', priceEur: eur(small) });
     tenant = TENANT;
-    expect((await request(app).get('/api/billing/ceiling')).body.tier.id).toBe('tiny');
+    expect((await request(app).get('/api/billing/ceiling')).body.tier.id).toBe('free');
   });
 });
 
 describe('the table, on its own terms (managed 0037)', () => {
   it('refuses to be edited or emptied by the app', async () => {
     tenant = TENANT;
-    await request(app).post('/api/billing/ceiling/yes').send({ choice: 'move_up', tierId: 'small', priceEur: small.setup });
+    await request(app).post('/api/billing/ceiling/yes').send({ choice: 'move_up', tierId: 'small', priceEur: eur(small) });
     const conn = await driver.acquire();
     try {
       await conn.query('BEGIN');
@@ -254,27 +258,31 @@ describe('the table, on its own terms (managed 0037)', () => {
     }
   });
 
-  it('refuses Tiny as a row: nobody moves up to it, and it has no top-up', async () => {
-    await expect(
-      owner(
-        `INSERT INTO data_allowance (tenant_id, kind, tier_id, band_gb, price_eur, consented_by)
-         VALUES ($1, 'top_up', 'tiny', 250, 0, 'x')`,
-        [TENANT],
-      ),
-    ).rejects.toThrow(/data_allowance_tier_check/);
+  it('refuses Free as a row, by either name: nobody moves up to it, and it has no top-up', async () => {
+    for (const id of ['free', 'tiny']) {
+      await expect(
+        owner(
+          `INSERT INTO data_allowance (tenant_id, kind, tier_id, band_gb, price_eur, consented_by)
+           VALUES ($1, 'top_up', $2, 250, 0, 'x')`,
+          [TENANT, id],
+        ),
+      ).rejects.toThrow(/data_allowance_tier_check/);
+    }
   });
 
-  it('a move up to Medium from Small charges the difference in setup', async () => {
+  it('a move up to Medium from Small is agreed at Medium\'s monthly, with nothing once', async () => {
     await owner(
       `INSERT INTO data_allowance (tenant_id, kind, tier_id, band_gb, price_eur, consented_by)
        VALUES ($1, 'tier', 'small', $2, $3, 'earlier')`,
-      [TENANT, small.dataGb, small.setup],
+      [TENANT, small.dataGb, eur(small)],
     );
     await moved(700);
     const res = await request(app)
       .post('/api/billing/ceiling/yes')
-      .send({ choice: 'move_up', tierId: 'medium', priceEur: medium.setup - small.setup });
+      .send({ choice: 'move_up', tierId: 'medium', priceEur: eur(medium) });
     expect(res.status).toBe(200);
     expect(res.body.tier.id).toBe('medium');
+    const rows = await owner(`SELECT price_eur FROM data_allowance WHERE tier_id = 'medium'`);
+    expect(rows.rows).toEqual([{ price_eur: 12 }]);
   });
 });

@@ -491,7 +491,7 @@ beforeAll(async () => {
   nextcloudSecret = sealed(DAV);
   await sql('INSERT INTO tenant (id, name) VALUES ($1, $2)', [TENANT, 'Closing BV']);
   // Room for every door this file presses: an agreed Extra large (workplan
-  // 0109 T6). Keeping a data type copying takes a third slot, past Tiny's one,
+  // 0109 T6). Keeping a data type copying takes a third slot, past Free's one,
   // and this file is about the close, not the tier's paths, which
   // `a-start-past-the-tier.unit.test.ts` holds.
   await sql(

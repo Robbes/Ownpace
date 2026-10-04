@@ -118,16 +118,16 @@ const invoiceFixture = (over: Partial<Invoice> = {}): Invoice => ({
   ...over,
 });
 
-/** Tiny, well under its ceiling: the ceiling card says where the data stands and offers nothing. */
+/** Free, well under its ceiling: the ceiling card says where the data stands and offers nothing. */
 const UNDER_THE_CEILING = {
-  tier: { id: 'tiny' as const, name: 'Tiny', paths: 1, monthly: 0 },
+  tier: { id: 'free' as const, name: 'Free', paths: 1, monthly: 0 },
   ceilingGb: 250,
   topUps: 0,
   gbMoved: 10,
   share: 0.04,
   state: 'under' as const,
   holds: true,
-  moveUp: { tierId: 'small' as const, name: 'Small', paths: 4, setupEur: 8, monthlyEur: 4, ceilingGb: 750 },
+  moveUp: { tierId: 'small' as const, name: 'Small', paths: 4, monthlyEur: 5, ceilingGb: 750 },
   topUp: null,
   breakEven: null,
 };

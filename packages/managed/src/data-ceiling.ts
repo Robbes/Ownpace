@@ -14,25 +14,27 @@
  * ADR-0014's consequence 5: *"the allowance — a sum of granted bands, so a
  * top-up adds a row and nothing is rewound"*. The rows are `data_allowance`
  * (managed migration 0037), one per yes. The ceiling is the band of the
- * highest tier the customer moved up to — Tiny's until they move — plus every
+ * highest tier the customer moved up to — Free's until they move — plus every
  * top-up band bought. `bytes_moved` is never touched: a top-up raises the
  * ceiling, it never rewinds the meter, so a past month stays reconstructible.
  *
  * ## What each way out costs
  *
- * - **Moving up** costs the difference in setup fees, once, then the new
- *   tier's monthly price: *"stepping up later costs the difference in setup,
- *   once"*. It goes to the smallest tier above the current one whose ceiling
+ * - **Moving up** costs the new tier's monthly price, and nothing once: the
+ *   price list of 2026-09-29 has no setup fee (ADR-0014, in force with 0152
+ *   T6 (d)). It goes to the smallest tier above the current one whose ceiling
  *   is past what has moved, so a yes always lifts the hold.
  * - **A top-up** buys another band of the tier the customer is on, at the
- *   price `topUpPriceEur` names. Tiny has none: its fee is nothing, so a
- *   top-up would make the data axis mean nothing, and from Tiny the only way
- *   out is moving up.
+ *   price `topUpPriceEur` names: the tier's monthly price, once. Free has
+ *   none: its price is nothing, so a top-up would make the data axis mean
+ *   nothing, and from Free the only way out is moving up.
  *
  * Prices come from `MANAGED_TIERS`, the third copy of ADR-0014's table, held
  * to the ADR by `tier-calculator.unit.test.ts`. A yes stores the price the
- * customer was shown (`data_allowance.price_eur`), so a later list change
- * never re-prices what was agreed.
+ * customer was shown (`data_allowance.price_eur`): a move up's monthly price,
+ * or a top-up's price once. A later list change never re-prices what was
+ * agreed. The column is whole euros; every monthly price on the list is, and
+ * `data-ceiling.unit.test.ts` says so.
  *
  * ## During the alpha
  *
@@ -49,7 +51,7 @@ import { PgBytesMovedStore } from './bytes-moved.ts';
 import { dataAllowance } from './schema-managed.ts';
 import { MANAGED_TIERS, type ManagedTier } from './tier-calculator.ts';
 
-/** The tiers a yes can name: every one but Tiny, which is where everybody starts. */
+/** The tiers a yes can name: every one but Free, which is where everybody starts. */
 export type PaidTierId = 'small' | 'medium' | 'large' | 'xl';
 
 /** One yes, as the ceiling reads it. */
@@ -62,7 +64,7 @@ export interface AllowanceGrant {
 
 /** What the customer has agreed to: their tier, and how far their data may go. */
 export interface Allowance {
-  /** The highest tier the customer moved up to; Tiny until they do. */
+  /** The highest tier the customer moved up to; Free until they do. */
   readonly tier: ManagedTier;
   /** The data ceiling in decimal GB: the tier's band plus every band bought. */
   readonly ceilingGb: number;
@@ -88,7 +90,7 @@ function tierById(id: ManagedTier['id']): ManagedTier {
  * top-up counts, whichever tier it was bought on: a purchase never expires.
  */
 export function allowanceOf(grants: ReadonlyArray<AllowanceGrant>): Allowance {
-  let tierIndex = 0; // Tiny, where everybody starts.
+  let tierIndex = 0; // Free, where everybody starts.
   let topUpGb = 0;
   let topUps = 0;
   for (const grant of grants) {
@@ -103,25 +105,27 @@ export function allowanceOf(grants: ReadonlyArray<AllowanceGrant>): Allowance {
   return { tier, ceilingGb: tier.dataGb + topUpGb, topUps };
 }
 
-/**
- * What one top-up band of this tier costs, once; `null` on Tiny, which has none.
- *
- * The rule in force: *"pay your setup fee again and your allowance grows by
- * another whole band"* (ADR-0014). The accepted list of 2026-09-29 prices it at
- * a month's price instead, and comes into force with 0152 T6 (d), which changes
- * this one function.
- */
-export function topUpPriceEur(tier: ManagedTier): number | null {
-  if (tier.id === 'tiny') return null;
-  return tier.setup;
+/** A tier's monthly price in whole euros, the unit a yes is recorded in. */
+export function monthlyEur(tier: ManagedTier): number {
+  return tier.monthlyCents / 100;
 }
 
-/** Moving up: to which tier, and what it costs. */
+/**
+ * What one top-up band of this tier costs, once; `null` on Free, which has none.
+ *
+ * The tier's monthly price, once: the owner's answer (b) to the list of
+ * 2026-09-29 (ADR-0014), in force with 0152 T6 (d). It was the setup fee
+ * again until then.
+ */
+export function topUpPriceEur(tier: ManagedTier): number | null {
+  if (tier.id === 'free') return null;
+  return monthlyEur(tier);
+}
+
+/** Moving up: to which tier, and what it costs. There is nothing to pay once. */
 export interface MoveUpOffer {
   readonly tier: ManagedTier;
-  /** Once: the new tier's setup fee less the one already paid. */
-  readonly setupEur: number;
-  /** Then each month, the new tier's price. */
+  /** Each month, the new tier's price. */
   readonly monthlyEur: number;
   /** The ceiling after the yes, top-ups already bought included. */
   readonly ceilingGb: number;
@@ -150,7 +154,7 @@ export interface Ceiling {
   readonly state: 'under' | 'near' | 'reached';
   /** Null past Extra large, where the published answer is "talk to us". */
   readonly moveUp: MoveUpOffer | null;
-  /** Null on Tiny, which has no top-up. */
+  /** Null on Free, which has no top-up. */
   readonly topUp: TopUpOffer | null;
 }
 
@@ -171,8 +175,7 @@ export function ceilingOf(allowance: Allowance, gbMoved: number): Ceiling {
     moveUp: next
       ? {
           tier: next,
-          setupEur: Math.max(0, next.setup - allowance.tier.setup),
-          monthlyEur: next.monthly,
+          monthlyEur: monthlyEur(next),
           ceilingGb: next.dataGb + topUpGb,
         }
       : null,
@@ -193,7 +196,7 @@ const DAYS_PER_MONTH = 30;
 
 /** Topping up against moving up, side by side. */
 export interface BreakEven {
-  /** What the top-up costs once over what the move up does: below zero when the top-up costs less outright. */
+  /** What the top-up costs once; a move up costs nothing once. */
   readonly extraOnceEur: number;
   /** What staying on the tier saves each month, against the move up's monthly price. */
   readonly savedMonthlyEur: number;
@@ -205,17 +208,17 @@ export interface BreakEven {
  * The break-even between the two ways on, when both are offered.
  *
  * ADR-0014: *"at 80%, offer both and show the break-even"*. On Small, another
- * band is €8 once and the monthly stays €4; Medium is €7 once and then €8 a
- * month. The top-up costs €1 more and saves €4 a month, so it pays back in
- * about a week. The ADR also says *"say plainly when the tier is the better
- * buy"*: that is when more migrations must run at once, which the page says
- * beside this, from each tier's paths.
+ * band is €5 once and the monthly stays €5; Medium is €12 a month and nothing
+ * once. The top-up costs €5 more once and saves €7 a month, so it pays back
+ * in about three weeks. The ADR also says *"say plainly when the tier is the
+ * better buy"*: that is when more migrations must run at once, which the page
+ * says beside this, from each tier's paths.
  */
 export function breakEvenOf(ceiling: Ceiling): BreakEven | null {
   const { moveUp, topUp } = ceiling;
   if (!moveUp || !topUp) return null;
-  const extraOnceEur = topUp.priceEur - moveUp.setupEur;
-  const savedMonthlyEur = moveUp.monthlyEur - ceiling.allowance.tier.monthly;
+  const extraOnceEur = topUp.priceEur;
+  const savedMonthlyEur = moveUp.monthlyEur - monthlyEur(ceiling.allowance.tier);
   if (savedMonthlyEur <= 0) return null;
   const paysBackInDays = extraOnceEur <= 0 ? 0 : Math.ceil((extraOnceEur / savedMonthlyEur) * DAYS_PER_MONTH);
   return { extraOnceEur, savedMonthlyEur, paysBackInDays };
@@ -234,11 +237,11 @@ export type YesDecision =
   | {
       readonly ok: false;
       /**
-       * `no_top_up_on_tiny`: Tiny has none. `talk_to_us`: there is no tier past
+       * `no_top_up_on_free`: Free has none. `talk_to_us`: there is no tier past
        * this one. `offer_changed`: the tier or the price the page sent is not
        * what is offered now, so nobody agrees to a price they were not shown.
        */
-      readonly reason: 'no_top_up_on_tiny' | 'talk_to_us' | 'offer_changed';
+      readonly reason: 'no_top_up_on_free' | 'talk_to_us' | 'offer_changed';
     };
 
 /**
@@ -252,20 +255,20 @@ export type YesDecision =
 export function decideYes(ceiling: Ceiling, yes: Yes): YesDecision {
   if (yes.choice === 'top_up') {
     const offer = ceiling.topUp;
-    if (!offer) return { ok: false, reason: 'no_top_up_on_tiny' };
+    if (!offer) return { ok: false, reason: 'no_top_up_on_free' };
     if (yes.tierId !== offer.tierId || yes.priceEur !== offer.priceEur) return { ok: false, reason: 'offer_changed' };
     return { ok: true, grant: { kind: 'top_up', tierId: offer.tierId, bandGb: offer.bandGb, priceEur: offer.priceEur } };
   }
   const offer = ceiling.moveUp;
   if (!offer) return { ok: false, reason: 'talk_to_us' };
-  if (yes.tierId !== offer.tier.id || yes.priceEur !== offer.setupEur) return { ok: false, reason: 'offer_changed' };
+  if (yes.tierId !== offer.tier.id || yes.priceEur !== offer.monthlyEur) return { ok: false, reason: 'offer_changed' };
   return {
     ok: true,
     grant: {
       kind: 'tier',
       tierId: offer.tier.id as PaidTierId,
       bandGb: tierById(offer.tier.id).dataGb,
-      priceEur: offer.setupEur,
+      priceEur: offer.monthlyEur,
     },
   };
 }
@@ -315,9 +318,7 @@ export function ceilingHoldReason(ceiling: Ceiling, held: number): PauseReason {
     kind: 'data-ceiling',
     ceilingGb: ceiling.allowance.ceilingGb,
     held,
-    moveUp: ceiling.moveUp
-      ? { name: ceiling.moveUp.tier.name, setupEur: ceiling.moveUp.setupEur, monthlyEur: ceiling.moveUp.monthlyEur }
-      : null,
+    moveUp: ceiling.moveUp ? { name: ceiling.moveUp.tier.name, monthlyEur: ceiling.moveUp.monthlyEur } : null,
     topUp: ceiling.topUp ? { bandGb: ceiling.topUp.bandGb, priceEur: ceiling.topUp.priceEur } : null,
   };
 }

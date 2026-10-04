@@ -13,7 +13,7 @@
  * ## The agreed tier
  *
  * The highest tier the organisation said yes to, on either axis: the same
- * append-only rows as the data ceiling (`data_allowance`, `allowanceOf`). Tiny
+ * append-only rows as the data ceiling (`data_allowance`, `allowanceOf`). Free
  * until the first yes. Its paths are how many may hold a slot at the same time.
  *
  * ## When a start is refused
@@ -34,7 +34,7 @@ import { MANAGED_TIERS, type ManagedTier } from './tier-calculator.ts';
 
 /** Why a start waits: what it would hold, what the agreed tier runs, and the tier that runs it. */
 export interface PathsPastTheTier {
-  /** The agreed tier: the highest the organisation said yes to; Tiny until the first yes. */
+  /** The agreed tier: the highest the organisation said yes to; Free until the first yes. */
   readonly tier: ManagedTier;
   /** Paths holding a slot once the start is done. */
   readonly after: number;

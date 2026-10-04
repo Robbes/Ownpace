@@ -204,14 +204,14 @@ beforeEach(() => {
     vatTreatment: null,
   });
   vi.mocked(billingApi.getCeiling).mockResolvedValue({
-    tier: { id: 'tiny', name: 'Tiny', paths: 1, monthly: 0 },
+    tier: { id: 'free', name: 'Free', paths: 1, monthly: 0 },
     ceilingGb: 250,
     topUps: 0,
     gbMoved: 10,
     share: 0.04,
     state: 'under',
     holds: true,
-    moveUp: { tierId: 'small', name: 'Small', paths: 4, setupEur: 8, monthlyEur: 4, ceilingGb: 750 },
+    moveUp: { tierId: 'small', name: 'Small', paths: 4, monthlyEur: 5, ceilingGb: 750 },
     topUp: null,
     breakEven: null,
   });

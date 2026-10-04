@@ -77,7 +77,7 @@ describe('a kind added to a running migration', () => {
       [TENANT],
     );
     // Room for the kinds this file adds: an agreed Extra large (workplan 0109
-    // T6). The running migration already holds two slots, past Tiny's one, and
+    // T6). The running migration already holds two slots, past Free's one, and
     // this file is not about the tier's paths, which
     // `a-start-past-the-tier.unit.test.ts` holds.
     await owner.query(

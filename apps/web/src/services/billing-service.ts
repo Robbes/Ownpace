@@ -166,7 +166,6 @@ export const CeilingSchema = z.object({
       tierId: TierSchema.shape.id,
       name: z.string(),
       paths: z.number(),
-      setupEur: z.number(),
       monthlyEur: z.number(),
       ceilingGb: z.number(),
     })

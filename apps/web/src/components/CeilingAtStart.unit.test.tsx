@@ -40,16 +40,16 @@ const getCeiling = vi.mocked(billingApi.getCeiling);
 
 /** On Small, 600 GB of 750 GB moved. */
 const ON_SMALL: Ceiling = {
-  tier: { id: 'small', name: 'Small', paths: 4, monthly: 4 },
+  tier: { id: 'small', name: 'Small', paths: 4, monthly: 5 },
   ceilingGb: 750,
   topUps: 0,
   gbMoved: 600,
   share: 0.8,
   state: 'near',
   holds: true,
-  moveUp: { tierId: 'medium', name: 'Medium', paths: 20, setupEur: 7, monthlyEur: 8, ceilingGb: 2000 },
-  topUp: { tierId: 'small', bandGb: 750, priceEur: 8, ceilingGb: 1500 },
-  breakEven: { extraOnceEur: 1, savedMonthlyEur: 4, paysBackInDays: 8 },
+  moveUp: { tierId: 'medium', name: 'Medium', paths: 20, monthlyEur: 12, ceilingGb: 2000 },
+  topUp: { tierId: 'small', bandGb: 750, priceEur: 5, ceilingGb: 1500 },
+  breakEven: { extraOnceEur: 5, savedMonthlyEur: 7, paysBackInDays: 22 },
 };
 
 const GB = 1_000_000_000;
@@ -78,8 +78,8 @@ describe('past the ceiling', () => {
     renderNote(200 * GB);
     const note = await screen.findByRole('note');
     expect(note.textContent).toContain('about 200 GB, and the 600 GB already moved pass your data ceiling of 750 GB');
-    expect(note.textContent).toContain('Move up to Medium: €7 once, then €8 a month.');
-    expect(note.textContent).toContain('Or buy another 750 GB once, for €8.');
+    expect(note.textContent).toContain('Move up to Medium: €12 a month.');
+    expect(note.textContent).toContain('Or buy another 750 GB once, for €5.');
     expect(screen.getByRole('link', { name: 'your data ceiling on the Billing page' }).getAttribute('href')).toBe('/billing');
   });
 

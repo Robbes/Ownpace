@@ -53,7 +53,7 @@ describe('discovery/confirm routes (0013 T4/T5)', () => {
     pool = new Pool({ connectionString: PG });
     await pool.query(`INSERT INTO tenant (id, name, status, settings) VALUES ($1,'Disc T','active','{}') ON CONFLICT DO NOTHING`, [TENANT]);
     // Room for what this file starts: an agreed Extra large (workplan 0109 T6).
-    // It starts a migration of two kinds, past Tiny's one, and is not about the
+    // It starts a migration of two kinds, past Free's one, and is not about the
     // tier's paths, which `a-start-past-the-tier.unit.test.ts` holds.
     await pool.query(
       `INSERT INTO data_allowance (tenant_id, kind, tier_id, band_gb, price_eur, consented_by)

@@ -239,7 +239,7 @@ export const MappingDomainStatusSchema = z.object({
         kind: z.literal('data-ceiling'),
         ceilingGb: z.number(),
         held: z.number(),
-        moveUp: z.object({ name: z.string(), setupEur: z.number(), monthlyEur: z.number() }).nullable(),
+        moveUp: z.object({ name: z.string(), monthlyEur: z.number() }).nullable(),
         topUp: z.object({ bandGb: z.number(), priceEur: z.number() }).nullable(),
       }),
     ])

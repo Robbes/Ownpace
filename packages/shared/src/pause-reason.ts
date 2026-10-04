@@ -89,9 +89,13 @@ export type PauseReason =
       readonly ceilingGb: number;
       /** How many items waited on the pass that set this. */
       readonly held: number;
-      /** Moving up: the tier, its setup difference once, then its monthly. Null past Extra large. */
-      readonly moveUp: { readonly name: string; readonly setupEur: number; readonly monthlyEur: number } | null;
-      /** One more band of the tier, once. Null on Tiny, which has no top-up. */
+      /**
+       * Moving up: the tier and its monthly price, with nothing to pay once
+       * (no setup fee since the list of 2026-09-29). Null past Extra large. A
+       * row written before then also carries `setupEur`, which is not read.
+       */
+      readonly moveUp: { readonly name: string; readonly monthlyEur: number } | null;
+      /** One more band of the tier, once. Null on Free, which has no top-up. */
       readonly topUp: { readonly bandGb: number; readonly priceEur: number } | null;
     };
 
@@ -139,7 +143,7 @@ export function isPauseReason(value: unknown): value is PauseReason {
     return (
       num(r.ceilingGb) &&
       num(r.held) &&
-      offer(r.moveUp, ['name', 'setupEur', 'monthlyEur']) &&
+      offer(r.moveUp, ['name', 'monthlyEur']) &&
       offer(r.topUp, ['bandGb', 'priceEur'])
     );
   }

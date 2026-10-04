@@ -224,8 +224,8 @@ describe('new items waiting at the data ceiling (0109 T6)', () => {
     kind: 'data-ceiling',
     ceilingGb: 750,
     held: 3,
-    moveUp: { name: 'Medium', setupEur: 7, monthlyEur: 8 },
-    topUp: { bandGb: 750, priceEur: 8 },
+    moveUp: { name: 'Medium', monthlyEur: 12 },
+    topUp: { bandGb: 750, priceEur: 5 },
   };
 
   it('says what waits, that changes carry on, and both ways on with their prices', () => {
@@ -233,11 +233,11 @@ describe('new items waiting at the data ceiling (0109 T6)', () => {
     const text = screen.getByRole('note').textContent ?? '';
     expect(text).toContain('New items wait at your data ceiling of 750 GB: 3 not copied yet.');
     expect(text).toContain('Changes to what is already copied carry on.');
-    expect(text).toContain('Move up to Medium: €7 once, then €8 a month.');
-    expect(text).toContain('Or buy another 750 GB once, for €8.');
+    expect(text).toContain('Move up to Medium: €12 a month.');
+    expect(text).toContain('Or buy another 750 GB once, for €5.');
   });
 
-  it('names no top-up on Tiny, and a ceiling past a thousand GB in TB', () => {
+  it('names no top-up on Free, and a ceiling past a thousand GB in TB', () => {
     render(<PausedBecause reason={{ ...AT_THE_CEILING, ceilingGb: 2000, topUp: null }} />);
     const text = screen.getByRole('note').textContent ?? '';
     expect(text).toContain('data ceiling of 2 TB');
