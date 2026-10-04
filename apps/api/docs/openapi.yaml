@@ -2351,8 +2351,12 @@ paths:
             says it starts by itself once that person has connected (ADR-0035's
             amendment, start when granted). `platform_held`: an operator hold
             is open (`PlatformHeld`). `account_closed`: the organisation was
-            closed (`AccountClosed`, workplan 0085 T2). `anyOf`, not `oneOf`:
-            those two bodies are an `Error` too.
+            closed (`AccountClosed`, workplan 0085 T2). `paths_need_a_yes`: the
+            start would hold more migrations at the same time than the agreed
+            tier runs (workplan 0109 T6, outside the alpha), with `tier`, `after`
+            and `needs` (the smallest tier that runs them, null past Extra
+            large); every door that takes a slot answers it the same way.
+            `anyOf`, not `oneOf`: those bodies are an `Error` too.
           content:
             application/json:
               schema:

@@ -33,6 +33,17 @@
  * Only the managed service sends the line. The appliance's owner sends this
  * mail from their own box, and our policy is not theirs, so the appliance
  * hands the press no address (`announceByHandShares`'s `privacyPolicy`).
+ *
+ * ## The Alpha conditions too, for the grant mail
+ *
+ * The access-granted mail links the Alpha conditions while the deployment runs
+ * the alpha (0139 T4, with 0131 T1: *"the access-granted mail's sentence
+ * carries the same link"*). The api sends that mail as well, so its address is
+ * made here, from the same key and by the same rule: `alphaConditionsUrl`. The
+ * file per language is written out a second time for the reason above, and the
+ * same guard holds it to the web's `LEGAL_FILES` and to what the site build
+ * writes. Only the managed service sends a grant mail; the appliance lets
+ * nobody in.
  */
 
 import type { NotificationLocale } from './notifications.ts';
@@ -81,4 +92,15 @@ export function legalSiteForMailFrom(env: LegalSiteForMailEnv): string {
 /** The privacy policy's address, in the mail's language. */
 export function privacyPolicyUrl(locale: NotificationLocale, env: LegalSiteForMailEnv): string {
   return `${legalSiteForMailFrom(env)}/${PRIVACY_POLICY_FILE[locale]}`;
+}
+
+/** The Alpha conditions' file on the site, per language, as the site build names it. */
+export const ALPHA_CONDITIONS_FILE: Readonly<Record<NotificationLocale, string>> = {
+  en: 'alpha.html',
+  nl: 'nl/alpha.html',
+};
+
+/** The Alpha conditions' address, in the mail's language (the access-granted mail). */
+export function alphaConditionsUrl(locale: NotificationLocale, env: LegalSiteForMailEnv): string {
+  return `${legalSiteForMailFrom(env)}/${ALPHA_CONDITIONS_FILE[locale]}`;
 }

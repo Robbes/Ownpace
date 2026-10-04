@@ -2182,6 +2182,118 @@ Read it with:
 }
 set_page_languages "$(read_env ZITADEL_DEFAULT_LANGUAGE '')"
 
+# ------------------------------------- the notice on the registration page --
+#
+# THE PRIVACY POLICY AND THE TERMS, BEFORE A PASSWORD IS TYPED (workplan 0135
+# T5, for 0139 T4). A tester's account is made on this provider's registration
+# page: a name, an address and a password, kept by a service we run (privacy
+# §4.4). Upstream's instance privacy policy ships with no terms link and no
+# privacy link (`DefaultInstance.PrivacyPolicy` in `cmd/defaults.yaml` at
+# v4.19.2), so that page collected all three with no notice. With either link
+# set, its footer shows the links and the registration form asks to accept
+# them. That acceptance is the notice, not 0139 T3's record, which the app
+# keeps with the version and the time.
+#
+# ONE ADDRESS, THE WEB BUILD'S. The links are made from VITE_LEGAL_SITE_URL in
+# .env, the key the web app's links (apps/web/src/services/legal-links.ts) and
+# the api's mails (LEGAL_SITE_URL) are made from, by the same rule: empty is
+# the production site, a trailing slash is dropped, and anything but an http(s)
+# origin stops the run before anything is written. There is no value that
+# leaves the page without them: asked how the links behave before the texts
+# are published, the owner chose "Always shown" (2026-10-03), because testers
+# arrive only after publication. On the OTA stack they point at its test site.
+#
+# IN DUTCH, BECAUSE ZITADEL KEEPS ONE LINK PER INSTANCE. Login v1 can fill a
+# `{{.Lang}}` in the link with the page's language (`setLinksOnBaseData` in
+# upstream's `renderer.go`), but the site's two languages share no pattern it
+# could fill: English at the root, Dutch under nl/, and the Dutch terms named
+# voorwaarden.html. The testers are Dutch (0135 D4; live's page defaults to
+# nl), so the links are the Dutch pages, which carry a switch to the English
+# ones. The file names are the site build's (`files` in site/copy.mjs, the
+# web's LEGAL_FILES.nl), never this script's own:
+# scripts/a-notice-before-a-password.unit.test.ts holds them to LEGAL_FILES,
+# and a-policy-link-that-answers holds LEGAL_FILES to what the build writes.
+#
+# THE WHOLE POLICY IS WRITTEN, THE REST COPIED BACK. The update replaces all
+# seven fields (`UpdatePrivacyPolicyToDomain` at v4.19.2: a field left out is
+# a field emptied), so the five it does not set go back as they were read. It
+# is written only when a link differs, because Zitadel refuses an update that
+# changes nothing (Errors.Instance.PrivacyPolicy.NotChanged). Then it is read
+# back twice: the instance's policy, and what the project's organisation
+# shows, because an organisation's own policy stands in front of the
+# instance's on its pages. A fresh instance has both links from its first
+# start (managed.yml's ZITADEL_DEFAULTINSTANCE_PRIVACYPOLICY_*), for a run that
+# stops before this step.
+legal_site_from() {   # <VITE_LEGAL_SITE_URL's value> — the site's origin, as the web build makes it
+  local v="$1" scheme host port
+  v="${v#"${v%%[![:space:]]*}"}"
+  v="${v%"${v##*[![:space:]]}"}"
+  if [ -z "$v" ]; then
+    printf '%s' 'https://www.ownpace.eu'
+    return 0
+  fi
+  if ! [[ "$v" =~ ^([A-Za-z][A-Za-z0-9+.-]*)://([A-Za-z0-9.-]+)(:([0-9]+))?/?$ ]]; then
+    die "VITE_LEGAL_SITE_URL is '${v}', which is not a site's origin alone, so the sign-in page
+cannot link the legal texts from it, and the web build refuses it too. Set it to the
+origin alone in ${ENV_FILE}, such as https://www.ownpace.eu, or leave it empty for that one."
+  fi
+  scheme="$(tr '[:upper:]' '[:lower:]' <<<"${BASH_REMATCH[1]}")"
+  host="$(tr '[:upper:]' '[:lower:]' <<<"${BASH_REMATCH[2]}")"
+  port="${BASH_REMATCH[4]}"
+  case "$scheme" in
+    https|http) ;;
+    *) die "VITE_LEGAL_SITE_URL is '${v}', which is not an http(s) address, so the sign-in page
+cannot link the legal texts from it, and the web build refuses it too. Set it to the
+origin alone in ${ENV_FILE}, such as https://www.ownpace.eu, or leave it empty for that one." ;;
+  esac
+  if [ "${scheme}:${port}" = "https:443" ] || [ "${scheme}:${port}" = "http:80" ]; then port=""; fi
+  printf '%s://%s%s' "$scheme" "$host" "${port:+:${port}}"
+}
+sign_in_page_link() {   # <privacy|terms> <site origin> — the Dutch page, by the site build's file name
+  case "$1" in
+    privacy) printf '%s/nl/privacy.html' "$2" ;;
+    terms) printf '%s/nl/voorwaarden.html' "$2" ;;
+    *) die "sign_in_page_link: no page '${1}'" ;;
+  esac
+}
+sign_in_notice_read() {   # <instance|organisation> — the two links that policy shows
+  local path=/admin/v1/policies/privacy
+  [ "$1" = organisation ] && path=/management/v1/policies/privacy
+  jq -c '{tosLink: (.policy.tosLink // ""), privacyLink: (.policy.privacyLink // "")}' <<<"$(api GET "$path")"
+}
+set_sign_in_notice() {   # <site origin>
+  local site="$1" privacy terms want current shown
+  privacy="$(sign_in_page_link privacy "$site")"
+  terms="$(sign_in_page_link terms "$site")"
+  want="$(jq -nc --arg t "$terms" --arg p "$privacy" '{tosLink: $t, privacyLink: $p}')"
+  current="$(api GET /admin/v1/policies/privacy)"
+  if [ "$(jq -c '{tosLink: (.policy.tosLink // ""), privacyLink: (.policy.privacyLink // "")}' <<<"$current")" != "$want" ]; then
+    say "the sign-in page links $(jq -r '.policy.privacyLink // "no privacy policy"' <<<"$current"): linking ours, in Dutch"
+    api PUT /admin/v1/policies/privacy "$(jq -c --argjson w "$want" '(.policy // {}) | $w + {
+        helpLink: (.helpLink // ""), supportEmail: (.supportEmail // ""), docsLink: (.docsLink // ""),
+        customLink: (.customLink // ""), customLinkText: (.customLinkText // "")}' <<<"$current")" >/dev/null
+  fi
+  shown="$(sign_in_notice_read instance)"
+  [ "$shown" = "$want" ] || die "could not link the privacy policy and the terms on the sign-in page.
+
+The instance's privacy policy reads ${shown}, not ${want}, so its registration page
+collects a name, an address and a password with no notice. Read it with:
+
+    curl -sS ${ISSUER}/admin/v1/policies/privacy -H \"Authorization: Bearer \$PAT\" | jq .policy"
+  shown="$(sign_in_notice_read organisation)"
+  [ "$shown" = "$want" ] || die "the project's organisation has its own privacy policy, which shows ${shown}.
+
+An organisation's own policy stands in front of the instance's on its sign-in and
+registration pages, so they do not show ${privacy} and ${terms}.
+Read it, and put it back to the instance's, with the provisioning token:
+
+    curl -sS ${ISSUER}/management/v1/policies/privacy -H \"Authorization: Bearer \$PAT\" | jq .policy
+    curl -sS -X DELETE ${ISSUER}/management/v1/policies/privacy -H \"Authorization: Bearer \$PAT\""
+  say "the sign-in and registration pages link ${privacy} and ${terms}"
+}
+SIGN_IN_SITE="$(legal_site_from "$(read_env VITE_LEGAL_SITE_URL '')")"
+set_sign_in_notice "$SIGN_IN_SITE"
+
 # ---------------------------------------------- how many organisations here --
 #
 # ONE, AND COUNTED ON EVERY RUN (workplan 0135 T3), after the two settings
@@ -2258,6 +2370,9 @@ cat <<EOF
   console    ${ISSUER}/ui/console
   organisations ${ORG_COUNT} (one is right: workplan 0135 T3)
   languages  nl, en; ${PAGE_DEFAULT_LANGUAGE} by default (ZITADEL_DEFAULT_LANGUAGE)
+  notice     $(sign_in_page_link privacy "$SIGN_IN_SITE")
+             $(sign_in_page_link terms "$SIGN_IN_SITE")
+             (the Dutch pages, on the site VITE_LEGAL_SITE_URL names)
   first user $(read_env ZITADEL_ADMIN_USERNAME owner)@${ORG_DOMAIN}
              (the login name carries the ORGANISATION's domain, not the issuer's)
              password is ZITADEL_ADMIN_PASSWORD in .env, and must be changed

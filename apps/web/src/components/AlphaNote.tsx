@@ -60,9 +60,10 @@ export const AlphaNote: React.FC<{
         {t('alpha.note.keep')}
       </p>
       {/* 0131 T1 (b): the links to the alpha conditions (0139 T2) and the
-          tester guide (0144 T1) go here, in the reader's language, once 0139
-          T10's module builds their addresses. The grant mail's paragraph
-          carries the same links. */}
+          tester guide (0144 T1) go here, in the reader's language, through
+          0139 T10's module (`LegalLinks`). The grant mail's paragraph links
+          the conditions since 0139 T4, and the request form links them under
+          the form; the note itself does not yet. */}
     </div>
   );
 };
