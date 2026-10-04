@@ -77,7 +77,7 @@ that, and this section plus D are walked again.
    owner. Use a person whose only organisation on this stack is this one:
    step H's token is theirs, and the lane names no organisation, so the API
    takes the person's only membership (`resolveTenant`).
-2. *Connections* → *Add a connection*; *Source or target?* → **Targets**;
+2. *Accounts* → *Add an account*; *Source or target?* → **Targets**;
    *Provider* → **Soverin** — one row for the one account, which carries
    calendars, contacts, mail and tasks. The boxes come pre-filled
    with what Soverin's own help pages publish: host `caldav.soverin.net`,

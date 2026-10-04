@@ -53,7 +53,7 @@ E-mail, agenda's, contacten en herinneringen, wat u aanvinkt. Niet iCloud Drive.
 
 De herinneringen van Apple zijn `VTODO`-objecten op dezelfde CalDAV-server als uw agenda's, dus dezelfde inloggegevens bereiken beide. Maar het zijn **geen** afspraken, en dit product doet ook niet alsof. Taken zijn een eigen soort gegevens, apart van afspraken. Een herinnering als afspraak in de agenda zetten, zou iets opleveren wat gemigreerd lijkt en fout is.
 
-Het doel moet dus ook taken kunnen dragen. Een CalDAV-doel dat in zijn `supported-calendar-component-set` alleen `VEVENT` noemt, kan ze niet aannemen. Zijn test zegt dat, en een migratie die er taken heen zou sturen, wordt bij het klaarzetten geweigerd, bij **Waar gaat het naartoe?**, in plaats van halverwege een ronde te falen.
+Het doel moet dus ook taken kunnen dragen. Een CalDAV-doel dat in zijn `supported-calendar-component-set` alleen `VEVENT` noemt, kan ze niet aannemen, en dat blijkt pas bij de eerste ronde: zijn test telt de takenlijsten die het heeft, en kan niet zien of het taken aanneemt. In de ronde wordt elke taak bij het schrijven geweigerd, en staat ze onder **Mislukkingen** met een zin die zegt wat er geschreven werd en wat het doel aanneemt. Kies voor taken een doel dat takenlijsten bewaart, zoals een Nextcloud.
 
 ### Bestanden: iCloud Drive, en waarom het een nee is en geen ? {#files}
 

@@ -35,7 +35,14 @@ migration* is the one way a migration is made on managed, and T4, T1 (c) and T6 
     the Accounts page pins that a protocol card fills in nothing, so a person types the port.
   - The wizard took away a data type that the destination had measured it cannot take (0106
     T3a). The flow offers it, and the create door refuses it in the account's own words on
-    *Where does it go?*, before anything is set up (`measuredNoRefusal`).
+    *Where does it go?*, before anything is set up (`measuredNoRefusal`). Neither catches a
+    CalDAV server that takes no tasks: its task face counts task lists and never says no, so
+    each task is refused by name in the first pass, under *Failures*. The Apple guide promised
+    an earlier warning, and now says this.
+  - On a deployment that declares Google's restricted scopes, the flow reads Gmail through the
+    Google account, whose form has no app-password fold, and a saved Gmail account is not
+    offered there (`savedSources` matches the carrier's kind). An app-password Gmail account
+    is then reachable only where the declaration is absent.
   - A saved *Export archive* account is no longer a way into a migration: the flow reads a
     Takeout from the folder `Takeout` of the destination's files (item 2). The Accounts page still
     adds one, and its test says what an export holds.

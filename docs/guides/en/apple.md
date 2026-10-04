@@ -53,7 +53,7 @@ Mail, calendars, contacts and reminders, whichever you tick. Not iCloud Drive.
 
 Apple's Reminders are `VTODO` objects living on the same CalDAV host as your calendars, so one credential reaches both — but they are **not** events, and this product does not pretend otherwise. Tasks are their own kind of data, kept apart from events. Filing a reminder as a calendar event would produce something that looks migrated and is wrong.
 
-That means the target must also carry tasks. A CalDAV target that advertises only `VEVENT` in its `supported-calendar-component-set` cannot take them. Its test says so, and a migration that would send tasks there is refused when it is set up, on **Where does it go?**, rather than failing halfway through a run.
+That means the target must also carry tasks. A CalDAV target that advertises only `VEVENT` in its `supported-calendar-component-set` cannot take them, and nothing finds that out before the first pass: its test counts the task lists it has, and cannot tell whether it takes tasks. In the pass, each task is refused as it is written, and listed under **Failures** with a sentence that names what was written and what the target takes. For tasks, choose a target that keeps task lists, such as a Nextcloud.
 
 ### Files: iCloud Drive, and why it is a no rather than a ? {#files}
 
