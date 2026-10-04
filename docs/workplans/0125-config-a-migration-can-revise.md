@@ -2,7 +2,14 @@
 
 > **In one line:** Revising a live migration's config (`config-revision.ts`): managed's `nativeFilePolicy` edit form, the appliance's boot-time `revision_state` check, the `policy_refused` failure category, adding a data type, a switched-off data type shown as `stopped`, and the schedule changed on the migration page.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-10-04 (update this block at the end of every session)
+
+**2026-10-04: the name and the source root folder written by the update route (0153 open question
+5, item 4).** The route wrote neither: a `name` was answered 200 and dropped, `rootFolderId` was
+refused on every migration, and Dropbox's `rootPath` was dropped. T1's table now answers
+`source.rootFolderId` with what it knows of the ledger (`RevisionFacts.copiedAnything`): a
+migration with no item may still choose its folder, and one with an item, or a caller that cannot
+say (the appliance's comparison), is refused as before. 0153 records the build.
 
 **2026-09-28: T8, the schedule changed on the migration page, BUILT (the owner's (c)).** The
 owner asked whether his hourly Dropbox migration could run every 15 minutes, and it could not: the

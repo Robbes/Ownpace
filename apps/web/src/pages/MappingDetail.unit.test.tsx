@@ -10,13 +10,14 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { STRINGS } from '../i18n/strings.ts';
 
 const {
   mappingApiGet,
+  mappingRenameMock,
   mappingDiscoveryMock,
   fetchAllDiscoveryMock,
   fetchRunsMock,
@@ -26,6 +27,7 @@ const {
   editionFlag,
 } = vi.hoisted(() => ({
   mappingApiGet: vi.fn(),
+  mappingRenameMock: vi.fn(),
   mappingDiscoveryMock: vi.fn(),
   fetchAllDiscoveryMock: vi.fn(),
   fetchRunsMock: vi.fn(),
@@ -36,7 +38,7 @@ const {
 }));
 
 vi.mock('../services/mapping-service', () => ({
-  mappingApi: { get: mappingApiGet, getDiscovery: mappingDiscoveryMock },
+  mappingApi: { get: mappingApiGet, getDiscovery: mappingDiscoveryMock, rename: mappingRenameMock },
 }));
 
 // VITE_EDITION is baked in by vite `define` (edition.unit.test.ts explains why
@@ -456,6 +458,52 @@ describe('the schedule panel (the owner, 2026-09-28)', () => {
     expect(await screen.findByRole('heading', { name: 'Before you switch' })).toBeInTheDocument();
     expect(screen.queryByText(STRINGS.en['settings.schedule'])).toBeNull();
     expect(mappingApiGet).not.toHaveBeenCalled();
+  });
+});
+
+describe('Rename, beside the title (0153 open question 5, item 4)', () => {
+  it('renames from beside the title, and the heading reads the stored name', async () => {
+    mappingRenameMock.mockResolvedValue({ id: 'acme-mail', name: 'Anna’s mail', updatedAt: '2026-10-04T08:00:00Z' });
+    renderHub();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Acme mail' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    const box = screen.getByLabelText('Name of this migration');
+    expect(box).toHaveValue('Acme mail');
+    fireEvent.change(box, { target: { value: '  Anna’s mail  ' } });
+    mappingApiGet.mockResolvedValue(aMapping({ name: 'Anna’s mail' }));
+    fireEvent.click(within(box.closest('form')!).getByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('heading', { level: 2, name: 'Anna’s mail' })).toBeInTheDocument();
+    expect(mappingRenameMock).toHaveBeenCalledWith('acme-mail', 'Anna’s mail');
+  });
+
+  it('says why a rename did not land, and keeps the box with what was typed', async () => {
+    mappingRenameMock.mockRejectedValue(new Error('The service is down.'));
+    renderHub();
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename' }));
+    const box = screen.getByLabelText('Name of this migration');
+    fireEvent.change(box, { target: { value: 'Anna’s mail' } });
+    fireEvent.click(within(box.closest('form')!).getByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Not renamed:');
+    expect(screen.getByLabelText('Name of this migration')).toHaveValue('Anna’s mail');
+  });
+
+  it('waits for a name, and Cancel leaves the title as it was', async () => {
+    renderHub();
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename' }));
+    const box = screen.getByLabelText('Name of this migration');
+    fireEvent.change(box, { target: { value: '   ' } });
+    const form = within(box.closest('form')!);
+    expect(form.getByRole('button', { name: 'Save' })).toBeDisabled();
+    fireEvent.click(form.getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByRole('heading', { level: 2, name: 'Acme mail' })).toBeInTheDocument();
+    expect(mappingRenameMock).not.toHaveBeenCalled();
+  });
+
+  it('is not offered on the appliance, whose names are its mapping files’', async () => {
+    editionFlag.selfhost = true;
+    renderHub();
+    expect(await screen.findByRole('heading', { name: 'Before you switch' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Rename' })).toBeNull();
   });
 });
 

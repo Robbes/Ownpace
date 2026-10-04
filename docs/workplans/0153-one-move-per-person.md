@@ -4,6 +4,30 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04: *Rename* on the migration page, and the update route writing the name and the root
+folder (open question 5, item 4, the first part).** The flow names each migration itself, and the
+recommendation put *Rename* on the migration page for the name a person would rather read.
+
+- ***Rename* sits beside the migration's title** on managed. It turns into a box with *Save* and
+  *Cancel*, and the heading reads the stored name once it is saved. A failure is said beside it
+  and keeps what was typed. The appliance's names stay its mapping files'.
+- **The update route writes the name**, trimmed, and refuses a name of spaces. It used to answer
+  200 and drop it.
+- **The two fixes the root folder needed.** A root folder may change until the migration's ledger
+  holds an item. `rootFolderId` on Drive and Box, and `rootPath` on Dropbox, go into the
+  migration's own override, through the parser a pass reads them with. The route used to refuse
+  `rootFolderId` on every migration and drop `rootPath` without a word. Once an item exists, the
+  table's refusal stands. It is asked again beside the write, since a pass may copy its first
+  item in between. A source with no folder, and the other spelling, are refused by name. An empty
+  folder takes it off the override, except where the account itself holds one.
+- **The rule is shared's** (`RevisionFacts`, `onceCopied`): the appliance's comparison cannot say
+  whether anything was copied, so it keeps its refusal.
+- **Proved by** seven cases against real rows in `a-name-and-a-folder-the-route-writes`, three in
+  shared, and four on the migration page. Two mutations are caught: dropping the name, and a ledger
+  read that always says nothing was copied.
+- **Still to come for item 4:** the folder prefix on screen 5, the root folder on screen 3, and the
+  privacy sentence on TLS for the lawyer.
+
 **2026-10-04: the Google Calendar and Google Contacts cards retired for new migrations (open
 question 5, item 3).** The Google account is the same way in and asks Google for only what was
 ticked, so the two cards offered nothing to choose between.

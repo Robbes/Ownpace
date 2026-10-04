@@ -40,6 +40,7 @@ import { useT, useFormatters } from '../i18n/index.tsx';
 import RunsPanel from '../components/RunsPanel.tsx';
 import MappingLinksPanel from '../components/MappingLinksPanel.tsx';
 import ExportPolicyPanel from '../components/ExportPolicyPanel.tsx';
+import { RenameMigration } from '../components/RenameMigration.tsx';
 import SchedulePanel from '../components/SchedulePanel.tsx';
 import MigrationKindsPanel from '../components/MigrationKindsPanel.tsx';
 import CompletionReportDownload from '../components/CompletionReportDownload.tsx';
@@ -266,11 +267,17 @@ const MappingDetail: React.FC = () => {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold text-gray-900">
-          {detail.data?.name ?? t('hub.fallbackTitle')}
-        </h2>
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {/* *Rename* beside the title (0153 open question 5, item 4), where the
+            detail read is in: managed only, as the appliance's names are its
+            mapping files'. */}
+        <RenameMigration
+          mappingId={id}
+          name={detail.data?.name}
+          fallback={t('hub.fallbackTitle')}
+          editable={Boolean(detail.data) && !isSelfHost()}
+        />
+        <div className="ml-auto flex items-center gap-3">
           {/* Active only (0128). A migration in the continuous lane is
               after its cutover, and no update brings it back before one: the
               pause it offered was refused every time it was pressed. The lane

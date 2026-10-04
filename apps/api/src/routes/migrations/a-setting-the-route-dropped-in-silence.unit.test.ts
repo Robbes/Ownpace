@@ -92,7 +92,9 @@ describe('the route honours the rule rather than restating it', () => {
     // the mistake this prevents is an OMISSION. A handler that stopped calling
     // `refusalsFor` returns exactly what one that calls it returns, for every
     // body that proposes nothing — which is almost all of them.
-    expect(SOURCE).toContain('refusalsFor(proposedRevisions(body))');
+    // With what it knows of the ledger since a root folder may change until the
+    // first item (0153 open question 5, item 4).
+    expect(SOURCE).toMatch(/refusalsFor\(proposedRevisions\(body\), copiedAnything/);
     expect(SOURCE).toMatch(/revision_refused/);
     // 409, not 400: the body is well-formed and the request is understood.
     // What refuses it is the state of the migration it names.
@@ -115,9 +117,10 @@ describe('the route honours the rule rather than restating it', () => {
     // subject, a Drive root, an archive path. Writing a fresh object here would
     // blank them, and the next pass would fall back to the connection's own
     // subject: ADR-0033's one-subject-per-mapping rule, undone by a settings save.
-    expect(SOURCE).toMatch(
-      /sourceConfigOverride: \{ \.\.\.\(currentOverride \?\? \{\}\), \.\.\.revisedFormat \}/,
-    );
+    // Built before the write since the root folder joins it (0153 open
+    // question 5, item 4), and still over what the row holds.
+    expect(SOURCE).toMatch(/nextOverride = \{ \.\.\.\(currentOverride \?\? \{\}\), \.\.\.revisedFormat \}/);
+    expect(SOURCE).toContain('sourceConfigOverride: nextOverride');
   });
 
   it('validates the policy through the shared parser, not a local list', () => {

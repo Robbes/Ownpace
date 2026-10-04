@@ -142,6 +142,7 @@ import { serverFault } from '../../server-fault.ts';
 import { probeAnswers } from '../../probe-answer.ts';
 import { refusedOverTestLimit } from '../../probe-limit.ts';
 import { archiveOnServerRefusal } from '../archive-on-the-server.ts';
+import { hasCopiedAnything, revisedRoot, rootRevision } from './revise-root.ts';
 
 /** Take the first row of a RETURNING result or fail loudly (no silent nulls). */
 function firstOrThrow<T>(rows: T[], what: string): T {
@@ -823,10 +824,11 @@ export function sourceConfigOverride(
  *
  * ONLY the fields this route can act on. `schedule` is collected since the
  * route writes it (the owner, 2026-09-28): the table permits it, and asking
- * keeps the table the one place that says so. `name` is permitted by the table
- * and is not collected, because this route does not write it yet: collecting
- * it would put it through a refusal check it passes and change nothing, which
- * reads like support it does not have.
+ * keeps the table the one place that says so. `name` is collected since the
+ * route writes it too (*Rename*, 0153 open question 5, item 4); until then it
+ * was answered 200 and dropped. A root folder is `rootFolderId` on Drive and
+ * Box and `rootPath` on Dropbox, one field to the table: `rootPath` was
+ * dropped without a word.
  *
  * A field is proposed when it is PRESENT, not when it differs from what is
  * stored. "May this change at all" is a property of the field, so a body
@@ -837,13 +839,16 @@ export function sourceConfigOverride(
 export function proposedRevisions(
   body: Pick<
     z.infer<typeof UpdateMappingSchema>,
-    'sourceType' | 'targetType' | 'sourceConfig' | 'targetConfig' | 'syncConfig'
+    'name' | 'sourceType' | 'targetType' | 'sourceConfig' | 'targetConfig' | 'syncConfig'
   >,
 ): readonly RevisableField[] {
   const proposed: RevisableField[] = [];
+  if (body.name !== undefined) proposed.push('name');
   if (body.sourceType !== undefined) proposed.push('source.type');
   if (body.targetType !== undefined) proposed.push('target.type');
-  if (body.sourceConfig?.rootFolderId !== undefined) proposed.push('source.rootFolderId');
+  if (body.sourceConfig?.rootFolderId !== undefined || body.sourceConfig?.rootPath !== undefined) {
+    proposed.push('source.rootFolderId');
+  }
   if (body.targetConfig?.username !== undefined) proposed.push('target.account');
   if (body.syncConfig?.schedule !== undefined) proposed.push('schedule');
   return proposed;
@@ -1863,6 +1868,15 @@ export const UpdateMappingSchema = CreateMappingBase.partial()
     if (body.sourceConfig) refuseUnreadableExportFormat(ctx, body.sourceConfig);
     if (body.syncConfig?.schedule !== undefined) refuseUnreadableSchedule(ctx, body.syncConfig.schedule);
     refuseTestersThrottle(ctx, body.throttleConfig);
+    // A name of spaces is no name (0153 open question 5, item 4): the route
+    // stores it trimmed, and a migration called nothing is one nobody can find.
+    if (body.name !== undefined && body.name.trim() === '') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['name'],
+        message: "A migration's name cannot be empty: type the words it should be called by.",
+      });
+    }
   });
 
 /**
@@ -3035,6 +3049,12 @@ router.put(
       if (body.syncConfig?.schedule !== undefined) {
         updateData.schedule = body.syncConfig.schedule;
       }
+      // THE NAME (*Rename*, 0153 open question 5, item 4): a label nothing reads
+      // to decide anything (`mayRevise('name')`), stored trimmed. It was
+      // answered 200 and dropped.
+      if (body.name !== undefined) {
+        updateData.name = body.name.trim();
+      }
 
       /**
        * WHAT A LIVE MIGRATION MAY CHANGE ABOUT ITSELF (workplan 0125 T1/T3).
@@ -3069,7 +3089,16 @@ router.put(
        * landed. Every refused field at once, never the first — somebody who
        * changed three and is told about one fixes it and is refused again.
        */
-      const refused = refusalsFor(proposedRevisions(body));
+      const rootRevised = rootRevision(body.sourceConfig);
+      // WHETHER IT HAS COPIED ANYTHING, asked only where the answer decides
+      // (0153 open question 5, item 4): a root folder may change until the
+      // ledger holds an item. Asked again beside the write below, since a pass
+      // may copy its first item in between.
+      const copiedAnything =
+        rootRevised === undefined
+          ? undefined
+          : await withTenantDb(tenantId, pool, (db) => hasCopiedAnything(db, tenantId, mappingId));
+      const refused = refusalsFor(proposedRevisions(body), copiedAnything === undefined ? {} : { copiedAnything });
       if (refused.length > 0) {
         res.status(409).json({
           error: 'revision_refused',
@@ -3162,7 +3191,22 @@ router.put(
             return { kind: 'format_for_another_source', sourceKind: source.kind } as const;
           }
         }
-        const currentOverride = !revisesFormat
+        // THE ROOT FOLDER, asked again beside the write: a pass that copied its
+        // first item since the read above makes the change unsafe now. Its
+        // source decides which spelling applies, and whether any does.
+        let rootSource: { readonly kind: string; readonly config: unknown } | undefined;
+        if (rootRevised) {
+          if (await hasCopiedAnything(db, tenantId, mappingId)) return { kind: 'root_copied' } as const;
+          [rootSource] = await db
+            .select({ kind: schema.connection.kind, config: schema.connection.config })
+            .from(schema.mailboxMapping)
+            .innerJoin(schema.mailbox, eq(schema.mailbox.id, schema.mailboxMapping.sourceMailboxId))
+            .innerJoin(schema.connection, eq(schema.connection.id, schema.mailbox.connectionId))
+            .where(
+              and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId)),
+            );
+        }
+        const currentOverride = !revisesFormat && !rootRevised
           ? undefined
           : ((
               await db
@@ -3175,6 +3219,17 @@ router.put(
                   ),
                 )
             )[0]?.o as Record<string, unknown> | null | undefined);
+        // The override the row holds next: the format merged over it, and the
+        // root folder checked against its source (`revisedRoot`).
+        let nextOverride: Record<string, unknown> | undefined;
+        if (revisesFormat || rootRevised) {
+          nextOverride = { ...(currentOverride ?? {}), ...revisedFormat };
+          if (rootRevised && rootSource) {
+            const root = revisedRoot(rootRevised, rootSource, nextOverride);
+            if (!root.ok) return { kind: 'root_refused', field: root.field, message: root.message } as const;
+            nextOverride = root.override;
+          }
+        }
         const [row] = await db
           .update(schema.mailboxMapping)
           // Stamped LAST so it cannot be spread away by a field above, and
@@ -3183,9 +3238,7 @@ router.put(
           // ran through here leaving no timestamp at all (workplan 0109 T1).
           .set({
             ...updateData,
-            ...(revisesFormat
-              ? { sourceConfigOverride: { ...(currentOverride ?? {}), ...revisedFormat } }
-              : {}),
+            ...(nextOverride !== undefined ? { sourceConfigOverride: nextOverride } : {}),
             updatedAt: new Date(),
           })
           .where(
@@ -3216,6 +3269,22 @@ router.put(
         return { kind: 'updated', row } as const;
       });
 
+      if (outcome.kind === 'root_copied') {
+        // The table's own refusal, as the check before the transaction gives it.
+        res.status(409).json({
+          error: 'revision_refused',
+          message: 'Some of what was asked for cannot change on a migration that already exists.',
+          refused: refusalsFor(['source.rootFolderId']).map((r) => ({ field: r.field, reason: r.reason })),
+        });
+        return;
+      }
+      if (outcome.kind === 'root_refused') {
+        res.status(400).json({
+          error: 'Validation error',
+          details: [{ code: 'custom', path: ['sourceConfig', outcome.field], message: outcome.message }],
+        });
+        return;
+      }
       if (outcome.kind === 'format_for_another_source') {
         // 400: the request names a setting this migration's source does not
         // have, anchored on the key the way the schema's refusals are.
