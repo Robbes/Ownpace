@@ -6,19 +6,24 @@ iemand hebt gesproken.
 **Twee getallen bepalen uw pakket, en u zit op het hoogste van de twee:** hoeveel migraties er
 **tegelijk** lopen, en hoeveel gegevens u **in totaal** hebt gemigreerd.
 
-Uw e-mail, uw contacten, uw agenda en uw bestanden zijn vier aparte migraties. Eén persoon
-die alle vier tegelijk migreert, doet er vier tegelijk; iemand die ze na elkaar doet, doet er
-één.
+Uw e-mail, uw contacten, uw agenda, uw taken en uw bestanden zijn aparte migraties, en foto’s
+uit een export van Google zijn er nog één. Eén persoon die alle zes tegelijk migreert, doet er
+zes tegelijk; iemand die ze na elkaar doet, doet er één.
 
 [[TIERS]]
 
 ## Wat u wilt weten voordat u betaalt
 
-**Free is gratis.** Eén migratie tegelijk, tot 250 GB, kost niets: niets per maand, geen
-factuur, en geen kaart of factuurgegevens die u ons hoeft te geven. Uw
-e-mail, dan uw contacten, dan uw agenda, dan uw bestanden, na elkaar: dat is de gratis weg.
-Meer tegelijk starten is de snellere weg, en die kost wat elk ander pakket kost. Een tweede
-migratie tegelijk, of meer dan 250 GB, brengt u naar Small, en we vragen het u eerst.
+**Free is gratis.** Zes migraties tegelijk, tot 150 GB, kosten niets: niets per maand, geen
+factuur, en geen kaart of factuurgegevens die u ons hoeft te geven. Dat is alles wat één
+persoon migreert, met één ronde per dag: de eerste direct na de gratis voorcontrole, de kleine
+dingen eerst en de bestanden als laatste. Een betaald pakket kopieert ronde na ronde. Meer dan
+150 GB brengt u naar Small, meer dan zes migraties tegelijk naar Medium, en we vragen het u
+eerst.
+
+**U mag een hoger pakket kiezen.** Uw pakket wordt afgeleid van wat u migreert. U mag ook een
+hoger pakket kiezen, bijvoorbeeld Small voor het tempo terwijl Free zou volstaan; dat pakket is
+dan het minste dat u betaalt.
 
 **Afronden verlaagt uw rekening, automatisch.** Zodra een migratie is overgestapt, telt ze
 niet meer mee en zakt het pakket vanzelf, zonder dat u erom hoeft te vragen. Start u alles
@@ -60,7 +65,7 @@ op de opslagpagina van uw eigen aanbieder.
 **Ruimte tekort komen hoeft niet te betekenen dat u omhoog moet.** U kunt er voor eenmaal de
 maandprijs van uw pakket een hele band ruimte bij kopen en blijven waar u zit. Pakketten kopen
 capaciteit; bijkopen koopt ruimte. Wat voor u goedkoper is, is wat wij zullen aanwijzen. Free
-kent geen bijkoop: voorbij de 250 GB is het Small.
+kent geen bijkoop: voorbij de 150 GB is het Small.
 
 **We verdienen niet aan onoplettendheid.** Loopt er een migratie zonder dat er nog iets te
 doen valt, dan vragen we u — met één klik — of u haar wilt houden of afronden. En we brengen

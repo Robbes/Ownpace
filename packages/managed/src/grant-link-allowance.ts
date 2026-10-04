@@ -5,8 +5,8 @@
  * the owner, 2026-09-24: "the Recommended").
  *
  * An organisation may hold as many grant links that can still be used as its
- * tier runs migrations at the same time: Free 1, Small 4, Medium 20, Large 50,
- * Extra large 200. The tier is the one the organisation's own usage screen
+ * tier runs migrations at the same time: Free 6, Small 6, Medium 12, Large 24,
+ * Extra large 50 (ADR-0014, 2026-10-04). The tier is the one the organisation's own usage screen
  * shows, derived from what was measured without writing anything
  * (`observedTier`, as `routes/billing` reads it): a customer growing into the
  * next tier gets its number as they do. Past the end of the table the

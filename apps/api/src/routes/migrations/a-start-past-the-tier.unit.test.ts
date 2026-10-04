@@ -11,9 +11,10 @@
  * the worst of both: a customer told no, and billed as yes.
  *
  * What is held:
- *  - on Free, a start of two kinds at once is refused, names Small, and
- *    keeps nothing: no slot, no status, no record of a change;
- *  - with a yes to Small on record, the same start goes ahead;
+ *  - on Free, with five kinds held already, a start of two more is refused,
+ *    names Medium, and keeps nothing: no slot, no status, no record of a
+ *    change;
+ *  - with a yes to Medium on record, the same start goes ahead;
  *  - during the alpha, nothing is asked;
  *  - a start that takes no new slot is never refused, though the organisation
  *    is past its tier already;
@@ -33,6 +34,7 @@ import { sql } from 'drizzle-orm';
 import { pgliteDriver, runMigrations, withTenant } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
 import { MANAGED_TIERS, runManagedMigrations } from '@openmig/managed';
+import { DISCOVERY_DOMAINS } from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
 import { PathsNeedAYes, activateAddedPath } from './path-lifecycle-wiring.ts';
 
@@ -41,12 +43,14 @@ const OTHER = '0109f600-e29b-41d4-a716-446655440002';
 const CONN = '0109f600-e29b-41d4-a716-446655440011';
 const BOX = '0109f600-e29b-41d4-a716-446655440021';
 const MAPPING = '0109f600-e29b-41d4-a716-446655440031';
+/** Another of the organisation's migrations, that ran and was paused with all five kinds: five slots held. */
+const HOLDING = '0109f600-e29b-41d4-a716-446655440033';
 const OTHER_CONN = '0109f600-e29b-41d4-a716-446655440012';
 const OTHER_BOX = '0109f600-e29b-41d4-a716-446655440022';
 const OTHER_MAPPING = '0109f600-e29b-41d4-a716-446655440032';
 
 const first = MANAGED_TIERS[0]!;
-const small = MANAGED_TIERS.find((t) => t.id === 'small')!;
+const medium = MANAGED_TIERS.find((t) => t.id === 'medium')!;
 
 let driver: LedgerDriver;
 
@@ -123,6 +127,10 @@ beforeAll(async () => {
       [mapping, tenant, box],
     );
   }
+  await owner(
+    `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, status) VALUES ($1, $2, $3, 'paused')`,
+    [HOLDING, TENANT, BOX],
+  );
 }, 120_000);
 
 afterAll(async () => {
@@ -137,7 +145,20 @@ beforeEach(async () => {
   await owner('DELETE FROM scope_selection');
   await owner(`DELETE FROM audit_log WHERE action = 'mapping.status'`);
   await owner(`UPDATE mailbox_mapping SET status = 'paused'`);
-  // Two kinds at once: past Free's one.
+  // Every data type held already, paused, which holds a slot: five, one short of Free's six.
+  for (const domain of DISCOVERY_DOMAINS) {
+    await owner(`INSERT INTO scope_selection (tenant_id, mapping_id, domain, included) VALUES ($1, $2, $3, true)`, [
+      TENANT,
+      HOLDING,
+      domain,
+    ]);
+    await owner(
+      `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state, first_activated_at)
+       VALUES ($1, $2, $3, 'paused', now())`,
+      [TENANT, HOLDING, domain],
+    );
+  }
+  // Two kinds at once, beside the five held: past Free's six.
   await owner(
     `INSERT INTO scope_selection (tenant_id, mapping_id, domain, included)
      VALUES ($1, $2, 'email', true), ($1, $2, 'calendar', true)`,
@@ -156,10 +177,10 @@ describe('Start, past the agreed tier', () => {
     expect(res.body).toMatchObject({
       error: 'paths_need_a_yes',
       tier: { id: first.id, paths: first.paths },
-      after: 2,
-      needs: { id: 'small', name: small.name, paths: small.paths },
+      after: 7,
+      needs: { id: 'medium', name: medium.name, paths: medium.paths },
     });
-    expect(res.body.reason).toContain('2 migrations at the same time');
+    expect(res.body.reason).toContain('7 migrations at the same time');
     // Rolled back whole: no slot, no status, no record of a change.
     expect(await paths()).toEqual([]);
     expect(await status()).toBe('paused');
@@ -168,7 +189,7 @@ describe('Start, past the agreed tier', () => {
   });
 
   it('goes ahead once the organisation has said yes to a tier that runs it', async () => {
-    await yesTo('small');
+    await yesTo('medium');
     const res = await request(app).post(`/api/migrations/${MAPPING}/start`).send({});
     expect(res.status).toBe(200);
     expect(await paths()).toEqual([
@@ -185,7 +206,8 @@ describe('Start, past the agreed tier', () => {
 
   it('never refuses a start that takes no new slot, though the organisation is past its tier', async () => {
     // Paused holds its slot: an organisation that started both during the
-    // alpha, on Free, resumes them, and no slot is added.
+    // alpha, on Free, holds seven with the five beside them; it resumes them,
+    // and no slot is added.
     await owner(
       `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state, first_activated_at)
        VALUES ($1, $2, 'email', 'paused', now()), ($1, $2, 'calendar', 'paused', now())`,
@@ -206,7 +228,7 @@ describe('Start, past the agreed tier', () => {
       [OTHER, OTHER_MAPPING],
     );
     await owner(`DELETE FROM scope_selection WHERE mapping_id = $1 AND domain = 'calendar'`, [MAPPING]);
-    // One kind here, on Free: it fits, whatever the other organisation runs.
+    // One kind here beside the five held, on Free: six fit, whatever the other organisation runs.
     expect((await request(app).post(`/api/migrations/${MAPPING}/start`).send({})).status).toBe(200);
   });
 });

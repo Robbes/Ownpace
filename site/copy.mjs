@@ -76,8 +76,8 @@ export const COPY = {
     ctaEstimate: 'Work out what yours costs',
     // The first tier is free (ADR-0014, 2026-09-24): "From €0" would read as a
     // price that could be billed, so the line says what free covers instead.
-    heroFree: (name, data) =>
-      `${name}: one migration at a time, up to ${data}. Every price is published in full — no quote, no sales call.`,
+    heroFree: (name, data, paths) =>
+      `${name}: ${paths} migrations at the same time and up to ${data}, at one pass a day. Every price is published in full — no quote, no sales call.`,
     // The hero's picture (workplan 0152 T3 (a)): hero.mjs draws it, and these
     // are its words; the data types in it are dataTypes', as the app names them.
     hero: {
@@ -160,9 +160,11 @@ export const COPY = {
         'Other O365 apps': 'the other Office 365 apps',
       },
       limitsTitle: 'Limits you should know',
-      // The app's guide sits behind its sign-in until the site has a help
-      // section of its own (0152 T5 (d), 0151), and the link says so.
-      guideLink: 'In the guide (sign in first)',
+      // The app's guides open without an account (0152; the owner,
+      // 2026-10-04: "Guide links on the Leaving pages: yes, make public"), so
+      // the link says only where it goes. It points at the site's own help
+      // section once there is one (0152 T5 (d), 0151).
+      guideLink: 'In the guide',
       limits: {
         gmailDaily: (gb) =>
           `Google lets a Gmail mailbox be read at up to ${gb} GB a day, so a large mailbox takes days. Ownpace keeps copying until all of it is in, and your old account works as usual meanwhile.`,
@@ -239,7 +241,7 @@ export const COPY = {
     costLede:
       'Two numbers decide your price: how many things you are moving <strong>at the same time</strong>, and how much data you have moved in total. You are on whichever is higher, and finishing a migration lowers your bill by itself.',
     costPick: (name, monthly, annual, paths, data) =>
-      `<strong>${name}</strong>, for one person moving everything at once: ${monthly} a month, or ${annual} for a year, for ${paths} migrations at once and ${data}. There is no setup fee.`,
+      `<strong>${name}</strong>, for one person moving everything at full pace: ${monthly} a month, or ${annual} for a year, for ${paths} migrations at once and ${data}. There is no setup fee.`,
     tierMonth: 'a month',
     // How you pay (workplan 0152 T6 (e), D3, D10): the switch and each card's two answers.
     payLabel: 'How you pay',
@@ -257,6 +259,7 @@ export const COPY = {
       heading: 'The parts worth knowing before you pay',
       questions: [
         ['Free is free.', 'Is there a free way?'],
+        ['You may choose a higher tier.', 'Can I choose a higher tier?'],
         ['Finishing lowers your bill, automatically.', 'Does the bill go down when I finish?'],
         ['Pausing does not lower it.', 'Does pausing lower it?'],
         ['Unless you ask us to keep copying.', 'What if I keep copying after I switch?'],
@@ -285,26 +288,34 @@ export const COPY = {
     // counts who picks what, so it is said as a fact about the tier.
     tierText: {
       free: {
-        who: 'One person, one thing at a time',
-        note: 'Move your mail, then your contacts, then your calendar, then your files — one after another. The patient option, and free.',
+        who: 'One person, at a pass a day',
+        note: 'Everything one person moves, one pass a day: the first right after the free preflight, the small things first and the files last. The patient option, and free.',
       },
-      small: { who: 'One person, everything at once', note: 'Everything you own, moving at the same time.' },
+      small: {
+        who: 'One person, at full pace',
+        note: 'The first copy runs pass after pass. After it we look for changes every hour, or as often as every 15 minutes if you choose.',
+      },
       medium: {
-        who: 'A household, a team, or a small business',
-        note: 'Five people with everything, or four with room to spare. Self-service, with a manual and somewhere to ask questions.',
+        who: 'Two people, or a small team',
+        note: 'Two people with everything, or four with three kinds of data each. Self-service, with a manual and somewhere to ask questions.',
       },
       large: {
-        who: 'An SME',
-        note: 'Where a real person gets involved: planning, the cutover, and someone to call when a provider does something strange.',
+        who: 'A household, or an SME',
+        note: 'Four people with everything. Where a real person gets involved: planning, the cutover, and someone to call when a provider does something strange.',
       },
-      xl: { who: 'An organisation, or an MSP', note: 'Many accounts, one migration, one relationship.' },
+      xl: {
+        who: 'An organisation, or an MSP',
+        note: 'Ten people with five kinds of data each. Many accounts, one migration, one relationship.',
+      },
     },
     tierFree: 'Free',
     tierFreeFor: 'for as long as it runs',
     tierNoInvoice: 'No invoice',
     tierNoInvoiceWhy: 'no card, no billing details',
-    tierFreeEdge: (next) =>
-      `A second migration at the same time, or more data, moves you to ${next} — and we ask you first.`,
+    // Free and Small run as many at the same time (ADR-0014, 2026-10-04), so
+    // more data and more migrations move a Free organisation to different tiers.
+    tierFreeEdge: (byData, paths, byPaths) =>
+      `More data moves you to ${byData}, and more than ${paths} migrations at the same time to ${byPaths} — and we ask you first.`,
     beyond: (paths, data, what) =>
       `Past ${paths} migrations at once or ${data}, <a href="{MAILTO}">${what.toLowerCase()}</a> — that is the one thing not published, because past the end of the scale we have to look at the actual case.`,
     draftBanner:
@@ -312,14 +323,14 @@ export const COPY = {
     translationNote: null,
     /**
      * The pre-preflight calculator (workplan 0088 T3). A CALCULATOR, not a
-     * plan selector: the visitor never chooses a tier, the page derives it
-     * and says so. Rung 1 of the ladder — self-declared, a band at ±50%,
+     * plan selector: the page derives the least tier the answers need and
+     * says so (a person may pick a higher one in the app, ADR-0014 2026-10-04). Rung 1 of the ladder — self-declared, a band at ±50%,
      * costing nothing — and every sentence that keeps it honest lives here.
      */
     calc: {
       title: 'What would yours cost?',
       lede:
-        'Answer five questions and this page derives the tier — you never pick one. Everything is indicative: these are our assumptions until the free preflight measures your real accounts, and you can change every size below.',
+        'Answer five questions and this page works out the tier they need. Everything is indicative: these are our assumptions until the free preflight measures your real accounts, and you can change every size below.',
       whoLegend: 'Who is moving?',
       who: { individual: 'Just me', family: 'My household (4 people)', sme: 'My business (10 seats)' },
       fromLegend: 'Moving away from?',
@@ -358,11 +369,13 @@ export const COPY = {
       bandLine: 'roughly {0}–{1} GB — a ±50% band, because these are self-declared numbers, not measured ones',
       tierLine: 'That lands on {0}.',
       tierDerived:
-        'Derived from your answers, never picked — and it keeps deriving: finish migrations and the tier falls by itself.',
+        'Derived from your answers, the least they need — and it keeps deriving: finish migrations and the tier falls by itself.',
       tierMonthly: '{0} a month',
       tierYear: '{0} for a year, paid ahead: half the monthly price',
       tierFree: 'Free: nothing a month, and no invoice.',
-      tierFreeEdge: 'A second migration at the same time, or more than {0}, moves you to {1} — and we ask you first.',
+      tierFreeEdge: 'More than {0} moves you to {1}, and more than {2} migrations at the same time to {3} — and we ask you first.',
+      // Free's pace (ADR-0014, 2026-10-04), said where the estimate lands on it.
+      tierFreePace: 'One pass a day: the first right after the free preflight, the small things first and the files last.',
       tierThree: '{0} for a three-month move in total, paying monthly',
       stepUpRule: 'There is no setup fee: moving up later costs only the higher monthly, from then on.',
       beyondLine:
@@ -425,8 +438,8 @@ export const COPY = {
     ctaPricing: 'Bekijk wat het kost',
     ctaAllTiers: 'Alle vijf de pakketten, volledig',
     ctaEstimate: 'Reken uit wat het u kost',
-    heroFree: (name, data) =>
-      `${name}: één migratie tegelijk, tot ${data}. Alle prijzen staan er volledig op — geen offerte, geen verkoopgesprek.`,
+    heroFree: (name, data, paths) =>
+      `${name}: ${paths} migraties tegelijk en tot ${data}, met één ronde per dag. Alle prijzen staan er volledig op — geen offerte, geen verkoopgesprek.`,
     hero: {
       title: 'Uw gegevens gaan van uw oude account naar uw nieuwe thuis',
       desc: 'E-mail, agenda, contacten, bestanden en foto’s gaan van het oude account via Ownpace naar het nieuwe thuis. Ownpace kopieert ze, en houdt ze daarna bij tot u overstapt.',
@@ -497,7 +510,7 @@ export const COPY = {
         'Other O365 apps': 'de andere Office 365-apps',
       },
       limitsTitle: 'Grenzen om te kennen',
-      guideLink: 'In de handleiding (eerst aanmelden)',
+      guideLink: 'In de handleiding',
       limits: {
         gmailDaily: (gb) =>
           `Google laat een Gmail-postbus lezen tot ${gb} GB per dag, dus een grote postbus kost dagen. Ownpace blijft kopiëren tot alles binnen is, en uw oude account werkt intussen gewoon.`,
@@ -574,7 +587,7 @@ export const COPY = {
     costLede:
       'Twee getallen bepalen uw prijs: hoeveel migraties er <strong>tegelijk</strong> lopen, en hoeveel gegevens u in totaal hebt gemigreerd. U zit op het hoogste van die twee, en een migratie afronden verlaagt uw rekening vanzelf.',
     costPick: (name, monthly, annual, paths, data) =>
-      `<strong>${name}</strong>, voor één persoon die alles tegelijk migreert: ${monthly} per maand, of ${annual} voor een jaar, voor ${paths} migraties tegelijk en ${data}. Er zijn geen inrichtingskosten.`,
+      `<strong>${name}</strong>, voor één persoon die alles op volle snelheid migreert: ${monthly} per maand, of ${annual} voor een jaar, voor ${paths} migraties tegelijk en ${data}. Er zijn geen inrichtingskosten.`,
     tierMonth: 'per maand',
     payLabel: 'Hoe u betaalt',
     payYear: 'Per jaar',
@@ -588,6 +601,7 @@ export const COPY = {
       heading: 'Wat u wilt weten voordat u betaalt',
       questions: [
         ['Free is gratis.', 'Kan het gratis?'],
+        ['U mag een hoger pakket kiezen.', 'Mag ik een hoger pakket kiezen?'],
         ['Afronden verlaagt uw rekening, automatisch.', 'Gaat de rekening omlaag als ik klaar ben?'],
         ['Pauzeren verlaagt hem niet.', 'Verlaagt pauzeren de rekening?'],
         ['Tenzij u ons vraagt te blijven kopiëren.', 'En als ik na de overstap blijf kopiëren?'],
@@ -608,26 +622,32 @@ export const COPY = {
     tierStart: (name) => `Begin met ${name}`,
     tierText: {
       free: {
-        who: 'Eén persoon, één ding tegelijk',
-        note: 'Migreer uw e-mail, dan uw contacten, dan uw agenda, dan uw bestanden — de een na de ander. De geduldige keuze, en gratis.',
+        who: 'Eén persoon, één ronde per dag',
+        note: 'Alles wat één persoon migreert, één ronde per dag: de eerste direct na de gratis voorcontrole, de kleine dingen eerst en de bestanden als laatste. De geduldige keuze, en gratis.',
       },
-      small: { who: 'Eén persoon, alles tegelijk', note: 'Al uw gegevens, tegelijk gemigreerd.' },
+      small: {
+        who: 'Eén persoon, op volle snelheid',
+        note: 'De eerste kopie loopt ronde na ronde door. Daarna kijken we elk uur of er iets veranderd is, of elke 15 minuten als u dat kiest.',
+      },
       medium: {
-        who: 'Een huishouden, een team of een klein bedrijf',
-        note: 'Vijf mensen met alles, of vier met ruimte over. Zelfbediening, met een handleiding en een plek om vragen te stellen.',
+        who: 'Twee personen, of een klein team',
+        note: 'Twee personen met alles, of vier met elk drie soorten gegevens. Zelfbediening, met een handleiding en een plek om vragen te stellen.',
       },
       large: {
-        who: 'Een mkb-bedrijf',
-        note: 'Hier komt een echt mens bij: de planning, de overstap, en iemand bij wie u terechtkunt als een aanbieder iets vreemds doet.',
+        who: 'Een huishouden, of een mkb-bedrijf',
+        note: 'Vier personen met alles. Hier komt een echt mens bij: de planning, de overstap, en iemand bij wie u terechtkunt als een aanbieder iets vreemds doet.',
       },
-      xl: { who: 'Een organisatie, of een MSP', note: 'Veel accounts, één migratie, één aanspreekpunt.' },
+      xl: {
+        who: 'Een organisatie, of een MSP',
+        note: 'Tien personen met elk vijf soorten gegevens. Veel accounts, één migratie, één aanspreekpunt.',
+      },
     },
     tierFree: 'Gratis',
     tierFreeFor: 'zolang het loopt',
     tierNoInvoice: 'Geen factuur',
     tierNoInvoiceWhy: 'geen kaart, geen factuurgegevens',
-    tierFreeEdge: (next) =>
-      `Een tweede migratie tegelijk, of meer gegevens, brengt u naar ${next} — en we vragen het u eerst.`,
+    tierFreeEdge: (byData, paths, byPaths) =>
+      `Meer gegevens brengen u naar ${byData}, en meer dan ${paths} migraties tegelijk naar ${byPaths} — en we vragen het u eerst.`,
     beyond: (paths, data, what) =>
       `Boven ${paths} migraties tegelijk of ${data} geldt: <a href="{MAILTO}">${what.toLowerCase()}</a> — dat is het enige dat niet gepubliceerd staat, omdat we voorbij het einde van de schaal echt naar uw situatie moeten kijken.`,
     draftBanner:
@@ -637,7 +657,7 @@ export const COPY = {
     calc: {
       title: 'Wat zou het bij u kosten?',
       lede:
-        'Beantwoord vijf vragen en deze pagina leidt het pakket af — u kiest er nooit zelf een. Alles is indicatief: dit zijn onze aannames totdat de gratis voorcontrole uw echte accounts meet, en elke grootte hieronder kunt u aanpassen.',
+        'Beantwoord vijf vragen en deze pagina rekent uit welk pakket daarbij hoort. Alles is indicatief: dit zijn onze aannames totdat de gratis voorcontrole uw echte accounts meet, en elke grootte hieronder kunt u aanpassen.',
       whoLegend: 'Voor wie is het?',
       who: { individual: 'Alleen ik', family: 'Mijn huishouden (4 personen)', sme: 'Mijn bedrijf (10 werkplekken)' },
       fromLegend: 'Weg bij?',
@@ -672,9 +692,10 @@ export const COPY = {
       bandLine: 'ruwweg {0}–{1} GB — een band van ±50%, want dit zijn zelf opgegeven getallen, geen gemeten',
       tierLine: 'Dat komt uit op {0}.',
       tierDerived:
-        'Afgeleid uit uw antwoorden, nooit gekozen — en het blijft afleiden: rond migraties af en het pakket zakt vanzelf.',
+        'Afgeleid uit uw antwoorden, het minste dat ze nodig hebben — en het blijft afleiden: rond migraties af en het pakket zakt vanzelf.',
       tierFree: 'Gratis: niets per maand en geen factuur.',
-      tierFreeEdge: 'Een tweede migratie tegelijk, of meer dan {0}, brengt u naar {1} — en we vragen het u eerst.',
+      tierFreeEdge: 'Meer dan {0} brengt u naar {1}, en meer dan {2} migraties tegelijk naar {3} — en we vragen het u eerst.',
+      tierFreePace: 'Eén ronde per dag: de eerste direct na de gratis voorcontrole, de kleine dingen eerst en de bestanden als laatste.',
       tierMonthly: '{0} per maand',
       tierYear: '{0} voor een jaar, vooruitbetaald: de helft van de maandprijs',
       tierThree: '{0} voor een migratie van drie maanden in totaal, per maand betaald',

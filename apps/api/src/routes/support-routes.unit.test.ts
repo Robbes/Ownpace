@@ -37,7 +37,7 @@ import { parse as parseYaml } from 'yaml';
 import { pgliteDriver, runMigrations, withTenant } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
 import { runManagedMigrations, tenantRef, currentTier } from '@openmig/managed';
-import { FAILURE_CATEGORIES } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, FAILURE_CATEGORIES } from '@openmig/shared';
 import type { TenantId } from '@openmig/shared';
 
 const TENANT_A = '5f5c0000-e29b-41d4-a716-446655442201';
@@ -45,6 +45,8 @@ const TENANT_B = '5f5c0000-e29b-41d4-a716-446655442202';
 const CONN_A = '5f5c0000-e29b-41d4-a716-446655442211';
 const BOX_A = '5f5c0000-e29b-41d4-a716-446655442221';
 const MAPPING_A = '5f5c0000-e29b-41d4-a716-446655442231';
+/** Alpha's second migration, seeded for the tier only: more paths than one migration carries. */
+const MAPPING_A2 = '5f5c0000-e29b-41d4-a716-446655442232';
 /**
  * A tenant that has been ERASED: hashed into `erasure_record.tenant_ref` and
  * deliberately never inserted into `tenant`, because that is the state under
@@ -612,9 +614,10 @@ describe('the tier the month has earned so far (0109 T4, surfaced)', () => {
   // be part of its restore block — a coupling this data has no reason to buy.
   //
   // The numbers are chosen so the derivation FLIPS if any input is dropped:
-  //  - recorded peak 1, live slot-holders 3 (2 active + 1 paused; the cutover
-  //    row holds nothing) → the paths axis says Small only because the LIVE
-  //    number is folded in; from the recorded peak alone it says Free.
+  //  - recorded peak 1, live slot-holders 7 (6 active + 1 paused, over two
+  //    migrations; the cutover row holds nothing) → the paths axis says Medium
+  //    only because the LIVE number is folded in (Free and Small both run 6);
+  //    from the recorded peak alone it says Free.
   //  - meter 100 GB → the data axis says Free, so `decided_by` is 'paths' —
   //    and the meter still shows in the evidence, so dropping it is visible.
   beforeAll(async () => {
@@ -647,6 +650,25 @@ describe('the tier the month has earned so far (0109 T4, surfaced)', () => {
           [TENANT_A, MAPPING_A, domain, state],
         );
       }
+      // A second migration, its four data types running: one migration carries
+      // five at most, and the paths axis passes Free's 6 only at 7.
+      await q(
+        `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, status)
+         VALUES ($1,$2,$3,'active')`,
+        [MAPPING_A2, TENANT_A, BOX_A],
+      );
+      for (const domain of DISCOVERY_DOMAINS.filter((d) => d !== 'task')) {
+        await q(
+          `INSERT INTO scope_selection (tenant_id, mapping_id, domain, included)
+           VALUES ($1, $2, $3, true)`,
+          [TENANT_A, MAPPING_A2, domain],
+        );
+        await q(
+          `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state)
+           VALUES ($1, $2, $3, 'active')`,
+          [TENANT_A, MAPPING_A2, domain],
+        );
+      }
       // A second organisation where only the DATA axis says anything: 800 GB
       // moved, nothing running, nothing recorded.
       await q('INSERT INTO bytes_moved (tenant_id, bytes) VALUES ($1, 800000000000)', [TENANT_B]);
@@ -660,23 +682,23 @@ describe('the tier the month has earned so far (0109 T4, surfaced)', () => {
     const res = await get(`/api/support/tenants/${TENANT_A}`);
     expect(res.status).toBe(200);
     const usage = res.body.usage as Record<string, unknown>;
-    // Small, and by PATHS: 3 slot-holders clear Free's 1 while 100 GB does
-    // not clear Free's 250. From the recorded peak alone this would read
-    // Free/'both' — a route that ignores the live counts fails here.
-    expect((usage.tier as Record<string, unknown>).id).toBe('small');
+    // Medium, and by PATHS: 7 slot-holders clear the 6 Free and Small run
+    // while 100 GB does not clear Free's 150. From the recorded peak alone this
+    // would read Free/'both' — a route that ignores the live counts fails here.
+    expect((usage.tier as Record<string, unknown>).id).toBe('medium');
     expect(usage.decided_by).toBe('paths');
-    expect(usage.evidence).toEqual({ peak_paths: 3, gb_moved: 100 });
+    expect(usage.evidence).toEqual({ peak_paths: 7, gb_moved: 100 });
     // The observations behind it, separately: the mark somebody recorded and
     // when, and what stands right now. The path stopped in the lane is
     // counted under its state and stop and NOT as a slot-holder — a route that
-    // counted rows instead of asking `holdsASlot` would say 4 here. The data
+    // counted rows instead of asking `holdsASlot` would say 8 here. The data
     // type the migration no longer carries is not a path at all.
     expect(usage.recorded_peak_paths).toBe(1);
     expect(new Date(usage.recorded_peak_at as string).toISOString()).toBe(
       '2026-08-12T10:00:00.000Z',
     );
-    expect(usage.paths_now).toBe(3);
-    expect(usage.paths_by_state).toEqual({ active: 2, paused: 1, 'continuous (stopped)': 1 });
+    expect(usage.paths_now).toBe(7);
+    expect(usage.paths_by_state).toEqual({ active: 6, paused: 1, 'continuous (stopped)': 1 });
   });
 
   it('agrees with the calculator the invoice will use — before AND after its true-up', async () => {
@@ -698,7 +720,7 @@ describe('the tier the month has earned so far (0109 T4, surfaced)', () => {
     expect(billed.evidence.peakPaths).toBe(before.evidence?.peak_paths);
     expect(billed.evidence.gbMoved).toBe(before.evidence?.gb_moved);
 
-    // The calculator's true-up just raised the recorded mark to 3. The screen
+    // The calculator's true-up just raised the recorded mark to 7. The screen
     // reads the same tables, so it now shows the raised mark — and the SAME
     // tier, because folding the live count in is exactly what the true-up
     // writes down.
@@ -706,9 +728,9 @@ describe('the tier the month has earned so far (0109 T4, surfaced)', () => {
       string,
       unknown
     >;
-    expect(after.recorded_peak_paths).toBe(3);
+    expect(after.recorded_peak_paths).toBe(7);
     expect((after.tier as Record<string, unknown>).id).toBe(before.tier?.id);
-    expect(after.evidence).toEqual({ peak_paths: 3, gb_moved: 100 });
+    expect(after.evidence).toEqual({ peak_paths: 7, gb_moved: 100 });
   });
 
   it('lets the data axis decide when it is the higher one', async () => {
@@ -716,7 +738,7 @@ describe('the tier the month has earned so far (0109 T4, surfaced)', () => {
     const res = await get(`/api/support/tenants/${TENANT_B}`);
     expect(res.status).toBe(200);
     const usage = res.body.usage as Record<string, unknown>;
-    // 800 GB clears Small's 750 → Medium, with zero paths anywhere: the
+    // 800 GB clears Small's 500 → Medium, with zero paths anywhere: the
     // floor ADR-0014 promises ("the size of what you moved sets a floor").
     expect((usage.tier as Record<string, unknown>).id).toBe('medium');
     expect(usage.decided_by).toBe('data');

@@ -19,8 +19,9 @@
  */
 
 /**
- * The tier the inputs land on — DERIVED, never picked (ADR-0014: the visitor
- * never chooses a tier; the page computes it and says so).
+ * The tier the inputs land on — DERIVED (ADR-0014: the page computes the least
+ * tier the answers need and says so; a person may pick a higher one, since
+ * 2026-10-04, but this page offers no choice).
  *
  * Two axes, and you are on the higher of them: the smallest tier whose
  * migrations-at-the-same-time capacity fits `paths` AND whose data band fits

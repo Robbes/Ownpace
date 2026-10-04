@@ -786,7 +786,8 @@ ${body}
  *
  * The tier rides along as a query parameter so a visitor who clicked "Start
  * with Medium" does not have to answer that question again. Indicative only —
- * the tier is DERIVED from what actually runs (ADR-0014), never picked.
+ * the tier is DERIVED from what actually runs (ADR-0014), or the higher one a
+ * person picks (the owner, 2026-10-04).
  */
 const orderHref = (locale, tier) => {
   // Hand-built with `encodeURIComponent`, which this file already uses
@@ -838,8 +839,10 @@ function tierCards(locale) {
     <div class="price">${money(t.monthly)} <span>${c.tierMonth}</span></div>
     <div class="price-how">${c.payMonthHow}</div>
   </div>`;
+      // Past Free's data the next tier; past its migrations the first that runs more.
+      const wider = TIERS.find((w) => w.paths > t.paths) ?? next;
       const terms = free(t)
-        ? `<li>${c.tierFreeEdge(next.name)}</li>`
+        ? `<li>${c.tierFreeEdge(next.name, t.paths, wider.name)}</li>`
         : `<li>${c.tierNoSetup}</li>
     <li>${c.tierThree(money(total(t, 3)))}</li>`;
       return `<div class="tier${featured ? ' featured' : ''}">
@@ -994,9 +997,14 @@ function leavingPage(locale, page) {
     .map((l) => {
       const [slug, section] = l.guide.split('#');
       const text = l.id === 'gmailDaily' ? L.limits.gmailDaily(GMAIL_IMAP_GB_PER_DAY.toLocaleString(c.htmlLang)) : L.limits[l.id];
+      // The page's language rides along, as on the Request access link
+      // (`orderHref`): the guide opens without an account, outside the app's
+      // menu, and `PublicDocs` takes it once, so a reader of the Dutch page
+      // reads the Dutch guide whatever their browser is set to.
+      const guide = `${APP_URL}/docs/${slug}?locale=${encodeURIComponent(locale)}#${section}`;
       return (
         `<li id="limit-${l.id}"><p>${text}</p>` +
-        `<p class="guide"><a href="${esc(`${APP_URL}/docs/${slug}#${section}`)}">${L.guideLink}</a></p></li>`
+        `<p class="guide"><a href="${esc(guide)}">${L.guideLink}</a></p></li>`
       );
     })
     .join('');
@@ -1053,7 +1061,7 @@ ${SPRITE}
       <a class="btn btn-primary" href="${esc(orderHref(locale, null))}">${c.ctaOrder}</a>
       <a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${c.ctaPricing}</a>
     </div>
-    <p class="fineprint">${c.heroFree(TIERS[0].name, size(TIERS[0].dataGb))} ${esc(c.vatIncluded)}</p>
+    <p class="fineprint">${c.heroFree(TIERS[0].name, size(TIERS[0].dataGb), TIERS[0].paths)} ${esc(c.vatIncluded)}</p>
   </div>
   <div class="hero-picture">${heroMove({ ...c.hero, types })}</div>
   <div class="hero-leaving">
@@ -1240,7 +1248,11 @@ const CALC_GLUE = `
     var next = cfg.tiers[cfg.tiers.indexOf(t) + 1];
     var isFree = freeTier(t);
     $('tier-monthly').textContent = isFree ? S.tierFree : fill(S.tierMonthly, money(t.monthly));
-    $('tier-year').textContent = isFree ? fill(S.tierFreeEdge, sizeOf(t.dataGb), next.name) : fill(S.tierYear, money(t.annual));
+    var wider = cfg.tiers.filter(function (w) { return w.paths > t.paths; })[0] || next;
+    $('tier-year').textContent = isFree
+      ? fill(S.tierFreeEdge, sizeOf(t.dataGb), next.name, t.paths, wider.name)
+      : fill(S.tierYear, money(t.annual));
+    $('tier-pace').hidden = !isFree;
     $('tier-three').hidden = isFree;
     $('tier-three').textContent = fill(S.tierThree, money(t.monthly * 3));
 
@@ -1399,6 +1411,7 @@ function calculatorPage(locale) {
     <li id="tier-monthly"></li>
     <li id="tier-year"></li>
     <li id="tier-three"></li>
+    <li id="tier-pace" hidden>${esc(c.tierFreePace)}</li>
   </ul>
   <p class="fine">${esc(c.stepUpRule)}</p>
   <p class="fine">${esc(COPY[locale].vatIncluded)}</p>
@@ -1445,7 +1458,7 @@ const META = {
     home: ['Ownpace — move your data at your own pace', 'Move your mail, contacts, calendar and files from Google or Microsoft to a European provider, continuously, and cut over when you are ready.'],
     how: ['How it works — Ownpace', 'What a migration looks like from the first connection to the cutover.'],
     pricing: ['Pricing — Ownpace', 'Five tiers, published in full. Priced on how many migrations run at once and how much data you have moved.'],
-    calculator: ['Estimate your migration — Ownpace', 'Five questions, an indicative band, and the tier it lands on — derived, never picked. No account, no email, nothing stored.'],
+    calculator: ['Estimate your migration — Ownpace', 'Five questions, an indicative band, and the tier your answers need. No account, no email, nothing stored.'],
     privacy: ['Privacy policy — Ownpace', 'What Ownpace holds, why, for how long, and what it never does.'],
     terms: ['Terms of service — Ownpace', 'The terms for the managed Ownpace service.'],
     alpha: ['Alpha conditions — Ownpace', 'The conditions for taking part in the Alpha of the managed Ownpace service.'],
@@ -1455,7 +1468,7 @@ const META = {
     home: ['Ownpace — neem uw gegevens mee, in uw eigen tempo', 'Migreer uw e-mail, contacten, agenda en bestanden van Google of Microsoft naar een Europese aanbieder, doorlopend, en stap over wanneer u er klaar voor bent.'],
     how: ['Hoe het werkt — Ownpace', 'Hoe een migratie verloopt, van de eerste koppeling tot de overstap.'],
     pricing: ['Prijzen — Ownpace', 'Vijf pakketten, volledig gepubliceerd. Geprijsd op hoeveel migraties tegelijk lopen en hoeveel gegevens u hebt gemigreerd.'],
-    calculator: ['Schat uw migratie — Ownpace', 'Vijf vragen, een indicatieve bandbreedte, en het pakket waar dat op uitkomt — afgeleid, nooit gekozen. Geen account, geen e-mail, niets wordt bewaard.'],
+    calculator: ['Schat uw migratie — Ownpace', 'Vijf vragen, een indicatieve bandbreedte, en het pakket dat uw antwoorden nodig hebben. Geen account, geen e-mail, niets wordt bewaard.'],
     privacy: ['Privacyverklaring — Ownpace', 'Wat Ownpace bewaart, waarom, hoe lang, en wat het nooit doet.'],
     terms: ['Servicevoorwaarden — Ownpace', 'De voorwaarden voor de beheerde Ownpace-dienst.'],
     alpha: ['Voorwaarden voor de Alpha — Ownpace', 'De voorwaarden voor deelname aan de Alpha van de beheerde Ownpace-dienst.'],
