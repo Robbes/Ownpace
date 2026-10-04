@@ -14,7 +14,7 @@ without D"*, *"5. A"*, *"6. A"*).
   Proved by `provider-directory.unit.test.ts` (every port box starts with the number its example
   shows), the Accounts page's case, and two flow cases, for a source and for a new destination.
 - **A destination that measured it cannot take a ticked data type is marked on *Where does it
-  go?* (C, not D).** In its own pull request.
+  go?* (C, not D).** Built: the second bullet under *Not carried over* below says how.
 - **App-password Gmail where the restricted scopes are declared: nothing now (A).** To build
   only when a deployment sets `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`.
 - **A saved *Export archive* account: the card leaves the managed Accounts page (A).** In its own
@@ -54,7 +54,14 @@ migration* is the one way a migration is made on managed, and T4, T1 (c) and T6 
     *Where does it go?*, before anything is set up (`measuredNoRefusal`). Neither catches a
     CalDAV server that takes no tasks: its task face counts task lists and never says no, so
     each task is refused by name in the first pass, under *Failures*. The Apple guide promised
-    an earlier warning, and now says this.
+    an earlier warning, and now says this. **Done 2026-10-04 (the owner: *"4. C, without D"*):**
+    on *Where does it go?* a saved account whose last test found it does not take a ticked type
+    is marked in its row's list (*does not take tasks*) and never suggested, a line under the
+    row says so with the account's own evidence in a fold, and *Leave … out* takes the type out
+    of what moves where something else still would. Chosen anyway (a new account whose first
+    test finds it), Next waits with *Choose a destination that takes …*. The create door's
+    refusal stays as the safety net, and a CalDAV server still never says no (D was not
+    chosen). Proved by three flow cases and the Dutch sentences' names.
   - On a deployment that declares Google's restricted scopes, the flow reads Gmail through the
     Google account, whose form has no app-password fold, and a saved Gmail account is not
     offered there (`savedSources` matches the carrier's kind). An app-password Gmail account

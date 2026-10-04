@@ -16,6 +16,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DISCOVERY_DOMAINS, lifecycleCounts, sourceFaceIsExperimental, type Person } from '@openmig/shared';
 import StartMigration, { CheckStep } from './StartMigration.tsx';
 import type { PlannedMigration } from '../services/start-plan.ts';
+import { STRINGS } from '../i18n/strings.ts';
 import { personLinkApi } from '../services/grant-link-service.ts';
 import { addMigrationToPerson, createPerson, fetchPeople } from '../services/operating-service.ts';
 import {
@@ -531,6 +532,78 @@ describe('Where does it go? (screen 5)', () => {
     const webdav = screen.getByRole('heading', { level: 3, name: 'Add WebDAV' }).closest('section')!;
     expect(within(webdav).getByRole('spinbutton', { name: /^Port/ })).toHaveValue(443);
     expect(within(webdav).getByRole('textbox', { name: /^Host/ })).toHaveValue('');
+  });
+
+  /** A saved Soverin whose last test found it takes no mail: the measured no (0106 T3a). */
+  const NO_MAIL_SOVERIN = account({
+    id: 'c-soverin',
+    role: 'target',
+    kind: 'soverin',
+    displayName: 'Anna Soverin',
+    qualification: {
+      domains: {
+        mail: { answer: 'no', detail: 'No mail server answered at imap.soverin.net.' },
+        calendar: { answer: 'yes', detail: '1 calendar' },
+      },
+    },
+  });
+
+  it('marks a saved destination whose last test found it does not take a type, suggests another, and says why (the owner: "4. C, without D")', async () => {
+    listMock.mockResolvedValue([...SAVED_SOURCES, NO_MAIL_SOVERIN]);
+    const user = userEvent.setup();
+    renderAt();
+    await toWhereTo(user);
+    const mail = screen.getByRole('combobox', { name: 'Where email goes' });
+    // Never suggested: a new Soverin is, as with none saved.
+    expect(mail).toHaveDisplayValue('Add Soverin');
+    const marked = within(mail).getByRole('option', { name: /^Anna Soverin/ }) as HTMLOptionElement;
+    expect(marked.disabled).toBe(true);
+    expect(marked.textContent).toContain('— does not take email');
+    expect(screen.getByText('Its last test found that Anna Soverin does not take email.')).toBeInTheDocument();
+    // Its own evidence, in a fold.
+    const fold = screen.getByText('What the test found').closest('details')!;
+    expect(fold).not.toHaveAttribute('open');
+    expect(within(fold).getByText('No mail server answered at imap.soverin.net.')).toBeInTheDocument();
+    // Files go elsewhere, so mail can be left out in one press.
+    await user.click(screen.getByRole('button', { name: 'Leave email out' }));
+    expect(screen.queryByRole('combobox', { name: 'Where email goes' })).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Where files goes' })).toBeInTheDocument();
+  });
+
+  it('says it in Dutch too, with the same names in each sentence', () => {
+    const KEYS = [
+      'start.to.cannotTake.option',
+      'start.to.cannotTake',
+      'start.to.cannotTake.why',
+      'start.to.cannotTake.retest',
+      'start.to.leaveOut',
+      'start.to.cannotTakeChosen',
+    ] as const;
+    const names = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+    for (const key of KEYS) expect(names(STRINGS.nl[key]), key).toEqual(names(STRINGS.en[key]));
+    const said = STRINGS.nl['start.to.cannotTake']
+      .replace('{account}', 'Anna Soverin')
+      .replace('{type}', 'e-mail');
+    expect(said).toBe('Bij de laatste test bleek dat Anna Soverin geen e-mail aanneemt.');
+  });
+
+  it('keeps Next from going on while the destination chosen does not take its type', async () => {
+    // Files have a saved Nextcloud, so mail is all that waits.
+    const cloud = account({ id: 'c-cloud', role: 'target', kind: 'nextcloud', displayName: 'Anna Nextcloud' });
+    listMock.mockResolvedValue([...SAVED_SOURCES, cloud]);
+    addMock.mockResolvedValue({ ok: true, id: 'c-soverin' });
+    const user = userEvent.setup();
+    renderAt();
+    await toWhereTo(user);
+    // A new Soverin, added here, whose first test finds it takes no mail.
+    const soverin = screen.getByRole('heading', { level: 3, name: 'Add Soverin' }).closest('section')!;
+    await user.type(within(soverin).getByRole('textbox', { name: /^Username/ }), 'anna@example.nl');
+    await user.type(within(soverin).getByLabelText(/^Password/), 'secret');
+    listMock.mockResolvedValue([...SAVED_SOURCES, cloud, NO_MAIL_SOVERIN]);
+    await user.click(within(soverin).getByRole('button', { name: 'Check the sign-in' }));
+    await screen.findByText('Its last test found that Anna Soverin does not take email.');
+    expect(screen.getByRole('combobox', { name: 'Where email goes' })).toHaveValue('c-soverin');
+    expect(next()).toHaveAccessibleDescription('Choose a destination that takes email.');
   });
 
   it('takes a saved destination that can take the data type, and draws no form for it', async () => {
