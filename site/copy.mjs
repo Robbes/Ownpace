@@ -263,18 +263,26 @@ export const COPY = {
     calc: {
       title: 'What would yours cost?',
       lede:
-        'Answer five questions and this page derives the tier — you never pick one. Everything is indicative: these are our assumptions until the free preflight measures your real accounts, and you can change every number below.',
+        'Answer five questions and this page derives the tier — you never pick one. Everything is indicative: these are our assumptions until the free preflight measures your real accounts, and you can change every size below.',
       whoLegend: 'Who is moving?',
       who: { individual: 'Just me', family: 'My household (4 people)', sme: 'My business (10 seats)' },
       fromLegend: 'Moving away from?',
-      from: { google: 'Google', microsoft: 'Microsoft', dropbox: 'Dropbox', apple: 'Apple', other: 'Somewhere else' },
+      // Several at once (the owner, 2026-10-04): tick boxes, not a choice of one.
+      fromHint: 'Tick each one you are leaving.',
+      from: { google: 'Google', microsoft: 'Microsoft', apple: 'Apple', dropbox: 'Dropbox', box: 'Box', other: 'Somewhere else' },
+      // How the count names each source: "Files from Dropbox".
+      fromName: { google: 'Google', microsoft: 'Microsoft', apple: 'Apple', dropbox: 'Dropbox', box: 'Box', other: 'elsewhere' },
+      fromGroup: '{0} from {1}',
       whatLegend: 'What is moving?',
-      what: { mail: 'Mail', contacts: 'Contacts', calendar: 'Calendar', files: 'Files', photos: 'Photos' },
+      what: { mail: 'Mail', contacts: 'Contacts', calendar: 'Calendar', tasks: 'Tasks', files: 'Files', photos: 'Photos' },
       howMuchLegend: 'How much is it?',
       howMuchHint:
         'Your current provider already shows these numbers on its storage page — check there, or keep our assumptions. Every field is editable; correcting us beats distrusting us.',
       itemsAssumed: '{0} items assumed',
       gbLabel: 'GB',
+      // The sizes nobody can read off a storage page are not asked (profiles.mjs's SIZE_ASKED).
+      smallLine: 'Contacts, calendars and tasks take little room, so we count them for you: {0}.',
+      lessThanOneGb: 'less than 1 GB',
       untilLegend: 'Until when?',
       until: { m1: '1 month', m3: '3 months', m6: '6 months', ready: 'When I am ready' },
       untilHint:
@@ -282,6 +290,9 @@ export const COPY = {
       kept:
         'The free preflight that follows keeps counts, sizes and per-folder totals — never an inventory of your items — and keeps them with your migration, never longer than your account.',
       pathsNone: 'Tick what is moving and the count appears here.',
+      pathsNoSource: 'Tick what you are leaving and the count appears here.',
+      // A type none of the ticked sources keeps, or lets go of (the Leaving pages say which).
+      uncountedLine: 'Not counted, because we cannot move this from what you ticked: {0}.',
       pathsOne: '{0} — that is one migration.',
       pathsMany: '{0}, for {1} — that is {2} migrations at the same time.',
       forWho: { individual: 'one person', family: 'four people', sme: 'ten seats' },
@@ -525,18 +536,23 @@ export const COPY = {
     calc: {
       title: 'Wat zou het bij u kosten?',
       lede:
-        'Beantwoord vijf vragen en deze pagina leidt het pakket af — u kiest er nooit zelf een. Alles is indicatief: dit zijn onze aannames totdat de gratis voorcontrole uw echte accounts meet, en elk getal hieronder kunt u aanpassen.',
+        'Beantwoord vijf vragen en deze pagina leidt het pakket af — u kiest er nooit zelf een. Alles is indicatief: dit zijn onze aannames totdat de gratis voorcontrole uw echte accounts meet, en elke grootte hieronder kunt u aanpassen.',
       whoLegend: 'Voor wie is het?',
       who: { individual: 'Alleen ik', family: 'Mijn huishouden (4 personen)', sme: 'Mijn bedrijf (10 werkplekken)' },
       fromLegend: 'Weg bij?',
-      from: { google: 'Google', microsoft: 'Microsoft', dropbox: 'Dropbox', apple: 'Apple', other: 'Ergens anders' },
+      fromHint: 'Vink alles aan wat u verlaat.',
+      from: { google: 'Google', microsoft: 'Microsoft', apple: 'Apple', dropbox: 'Dropbox', box: 'Box', other: 'Ergens anders' },
+      fromName: { google: 'Google', microsoft: 'Microsoft', apple: 'Apple', dropbox: 'Dropbox', box: 'Box', other: 'elders' },
+      fromGroup: '{0} van {1}',
       whatLegend: 'Wat wilt u migreren?',
-      what: { mail: 'E-mail', contacts: 'Contacten', calendar: 'Agenda', files: 'Bestanden', photos: 'Foto’s' },
+      what: { mail: 'E-mail', contacts: 'Contacten', calendar: 'Agenda', tasks: 'Taken', files: 'Bestanden', photos: 'Foto’s' },
       howMuchLegend: 'Hoeveel is het?',
       howMuchHint:
         'Uw huidige aanbieder toont deze getallen al op zijn opslagpagina — kijk daar, of houd onze aannames aan. Elk veld is aanpasbaar; ons verbeteren is beter dan ons wantrouwen.',
       itemsAssumed: '{0} items aangenomen',
       gbLabel: 'GB',
+      smallLine: 'Contacten, agenda’s en taken nemen weinig ruimte in, dus die tellen wij voor u: {0}.',
+      lessThanOneGb: 'minder dan 1 GB',
       untilLegend: 'Tot wanneer?',
       until: { m1: '1 maand', m3: '3 maanden', m6: '6 maanden', ready: 'Wanneer ik er klaar voor ben' },
       untilHint:
@@ -544,6 +560,8 @@ export const COPY = {
       kept:
         'De gratis preflight die volgt bewaart aantallen, omvang en totalen per map — nooit een inventaris van uw items — en bewaart ze bij uw migratie, nooit langer dan uw account.',
       pathsNone: 'Vink aan wat u wilt migreren en de telling verschijnt hier.',
+      pathsNoSource: 'Vink aan waar u weggaat en de telling verschijnt hier.',
+      uncountedLine: 'Niet meegeteld, want dit kunnen wij niet migreren vanaf wat u hebt aangevinkt: {0}.',
       pathsOne: '{0} — dat is één migratie.',
       pathsMany: '{0}, voor {1} — dat zijn {2} migraties tegelijk.',
       forWho: { individual: 'één persoon', family: 'vier personen', sme: 'tien werkplekken' },

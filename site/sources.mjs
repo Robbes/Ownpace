@@ -163,9 +163,7 @@ export const LEAVING = [
     limits: [{ id: 'boxTrash', guide: 'box#trash' }],
     steps: [{ card: 'box', kind: 'app' }],
     typical: ['file'],
-    // The calculator has no Box answer yet (0152 T7 (d)); its files are counted
-    // as anybody else's.
-    from: 'other',
+    from: 'box',
   },
   {
     id: 'mail',
