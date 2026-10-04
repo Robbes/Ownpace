@@ -2415,6 +2415,8 @@ export interface ReconcileResult {
    * callers written before it existed; absent reads as 0.
    */
   readonly firstCopyBytes?: number;
+  /** First copies that waited at the data ceiling (0109 T6); absent when none did. */
+  readonly heldAtCeiling?: number;
   /** Not created because OUR LEDGER already had the message. */
   readonly skipped: number;
   /**

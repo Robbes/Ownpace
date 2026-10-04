@@ -69,6 +69,14 @@
 #                        the store, unlike the others: it admits hosts, so an
 #                        emptied list must take effect in the next run rather
 #                        than leave the old names admitted.
+#   OWNPACE_STAGE      — `alpha` while the deployment is in its alpha (0131 T1),
+#                        empty after. The sync pass reads it for the hold at the
+#                        data ceiling (workplan 0109 T6): during the alpha new
+#                        first copies never wait for a yes nobody can give, since
+#                        the API takes none then. Uploaded when set; when empty
+#                        it is DELETED from the store, like the allow list, so
+#                        the alpha's end takes effect in the next run rather
+#                        than leave the tasks believing it still runs.
 #
 # NOT THE DATABASE OWNER, UNDER ANY NAME (workplan 0138 T3). Trigger.dev stores
 # variables per environment, not per task, so what this uploads every run of
@@ -343,6 +351,7 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   TRIGGER_API_URL_IN_NETWORK="${TRIGGER_API_URL_IN_NETWORK:-}" \
   LOG_LEVEL="${LOG_LEVEL:-}" \
   OWNPACE_REACHABLE_HOSTS="${OWNPACE_REACHABLE_HOSTS:-}" \
+  OWNPACE_STAGE="${OWNPACE_STAGE:-}" \
   FORCE_REWRITE="${SET_TASK_ENV_FORCE_REWRITE:-0}" \
   FORGET_OWNER_NAMES="$FORGET_OWNER_NAMES" \
   node -e '
@@ -436,6 +445,9 @@ const { envvars } = require("@trigger.dev/sdk");
     // The rule for a host a tenant gives us admits these names (workplan
     // 0136 T2). Emptied, it is deleted below rather than left as it was.
     "OWNPACE_REACHABLE_HOSTS",
+    // The stage (0131 T1): during the alpha the sync pass holds nothing at
+    // the data ceiling (0109 T6). Emptied, it is deleted below as well.
+    "OWNPACE_STAGE",
   ]) {
     const value = process.env[name];
     if (value) variables[name] = value;
@@ -446,6 +458,16 @@ const { envvars } = require("@trigger.dev/sdk");
     try {
       await envvars.del(ref, slug, "OWNPACE_REACHABLE_HOSTS");
       console.log("[set-task-env] deleted OWNPACE_REACHABLE_HOSTS: the list is empty, so the rule admits no name");
+    } catch (e) {
+      // Absent is the desired state.
+    }
+  }
+  // And an ended alpha takes effect: a stage left in the store would keep the
+  // hold at the data ceiling off after the API had started taking a yes.
+  if (!process.env.OWNPACE_STAGE) {
+    try {
+      await envvars.del(ref, slug, "OWNPACE_STAGE");
+      console.log("[set-task-env] deleted OWNPACE_STAGE: no stage is set, so the hold at the data ceiling is on");
     } catch (e) {
       // Absent is the desired state.
     }

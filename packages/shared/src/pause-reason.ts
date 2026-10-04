@@ -75,6 +75,24 @@ export type PauseReason =
        * own default sentence — a hold is never wordless.
        */
       readonly message?: string;
+    }
+  | {
+      /**
+       * New first copies wait at the customer's data ceiling for their yes to
+       * a move up or a one-off top-up (workplan 0109 T6, ADR-0014's amendment
+       * of 2026-10-03). Updates to what was already copied carry on, and the
+       * yes lifts the hold where it stopped. Never during the alpha. Said with
+       * both prices, as ADR-0014 asks: never a silent throttle.
+       */
+      readonly kind: 'data-ceiling';
+      /** The ceiling, in decimal GB. */
+      readonly ceilingGb: number;
+      /** How many items waited on the pass that set this. */
+      readonly held: number;
+      /** Moving up: the tier, its setup difference once, then its monthly. Null past Extra large. */
+      readonly moveUp: { readonly name: string; readonly setupEur: number; readonly monthlyEur: number } | null;
+      /** One more band of the tier, once. Null on Tiny, which has no top-up. */
+      readonly topUp: { readonly bandGb: number; readonly priceEur: number } | null;
     };
 
 /** The one conversion from the meter's report to the customer's sentence. */
@@ -109,6 +127,20 @@ export function isPauseReason(value: unknown): value is PauseReason {
     return (
       typeof r.since === 'string' &&
       (r.message === undefined || typeof r.message === 'string')
+    );
+  }
+  if (r.kind === 'data-ceiling') {
+    const num = (v: unknown): boolean => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+    const offer = (v: unknown, keys: readonly string[]): boolean =>
+      v === null ||
+      (typeof v === 'object' &&
+        v !== null &&
+        keys.every((k) => (k === 'name' ? typeof (v as Record<string, unknown>)[k] === 'string' : num((v as Record<string, unknown>)[k]))));
+    return (
+      num(r.ceilingGb) &&
+      num(r.held) &&
+      offer(r.moveUp, ['name', 'setupEur', 'monthlyEur']) &&
+      offer(r.topUp, ['bandGb', 'priceEur'])
     );
   }
   return false;

@@ -2169,6 +2169,14 @@ const en = {
     '{provider} reached its daily download limit. Copying continues when that resets.',
   'pause.ceiling.why':
     'The limit belongs to your old provider, not to us. Passing it can lock you out of your own live mailbox for about a day, so copying stops before that happens. Nothing has failed and nothing is lost — the next pass carries on from exactly where this one stopped.',
+  // The data ceiling (workplan 0109 T6): new first copies wait for the
+  // customer's yes; updates carry on. Said with both prices (ADR-0014).
+  'pause.dataCeiling':
+    'New items wait at your data ceiling of {ceiling}: {held} not copied yet. Changes to what is already copied carry on.',
+  'pause.dataCeiling.moveUp': 'Move up to {tier}: €{setup} once, then €{monthly} a month.',
+  'pause.dataCeiling.topUp': 'Or buy another {band} once, for €{price}.',
+  'pause.dataCeiling.why':
+    'Every step up is your choice: nothing moves your tier or adds room without your yes. Choose on the Billing page, and copying carries on from where it stopped.',
   'pause.hold.heading': 'Copying is paused',
   // The DEFAULT sentence: always present, so a hold is never wordless when
   // nobody typed one. An operator's own words replace it, verbatim.
@@ -4692,6 +4700,12 @@ const nl: Record<keyof typeof en, string> = {
     '{provider} heeft de daglimiet voor downloaden bereikt. Kopiëren gaat verder zodra die reset.',
   'pause.ceiling.why':
     'De limiet is van uw oude provider, niet van ons. Erover gaan kan u ongeveer een dag buitensluiten uit uw eigen live mailbox, dus stopt het kopiëren daarvóór. Er is niets misgegaan en er gaat niets verloren — de volgende ronde gaat verder waar deze stopte.',
+  'pause.dataCeiling':
+    'Nieuwe items wachten bij uw datalimiet van {ceiling}: {held} nog niet gekopieerd. Wijzigingen aan wat al gekopieerd is gaan door.',
+  'pause.dataCeiling.moveUp': 'Ga naar {tier}: eenmalig €{setup}, daarna €{monthly} per maand.',
+  'pause.dataCeiling.topUp': 'Of koop eenmalig nog {band} erbij, voor €{price}.',
+  'pause.dataCeiling.why':
+    'Elke stap omhoog is uw keuze: niets verhoogt uw pakket of uw ruimte zonder uw ja. Kies op de pagina Facturering, en het kopiëren gaat verder waar het stopte.',
   'pause.hold.heading': 'Kopiëren is gepauzeerd',
   'pause.hold.default': 'We hebben het kopiëren gepauzeerd terwijl we het platform bijwerken.',
   'pause.hold.since': 'Gepauzeerd sinds',

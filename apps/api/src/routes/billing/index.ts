@@ -28,16 +28,14 @@ import {
   PgOccupancyPeakStore,
   PgBytesMovedStore,
   PgDataAllowanceStore,
-  allowanceOf,
   breakEvenOf,
-  ceilingOf,
   decideYes,
   holdsAtCeiling,
+  readCeiling,
   type Ceiling,
   type ViesRequester,
 } from '@openmig/managed';
 import * as schema from '@openmig/managed/schema-managed';
-import type { PgDatabase } from '@openmig/ledger/db';
 // The run ledger lives in @openmig/ledger (ADR-0036): compute derives from it.
 import { run as runTable } from '@openmig/ledger/schema-pg';
 // The live slot count, through the ONE authority on which states hold a slot
@@ -311,13 +309,6 @@ function ceilingBody(c: Ceiling, holds: boolean) {
   };
 }
 
-/** The ceiling, read inside the caller's transaction. */
-async function readCeiling(db: PgDatabase, tenantId: string): Promise<Ceiling> {
-  const grants = await new PgDataAllowanceStore(db).grants(asTenantId(tenantId));
-  const bytes = await new PgBytesMovedStore(db).total(asTenantId(tenantId));
-  return ceilingOf(allowanceOf(grants), Number(bytes) / BYTES_PER_GB);
-}
-
 /**
  * GET /api/billing/ceiling
  *
@@ -329,7 +320,7 @@ router.get('/ceiling', authenticate, requireBillingRead, async (req: Authenticat
   try {
     const tenantId = req.tenantId;
     if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
-    const ceiling = await withTenantDb(tenantId, getSharedPool(), (db) => readCeiling(db, tenantId));
+    const ceiling = await withTenantDb(tenantId, getSharedPool(), (db) => readCeiling(db, asTenantId(tenantId)));
     res.json(ceilingBody(ceiling, holdsAtCeiling(process.env.OWNPACE_STAGE)));
   } catch (error) {
     serverFault(res, 'ceiling_failed', 'reading your data ceiling', error);
@@ -368,11 +359,11 @@ router.post('/ceiling/yes', authenticate, requireBillingWrite, async (req: Authe
       // One yes at a time per organisation: two presses of the same offer
       // must not buy two bands. Released with the transaction.
       await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'data_allowance:' + tenantId}))`);
-      const before = await readCeiling(db, tenantId);
+      const before = await readCeiling(db, asTenantId(tenantId));
       const decision = decideYes(before, parsed.data);
       if (!decision.ok) return { refused: decision.reason, ceiling: before } as const;
       await new PgDataAllowanceStore(db).record(asTenantId(tenantId), decision.grant, req.userId ?? 'unknown');
-      return { ceiling: await readCeiling(db, tenantId) } as const;
+      return { ceiling: await readCeiling(db, asTenantId(tenantId)) } as const;
     });
     const holds = holdsAtCeiling(process.env.OWNPACE_STAGE);
     if ('refused' in outcome) {
