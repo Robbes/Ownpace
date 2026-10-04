@@ -4,6 +4,24 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04: the question at *Start* is built** (the path axis's other half; the owner,
+2026-10-04: *"side by side"*). Before the press, *Start* asks the server what starting would hold
+against the agreed tier (`GET /api/billing/paths`, the server's own rule through `pathsForecast`),
+and past it offers, beside each other, moving up at the new tier's monthly, asked once more with
+the money said, then everything starts; or starting what fits now, the rest left set up. The yes
+is the same `data_allowance` row as a data move up, with `axis` `paths` (`POST
+/api/billing/paths/yes`), so the data ceiling moves with it. The plain *Start* gives way while the
+question stands; during the alpha it is a note; members and the appliance never see it.
+
+- **Built:** `pathsForecast` and `decidePathsYes` (`path-ceiling.ts`); `paths-at-start.ts` (a
+  migration's new slots: included kinds that never ran); the two routes; `PathsAtStart.tsx`
+  behind `PathsAtStartNote.tsx` (out of the appliance's bundle), on the check screen and the
+  confirm step.
+- **Guards:** `path-ceiling.unit.test.ts`; `a-yes-before-more-run-at-once.unit.test.ts` (the
+  routes over PGlite: the question, what fits, a paused migration's kept slots, the `paths` row,
+  the price shown, the alpha, two presses, another organisation); `PathsAtStart.unit.test.tsx`;
+  `a-start-past-the-tier-asks-first.unit.test.tsx` (the check screen); the managed UI walk.
+
 **2026-10-04: the list of 2026-09-29 reaches the data ceiling** (with #1435, 0152 T6 (d)). A move
 up is agreed at the new tier's monthly price, with nothing once, since there is no setup fee; a
 top-up costs the tier's monthly once (the owner's answer (b)); Free replaces Tiny and has no top-up
@@ -62,8 +80,8 @@ nothing holds, and no yes is taken; the hold and the yes go live when the alpha 
   `PausedBecause.unit.test.tsx`; `an-alpha-both-halves-know-about.unit.test.ts` (the stage reaches
   the tasks, and leaves them when emptied); `CeilingAtStart.unit.test.tsx`.
 - **Next:** the ask on the **path** axis (*"activating a path that crosses a boundary states the
-  new price at that moment and asks"*): decided and its server half built 2026-10-04, above. The
-  calculator's top-up line is 0152 T7's (group R8).
+  new price at that moment and asks"*): decided, and built 2026-10-04, above. The calculator's
+  top-up line is 0152 T7's (group R8).
 
 **2026-09-29: the Billing screen's Storage and Data transfer count a first copy**, on branch
 `claude/mailbox-sync-errors-c2xsw2-the-first-copy-is-counted`, not merged.
@@ -197,7 +215,7 @@ per mapping, so nothing above it can be right until that moves.
 | T3 The first-copy byte meter, append-only | ✅ **Built 2026-08-30** (engine statistic + managed migration 0016 + worker flush) | `firstCopyBytes` computed in the one shared loop at the moment of each target CREATE; `bytes_moved` raised by the managed worker after each pass, raise-only by trigger. Never the same query as 0090's byte budget, and never a live-row SUM — proved byte-exact by sensitivity at the engine. |
 | T4 The tier calculator, and its drift guard | ✅ **Built 2026-08-30** (`tier-calculator.ts`, on T1–T3 the same evening); **surfaced 2026-08-31** on the support tenant screen | The third copy of the numbers, held to the first two: the same structurally-identical ADR-table parse the site guard runs, PLUS an agreement grid driving this derivation and `site/calculator.mjs`'s over every boundary (195 points — tier and axis must match). `currentTier` derives from the month's peak (with T2's true-up, closing the quiet-month gap) and the meter's total, and answers with the EVIDENCE T5 quotes. Proved by breaking: a one-euro price drift and a wrong-axis derivation each turn red. **Surfaced**: `support_tenant_usage` (managed 0017) + `observedTier` (the read-only twin — looking moves no billing mark) render tier, axis, peak+date, live per-state counts and GB on the operator's tenant screen, parity with `currentTier` pinned before and after its true-up — so a wrong derivation is seen by the operator months before a customer sees a bill. **The view read a different month from the customer until 2026-09-09**: its join was `date_trunc('month', now())::date` — session-timezone dependent, like the writer — while the tenant's own `/api/billing/usage` read the peak in UTC. For the last hour or two of every month the earlier pair of eyes was looking at a different number from the one it exists to check. Managed migration 0024 pins the join to UTC. |
 | T5 The invoice says the tier and its evidence | 📋 Planned (needs T2–T4) | One line, a tier name, a peak and a date — and the per-driver breakdown gone. **Carries a dependency found in 0121 T4 (2026-09-09):** `rowFromIssuedInvoice` reads `metadata.costByDriver` off issued invoices to answer for months the run ledger no longer holds, and returns `null` without it — so dropping the breakdown makes newer months vanish from usage history SILENTLY while older ones keep rendering. T5 either keeps writing a breakdown or teaches that fallback the tier shape. Same reshape covers `/usage/history`, which still prices its ledger-derived rows with the retired `calculateCost` (nothing renders them today). |
-| T6 Top-ups, step-ups and the floor | 🟡 **The data axis built 2026-10-03** (managed 0037, `data-ceiling.ts`, `/api/billing/ceiling`, `DataCeiling.tsx`, `firstCopyAllowed`, `CeilingAtStart.tsx`); **the path axis's server check 2026-10-04** (`path-ceiling.ts`, managed 0039); the question at *Start* next. Not during the alpha (owner: *"A"*) | The mechanics ADR-0014 published and nothing implements. |
+| T6 Top-ups, step-ups and the floor | 🟡 **The data axis built 2026-10-03** (managed 0037, `data-ceiling.ts`, `/api/billing/ceiling`, `DataCeiling.tsx`, `firstCopyAllowed`, `CeilingAtStart.tsx`); **the path axis 2026-10-04** (`path-ceiling.ts`, managed 0039, `/api/billing/paths`, `PathsAtStart.tsx`): the server's check and the question at *Start*. Not during the alpha (owner: *"A"*) | The mechanics ADR-0014 published and nothing implements. |
 | T7 Extend the leakage guard before, not after | ✅ **Obsolete as written — resolved by the guard itself, verified 2026-08-30** | The premise ("a fixed list of five") is stale: the guard's table list now DERIVES from the managed chain's own SQL, so `occupancy_peak` was appliance-forbidden the moment migration 0015 existed, with no list to edit. Verified green with the new table; T3's meter inherits the same coverage for free. |
 | T8 The free band, if acquisition wants one | ✅ **Decided and built 2026-09-24**: Tiny is free | The owner: *"make the Tiny tier Free, no billing needed."* Tiny itself, not a new row; no invoice, no payment method, no top-up. See the section below and ADR-0014's amendment. |
 

@@ -5697,6 +5697,82 @@ paths:
             application/json:
               schema: { type: object }
 
+  /api/billing/paths:
+    get:
+      tags: [Billing]
+      summary: The question at Start, before the press
+      description: |
+        What starting these migrations would hold against the agreed tier
+        (workplan 0109 T6, the path axis): the slots held now, the slots held
+        after, by the server's own rule (the refusal the start would get, 409
+        `paths_need_a_yes`), the smallest tier that runs it all with its monthly
+        (`needs`; null when not past, and past Extra large), and which of them
+        fit now, in the order asked. A migration's new slots are its included
+        data types that never ran; a paused one kept its slots. `holds` is false
+        during the alpha, where nothing waits for a yes. Read-only.
+      parameters:
+        - name: starting
+          in: query
+          required: true
+          description: The migrations Start would start, as mapping ids separated by commas, at most fifty.
+          schema: { type: string }
+      responses:
+        '200':
+          description: The question, and what fits now.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  holds: { type: boolean }
+                  tier: { type: object }
+                  held: { type: integer }
+                  after: { type: integer }
+                  past: { type: boolean }
+                  needs: { type: [object, 'null'] }
+                  reason: { type: [string, 'null'] }
+                  fits: { type: array, items: { type: string } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/billing/paths/yes:
+    post:
+      tags: [Billing]
+      summary: Say yes, at Start, to a tier that runs more at the same time
+      description: |
+        The same append-only row as a move up at the data ceiling (one agreed
+        tier for both axes), with `axis` `paths` (managed migration 0039),
+        carrying the tier's monthly price, in whole euros. Refused when the tier
+        is not above the agreed one (`not_a_step_up`) or the price is not its
+        monthly now (`offer_changed`), and during the alpha. The page starts the
+        migrations after it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tierId, priceEur]
+              properties:
+                tierId: { type: string }
+                priceEur: { type: integer, minimum: 0 }
+      responses:
+        '200':
+          description: The agreed tier after the yes.
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: |
+            Not taken: `not_a_step_up`, `offer_changed`, or `nothing_charged_during_the_alpha`.
+          content:
+            application/json:
+              schema: { type: object }
+
   /api/billing/estimate:
     post:
       tags: [Billing]

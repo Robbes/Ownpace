@@ -2169,6 +2169,21 @@ const en = {
   'ceiling.atStart.choose': 'Choose now, or start anyway and choose when they wait:',
   'ceiling.atStart.billing': 'your data ceiling on the Billing page',
   'ceiling.atStart.alpha': 'During the Alpha nothing waits at the ceiling and nothing is charged.',
+  // The question at Start (workplan 0109 T6, the path axis; the owner,
+  // 2026-10-04: "side by side"): a start past the agreed tier's paths waits
+  // for a yes, so both ways on are offered beside each other, with the price.
+  'paths.atStart':
+    'Starting now makes {after} migrations run at the same time (each kind of data counts as one), and your tier, {tier}, runs {paths}.',
+  'paths.atStart.moveUp': 'Move up to {tier}',
+  'paths.atStart.moveUp.what': '{paths} at the same time, for {monthly} a month. Everything here starts.',
+  'paths.atStart.moveUp.button': 'Move up to {tier} and start',
+  'paths.atStart.talkToUs': 'No tier runs that many at the same time. Talk to us, and we will price it properly.',
+  'paths.atStart.fits': 'Start what fits now',
+  'paths.atStart.fits.what': '{count} of {total} start now, on {tier}. The rest stay set up, to start when fewer run.',
+  'paths.atStart.fits.button': 'Start {count} of {total}',
+  'paths.atStart.fits.none':
+    'None of these fits beside what runs now. A migration gives its place back when it is finished; a paused one keeps it.',
+  'paths.atStart.alpha': 'During the Alpha nothing waits for a yes and nothing is charged, so everything starts.',
   'pause.dataCeiling':
     'New items wait at your data ceiling of {ceiling}: {held} not copied yet. Changes to what is already copied carry on.',
   'pause.dataCeiling.moveUp': 'Move up to {tier}: €{monthly} a month.',
@@ -4641,6 +4656,18 @@ const nl: Record<keyof typeof en, string> = {
   'ceiling.atStart.choose': 'Kies nu, of start toch en kies wanneer ze wachten:',
   'ceiling.atStart.billing': 'uw datalimiet op de pagina Facturering',
   'ceiling.atStart.alpha': 'Tijdens de Alpha wacht er niets bij de limiet en wordt niets in rekening gebracht.',
+  'paths.atStart':
+    'Nu starten laat {after} migraties tegelijk lopen (elke soort gegevens telt als één), en uw pakket, {tier}, laat er {paths} lopen.',
+  'paths.atStart.moveUp': 'Ga naar {tier}',
+  'paths.atStart.moveUp.what': '{paths} tegelijk, voor {monthly} per maand. Alles hier start.',
+  'paths.atStart.moveUp.button': 'Ga naar {tier} en start',
+  'paths.atStart.talkToUs': 'Geen pakket laat er zoveel tegelijk lopen. Neem contact op, dan prijzen we het goed.',
+  'paths.atStart.fits': 'Start wat nu past',
+  'paths.atStart.fits.what': '{count} van {total} starten nu, op {tier}. De rest blijft klaarstaan, om te starten als er minder lopen.',
+  'paths.atStart.fits.button': 'Start {count} van {total}',
+  'paths.atStart.fits.none':
+    'Geen hiervan past naast wat nu loopt. Een migratie geeft haar plek terug als ze klaar is; een gepauzeerde houdt die vast.',
+  'paths.atStart.alpha': 'Tijdens de Alpha wacht er niets op een akkoord en wordt niets in rekening gebracht, dus alles start.',
   'pause.dataCeiling':
     'Nieuwe items wachten bij uw datalimiet van {ceiling}: {held} nog niet gekopieerd. Wijzigingen aan wat al gekopieerd is gaan door.',
   'pause.dataCeiling.moveUp': 'Ga naar {tier}: €{monthly} per maand.',

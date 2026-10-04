@@ -29,7 +29,7 @@
  * rule, through `holdsAtCeiling`, as for the data ceiling.
  */
 
-import type { Allowance } from './data-ceiling.ts';
+import { monthlyEur, type Allowance, type AllowanceGrant } from './data-ceiling.ts';
 import { MANAGED_TIERS, type ManagedTier } from './tier-calculator.ts';
 
 /** Why a start waits: what it would hold, what the agreed tier runs, and the tier that runs it. */
@@ -59,4 +59,75 @@ export function pathsPastTheTierReason(past: PathsPastTheTier): string {
   return past.needs
     ? `${now} ${past.needs.name} runs ${past.needs.paths}: move up to it, or start fewer at the same time.`
     : `${now} Past ${MANAGED_TIERS[MANAGED_TIERS.length - 1]!.name}, talk to us, or start fewer at the same time.`;
+}
+
+/** One migration *Start* would start, and the slots it would take: its data types that never ran. */
+export interface StartingMigration {
+  readonly mappingId: string;
+  readonly newSlots: number;
+}
+
+/** What *Start* would do to the slots, said before the press (the question at *Start*). */
+export interface PathsForecast {
+  /** The agreed tier. */
+  readonly tier: ManagedTier;
+  /** Slots held now. */
+  readonly held: number;
+  /** Slots held once every migration asked about has started. */
+  readonly after: number;
+  /** Why starting them all waits for a yes; null when it may go ahead. */
+  readonly past: PathsPastTheTier | null;
+  /**
+   * The migrations that may start without a yes, in the order asked: each one
+   * whose slots still fit beside the ones before it. The other way on, side by
+   * side with moving up (the owner, 2026-10-04): start what fits now.
+   */
+  readonly fits: readonly string[];
+}
+
+/**
+ * The slots *Start* would take, against the agreed tier, before the press:
+ * the server's own rule (`pathsPastTheTier`), so the question asked is the
+ * refusal the start would get, and what fits is what would not be refused.
+ */
+export function pathsForecast(
+  allowance: Allowance,
+  held: number,
+  starting: readonly StartingMigration[],
+): PathsForecast {
+  const after = starting.reduce((sum, m) => sum + m.newSlots, held);
+  const fits: string[] = [];
+  let running = held;
+  for (const m of starting) {
+    // A migration that takes no slot never waits, past the tier or not.
+    if (m.newSlots > 0 && running + m.newSlots > allowance.tier.paths) continue;
+    fits.push(m.mappingId);
+    running += m.newSlots;
+  }
+  return { tier: allowance.tier, held, after, past: pathsPastTheTier(allowance, held, after), fits };
+}
+
+/** The customer's yes to a tier that runs more at the same time, at the price they were shown. */
+export interface PathsYes {
+  readonly tierId: string;
+  readonly priceEur: number;
+}
+
+/**
+ * Whether a yes on the path axis becomes a row: a tier above the agreed one,
+ * at its monthly price now. The same row as a move up at the data ceiling
+ * (one agreed tier for both axes, the owner's *"A"*), so the data ceiling
+ * moves with it; `axis` on the row says which limit asked.
+ */
+export function decidePathsYes(
+  allowance: Allowance,
+  yes: PathsYes,
+):
+  | { readonly ok: true; readonly grant: AllowanceGrant & { readonly priceEur: number } }
+  | { readonly ok: false; readonly reason: 'not_a_step_up' | 'offer_changed' } {
+  const tier = MANAGED_TIERS.find((t) => t.id === yes.tierId);
+  if (!tier || tier.id === 'free' || tier.paths <= allowance.tier.paths) return { ok: false, reason: 'not_a_step_up' };
+  // Nobody agrees to a price they were not shown.
+  if (yes.priceEur !== monthlyEur(tier)) return { ok: false, reason: 'offer_changed' };
+  return { ok: true, grant: { kind: 'tier', tierId: tier.id, bandGb: tier.dataGb, priceEur: monthlyEur(tier) } };
 }
