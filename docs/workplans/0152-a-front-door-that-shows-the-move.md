@@ -10,11 +10,15 @@ already has: `?from=`, `?what=` and `?who=`, each matched against its list as `?
 for: *"Moving away from Google: email, calendar, contacts, and files, for one person."*
 - **Nothing new is stored.** It is the note, which the person edits like anything they type. An
   unknown value is left out, and with nothing known there is no sentence.
+- **Several sources, and Tasks** (the owner, 2026-10-04): `?from=` may be a list, as the estimate
+  now ticks several, and the sentence names each: *"Moving away from Google and Dropbox: email,
+  tasks, and files, for one person."* Tasks is one of the data types, in the app's word for it.
 - **The site half follows:** the estimate's *Request access* and each *Leaving…* page carry their
-  answers once #1476 and #1479 are on main, since both change the estimate's script.
+  answers once the estimate's own changes (#1482) are on main, since both change its script.
 - **Guard:** `RequestAccess.unit.test.tsx`:
   - the form arrives with the sentence, and sends what the person leaves in the field;
   - it says it in Dutch when the site asks for Dutch, before the page switches;
+  - it names every known source in a list, once, and tasks as the app names them;
   - an unknown value is left out, and nothing known means no sentence.
 - **T0:** the sentence's words, in both languages.
 

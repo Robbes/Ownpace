@@ -95,6 +95,16 @@ describe('RequestAccess', () => {
     expect(postMock.mock.calls[0]![1]).toMatchObject({ note: 'Only my mail, from Google' });
   });
 
+  it('names every source the estimate had ticked, and tasks as the app names them (the owner, 2026-10-04)', async () => {
+    renderPage('/request-access?from=google,dropbox,nonsense,google&what=mail,tasks,files&who=individual');
+    expect(screen.getByLabelText(/what are you moving/i)).toHaveValue(
+      'Moving away from Google and Dropbox: email, tasks, and files, for one person.',
+    );
+    cleanup();
+    renderInLocale('/request-access?locale=nl&from=microsoft,box&what=tasks');
+    expect(await screen.findByLabelText(/wat wilt u migreren/i)).toHaveValue('Weg bij Microsoft 365 en Box: taken.');
+  });
+
   it('says the answers in the language the site asked for, before the page has switched to it', async () => {
     renderInLocale('/request-access?locale=nl&from=dropbox&what=files&who=family');
     expect(await screen.findByLabelText(/wat wilt u migreren/i)).toHaveValue(
