@@ -6,9 +6,11 @@
  * What these tests pin: the role split (owner/admin operate, member/viewer
  * read), the server's refusals rendering VERBATIM (the guards live there —
  * "Cannot demote the last owner" is the server's finding, not ours), removal
- * being a two-step armed action, and the two client-side pre-emptions the
- * screen IS allowed to make (no owner option for an admin, no remove button
- * on your own row).
+ * being a two-step armed action, and the client-side pre-emptions the screen
+ * IS allowed to make (no owner option for an admin, no remove button on your
+ * own row, and no role select and no remove button for an admin on an owner's
+ * row: 0137 T3 (c), held by
+ * `a-role-that-promises-less-than-it-allows.unit.test.tsx`).
  *
  * Owner and admin are the only roles offered (workplan 0137 T7), so every role
  * change below picks one of them; what the select offers, and what a row that
