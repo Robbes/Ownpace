@@ -496,6 +496,10 @@ reading a file drops off its entry by itself.
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 
+### `apps/web/src/pages/Docs.tsx`
+
+- [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)).
+
 ### `apps/web/src/pages/Grant.tsx`
 
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
@@ -1432,6 +1436,14 @@ reading a file drops off its entry by itself.
 
 - [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 
+### `docs/guides/nl/archive.md`
+
+- [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)).
+
+### `docs/guides/nl/google.md`
+
+- [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)).
+
 ### `docs/incident-runbook.md`
 
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
@@ -2346,6 +2358,7 @@ reading a file drops off its entry by itself.
 - [a-mount-that-went-blind](../scripts/a-mount-that-went-blind.unit.test.ts) — THE REPUBLISH THAT MADE THE SITE DISAPPEAR.
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-version-the-tester-accepted](../scripts/a-version-the-tester-accepted.unit.test.ts) — A VERSION THE TESTER ACCEPTED (workplan 0139 T3).
+- [claims-you-can-check](../scripts/claims-you-can-check.unit.test.ts) — CLAIMS YOU CAN CHECK (workplan 0152 T8 (a), (b)).
 - [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 - [one-look-from-the-site-to-the-app](../scripts/one-look-from-the-site-to-the-app.unit.test.ts) — ONE LOOK FROM THE SITE TO THE APP (workplan 0152 T9).
@@ -2461,6 +2474,11 @@ reading a file drops off its entry by itself.
 ### `site/profiles.mjs`
 
 - [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
+
+### `site/proof.mjs`
+
+- [claims-you-can-check](../scripts/claims-you-can-check.unit.test.ts) — CLAIMS YOU CAN CHECK (workplan 0152 T8 (a), (b)).
+- [the-hero-is-the-drawing](../scripts/the-hero-is-the-drawing.unit.test.ts) — THE HERO IS THE DRAWING (workplan 0152 T3).
 
 ### `site/security-txt.mjs`
 
@@ -4303,7 +4321,10 @@ Reads:
 - `apps/api/src/routes/billing/billing-party.unit.test.ts`
 - `apps/web/src/i18n/i18n.unit.test.tsx`
 - `apps/web/src/i18n/strings.ts`
+- `apps/web/src/pages/Docs.tsx`
 - `docs/cutover-communication-templates.md`
+- `docs/guides/nl/archive.md`
+- `docs/guides/nl/google.md`
 - `packages/shared/src/erasure-scope.ts`
 - `packages/shared/src/share-announcement.ts`
 - `site/site.unit.test.ts`
@@ -4502,6 +4523,15 @@ Reads:
 - `deploy/compose/trigger-credentials.sh`
 - `deploy/compose/trigger-magic-link.sh`
 - `scripts/every-service-somebody-starts.unit.test.ts`
+
+### [claims-you-can-check](../scripts/claims-you-can-check.unit.test.ts)
+
+CLAIMS YOU CAN CHECK (workplan 0152 T8 (a), (b)).
+
+Reads:
+
+- `site/build.mjs`
+- `site/proof.mjs`
 
 ### [connector-coverage](../scripts/connector-coverage.unit.test.ts)
 
@@ -5050,6 +5080,7 @@ Reads:
 - `site/copy.mjs`
 - `site/hero.mjs`
 - `site/icons.mjs`
+- `site/proof.mjs`
 
 ### [the-idp-refusal-that-said-nothing](../scripts/the-idp-refusal-that-said-nothing.unit.test.ts)
 

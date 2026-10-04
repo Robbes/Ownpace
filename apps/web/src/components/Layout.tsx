@@ -1,6 +1,6 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 import React from 'react';
-import { Outlet, Link, useLocation, useNavigationType } from 'react-router';
+import { Outlet, Link, useLocation } from 'react-router';
 import {
   FolderGit2,
   Building2,
@@ -33,6 +33,7 @@ import PlatformPauseBanner from './PlatformPauseBanner.tsx';
 import NewVersionPrompt from './NewVersionPrompt.tsx';
 import AlphaNote from './AlphaNote.tsx';
 import { supportAddress } from './SupportLine.tsx';
+import { useNewPageAtTheTop } from './NewPageAtTheTop.tsx';
 import {
   activeNavHref,
   mappingDisplayName,
@@ -130,34 +131,9 @@ const Layout: React.FC = () => {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [drawerOpen, closeDrawer]);
   const location = useLocation();
-  const navigationType = useNavigationType();
-  /**
-   * A NEW PAGE STARTS AT THE TOP (workplan 0145 T3 (a)).
-   *
-   * `BrowserRouter` neither resets nor restores the scroll, so a page opened
-   * from further down a list opened part of the way down. Now a new path is
-   * sent to the top, at once, before it is painted. Two cases keep their
-   * scroll:
-   *
-   * - Back and Forward (`POP`, which is also the first load): the scroll is
-   *   left to the browser's own restoration, which is what a person expects;
-   * - a new query or a new `#section` on the same path: not a new page, as
-   *   `followLink` treats it. Keyed on the path alone for that reason.
-   *
-   * An address that names a section on a new path goes to the top as well.
-   * The page with the section scrolls to it afterwards (`GuideArticle`, for
-   * `/docs/<guide>#<section>`), in a passive effect, and React runs this
-   * layout effect before any passive one of the same commit. So the reader
-   * lands on the section, and on the top where the section is missing, not
-   * at the old page's offset. That order is why this is a layout effect.
-   *
-   * Focus is left where it is: on a new page it is 0145 T3 (b)'s, and the
-   * drawer's is T1's, above.
-   */
-  React.useLayoutEffect(() => {
-    if (navigationType === 'POP') return;
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-  }, [location.pathname]); // the path alone: a new query or hash on the same path is not a new page
+  // A new page starts at the top (workplan 0145 T3 (a)): the hook says when,
+  // and why it is a layout effect. `PublicDocs` calls it too (0152).
+  useNewPageAtTheTop();
   // Following a link closes the drawer. To another page, focus goes to that
   // page (0145 T3 (b)). To the page already shown there is no route change and
   // nothing takes focus: the followed link goes `inert` with its drawer, and a

@@ -29,6 +29,16 @@
  * and never the edition's name; the appliance serves no such route, so there
  * the section stays open, as its steps are the appliance's to take.
  *
+ * OPEN WITHOUT AN ACCOUNT (workplan 0152; the owner, 2026-10-04: *"Guide links
+ * on the Leaving pages: yes, make public"*). On managed a visitor without a
+ * session reads this page too, in `PublicDocs`'s frame, and for them it asks
+ * the API nothing (`useSignedIn`): the own-app section stays open, as it does
+ * where the answer never comes. The route that answers is public, but the
+ * client it goes through takes any 401 for a dead session and sends the
+ * browser to the sign-in page (`onUnauthorized` in `services/api.ts`), which
+ * is the bounce this page was opened up to end. A page for somebody without
+ * a session does not depend on every route it touches staying public.
+ *
  * The renderer below is deliberately small, and extended rather than replaced
  * by a library (workplan 0148 D6): the guides are ours and short. It takes
  * headings (an `<h2>`–`<h4>` each, with an id from a trailing `{#id}` or else
@@ -51,6 +61,7 @@ import { useLocale } from '../i18n/index.tsx';
 import { STRINGS, LOCALES, type Locale } from '../i18n/strings.ts';
 import { providerClientsApi } from '../services/mapping-service.ts';
 import { isSelfHost } from '../services/edition.ts';
+import { useSignedIn } from '../stores/signed-in.ts';
 import { HelpTabs } from '../components/HelpTabs.tsx';
 
 /** Every customer guide, `docs/guides/<locale>/<slug>.md`, inlined at build time. */
@@ -307,7 +318,8 @@ export function guideTitle(body: string, slug: string): string {
 }
 
 /**
- * A guide's `#` is the page's `<h2>`: the layout's `<h1>` names the screen.
+ * A guide's `#` is the page's `<h2>`: the frame's `<h1>` names the screen,
+ * `Layout`'s or, without a session, `PublicDocs`'s.
  * `###` and `####` both land on `<h4>`, the deepest level a guide has.
  * `scroll-mt-20` keeps a heading that was scrolled to clear of the layout's
  * sticky header, which is `h-16`.
@@ -531,16 +543,18 @@ const Docs: React.FC = () => {
 
   // Does this deployment carry that provider's app? The fact the wizard and
   // the consent panel read, under their query key, so the three screens share
-  // one answer. Until it arrives, and where it never does (the appliance
-  // serves no such route), the section stays open: the direction that cannot
+  // one answer. Until it arrives, where it never does (the appliance serves no
+  // such route), and for a visitor without a session, who is not asked for it
+  // (the header says why), the section stays open: the direction that cannot
   // hide a step somebody needs.
+  const signedIn = useSignedIn();
   const provider = picked ? grantProviderOf(slug) : undefined;
   const { data: providerClients } = useQuery({
     queryKey: ['provider-clients'],
     queryFn: providerClientsApi.get,
     retry: false,
     staleTime: Infinity,
-    enabled: provider !== undefined,
+    enabled: provider !== undefined && signedIn,
   });
   const ownAppFolded = provider !== undefined && providerClients?.[provider] === 'deployment';
 

@@ -47,7 +47,9 @@ export const COPY = {
     files: { home: 'index.html', how: 'how-it-works.html', pricing: 'pricing.html', calculator: 'estimate.html', privacy: 'privacy.html', terms: 'terms.html', alpha: 'alpha.html', guide: 'alpha-guide.html', 'leaving-google': 'leaving-google.html', 'leaving-microsoft': 'leaving-microsoft-365.html', 'leaving-apple': 'leaving-icloud.html', 'leaving-dropbox': 'leaving-dropbox.html', 'leaving-box': 'leaving-box.html', 'leaving-mail': 'leaving-another-mail-provider.html' },
     skip: 'Skip to content',
     footerTag: 'move your own data, at your own pace.',
-    footerOss: 'Open source under the Apache License 2.0. Run it yourself, or let us run it.',
+    // Each claim links what holds it (workplan 0152 T8): proof.mjs names the files.
+    footerOss: (p) =>
+      `<a href="${p.repository}">Open source</a> under the Apache License 2.0. <a href="${p.selfHost}">Run it yourself</a>, or let us run it.`,
     footerStatus: 'Status',
     // A 404 on a site about moving data should reassure before it jokes: the
     // first thing a visitor wonders is whether something of theirs went
@@ -87,9 +89,10 @@ export const COPY = {
       keeps: ['then keeps in step,', 'until you switch'],
     },
     // Three facts under the hero (T3 (a)). None says "read-only": that word is
-    // 0144 T3's to keep within what the scopes allow.
+    // 0144 T3's to keep within what the scopes allow. The first is a claim, and
+    // links the guard that holds it (T8, proof.mjs).
     facts: [
-      ['Nothing is deleted at the source.', 'Your old account stays whole: it is your way back.'],
+      [(p) => `<a href="${p.readsOnly}">Nothing is deleted at the source.</a>`, 'Your old account stays whole: it is your way back.'],
       ['Kept in step until you switch.', 'New mail and changed files keep arriving.'],
       ['A list of what arrived, item by item.', 'And what could not come, with the reason.'],
     ],
@@ -157,9 +160,11 @@ export const COPY = {
         'Other O365 apps': 'the other Office 365 apps',
       },
       limitsTitle: 'Limits you should know',
-      // The app's guide sits behind its sign-in until the site has a help
-      // section of its own (0152 T5 (d), 0151), and the link says so.
-      guideLink: 'In the guide (sign in first)',
+      // The app's guides open without an account (0152; the owner,
+      // 2026-10-04: "Guide links on the Leaving pages: yes, make public"), so
+      // the link says only where it goes. It points at the site's own help
+      // section once there is one (0152 T5 (d), 0151).
+      guideLink: 'In the guide',
       limits: {
         gmailDaily: (gb) =>
           `Google lets a Gmail mailbox be read at up to ${gb} GB a day, so a large mailbox takes days. Ownpace keeps copying until all of it is in, and your old account works as usual meanwhile.`,
@@ -216,9 +221,9 @@ export const COPY = {
       ['It is a move, not a copy',
        'Most migration tools run a copy job and hand you the result. Ownpace keeps running: every change on your old account arrives on the new one, for as long as you want, until you cut over.'],
       ['Nothing is deleted at the source',
-       'Ever. Your old account is your fallback, and it stays intact whatever happens. That is not a promise about our intentions — the software has no way to delete from a source.'],
+       (p) => `Ever. Your old account is your fallback, and it stays intact whatever happens. That is not a promise about our intentions — <a href="${p.readsOnly}">the software has no way to delete from a source</a>.`],
       ['European, all the way down',
-       'Migrating off US cloud through a US service defeats the point. Ownpace runs in the EU, and the software is open source, so you can check that rather than trust it.'],
+       (p) => `Migrating off US cloud through a US service defeats the point. Ownpace runs in the EU, and the software is <a href="${p.repository}">open source</a>, so you can check that rather than trust it.`],
       ['Or run it yourself',
        'The whole thing is Apache-2.0. Run it on your own machine and we never see your data, receive no telemetry, and have nothing to be trusted with.'],
     ],
@@ -228,7 +233,7 @@ export const COPY = {
       ['It does not sync backwards',
        'Data flows old → new. Your old account never changes, which is what keeps it a safe place to fall back to.'],
       ['It cannot move everything perfectly',
-       'Providers differ, and some things do not survive the crossing. Whatever cannot be moved is reported to you item by item, with the reason — never dropped quietly.'],
+       (p) => `Providers differ, and some things do not survive the crossing. <a href="${p.cannotMove}">Whatever cannot be moved</a> is reported to you item by item, with the reason — never dropped quietly.`],
       ['It is not a backup service',
        'Once you cut over, the migration is finished. Keeping a copy in step afterwards is a new migration you set up, and it is priced as one.'],
     ],
@@ -422,7 +427,8 @@ export const COPY = {
     skip: 'Naar de inhoud',
     footerTag: 'neem uw gegevens mee, in uw eigen tempo.',
     footerOss:
-      'Open source onder de Apache License 2.0. Draai het zelf, of laat ons het draaien.',
+      (p) =>
+        `<a href="${p.repository}">Open source</a> onder de Apache License 2.0. <a href="${p.selfHost}">Draai het zelf</a>, of laat ons het draaien.`,
     footerStatus: 'Status',
     notFound: {
       title: 'Pagina niet gevonden',
@@ -450,7 +456,7 @@ export const COPY = {
       keeps: ['houdt daarna bij,', 'tot u overstapt'],
     },
     facts: [
-      ['Bij de bron wordt niets verwijderd.', 'Uw oude account blijft heel: het is uw weg terug.'],
+      [(p) => `<a href="${p.readsOnly}">Bij de bron wordt niets verwijderd.</a>`, 'Uw oude account blijft heel: het is uw weg terug.'],
       ['Bijgehouden tot u overstapt.', 'Nieuwe e-mail en gewijzigde bestanden blijven binnenkomen.'],
       ['Een lijst van wat er aankwam, item voor item.', 'En van wat niet mee kon, met de reden.'],
     ],
@@ -511,7 +517,7 @@ export const COPY = {
         'Other O365 apps': 'de andere Office 365-apps',
       },
       limitsTitle: 'Grenzen om te kennen',
-      guideLink: 'In de handleiding (eerst aanmelden)',
+      guideLink: 'In de handleiding',
       limits: {
         gmailDaily: (gb) =>
           `Google laat een Gmail-postbus lezen tot ${gb} GB per dag, dus een grote postbus kost dagen. Ownpace blijft kopiëren tot alles binnen is, en uw oude account werkt intussen gewoon.`,
@@ -568,9 +574,9 @@ export const COPY = {
       ['Het is een migratie, geen kopie',
        'De meeste migratietools draaien één kopieerklus en geven u het resultaat. Ownpace blijft draaien: elke wijziging in uw oude account komt aan in het nieuwe, zolang u wilt, tot u overstapt.'],
       ['Aan de bron wordt nooit iets verwijderd',
-       'Nooit. Uw oude account is uw vangnet en blijft intact, wat er ook gebeurt. Dat is geen belofte over onze bedoelingen — de software heeft simpelweg geen manier om iets bij een bron te verwijderen.'],
+       (p) => `Nooit. Uw oude account is uw vangnet en blijft intact, wat er ook gebeurt. Dat is geen belofte over onze bedoelingen — <a href="${p.readsOnly}">de software heeft simpelweg geen manier om iets bij een bron te verwijderen</a>.`],
       ['Europees, tot op de bodem',
-       'Weggaan bij Amerikaanse cloud via een Amerikaanse dienst mist het punt. Ownpace draait in de EU, en de software is open source, dus u kunt het nakijken in plaats van ons te geloven.'],
+       (p) => `Weggaan bij Amerikaanse cloud via een Amerikaanse dienst mist het punt. Ownpace draait in de EU, en de software is <a href="${p.repository}">open source</a>, dus u kunt het nakijken in plaats van ons te geloven.`],
       ['Of draai het zelf',
        'Alles is Apache-2.0. Draai het op uw eigen machine en wij zien uw gegevens nooit, ontvangen geen telemetrie en hebben niets waarin u ons hoeft te vertrouwen.'],
     ],
@@ -580,7 +586,7 @@ export const COPY = {
       ['Het synchroniseert niet terug',
        'Gegevens gaan van oud naar nieuw. Uw oude account verandert nooit, en juist daarom blijft het een veilige plek om op terug te vallen.'],
       ['Het kan niet alles perfect migreren',
-       'Aanbieders verschillen, en sommige dingen overleven de oversteek niet. Wat niet mee kan, krijgt u stuk voor stuk te horen, met de reden — het verdwijnt nooit stilletjes.'],
+       (p) => `Aanbieders verschillen, en sommige dingen overleven de oversteek niet. <a href="${p.cannotMove}">Wat niet mee kan</a>, krijgt u stuk voor stuk te horen, met de reden — het verdwijnt nooit stilletjes.`],
       ['Het is geen back-updienst',
        'Zodra u overstapt, is de migratie klaar. Daarna een kopie bijhouden is een nieuwe migratie die u zelf instelt, en die wordt ook zo geprijsd.'],
     ],
