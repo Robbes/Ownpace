@@ -181,8 +181,10 @@ describe('the published prices agree with the decision that set them', () => {
     for (const page of pages) {
       expect(page.html, `${page.file} claims what most people choose`).not.toMatch(/most people|meeste mensen|meest gekozen/i);
     }
-    expect(html('index.html')).toContain('<strong>Small</strong>, for one person moving everything at once: €5 a month');
-    expect(html('nl/index.html')).toContain('<strong>Small</strong>, voor één persoon die alles tegelijk migreert: €5 per maand');
+    expect(html('index.html')).toContain('<strong>Small</strong>, for one person moving everything at full pace: €5 a month');
+    expect(html('nl/index.html')).toContain(
+      '<strong>Small</strong>, voor één persoon die alles op volle snelheid migreert: €5 per maand',
+    );
   });
 
   it('never promises a year back, and says what is left of it pays later months (ADR-0014, 2026-10-04)', async () => {
@@ -233,8 +235,12 @@ describe('the published prices agree with the decision that set them', () => {
     expect(card('nl/prijzen.html')).toContain('Geen factuur, geen kaart');
     // The landing page's line says what free covers, where it used to say
     // "From €6 for the first month".
-    expect(rendered.find((p) => p.file === 'index.html')!.html).toContain('Free: one migration at a time, up to 250 GB.');
-    expect(rendered.find((p) => p.file === 'nl/index.html')!.html).toContain('Free: één migratie tegelijk, tot 250 GB.');
+    expect(rendered.find((p) => p.file === 'index.html')!.html).toContain(
+      'Free: 6 migrations at the same time and up to 150 GB, at one pass a day.',
+    );
+    expect(rendered.find((p) => p.file === 'nl/index.html')!.html).toContain(
+      'Free: 6 migraties tegelijk en tot 150 GB, met één ronde per dag.',
+    );
     // And no page still names the tier Free replaced, or a setup fee.
     for (const page of rendered.filter((p) => !/^(nl\/)?(privacy|terms|voorwaarden|alpha)\.html$/.test(p.file))) {
       expect(page.html, `${page.file} still names Tiny`).not.toMatch(/\bTiny\b/);

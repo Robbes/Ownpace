@@ -81,7 +81,7 @@ live in [README.md](./README.md), the register.
 ## [ADR-0014: Cost-recovery billing for the managed edition](./0014-cost-recovery-billing.md)
 
 - **A path is one kind of thing, from one account, to one account**: mail, contacts, calendar,
-  files and tasks are separate paths. Only a data type the migration carries is a path
+  files and tasks are separate paths. Only a carried data type is a path
   (`scope_selection.included`).
 - **A tier has two axes, and you are on the higher of them**: paths at the same time, and data
   moved — cumulative first copies, never the alpha's. Past Extra large: *talk to us*.
@@ -90,23 +90,23 @@ live in [README.md](./README.md), the register.
 
   | tier | paths at the same time | data moved | monthly | a year |
   |---|---|---|---|---|
-  | **Free** | 1 | 250 GB | free | free |
-  | **Small** | 4 | 750 GB | €5 | €30 |
-  | **Medium** | 20 | 2 TB | €12 | €72 |
-  | **Large** | 50 | 7.5 TB | €40 | €240 |
-  | **Extra large** | 200 | 15 TB | €80 | €480 |
+  | **Free** | 6 | 150 GB | free | free |
+  | **Small** | 6 | 500 GB | €5 | €30 |
+  | **Medium** | 12 | 1.5 TB | €12 | €72 |
+  | **Large** | 24 | 6 TB | €40 | €240 |
+  | **Extra large** | 50 | 15 TB | €80 | €480 |
 
-- **Free is free, and free means no billing**: no payment method, no invoice, no top-up. Guard:
-  `site/site.unit.test.ts` (*free*, never *€0*).
+- **Free is free, and free means no billing**: no payment method, no invoice, no top-up; one
+  pass a day outside the alpha (0157). Guard: `site/site.unit.test.ts` (*free*, never *€0*).
 - **`holdsASlot` (`@openmig/ledger`) is the slot rule**: `active`, `paused` and `continuous`
   hold a slot; `ready`, `cutover` and `done` hold none; a stop releases one only in the lane,
   whose customer is first told the bill does not stop at cutover.
-- **The month bills its peak; the tier is derived, never picked.** Downgrade is automatic,
-  announced, never blocking a path. No setup fee. Not built yet (0109 T5–T6).
+- **The month bills its peak, or a higher tier picked.** Downgrade: automatic down to it,
+  announced, never blocking. No setup fee. Not built (0109, 0157).
 - **Every step up is consented and paid for.** A path waits for the yes at activation; at the
   data ceiling, outside the alpha, new first copies wait for a move up or a one-off top-up
-  (another band for the tier's monthly, once; the meter never rewinds). Without that yes, a
-  month bills the tier it was on.
+  (another band for the tier's monthly, once). Without that yes, a month bills the tier it
+  was on.
 - **A year is credit at six months' price**: each month takes its tier at half price, at full
   price after twelve months, until spent; then month to month. Never refunded (withdrawal
   aside), never renewed. Not built (0111).

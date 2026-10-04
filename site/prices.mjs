@@ -32,39 +32,39 @@ export const TIERS = [
   {
     id: 'free',
     name: 'Free',
-    paths: 1,
-    dataGb: 250,
+    paths: 6,
+    dataGb: 150,
     monthly: 0,
     annual: 0,
   },
   {
     id: 'small',
     name: 'Small',
-    paths: 4,
-    dataGb: 750,
+    paths: 6,
+    dataGb: 500,
     monthly: 500,
     annual: 3000,
   },
   {
     id: 'medium',
     name: 'Medium',
-    paths: 20,
-    dataGb: 2 * GB_PER_TB,
+    paths: 12,
+    dataGb: 1.5 * GB_PER_TB,
     monthly: 1200,
     annual: 7200,
   },
   {
     id: 'large',
     name: 'Large',
-    paths: 50,
-    dataGb: 7.5 * GB_PER_TB,
+    paths: 24,
+    dataGb: 6 * GB_PER_TB,
     monthly: 4000,
     annual: 24000,
   },
   {
     id: 'xl',
     name: 'Extra large',
-    paths: 200,
+    paths: 50,
     dataGb: 15 * GB_PER_TB,
     monthly: 8000,
     annual: 48000,
@@ -73,7 +73,7 @@ export const TIERS = [
 
 /** Past the published scale we look at the actual case before quoting. */
 export const BEYOND = {
-  paths: 200,
+  paths: 50,
   dataGb: 15 * GB_PER_TB,
   what: 'Talk to us',
 };

@@ -159,8 +159,8 @@ describe('Billing Route Isolation', () => {
     });
 
     it('derives the tier from the HIGHER axis and serves the evidence (0121 T4)', async () => {
-      // 900 decimal GB. Small's ceiling is 750 and Medium's is 2 TB, so DATA
-      // decides — while a recorded peak of 3 paths would only reach Small.
+      // 900 decimal GB. Small's ceiling is 500 and Medium's is 1.5 TB, so DATA
+      // decides — while a recorded peak of 3 paths would stay on Free.
       // The two axes must DISAGREE, or this passes against a route that reads
       // whichever one it likes.
       await superuserPool.query(

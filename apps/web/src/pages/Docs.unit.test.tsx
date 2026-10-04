@@ -52,6 +52,13 @@
  * a guide are the same outline: the same headings, levels and `{#id}`s, in
  * the same order. T4 (b)'s five new guides (`dav`, `imap`, `jmap`,
  * `nextcloud`, `soverin`) came in both languages at once.
+ *
+ * WHAT 0152 ADDED (the owner, 2026-10-04: *"Guide links on the Leaving pages:
+ * yes, make public"*). On managed the page also answers a visitor without a
+ * session, and asks the API nothing for them. So the reader here is signed
+ * in, as everybody who read a guide was until then, and one case reads the
+ * page without a session. The route table's half, the frame and the address
+ * kept, is `a-guide-you-can-read-before-you-sign-in.unit.test.tsx`.
  */
 
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
@@ -61,6 +68,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GRANT_PROVIDERS } from '@openmig/shared';
 import { LocaleProvider } from '../i18n/index.tsx';
 import { STRINGS, type Locale } from '../i18n/strings.ts';
+import { useAuthStore } from '../stores/auth-store.ts';
 import Docs, { GUIDE_SLUGS, GuideArticle, guideTitle, pickGuide } from './Docs.tsx';
 
 /**
@@ -89,6 +97,9 @@ beforeEach(() => {
     .mockResolvedValue({ google: 'connection', dropbox: 'connection', microsoft: 'connection' });
   edition.selfhost = false;
   window.localStorage.setItem('ownpace.locale', 'en');
+  // A reader with a session, in the real store: the page asks for the
+  // deployment's facts only then (0152). The one case without is marked.
+  useAuthStore.setState({ isAuthenticated: true });
 });
 
 /** The page as the app mounts it: a query client, the real locale provider, a router. */
@@ -529,6 +540,32 @@ describe('the own-app section follows what this deployment carries (0148 T2 (c))
     const { container } = renderAt('/docs/box');
     expect(container.querySelector('details')).toBeNull();
     expect(providerClientsGet).not.toHaveBeenCalled();
+  });
+
+  it('asks nothing for a visitor without a session, and the section stays open (0152)', async () => {
+    // The answer that would close it, had it been asked for.
+    providerClientsGet.mockResolvedValue({ google: 'deployment', dropbox: 'deployment', microsoft: 'deployment' });
+    useAuthStore.setState({ isAuthenticated: false });
+    const { container } = renderAt('/docs/google');
+
+    expect(screen.getByRole('heading', { level: 2, name: /^Google/ })).toBeInTheDocument();
+    // A query that was going to run would have started by now.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(
+      providerClientsGet,
+      'the guide asked the API for a visitor without a session. Through the\n' +
+        "app's client, a 401 is a dead session and sends the browser to the\n" +
+        'sign-in page: the bounce the public guides exist to end.',
+    ).not.toHaveBeenCalled();
+    expect(container.querySelector('details')!.open).toBe(true);
+  });
+
+  it('still asks on the appliance, which has nobody to sign in', async () => {
+    edition.selfhost = true;
+    useAuthStore.setState({ isAuthenticated: false });
+    renderAt('/docs/google');
+
+    await waitFor(() => expect(providerClientsGet).toHaveBeenCalled());
   });
 });
 

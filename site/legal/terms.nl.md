@@ -119,13 +119,15 @@ Prijzen staan volledig gepubliceerd op [de prijzenpagina](./prijzen.html). U hoe
 te vragen, en er is geen prijs die u pas hoort na een gesprek.
 
 - Uw pakket wordt **afgeleid van wat u gebruikt** — hoeveel migraties tegelijk lopen en
-  hoeveel gegevens u hebt gemigreerd — niet gekozen uit een menu.
+  hoeveel gegevens u hebt gemigreerd. U mag een hoger pakket kiezen, bijvoorbeeld voor het
+  tempo; dat pakket is dan het minste dat u betaalt.
 - **Migraties afronden verlaagt uw rekening automatisch**, zonder dat u erom vraagt. De
   hoeveelheid gemigreerde gegevens legt daarbij een ondergrens.
-- **Free is gratis**: één migratie tegelijk, tot 250 GB, zonder maandbedrag en zonder
-  factuur. U legt er geen betaalwijze voor vast. Groeit u eroverheen — een tweede migratie
-  tegelijk, of meer gegevens — dan gaat u naar een betaald pakket, en we vragen het u eerst;
-  voor een maand waarin u niet hebt ingestemd Free te verlaten, wordt niets gerekend.
+- **Free is gratis**: zes migraties tegelijk, tot 150 GB, met één ronde per dag, zonder
+  maandbedrag en zonder factuur. U legt er geen betaalwijze voor vast. Groeit u eroverheen —
+  meer gegevens, of meer migraties tegelijk — dan gaat u naar een betaald pakket, en we vragen
+  het u eerst; voor een maand waarin u niet hebt ingestemd Free te verlaten, wordt niets
+  gerekend.
 - Op geen enkel pakket zijn er **inrichtingskosten**. Een jaar vooruit kost de prijs van zes
   maanden.
 - **Prijzen zijn inclusief btw.** Wat u ziet is wat u betaalt. Facturen aan zakelijke klanten

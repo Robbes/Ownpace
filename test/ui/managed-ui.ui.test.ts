@@ -556,6 +556,48 @@ describe('the managed UI talks to its own origin', () => {
   });
 });
 
+/**
+ * A GUIDE WITHOUT A SESSION (workplan 0152; the owner, 2026-10-04: *"Guide
+ * links on the Leaving pages: yes, make public"*). The site's Leaving pages
+ * link `/docs/google#gmail` and its like, for people who have no account.
+ *
+ * The one read the guide could make is forced to answer 401 here, as the API
+ * would to a request whose session is gone: through the app's client, a 401
+ * signs the browser out and sends it to `/login`. So staying on the guide is
+ * the whole property, in the shipped bundle, and not a mock's opinion of it.
+ */
+describe('a guide opens without a session (0152)', () => {
+  it('stays on /docs/google#gmail, in the front door’s look, and asks the API only for the build stamp', async () => {
+    failures.set('GET /api/provider-clients', { status: 401, body: { error: 'Unauthorized' } });
+    const before = apiHits.length;
+    try {
+      const l = await open('/docs/google#gmail', { signedIn: false });
+
+      const at = new URL(l.page.url());
+      expect(at.pathname + at.hash, 'a visitor without a session was sent away from the guide').toBe(
+        '/docs/google#gmail',
+      );
+      expect(await l.page.locator('article [id="gmail"]').count(), 'the section the link names').toBe(1);
+      const text = await l.text();
+      expect(text).toContain('Google — Drive, Gmail, Calendar, Contacts and Tasks');
+      expect(text).toContain('Setup guides'); // nav.docs, the frame's heading
+      // The way back to the site, in the site's teal (0152 T9): drawn, so the
+      // palette compiled.
+      const back = l.page.getByRole('link', { name: 'ownpace.eu' });
+      expect(await back.getAttribute('href')).toBe('https://www.ownpace.eu/');
+      expect(await back.evaluate((el) => getComputedStyle(el).color)).toBe('rgb(14, 79, 74)');
+      expect(
+        apiHits.slice(before).filter((path) => path !== '/api/version'),
+        'the guide asked the API for a visitor without a session',
+      ).toEqual([]);
+      expectClean(l, '/docs/google#gmail without a session');
+      await l.page.close();
+    } finally {
+      failures.delete('GET /api/provider-clients');
+    }
+  });
+});
+
 describe('the migrations list', () => {
   it('renders the migrations the API returned, on the card of the person they are for', async () => {
     const l = await open('/mappings');

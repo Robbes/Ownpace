@@ -13,8 +13,9 @@
  * they are real in both editions.
  */
 import React from 'react';
-import { Routes, Route, Navigate, useSearchParams } from 'react-router';
+import { Routes, Route, Navigate, useMatch, useSearchParams } from 'react-router';
 import { useAuthStore } from './stores/auth-store.ts';
+import { useSignedIn } from './stores/signed-in.ts';
 import Layout from './components/Layout.tsx';
 import AcceptanceGate from './components/AcceptanceGate.tsx';
 import Mappings from './pages/Mappings.tsx';
@@ -45,6 +46,7 @@ import Deletions from './pages/Deletions.tsx';
 import Moves from './pages/Moves.tsx';
 import Connections from './pages/Connections.tsx';
 import Docs from './pages/Docs.tsx';
+import PublicDocs from './pages/PublicDocs.tsx';
 import ReportProblem from './pages/ReportProblem.tsx';
 import Setup from './pages/Setup.tsx';
 import Sharing from './pages/Sharing.tsx';
@@ -82,19 +84,42 @@ const Billing =
 
 // Protected route component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-
-  // The self-host appliance has no accounts to authenticate against: it is
-  // single-user, bound to localhost, and its HTTP surface has been
-  // unauthenticated since workplan 0010. Sending its operator to a login form
-  // that nothing can satisfy would make the UI unusable there. See
-  // `services/edition.ts` — the flag defaults to `managed`, so a misconfigured
-  // build keeps the login rather than losing it.
-  if (!isAuthenticated && !isSelfHost()) {
+  // Signed in, or the self-host appliance, which has no accounts to
+  // authenticate against: `stores/signed-in.ts` says why, and is the one
+  // reading of it, so the guides below cannot open for anybody this sends to
+  // the login form, or the other way round.
+  const signedIn = useSignedIn();
+  if (!signedIn) {
     return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;
+};
+
+/** The guides' addresses: the `docs` and `docs/:slug` routes in the signed-in tree below. */
+const GUIDES = '/docs/*';
+
+/**
+ * THE GUIDES ANSWER EVERYBODY (workplan 0152; the owner, 2026-10-04: *"Guide
+ * links on the Leaving pages: yes, make public"*).
+ *
+ * The site's *Leaving …* pages link a guide section for each limit they name,
+ * `/docs/google#gmail` and the like, and the person reading them has no
+ * account yet. So this decides the guides' frame. With a session, it is the
+ * signed-in tree, exactly as for every other page. Without one, a guide is
+ * drawn in `PublicDocs`, the front door's look (0152 T9), where it used to be
+ * the sign-in page. Every other address in the tree still sends a visitor
+ * without a session to sign in, through `ProtectedRoute`.
+ *
+ * Decided here rather than by routing the guides apart, for two reasons: one
+ * route per address, and the layout stays mounted while a signed-in reader
+ * moves between a guide and any other page, as it always has. The appliance
+ * has nobody to sign in, so its guides keep its layout.
+ */
+const GuidesForEverybody: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const signedIn = useSignedIn();
+  const guide = useMatch(GUIDES) !== null;
+  return !signedIn && guide ? <PublicDocs /> : <>{children}</>;
 };
 
 /** A managed-only screen; the appliance lands on its own home instead. */
@@ -230,15 +255,19 @@ const AppRoutes: React.FC = () => {
           `GET /api/me` says acceptance is due, the acceptance screen stands in
           front of whichever page was asked for. The invitation screen above is
           outside it, because joining comes first and acceptance is per
-          organisation; the appliance never asks. */}
+          organisation; the appliance never asks. And the guides, which answer
+          a visitor without a session too, in the front door's look and with
+          no texts to accept (`GuidesForEverybody`, 0152). */}
       <Route
         path="/"
         element={
-          <ProtectedRoute>
-            <AcceptanceGate>
-              <Layout />
-            </AcceptanceGate>
-          </ProtectedRoute>
+          <GuidesForEverybody>
+            <ProtectedRoute>
+              <AcceptanceGate>
+                <Layout />
+              </AcceptanceGate>
+            </ProtectedRoute>
+          </GuidesForEverybody>
         }
       >
         <Route index element={<Landing />} />
@@ -382,7 +411,10 @@ const AppRoutes: React.FC = () => {
         {/* Connections as first-class, testable things (workplan 0062). */}
         <Route path="connections" element={<Connections />} />
         {/* The repo's setup guides, in the app — the references in
-            wizard panels and refusals are links here (workplan 0063). */}
+            wizard panels and refusals are links here (workplan 0063). On
+            managed they also answer a visitor without a session, so the
+            site's Leaving pages can link a section: `GuidesForEverybody`
+            above draws them in `PublicDocs` then (0152, 2026-10-04). */}
         <Route path="docs" element={<Docs />} />
         <Route path="docs/:slug" element={<Docs />} />
         {/* "Report a problem" (workplan 0130): managed only for now. The

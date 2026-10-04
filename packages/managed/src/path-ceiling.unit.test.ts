@@ -27,14 +27,15 @@ describe('a start', () => {
   });
 
   it('past it waits, and names the smallest tier that runs it all', () => {
-    expect(pathsPastTheTier(onTiny, 0, 3)).toEqual({ tier: first, after: 3, needs: tier('small') });
-    expect(pathsPastTheTier(onSmall, 4, 5)?.needs).toEqual(tier('medium'));
+    // Free and Small both run six (ADR-0014, 2026-10-04): past Free's paths is Medium.
+    expect(pathsPastTheTier(onTiny, 0, 7)).toEqual({ tier: first, after: 7, needs: tier('medium') });
+    expect(pathsPastTheTier(onSmall, 6, 7)?.needs).toEqual(tier('medium'));
   });
 
   it('that takes no new slot is never refused, though the organisation is past its tier already', () => {
-    // An organisation that ran five during the alpha may pause and resume them.
-    expect(pathsPastTheTier(onTiny, 5, 5)).toBeNull();
-    expect(pathsPastTheTier(onTiny, 5, 4)).toBeNull();
+    // An organisation that ran eight during the alpha may pause and resume them.
+    expect(pathsPastTheTier(onTiny, 8, 8)).toBeNull();
+    expect(pathsPastTheTier(onTiny, 8, 7)).toBeNull();
   });
 
   it('past Extra large names no tier: the published answer is "talk to us"', () => {
@@ -47,22 +48,23 @@ describe('a start', () => {
       { kind: 'tier', tierId: 'small', bandGb: tier('small').dataGb },
       { kind: 'top_up', tierId: 'small', bandGb: tier('small').dataGb },
     ]);
-    expect(pathsPastTheTier(toppedUp, 4, 5)).not.toBeNull();
+    expect(pathsPastTheTier(toppedUp, 6, 7)).not.toBeNull();
   });
 });
 
 describe('the sentence', () => {
   it('says the numbers, the tier that runs them, and the other way: starting fewer', () => {
-    const past = pathsPastTheTier(onTiny, 0, 3)!;
+    const past = pathsPastTheTier(onTiny, 0, 7)!;
     expect(pathsPastTheTierReason(past)).toBe(
-      `Starting this would make 3 migrations at the same time (each kind of data counts as one), and ${first.name} runs ${first.paths}. ` +
-        `${tier('small').name} runs ${tier('small').paths}: move up to it, or start fewer at the same time.`,
+      `Starting this would make 7 migrations at the same time (each kind of data counts as one), and ${first.name} runs ${first.paths}. ` +
+        `${tier('medium').name} runs ${tier('medium').paths}: move up to it, or start fewer at the same time.`,
     );
   });
 
   it('past Extra large, says talk to us', () => {
     const xl = allowanceOf([{ kind: 'tier', tierId: 'xl', bandGb: tier('xl').dataGb }]);
-    expect(pathsPastTheTierReason(pathsPastTheTier(xl, 200, 201)!)).toMatch(/Past Extra large, talk to us/);
+    const most = tier('xl').paths;
+    expect(pathsPastTheTierReason(pathsPastTheTier(xl, most, most + 1)!)).toMatch(/Past Extra large, talk to us/);
   });
 });
 
@@ -75,21 +77,21 @@ describe('the question at Start', () => {
   });
 
   it('is asked with the refusal the start would get, and says what fits now beside it', () => {
-    const f = pathsForecast(onSmall, 1, starting(2, 3, 1));
-    expect(f.past).toEqual(pathsPastTheTier(onSmall, 1, 7));
+    const f = pathsForecast(onSmall, 1, starting(2, 4, 1));
+    expect(f.past).toEqual(pathsPastTheTier(onSmall, 1, 8));
     expect(f.past?.needs).toEqual(tier('medium'));
-    // m1 takes two of the three free; m2's three do not fit beside it, m3's one does.
+    // m1 takes two of the five free; m2's four do not fit beside it, m3's one does.
     expect(f.fits).toEqual(['m1', 'm3']);
   });
 
   it('lets a migration that takes no slot start, though nothing else fits', () => {
-    const f = pathsForecast(onTiny, 3, starting(1, 0));
+    const f = pathsForecast(onTiny, first.paths, starting(1, 0));
     expect(f.past).not.toBeNull();
     expect(f.fits).toEqual(['m2']);
   });
 
   it('fits nothing that takes a slot while the organisation is past its tier already', () => {
-    expect(pathsForecast(onTiny, 5, starting(1)).fits).toEqual([]);
+    expect(pathsForecast(onTiny, first.paths + 2, starting(1)).fits).toEqual([]);
   });
 });
 
@@ -102,7 +104,7 @@ describe('a yes to run more at the same time', () => {
   });
 
   it('to a price that is not the one offered now is refused', () => {
-    expect(decidePathsYes(onTiny, { tierId: 'small', priceEur: monthlyEur(tier('small')) + 1 })).toEqual({
+    expect(decidePathsYes(onTiny, { tierId: 'medium', priceEur: monthlyEur(tier('medium')) + 1 })).toEqual({
       ok: false,
       reason: 'offer_changed',
     });

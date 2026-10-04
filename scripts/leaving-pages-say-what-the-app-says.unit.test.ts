@@ -24,7 +24,8 @@
  * 6. **Photos from an export go only where the app reads one from**
  *    (`ARCHIVE_READABLE_TARGETS`), and **each tile is the app's letter** for
  *    the page's first card (`TILE_LETTERS`).
- * 7. **Each limit links a guide section that exists**, in both languages.
+ * 7. **Each limit links a guide section that exists**, in both languages, and
+ *    opens it in the language of the page that links it.
  * 8. **The typical cost is the calculator's own answer**, and the estimate it
  *    links opens on the same case; Gmail's ceiling is the calculator's number.
  * 9. **Every page is built in both languages and reachable:** the header's
@@ -236,9 +237,11 @@ describe('the Leaving… pages say what the app says (0152 T5)', () => {
     }
   });
 
-  it('links each limit to a guide section that exists in both languages', async () => {
+  it('links each limit to a guide section that exists in both languages, in the page’s own', async () => {
     const { LEAVING } = await sources();
     const COPY = await copy();
+    const pages = await rendered();
+    const { APP_URL } = await site<{ APP_URL: string }>('prices.mjs');
     for (const page of LEAVING) {
       for (const row of page.rows.filter((r) => r.verdict !== 'moves')) {
         expect(page.limits.map((l) => l.id), `${page.id}: ${row.type} points at a limit the page does not explain`).toContain(
@@ -252,6 +255,12 @@ describe('the Leaving… pages say what the app says (0152 T5)', () => {
             `{#${section}}`,
           );
           expect(COPY[locale].leaving.limits[limit.id], `${locale}: no words for ${limit.id}`).toBeTruthy();
+          // The guide opens in the language of the page that links it
+          // (`PublicDocs` takes `?locale=` once, as the request page does).
+          const html = pages.find((p) => p.key === `leaving-${page.id}` && p.locale === locale)!.html;
+          expect(html, `${locale}/${page.id}: ${limit.guide} is not linked in the page's language`).toContain(
+            `href="${APP_URL}/docs/${slug}?locale=${locale}#${section}"`,
+          );
         }
       }
     }
