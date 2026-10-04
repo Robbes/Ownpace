@@ -45,6 +45,12 @@ zit hem erin of u het te horen krijgt.
 U bepaalt wanneer. Op dat moment is de migratie klaar, en uw oude account staat er nog
 steeds, onaangeroerd, zolang u het aanhoudt.
 
+Overstappen betekent dat u uw apps naar de nieuwe aanbieder laat wijzen in plaats van de
+oude: uw mailprogramma, de agenda's en contacten op uw telefoon, en de app die uw bestanden
+synchroniseert. Is uw adres van een eigen domein, dan verandert u ook in de DNS-instellingen
+van dat domein waar de mail wordt bezorgd, zodat nieuwe mail meteen in uw nieuwe thuis
+aankomt.
+
 ---
 
 ## Wat we een vriend zouden aanraden

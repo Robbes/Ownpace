@@ -50,10 +50,11 @@ import {
 import { freeTier as free, deriveTier, GMAIL_IMAP_GB_PER_DAY } from './calculator.mjs';
 import { securityTxt } from './security-txt.mjs';
 import { LOCALES, DEFAULT_LOCALE, localeRoot, COPY } from './copy.mjs';
-import { CUSTOMER_TYPES, INDICATIVE_PROFILES, OBJECT_TYPES, PROFILES_VERSION } from './profiles.mjs';
+import { CUSTOMER_TYPES, INDICATIVE_PROFILES, OBJECT_TYPES, PROFILES_VERSION, SIZE_ASKED } from './profiles.mjs';
 import { DATA_TYPES, DESTINATIONS, PROTOCOL_NAMES } from './destinations.mjs';
 import { SPRITE, icon } from './icons.mjs';
 import { LEAVING, DOMAIN_OF, EXPORT_TARGETS } from './sources.mjs';
+import { heroMove } from './hero.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, 'dist');
@@ -425,6 +426,26 @@ nav.menu .leaving-list a { display: flex; align-items: center; gap: 0.6rem; padd
 /* hero */
 .hero { padding: clamp(3rem, 8vw, 6rem) 0 2rem; }
 .hero h1 { margin-top: 0; max-width: 20ch; }
+/* The hero's picture beside its words on a wide screen, and under its buttons on
+   a phone, so the buttons stay in the first screen (0152 T3 (a)). */
+.hero { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "words" "picture" "leaving"; column-gap: 3rem; }
+.hero-words { grid-area: words; }
+.hero-picture { grid-area: picture; margin: 2.25rem 0 0; }
+.hero-leaving { grid-area: leaving; }
+.hero-move { display: block; width: 100%; max-width: 560px; height: auto; }
+@media (min-width: 60rem) {
+  .hero { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-areas: "words picture" "leaving picture"; }
+  .hero-picture { margin: 0; align-self: center; }
+}
+/* Three facts under the hero, and How it works in three steps (0152 T3). */
+.facts { margin-top: 0; }
+.facts .card h3 { font-size: 1.05rem; }
+.strip { list-style: none; padding: 0; margin: 1.5rem 0 0.75rem; display: grid; gap: 1rem 2rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); }
+.strip li { display: flex; gap: 0.9rem; align-items: flex-start; }
+.strip .step { font-size: 1.6rem; line-height: 1; min-width: 1.2ch; color: var(--teal); }
+@media (prefers-color-scheme: dark) { .strip .step { color: var(--mint); } }
+.strip h3 { margin: 0 0 0.3rem; font-size: 1.05rem; }
+.strip p { margin: 0; color: var(--muted); }
 .lede { font-size: clamp(1.05rem, 2.2vw, 1.3rem); color: var(--muted); max-width: 58ch; }
 .cta { display: flex; gap: 0.75rem; flex-wrap: wrap; margin: 2rem 0 0; }
 .btn {
@@ -454,10 +475,11 @@ nav.menu .leaving-list a { display: flex; align-items: center; gap: 0.6rem; padd
 .types .via { color: var(--muted); font-size: 0.85rem; margin-left: auto; }
 /* The hero's six Leaving… names (0152 T5 (b)). */
 .leaving-label { font-weight: 700; margin: 2rem 0 0.6rem; }
-/* Three by two beside the hero's words, as wf-site-home.svg draws it; two by three on a phone. */
+/* Under the hero's words: two by three beside the picture and on a phone, three by
+   two where the words have the width to themselves, every name on one line. */
 .leaving-row {
   list-style: none; padding: 0; margin: 0; display: grid; gap: 0.6rem 1.5rem; max-width: 42rem;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr));
 }
 .leaving-row a { display: flex; align-items: center; gap: 0.6rem; font-weight: 600; text-decoration: none; }
 .leaving-row a:hover span:last-child { text-decoration: underline; }
@@ -517,6 +539,43 @@ a.verdict { text-decoration: underline; text-decoration-thickness: 1px; }
 .tier ul { list-style: none; padding: 0; margin: 1rem 0; font-size: 0.93rem; }
 .tier ul li { padding: 0.3rem 0; border-top: 1px solid var(--line); }
 .tier .note { color: var(--muted); font-size: 0.9rem; margin-top: auto; padding-top: 1rem; }
+
+/* How you pay (0152 T6 (e)): a switch that needs no script and opens on yearly.
+   Each paid card carries both answers, and the switch shows one. Where :has() is
+   unknown both show, which is wordier and never wrong. */
+.pay-switch { border: 0; padding: 0; margin: 1.75rem 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; }
+.pay-switch legend { float: left; padding: 0; font-weight: 650; }
+.pay-options { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+.pay-options input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.pay-options label { padding: 0.3rem 1rem; border-radius: 999px; cursor: pointer; color: var(--muted); font-weight: 600; font-size: 0.95rem; }
+.pay-options input:checked + label { background: var(--teal); color: #fff; }
+.pay-options input:focus-visible + label { outline: 2px solid var(--teal); outline-offset: 2px; }
+@media (prefers-color-scheme: dark) {
+  .pay-options input:checked + label { background: var(--mint); color: #06201c; }
+  .pay-options input:focus-visible + label { outline-color: var(--mint); }
+}
+.pay-rule { color: var(--muted); margin: 0.6rem 0 0; }
+.pay:has(#pay-month:checked) .when-year, .pay:has(#pay-year:checked) .when-month { display: none; }
+.tier .price-year { font-size: 1.1rem; font-weight: 700; margin-top: 0.15rem; }
+.tier .price-how { color: var(--muted); font-size: 0.85rem; }
+.tier .half { display: block; margin-top: 0.35rem; color: var(--teal); font-size: 0.85rem; font-weight: 650; }
+@media (prefers-color-scheme: dark) { .tier .half { color: var(--mint); } }
+
+/* The pricing page's rules as questions (0152 T6 (b)): each opens without a script. */
+.qas { border-top: 1px solid var(--line); margin: 1.25rem 0 0; }
+details.qa { border-bottom: 1px solid var(--line); }
+details.qa > summary {
+  list-style: none; cursor: pointer; padding: 0.85rem 0; font-weight: 650;
+  display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+}
+details.qa > summary::-webkit-details-marker { display: none; }
+details.qa > summary::after {
+  content: ""; flex: none; width: 0.45em; height: 0.45em; margin-right: 0.3em;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: translateY(-0.15em) rotate(45deg);
+}
+details.qa[open] > summary::after { transform: translateY(0.15em) rotate(-135deg); }
+details.qa > p { margin: 0 0 1rem; }
 
 /* calculator (workplan 0088 T3) */
 .calc fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.25rem 1.25rem; margin: 1.25rem 0; }
@@ -758,10 +817,23 @@ function tierCards(locale) {
       // as a price that could be billed (ADR-0014, 2026-09-24).
       const next = TIERS[i + 1];
       const prices = free(t)
-        ? `<div class="price">${c.tierFree} <span>${c.tierFreeFor}</span></div>
-  <div class="price" style="font-size:1.1rem">${c.tierNoInvoice} <span>${c.tierNoInvoiceWhy}</span></div>`
-        : `<div class="price">${money(t.monthly)} <span>${c.tierMonth}</span></div>
-  <div class="price" style="font-size:1.1rem">${money(t.annual)} <span>${c.tierYear}</span></div>`;
+        ? `<div class="price">${c.tierFree}</div>
+  <div class="price-year">${c.tierFreeFor}</div>
+  <div class="price-how">${c.tierNoInvoice}, ${c.tierNoInvoiceWhy}</div>`
+        : // A year shown per month is the year divided by twelve, with the year's
+          // total in bold under it, never in small print, and the comparison of
+          // two prices on sale now: nothing struck through, no former price. A
+          // year that does not divide into whole cents stops the build in money().
+          `<div class="when-year">
+    <div class="price">${money(t.annual / 12)} <span>${c.tierMonth}</span></div>
+    <div class="price-year">${c.payYearTotal(money(t.annual))}</div>
+    <div class="price-how">${c.payYearHow}</div>
+    <div class="half">${c.payHalf}</div>
+  </div>
+  <div class="when-month">
+    <div class="price">${money(t.monthly)} <span>${c.tierMonth}</span></div>
+    <div class="price-how">${c.payMonthHow}</div>
+  </div>`;
       const terms = free(t)
         ? `<li>${c.tierFreeEdge(next.name)}</li>`
         : `<li>${c.tierNoSetup}</li>
@@ -810,7 +882,6 @@ function whereTo(locale) {
   return `
 <h2>${c.whereTitle}</h2>
 <p>${c.whereLede}</p>
-${SPRITE}
 <div class="cards">${DESTINATIONS.map(card).join('')}</div>
 `;
 }
@@ -967,18 +1038,31 @@ ${behind}
 function landing(locale) {
   const c = COPY[locale];
   const small = TIERS.find((t) => t.id === 'small');
+  const types = { ...c.dataTypes, photos: c.leaving.photos };
   return `
+${SPRITE}
 <section class="hero">
-  <h1>${c.heroTitle}</h1>
-  <p class="lede">${c.heroLede}</p>
-  <div class="cta">
-    <a class="btn btn-primary" href="${esc(orderHref(locale, null))}">${c.ctaOrder}</a>
-    <a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${c.ctaPricing}</a>
+  <div class="hero-words">
+    <h1>${c.heroTitle}</h1>
+    <p class="lede">${c.heroLede}</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="${esc(orderHref(locale, null))}">${c.ctaOrder}</a>
+      <a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${c.ctaPricing}</a>
+    </div>
+    <p class="fineprint">${c.heroFree(TIERS[0].name, size(TIERS[0].dataGb))} ${esc(c.vatIncluded)}</p>
   </div>
-  <p class="fineprint">${c.heroFree(TIERS[0].name, size(TIERS[0].dataGb))} ${esc(c.vatIncluded)}</p>
-  <p class="leaving-label" id="leaving-label">${c.leaving.menu}</p>
-  <ul class="leaving-row" aria-labelledby="leaving-label">${LEAVING.map((p) => `<li>${leavingLink(locale, p, 28, false)}</li>`).join('')}</ul>
+  <div class="hero-picture">${heroMove({ ...c.hero, types })}</div>
+  <div class="hero-leaving">
+    <p class="leaving-label" id="leaving-label">${c.leaving.menu}</p>
+    <ul class="leaving-row" aria-labelledby="leaving-label">${LEAVING.map((p) => `<li>${leavingLink(locale, p, 28, false)}</li>`).join('')}</ul>
+  </div>
 </section>
+<div class="cards facts">${c.facts.map(([h, p]) => `<div class="card"><h3>${h}</h3><p>${p}</p></div>`).join('')}</div>
+<h2>${c.nav.how}</h2>
+<ol class="strip">${c.strip.steps
+    .map(([h, p], i) => `<li><span class="step" aria-hidden="true">${i + 1}</span><div><h3>${h}</h3><p>${p}</p></div></li>`)
+    .join('')}</ol>
+<p><a href="${urlFor(locale, 'how')}">${c.strip.more} <span aria-hidden="true">→</span></a></p>
 ${whereTo(locale)}
 <h2>${c.diffTitle}</h2>
 ${cards(c.diff)}
@@ -995,6 +1079,42 @@ ${cards(c.wont)}
   <a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${c.ctaAllTiers}</a>
 </div>
 `;
+}
+
+/**
+ * The pricing page's rules as questions and answers (workplan 0152 T6 (b)).
+ *
+ * The Markdown says each rule as a paragraph led by its answer in bold, and the
+ * renderer escapes raw HTML, so the questions are added here: under the rules'
+ * heading, each `<p><strong>…</strong>` becomes a `<details>` whose summary is
+ * the question `copy.mjs` pairs with that lead, and the paragraph its answer,
+ * word for word. A paragraph there that is not the next lead in the list, or a
+ * list with a question left over, stops the build: a rule cannot reach the
+ * page without the question it answers.
+ */
+function asQuestions(body, { heading, questions }) {
+  const start = body.indexOf(`>${heading}</h2>`);
+  if (start === -1) throw new Error(`The pricing page has no heading "${heading}" to put its questions under.`);
+  const from = body.indexOf('\n', start) + 1;
+  const next = body.indexOf('<h2', from);
+  const to = next === -1 ? body.length : next;
+  const answers = body
+    .slice(from, to)
+    .trim()
+    .split('\n')
+    .filter((line) => line !== '')
+    .map((p, i) => {
+      const lead = /^<p><strong>([^<]+)<\/strong>/.exec(p)?.[1];
+      const [asked, question] = questions[i] ?? [];
+      if (lead === undefined || lead !== asked) {
+        throw new Error(`The pricing page's rule "${p.slice(0, 80)}" is not "${asked}", the next in copy.mjs's pricingRules.`);
+      }
+      return `<details class="qa"><summary>${question}</summary>${p}</details>`;
+    });
+  if (answers.length !== questions.length) {
+    throw new Error(`copy.mjs asks ${questions.length} pricing questions and the page has ${answers.length} rules.`);
+  }
+  return `${body.slice(0, from)}<div class="qas">${answers.join('\n')}</div>\n${body.slice(to)}`;
 }
 
 // -------------------------------------------------------------- calculator --
@@ -1035,13 +1155,21 @@ const CALC_GLUE = `
   function ticked() {
     return cfg.objectTypes.filter(function (t) { return $('what-' + t).checked; });
   }
+  // Every source ticked: a person can leave several at once (the owner, 2026-10-04).
+  function sources() {
+    return Array.prototype.map.call(document.querySelectorAll('input[name="from"]:checked'), function (el) { return el.value; });
+  }
+  function asked(t) { return cfg.asked.indexOf(t) !== -1; }
+  // A size the page asks for is read from its field; the rest are the
+  // assumption for who is moving, said in one line rather than asked.
   function gbOf(t) {
+    if (!asked(t)) return cfg.profiles[radio('who')][t].gb;
     var n = Number($('gb-' + t).value);
     return isFinite(n) && n > 0 ? n : 0;
   }
   function prefill() {
     var who = radio('who');
-    cfg.objectTypes.forEach(function (t) {
+    cfg.asked.forEach(function (t) {
       var cell = cfg.profiles[who][t];
       $('gb-' + t).value = String(cell.gb);
       $('items-' + t).textContent = fill(S.itemsAssumed, cell.items.toLocaleString(cfg.locale));
@@ -1049,21 +1177,36 @@ const CALC_GLUE = `
   }
   function recompute() {
     var who = radio('who');
-    var from = radio('from');
+    var from = sources();
     var until = radio('until');
     var types = ticked();
-    cfg.objectTypes.forEach(function (t) {
+    // One migration per type per source, as the app makes them; a type no
+    // ticked source brings is said, and neither counted nor sized.
+    var made = migrationsFrom(cfg.offers, from, types);
+    var counted = types.filter(function (t) { return made.uncounted.indexOf(t) === -1; });
+    cfg.asked.forEach(function (t) {
       var row = $('amount-' + t);
-      if (types.indexOf(t) === -1) row.setAttribute('data-off', ''); else row.removeAttribute('data-off');
+      if (counted.indexOf(t) === -1) row.setAttribute('data-off', ''); else row.removeAttribute('data-off');
     });
+    var small = counted.filter(function (t) { return !asked(t); })
+      .reduce(function (sum, t) { return sum + gbOf(t); }, 0);
+    var smallLine = $('small-line');
+    smallLine.hidden = counted.every(asked);
+    smallLine.textContent = fill(S.smallLine, small < 1 ? S.lessThanOneGb : sizeOf(Math.round(small * 10) / 10));
+    var uncounted = $('uncounted-line');
+    uncounted.hidden = from.length === 0 || made.uncounted.length === 0;
+    uncounted.textContent = fill(S.uncountedLine, made.uncounted.map(function (t) { return S.what[t]; }).join(', '));
 
-    var paths = cfg.accounts[who] * types.length;
-    var gb = types.reduce(function (sum, t) { return sum + gbOf(t); }, 0);
+    var paths = cfg.accounts[who] * made.perAccount;
+    var gb = counted.reduce(function (sum, t) { return sum + gbOf(t); }, 0);
     gb = Math.round(gb * 10) / 10;
 
-    var names = types.map(function (t) { return S.what[t]; }).join(', ');
+    var names = made.groups.map(function (g) {
+      return fill(S.fromGroup, g.types.map(function (t) { return S.what[t]; }).join(', '), S.fromName[g.from]);
+    }).join('; ');
     $('paths-line').textContent =
-      types.length === 0 ? S.pathsNone
+      from.length === 0 ? S.pathsNoSource
+        : paths === 0 ? S.pathsNone
         : paths === 1 ? fill(S.pathsOne, names)
         : fill(S.pathsMany, names, S.forWho[who], paths);
 
@@ -1079,9 +1222,9 @@ const CALC_GLUE = `
     if (d.decidedBy === 'data' || d.decidedBy === 'both') dataAxis.setAttribute('data-decides', '');
 
     var card = $('tier-card'), beyond = $('beyond-line');
-    if (!d.tier || types.length === 0) {
+    if (!d.tier || paths === 0) {
       card.hidden = true;
-      beyond.hidden = types.length === 0;
+      beyond.hidden = paths === 0;
       $('topup-line').textContent = '';
       $('gmail-line').hidden = true;
       return;
@@ -1103,8 +1246,8 @@ const CALC_GLUE = `
       + ' ' + fill(S.topUpBreakEven, vs.breakEvenDays);
 
     var gmail = $('gmail-line');
-    var mailGb = types.indexOf('mail') !== -1 ? gbOf('mail') : 0;
-    if (from === 'google' && mailGb > 0) {
+    var mailGb = counted.indexOf('mail') !== -1 ? gbOf('mail') : 0;
+    if (from.indexOf('google') !== -1 && mailGb > 0) {
       var days = gmailMailDays(mailGb);
       var chosen = { m1: 30, m3: 90, m6: 180, ready: null }[until];
       gmail.textContent = fill(S.gmailCeiling, mailGb, days)
@@ -1121,14 +1264,16 @@ const CALC_GLUE = `
     el.addEventListener('input', recompute);
     el.addEventListener('change', recompute);
   });
-  // Arriving from a Leaving… page (0152 T5): ?from= chooses the source and
-  // ?what= ticks what moves. Each is matched against the page's own options,
-  // so a value it does not offer changes nothing.
-  var asked = new URLSearchParams(location.search);
-  document.querySelectorAll('input[name="from"]').forEach(function (el) {
-    if (el.value === asked.get('from')) el.checked = true;
+  // Arriving from a Leaving… page (0152 T5): ?from= ticks the sources, one or
+  // a list, and ?what= ticks what moves. Each is matched against the page's own
+  // options, so a value it does not offer changes nothing.
+  var query = new URLSearchParams(location.search);
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('input[name="from"]'));
+  var from = (query.get('from') || '').split(',').filter(function (v) {
+    return boxes.some(function (el) { return el.value === v; });
   });
-  var what = (asked.get('what') || '').split(',').filter(function (t) { return cfg.objectTypes.indexOf(t) !== -1; });
+  if (from.length > 0) boxes.forEach(function (el) { el.checked = from.indexOf(el.value) !== -1; });
+  var what = (query.get('what') || '').split(',').filter(function (t) { return cfg.objectTypes.indexOf(t) !== -1; });
   if (what.length > 0) cfg.objectTypes.forEach(function (t) { $('what-' + t).checked = what.indexOf(t) !== -1; });
   prefill();
   recompute();
@@ -1138,11 +1283,36 @@ const CALC_GLUE = `
 /** The one script, the one hash. Exported for the drift test against nginx. */
 export const CALC_SCRIPT = CALC_LIB + CALC_GLUE;
 
+/**
+ * What each answer to *Moving away from?* brings, and the migration each type
+ * travels in (`calculator.mjs`'s `migrationsFrom`), read off the Leaving
+ * pages' verdicts, which `scripts/leaving-pages-say-what-the-app-says` holds
+ * to the app: a type that moves travels as itself, photos a source keeps among
+ * its files travel with Files, and a type a source does not keep, or that
+ * cannot move, is not there. *Somewhere else* may keep anything.
+ */
+export function calcOffers() {
+  const typeOf = { email: 'mail', contact: 'contacts', calendar: 'calendar', task: 'tasks', file: 'files', photos: 'photos' };
+  /** @type {Record<string, Record<string, string>>} */
+  const offers = { other: Object.fromEntries(OBJECT_TYPES.map((t) => [t, t])) };
+  for (const page of LEAVING) {
+    if (page.from === 'other') continue;
+    /** @type {Record<string, string>} */
+    const carries = {};
+    for (const row of page.rows) if (row.verdict !== 'no') carries[typeOf[row.type]] = typeOf[row.type];
+    if (carries.files && !page.rows.some((row) => row.type === 'photos')) carries.photos = 'files';
+    offers[page.from] = carries;
+  }
+  return offers;
+}
+
 function calculatorPage(locale) {
   const c = COPY[locale].calc;
   const config = {
     locale: COPY[locale].htmlLang,
     objectTypes: OBJECT_TYPES,
+    asked: SIZE_ASKED,
+    offers: calcOffers(),
     accounts: Object.fromEntries(CUSTOMER_TYPES.map((w) => [w.id, w.accounts])),
     profiles: INDICATIVE_PROFILES,
     tiers: TIERS.map(({ id, name, paths, dataGb, monthly, annual }) => ({ id, name, paths, dataGb, monthly, annual })),
@@ -1155,12 +1325,20 @@ function calculatorPage(locale) {
           `<label class="opt"><input type="radio" name="${name}" value="${id}"${id === checkedId ? ' checked' : ''} /> ${esc(label)}</label>`,
       )
       .join('\n      ');
+  // Several sources at once (the owner, 2026-10-04): tick boxes, Google ticked.
+  const fromBoxes = Object.entries(c.from)
+    .map(
+      ([id, label]) =>
+        `<label class="opt"><input type="checkbox" name="from" value="${id}"${id === 'google' ? ' checked' : ''} /> ${esc(label)}</label>`,
+    )
+    .join('\n      ');
   const defaultTicked = ['mail', 'contacts', 'calendar', 'files'];
   const whatBoxes = OBJECT_TYPES.map(
     (t) =>
       `<label class="opt"><input type="checkbox" id="what-${t}"${defaultTicked.includes(t) ? ' checked' : ''} /> ${esc(c.what[t])}</label>`,
   ).join('\n      ');
-  const amounts = OBJECT_TYPES.map(
+  // Only the sizes a person can read off a storage page (profiles.mjs's SIZE_ASKED).
+  const amounts = SIZE_ASKED.map(
     (t) => `<div class="amount" id="amount-${t}"><label for="gb-${t}">${esc(c.what[t])}</label>
         <input id="gb-${t}" type="number" min="0" step="0.1" inputmode="decimal" /> <span>${esc(c.gbLabel)}</span>
         <span class="items" id="items-${t}"></span></div>`,
@@ -1181,7 +1359,8 @@ function calculatorPage(locale) {
     <div class="opts">${radios('who', c.who, 'individual')}</div>
   </fieldset>
   <fieldset><legend>${esc(c.fromLegend)}</legend>
-    <div class="opts">${radios('from', c.from, 'google')}</div>
+    <p class="hint">${esc(c.fromHint)}</p>
+    <div class="opts">${fromBoxes}</div>
   </fieldset>
   <fieldset><legend>${esc(c.whatLegend)}</legend>
     <div class="opts">${whatBoxes}</div>
@@ -1189,6 +1368,7 @@ function calculatorPage(locale) {
   <fieldset><legend>${esc(c.howMuchLegend)}</legend>
     <p class="hint">${esc(c.howMuchHint)}</p>
     <div class="amounts">${amounts}</div>
+    <p class="hint" id="small-line" hidden></p>
   </fieldset>
   <fieldset><legend>${esc(c.untilLegend)}</legend>
     <div class="opts">${radios('until', c.until, 'ready')}</div>
@@ -1198,6 +1378,7 @@ function calculatorPage(locale) {
 
 <div id="result" aria-live="polite">
 <p id="paths-line"></p>
+<p id="uncounted-line" class="fine" hidden></p>
 
 <div class="axes">
   <div class="axis" id="axis-paths"><span class="decides">${esc(c.axisDecides)}</span>
@@ -1314,11 +1495,23 @@ export function build({ alpha = ALPHA } = {}) {
             .replace('{MAILTO}', `mailto:${SUPPORT_EMAIL}`);
           body = body.replace(
             '<p>[[TIERS]]</p>',
-            tierCards(locale) +
+            `<div class="pay"><fieldset class="pay-switch"><legend>${c.payLabel}</legend><div class="pay-options">` +
+              `<input type="radio" name="pay" id="pay-year" value="year" checked /><label for="pay-year">${c.payYear}</label>` +
+              `<input type="radio" name="pay" id="pay-month" value="month" /><label for="pay-month">${c.payMonth}</label>` +
+              `</div></fieldset><p class="pay-rule">${c.payRule}</p>` +
+              tierCards(locale) +
+              '</div>' +
               `<div class="cta"><a class="btn btn-ghost" href="${urlFor(locale, 'calculator')}">${c.ctaEstimate}</a></div>` +
               `<p class="fineprint">${esc(c.vatIncluded)}</p>` +
               `<p class="fineprint">${beyond}</p>`,
           );
+        }
+        if (key === 'pricing') body = asQuestions(body, c.pricingRules);
+        // How it works ends where a reader decides (0152 T3 (c)): the hero's two buttons.
+        if (key === 'how') {
+          body +=
+            `<div class="cta"><a class="btn btn-primary" href="${esc(orderHref(locale, null))}">${c.ctaOrder}</a>` +
+            `<a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${c.ctaPricing}</a></div>`;
         }
         if ((key === 'privacy' || key === 'terms') && c.translationNote) {
           body = `<blockquote><p>${c.translationNote}</p></blockquote>\n` + body;

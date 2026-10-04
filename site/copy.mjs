@@ -76,6 +76,32 @@ export const COPY = {
     // price that could be billed, so the line says what free covers instead.
     heroFree: (name, data) =>
       `${name}: one migration at a time, up to ${data}. Every price is published in full — no quote, no sales call.`,
+    // The hero's picture (workplan 0152 T3 (a)): hero.mjs draws it, and these
+    // are its words; the data types in it are dataTypes', as the app names them.
+    hero: {
+      title: 'Your data moves from your old account to your new home',
+      desc: 'Email, calendar, contacts, files and photos go from the old account through Ownpace to the new home. Ownpace copies them, then keeps them in step until you switch.',
+      old: 'Your old account',
+      new: 'Your new home',
+      copies: 'copies',
+      keeps: ['then keeps in step,', 'until you switch'],
+    },
+    // Three facts under the hero (T3 (a)). None says "read-only": that word is
+    // 0144 T3's to keep within what the scopes allow.
+    facts: [
+      ['Nothing is deleted at the source.', 'Your old account stays whole: it is your way back.'],
+      ['Kept in step until you switch.', 'New mail and changed files keep arriving.'],
+      ['A list of what arrived, item by item.', 'And what could not come, with the reason.'],
+    ],
+    // How it works, in three steps (T3 (b)): its five folded, linking the whole page.
+    strip: {
+      steps: [
+        ['Connect the account you are leaving', 'Your old account stays as it is.'],
+        ['We copy, then keep copying', 'Every change arrives in your new home.'],
+        ['Switch when you are ready', 'Check what arrived first. No deadline.'],
+      ],
+      more: 'The whole of How it works',
+    },
     // Where to (workplan 0152 T4): what the app moves data into, from the
     // guarded copy in destinations.mjs. The data types are named as the app
     // names them (its 'domain.*' strings), and a guard holds them equal.
@@ -212,7 +238,34 @@ export const COPY = {
     costPick: (name, monthly, annual, paths, data) =>
       `<strong>${name}</strong>, for one person moving everything at once: ${monthly} a month, or ${annual} for a year, for ${paths} migrations at once and ${data}. There is no setup fee.`,
     tierMonth: 'a month',
-    tierYear: 'for a year, half the monthly price',
+    // How you pay (workplan 0152 T6 (e), D3, D10): the switch and each card's two answers.
+    payLabel: 'How you pay',
+    payYear: 'Yearly',
+    payMonth: 'Monthly',
+    payRule: 'Done within six months? Pay monthly. Longer, or not sure? A year costs the same as six months.',
+    payYearTotal: (m) => `${m} a year`,
+    payYearHow: 'paid yearly, in advance',
+    payHalf: 'half the monthly price',
+    payMonthHow: 'No minimum term: stop whenever you like',
+    // The pricing page's rules as questions (workplan 0152 T6 (b)): under this
+    // heading, each bold-led paragraph answers its question, [lead, question],
+    // in the page's order. build.mjs refuses a rule that is not the next lead.
+    pricingRules: {
+      heading: 'The parts worth knowing before you pay',
+      questions: [
+        ['Free is free.', 'Is there a free way?'],
+        ['Finishing lowers your bill, automatically.', 'Does the bill go down when I finish?'],
+        ['Pausing does not lower it.', 'Does pausing lower it?'],
+        ['Unless you ask us to keep copying.', 'What if I keep copying after I switch?'],
+        ['Stopping one kind of data works like a pause, until you have moved.', 'What if I stop one kind of data?'],
+        ['There is no setup fee.', 'Is there a setup fee?'],
+        ['A year costs six months.', 'What does a year cost?'],
+        ['The data figure only counts the first copy of anything.', 'What counts as data moved?'],
+        ['Running out of room does not have to mean moving up a tier.', 'What if I run out of room?'],
+        ['We do not take money from inattention.', 'What if a migration has nothing left to do?'],
+        ['Cancel whenever.', 'Can I stop whenever I like?'],
+      ],
+    },
     // Toward consumers a displayed price IS the final price (workplan 0111
     // T8): this says so out loud, with no rate in the copy — which country's
     // VAT sits inside it is the seller's problem, decided per invoice by the
@@ -263,18 +316,26 @@ export const COPY = {
     calc: {
       title: 'What would yours cost?',
       lede:
-        'Answer five questions and this page derives the tier — you never pick one. Everything is indicative: these are our assumptions until the free preflight measures your real accounts, and you can change every number below.',
+        'Answer five questions and this page derives the tier — you never pick one. Everything is indicative: these are our assumptions until the free preflight measures your real accounts, and you can change every size below.',
       whoLegend: 'Who is moving?',
       who: { individual: 'Just me', family: 'My household (4 people)', sme: 'My business (10 seats)' },
       fromLegend: 'Moving away from?',
-      from: { google: 'Google', microsoft: 'Microsoft', dropbox: 'Dropbox', apple: 'Apple', other: 'Somewhere else' },
+      // Several at once (the owner, 2026-10-04): tick boxes, not a choice of one.
+      fromHint: 'Tick each one you are leaving.',
+      from: { google: 'Google', microsoft: 'Microsoft', apple: 'Apple', dropbox: 'Dropbox', box: 'Box', other: 'Somewhere else' },
+      // How the count names each source: "Files from Dropbox".
+      fromName: { google: 'Google', microsoft: 'Microsoft', apple: 'Apple', dropbox: 'Dropbox', box: 'Box', other: 'elsewhere' },
+      fromGroup: '{0} from {1}',
       whatLegend: 'What is moving?',
-      what: { mail: 'Mail', contacts: 'Contacts', calendar: 'Calendar', files: 'Files', photos: 'Photos' },
+      what: { mail: 'Mail', contacts: 'Contacts', calendar: 'Calendar', tasks: 'Tasks', files: 'Files', photos: 'Photos' },
       howMuchLegend: 'How much is it?',
       howMuchHint:
         'Your current provider already shows these numbers on its storage page — check there, or keep our assumptions. Every field is editable; correcting us beats distrusting us.',
       itemsAssumed: '{0} items assumed',
       gbLabel: 'GB',
+      // The sizes nobody can read off a storage page are not asked (profiles.mjs's SIZE_ASKED).
+      smallLine: 'Contacts, calendars and tasks take little room, so we count them for you: {0}.',
+      lessThanOneGb: 'less than 1 GB',
       untilLegend: 'Until when?',
       until: { m1: '1 month', m3: '3 months', m6: '6 months', ready: 'When I am ready' },
       untilHint:
@@ -282,6 +343,9 @@ export const COPY = {
       kept:
         'The free preflight that follows keeps counts, sizes and per-folder totals — never an inventory of your items — and keeps them with your migration, never longer than your account.',
       pathsNone: 'Tick what is moving and the count appears here.',
+      pathsNoSource: 'Tick what you are leaving and the count appears here.',
+      // A type none of the ticked sources keeps, or lets go of (the Leaving pages say which).
+      uncountedLine: 'Not counted, because we cannot move this from what you ticked: {0}.',
       pathsOne: '{0} — that is one migration.',
       pathsMany: '{0}, for {1} — that is {2} migrations at the same time.',
       forWho: { individual: 'one person', family: 'four people', sme: 'ten seats' },
@@ -359,6 +423,27 @@ export const COPY = {
     ctaEstimate: 'Reken uit wat het u kost',
     heroFree: (name, data) =>
       `${name}: één migratie tegelijk, tot ${data}. Alle prijzen staan er volledig op — geen offerte, geen verkoopgesprek.`,
+    hero: {
+      title: 'Uw gegevens gaan van uw oude account naar uw nieuwe thuis',
+      desc: 'E-mail, agenda, contacten, bestanden en foto’s gaan van het oude account via Ownpace naar het nieuwe thuis. Ownpace kopieert ze, en houdt ze daarna bij tot u overstapt.',
+      old: 'Uw oude account',
+      new: 'Uw nieuwe thuis',
+      copies: 'kopieert',
+      keeps: ['houdt daarna bij,', 'tot u overstapt'],
+    },
+    facts: [
+      ['Bij de bron wordt niets verwijderd.', 'Uw oude account blijft heel: het is uw weg terug.'],
+      ['Bijgehouden tot u overstapt.', 'Nieuwe e-mail en gewijzigde bestanden blijven binnenkomen.'],
+      ['Een lijst van wat er aankwam, item voor item.', 'En van wat niet mee kon, met de reden.'],
+    ],
+    strip: {
+      steps: [
+        ['Koppel het account dat u verlaat', 'Uw oude account blijft zoals het is.'],
+        ['Wij kopiëren, en blijven kopiëren', 'Elke wijziging komt aan in uw nieuwe thuis.'],
+        ['Stap over wanneer u klaar bent', 'Controleer eerst wat er aankwam. Geen deadline.'],
+      ],
+      more: 'Alles over hoe het werkt',
+    },
     whereTitle: 'Waar naartoe',
     whereLede:
       'Uw nieuwe thuis is een account dat u opent bij een Europese aanbieder, en dat u aan hen betaalt. Ownpace migreert uw gegevens daarheen en houdt ze bij.',
@@ -487,7 +572,30 @@ export const COPY = {
     costPick: (name, monthly, annual, paths, data) =>
       `<strong>${name}</strong>, voor één persoon die alles tegelijk migreert: ${monthly} per maand, of ${annual} voor een jaar, voor ${paths} migraties tegelijk en ${data}. Er zijn geen inrichtingskosten.`,
     tierMonth: 'per maand',
-    tierYear: 'voor een jaar, de helft van de maandprijs',
+    payLabel: 'Hoe u betaalt',
+    payYear: 'Per jaar',
+    payMonth: 'Per maand',
+    payRule: 'Klaar binnen zes maanden? Betaal per maand. Langer, of weet u het nog niet? Een jaar kost evenveel als zes maanden.',
+    payYearTotal: (m) => `${m} per jaar`,
+    payYearHow: 'per jaar vooruitbetaald',
+    payHalf: 'de helft van de maandprijs',
+    payMonthHow: 'Geen minimumduur: stop wanneer u wilt',
+    pricingRules: {
+      heading: 'Wat u wilt weten voordat u betaalt',
+      questions: [
+        ['Free is gratis.', 'Kan het gratis?'],
+        ['Afronden verlaagt uw rekening, automatisch.', 'Gaat de rekening omlaag als ik klaar ben?'],
+        ['Pauzeren verlaagt hem niet.', 'Verlaagt pauzeren de rekening?'],
+        ['Tenzij u ons vraagt te blijven kopiëren.', 'En als ik na de overstap blijf kopiëren?'],
+        ['Eén soort gegevens stoppen werkt als pauzeren, tot u bent overgestapt.', 'En als ik één soort gegevens stop?'],
+        ['Er zijn geen inrichtingskosten.', 'Zijn er inrichtingskosten?'],
+        ['Een jaar kost zes maanden.', 'Wat kost een jaar?'],
+        ['Het gegevensgetal telt alleen de eerste kopie van iets.', 'Wat telt als gemigreerde gegevens?'],
+        ['Ruimte tekort komen hoeft niet te betekenen dat u omhoog moet.', 'En als ik ruimte tekortkom?'],
+        ['We verdienen niet aan onoplettendheid.', 'En als een migratie niets meer te doen heeft?'],
+        ['Opzeggen wanneer u wilt.', 'Kan ik opzeggen wanneer ik wil?'],
+      ],
+    },
     vatIncluded: 'Alle prijzen zijn inclusief btw.',
     tierPaths: (n) => `<strong>${n}</strong> migratie${n === 1 ? '' : 's'} tegelijk`,
     tierData: (s) => `<strong>${s}</strong> aan gemigreerde gegevens`,
@@ -525,18 +633,23 @@ export const COPY = {
     calc: {
       title: 'Wat zou het bij u kosten?',
       lede:
-        'Beantwoord vijf vragen en deze pagina leidt het pakket af — u kiest er nooit zelf een. Alles is indicatief: dit zijn onze aannames totdat de gratis voorcontrole uw echte accounts meet, en elk getal hieronder kunt u aanpassen.',
+        'Beantwoord vijf vragen en deze pagina leidt het pakket af — u kiest er nooit zelf een. Alles is indicatief: dit zijn onze aannames totdat de gratis voorcontrole uw echte accounts meet, en elke grootte hieronder kunt u aanpassen.',
       whoLegend: 'Voor wie is het?',
       who: { individual: 'Alleen ik', family: 'Mijn huishouden (4 personen)', sme: 'Mijn bedrijf (10 werkplekken)' },
       fromLegend: 'Weg bij?',
-      from: { google: 'Google', microsoft: 'Microsoft', dropbox: 'Dropbox', apple: 'Apple', other: 'Ergens anders' },
+      fromHint: 'Vink alles aan wat u verlaat.',
+      from: { google: 'Google', microsoft: 'Microsoft', apple: 'Apple', dropbox: 'Dropbox', box: 'Box', other: 'Ergens anders' },
+      fromName: { google: 'Google', microsoft: 'Microsoft', apple: 'Apple', dropbox: 'Dropbox', box: 'Box', other: 'elders' },
+      fromGroup: '{0} van {1}',
       whatLegend: 'Wat wilt u migreren?',
-      what: { mail: 'E-mail', contacts: 'Contacten', calendar: 'Agenda', files: 'Bestanden', photos: 'Foto’s' },
+      what: { mail: 'E-mail', contacts: 'Contacten', calendar: 'Agenda', tasks: 'Taken', files: 'Bestanden', photos: 'Foto’s' },
       howMuchLegend: 'Hoeveel is het?',
       howMuchHint:
         'Uw huidige aanbieder toont deze getallen al op zijn opslagpagina — kijk daar, of houd onze aannames aan. Elk veld is aanpasbaar; ons verbeteren is beter dan ons wantrouwen.',
       itemsAssumed: '{0} items aangenomen',
       gbLabel: 'GB',
+      smallLine: 'Contacten, agenda’s en taken nemen weinig ruimte in, dus die tellen wij voor u: {0}.',
+      lessThanOneGb: 'minder dan 1 GB',
       untilLegend: 'Tot wanneer?',
       until: { m1: '1 maand', m3: '3 maanden', m6: '6 maanden', ready: 'Wanneer ik er klaar voor ben' },
       untilHint:
@@ -544,6 +657,8 @@ export const COPY = {
       kept:
         'De gratis preflight die volgt bewaart aantallen, omvang en totalen per map — nooit een inventaris van uw items — en bewaart ze bij uw migratie, nooit langer dan uw account.',
       pathsNone: 'Vink aan wat u wilt migreren en de telling verschijnt hier.',
+      pathsNoSource: 'Vink aan waar u weggaat en de telling verschijnt hier.',
+      uncountedLine: 'Niet meegeteld, want dit kunnen wij niet migreren vanaf wat u hebt aangevinkt: {0}.',
       pathsOne: '{0} — dat is één migratie.',
       pathsMany: '{0}, voor {1} — dat zijn {2} migraties tegelijk.',
       forWho: { individual: 'één persoon', family: 'vier personen', sme: 'tien werkplekken' },

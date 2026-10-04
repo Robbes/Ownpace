@@ -2548,7 +2548,7 @@ const en = {
   // that set and fails when it changes. The switches are named as the
   // Deletions panel names them (0156 T6).
   'tenants.invite.adminCan':
-    "An admin can do everything an owner can, except close or reopen the organisation, turn deleting by hand or the automatic removal of moved files' old copies on or off, and make somebody an owner.",
+    "An admin can do everything an owner can, except close or reopen the organisation, turn deleting by hand or the automatic removal of moved files' old copies on or off, make somebody an owner, and change or remove an owner.",
   'tenants.ownerOrAdminOnly': 'During the Alpha, a person can only be an owner or an admin.',
   'tenants.notify.heading': 'Email summaries',
   'tenants.notify.intro':
@@ -5003,7 +5003,7 @@ const nl: Record<keyof typeof en, string> = {
   'tenants.invite.email': 'E-mailadres',
   'tenants.invite.role': 'Rol',
   'tenants.invite.adminCan':
-    'Een beheerder kan alles wat een eigenaar kan, behalve de organisatie sluiten of heropenen, handmatig verwijderen of het automatisch verwijderen van oude kopieën van verplaatste bestanden aan- of uitzetten en iemand eigenaar maken.',
+    'Een beheerder kan alles wat een eigenaar kan, behalve de organisatie sluiten of heropenen, handmatig verwijderen of het automatisch verwijderen van oude kopieën van verplaatste bestanden aan- of uitzetten, iemand eigenaar maken en een eigenaar een andere rol geven of verwijderen.',
   'tenants.ownerOrAdminOnly': 'Tijdens de Alpha kan iemand alleen eigenaar of beheerder zijn.',
   'tenants.notify.heading': 'E-mailsamenvattingen',
   'tenants.notify.intro':

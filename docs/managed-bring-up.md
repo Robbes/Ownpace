@@ -1211,7 +1211,10 @@ shorter versions gives something away.
 organisation somebody is in. An operator who joins one to look at something —
 or who presses the enrolment button on their own deployment — acquires a
 membership the product will not let them drop, and correctly so: it refuses
-`Cannot remove yourself from the tenant`, then `Cannot remove the last owner`.
+`Cannot remove yourself from the tenant`. Nobody else in the organisation can
+remove a sole owner either: only an owner may remove an owner, so anyone else
+gets `Only an owner can remove an owner` (workplan 0137 T3 (c)), and
+`Cannot remove the last owner` still stands behind that.
 Three more sub-commands answer that at the machine, where the removal is a
 platform act rather than a customer one:
 
@@ -1472,10 +1475,14 @@ The refusal names what they already own; sending `alsoCreateSecondOrganisation`
 goes ahead, for the case where a second one is genuinely wanted.
 
 **Multiple owners are allowed**, and are the sensible arrangement for anything
-that outlives one person. The database refuses to leave an organisation with
-none: the last owner can be neither demoted nor removed, and only an owner may
-promote somebody to owner. An **admin** can do everything an owner can except
-arm a deletion, close the account, and make another owner.
+that outlives one person. The API refuses to leave an organisation with none:
+the last active owner can be neither demoted nor removed. An invitation as
+owner, or a declined one, does not count as an owner, and the count and the
+change are one locked transaction, so two owners demoting each other at once
+cannot both succeed (workplan 0137 T3). Only an owner may make somebody an
+owner, or demote or remove one. An **admin** can do everything an owner can
+except arm a deletion, close the account, make another owner, and demote or
+remove an owner.
 
 ### 8d. The status page *(comes up with the stack)*
 
