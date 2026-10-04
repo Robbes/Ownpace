@@ -21,6 +21,7 @@ import {
   CUSTOMER_TYPES,
   INDICATIVE_PROFILES,
   OBJECT_TYPES,
+  SIZE_ASKED,
   PROFILES_VERSION,
   indicativeGb,
   pathsFor,
@@ -80,11 +81,13 @@ describe('paths are derived, never declared', () => {
   it("follows the plan's own worked examples", () => {
     // "an individual with mail, contacts, calendar and files is four, not one"
     expect(pathsFor('individual', ['mail', 'contacts', 'calendar', 'files'])).toBe(4);
-    // The plan's ranges: individual 4–5, family 16–20 — the spread is exactly
-    // the photos tick.
-    expect(pathsFor('individual', [...OBJECT_TYPES])).toBe(5);
+    // The plan's ranges were individual 4–5 and family 16–20, the spread being
+    // the photos tick. Tasks are a path of their own since 2026-10-04 (the
+    // owner), as the app moves and bills them: everything is six for one person.
+    expect(pathsFor('individual', [...OBJECT_TYPES])).toBe(6);
+    expect(pathsFor('individual', ['mail', 'contacts', 'calendar', 'tasks', 'files'])).toBe(5);
     expect(pathsFor('family', ['mail', 'contacts', 'calendar', 'files'])).toBe(16);
-    expect(pathsFor('family', [...OBJECT_TYPES])).toBe(20);
+    expect(pathsFor('family', [...OBJECT_TYPES])).toBe(24);
     expect(pathsFor('sme', ['mail', 'contacts', 'calendar', 'files'])).toBe(40);
   });
 
@@ -105,11 +108,21 @@ describe('paths are derived, never declared', () => {
 describe('the data axis follows the ticks', () => {
   it('sums exactly the ticked cells', () => {
     expect(indicativeGb('individual', ['mail', 'files'])).toBeCloseTo(38, 5);
-    expect(indicativeGb('family', [...OBJECT_TYPES])).toBeCloseTo(30 + 0.1 + 0.5 + 120 + 250, 5);
+    expect(indicativeGb('family', [...OBJECT_TYPES])).toBeCloseTo(30 + 0.1 + 0.5 + 0.01 + 120 + 250, 5);
   });
 });
 
-describe('the v1 numbers, pinned so an edit is deliberate', () => {
+describe('the sizes the estimate asks for (the owner, 2026-10-04)', () => {
+  it('asks only for what a storage page shows, and counts the rest at their assumption', () => {
+    // "i dont think it makes sense to let people fill in GB for contacts,
+    // tasks and calander. They dont know that."
+    expect([...SIZE_ASKED]).toEqual(['mail', 'files', 'photos']);
+    for (const t of SIZE_ASKED) expect(OBJECT_TYPES as readonly string[]).toContain(t);
+    for (const t of ['contacts', 'calendar', 'tasks']) expect(SIZE_ASKED as readonly string[]).not.toContain(t);
+  });
+});
+
+describe('the numbers, pinned so an edit is deliberate', () => {
   it('matches the transcribed plan table (bump PROFILES_VERSION with any change)', () => {
     const flat = Object.fromEntries(
       CUSTOMER_TYPES.map((who) => [
@@ -127,6 +140,7 @@ describe('the v1 numbers, pinned so an edit is deliberate', () => {
         mail: { items: 20_000, gb: 8 },
         contacts: { items: 300, gb: 0.1 },
         calendar: { items: 2_000, gb: 0.2 },
+        tasks: { items: 200, gb: 0.01 },
         files: { items: 10_000, gb: 30 },
         photos: { items: 15_000, gb: 60 },
       },
@@ -134,6 +148,7 @@ describe('the v1 numbers, pinned so an edit is deliberate', () => {
         mail: { items: 80_000, gb: 30 },
         contacts: { items: 1_200, gb: 0.1 },
         calendar: { items: 8_000, gb: 0.5 },
+        tasks: { items: 800, gb: 0.01 },
         files: { items: 40_000, gb: 120 },
         photos: { items: 60_000, gb: 250 },
       },
@@ -141,10 +156,11 @@ describe('the v1 numbers, pinned so an edit is deliberate', () => {
         mail: { items: 400_000, gb: 160 },
         contacts: { items: 5_000, gb: 0.2 },
         calendar: { items: 40_000, gb: 2 },
+        tasks: { items: 4_000, gb: 0.01 },
         files: { items: 250_000, gb: 600 },
         photos: { items: 150_000, gb: 600 },
       },
     });
-    expect(PROFILES_VERSION.version).toBe(1);
+    expect(PROFILES_VERSION.version).toBe(2);
   });
 });

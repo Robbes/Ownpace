@@ -54,6 +54,39 @@ export function deriveTier(tiers, paths, gb) {
 }
 
 /**
+ * The migrations a person's answers make (the owner, 2026-10-04: several
+ * sources at once). The app makes one migration per data type per source
+ * account (ADR-0014's unit, 0153 T4), so Google and Dropbox both with files
+ * are two. `offers` says, per source, the migration each ticked type travels
+ * in: usually itself, Files for photos a source keeps among its files, and
+ * nothing for a type it does not keep or that cannot move (`build.mjs` reads
+ * it off the Leaving pages' verdicts).
+ *
+ * Returns the sources that bring anything, in the order given, each with the
+ * ticked types it brings and how many migrations they make; the migrations
+ * per account; and the ticked types no source brings.
+ *
+ * @param {Record<string, Record<string, string>>} offers
+ * @param {ReadonlyArray<string>} sources
+ * @param {ReadonlyArray<string>} types
+ * @returns {{ groups: Array<{ from: string, types: string[], migrations: number }>, perAccount: number, uncounted: string[] }}
+ */
+export function migrationsFrom(offers, sources, types) {
+  const groups = [];
+  for (const from of sources) {
+    const carries = offers[from] ?? {};
+    const brought = types.filter((t) => typeof carries[t] === 'string');
+    const kinds = new Set(brought.map((t) => carries[t]));
+    if (brought.length > 0) groups.push({ from, types: brought, migrations: kinds.size });
+  }
+  return {
+    groups,
+    perAccount: groups.reduce((n, g) => n + g.migrations, 0),
+    uncounted: types.filter((t) => !groups.some((g) => g.types.includes(t))),
+  };
+}
+
+/**
  * Rung 1 is a band, never a number (workplan 0088, the three rungs: this rung
  * answers at ±50%, and says so). Rounded outward — a band that excludes the
  * true value on the pessimistic side defeats its own honesty.
@@ -142,6 +175,18 @@ export function money(cents) {
   const euros = Math.floor(cents / 100);
   const rest = cents % 100;
   return '\u20ac' + euros + (rest === 0 ? '' : '.' + (rest < 10 ? '0' : '') + rest);
+}
+
+/**
+ * A size as the page writes it: GB below 1 TB, and TB to one decimal from 1 TB
+ * up (workplan 0152 T7 (c)). The page sums its fields to a tenth of a GB, so
+ * 1,234.5 GB read "1.2345 TB". Sizes are decimal, as the site publishes them
+ * (1 TB = 1,000 GB).
+ *
+ * @param {number} gb
+ */
+export function sizeOf(gb) {
+  return gb >= 1000 ? Math.round(gb / 100) / 10 + ' TB' : gb + ' GB';
 }
 
 /**
