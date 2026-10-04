@@ -275,6 +275,14 @@ const MaskedConfigSchema = z.object({
    * a migration whose decks go out as `.odp`.
    */
   nativeFilePolicies: z.record(z.string(), z.string()).optional(),
+  /**
+   * WHERE ITS FILES START (0153 open question 5, item 4): a folder's id on a
+   * Google or Box source, a path on Dropbox, this migration's own merged over
+   * its account's as a pass merges it. Absent, the whole account is read.
+   * Named for the reason the two lines above are.
+   */
+  rootFolderId: z.string().optional(),
+  rootPath: z.string().optional(),
 });
 
 /**
@@ -359,6 +367,12 @@ export const MappingSchema = z.object({
   // Optional for a payload from an API that predates it: absent reads as "not
   // withdrawn", which is what that API meant.
   grantWithdrawnAt: z.string().nullish(),
+  /**
+   * Where the copies land (0153 open question 5, item 4): the folder of the
+   * destination they are put in, or null where they merge into its own.
+   * Absent from a server older than this field, which says nothing either way.
+   */
+  targetFolderPrefix: z.string().nullish(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -450,7 +464,14 @@ export interface CreateMappingInput {
     clientId?: string;
     clientSecret?: string;
     refreshToken?: string;
+    /**
+     * The folder a migration's files start from, by id: a Google account,
+     * a Google Drive or a Box source (*Only one folder*, 0153 open question 5,
+     * item 4). Unset reads the whole account.
+     */
     rootFolderId?: string;
+    /** The same as a path, on a Dropbox source, such as `/Photos`. */
+    rootPath?: string;
     /**
      * What to do with Google Docs, Sheets, Slides and Drawings (0042 T0 Q3):
      * `refuse`, `export-odf`, `export-office` or `export-pdf`.
@@ -1132,6 +1153,19 @@ export const mappingApi = {
   },
 
   /**
+   * RENAME A MIGRATION (0153 open question 5, item 4: *Rename* on the
+   * migration page, the owner's choice of 2026-10-04).
+   *
+   * Sends the name and nothing else, for the reason the schedule's call does.
+   * The route stores it trimmed and refuses one of spaces, so what comes back
+   * is what was sent, and the page reads the stored name on its next read.
+   */
+  rename: async (mappingId: string, name: string) => {
+    const response = await apiClient.put(`/migrations/${mappingId}`, { name });
+    return z.object({ id: z.string(), name: z.string(), updatedAt: z.string() }).parse(response.data);
+  },
+
+  /**
    * ADD ONE DATA TYPE TO A MIGRATION THAT ALREADY EXISTS (workplan 0125 T6).
    *
    * Accepted exactly when the detail's `kindChoices` calls it addable; any
@@ -1375,4 +1409,36 @@ export const connectionsApi = {
     const response = await apiClient.post(`/connections/${encodeURIComponent(id)}/test`);
     return response.data as TestConnectionResult;
   },
+  /**
+   * The folders a saved account's migration may start from (0153 open
+   * question 5, item 4): Google's shared drives and the folders shared with
+   * the account, or Dropbox's shared folders, from the stored sign-in. Read
+   * only. A provider's refusal comes back as `{ok:false, reason}` in its own
+   * words; where one of Google's two lists is refused, `refused` says why
+   * beside the other.
+   */
+  folders: async (id: string): Promise<FolderListing> => {
+    const response = await apiClient.get(`/connections/${encodeURIComponent(id)}/folders`);
+    return FolderListingSchema.parse(response.data);
+  },
 };
+
+/** One folder the browse lists: a value to start from, unless it cannot be chosen. */
+const ListedFolderSchema = z.object({
+  value: z.string().optional(),
+  name: z.string(),
+  kind: z.enum(['shared-drive', 'shared-folder']),
+  owner: z.string().optional(),
+});
+export type ListedFolder = z.infer<typeof ListedFolderSchema>;
+
+const FolderListingSchema = z.union([
+  z.object({
+    ok: z.literal(true),
+    key: z.enum(['rootFolderId', 'rootPath']),
+    folders: z.array(ListedFolderSchema),
+    refused: z.string().optional(),
+  }),
+  z.object({ ok: z.literal(false), reason: z.string() }),
+]);
+export type FolderListing = z.infer<typeof FolderListingSchema>;

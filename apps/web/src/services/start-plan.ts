@@ -333,6 +333,104 @@ export function migrationsFor(routes: ReadonlyArray<Route>): PlannedMigration[] 
 }
 
 /**
+ * WHETHER ANOTHER MIGRATION SENDS THE SAME KIND OF DATA TO THE SAME PLACE
+ * (0153 open question 5, item 4). Two accounts' mail in one mailbox, or two
+ * accounts' files in one Nextcloud, would merge into the same folders; so
+ * *Where does it go?* opens *Put it in a folder of its own* for each, filled
+ * in with the account it comes from. Mail and calendars from one Google
+ * account to one Soverin share a destination and nothing else, and merge
+ * nothing.
+ */
+export function sharesItsDestination(m: PlannedMigration, planned: ReadonlyArray<PlannedMigration>): boolean {
+  return planned.some(
+    (other) =>
+      other !== m &&
+      other.targetConnectionId === m.targetConnectionId &&
+      other.types.some((type) => m.types.includes(type)),
+  );
+}
+
+/**
+ * WHERE A MIGRATION'S FILES START (0153 open question 5, item 4; the owner,
+ * 2026-10-04: *"go with the recommendations"*). Under *Files* on *What
+ * moves?*, *All of …* or *Only one folder*; the folder itself is asked once
+ * the account is connected, since only then can the account's folders be
+ * listed. It answers *what* moves, not *which account*, so it is the
+ * migration's, and a saved account takes one as readily as a new one.
+ *
+ * A folder by its id on Google (an account or a Drive row) and Box, and by
+ * its path on Dropbox, the keys a migration's source reads (`rootFolderId`,
+ * `rootPath`). Microsoft's files have no folder to start from yet.
+ */
+export type FolderKey = 'rootFolderId' | 'rootPath';
+
+const FOLDER_KEY_OF_CARD: Readonly<Record<string, FolderKey>> = {
+  google: 'rootFolderId',
+  'google-drive': 'rootFolderId',
+  box: 'rootFolderId',
+  dropbox: 'rootPath',
+};
+
+/** The key a card's migration keeps its folder under; undefined where it reads the whole account. */
+export function folderKeyOf(card: string): FolderKey | undefined {
+  return FOLDER_KEY_OF_CARD[card];
+}
+
+/** Whether *Only one folder* is offered under a provider's *Files*: where the card carrying them has one. */
+export function offersOneFolder(
+  provider: StartProvider,
+  served: ServedFacts = {},
+  choices: PlanChoices = {},
+): boolean {
+  return offers(provider, served).includes('file') && folderKeyOf(carrierOf(provider, 'file', served, choices)) !== undefined;
+}
+
+/**
+ * Whether a connected account's folders can be listed (`GET
+ * /api/connections/:id/folders`): Google's shared drives and shared folders,
+ * Dropbox's shared folders. Box's folder is typed, as in the wizard.
+ */
+export function foldersListable(card: string): boolean {
+  return card === 'google' || card === 'google-drive' || card === 'dropbox';
+}
+
+/**
+ * The folder as a migration stores it, from what was typed or pasted. A
+ * folder's address is what a person has to hand: Google Drive's
+ * (`…/folders/<id>`, or `…?id=<id>`) and Box's (`…/folder/<number>`) give its
+ * id, and Dropbox's (`…/home/<path>`) its path. A Dropbox path starts at `/`
+ * and has no `/` at its end. Anything else is kept as typed, trimmed, for the
+ * server's parser to read: an id is not a shape this can check. Empty means
+ * no folder was named.
+ */
+export function folderValue(card: string, typed: string): string {
+  const text = typed.trim();
+  if (text === '') return '';
+  if (folderKeyOf(card) === 'rootPath') {
+    const fromLink = /^https?:\/\/(?:www\.)?dropbox\.com\/home(\/[^?#]*)?/i.exec(text);
+    let path = fromLink ? safeDecode(fromLink[1] ?? '/') : text;
+    if (!path.startsWith('/')) path = `/${path}`;
+    // `/` alone is the whole Dropbox, which is not one folder.
+    return path.replace(/\/+$/, '');
+  }
+  if (!/^https?:\/\//i.test(text)) return text;
+  const id =
+    card === 'box'
+      ? /\/folder\/(\d+)/.exec(text)
+      : (/\/folders\/([A-Za-z0-9_-]+)/.exec(text) ?? /[?&]id=([A-Za-z0-9_-]+)/.exec(text));
+  return id ? id[1]! : text;
+}
+
+/** A path from an address, as it was meant: `%20` is a space, and a broken escape stays as typed. */
+const safeDecode = (s: string): string => {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+};
+
+/**
  * A Nextcloud's DAV root, from the address a person opens it at (T7 (c)):
  * `cloud.example.eu` is `https://cloud.example.eu/remote.php/dav`. A scheme
  * typed stays as typed, a path it is installed under stays (`/nextcloud`),

@@ -4,6 +4,130 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04: every card through *Start a migration* (D5; open question 5, item 7, the first
+part).** The wizard retires once the flow reaches every card a migration can be made from, and the
+reachability test moves to `/start`, as the recommendation said.
+
+- **`every-card-through-start-a-migration.unit.test.tsx` walks each of the eleven cards** a
+  migration can be made from to the screen that asks for its account. Its row is there, named for
+  the card, with the form a person fills, and *Next* waits for it in words that name no field.
+  Microsoft's two app-registration cards are reached behind the company question, Gmail and Google
+  Drive where the restricted scopes are not declared, and the Google account where they are. The
+  export archive is reached through Google's Takeout tick box, and that screen says it needs no
+  sign-in.
+- **Every destination card is offered** on *Where does it go?*, as *Add …* under a data type it
+  takes.
+- **A card added without a walk fails by name**, and so does a destination the flow cannot
+  offer. A mutation that never routes Microsoft's mail through a company's app fails the two cards
+  it reaches.
+- **Left for the retirement itself:** the links that still lead to the wizard (*Add one migration
+  by hand* on Migrations and on a person's page, the setup checklist's way back), its route, and
+  its code, tests and words.
+
+**2026-10-04: the root folder, *Only one folder* (open question 5, item 4, the third and last
+part).** The owner chose A: on *What moves?*, under *Files*, with the wizard's *Browse…*, for a
+new and a saved account alike and for the Google account too.
+
+- ***What moves?* asks *All of My Drive* (*All of Dropbox*, *All of Box*) or *Only one folder***
+  under *Files*, where the card carrying them has a folder to start from (`offersOneFolder`).
+  Microsoft's files have none yet, so nothing is asked there. *Only one folder* says the folder is
+  chosen once the account is connected, since only then can its folders be listed.
+- ***Connect your accounts* asks which folder, under the account, once it is chosen.** A folder's
+  address from Google Drive or Box gives its id, and a Dropbox address or a path typed without its
+  slash gives the path from the top (`folderValue`). A connected Google or Dropbox account offers
+  the wizard's browse, *Show shared drives and shared folders* or *Show shared folders*, and a
+  folder picked fills the box. Next waits, in words, until each such account has a folder. An
+  account somebody else connects by a link has the box without the list.
+- **The browse reads the stored sign-in** (`GET /api/connections/:id/folders`), with the
+  deployment's own application where the account has none, as a Test reads it. Google's two lists
+  come back together, and where one is refused the other still shows, with the refusal beside it.
+  A Dropbox folder not added to the account is listed without a value, since it has no path yet.
+  Box lists nothing, as in the wizard. A closed organisation is refused before the sign-in is
+  read, and the door is a row in the closed-organisation sweep.
+- **The create sends the folder after the account's own**: `rootFolderId` or `rootPath`. The
+  Google account's create used to drop `rootFolderId` without a word. It is now kept in the
+  migration's override, and its files face, Drive's, reads it. The update route takes it for a
+  Google account too, before the first item.
+- **The flow's account forms no longer draw the folder**: it is the migration's, asked after.
+  The Accounts page keeps it.
+- **The migration page says where its files start**: from one folder, by its path or id, or from
+  all of My Drive, Dropbox or Box.
+- **Proved by** nine cases for the browse route, a door in the closed-organisation sweep, a
+  Google account's folder against real rows and at create, five in `start-plan.unit.test.ts`,
+  four on the flow and three on the migration page. Mutations caught: the deployment's client left
+  out of the browse; the Google account's folder dropped at create; the folder left off the
+  create. The flow's test also found a listed folder whose name and tag a screen reader would
+  have read as one word.
+- The guides for Google, Dropbox and Box say it in both languages.
+
+**2026-10-04: *Other ways to connect* without the wizard, and the two texts that promised sources
+no door has (open question 5, the part needed before the wizard goes).** IMAP is the one source
+protocol, and *Another mail provider* is its tile. CalDAV, CardDAV, WebDAV and JMAP are
+destinations only.
+
+- **The fold under the tiles names IMAP alone**: *Other ways to connect (IMAP)*. It says that any
+  mail server is read over IMAP, as *Another mail provider*, and that the four others are where
+  things go, chosen on *Where does it go?*. A button ticks the tile. It no longer links to the
+  wizard.
+- ***Another mail provider*'s line says what is true**: over IMAP only mail is read, and a mail
+  provider's calendar and contacts have no way in here yet. It used to say *"Add those by hand"*,
+  for sources no door has.
+- **Proved by** the screen-2 case in `StartMigration.unit.test.tsx`, rewritten: no export line, the
+  fold's words, no wizard link, and the button ticking the tile.
+
+**2026-10-04: where the copies land, *Put it in a folder of its own* on screen 5 (open question
+5, item 4, the second part).** Until now the flow could not make a second migration between the
+same two accounts: it sent no folder, and the refusal's remedy, *give this one a different target
+folder*, was on no screen.
+
+- ***Where does it go?* ends with *Where the copies land*:** one fold per migration, *Put it in a
+  folder of its own*. It is closed and empty by default, so the copies merge into the
+  destination's own folders as before.
+- **It opens, filled in with the account each comes from, where another migration sends the same
+  data types to the same destination**, and says why (`sharesItsDestination`). Examples are two
+  accounts' mail into one mailbox, or Dropbox's files beside a Takeout's photos in one Nextcloud.
+  Mail and calendars from one Google account to one Soverin share a destination and nothing else,
+  so nothing opens.
+- **The migration page says where the copies land**: in the folder named, or in the destination's
+  own folders. The detail read returns `targetFolderPrefix`. The page offers no change, since
+  after the first item a move would leave the copies behind.
+- **The update route writes the folder until the first item**, through the parser create uses. It
+  used to drop it without a word. It is refused after the first item (`target.folderPrefix` in
+  the shared table, `onceCopied`), and where another migration between the same two accounts
+  already copies into that folder, in create's own words. The constraint is never left to answer.
+- **Proved by** two cases on the flow, two in `start-plan.unit.test.ts`, three on the migration
+  page, five against real rows, and one in shared. A mutation removing the clash check is caught.
+  The Takeout case now expects the export's folder of its own, since Dropbox's files go to the
+  same Nextcloud.
+
+**2026-10-04: *Rename* on the migration page, and the update route writing the name and the root
+folder (open question 5, item 4, the first part).** The flow names each migration itself, and the
+recommendation put *Rename* on the migration page for the name a person would rather read.
+
+- ***Rename* sits beside the migration's title** on managed. It turns into a box with *Save* and
+  *Cancel*, and the heading reads the stored name once it is saved. A failure is said beside it
+  and keeps what was typed. The appliance's names stay its mapping files'.
+- **The update route writes the name**, trimmed, and refuses a name of spaces. It used to answer
+  200 and drop it.
+- **The two fixes the root folder needed.** A root folder may change until the migration's ledger
+  holds an item. `rootFolderId` on Drive and Box, and `rootPath` on Dropbox, go into the
+  migration's own override, through the parser a pass reads them with. The route used to refuse
+  `rootFolderId` on every migration and drop `rootPath` without a word. Once an item exists, the
+  table's refusal stands. It is asked again beside the write, since a pass may copy its first
+  item in between. A source with no folder, and the other spelling, are refused by name. An empty
+  folder takes it off the override, except where the account itself holds one.
+- **The rule is shared's** (`RevisionFacts`, `onceCopied`): the appliance's comparison cannot say
+  whether anything was copied, so it keeps its refusal.
+- **Proved by** seven cases against real rows in `a-name-and-a-folder-the-route-writes`, three in
+  shared, and four on the migration page. Two mutations are caught: dropping the name, and a ledger
+  read that always says nothing was copied.
+- **The root folder on screen 3** came after: see *Only one folder* above.
+- **No TLS switch on managed** (the owner chose B) needs nothing removed before the wizard goes:
+  *Start a migration* encrypts every connection, and the Accounts page's forms never had a switch.
+  The wizard's *Use SSL/TLS* is the last one. Privacy §11's *"unless you switch off SSL/TLS
+  yourself"* is in the lawyer's briefing at the top of `site/legal/privacy.md`, with a proposed
+  wording for when the wizard retires. The rendered text stays until then.
+
 **2026-10-04: the Google Calendar and Google Contacts cards retired for new migrations (open
 question 5, item 3).** The Google account is the same way in and asks Google for only what was
 ticked, so the two cards offered nothing to choose between.

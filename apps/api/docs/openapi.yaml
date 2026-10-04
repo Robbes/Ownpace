@@ -1923,6 +1923,73 @@ paths:
                 anyOf:
                   - { $ref: '#/components/schemas/Refusal' }
                   - { $ref: '#/components/schemas/AccountClosed' }
+  /api/connections/{id}/folders:
+    get:
+      tags: [Connections]
+      summary: The folders a saved account's migration may start from
+      description: |
+        *Only one folder* on *Start a migration* (workplan 0153 open question
+        5, item 4): once the account is connected, the folder its files are
+        read from is chosen, and this lists the ones a browse can find, from
+        the stored credential (with the deployment's own application where the
+        account has none, as a Test reads it). Read-only; nothing is stored.
+
+        Google (a Google account, or a Google Drive row): its shared drives
+        and the folders other accounts shared with it, by id. A folder in the
+        account's own Drive is pasted by its link. Where one of the two lists
+        is refused, the other comes back with `refused` saying why. Dropbox:
+        its shared folders, by path; one shared with the account and not
+        added to it has no `value`, because it has no path to start from yet.
+
+        A provider's refusal comes back in its own words, as `ok: false`.
+        `key` names the setting a folder's `value` goes in, on the migration's
+        `sourceConfig` at create.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: What the provider listed, or its refusal. A refusal is an answer, not an error.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  key: { type: string, enum: [rootFolderId, rootPath] }
+                  folders:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        value:
+                          type: string
+                          description: The folder id (Google) or path (Dropbox). Absent where it cannot be chosen.
+                        name: { type: string }
+                        kind: { type: string, enum: [shared-drive, shared-folder] }
+                        owner: { type: string }
+                      required: [name, kind]
+                  refused:
+                    type: string
+                    description: Google only, where one of its two lists was refused and the other answered.
+                  reason: { type: string }
+                required: [ok]
+        '400':
+          description: |
+            `no_folders`: the account has no folders to list here. A Box
+            folder is typed, by the number in its address; a migration from
+            any other account reads the whole account. A destination has none.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Refusal' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: No such connection for this tenant. }
+        '409':
+          description: |
+            `account_closed` (`AccountClosed`): the organisation was closed
+            (workplan 0085 T2); the stored credential was not read.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountClosed' }
   /api/setup/{side}/{provider}:
     get:
       tags: [Setup]
@@ -2220,6 +2287,25 @@ paths:
         Google format sent to one that does, is a `400` naming
         `sourceConfig.nativeFilePolicies`, and nothing is written.
 
+        The name is applied, stored trimmed; a name of spaces is a `400` on
+        `name` (0153 open question 5, item 4).
+
+        The source root folder is applied until the migration's ledger holds an
+        item: `sourceConfig.rootFolderId` on a Google account, Google Drive or
+        Box migration, `sourceConfig.rootPath` on a Dropbox one, merged into THIS mapping's
+        own source_config_override and validated by the parser a pass reads it
+        with. An empty value takes it off that override, and is a `400` where
+        the account itself holds the folder. A folder for a source that has
+        none, or in the other spelling, is a `400` naming the key. Once the
+        ledger holds an item, the folder is refused as below.
+
+        The folder the copies land in, `targetFolderPrefix`, is applied on the
+        same terms, through the parser create uses: an empty one merges the
+        copies into the destination's own folders. A folder another migration
+        between the same two accounts already copies into is a `409`
+        `duplicate_mapping`, in the words create answers with. The migration's
+        own read says it as `targetFolderPrefix`, or null.
+
         Fields that cannot change on a migration that already holds items are
         REFUSED rather than dropped: the source or target system, the source
         root folder, and the destination account. Reconnecting the same account
@@ -2241,7 +2327,11 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
           description: |
-            Two refusals, told apart by `error`.
+            Refusals, told apart by `error`.
+
+            `duplicate_mapping`: the folder the copies land in is one another
+            migration between the same two accounts already copies into
+            (`existingMappingId`, `existingMappingName`). Nothing was written.
 
             `revision_refused`: one or more fields cannot be revised on a
             migration that already exists. Every refused field is listed, each
@@ -2267,7 +2357,7 @@ paths:
                   - { $ref: '#/components/schemas/AccountClosed' }
                   - type: object
                     properties:
-                      error: { type: string, enum: [revision_refused, lifecycle_refused] }
+                      error: { type: string, enum: [revision_refused, lifecycle_refused, duplicate_mapping] }
                       message: { type: string }
                       hint: { type: string }
                       code:
@@ -2275,6 +2365,8 @@ paths:
                         enum: [own_door, after_cutover, finished, before_cutover, unknown]
                       from: { type: string }
                       to: { type: string }
+                      existingMappingId: { type: string }
+                      existingMappingName: { type: string, nullable: true }
                       refused:
                         type: array
                         items:
@@ -2282,7 +2374,7 @@ paths:
                           properties:
                             field:
                               type: string
-                              enum: [source.type, target.type, source.rootFolderId, target.account]
+                              enum: [source.type, target.type, source.rootFolderId, target.account, target.folderPrefix]
                             reason: { type: string }
     delete:
       tags: [Migrations]
@@ -8079,6 +8171,18 @@ components:
             tenantId: { type: string }
             clientId: { type: string }
             clientSecret: { type: string, writeOnly: true }
+            rootFolderId:
+              type: string
+              description: |
+                The folder a migration's files are read from, by id, on a
+                `google-drive`, `google` or `box` source; unset reads the whole
+                account. On a reused connection it is this migration's own
+                (`source_config_override`), which *Only one folder* on *Start a
+                migration* sends for a Google account too (workplan 0153 open
+                question 5, item 4).
+            rootPath:
+              type: string
+              description: The same, as a path, on a `dropbox` source, such as `/Photos`.
             nativeFilePolicy:
               type: string
               enum: [refuse, export-odf, export-office, export-pdf]

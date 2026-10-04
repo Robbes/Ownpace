@@ -146,6 +146,37 @@ describe('refusalsFor', () => {
 });
 
 /**
+ * THE ROOT FOLDER, BEFORE THE FIRST ITEM (0153 open question 5, item 4).
+ *
+ * Its refusal says items already copied would sit outside the new folder. A
+ * migration set up and not yet started has copied nothing, so that is not
+ * true yet: it may still choose its folder. Only a caller that KNOWS nothing
+ * was copied is let through; one that cannot say keeps the refusal.
+ */
+describe('the root folder may change until something is copied', () => {
+  it('is permitted where the caller knows the ledger holds no item', () => {
+    expect(mayRevise('source.rootFolderId', { copiedAnything: false })).toEqual({ allowed: true });
+    expect(refusalsFor(['source.rootFolderId', 'name'], { copiedAnything: false })).toEqual([]);
+  });
+
+  it('is refused once something was copied, and where the caller cannot say', () => {
+    expect(mayRevise('source.rootFolderId', { copiedAnything: true }).allowed).toBe(false);
+    expect(mayRevise('source.rootFolderId').allowed).toBe(false);
+  });
+
+  it('lets the folder the copies land in change on the same terms (0153 open question 5, item 4)', () => {
+    expect(mayRevise('target.folderPrefix', { copiedAnything: false })).toEqual({ allowed: true });
+    expect(mayRevise('target.folderPrefix', { copiedAnything: true }).allowed).toBe(false);
+    expect(mayRevise('target.folderPrefix').allowed).toBe(false);
+  });
+
+  it('changes no other row: the source, the target and its account stay refused', () => {
+    const refused = refusalsFor(['source.type', 'target.type', 'target.account'], { copiedAnything: false });
+    expect(refused.map((r) => r.field)).toEqual(['source.type', 'target.type', 'target.account']);
+  });
+});
+
+/**
  * WHAT A MIGRATION SAID IT WAS, AND WHAT IT SAYS NOW (workplan 0125 T2).
  *
  * The table above answers "may this field change". It could only be ASKED on
