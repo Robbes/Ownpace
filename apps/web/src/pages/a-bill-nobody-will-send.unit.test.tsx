@@ -167,6 +167,11 @@ const usage = (tier: typeof MEDIUM | typeof FREE) => ({
   decidedBy: 'data' as const,
   evidence: { peakPaths: 1, peakAt: '2026-09-12', gbMoved: 12 },
   period: '2026-09',
+  billed: { tier, beyond: [] as Array<'bands' | 'paths' | 'data'> },
+  ceilingGb: tier.dataGb,
+  topUps: 0,
+  gbMovedInTheAlpha: 0,
+  holds: true,
 });
 
 const client = () =>
@@ -236,6 +241,7 @@ beforeEach(() => {
     ceilingGb: 250,
     topUps: 0,
     gbMoved: 10,
+    gbMovedInTheAlpha: 0,
     share: 0.04,
     state: 'under',
     holds: true,

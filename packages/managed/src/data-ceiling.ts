@@ -326,11 +326,12 @@ export function ceilingHoldReason(ceiling: Ceiling, held: number): PauseReason {
 /**
  * The organisation's ceiling as it stands: its yeses and its meter, read in the
  * caller's transaction (inside `withTenant`). The Billing page reads it, and so
- * does each data type's pass before it starts, for the hold.
+ * does each data type's pass before it starts, for the hold. The meter as it
+ * counts: what the alpha moved does not (managed 0040).
  */
 export async function readCeiling(db: PgDatabase, tenantId: TenantId): Promise<Ceiling> {
   const grants = await new PgDataAllowanceStore(db).grants(tenantId);
-  const bytes = await new PgBytesMovedStore(db).total(tenantId);
+  const bytes = await new PgBytesMovedStore(db).counted(tenantId);
   return ceilingOf(allowanceOf(grants), Number(bytes) / BYTES_PER_GB);
 }
 

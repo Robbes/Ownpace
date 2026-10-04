@@ -30,6 +30,7 @@ import {
   type Invoice,
   type BillingPartyInput,
   type BillingPartyRead,
+  type UsageResponse,
 } from '../services/billing-service.ts';
 import { serverMessage } from '../services/api.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
@@ -477,6 +478,105 @@ const Subtitle: React.FC<{ figuresShown: boolean }> = ({ figuresShown }) => {
   );
 };
 
+/**
+ * The tier the panel names: once the alpha is over, what the month bills
+ * (what it used, never above the agreed tier); during the alpha, where
+ * nothing is billed, what was used. Null past the end of the table.
+ */
+const shownTier = (usage: UsageResponse) => (usage.holds ? usage.billed.tier : usage.tier);
+
+/** Decimal, like the published table: 1 TB = 1000 GB. */
+function sizeOf(gb: number, number: (n: number) => string): string {
+  return gb >= 1000 ? `${number(Math.round(gb / 100) / 10)} TB` : `${number(Math.round(gb * 10) / 10)} GB`;
+}
+
+/**
+ * WHAT THIS MONTH BILLS (workplan 0109 T6; the owner, 2026-10-04).
+ *
+ * The headline is the tier the month bills once the alpha is over: what it
+ * used, never above the agreed tier. Under it, always, what was used: the most
+ * migrations at once this month, and the data moved in total, for ever, against
+ * the ceiling it counts toward (the owner, 2026-10-04: *"In total for ever"*).
+ * What the alpha moved never counts, and is said on a line of its own.
+ *
+ * When what was used is past the tier billed, one sentence says why: bands
+ * bought cover the data (a top-up keeps the tier), more ran at the same time
+ * than the tier runs, or more moved than its ceiling. During the alpha the
+ * panel names what was used, as it always did, under its old title.
+ */
+const TierPanel: React.FC<{ usage: UsageResponse }> = ({ usage }) => {
+  const t = useT();
+  const { currency, dateTime, number } = useFormatters();
+  const tier = shownTier(usage);
+  const size = (gb: number) => sizeOf(gb, number);
+  const capped = usage.holds && usage.billed.beyond.length > 0;
+  return (
+    <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+      <h3 className="font-medium text-gray-900 mb-3">{t(usage.holds ? 'billing.monthBills' : 'billing.yourTier')}</h3>
+      {tier ? (
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-lg font-semibold text-gray-900">{tier.name}</span>
+            {isFreeTier(tier) ? (
+              <span className="font-medium">{t('billing.tierFree')}</span>
+            ) : (
+              <span className="font-medium">
+                {currency(tier.monthlyCents, 'EUR')} {t('billing.tierPerMonth')}
+                {' · '}
+                {currency(tier.annualCents, 'EUR')} {t('billing.tierPerYear')}
+              </span>
+            )}
+          </div>
+          {capped ? (
+            usage.billed.beyond.map((why) => (
+              <p key={why} className="text-sm text-gray-600">
+                {why === 'bands'
+                  ? t('billing.tierBeyond.bands', { count: usage.topUps, tier: tier.name })
+                  : why === 'paths'
+                    ? t('billing.tierBeyond.paths', { tier: tier.name })
+                    : t('billing.tierBeyond.data', { tier: tier.name })}
+              </p>
+            ))
+          ) : (
+            <p className="text-sm text-gray-600">
+              {usage.decidedBy === 'paths'
+                ? t('billing.tierDecidedByPaths')
+                : usage.decidedBy === 'data'
+                  ? t('billing.tierDecidedByData')
+                  : t('billing.tierDecidedByBoth')}
+            </p>
+          )}
+        </div>
+      ) : (
+        /* Past the end of the published table. Not an error, and it
+           must not render as one: it is the site's own ending. */
+        <p className="text-sm text-gray-600">{t('billing.tierBeyondTable')}</p>
+      )}
+      <div className="space-y-2 mt-2 pt-2 border-t">
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-600">{t('billing.tierPeakPaths')}</span>
+          <span className="font-medium">
+            {usage.evidence.peakPaths}
+            {usage.evidence.peakAt ? ` · ${dateTime(usage.evidence.peakAt)}` : ''}
+          </span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-600">{t('billing.tierDataMoved')}</span>
+          <span className="font-medium">
+            {t('billing.tierDataOf', { moved: size(usage.evidence.gbMoved), ceiling: size(usage.ceilingGb) })}
+          </span>
+        </div>
+        {usage.gbMovedInTheAlpha > 0 && (
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-600">{t('billing.tierAlphaMoved')}</span>
+            <span className="font-medium">{size(usage.gbMovedInTheAlpha)}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const Billing: React.FC = () => {
   const t = useT();
   const { currency, dateTime } = useFormatters();
@@ -640,7 +740,7 @@ const Billing: React.FC = () => {
               </div>
             </div>
 
-            {/* WHAT THIS PUTS YOU ON — not a sum of metered lines.
+            {/* WHAT THIS MONTH BILLS — not a sum of metered lines.
                 Until 2026-09-09 this block itemised a base fee, per-GB
                 storage and egress, per-hour compute, VAT and a total. Every
                 figure was arithmetically correct and none of them was a
@@ -656,48 +756,12 @@ const Billing: React.FC = () => {
 
                 MONEY UNIT: `currency` takes CENTS, and so does the tier
                 (`monthlyCents: 500` is €5). There is no setup fee since
-                2026-10-03 (ADR-0014). A free tier prints no money at all. */}
-            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-              <h3 className="font-medium text-gray-900 mb-3">{t('billing.yourTier')}</h3>
-              {usage.tier ? (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-lg font-semibold text-gray-900">{usage.tier.name}</span>
-                    {isFreeTier(usage.tier) ? (
-                      <span className="font-medium">{t('billing.tierFree')}</span>
-                    ) : (
-                      <span className="font-medium">
-                        {currency(usage.tier.monthlyCents, 'EUR')} {t('billing.tierPerMonth')}
-                        {' · '}
-                        {currency(usage.tier.annualCents, 'EUR')} {t('billing.tierPerYear')}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-600">
-                    {usage.decidedBy === 'paths'
-                      ? t('billing.tierDecidedByPaths')
-                      : usage.decidedBy === 'data'
-                        ? t('billing.tierDecidedByData')
-                        : t('billing.tierDecidedByBoth')}
-                  </p>
-                  <div className="flex justify-between text-sm pt-2 border-t">
-                    <span className="text-gray-600">{t('billing.tierPeakPaths')}</span>
-                    <span className="font-medium">
-                      {usage.evidence.peakPaths}
-                      {usage.evidence.peakAt ? ` · ${dateTime(usage.evidence.peakAt)}` : ''}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">{t('billing.tierDataMoved')}</span>
-                    <span className="font-medium">{usage.evidence.gbMoved.toFixed(1)} GB</span>
-                  </div>
-                </div>
-              ) : (
-                /* Past the end of the published table. Not an error, and it
-                   must not render as one: it is the site's own ending. */
-                <p className="text-sm text-gray-600">{t('billing.tierBeyondTable')}</p>
-              )}
-            </div>
+                2026-10-03 (ADR-0014). A free tier prints no money at all.
+
+                Once the alpha is over the headline is the tier the month
+                BILLS, what it used and never above the agreed tier, with what
+                was used under it (`TierPanel`; the owner, 2026-10-04). */}
+            <TierPanel usage={usage} />
           </div>
         ) : (
           <p className="text-gray-500">{t('billing.noUsage')}</p>
@@ -712,7 +776,7 @@ const Billing: React.FC = () => {
       {/* During the alpha nothing is invoiced on any tier (0131 T3, owner's
           answer to open question 7), so the card says so as it does on a
           free tier, instead of asking for details nobody needs yet. */}
-      <InvoiceDetailsCard free={isAlpha() || (usage?.tier != null && isFreeTier(usage.tier))} />
+      <InvoiceDetailsCard free={isAlpha() || (usage != null && shownTier(usage) != null && isFreeTier(shownTier(usage)!))} />
 
       {/* Invoices */}
       <div className="bg-white rounded-lg border border-gray-200">

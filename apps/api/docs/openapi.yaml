@@ -5586,22 +5586,39 @@ paths:
   /api/billing/usage:
     get:
       tags: [Billing]
-      summary: This period's usage and cost
+      summary: This period's usage, the tier it measures, and the tier the month bills
       description: |
-        Priced at **this tenant's agreed rates** — the snapshot pinned when the
-        tenant was first billed, not the operator's current price list. An
-        operator raising prices for new customers does not re-price an existing
-        one.
+        What was measured this month and the ADR-0014 tier it measures (`tier`,
+        null past the end of the table, with `decidedBy` and its `evidence`),
+        and what the month bills (`billed`): what it used, never above the
+        agreed tier, with `beyond` saying why when what was used is past it
+        (`bands` bought cover the data, more `paths` at the same time than the
+        tier runs, or more `data` than its ceiling). Data counts in total, for
+        ever, and what moved during the alpha never counts: `evidence.gbMoved`
+        is what counts, `gbMovedInTheAlpha` what does not (managed 0040).
+        `holds` is false during the alpha, where nothing is billed. No metered
+        cost: ADR-0014 retired it. Read-only; nothing is written.
       responses:
         '200':
-          description: Usage and the cost it implies.
+          description: Usage, the measured tier, and the tier the month bills.
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   usage: { $ref: '#/components/schemas/Usage' }
-                  currentCost: { $ref: '#/components/schemas/Cost' }
+                  tier: { type: [object, 'null'] }
+                  decidedBy: { type: string, enum: [paths, data, both] }
+                  evidence: { type: object }
+                  billed:
+                    type: object
+                    properties:
+                      tier: { type: object }
+                      beyond: { type: array, items: { type: string, enum: [bands, paths, data] } }
+                  ceilingGb: { type: number }
+                  topUps: { type: integer }
+                  gbMovedInTheAlpha: { type: number }
+                  holds: { type: boolean }
                   period: { type: string, examples: ['2026-08'] }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -5641,6 +5658,9 @@ paths:
                   ceilingGb: { type: number }
                   topUps: { type: integer }
                   gbMoved: { type: number }
+                  gbMovedInTheAlpha:
+                    type: number
+                    description: Moved during the alpha, which never counts against the ceiling (managed 0040).
                   share: { type: number }
                   state: { type: string, enum: [under, near, reached] }
                   holds: { type: boolean }

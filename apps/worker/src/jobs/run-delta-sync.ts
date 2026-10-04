@@ -891,11 +891,14 @@ export const runDeltaSync = schemaTask({
           // engine's number is a neutral pass statistic; pricing it is this
           // runner's affair (hard rule 5). Zero adds nothing, and a crash
           // before this line under-counts, never double-counts: the ledger
-          // makes the retried pass re-create nothing.
+          // makes the retried pass re-create nothing. During the alpha the
+          // bytes are the alpha's too, and never count (managed 0040; the
+          // owner, 2026-10-04).
           const firstCopyBytes = result.firstCopyBytes ?? 0;
           if (firstCopyBytes > 0) {
+            const inTheAlpha = !holdsAtCeiling(process.env.OWNPACE_STAGE);
             await withTenant(pool, tenantId, async (db) => {
-              await new PgBytesMovedStore(db).add(tenantId, firstCopyBytes);
+              await new PgBytesMovedStore(db).add(tenantId, firstCopyBytes, { inTheAlpha });
             });
           }
           // Every item the pass HANDLED, not only the two kinds it used to

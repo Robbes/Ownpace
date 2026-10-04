@@ -6,7 +6,8 @@
  * data already moved pass the ceiling, a note with both ways on and their
  * prices, and the way to the Billing page. Never a block: the note has no
  * button, and Start stays where it is. Nothing at all where it does not apply:
- * under the ceiling, for a member, and on the appliance.
+ * under the ceiling, during the alpha (what moves then never counts), for a
+ * member, and on the appliance.
  */
 
 import { render, screen } from '@testing-library/react';
@@ -44,6 +45,7 @@ const ON_SMALL: Ceiling = {
   ceilingGb: 750,
   topUps: 0,
   gbMoved: 600,
+  gbMovedInTheAlpha: 0,
   share: 0.8,
   state: 'near',
   holds: true,
@@ -90,16 +92,16 @@ describe('past the ceiling', () => {
     expect(screen.getByRole('button', { name: 'Start migration' })).toBeEnabled();
   });
 
-  it('during the alpha, warns all the same and says nothing waits', async () => {
-    getCeiling.mockResolvedValue({ ...ON_SMALL, holds: false });
-    renderNote(200 * GB);
-    const note = await screen.findByRole('note');
-    expect(note.textContent).toContain('During the Alpha nothing waits at the ceiling');
-    expect(note.textContent).not.toContain('Move up to');
-  });
 });
 
 describe('where it does not apply, nothing', () => {
+  it('during the alpha: what moves then never counts, so it passes nothing (the owner, 2026-10-04)', async () => {
+    getCeiling.mockResolvedValue({ ...ON_SMALL, holds: false });
+    renderNote(200 * GB);
+    await vi.waitFor(() => expect(getCeiling).toHaveBeenCalled());
+    expect(screen.queryByRole('note')).toBeNull();
+  });
+
   it('within the ceiling', async () => {
     renderNote(100 * GB);
     await vi.waitFor(() => expect(getCeiling).toHaveBeenCalled());

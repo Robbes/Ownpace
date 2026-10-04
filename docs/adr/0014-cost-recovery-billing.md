@@ -22,7 +22,7 @@
   files and tasks are separate paths. Only a data type the migration carries is a path
   (`scope_selection.included`).
 - **A tier has two axes, and you are on the higher of them**: paths at the same time, and data
-  moved — cumulative, each item's first successful copy. Past Extra large: *talk to us*.
+  moved — cumulative first copies, never the alpha's. Past Extra large: *talk to us*.
   `site/site.unit.test.ts` and `packages/managed/src/tier-calculator.unit.test.ts` parse this
   table: prices change here.
 
@@ -455,6 +455,16 @@ rule, and side by side, moving up at the new tier's monthly (asked once more wit
 then everything starts) or starting what fits now. The plain *Start* gives way while the question
 stands; during the alpha it is a note.
 
+**The data, in total, and the alpha's (the owner, 2026-10-04).** Asked whether data counts per
+year: *"In total for ever, and the alpha's data doesn't count"*. The meter stays the record of
+everything moved; what a ceiling, a hold and a tier count is that total less what moved while the
+stage was `alpha` (`bytes_moved.alpha_bytes`, managed 0040, which rises with the total during the
+alpha and never after; every byte before 0040 was the alpha's). So nothing moved during the alpha
+is ever charged, and Start's note at the ceiling says nothing during it. The Billing page's tier
+panel names, once the alpha is over, **what this month bills**: what it used, never above the
+agreed tier, so a band bought keeps the tier (`billedTierOf`); what was used stays under it, data
+in total against its ceiling, and what the alpha moved on its own line.
+
 This replaces two passages of the Decision above: in *Downgrade is automatic; upgrade is
 consented*, the sentence beginning *"On the **data** axis the tier moves automatically"*; and in
 *What it will not do*, *"Crossing it moves the tier, automatically and announced"*, with its
@@ -671,7 +681,9 @@ rules above are the prices the site quotes, and nothing is charged during the Al
 - **2026-10-04** — The path axis: one agreed tier for both axes, both ways side by side at
   *Start*, enforced by the server (owner: *"A"*, *"side by side"*, *"Enforced by the server"*); the
   data allowance stays cumulative. The server's check and the question at *Start* are built.
-  Record: *Amendment 2026-10-03*.
+  Data counts in total, for ever, and the alpha's never counts (owner: *"In total for ever, and
+  the alpha's data doesn't count"*); the Billing page names what the month bills. Built. Record:
+  *Amendment 2026-10-03*.
 
 The full record, word for word as it read before this consolidation:
 [history/0014-cost-recovery-billing.md](./history/0014-cost-recovery-billing.md).

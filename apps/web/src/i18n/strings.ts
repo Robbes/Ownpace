@@ -872,6 +872,16 @@ const en = {
   'billing.apiCalls': 'API calls',
   // ADR-0014's tier, on the customer's own usage screen (0121 T4).
   'billing.yourTier': 'What this puts you on',
+  // Once the alpha is over (the owner, 2026-10-04): the tier the month bills,
+  // what it used and never above the agreed tier, with what was used under it.
+  'billing.monthBills': 'What this month bills',
+  'billing.tierDataOf': '{moved} of {ceiling}',
+  'billing.tierAlphaMoved': 'Moved during the Alpha, not counted',
+  'billing.tierBeyond.bands': 'That includes {count} extra band(s) bought, so {tier} still covers it.',
+  'billing.tierBeyond.paths':
+    'More migrations ran at the same time than {tier} runs, so this month bills {tier}. Nothing more starts until fewer run or you move up.',
+  'billing.tierBeyond.data':
+    'More was moved than {tier} covers, so this month bills {tier}. New items wait until you choose a way on.',
   'billing.tierPerYear': 'for a year',
   'billing.tierPerMonth': 'per month',
   'billing.tierFree': 'Free: nothing is invoiced on this tier',
@@ -879,7 +889,7 @@ const en = {
   'billing.tierDecidedByData': 'Set by how much data has been moved.',
   'billing.tierDecidedByBoth': 'Set by both what ran at once and how much was moved.',
   'billing.tierPeakPaths': 'Most migrations at once',
-  'billing.tierDataMoved': 'Data moved, all months',
+  'billing.tierDataMoved': 'Data moved, in total',
   'billing.tierBeyondTable':
     'Past the published table — talk to us and we will price it properly.',
   'billing.noUsage': 'No usage data available yet',
@@ -888,6 +898,7 @@ const en = {
   'billing.ceiling.title': 'Your data ceiling',
   'billing.ceiling.moved': '{moved} of {ceiling} moved, on {tier}.',
   'billing.ceiling.bands': 'That includes {count} extra band(s) bought.',
+  'billing.ceiling.alphaMoved': 'Another {moved} was moved during the Alpha, which never counts toward your ceiling.',
   'billing.ceiling.under':
     'From 80% of the ceiling, this card offers the two ways on: moving up, or another band once.',
   'billing.ceiling.near':
@@ -2037,7 +2048,8 @@ const en = {
   'support.usage.peak': 'Recorded peak this month',
   'support.usage.noPeak': 'nothing recorded yet',
   'support.usage.now': 'Holding a slot right now',
-  'support.usage.data': 'Data moved (first copies)',
+  // As the tier counts it: the alpha's data does not (managed 0040).
+  'support.usage.data': 'Data moved (first copies, without the Alpha)',
   'support.usage.note':
     'The higher axis decides; a future invoice uses this same derivation, and looking changes nothing.',
   'support.usage.why':
@@ -2168,7 +2180,6 @@ const en = {
     'At the ceiling, new items wait until you choose a way on; changes to what is already copied carry on.',
   'ceiling.atStart.choose': 'Choose now, or start anyway and choose when they wait:',
   'ceiling.atStart.billing': 'your data ceiling on the Billing page',
-  'ceiling.atStart.alpha': 'During the Alpha nothing waits at the ceiling and nothing is charged.',
   // The question at Start (workplan 0109 T6, the path axis; the owner,
   // 2026-10-04: "side by side"): a start past the agreed tier's paths waits
   // for a yes, so both ways on are offered beside each other, with the price.
@@ -3240,7 +3251,7 @@ const nl: Record<keyof typeof en, string> = {
   'support.usage.peak': 'Vastgelegde piek deze maand',
   'support.usage.noPeak': 'nog niets vastgelegd',
   'support.usage.now': 'Houdt nu een plek vast',
-  'support.usage.data': 'Verplaatste data (eerste kopieën)',
+  'support.usage.data': 'Verplaatste data (eerste kopieën, zonder de Alpha)',
   'support.usage.note':
     'De hoogste as bepaalt; een toekomstige factuur gebruikt dezelfde afleiding, en kijken verandert niets.',
   'support.usage.why':
@@ -3806,6 +3817,14 @@ const nl: Record<keyof typeof en, string> = {
   'billing.apiCalls': 'API-aanroepen',
   // ADR-0014's tier, on the customer's own usage screen (0121 T4).
   'billing.yourTier': 'Waar u hiermee op uitkomt',
+  'billing.monthBills': 'Wat deze maand kost',
+  'billing.tierDataOf': '{moved} van {ceiling}',
+  'billing.tierAlphaMoved': 'Verplaatst tijdens de Alpha, telt niet mee',
+  'billing.tierBeyond.bands': 'Daar zit(ten) {count} bijgekocht(e) blok(ken) bij, dus {tier} dekt het nog.',
+  'billing.tierBeyond.paths':
+    'Er liepen meer migraties tegelijk dan {tier} laat lopen, dus deze maand kost {tier}. Er start niets meer tot er minder lopen of u naar een groter pakket gaat.',
+  'billing.tierBeyond.data':
+    'Er is meer verplaatst dan {tier} dekt, dus deze maand kost {tier}. Nieuwe items wachten tot u een weg verder kiest.',
   'billing.tierPerYear': 'voor een jaar',
   'billing.tierPerMonth': 'per maand',
   'billing.tierFree': 'Gratis: op dit pakket wordt niets gefactureerd',
@@ -3814,13 +3833,14 @@ const nl: Record<keyof typeof en, string> = {
   'billing.tierDecidedByBoth':
     'Bepaald door zowel wat er tegelijk liep als hoeveel er verplaatst is.',
   'billing.tierPeakPaths': 'Meeste migraties tegelijk',
-  'billing.tierDataMoved': 'Verplaatst, alle maanden',
+  'billing.tierDataMoved': 'Verplaatst, in totaal',
   'billing.tierBeyondTable':
     'Voorbij de gepubliceerde tabel — neem contact op, dan prijzen we het goed.',
   'billing.noUsage': 'Nog geen verbruiksgegevens beschikbaar',
   'billing.ceiling.title': 'Uw datalimiet',
   'billing.ceiling.moved': '{moved} van {ceiling} verplaatst, op {tier}.',
   'billing.ceiling.bands': 'Inclusief {count} extra blok(ken) bijgekocht.',
+  'billing.ceiling.alphaMoved': 'Daarnaast is {moved} verplaatst tijdens de Alpha; dat telt nooit mee voor uw limiet.',
   'billing.ceiling.under':
     'Vanaf 80% van de limiet biedt deze kaart de twee wegen verder: naar een groter pakket, of eenmalig een extra blok.',
   'billing.ceiling.near':
@@ -4655,7 +4675,6 @@ const nl: Record<keyof typeof en, string> = {
     'Bij de limiet wachten nieuwe items tot u een weg verder kiest; wijzigingen aan wat al gekopieerd is gaan door.',
   'ceiling.atStart.choose': 'Kies nu, of start toch en kies wanneer ze wachten:',
   'ceiling.atStart.billing': 'uw datalimiet op de pagina Facturering',
-  'ceiling.atStart.alpha': 'Tijdens de Alpha wacht er niets bij de limiet en wordt niets in rekening gebracht.',
   'paths.atStart':
     'Nu starten laat {after} migraties tegelijk lopen (elke soort gegevens telt als één), en uw pakket, {tier}, laat er {paths} lopen.',
   'paths.atStart.moveUp': 'Ga naar {tier}',

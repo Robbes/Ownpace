@@ -439,6 +439,8 @@ export const bytesMoved = pgTable('bytes_moved', {
     .primaryKey()
     .references(() => tenant.id, { onDelete: 'cascade' }),
   bytes: bigint('bytes', { mode: 'bigint' }).notNull(),
+  /** What the alpha moved, which never counts (managed 0040): what counts is `bytes - alphaBytes`. */
+  alphaBytes: bigint('alpha_bytes', { mode: 'bigint' }).notNull().default(0n),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

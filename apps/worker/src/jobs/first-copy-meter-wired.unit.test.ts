@@ -33,7 +33,11 @@ describe('the meter flush is wired in every pass-running job', () => {
   for (const job of PASS_RUNNING_JOBS) {
     it(`${job} adds the pass's firstCopyBytes to PgBytesMovedStore`, () => {
       const source = readFileSync(join(here, job), 'utf8');
-      expect(source).toMatch(/new PgBytesMovedStore\(db\)\.add\(tenantId, firstCopyBytes\)/);
+      expect(source).toMatch(/new PgBytesMovedStore\(db\)\.add\(tenantId, firstCopyBytes, \{ inTheAlpha \}\)/);
+      // The alpha's data never counts (managed 0040; the owner, 2026-10-04):
+      // the flush says whether the stage is the alpha, from OWNPACE_STAGE, the
+      // one place the tasks learn it.
+      expect(source).toMatch(/const inTheAlpha = !holdsAtCeiling\(process\.env\.OWNPACE_STAGE\)/);
       // The >0 gate: most delta passes copy nothing new, and a zero add must
       // not create a row (absence means nothing has ever moved).
       expect(source).toMatch(/firstCopyBytes > 0/);

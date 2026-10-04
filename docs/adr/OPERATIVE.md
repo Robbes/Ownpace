@@ -84,7 +84,7 @@ live in [README.md](./README.md), the register.
   files and tasks are separate paths. Only a data type the migration carries is a path
   (`scope_selection.included`).
 - **A tier has two axes, and you are on the higher of them**: paths at the same time, and data
-  moved — cumulative, each item's first successful copy. Past Extra large: *talk to us*.
+  moved — cumulative first copies, never the alpha's. Past Extra large: *talk to us*.
   `site/site.unit.test.ts` and `packages/managed/src/tier-calculator.unit.test.ts` parse this
   table: prices change here.
 

@@ -87,6 +87,9 @@ const businessPartyFixture = {
  * Medium is €12 a month and €72 a year in ADR-0014's table, carried in CENTS
  * — the formatter's own unit, so the screen forwards it untouched.
  */
+const MEDIUM = { id: 'medium' as const, name: 'Medium', paths: 20, dataGb: 2000, monthlyCents: 1200, annualCents: 7200 };
+const FREE = { id: 'free' as const, name: 'Free', paths: 1, dataGb: 250, monthlyCents: 0, annualCents: 0 };
+
 const usageFixture = {
   usage: {
     tenantId: 't1',
@@ -97,10 +100,16 @@ const usageFixture = {
     syncCount: 7,
     lastUpdated: '2026-08-09T12:00:00.000Z',
   },
-  tier: { id: 'medium' as const, name: 'Medium', paths: 20, dataGb: 2000, monthlyCents: 1200, annualCents: 7200 },
+  tier: MEDIUM,
   decidedBy: 'data' as const,
   evidence: { peakPaths: 4, peakAt: '2026-08-12', gbMoved: 900 },
   period: '2026-08',
+  // Agreed to Medium: the month bills what it used.
+  billed: { tier: MEDIUM, beyond: [] as Array<'bands' | 'paths' | 'data'> },
+  ceilingGb: 2000,
+  topUps: 0,
+  gbMovedInTheAlpha: 0,
+  holds: true,
 };
 
 const invoiceFixture = (over: Partial<Invoice> = {}): Invoice => ({
@@ -124,6 +133,7 @@ const UNDER_THE_CEILING = {
   ceilingGb: 250,
   topUps: 0,
   gbMoved: 10,
+  gbMovedInTheAlpha: 0,
   share: 0.04,
   state: 'under' as const,
   holds: true,
@@ -368,6 +378,61 @@ describe('a VAT number that was actually checked (0111 T2)', () => {
   });
 });
 
+/**
+ * WHAT THIS MONTH BILLS (workplan 0109 T6; the owner, 2026-10-04). Once the
+ * alpha is over the headline is the tier the month bills: what it used, never
+ * above the agreed tier. What was used stays under it, data in total against
+ * its ceiling, and what the alpha moved on a line of its own.
+ */
+describe('what this month bills', () => {
+  const SMALL = { id: 'small' as const, name: 'Small', paths: 4, dataGb: 750, monthlyCents: 500, annualCents: 3000 };
+
+  it('names the tier a band keeps, not the one the data measures, and says why', async () => {
+    usageMock.mockResolvedValue({
+      ...usageFixture,
+      tier: MEDIUM,
+      evidence: { peakPaths: 2, peakAt: '2026-08-12', gbMoved: 1000 },
+      billed: { tier: SMALL, beyond: ['bands'] },
+      ceilingGb: 1500,
+      topUps: 1,
+    });
+    renderBilling();
+
+    expect(await screen.findByRole('heading', { name: 'What this month bills' })).toBeInTheDocument();
+    expect(screen.getByText('Small')).toBeInTheDocument();
+    expect(screen.queryByText('Medium')).not.toBeInTheDocument();
+    expect(screen.getByText(/per month/).textContent).toContain('5.00');
+    expect(screen.getByText('That includes 1 extra band(s) bought, so Small still covers it.')).toBeInTheDocument();
+    expect(screen.getByText('1 TB of 1.5 TB')).toBeInTheDocument();
+  });
+
+  it('says when more ran at the same time than the agreed tier runs', async () => {
+    usageMock.mockResolvedValue({ ...usageFixture, billed: { tier: FREE, beyond: ['paths'] } });
+    renderBilling();
+    expect(
+      await screen.findByText(
+        'More migrations ran at the same time than Free runs, so this month bills Free. Nothing more starts until fewer run or you move up.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('says what the alpha moved on its own line, never counted', async () => {
+    usageMock.mockResolvedValue({ ...usageFixture, gbMovedInTheAlpha: 600 });
+    renderBilling();
+    expect(await screen.findByText('Moved during the Alpha, not counted')).toBeInTheDocument();
+    expect(screen.getByText('600 GB')).toBeInTheDocument();
+  });
+
+  it('during the alpha, names what was used under the old title: nothing is billed', async () => {
+    usageMock.mockResolvedValue({ ...usageFixture, billed: { tier: FREE, beyond: ['data'] }, holds: false });
+    renderBilling();
+    expect(await screen.findByRole('heading', { name: 'What this puts you on' })).toBeInTheDocument();
+    expect(screen.getByText('Medium')).toBeInTheDocument();
+    expect(screen.getByText('Set by how much data has been moved.')).toBeInTheDocument();
+    expect(screen.queryByText(/so this month bills/)).not.toBeInTheDocument();
+  });
+});
+
 describe('the price on the screen is the published price (0121 T4)', () => {
   it('shows the tier and its money in EUROS: the month and the year, and no setup fee', async () => {
     renderBilling();
@@ -391,8 +456,9 @@ describe('the price on the screen is the published price (0121 T4)', () => {
     // screen must say WHICH — the invoice quotes the same sentence.
     expect(await screen.findByText('Set by how much data has been moved.')).toBeInTheDocument();
     expect(screen.getByText('Most migrations at once')).toBeInTheDocument();
-    expect(screen.getByText('Data moved, all months')).toBeInTheDocument();
-    expect(screen.getByText('900.0 GB')).toBeInTheDocument();
+    expect(screen.getByText('Data moved, in total')).toBeInTheDocument();
+    // In total, for ever, against the ceiling it counts toward (the owner, 2026-10-04).
+    expect(screen.getByText('900 GB of 2 TB')).toBeInTheDocument();
   });
 
   it('no metered breakdown survives — the retired model is off the screen', async () => {
@@ -410,7 +476,8 @@ describe('the price on the screen is the published price (0121 T4)', () => {
   it('a free tier says free, never €0.00, and asks for no invoice details (ADR-0014, 2026-09-24)', async () => {
     usageMock.mockResolvedValue({
       ...usageFixture,
-      tier: { id: 'free' as const, name: 'Free', paths: 1, dataGb: 250, monthlyCents: 0, annualCents: 0 },
+      tier: FREE,
+      billed: { tier: FREE, beyond: [] },
       decidedBy: 'both' as const,
     });
     renderBilling();
@@ -425,7 +492,9 @@ describe('the price on the screen is the published price (0121 T4)', () => {
   });
 
   it('past the end of the table it says talk to us, and does not render an error', async () => {
-    usageMock.mockResolvedValue({ ...usageFixture, tier: null, decidedBy: 'both' as const });
+    // During the alpha the panel names what was used; after it, the agreed
+    // tier the month bills, which is always a tier of the table.
+    usageMock.mockResolvedValue({ ...usageFixture, tier: null, decidedBy: 'both' as const, holds: false });
     renderBilling();
 
     expect(

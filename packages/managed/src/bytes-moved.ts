@@ -14,6 +14,14 @@
  * The migration's trigger refuses any lowering for every role, so a bug here
  * can under-count (the safe direction) but never shrink what a customer
  * already moved into a smaller-looking bill for us and a dispute for them.
+ *
+ * ## The alpha's data does not count (managed 0040)
+ *
+ * The owner, 2026-10-04: *"In total for ever, and the alpha's data doesn't
+ * count"*. The total stays the record of what was moved; `alpha_bytes` rises
+ * with it while the stage is `alpha`, and what a ceiling, a hold or a tier
+ * counts is the difference (`counted`). Nobody marks the alpha's end: the
+ * share simply stops rising when the stage changes.
  */
 
 import { eq, sql } from 'drizzle-orm';
@@ -35,23 +43,39 @@ export class PgBytesMovedStore {
    * new, and writing a zero row for every one of them would make absence
    * (nothing has ever moved) indistinguishable from activity.
    */
-  async add(tenantId: TenantId, bytes: number): Promise<void> {
+  async add(tenantId: TenantId, bytes: number, stage: { readonly inTheAlpha: boolean } = { inTheAlpha: false }): Promise<void> {
     if (!Number.isFinite(bytes) || bytes <= 0) return;
+    const n = Math.trunc(bytes);
+    // During the alpha the alpha's share rises with the total, so none of it counts.
+    const alpha = stage.inTheAlpha ? n : 0;
     await this.db.execute(
-      sql`INSERT INTO bytes_moved (tenant_id, bytes, updated_at)
-          VALUES (${tenantId}, ${Math.trunc(bytes)}, now())
+      sql`INSERT INTO bytes_moved (tenant_id, bytes, alpha_bytes, updated_at)
+          VALUES (${tenantId}, ${n}, ${alpha}, now())
           ON CONFLICT (tenant_id) DO UPDATE SET
             bytes = bytes_moved.bytes + EXCLUDED.bytes,
+            alpha_bytes = bytes_moved.alpha_bytes + EXCLUDED.alpha_bytes,
             updated_at = now()`,
     );
   }
 
-  /** The lifetime total, 0 when nothing has ever moved. */
+  /** The lifetime total, 0 when nothing has ever moved: the record, the alpha's share included. */
   async total(tenantId: TenantId): Promise<bigint> {
+    return (await this.read(tenantId)).total;
+  }
+
+  /** What counts toward a ceiling, a hold and a tier: the total less what the alpha moved. */
+  async counted(tenantId: TenantId): Promise<bigint> {
+    return (await this.read(tenantId)).counted;
+  }
+
+  /** The total, the alpha's share, and what counts; all 0 when nothing has ever moved. */
+  async read(tenantId: TenantId): Promise<{ total: bigint; inTheAlpha: bigint; counted: bigint }> {
     const rows = await this.db
-      .select({ bytes: bytesMoved.bytes })
+      .select({ bytes: bytesMoved.bytes, alphaBytes: bytesMoved.alphaBytes })
       .from(bytesMoved)
       .where(eq(bytesMoved.tenantId, tenantId));
-    return rows[0]?.bytes ?? 0n;
+    const total = rows[0]?.bytes ?? 0n;
+    const inTheAlpha = rows[0]?.alphaBytes ?? 0n;
+    return { total, inTheAlpha, counted: total - inTheAlpha };
   }
 }
