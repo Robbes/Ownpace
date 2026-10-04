@@ -28,12 +28,17 @@ import {
   PgOccupancyPeakStore,
   PgBytesMovedStore,
   PgDataAllowanceStore,
+  allowanceOf,
   breakEvenOf,
+  decidePathsYes,
   decideYes,
   holdsAtCeiling,
   monthlyEur,
+  pathsPastTheTierReason,
   readCeiling,
   type Ceiling,
+  type ManagedTier,
+  type PathsForecast,
   type ViesRequester,
 } from '@openmig/managed';
 import * as schema from '@openmig/managed/schema-managed';
@@ -44,6 +49,7 @@ import { run as runTable } from '@openmig/ledger/schema-pg';
 import { PgPathLifecycleStore } from '@openmig/ledger';
 import { log, type TenantId } from '@openmig/shared';
 import { NO_TIER_BILLING_CODE, NO_TIER_BILLING_REASON } from './no-bill-we-do-not-sell.ts';
+import { readPathsForecast } from './paths-at-start.ts';
 import {
   billingPartyColumns,
   readVatStanding,
@@ -383,6 +389,111 @@ router.post('/ceiling/yes', authenticate, requireBillingWrite, async (req: Authe
     res.json(ceilingBody(outcome.ceiling, holds));
   } catch (error) {
     serverFault(res, 'ceiling_yes_failed', 'recording your yes', error);
+  }
+});
+
+/** A tier as the question at *Start* names it: how many at the same time, and its monthly. */
+function pathsTier(t: ManagedTier) {
+  return { id: t.id, name: t.name, paths: t.paths, monthlyEur: monthlyEur(t) };
+}
+
+/** The question at *Start*, as the page asks it (workplan 0109 T6, the path axis). */
+function pathsBody(f: PathsForecast, holds: boolean) {
+  return {
+    holds,
+    tier: pathsTier(f.tier),
+    held: f.held,
+    after: f.after,
+    past: f.past !== null,
+    // The smallest tier that runs them all; null past Extra large ("talk to us").
+    needs: f.past?.needs ? pathsTier(f.past.needs) : null,
+    reason: f.past ? pathsPastTheTierReason(f.past) : null,
+    fits: f.fits,
+  };
+}
+
+const StartingSchema = z
+  .string()
+  .max(50 * 37)
+  .transform((s) => [...new Set(s.split(',').filter((id) => id !== ''))])
+  .pipe(z.array(z.string().uuid()).min(1).max(50));
+
+/**
+ * GET /api/billing/paths?starting=<mapping id>,<mapping id>
+ *
+ * The question at *Start*, before the press (ADR-0014: *"a path waits for the
+ * yes at activation"*; the owner, 2026-10-04: both ways side by side): what
+ * starting these migrations would hold against the agreed tier, the smallest
+ * tier that runs it all and its monthly, and which of them fit now. The
+ * server's own rule, so the question is the refusal the start would get.
+ * Read-only.
+ */
+router.get('/paths', authenticate, requireBillingRead, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
+    const starting = StartingSchema.safeParse(req.query['starting']);
+    if (!starting.success) {
+      const reason = 'Say which migrations Start would start: up to fifty ids, separated by commas.';
+      return void res.status(400).json({ error: 'invalid_starting', message: reason, reason });
+    }
+    const forecast = await withTenantDb(tenantId, getSharedPool(), (db) =>
+      readPathsForecast(db, asTenantId(tenantId), starting.data),
+    );
+    res.json(pathsBody(forecast, holdsAtCeiling(process.env.OWNPACE_STAGE)));
+  } catch (error) {
+    serverFault(res, 'paths_failed', 'reading how many may run at the same time', error);
+  }
+});
+
+const PathsYesSchema = z.object({
+  tierId: z.string().min(1),
+  priceEur: z.number().int().min(0),
+});
+
+/**
+ * POST /api/billing/paths/yes
+ *
+ * The customer's yes, at *Start*, to a tier that runs more at the same time,
+ * at the monthly they were shown. The same append-only row as a move up at
+ * the data ceiling (one agreed tier for both axes, the owner's *"A"*), with
+ * `axis` `paths` (managed 0039). Refused when the tier is not above the agreed
+ * one or the price is not its monthly now, and during the alpha, where nothing
+ * is charged. The page starts the migrations after it.
+ */
+router.post('/paths/yes', authenticate, requireBillingWrite, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
+    const parsed = PathsYesSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const reason = 'Say the tier and the price you were shown.';
+      return void res.status(400).json({ error: 'invalid_yes', message: reason, reason });
+    }
+    if (!holdsAtCeiling(process.env.OWNPACE_STAGE)) {
+      const reason = 'Nothing is charged during the Alpha, so there is nothing to agree to yet.';
+      return void res.status(409).json({ error: 'nothing_charged_during_the_alpha', message: reason, reason });
+    }
+    const outcome = await withTenantDb(tenantId, getSharedPool(), async (db) => {
+      // The data ceiling's lock: one yes at a time per organisation, on either
+      // axis, so two presses of the same offer move up once.
+      await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'data_allowance:' + tenantId}))`);
+      const store = new PgDataAllowanceStore(db);
+      const decision = decidePathsYes(allowanceOf(await store.grants(asTenantId(tenantId))), parsed.data);
+      if (!decision.ok) return { refused: decision.reason } as const;
+      await store.record(asTenantId(tenantId), decision.grant, req.userId ?? 'unknown', 'paths');
+      return { tier: allowanceOf(await store.grants(asTenantId(tenantId))).tier } as const;
+    });
+    if ('refused' in outcome) {
+      const reason =
+        outcome.refused === 'offer_changed'
+          ? 'The price has changed since the page was shown. Look at the new price before saying yes.'
+          : 'Your organisation already runs that many at the same time. Start again to see where it stands.';
+      return void res.status(409).json({ error: outcome.refused, message: reason, reason });
+    }
+    res.json({ tier: pathsTier(outcome.tier) });
+  } catch (error) {
+    serverFault(res, 'paths_yes_failed', 'recording your yes', error);
   }
 });
 

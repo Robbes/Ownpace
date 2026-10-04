@@ -95,6 +95,7 @@ import {
 } from '../services/start-plan.ts';
 import { MigrationCountSection, useMigrationCount } from '../components/ConfirmMigration.tsx';
 import { CeilingAtStartNote, measuredBytes } from '../components/CeilingAtStartNote.tsx';
+import { PathsAtStartNote } from '../components/PathsAtStartNote.tsx';
 import { needsAcknowledgement } from '../components/confirm/native-refusals.tsx';
 import ScopeManifestPanel from '../components/confirm/ScopeManifestPanel.tsx';
 import { PersonGrantLinkSection } from '../components/MappingLinksPanel.tsx';
@@ -2201,6 +2202,9 @@ export const CheckStep: React.FC<{
   const [starting, setStarting] = React.useState(false);
   const [started, setStarted] = React.useState<ReadonlySet<string>>(new Set());
   const [startFailed, setStartFailed] = React.useState<Readonly<Record<string, string>>>({});
+  // Whether the question at Start stands (0109 T6, the path axis): the plain
+  // Start gives way to its two ways on, since the server would refuse it.
+  const [askingPaths, setAskingPaths] = React.useState(false);
 
   const made_ = planned.flatMap((m) => {
     const one = made.migrations[pairKey(m)];
@@ -2244,13 +2248,17 @@ export const CheckStep: React.FC<{
   ];
   const scoped = manifest.data && scopeManifestFor(manifest.data, families);
 
-  /** Start each migration not yet started; a refusal is said beside its own count, and the rest go on. */
-  const start = async () => {
+  /**
+   * Start each migration not yet started, or only those named (what fits now,
+   * at the question about the paths); a refusal is said beside its own count,
+   * and the rest go on.
+   */
+  const start = async (only?: ReadonlyArray<string>) => {
     setStarting(true);
     const now = new Set(started);
     const failed: Record<string, string> = {};
     for (const m of counted) {
-      if (now.has(m.id)) continue;
+      if (now.has(m.id) || (only !== undefined && !only.includes(m.id))) continue;
       try {
         await mappingApi.start(m.id);
         now.add(m.id);
@@ -2315,6 +2323,16 @@ export const CheckStep: React.FC<{
       {/* The data ceiling, before the press (0109 T6): what Start starts, added
           to what has moved. A note, never a block. */}
       {allReady && <CeilingAtStartNote bytes={counted.reduce((sum, m) => sum + (measured[m.id] ?? 0), 0)} />}
+      {/* More at the same time than the tier runs (0109 T6, the path axis):
+          move up and start everything, or start what fits now, side by side. */}
+      {allReady && (
+        <PathsAtStartNote
+          mappingIds={counted.filter((m) => !started.has(m.id)).map((m) => m.id)}
+          disabled={starting}
+          onAsking={setAskingPaths}
+          onStart={(only) => void start(only)}
+        />
+      )}
       <div className="flex flex-col items-end">
         {onlyExports ? (
           <button
@@ -2326,15 +2344,17 @@ export const CheckStep: React.FC<{
           </button>
         ) : (
           <>
-            <button
-              type="button"
-              onClick={() => void start()}
-              disabled={starting || !allReady}
-              aria-describedby={allReady ? undefined : waitsId}
-              className="min-h-[44px] px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {starting ? t('confirm.starting') : t('start.check.start')}
-            </button>
+            {!askingPaths && (
+              <button
+                type="button"
+                onClick={() => void start()}
+                disabled={starting || !allReady}
+                aria-describedby={allReady ? undefined : waitsId}
+                className="min-h-[44px] px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {starting ? t('confirm.starting') : t('start.check.start')}
+              </button>
+            )}
             {!allReady && (
               <p id={waitsId} className="mt-2 text-sm text-gray-600">
                 {t(counted.length === 0 ? 'start.check.waitsForACount' : 'start.check.waits', { person: personName })}

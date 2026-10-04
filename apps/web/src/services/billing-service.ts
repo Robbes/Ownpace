@@ -178,6 +178,34 @@ export const CeilingSchema = z.object({
     .nullable(),
 });
 
+/** A tier as the question at *Start* names it: how many at the same time, and its monthly in whole euros. */
+const PathsTierSchema = z.object({
+  id: TierSchema.shape.id,
+  name: z.string(),
+  paths: z.number(),
+  monthlyEur: z.number(),
+});
+
+/**
+ * GET /billing/paths?starting=… (workplan 0109 T6, the path axis): what
+ * starting these migrations would hold against the agreed tier, the smallest
+ * tier that runs it all, and which fit now. `holds` is false during the
+ * alpha: nothing waits for a yes.
+ */
+export const PathsAtStartSchema = z.object({
+  holds: z.boolean(),
+  tier: PathsTierSchema,
+  held: z.number(),
+  after: z.number(),
+  past: z.boolean(),
+  /** Null when not past, and past Extra large ("talk to us"). */
+  needs: PathsTierSchema.nullable(),
+  reason: z.string().nullable(),
+  fits: z.array(z.string()),
+});
+
+export type PathsAtStart = z.infer<typeof PathsAtStartSchema>;
+
 /** The yes the page sends back: the offer it showed, tier and price. */
 export interface CeilingYes {
   choice: 'move_up' | 'top_up';
@@ -286,6 +314,17 @@ export const billingApi = {
   sayYesToCeiling: async (yes: CeilingYes): Promise<Ceiling> => {
     const response = await apiClient.post('/billing/ceiling/yes', yes);
     return CeilingSchema.parse(response.data);
+  },
+
+  /** The question at *Start* for these migrations (0109 T6, the path axis). Owner/admin. */
+  getPathsAtStart: async (mappingIds: ReadonlyArray<string>): Promise<PathsAtStart> => {
+    const response = await apiClient.get('/billing/paths', { params: { starting: mappingIds.join(',') } });
+    return PathsAtStartSchema.parse(response.data);
+  },
+
+  /** Say yes, at *Start*, to the tier shown at the monthly shown. A 409 carries a `reason`. Owner/admin. */
+  sayYesToPaths: async (yes: { tierId: string; priceEur: number }): Promise<void> => {
+    await apiClient.post('/billing/paths/yes', yes);
   },
 
   // List payment methods

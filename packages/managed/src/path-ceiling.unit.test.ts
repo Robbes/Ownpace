@@ -2,13 +2,16 @@
 
 /**
  * A start past the agreed tier's paths (workplan 0109 T6, the path axis): when
- * it waits, which tier runs it, and the sentence that says so. The doors that
- * ask it are held in `apps/api/src/routes/migrations/a-start-past-the-tier.unit.test.ts`.
+ * it waits, which tier runs it, and the sentence that says so; the question at
+ * *Start* before the press, with what fits now, and the yes that answers it.
+ * The doors that ask it are held in
+ * `apps/api/src/routes/migrations/a-start-past-the-tier.unit.test.ts`, the
+ * question's routes in `apps/api/src/routes/billing/a-yes-before-more-run-at-once.unit.test.ts`.
  */
 
 import { describe, it, expect } from 'vitest';
-import { allowanceOf } from './data-ceiling.ts';
-import { pathsPastTheTier, pathsPastTheTierReason } from './path-ceiling.ts';
+import { allowanceOf, monthlyEur } from './data-ceiling.ts';
+import { decidePathsYes, pathsForecast, pathsPastTheTier, pathsPastTheTierReason } from './path-ceiling.ts';
 import { MANAGED_TIERS } from './tier-calculator.ts';
 
 const tier = (id: string) => MANAGED_TIERS.find((t) => t.id === id)!;
@@ -60,5 +63,58 @@ describe('the sentence', () => {
   it('past Extra large, says talk to us', () => {
     const xl = allowanceOf([{ kind: 'tier', tierId: 'xl', bandGb: tier('xl').dataGb }]);
     expect(pathsPastTheTierReason(pathsPastTheTier(xl, 200, 201)!)).toMatch(/Past Extra large, talk to us/);
+  });
+});
+
+describe('the question at Start', () => {
+  const starting = (...slots: number[]) => slots.map((newSlots, i) => ({ mappingId: `m${i + 1}`, newSlots }));
+
+  it('is not asked when everything fits, and everything is what fits', () => {
+    const f = pathsForecast(onSmall, 1, starting(1, 2));
+    expect(f).toMatchObject({ held: 1, after: 4, past: null, fits: ['m1', 'm2'] });
+  });
+
+  it('is asked with the refusal the start would get, and says what fits now beside it', () => {
+    const f = pathsForecast(onSmall, 1, starting(2, 3, 1));
+    expect(f.past).toEqual(pathsPastTheTier(onSmall, 1, 7));
+    expect(f.past?.needs).toEqual(tier('medium'));
+    // m1 takes two of the three free; m2's three do not fit beside it, m3's one does.
+    expect(f.fits).toEqual(['m1', 'm3']);
+  });
+
+  it('lets a migration that takes no slot start, though nothing else fits', () => {
+    const f = pathsForecast(onTiny, 3, starting(1, 0));
+    expect(f.past).not.toBeNull();
+    expect(f.fits).toEqual(['m2']);
+  });
+
+  it('fits nothing that takes a slot while the organisation is past its tier already', () => {
+    expect(pathsForecast(onTiny, 5, starting(1)).fits).toEqual([]);
+  });
+});
+
+describe('a yes to run more at the same time', () => {
+  it('to a tier above the agreed one, at its monthly, becomes the same row as a move up', () => {
+    expect(decidePathsYes(onTiny, { tierId: 'medium', priceEur: monthlyEur(tier('medium')) })).toEqual({
+      ok: true,
+      grant: { kind: 'tier', tierId: 'medium', bandGb: tier('medium').dataGb, priceEur: monthlyEur(tier('medium')) },
+    });
+  });
+
+  it('to a price that is not the one offered now is refused', () => {
+    expect(decidePathsYes(onTiny, { tierId: 'small', priceEur: monthlyEur(tier('small')) + 1 })).toEqual({
+      ok: false,
+      reason: 'offer_changed',
+    });
+  });
+
+  it('to the agreed tier, to Free below it, or to a tier that does not exist is not a step up', () => {
+    for (const tierId of ['small', 'free', 'nonesuch']) {
+      expect(decidePathsYes(onSmall, { tierId, priceEur: 0 }), tierId).toEqual({ ok: false, reason: 'not_a_step_up' });
+    }
+    expect(decidePathsYes(onSmall, { tierId: 'small', priceEur: monthlyEur(tier('small')) })).toEqual({
+      ok: false,
+      reason: 'not_a_step_up',
+    });
   });
 });

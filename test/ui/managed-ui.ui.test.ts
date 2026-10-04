@@ -744,6 +744,18 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
         topUp: null,
         breakEven: null,
       },
+      // The paths at Start (0109 T6, the path axis): this one migration fits
+      // Free's one at the same time, so nothing is asked and Start is as it was.
+      'GET /api/billing/paths': {
+        holds: true,
+        tier: { id: 'free', name: 'Free', paths: 1, monthlyEur: 0 },
+        held: 0,
+        after: 1,
+        past: false,
+        needs: null,
+        reason: null,
+        fits: [NEW],
+      },
     };
     Object.assign(FIXTURES, added);
     const missesBefore = apiMisses.length;
@@ -773,6 +785,7 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
       await start.click();
       await l.page.waitForURL(`**/people/${PERSON}`, { timeout: 15_000 });
       expect(apiHits).toContain(`/api/migrations/${NEW}/start`);
+      expect(apiHits).toContain('/api/billing/paths');
       expect(apiMisses.slice(missesBefore), 'the flow called endpoints with no fixture').toEqual([]);
       expectClean(l, 'Start a migration');
       await l.page.close();
