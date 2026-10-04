@@ -52,6 +52,14 @@ describe('discovery/confirm routes (0013 T4/T5)', () => {
   beforeAll(async () => {
     pool = new Pool({ connectionString: PG });
     await pool.query(`INSERT INTO tenant (id, name, status, settings) VALUES ($1,'Disc T','active','{}') ON CONFLICT DO NOTHING`, [TENANT]);
+    // Room for what this file starts: an agreed Extra large (workplan 0109 T6).
+    // It starts a migration of two kinds, past Tiny's one, and is not about the
+    // tier's paths, which `a-start-past-the-tier.unit.test.ts` holds.
+    await pool.query(
+      `INSERT INTO data_allowance (tenant_id, kind, tier_id, band_gb, price_eur, consented_by)
+       VALUES ($1, 'tier', 'xl', 15000, 0, 'room for the test')`,
+      [TENANT],
+    );
     // Membership gate (0020 T1): the minted tokens must belong to their tenants.
     await seedMembership(pool, TENANT, `user-${TENANT}`);
     await pool.query(`INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status) VALUES ($1,$2,'source','imap','src','{}','connected') ON CONFLICT DO NOTHING`, [CONN, TENANT]);
