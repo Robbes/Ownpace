@@ -2331,6 +2331,7 @@ reading a file drops off its entry by itself.
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 - [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
+- [the-hero-is-the-drawing](../scripts/the-hero-is-the-drawing.unit.test.ts) — THE HERO IS THE DRAWING (workplan 0152 T3).
 - [the-test-site-sent-people-to-production](../scripts/the-test-site-sent-people-to-production.unit.test.ts) — THE TEST SITE HANDED VISITORS TO PRODUCTION.
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
 - [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
@@ -2344,14 +2345,20 @@ reading a file drops off its entry by itself.
 - [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [one-look-from-the-site-to-the-app](../scripts/one-look-from-the-site-to-the-app.unit.test.ts) — ONE LOOK FROM THE SITE TO THE APP (workplan 0152 T9).
 - [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
+- [the-hero-is-the-drawing](../scripts/the-hero-is-the-drawing.unit.test.ts) — THE HERO IS THE DRAWING (workplan 0152 T3).
 - [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
 
 ### `site/destinations.mjs`
 
 - [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
 
+### `site/hero.mjs`
+
+- [the-hero-is-the-drawing](../scripts/the-hero-is-the-drawing.unit.test.ts) — THE HERO IS THE DRAWING (workplan 0152 T3).
+
 ### `site/icons.mjs`
 
+- [the-hero-is-the-drawing](../scripts/the-hero-is-the-drawing.unit.test.ts) — THE HERO IS THE DRAWING (workplan 0152 T3).
 - [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
 
 ### `site/legal/README.md`
@@ -4991,6 +4998,17 @@ Reads:
 - `packages/connectors/src/google-drive-source.ts`
 - `packages/connectors/src/graph-drive-source.ts`
 - `packages/connectors/src/webdav-source.ts`
+
+### [the-hero-is-the-drawing](../scripts/the-hero-is-the-drawing.unit.test.ts)
+
+THE HERO IS THE DRAWING (workplan 0152 T3).
+
+Reads:
+
+- `site/build.mjs`
+- `site/copy.mjs`
+- `site/hero.mjs`
+- `site/icons.mjs`
 
 ### [the-idp-refusal-that-said-nothing](../scripts/the-idp-refusal-that-said-nothing.unit.test.ts)
 
