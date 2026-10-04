@@ -2,7 +2,41 @@
 
 > **In one line:** Dropbox entries marked `is_downloadable: false` (Paper docs as `.paper` files, and any other kind T2 finds) refuse `files/download` with 409 `unsupported_file`; export each kind in the user's chosen format via `files/export`, or state a refusal and park it on first sight, as Drive does.
 
-## Status — 2026-10-03 (update this block at the end of every session)
+## Status — 2026-10-04 (update this block at the end of every session)
+
+**2026-10-04: the smoke's drain reaches the jobs that can mail, and the rest of the queue runs
+detached (the owner: *"M fixes it now"*, then *"Detached after the check"*)**, on branch
+`claude/mailbox-sync-errors-c2xsw2-a-drain-that-reaches-the-mail`.
+
+- **Asked, after the entry below,** what to do about a drain that stops at Nextcloud's 14 minutes,
+  the owner chose to name the jobs that can mail. The full `cron.php` was also the demo
+  Nextcloud's only housekeeping (trash and version expiry, sync-token pruning; it has no cron of
+  its own). Asked where that goes, the owner chose to run it after the check, detached.
+- **Built, in `smoke-managed.sh`'s CANCEL side:**
+  - `NC_MAIL_JOBS` names Nextcloud 34's five jobs that can send mail: calendar reminders
+    (`EventReminderJob`, whose mail goes to every attendee of the event, the canary's way in),
+    activity mail and its digest, notification mail, and share reminders.
+  - Each name must be a job this Nextcloud has (`occ background-job:list --class`). A renamed
+    one drains nothing and `cron.php` still exits 0, so a missing one fails the gate and says
+    which.
+  - The check runs `cron.php -- --verbose` with those names and says how many ran. A timed job
+    whose interval has not passed since its last run is skipped, named or not
+    (`JobList::getNext`), and that is not a failure.
+  - After the canary search, whatever it found, the full `cron.php` starts detached (`docker
+    exec -d`). The demo keeps its housekeeping, up to 14 minutes per gate run as before, and the
+    gate does not wait for it. One that cannot start fails, as a drain that could not run did.
+- **Proved:**
+  - `scripts/the-mail-nobody-should-get.unit.test.ts`, 10 new cases, run the block as the script
+    has it, with a stub `docker` and `curl` that write down every call. 9 fail on `main`, where
+    the block does not exist; the tenth, no tag, passes there because nothing runs. 15 of 15
+    mutations caught.
+  - On a throwaway Nextcloud 34.0.4 (`nextcloud:34-apache`, on SQLite): all five are registered
+    jobs, and an unknown name lists `[]`. The named drain started all five in 0.30 s, and straight
+    after only the two whose interval had passed. An unknown name ran nothing and still exited 0.
+    The block itself, against that container with only Mailpit's answer stubbed, drained 3 of 5
+    in 0 s, passed, and left the full `cron.php` running in the container.
+- **Not proved here:** the OTA stack. The first gate run after the merge shows the drain's line,
+  and a smoke about 14 minutes shorter.
 
 **2026-10-03, night: the gate's first run with #1411, on the OTA stack with one Nextcloud
 password.** E2E (managed) #232 on `main` (`1f6d5ea`), after the owner's `--sync-password` run
@@ -31,7 +65,7 @@ password.** E2E (managed) #232 on `main` (`1f6d5ea`), after the owner's `--sync-
   no cron of its own, so its jobs wait for the gate, and the owner's migrations write to it.
   Both runs stopped at the limit, so neither can say the queue was drained; the check passed on
   the jobs reached in those 14 minutes. What to change is the owner's call, asked the same
-  night.
+  night, and answered on 2026-10-04 (the entry above).
 
 **2026-10-03: the demo Nextcloud's follow-up built, a fresh install on Postgres and a script for
 one on SQLite** (the owner, 2026-09-29: *"You take that aswell"*), on branch
