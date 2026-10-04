@@ -63,7 +63,8 @@ vi.mock('../stores/auth-store.ts', () => ({
     selector ? selector(authState) : authState,
 }));
 
-vi.mock('../services/billing-service.ts', () => ({
+vi.mock('../services/billing-service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/billing-service.ts')>()),
   billingApi: {
     getCurrentUsage: vi.fn(),
     listInvoices: vi.fn(),
@@ -72,6 +73,8 @@ vi.mock('../services/billing-service.ts', () => ({
     getBillingParty: vi.fn(),
     putBillingParty: vi.fn(),
     checkVat: vi.fn(),
+    getCeiling: vi.fn(),
+    sayYesToCeiling: vi.fn(),
   },
 }));
 
@@ -199,6 +202,18 @@ beforeEach(() => {
     party: null,
     vatConsultation: null,
     vatTreatment: null,
+  });
+  vi.mocked(billingApi.getCeiling).mockResolvedValue({
+    tier: { id: 'tiny', name: 'Tiny', paths: 1, monthly: 0 },
+    ceilingGb: 250,
+    topUps: 0,
+    gbMoved: 10,
+    share: 0.04,
+    state: 'under',
+    holds: true,
+    moveUp: { tierId: 'small', name: 'Small', paths: 4, setupEur: 8, monthlyEur: 4, ceilingGb: 750 },
+    topUp: null,
+    breakEven: null,
   });
 });
 

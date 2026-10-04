@@ -962,6 +962,41 @@ const en = {
   'billing.tierBeyondTable':
     'Past the published table — talk to us and we will price it properly.',
   'billing.noUsage': 'No usage data available yet',
+  // The data ceiling and the yes that moves it (workplan 0109 T6, ADR-0014's
+  // amendment of 2026-10-03): both ways on from 80%, with the break-even.
+  'billing.ceiling.title': 'Your data ceiling',
+  'billing.ceiling.moved': '{moved} of {ceiling} moved, on {tier}.',
+  'billing.ceiling.bands': 'That includes {count} extra band(s) bought.',
+  'billing.ceiling.under':
+    'From 80% of the ceiling, this card offers the two ways on: moving up, or another band once.',
+  'billing.ceiling.near':
+    'You have moved {share} of your data ceiling. At the ceiling, new items wait until you choose a way on; changes to what is already copied carry on.',
+  'billing.ceiling.reached':
+    'Your data ceiling is reached. New items wait until you choose a way on; changes to what is already copied carry on.',
+  'billing.ceiling.alpha':
+    'During the alpha nothing waits at the ceiling and nothing is charged, so there is nothing to agree to yet. The prices below are what the ways on cost after the alpha.',
+  'billing.ceiling.moveUp':
+    'Move up to {tier}: {setup} once, then {monthly} a month. Your ceiling becomes {ceiling}, and {paths} migrations can run at once.',
+  'billing.ceiling.moveUp.button': 'Move up to {tier}',
+  'billing.ceiling.talkToUs': 'There is no tier past {tier}. Talk to us and we will price it properly.',
+  'billing.ceiling.topUp':
+    'Or buy another {band} once, for {price}. Your ceiling becomes {ceiling}, and your monthly price stays the same.',
+  'billing.ceiling.topUp.button': 'Buy another {band}',
+  'billing.ceiling.noTopUp': '{tier} has no top-up: the way on is moving up.',
+  'billing.ceiling.breakEven':
+    'Topping up costs {extra} more once and saves {saved} a month, so it pays back in about {days} day(s).',
+  'billing.ceiling.breakEven.cheaper': 'Topping up costs no more once, and saves {saved} a month.',
+  'billing.ceiling.betterBuy':
+    'Moving up is the better buy when you need more migrations at once: {next} runs {nextPaths} at the same time, {tier} {paths}.',
+  'billing.ceiling.confirm.moveUp': 'You agree to pay {setup} once, then {monthly} a month, for {tier}.',
+  'billing.ceiling.confirm.topUp': 'You agree to pay {price} once for another {band}.',
+  'billing.ceiling.confirm.yes': 'Yes, I agree',
+  'billing.ceiling.confirm.no': 'Not now',
+  'billing.ceiling.done': 'Done: your data ceiling is now {ceiling}.',
+  'billing.ceiling.offerChanged':
+    'What is offered changed since this page was shown, so nothing was agreed. This is the offer now.',
+  'billing.ceiling.loadFailed': 'Your data ceiling could not be read',
+  'billing.ceiling.yesFailed': 'Your yes was not recorded:',
   'billing.invoices': 'Invoices',
   'billing.noInvoices': 'No invoices yet',
   'billing.invoice': 'Invoice',
@@ -3879,6 +3914,39 @@ const nl: Record<keyof typeof en, string> = {
   'billing.tierBeyondTable':
     'Voorbij de gepubliceerde tabel — neem contact op, dan prijzen we het goed.',
   'billing.noUsage': 'Nog geen verbruiksgegevens beschikbaar',
+  'billing.ceiling.title': 'Uw datalimiet',
+  'billing.ceiling.moved': '{moved} van {ceiling} verplaatst, op {tier}.',
+  'billing.ceiling.bands': 'Inclusief {count} extra blok(ken) bijgekocht.',
+  'billing.ceiling.under':
+    'Vanaf 80% van de limiet biedt deze kaart de twee wegen verder: naar een groter pakket, of eenmalig een extra blok.',
+  'billing.ceiling.near':
+    'U hebt {share} van uw datalimiet verplaatst. Bij de limiet wachten nieuwe items tot u een weg verder kiest; wijzigingen aan wat al gekopieerd is gaan door.',
+  'billing.ceiling.reached':
+    'Uw datalimiet is bereikt. Nieuwe items wachten tot u een weg verder kiest; wijzigingen aan wat al gekopieerd is gaan door.',
+  'billing.ceiling.alpha':
+    'Tijdens de alfa wacht er niets bij de limiet en wordt niets in rekening gebracht, dus er is nog niets om mee in te stemmen. De prijzen hieronder zijn wat de wegen verder na de alfa kosten.',
+  'billing.ceiling.moveUp':
+    'Ga naar {tier}: eenmalig {setup}, daarna {monthly} per maand. Uw limiet wordt {ceiling}, en er kunnen {paths} migraties tegelijk lopen.',
+  'billing.ceiling.moveUp.button': 'Ga naar {tier}',
+  'billing.ceiling.talkToUs': 'Er is geen pakket boven {tier}. Neem contact op, dan prijzen we het goed.',
+  'billing.ceiling.topUp':
+    'Of koop eenmalig nog {band} erbij, voor {price}. Uw limiet wordt {ceiling}, en uw maandprijs blijft gelijk.',
+  'billing.ceiling.topUp.button': 'Nog {band} erbij kopen',
+  'billing.ceiling.noTopUp': '{tier} kent geen bijkoop: de weg verder is een groter pakket.',
+  'billing.ceiling.breakEven':
+    'Bijkopen kost eenmalig {extra} meer en bespaart {saved} per maand, dus het is in ongeveer {days} dag(en) terugverdiend.',
+  'billing.ceiling.breakEven.cheaper': 'Bijkopen kost eenmalig niet meer, en bespaart {saved} per maand.',
+  'billing.ceiling.betterBuy':
+    'Een groter pakket is de betere koop als er meer migraties tegelijk moeten lopen: {next} draait er {nextPaths} tegelijk, {tier} {paths}.',
+  'billing.ceiling.confirm.moveUp': 'U gaat akkoord met eenmalig {setup}, daarna {monthly} per maand, voor {tier}.',
+  'billing.ceiling.confirm.topUp': 'U gaat akkoord met eenmalig {price} voor nog {band} erbij.',
+  'billing.ceiling.confirm.yes': 'Ja, akkoord',
+  'billing.ceiling.confirm.no': 'Nu niet',
+  'billing.ceiling.done': 'Gedaan: uw datalimiet is nu {ceiling}.',
+  'billing.ceiling.offerChanged':
+    'Het aanbod is veranderd sinds deze pagina werd getoond, dus er is nergens mee ingestemd. Dit is het aanbod nu.',
+  'billing.ceiling.loadFailed': 'Uw datalimiet kon niet worden gelezen',
+  'billing.ceiling.yesFailed': 'Uw akkoord is niet vastgelegd:',
   'billing.invoices': 'Facturen',
   'billing.noInvoices': 'Nog geen facturen',
   'billing.invoice': 'Factuur',

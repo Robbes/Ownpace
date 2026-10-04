@@ -112,6 +112,23 @@ describe('GET /api/billing/ceiling', () => {
     expect((await request(app).get('/api/billing/ceiling')).body.state).toBe('reached');
   });
 
+  it('says the break-even when both ways on are offered, and none on Tiny', async () => {
+    await moved(200);
+    expect((await request(app).get('/api/billing/ceiling')).body.breakEven).toBeNull();
+    await owner(
+      `INSERT INTO data_allowance (tenant_id, kind, tier_id, band_gb, price_eur, consented_by)
+       VALUES ($1, 'tier', 'small', $2, $3, 'earlier')`,
+      [TENANT, small.dataGb, small.setup],
+    );
+    await moved(700);
+    const res = await request(app).get('/api/billing/ceiling');
+    expect(res.body.tier).toMatchObject({ id: 'small', paths: small.paths });
+    expect(res.body.breakEven).toMatchObject({
+      extraOnceEur: small.setup - (medium.setup - small.setup),
+      savedMonthlyEur: medium.monthly - small.monthly,
+    });
+  });
+
   it('says the ceiling does not hold during the alpha (the owner, 2026-10-03: "A")', async () => {
     process.env.OWNPACE_STAGE = 'alpha';
     expect((await request(app).get('/api/billing/ceiling')).body.holds).toBe(false);

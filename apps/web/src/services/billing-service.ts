@@ -145,7 +145,47 @@ export const VatTreatmentSchema = z.object({
   rationale: z.string(),
 });
 
+/**
+ * GET /billing/ceiling (workplan 0109 T6): the data ceiling, the data moved,
+ * and the two ways on, moving up or a one-off top-up (ADR-0014's amendment
+ * of 2026-10-03). `holds` is false during the alpha: the ceiling warns, and
+ * no yes is taken.
+ */
+export const CeilingSchema = z.object({
+  tier: z.object({ id: TierSchema.shape.id, name: z.string(), paths: z.number(), monthly: z.number() }),
+  ceilingGb: z.number(),
+  topUps: z.number(),
+  gbMoved: z.number(),
+  share: z.number(),
+  state: z.enum(['under', 'near', 'reached']),
+  holds: z.boolean(),
+  moveUp: z
+    .object({
+      tierId: TierSchema.shape.id,
+      name: z.string(),
+      paths: z.number(),
+      setupEur: z.number(),
+      monthlyEur: z.number(),
+      ceilingGb: z.number(),
+    })
+    .nullable(),
+  topUp: z
+    .object({ tierId: TierSchema.shape.id, bandGb: z.number(), priceEur: z.number(), ceilingGb: z.number() })
+    .nullable(),
+  breakEven: z
+    .object({ extraOnceEur: z.number(), savedMonthlyEur: z.number(), paysBackInDays: z.number() })
+    .nullable(),
+});
+
+/** The yes the page sends back: the offer it showed, tier and price. */
+export interface CeilingYes {
+  choice: 'move_up' | 'top_up';
+  tierId: string;
+  priceEur: number;
+}
+
 export type UsageResponse = z.infer<typeof UsageResponseSchema>;
+export type Ceiling = z.infer<typeof CeilingSchema>;
 export type Invoice = z.infer<typeof InvoiceSchema>;
 export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;
 export type BillingParty = z.infer<typeof BillingPartySchema>;
@@ -232,6 +272,19 @@ export const billingApi = {
   checkVat: async (): Promise<VatConsultation> => {
     const response = await apiClient.post('/billing/party/check-vat');
     return VatConsultationSchema.parse(response.data.consultation);
+  },
+
+  /** The data ceiling and the two ways on (0109 T6). Owner/admin. */
+  getCeiling: async (): Promise<Ceiling> => {
+    const response = await apiClient.get('/billing/ceiling');
+    return CeilingSchema.parse(response.data);
+  },
+
+  /** Say yes to the offer shown. A 409 carries a `reason` sentence and, when
+   *  the offer changed, the ceiling as it stands now. Owner/admin. */
+  sayYesToCeiling: async (yes: CeilingYes): Promise<Ceiling> => {
+    const response = await apiClient.post('/billing/ceiling/yes', yes);
+    return CeilingSchema.parse(response.data);
   },
 
   // List payment methods

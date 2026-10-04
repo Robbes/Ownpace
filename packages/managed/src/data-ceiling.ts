@@ -187,6 +187,39 @@ export function ceilingOf(allowance: Allowance, gbMoved: number): Ceiling {
   };
 }
 
+/** The days a month counts for the break-even: an estimate said as "about". */
+const DAYS_PER_MONTH = 30;
+
+/** Topping up against moving up, side by side. */
+export interface BreakEven {
+  /** What the top-up costs once over what the move up does: below zero when the top-up costs less outright. */
+  readonly extraOnceEur: number;
+  /** What staying on the tier saves each month, against the move up's monthly price. */
+  readonly savedMonthlyEur: number;
+  /** About how many days until the top-up has paid back its extra; 0 when it costs no more once. */
+  readonly paysBackInDays: number;
+}
+
+/**
+ * The break-even between the two ways on, when both are offered.
+ *
+ * ADR-0014: *"at 80%, offer both and show the break-even"*. On Small, another
+ * band is €8 once and the monthly stays €4; Medium is €7 once and then €8 a
+ * month. The top-up costs €1 more and saves €4 a month, so it pays back in
+ * about a week. The ADR also says *"say plainly when the tier is the better
+ * buy"*: that is when more migrations must run at once, which the page says
+ * beside this, from each tier's paths.
+ */
+export function breakEvenOf(ceiling: Ceiling): BreakEven | null {
+  const { moveUp, topUp } = ceiling;
+  if (!moveUp || !topUp) return null;
+  const extraOnceEur = topUp.priceEur - moveUp.setupEur;
+  const savedMonthlyEur = moveUp.monthlyEur - ceiling.allowance.tier.monthly;
+  if (savedMonthlyEur <= 0) return null;
+  const paysBackInDays = extraOnceEur <= 0 ? 0 : Math.ceil((extraOnceEur / savedMonthlyEur) * DAYS_PER_MONTH);
+  return { extraOnceEur, savedMonthlyEur, paysBackInDays };
+}
+
 /** What the customer says yes to, as the page sends it back: the offer they were shown. */
 export interface Yes {
   readonly choice: 'move_up' | 'top_up';
