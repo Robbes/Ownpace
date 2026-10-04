@@ -83,6 +83,13 @@ import { nextcloudAddress, nextcloudDavUrl } from '../services/start-plan.ts';
 /** The fields a company path asks for (T7 (d)): an organisation's own registration, or Google's domain-wide key. */
 const COMPANY_FIELDS: ReadonlySet<string> = new Set(['serviceAccountKey', 'tenantId']);
 
+/**
+ * The cards that ARE a company's own app (0153 open question 5): Microsoft's
+ * mail with application permissions, through Graph or IMAP. Chosen behind the
+ * company question already, so their fields are shown, not asked about again.
+ */
+const ORGANISATION_APP_CARDS: ReadonlySet<string> = new Set(['graph', 'oauth2']);
+
 /** A check that failed on the server rather than on the sign-in: *Server settings* opens by itself (T7 (b)). */
 const SERVER_OUTCOMES: ReadonlySet<string> = new Set(['unreachable', 'insideOurNetwork', 'timedOut', 'targetStatus']);
 
@@ -255,7 +262,8 @@ export const AccountForm: React.FC<AccountFormProps> = ({
   const serverKeys: ReadonlySet<string> = flow
     ? new Set([...Object.keys(providerDefaultsFor(role, type)), 'url'])
     : new Set();
-  const companyFields = flow ? fields.filter((f) => COMPANY_FIELDS.has(f.key)) : [];
+  const organisationApp = ORGANISATION_APP_CARDS.has(type);
+  const companyFields = flow && !organisationApp ? fields.filter((f) => COMPANY_FIELDS.has(f.key)) : [];
   const [company, setCompany] = React.useState(() =>
     companyFields.some((f) => (values[f.key] ?? '').trim() !== ''),
   );
@@ -271,7 +279,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
     if (serverKeys.has(field.key)) return 'server';
     // Gmail's app password: a way in of its own, under the consent's button.
     if (field.key === 'appPassword') return 'alternative';
-    if (COMPANY_FIELDS.has(field.key)) return 'company';
+    if (COMPANY_FIELDS.has(field.key) && !organisationApp) return 'company';
     // Where in the account a migration starts (a folder, a path): its own
     // choice, which a family seldom needs.
     if (field.perMapping && !field.required) return 'more';

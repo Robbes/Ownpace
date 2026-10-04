@@ -866,3 +866,100 @@ describe('Start once one count is in, and the rest when they connect', () => {
     expect(screen.queryByText(/starts by itself/)).not.toBeInTheDocument();
   });
 });
+
+/**
+ * MAIL THROUGH A COMPANY'S OWN MICROSOFT APP (0153 open question 5; the owner,
+ * 2026-10-04: *"go with the recommendations"*). Behind the company question
+ * under Microsoft's mail, as Google's domain-wide key is in the account form:
+ * an administrator's own Entra app, with application permissions, reads the
+ * mail, through Graph or IMAP. The account's sign-in still carries the rest,
+ * and a No changes nothing.
+ */
+describe('mail through a company’s own Microsoft app (0153 open question 5)', () => {
+  const createMock = vi.mocked(mappingApi.create);
+  const ORG = account({ id: 'c-org', kind: 'o365', displayName: 'Contoso mail app', knownValues: { username: 'info@contoso.example' } });
+  const SOVERIN = account({ id: 'c-soverin', role: 'target', kind: 'soverin', displayName: 'Contoso Soverin', knownValues: { username: 'info@contoso.eu' } });
+
+  /** *What moves?*'s Microsoft section, by its legend. */
+  const microsoftSection = () => screen.getByRole('group', { name: /^From Microsoft 365/ });
+
+  it('asks the company question under Microsoft’s mail, and a No changes nothing', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Microsoft 365']);
+    const section = microsoftSection();
+    const question = within(section).getByRole('group', { name: 'Is this a company account with an administrator?' });
+    expect(within(question).getByRole('radio', { name: 'No' })).toBeChecked();
+    expect(within(section).queryByRole('radio', { name: /Through our own app/ })).not.toBeInTheDocument();
+
+    await user.click(within(question).getByRole('radio', { name: 'Yes' }));
+    expect(within(section).getByRole('radio', { name: 'With the Microsoft sign-in' })).toBeChecked();
+    expect(within(section).getByRole('radio', { name: /^Through our own app, with Microsoft Graph/ })).toBeInTheDocument();
+    expect(within(section).getByRole('radio', { name: /^Through our own app, with IMAP/ })).toBeInTheDocument();
+    expect(within(section).getByText(/That is also how a shared mailbox is read/)).toBeInTheDocument();
+
+    // Chosen, and taken back with a No: still the one sign-in.
+    await user.click(within(section).getByRole('radio', { name: /^Through our own app, with Microsoft Graph/ }));
+    await user.click(within(question).getByRole('radio', { name: 'No' }));
+    await onTo(user, 'Connect your accounts');
+    expect(await screen.findByText('Microsoft 365 account')).toBeInTheDocument();
+    expect(screen.queryByText('Microsoft 365 (Graph API)')).not.toBeInTheDocument();
+  });
+
+  it('asks the organisation’s app for the mail, with its tenant in view, and the account for the rest', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Microsoft 365']);
+    const section = microsoftSection();
+    await user.click(within(section).getByRole('radio', { name: 'Yes' }));
+    await user.click(within(section).getByRole('radio', { name: /^Through our own app, with Microsoft Graph/ }));
+    await onTo(user, 'Connect your accounts');
+
+    const rows = screen.getAllByRole('listitem');
+    const org = rows.find((r) => within(r).queryByText('Microsoft 365 (Graph API)'))!;
+    expect(org).toBeDefined();
+    expect(within(org).getByText('One sign-in: email')).toBeInTheDocument();
+    // The organisation's app IS the company's answer: its fields are shown, not asked about again.
+    expect(within(org).getByRole('textbox', { name: /^Tenant ID/ })).toBeInTheDocument();
+    expect(within(org).getByRole('textbox', { name: /^Client ID/ })).toBeInTheDocument();
+    expect(within(org).getByLabelText(/^Client secret/)).toBeInTheDocument();
+    expect(within(org).queryByRole('group', { name: 'Is this a company account with an administrator?' })).not.toBeInTheDocument();
+    const account365 = rows.find((r) => within(r).queryByText('Microsoft 365 account'))!;
+    expect(within(account365).getByText('One sign-in: calendar, contacts, files, and tasks')).toBeInTheDocument();
+  });
+
+  it('takes the saved organisation app as the mail’s account, and sets the mail up through it', async () => {
+    listMock.mockResolvedValue([ORG, SOVERIN]);
+    vi.mocked(createPerson).mockResolvedValue({ ...ANNA, id: 'p-new' });
+    vi.mocked(addMigrationToPerson).mockResolvedValue({ ...ANNA, id: 'p-new' });
+    createMock.mockResolvedValue({ id: 'm-mail' } as never);
+    vi.mocked(mappingApi.discover).mockResolvedValue({} as never);
+    vi.mocked(scopeManifestApi.get).mockResolvedValue({ version: 'v1', migrates: [], partial: [], doesNotMigrate: [] });
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Microsoft 365']);
+    const section = microsoftSection();
+    // Mail alone, through the company's own app with IMAP.
+    for (const type of ['Calendar', 'Contacts', 'Files', 'Tasks']) {
+      await user.click(within(section).getByRole('checkbox', { name: new RegExp(`^${type}`) }));
+    }
+    await user.click(within(section).getByRole('radio', { name: 'Yes' }));
+    await user.click(within(section).getByRole('radio', { name: /^Through our own app, with IMAP/ }));
+    await onTo(user, 'Connect your accounts');
+    // One kind whichever way its mail is read: the saved app is offered, and the one is the default.
+    expect(await screen.findByRole('radio', { name: 'Contoso mail app (info@contoso.example)' })).toBeChecked();
+    await onTo(user, 'Where does it go?');
+    await user.click(next());
+    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    expect(createMock).toHaveBeenCalledTimes(1);
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceType: 'oauth2',
+        sourceConnectionId: 'c-org',
+        targetConnectionId: 'c-soverin',
+        sourceConfig: { username: 'info@contoso.example' },
+        syncConfig: { domains: ['email'], schedule: '0 2 * * *' },
+      }),
+    );
+  });
+});

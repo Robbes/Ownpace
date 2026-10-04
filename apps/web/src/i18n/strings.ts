@@ -1695,6 +1695,11 @@ const en = {
   'start.company.question': 'Is this a company account with an administrator?',
   'start.company.no': 'No',
   'start.company.yes': 'Yes',
+  'start.what.orgApp.lead':
+    "Your administrator can have the mail read through your organisation's own app, with application permissions. That is also how a shared mailbox is read.",
+  'start.what.orgApp.signIn': 'With the Microsoft sign-in',
+  'start.what.orgApp.graph': 'Through our own app, with Microsoft Graph',
+  'start.what.orgApp.imap': 'Through our own app, with IMAP',
   'start.moreOptions': 'More options',
   'start.appPassword': 'Use an app password instead',
   'start.serverSettings': 'Server settings',
@@ -4565,6 +4570,11 @@ const nl: Record<keyof typeof en, string> = {
   'start.company.question': 'Is dit een bedrijfsaccount met een beheerder?',
   'start.company.no': 'Nee',
   'start.company.yes': 'Ja',
+  'start.what.orgApp.lead':
+    'Uw beheerder kan de e-mail laten lezen via de eigen app van uw organisatie, met toepassingsmachtigingen. Zo wordt ook een gedeelde mailbox gelezen.',
+  'start.what.orgApp.signIn': 'Met de aanmelding bij Microsoft',
+  'start.what.orgApp.graph': 'Via onze eigen app, met Microsoft Graph',
+  'start.what.orgApp.imap': 'Via onze eigen app, met IMAP',
   'start.moreOptions': 'Meer opties',
   'start.appPassword': 'Liever een app-wachtwoord gebruiken',
   'start.serverSettings': 'Serverinstellingen',
