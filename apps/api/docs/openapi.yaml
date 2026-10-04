@@ -3312,6 +3312,10 @@ paths:
         person`, `PersonProgressPage`), each with the same counts and states,
         grouped by the Google account it reads under an opaque `ref`, never
         the address.
+
+        Since workplan 0154 T8 each row also says its stage and what
+        discovery found (`ProgressRow`), and each migration when its check
+        passed and how long (`ProgressTime`), as the owner's pages say them.
       security: []
       responses:
         '200':
@@ -3333,21 +3337,15 @@ paths:
                       expiresAt: { type: string, format: date-time }
                       domains:
                         type: array
-                        items:
-                          type: object
-                          properties:
-                            domain: { type: string }
-                            state: { type: string }
-                            itemsSynced: { type: integer }
-                            itemsFailed: { type: integer }
-                            bytesTransferred: { type: integer }
-                            itemsRetrying: { type: integer }
-                            itemsNeedingDecision: { type: integer }
-                            lastSyncedAt: { type: string, format: date-time }
-                            lastActiveAt: { type: string, format: date-time }
-                            lastErrorCategory: { type: string }
-                            failedSide: { type: string, enum: [source, target] }
-                            pausedReason: { type: object }
+                        items: { $ref: '#/components/schemas/ProgressRow' }
+                      from:
+                        type: string
+                        description: The source's kind, such as gmail or imap, to name who slowed it in `time`.
+                      checkPassedAt:
+                        type: string
+                        format: date-time
+                        description: When the check passed (workplan 0154 T8); absent unless it passed.
+                      time: { $ref: '#/components/schemas/ProgressTime' }
                       grant:
                         description: |
                           The grant this page may take back (workplan 0108 T8 (c)).
@@ -7205,21 +7203,12 @@ components:
               started: { type: boolean, description: False when no pass has ever run — not the same as zero. }
               domains:
                 type: array
-                items:
-                  type: object
-                  properties:
-                    domain: { type: string }
-                    state: { type: string }
-                    itemsSynced: { type: integer }
-                    itemsFailed: { type: integer }
-                    bytesTransferred: { type: integer }
-                    itemsRetrying: { type: integer }
-                    itemsNeedingDecision: { type: integer }
-                    lastSyncedAt: { type: string, format: date-time }
-                    lastActiveAt: { type: string, format: date-time }
-                    lastErrorCategory: { type: string }
-                    failedSide: { type: string, enum: [source, target] }
-                    pausedReason: { type: object }
+                items: { $ref: '#/components/schemas/ProgressRow' }
+              checkPassedAt:
+                type: string
+                format: date-time
+                description: When the check passed (workplan 0154 T8); absent unless it passed.
+              time: { $ref: '#/components/schemas/ProgressTime' }
               account: { type: string, nullable: true, description: "The ref of the Google account it reads; null when it reads none through a link." }
         accounts:
           type: array
@@ -7243,6 +7232,83 @@ components:
                     required: [state]
                     properties:
                       state: { type: string, enum: [none] }
+    ProgressRow:
+      type: object
+      description: |
+        One data type of a migration, as a progress link shows it: counts,
+        states, timestamps and closed words, never content (ADR-0035). The
+        stage is the one the owner's line shows, worked out on the server
+        (workplan 0154 T8); whose stop a paused one is does not cross.
+      properties:
+        domain: { type: string }
+        state: { type: string }
+        stage:
+          type: string
+          enum: [not_started, paused, copying, kept_in_step, ready_to_switch, switching, done]
+          description: Absent for a phase the stage table does not place.
+        itemsSynced: { type: integer }
+        itemsFailed: { type: integer }
+        bytesTransferred: { type: integer }
+        itemsRetrying: { type: integer }
+        itemsNeedingDecision: { type: integer }
+        itemsAdopted: { type: integer, description: Left as they already were; absent when nobody counted. }
+        itemsFound: { type: integer, description: What discovery found; absent when it did not count. }
+        bytesFound: { type: integer, description: 'Their size, where the source has cheap sizes.' }
+        lastSyncedAt: { type: string, format: date-time }
+        lastActiveAt: { type: string, format: date-time }
+        lastErrorCategory: { type: string }
+        failedSide: { type: string, enum: [source, target] }
+        pausedReason: { type: object }
+    ProgressTime:
+      description: |
+        How long, by the owner's pages' rules (workplan 0154 T3, T8): before
+        any pass has completed, from the count (`beforeStart`); once one has,
+        while the migration copies, from the last passes (`whileCopying`).
+        Absent where nothing is being waited for.
+      oneOf:
+        - type: object
+          required: [kind, estimate]
+          properties:
+            kind: { type: string, enum: [beforeStart] }
+            estimate:
+              oneOf:
+                - type: object
+                  required: [kind, low, high, filesToo]
+                  properties:
+                    kind: { type: string, enum: [gmailDays] }
+                    low: { type: integer }
+                    high: { type: integer }
+                    filesToo: { type: boolean }
+                - type: object
+                  required: [kind, mailBytes, filesToo]
+                  properties:
+                    kind: { type: string, enum: [gmailWithinADay] }
+                    mailBytes: { type: integer }
+                    filesToo: { type: boolean }
+                - type: object
+                  required: [kind]
+                  properties:
+                    kind: { type: string, enum: [notKnownYet] }
+        - type: object
+          required: [kind, estimate]
+          properties:
+            kind: { type: string, enum: [whileCopying] }
+            estimate:
+              oneOf:
+                - type: object
+                  required: [kind, unit, low, high, passes, slowed]
+                  properties:
+                    kind: { type: string, enum: [range] }
+                    unit: { type: string, enum: [hours, days] }
+                    low: { type: integer }
+                    high: { type: integer }
+                    passes: { type: integer }
+                    slowed: { type: boolean }
+                - type: object
+                  required: [kind, passesSoFar]
+                  properties:
+                    kind: { type: string, enum: [afterThreePasses] }
+                    passesSoFar: { type: integer }
     Refusal:
       type: object
       description: A refusal named by `error`, with the door's own sentence in `reason` or `message`.

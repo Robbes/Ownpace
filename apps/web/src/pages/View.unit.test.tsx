@@ -48,6 +48,7 @@ vi.mock('../services/view-service.ts', async (importOriginal) => {
 vi.mock('../services/api.ts', () => ({ default: {}, serverMessage: serverMessageMock }));
 
 import View from './View.tsx';
+import { LocaleProvider } from '../i18n/index.tsx';
 
 const YESTERDAY = new Date(Date.now() - 86_400_000).toISOString();
 const IN_A_MONTH = new Date(Date.now() + 30 * 86_400_000).toISOString();
@@ -418,5 +419,163 @@ describe('a person’s progress page', () => {
     fireEvent.click(within(account).getByRole('button', { name: 'Withdraw access' }));
     fireEvent.click(within(account).getByRole('button', { name: 'Yes, withdraw it' }));
     expect(await within(account).findByText('It changed since this page was opened.')).toBeInTheDocument();
+  });
+});
+
+/**
+ * WHERE EACH DATA TYPE IS, OF HOW MANY, AND HOW LONG (workplan 0154 T8).
+ *
+ * The page says what the owner's pages say, in the same words: each data
+ * type's stage, the owner's line under it (*4,211 of ~5,000 · last pass …*),
+ * and how long. The stage and the time are the server's; the page says them.
+ */
+describe('stage, totals and time, as the owner’s pages say them (0154 T8)', () => {
+  const kept = row({ stage: 'kept_in_step', itemsFound: 5000, lastSyncedAt: YESTERDAY });
+
+  it('says each data type’s stage, and its count against what was found', async () => {
+    readMock.mockResolvedValue(payload({ domains: [kept] }));
+    renderPage();
+    const mail = (await screen.findByText('Kept in step')).closest('li')!;
+    expect(within(mail).getByText(/^4,211 of ~5,000 · last pass /)).toBeInTheDocument();
+    // The line says when, so the page does not say it twice.
+    expect(within(mail).queryByText(/Up to date as of/)).not.toBeInTheDocument();
+    // The stage stands where the bare count stood.
+    expect(within(mail).queryByText('4211 copied')).not.toBeInTheDocument();
+  });
+
+  it('keeps its own *last worked* where the line does not say when, as while copying', async () => {
+    readMock.mockResolvedValue(
+      payload({ domains: [row({ stage: 'copying', itemsFound: 5000, lastActiveAt: YESTERDAY })] }),
+    );
+    renderPage();
+    const mail = (await screen.findByText('Copying')).closest('li')!;
+    expect(within(mail).getByText('4,211 of ~5,000')).toBeInTheDocument();
+    expect(within(mail).getByText(/Still copying; last worked on/)).toBeInTheDocument();
+  });
+
+  it('does not say *still copying* under *Paused*, nor *not started yet* under *Not started*', async () => {
+    readMock.mockResolvedValue(
+      payload({
+        domains: [
+          row({ stage: 'paused', itemsFound: 5000, lastActiveAt: YESTERDAY }),
+          row({ domain: 'calendar', stage: 'not_started', itemsSynced: 0 }),
+        ],
+      }),
+    );
+    renderPage();
+    await screen.findByText('Paused');
+    expect(screen.getByText('Not started')).toBeInTheDocument();
+    expect(screen.queryByText(/Still copying/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Not started yet.')).not.toBeInTheDocument();
+  });
+
+  it('says the check passed, and when, where the data type is ready to switch', async () => {
+    readMock.mockResolvedValue(
+      payload({
+        domains: [row({ stage: 'ready_to_switch', itemsFound: 4211, lastSyncedAt: YESTERDAY })],
+        checkPassedAt: YESTERDAY,
+      }),
+    );
+    renderPage();
+    const mail = (await screen.findByText('Ready to switch')).closest('li')!;
+    expect(within(mail).getByText(/^The check passed /)).toBeInTheDocument();
+  });
+
+  it('says how long during the copy, from the passes, and who slowed it', async () => {
+    readMock.mockResolvedValue(
+      payload({
+        domains: [kept],
+        from: 'o365',
+        time: {
+          kind: 'whileCopying',
+          estimate: { kind: 'range', unit: 'hours', low: 10, high: 11, passes: 3, slowed: true },
+        },
+      }),
+    );
+    renderPage();
+    expect(await screen.findByText(/About 10 to 11 hours more, from the last 3 passes\./)).toBeInTheDocument();
+    expect(screen.getByText(/^Slowed by Microsoft/)).toBeInTheDocument();
+  });
+
+  it('before anything has run, says how long from the count', async () => {
+    readMock.mockResolvedValue(
+      payload({
+        started: false,
+        domains: [],
+        time: { kind: 'beforeStart', estimate: { kind: 'gmailDays', low: 2, high: 3, filesToo: false } },
+      }),
+    );
+    renderPage();
+    expect(await screen.findByText('Nothing has been copied yet.')).toBeInTheDocument();
+    expect(screen.getByText(/About 2 to 3 days, because Google lets a mailbox download 2.5 GB a day\./)).toBeInTheDocument();
+  });
+
+  it('says no time once the access is withdrawn: nothing reads the account, so nothing is coming', async () => {
+    readMock.mockResolvedValue(
+      payload({
+        domains: [kept],
+        grant: { state: 'withdrawn', withdrawnAt: YESTERDAY },
+        time: { kind: 'whileCopying', estimate: { kind: 'afterThreePasses', passesSoFar: 1 } },
+      }),
+    );
+    renderPage();
+    await screen.findByText('Kept in step');
+    expect(screen.queryByText('How long:')).not.toBeInTheDocument();
+  });
+
+  it('says the same on a person’s page, per migration', async () => {
+    readMock.mockResolvedValue({
+      kind: 'person',
+      organisation: 'Example family',
+      expiresAt: IN_A_MONTH,
+      migrations: [
+        {
+          from: 'gmail',
+          to: 'soverin',
+          state: 'active',
+          started: true,
+          domains: [kept],
+          time: { kind: 'whileCopying', estimate: { kind: 'afterThreePasses', passesSoFar: 1 } },
+          account: null,
+        },
+      ],
+      accounts: [],
+    });
+    renderPage();
+    expect(await screen.findByText('Kept in step')).toBeInTheDocument();
+    expect(screen.getByText(/^4,211 of ~5,000 · last pass /)).toBeInTheDocument();
+    expect(screen.getByText('We will know after three passes; 1 so far.')).toBeInTheDocument();
+  });
+
+  it('says it in Dutch on a Dutch page, in the owner’s Dutch words', async () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      readMock.mockResolvedValue(
+        payload({
+          domains: [kept],
+          time: {
+            kind: 'whileCopying',
+            estimate: { kind: 'range', unit: 'hours', low: 10, high: 11, passes: 3, slowed: false },
+          },
+        }),
+      );
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <QueryClientProvider client={qc}>
+          <LocaleProvider>
+            <MemoryRouter initialEntries={['/view/abc.def']}>
+              <Routes>
+                <Route path="/view/:link" element={<View />} />
+              </Routes>
+            </MemoryRouter>
+          </LocaleProvider>
+        </QueryClientProvider>,
+      );
+      const mail = (await screen.findByText('Wordt bijgehouden')).closest('li')!;
+      expect(within(mail).getByText(/^4\.211 van ~5\.000 · laatste ronde /)).toBeInTheDocument();
+      expect(screen.getByText(/Ongeveer nog 10 tot 11 uur, volgens de laatste 3 rondes\./)).toBeInTheDocument();
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
   });
 });

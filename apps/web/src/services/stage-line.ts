@@ -42,8 +42,24 @@ import {
 import type { Locale } from '../i18n/strings.ts';
 import { bytesOfAbout, progressTotals } from './progress-totals.ts';
 
+/** What a line's sentence reads of a row: its counts and its last pass. */
+export type LineRow = Pick<
+  DomainProgress,
+  'domain' | 'itemsSynced' | 'itemsFound' | 'itemsAdopted' | 'bytesTransferred' | 'bytesFound' | 'lastSyncedAt'
+>;
+
+/**
+ * What a line's sentence is read from: a row's counts and the migration's
+ * check. A person's progress page has these and not a row's phase, since its
+ * stage is worked out on the server (0154 T8), so the sentence asks for no more.
+ */
+export interface SentenceFacts {
+  readonly row: LineRow | undefined;
+  readonly check: CheckFacts;
+}
+
 /** What one line is read from. */
-export interface LineFacts {
+export interface LineFacts extends SentenceFacts {
   /** The data type's row from the progress read; absent when no pass has touched it. */
   readonly row: DomainProgress | undefined;
   /** The migration's lifecycle word, for a data type with no row. */
@@ -78,7 +94,7 @@ export type LinePart =
   | { readonly kind: 'checkPassed'; readonly at: string };
 
 /** How far it is: the bytes for files when both sides were measured, the items otherwise. */
-function countPart(row: DomainProgress | undefined, locale: Locale): LinePart | undefined {
+function countPart(row: LineRow | undefined, locale: Locale): LinePart | undefined {
   if (!row) return undefined;
   if (row.domain === 'file') {
     const bytes = bytesOfAbout(row, locale);
@@ -91,7 +107,7 @@ function countPart(row: DomainProgress | undefined, locale: Locale): LinePart | 
 }
 
 /** The sentence's parts for a data type at `stage`, most important first. */
-export function lineParts(stage: Stage | undefined, f: LineFacts, locale: Locale): LinePart[] {
+export function lineParts(stage: Stage | undefined, f: SentenceFacts, locale: Locale): LinePart[] {
   const count = countPart(f.row, locale);
   // What the count leaves out but the new system holds: without it, contacts
   // kept in step read *210 of ~612*, a third done, while the other 402
