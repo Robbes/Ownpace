@@ -625,9 +625,5 @@ rules above are the prices the site quotes, and nothing is charged during the Al
   *Pending* bullet and section go, and the section's text stays as *Amendment 2026-09-29, in
   force 2026-10-03*.
 
-- **2026-10-03, built** — *Start* warns when the preflight will not fit (`dataCeilingForecast`,
-  `POST /api/billing/start-forecast`, `DataCeilingNotice`; 0109 T6). The hold and the top-up are
-  not built yet. Nothing was decided.
-
 The full record, word for word as it read before this consolidation:
 [history/0014-cost-recovery-billing.md](./history/0014-cost-recovery-billing.md).

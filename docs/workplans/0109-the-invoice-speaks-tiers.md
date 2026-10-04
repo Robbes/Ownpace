@@ -4,22 +4,6 @@
 
 ## Status — 2026-09-29 (update this block at the end of every session)
 
-**2026-10-03, night: T6's first piece, the preflight says it first** (the owner's *"go"*; the
-amendment's own recommendation, *"ok, you have a go"*). Built:
-- `dataCeilingForecast` in `packages/managed/src/tier-calculator.ts`: the tier a start lands on by
-  paths (the month's peak, or the slots held now plus the paths this start adds), its ceiling,
-  and, past it, the next tier and the top-up at the tier's monthly once (none on Free).
-- `POST /api/billing/start-forecast` (owner and admin, read-only like `/usage`): only paths that
-  have never run count as starting, and their bytes are the preflight's own, so a data type
-  without a size counts as nothing. Tested over PGlite in `start-forecast.unit.test.ts`.
-- `DataCeilingNotice` on both Start screens (`ConfirmMigration.tsx`, `StartMigration.tsx`),
-  managed only: a note beside Start naming both ways on, never a block. A member who may not read
-  billing is told nothing (403); any other failure says the check could not run.
-
-**Still T6:** the hold at the ceiling, buying a top-up, the allowance (consequence 5), the yes
-for a step up, and the Billing page's *What this puts you on* learning to say what waits. A
-crossing on the path axis still starts without asking.
-
 **2026-09-29: the Billing screen's Storage and Data transfer count a first copy**, on branch
 `claude/mailbox-sync-errors-c2xsw2-the-first-copy-is-counted`, not merged.
 
@@ -152,7 +136,7 @@ per mapping, so nothing above it can be right until that moves.
 | T3 The first-copy byte meter, append-only | ✅ **Built 2026-08-30** (engine statistic + managed migration 0016 + worker flush) | `firstCopyBytes` computed in the one shared loop at the moment of each target CREATE; `bytes_moved` raised by the managed worker after each pass, raise-only by trigger. Never the same query as 0090's byte budget, and never a live-row SUM — proved byte-exact by sensitivity at the engine. |
 | T4 The tier calculator, and its drift guard | ✅ **Built 2026-08-30** (`tier-calculator.ts`, on T1–T3 the same evening); **surfaced 2026-08-31** on the support tenant screen | The third copy of the numbers, held to the first two: the same structurally-identical ADR-table parse the site guard runs, PLUS an agreement grid driving this derivation and `site/calculator.mjs`'s over every boundary (195 points — tier and axis must match). `currentTier` derives from the month's peak (with T2's true-up, closing the quiet-month gap) and the meter's total, and answers with the EVIDENCE T5 quotes. Proved by breaking: a one-euro price drift and a wrong-axis derivation each turn red. **Surfaced**: `support_tenant_usage` (managed 0017) + `observedTier` (the read-only twin — looking moves no billing mark) render tier, axis, peak+date, live per-state counts and GB on the operator's tenant screen, parity with `currentTier` pinned before and after its true-up — so a wrong derivation is seen by the operator months before a customer sees a bill. **The view read a different month from the customer until 2026-09-09**: its join was `date_trunc('month', now())::date` — session-timezone dependent, like the writer — while the tenant's own `/api/billing/usage` read the peak in UTC. For the last hour or two of every month the earlier pair of eyes was looking at a different number from the one it exists to check. Managed migration 0024 pins the join to UTC. |
 | T5 The invoice says the tier and its evidence | 📋 Planned (needs T2–T4) | One line, a tier name, a peak and a date — and the per-driver breakdown gone. **Carries a dependency found in 0121 T4 (2026-09-09):** `rowFromIssuedInvoice` reads `metadata.costByDriver` off issued invoices to answer for months the run ledger no longer holds, and returns `null` without it — so dropping the breakdown makes newer months vanish from usage history SILENTLY while older ones keep rendering. T5 either keeps writing a breakdown or teaches that fallback the tier shape. Same reshape covers `/usage/history`, which still prices its ledger-derived rows with the retired `calculateCost` (nothing renders them today). |
-| T6 Top-ups, step-ups and the floor | 🟡 **The Start warning built 2026-10-03**; the hold, the top-up and the step-up's yes planned (needs T4) | The mechanics ADR-0014 published and nothing implements. |
+| T6 Top-ups, step-ups and the floor | 📋 Planned (needs T4) | The mechanics ADR-0014 published and nothing implements. |
 | T7 Extend the leakage guard before, not after | ✅ **Obsolete as written — resolved by the guard itself, verified 2026-08-30** | The premise ("a fixed list of five") is stale: the guard's table list now DERIVES from the managed chain's own SQL, so `occupancy_peak` was appliance-forbidden the moment migration 0015 existed, with no list to edit. Verified green with the new table; T3's meter inherits the same coverage for free. |
 | T8 The free band, if acquisition wants one | ✅ **Decided and built 2026-09-24**: Tiny is free | The owner: *"make the Tiny tier Free, no billing needed."* Tiny itself, not a new row; no invoice, no payment method, no top-up. See the section below and ADR-0014's amendment. |
 

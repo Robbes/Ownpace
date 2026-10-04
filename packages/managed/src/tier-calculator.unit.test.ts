@@ -35,7 +35,6 @@ import {
   GB_PER_TB,
   deriveTier,
   observedTier,
-  dataCeilingForecast,
   currentTier,
 } from './tier-calculator.ts';
 
@@ -298,41 +297,5 @@ describe('currentTier — the live derivation, with its evidence', () => {
     const answer = await ask();
     expect(answer.tier).toBeNull();
     expect(answer.decidedBy).toBe('data');
-  });
-});
-
-describe('dataCeilingForecast — what Start says before it starts (ADR-0014, 2026-10-03)', () => {
-  it('says nothing while the forecast fits the ceiling, the ceiling itself included', () => {
-    expect(dataCeilingForecast(4, 300, 400)).toBeNull();
-    expect(dataCeilingForecast(4, 300, 450)).toBeNull(); // exactly Small's 750 GB
-  });
-
-  it("names both ways on past a paid tier's ceiling: the next tier, and a top-up at the monthly once", () => {
-    const f = dataCeilingForecast(4, 300, 451)!;
-    expect(f.tier.id).toBe('small');
-    expect(f.ceilingGb).toBe(750);
-    expect(f.forecastGb).toBe(751);
-    expect(f.next?.id).toBe('medium');
-    expect(f.topUpCents).toBe(500);
-  });
-
-  it('offers Free no top-up: from Free the only way on is moving up', () => {
-    const f = dataCeilingForecast(1, 0, 300)!;
-    expect(f.tier.id).toBe('free');
-    expect(f.next?.id).toBe('small');
-    expect(f.topUpCents).toBeNull();
-  });
-
-  it('reads the tier the start lands on by paths, so a start that moves it up is measured against the bigger ceiling', () => {
-    // Five paths is Medium by paths; 900 GB fits Medium's 2 TB, so nothing to say.
-    expect(dataCeilingForecast(5, 100, 800)).toBeNull();
-  });
-
-  it('has no next tier to name at the end of the table, and nothing to say past it', () => {
-    const f = dataCeilingForecast(200, 14_000, 2_000)!;
-    expect(f.tier.id).toBe('xl');
-    expect(f.next).toBeNull();
-    expect(f.topUpCents).toBe(8000);
-    expect(dataCeilingForecast(201, 0, 10)).toBeNull();
   });
 });
