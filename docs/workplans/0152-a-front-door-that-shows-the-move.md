@@ -4,6 +4,27 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04, evening: T9 is built** (R8 step 9). `/login` and `/request-access`, the pages the
+site's *Sign in* and *Request access* lead to, take the site's look:
+- **the site's mark** where the app's blue icon was: `SiteMark.tsx`, the shapes of
+  `site/brand/logo.svg`, inline because the appliance serves the bundle under `/ui`;
+- **the site's teal** for their buttons, links and focus rings (`--color-site-teal` and
+  `--color-site-mint` in `index.css`);
+- ***← ownpace.eu*** above the mark (`BackToSite.tsx`). It leads to the site's home page in the
+  reader's language, `/nl/` for Dutch, and is built from the deployment's own site setting
+  (`services/site-home.ts`, on `legal-links.ts`'s origin), never a fixed host. The arrow is
+  drawn, not read.
+
+The rest of the app keeps its colours (T9 (b)).
+- **Guards:** `scripts/one-look-from-the-site-to-the-app.unit.test.ts`:
+  - the palette is the site's;
+  - the mark is the site's file, shape for shape;
+  - both pages draw the mark and the way back, and none of the app's blue;
+  - the way back is the setting's site, refused as the legal links refuse.
+
+  `a-way-back-to-the-site.unit.test.tsx`: on both pages, in both languages, the link named for
+  the site goes home, and the mark is hidden from a screen reader.
+
 **2026-10-04, evening: T2 and T6 (c) are built** (R8 step 9, its first part). The header reads
 *Home · How it works · Pricing · Sign in*, then the language switch.
 - **Sign in** goes to the app's sign-in page, built from `APP_URL` (`SIGN_IN_URL` in
@@ -187,7 +208,7 @@ together, from one audit of the site and the app on `main` at `83eb73e` (§1).
 | T6 Pricing that reads in one pass | 🟡 **(a) done: the sentence by #1317, its guard beside D6's. (c) built 2026-10-04, with T2 (#1471). (d) built 2026-10-03, with (g)'s principle on the page. (f)'s words on the page and in the terms built 2026-10-04, its withdrawal button not. The rest proposed, before the first invitation (D5)** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) The withdrawal button, and the year's end (D11, amended 2026-10-04). (g) The principle, the price that pays for the work (D12). |
 | T7 A calculator that ends in a button | 📋 **Proposed; before the first invitation** | §3. (a) *Request access* carries the answers along. (b) *Until when?* says which payment suits it. (c) The layout faults and a live region. (d) Box as a source. |
 | T8 Claims you can check | 📋 **Proposed; before the first invitation (D5)** | §3. "Open source" links the repository. Each proof point links the guard that holds it. The footer names the company once 0139 publishes it; until then that line is the one part that waits. |
-| T9 One look from the site to the app | 📋 **Proposed; before the first invitation** | §3. `/request-access` and `/login` take the site's palette and logo, and link back to the site. The identity provider's own branding stays 0135 T6. |
+| T9 One look from the site to the app | ✅ **Built 2026-10-04** | §3. `/request-access` and `/login` take the site's palette and logo, and link back to the site. The identity provider's own branding stays 0135 T6. |
 
 ## 1. What there is today
 
