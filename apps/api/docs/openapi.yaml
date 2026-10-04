@@ -5523,6 +5523,74 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /api/billing/ceiling:
+    get:
+      tags: [Billing]
+      summary: Where the data stands against the ceiling, and the two ways on
+      description: |
+        The data ceiling of ADR-0014's amendment of 2026-10-03 (workplan 0109 T6):
+        the band of the highest tier the organisation moved up to, plus every
+        top-up band bought. `state` is `under`, `near` (from 80%, where both ways
+        on are offered) or `reached`. `holds` is false during the alpha, where the
+        ceiling only warns and no yes is taken. Read-only.
+      responses:
+        '200':
+          description: The ceiling, the data moved, and the offers.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tier: { type: object }
+                  ceilingGb: { type: number }
+                  topUps: { type: integer }
+                  gbMoved: { type: number }
+                  share: { type: number }
+                  state: { type: string, enum: [under, near, reached] }
+                  holds: { type: boolean }
+                  moveUp: { type: [object, 'null'] }
+                  topUp: { type: [object, 'null'] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/billing/ceiling/yes:
+    post:
+      tags: [Billing]
+      summary: Say yes to moving up a tier, or to a one-off top-up
+      description: |
+        One append-only row per yes (managed migration 0037), carrying the price
+        shown, which the invoice will charge. The body names the offer the page
+        showed; when the tier or the price is not what is offered now, the yes is
+        refused with the current offer, so nobody agrees to a price they were not
+        shown. Refused during the alpha, where nothing is charged.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [choice, tierId, priceEur]
+              properties:
+                choice: { type: string, enum: [move_up, top_up] }
+                tierId: { type: string }
+                priceEur: { type: integer, minimum: 0 }
+      responses:
+        '200':
+          description: The ceiling after the yes.
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: |
+            Not taken: `offer_changed` (with the offer as it stands now),
+            `no_top_up_on_tiny`, `talk_to_us`, or `nothing_charged_during_the_alpha`.
+          content:
+            application/json:
+              schema: { type: object }
+
   /api/billing/estimate:
     post:
       tags: [Billing]

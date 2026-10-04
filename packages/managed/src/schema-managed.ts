@@ -443,6 +443,30 @@ export const bytesMoved = pgTable('bytes_moved', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Each yes to a step up at the data ceiling (workplan 0109 T6, managed
+ * migration 0037): a move up to a tier, or a top-up band of the tier the
+ * customer was on. Append-only: the ceiling is the highest tier moved up to
+ * plus every band bought, and a top-up raises the ceiling without rewinding
+ * `bytes_moved`. Tiny is no row (`allowanceOf` in `data-ceiling.ts`).
+ */
+export const dataAllowance = pgTable(
+  'data_allowance',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull().$type<'tier' | 'top_up'>(),
+    tierId: text('tier_id').notNull().$type<'small' | 'medium' | 'large' | 'xl'>(),
+    bandGb: integer('band_gb').notNull(),
+    priceEur: integer('price_eur').notNull(),
+    consentedBy: text('consented_by').notNull(),
+    consentedAt: timestamp('consented_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('data_allowance_tenant_idx').on(t.tenantId, t.consentedAt)],
+);
+
 export const occupancyPeak = pgTable(
   'occupancy_peak',
   {

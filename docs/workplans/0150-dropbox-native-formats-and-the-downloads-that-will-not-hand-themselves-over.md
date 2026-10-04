@@ -4,6 +4,35 @@
 
 ## Status — 2026-10-03 (update this block at the end of every session)
 
+**2026-10-03, night: the gate's first run with #1411, on the OTA stack with one Nextcloud
+password.** E2E (managed) #232 on `main` (`1f6d5ea`), after the owner's `--sync-password` run
+(the entry below).
+
+- **The bring-up's data phase** said *"the demo Nextcloud's role and database (nextcloud) are
+  present"*, so it made nothing. Once Nextcloud answered, it said *"the demo Nextcloud is on
+  Postgres (nextcloud), with .env's NEXTCLOUD_DB_PASSWORD"*. There was no note that
+  `config.php` holds another password: `.env`, the role and `config.php` held one value, as the
+  owner's `--check` had said.
+- **The smoke read from it and wrote to it.** Its seeding wrote events, tasks, contacts and files
+  to the demo Nextcloud, a 32 MB file among them, and each write answered 201. A pass copied the
+  task lane and streamed the large file, its content hash matching the source's. Verify ended
+  `done` and apply `applied`, and the Nextcloud door's checks and the cutover door's passed.
+- **#232 failed on the smoke's progress link only,** which is not this plan's: links are a
+  person's since #1408 (0143's entry of the same night).
+- **E2E (managed) #233 on `main` (`32d6231`) passed whole the same night,** after session R's
+  smoke fix (#1419): the same two lines in the data phase, every seeding write 201, the large
+  file streamed with its hash matching, verify `done`, apply `applied`, and *"SMOKE PASS"*.
+- **Seen in both runs, and not this plan's to fix: the smoke's drain of the demo Nextcloud stops
+  at Nextcloud's own ceiling.** Before it checks that the take-back sent no CANCEL mail, the
+  smoke runs `cron.php` in the demo Nextcloud, so that a queued mail would be sent first (*"the
+  queue was drained and still nothing"*). That took 14 minutes in each run (841.1 s in #232,
+  840.7 s in #233), most of the smoke. Fourteen minutes is Nextcloud 34's limit for one run:
+  `CronService::runCli` stops asking for jobs once `14 * 60` seconds have passed. The demo runs
+  no cron of its own, so its jobs wait for the gate, and the owner's migrations write to it.
+  Both runs stopped at the limit, so neither can say the queue was drained; the check passed on
+  the jobs reached in those 14 minutes. What to change is the owner's call, asked the same
+  night.
+
 **2026-10-03: the demo Nextcloud's follow-up built, a fresh install on Postgres and a script for
 one on SQLite** (the owner, 2026-09-29: *"You take that aswell"*), on branch
 `claude/mailbox-sync-errors-c2xsw2-a-demo-nextcloud-on-postgres`; merged the same day as #1411

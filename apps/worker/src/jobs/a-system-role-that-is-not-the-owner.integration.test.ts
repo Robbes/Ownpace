@@ -236,6 +236,8 @@ const EXPECTED: Record<string, readonly string[]> = {
   vat_consultation: PURGED_ONLY(),
   occupancy_peak: PURGED_ONLY(),
   bytes_moved: PURGED_ONLY(),
+  // Each yes at the data ceiling (0109 T6), granted in managed 0037.
+  data_allowance: PURGED_ONLY(),
   grant_link_allowance: PURGED_ONLY(),
   payment_method: PURGED_ONLY(),
   usage_metric: PURGED_ONLY(),
