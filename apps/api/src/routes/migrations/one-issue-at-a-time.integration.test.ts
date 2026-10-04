@@ -3,8 +3,10 @@
 // ONE ISSUE AT A TIME PER ORGANISATION (workplan 0108 T8 (d)), on a real
 // Postgres with two connections: PGlite has one, and cannot show a race.
 //
-// An organisation on Free may hold one live grant link. Here the first issue
-// is held open, its link written and not yet committed, while a second
+// An organisation the operator holds to one live grant link (`operator.sh
+// links`, `grant_link_allowance`): Free's own number is six since 2026-10-04
+// (ADR-0014), and the lock is the same whatever the number. Here the first
+// issue is held open, its link written and not yet committed, while a second
 // arrives. The second must wait for the per-organisation lock, then count the
 // first's link and be refused. Without the lock it would count only what was
 // committed, find room, and both would be the last one allowed.
@@ -31,6 +33,7 @@ const PERSON = '7c1a0000-e29b-41d4-a716-446655440041';
 let pool: Pool;
 
 async function clean(): Promise<void> {
+  await pool.query('DELETE FROM grant_link_allowance WHERE tenant_id = $1', [TENANT]);
   await pool.query('DELETE FROM person_link WHERE tenant_id = $1', [TENANT]);
   await pool.query('DELETE FROM person_migration WHERE tenant_id = $1', [TENANT]);
   await pool.query('DELETE FROM person WHERE tenant_id = $1', [TENANT]);
@@ -45,6 +48,10 @@ beforeAll(async () => {
   pool = new Pool({ connectionString: PG, max: 4 });
   await clean();
   await pool.query(`INSERT INTO tenant (id, name) VALUES ($1, 'One at a time BV')`, [TENANT]);
+  await pool.query(
+    `INSERT INTO grant_link_allowance (tenant_id, live_links, set_by, note) VALUES ($1, 1, 'one-at-a-time', 'one live link')`,
+    [TENANT],
+  );
   await pool.query(
     `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
      VALUES ($1, $2, 'source', 'gmail', 'g', '{}'::jsonb, 'connected')`,
