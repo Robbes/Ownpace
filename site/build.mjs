@@ -54,6 +54,7 @@ import { CUSTOMER_TYPES, INDICATIVE_PROFILES, OBJECT_TYPES, PROFILES_VERSION, SI
 import { DATA_TYPES, DESTINATIONS, PROTOCOL_NAMES } from './destinations.mjs';
 import { SPRITE, icon } from './icons.mjs';
 import { LEAVING, DOMAIN_OF, EXPORT_TARGETS } from './sources.mjs';
+import { heroMove } from './hero.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, 'dist');
@@ -425,6 +426,26 @@ nav.menu .leaving-list a { display: flex; align-items: center; gap: 0.6rem; padd
 /* hero */
 .hero { padding: clamp(3rem, 8vw, 6rem) 0 2rem; }
 .hero h1 { margin-top: 0; max-width: 20ch; }
+/* The hero's picture beside its words on a wide screen, and under its buttons on
+   a phone, so the buttons stay in the first screen (0152 T3 (a)). */
+.hero { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "words" "picture" "leaving"; column-gap: 3rem; }
+.hero-words { grid-area: words; }
+.hero-picture { grid-area: picture; margin: 2.25rem 0 0; }
+.hero-leaving { grid-area: leaving; }
+.hero-move { display: block; width: 100%; max-width: 560px; height: auto; }
+@media (min-width: 60rem) {
+  .hero { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-areas: "words picture" "leaving picture"; }
+  .hero-picture { margin: 0; align-self: center; }
+}
+/* Three facts under the hero, and How it works in three steps (0152 T3). */
+.facts { margin-top: 0; }
+.facts .card h3 { font-size: 1.05rem; }
+.strip { list-style: none; padding: 0; margin: 1.5rem 0 0.75rem; display: grid; gap: 1rem 2rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); }
+.strip li { display: flex; gap: 0.9rem; align-items: flex-start; }
+.strip .step { font-size: 1.6rem; line-height: 1; min-width: 1.2ch; color: var(--teal); }
+@media (prefers-color-scheme: dark) { .strip .step { color: var(--mint); } }
+.strip h3 { margin: 0 0 0.3rem; font-size: 1.05rem; }
+.strip p { margin: 0; color: var(--muted); }
 .lede { font-size: clamp(1.05rem, 2.2vw, 1.3rem); color: var(--muted); max-width: 58ch; }
 .cta { display: flex; gap: 0.75rem; flex-wrap: wrap; margin: 2rem 0 0; }
 .btn {
@@ -454,10 +475,11 @@ nav.menu .leaving-list a { display: flex; align-items: center; gap: 0.6rem; padd
 .types .via { color: var(--muted); font-size: 0.85rem; margin-left: auto; }
 /* The hero's six Leaving… names (0152 T5 (b)). */
 .leaving-label { font-weight: 700; margin: 2rem 0 0.6rem; }
-/* Three by two beside the hero's words, as wf-site-home.svg draws it; two by three on a phone. */
+/* Under the hero's words: two by three beside the picture and on a phone, three by
+   two where the words have the width to themselves, every name on one line. */
 .leaving-row {
   list-style: none; padding: 0; margin: 0; display: grid; gap: 0.6rem 1.5rem; max-width: 42rem;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr));
 }
 .leaving-row a { display: flex; align-items: center; gap: 0.6rem; font-weight: 600; text-decoration: none; }
 .leaving-row a:hover span:last-child { text-decoration: underline; }
@@ -538,6 +560,22 @@ a.verdict { text-decoration: underline; text-decoration-thickness: 1px; }
 .tier .price-how { color: var(--muted); font-size: 0.85rem; }
 .tier .half { display: block; margin-top: 0.35rem; color: var(--teal); font-size: 0.85rem; font-weight: 650; }
 @media (prefers-color-scheme: dark) { .tier .half { color: var(--mint); } }
+
+/* The pricing page's rules as questions (0152 T6 (b)): each opens without a script. */
+.qas { border-top: 1px solid var(--line); margin: 1.25rem 0 0; }
+details.qa { border-bottom: 1px solid var(--line); }
+details.qa > summary {
+  list-style: none; cursor: pointer; padding: 0.85rem 0; font-weight: 650;
+  display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+}
+details.qa > summary::-webkit-details-marker { display: none; }
+details.qa > summary::after {
+  content: ""; flex: none; width: 0.45em; height: 0.45em; margin-right: 0.3em;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: translateY(-0.15em) rotate(45deg);
+}
+details.qa[open] > summary::after { transform: translateY(0.15em) rotate(-135deg); }
+details.qa > p { margin: 0 0 1rem; }
 
 /* calculator (workplan 0088 T3) */
 .calc fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.25rem 1.25rem; margin: 1.25rem 0; }
@@ -747,7 +785,8 @@ ${body}
  *
  * The tier rides along as a query parameter so a visitor who clicked "Start
  * with Medium" does not have to answer that question again. Indicative only —
- * the tier is DERIVED from what actually runs (ADR-0014), never picked.
+ * the tier is DERIVED from what actually runs (ADR-0014), or the higher one a
+ * person picks (the owner, 2026-10-04).
  */
 const orderHref = (locale, tier) => {
   // Hand-built with `encodeURIComponent`, which this file already uses
@@ -796,8 +835,10 @@ function tierCards(locale) {
     <div class="price">${money(t.monthly)} <span>${c.tierMonth}</span></div>
     <div class="price-how">${c.payMonthHow}</div>
   </div>`;
+      // Past Free's data the next tier; past its migrations the first that runs more.
+      const wider = TIERS.find((w) => w.paths > t.paths) ?? next;
       const terms = free(t)
-        ? `<li>${c.tierFreeEdge(next.name)}</li>`
+        ? `<li>${c.tierFreeEdge(next.name, t.paths, wider.name)}</li>`
         : `<li>${c.tierNoSetup}</li>
     <li>${c.tierThree(money(total(t, 3)))}</li>`;
       return `<div class="tier${featured ? ' featured' : ''}">
@@ -844,7 +885,6 @@ function whereTo(locale) {
   return `
 <h2>${c.whereTitle}</h2>
 <p>${c.whereLede}</p>
-${SPRITE}
 <div class="cards">${DESTINATIONS.map(card).join('')}</div>
 `;
 }
@@ -1001,18 +1041,31 @@ ${behind}
 function landing(locale) {
   const c = COPY[locale];
   const small = TIERS.find((t) => t.id === 'small');
+  const types = { ...c.dataTypes, photos: c.leaving.photos };
   return `
+${SPRITE}
 <section class="hero">
-  <h1>${c.heroTitle}</h1>
-  <p class="lede">${c.heroLede}</p>
-  <div class="cta">
-    <a class="btn btn-primary" href="${esc(orderHref(locale, null))}">${c.ctaOrder}</a>
-    <a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${c.ctaPricing}</a>
+  <div class="hero-words">
+    <h1>${c.heroTitle}</h1>
+    <p class="lede">${c.heroLede}</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="${esc(orderHref(locale, null))}">${c.ctaOrder}</a>
+      <a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${c.ctaPricing}</a>
+    </div>
+    <p class="fineprint">${c.heroFree(TIERS[0].name, size(TIERS[0].dataGb), TIERS[0].paths)} ${esc(c.vatIncluded)}</p>
   </div>
-  <p class="fineprint">${c.heroFree(TIERS[0].name, size(TIERS[0].dataGb))} ${esc(c.vatIncluded)}</p>
-  <p class="leaving-label" id="leaving-label">${c.leaving.menu}</p>
-  <ul class="leaving-row" aria-labelledby="leaving-label">${LEAVING.map((p) => `<li>${leavingLink(locale, p, 28, false)}</li>`).join('')}</ul>
+  <div class="hero-picture">${heroMove({ ...c.hero, types })}</div>
+  <div class="hero-leaving">
+    <p class="leaving-label" id="leaving-label">${c.leaving.menu}</p>
+    <ul class="leaving-row" aria-labelledby="leaving-label">${LEAVING.map((p) => `<li>${leavingLink(locale, p, 28, false)}</li>`).join('')}</ul>
+  </div>
 </section>
+<div class="cards facts">${c.facts.map(([h, p]) => `<div class="card"><h3>${h}</h3><p>${p}</p></div>`).join('')}</div>
+<h2>${c.nav.how}</h2>
+<ol class="strip">${c.strip.steps
+    .map(([h, p], i) => `<li><span class="step" aria-hidden="true">${i + 1}</span><div><h3>${h}</h3><p>${p}</p></div></li>`)
+    .join('')}</ol>
+<p><a href="${urlFor(locale, 'how')}">${c.strip.more} <span aria-hidden="true">→</span></a></p>
 ${whereTo(locale)}
 <h2>${c.diffTitle}</h2>
 ${cards(c.diff)}
@@ -1029,6 +1082,42 @@ ${cards(c.wont)}
   <a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${c.ctaAllTiers}</a>
 </div>
 `;
+}
+
+/**
+ * The pricing page's rules as questions and answers (workplan 0152 T6 (b)).
+ *
+ * The Markdown says each rule as a paragraph led by its answer in bold, and the
+ * renderer escapes raw HTML, so the questions are added here: under the rules'
+ * heading, each `<p><strong>…</strong>` becomes a `<details>` whose summary is
+ * the question `copy.mjs` pairs with that lead, and the paragraph its answer,
+ * word for word. A paragraph there that is not the next lead in the list, or a
+ * list with a question left over, stops the build: a rule cannot reach the
+ * page without the question it answers.
+ */
+function asQuestions(body, { heading, questions }) {
+  const start = body.indexOf(`>${heading}</h2>`);
+  if (start === -1) throw new Error(`The pricing page has no heading "${heading}" to put its questions under.`);
+  const from = body.indexOf('\n', start) + 1;
+  const next = body.indexOf('<h2', from);
+  const to = next === -1 ? body.length : next;
+  const answers = body
+    .slice(from, to)
+    .trim()
+    .split('\n')
+    .filter((line) => line !== '')
+    .map((p, i) => {
+      const lead = /^<p><strong>([^<]+)<\/strong>/.exec(p)?.[1];
+      const [asked, question] = questions[i] ?? [];
+      if (lead === undefined || lead !== asked) {
+        throw new Error(`The pricing page's rule "${p.slice(0, 80)}" is not "${asked}", the next in copy.mjs's pricingRules.`);
+      }
+      return `<details class="qa"><summary>${question}</summary>${p}</details>`;
+    });
+  if (answers.length !== questions.length) {
+    throw new Error(`copy.mjs asks ${questions.length} pricing questions and the page has ${answers.length} rules.`);
+  }
+  return `${body.slice(0, from)}<div class="qas">${answers.join('\n')}</div>\n${body.slice(to)}`;
 }
 
 // -------------------------------------------------------------- calculator --
@@ -1150,7 +1239,11 @@ const CALC_GLUE = `
     var next = cfg.tiers[cfg.tiers.indexOf(t) + 1];
     var isFree = freeTier(t);
     $('tier-monthly').textContent = isFree ? S.tierFree : fill(S.tierMonthly, money(t.monthly));
-    $('tier-year').textContent = isFree ? fill(S.tierFreeEdge, sizeOf(t.dataGb), next.name) : fill(S.tierYear, money(t.annual));
+    var wider = cfg.tiers.filter(function (w) { return w.paths > t.paths; })[0] || next;
+    $('tier-year').textContent = isFree
+      ? fill(S.tierFreeEdge, sizeOf(t.dataGb), next.name, t.paths, wider.name)
+      : fill(S.tierYear, money(t.annual));
+    $('tier-pace').hidden = !isFree;
     $('tier-three').hidden = isFree;
     $('tier-three').textContent = fill(S.tierThree, money(t.monthly * 3));
 
@@ -1309,6 +1402,7 @@ function calculatorPage(locale) {
     <li id="tier-monthly"></li>
     <li id="tier-year"></li>
     <li id="tier-three"></li>
+    <li id="tier-pace" hidden>${esc(c.tierFreePace)}</li>
   </ul>
   <p class="fine">${esc(c.stepUpRule)}</p>
   <p class="fine">${esc(COPY[locale].vatIncluded)}</p>
@@ -1355,7 +1449,7 @@ const META = {
     home: ['Ownpace — move your data at your own pace', 'Move your mail, contacts, calendar and files from Google or Microsoft to a European provider, continuously, and cut over when you are ready.'],
     how: ['How it works — Ownpace', 'What a migration looks like from the first connection to the cutover.'],
     pricing: ['Pricing — Ownpace', 'Five tiers, published in full. Priced on how many migrations run at once and how much data you have moved.'],
-    calculator: ['Estimate your migration — Ownpace', 'Five questions, an indicative band, and the tier it lands on — derived, never picked. No account, no email, nothing stored.'],
+    calculator: ['Estimate your migration — Ownpace', 'Five questions, an indicative band, and the tier your answers need. No account, no email, nothing stored.'],
     privacy: ['Privacy policy — Ownpace', 'What Ownpace holds, why, for how long, and what it never does.'],
     terms: ['Terms of service — Ownpace', 'The terms for the managed Ownpace service.'],
     alpha: ['Alpha conditions — Ownpace', 'The conditions for taking part in the Alpha of the managed Ownpace service.'],
@@ -1365,7 +1459,7 @@ const META = {
     home: ['Ownpace — neem uw gegevens mee, in uw eigen tempo', 'Migreer uw e-mail, contacten, agenda en bestanden van Google of Microsoft naar een Europese aanbieder, doorlopend, en stap over wanneer u er klaar voor bent.'],
     how: ['Hoe het werkt — Ownpace', 'Hoe een migratie verloopt, van de eerste koppeling tot de overstap.'],
     pricing: ['Prijzen — Ownpace', 'Vijf pakketten, volledig gepubliceerd. Geprijsd op hoeveel migraties tegelijk lopen en hoeveel gegevens u hebt gemigreerd.'],
-    calculator: ['Schat uw migratie — Ownpace', 'Vijf vragen, een indicatieve bandbreedte, en het pakket waar dat op uitkomt — afgeleid, nooit gekozen. Geen account, geen e-mail, niets wordt bewaard.'],
+    calculator: ['Schat uw migratie — Ownpace', 'Vijf vragen, een indicatieve bandbreedte, en het pakket dat uw antwoorden nodig hebben. Geen account, geen e-mail, niets wordt bewaard.'],
     privacy: ['Privacyverklaring — Ownpace', 'Wat Ownpace bewaart, waarom, hoe lang, en wat het nooit doet.'],
     terms: ['Servicevoorwaarden — Ownpace', 'De voorwaarden voor de beheerde Ownpace-dienst.'],
     alpha: ['Voorwaarden voor de Alpha — Ownpace', 'De voorwaarden voor deelname aan de Alpha van de beheerde Ownpace-dienst.'],
@@ -1419,6 +1513,13 @@ export function build({ alpha = ALPHA } = {}) {
               `<p class="fineprint">${esc(c.vatIncluded)}</p>` +
               `<p class="fineprint">${beyond}</p>`,
           );
+        }
+        if (key === 'pricing') body = asQuestions(body, c.pricingRules);
+        // How it works ends where a reader decides (0152 T3 (c)): the hero's two buttons.
+        if (key === 'how') {
+          body +=
+            `<div class="cta"><a class="btn btn-primary" href="${esc(orderHref(locale, null))}">${c.ctaOrder}</a>` +
+            `<a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${c.ctaPricing}</a></div>`;
         }
         if ((key === 'privacy' || key === 'terms') && c.translationNote) {
           body = `<blockquote><p>${c.translationNote}</p></blockquote>\n` + body;

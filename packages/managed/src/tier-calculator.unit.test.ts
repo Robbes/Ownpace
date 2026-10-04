@@ -267,10 +267,11 @@ describe('currentTier — the live derivation, with its evidence', () => {
       ['contact', 'paused'],
     ]);
     const answer = await ask();
-    // The true-up wrote the mark and the derivation read it: 3 paths → Small.
+    // The true-up wrote the mark and the derivation read it: 3 paths and
+    // nothing moved, which Free runs (six paths since 2026-10-04).
     expect(answer.evidence.peakPaths).toBe(3);
-    expect(answer.tier?.id).toBe('small');
-    expect(answer.decidedBy).toBe('paths');
+    expect(answer.tier?.id).toBe('free');
+    expect(answer.decidedBy).toBe('both');
   });
 
   it('the data axis wins when it is the higher one, and the evidence says so', async () => {

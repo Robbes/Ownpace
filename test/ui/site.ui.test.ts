@@ -162,6 +162,23 @@ describe('the public site renders', () => {
     await page.close();
   }, 60_000);
 
+  it('asks the pricing rules as questions, each answer closed until it is opened from the keyboard (0152 T6 (b))', async () => {
+    const { page } = await open('/pricing.html');
+    const questions = await page.$$eval('details.qa > summary', (s) => s.map((e) => e.textContent));
+    expect(questions.length, 'the pricing page has no questions').toBeGreaterThan(8);
+    const shown = () => page.evaluate((sel) => {
+      const p = [...document.querySelectorAll('details.qa')].find((d) => d.querySelector('summary')?.textContent === sel)?.querySelector('p');
+      return p?.checkVisibility({ visibilityProperty: true }) ?? false;
+    }, 'Does pausing lower it?');
+    expect(await shown(), 'an answer is open before anybody asks').toBe(false);
+    // By its words, not its place: a rule added above it moves it down the list.
+    await page.locator('details.qa > summary', { hasText: 'Does pausing lower it?' }).focus();
+    expect(await page.evaluate(() => document.activeElement?.textContent)).toBe('Does pausing lower it?');
+    await page.keyboard.press('Enter');
+    expect(await shown(), 'Enter does not open the answer').toBe(true);
+    await page.close();
+  }, 60_000);
+
   it('opens the prices on yearly, and shows monthly by a click or the keyboard (0152 T6 (e), D10)', async () => {
     const { page } = await open('/pricing.html');
     const small = () =>
@@ -189,7 +206,7 @@ describe('the public site renders', () => {
     await phone.page.close();
   }, 60_000);
 
-  it('lands one migration on Free and says free, with no top-up; a second one lands on Small (ADR-0014, 2026-09-24)', async () => {
+  it('lands a small move on Free and says free and its pace, with no top-up; more data than Free holds lands on Small (ADR-0014, 2026-10-04)', async () => {
     // The estimator's words come from the page's own script, so only a
     // browser sees them: one person, contacts only, is one migration and a
     // fraction of a GB.
@@ -208,6 +225,7 @@ describe('the public site renders', () => {
           monthly: text('tier-monthly'),
           year: text('tier-year'),
           three: shown('tier-three'),
+          pace: shown('tier-pace') ? text('tier-pace') : null,
           topUp: text('topup-line'),
         };
       });
@@ -218,14 +236,18 @@ describe('the public site renders', () => {
     expect(free.year).toContain('moves you to Small');
     expect(free.three, 'a free tier has no three-month total to show').toBe(false);
     expect(free.topUp, 'a free tier offers no top-up').toBe('');
+    expect(free.pace, 'Free does not say its pace').toContain('One pass a day');
     expect(JSON.stringify(free)).not.toMatch(/€0(?![\d.,])/);
 
-    await page.check('#what-mail');
+    // Free and Small run as many at the same time; more data than Free's moves it.
+    await page.check('#what-files');
+    await page.fill('#gb-files', '200');
     const small = await read();
     expect(small.name).toContain('Small');
     expect(small.monthly).toBe('€5 a month');
     expect(small.year).toContain('€30 for a year');
     expect(small.three).toBe(true);
+    expect(small.pace, 'a paid tier says Free’s pace').toBeNull();
     expect(small.topUp).not.toBe('');
     await page.close();
   }, 60_000);
@@ -328,6 +350,35 @@ describe('the public site renders', () => {
     await page.waitForLoadState('networkidle');
     expect(new URL(page.url()).pathname).toBe('/leaving-dropbox.html');
     await page.close();
+  }, 60_000);
+
+  it('shows the move beside the hero’s words on a wide screen, and under its buttons on a phone (0152 T3 (a))', async () => {
+    const wide = await open('/', 1280);
+    const w = await wide.page.evaluate(() => {
+      const picture = document.querySelector('svg.hero-move')!.getBoundingClientRect();
+      const lede = document.querySelector('.hero .lede')!.getBoundingClientRect();
+      return { left: picture.left, width: picture.width, top: picture.top, bottom: picture.bottom, ledeRight: lede.right, ledeTop: lede.top };
+    });
+    expect(w.left, 'the picture is not beside the words').toBeGreaterThanOrEqual(w.ledeRight);
+    expect(w.width, 'the picture is too small to read').toBeGreaterThan(400);
+    expect(w.top, 'the picture starts below the fold').toBeLessThan(900);
+    await wide.page.close();
+
+    // A phone's first screen is about 844 pixels: the buttons must be in it,
+    // and the picture comes after them, on the screen.
+    const phone = await open('/nl/', 390);
+    const p = await phone.page.evaluate(() => {
+      const cta = document.querySelector('.hero .cta')!.getBoundingClientRect();
+      const picture = document.querySelector('svg.hero-move')!.getBoundingClientRect();
+      return { ctaBottom: cta.bottom, top: picture.top, left: picture.left, right: picture.right };
+    });
+    expect(p.ctaBottom, 'the hero’s buttons are not in a phone’s first screen').toBeLessThanOrEqual(844);
+    expect(p.top, 'the picture comes before the buttons on a phone').toBeGreaterThan(p.ctaBottom);
+    expect(p.left).toBeGreaterThanOrEqual(0);
+    expect(p.right, 'the picture runs off a 390 pixel screen').toBeLessThanOrEqual(390);
+    const overflows = await phone.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+    expect(overflows, 'the home page scrolls sideways at 390px').toBe(false);
+    await phone.page.close();
   }, 60_000);
 
   it('opens a Leaving… page on a phone without sideways scroll, and its estimate on the page’s own case (0152 T5)', async () => {

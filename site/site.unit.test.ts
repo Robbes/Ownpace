@@ -181,8 +181,10 @@ describe('the published prices agree with the decision that set them', () => {
     for (const page of pages) {
       expect(page.html, `${page.file} claims what most people choose`).not.toMatch(/most people|meeste mensen|meest gekozen/i);
     }
-    expect(html('index.html')).toContain('<strong>Small</strong>, for one person moving everything at once: €5 a month');
-    expect(html('nl/index.html')).toContain('<strong>Small</strong>, voor één persoon die alles tegelijk migreert: €5 per maand');
+    expect(html('index.html')).toContain('<strong>Small</strong>, for one person moving everything at full pace: €5 a month');
+    expect(html('nl/index.html')).toContain(
+      '<strong>Small</strong>, voor één persoon die alles op volle snelheid migreert: €5 per maand',
+    );
   });
 
   it('never promises a year back, and says what is left of it pays later months (ADR-0014, 2026-10-04)', async () => {
@@ -233,8 +235,12 @@ describe('the published prices agree with the decision that set them', () => {
     expect(card('nl/prijzen.html')).toContain('Geen factuur, geen kaart');
     // The landing page's line says what free covers, where it used to say
     // "From €6 for the first month".
-    expect(rendered.find((p) => p.file === 'index.html')!.html).toContain('Free: one migration at a time, up to 250 GB.');
-    expect(rendered.find((p) => p.file === 'nl/index.html')!.html).toContain('Free: één migratie tegelijk, tot 250 GB.');
+    expect(rendered.find((p) => p.file === 'index.html')!.html).toContain(
+      'Free: 6 migrations at the same time and up to 150 GB, at one pass a day.',
+    );
+    expect(rendered.find((p) => p.file === 'nl/index.html')!.html).toContain(
+      'Free: 6 migraties tegelijk en tot 150 GB, met één ronde per dag.',
+    );
     // And no page still names the tier Free replaced, or a setup fee.
     for (const page of rendered.filter((p) => !/^(nl\/)?(privacy|terms|voorwaarden|alpha)\.html$/.test(p.file))) {
       expect(page.html, `${page.file} still names Tiny`).not.toMatch(/\bTiny\b/);
@@ -989,5 +995,43 @@ describe('the pricing page opens on yearly, and compares only prices on sale now
       expect(html, `${file} names a former price`).not.toMatch(/\bwas €|\bnow only\b|\bvoorheen\b|\bnu slechts\b|van €\d[^<]*voor €/i);
       expect(html, `${file} counts down`).not.toMatch(/limited time|for a limited|tijdelijk|alleen vandaag|only today/i);
     }
+  });
+});
+
+describe('the pricing page asks its rules as questions (workplan 0152 T6 (b))', () => {
+  it('puts every rule under its heading in a question, answered word for word by its paragraph, in both languages', async () => {
+    const { COPY } = (await import('./copy.mjs')) as unknown as {
+      COPY: Record<'en' | 'nl', { pricingRules: { heading: string; questions: Array<[string, string]> } }>;
+    };
+    const pages = await renderedPages();
+    for (const [locale, file, source] of [
+      ['en', 'pricing.html', 'site/pages/en/pricing.md'],
+      ['nl', 'nl/prijzen.html', 'site/pages/nl/prijzen.md'],
+    ] as const) {
+      const { heading, questions } = COPY[locale].pricingRules;
+      // The leads in the source, in order: every bold-led paragraph under the heading.
+      const md = read(source);
+      const section = md.slice(md.indexOf(`## ${heading}`), md.indexOf('\n## ', md.indexOf(`## ${heading}`) + 1));
+      const leads = [...section.matchAll(/^\*\*([^*]+)\*\*/gm)].map((m) => m[1]!);
+      expect(leads.length, `${source}: the rules under "${heading}" are gone`).toBeGreaterThan(8);
+      const html = pages.find((p) => p.file === file)!.html;
+      const asked = [...html.matchAll(/<details class="qa"><summary>([^<]+)<\/summary><p><strong>([^<]+)<\/strong>/g)].map(
+        (m) => ({ question: m[1]!, lead: m[2]! }),
+      );
+      expect(asked.map((a) => a.lead), `${file}: not every rule became a question, in order`).toEqual(leads);
+      expect(asked.map((a) => [a.lead, a.question])).toEqual(questions);
+      // A question is a question.
+      for (const a of asked) expect(a.question, `${file}: "${a.question}"`).toMatch(/\?$/);
+    }
+  });
+
+  it('keeps the exception to "finishing lowers your bill" within three answers of it', async () => {
+    const html = (await renderedPages()).find((p) => p.file === 'pricing.html')!.html;
+    const answers = [...html.matchAll(/<details class="qa">[\s\S]*?<\/details>/g)].map((m) => m[0]);
+    const finishing = answers.findIndex((a) => a.includes('Finishing lowers your bill'));
+    const unless = answers.findIndex((a) => a.includes('Unless you ask us to keep copying'));
+    expect(finishing).toBeGreaterThan(-1);
+    expect(unless - finishing, 'the exception drifted away from the answer it qualifies').toBeGreaterThan(0);
+    expect(unless - finishing).toBeLessThan(4);
   });
 });

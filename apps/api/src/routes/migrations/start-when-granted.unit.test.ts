@@ -221,15 +221,30 @@ describe('a grant lands on a migration of a person whose move was started', () =
   });
 
   it('past the agreed tier, leaves it a draft and throws nothing: the owner is asked at Start (0109 T6)', async () => {
-    // Without the room this file's setup agreed to, Anna's three slots are
-    // past Free's one already, and the draft would add a fourth.
+    // Without the room this file's setup agreed to, and with three more kinds
+    // running in the Google migration of Anna's that runs, Anna's six slots
+    // are as many as Free runs already, and the draft would add a seventh.
     await q('DELETE FROM data_allowance WHERE tenant_id = $1', [TENANT]);
     try {
+      for (const domain of ['calendar', 'contact', 'file']) {
+        await q(`INSERT INTO scope_selection (tenant_id, mapping_id, domain, included) VALUES ($1,$2,$3,true)`, [
+          TENANT,
+          ALSO_RUNNING,
+          domain,
+        ]);
+        await q(
+          `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state, first_activated_at, updated_at)
+           VALUES ($1,$2,$3,'active',now(),now())`,
+          [TENANT, ALSO_RUNNING, domain],
+        );
+      }
       expect(await startWhenGranted(driver, { tenantId: TENANT, mappingIds: [DRAFT] })).toEqual([]);
       expect(await statusOf(DRAFT)).toBe('paused');
       expect(await q('SELECT state FROM path_lifecycle WHERE mapping_id = $1', [DRAFT])).toEqual([]);
       expect(enqueued).toEqual([]);
     } finally {
+      await q(`DELETE FROM path_lifecycle WHERE mapping_id = $1 AND domain <> 'email'`, [ALSO_RUNNING]);
+      await q(`DELETE FROM scope_selection WHERE mapping_id = $1 AND domain <> 'email'`, [ALSO_RUNNING]);
       await q(
         `INSERT INTO data_allowance (tenant_id, kind, tier_id, band_gb, price_eur, consented_by)
          VALUES ($1, 'tier', 'xl', 15000, 0, 'room for the test')`,

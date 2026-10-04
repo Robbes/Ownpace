@@ -15,6 +15,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Pool } from 'pg';
+import { MANAGED_TIERS } from '@openmig/managed';
 import {
   ALLOWANCE_CLEARED_ACTION,
   ALLOWANCE_SET_ACTION,
@@ -28,6 +29,8 @@ const TENANT = '7c1c0000-e29b-41d4-a716-446655440001';
 const NOBODY = '7c1c0000-e29b-41d4-a716-446655440099';
 const BY = 'operator.sh it@test';
 const NOW = new Date();
+/** Free's number, as the tier table holds it (ADR-0014): what stands when nothing is set. */
+const ON_FREE = MANAGED_TIERS.find((t) => t.id === 'free')!.paths;
 
 let pool: Pool;
 
@@ -60,7 +63,7 @@ describe('operator.sh links, on a real database', () => {
   it('shows an organisation that has run nothing on Free, and writes nothing', async () => {
     const got = await runLinksCommand(pool, { kind: 'show', tenantId: TENANT }, BY, NOW);
 
-    expect(got).toMatchObject({ name: 'Example Works BV', live: 0, limit: { limit: 1, from: { kind: 'tier' } } });
+    expect(got).toMatchObject({ name: 'Example Works BV', live: 0, limit: { limit: ON_FREE, from: { kind: 'tier' } } });
     expect(await audit()).toEqual([]);
   });
 
@@ -75,7 +78,7 @@ describe('operator.sh links, on a real database', () => {
     );
 
     expect(got.limit).toEqual({ limit: 30, from: { kind: 'override', until } });
-    expect(got.tierLimit.limit).toBe(1);
+    expect(got.tierLimit.limit).toBe(ON_FREE);
     expect(got.allowance).toMatchObject({ liveLinks: 30, setBy: BY, note: 'an onboarding week' });
     expect(await audit()).toEqual([
       {
@@ -92,7 +95,7 @@ describe('operator.sh links, on a real database', () => {
     const cleared = await runLinksCommand(pool, { kind: 'clear', tenantId: TENANT }, BY, NOW);
 
     expect(cleared.allowance).toBeUndefined();
-    expect(cleared.limit.limit).toBe(1);
+    expect(cleared.limit.limit).toBe(ON_FREE);
     const actions = (await audit()).map((r) => [r.action, r.detail]);
     expect(actions.slice(-2)).toEqual([
       [ALLOWANCE_SET_ACTION, { liveLinks: 5, until: null }],
