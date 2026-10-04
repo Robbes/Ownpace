@@ -230,15 +230,20 @@ describe('nobody is moved below admin', () => {
  * The Team page says, in `tenants.invite.adminCan`, that an admin can do
  * everything an owner can except close or reopen the organisation, turn
  * deleting by hand or the automatic removal of moved files' old copies on or
- * off (`allowApplyDeletions`, `autoApplyRelocations`), and make somebody an
- * owner. That sentence is true only while the owner-only doors are exactly
- * those, and the web test that holds it compares the string with a copy of
- * itself. T2 adding a `requireRole('owner')` route, or T3 (b) making "an admin
- * cannot demote or remove an owner" true, would make it false with every test
- * green. So the doors are read here from `apps/api/src/routes`: every
- * `requireRole` whose roles are `owner` alone, and every place a route reads
- * the caller's role itself (`req.userRole`), which is how granting owner is
- * refused to an admin.
+ * off (`allowApplyDeletions`, `autoApplyRelocations`), make somebody an
+ * owner, and change or remove an owner. That sentence is true only while the
+ * owner-only doors are exactly those, and the web test that holds it compares
+ * the string with a copy of itself. T2 adding a `requireRole('owner')` route
+ * would make it false with every test green. So the doors are read here from
+ * `apps/api/src/routes`: every `requireRole` whose roles are `owner` alone,
+ * and every place a route decides by the caller's role itself, which is how
+ * granting owner, and changing or removing an owner, are refused to an admin.
+ * A route reads that role as `authenticate` found it (`req.userRole`), or, in
+ * the members PATCH and DELETE, from the owner rows it has locked
+ * (`requesterIsOwner` passed to a guard), so an owner demoted while the
+ * request waited is not one (review of 2026-10-04). T3 (c) added changing and
+ * removing an owner on 2026-10-04, and this list failed until the line named
+ * them.
  */
 describe('what only an owner can do, as the admin line says', () => {
   const ROUTES = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -303,13 +308,19 @@ describe('what only an owner can do, as the admin line says', () => {
       const route = routeAt(text, read.index) ?? `outside a route, line ${line(read.index)}`;
       found.push(`reads the caller's role: ${name} ${route} (${via})`);
     }
+    // The same decision, read from the locked rows: every call (not a
+    // declaration) that is handed `requesterIsOwner`.
+    for (const call of text.matchAll(/(?<!function\s+)\b(\w+)\([^()]*\brequesterIsOwner\b[^()]*\)/g)) {
+      const route = routeAt(text, call.index) ?? `outside a route, line ${line(call.index)}`;
+      found.push(`reads the caller's role: ${name} ${route} (${call[1]})`);
+    }
   }
 
   it('reads every requireRole it finds', () => {
     expect(unreadable, 'a requireRole whose roles this guard cannot read: teach it, or name them').toEqual([]);
   });
 
-  it('finds closing, reopening, deleting, the two deletion flags and granting owner, and nothing else', () => {
+  it('finds closing, reopening, deleting, the two deletion flags, granting owner and changing or removing an owner, and nothing else', () => {
     expect(found.sort(), REVISIT).toEqual(
       [
         // Deleting answers the owner 410: closing is how an organisation ends.
@@ -321,6 +332,9 @@ describe('what only an owner can do, as the admin line says', () => {
         // Granting owner, by invitation or by a role change.
         "reads the caller's role: tenants/members.ts POST / (grantsOwnerWithoutPermission)",
         "reads the caller's role: tenants/members.ts PATCH /:memberId (grantsOwnerWithoutPermission)",
+        // Changing or removing an owner (0137 T3 (c)).
+        "reads the caller's role: tenants/members.ts PATCH /:memberId (changesOwnerWithoutPermission)",
+        "reads the caller's role: tenants/members.ts DELETE /:memberId (changesOwnerWithoutPermission)",
         // Not a door: a problem report writes the caller's role into its facts
         // (0130 T6), and neither route decides anything by it.
         "reads the caller's role: problem-reports.ts GET /preview (serverFacts)",

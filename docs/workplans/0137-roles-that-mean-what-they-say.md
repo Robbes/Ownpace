@@ -2,7 +2,96 @@
 
 > **In one line:** Role enforcement in the managed API: a role matrix amending ADR-0035, `requireRole` on write routes with a route-table guard, owner-role guards, audit rows for deletes, credential swaps and cutover preparation, viewer-aware web buttons.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-10-04 (update this block at the end of every session)
+
+**2026-10-04: T3 (b) and (c), decided and built on branch
+`claude/ownpace-public-readiness-y7orc6-the-owner-guarded-on-every-door`, not merged.** The owner was asked
+*"0137 T3 is still 'Proposed'. What should I build?"* and answered *"(b) and (c) together
+(Recommended)"*. The option not chosen was *"(b) only"*.
+
+- **(b) Only an active owner counts.** The count reads `status = 'active'`, as `other_owners`
+  in `operator.ts` does, and the guard protects only an active owner. So an invitation as owner
+  or a declined owner row no longer keeps an organisation owned, and the one active owner can
+  still withdraw either. PATCH and DELETE each run in one `withTenantDb` transaction. It locks
+  the organisation's owner rows, whatever their status, and the target with `SELECT … FOR
+  UPDATE` (`lockOwnersAndTarget` in `members.ts`), decides, then writes. DELETE writes its
+  `member.removed` record in the same transaction, as before.
+- **(c) Only an owner can demote or remove an owner.** `changesOwnerWithoutPermission` in
+  `member-guards.ts`. An admin's PATCH or DELETE on an owner row answers 403 before any write:
+  *"Only an owner can change an owner's role"* or *"Only an owner can remove an owner"*. The
+  order is: not found (404), self-removal (400, DELETE), granting owner (403, PATCH), changing an
+  owner (403), last active owner (400). So an admin gets 403 whatever the count. Every message
+  the web or the operator docs quote is kept.
+- **Who is an owner is read from the locked rows** (review of 2026-10-04). Both owner checks,
+  granting owner and changing an owner, ask `isActiveOwnerAmong` in `member-guards.ts` whether
+  the caller's own row is among the locked rows as an active owner. They no longer use the role
+  `authenticate` read before the lock. Before this, an owner demoted or removed while their
+  request waited could still demote or remove a third owner, or make themselves owner again.
+  Now that request answers 403. Two owners demoting or removing each other at once give `[200,
+  403]` and `[204, 403]`: the loser is no longer an owner when its turn comes. So DELETE's
+  *"Cannot remove the last owner"* is reached by no request now: the caller is an active owner
+  other than the target, so two are left. It stays as defence in depth. PATCH's *"Cannot demote
+  the last owner"* is still reached when the one active owner demotes themselves.
+  `docs/managed-bring-up.md` §8 and the comments in `operator.ts` say an admin removing a sole
+  owner now gets *"Only an owner can remove an owner"*.
+- **Confirmed by the owner: an admin may no longer withdraw an invitation as owner.** It
+  answers 403; on `main` it answers 204. The owner's first answer said an owner can still
+  withdraw one, and not whether an admin may, so it was asked as open question 5. The owner
+  answered the same day: *"0137, open question 5: no"*, which is (a), as built.
+- **A member id in capitals.** The lock finds the target by Postgres's uuid comparison, as GET
+  does, not by comparing strings in JavaScript. An id in capitals answered 404 on PATCH and
+  DELETE in the first build on this branch.
+- **The admin line follows the code.** `tenants.invite.adminCan` now ends *"make somebody an
+  owner, and change or remove an owner"* / *"iemand eigenaar maken en een eigenaar een andere
+  rol geven of verwijderen"*. The route-reading case in
+  `a-role-that-promises-less-than-it-allows.unit.test.ts` failed on the two new reads of the
+  caller's role, as it was written to, and now names them. Since the review it also finds every
+  guard handed `requesterIsOwner`, the locked rows' answer; it lost the PATCH and DELETE doors
+  until it did. `docs/managed-bring-up.md` §8c and the OpenAPI entries for the two routes say
+  the same. Those entries also said `409` and `200` where the routes answer `400` and `204`.
+- **`a-member-removed-is-recorded.unit.test.ts` changed with the route.** Its sign-in between
+  the read and the delete can no longer land there: the read and the delete are one locked
+  transaction. The case now fails if they are split again. Its refused removal is an admin's
+  (403) and the owner's own (400).
+- **Not changed: the Alpha conditions.** §8 of `site/legal/alpha.md` and `alpha.nl.md` still
+  ends the admin clause with *"and make somebody an owner"*. It now leaves out that an admin
+  cannot change or remove an owner. It is the owner's text, version 1.0, pinned in
+  `ACCEPTED_WORDS`, so the words are the owner's to change. 0139's Status says so too.
+- **The Team page follows (c).** On an owner's row, active, invited or declined, an admin now
+  sees the role as text, as a member or viewer does, and no Remove (`canChangeRow` in
+  `Tenants.tsx`). Before, the admin got an enabled role select and a Remove there, and both
+  always answered 403. An owner keeps both on another owner's row, an admin keeps both on an
+  admin's row, and *Send again* on an open invitation as owner stays: it is not part of (c).
+  Guard: `a-role-that-promises-less-than-it-allows.unit.test.tsx`, five cases, each in English
+  and Dutch. They are T3's, not T7's, so they stay when T2's PR undoes T7. On the page before this change 6 failed and 17 passed of 23; after, 23 of 23. Each
+  change below was made for one run and then undone. Leaving the role select, or leaving the
+  Remove, fails 6. Hiding both from an owner too fails 3. Hiding them only on an active owner's
+  row fails 4. The owner answered open question 5 with (a), so an invitation as owner keeps
+  neither control for an admin.
+- **Left for T5: other refusals read in English.** Every refusal but `owner_or_admin_only` (T7)
+  still shows the server's sentence as it is, in the Dutch interface too, such as *"Cannot
+  demote the last owner"*.
+- **Proved.** Red before, on `main`'s route and guards with this branch's tests:
+  `members.integration.test.ts` 14 failed and 23 passed of 37, and `member-guards.unit.test.ts`
+  10 failed and 8 passed of 18. After: 37 of 37 and 18 of 18. The integration file ran against
+  a local Postgres (`scripts/local-pg.sh`). The new cases each use an organisation of their
+  own. Two race cases hold the owner rows locked on the test's own connection until both
+  requests wait behind the lock, then let go. On the old route both writes landed, `[200, 200]`
+  and `[204, 204]`, and no active owner was left. On the new route one passes and the other
+  answers 403. Three more cases hold the owner rows, send one owner's request, and demote or
+  remove that owner on the test's connection first. With three owners the count never stops
+  them. On the first build on this branch, which read the caller's role from `authenticate`,
+  they answered 200, 204 and 200, and the case with an id in capitals answered 404: 6 failed
+  and 31 passed of 37, and the unit file 5 failed and 13 passed of 18. Each change below was
+  made for one run and then undone. With `.for('update')` taken out, the two race cases and
+  the three held-row cases fail (5). Counting every owner row fails 3, and 1 unit case. The
+  caller's role from `authenticate` again fails the same 5. Applying PATCH's 403 only to an
+  active owner, checking the last owner before the 403, or protecting any owner row as the last
+  one each fail 1 or 2. The owner-invites-owner case leaves its invitation beside the old
+  last-owner case, which failed on the old route.
+- **Left open: the invite route.** POST still reads the caller's role as `authenticate` found
+  it, as every `requireRole` does. An owner demoted while their invitation as owner is on its
+  way can still send it. It is an invitation, not an owner, and an owner can withdraw it.
 
 **2026-10-03: which errors an owner sees, decided and built** (the first item under *Not in this
 plan*). The owner chose ADR-0035 decision 5's option C: the provider's text and the items' names
@@ -137,7 +226,7 @@ links, and until T2 lands the product offers owner and admin only.
 | T0 The alpha rule for a second person in a tester's organisation | ✅ **Answered 2026-09-28: (b)**, *"6. The Roles (0137 T0): b"* | §4 and open question 1. Testers add nobody and share progress links, and T7 keeps the product from offering a role that promises less than it allows. The sentence goes to 0139's alpha conditions, with T7's checked wording for what an admin can do. |
 | T1 The role matrix, written down | 📋 **Proposed** (D1, D2) | §3. An amendment to ADR-0035: which acts are owner only, owner and admin, or open to every role, and what a member may do that a viewer may not. |
 | T2 Every write route names its roles, and a guard fails when one does not | 📋 **Proposed** (D2) | §3. Named role constants on 34 of the 36 ungated writes, and an allowlist with reasons for the other two; a route-table guard in `scripts/` that fails today. |
-| T3 The owner role is guarded on every door | 📋 **Proposed**; (a) the invite half ✅ **done** in #1137, merged 2026-09-24 | §3. An admin cannot invite as owner (done). The last-owner guard counts active owners only, in one transaction. An admin cannot demote or remove an owner (with T1). |
+| T3 The owner role is guarded on every door | 🔨 **(b) and (c) decided 2026-10-04 and built on branch `claude/ownpace-public-readiness-y7orc6-the-owner-guarded-on-every-door`, not merged**; (a) the invite half ✅ **done** in #1137, merged 2026-09-24 | §3. An admin cannot invite as owner (done). The last-owner guard counts active owners only, in one locked transaction. Only an owner can demote or remove an owner; an admin gets 403. The owner's answer: *"(b) and (c) together (Recommended)"*, not *"(b) only"*. |
 | T4 Who deleted it, who replaced the password, who prepared the cutover | 📋 **Proposed** | §3. An `audit_log` row with the actor for deleting a migration or a connection, replacing credentials, and preparing a cutover. |
 | T5 The web app shows a viewer no button it cannot press | 📋 **Proposed**, after T2 | §3. One table in the web app that mirrors T1, checked against the API's. |
 | T6 A viewer and a member are refused, and a test says so | 📋 **Proposed**, with T2 | §3. 403 cases for every gated write, driven by T2's table; the migrations suite stops asserting that a member may delete. |
@@ -364,7 +453,7 @@ The proposal, for the owner to confirm or change (open questions 2 and 3):
 |---|---|---|---|
 | Close, reopen or delete the organisation | `tenants/:id` DELETE, `…/close`, `…/reopen` | owner | owner |
 | Allow deletions on a migration | `PATCH migrations/:id/apply-deletions` | owner | owner |
-| Grant the owner role; change or remove an owner | members POST, PATCH, DELETE | owner for a PATCH grant only | owner (T3) |
+| Grant the owner role; change or remove an owner | members POST, PATCH, DELETE | owner (grant since #1137; change or removal since 0137 T3 (c)) | owner (T3) |
 | Remove from the target | `…/deletions/:hash/apply`, `…/moves/:hash/apply` | every role, once allowed | owner |
 | End a migration over unresolved failures | `…/finish?force=true` | every role | owner |
 | Delete a migration | `DELETE migrations/:id` | every role | owner |
@@ -431,6 +520,21 @@ T2 and T6 are one PR: the gate without the tests is unproven, and the tests with
   `member-guards.ts` change their inputs, so their unit tests change with them.
 - **(c) An admin cannot demote or remove an owner** (T1's row). One more pure helper in
   `member-guards.ts`, applied in PATCH and DELETE.
+
+**Decided 2026-10-04: (b) and (c) together.** Asked *"0137 T3 is still 'Proposed'. What should
+I build?"*, the owner answered *"(b) and (c) together (Recommended)"*, described as: *"(b) The
+last-owner guard counts active owners only, in one locked transaction, so a pending or declined
+invitation never counts and two demotions at once cannot both pass. (c) Only an owner can demote
+or remove an owner; an admin gets a 403. An owner can still withdraw a pending owner
+invitation."* The option not chosen was *"(b) only"*. Built on branch
+`claude/ownpace-public-readiness-y7orc6-the-owner-guarded-on-every-door`, not merged; the Status block says what was proved.
+
+Who is an owner, for (c) and for granting owner, is read from the same locked rows, not from the
+role `authenticate` read before the lock (review of 2026-10-04). So an owner demoted or removed
+while their request waited is refused as an admin is, and two demotions at once cannot both pass
+with three owners either. DELETE's last-owner refusal is then reached by no request: it stays as
+defence in depth. An admin withdrawing an invitation as owner gets 403 (on `main`, 204). The
+owner confirmed that reading of (c) on 2026-10-04 (open question 5: *"no"*).
 
 Guards, in `members.integration.test.ts`. These fail on today's tree: demoting the only active
 owner while an owner invitation is pending answers 400 (today 200); the same with a declined owner
@@ -624,6 +728,15 @@ last, because it mirrors T2's table.
    deletions. Proposed in addition: apply a deletion or a move, finish over unresolved failures,
    delete a migration, and change or remove an owner. *Recommended:* yes to all of them.
    Preparing a cutover stays owner and admin, since executing it is the operator's step. The
-   owner may prefer owner only.
+   owner may prefer owner only. Changing or removing an owner was decided on its own on 2026-10-04,
+   with T3 (c).
 4. **Membership changes in the audit log (T4)?** Invitations, role changes and removals are not
    recorded today. *Recommended:* yes, in the same PR as T4.
+5. **May an admin withdraw an invitation as owner (T3 (c))?** ✅ **Answered 2026-10-04: (a).**
+   The owner: *"0137, open question 5: no"*. Asked after the build, because the owner's answer
+   on T3 said an owner can still withdraw one, and not whether an admin may.
+   - **(a)** No: 403. The invitation is a grant an owner made, so only an owner undoes it.
+     *Built* on T3's branch.
+   - **(b)** Yes: 204, as on `main`. An invitation is not an owner yet, and withdrawing it takes
+     power from nobody. Then PATCH should let an admin change one too, and the Team page should
+     offer an admin the role select and Remove on an invitation as owner again.
