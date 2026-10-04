@@ -4,6 +4,33 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04: the owner chose the recommendations for the wizard's four (open question 5).**
+*"go with the recommendations"*. The build, in this order, each its own pull request:
+
+1. The two Microsoft tenant fixes, below, with this record.
+2. Mail through an organisation's own Microsoft app, behind the company question.
+3. Takeout's photos as a tick box under Google; Apple's export as its line; the separate
+   export line goes.
+4. The single-purpose Google Calendar and Contacts cards retired for new migrations.
+5. The four settings: the folder prefix on screen 5, the root folder on screen 3, *Rename* on
+   the migration page, and no TLS switch on managed.
+6. *Other ways to connect* without the wizard, and the two texts that promise CalDAV and
+   CardDAV sources.
+7. The reachability test through `/start`, and then the wizard retires (D5).
+
+**The first pull request fixes the two Microsoft defects** found while answering open
+question 5:
+
+- **The consent asks in the registration's own directory.** A tenant typed beside the person's
+  own pair goes with the consent, in both doors, so a single-tenant registration no longer gets
+  *application not found* from `common`.
+- **Replacing a Microsoft account's token keeps its tenant.** The rotation keeps the stored
+  tenant when the same registration is rotated (the same client id, or the deployment's on both
+  sides). A different pair brings its own tenant, or none.
+- **Proved by** `a-microsoft-consent-in-its-own-directory` (2 cases) and
+  `a-rotation-that-kept-its-directory` (5). Three mutations are caught: the rotation ignoring
+  the kept tenant, any pair inheriting it, and the consent sending none.
+
 **2026-10-04: where the wizard's four go, with options for the owner (open question 5).** The
 owner asked whether the plan placed the four, and if it did not, for options and a
 recommendation, with a suggestion of their own for each.
@@ -1553,8 +1580,8 @@ pages. `a-class-tailwind-draws-nothing-for.unit.test.ts` catches a class that re
      titles change. Nothing built depends on it yet.
 3. ~~**T0 (c):** *Accounts* instead of *Connections*?~~ **Answered 2026-09-28 (D7):** yes.
 4. ~~**T3 (b):** does the Dashboard go?~~ **Answered 2026-09-28 (D7):** yes.
-5. **Retiring the wizard (D5): where its four go.** Asked 2026-10-04; options and
-   recommendations the same day. The plan drops none of the four. Each is read below against the
+5. ~~**Retiring the wizard (D5): where its four go.**~~ **Answered 2026-10-04:** *"go with the
+   recommendations"*. Asked 2026-10-04; options and recommendations the same day. The plan drops none of the four. Each is read below against the
    plan, the code, and the research of 2026-10-04 into how other migration tools present it.
    That research found the same pattern in tool after tool:
    - they default to their own app, and the customer's own registration is a separate method for

@@ -1346,7 +1346,13 @@ const CreateMapping: React.FC = () => {
       const beginConsent: Record<string, () => Promise<{ url: string; redirectUri?: string }>> = {
         dropbox: () => mappingApi.dropboxAuthorize({ ...ownClientPair, locale }),
         microsoft: () =>
-          mappingApi.microsoftAuthorize({ domains: formData.domains, ...ownClientPair, locale }),
+          mappingApi.microsoftAuthorize({
+            domains: formData.domains,
+            ...ownClientPair,
+            // A single-tenant registration consents in its own directory.
+            ...(formData.sourceTenantId.trim() ? { tenantId: formData.sourceTenantId.trim() } : {}),
+            locale,
+          }),
         google: () =>
           mappingApi.googleAuthorize(
             isGoogleAccountSource
