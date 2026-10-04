@@ -4,7 +4,7 @@ Een Dropbox-migratie meldt zich aan met een Dropbox-app, die van deze dienst als
 
 ## Wat u nodig hebt {#before}
 
-- Het Dropbox-account waarvan de bestanden verhuizen, en de aanmelding ervan.
+- Het Dropbox-account waarvan u de bestanden migreert, en de aanmelding ervan.
 - Moet er maar één map mee: het pad ervan, zoals `/Team Docs`.
 
 ## Koppelen {#connect}
@@ -15,9 +15,9 @@ Bij **Uw accounts verbinden** vraagt het formulier van Dropbox het adres van het
 
 **De korte weg: druk op Verbinden met Dropbox.** Heeft deze dienst een eigen Dropbox-app, dan tonen **Migratie starten** en de pagina **Accounts** een knop **Verbinden met Dropbox** onder het adres. De knop opent het toestemmingsscherm van Dropbox voor het account dat u migreert. Keurt dat account het goed, dan komt het refresh-token vanzelf in het veld, en wordt het account in één keer bewaard en getest. U typt niets, en het geheim van de app verlaat de server niet. U kunt ook uw eigen app gebruiken: open **Uw eigen Dropbox-app gebruiken** en vul de **App-sleutel** en het **Clientgeheim** in, als paar. [Met een eigen app](#own-app) heeft de stappen.
 
-Wilt u één map verhuizen in plaats van de hele Dropbox, kies dan **Alleen één map**, onder **Bestanden** bij **Wat wilt u migreren?**. Is het account verbonden, typ dan het pad van de map, plak het adres van de map van de website van Dropbox, of druk op **Gedeelde mappen tonen** en kies een map die aan het account is toegevoegd. De pagina van de migratie zegt daarna uit welke map de bestanden worden gelezen. De boom komt in beide gevallen op dezelfde manier aan.
+Wilt u één map migreren in plaats van de hele Dropbox, kies dan **Alleen één map**, onder **Bestanden** bij **Wat wilt u migreren?**. Is het account verbonden, typ dan het pad van de map, plak het adres van de map van de website van Dropbox, of druk op **Gedeelde mappen tonen** en kies een map die aan het account is toegevoegd. De pagina van de migratie zegt daarna uit welke map de bestanden worden gelezen. De boom komt in beide gevallen op dezelfde manier aan.
 
-Een **gekoppelde gedeelde map** staat in de boom van het account en verhuist zoals elke andere map: het pad ervan is een geldig pad voor een map. **Gedeelde mappen tonen** toont wat het account kan zien, met de paden erbij; een gedeelde map die niet is gekoppeld, staat erbij als niet aan deze Dropbox toegevoegd, want ze heeft geen pad tot het account haar toevoegt.
+Een **gekoppelde gedeelde map** staat in de boom van het account en gaat mee zoals elke andere map: het pad ervan is een geldig pad voor een map. **Gedeelde mappen tonen** toont wat het account kan zien, met de paden erbij; een gedeelde map die niet is gekoppeld, staat erbij als niet aan deze Dropbox toegevoegd, want ze heeft geen pad tot het account haar toevoegt.
 
 Op de pagina **Accounts** heeft het formulier van Dropbox ook een veld **Pad van de hoofdmap**. Is het leeg, dan lezen de migraties van het account de hele Dropbox; een pad beperkt ze tot die map.
 

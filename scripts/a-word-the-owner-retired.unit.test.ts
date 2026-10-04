@@ -18,6 +18,12 @@
  * (`docs/cutover-communication-templates.md`, which a test holds to the
  * rendered subjects).
  *
+ * THE DUTCH GUIDES ARE THE PRODUCT'S TOO. `Docs.tsx` inlines
+ * `docs/guides/nl` at build time, and since 2026-10-04 a visitor without an
+ * account reads them from the site's Leaving pages (0152). They said a form
+ * of the word 24 times, and nothing read them, so every guide in that
+ * directory is read now.
+ *
  * TEST FILES ARE NOT READ: a fixture may name a town *Verhuisd*
  * (`billing-party.unit.test.ts` does), and a guard's own pattern would find
  * itself. Nothing else is excused.
@@ -60,8 +66,20 @@ function productSources(): string[] {
   return out;
 }
 
+/** Every Dutch guide `Docs.tsx` shows, `docs/guides/nl/*.md`. */
+function dutchGuides(): string[] {
+  const dir = join(ROOT, 'docs', 'guides', 'nl');
+  return readdirSync(dir)
+    .filter((name) => name.endsWith('.md'))
+    .map((name) => join(dir, name));
+}
+
 describe('no form of verhuizen where the product speaks Dutch (0152 D6)', () => {
-  const files = [...productSources(), join(ROOT, 'docs', 'cutover-communication-templates.md')];
+  const files = [
+    ...productSources(),
+    join(ROOT, 'docs', 'cutover-communication-templates.md'),
+    ...dutchGuides(),
+  ];
 
   it('reads the files the Dutch lives in, so an empty walk cannot pass', () => {
     const read = files.map((f) => relative(ROOT, f));
@@ -71,6 +89,8 @@ describe('no form of verhuizen where the product speaks Dutch (0152 D6)', () => 
       'packages/shared/src/share-announcement.ts',
       'packages/shared/src/erasure-scope.ts',
       'docs/cutover-communication-templates.md',
+      'docs/guides/nl/google.md',
+      'docs/guides/nl/archive.md',
     ]) {
       expect(read, `the walk missed ${known}`).toContain(known);
     }

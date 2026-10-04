@@ -1,17 +1,17 @@
 # Exportarchief — een Google Takeout of een Apple-export
 
-Sommige van uw gegevens kunt u niet verhuizen door een account te koppelen, omdat het bedrijf dat ze bewaart geen enkele manier biedt waarop een ander programma ze kan lezen. **Google Foto's** en **iCloud Drive** zijn de twee die het meest uitmaken: er is geen sleutel die u ons kunt geven om ze te openen.
+Sommige van uw gegevens kunt u niet migreren door een account te koppelen, omdat het bedrijf dat ze bewaart geen enkele manier biedt waarop een ander programma ze kan lezen. **Google Foto's** en **iCloud Drive** zijn de twee die het meest uitmaken: er is geen sleutel die u ons kunt geven om ze te openen.
 
-Wat beide bedrijven wel bieden, is een kopie voor **uzelf**. U vraagt erom, zij maken een download klaar, en een paar dagen later hebt u uw foto's en bestanden als gewone bestanden. Deze handleiding gaat over het krijgen van die download, over hoe u ons ernaar wijst, en over wat er gebeurt als u hem verhuist.
+Wat beide bedrijven wel bieden, is een kopie voor **uzelf**. U vraagt erom, zij maken een download klaar, en een paar dagen later hebt u uw foto's en bestanden als gewone bestanden. Deze handleiding gaat over het krijgen van die download, over hoe u ons ernaar wijst, en over wat er gebeurt als u hem migreert.
 
-Een export is een **momentopname**. Hij bevat alles tot de dag waarop hij werd klaargemaakt en niets daarna, en dat is goed om te weten voordat u begint: maak de export als u klaar bent om te verhuizen, niet maanden van tevoren.
+Een export is een **momentopname**. Hij bevat alles tot de dag waarop hij werd klaargemaakt en niets daarna, en dat is goed om te weten voordat u begint: maak de export als u klaar bent om te migreren, niet maanden van tevoren.
 
 ## Wat u nodig hebt {#before}
 
 Twee dingen, en geen van beide is een wachtwoord:
 
 - **Welke export**: Google Takeout, of Apple Data & Privacy. Daaraan zien wij hoe we hem moeten lezen: de twee zijn vanbinnen heel anders ingedeeld, en aan de bestanden zelf is het niet te zien.
-- **Waar het archief staat**: de `.zip` die u downloadde, de map waarin u de delen zette, of de map waarin u hem uitpakte. Een download in meerdere delen: een van de delen, of de map waarin ze staan, en wij lezen ze allemaal. Die map mag in de Nextcloud- of WebDAV-bestanden staan waar u naartoe verhuist: zie [Uw export in uw eigen Nextcloud](#own-nextcloud).
+- **Waar het archief staat**: de `.zip` die u downloadde, de map waarin u de delen zette, of de map waarin u hem uitpakte. Een download in meerdere delen: een van de delen, of de map waarin ze staan, en wij lezen ze allemaal. Die map mag in de Nextcloud- of WebDAV-bestanden staan waar u naartoe migreert: zie [Uw export in uw eigen Nextcloud](#own-nextcloud).
 
 Meer is het niet. Wij melden ons hiervoor nergens namens u aan, dus er is geen account om te koppelen en achteraf niets om in te trekken.
 
@@ -28,7 +28,7 @@ De sites van Google en Apple tonen hun knoppen in de taal van uw account; hieron
 3. Druk, nog binnen Google Photos, op **All photo albums included** en **vink Trash uit**. Daar staan de foto's die u verwijderde, en Google zet ze in de export zoals elk ander album. Deze lijst staat in het Engels, ook als de rest van Takeout in uw taal is.
 4. Druk op **Next step**.
 5. Kies hoe de export bij u komt. **Laat hem rechtstreeks naar Google Drive, Dropbox, OneDrive of Box sturen als u er een gebruikt**: het bestand is groot, en een levering in de cloud scheelt tientallen gigabytes downloaden en weer uploaden. Anders mailt Google u een link.
-6. Kies **Export once**, tenzij u nog foto's toevoegt en een reeks wilt: Google kan de export **elke twee maanden, een jaar lang** herhalen, wat past bij iemand die geleidelijk verhuist.
+6. Kies **Export once**, tenzij u nog foto's toevoegt en een reeks wilt: Google kan de export **elke twee maanden, een jaar lang** herhalen, wat past bij iemand die geleidelijk overstapt.
 7. Kies een bestandsgrootte. **Kies de grootste die uw verbinding aankan.** Google laat u per deel op een downloadknop drukken, dus een export van 45 GB in delen van 1 GB is zesenveertig keer drukken. Voor ons maakt de grootte niets uit: we houden nooit een heel deel in het geheugen, en delen boven 4 GB lezen we net zo als kleinere. Kleinere delen helpen alleen als uw verbinding halverwege een download wegvalt.
 8. Druk op **Create export**.
 
@@ -54,7 +54,7 @@ De stappen hieronder zijn hoe u Apple om een export vraagt, en wat u erover moet
 
 1. Ga naar **privacy.apple.com** en meld u aan met uw Apple-account.
 2. Kies **Request a copy of your data**.
-3. Vink aan wat u wilt. Voor het verhuizen van bestanden en foto's is dat **iCloud Drive files and documents** en **iCloud Photos**.
+3. Vink aan wat u wilt. Voor het migreren van bestanden en foto's is dat **iCloud Drive files and documents** en **iCloud Photos**.
 4. Kies een maximale bestandsgrootte: Apple biedt delen van **1, 2, 5, 10 of 25 GB**. Kies grotere delen, tenzij uw verbinding onbetrouwbaar is.
 5. Bevestig. Apple toont een pagina die u bedankt en zegt dat uw gegevens worden klaargemaakt.
 
@@ -86,7 +86,7 @@ In de contact- en agendagegevens die Apple exporteert, zijn **e-mailadressen ged
 2. Kies bij **Waar gaat het naartoe?** waar de foto's heen gaan: een Nextcloud, of een ander account waarvan de bestanden via WebDAV bereikbaar zijn. De export wordt gelezen uit een map `Takeout` bovenaan in diezelfde bestanden.
 3. Rond de stappen af. De migratie van de foto's wordt klaargezet en wacht op de export; de rest start zoals altijd. Tot u de migratie start, staat er **Wacht op de Takeout-export** bij.
 4. Is de export binnen, upload dan de `.zip`-bestanden, precies zoals Google ze leverde, naar die map `Takeout`. Zet er alle delen in, en niets anders.
-5. Open de migratie en druk op **Controleren en starten**. Die telt eerst wat er in de export zit, zodat u de gevonden foto's ziet voordat er iets verhuist.
+5. Open de migratie en druk op **Controleren en starten**. Die telt eerst wat er in de export zit, zodat u de gevonden foto's ziet voordat er iets wordt gekopieerd.
 
 De map mag de `.zip`-delen bevatten of wat ze uitgepakt opleveren: allebei werkt. Staan er twee verschillende exports in, dan wordt dat geweigerd en worden ze allebei genoemd, zodat we nooit de ene lezen en de andere weglaten.
 
@@ -98,7 +98,7 @@ Op een eigen appliance biedt de pagina **Accounts** het aan: druk op **Account t
 - **Waar de export staat**: **In een map in de bestanden van uw bestemming (Nextcloud of WebDAV)**, of **Op de schijf van deze appliance**.
 - De map, in een vak waarvan de naam die keuze volgt. **Map in de bestanden van uw bestemming**: de map zoals uw bestanden die tonen, vanaf de hoofdmap, zoals `Exports/takeout-20260904`, of één `.zip` daarin (zie [Uw export in uw eigen Nextcloud](#own-nextcloud)). **Waar het archief staat**, voor een schijf: de map waarin u de download uitpakte, of de `.zip` zelf.
 
-Druk dan op **Toevoegen en testen**. Testen verplaatst niets. Voor een export op een schijf opent het het archief en vertelt het u wat erin zit. Voor een export in de bestanden van uw bestemming zegt het dat de export bij de preflight wordt geteld, omdat de bestemming bij een migratie hoort en er tot dan nergens te kijken valt. Hoe dan ook weet u, voordat er iets verhuist:
+Druk dan op **Toevoegen en testen**. Testen verplaatst niets. Voor een export op een schijf opent het het archief en vertelt het u wat erin zit. Voor een export in de bestanden van uw bestemming zegt het dat de export bij de preflight wordt geteld, omdat de bestemming bij een migratie hoort en er tot dan nergens te kijken valt. Hoe dan ook weet u, voordat er iets wordt gekopieerd:
 
 - hoeveel items,
 - hoeveel bytes,
@@ -109,13 +109,13 @@ Elders biedt de pagina **Accounts** het niet aan: **Migratie starten** leest de 
 
 ### Uw export in uw eigen Nextcloud {#own-nextcloud}
 
-De export hoeft niet op een schijf te staan. Staan de bestanden waar u naartoe verhuist in een Nextcloud, of op een andere server die uw bestanden via WebDAV aanbiedt, dan kunt u de export daar neerzetten, en lezen wij hem uit die map. Zonder eigen appliance is dit de manier om ons een export te geven.
+De export hoeft niet op een schijf te staan. Staan de bestanden waar u naartoe migreert in een Nextcloud, of op een andere server die uw bestanden via WebDAV aanbiedt, dan kunt u de export daar neerzetten, en lezen wij hem uit die map. Zonder eigen appliance is dit de manier om ons een export te geven.
 
 **Uitpakken is niet nodig.** Upload de `.zip`-bestanden precies zoals Google ze leverde, alle delen in dezelfde map. Wij lezen ze waar ze staan, een paar megabyte tegelijk, en veranderen ze nooit. Hebt u de export al in die map uitgepakt, dan werkt dat ook.
 
 1. Vink bij **Wat wilt u migreren?** onder Google **Foto's: uit een Takeout-export** aan, en kies bij **Waar gaat het naartoe?** het Nextcloud- of WebDAV-account waar de foto's heen gaan. [Vanuit Migratie starten](#from-the-flow) beschrijft de hele weg.
 2. Upload de `.zip`-delen naar de map `Takeout`, bovenaan in de bestanden van datzelfde account. Doe dat zoals u altijd bestanden toevoegt, bijvoorbeeld via de website van Nextcloud of de desktopapp.
-3. Open de migratie en druk op **Controleren en starten**. Die telt wat er in de export zit, voordat er iets verhuist.
+3. Open de migratie en druk op **Controleren en starten**. Die telt wat er in de export zit, voordat er iets wordt gekopieerd.
 
 **Uw foto's komen aan als gewone bestanden en mappen.** Wat wij in uw bestanden schrijven, is nooit een `.zip`: elk album wordt een map, een foto in geen enkel album komt in een map voor zijn jaar, zoals `Photos from 2019`, en één bestand bovenaan somt alles op wat de export over elke foto wist. Zie [Waar alles terechtkomt](#where-things-land).
 
@@ -163,7 +163,7 @@ Kunnen we het archief niet openen, dan zeggen we dat en waarom: meestal omdat de
 
 Er is niets in te trekken: we hebben ons nergens namens u aangemeld. We lezen het archief alleen: de bestanden worden nooit gewijzigd, verplaatst of verwijderd, en we houden geen kopie van het archief zelf.
 
-Het blijft dus na de verhuizing staan waar u het neerzette, op een schijf of in een map van uw bestanden, en het is goed om te onthouden wat het is: een volledige, onversleutelde kopie van alles wat het bedrijf u gaf. Bewaar het ergens waar u ook uw foto's zou bewaren, of verwijder het als u zeker weet dat de verhuizing klaar is.
+Het blijft dus na de migratie staan waar u het neerzette, op een schijf of in een map van uw bestanden, en het is goed om te onthouden wat het is: een volledige, onversleutelde kopie van alles wat het bedrijf u gaf. Bewaar het ergens waar u ook uw foto's zou bewaren, of verwijder het als u zeker weet dat de migratie klaar is.
 
 ## Vragen die mensen stellen {#questions}
 
