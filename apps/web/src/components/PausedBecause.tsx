@@ -47,7 +47,9 @@ export const PausedBecause: React.FC<{
   variant?: 'banner' | 'inline';
 }> = ({ reason, variant = 'inline' }) => {
   const t = useT();
-  const { dateTime } = useFormatters();
+  const { dateTime, number } = useFormatters();
+  // Decimal, like the published table: 1 TB = 1000 GB.
+  const size = (gb: number): string => (gb >= 1000 ? `${number(gb / 1000)} TB` : `${number(gb)} GB`);
 
   // The sentence, through the one map, with whatever the reason carries.
   const sentence = ((): string => {
@@ -56,6 +58,25 @@ export const PausedBecause: React.FC<{
       // two sentences saying nearly the same thing is how a notice stops
       // being read.
       return reason.message ?? t(PAUSE_KEY[reason.kind]);
+    }
+    if (reason.kind === 'data-ceiling') {
+      // What waits, then both ways on with their prices: ADR-0014's hold is
+      // never a silent throttle (workplan 0109 T6).
+      return [
+        t(PAUSE_KEY[reason.kind], { ceiling: size(reason.ceilingGb), held: number(reason.held) }),
+        reason.moveUp
+          ? t('pause.dataCeiling.moveUp', {
+              tier: reason.moveUp.name,
+              setup: number(reason.moveUp.setupEur),
+              monthly: number(reason.moveUp.monthlyEur),
+            })
+          : '',
+        reason.topUp
+          ? t('pause.dataCeiling.topUp', { band: size(reason.topUp.bandGb), price: number(reason.topUp.priceEur) })
+          : '',
+      ]
+        .filter(Boolean)
+        .join(' ');
     }
     if (!reason.windowResetsAt) {
       // No window to name. "When it resets" rather than a time we would have

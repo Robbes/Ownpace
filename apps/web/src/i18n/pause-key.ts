@@ -22,6 +22,7 @@ import type { StringKey } from './strings.ts';
 export const PAUSE_KEY: Record<PauseReason['kind'], StringKey> = {
   'daily-download-ceiling': 'pause.ceiling',
   'operator-hold': 'pause.hold.default',
+  'data-ceiling': 'pause.dataCeiling',
 };
 
 /**
@@ -35,4 +36,5 @@ export const PAUSE_KEY: Record<PauseReason['kind'], StringKey> = {
 export const PAUSE_WHY_KEY: Record<PauseReason['kind'], StringKey> = {
   'daily-download-ceiling': 'pause.ceiling.why',
   'operator-hold': 'pause.hold.why',
+  'data-ceiling': 'pause.dataCeiling.why',
 };

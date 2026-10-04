@@ -134,6 +134,35 @@ describe('managed.yml hands the setting to both halves', () => {
   });
 });
 
+/**
+ * AND THE SYNC TASKS (workplan 0109 T6). The pass holds new first copies at an
+ * organisation's data ceiling, but not during the alpha, where the API takes
+ * no yes that would lift the hold. A task container inherits nothing from
+ * compose, so the stage reaches it only through `set-task-env.sh`; missed, the
+ * hold would stop a tester's migration at a price nobody can pay. And emptied,
+ * it must leave the store, or the hold would stay off after the alpha ended.
+ */
+describe('the sync tasks are handed it, and lose it when it is emptied', () => {
+  const setTaskEnv = read('deploy/compose/set-task-env.sh');
+
+  it('the pass reads it', () => {
+    expect(read('apps/worker/src/jobs/run-delta-sync.ts')).toMatch(
+      new RegExp(`holdsAtCeiling\\(process\\.env\\.${SETTING}\\)`),
+    );
+  });
+
+  it('set-task-env.sh uploads it when set', () => {
+    expect(setTaskEnv).toContain(`${SETTING}="\${${SETTING}:-}"`);
+    expect(setTaskEnv).toContain(`"${SETTING}",`);
+  });
+
+  it('and deletes it from the store when empty', () => {
+    expect(setTaskEnv).toMatch(
+      new RegExp(`if \\(!process\\.env\\.${SETTING}\\) \\{\\s*try \\{\\s*await envvars\\.del\\(ref, slug, "${SETTING}"\\)`),
+    );
+  });
+});
+
 describe('the web image passes it to Vite', () => {
   const dockerfile = read('apps/web/Dockerfile');
 

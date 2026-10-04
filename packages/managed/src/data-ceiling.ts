@@ -44,7 +44,8 @@
 
 import { asc, eq } from 'drizzle-orm';
 import type { PgDatabase } from '@openmig/ledger/db';
-import type { TenantId } from '@openmig/shared';
+import type { PauseReason, TenantId } from '@openmig/shared';
+import { PgBytesMovedStore } from './bytes-moved.ts';
 import { dataAllowance } from './schema-managed.ts';
 import { MANAGED_TIERS, type ManagedTier } from './tier-calculator.ts';
 
@@ -278,6 +279,58 @@ export function decideYes(ceiling: Ceiling, yes: Yes): YesDecision {
  */
 export function holdsAtCeiling(stage: string | undefined): boolean {
   return stage?.trim().toLowerCase() !== 'alpha';
+}
+
+/** Decimal, like the published table: the meter counts bytes, the table GB. */
+const BYTES_PER_GB = 1_000_000_000;
+
+/**
+ * The question a pass asks before each new first copy (the hold, workplan 0109
+ * T6): is the meter, with what this pass has copied so far, still below the
+ * ceiling? `PassClock.firstCopyAllowed` in the engine's words.
+ *
+ * Asked before the copy, so within one pass the copy that crosses the ceiling
+ * is the last one. A ceiling already reached when the pass starts holds every
+ * new first copy from the first.
+ *
+ * The meter is read when the data type's pass begins and added to when it
+ * ends, so passes of one organisation running at once each count from the
+ * meter as it stood then, and together can pass the ceiling by up to the room
+ * left, once per pass. That errs toward copying more than was paid for, never
+ * less: ADR-0014, "it must under-bill, never halt".
+ */
+export function firstCopyGate(ceiling: Ceiling): (firstCopyBytesThisPass: number) => boolean {
+  const before = ceiling.gbMoved * BYTES_PER_GB;
+  const room = ceiling.allowance.ceilingGb * BYTES_PER_GB;
+  return (firstCopyBytesThisPass) => before + firstCopyBytesThisPass < room;
+}
+
+/**
+ * What the migration's status says while new first copies wait: how many
+ * waited, the ceiling, and both ways on with their prices. ADR-0014: the hold
+ * is announced with both prices, never a silent throttle.
+ */
+export function ceilingHoldReason(ceiling: Ceiling, held: number): PauseReason {
+  return {
+    kind: 'data-ceiling',
+    ceilingGb: ceiling.allowance.ceilingGb,
+    held,
+    moveUp: ceiling.moveUp
+      ? { name: ceiling.moveUp.tier.name, setupEur: ceiling.moveUp.setupEur, monthlyEur: ceiling.moveUp.monthlyEur }
+      : null,
+    topUp: ceiling.topUp ? { bandGb: ceiling.topUp.bandGb, priceEur: ceiling.topUp.priceEur } : null,
+  };
+}
+
+/**
+ * The organisation's ceiling as it stands: its yeses and its meter, read in the
+ * caller's transaction (inside `withTenant`). The Billing page reads it, and so
+ * does each data type's pass before it starts, for the hold.
+ */
+export async function readCeiling(db: PgDatabase, tenantId: TenantId): Promise<Ceiling> {
+  const grants = await new PgDataAllowanceStore(db).grants(tenantId);
+  const bytes = await new PgBytesMovedStore(db).total(tenantId);
+  return ceilingOf(allowanceOf(grants), Number(bytes) / BYTES_PER_GB);
 }
 
 /** The yeses on record, oldest first. Call inside `withTenant`, like every store here. */

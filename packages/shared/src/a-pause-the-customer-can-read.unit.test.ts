@@ -46,14 +46,32 @@ describe('the meter’s report becomes a sentence a person can act on', () => {
   });
 });
 
+/** New first copies waiting at the data ceiling, with both ways on (0109 T6). */
+const AT_THE_CEILING = {
+  kind: 'data-ceiling',
+  ceilingGb: 750,
+  held: 3,
+  moveUp: { name: 'Medium', setupEur: 7, monthlyEur: 8 },
+  topUp: { bandGb: 750, priceEur: 8 },
+};
+
 describe('a reason read back out of jsonb is checked, never cast', () => {
-  it('accepts the two kinds', () => {
+  it('accepts the three kinds', () => {
     expect(isPauseReason({ kind: 'daily-download-ceiling', provider: 'x', windowResetsAt: null }))
       .toBe(true);
     expect(isPauseReason({ kind: 'operator-hold', since: '2026-09-08T00:00:00.000Z' })).toBe(true);
     expect(
       isPauseReason({ kind: 'operator-hold', since: '2026-09-08T00:00:00.000Z', message: 'back soon' }),
     ).toBe(true);
+    expect(isPauseReason(AT_THE_CEILING)).toBe(true);
+    expect(isPauseReason({ ...AT_THE_CEILING, moveUp: null, topUp: null })).toBe(true);
+  });
+
+  it('refuses a data ceiling without its numbers or with a half-written offer (0109 T6)', () => {
+    expect(isPauseReason({ kind: 'data-ceiling' })).toBe(false);
+    expect(isPauseReason({ ...AT_THE_CEILING, held: -1 })).toBe(false);
+    expect(isPauseReason({ ...AT_THE_CEILING, moveUp: { name: 'Medium', setupEur: 7 } })).toBe(false);
+    expect(isPauseReason({ ...AT_THE_CEILING, topUp: { bandGb: '750', priceEur: 8 } })).toBe(false);
   });
 
   it('refuses a kind this build has no sentence for', () => {
@@ -85,8 +103,8 @@ describe('the pass deadline stays off the customer’s screen', () => {
     // a deadline among them — would not compile against this list. Written
     // as a runtime assertion as well because the list itself is the record
     // of the decision.
-    const kinds: Array<PauseReason['kind']> = ['daily-download-ceiling', 'operator-hold'];
-    expect(kinds).toHaveLength(2);
+    const kinds: Array<PauseReason['kind']> = ['daily-download-ceiling', 'operator-hold', 'data-ceiling'];
+    expect(kinds).toHaveLength(3);
     expect(kinds).not.toContain('pass-deadline');
   });
 

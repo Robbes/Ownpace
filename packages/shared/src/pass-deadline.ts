@@ -225,6 +225,22 @@ export interface PassClock {
    * it. The loop then reads no clock for it and asks nothing.
    */
   readonly whyItStops?: () => Promise<PassStopReason | null>;
+  /**
+   * May a FIRST copy be made now? Asked before an item is copied for the
+   * first time, with the first-copy bytes this pass has moved so far, and
+   * never for an update to an item already copied (workplan 0109 T6,
+   * ADR-0014's amendment of 2026-10-03).
+   *
+   * The managed edition answers it from the customer's data ceiling: at the
+   * ceiling, new first copies wait for their yes to a move up or a top-up,
+   * while updates and everything already copied carry on. A held item is
+   * counted (`heldAtCeiling`), gets no ledger row and no failure, and its
+   * collection keeps its cursor, so the yes lifts the hold where it stopped.
+   * Absent, as on the appliance, which has no tiers: every first copy goes.
+   * Here, beside the deadline, so every data type's runner forwards it
+   * through `passClock` without being edited to.
+   */
+  readonly firstCopyAllowed?: (firstCopyBytesThisPass: number) => boolean;
 }
 
 /**
@@ -247,6 +263,7 @@ export function passClock(clock: PassClock): PassClock {
     ...(clock.deadline !== undefined ? { deadline: clock.deadline } : {}),
     ...(clock.now ? { now: clock.now } : {}),
     ...(clock.whyItStops ? { whyItStops: clock.whyItStops } : {}),
+    ...(clock.firstCopyAllowed ? { firstCopyAllowed: clock.firstCopyAllowed } : {}),
   };
 }
 

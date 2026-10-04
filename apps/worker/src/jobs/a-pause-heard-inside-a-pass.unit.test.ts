@@ -187,7 +187,8 @@ describe('the runner hands every data type the question', () => {
 
   it('builds it per data type, beside the deadline, from the same answer as the between-types read', () => {
     expect(loop).toMatch(
-      /const passStops[^=]*=\s*\{\s*deadline: typeDeadline,\s*whyItStops: \(\) => whyThisDataTypeStops\(pool, tenantId, mappingId, domain\),?\s*\}/,
+      // And, on managed outside the alpha, the data ceiling's question (0109 T6).
+      /const passStops[^=]*=\s*\{\s*deadline: typeDeadline,\s*whyItStops: \(\) => whyThisDataTypeStops\(pool, tenantId, mappingId, domain\),?\s*(\.\.\.\(ceiling \? \{ firstCopyAllowed: firstCopyGate\(ceiling\) \} : \{\}\),?\s*)?\}/,
     );
   });
 
