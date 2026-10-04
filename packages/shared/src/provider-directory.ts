@@ -82,6 +82,38 @@ export function providerDefaultsFor(
 }
 
 /**
+ * THE PORT A PROTOCOL IS SERVED ON (the owner, 2026-10-04, on 0153's *not
+ * carried over*: *"B"*). The wizard filled in 993 and 443; when it retired,
+ * a protocol card's port box started empty, and a person looked up and typed
+ * a number that is the same for nearly everyone. A protocol's usual port is
+ * not a guess about a provider, which is what the directory refuses to make:
+ * IMAP over TLS is 993 and JMAP and the DAV trio are HTTPS on 443, whoever
+ * serves them. So it is filled in the way a row's values are: editable, and
+ * measured by Test like anything typed. It is not a row, and it brings no
+ * *Pre-filled from* line, because no provider published it.
+ */
+const USUAL_PORT: Readonly<Record<string, string>> = {
+  imap: '993',
+  jmap: '443',
+  caldav: '443',
+  carddav: '443',
+  webdav: '443',
+};
+
+/**
+ * What a fresh form starts from, at both doors: the protocol's usual port,
+ * with a named provider's published values over it.
+ */
+export function formDefaultsFor(
+  role: 'source' | 'target',
+  type: string,
+): Readonly<Record<string, string>> {
+  const port = USUAL_PORT[type];
+  const published = providerDefaultsFor(role, type);
+  return port === undefined ? published : { port, ...published };
+}
+
+/**
  * What a door says beside pre-filled boxes — whose published settings, read
  * when — or nothing, for a kind without a row. The date is the latest read,
  * so the sentence ages honestly.

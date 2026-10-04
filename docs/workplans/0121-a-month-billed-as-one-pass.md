@@ -2,7 +2,15 @@
 
 > **In one line:** `usage_metric` compute metering that recorded a month as its last pass, replaced by `run`-ledger derivation with quantities frozen on invoices, per-tenant `pruneRuns` retention, invoice-backed usage history and `/api/billing/usage` showing the tier.
 
-## Status — 2026-09-09 (update this block at the end of every session)
+## Status — 2026-10-04 (update this block at the end of every session)
+
+**2026-10-04: the measurements stay shown, with neutral icons (0131 T3).** 0131 T3 proposed
+hiding the four measurement cards on the Billing page during the Alpha. The owner kept T4's
+decision instead: *"Keep, no money icons (Recommended)"*. The cards keep their figures on every
+deployment. Their icons were a rising trend, a dollar sign, a credit card and a document; they
+are now a hard drive, two arrows, a stopwatch and a pulse line, so the cards read as
+measurements, not a meter. 0131's Status has the proof. On branch
+`claude/ownpace-public-readiness-y7orc6-measurements-not-money`, not merged.
 
 **2026-09-09, later: T4 decided and the customer's screen rebuilt on it.** The owner took
 **C — both places** (the tenant-month figure frozen onto the invoice, the trend in Grafana)

@@ -14,7 +14,7 @@ JMAP is a newer protocol for mail and contacts, which a mail server offers over 
 
 1. On **Where does it go?**, choose **Add JMAP** under **A new account**, in each row whose data goes there: email, contacts or files. One form adds the account for all of them.
 2. In **Host**, type the server's name, such as `jmap.example.com`: the name alone, with no `https://` in front.
-3. In **Port**, type `443`, which the box shows as its example, or the port the server uses. There is no box for SSL/TLS: this service always talks to the server over `https://`.
+3. **Port** is filled in with `443`, which most servers use. Change it only if the server uses another port. There is no box for SSL/TLS: this service always talks to the server over `https://`.
 4. In **Username** and **Password**, type the mailbox's details.
 5. Press **Check the sign-in**.
 

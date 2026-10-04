@@ -27,7 +27,7 @@ For files. Fill in **Host**, **Port**, **Username** and **Password** as [The fie
 ### The fields {#fields}
 
 - **Host**: the server's name, such as `dav.example.com`: the name alone, with no `https://` in front.
-- **Port**: `443` for most servers, which the box shows as its example. Type it in, or the port your server uses. There is no box for SSL/TLS: this service always talks to the server over `https://`.
+- **Port**: filled in with `443`, which most servers use. Change it only if your server uses another port. There is no box for SSL/TLS: this service always talks to the server over `https://`.
 - **DAV base URL**, under **Server settings** on **Where does it go?**: only when the server’s DAV root is not at the host root. When filled in, this full URL is used and host and port are ignored.
 - **Username** and **Password**: those of the account on the server, with an app password where the server offers one.
 

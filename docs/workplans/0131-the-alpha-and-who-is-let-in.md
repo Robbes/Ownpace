@@ -4,6 +4,33 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04, later still: T3's last two items decided; the measurement cards keep their
+figures, with neutral icons.** The owner answered the two items T3 still held as **Proposed**.
+
+- **The four measurement cards:** *"Keep, no money icons (Recommended)"*, not *"Hide during the
+  Alpha"* (this plan's proposal) or *"Remove for good"*. That keeps 0121 T4's decision of
+  2026-09-09 (*"i want to offer customers the insight"*). On every deployment the cards keep
+  their labels, figures and layout. Their icons were a rising trend, a dollar sign, a credit card
+  and a document. They are now a hard drive, two arrows, a stopwatch and a pulse line. The
+  Payment Methods card keeps its credit card. §3 T3 has the details.
+- **Run rows:** *"Accept (Recommended)"*. They are not pruned during the Alpha. 0143 T6 stays
+  parked, its trigger unchanged, and 0143 T9's sitting will count the rows, which is what they
+  cost. Nothing to build.
+
+Proved by a guard written first. `a-bill-nobody-will-send` gains 12 cases, in English and Dutch:
+during the Alpha, outside it, and with the edition flag set to the appliance (a page the
+appliance itself never routes to, `AppRoutes.tsx`). Each card shows its figure and carries the
+neutral icon named for it, and no icon in the Current usage section has a name on the guard's
+money list. The guard reads each icon's name from the class lucide-react gives it. It also finds
+the Payment Methods card's credit card, so it can see an icon at all. On the unchanged code 6 of
+the 12 failed, each naming `trending-up`, `dollar-sign` and `credit-card`. All 35 cases in the
+file pass after. Seven mutations each failed cases: the dollar sign back (6), a euro on Compute
+Time (6), a card without its icon (6), a figure dropped (6), the cards hidden during the Alpha
+(4, the Alpha's own), a rising column chart, a candlestick chart and a price tag in place of the
+first three icons (6), and the old document icon back on API calls (6). The last two passed
+before review pinned each card's icon by name. On branch
+`claude/ownpace-public-readiness-y7orc6-measurements-not-money`, not merged.
+
 **2026-10-04, later: the note is the owner's welcome (D4's amendment).** The owner gave the note
 new words, and minutes later changed their second half. D4's amendment quotes both messages and
 the two answers that followed. The note now says NL *"Welkom bij de Alpha! Probeer Ownpace
@@ -490,7 +517,7 @@ of the gate answer.
 |---|---|---|
 | T1 The word "Alpha" wherever a tester meets the service | 📋 **Decided 2026-09-24** (D1, D4); spelt *Alpha* in both languages since 2026-10-04 (#1439). (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-alpha-said-out-loud`, merged (#1160, 2026-09-24).** (b) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged (2026-10-04)**: the note, the grant mail and the invitation link the conditions and the guide. The backup clause changed in 0139 T4 (2026-09-29, §3). The note's words are the owner's welcome (2026-10-04, D4's amendment), built on the same branch, not merged. The mails open with it and keep the facts | §3. A note on every signed-in page, on the sign-in and request pages, and one sentence in the grant mail, in Dutch and English. Managed only. Off unless the deployment sets it. (a) is the setting, the note and the mail's paragraph; (b) is their links to the conditions and the tester guide. |
 | T2 An "experimental" label on sources nobody has run against a real account | 🔨 **(a) Built on branch `claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven` (2026-09-24), merged (#1171, 2026-09-25)**: the table, the tag at both doors on both editions (the export archive card included, offered and tagged on managed: 0148 D10), in the data-type step and beside the whole-domain option, with 0141 T1. 📋 **Decided 2026-09-24** (D6); (b), the why's link to 0144 T2's page, not built | §3. One table in shared, read by both doors and by the wizard's data-type step. Both editions. |
-| T3 Billing says nothing is charged during the alpha | 📋 **Decided 2026-09-24** (D1). (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-bill-nobody-will-send`, merged (#1172, 2026-09-25)**: the Billing line and the request hint, and the invoice details card's *not needed* during the alpha (open question 7, answered). The cards and the run rows stay 📋 **Proposed** | §3. One sentence on the Billing page and one on the request form. Hiding the four metered cards, and leaving run rows unpruned for the alpha, are **Proposed**. |
+| T3 Billing says nothing is charged during the alpha | 📋 **Decided 2026-09-24** (D1); its last two items **decided 2026-10-04**. (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-bill-nobody-will-send`, merged (#1172, 2026-09-25)**: the Billing line and the request hint, and the invoice details card's *not needed* during the alpha (open question 7, answered). (b) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-measurements-not-money`, not merged (2026-10-04)**: the four measurement cards stay on every deployment, with icons that are not money (owner: *"Keep, no money icons"*). Run rows stay unpruned during the Alpha (owner: *"Accept"*); nothing to build | §3. One sentence on the Billing page and one on the request form. The four measurement cards stay, with neutral icons. Run rows are not pruned during the Alpha. |
 | T4 What the end of the alpha does to organisations, credentials and identities | 📋 **Decided 2026-09-28** (open question 1): (b), everything carries on under new conditions, perhaps on another host | §3 and open question 1. What exists today, and three options; the owner chose (b). |
 | T5 Go/no-go before the first invitation | 📋 **Proposed** | §3. For each of 0132–0150, 0152–0154 (rows added 2026-09-28), 0093 T2c and 0130, the minimum that must be true, plus the owner's own steps. |
 
@@ -940,9 +967,24 @@ Nextcloud or WebDAV files (0148 D11), built by 0148 T9.
   it. The prices shown are ADR-0014's (`MANAGED_TIERS` in
   `packages/managed/src/tier-calculator.ts`), which `tier-calculator.unit.test.ts` holds to the
   ADR's table and to the site's calculator.
-- **Proposed:** the four metered cards are hidden while the setting says alpha. They show the
-  quantities of the model ADR-0014 replaced, and on a page that says nothing is charged they look
-  like a meter that is running. Whether they go for good is a question for 0121, not for this plan.
+- **Decided 2026-10-04: the four measurement cards stay, with icons that are not money.** This
+  plan proposed hiding them while the setting says alpha. They show the quantities of the model
+  ADR-0014 replaced, and on a page that says nothing is charged they looked like a meter that is
+  running. Asked *"What should happen to the four measurement cards on the Billing page?"*, the
+  owner chose *"Keep, no money icons (Recommended)"*: *"Keeps your 2026-09-09 'insight' decision.
+  The € and credit-card icons become neutral ones, so the cards read as measurements, not a
+  meter. Same on every deployment; nothing is hidden."* The options not chosen were *"Hide during
+  the Alpha"* (this plan's proposal) and *"Remove for good"*. The 2026-09-09 decision is 0121 T4:
+  *"i want to offer customers the insight."*
+  - The cards keep their labels, figures and layout, during the Alpha and outside it.
+  - Their icons were a rising trend (Storage), a dollar sign (Data Transfer; the answer calls it
+    the €), a credit card (Compute Time) and a document (API calls). They are now a hard drive,
+    two arrows left and right, a stopwatch and a pulse line: `HardDrive`, `ArrowLeftRight`,
+    `Timer` and `Activity` in lucide-react. Each says what is measured.
+  - The tints stay. Each card has its own hue, and the green one read as money only beside the
+    dollar sign.
+  - The Payment Methods card keeps its credit card: it is about payment methods.
+  - Built on branch `claude/ownpace-public-readiness-y7orc6-measurements-not-money`, not merged.
 - Unchanged: the invoice list, which is empty, and the payment methods, where the page offers
   no way to add one. The *"Invoice details"* form (who invoices are addressed to, with an address
   and a VAT number) also stays as it is; the alpha asks nobody to fill it in, and T1's note says
@@ -958,20 +1000,28 @@ during the Alpha."*
 **Nothing to build on the server.** The invoice route already refuses every call.
 `ownpace-live` keeps `MOLLIE_API_KEY` empty, which is a T5 check.
 
-**Run rows (Proposed).** Accept that run rows are not pruned during the alpha while nothing is
-invoiced. The rows grow with every pass, for at most 20 organisations. Since open question 1's
-answer (b) (2026-09-28), those organisations carry on after the alpha, so the rows keep growing
-after it as well. A retention rule for tenants that are never billed is 0143 T6, 🅿️ **Parked
-(trigger: the alpha runs past the 60-day run window, or its organisations carry on after it)**,
-and with (b) the second half of that trigger fires when the alpha ends. The run window is 60
-days, so nothing a few weeks of alpha writes would be old enough to prune even with the rule
-changed, and 0143 T9 measures what the rows cost meanwhile.
+**Run rows (decided 2026-10-04: accepted).** Run rows are not pruned during the Alpha while
+nothing is invoiced. Asked *"The plan also proposes leaving run records unpruned during the Alpha
+(at most 20 organisations; the 60-day window means nothing would be pruned in a few weeks anyway).
+Accept that?"*, the owner chose *"Accept (Recommended)"*: *"Record it as decided. The retention
+rule for never-billed organisations stays parked (0143 T6) until the Alpha ends, and 0143 T9 keeps
+measuring what the rows cost."* Nothing is built for it. The rows grow with every pass, for at
+most 20 organisations. Since open question 1's answer (b) (2026-09-28), those organisations carry
+on after the alpha, so the rows keep growing after it as well. A retention rule for tenants that
+are never billed is 0143 T6, 🅿️ **Parked (trigger: the alpha runs past the 60-day run window, or
+its organisations carry on after it)**, and with (b) the second half of that trigger fires when
+the alpha ends. The run window is 60 days, so nothing a few weeks of alpha writes would be old
+enough to prune even with the rule changed, and 0143 T9 measures what the rows cost meanwhile.
+If the Alpha runs past the 60-day window, the trigger's first half fires before the Alpha ends,
+and the question goes back to the owner.
 
 **Guard.** `apps/web/src/pages/a-bill-nobody-will-send.unit.test.tsx`: with the setting on, the
-Billing page shows the line in both languages (and, once the **Proposed** hiding is decided, none
-of the four metered labels). Without the
-setting, the page is as it is today; that half is the control. The first half fails on today's
-code.
+Billing page shows the line in both languages. Without the setting, the page is as it is today;
+that half is the control. The first half fails on today's code. Since 2026-10-04 it also holds the
+cards' decision during the Alpha and outside it, and with the edition flag set to the appliance,
+which the appliance itself never routes to (`AppRoutes.tsx`). Each card shows its figure and
+carries the neutral icon named for it, and no icon in the Current usage section has a name on the
+guard's money list. The Payment Methods card keeps its credit card.
 
 ### T4 — the end of the alpha
 
