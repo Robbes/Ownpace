@@ -145,6 +145,18 @@ export function money(cents) {
 }
 
 /**
+ * A size as the page writes it: GB below 1 TB, and TB to one decimal from 1 TB
+ * up (workplan 0152 T7 (c)). The page sums its fields to a tenth of a GB, so
+ * 1,234.5 GB read "1.2345 TB". Sizes are decimal, as the site publishes them
+ * (1 TB = 1,000 GB).
+ *
+ * @param {number} gb
+ */
+export function sizeOf(gb) {
+  return gb >= 1000 ? Math.round(gb / 100) / 10 + ' TB' : gb + ' GB';
+}
+
+/**
  * Fill a copy template: `{n}` placeholders by position, text only. The page
  * writes every computed string with `textContent`, so nothing here needs —
  * or gets — an escaping pass; a template that carried markup would be the
