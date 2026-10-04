@@ -60,6 +60,14 @@ export interface FrontDoorCard {
    * walks six steps and ends in a refusal is worse than one that is not
    * there: it spends somebody's attention to tell them no. The Connections
    * page shows it, where every one of its answers is true.
+   *
+   * AND FOR A KIND RETIRED FOR NEW MIGRATIONS (0153 open question 5, item 3;
+   * the owner, 2026-10-04: *"go with the recommendations"*). Google Calendar
+   * and Google Contacts carry it: the Google account is the same way in, and
+   * asks Google for only what was ticked, so a second card for each offered
+   * nothing to choose between. Their accounts and migrations keep working,
+   * and *Start a migration* offers a saved one where it carries exactly what
+   * was ticked (`savedSources`).
    */
   readonly connectionOnly?: boolean;
 }
@@ -88,8 +96,8 @@ export const SOURCE_CARDS = [
   { id: 'oauth2', nameKey: 'wizard.m365.viaImap', hintKey: 'wizard.proto.oauth2.hint', guide: 'microsoft#oauth2' },
   { id: 'graph', nameKey: 'wizard.m365.viaGraph', hintKey: 'wizard.proto.graph.hint', guide: 'microsoft#graph' },
   // The ACCOUNT (workplan 0106 T3b), first among the Google cards because
-  // `FRONT_DOOR_FAMILIES` puts it first — "the usual choice first". The four
-  // product cards stay beside it and are the only way to mail and files on a
+  // `FRONT_DOOR_FAMILIES` puts it first — "the usual choice first". Drive and
+  // Gmail stay beside it and are the only way to mail and files on a
   // deployment that has not declared the restricted scope class.
   { id: 'google', name: 'Google account', hintKey: 'wizard.proto.google.hint', guide: 'google#google' },
   {
@@ -99,17 +107,21 @@ export const SOURCE_CARDS = [
     guide: 'google#google-drive',
   },
   { id: 'gmail', name: 'Gmail', hintKey: 'wizard.proto.gmail.hint', guide: 'google#gmail' },
+  // Retired for new migrations (0153 open question 5, item 3): the account
+  // above carries both, so they are offered on Accounts only (`connectionOnly`).
   {
     id: 'google-calendar',
     name: 'Google Calendar',
     hintKey: 'wizard.proto.googleCalendar.hint',
     guide: 'google#google-calendar',
+    connectionOnly: true,
   },
   {
     id: 'google-contacts',
     name: 'Google Contacts',
     hintKey: 'wizard.proto.googleContacts.hint',
     guide: 'google#google-contacts',
+    connectionOnly: true,
   },
   { id: 'dropbox', name: 'Dropbox', hintKey: 'wizard.proto.dropbox.hint', guide: 'dropbox#dropbox' },
   { id: 'box', name: 'Box', hintKey: 'wizard.proto.box.hint', guide: 'box#box' },

@@ -470,6 +470,15 @@ beforeAll(async () => {
 
   nextcloudSecret = sealed(DAV);
   await sql('INSERT INTO tenant (id, name) VALUES ($1, $2)', [TENANT, 'Closing BV']);
+  // Room for every door this file presses: an agreed Extra large (workplan
+  // 0109 T6). Keeping a data type copying takes a third slot, past Tiny's one,
+  // and this file is about the close, not the tier's paths, which
+  // `a-start-past-the-tier.unit.test.ts` holds.
+  await sql(
+    `INSERT INTO data_allowance (tenant_id, kind, tier_id, band_gb, price_eur, consented_by)
+     VALUES ($1, 'tier', 'xl', 15000, 0, 'room for the test')`,
+    [TENANT],
+  );
   await sql(`INSERT INTO tenant_member (tenant_id, user_id, email) VALUES ($1, 'tester', 'owner@example.invalid')`, [
     TENANT,
   ]);
@@ -599,7 +608,9 @@ const USES_STORED_ACCESS =
  * the close, or its file is below with the reason.
  */
 const USES_BY_FILE: Readonly<Record<string, number>> = {
-  'routes/connections.ts': 11,
+  // One more since a rotation keeps a Microsoft account's tenant (0153 open
+  // question 5), read after the rotation's close.
+  'routes/connections.ts': 12,
   'routes/grant.ts': 2,
   'routes/migrations/account-on-connection.ts': 1,
   'routes/migrations/google-oauth-routes.ts': 3,

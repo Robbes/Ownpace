@@ -2,7 +2,7 @@
 
 De Microsoft-tegenhanger van deze handleiding is [de Microsoft-handleiding](microsoft.md).
 
-Deze handleiding gaat over de Google-kaarten in de wizard: de kaart **Google account**, en de vier kaarten die elk één Google-product lezen. Heeft deze dienst een eigen Google-app, dan drukt u op **Verbinden met Google** en geeft u bij Google toestemming, en hoeft u op deze pagina niets aan te maken. De stappen om een eigen app te maken staan aan het eind, onder [Met een eigen app](#own-app), voor als u liever uw eigen app gebruikt.
+Deze handleiding gaat over de Google-kaarten: de kaart **Google account**, en de kaarten die elk één Google-product lezen. Google Calendar en Google Contacts zijn niet meer voor nieuwe migraties, omdat het account ze allebei draagt. Heeft deze dienst een eigen Google-app, dan drukt u op **Verbinden met Google** en geeft u bij Google toestemming, en hoeft u op deze pagina niets aan te maken. De stappen om een eigen app te maken staan aan het eind, onder [Met een eigen app](#own-app), voor als u liever uw eigen app gebruikt.
 
 ## Wat u nodig hebt {#before}
 
@@ -63,11 +63,15 @@ Het dagelijkse downloadplafond is **precies hetzelfde**: Google legt het op aan 
 
 ### Google Calendar {#google-calendar}
 
+**Niet meer voor nieuwe migraties.** De kaart **Google account** draagt agenda's, en **Migratie starten** vraagt Google alleen om wat u aanvinkt. Deze kaart blijft op de pagina **Accounts** staan voor accounts die ermee zijn toegevoegd, en die blijven werken. **Migratie starten** biedt zo'n account aan waar Agenda het enige is wat u bij Google aanvinkt.
+
 Google spreekt nog steeds de protocollen die dit product al kent, dus deze bron is de gewone CalDAV-koppeling, gericht op de agendaserver van Google, met één verschil: **de DAV-servers van Google accepteren alleen OAuth**, dus de verzoeken dragen een token dat uit uw refresh-token wordt gemaakt, geen wachtwoord.
 
 Het token moet toestemming hebben voor de agendascope, `https://www.googleapis.com/auth/calendar`. Een token met toestemming voor Drive, mail of contacten antwoordt hier `invalid_scope`. Google Taken staan niet op de CalDAV van Google: de kaart **Google account** leest ze, met `https://www.googleapis.com/auth/tasks.readonly`.
 
 ### Google Contacts {#google-contacts}
+
+**Niet meer voor nieuwe migraties**, net als Google Calendar: de kaart **Google account** draagt contacten, en een bewaard Google Contacts-account wordt aangeboden waar Contacten het enige is wat u bij Google aanvinkt.
 
 Hetzelfde, voor contacten: de gewone CardDAV-koppeling, gericht op de contactenserver van Google, die ook alleen OAuth accepteert.
 
@@ -117,7 +121,7 @@ Hier gezegd, zodat u het niet zelf hoeft te ontdekken:
 
 ### Google Foto's, en de back-ups van apparaten {#photos}
 
-**Foto's worden niet gemigreerd, en de reden ligt bij Google, niet bij ons.** Sinds 31 maart 2025 laat de Photos Library API een app van derden de bibliotheek van iemand niet meer lezen: een app ziet alleen wat hij zelf uploadde, of wat de persoon met de hand kiest in de eigen kiezer van Google, één selectie per keer. Een volledige, onbewaakte kopie van een fotobibliotheek via de API is dus voor geen enkel product mogelijk, en een verbinding die dat aanbood, zou iets beloven wat Google weigert. De volledige weg die Google openlaat is **Google Takeout**: de persoon exporteert zijn bibliotheek als archief. Dat is een momentopname om te downloaden en geen account om te lezen, en dus een ander soort migratie dan de accountkaarten op deze pagina. De kaart **Export archive** leest een Takeout van Google Foto's: [de handleiding voor het exportarchief](archive.md) zegt hoe u er een bij Google aanvraagt, en waar het moet staan zodat de kaart het kan lezen.
+**Foto's worden niet gemigreerd, en de reden ligt bij Google, niet bij ons.** Sinds 31 maart 2025 laat de Photos Library API een app van derden de bibliotheek van iemand niet meer lezen: een app ziet alleen wat hij zelf uploadde, of wat de persoon met de hand kiest in de eigen kiezer van Google, één selectie per keer. Een volledige, onbewaakte kopie van een fotobibliotheek via de API is dus voor geen enkel product mogelijk, en een verbinding die dat aanbood, zou iets beloven wat Google weigert. De volledige weg die Google openlaat is **Google Takeout**: de persoon exporteert zijn bibliotheek als archief. Dat is een momentopname om te downloaden en geen account om te lezen, en dus een ander soort migratie dan de accountkaarten op deze pagina. De kaart **Export archive** leest een Takeout van Google Foto's: [de handleiding voor het exportarchief](archive.md) zegt hoe u er een bij Google aanvraagt, en waar het moet staan zodat de kaart het kan lezen. Bij **Migratie starten** is dat het vakje **Foto's: uit een Takeout-export** onder Google: zie [Vanuit Migratie starten](archive.md#from-the-flow).
 
 **En de voor de hand liggende hoop redt het niet.** Google publiceert een Data Portability API voor mensen in de Europese Economische Ruimte, het Verenigd Koninkrijk en Zwitserland, gemaakt om aan de Digital Markets Act te voldoen, en dat klinkt als precies het antwoord. De volledige lijst scopes is gelezen op 4 september 2026, en opnieuw op 28 september 2026, toen er 73 op stonden: **Google Foto's staat er niet bij**, en Drive, Gmail, Contacten en Agenda ook niet. Wat hij draagt, is zoek- en activiteitengeschiedenis, Chrome, bijdragen aan Maps, Play en YouTube, en sinds december 2025 ook gegevens van Pixel en Nest. De twee scopes die op foto's lijken, zijn het niet: de ene is wat u op Maps plaatste, de andere zijn uploads voor Street View. Een fotobibliotheek heeft nu dus twee aparte redenen om buiten bereik te zijn, en Takeout is geen noodoplossing tot er iets beters komt: het is de enige volledige weg die er is.
 

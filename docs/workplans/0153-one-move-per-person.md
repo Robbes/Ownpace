@@ -4,6 +4,104 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04: the Google Calendar and Google Contacts cards retired for new migrations (open
+question 5, item 3).** The Google account is the same way in and asks Google for only what was
+ticked, so the two cards offered nothing to choose between.
+
+- **Both cards are `connectionOnly`.** The Accounts page keeps them, for the accounts added with
+  them, which keep working, as do their migrations. The wizard no longer offers them, and its two
+  branches for them went: the compiler refused them as unreachable.
+- ***Start a migration* offers a saved one on the Google tile** where it carries exactly what was
+  ticked: a Google Calendar account where Calendar is all that is ticked from Google, a Google
+  Contacts account where Contacts is (`savedSources`). The migration is made with that account's
+  own card, since the create door holds a reused account to its kind.
+- **The Google guide says so** in both languages, at both cards' sections and in its opening.
+- **Proved by** two cases in `StartMigration.unit.test.tsx` and one in
+  `front-door-cards.unit.test.ts`; the wizard's tests drop the two cards from its door. Two
+  mutations are caught: offering the saved account whatever was ticked, and making the migration
+  with the Google account's card.
+
+**2026-10-04: Google's photos from a Takeout export, under the Google tile (open question 5,
+item 2).** Every export has a provider, so it sits with that provider's data types:
+
+- **On *What moves?*, under Google, *Photos: from a Takeout export* is a tick box.** It is tagged
+  *Experimental* by the archive card's verdict (0148 D10), and it starts unticked, because it asks
+  the person to request the export. Ticked, it says to ask now, with a link to Google Takeout,
+  since an export can take days to prepare.
+- **Under Apple, *iCloud Drive and photos: from Apple's export* is a line**, tagged *To be tested*,
+  with the archive form's own sentence (0148 D7). There is nothing to tick until a reader exists
+  (`exportOf(…).readable`).
+- **Screen 2's *An export archive* line is gone.** A server by its protocol still goes to the
+  wizard.
+- **The export needs no sign-in, and *Connect* says so.** *Where does it go?* gives the photos a
+  row of their own, offering only destinations whose files serve byte ranges (Nextcloud, WebDAV;
+  0148 D11). It follows the files' destination where that one can serve the export.
+- **It sets up one archive migration**: `{provider: 'google-takeout', path: 'Takeout', where:
+  'target'}`, made with its source because an export has no account (`exportMigration`).
+- **It waits for the export, as drawn.** *Check, then start* neither counts it nor starts it. It
+  says what to do: ask Google, put the `.zip` files in the folder `Takeout` of the destination,
+  then *Review and start* on its page, which counts the export first. A flow with nothing else in
+  it ends with *Done*. On the person's page and on Migrations, its line reads *Photos* and *Not
+  started · Waiting for the Takeout export · how to make one →*.
+- **The reader opens the folder a download's parts were put in** (`downloadInFolder`). The flow
+  names the folder before the export exists, and Google stamps each download, so the flow cannot
+  name a part. This also fixes a promise already made: the archive form and the Nextcloud guide
+  said *"upload the .zip parts into one folder, and name that folder here"*, and the reader refused
+  such a folder as one with no `Takeout` in it. A folder that opened before opens the same way. A
+  folder holding two downloads is refused, with both named.
+- **Proved by** five cases in `StartMigration.unit.test.tsx` (three new, two rewritten), four in
+  `start-plan.unit.test.ts`, three in `MigrationLines.unit.test.tsx`, one in
+  `an-export-in-the-destinations-files.unit.test.ts` (the flow's exact body, accepted), and in the
+  reader: two new layouts in the six-layout suite, three folder cases, and one over WebDAV.
+  Mutations caught: Start starting the export's migration, the export posted without `where`, and
+  the reader reading a folder of parts as a tree.
+- **The guide** (`docs/guides/{en,nl}/archive.md`) has *From Start a migration* (`#from-the-flow`),
+  which the waiting line links to.
+
+**2026-10-04: a company's mail through its own Microsoft app, behind the company question (open
+question 5, item 1).** On *What moves?*, Microsoft's mail carries *Is this a company account with
+an administrator?*. A yes offers the mail through the organisation's own app, with application
+permissions, through Microsoft Graph or through IMAP, beside the Microsoft sign-in.
+
+- **The mail goes through the company's app, and the rest through the account** (`carrierOf`,
+  `PlanChoices`). *Connect your accounts* asks the app for the mail and the account's sign-in for
+  anything else ticked, as Google asks Gmail apart where the restricted scopes are not declared.
+  Only the mail moves because the account's other faces cannot run on application permissions
+  yet: they read `/me`.
+- **The app's row shows its tenant, client ID and secret.** The app is already the company's
+  answer, so the account form does not ask the company question again (`ORGANISATION_APP_CARDS`).
+- **A saved app is offered whichever way its mail is read:** `o365` is one kind for both cards.
+- **A No takes the choice back**, and the one sign-in carries everything again.
+- **Proved by** three cases in `StartMigration.unit.test.tsx` and two in
+  `start-plan.unit.test.ts`.
+
+**2026-10-04: the owner chose the recommendations for the wizard's four (open question 5).**
+*"go with the recommendations"*. The build, in this order, each its own pull request:
+
+1. The two Microsoft tenant fixes, below, with this record.
+2. Mail through an organisation's own Microsoft app, behind the company question.
+3. Takeout's photos as a tick box under Google; Apple's export as its line; the separate
+   export line goes.
+4. The single-purpose Google Calendar and Contacts cards retired for new migrations.
+5. The four settings: the folder prefix on screen 5, the root folder on screen 3, *Rename* on
+   the migration page, and no TLS switch on managed.
+6. *Other ways to connect* without the wizard, and the two texts that promise CalDAV and
+   CardDAV sources.
+7. The reachability test through `/start`, and then the wizard retires (D5).
+
+**The first pull request fixes the two Microsoft defects** found while answering open
+question 5:
+
+- **The consent asks in the registration's own directory.** A tenant typed beside the person's
+  own pair goes with the consent, in both doors, so a single-tenant registration no longer gets
+  *application not found* from `common`.
+- **Replacing a Microsoft account's token keeps its tenant.** The rotation keeps the stored
+  tenant when the same registration is rotated (the same client id, or the deployment's on both
+  sides). A different pair brings its own tenant, or none.
+- **Proved by** `a-microsoft-consent-in-its-own-directory` (2 cases) and
+  `a-rotation-that-kept-its-directory` (5). Three mutations are caught: the rotation ignoring
+  the kept tenant, any pair inheriting it, and the consent sending none.
+
 **2026-10-04: where the wizard's four go, with options for the owner (open question 5).** The
 owner asked whether the plan placed the four, and if it did not, for options and a
 recommendation, with a suggestion of their own for each.
@@ -1553,8 +1651,8 @@ pages. `a-class-tailwind-draws-nothing-for.unit.test.ts` catches a class that re
      titles change. Nothing built depends on it yet.
 3. ~~**T0 (c):** *Accounts* instead of *Connections*?~~ **Answered 2026-09-28 (D7):** yes.
 4. ~~**T3 (b):** does the Dashboard go?~~ **Answered 2026-09-28 (D7):** yes.
-5. **Retiring the wizard (D5): where its four go.** Asked 2026-10-04; options and
-   recommendations the same day. The plan drops none of the four. Each is read below against the
+5. ~~**Retiring the wizard (D5): where its four go.**~~ **Answered 2026-10-04:** *"go with the
+   recommendations"*. Asked 2026-10-04; options and recommendations the same day. The plan drops none of the four. Each is read below against the
    plan, the code, and the research of 2026-10-04 into how other migration tools present it.
    That research found the same pattern in tool after tool:
    - they default to their own app, and the customer's own registration is a separate method for

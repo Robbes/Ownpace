@@ -30,8 +30,9 @@
  * hashed or found sidecars differently over a zip than over the folder the
  * same zip extracts to would import two different libraries from one export,
  * depending on whether the person pressed "extract". So ONE fixture is laid
- * out four ways below and every assertion runs against each; then the four
- * listings are compared to each other outright.
+ * out six ways below and every assertion runs against each; then the six
+ * listings are compared to each other outright. Two of the six are the folder
+ * a download's parts were put in, unextracted (0153 open question 5).
  *
  * `sidecarNamesFor` is exported and tested on its own rather than only through
  * the reader: the spellings ARE the finding, and a list of them is the kind of
@@ -122,7 +123,7 @@ let singleZip: string;
 let partOne: string;
 let partTwo: string;
 
-/** The one fixture, four ways. */
+/** The one fixture, four ways; two of them are read as the folder they sit in too. */
 beforeAll(async () => {
   work = await mkdtemp(join(tmpdir(), 'takeout-'));
 
@@ -199,6 +200,10 @@ const LAYOUTS = [
   { name: 'the .zip download itself', path: () => singleZip },
   { name: 'a two-part download, pointed at part 1', path: () => partOne },
   { name: 'a two-part download, pointed at part 2', path: () => partTwo },
+  // THE FOLDER THE PARTS WERE PUT IN (0153 open question 5, item 2): what
+  // *Start a migration* names, before the export exists to name a part of.
+  { name: 'the folder holding the download', path: () => dirname(singleZip) },
+  { name: 'the folder holding a two-part download', path: () => dirname(partOne) },
 ] as const;
 
 describe.each(LAYOUTS)('over $name', (layout) => {
@@ -336,7 +341,7 @@ describe.each(LAYOUTS)('over $name', (layout) => {
   });
 });
 
-describe('the four layouts are one archive', () => {
+describe('the six layouts are one archive', () => {
   it('lists the same items, with the same hashes, folders, metadata and dates, whichever way it was laid out', async () => {
     const byLayout = new Map<string, ArchiveItem[]>();
     for (const layout of LAYOUTS) {
@@ -401,6 +406,44 @@ describe('the parts of a multi-part download, from any one of them', () => {
     const second = join(dir, `${STAMP}-002.zip`);
     await writeFile(second, buildZip(asMembers(FIXTURE, 'store')));
     await expect(takeoutPartsBeside(second)).rejects.toThrow(`${STAMP}-001.zip`);
+  });
+});
+
+describe('the folder a download was put in (0153 open question 5, item 2)', () => {
+  it('refuses a folder with a part missing from the middle, naming the part', async () => {
+    const err = await reader
+      .open({ provider: 'google-takeout', path: join(work, 'gap') })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ArchiveUnreadable);
+    expect((err as ArchiveUnreadable).reason).toContain(`${STAMP}-002.zip`);
+  });
+
+  it('refuses a folder holding two downloads, naming both, rather than reading one', async () => {
+    // Last year's export kept beside this year's. Reading either would leave
+    // the other out without a word.
+    const dir = join(work, 'two-downloads');
+    await mkdir(dir);
+    await writeFile(join(dir, `${STAMP}-001.zip`), buildZip(asMembers(FIXTURE, 'store')));
+    await writeFile(join(dir, 'takeout-20250101T000000Z-001.zip'), buildZip(asMembers(FIXTURE, 'store')));
+    const err = await reader.open({ provider: 'google-takeout', path: dir }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ArchiveUnreadable);
+    expect((err as ArchiveUnreadable).reason).toContain('more than one download');
+    expect((err as ArchiveUnreadable).reason).toContain(STAMP);
+    expect((err as ArchiveUnreadable).reason).toContain('takeout-20250101T000000Z');
+  });
+
+  it('reads an extracted Takeout as before, whatever .zip lies beside it', async () => {
+    // Every folder that opened before this reader read parts opens the same
+    // way: the tree wins, and the zip beside it is not even opened.
+    const dir = join(work, 'extracted-and-a-zip');
+    await writeFolder(dir);
+    await writeFile(join(dir, 'notes.zip'), buildZip([{ name: 'notes/todo.txt', data: 'not an export' }]));
+    const handle = await reader.open({ provider: 'google-takeout', path: dir });
+    try {
+      expect(await collect(handle)).toHaveLength(2);
+    } finally {
+      await handle.close();
+    }
   });
 });
 

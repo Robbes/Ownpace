@@ -879,6 +879,28 @@ router.post('/:id/test', authenticate, async (req: AuthenticatedRequest, res: Re
 });
 
 /**
+ * The tenant a Microsoft account's stored credential holds, where a rotation
+ * that sends none replaces the same registration: the same client id, or none
+ * on either side (the deployment's). Undefined otherwise, and wherever the
+ * stored credential cannot be read: the rotation then stores what was sent.
+ */
+export function keptTenant(
+  secretRef: unknown,
+  values: Readonly<Record<string, string>>,
+): string | undefined {
+  if ((values.tenantId ?? '').trim() !== '') return undefined;
+  let stored: Record<string, string>;
+  try {
+    stored = SecretStore.decryptCredentials(secretRef as object);
+  } catch {
+    return undefined;
+  }
+  const tenant = (stored.tenantId ?? '').trim();
+  if (tenant === '') return undefined;
+  return (stored.clientId ?? '').trim() === (values.clientId ?? '').trim() ? tenant : undefined;
+}
+
+/**
  * Replace a connection's credentials in place (workplan 0065).
  *
  * The add route minus the insert. It exists because credentials EXPIRE — a
@@ -963,12 +985,6 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
       }
     }
 
-    const half = checked.data as never;
-    const creds =
-      row.role === 'source'
-        ? sourceCredentialRecord({ sourceType: type as never, sourceConfig: half })
-        : { username: values.username ?? '', password: values.password ?? '' };
-
     // The CONFIG is deliberately left alone: rotation replaces a secret, not
     // where the migration is rooted. Changing both here would let a rotation
     // silently re-point a mapping at a different folder.
@@ -979,6 +995,20 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
     if (await refusedAsClosed(res, tenantId, pool())) return;
     if (await refusedUntilAccepted(res, tenantId, req.userId, pool())) return;
     if (refusedOverTestLimit(req, res)) return;
+
+    // A ROTATION KEEPS THE DIRECTORY ITS REGISTRATION BELONGS TO (0153 open
+    // question 5). The panel offers what is required, secret or paired, and a
+    // Microsoft account's tenant is none of those, so replacing a revoked
+    // token dropped it, and the next pass asked `common` for a single-tenant
+    // application it could not find. Kept when the same registration is
+    // rotated; a different pair brings its own tenant, or none. Read after the
+    // close, as every use of the stored access is.
+    const kept = row.role === 'source' && row.kind === 'microsoft' ? keptTenant(row.secretRef, values) : undefined;
+    const half = (kept === undefined ? checked.data : { ...checked.data, tenantId: kept }) as never;
+    const creds =
+      row.role === 'source'
+        ? sourceCredentialRecord({ sourceType: type as never, sourceConfig: half })
+        : { username: values.username ?? '', password: values.password ?? '' };
     const answers = probeAnswers('replacing credentials', tenantId);
     const probe = answers.result(
       row.role === 'target'

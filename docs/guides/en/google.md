@@ -2,7 +2,7 @@
 
 The Microsoft equivalent of this guide is [the Microsoft guide](microsoft.md).
 
-This guide is for the Google cards in the wizard: the **Google account**, and the four cards that each read one Google product. Where this service has its own Google app, you press **Connect with Google** and approve at Google, and nothing on this page asks you to create anything. The steps to create an app of your own are at the end, under [With your own app](#own-app), for when you would rather use yours.
+This guide is for the Google cards: the **Google account**, and the cards that each read one Google product. Google Calendar and Google Contacts are retired for new migrations, since the account carries both. Where this service has its own Google app, you press **Connect with Google** and approve at Google, and nothing on this page asks you to create anything. The steps to create an app of your own are at the end, under [With your own app](#own-app), for when you would rather use yours.
 
 ## What you need {#before}
 
@@ -63,11 +63,15 @@ If it is used, the daily download ceiling is **exactly the same** — Google enf
 
 ### Google Calendar {#google-calendar}
 
+**Retired for new migrations.** The **Google account** card carries calendars, and **Start a migration** asks Google for only what you tick. This card stays on the **Accounts** page for accounts added with it, which keep working, and **Start a migration** offers such an account where Calendar is all you tick from Google.
+
 Google still speaks the protocols this product already implements, so this source is the ordinary CalDAV connector aimed at Google's calendar endpoint, with one difference: **Google's DAV endpoints take OAuth only**, so requests carry a token minted from your refresh token instead of a password.
 
 The token must be consented with the calendar scope, `https://www.googleapis.com/auth/calendar`. A token consented for Drive, mail or contacts answers `invalid_scope` here. Google Tasks are not on Google's CalDAV: the **Google account** card reads them, with `https://www.googleapis.com/auth/tasks.readonly`.
 
 ### Google Contacts {#google-contacts}
+
+**Retired for new migrations**, as Google Calendar is: the **Google account** card carries contacts, and a saved Google Contacts account is offered where Contacts is all you tick from Google.
 
 The same, for contacts: the ordinary CardDAV connector aimed at Google's contacts endpoint, which also takes OAuth only.
 
@@ -115,7 +119,7 @@ Stated here rather than discovered:
 
 ### Google Photos, and the device backups {#photos}
 
-**Photos are not migrated, and the reason is Google's, not ours.** Since 31 March 2025 the Photos Library API no longer lets a third-party application read a person's library: an app may see only the items it uploaded itself, or items the person picks by hand in Google's own picker, one selection at a time. A complete, unattended copy of a photo library through the API is therefore not possible for any product, and a connection that offered it would be promising something Google refuses. The complete route Google leaves open is **Google Takeout** — the person exports their library as an archive — which is a snapshot to download rather than an account to read, and so a different kind of migration than the account cards on this page. The **Export archive** card reads a Takeout of Google Photos: [the archive guide](archive.md) says how to ask Google for one, and where it has to be for the card to read it.
+**Photos are not migrated, and the reason is Google's, not ours.** Since 31 March 2025 the Photos Library API no longer lets a third-party application read a person's library: an app may see only the items it uploaded itself, or items the person picks by hand in Google's own picker, one selection at a time. A complete, unattended copy of a photo library through the API is therefore not possible for any product, and a connection that offered it would be promising something Google refuses. The complete route Google leaves open is **Google Takeout** — the person exports their library as an archive — which is a snapshot to download rather than an account to read, and so a different kind of migration than the account cards on this page. The **Export archive** card reads a Takeout of Google Photos: [the archive guide](archive.md) says how to ask Google for one, and where it has to be for the card to read it. On **Start a migration** it is the **Photos: from a Takeout export** tick box under Google: see [From Start a migration](archive.md#from-the-flow).
 
 **And the obvious hope does not rescue it.** Google publishes a Data Portability API for people in the European Economic Area, the United Kingdom and Switzerland, built to satisfy the Digital Markets Act, which sounds like exactly the answer. Its full list of scopes was read on 4 September 2026, and again on 28 September 2026, when it held 73: **Google Photos is not among them**, nor is Drive, Gmail, Contacts or Calendar. What it carries is search and activity history, Chrome, Maps contributions, Play and YouTube, and since December 2025 Pixel and Nest data too. The two scopes that look like photos are not: one is what you posted on Maps, the other is Street View uploads. So a photo library now has two separate reasons to be out of reach, and Takeout is not a workaround while something better arrives — it is the only complete route there is.
 

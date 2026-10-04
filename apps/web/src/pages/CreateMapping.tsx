@@ -1346,7 +1346,13 @@ const CreateMapping: React.FC = () => {
       const beginConsent: Record<string, () => Promise<{ url: string; redirectUri?: string }>> = {
         dropbox: () => mappingApi.dropboxAuthorize({ ...ownClientPair, locale }),
         microsoft: () =>
-          mappingApi.microsoftAuthorize({ domains: formData.domains, ...ownClientPair, locale }),
+          mappingApi.microsoftAuthorize({
+            domains: formData.domains,
+            ...ownClientPair,
+            // A single-tenant registration consents in its own directory.
+            ...(formData.sourceTenantId.trim() ? { tenantId: formData.sourceTenantId.trim() } : {}),
+            locale,
+          }),
         google: () =>
           mappingApi.googleAuthorize(
             isGoogleAccountSource
@@ -2381,7 +2387,9 @@ const CreateMapping: React.FC = () => {
   // this product can connect to and not yet migrate from, and its id is not
   // in `CreateMappingInput['sourceType']`. Widening this parameter is what the
   // compiler refuses, which is the point. (The export archive was the first
-  // such kind and migrates since 0116 T5/T6; no card carries the flag today.)
+  // such kind and migrates since 0116 T5/T6. Google Calendar and Google
+  // Contacts carry the flag since 0153 open question 5, item 3: retired for new
+  // migrations, so their branches below went with them.)
   const onPickSource = (type: MigratableSourceCard) => {
       // A verdict about the OLD provider must not survive the
       // switch (0073) — it is a statement about a credential
@@ -2447,28 +2455,7 @@ const CreateMapping: React.FC = () => {
                 // sending a consent for nothing.
                 domains: [...googleAccountDomains],
               }))
-          : type.id === 'google-calendar'
-            ? setFormData((prev) => ({
-                ...prev,
-                ...clearedSourceFields(prev, type.id),
-                sourceType: type.id,
-                domains: ['calendar'],
-                // The one calendar-capable target (JMAP calendar
-                // is parked by owner decision, 0031 T1).
-                targetType: 'caldav',
-              }))
-            : type.id === 'google-contacts'
-              ? setFormData((prev) => ({
-                  ...prev,
-                  ...clearedSourceFields(prev, type.id),
-                  sourceType: type.id,
-                  domains: ['contact'],
-                  targetType:
-                    prev.targetType === 'jmap' || prev.targetType === 'carddav'
-                      ? prev.targetType
-                      : 'carddav',
-                }))
-              : setFormData((prev) => ({ ...prev, ...clearedSourceFields(prev, type.id), sourceType: type.id })));
+            : setFormData((prev) => ({ ...prev, ...clearedSourceFields(prev, type.id), sourceType: type.id })));
   };
 
   /** Whose published settings sit in the target boxes, when a named provider's do. */

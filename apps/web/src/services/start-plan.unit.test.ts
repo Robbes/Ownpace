@@ -11,12 +11,14 @@ import {
   carrierOf,
   connectionsFor,
   destinationsFor,
+  exportDestinations,
+  exportMigration,
+  exportOf,
   grantableByLink,
   migrationsFor,
   nextcloudAddress,
   nextcloudDavUrl,
   offers,
-  photosThrough,
   type Route,
 } from './start-plan.ts';
 
@@ -68,17 +70,44 @@ describe('which card carries a type, and whose verdict its tag reads (step 3)', 
     expect(sourceFaceIsExperimental(carrierOf('google', 'email', NARROW), 'email')).toBe(false);
     expect(sourceFaceIsExperimental(carrierOf('google', 'email', RESTRICTED), 'email')).toBe(true);
   });
+
+  it('is a company’s own app for Microsoft’s mail where it chose one, and only for the mail (0153 open question 5)', () => {
+    expect(carrierOf('microsoft', 'email', {}, { microsoftMail: 'graph' })).toBe('graph');
+    expect(carrierOf('microsoft', 'email', {}, { microsoftMail: 'oauth2' })).toBe('oauth2');
+    expect(carrierOf('microsoft', 'calendar', {}, { microsoftMail: 'graph' })).toBe('microsoft');
+    // Another provider's mail is untouched by Microsoft's choice.
+    expect(carrierOf('google', 'email', NARROW, { microsoftMail: 'graph' })).toBe('gmail');
+    expect(carrierOf('imap', 'email', {}, { microsoftMail: 'graph' })).toBe('imap');
+  });
 });
 
-describe('where photos come from (step 3)', () => {
-  it('is Google’s Takeout export, since a reader for it is built', () => {
-    expect(photosThrough('google')).toBe('google-takeout');
+describe('the export under a provider’s tile (step 3; 0153 open question 5, item 2)', () => {
+  it('is Google’s Takeout, which this build reads', () => {
+    expect(exportOf('google')).toEqual({ archive: 'google-takeout', readable: true });
   });
 
-  it('is nothing yet for Apple, whose export waits on its reader, and nothing for a provider with no photos', () => {
-    expect(photosThrough('apple')).toBeUndefined();
-    expect(photosThrough('dropbox')).toBeUndefined();
-    expect(photosThrough('imap')).toBeUndefined();
+  it('is Apple’s export, which no reader opens yet, and nothing for a provider with no export', () => {
+    expect(exportOf('apple')).toEqual({ archive: 'apple-privacy', readable: false });
+    expect(exportOf('dropbox')).toBeUndefined();
+    expect(exportOf('imap')).toBeUndefined();
+  });
+
+  it('is read from destinations whose files serve byte ranges, and never from a JMAP destination', () => {
+    expect(exportDestinations()).toEqual(['webdav', 'nextcloud']);
+    for (const card of exportDestinations()) expect(destinationsFor('file')).toContain(card);
+  });
+
+  it('makes one migration of files from the archive to the destination, with no account to sign in to', () => {
+    expect(exportMigration('google', { card: 'nextcloud', connectionId: 'nc-1', username: 'anna' })).toEqual({
+      provider: 'google',
+      sourceCard: 'archive',
+      sourceConnectionId: 'export:google',
+      sourceUsername: '',
+      targetCard: 'nextcloud',
+      targetConnectionId: 'nc-1',
+      targetUsername: 'anna',
+      types: ['file'],
+    });
   });
 });
 
@@ -118,6 +147,17 @@ describe('which accounts to connect for what was ticked (step 4)', () => {
   it('asks nothing of a provider with nothing ticked', () => {
     expect(connectionsFor('dropbox', [])).toEqual([]);
     expect(connectionsFor('apple', ['file'])).toEqual([]);
+  });
+
+  it('asks a company’s own app for Microsoft’s mail apart, and the account for the rest', () => {
+    expect(connectionsFor('microsoft', ['email', 'calendar', 'file'], {}, { microsoftMail: 'graph' })).toEqual([
+      { provider: 'microsoft', card: 'microsoft', types: ['calendar', 'file'] },
+      { provider: 'microsoft', card: 'graph', types: ['email'] },
+    ]);
+    // Mail alone needs the company's app alone.
+    expect(connectionsFor('microsoft', ['email'], {}, { microsoftMail: 'oauth2' })).toEqual([
+      { provider: 'microsoft', card: 'oauth2', types: ['email'] },
+    ]);
   });
 });
 
