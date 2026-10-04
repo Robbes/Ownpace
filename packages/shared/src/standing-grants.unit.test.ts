@@ -280,4 +280,18 @@ describe('accessThatOutlivesErasure', () => {
     // The screen name is a label on their screen — never translated.
     expect(nl!.heading).toBe(en!.heading);
   });
+
+  it.each(['archive', 'imap', 'webdav'])(
+    'says %s’s place in Dutch, since there it is our description and not their label',
+    (kind) => {
+      // Where we cannot name the screen we describe it, and a description is
+      // our prose: English there would leave a Dutch page half-translated.
+      const [nl] = accessThatOutlivesErasure([kind], 'nl');
+      const [en] = accessThatOutlivesErasure([kind], 'en');
+
+      expect(nl!.heading).not.toBe(en!.heading);
+      expect(nl!.where).not.toBe(en!.where);
+      expect(`${nl!.heading} ${nl!.where}`).toMatch(/\buw\b/);
+    },
+  );
 });

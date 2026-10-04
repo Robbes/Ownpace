@@ -52,7 +52,7 @@
  */
 
 import React from 'react';
-import { useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { AlertCircle, Download, Loader2 } from 'lucide-react';
 import { ROW_STATES } from '@openmig/shared';
 import type {
@@ -634,6 +634,16 @@ const Confirmed: React.FC = () => {
     <div>
       <h2 className="text-lg font-semibold text-gray-900">{t('confirmed.title')}</h2>
       <p className="mt-1 mb-4 text-sm text-gray-600">{t('confirmed.intro')}</p>
+      {/* What happened, beside what is verified (0154 T5): the report and this
+          list point at each other. Per migration, so on the appliance's flat
+          list, which answers for every migration, each has its own page. */}
+      {mappingId !== undefined && (
+        <p className="-mt-2 mb-4 text-sm">
+          <Link to={`/mappings/${encodeURIComponent(mappingId)}/report`} className="text-blue-700 hover:underline">
+            {t('confirmed.toReport')} →
+          </Link>
+        </p>
+      )}
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <button

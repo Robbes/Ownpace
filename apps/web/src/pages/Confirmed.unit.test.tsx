@@ -21,7 +21,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 const { editionFlag } = vi.hoisted(() => ({ editionFlag: { selfhost: false } }));
 vi.mock('../services/edition', () => ({
@@ -113,6 +113,22 @@ afterEach(() => {
 });
 
 describe('the confirmed list screen', () => {
+  /** 0154 T5: what is verified, and what happened, point at each other. */
+  it('links the report of what happened, for the migration its address names', async () => {
+    listed.mockResolvedValue({ 'mapping-1': queue() } as never);
+    render(
+      <MemoryRouter initialEntries={['/mappings/mapping-1/confirmed']}>
+        <Routes>
+          <Route path="/mappings/:mappingId/confirmed" element={<Confirmed />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole('link', { name: 'What happened: the report →' })).toHaveAttribute(
+      'href',
+      '/mappings/mapping-1/report',
+    );
+  });
+
   it('claims only VERIFIED in the headline, with the total beside it', async () => {
     // `yours` and `present` are not in `verified`, by D10 — and the total is
     // what stops the number reading as the whole account.
