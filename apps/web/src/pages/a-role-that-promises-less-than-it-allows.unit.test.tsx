@@ -174,13 +174,14 @@ describe('what an admin can do, said once', () => {
     // reopen (routes/tenants/index.ts), the applying-deletions and
     // auto-applying-relocations flags, owner-only to turn on AND off
     // (routes/migrations/operating-routes.ts), and granting owner (members.ts).
+    // Changing or removing an owner joined them on 2026-10-04 (0137 T3 (c)).
     // The API half pins that set of routes, so a new owner-only act, or one
     // opened to admins, fails there and sends the reader back to this line.
     expect(STRINGS.en['tenants.invite.adminCan']).toBe(
-      "An admin can do everything an owner can, except close or reopen the organisation, turn deleting by hand or the automatic removal of moved files' old copies on or off, and make somebody an owner.",
+      "An admin can do everything an owner can, except close or reopen the organisation, turn deleting by hand or the automatic removal of moved files' old copies on or off, make somebody an owner, and change or remove an owner.",
     );
     expect(STRINGS.nl['tenants.invite.adminCan']).toBe(
-      'Een beheerder kan alles wat een eigenaar kan, behalve de organisatie sluiten of heropenen, handmatig verwijderen of het automatisch verwijderen van oude kopieën van verplaatste bestanden aan- of uitzetten en iemand eigenaar maken.',
+      'Een beheerder kan alles wat een eigenaar kan, behalve de organisatie sluiten of heropenen, handmatig verwijderen of het automatisch verwijderen van oude kopieën van verplaatste bestanden aan- of uitzetten, iemand eigenaar maken en een eigenaar een andere rol geven of verwijderen.',
     );
     // The product's own words for the two flags, so the line names what the
     // Deletions panel names (`applyFlag.on`, `autoApply.on`; renamed in 0156

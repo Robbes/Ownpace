@@ -10,8 +10,9 @@
  * broken admin surface was deleted, this one was kept and built).
  *
  * The guards live on the SERVER (last-owner demotion/removal, owner grants
- * being owner-only, self-removal) and their refusals render VERBATIM — the
- * client only pre-empts what it can know for certain: an admin's role select
+ * being owner-only, changing or removing an owner being owner-only (0137 T3),
+ * self-removal) and their refusals render VERBATIM — the client only
+ * pre-empts what it can know for certain: an admin's role select
  * offers no owner option, your own row offers no remove button, and a
  * member/viewer sees a read-only list. Everything else is the server's call.
  *

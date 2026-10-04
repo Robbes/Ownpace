@@ -44,8 +44,9 @@
  * or who presses the enrolment button on their own deployment, which is how
  * this was asked for on 2026-09-01 — acquires a membership the product will not
  * let them drop: `DELETE /api/tenants/:tenantId/members/:memberId` refuses with
- * `Cannot remove yourself from the tenant`, and refuses again with
- * `Cannot remove the last owner`.
+ * `Cannot remove yourself from the tenant`, and refuses anyone else with
+ * `Only an owner can remove an owner` (workplan 0137 T3 (c); before that it
+ * was `Cannot remove the last owner`, which still stands behind it).
  *
  * BOTH REFUSALS ARE RIGHT, and this does not weaken either. A sole owner
  * walking out of a customer's organisation orphans it, and the product should
@@ -249,8 +250,10 @@ export interface LeaveFacts {
  *
  * THE PRODUCT'S TWO REFUSALS, RESTATED AS WHAT THEY PROTECT.
  * `DELETE /api/tenants/:tenantId/members/:memberId` says `Cannot remove
- * yourself from the tenant` and `Cannot remove the last owner`. The first is a
- * rule about the ASKER and does not survive the move to the machine — an
+ * yourself from the tenant` and `Cannot remove the last owner`. (Since 0137
+ * T3 (c) anyone else asking to remove a sole owner is told `Only an owner can
+ * remove an owner` first; the last-owner refusal stays behind it.) The first
+ * is a rule about the ASKER and does not survive the move to the machine — an
  * operator taking back their own access is the entire point here. The second is
  * a rule about the ORGANISATION, and it does survive, so it is here, widened to
  * the fact it was really guarding: not "the last owner" but "the last owner OF
