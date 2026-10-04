@@ -9,7 +9,7 @@
  * and a row full of `''` is one a human then has to squint at.
  */
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -78,6 +78,47 @@ describe('RequestAccess', () => {
       email: 'someone@example.test',
       locale: 'en',
     });
+  });
+
+  it('arrives with the answers the site already had, as one sentence a person can edit (0152 T7 (a))', async () => {
+    const user = userEvent.setup();
+    renderPage('/request-access?from=google&what=mail,calendar,contacts,files&who=individual');
+    const note = screen.getByLabelText(/what are you moving/i);
+    // Joined as the app joins every list (formatList), with English's serial comma.
+    expect(note).toHaveValue('Moving away from Google: email, calendar, contacts, and files, for one person.');
+    // Theirs to change, and what is sent is what the field says.
+    await user.clear(note);
+    await user.type(note, 'Only my mail, from Google');
+    await user.type(screen.getByLabelText(/email address/i), 'someone@example.test');
+    await user.click(screen.getByRole('button', { name: /send request/i }));
+    await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
+    expect(postMock.mock.calls[0]![1]).toMatchObject({ note: 'Only my mail, from Google' });
+  });
+
+  it('names every source the estimate had ticked, and tasks as the app names them (the owner, 2026-10-04)', async () => {
+    renderPage('/request-access?from=google,dropbox,nonsense,google&what=mail,tasks,files&who=individual');
+    expect(screen.getByLabelText(/what are you moving/i)).toHaveValue(
+      'Moving away from Google and Dropbox: email, tasks, and files, for one person.',
+    );
+    cleanup();
+    renderInLocale('/request-access?locale=nl&from=microsoft,box&what=tasks');
+    expect(await screen.findByLabelText(/wat wilt u migreren/i)).toHaveValue('Weg bij Microsoft 365 en Box: taken.');
+  });
+
+  it('says the answers in the language the site asked for, before the page has switched to it', async () => {
+    renderInLocale('/request-access?locale=nl&from=dropbox&what=files&who=family');
+    expect(await screen.findByLabelText(/wat wilt u migreren/i)).toHaveValue(
+      'Weg bij Dropbox: bestanden, voor een huishouden.',
+    );
+  });
+
+  it('puts no stranger’s text in the note: an unknown value is left out, and nothing known means no sentence', async () => {
+    renderPage('/request-access?from=%3Cscript%3E&what=mail,nonsense,mail&who=everyone');
+    // The one known value is kept, once; the rest is not repeated anywhere.
+    expect(screen.getByLabelText(/what are you moving/i)).toHaveValue('Moving: email.');
+    cleanup();
+    renderPage('/request-access?from=nowhere&what=nothing&who=nobody');
+    expect(screen.getByLabelText(/what are you moving/i)).toHaveValue('');
   });
 
   it('sends only the fields that were filled in', async () => {

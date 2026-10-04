@@ -65,6 +65,23 @@ and the app sent a visitor without an account to its sign-in page instead.
   kept the old scroll, and `?locale=` left unread.
 - **T0:** the label's new words, *In the guide* / *In de handleiding*, without *(sign in first)* /
   *(eerst aanmelden)*.
+**2026-10-04, night: T7 (a)'s form half is built.** The request form reads the answers the site
+already has: `?from=`, `?what=` and `?who=`, each matched against its list as `?tier=` is.
+*What are you moving?* arrives with one sentence built from them, in the language the site asked
+for: *"Moving away from Google: email, calendar, contacts, and files, for one person."*
+- **Nothing new is stored.** It is the note, which the person edits like anything they type. An
+  unknown value is left out, and with nothing known there is no sentence.
+- **Several sources, and Tasks** (the owner, 2026-10-04): `?from=` may be a list, as the estimate
+  now ticks several, and the sentence names each: *"Moving away from Google and Dropbox: email,
+  tasks, and files, for one person."* Tasks is one of the data types, in the app's word for it.
+- **The site half is #1489:** the estimate's *Request access* and each *Leaving…* page carry
+  their answers; T7's row turns ✅ with it.
+- **Guard:** `RequestAccess.unit.test.tsx`:
+  - the form arrives with the sentence, and sends what the person leaves in the field;
+  - it says it in Dutch when the site asks for Dutch, before the page switches;
+  - it names every known source in a list, once, and tasks as the app names them;
+  - an unknown value is left out, and nothing known means no sentence.
+- **T0:** the sentence's words, in both languages.
 
 **2026-10-04, night: T3 is built** (R8 step 10, after T5). The home page's hero shows the move:
 - **The picture** is `hero-move.svg`, inlined by `site/hero.mjs`: the old account, Ownpace
