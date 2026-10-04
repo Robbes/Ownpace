@@ -422,7 +422,7 @@ export const CreateMappingResponseSchema = z.object({
   updatedAt: z.string(),
 });
 
-/** What the wizard posts — mirrors the server's CreateMappingSchema. */
+/** What a migration's create posts — mirrors the server's CreateMappingSchema. */
 export interface CreateMappingInput {
   name: string;
   sourceType:

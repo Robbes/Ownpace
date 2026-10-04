@@ -19,13 +19,14 @@
  * which serves no such route, keep every line and every step.
  *
  * What is pinned, in English and in Dutch:
- *  1. the about-line after a Google product card or Dropbox is the deployment
- *     line where the fact says `deployment`, and it and its fold say neither
- *     "your own" nor "uw eigen"; with `connection`, today's lines;
- *  2. the redirect line under the button shows only when the consent used a
- *     client the person typed in — in the wizard and in the consent panel;
- *  3. a checklist the deployment emptied names the button, not "Nothing to
+ *  1. the redirect line under the button shows only when the consent used a
+ *     client the person typed in, in the consent panel the Accounts page and
+ *     *Start a migration* share;
+ *  2. a checklist the deployment emptied names the button, not "Nothing to
  *     set up".
+ *
+ * The wizard's about-line after a card, which read the same fact, retired
+ * with the wizard (0153 D5).
  */
 
 import React from 'react';
@@ -65,7 +66,6 @@ vi.mock('../services/mapping-service', () => ({
   setupApi: { get: setupGet, setStep: vi.fn() },
 }));
 
-import CreateMapping from './CreateMapping.tsx';
 import Setup from './Setup.tsx';
 import { ProviderConsentPanel, useProviderConsent } from '../components/ProviderConsent.tsx';
 
@@ -97,9 +97,6 @@ function wrap(locale: Locale, node: React.ReactNode, path: string, route: string
   );
 }
 
-const renderWizard = (locale: Locale) =>
-  wrap(locale, <CreateMapping />, '/mappings/new', '/mappings/new');
-
 beforeEach(() => {
   vi.clearAllMocks();
   globalThis.sessionStorage.clear();
@@ -118,96 +115,9 @@ afterEach(() => {
   globalThis.localStorage.removeItem('ownpace.locale');
 });
 
-/** Card → the provider whose app it signs in with, and today's about key. */
-const CARDS: ReadonlyArray<[string, 'google' | 'dropbox', string]> = [
-  ['Google Drive', 'google', 'wizard.about.googleDrive'],
-  ['Gmail', 'google', 'wizard.about.gmail'],
-  // Google Calendar left the wizard (0153 open question 5, item 3): retired
-  // for new migrations, the Google account carries calendars.
-  ['Dropbox', 'dropbox', 'wizard.about.dropbox'],
-];
-
-describe('the about-line reads what the deployment carries (0148 T2 (a))', () => {
-  for (const locale of ['en', 'nl'] as const) {
-    for (const [card, provider, todayKey] of CARDS) {
-      it(`${locale}: ${card} with the deployment's app says the service's own app, and never "your own"`, async () => {
-        clients.mockResolvedValue(facts('deployment', 'deployment'));
-        renderWizard(locale);
-        fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${card}`) }));
-        const line = words(locale, `wizard.about.deploymentApp.${provider}`);
-        const shown = await screen.findByText(line);
-        // The Hint: the line, and whatever folds under its More.
-        const hint = shown.parentElement as HTMLElement;
-        expect(hint.textContent).not.toMatch(/your own|uw eigen/i);
-        expect(screen.queryByText(words(locale, todayKey))).toBeNull();
-      });
-
-      it(`${locale}: ${card} where each connection brings its own app keeps today's line`, async () => {
-        clients.mockResolvedValue(facts('connection', 'connection'));
-        renderWizard(locale);
-        fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${card}`) }));
-        expect(await screen.findByText(words(locale, todayKey))).toBeTruthy();
-        expect(screen.queryByText(words(locale, `wizard.about.deploymentApp.${provider}`))).toBeNull();
-      });
-    }
-  }
-
-  it("keeps Drive's own sentence on Docs, Sheets, Slides and Drawings in the fold, and nothing about tokens", async () => {
-    clients.mockResolvedValue(facts('deployment', 'connection'));
-    renderWizard('en');
-    fireEvent.click(screen.getByRole('button', { name: /^Google Drive/ }));
-    const shown = await screen.findByText(words('en', 'wizard.about.deploymentApp.google'));
-    const fold = (shown.parentElement as HTMLElement).querySelector('details');
-    expect(fold, 'Drive keeps a fold for what is particular to the card').not.toBeNull();
-    expect(fold).toHaveTextContent(/Docs, Sheets, Slides and Drawings/);
-    expect(fold?.textContent).not.toMatch(/token|client|scope|command/i);
-  });
-});
-
 describe('the redirect line under the button (0148 T2 (a))', () => {
   const connect = () => screen.getByRole('button', { name: /Connect with Dropbox/i });
   const ADDRESS = 'https://app.example.test/api/migrations/dropbox/callback';
-
-  it("in the wizard: absent after a consent with the service's app", async () => {
-    clients.mockResolvedValue(facts('connection', 'deployment'));
-    const open = vi.spyOn(window, 'open').mockReturnValue(null);
-    try {
-      renderWizard('en');
-      fireEvent.click(screen.getByRole('button', { name: /^Dropbox/ }));
-      fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
-        target: { value: 'owner@example.invalid' },
-      });
-      await waitFor(() => expect(connect()).toBeEnabled());
-      fireEvent.click(connect());
-      await waitFor(() => expect(open).toHaveBeenCalled());
-      expect(dropboxAuthorize.mock.calls[0]![0]).toEqual({ locale: 'en' });
-      expect(screen.queryByText(/Register this exact address/)).toBeNull();
-      expect(screen.queryByText(ADDRESS)).toBeNull();
-    } finally {
-      open.mockRestore();
-    }
-  });
-
-  it('in the wizard: present after a consent with an app the person typed in', async () => {
-    clients.mockResolvedValue(facts('connection', 'connection'));
-    const open = vi.spyOn(window, 'open').mockReturnValue(null);
-    try {
-      renderWizard('en');
-      fireEvent.click(screen.getByRole('button', { name: /^Dropbox/ }));
-      fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
-        target: { value: 'owner@example.invalid' },
-      });
-      fireEvent.change(screen.getByLabelText(/App key/), { target: { value: 'own-key' } });
-      fireEvent.change(screen.getByPlaceholderText('••••••••'), { target: { value: 'own-secret' } });
-      await waitFor(() => expect(connect()).toBeEnabled());
-      fireEvent.click(connect());
-      await waitFor(() => expect(open).toHaveBeenCalled());
-      expect(await screen.findByText(/Register this exact address/)).toBeTruthy();
-      expect(screen.getByText(ADDRESS)).toBeTruthy();
-    } finally {
-      open.mockRestore();
-    }
-  });
 
   /** The Connections page's consent, without the page around it. */
   const Panel: React.FC<{ values: Record<string, string> }> = ({ values }) => {

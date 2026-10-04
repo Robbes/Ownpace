@@ -343,20 +343,15 @@ const Mappings: React.FC = () => {
             </p>
           )}
         </div>
-        {/* Start a migration is the flow (0153 T4); the four-step wizard stays
-            reachable, by hand, until it carries every card. */}
-        <div className="flex flex-col items-end gap-2">
-          <Link
-            to="/start"
-            className="flex min-h-[44px] items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            {t('mappings.new')}
-          </Link>
-          <Link to="/mappings/new" className="text-sm text-blue-700 hover:underline">
-            {t('start.byHand')}
-          </Link>
-        </div>
+        {/* Start a migration is the flow (0153 T4), and the one way in since
+            the four-step wizard retired (D5). */}
+        <Link
+          to="/start"
+          className="flex min-h-[44px] items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Plus className="w-5 h-5 mr-2" />
+          {t('mappings.new')}
+        </Link>
       </div>
 
       {statusFilter && failures.length === 0 && (

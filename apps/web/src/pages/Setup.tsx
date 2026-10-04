@@ -23,7 +23,7 @@
  */
 
 import React from 'react';
-import { useParams, useLocation, Link } from 'react-router';
+import { useParams, Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, CircleDashed, SkipForward, UserCog } from 'lucide-react';
 import { setupApi, type SetupChecklist, type SetupStepStatusDto } from '../services/mapping-service.ts';
@@ -233,12 +233,10 @@ function useAdminAnswer(side: string, provider: string) {
 const Setup: React.FC = () => {
   const t = useT();
   const { side, provider } = useParams<{ side: string; provider: string }>();
-  const location = useLocation();
-  const cameFrom = (location.state as { from?: string } | null)?.from;
-  const backTo: { to: string; labelKey: StringKey } =
-    cameFrom === '/connections'
-      ? { to: '/connections', labelKey: 'setup.backToConnections' }
-      : { to: '/mappings/new', labelKey: 'setup.backToWizard' };
+  // Back to Accounts, wherever it was opened from: *Start a migration* opens
+  // it in a tab of its own, so its screens are still where they were, and
+  // the wizard it used to lead back to retired (0153 D5).
+  const backTo: { to: string; labelKey: StringKey } = { to: '/connections', labelKey: 'setup.backToConnections' };
   const queryClient = useQueryClient();
   const [busyKey, setBusyKey] = React.useState<string | null>(null);
 

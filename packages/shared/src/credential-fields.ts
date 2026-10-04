@@ -22,7 +22,8 @@
  *
  * LABELS ARE THE WIZARD'S OWN i18n KEYS, reused rather than restated, so a
  * field renamed for one door is renamed for all of them — and so this file
- * adds no new translations to drift.
+ * adds no new translations to drift. The wizard retired since (0153 D5); its
+ * keys stay, and the one form both doors draw (`AccountForm.tsx`) reads them.
  */
 
 import { ARCHIVE_PROVIDERS, ARCHIVE_PROVIDER_NAMES, hasArchiveReader } from './archive-providers.ts';

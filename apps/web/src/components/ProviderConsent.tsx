@@ -556,8 +556,8 @@ export const ConsentWindowLink: React.FC<{
  * mouse's hover. A phone has no hover, a disabled button takes no focus, and a
  * screen reader need not read a title, so a finger met a grey button and no
  * reason. Now it is a line straight under the button with `role="status"`, the
- * pattern of Next's reason at the foot of the wizard (`CreateMapping.tsx`),
- * and it changes as the reason does. Each door decides one reason and derives
+ * pattern of Next's reason at the foot of *Start a migration*, and it changes
+ * as the reason does. Each door decides one reason and derives
  * `disabled` from it, so a greyed-out button always says why.
  */
 export const ConnectReason: React.FC<{ readonly reason: string | undefined }> = ({ reason }) =>

@@ -4,10 +4,10 @@
  *
  * A browser lets a page open a window only as the direct result of a press,
  * and only for a short while after it (the specs call it transient user
- * activation). Both doors that run a consent, the Connections page's panel
- * (`ProviderConsent.tsx`) and the wizard's source step (`CreateMapping.tsx`),
- * used to ask our server for the provider's address first and open the window
- * once the answer came. Desktop Chrome still counted the press after that
+ * activation). Both doors that ran a consent, the consent panel
+ * (`ProviderConsent.tsx`) and the wizard's source step (the wizard retired
+ * since: 0153 D5), used to ask our server for the provider's address first
+ * and open the window once the answer came. Desktop Chrome still counted the press after that
  * wait. Safari on an iPhone is reported not to, and a blocked window was never
  * noticed: the button looked as if it did nothing.
  *

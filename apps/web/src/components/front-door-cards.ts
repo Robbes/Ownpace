@@ -159,16 +159,15 @@ export const TARGET_CARDS = [
 export type SourceCard = (typeof SOURCE_CARDS)[number];
 
 /**
- * A source card the migration WIZARD may offer — every card that is not
- * `connectionOnly` (workplan 0116 T1).
+ * A source card a new migration may be made from — every card that is not
+ * `connectionOnly` (workplan 0116 T1). *Start a migration* reaches each of them
+ * (`every-card-through-start-a-migration.unit.test.tsx`), as the wizard did
+ * until it retired (0153 D5).
  *
- * A type rather than a runtime check alone, and that is the load-bearing half:
- * the wizard's `FormData.sourceType` is `CreateMappingInput['sourceType']`,
- * which the create route's enum defines. While the archive was connection-only
- * that union did not include it, so handing the chooser plain `SourceCard`s
- * made the wizard fail to compile — correctly — because it could then have set
- * a source type the API refuses. The compiler, not a filter somebody could
- * quietly drop, is what keeps the wizard out of a kind in that state.
+ * A type rather than a runtime check alone: while the archive was
+ * connection-only, the wizard's source type (the create route's enum) did not
+ * include it, and the compiler, not a filter somebody could quietly drop, kept
+ * the wizard out of a kind in that state.
  */
 export type MigratableSourceCard = Exclude<SourceCard, { connectionOnly: true }>;
 export type TargetCard = (typeof TARGET_CARDS)[number];
@@ -203,13 +202,14 @@ export function cardGuideHref(role: 'source' | 'target', id: string): string | u
 }
 
 /**
- * The cards the MIGRATION WIZARD may offer — everything a mapping can be
- * created from (workplan 0116 T1).
+ * The cards a new migration may be made from — everything a mapping can be
+ * created from (workplan 0116 T1), which *Start a migration* reaches.
  *
- * A function rather than a second list, so the two doors keep reading one
- * table: the connections page shows `frontDoorCards`, the wizard shows this,
- * and the difference between them is a flag somebody wrote down with a reason
- * beside it rather than a card that exists in one file and not the other.
+ * A function rather than a second list, so everything keeps reading one
+ * table: the Accounts page shows `frontDoorCards`, the reachability test walks
+ * this, and the difference between them is a flag somebody wrote down with a
+ * reason beside it rather than a card that exists in one file and not the
+ * other.
  */
 export function migratableSourceCards(): ReadonlyArray<MigratableSourceCard> {
   // `'connectionOnly' in c` rather than `c.connectionOnly`, and the awkwardness

@@ -21,8 +21,9 @@
  *     only reads and that Google describes the permission more broadly, and its
  *     box does not open with "Read-only" / "Alleen lezen"; for one Google does
  *     hold to reading, it does;
- *  2. one line sits beside *Connect with Google*, in the wizard and in the
- *     consent panel both doors share, when the consent asks for mail,
+ *  2. one line sits beside *Connect with Google*, in the consent panel the
+ *     Accounts page and *Start a migration* share (the wizard, which had its
+ *     own button, retired: 0153 D5), when the consent asks for mail,
  *     calendars or contacts, and not for Drive or Tasks alone, nor beside
  *     another provider's button. The deployment's app or the person's own
  *     makes no difference: the scope Google shows is the same. What the
@@ -33,7 +34,7 @@
  */
 
 import React from 'react';
-import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -71,7 +72,6 @@ vi.mock('./services/mapping-service', () => ({
 }));
 
 import Grant from './pages/Grant.tsx';
-import CreateMapping from './pages/CreateMapping.tsx';
 import { ProviderConsentPanel, useProviderConsent } from './components/ProviderConsent.tsx';
 
 type Locale = 'en' | 'nl';
@@ -254,64 +254,3 @@ describe('one line beside Connect with Google, in the consent panel (0144 T3 (a)
   }
 });
 
-describe('the same line beside the wizard’s Connect with Google (0144 T3 (a))', () => {
-  const renderWizard = (locale: Locale) => wrap(locale, <CreateMapping />, '/mappings/new', '/mappings/new');
-
-  for (const locale of LOCALES) {
-    for (const fact of ['deployment', 'connection'] as const) {
-      const connect = () =>
-        screen.getByRole('button', { name: words(locale, 'wizard.google.connect') });
-
-      it(`${locale}, ${fact}'s app: Gmail shows it, Google Drive does not`, async () => {
-        clients.mockResolvedValue({ google: fact, dropbox: fact, microsoft: fact });
-        renderWizard(locale);
-        fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
-        await waitFor(() => expect(connect()).toBeTruthy());
-        expect(lineBeside(locale, connect())).not.toBeNull();
-
-        fireEvent.click(screen.getByRole('button', { name: /^Google Drive/ }));
-        await waitFor(() => expect(connect()).toBeTruthy());
-        expect(lineBeside(locale, connect())).toBeNull();
-      });
-    }
-
-    it(`${locale}: a Google account shows it while calendars or contacts are ticked, and not for tasks alone`, async () => {
-      renderWizard(locale);
-      fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
-      const connect = () =>
-        screen.getByRole('button', { name: words(locale, 'wizard.google.connect') });
-      await waitFor(() => expect(connect()).toBeTruthy());
-      const faces = connect().parentElement as HTMLElement;
-      // Whatever the card ticks on its own, end with calendars and tasks ticked.
-      for (const key of ['domain.calendar', 'domain.contact', 'domain.task']) {
-        const box = within(faces).getByLabelText(words(locale, key)) as HTMLInputElement;
-        const want = key !== 'domain.contact';
-        if (box.checked !== want) fireEvent.click(box);
-      }
-      expect(lineBeside(locale, connect())).not.toBeNull();
-
-      fireEvent.click(within(faces).getByLabelText(words(locale, 'domain.calendar')));
-      expect(lineBeside(locale, connect())).toBeNull();
-    });
-
-    it(`${locale}: a tick this deployment does not serve is not what the consent asks, so it brings no line`, async () => {
-      // The source step's faces are all five, while `/api/provider-accounts`
-      // serves calendars, contacts and tasks here (nothing declared). E-mail
-      // ticked on such a deployment is refused before Google is asked, so
-      // there is no permission for the line to describe (the ceiling guard's
-      // rule: the deployment answers once, and the screen asks).
-      renderWizard(locale);
-      fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
-      const connect = () =>
-        screen.getByRole('button', { name: words(locale, 'wizard.google.connect') });
-      await waitFor(() => expect(connect()).toBeTruthy());
-      const faces = connect().parentElement as HTMLElement;
-      for (const key of ['domain.email', 'domain.calendar', 'domain.contact', 'domain.task']) {
-        const box = within(faces).getByLabelText(words(locale, key)) as HTMLInputElement;
-        const want = key === 'domain.email' || key === 'domain.task';
-        if (box.checked !== want) fireEvent.click(box);
-      }
-      expect(lineBeside(locale, connect())).toBeNull();
-    });
-  }
-});

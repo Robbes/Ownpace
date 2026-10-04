@@ -96,20 +96,20 @@
     organisations not yet (0138 T2 and T3 step 2, not merged). A breach
     paragraph that tells the person, as the owner answered; the
     vulnerability channel as SECURITY.md (0139 open question 5).
-    FOR THE LAWYER, with the wizard's retirement (0153 open question 5,
-    item 4; the owner chose "no switch on managed", 2026-10-04): the
-    wizard's "Use SSL/TLS" is then gone, and the managed edition has no
-    switch at all. Start a migration encrypts every connection and asks
-    nothing, and the Accounts page's forms never had a switch. A connection
-    is then unencrypted only where a person types an address that starts
-    with http:// themselves, which keeps its scheme. The appliance's mapping
-    file keeps `tls`, for a server on the home network. So "unless you switch
-    off SSL/TLS yourself for an account you connect by server name" will
-    describe a switch that does not exist. Proposed: "Connections to your
-    providers are encrypted with TLS, and the provider's certificate is
-    checked. An address you type yourself that starts with http:// is
-    reached as typed, and that connection is not encrypted." The rendered
-    text stays until the wizard goes.
+    FOR THE LAWYER, applied with the wizard's retirement (0153 open
+    question 5, item 4, and D5; the owner chose "no switch on managed",
+    2026-10-04): the wizard's "Use SSL/TLS" is gone, and the managed edition
+    has no switch at all. Start a migration encrypts every connection and
+    asks nothing, and the Accounts page's forms never had a switch. A
+    connection is unencrypted only where a person types an address that
+    starts with http:// themselves, which keeps its scheme. The appliance's
+    mapping file keeps `tls`, for a server on the home network. "Unless you
+    switch off SSL/TLS yourself for an account you connect by server name"
+    described a switch that no longer exists, so §11 now reads, in both
+    languages: "Connections to your providers are encrypted with TLS, and
+    the provider's certificate is checked. An address you type yourself
+    that starts with http:// is reached as typed, and that connection is not
+    encrypted." To confirm in the lawyer's pass.
   - §13: during the Alpha, alpha §11 sets the notice before what follows.
   - Words: "tenant" and "workspace" became "organisation"; the Dutch
     "beheerders" for our operators no longer collides with the admin role.
@@ -1069,8 +1069,8 @@ work. In the Netherlands that is the **Autoriteit Persoonsgegevens**
 Credentials encrypted with AES-256-GCM, under a key kept apart from the database that holds
 them: in the service's own configuration, and in the settings of the background tasks, both on
 the same machine. Connections to your providers are encrypted with TLS, and the provider's
-certificate is checked, unless you switch off SSL/TLS yourself for an account you connect by
-server name; that connection may then not be encrypted. Organisations are kept apart in the
+certificate is checked. An address you type yourself that starts with http:// is reached as
+typed, and that connection is not encrypted. Organisations are kept apart in the
 database itself through row-level security, for the app's requests and for the background tasks
 that run migrations. Our support screens read through views that pass it by design, and each of
 those views checks that the reader is one of the people who run the service (§4.5). The

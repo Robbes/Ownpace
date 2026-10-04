@@ -2,23 +2,22 @@
 /**
  * A STEP THAT STARTS AT THE TOP (workplan 0145 T3 (a)).
  *
- * The wizard's Next sits at the bottom of each step, and pressing it only
+ * The wizard's Next sat at the bottom of each step, and pressing it only
  * changed which step rendered. On a phone the next step therefore opened
  * scrolled to where the last one ended, and a screen reader stayed on "Next"
- * and heard nothing. The four steps had no heading in common either: two open
- * with an `h3`, one with a name field, and the review step's `h3` sits inside
- * a green box. And the router neither reset nor restored the scroll, so a page
- * opened from further down a list opened part of the way down. Found by the
- * readiness review of 2026-09-23 (`a11ym-wizard-focus-scroll-status`); checked
- * again in 0145 §1.
+ * and heard nothing. And the router neither reset nor restored the scroll, so
+ * a page opened from further down a list opened part of the way down. Found by
+ * the readiness review of 2026-09-23 (`a11ym-wizard-focus-scroll-status`);
+ * checked again in 0145 §1. The wizard retired since (0153 D5), and *Start a
+ * migration* keeps the same rule, so these cases walk it now.
  *
  * What now holds:
  *
- * - every step card opens with the same heading, *"Step 2 of 4: Target"* /
- *   *"Stap 2 van 4: Doel"*, visible, because on a phone the progress row is
- *   small;
+ * - every screen opens with its heading, *"Which account are you leaving?"* /
+ *   *"Welk account verlaat u?"*, under the line that says which screen of six
+ *   it is;
  * - Next and Back scroll the page to the top and put focus on that heading,
- *   so a screen reader reads the new step without a live region. The first
+ *   so a screen reader reads the new screen without a live region. The first
  *   render moves nothing;
  * - the scroll is smooth only when the browser says the reader has no
  *   preference about motion, and instant otherwise;
@@ -45,7 +44,6 @@ import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } fr
 import type { FC, ReactElement } from 'react';
 import { LocaleProvider } from '../i18n/index.tsx';
 import type { Locale } from '../i18n/strings.ts';
-import { passSourceStep, walkToReview } from './wizard-walk.tsx';
 
 const { authState } = vi.hoisted(() => ({
   authState: {
@@ -63,17 +61,18 @@ vi.mock('../stores/auth-store', () => ({
     selector ? selector(authState) : authState,
 }));
 
-// The wizard's services, as `CreateMapping.unit.test.tsx` mocks them, and the
-// one read the layout's header makes.
+// What Start a migration reads on opening, and the one read the layout's
+// header makes.
+vi.mock('../services/operating-service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/operating-service.ts')>()),
+  fetchPeople: vi.fn().mockResolvedValue({ people: [], unassigned: [] }),
+}));
 vi.mock('../services/mapping-service', () => ({
   mappingApi: {
     get: vi.fn(() => new Promise<never>(() => {})),
     create: vi.fn(),
     googleAuthorize: vi.fn(),
     dropboxAuthorize: vi.fn(),
-    listSharedDrives: vi.fn(),
-    listSharedFolders: vi.fn(),
-    listDropboxSharedFolders: vi.fn(),
   },
   connectionsApi: {
     list: vi.fn().mockResolvedValue([]),
@@ -87,14 +86,15 @@ vi.mock('../services/mapping-service', () => ({
   },
 }));
 
-import CreateMapping from './CreateMapping.tsx';
+import StartMigration from './StartMigration.tsx';
 import Docs from './Docs.tsx';
+import { STRINGS } from '../i18n/strings.ts';
 import Layout from '../components/Layout.tsx';
 
 /**
  * A `matchMedia` whose answers the test sets: the phone menu asks whether the
- * screen is wide (T1), and the wizard asks whether the reader has a preference
- * about motion.
+ * screen is wide (T1), and *Start a migration* asks whether the reader has a
+ * preference about motion.
  */
 const media = {
   wide: false,
@@ -169,8 +169,16 @@ function renderAt(path: string, routes: ReactElement, locale: Locale = 'en') {
   );
 }
 
-const renderWizard = (locale: Locale = 'en') =>
-  renderAt('/mappings/new', <Route path="/mappings/new" element={<CreateMapping />} />, locale);
+const renderStart = (locale: Locale = 'en') =>
+  renderAt('/start', <Route path="/start" element={<StartMigration />} />, locale);
+
+/** Screen 1 answered with a name, and on to screen 2 with Next. */
+async function passWho(locale: Locale = 'en'): Promise<void> {
+  fireEvent.change(await screen.findByLabelText(STRINGS[locale]['people.new.name']), {
+    target: { value: 'Anna Jansen' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: STRINGS[locale]['wizard.next'] }));
+}
 
 /** Whether a call to `scrollTo` asked for the top, in either of its two forms. */
 function toTheTop(args: unknown[]): boolean {
@@ -198,55 +206,45 @@ function focusedHeading(): { level: string; text: string | null; tabIndex: numbe
   return { level: focused.tagName, text: focused.textContent, tabIndex: focused.tabIndex };
 }
 
-describe('a wizard step starts at the top', () => {
-  it('opens on step 1 with its heading, and moves neither the page nor the focus', () => {
-    renderWizard();
+describe('a screen of Start a migration starts at the top', () => {
+  it('opens on screen 1 with its heading, and moves neither the page nor the focus', async () => {
+    renderStart();
 
-    expect(screen.getByRole('heading', { level: 2, name: 'Step 1 of 4: Source' })).toBeVisible();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Who is it for?' })).toBeVisible();
     expect(scrollsToTheTop()).toBe(0);
     expect(document.activeElement).toBe(document.body);
   });
 
-  it('Next scrolls to the top and puts focus on the heading of step 2 of 4', () => {
-    renderWizard();
-    passSourceStep();
+  it('Next scrolls to the top and puts focus on the heading of screen 2', async () => {
+    renderStart();
+    await passWho();
 
     expect(scrollsToTheTop()).toBe(1);
-    expect(focusedHeading()).toEqual({ level: 'H2', text: 'Step 2 of 4: Target', tabIndex: -1 });
+    expect(focusedHeading()).toEqual({ level: 'H2', text: 'Which account are you leaving?', tabIndex: -1 });
   });
 
-  it('says the step in Dutch for a Dutch reader', () => {
-    renderWizard('nl');
-    expect(screen.getByRole('heading', { level: 2, name: 'Stap 1 van 4: Bron' })).toBeVisible();
+  it('says the screen in Dutch for a Dutch reader', async () => {
+    renderStart('nl');
+    expect(await screen.findByRole('heading', { level: 2, name: 'Voor wie?' })).toBeVisible();
 
-    passSourceStep('nl');
+    await passWho('nl');
 
     expect(scrollsToTheTop()).toBe(1);
-    expect(focusedHeading()).toEqual({ level: 'H2', text: 'Stap 2 van 4: Doel', tabIndex: -1 });
+    expect(focusedHeading()).toEqual({ level: 'H2', text: 'Welk account verlaat u?', tabIndex: -1 });
   });
 
-  it('Back does the same for the step it returns to', () => {
-    renderWizard();
-    passSourceStep();
+  it('Back does the same for the screen it returns to', async () => {
+    renderStart();
+    await passWho();
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 
     expect(scrollsToTheTop()).toBe(2);
-    expect(focusedHeading().text).toBe('Step 1 of 4: Source');
+    expect(focusedHeading().text).toBe('Who is it for?');
   });
 
-  it('names each step up to the review, the last of four', () => {
-    renderWizard();
-    walkToReview();
-
-    expect(scrollsToTheTop()).toBe(3);
-    expect(focusedHeading()).toEqual({ level: 'H2', text: 'Step 4 of 4: Review', tabIndex: -1 });
-    // The review step's own heading is still there, under the step's.
-    expect(screen.getByRole('heading', { name: 'Ready to create migration' })).toBeInTheDocument();
-  });
-
-  it('scrolls smoothly only when the reader has no preference about motion', () => {
-    renderWizard();
-    passSourceStep();
+  it('scrolls smoothly only when the reader has no preference about motion', async () => {
+    renderStart();
+    await passWho();
     expect(lastScroll()).toMatchObject({ top: 0, behavior: 'smooth' });
 
     media.motionOk = false;
@@ -254,26 +252,26 @@ describe('a wizard step starts at the top', () => {
     expect(lastScroll()).toMatchObject({ top: 0, behavior: 'instant' });
   });
 
-  it('scrolls instantly in a browser that cannot say', () => {
+  it('scrolls instantly in a browser that cannot say', async () => {
     vi.stubGlobal('matchMedia', undefined);
-    renderWizard();
-    passSourceStep();
+    renderStart();
+    await passWho();
 
     expect(lastScroll()).toMatchObject({ top: 0, behavior: 'instant' });
   });
 
-  it('does not let the browser scroll the heading into view on its own', () => {
+  it('does not let the browser scroll the heading into view on its own', async () => {
     // Focus scrolls the focused element into view unless told not to. That
     // jump would come before the scroll to the top, so the page would jump to
     // the heading and then glide the rest of the way.
     const focus = vi.spyOn(HTMLElement.prototype, 'focus');
     try {
-      renderWizard();
-      passSourceStep();
+      renderStart();
+      await passWho();
       const onHeading = focus.mock.contexts.findIndex(
         (element) => (element as HTMLElement).tagName === 'H2',
       );
-      expect(onHeading, 'nothing focused the step heading').toBeGreaterThanOrEqual(0);
+      expect(onHeading, 'nothing focused the screen heading').toBeGreaterThanOrEqual(0);
       expect(focus.mock.calls[onHeading]?.[0]).toMatchObject({ preventScroll: true });
     } finally {
       focus.mockRestore();
@@ -287,7 +285,7 @@ const Page: FC = () => {
   return (
     <div>
       <Link to="/mappings">to-mappings</Link>
-      <Link to="/mappings/new">to-wizard</Link>
+      <Link to="/start">to-start</Link>
       <Link to="/connections?filter=failed">to-same-page-query</Link>
       <Link to="/connections#later">to-same-page-section</Link>
       <Link to="/docs/google#connect">to-a-section</Link>
@@ -302,7 +300,7 @@ const renderLayout = (path = '/connections') =>
   renderAt(
     path,
     <Route path="/" element={<Layout />}>
-      <Route path="mappings/new" element={<CreateMapping />} />
+      <Route path="start" element={<StartMigration />} />
       <Route path="docs/:slug" element={<Docs />} />
       <Route path="*" element={<Page />} />
     </Route>,
@@ -376,14 +374,14 @@ describe('with the phone menu (0145 T1)', () => {
     expect(document.querySelector('aside')).toHaveAttribute('inert');
   });
 
-  it('the step heading neither takes focus from the menu nor takes it back', () => {
-    // Into the wizard by a link, as a person arrives: a new page, sent to the
-    // top once.
+  it('the screen heading neither takes focus from the menu nor takes it back', async () => {
+    // Into Start a migration by a link, as a person arrives: a new page, sent
+    // to the top once.
     renderLayout('/connections');
-    fireEvent.click(screen.getByRole('link', { name: 'to-wizard' }));
+    fireEvent.click(screen.getByRole('link', { name: 'to-start' }));
     expect(scrollsToTheTop()).toBe(1);
-    passSourceStep();
-    expect(focusedHeading().text).toBe('Step 2 of 4: Target');
+    await passWho();
+    expect(focusedHeading().text).toBe('Which account are you leaving?');
     expect(scrollsToTheTop()).toBe(2);
 
     const menu = screen.getByRole('button', { name: 'Menu' });
@@ -397,9 +395,9 @@ describe('with the phone menu (0145 T1)', () => {
     // Opening and closing the menu is not a new step or a new page.
     expect(scrollsToTheTop()).toBe(2);
 
-    // And the page is the page again: the next step change still lands.
+    // And the page is the page again: the next screen change still lands.
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
-    expect(focusedHeading().text).toBe('Step 1 of 4: Source');
+    expect(focusedHeading().text).toBe('Who is it for?');
     expect(scrollsToTheTop()).toBe(3);
   });
 });

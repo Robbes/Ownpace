@@ -4,6 +4,47 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04: the wizard retires (D5; open question 5, item 7, the second part).** *Start a
+migration* is the one way a migration is made on managed, and T4, T1 (c) and T6 end with it.
+
+- **The wizard is gone**: `CreateMapping.tsx`, its tests, its walk and its draft. `/mappings/new`
+  sends to `/start`, keeping the person it was opened for (`?person=`). *Add one migration by
+  hand* is gone from Migrations and from a person's page. The setup checklist's way back leads to
+  Accounts, and the Accounts page no longer sends anyone to the wizard. The confirm page's line
+  about a migration not added to a person went too, since only the wizard made one. 96 strings only
+  the wizard and its links used went from both languages, with the comments that described them.
+  The setup checklist's lines that sent a person to the wizard say what to do now, and a guard in
+  `i18n.unit.test.tsx` fails on any string, in either language, that names the wizard.
+- **What only the wizard drew, the account form now draws, at both doors.** A field's own line and
+  its why, folded (0118 T1): the Apple password that is not the Apple Account password, the
+  domain-wide key's width in amber, the mail server Soverin needs only for mail, ten in all. And
+  beside *Setup steps*, the link to the card's own section of its guide, in a new tab.
+- **The guides walk the flow,** all eleven, in both languages. They name its screens and buttons:
+  *Which account are you leaving?*, *Connect your accounts* and *Check the sign-in*, *Where does
+  it go?* with *Add …*, *Where the copies land* and *Try again*. The Accounts page appears by its
+  own name and buttons. No guide says *Use SSL/TLS*, since no screen has the box, and the three
+  that told a person to delete a failed connection and reopen the wizard say what *Try again*
+  does. The docs guard reads the flow's labels (`start.*`) too, so a label one language quotes
+  has its twin in the other, and no guide names a step, since no screen has one.
+- **Privacy §11 says what the code does,** in both languages, as the lawyer's briefing proposed:
+  TLS always, and an address typed with `http://` reached as typed. It is marked for the
+  lawyer's pass.
+- **The operator documents** name the flow and the Accounts page where they named the wizard.
+- **Not carried over, and said for the owner:**
+  - The wizard filled in 993 and 443 as the port. The forms show them as the example only, and
+    the Accounts page pins that a protocol card fills in nothing, so a person types the port.
+  - The wizard took away a data type that the destination had measured it cannot take (0106
+    T3a). The flow offers it, and the create door refuses it in the account's own words on
+    *Where does it go?*, before anything is set up (`measuredNoRefusal`).
+  - A saved *Export archive* account is no longer a way into a migration: the flow reads a
+    Takeout from the folder `Takeout` of the destination's files (item 2). The Accounts page still
+    adds one, and its test says what an export holds.
+- **Proved by** `a-line-under-the-box-both-doors-draw` (27 cases: every field with a line, on
+  every card, on the Accounts page; and the flow's three placements), the redirect cases in
+  `AppRoutes.unit.test.tsx`, the docs guard with `start.*`, and the UI test's walk through `/start`.
+  Two mutations are caught: the form drawing no line, and a Dutch guide naming a button the
+  screen does not show.
+
 **2026-10-04: every card through *Start a migration* (D5; open question 5, item 7, the first
 part).** The wizard retires once the flow reaches every card a migration can be made from, and the
 reachability test moves to `/start`, as the recommendation said.
@@ -126,7 +167,8 @@ recommendation put *Rename* on the migration page for the name a person would ra
   *Start a migration* encrypts every connection, and the Accounts page's forms never had a switch.
   The wizard's *Use SSL/TLS* is the last one. Privacy §11's *"unless you switch off SSL/TLS
   yourself"* is in the lawyer's briefing at the top of `site/legal/privacy.md`, with a proposed
-  wording for when the wizard retires. The rendered text stays until then.
+  wording for when the wizard retires. The rendered text stays until then (applied when it
+  retired: see the retirement's entry above).
 
 **2026-10-04: the Google Calendar and Google Contacts cards retired for new migrations (open
 question 5, item 3).** The Google account is the same way in and asks Google for only what was
@@ -211,7 +253,8 @@ permissions, through Microsoft Graph or through IMAP, beside the Microsoft sign-
    the migration page, and no TLS switch on managed.
 6. *Other ways to connect* without the wizard, and the two texts that promise CalDAV and
    CardDAV sources.
-7. The reachability test through `/start`, and then the wizard retires (D5).
+7. The reachability test through `/start`, and then the wizard retires (D5). Both done
+   2026-10-04 (#1462, and the retirement's entry at the top).
 
 **The first pull request fixes the two Microsoft defects** found while answering open
 question 5:
@@ -1127,12 +1170,12 @@ person, and a flow that fills it.
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner's words and the ADR | ✅ **Words decided 2026-09-28 (D6, D7); ADR-0050 accepted 2026-09-28 (#1327)** | §3. Dutch says *migratie*, never *verhuizing*. A person's card carries their name. *Accounts*, not *Connections*. The code says `person` (ADR-0050's amendment); `move` was its first name. |
-| T1 Four faults the audit found | 🟡 **(a) in #1315 and (d) in #1316, each proved by its guard; (b) drawn and guarded (#1349); (c) is T4's, by construction, and ends when the wizard retires; all before the first invitation** | §3. (a) Review & confirm listed every source's limits on managed. (b) The Gmail app password the guide names is not in the wizard. (c) The Microsoft consent is sent before the data types are chosen: T4 fixes it by construction (the owner, 2026-09-28: no press). (d) A raw state word on Finish. |
+| T1 Four faults the audit found | ✅ **(a) in #1315 and (d) in #1316, each proved by its guard; (b) drawn and guarded (#1349); (c) is T4's, by construction, and ended with the wizard's retirement (D5): *Start a migration* is the one door, and its consent asks for what was ticked** | §3. (a) Review & confirm listed every source's limits on managed. (b) The Gmail app password the guide names is not in the wizard. (c) The Microsoft consent is sent before the data types are chosen: T4 fixes it by construction (the owner, 2026-09-28: no press). (d) A raw state word on Finish. |
 | T2 ADR-0050: a move is a person's migrations | ✅ **ADR-0050 accepted 2026-09-28 (#1327), amended the same night: *person*. The tables and `/api/people` built, with the appliance's implicit person (#1332)** | §3. A `person` row and `person_migration` in `packages/managed/migrations` (0031). The appliance answers one implicit person. The billed unit (a path) and the migration (a mapping) do not change. Deleting a person deletes no migration. |
 | T3 The Migrations page lists people | ✅ **Built: the page lists people (#1341); it is the landing page, the Dashboard is gone, and the menu is the drawing's (#1343); the menu counts beside *Needs you* what waits (#1346); each row's stage and line come from the progress read (0154 T1 (b) and (d), #1422)** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
-| T4 *Start a migration*: who, from where, what, to where | 🟡 **Built (#1372, #1378), with *Someone else* by a grant link (#1386), one per person since T5 (b); screen 6 says how long (0154 T3 (a)). Waiting: the wizard retires once the reachability test passes through the flow (D5), after the owner's four questions. Before the first invitation** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
+| T4 *Start a migration*: who, from where, what, to where | ✅ **Built (#1372, #1378), with *Someone else* by a grant link (#1386), one per person since T5 (b); screen 6 says how long (0154 T3 (a)). The owner's four questions answered and built (open question 5), every card reached through `/start` (#1462), and the wizard retired (D5)** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
 | T5 A page per person | ✅ **Built: the person, their migrations, their rows and their steps (#1353, with 0154 T1, T2 and T4); one link per person, in T5 (b)'s four slices (#1394, #1396, #1401, #1408), with *Report this link* (#1402), asking again (#1407), start when granted (#1409), and what waits for their grant (#1413)** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
-| T6 Words a family reads | 🟡 **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, the schedule folded last; the wizard's own step names go when it retires (D5). The Dutch says *migratie* everywhere the product speaks, with two guards (#1342). (c)'s two guards built (#1347)** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |
+| T6 Words a family reads | ✅ **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, the schedule folded last; the wizard's own step names went with it (D5). The Dutch says *migratie* everywhere the product speaks, with two guards (#1342). (c)'s two guards built (#1347)** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |
 | T7 Defaults a family can pass | ✅ **(a) to (f) built inside T4 (#1378); the wizard's progress line too (#1383)** | §3. Buttons that look like buttons, with the reason in text. A Soverin sign-in in two visible fields. A Nextcloud address, not a DAV URL. Business-only fields only on the business path. The limit blamed on the side that has it. Tiles and icons: `tiles.svg`, `icons.svg`. |
 | T8 The appliance shows its person's page | ✅ **Built: its landing once every migration has started, Review & confirm until then; the page's rows from `/status`; *Migrations* first in its menu** | §3. The same page, fed by the appliance's one implicit grouping. No list or create screen (0034 stands). |
 

@@ -11,15 +11,15 @@ Een Dropbox-migratie meldt zich aan met een Dropbox-app, die van deze dienst als
 
 ### Dropbox {#dropbox}
 
-De wizard vraagt het adres van het account, onder **Gebruikersnaam**, en een **Refresh-token**, dat de knop invult.
+Bij **Uw accounts verbinden** vraagt het formulier van Dropbox het adres van het account, onder **Gebruikersnaam**, en een **Refresh-token**, dat de knop invult.
 
-**De korte weg: druk op Verbinden met Dropbox.** Heeft deze dienst een eigen Dropbox-app, dan tonen de wizard en de pagina Verbindingen een knop **Verbinden met Dropbox** naast het tokenveld. De knop opent het toestemmingsscherm van Dropbox voor het account dat u migreert. Keurt dat account het goed, dan komt het refresh-token vanzelf in het veld, en wordt de verbinding in één keer bewaard en getest. U typt niets, en het geheim van de app verlaat de server niet. U kunt ook uw eigen app gebruiken: open **Uw eigen Dropbox-app gebruiken** en vul de **App-sleutel** en het **Clientgeheim** in, als paar. [Met een eigen app](#own-app) heeft de stappen.
+**De korte weg: druk op Verbinden met Dropbox.** Heeft deze dienst een eigen Dropbox-app, dan tonen **Migratie starten** en de pagina **Accounts** een knop **Verbinden met Dropbox** onder het adres. De knop opent het toestemmingsscherm van Dropbox voor het account dat u migreert. Keurt dat account het goed, dan komt het refresh-token vanzelf in het veld, en wordt het account in één keer bewaard en getest. U typt niets, en het geheim van de app verlaat de server niet. U kunt ook uw eigen app gebruiken: open **Uw eigen Dropbox-app gebruiken** en vul de **App-sleutel** en het **Clientgeheim** in, als paar. [Met een eigen app](#own-app) heeft de stappen.
 
-Laat u het veld **Pad van de hoofdmap** leeg, dan verhuist de hele Dropbox; een pad beperkt de migratie tot die map, en de boom komt in beide gevallen op dezelfde manier aan.
+Wilt u één map verhuizen in plaats van de hele Dropbox, kies dan **Alleen één map**, onder **Bestanden** bij **Wat wilt u migreren?**. Is het account verbonden, typ dan het pad van de map, plak het adres van de map van de website van Dropbox, of druk op **Gedeelde mappen tonen** en kies een map die aan het account is toegevoegd. De pagina van de migratie zegt daarna uit welke map de bestanden worden gelezen. De boom komt in beide gevallen op dezelfde manier aan.
 
-Een **gekoppelde gedeelde map** staat in de boom van het account en verhuist zoals elke andere map; het pad ervan is een geldig pad voor de hoofdmap. De knop **Gedeelde mappen bekijken…** in de wizard toont wat het account kan zien, met de paden erbij; een gedeelde map die niet is gekoppeld, heeft geen pad tot het account haar aan zijn Dropbox toevoegt.
+Een **gekoppelde gedeelde map** staat in de boom van het account en verhuist zoals elke andere map: het pad ervan is een geldig pad voor een map. **Gedeelde mappen tonen** toont wat het account kan zien, met de paden erbij; een gedeelde map die niet is gekoppeld, staat erbij als niet aan deze Dropbox toegevoegd, want ze heeft geen pad tot het account haar toevoegt.
 
-**Bij Migratie starten** kiest u **Alleen één map**, onder **Bestanden** bij *Wat wilt u migreren?*. Is het account verbonden, typ dan het pad van de map, plak het adres van de map van de website van Dropbox, of druk op **Gedeelde mappen tonen** en kies een map die aan het account is toegevoegd. De pagina van de migratie zegt daarna uit welke map de bestanden worden gelezen.
+Op de pagina **Accounts** heeft het formulier van Dropbox ook een veld **Pad van de hoofdmap**. Is het leeg, dan lezen de migraties van het account de hele Dropbox; een pad beperkt ze tot die map.
 
 De test vraagt Dropbox alleen naar het bovenste niveau van de hoofdmap, en antwoordt dus binnen seconden, hoe groot de Dropbox ook is; de migratie zelf loopt elke map langs. Naast het aantal mappen staat hoeveel de Dropbox bevat, uit het eigen ruimtegebruik dat Dropbox opgeeft.
 
@@ -27,7 +27,7 @@ De test vraagt Dropbox alleen naar het bovenste niveau van de hoofdmap, en antwo
 
 De inhoud van de bestanden en de mappenboom. De deelinstellingen (met wie iets gedeeld is), bestandsverzoeken en de versiegeschiedenis blijven achter.
 
-Een Paper-document komt aan als export: Dropbox geeft het alleen zo af. De wizard vraagt welk formaat, met Markdown als voorstel, dat de Text-app van Nextcloud opent, of HTML. Elk document komt aan onder zijn eigen naam met de extensie van het formaat erachter, dus `Notities.paper` wordt `Notities.paper.md`; Paper-sjablonen volgen dezelfde keuze. U kunt het formaat later wijzigen onder **Exportformaat voor Paper-documenten** op de pagina van de migratie: de volgende ronde kopieert elk document opnieuw onder de nieuwe naam, en de kopie in het oude formaat blijft staan, vermeld op de pagina Verwijderingen als eerdere export. Laat u ze liever staan, dan staat elk ervan met zijn naam op de pagina Mislukkingen. Een ander document dat Dropbox in een eigen formaat bewaart, wordt niet gekopieerd: het wacht op de pagina Mislukkingen tot u het zelf vanuit Dropbox exporteert, of het achterlaat. Alle andere bestanden gaan gewoon door. Paper-documenten die buiten uw Dropbox-bestanden staan, bij een ouder Paper-account, worden helemaal niet gezien.
+Een Paper-document komt aan als export: Dropbox geeft het alleen zo af. **Wat wilt u migreren?** vraagt welk formaat onder **Bestanden**, als **Dropbox Paper-documenten**: Markdown, als voorstel, dat de Text-app van Nextcloud opent, of HTML. Elk document komt aan onder zijn eigen naam met de extensie van het formaat erachter, dus `Notities.paper` wordt `Notities.paper.md`; Paper-sjablonen volgen dezelfde keuze. U kunt het formaat later wijzigen onder **Exportformaat voor Paper-documenten** op de pagina van de migratie: de volgende ronde kopieert elk document opnieuw onder de nieuwe naam, en de kopie in het oude formaat blijft staan, vermeld op de pagina Verwijderingen als eerdere export. Laat u ze liever staan, dan staat elk ervan met zijn naam op de pagina Mislukkingen. Een ander document dat Dropbox in een eigen formaat bewaart, wordt niet gekopieerd: het wacht op de pagina Mislukkingen tot u het zelf vanuit Dropbox exporteert, of het achterlaat. Alle andere bestanden gaan gewoon door. Paper-documenten die buiten uw Dropbox-bestanden staan, bij een ouder Paper-account, worden helemaal niet gezien.
 
 Verwijderingen worden gelezen uit wat Dropbox zelf over verwijderde bestanden bijhoudt, en verder herkend door te tellen wat ontbreekt (twee schone rondes); het "terugzetten" van Dropbox wordt niet gelezen.
 
@@ -50,13 +50,13 @@ De schermen van Dropbox staan hieronder met hun Engelse namen.
 
 - `files.metadata.read`
 - `files.content.read`
-- `sharing.read` — niet verplicht, en ook alleen-lezen: daarmee werkt de knop **Gedeelde mappen bekijken…** in de wizard. Zonder deze scope werken migraties gewoon; het bekijken krijgt dan de eigen weigering van Dropbox, die de scope noemt. **Verbinden met Dropbox** vraagt alleen de twee scopes hierboven en `account_info.read`, die Dropbox op elke app laat staan, dus met een token van die knop werkt het bekijken niet, ook niet als de app `sharing.read` heeft.
+- `sharing.read` — niet verplicht, en ook alleen-lezen: daarmee werkt **Gedeelde mappen tonen**, bij **Uw accounts verbinden**. Zonder deze scope werken migraties gewoon; het bekijken krijgt dan de eigen weigering van Dropbox, die de scope noemt. **Verbinden met Dropbox** vraagt alleen de twee scopes hierboven en `account_info.read`, die Dropbox op elke app laat staan, dus met een token van die knop werkt het bekijken niet, ook niet als de app `sharing.read` heeft.
 
-Verder niets. De App key en het App secret op het tabblad Settings horen in het deel **Uw eigen Dropbox-app gebruiken** van de wizard, als paar: de App key onder **App-sleutel**, het App secret onder **Clientgeheim**.
+Verder niets. De App key en het App secret op het tabblad Settings horen in het deel **Uw eigen Dropbox-app gebruiken**, als paar: de App key onder **App-sleutel**, het App secret onder **Clientgeheim**.
 
 ### 2. Het omleidingsadres {#own-app-redirect}
 
-Wil de knop werken met uw eigen app, dan moet de app weten waarheen de browser terug moet: **Settings → OAuth 2 → Redirect URIs**. Druk één keer op **Verbinden met Dropbox** met uw App key en App secret ingevuld, en de wizard toont onder de knop het precieze adres om te registreren. Het eindigt op `/api/migrations/dropbox/callback`.
+Wil de knop werken met uw eigen app, dan moet de app weten waarheen de browser terug moet: **Settings → OAuth 2 → Redirect URIs**. Druk één keer op **Verbinden met Dropbox** met uw App key en App secret ingevuld, en het formulier toont onder de knop het precieze adres om te registreren. Het eindigt op `/api/migrations/dropbox/callback`.
 
 ### 3. Toestemming, één keer, als het account dat u migreert {#own-app-consent}
 
