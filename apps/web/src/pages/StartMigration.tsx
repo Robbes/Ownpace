@@ -447,12 +447,6 @@ const StartMigration: React.FC = () => {
   );
 
   /**
-   * WHAT A MIGRATION IS MADE WITH: the two accounts chosen, whose data it is,
-   * what a reused account must say again (Box's subject, a root folder), the
-   * formats chosen on *What moves?*, and the default schedule, daily at 02:00
-   * (T4, *Underneath*).
-   */
-  /**
    * WHERE A MIGRATION'S COPIES LAND (0153 open question 5, item 4): what was
    * typed, else a folder named after the account it comes from where another
    * migration sends the same data types to the same destination, else none,
@@ -464,6 +458,12 @@ const StartMigration: React.FC = () => {
     const folder = prefixOf(m).trim();
     return folder === '' ? {} : { targetFolderPrefix: folder };
   };
+  /**
+   * WHAT A MIGRATION IS MADE WITH: the two accounts chosen, whose data it is,
+   * what a reused account must say again (Box's subject, a root folder), the
+   * formats chosen on *What moves?*, and the default schedule, daily at 02:00
+   * (T4, *Underneath*), and where its copies land.
+   */
   const inputFor = (m: PlannedMigration): CreateMappingInput => {
     if (m.sourceCard === EXPORT_CARD) {
       // An export (0153 open question 5, item 2): no account to reuse, so its
