@@ -4,6 +4,22 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04, later: D11 changes. A year is never refunded and never renews** (the owner: *"C,
+nog refund of the first year"*; on credit left at the year's end, *"i, go ahead"*). ADR-0014
+records it (*Amendment 2026-10-04*). A year is still credit at six months' price, and each of its
+twelve months takes its own tier at half its monthly price. Nothing of it is refunded, also not
+on cancelling; the right of withdrawal (terms §7) stands. What is left after the twelve months
+pays the months that follow, at their monthly price, until it runs out; then the subscription
+runs month to month.
+- **Built:** the pricing page's year paragraph, and terms §8, in both languages, with question 27
+  in the lawyer's briefing. The renewal line in `wf-pricing.svg` is now the year's line.
+- **T6 (f) shrinks** to the withdrawal button: no renewal, no reminder before one, and no
+  refunds to build. 0111's yearly invoice still draws the credit month by month.
+- **Read, not said by the owner:** after the twelve months the credit pays the *full* monthly
+  price, since C makes those months month to month. If the owner meant half price for as long as
+  the credit lasts, one sentence changes on each page and in §8.
+- **T0:** the new sentences are for the owner's reading, in both languages.
+
 **2026-10-04: a new question for the owner, open question 5: which line the site shows during
 the Alpha.** T1 (a) copies the app's alpha sentence to every site page. Since 0131 D4's
 amendment that sentence is the owner's welcome, *"Welcome to the Alpha! Try Ownpace at your own
@@ -139,7 +155,7 @@ together, from one audit of the site and the app on `main` at `83eb73e` (§1).
 | T3 The hero shows the move | 📋 **Proposed; before the first invitation** | §3. The drawing `hero-move.svg`, inlined: the old account's data, then Ownpace, then the new home, with our own icons (D4). Three facts sit under it, and a three-step strip links to *How it works*. An app screen joins it once 0153 T5 exists. |
 | T4 The destinations, named | 📋 **Proposed; before the first invitation** | §3. A *Where to* section names what the app supports, from a site copy of the app's list with a guard that it matches. It says plainly that the new account is one the person opens and pays for themselves. |
 | T5 A page per provider a person leaves | 📋 **Proposed; before the first invitation (D5)** | §3. *Leaving Google*, *Leaving Microsoft 365*, *Leaving iCloud*, *Leaving Dropbox*, *Leaving Box*, *Leaving another mail provider*: what moves, the limits, what the person does, the destinations it can go to, a typical cost. Built from copies of the app's own verdicts, each guarded. |
-| T6 Pricing that reads in one pass | 🟡 **(a) done: the sentence by #1317, its guard beside D6's. (d) built 2026-10-03, with (g)'s principle on the page; the rest proposed, before the first invitation (D5)** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) Renewal and a withdrawal button (D11). (g) The principle, the price that pays for the work (D12). |
+| T6 Pricing that reads in one pass | 🟡 **(a) done: the sentence by #1317, its guard beside D6's. (d) built 2026-10-03, with (g)'s principle on the page; the rest proposed, before the first invitation (D5)** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) The withdrawal button, and the year's end (D11, amended 2026-10-04). (g) The principle, the price that pays for the work (D12). |
 | T7 A calculator that ends in a button | 📋 **Proposed; before the first invitation** | §3. (a) *Request access* carries the answers along. (b) *Until when?* says which payment suits it. (c) The layout faults and a live region. (d) Box as a source. |
 | T8 Claims you can check | 📋 **Proposed; before the first invitation (D5)** | §3. "Open source" links the repository. Each proof point links the guard that holds it. The footer names the company once 0139 publishes it; until then that line is the one part that waits. |
 | T9 One look from the site to the app | 📋 **Proposed; before the first invitation** | §3. `/request-access` and `/login` take the site's palette and logo, and link back to the site. The identity provider's own branding stays 0135 T6. |
@@ -315,6 +331,9 @@ The owner answered the rest the same evening:
   opens on yearly. It shows the monthly price (yearly divided by 12) and discount against the
   monthly price."*
 - **D11 — A year renews, and stopping refunds.** The owner chose *"Auto-renew a year, refund"*.
+  **Amended 2026-10-04:** *"C, nog refund of the first year"*, and on what is left at the year's
+  end, *"i, go ahead"*. A year is never refunded and never renews, and what is left pays the
+  months after it (ADR-0014, *Amendment 2026-10-04*).
 - **D12 — The price pays for the work.** On the page's *"not to make a margin"*: *"yes, but i do
   need a pricing model that supports the efforts."* Asked how the page should say it, the owner
   chose *"Costs include our work"*.
@@ -569,16 +588,24 @@ links `estimate.html`. The home page's *What it costs* block gets the same butto
   - switching shows the monthly prices, with a click and with the keyboard;
   - nothing scrolls sideways at 390 pixels.
 
-(f) **Renewal, refund and a withdrawal button (D11).**
+(f) **The withdrawal button, and the year's end (D11, amended 2026-10-04).**
 
-- **What the page says.** Proposed wording, for T0 and the lawyer: *"A year renews by itself. You
-  can stop at any time, and the whole months you have not used are refunded."* The old *"Cancel
-  whenever. No minimum term…"* keeps its truth for monthly and gains this for yearly.
-- **The law behind it.** After the first year, stopping takes at most a month's notice
-  (art. 6:236 sub j BW).
-- **A reminder 30 days before each renewal.** It says what renews, the amount and how to stop.
-  It is a new template in 0030's email channel, in both languages, and is built with 0111's
-  yearly invoicing.
+- **Amended 2026-10-04.** A year is never refunded and never renews (ADR-0014, *Amendment
+  2026-10-04*). The renewal, its reminder 30 days before, and refunds of unused months are gone
+  from this task.
+- **What the page says** is built, in the pricing page's year paragraph, in both languages: *"…
+  Apart from the 14 days the law gives you to change your mind, the credit is not refunded, not
+  even when you stop. What is left after the year is not lost: it pays for the months that
+  follow, at their monthly price, until it runs out. Then you pay month by month. A year never
+  renews by itself."* For T0 and the lawyer. The old *"Cancel whenever. No minimum term…"* keeps
+  its truth for monthly.
+- **The law behind it.** After the year, the subscription runs month to month, and stopping takes
+  at most a month's notice (art. 6:236 sub j BW).
+- **Proposed, for the owner: a notice before the credit runs out.** With no renewal there is no
+  reminder before one. A month before the credit runs out, an email says when billing month by
+  month starts and what a month on the current tier costs, in 0030's email channel and in both
+  languages. It is what *we do not take money from inattention* asks, once the credit stops
+  paying.
 - **The withdrawal button.** A contract made online has needed a clearly labelled function to
   withdraw during the withdrawal period since 19 June 2026: Directive (EU) 2023/2673, which adds
   article 11a to the Consumer Rights Directive.
@@ -586,7 +613,7 @@ links `estimate.html`. The home page's *What it costs* block gets the same butto
   - It goes on the app's Billing page (`Billing.tsx`), with the label the Dutch law uses, which
     the lawyer confirms.
   - Terms §7 says it is there, beside the email route (0139).
-- **Refunds are credit notes.** 0111 builds them.
+- **A withdrawal is refunded by credit note.** 0111 builds them. A year has no other refund.
 
 (g) **The principle: the price pays for the work (D12).**
 
@@ -688,11 +715,12 @@ layout. The identity provider's pages stay 0135 T6.
 
 - **The owner's ADR-0014 amendment:** the list, no setup, and the principle. This comes before
   T6 (d) and (g).
-- **0111's yearly invoicing, refunds and the renewal reminder.** These come before T6 (d) to (f)
-  show a price a customer could pay. The alpha is free (0131 D1), so the pages can show the list
+- **0111's yearly invoicing,** which draws a year's credit month by month (since 2026-10-04 there
+  are no refunds and no renewal reminder to build). It comes before T6 (d) to (f) show a price a
+  customer could pay. The alpha is free (0131 D1), so the pages can show the list
   while nothing is billed. The Billing page and the terms say so.
-- **The lawyer's check of the discount, refund and withdrawal wording** (0139), before T6 (e)
-  and (f) merge.
+- **The lawyer's check of the discount, no-refund and withdrawal wording** (0139; the terms'
+  briefing, question 27), before T6 (e) and (f) merge.
 - **The company's details from 0139,** for T8 (c).
 
 **Who builds it (D8).** Session R, as group R8 in 0131 §6, from the drawings in
@@ -713,7 +741,7 @@ They are references for layout, order and wording, not specifications to the pix
 | `icons.svg` | T3, T4, T5 | Six data-type icons (mail, calendar, contacts, files, photos, tasks), each a `<symbol>` in one inline sprite, used with `<use href="#…">`. The stroke is `currentColor`. They are the same drawings 0153 builds as React components, so the site and the app draw the same six. |
 | `tiles.svg` | T4, T5 | The neutral provider and destination tiles (D4): the initial on the site's teal, with the name written beside it. The same table of initials as 0153 §5. |
 | `wf-site-home.svg` | T1–T5, T6 (c) | The home page's order: the alpha line; the hero with its drawing, and the six *Leaving…* names under its buttons (T5 (b)); three facts; the three steps; *Where to*; the sections that stay; and one price line with its buttons. *(2026-10-04: the alpha line drew the app's note as it read before 2026-09-29, with *"nothing is backed up"*. It is now a placeholder until the owner answers open question 5.)* |
-| `wf-pricing.svg` | T6 | The labelled switch opening on yearly; the five cards on yearly (per month, the year's total in bold under it, *half the monthly price*); the calculator's button; one card on monthly; the renewal line; the questions and answers; and the principle. |
+| `wf-pricing.svg` | T6 | The labelled switch opening on yearly; the five cards on yearly (per month, the year's total in bold under it, *half the monthly price*); the calculator's button; one card on monthly; the year's line (renewal until 2026-10-04); the questions and answers; and the principle. |
 
 ## Lessons that apply
 
