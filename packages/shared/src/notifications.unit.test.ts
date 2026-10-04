@@ -225,6 +225,7 @@ describe('immediate events', () => {
       { kind: 'verification_finished', mapping: { id: 'm' }, passed: true },
       { kind: 'migration_finished', mapping: { id: 'm' } },
       { kind: 'rollback_finished', mapping: { id: 'm' }, reason: 'r' },
+      { kind: 'first_copy_complete', person: 'Anna Jansen', domains: ['email'] },
     ] as const;
     for (const event of events) {
       for (const locale of ['en', 'nl'] as const) {
@@ -245,6 +246,42 @@ describe('immediate events', () => {
     ] as const) {
       expect(renderEvent(event, 'en').subject).not.toEqual(renderEvent(event, 'nl').subject);
       expect(renderEvent(event, 'en').body).not.toEqual(renderEvent(event, 'nl').body);
+    }
+  });
+});
+
+/**
+ * THE FIRST COPY, ONE MAIL PER PERSON (workplan 0154 T7; the owner: "One per
+ * person"). Who it is about and each data type that arrived, that it keeps
+ * up until the switch, and that nothing is needed — so no "act on this".
+ */
+describe('everything has arrived — the first copy, once per person (0154 T7)', () => {
+  const anna = { kind: 'first_copy_complete', person: 'Anna Jansen', domains: ['email', 'calendar', 'contact'] } as const;
+
+  it('names the person and each data type that arrived, in both languages', () => {
+    const en = renderEvent(anna, 'en');
+    expect(en.subject).toBe('Ownpace — everything has arrived');
+    expect(en.body).toContain('Person: Anna Jansen');
+    expect(en.body).toContain('Everything has arrived: email, calendar and contacts.');
+    expect(en.body).toContain('It is kept in step until you switch. Nothing is needed from you.');
+    const nl = renderEvent(anna, 'nl');
+    expect(nl.subject).toBe('Ownpace — alles is aangekomen');
+    expect(nl.body).toContain('Persoon: Anna Jansen');
+    expect(nl.body).toContain('Alles is aangekomen: e-mail, agenda en contacten.');
+    expect(nl.body).toContain('Het wordt bijgehouden tot u overstapt. U hoeft niets te doen.');
+  });
+
+  it('says one data type on its own, and names nobody for the appliance’s one person', () => {
+    const msg = renderEvent({ kind: 'first_copy_complete', domains: ['file'] }, 'en');
+    expect(msg.body).toContain('Everything has arrived: files.');
+    expect(msg.body).not.toContain('Person:');
+  });
+
+  it('does not ask the reader to act, having just said nothing is needed', () => {
+    for (const locale of ['en', 'nl'] as const) {
+      const body = renderEvent(anna, locale).body;
+      expect(body).not.toContain('Open the app to act on this.');
+      expect(body).not.toContain('Open de app om actie te ondernemen.');
     }
   });
 });
