@@ -6,7 +6,8 @@
 
 **2026-10-04: the smoke's drain reaches the jobs that can mail, and the rest of the queue runs
 detached (the owner: *"M fixes it now"*, then *"Detached after the check"*)**, on branch
-`claude/mailbox-sync-errors-c2xsw2-a-drain-that-reaches-the-mail`.
+`claude/mailbox-sync-errors-c2xsw2-a-drain-that-reaches-the-mail`; merged the same day as #1451
+(`43aee6a`).
 
 - **Asked, after the entry below,** what to do about a drain that stops at Nextcloud's 14 minutes,
   the owner chose to name the jobs that can mail. The full `cron.php` was also the demo
@@ -35,8 +36,15 @@ detached (the owner: *"M fixes it now"*, then *"Detached after the check"*)**, o
     after only the two whose interval had passed. An unknown name ran nothing and still exited 0.
     The block itself, against that container with only Mailpit's answer stubbed, drained 3 of 5
     in 0 s, passed, and left the full `cron.php` running in the container.
-- **Not proved here:** the OTA stack. The first gate run after the merge shows the drain's line,
-  and a smoke about 14 minutes shorter.
+- **Proved on the OTA stack by E2E (managed) #235 on `main` (`43aee6a`), the same morning.** No
+  line said a named job was missing, so each is a job there. The run's own lines:
+  - *"drained the jobs that can mail in 1s: 5 of 5 ran"*;
+  - *"and nothing after the take-back either — no CANCEL fan-out"*;
+  - *"the rest of the demo Nextcloud's jobs run on in the background (cron.php, up to 14 minutes,
+    not waited for)"*.
+
+  The smoke took 3 min 1 s, against 16 min 52 s in #233, and the whole run 9 min 20 s, against
+  23 min 16 s. It ended *"SMOKE PASS"*.
 
 **2026-10-03, night: the gate's first run with #1411, on the OTA stack with one Nextcloud
 password.** E2E (managed) #232 on `main` (`1f6d5ea`), after the owner's `--sync-password` run
