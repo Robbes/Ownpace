@@ -1,7 +1,8 @@
 # ADR-0014: Cost-recovery billing for the managed edition
 
-- **Status:** Accepted 2026-06-20; amended nine times and retitled once (latest 2026-10-04,
-  when a year stopped being refunded or renewed); consolidated 2026-10-03 (ADR-0051)
+- **Status:** Accepted 2026-06-20; amended ten times and retitled once (latest 2026-10-04,
+  evening, when Free and Small became six paths and Free one pass a day); consolidated
+  2026-10-03 (ADR-0051)
 - **Date:** 2026-06-20; consolidated 2026-10-03
 - **Deciders:** owner
 - **Relates to:** [ADR-0029](./0029-public-site-is-server-rendered-and-legible.md) (the public
@@ -18,7 +19,7 @@
      node scripts/adr-operative.mjs --write -->
 
 - **A path is one kind of thing, from one account, to one account**: mail, contacts, calendar,
-  files and tasks are separate paths. Only a data type the migration carries is a path
+  files and tasks are separate paths. Only a carried data type is a path
   (`scope_selection.included`).
 - **A tier has two axes, and you are on the higher of them**: paths at the same time, and data
   moved — cumulative first copies, never the alpha's. Past Extra large: *talk to us*.
@@ -27,23 +28,23 @@
 
   | tier | paths at the same time | data moved | monthly | a year |
   |---|---|---|---|---|
-  | **Free** | 1 | 250 GB | free | free |
-  | **Small** | 4 | 750 GB | €5 | €30 |
-  | **Medium** | 20 | 2 TB | €12 | €72 |
-  | **Large** | 50 | 7.5 TB | €40 | €240 |
-  | **Extra large** | 200 | 15 TB | €80 | €480 |
+  | **Free** | 6 | 150 GB | free | free |
+  | **Small** | 6 | 500 GB | €5 | €30 |
+  | **Medium** | 12 | 1.5 TB | €12 | €72 |
+  | **Large** | 24 | 6 TB | €40 | €240 |
+  | **Extra large** | 50 | 15 TB | €80 | €480 |
 
-- **Free is free, and free means no billing**: no payment method, no invoice, no top-up. Guard:
-  `site/site.unit.test.ts` (*free*, never *€0*).
+- **Free is free, and free means no billing**: no payment method, no invoice, no top-up; one
+  pass a day outside the alpha (0157). Guard: `site/site.unit.test.ts` (*free*, never *€0*).
 - **`holdsASlot` (`@openmig/ledger`) is the slot rule**: `active`, `paused` and `continuous`
   hold a slot; `ready`, `cutover` and `done` hold none; a stop releases one only in the lane,
   whose customer is first told the bill does not stop at cutover.
-- **The month bills its peak; the tier is derived, never picked.** Downgrade is automatic,
-  announced, never blocking a path. No setup fee. Not built yet (0109 T5–T6).
+- **The month bills its peak, or a higher tier picked.** Downgrade: automatic down to it,
+  announced, never blocking. No setup fee. Not built (0109, 0157).
 - **Every step up is consented and paid for.** A path waits for the yes at activation; at the
   data ceiling, outside the alpha, new first copies wait for a move up or a one-off top-up
-  (another band for the tier's monthly, once; the meter never rewinds). Without that yes, a
-  month bills the tier it was on.
+  (another band for the tier's monthly, once). Without that yes, a month bills the tier it
+  was on.
 - **A year is credit at six months' price**: each month takes its tier at half price, at full
   price after twelve months, until spent; then month to month. Never refunded (withdrawal
   aside), never renewed. Not built (0111).
@@ -107,6 +108,10 @@ one household is one relationship, one set of credentials, one cutover conversat
 per-path monthly would contradict the reason paths were chosen as the unit at all. The linear
 component is the setup fee, and it is already handled by the step-up rule below.
 
+**Amended 2026-10-04, evening** (*Amendment 2026-10-04, evening*, below): Free and Small run six
+paths, Medium twelve, Large twenty-four and Extra large fifty, so the next paragraph is the record
+of the table it replaced.
+
 Medium is 20 paths rather than the arithmetic 16 so that a household of four keeps headroom:
 Medium → Large (€8 → €39) is the one steep step, and it should be crossed by an SME buying
 engagement, not by a family that added a Dropbox. Small is 750 GB because a single person on a
@@ -117,6 +122,9 @@ and a ticket queue, no phone. Large and Extra large include real engagement. The
 follows support, not size.
 
 ### Tiny is free, and free means no billing
+
+**Amended 2026-10-04, evening:** Free runs six paths at the same time, up to 150 GB, at one pass a
+day (*Amendment 2026-10-04, evening*). As first decided:
 
 The owner, 2026-09-24: *"make the Tiny tier Free, no billing needed."* Tiny — one migration at a
 time, up to 250 GB, ever — has no setup fee, no monthly and no invoice. Not a €0 invoice, which
@@ -168,6 +176,9 @@ finishing on the 30th or the 2nd. The invoice names the peak with its date: *"Me
 the same time on 12 August."* One case stays awkward whatever the copy says: finish everything on
 the 3rd and that month's invoice is still Medium. That is unavoidable under any period-based
 scheme; the honest handling is the invoice line, and the lower bill the month after.
+
+**Amended 2026-10-04, evening:** a person may pick a higher tier than their use needs, and the
+month bills at least that one (*Amendment 2026-10-04, evening*). As first decided:
 
 **The tier is derived from measurement, never picked.** Nobody selects a plan; activating a path
 that crosses a boundary states the new price at that moment and asks. The tier chooser on the
@@ -664,10 +675,10 @@ reads: nothing of a year is refunded.
 - **A year never renews as a year**: another year is the customer's choice. The reminder 30 days
   before each renewal goes with the renewal. The withdrawal button stays: the law asks for it.
 
-**Read, not said by the owner:** after the twelve months the credit pays the *full* monthly
-price, because C makes the months after the year month to month, and half price is the price of
-paying a year ahead. If the owner meant half price for as long as the credit lasts, one sentence
-changes on each pricing page, in terms §8 and here.
+**Confirmed by the owner, 2026-10-04:** asked whether the credit left after the twelve months
+pays the full monthly price or half, the owner answered *"Yes, full"*. It had been read that way:
+C makes the months after the year month to month, and half price is the price of paying a year
+ahead.
 
 **What it replaces**, in *Amendment 2026-09-29* (its record stays word for word): D11's *"Auto-renew
 a year, refund"*; item 4's *renews by itself*, *refunds what was not used* and the reminder before
@@ -679,6 +690,69 @@ A credit note (0111) now refunds only a withdrawal, or corrects an invoice.
 pricing page's year, in both languages; terms §8, in both languages, with question 27 in the
 lawyer's briefing; 0152 T6 (f) without renewal or refunds; and 0111's yearly invoice, which draws
 the credit month by month. Nothing is billed during the Alpha, so nobody has bought a year.
+
+## Amendment 2026-10-04, evening — six on Free and Small, Free at one pass a day, and a tier a person may pick
+
+The owner, 2026-10-04: *"i think we need to change the tiers: * Free should not be limited to 1
+migration. I want it to support 5 migrations (this adds tasks), but only support 1 tick per 24
+hours. So we support it all, but it will just go slow. The first tick will start after
+preflight, to show we do run it. Also limit it to 150GB. * Small should also offer 5 migration
+(adds tasks to fit), and 500 GB, and hourly tick. * Medium offers 10 migrations at the same
+time, 1.5TB , and hourly tick. * Large offers 20 migrations at the same time and 6TB , and
+hourly tick. * Extra large offers 50 migrations, 15TB, and hourly tick. Do you have any
+recommendation that should alter this?"*
+
+Five recommendations were put to the owner:
+- six on Free and Small, since a Google Photos export is a path of its own and a whole move for
+  one person is six;
+- Medium twenty, since at ten a household of four moving everything lands on Large;
+- paid tiers every 15 minutes rather than hourly;
+- Free's pass a day overrides the first copy's back-to-back rule (0156 T5), and the app must say so;
+- a way to pay for speed, since a derived tier gives a person within Free's limits no way onto
+  Small.
+
+The owner answered: *"ok, free and small on 6 migrations. Medium on 12. Large 24, extra large 50.
+Paid stayes on 15 minute intervals. The free should first do all small sets, and stick to files
+last."* Told then that *Start a migration* stores a schedule of daily at 02:00, and that 15
+minutes is the most often a person may choose, not the default: *"paid default: hourly. … Also:
+yes someone may pick a tier. So Free can pick higher if they see fit."*
+
+- **The table**: Free 6 paths and 150 GB; Small 6 and 500 GB; Medium 12 and 1.5 TB; Large 24 and
+  6 TB; Extra large 50 and 15 TB. The prices do not change. Past Extra large, 50 paths or 15 TB,
+  is *talk to us*.
+- **Free goes at one pass a day.** A migration on Free gets one pass in 24 hours, its first copy
+  included. The first runs right after the preflight, so a person sees it run. A pass takes
+  contacts, calendars and tasks first, then mail, then files (`PASS_ORDER`, as it already does);
+  on the same day, a migration that carries only files, or an export's photos, goes after the
+  others. A pass is still at most 50 minutes, and Free offers no faster schedule.
+- **Paid tiers**: the first copy runs pass after pass, as 0156 T5 built it. Then a look for
+  changes every hour by default, and as often as every 15 minutes if the person chooses.
+- **A person may pick a tier** higher than their use needs, for its pace or its room. The month
+  bills the higher of the picked tier and the derived one, and the automatic downgrade stops at
+  the picked tier. Picking is the person's own yes (*Amendment 2026-10-03*).
+- **What it replaces**: the paths and data of the table before (Free 1 and 250 GB; Small 4 and
+  750 GB; Medium 20 and 2 TB; Large 50 and 7.5 TB; Extra large 200 and 15 TB), the reasons *The
+  tiers* gives for them, Tiny's *one migration at a time, up to 250 GB*, and *the tier is derived
+  from measurement, never picked*.
+- **What the owner was told it costs**: a household of four moving everything is 24 paths, Large
+  at €40 a month rather than Medium at €12; a business of ten moving five kinds each is 50, Extra
+  large.
+- **The alpha is free for everything** (the owner, asked whether Free's pace holds during the
+  alpha: *"No, alpha is free for everything that testers want to do. So also the higher tiers are
+  free for them."*): while the stage is `alpha`, Free's pace does not hold, and every tier's room
+  and pace are a tester's for nothing, as the data ceiling already is not held (*Amendment
+  2026-10-03*). The Alpha conditions' §3 (*"Nothing is charged during the Alpha"*) already says
+  so.
+- **Proposed, not decided** (the owner: *"Perhaps we need to later think of lowering the default
+  given frequency when all was moved, but someone want to keep the snyc."*): after the first
+  copy, hourly for 14 days, then every 6 hours, and daily after 30 days; a schedule the person
+  chose is never changed. Workplan 0157 reasons it out.
+
+**What follows:** the operative table and rules, and `OPERATIVE.md`; `site/prices.mjs` and
+`packages/managed`'s `MANAGED_TIERS`, both guarded against the table; the tier texts on the home
+page, the pricing page and the estimate, in both languages; terms §6, with question 28 for the
+lawyer; and workplan 0157, which builds Free's pace, the hourly default and picking a tier.
+Nothing is billed during the Alpha, and the path ceiling is off while it lasts.
 
 ## Amendment log
 
@@ -735,6 +809,13 @@ the credit month by month. Nothing is billed during the Alpha, so nobody has bou
   at half price; what is left after them pays the months that follow at the full monthly price
   until it runs out; then month to month. The right of withdrawal stands. Replaces D11's renewal
   and refund. Record: *Amendment 2026-10-04 — a year is never refunded and never renews*.
+- **2026-10-04, evening** — Six paths on Free and Small, twelve on Medium, twenty-four on Large and
+  fifty on Extra large; 150 GB, 500 GB, 1.5 TB and 6 TB, Extra large's 15 TB kept; Free at one
+  pass a day, the first right after the preflight, small kinds first and files last; paid tiers
+  hourly by default, as often as every 15 minutes; a person may pick a higher tier, which the
+  month then bills at least (owner, three messages); none of it holds in the alpha, which is free
+  for everything (owner). Credit left after a year pays the full monthly price (owner: *"Yes,
+  full"*). Record: *Amendment 2026-10-04, evening*.
 
 The full record, word for word as it read before this consolidation:
 [history/0014-cost-recovery-billing.md](./history/0014-cost-recovery-billing.md).

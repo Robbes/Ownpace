@@ -167,6 +167,13 @@ export interface Signed {
 /** The values each migration states again when it reuses an account (the create door's per-mapping keys). */
 const PER_MAPPING_KEYS = ['userId', 'rootFolderId', 'rootPath'] as const;
 
+/**
+ * How often a migration made here looks for changes once its first copy is
+ * done: every hour, *How often to look for changes*'s first preset (the
+ * owner, 2026-10-04: *"paid default: hourly"*).
+ */
+const HOURLY = '0 * * * *';
+
 const pickPerMapping = (values: Readonly<Record<string, string>> | undefined): Record<string, string> =>
   Object.fromEntries(
     PER_MAPPING_KEYS.flatMap((key) => {
@@ -488,8 +495,10 @@ const StartMigration: React.FC = () => {
    * WHAT A MIGRATION IS MADE WITH: the two accounts chosen, whose data it is,
    * what a reused account must say again (Box's subject, a root folder), the
    * folder its files start from, the formats chosen on *What moves?*, the
-   * default schedule, daily at 02:00 (T4, *Underneath*), and where its copies
-   * land.
+   * default schedule, every hour (the owner, 2026-10-04: *"paid default:
+   * hourly"*; it was daily at 02:00, 0153 T4 *Underneath*), and where its
+   * copies land. A first copy runs pass after pass whatever the schedule says
+   * (0156 T5); Free's pace is the tick's to keep (0157 T2).
    */
   const inputFor = (m: PlannedMigration): CreateMappingInput => {
     if (m.sourceCard === EXPORT_CARD) {
@@ -502,7 +511,7 @@ const StartMigration: React.FC = () => {
         targetConnectionId: m.targetConnectionId,
         sourceConfig: { username: '', provider: exportOf(m.provider)!.archive, path: TAKEOUT_FOLDER, where: 'target' },
         targetConfig: { username: m.targetUsername ?? '', password: '' },
-        syncConfig: { domains: [...m.types], schedule: '0 2 * * *' },
+        syncConfig: { domains: [...m.types], schedule: HOURLY },
         ...prefixFor(m),
       };
     }
@@ -523,7 +532,7 @@ const StartMigration: React.FC = () => {
         ...(files && m.sourceCard === 'dropbox' ? { nativeFilePolicies: { paper: paperFormat } } : {}),
       },
       targetConfig: { username: m.targetUsername ?? '', password: '' },
-      syncConfig: { domains: [...m.types], schedule: '0 2 * * *' },
+      syncConfig: { domains: [...m.types], schedule: HOURLY },
       ...prefixFor(m),
     };
   };

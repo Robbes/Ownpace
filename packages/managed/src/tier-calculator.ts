@@ -54,11 +54,13 @@ export const MANAGED_TIERS: ReadonlyArray<ManagedTier> = [
   // Free since 2026-09-24, and free means no billing: no invoice, no payment
   // method, no top-up (ADR-0014's operative rules). It was called Tiny until
   // the price list of 2026-09-29 came into force (0152 T6 (d)).
-  { id: 'free', name: 'Free', paths: 1, dataGb: 250, monthlyCents: 0, annualCents: 0 },
-  { id: 'small', name: 'Small', paths: 4, dataGb: 750, monthlyCents: 500, annualCents: 3000 },
-  { id: 'medium', name: 'Medium', paths: 20, dataGb: 2 * GB_PER_TB, monthlyCents: 1200, annualCents: 7200 },
-  { id: 'large', name: 'Large', paths: 50, dataGb: 7.5 * GB_PER_TB, monthlyCents: 4000, annualCents: 24000 },
-  { id: 'xl', name: 'Extra large', paths: 200, dataGb: 15 * GB_PER_TB, monthlyCents: 8000, annualCents: 48000 },
+  // Six paths from 2026-10-04 (the owner): a whole move for one person is six,
+  // mail, contacts, calendar, tasks, files and a Google Photos export.
+  { id: 'free', name: 'Free', paths: 6, dataGb: 150, monthlyCents: 0, annualCents: 0 },
+  { id: 'small', name: 'Small', paths: 6, dataGb: 500, monthlyCents: 500, annualCents: 3000 },
+  { id: 'medium', name: 'Medium', paths: 12, dataGb: 1.5 * GB_PER_TB, monthlyCents: 1200, annualCents: 7200 },
+  { id: 'large', name: 'Large', paths: 24, dataGb: 6 * GB_PER_TB, monthlyCents: 4000, annualCents: 24000 },
+  { id: 'xl', name: 'Extra large', paths: 50, dataGb: 15 * GB_PER_TB, monthlyCents: 8000, annualCents: 48000 },
 ];
 
 export interface TierDerivation {

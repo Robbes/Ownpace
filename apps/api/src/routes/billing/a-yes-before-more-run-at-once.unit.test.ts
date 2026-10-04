@@ -36,7 +36,7 @@ const CONN = '0109f700-e29b-41d4-a716-446655440011';
 const BOX = '0109f700-e29b-41d4-a716-446655440021';
 const OTHER_CONN = '0109f700-e29b-41d4-a716-446655440012';
 const OTHER_BOX = '0109f700-e29b-41d4-a716-446655440022';
-/** Running already, with mail: one slot held. */
+/** Running already, with mail, calendar and contacts: three slots held. */
 const RUNNING = '0109f700-e29b-41d4-a716-446655440031';
 /** Never started (no path rows): mail and calendar. */
 const TWO = '0109f700-e29b-41d4-a716-446655440032';
@@ -115,7 +115,7 @@ beforeAll(async () => {
     );
   }
   const mappings: Array<[string, string, string, string, string[]]> = [
-    [RUNNING, TENANT, BOX, 'active', ['email']],
+    [RUNNING, TENANT, BOX, 'active', ['email', 'calendar', 'contact']],
     // A migration set up and not yet started is paused, with no path rows.
     [TWO, TENANT, BOX, 'paused', ['email', 'calendar']],
     [THREE, TENANT, BOX, 'paused', ['email', 'calendar', 'contact']],
@@ -136,10 +136,12 @@ beforeAll(async () => {
       ]);
     }
   }
-  // The slots held: the running migration's mail, the paused one's two, and
+  // The slots held: the running migration's three, the paused one's two, and
   // the other organisation's three, which are not this one's.
   for (const [org, id, domain, state] of [
     [TENANT, RUNNING, 'email', 'active'],
+    [TENANT, RUNNING, 'calendar', 'active'],
+    [TENANT, RUNNING, 'contact', 'active'],
     [TENANT, PAUSED, 'email', 'paused'],
     [TENANT, PAUSED, 'file', 'paused'],
     [OTHER, OTHER_MAPPING, 'email', 'active'],
@@ -175,32 +177,32 @@ describe('GET /api/billing/paths: the question at Start', () => {
     await yesTo('medium');
     const res = await asked(TWO, THREE);
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ holds: true, held: 3, after: 8, past: false, needs: null, reason: null });
+    expect(res.body).toMatchObject({ holds: true, held: 5, after: 10, past: false, needs: null, reason: null });
     expect(res.body.tier).toEqual({ id: 'medium', name: medium.name, paths: medium.paths, monthlyEur: eur(medium) });
     expect(res.body.fits).toEqual([TWO, THREE]);
   });
 
   it('past the tier: the smallest tier that runs it all, its monthly, the sentence, and what fits now', async () => {
     await yesTo('small');
-    // Three held, Small runs four: the two kinds of TWO do not fit, nor the three of THREE.
+    // Five held, Small runs six: the two kinds of TWO do not fit, nor the three of THREE.
     const res = await asked(TWO, THREE);
-    expect(res.body).toMatchObject({ held: 3, after: 8, past: true, fits: [] });
+    expect(res.body).toMatchObject({ held: 5, after: 10, past: true, fits: [] });
     expect(res.body.needs).toEqual({ id: 'medium', name: medium.name, paths: medium.paths, monthlyEur: eur(medium) });
-    expect(res.body.reason).toContain('8 migrations at the same time');
+    expect(res.body.reason).toContain('10 migrations at the same time');
   });
 
   it('says which fit beside the others, in the order asked', async () => {
     await yesTo('small');
-    // Three held, Small runs four: TWO's two do not fit, ONE's one does after it.
+    // Five held, Small runs six: TWO's two do not fit, ONE's one does after it.
     const res = await asked(TWO, ONE);
-    expect(res.body).toMatchObject({ held: 3, after: 6, past: true, needs: { id: 'medium' }, fits: [ONE] });
+    expect(res.body).toMatchObject({ held: 5, after: 8, past: true, needs: { id: 'medium' }, fits: [ONE] });
   });
 
   it('lets a paused migration resume, though nothing else fits: it kept its slots', async () => {
-    // On Free, which runs one, with three held.
+    // On Free, which runs six, with five held.
     const res = await asked(TWO, PAUSED);
-    expect(res.body).toMatchObject({ tier: { id: free.id, paths: free.paths }, held: 3, after: 5, past: true });
-    // Five at once is past Small's four.
+    expect(res.body).toMatchObject({ tier: { id: free.id, paths: free.paths }, held: 5, after: 7, past: true });
+    // Seven at once is past the six Free and Small run.
     expect(res.body.needs.id).toBe('medium');
     expect(res.body.fits).toEqual([PAUSED]);
   });
@@ -208,7 +210,7 @@ describe('GET /api/billing/paths: the question at Start', () => {
   it('counts only this organisation: its slots and its migrations', async () => {
     await yesTo('small');
     const res = await asked(OTHER_MAPPING);
-    expect(res.body).toMatchObject({ held: 3, after: 3, past: false, fits: [OTHER_MAPPING] });
+    expect(res.body).toMatchObject({ held: 5, after: 5, past: false, fits: [OTHER_MAPPING] });
   });
 
   it('still says the numbers during the alpha, where nothing waits for a yes', async () => {
@@ -253,7 +255,7 @@ describe('POST /api/billing/paths/yes', () => {
   });
 
   it('refuses a price that is not the one shown, and keeps nothing', async () => {
-    const res = await request(app).post('/api/billing/paths/yes').send({ tierId: 'small', priceEur: eur(small) + 1 });
+    const res = await request(app).post('/api/billing/paths/yes').send({ tierId: 'medium', priceEur: eur(medium) + 1 });
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('offer_changed');
     expect((await owner('SELECT count(*)::int AS n FROM data_allowance')).rows[0]).toEqual({ n: 0 });
@@ -275,7 +277,7 @@ describe('POST /api/billing/paths/yes', () => {
   });
 
   it('takes one yes for two presses of the same offer', async () => {
-    const yes = { tierId: 'small', priceEur: eur(small) };
+    const yes = { tierId: 'medium', priceEur: eur(medium) };
     const [a, b] = await Promise.all([
       request(app).post('/api/billing/paths/yes').send(yes),
       request(app).post('/api/billing/paths/yes').send(yes),

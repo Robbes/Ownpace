@@ -282,9 +282,8 @@ runs month to month.
   in the lawyer's briefing. The renewal line in `wf-pricing.svg` is now the year's line.
 - **T6 (f) shrinks** to the withdrawal button: no renewal, no reminder before one, and no
   refunds to build. 0111's yearly invoice still draws the credit month by month.
-- **Read, not said by the owner:** after the twelve months the credit pays the *full* monthly
-  price, since C makes those months month to month. If the owner meant half price for as long as
-  the credit lasts, one sentence changes on each page and in §8.
+- **Confirmed by the owner, 2026-10-04** (*"Yes, full"*): after the twelve months the credit pays
+  the *full* monthly price, as it was read, since C makes those months month to month.
 - **T0:** the new sentences are for the owner's reading, in both languages.
 
 **2026-10-04: a new question for the owner, open question 5: which line the site shows during

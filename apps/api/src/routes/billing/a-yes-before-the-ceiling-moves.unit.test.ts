@@ -20,6 +20,7 @@ import { runManagedMigrations, MANAGED_TIERS } from '@openmig/managed';
 
 const TENANT = '5f5e0000-e29b-41d4-a716-446655441901';
 const OTHER = '5f5e0000-e29b-41d4-a716-446655441902';
+const free = MANAGED_TIERS.find((t) => t.id === 'free')!;
 const small = MANAGED_TIERS.find((t) => t.id === 'small')!;
 const medium = MANAGED_TIERS.find((t) => t.id === 'medium')!;
 /** A tier's monthly in whole euros: what a move up is agreed at, and a top-up costs once. */
@@ -100,7 +101,7 @@ describe('GET /api/billing/ceiling', () => {
     const res = await request(app).get('/api/billing/ceiling');
     expect(res.status).toBe(200);
     expect(res.body.tier.id).toBe('free');
-    expect(res.body.ceilingGb).toBe(250);
+    expect(res.body.ceilingGb).toBe(free.dataGb);
     expect(res.body.state).toBe('under');
     expect(res.body.topUp).toBeNull();
     expect(res.body.moveUp).toMatchObject({ tierId: 'small', monthlyEur: 5 });
@@ -110,9 +111,9 @@ describe('GET /api/billing/ceiling', () => {
   });
 
   it('says near from 80% and reached at the ceiling', async () => {
-    await moved(200);
+    await moved(0.8 * free.dataGb);
     expect((await request(app).get('/api/billing/ceiling')).body.state).toBe('near');
-    await moved(250);
+    await moved(free.dataGb);
     expect((await request(app).get('/api/billing/ceiling')).body.state).toBe('reached');
   });
 
@@ -263,7 +264,7 @@ describe('the table, on its own terms (managed 0037)', () => {
       await expect(
         owner(
           `INSERT INTO data_allowance (tenant_id, kind, tier_id, band_gb, price_eur, consented_by)
-           VALUES ($1, 'top_up', $2, 250, 0, 'x')`,
+           VALUES ($1, 'top_up', $2, 150, 0, 'x')`,
           [TENANT, id],
         ),
       ).rejects.toThrow(/data_allowance_tier_check/);

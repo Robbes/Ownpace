@@ -12,8 +12,8 @@
  * `one-issue-at-a-time.integration.test.ts`'s. What this file holds is the
  * door acting on them:
  *
- * - an organisation on Free is issued one live grant link and refused the
- *   second, with the sentence that names its tier, and nothing written;
+ * - an organisation on Free is issued six live grant links and refused the
+ *   seventh, with the sentence that names its tier, and nothing written;
  * - a migration's link sent before the person's replaced it counts in the same
  *   limit while it is live;
  * - a progress link is never refused, since it grants nothing;
@@ -137,19 +137,19 @@ beforeEach(async () => {
 });
 
 describe('as many live grant links as the tier runs migrations (0108 T8 (d))', () => {
-  it('issues an organisation on Free one live grant link, and refuses the second, writing nothing', async () => {
-    expect((await issue()).status).toBe(201);
+  it('issues an organisation on Free six live grant links, and refuses the seventh, writing nothing', async () => {
+    for (let n = 0; n < 6; n++) expect((await issue()).status).toBe(201);
 
-    const second = await issue();
+    const seventh = await issue();
 
-    expect(second.status).toBe(409);
-    expect(second.body).toMatchObject({ error: 'grant_links_at_limit', live: 1, limit: 1 });
-    expect(second.body.reason).toBe(
-      'This organisation has 1 grant link that can still be used, and may hold 1 at once: ' +
+    expect(seventh.status).toBe(409);
+    expect(seventh.body).toMatchObject({ error: 'grant_links_at_limit', live: 6, limit: 6 });
+    expect(seventh.body.reason).toBe(
+      'This organisation has 6 grant links that can still be used, and may hold 6 at once: ' +
         'as many as its tier, Free, runs migrations at the same time. ' +
         'Revoke one that is no longer needed, or wait until one is used or expires.',
     );
-    expect(await liveGrantRows()).toBe(1);
+    expect(await liveGrantRows()).toBe(6);
   });
 
   it('counts a migration’s link sent before the person’s replaced it, while it is live', async () => {
@@ -162,22 +162,27 @@ describe('as many live grant links as the tier runs migrations (0108 T8 (d))', (
         expiresAt: expiryFromDays(7),
       }),
     );
+    // The migration's link and five of the person's: Free's six.
+    for (let n = 0; n < 5; n++) expect((await issue()).status).toBe(201);
 
     const refused = await issue();
     expect(refused.status).toBe(409);
-    expect(refused.body).toMatchObject({ error: 'grant_links_at_limit', live: 1, limit: 1 });
+    expect(refused.body).toMatchObject({ error: 'grant_links_at_limit', live: 6, limit: 6 });
 
     await withTenant(driver, TENANT, (db) => revokeMappingLink(db, { tenantId: TENANT, linkId: old.id }));
     expect((await issue()).status).toBe(201);
   });
 
   it('never refuses a progress link: it grants nothing', async () => {
-    await issue();
+    // At Free's six.
+    for (let n = 0; n < 6; n++) await issue();
 
     expect((await issue('view')).status).toBe(201);
   });
 
   it('makes room when a link is revoked, used, or expires', async () => {
+    // Five held, so each issued below is the sixth: Free's last.
+    for (let n = 0; n < 5; n++) await issue();
     const revoked = await issue();
     expect((await request(app).delete(`/api/people/${ANNA}/links/${revoked.body.id as string}`)).body).toEqual({
       revoked: true,
@@ -192,33 +197,33 @@ describe('as many live grant links as the tier runs migrations (0108 T8 (d))', (
     expect((await issue()).status).toBe(201);
   });
 
-  it('grows with the tier: four at once, for an organisation that ran two migrations this month', async () => {
+  it('grows with the tier: twelve at once, for an organisation that ran seven migrations this month', async () => {
     await q(
       `INSERT INTO occupancy_peak (tenant_id, month, peak_paths, peak_at)
-       VALUES ($1, date_trunc('month', now())::date, 2, now())`,
+       VALUES ($1, date_trunc('month', now())::date, 7, now())`,
       [TENANT],
     );
-    for (let n = 0; n < 4; n++) expect((await issue()).status).toBe(201);
+    for (let n = 0; n < 12; n++) expect((await issue()).status).toBe(201);
 
-    const fifth = await issue();
+    const thirteenth = await issue();
 
-    expect(fifth.body).toMatchObject({ error: 'grant_links_at_limit', live: 4, limit: 4 });
-    expect(fifth.body.reason).toContain('as many as its tier, Small, runs migrations at the same time');
+    expect(thirteenth.body).toMatchObject({ error: 'grant_links_at_limit', live: 12, limit: 12 });
+    expect(thirteenth.body.reason).toContain('as many as its tier, Medium, runs migrations at the same time');
   });
 
   it("holds the operator's number while it stands, and the tier's again once its day has passed", async () => {
     await q(
       `INSERT INTO grant_link_allowance (tenant_id, live_links, until, set_by)
-       VALUES ($1, 3, now() + interval '1 day', 'operator.sh fixture')`,
+       VALUES ($1, 8, now() + interval '1 day', 'operator.sh fixture')`,
       [TENANT],
     );
-    for (let n = 0; n < 3; n++) expect((await issue()).status).toBe(201);
-    const fourth = await issue();
-    expect(fourth.body).toMatchObject({ live: 3, limit: 3 });
-    expect(fourth.body.reason).toMatch(/: the number set for this organisation through \d{4}-\d{2}-\d{2}\. /);
+    for (let n = 0; n < 8; n++) expect((await issue()).status).toBe(201);
+    const ninth = await issue();
+    expect(ninth.body).toMatchObject({ live: 8, limit: 8 });
+    expect(ninth.body.reason).toMatch(/: the number set for this organisation through \d{4}-\d{2}-\d{2}\. /);
 
     await q(`UPDATE grant_link_allowance SET until = now() - interval '1 second' WHERE tenant_id = $1`, [TENANT]);
 
-    expect((await issue()).body).toMatchObject({ live: 3, limit: 1 });
+    expect((await issue()).body).toMatchObject({ live: 8, limit: 6 });
   });
 });
