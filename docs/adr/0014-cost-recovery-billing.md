@@ -43,9 +43,9 @@
   announced, never blocking a path. Setup is paid on the highest tier reached, in steps. Not
   built yet (0109 T5–T6).
 - **Every step up is consented and paid for.** A path waits for the yes at activation; at the
-  data ceiling, new first copies wait for a move up or a one-off top-up (another band, for the
-  setup fee again: a higher ceiling, never a rewound meter). Without that yes, a month bills the
-  tier it was on.
+  data ceiling, outside the alpha, new first copies wait for a move up or a one-off top-up
+  (another band for the setup fee again; the meter never rewinds). Without that yes, a month bills
+  the tier it was on.
 - **What a customer is told, and what we will not do, are rules** (*Decision*): every price
   published; *Start* warns when the preflight will not fit; no per-GB, compute or per-path
   figure; no billing past 12 months unconfirmed. *"No profit" STANDS*.
@@ -413,6 +413,18 @@ awaited — keep copying, billed at the tier it was on, or hold — the owner an
   bigger tier with the break-even, so it no longer quotes the dearer way alone. Managed only:
   the self-hosted edition has no tiers.
 
+**Not during the alpha** (the owner, 2026-10-03: *"A"*, asked what the hold does while the alpha
+is free and nothing is charged). While the deployment's stage is `alpha` the ceiling warns and
+nothing holds, and no yes is taken: a tester's migration is never stopped by a price they would
+not pay. The hold and the yes go live when the alpha ends.
+
+**Built so far (0109 T6, first slice):** the yes, as ADR consequence 5 shaped it. `data_allowance`
+(managed migration 0037) holds one append-only row per yes, with the price shown; the ceiling is
+the highest tier moved up to plus every band bought (`data-ceiling.ts`); `GET
+/api/billing/ceiling` says where the data stands and the two ways on, and `POST
+/api/billing/ceiling/yes` takes a yes only to the offer shown, and none during the alpha. The hold
+in the copy loop, the warning at *Start* and the Billing page follow.
+
 This replaces two passages of the Decision above: in *Downgrade is automatic; upgrade is
 consented*, the sentence beginning *"On the **data** axis the tier moves automatically"*; and in
 *What it will not do*, *"Crossing it moves the tier, automatically and announced"*, with its
@@ -611,6 +623,9 @@ rules above are the prices the site quotes, and nothing is charged during the Al
 - **2026-10-03, last** — The price list of 2026-09-29 accepted, with its question 2 answered (a): a
   year is credit at six months' price (owner: *"a"*). In force once 0152 T6 (d) builds it. Its
   text: *Pending*.
+- **2026-10-03, last** — Not during the alpha (owner: *"A"*): the ceiling warns and nothing holds
+  while the stage is `alpha`, and no yes is taken. The yes is built (managed 0037, 0109 T6's first
+  slice). Record: *Amendment 2026-10-03*.
 
 The full record, word for word as it read before this consolidation:
 [history/0014-cost-recovery-billing.md](./history/0014-cost-recovery-billing.md).

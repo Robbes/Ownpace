@@ -156,6 +156,11 @@ export const PURGED_TABLES = [
   // above: a count keyed to the tenant, quoted onto retained invoices, with
   // no reason to outlive its subject.
   'bytes_moved',
+  // Each yes to a step up at the data ceiling (0109 T6, managed 0037): an
+  // agreement with a customer who is gone has nobody to apply to, and a
+  // retained invoice carries what it charged on its own document. The key
+  // would cascade; named so the receipt counts it.
+  'data_allowance',
   // The operator's number of live grant links for this organisation (0108
   // T8 (d), managed 0028): a setting about the customer, with nobody left to
   // apply it to. The key would cascade; named so the receipt counts it.
