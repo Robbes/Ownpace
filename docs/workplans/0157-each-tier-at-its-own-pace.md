@@ -72,9 +72,12 @@ it works out the least tier the answers need.
   0037): its tier needs a grant, in a managed migration.
 - ***Sync now* on Free:** it starts a pass without the tick, as now. Proposed: on Free it is
   refused while a pass ran in the last 24 hours, with the time of the next one, so the pace holds.
+- **Not during the alpha**, as the data ceiling is not (ADR-0014, the owner's *"A"* of
+  2026-10-03): while the stage is `alpha`, every organisation is on Free and nobody pays, so a
+  pass a day would only slow the testing the alpha is for. Proposed; the owner decides.
 - **Guards:** a unit test of `isSyncDue` with the fact, and a tick test: a Free migration that
   ran 23 hours ago is not due, at 24 hours it is, and a paid one is due at 15 minutes while its
-  first copy is unfinished.
+  first copy is unfinished; in the alpha, a Free one is due as a paid one is.
 
 ## 3. T3 — small kinds first, files last
 
