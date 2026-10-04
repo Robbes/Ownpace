@@ -27,7 +27,7 @@ Voor bestanden. Vul **Host**, **Poort**, **Gebruikersnaam** en **Wachtwoord** in
 ### De velden {#fields}
 
 - **Host**: de naam van de server, zoals `dav.example.com`: alleen de naam, zonder `https://` ervoor.
-- **Poort**: `443` voor de meeste servers; het vak toont dat als voorbeeld. Typ het in, of de poort die uw server gebruikt. Er is geen vakje voor SSL/TLS: deze dienst spreekt de server altijd aan via `https://`.
+- **Poort**: ingevuld met `443`, dat de meeste servers gebruiken. Verander die alleen als uw server een andere poort gebruikt. Er is geen vakje voor SSL/TLS: deze dienst spreekt de server altijd aan via `https://`.
 - **DAV-basis-URL**, onder **Serverinstellingen** bij **Waar gaat het naartoe?**: alleen wanneer de DAV-root van de server niet op de hostroot staat. Indien ingevuld wordt deze volledige URL gebruikt en worden host en poort genegeerd.
 - **Gebruikersnaam** en **Wachtwoord**: die van het account op de server, met een app-wachtwoord waar de server dat aanbiedt.
 

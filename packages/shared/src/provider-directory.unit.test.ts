@@ -15,11 +15,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { credentialFieldsFor } from './credential-fields.ts';
+import { connectableTypes, credentialFieldsFor } from './credential-fields.ts';
 import {
   PROVIDER_DIRECTORY,
   applyProviderDefaults,
+  formDefaultsFor,
   providerDefaultsFor,
+  providerDefaultsProvenance,
   providerDirectoryEntry,
 } from './provider-directory.ts';
 
@@ -78,6 +80,40 @@ describe('who has a row', () => {
     expect(providerDefaultsFor('source', 'soverin')).toEqual({});
     expect(providerDefaultsFor('target', 'no-such-provider')).toEqual({});
     expect(providerDirectoryEntry('target', 'jmap')).toBeUndefined();
+  });
+});
+
+describe('the usual port (the owner, 2026-10-04: "B")', () => {
+  const PORT_BOXES = (['source', 'target'] as const).flatMap((role) =>
+    connectableTypes(role).flatMap((type) =>
+      credentialFieldsFor(role, type)
+        .filter((f) => f.key === 'port' || f.key === 'mailPort')
+        .map((f) => ({ role, type, key: f.key, example: f.placeholder })),
+    ),
+  );
+
+  it('judges some boxes', () => {
+    expect(PORT_BOXES.length).toBeGreaterThan(5);
+  });
+
+  it.each(PORT_BOXES)('$role $type: $key starts filled, with the number its example shows', ({ role, type, key, example }) => {
+    expect(formDefaultsFor(role, type)[key]).toBe(example);
+  });
+
+  it('a protocol card gets its port and nothing else, and no "Pre-filled from" line', () => {
+    expect(formDefaultsFor('source', 'imap')).toEqual({ port: '993' });
+    expect(formDefaultsFor('target', 'imap')).toEqual({ port: '993' });
+    expect(formDefaultsFor('target', 'jmap')).toEqual({ port: '443' });
+    expect(formDefaultsFor('target', 'caldav')).toEqual({ port: '443' });
+    expect(formDefaultsFor('target', 'carddav')).toEqual({ port: '443' });
+    expect(formDefaultsFor('target', 'webdav')).toEqual({ port: '443' });
+    expect(providerDefaultsProvenance('target', 'caldav')).toBeUndefined();
+  });
+
+  it('a named provider fills in what it published, and a card without a port box gets nothing', () => {
+    expect(formDefaultsFor('target', 'soverin')).toEqual(providerDefaultsFor('target', 'soverin'));
+    expect(formDefaultsFor('source', 'gmail')).toEqual({});
+    expect(formDefaultsFor('target', 'nextcloud')).toEqual({});
   });
 });
 

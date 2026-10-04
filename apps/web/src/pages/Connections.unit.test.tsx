@@ -1326,16 +1326,23 @@ describe('adding a connection through the front door', () => {
     });
   });
 
-  it('a protocol card pre-fills nothing — "CardDAV" names no provider — and a pick after Soverin starts empty', async () => {
+  it('a protocol card fills in its usual port and nothing else — "CardDAV" names no provider — and a pick after Soverin keeps none of Soverin', async () => {
+    // The owner, 2026-10-04 (0153's *not carried over*, "B"): the wizard
+    // filled in 993 and 443, and its retirement had left the box empty.
     await open();
+    expect(screen.getByLabelText(/^Port/)).toHaveValue(993);
     fireEvent.click(screen.getByRole('radio', { name: 'Targets' }));
-    expect(screen.queryByDisplayValue('443')).toBeNull();
+    expect(screen.getByLabelText(/^Port/)).toHaveValue(443);
+    expect(screen.getByLabelText(/^Host/)).toHaveValue('');
     expect(screen.queryByText(/Pre-filled from/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /^IMAP/ }));
+    expect(screen.getByLabelText(/^Port/)).toHaveValue(993);
     fireEvent.click(screen.getByRole('button', { name: /^Soverin/ }));
     expect(screen.getByDisplayValue('caldav.soverin.net')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /^CardDAV/ }));
     expect(screen.queryByDisplayValue('caldav.soverin.net')).toBeNull();
-    expect(screen.queryByDisplayValue('443')).toBeNull();
+    expect(screen.queryByDisplayValue('imap.soverin.net')).toBeNull();
+    expect(screen.getByLabelText(/^Port/)).toHaveValue(443);
     expect(screen.queryByText(/Pre-filled from/)).toBeNull();
   });
 });

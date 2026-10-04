@@ -38,7 +38,7 @@ import {
   ARCHIVE_PROVIDER_NAMES,
   ARCHIVE_PROVIDER_ORIGINS,
   TARGET_TYPE_DOMAINS,
-  providerDefaultsFor,
+  formDefaultsFor,
   scopeFamilyOf,
   scopeManifestFor,
   providerDisplayName,
@@ -1555,7 +1555,7 @@ const NeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts; someoneElse?
   const name = providerDisplayName(need.card);
   // *Another mail provider* is the IMAP card, named as step 2 named it.
   const title = need.card === 'imap' ? t('start.from.otherMail') : name;
-  const initial = providerDefaultsFor('source', need.card);
+  const initial = formDefaultsFor('source', need.card);
   return (
     <li className="rounded-lg border border-gray-200 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2126,7 +2126,7 @@ const NewDestination: React.FC<{
 }> = ({ card, accounts, onAdded }) => {
   const { t } = useLocale();
   const key = `target:${card}`;
-  const initial = providerDefaultsFor('target', card);
+  const initial = formDefaultsFor('target', card);
   const name = providerDisplayName(card);
   return (
     <section className="rounded-lg border border-gray-200 p-4">
