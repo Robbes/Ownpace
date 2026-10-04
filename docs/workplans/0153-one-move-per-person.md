@@ -50,8 +50,12 @@ recommendation put *Rename* on the migration page for the name a person would ra
 - **Proved by** seven cases against real rows in `a-name-and-a-folder-the-route-writes`, three in
   shared, and four on the migration page. Two mutations are caught: dropping the name, and a ledger
   read that always says nothing was copied.
-- **Still to come for item 4:** the root folder on screen 3, and the privacy sentence on TLS for
-  the lawyer.
+- **Still to come for item 4:** the root folder on screen 3.
+- **No TLS switch on managed** (the owner chose B) needs nothing removed before the wizard goes:
+  *Start a migration* encrypts every connection, and the Accounts page's forms never had a switch.
+  The wizard's *Use SSL/TLS* is the last one. Privacy §11's *"unless you switch off SSL/TLS
+  yourself"* is in the lawyer's briefing at the top of `site/legal/privacy.md`, with a proposed
+  wording for when the wizard retires. The rendered text stays until then.
 
 **2026-10-04: the Google Calendar and Google Contacts cards retired for new migrations (open
 question 5, item 3).** The Google account is the same way in and asks Google for only what was
