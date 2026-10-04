@@ -16,7 +16,15 @@
  */
 import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CreditCard, TrendingUp, DollarSign, FileText, AlertCircle, Loader2 } from 'lucide-react';
+import {
+  Activity,
+  AlertCircle,
+  ArrowLeftRight,
+  CreditCard,
+  HardDrive,
+  Loader2,
+  Timer,
+} from 'lucide-react';
 import {
   billingApi,
   type Invoice,
@@ -567,10 +575,22 @@ const Billing: React.FC = () => {
           />
         ) : usage ? (
           <div className="space-y-4">
+            {/* THE FOUR MEASUREMENTS, AS MEASUREMENTS. They stay on every
+                deployment, during the Alpha too: they are the insight the
+                owner wants customers to have (0121 T4, 2026-09-09: "i want to
+                offer customers the insight"). 0131 T3 proposed hiding them
+                while nothing is charged. The owner chose instead, 2026-10-04:
+                "Keep, no money icons". The icons were a rising trend, a
+                dollar sign, a credit card and a document, so beside a line
+                that says nothing is charged they read as a running meter. Each
+                icon now says what is measured: a disk, data moving both ways,
+                a stopwatch, a pulse of calls. The tints stay: one hue per
+                card, and the green one read as money only beside the dollar
+                sign. Guarded by a-bill-nobody-will-send.unit.test.tsx. */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="p-4 bg-blue-50 rounded-lg">
                 <div className="flex items-center">
-                  <TrendingUp className="w-5 h-5 text-blue-600 mr-2" />
+                  <HardDrive className="w-5 h-5 text-blue-600 mr-2" />
                   <div>
                     <p className="text-sm text-gray-600">{t('billing.storage')}</p>
                     <p className="text-lg font-semibold text-gray-900">
@@ -582,7 +602,7 @@ const Billing: React.FC = () => {
 
               <div className="p-4 bg-green-50 rounded-lg">
                 <div className="flex items-center">
-                  <DollarSign className="w-5 h-5 text-green-600 mr-2" />
+                  <ArrowLeftRight className="w-5 h-5 text-green-600 mr-2" />
                   <div>
                     <p className="text-sm text-gray-600">{t('billing.dataTransfer')}</p>
                     <p className="text-lg font-semibold text-gray-900">
@@ -594,7 +614,7 @@ const Billing: React.FC = () => {
 
               <div className="p-4 bg-purple-50 rounded-lg">
                 <div className="flex items-center">
-                  <CreditCard className="w-5 h-5 text-purple-600 mr-2" />
+                  <Timer className="w-5 h-5 text-purple-600 mr-2" />
                   <div>
                     <p className="text-sm text-gray-600">{t('billing.computeTime')}</p>
                     <p className="text-lg font-semibold text-gray-900">
@@ -606,7 +626,7 @@ const Billing: React.FC = () => {
 
               <div className="p-4 bg-yellow-50 rounded-lg">
                 <div className="flex items-center">
-                  <FileText className="w-5 h-5 text-yellow-600 mr-2" />
+                  <Activity className="w-5 h-5 text-yellow-600 mr-2" />
                   <div>
                     {/* Labeled what the metering actually writes here
                         (apiCallCount) — "Syncs" promised a count nothing
