@@ -4,6 +4,25 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04, night: T7 (a)'s site half and T7 (b) are built**, so T7 is whole once the form
+half (#1481) is on main:
+- **The estimate ends in *Request access*,** under the result, and its script builds the link
+  from the answers on screen: the tier the card shows, every source ticked, what moves from them
+  (a type no ticked source brings is left out, as the count leaves it out) and who. Without the
+  script, the link is the plain one. The form matches each against its own list and builds its
+  note from them (T7 (a)'s form half).
+- **Each *Leaving…* page's *Request access*** carries its case, the source and the typical data
+  types, as its estimate link already did; T5 (a) 5's source no longer waits.
+- **The result says which payment suits *Until when?*** (T7 (b)), in the line the three-month
+  total had: a month or three paid monthly, in all; six months, or until ready, the year, *"for
+  twelve months, the price of six"*. A sentence, not a choice: the tier stays derived. Free says
+  none.
+- **The CSP:** the calculator's hash is re-pinned in `deploy/compose/www-nginx.conf`.
+- **Guards:** `test/ui/site.ui.test.ts` reads the link's answers in a browser as they change,
+  and the payment line for each answer; `leaving-pages-say-what-the-app-says` (8.) holds each
+  Leaving page's link to its case. Mutation caught: a Leaving page's plain link.
+- **T0:** the four payment sentences, in both languages.
+
 **2026-10-04, night: T3 is built** (R8 step 10, after T5). The home page's hero shows the move:
 - **The picture** is `hero-move.svg`, inlined by `site/hero.mjs`: the old account, Ownpace
   copying and then keeping in step, the new home. Its data types are the app's words, the rest
@@ -420,9 +439,9 @@ together, from one audit of the site and the app on `main` at `83eb73e` (§1).
 | T2 A shorter menu, and a header that fits a phone | ✅ **Built 2026-10-04, with T6 (c); *Leaving…* joined it with T5 (b); its words wait for T0** | §3. The header reads Home · How it works · Pricing · Sign in, plus the language switch. Privacy and Terms move to the footer. On a phone the menu folds into a `<details>`, which needs no script. |
 | T3 The hero shows the move | ✅ **Built 2026-10-04; its words wait for T0, and the app screen joins it later (D8)** | §3. The drawing `hero-move.svg`, inlined: the old account's data, then Ownpace, then the new home, with our own icons (D4). Three facts sit under it, and a three-step strip links to *How it works*. An app screen joins it once 0153 T5 exists. |
 | T4 The destinations, named | ✅ **Built 2026-10-04; its words wait for T0** | §3. A *Where to* section names what the app supports, from a site copy of the app's list with a guard that it matches. It says plainly that the new account is one the person opens and pays for themselves. |
-| T5 A page per provider a person leaves | 🟡 **(a) and (b) built 2026-10-04; (a) 5's source waits for T7 (a), (c) for the site's address; its words wait for T0** | §3. *Leaving Google*, *Leaving Microsoft 365*, *Leaving iCloud*, *Leaving Dropbox*, *Leaving Box*, *Leaving another mail provider*: what moves, the limits, what the person does, the destinations it can go to, a typical cost. Built from copies of the app's own verdicts, each guarded. |
+| T5 A page per provider a person leaves | 🟡 **(a) and (b) built 2026-10-04; (c) waits for the site's address; its words wait for T0** | §3. *Leaving Google*, *Leaving Microsoft 365*, *Leaving iCloud*, *Leaving Dropbox*, *Leaving Box*, *Leaving another mail provider*: what moves, the limits, what the person does, the destinations it can go to, a typical cost. Built from copies of the app's own verdicts, each guarded. |
 | T6 Pricing that reads in one pass | 🟡 **(a) done: the sentence by #1317, its guard beside D6's. (c) built 2026-10-04, with T2 (#1471). (d) built 2026-10-03, with (g)'s principle on the page. (b) and (e) built 2026-10-04. (f)'s words on the page and in the terms built 2026-10-04, its withdrawal button not. The rest proposed, before the first invitation (D5)** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) The withdrawal button, and the year's end (D11, amended 2026-10-04). (g) The principle, the price that pays for the work (D12). |
-| T7 A calculator that ends in a button | 🟡 **(c), (d) and (e) built 2026-10-04; (a) and (b) proposed, before the first invitation** | §3. (a) *Request access* carries the answers along. (b) *Until when?* says which payment suits it. (c) The layout faults and a live region. (d) Box as a source. (e) Several sources at once, and Tasks. |
+| T7 A calculator that ends in a button | ✅ **Built 2026-10-04: (a) in two halves, the form's and the site's, and (b) to (e); its words wait for T0** | §3. (a) *Request access* carries the answers along. (b) *Until when?* says which payment suits it. (c) The layout faults and a live region. (d) Box as a source. (e) Several sources at once, and Tasks. |
 | T8 Claims you can check | 📋 **Proposed; before the first invitation (D5)** | §3. "Open source" links the repository. Each proof point links the guard that holds it. The footer names the company once 0139 publishes it; until then that line is the one part that waits. |
 | T9 One look from the site to the app | ✅ **Built 2026-10-04** | §3. `/request-access` and `/login` take the site's palette and logo, and link back to the site. The identity provider's own branding stays 0135 T6. |
 
