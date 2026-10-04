@@ -476,10 +476,6 @@ reading a file drops off its entry by itself.
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 
-### `apps/web/src/pages/CreateMapping.tsx`
-
-- [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
-
 ### `apps/web/src/pages/Grant.tsx`
 
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
@@ -501,6 +497,10 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/pages/ReportProblem.tsx`
 
 - [a-screenshot-the-front-door-lets-through](../scripts/a-screenshot-the-front-door-lets-through.unit.test.ts) — A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
+
+### `apps/web/src/pages/StartMigration.tsx`
+
+- [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 
 ### `apps/web/src/pages/end-user-docs.unit.test.tsx`
 
@@ -544,6 +544,10 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/services/stage.ts`
 
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
+
+### `apps/web/src/services/start-plan.ts`
+
+- [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 
 ### `apps/web/src/services/tester-guide-link.ts`
 
@@ -2459,8 +2463,9 @@ Reads:
 - `apps/web/src/components/ProviderConsent.tsx`
 - `apps/web/src/i18n/strings.ts`
 - `apps/web/src/pages/Connections.tsx`
-- `apps/web/src/pages/CreateMapping.tsx`
+- `apps/web/src/pages/StartMigration.tsx`
 - `apps/web/src/services/mapping-service.ts`
+- `apps/web/src/services/start-plan.ts`
 - `deploy/compose/managed.yml`
 - `packages/shared/src/provider-accounts.ts`
 - `packages/shared/src/provider-clients.ts`
