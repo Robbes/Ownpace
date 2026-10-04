@@ -212,7 +212,15 @@ export const COPY = {
     costPick: (name, monthly, annual, paths, data) =>
       `<strong>${name}</strong>, for one person moving everything at once: ${monthly} a month, or ${annual} for a year, for ${paths} migrations at once and ${data}. There is no setup fee.`,
     tierMonth: 'a month',
-    tierYear: 'for a year, half the monthly price',
+    // How you pay (workplan 0152 T6 (e), D3, D10): the switch and each card's two answers.
+    payLabel: 'How you pay',
+    payYear: 'Yearly',
+    payMonth: 'Monthly',
+    payRule: 'Done within six months? Pay monthly. Longer, or not sure? A year costs the same as six months.',
+    payYearTotal: (m) => `${m} a year`,
+    payYearHow: 'paid yearly, in advance',
+    payHalf: 'half the monthly price',
+    payMonthHow: 'No minimum term: stop whenever you like',
     // Toward consumers a displayed price IS the final price (workplan 0111
     // T8): this says so out loud, with no rate in the copy — which country's
     // VAT sits inside it is the seller's problem, decided per invoice by the
@@ -498,7 +506,14 @@ export const COPY = {
     costPick: (name, monthly, annual, paths, data) =>
       `<strong>${name}</strong>, voor één persoon die alles tegelijk migreert: ${monthly} per maand, of ${annual} voor een jaar, voor ${paths} migraties tegelijk en ${data}. Er zijn geen inrichtingskosten.`,
     tierMonth: 'per maand',
-    tierYear: 'voor een jaar, de helft van de maandprijs',
+    payLabel: 'Hoe u betaalt',
+    payYear: 'Per jaar',
+    payMonth: 'Per maand',
+    payRule: 'Klaar binnen zes maanden? Betaal per maand. Langer, of weet u het nog niet? Een jaar kost evenveel als zes maanden.',
+    payYearTotal: (m) => `${m} per jaar`,
+    payYearHow: 'per jaar vooruitbetaald',
+    payHalf: 'de helft van de maandprijs',
+    payMonthHow: 'Geen minimumduur: stop wanneer u wilt',
     vatIncluded: 'Alle prijzen zijn inclusief btw.',
     tierPaths: (n) => `<strong>${n}</strong> migratie${n === 1 ? '' : 's'} tegelijk`,
     tierData: (s) => `<strong>${s}</strong> aan gemigreerde gegevens`,

@@ -144,15 +144,49 @@ describe('the public site renders', () => {
 
   it('lines the tier prices up, which is the one page where it shows', async () => {
     const { page } = await open('/pricing.html');
-    const layout = await page.evaluate(() => {
-      const tops = [...document.querySelectorAll('.tier .price')]
-        .filter((_, i) => i % 2 === 0)
-        .map((e) => Math.round(e.getBoundingClientRect().top));
-      return { cards: document.querySelectorAll('.tier').length, baselines: new Set(tops).size };
-    });
-    expect(layout.cards, 'the pricing page lost a tier').toBe(5);
-    expect(layout.baselines, 'the tier prices sit at different heights').toBe(1);
+    // Each card's first price on screen: the switch hides one of a paid card's two.
+    const baselines = () =>
+      page.evaluate(() => {
+        const tops = [...document.querySelectorAll('.tier')].map((tier) => {
+          const shown = [...tier.querySelectorAll('.price')].find((e) => e.getClientRects().length > 0);
+          return shown ? Math.round(shown.getBoundingClientRect().top) : -1;
+        });
+        return { cards: tops.length, baselines: new Set(tops).size, hidden: tops.filter((t) => t < 0).length };
+      });
+    const yearly = await baselines();
+    expect(yearly.cards, 'the pricing page lost a tier').toBe(5);
+    expect(yearly.hidden, 'a card shows no price').toBe(0);
+    expect(yearly.baselines, 'the tier prices sit at different heights').toBe(1);
+    await page.click('label[for="pay-month"]');
+    expect((await baselines()).baselines, 'on monthly the tier prices sit at different heights').toBe(1);
     await page.close();
+  }, 60_000);
+
+  it('opens the prices on yearly, and shows monthly by a click or the keyboard (0152 T6 (e), D10)', async () => {
+    const { page } = await open('/pricing.html');
+    const small = () =>
+      page.evaluate(() => {
+        const card = [...document.querySelectorAll('.tier')].find((t) => t.querySelector('h3')?.textContent === 'Small')!;
+        const shown = (sel: string) =>
+          [...card.querySelectorAll(sel)].filter((e) => e.getClientRects().length > 0).map((e) => e.textContent?.trim());
+        return { price: shown('.price'), year: shown('.price-year') };
+      });
+    expect(await small(), 'the page does not open on yearly').toEqual({ price: ['€2.50 a month'], year: ['€30 a year'] });
+    await page.click('label[for="pay-month"]');
+    expect(await small(), 'Monthly does not show the monthly price').toEqual({ price: ['€5 a month'], year: [] });
+    // The keyboard: Tab reaches the checked radio, and an arrow moves the choice.
+    await page.click('label[for="pay-year"]');
+    await page.focus('#pay-year');
+    await page.keyboard.press('ArrowRight');
+    expect(await page.isChecked('#pay-month'), 'an arrow key does not move the switch').toBe(true);
+    expect((await small()).price).toEqual(['€5 a month']);
+    await page.close();
+
+    const phone = await open('/nl/prijzen.html', 390);
+    const overflows = await phone.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+    expect(overflows, 'the Dutch pricing page scrolls sideways at 390px').toBe(false);
+    expect(await phone.page.isVisible('fieldset.pay-switch'), 'the switch is not on a phone').toBe(true);
+    await phone.page.close();
   }, 60_000);
 
   it('lands one migration on Free and says free, with no top-up; a second one lands on Small (ADR-0014, 2026-09-24)', async () => {
