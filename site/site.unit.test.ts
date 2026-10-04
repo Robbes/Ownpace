@@ -158,6 +158,33 @@ describe('the published prices agree with the decision that set them', () => {
     }
   });
 
+  it('says what each tier is in the page’s language, and as a fact, never as "most people" (0152 T1 (b))', async () => {
+    const { TIERS } = await import('./prices.mjs');
+    const { COPY } = (await import('./copy.mjs')) as unknown as {
+      COPY: Record<'en' | 'nl', { tierText: Record<string, { who: string; note: string }> }>;
+    };
+    const pages = await renderedPages();
+    const html = (file: string) => pages.find((p) => p.file === file)!.html;
+    for (const [locale, other, file] of [
+      ['en', 'nl', 'pricing.html'],
+      ['nl', 'en', 'nl/prijzen.html'],
+    ] as const) {
+      for (const t of TIERS) {
+        const own = COPY[locale].tierText[t.id];
+        expect(own?.who && own?.note, `${locale}: ${t.name} has no subtitle or note`).toBeTruthy();
+        expect(html(file), `${file}: ${t.name}'s subtitle is not its own language's`).toContain(own!.who);
+        // The defect this replaces: the Dutch page printed English tier text.
+        expect(html(file), `${file}: ${t.name}'s note is in ${other}`).not.toContain(COPY[other].tierText[t.id]!.note);
+      }
+    }
+    // Nothing counts who picks what, so no page says what most people do.
+    for (const page of pages) {
+      expect(page.html, `${page.file} claims what most people choose`).not.toMatch(/most people|meeste mensen|meest gekozen/i);
+    }
+    expect(html('index.html')).toContain('<strong>Small</strong>, for one person moving everything at once: €5 a month');
+    expect(html('nl/index.html')).toContain('<strong>Small</strong>, voor één persoon die alles tegelijk migreert: €5 per maand');
+  });
+
   it('never promises a year back, and says what is left of it pays later months (ADR-0014, 2026-10-04)', async () => {
     const { rendered } = (await import('./build.mjs')) as unknown as {
       rendered: Array<{ file: string; html: string }>;
@@ -595,23 +622,34 @@ describe('the call to action leads somewhere the service can answer', () => {
   });
 });
 
-describe('the header is short, and no page is left without a link to it (workplan 0152 T2, T6 (c))', () => {
-  /** The links of a page's header nav (`site`, on a wide screen) or its phone menu (`menu`). */
+describe('the header is short, and no page is left without a link to it (workplan 0152 T2, T5 (b), T6 (c))', () => {
+  /**
+   * The links of a page's header nav (`site`, on a wide screen) or its phone
+   * menu (`menu`), each by the text it shows: a Leaving… link's tile is hidden
+   * from a screen reader and is not its text.
+   */
   const navLinks = (html: string, which: 'site' | 'menu') => {
     const nav = new RegExp(`<nav class="${which}"[^>]*>([\\s\\S]*?)</nav>`).exec(html)?.[1];
     expect(nav, `no <nav class="${which}">`).toBeDefined();
-    return [...nav!.matchAll(/<a href="([^"]+)"[^>]*>([^<]+)<\/a>/g)].map((m) => ({ href: m[1]!, text: m[2]! }));
+    return [...nav!.matchAll(/<a href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)].map((m) => ({
+      href: m[1]!,
+      text: m[2]!.replace(/<span class="tile[^"]*" aria-hidden="true">[^<]*<\/span>/g, '').replace(/<[^>]+>/g, ''),
+    }));
   };
 
-  it('lists Home, How it works, Pricing and Sign in, in both, on every page', async () => {
+  it('lists Home, How it works, Pricing, the six Leaving… pages and Sign in, in both, on every page', async () => {
     const { SIGN_IN_URL, APP_URL } = (await import('./prices.mjs')) as unknown as {
       SIGN_IN_URL: string;
       APP_URL: string;
     };
     expect(SIGN_IN_URL, 'Sign in is built from the app this build is for').toBe(`${APP_URL}/login`);
+    const leaving: Record<string, string[]> = {
+      en: ['Google', 'Microsoft 365', 'Apple iCloud', 'Dropbox', 'Box', 'Another mail provider'],
+      nl: ['Google', 'Microsoft 365', 'Apple iCloud', 'Dropbox', 'Box', 'Een andere mailaanbieder'],
+    };
     const expected: Record<string, string[]> = {
-      en: ['Home', 'How it works', 'Pricing', 'Sign in'],
-      nl: ['Home', 'Hoe het werkt', 'Prijzen', 'Aanmelden'],
+      en: ['Home', 'How it works', 'Pricing', ...leaving.en!, 'Sign in'],
+      nl: ['Home', 'Hoe het werkt', 'Prijzen', ...leaving.nl!, 'Aanmelden'],
     };
     for (const page of await renderedPages()) {
       const wide = navLinks(page.html, 'site');

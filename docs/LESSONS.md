@@ -147,6 +147,7 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/conditions-not-accepted.ts`
 
 - [a-version-the-tester-accepted](../scripts/a-version-the-tester-accepted.unit.test.ts) — A VERSION THE TESTER ACCEPTED (workplan 0139 T3).
+- [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
 
 ### `apps/api/src/config-guards.ts`
 
@@ -404,6 +405,7 @@ reading a file drops off its entry by itself.
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-screenshot-the-front-door-lets-through](../scripts/a-screenshot-the-front-door-lets-through.unit.test.ts) — A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
+- [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
 
@@ -437,6 +439,10 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/components/ProviderConsent.tsx`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+
+### `apps/web/src/components/ProviderTile.tsx`
+
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 
 ### `apps/web/src/components/SiteMark.tsx`
 
@@ -480,6 +486,7 @@ reading a file drops off its entry by itself.
 - [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)).
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 - [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
+- [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
 
 ### `apps/web/src/pages/Billing.tsx`
 
@@ -660,6 +667,7 @@ reading a file drops off its entry by itself.
 - [a-pause-a-dispatcher-called-a-finish](../scripts/a-pause-a-dispatcher-called-a-finish.unit.test.ts) — Both dispatchers must tell a stop from a finish, and neither may bill a negative hour for it.
 - [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
+- [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
 
 ### `apps/worker/src/jobs/run-discovery.ts`
 
@@ -995,6 +1003,7 @@ reading a file drops off its entry by itself.
 - [status-page](../scripts/status-page.unit.test.ts) — The status page's configuration says what we think it says (workplan 0094).
 - [the-alias-that-shadowed-the-front](../scripts/the-alias-that-shadowed-the-front.unit.test.ts) — THE ALIAS THAT SHADOWED THE FRONT.
 - [the-check-postgres-never-made](../scripts/the-check-postgres-never-made.unit.test.ts) — A CREDENTIAL CHECK THAT POSTGRES NEVER MADE.
+- [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
 - [the-login-page-nobody-chose](../scripts/the-login-page-nobody-chose.unit.test.ts) — THE LOGIN PAGE NOBODY CHOSE.
 - [the-mail-nobody-should-get](../scripts/the-mail-nobody-should-get.unit.test.ts) — THE MAIL NOBODY SHOULD GET (workplan 0103 T2, ADR-0043).
@@ -1109,6 +1118,7 @@ reading a file drops off its entry by itself.
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
 - [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
+- [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
 
 ### `deploy/compose/setup-managed-demo.sh`
@@ -1350,6 +1360,10 @@ reading a file drops off its entry by itself.
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
 
+### `docs/README.md`
+
+- [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
+
 ### `docs/adr/0000-template.md`
 
 - [adr-operative](../scripts/adr-operative.unit.test.ts) — The operative layer cannot drift from its source (ADR-0038).
@@ -1393,6 +1407,10 @@ reading a file drops off its entry by itself.
 
 - [the-mail-nobody-should-get](../scripts/the-mail-nobody-should-get.unit.test.ts) — THE MAIL NOBODY SHOULD GET (workplan 0103 T2, ADR-0043).
 
+### `docs/ending-the-alpha.md`
+
+- [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
+
 ### `docs/feature-matrix.md`
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
@@ -1409,6 +1427,10 @@ reading a file drops off its entry by itself.
 ### `docs/guides/en/box.md`
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
+
+### `docs/guides/en/imap.md`
+
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 
 ### `docs/incident-runbook.md`
 
@@ -1502,6 +1524,10 @@ reading a file drops off its entry by itself.
 
 - [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 
+### `docs/workplans/0109-the-invoice-speaks-tiers.md`
+
+- [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
+
 ### `docs/workplans/0115-the-account-apple-will-not-hand-over.md`
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
@@ -1509,6 +1535,10 @@ reading a file drops off its entry by itself.
 ### `docs/workplans/0117-the-conveyor-belt-not-the-home.md`
 
 - [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts) — After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
+
+### `docs/workplans/0131-the-alpha-and-who-is-let-in.md`
+
+- [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
 
 ### `docs/workplans/0139-the-legal-gate-for-the-alpha.md`
 
@@ -2059,6 +2089,7 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/target-domains.ts`
 
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
+- [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
 
 ### `packages/shared/src/target-domains.unit.test.ts`
 
@@ -2315,18 +2346,36 @@ reading a file drops off its entry by itself.
 - [a-mount-that-went-blind](../scripts/a-mount-that-went-blind.unit.test.ts) — THE REPUBLISH THAT MADE THE SITE DISAPPEAR.
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-version-the-tester-accepted](../scripts/a-version-the-tester-accepted.unit.test.ts) — A VERSION THE TESTER ACCEPTED (workplan 0139 T3).
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 - [one-look-from-the-site-to-the-app](../scripts/one-look-from-the-site-to-the-app.unit.test.ts) — ONE LOOK FROM THE SITE TO THE APP (workplan 0152 T9).
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 - [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
+- [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
 - [the-test-site-sent-people-to-production](../scripts/the-test-site-sent-people-to-production.unit.test.ts) — THE TEST SITE HANDED VISITORS TO PRODUCTION.
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
+- [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
+
+### `site/calculator.mjs`
+
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 
 ### `site/copy.mjs`
 
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [one-look-from-the-site-to-the-app](../scripts/one-look-from-the-site-to-the-app.unit.test.ts) — ONE LOOK FROM THE SITE TO THE APP (workplan 0152 T9).
 - [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
+- [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
+- [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
+
+### `site/destinations.mjs`
+
+- [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
+
+### `site/icons.mjs`
+
+- [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
 
 ### `site/legal/README.md`
 
@@ -2398,8 +2447,13 @@ reading a file drops off its entry by itself.
 ### `site/prices.mjs`
 
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 - [the-test-site-sent-people-to-production](../scripts/the-test-site-sent-people-to-production.unit.test.ts) — THE TEST SITE HANDED VISITORS TO PRODUCTION.
+
+### `site/profiles.mjs`
+
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 
 ### `site/security-txt.mjs`
 
@@ -2409,6 +2463,10 @@ reading a file drops off its entry by itself.
 ### `site/site.unit.test.ts`
 
 - [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)).
+
+### `site/sources.mjs`
+
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 
 ### `site/tsconfig.json`
 
@@ -4573,6 +4631,21 @@ Reads:
 - `deploy/compose/setup-zitadel.sh`
 - `scripts/bootstrap-managed.unit.test.ts`
 
+### [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts)
+
+THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
+
+Reads:
+
+- `apps/web/src/components/ProviderTile.tsx`
+- `docs/guides/en/imap.md`
+- `site/build.mjs`
+- `site/calculator.mjs`
+- `site/copy.mjs`
+- `site/prices.mjs`
+- `site/profiles.mjs`
+- `site/sources.mjs`
+
 ### [legal-docs](../scripts/legal-docs.unit.test.ts)
 
 The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
@@ -4942,6 +5015,24 @@ Reads:
 - `packages/connectors/src/graph-drive-source.ts`
 - `packages/connectors/src/webdav-source.ts`
 
+### [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts)
+
+THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
+
+Reads:
+
+- `apps/api/src/conditions-not-accepted.ts`
+- `apps/web/Dockerfile`
+- `apps/worker/src/jobs/run-delta-sync.ts`
+- `deploy/compose/managed.yml`
+- `deploy/compose/set-task-env.sh`
+- `docs/README.md`
+- `docs/ending-the-alpha.md`
+- `docs/workplans/0109-the-invoice-speaks-tiers.md`
+- `docs/workplans/0131-the-alpha-and-who-is-let-in.md`
+- `site/build.mjs`
+- `site/copy.mjs`
+
 ### [the-idp-refusal-that-said-nothing](../scripts/the-idp-refusal-that-said-nothing.unit.test.ts)
 
 A REFUSAL THAT NAMES NOTHING IS A RUN SOMEBODY HAS TO REPEAT TO LEARN ANYTHING.
@@ -5151,6 +5242,19 @@ Reads:
 - `deploy/compose/managed.yml`
 - `scripts/an-integration-test-is-handed-its-database.unit.test.ts`
 - `site/build.mjs`
+
+### [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts)
+
+WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
+
+Reads:
+
+- `apps/web/src/i18n/strings.ts`
+- `packages/shared/src/target-domains.ts`
+- `site/build.mjs`
+- `site/copy.mjs`
+- `site/destinations.mjs`
+- `site/icons.mjs`
 
 ### [workplan-index](../scripts/workplan-index.unit.test.ts)
 

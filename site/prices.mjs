@@ -22,7 +22,7 @@
  * for every paid tier.
  */
 
-/** @typedef {{ id: string, name: string, who: string, paths: number, dataGb: number, monthly: number, annual: number, note: string }} Tier */
+/** @typedef {{ id: string, name: string, paths: number, dataGb: number, monthly: number, annual: number }} Tier */
 
 /** Bytes are quoted in whole GB up to 1 TB and in TB above it. */
 export const GB_PER_TB = 1000;
@@ -32,52 +32,42 @@ export const TIERS = [
   {
     id: 'free',
     name: 'Free',
-    who: 'One person, one thing at a time',
     paths: 1,
     dataGb: 250,
     monthly: 0,
     annual: 0,
-    note: 'Move your mail, then your contacts, then your calendar, then your files — one after another. The patient option, and free.',
   },
   {
     id: 'small',
     name: 'Small',
-    who: 'One person, everything at once',
     paths: 4,
     dataGb: 750,
     monthly: 500,
     annual: 3000,
-    note: 'Everything you own, moving at the same time. Most people who are leaving one provider for another want this one.',
   },
   {
     id: 'medium',
     name: 'Medium',
-    who: 'A household, a team, or a small business',
     paths: 20,
     dataGb: 2 * GB_PER_TB,
     monthly: 1200,
     annual: 7200,
-    note: 'Five people with everything, or four with room to spare. Self-service, with a manual and somewhere to ask questions.',
   },
   {
     id: 'large',
     name: 'Large',
-    who: 'An SME',
     paths: 50,
     dataGb: 7.5 * GB_PER_TB,
     monthly: 4000,
     annual: 24000,
-    note: 'Where a real person gets involved: planning, the cutover, and someone to call when a provider does something strange.',
   },
   {
     id: 'xl',
     name: 'Extra large',
-    who: 'An organisation, or an MSP',
     paths: 200,
     dataGb: 15 * GB_PER_TB,
     monthly: 8000,
     annual: 48000,
-    note: 'Many accounts, one migration, one relationship.',
   },
 ];
 
