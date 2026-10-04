@@ -1606,6 +1606,9 @@ const en = {
   // *18,234 of ~19,000 · last pass 2 minutes ago*. *Pass* is the
   // glossary's word for a round of copying; *the check* is the verification,
   // as the menu's *Check* names it, and the two are kept apart.
+  // An export's line before it starts (0153 open question 5, item 2).
+  'people.line.waitsForExport': 'Waiting for the Takeout export',
+  'people.line.howToExport': 'how to make one',
   'people.line.lastPass': 'last pass {when}',
   // What the count leaves out, short: its meaning is on the migration's page.
   'people.line.leftAsIs': '{count} left as they are',
@@ -1640,7 +1643,6 @@ const en = {
   'start.from.otherMail': 'Another mail provider',
   'start.from.otherMail.inSentence': 'another mail provider',
   'start.from.needOne': 'Tick at least one account.',
-  'start.from.archive': 'An export archive (Takeout, Apple)',
   'start.from.other': 'Other ways to connect (IMAP, CalDAV, CardDAV, WebDAV, JMAP)',
   'start.from.other.line': 'A server is added by its protocol, one migration at a time.',
   'start.byHand': 'Add one migration by hand',
@@ -1653,8 +1655,15 @@ const en = {
     "A mail provider's calendar and contacts come over CalDAV and CardDAV, where it offers them. Add those by hand.",
   'start.what.needOne': 'Tick at least one thing to move.',
   'start.what.photos': 'Photos',
-  'start.what.photos.line': 'Through an export archive, which you add once it is in your new files.',
-  'start.what.photos.ask': 'Ask for it at {export}',
+  // A PROVIDER'S EXPORT UNDER ITS TILE (0153 open question 5, item 2): a tick
+  // box where this build reads it, a line where it does not (0148 D7).
+  'start.what.export.google-takeout': 'Photos: from a Takeout export',
+  'start.what.export.apple-privacy': "iCloud Drive and photos: from Apple's export",
+  'start.what.export.google-takeout.line':
+    'You ask Google for the export yourself, and put it in your new files when it arrives.',
+  'start.what.export.google-takeout.why':
+    'Google lets other apps read only the photos they uploaded themselves, so its export is the one way to a whole library.',
+  'start.what.export.askNow': 'It can take a few days to prepare, so ask for it now:',
   'start.connect.heading': 'Connect your accounts',
   'start.connect.googleApart': 'Google asks for mail and files apart on this service, so this takes {n} sign-ins.',
   'start.connect.asks': 'One sign-in: {types}',
@@ -1671,6 +1680,7 @@ const en = {
   'start.connect.theirAddress': 'Their address at {provider}',
   'start.connect.saveAddress': 'Save the address',
   'start.connect.addressNeeded': 'Type their address first.',
+  'start.connect.exportNoSignIn': 'Photos need no sign-in: they come from the Takeout export.',
   'start.accountsFailed': 'Your saved accounts could not be read. A new account still works.',
   'start.to.row': 'Where {type} goes',
   'start.to.yours': 'Your accounts',
@@ -1680,6 +1690,7 @@ const en = {
   'start.to.needAll': 'Add each new account first.',
   'start.to.settingUp': 'Setting up…',
   'start.to.failed': 'Not set up: {migration}.',
+  'start.to.exportFolder': 'Read from the folder {folder} in these files, once the export is put there.',
   'start.migrationName': '{person} — {provider} to {destination}',
   'start.check.intro': 'Set up and paused: nothing is copied before Start.',
   'start.check.route': '{types}: {from} → {to}',
@@ -1690,6 +1701,14 @@ const en = {
   'start.check.waitsForLink': 'Its count appears here once {person} has connected through the link above.',
   'start.check.startsWhenGranted': 'Once you have started the others, it starts by itself when {person} connects.',
   'start.check.waitsForACount': 'You can start once {person} has connected and a count is in.',
+  // AN EXPORT'S MIGRATION, SET UP AND WAITING (0153 open question 5, item 2).
+  'start.check.export.waits': 'Set up, and waiting for the Takeout export:',
+  'start.check.export.ask': 'Ask Google for it, with only Google Photos ticked:',
+  'start.check.export.put':
+    'When it arrives, put its .zip files, as Google sends them, in the folder {folder} of {destination}.',
+  'start.check.export.start': 'Then start it on its page, with Review and start: it counts the export first.',
+  'start.check.export.guide': 'Asking for a Takeout, step by step',
+  'start.check.done': 'Done',
   'start.check.later':
     "You can close this page. {person}'s page keeps these migrations: once they have connected, start each one from its Details.",
   'start.company.question': 'Is this a company account with an administrator?',
@@ -4483,6 +4502,8 @@ const nl: Record<keyof typeof en, string> = {
   'people.noneYet': 'Nog niets voor deze persoon.',
   'people.lastPass': 'Laatste ronde {when}',
   'people.noPassYet': 'Nog geen ronde',
+  'people.line.waitsForExport': 'Wacht op de Takeout-export',
+  'people.line.howToExport': 'zo maakt u er een',
   'people.line.lastPass': 'laatste ronde {when}',
   'people.line.leftAsIs': '{count} ongemoeid gelaten',
   'people.line.checkPassed': 'De verificatie is {when} geslaagd',
@@ -4515,7 +4536,6 @@ const nl: Record<keyof typeof en, string> = {
   'start.from.otherMail': 'Een andere mailaanbieder',
   'start.from.otherMail.inSentence': 'een andere mailaanbieder',
   'start.from.needOne': 'Vink minstens één account aan.',
-  'start.from.archive': 'Een exportarchief (Takeout, Apple)',
   'start.from.other': 'Andere manieren om te verbinden (IMAP, CalDAV, CardDAV, WebDAV, JMAP)',
   'start.from.other.line': 'Een server voegt u toe via zijn protocol, één migratie tegelijk.',
   'start.byHand': 'Eén migratie handmatig toevoegen',
@@ -4528,8 +4548,13 @@ const nl: Record<keyof typeof en, string> = {
     'De agenda en contacten van een mailaanbieder komen via CalDAV en CardDAV, als die ze aanbiedt. Die voegt u handmatig toe.',
   'start.what.needOne': 'Vink minstens één ding aan om te migreren.',
   'start.what.photos': "Foto's",
-  'start.what.photos.line': 'Via een exportarchief, dat u toevoegt zodra het in uw nieuwe bestanden staat.',
-  'start.what.photos.ask': 'Vraag het aan bij {export}',
+  'start.what.export.google-takeout': "Foto's: uit een Takeout-export",
+  'start.what.export.apple-privacy': "iCloud Drive en foto's: uit de export van Apple",
+  'start.what.export.google-takeout.line':
+    'U vraagt de export zelf aan bij Google en zet hem in uw nieuwe bestanden zodra hij binnen is.',
+  'start.what.export.google-takeout.why':
+    "Google laat andere apps alleen de foto's lezen die ze zelf hebben geüpload, dus de export is de enige weg naar een hele bibliotheek.",
+  'start.what.export.askNow': 'Het klaarzetten kan een paar dagen duren, dus vraag hem nu aan:',
   'start.connect.heading': 'Uw accounts verbinden',
   'start.connect.googleApart': 'Google vraagt op deze dienst apart om e-mail en bestanden, dus dit zijn {n} aanmeldingen.',
   'start.connect.asks': 'Eén aanmelding: {types}',
@@ -4546,6 +4571,7 @@ const nl: Record<keyof typeof en, string> = {
   'start.connect.theirAddress': 'Hun adres bij {provider}',
   'start.connect.saveAddress': 'Adres bewaren',
   'start.connect.addressNeeded': 'Typ eerst hun adres.',
+  'start.connect.exportNoSignIn': "Foto's hebben geen aanmelding nodig: ze komen uit de Takeout-export.",
   'start.accountsFailed': 'Uw bewaarde accounts konden niet worden gelezen. Een nieuw account werkt wel.',
   'start.to.row': 'Waar {type} naartoe gaat',
   'start.to.yours': 'Uw accounts',
@@ -4555,6 +4581,7 @@ const nl: Record<keyof typeof en, string> = {
   'start.to.needAll': 'Voeg eerst elk nieuw account toe.',
   'start.to.settingUp': 'Bezig met klaarzetten…',
   'start.to.failed': 'Niet klaargezet: {migration}.',
+  'start.to.exportFolder': 'Gelezen uit de map {folder} in deze bestanden, zodra de export daar staat.',
   'start.migrationName': '{person} — {provider} naar {destination}',
   'start.check.intro': 'Klaargezet en gepauzeerd: er wordt niets gekopieerd vóór Starten.',
   'start.check.route': '{types}: {from} → {to}',
@@ -4565,6 +4592,13 @@ const nl: Record<keyof typeof en, string> = {
   'start.check.waitsForLink': 'De telling verschijnt hier zodra {person} via de link hierboven verbonden is.',
   'start.check.startsWhenGranted': 'Zodra u de andere hebt gestart, start deze vanzelf wanneer {person} verbindt.',
   'start.check.waitsForACount': 'U kunt starten zodra {person} verbonden is en er een telling binnen is.',
+  'start.check.export.waits': 'Klaargezet, en wacht op de Takeout-export:',
+  'start.check.export.ask': "Vraag hem aan bij Google, met alleen Google Foto's aangevinkt:",
+  'start.check.export.put':
+    'Zet de .zip-bestanden zodra ze binnen zijn, zoals Google ze stuurt, in de map {folder} van {destination}.',
+  'start.check.export.start': 'Start de migratie daarna op haar pagina, met Controleren en starten: eerst wordt de export geteld.',
+  'start.check.export.guide': 'Een Takeout aanvragen, stap voor stap',
+  'start.check.done': 'Klaar',
   'start.check.later':
     'U kunt deze pagina sluiten. De pagina van {person} bewaart deze migraties: start elke migratie via Details zodra de verbinding er is.',
   'start.company.question': 'Is dit een bedrijfsaccount met een beheerder?',

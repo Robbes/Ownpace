@@ -11,7 +11,7 @@ An export is a **snapshot**. It contains everything up to the day it was prepare
 Two things, and neither of them is a password:
 
 - **Which export**: Google Takeout, or Apple Data & Privacy. This tells us how to read it — the two are laid out completely differently inside, and there is no way to tell from the files themselves.
-- **Where the archive is**: the `.zip` you downloaded, or the folder you extracted it into. A download in several parts: any one of the parts, and we read them all. That folder can be in the Nextcloud or WebDAV files you are moving to: see [Your export in your own Nextcloud](#own-nextcloud).
+- **Where the archive is**: the `.zip` you downloaded, the folder you put its parts in, or the folder you extracted it into. A download in several parts: any one of the parts, or the folder they are in, and we read them all. That folder can be in the Nextcloud or WebDAV files you are moving to: see [Your export in your own Nextcloud](#own-nextcloud).
 
 That is the whole connection. We never sign in anywhere on your behalf for this, so there is no account to link and nothing to revoke afterwards.
 
@@ -76,6 +76,18 @@ Extract every part into the same folder.
 
 In the contact and calendar information Apple exports, **email addresses are partly hidden**. This does not affect your files or photos, which is what an Apple export would be read for.
 
+### From Start a migration {#from-the-flow}
+
+**Start a migration** offers Google's photos under the Google tile, on **What moves?**, as **Photos: from a Takeout export**. It is not ticked at first, because it asks something of you: you request the export yourself.
+
+1. Tick it, and ask Google for the export straight away, as [Asking for it](#takeout-request) describes: it can take a few days to prepare.
+2. On **Where does it go?**, choose where the photos go: a Nextcloud, or another account whose files are reached over WebDAV. The export is read from a folder called `Takeout` at the top of those same files.
+3. Finish the flow. The photos migration is set up, and waits for the export; the rest starts as usual. Its line says **Waiting for the Takeout export** until you start it.
+4. When the export arrives, upload its `.zip` files, exactly as Google delivered them, into that `Takeout` folder. Keep every part, and nothing else, in it.
+5. Open the migration and press **Review and start**. It counts what is in the export first, so you see the photos it found before anything moves.
+
+The folder can hold the `.zip` parts or what they extract to: either works. Two different exports in it is refused, with both named, so we never read one and leave the other out.
+
 ### Adding the connection {#archive}
 
 On the **Connections** page, add a connection and choose **Export archive**. It asks for three things:
@@ -97,7 +109,7 @@ Once the test shows what the archive holds, create a migration from it the way y
 
 The export does not have to be on a disk. If the files you are moving to are in a Nextcloud, or on another server that offers your files over WebDAV, you can put the export there and we read it from that folder. Where the form does not let you choose a disk, this is the way to hand us an export.
 
-**There is no need to unpack it.** Upload the `.zip` files exactly as Google delivered them, every part into the same folder. We read them where they lie, a few megabytes at a time, and never change them. If you already unpacked the export into that folder, that works too.
+**There is no need to unpack it.** Upload the `.zip` files exactly as Google delivered them, every part into the same folder. We read them where they lie, a few megabytes at a time, and never change them. If you already unpacked the export into that folder, that works too. **Start a migration** sets this up for you: see [From Start a migration](#from-the-flow).
 
 1. Upload the `.zip` parts into **one folder** of the files the migration will write to: the same Nextcloud or WebDAV account you will choose as the destination. Use the way you always add files, such as the Nextcloud website or its desktop app.
 2. In the wizard, choose **Export archive** as the source. Under **Where the export is**, choose **In a folder of your destination's files (Nextcloud or WebDAV)**.

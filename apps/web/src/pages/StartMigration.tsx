@@ -16,15 +16,19 @@
  *   the last screen, so leaving half-way leaves no empty card behind.
  * - **Which account are you leaving?** Six tiles, none ticked, more than one
  *   allowed (D1). A tile that has not met a real account says so (0131 D6).
- *   An export archive and a server by its protocol are added by hand, in the
- *   wizard, which stays as *Add one migration by hand* until this flow
- *   carries every card (T4, *The four-step wizard stays reachable*).
+ *   A server by its protocol is added by hand, in the wizard, which stays as
+ *   *Add one migration by hand* until this flow carries every card (T4, *The
+ *   four-step wizard stays reachable*). An export has no line of its own: it
+ *   sits under its provider (0153 open question 5, item 2).
  * - **What moves?** Per provider, the data types it can give on this
  *   deployment, all ticked; the ones it cannot give in a line of their own,
  *   blamed on the provider (T7 (e)). Asked before any sign-in, so each sign-in
  *   asks for exactly what was ticked (T1 (c)). Google's Docs and Dropbox's
  *   Paper docs have no file to copy, so their format is chosen here, with the
- *   wizard's own choosers and the wizard's own defaults.
+ *   wizard's own choosers and the wizard's own defaults. Under Google, its
+ *   photos *from a Takeout export*, unticked: the person asks Google for it,
+ *   and the migration it makes waits for it, in a folder of the destination's
+ *   own files, until it is started there (`exportMigration`).
  *
  * Each screen starts at the top with focus on its heading (0145 T3 (a)).
  */
@@ -42,6 +46,7 @@ import {
   sourceCardIsExperimental,
   sourceFaceIsExperimental,
   wizardTypeForConnectionKind,
+  type ArchiveProvider,
   type DiscoveryDomain,
   type DropboxPaperPolicy,
   type Person,
@@ -70,7 +75,11 @@ import {
   grantableByLink,
   migrationsFor,
   offers,
-  photosThrough,
+  EXPORT_CARD,
+  TAKEOUT_FOLDER,
+  exportDestinations,
+  exportMigration,
+  exportOf,
   type ConnectionNeed,
   type MicrosoftMailThrough,
   type PlanChoices,
@@ -299,6 +308,10 @@ const StartMigration: React.FC = () => {
   // A company's mail through its own app (`PlanChoices`, 0153 open question 5).
   const [microsoftMail, setMicrosoftMail] = React.useState<MicrosoftMailThrough | undefined>(undefined);
   const choices: PlanChoices = React.useMemo(() => (microsoftMail ? { microsoftMail } : {}), [microsoftMail]);
+  // The providers whose export was ticked under their tile, and where it is
+  // read from (0153 open question 5, item 2).
+  const [exportsTicked, setExportsTicked] = React.useState<ReadonlyArray<StartProvider>>([]);
+  const [exportTo, setExportTo] = React.useState<string | undefined>(undefined);
 
   const people: ReadonlyArray<Person> = (peopleQuery.data?.people ?? []).filter(
     (p) => !p.implicit && p.displayName !== null,
@@ -315,6 +328,8 @@ const StartMigration: React.FC = () => {
   /** What each ticked provider moves: what was ticked, or everything it offers until it is touched. */
   const movesFrom = (provider: StartProvider): ReadonlyArray<DiscoveryDomain> =>
     ticked[provider] ?? offers(provider, served);
+  /** The providers whose export moves: ticked, still being left, and read by this build. */
+  const exporting = providers.filter((p) => exportsTicked.includes(p) && exportOf(p)?.readable === true);
 
   const personName =
     who.personId === null ? who.name.trim() : (people.find((p) => p.id === who.personId)?.displayName ?? '');
@@ -355,7 +370,33 @@ const StartMigration: React.FC = () => {
       ];
     });
   });
-  const planned = migrationsFor(routes);
+  /**
+   * Where an export is read from and written to (0148 D11): what was chosen,
+   * else the files' destination where it can serve one, else a saved
+   * Nextcloud or WebDAV account, else a new Nextcloud.
+   */
+  const exportDestinationOf = (): string => {
+    if (exportTo !== undefined) return exportTo;
+    if (types.includes('file')) {
+      const files = destinationOf('file');
+      const card = cardOfDestination(files, accounts);
+      if (card !== undefined && exportDestinations().includes(card)) return files;
+    }
+    return defaultExportDestination(accounts.saved);
+  };
+  const exportTarget = exporting.length === 0 ? undefined : accounts.signed(exportDestinationOf());
+  const planned = [
+    ...migrationsFor(routes),
+    ...(exportTarget === undefined
+      ? []
+      : exporting.map((provider) =>
+          exportMigration(provider, {
+            card: exportTarget.card as WizardTargetType,
+            connectionId: exportTarget.connectionId,
+            ...(exportTarget.username ? { username: exportTarget.username } : {}),
+          }),
+        )),
+  ];
 
   // THE WORDS FOR A MIGRATION: *"{person} — {provider} to {destination}"*
   // (T4, *Underneath*), and on the check screen its data types, from and to.
@@ -363,10 +404,13 @@ const StartMigration: React.FC = () => {
   // than "IMAP" does.
   const typeWords = (types: ReadonlyArray<DiscoveryDomain>) =>
     list(types.map((d) => t(DOMAIN_STRING_KEY[d]).toLocaleLowerCase(locale)));
-  const fromWord = (m: PlannedMigration) =>
-    m.provider === 'imap'
+  const fromWord = (m: PlannedMigration) => {
+    const archive = m.sourceCard === EXPORT_CARD ? exportOf(m.provider)?.archive : undefined;
+    if (archive !== undefined) return ARCHIVE_PROVIDER_NAMES[archive];
+    return m.provider === 'imap'
       ? m.sourceUsername.split('@')[1] || t('start.from.otherMail')
       : providerName(m.sourceCard, 'source');
+  };
   const toWord = (m: PlannedMigration) => providerName(m.targetCard, 'target');
   const names: Readonly<Record<string, string>> = (() => {
     const base = planned.map((m) =>
@@ -383,7 +427,8 @@ const StartMigration: React.FC = () => {
   })();
   const titles: Readonly<Record<string, string>> = Object.fromEntries(
     planned.map((m) => {
-      const types = typeWords(m.types);
+      // An export's files are its photos (owner decision D5), and it says so.
+      const types = m.sourceCard === EXPORT_CARD ? t('start.what.photos') : typeWords(m.types);
       return [
         pairKey(m),
         t('start.check.route', {
@@ -402,6 +447,19 @@ const StartMigration: React.FC = () => {
    * (T4, *Underneath*).
    */
   const inputFor = (m: PlannedMigration): CreateMappingInput => {
+    if (m.sourceCard === EXPORT_CARD) {
+      // An export (0153 open question 5, item 2): no account to reuse, so its
+      // source is made with it, as a folder of the destination's own files.
+      return {
+        name: names[pairKey(m)] ?? '',
+        sourceType: 'archive',
+        targetType: m.targetCard,
+        targetConnectionId: m.targetConnectionId,
+        sourceConfig: { username: '', provider: exportOf(m.provider)!.archive, path: TAKEOUT_FOLDER, where: 'target' },
+        targetConfig: { username: m.targetUsername ?? '', password: '' },
+        syncConfig: { domains: [...m.types], schedule: '0 2 * * *' },
+      };
+    }
     const files = m.types.includes('file');
     return {
       name: names[pairKey(m)] ?? '',
@@ -501,11 +559,14 @@ const StartMigration: React.FC = () => {
       case 'from':
         return providers.length === 0 ? t('start.from.needOne') : undefined;
       case 'what':
-        return providers.every((p) => movesFrom(p).length === 0) ? t('start.what.needOne') : undefined;
+        return providers.every((p) => movesFrom(p).length === 0) && exporting.length === 0
+          ? t('start.what.needOne')
+          : undefined;
       case 'connect':
         return needs.some((need) => sourceOf(need) === undefined) ? t('start.connect.needAll') : undefined;
       case 'to':
-        return types.some((type) => accounts.signed(destinationOf(type)) === undefined)
+        return types.some((type) => accounts.signed(destinationOf(type)) === undefined) ||
+          (exporting.length > 0 && exportTarget === undefined)
           ? t('start.to.needAll')
           : undefined;
       default:
@@ -548,11 +609,18 @@ const StartMigration: React.FC = () => {
               onPaperFormat={setPaperFormat}
               microsoftMail={microsoftMail}
               onMicrosoftMail={setMicrosoftMail}
-              byHand={byHand}
+              exports={exportsTicked}
+              onExports={setExportsTicked}
             />
           )}
           {step === 'connect' && (
-            <ConnectStep needs={needs} accounts={accounts} someoneElse={who.someoneElse} byLink={byLink} />
+            <ConnectStep
+              needs={needs}
+              accounts={accounts}
+              someoneElse={who.someoneElse}
+              byLink={byLink}
+              exporting={exporting}
+            />
           )}
           {step === 'check' && (
             <CheckStep
@@ -573,7 +641,8 @@ const StartMigration: React.FC = () => {
               accounts={accounts}
               destinationOf={destinationOf}
               onDestination={(type, choice) => setDestination((prev) => ({ ...prev, [type]: choice }))}
-              onAddedFor={(card, connectionId) =>
+              onAddedFor={(card, connectionId) => {
+                if (exporting.length > 0 && exportDestinationOf() === `new:${card}`) setExportTo(connectionId);
                 setDestination((prev) => {
                   const next = { ...prev };
                   for (const type of types) {
@@ -582,7 +651,10 @@ const StartMigration: React.FC = () => {
                     }
                   }
                   return next;
-                })
+                });
+              }}
+              exportRow={
+                exporting.length === 0 ? undefined : { choice: exportDestinationOf(), onChoice: setExportTo }
               }
             />
           )}
@@ -784,15 +856,9 @@ export const FromStep: React.FC<{
           })}
         </div>
       </fieldset>
-      <Link
-        to={byHand}
-        className="flex min-h-[44px] items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 hover:bg-gray-100"
-      >
-        <span className="font-medium text-gray-900">
-          <ProviderTile type="archive" role="source" size={28} name={t('start.from.archive')} />
-        </span>
-        <span className="text-sm text-blue-700">{t('start.byHand')}</span>
-      </Link>
+      {/* No line for an export archive (0153 open question 5, item 2): every
+          export has a provider, so it sits under that provider's tile on the
+          next screen. */}
       <details>
         <summary className="cursor-pointer text-sm text-blue-700">{t('start.from.other')}</summary>
         <p className="mt-2 text-sm text-gray-700">
@@ -819,7 +885,9 @@ export const WhatStep: React.FC<{
   /** A company's mail through its own app, where its administrator chose that (0153 open question 5). */
   microsoftMail?: MicrosoftMailThrough | undefined;
   onMicrosoftMail?: (next: MicrosoftMailThrough | undefined) => void;
-  byHand: string;
+  /** The providers whose export was ticked under their tile (0153 open question 5, item 2). */
+  exports?: ReadonlyArray<StartProvider>;
+  onExports?: (next: ReadonlyArray<StartProvider>) => void;
 }> = ({
   providers,
   served,
@@ -831,7 +899,8 @@ export const WhatStep: React.FC<{
   onPaperFormat,
   microsoftMail,
   onMicrosoftMail = () => undefined,
-  byHand,
+  exports = [],
+  onExports = () => undefined,
 }) => {
   const { t, locale } = useLocale();
   const { list } = useFormatters();
@@ -844,7 +913,7 @@ export const WhatStep: React.FC<{
       {providers.map((provider) => {
         const moves = movesFrom(provider);
         const missing = cannotGive(provider, served);
-        const photos = photosThrough(provider);
+        const exported = exportOf(provider);
         const why: Partial<Record<StartProvider, StringKey>> = {
           apple: 'start.what.notFrom.apple.why',
           imap: 'start.what.notFrom.imap.why',
@@ -904,33 +973,14 @@ export const WhatStep: React.FC<{
                   </div>
                 );
               })}
-              {photos !== undefined && (
-                // Photos take no sign-in and no tick: they come through an
-                // export the person asks for, which this flow cannot wait
-                // for, so the line says how and the wizard adds it later.
-                <div className="flex items-start gap-3 py-2">
-                  <span className="mt-0.5 inline-flex w-5 shrink-0 justify-center text-gray-500">
-                    <DataTypeIcon name="photos" size={20} />
-                  </span>
-                  <p className="text-sm text-gray-700">
-                    <span className="font-medium text-gray-900">{t('start.what.photos')}</span>
-                    {' · '}
-                    {t('start.what.photos.line')}{' '}
-                    <a
-                      href={ARCHIVE_PROVIDER_ORIGINS[photos]}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-blue-700 underline hover:no-underline"
-                    >
-                      {t('start.what.photos.ask', { export: ARCHIVE_PROVIDER_NAMES[photos] })}
-                    </a>
-                    {' · '}
-                    <Link to={byHand} className="text-blue-700 underline hover:no-underline">
-                      {t('start.byHand')}
-                    </Link>
-                  </p>
-                </div>
+              {exported?.readable === true && (
+                <ExportTick
+                  archive={exported.archive}
+                  on={exports.includes(provider)}
+                  onChange={(on) => onExports(on ? [...exports, provider] : exports.filter((p) => p !== provider))}
+                />
               )}
+              {exported !== undefined && !exported.readable && <ExportNotRead archive={exported.archive} />}
               {missing.length > 0 && (
                 <Hint
                   className="mt-2"
@@ -942,6 +992,100 @@ export const WhatStep: React.FC<{
           </fieldset>
         );
       })}
+    </div>
+  );
+};
+
+/** What each export is called under its provider's tile. */
+const EXPORT_WORDS: Readonly<Record<ArchiveProvider, StringKey>> = {
+  'google-takeout': 'start.what.export.google-takeout',
+  'apple-privacy': 'start.what.export.apple-privacy',
+};
+
+/** What a readable export's tick box says under it, and why: the company's own words differ. */
+const EXPORT_LINES: Readonly<Partial<Record<ArchiveProvider, { readonly line: StringKey; readonly why: StringKey }>>> = {
+  'google-takeout': { line: 'start.what.export.google-takeout.line', why: 'start.what.export.google-takeout.why' },
+};
+
+/**
+ * A PROVIDER'S EXPORT AS A TICK BOX (0153 open question 5, item 2): Google's
+ * photos *from a Takeout export*, tagged as its card's verdict says (0148
+ * D10). Unticked, because it costs the person a request to Google and a
+ * download. Ticked, it says to ask now: an export can take days to prepare,
+ * and the migration it makes waits for it.
+ */
+const ExportTick: React.FC<{ archive: ArchiveProvider; on: boolean; onChange: (on: boolean) => void }> = ({
+  archive,
+  on,
+  onChange,
+}) => {
+  const { t } = useLocale();
+  const experimental = sourceCardIsExperimental(EXPORT_CARD);
+  const lines = EXPORT_LINES[archive];
+  return (
+    <div data-export={archive}>
+      <label className="flex min-h-[44px] cursor-pointer items-center gap-3">
+        <input type="checkbox" checked={on} onChange={() => onChange(!on)} className="h-5 w-5" />
+        <span className="text-gray-900">
+          <span className="inline-flex items-center gap-2">
+            <DataTypeIcon name="photos" size={20} className="shrink-0" />
+            <span>{t(EXPORT_WORDS[archive])}</span>
+          </span>
+          {experimental && <ExperimentalTag />}
+        </span>
+      </label>
+      {experimental && <ExperimentalWhy />}
+      <div className="ml-8">
+        {lines !== undefined && <Hint text={t(lines.line)} why={t(lines.why)} />}
+        {on && (
+          <p className="mt-1 text-sm text-gray-700">
+            {t('start.what.export.askNow')}{' '}
+            <a
+              href={ARCHIVE_PROVIDER_ORIGINS[archive]}
+              target="_blank"
+              rel="noreferrer"
+              className="text-blue-700 underline hover:no-underline"
+            >
+              {ARCHIVE_PROVIDER_NAMES[archive]}
+            </a>
+          </p>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/** The line the archive form says under an export no reader opens yet (0148 D7). */
+const NO_READER: Readonly<Partial<Record<ArchiveProvider, StringKey>>> = {
+  'apple-privacy': 'wizard.archiveProvider.noReader.apple-privacy',
+};
+
+/**
+ * AN EXPORT NO READER OPENS YET, AS A LINE (0148 D7; 0153 open question 5,
+ * item 2): Apple's, under Apple's tile, *To be tested*, with the archive
+ * form's own sentence. Nothing to tick, since a migration from it could only
+ * fail; a reader landing turns it into a tick box (`ProviderExport.readable`).
+ */
+const ExportNotRead: React.FC<{ archive: ArchiveProvider }> = ({ archive }) => {
+  const { t } = useLocale();
+  const line = NO_READER[archive];
+  return (
+    <div data-export={archive} className="flex items-start gap-3 py-2">
+      <span className="mt-0.5 inline-flex w-5 shrink-0 justify-center text-gray-500">
+        <DataTypeIcon name="photos" size={20} />
+      </span>
+      <p className="text-sm text-gray-700">
+        <span className="font-medium text-gray-900">{t(EXPORT_WORDS[archive])}</span>{' '}
+        <span className="ml-1 inline-block rounded bg-gray-100 px-1.5 py-0.5 align-middle text-xs font-medium text-gray-700">
+          {t('wizard.archiveProvider.untested')}
+        </span>
+        {line !== undefined && (
+          <>
+            <br />
+            {t(line)}
+          </>
+        )}
+      </p>
     </div>
   );
 };
@@ -1053,6 +1197,24 @@ export function defaultDestination(type: DiscoveryDomain, saved: ReadonlyArray<C
   const candidates = savedTargets(saved, type).filter((c) => c.status === 'connected');
   const found = candidates.find((c) => c.kind === prefer) ?? candidates[0];
   return found?.id ?? `new:${prefer}`;
+}
+
+/** Saved destinations an export can be read from (`exportDestinations`, 0148 D11). */
+export const savedExportTargets = (saved: ReadonlyArray<ConnectionSummary>): ReadonlyArray<ConnectionSummary> =>
+  saved.filter(
+    (c) =>
+      c.role === 'target' && c.status !== 'revoked' && exportDestinations().includes(c.kind as WizardTargetType),
+  );
+
+/**
+ * Where an export is read from when the files go nowhere that can serve it:
+ * a saved Nextcloud first, then any saved WebDAV account, and with none saved,
+ * a new Nextcloud, as files default to.
+ */
+export function defaultExportDestination(saved: ReadonlyArray<ConnectionSummary>): string {
+  const candidates = savedExportTargets(saved).filter((c) => c.status === 'connected');
+  const found = candidates.find((c) => c.kind === 'nextcloud') ?? candidates[0];
+  return found?.id ?? 'new:nextcloud';
 }
 
 /** The card behind a destination choice: a saved account's kind, or the card a new one is added with. */
@@ -1168,7 +1330,9 @@ export const ConnectStep: React.FC<{
   someoneElse?: boolean;
   /** Which cards the person connects themselves, by a grant link. */
   byLink?: (card: string) => boolean;
-}> = ({ needs, accounts, someoneElse = false, byLink = () => false }) => {
+  /** The providers whose export moves: it needs no sign-in, and the screen says so. */
+  exporting?: ReadonlyArray<StartProvider>;
+}> = ({ needs, accounts, someoneElse = false, byLink = () => false, exporting = [] }) => {
   const { t } = useLocale();
   const google = needs.filter((n) => n.provider === 'google');
   if (accounts.loading) return <p className="text-sm text-gray-500">{t('common.loading')}</p>;
@@ -1191,6 +1355,7 @@ export const ConnectStep: React.FC<{
           ),
         )}
       </ul>
+      {exporting.length > 0 && <p className="text-sm text-gray-700">{t('start.connect.exportNoSignIn')}</p>}
     </div>
   );
 };
@@ -1440,7 +1605,9 @@ export const ToStep: React.FC<{
   destinationOf: (type: DiscoveryDomain) => string;
   onDestination: (type: DiscoveryDomain, choice: string) => void;
   onAddedFor: (card: WizardTargetType, connectionId: string) => void;
-}> = ({ types, accounts, destinationOf, onDestination, onAddedFor }) => {
+  /** Where an export is read from, on a row of its own (0153 open question 5, item 2). */
+  exportRow?: { readonly choice: string; readonly onChoice: (choice: string) => void } | undefined;
+}> = ({ types, accounts, destinationOf, onDestination, onAddedFor, exportRow }) => {
   const { t, locale } = useLocale();
   const accountLabel = useAccountLabel();
   if (accounts.loading) return <p className="text-sm text-gray-500">{t('common.loading')}</p>;
@@ -1455,12 +1622,13 @@ export const ToStep: React.FC<{
   ];
   const pending = [
     ...new Set(
-      types.flatMap((type) => {
-        const choice = destinationOf(type);
-        return choice.startsWith('new:') ? [choice.slice(4) as WizardTargetType] : [];
-      }),
+      [...types.map(destinationOf), ...(exportRow ? [exportRow.choice] : [])].flatMap((choice) =>
+        choice.startsWith('new:') ? [choice.slice(4) as WizardTargetType] : [],
+      ),
     ),
   ];
+  const photos = t('start.what.photos');
+  const savedForExport = savedExportTargets(accounts.saved);
   return (
     <div className="space-y-6">
       {accounts.failed && (
@@ -1513,6 +1681,48 @@ export const ToStep: React.FC<{
             </li>
           );
         })}
+        {exportRow && (
+          // AN EXPORT'S ROW (0153 open question 5, item 2): read from a folder
+          // of these files and written beside it, so only destinations whose
+          // files serve byte ranges are offered (0148 D11).
+          <li data-export-row="">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="w-32 shrink-0 text-gray-900">
+                <span className="inline-flex items-center gap-2">
+                  <DataTypeIcon name="photos" size={20} className="shrink-0" />
+                  <span>{photos}</span>
+                </span>
+              </span>
+              <span aria-hidden="true" className="text-gray-500">
+                →
+              </span>
+              <select
+                aria-label={t('start.to.row', { type: photos.toLocaleLowerCase(locale) })}
+                value={exportRow.choice}
+                onChange={(e) => exportRow.onChoice(e.target.value)}
+                className="input min-h-[44px] flex-1"
+              >
+                {savedForExport.length > 0 && (
+                  <optgroup label={t('start.to.yours')}>
+                    {savedForExport.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {accountLabel(c)}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                <optgroup label={t('start.to.new')}>
+                  {exportDestinations().map((card) => (
+                    <option key={card} value={`new:${card}`}>
+                      {t('start.to.add', { provider: providerDisplayName(card) })}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+            <p className="mt-1 text-sm text-gray-600 sm:ml-36">{t('start.to.exportFolder', { folder: TAKEOUT_FOLDER })}</p>
+          </li>
+        )}
       </ul>
       {pending.map((card) => (
         <NewDestination key={card} card={card} accounts={accounts} onAdded={(id) => onAddedFor(card, id)} />
@@ -1607,9 +1817,19 @@ export const CheckStep: React.FC<{
 
   const made_ = planned.flatMap((m) => {
     const one = made.migrations[pairKey(m)];
+    const archive = m.sourceCard === EXPORT_CARD ? exportOf(m.provider)?.archive : undefined;
     return one?.id === undefined
       ? []
-      : [{ key: pairKey(m), id: one.id, notAdded: one.notAdded, byLink: awaitsGrant(m) }];
+      : [
+          {
+            key: pairKey(m),
+            id: one.id,
+            notAdded: one.notAdded,
+            byLink: awaitsGrant(m),
+            archive,
+            destination: providerName(m.targetCard, 'target'),
+          },
+        ];
   });
   const anyByLink = made_.some((m) => m.byLink) && made.personId !== undefined;
   // Whether the person's one link was used: every account on it connected
@@ -1619,8 +1839,13 @@ export const CheckStep: React.FC<{
   // What Start starts: every migration not waiting for the link. It may go once
   // there is one, and each has its count and its tick; the waiting ones start
   // by themselves when the person connects.
-  const counted = made_.filter((m) => !waits(m));
+  // An export's migration is not counted here and not started by Start: its
+  // export is not there yet, and a start follows a count (the owner,
+  // 2026-10-03). It is started on its own page once the export is in place.
+  const counted = made_.filter((m) => !waits(m) && m.archive === undefined);
   const allReady = counted.length > 0 && counted.every((m) => ready[m.id] === true);
+  /** Only exports were set up: nothing to start here, so the screen ends with *Done*. */
+  const onlyExports = made_.length > 0 && made_.every((m) => m.archive !== undefined);
 
   // The manifest's rows true of every source here, and of no other (0153 T1 (a)).
   const manifest = useQuery({ queryKey: ['scope-manifest'], queryFn: () => scopeManifestApi.get() });
@@ -1660,6 +1885,17 @@ export const CheckStep: React.FC<{
         <PersonAwaitingGrant personId={made.personId} personName={personName} onGranted={setGranted} />
       )}
       {made_.map((m) => {
+        if (m.archive !== undefined) {
+          return (
+            <ExportWaits
+              key={m.id}
+              archive={m.archive}
+              title={titles[m.key] ?? ''}
+              destination={m.destination}
+              {...(m.notAdded === undefined ? {} : { notAdded: m.notAdded })}
+            />
+          );
+        }
         const check = (
           <MigrationCheck
             key={m.id}
@@ -1693,24 +1929,87 @@ export const CheckStep: React.FC<{
           to what has moved. A note, never a block. */}
       {allReady && <CeilingAtStartNote bytes={counted.reduce((sum, m) => sum + (measured[m.id] ?? 0), 0)} />}
       <div className="flex flex-col items-end">
-        <button
-          type="button"
-          onClick={() => void start()}
-          disabled={starting || !allReady}
-          aria-describedby={allReady ? undefined : waitsId}
-          className="min-h-[44px] px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {starting ? t('confirm.starting') : t('start.check.start')}
-        </button>
-        {!allReady && (
-          <p id={waitsId} className="mt-2 text-sm text-gray-600">
-            {t(counted.length === 0 ? 'start.check.waitsForACount' : 'start.check.waits', { person: personName })}
-          </p>
-        )}
-        {!allReady && anyByLink && (
-          <p className="mt-1 text-sm text-gray-600">{t('start.check.later', { person: personName })}</p>
+        {onlyExports ? (
+          <button
+            type="button"
+            onClick={onStarted}
+            className="min-h-[44px] px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700"
+          >
+            {t('start.check.done')}
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => void start()}
+              disabled={starting || !allReady}
+              aria-describedby={allReady ? undefined : waitsId}
+              className="min-h-[44px] px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {starting ? t('confirm.starting') : t('start.check.start')}
+            </button>
+            {!allReady && (
+              <p id={waitsId} className="mt-2 text-sm text-gray-600">
+                {t(counted.length === 0 ? 'start.check.waitsForACount' : 'start.check.waits', { person: personName })}
+              </p>
+            )}
+            {!allReady && anyByLink && (
+              <p className="mt-1 text-sm text-gray-600">{t('start.check.later', { person: personName })}</p>
+            )}
+          </>
         )}
       </div>
+    </div>
+  );
+};
+
+/**
+ * AN EXPORT'S MIGRATION ON THE CHECK SCREEN (0153 open question 5, item 2):
+ * set up, and waiting for its export, with the three things to do: ask for
+ * it, put the download in the folder, and start it on its own page, where it
+ * is counted first. *Start* leaves it, because there is nothing to count until
+ * the export is there.
+ */
+const ExportWaits: React.FC<{
+  archive: ArchiveProvider;
+  title: string;
+  /** The destination's name, whose files the export goes in. */
+  destination: string;
+  notAdded?: string;
+}> = ({ archive, title, destination, notAdded }) => {
+  const { t } = useLocale();
+  return (
+    <div data-export-waits={archive} className="rounded-lg border border-gray-200 p-4">
+      {notAdded !== undefined && (
+        <div role="alert" className="mb-3 text-sm text-amber-900">
+          <p>
+            <span className="font-medium">{t('people.notAdded')}</span> {notAdded}
+          </p>
+          <p className="mt-1">{t('people.notAdded.where')}</p>
+        </div>
+      )}
+      <h3 className="text-sm font-medium text-gray-900">{title}</h3>
+      <p className="mt-1 text-sm text-gray-700">{t('start.check.export.waits')}</p>
+      <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700">
+        <li>
+          {t('start.check.export.ask')}{' '}
+          <a
+            href={ARCHIVE_PROVIDER_ORIGINS[archive]}
+            target="_blank"
+            rel="noreferrer"
+            className="text-blue-700 underline hover:no-underline"
+          >
+            {ARCHIVE_PROVIDER_NAMES[archive]}
+          </a>
+        </li>
+        <li>{t('start.check.export.put', { folder: TAKEOUT_FOLDER, destination })}</li>
+        <li>{t('start.check.export.start')}</li>
+      </ol>
+      <p className="mt-2 text-sm">
+        <Link to="/docs/archive#from-the-flow" className="text-blue-700 hover:underline">
+          {t('start.check.export.guide')} →
+        </Link>
+      </p>
     </div>
   );
 };

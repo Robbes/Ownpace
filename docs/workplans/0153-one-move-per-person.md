@@ -4,6 +4,43 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04: Google's photos from a Takeout export, under the Google tile (open question 5,
+item 2).** Every export has a provider, so it sits with that provider's data types:
+
+- **On *What moves?*, under Google, *Photos: from a Takeout export* is a tick box.** It is tagged
+  *Experimental* by the archive card's verdict (0148 D10), and it starts unticked, because it asks
+  the person to request the export. Ticked, it says to ask now, with a link to Google Takeout,
+  since an export can take days to prepare.
+- **Under Apple, *iCloud Drive and photos: from Apple's export* is a line**, tagged *To be tested*,
+  with the archive form's own sentence (0148 D7). There is nothing to tick until a reader exists
+  (`exportOf(…).readable`).
+- **Screen 2's *An export archive* line is gone.** A server by its protocol still goes to the
+  wizard.
+- **The export needs no sign-in, and *Connect* says so.** *Where does it go?* gives the photos a
+  row of their own, offering only destinations whose files serve byte ranges (Nextcloud, WebDAV;
+  0148 D11). It follows the files' destination where that one can serve the export.
+- **It sets up one archive migration**: `{provider: 'google-takeout', path: 'Takeout', where:
+  'target'}`, made with its source because an export has no account (`exportMigration`).
+- **It waits for the export, as drawn.** *Check, then start* neither counts it nor starts it. It
+  says what to do: ask Google, put the `.zip` files in the folder `Takeout` of the destination,
+  then *Review and start* on its page, which counts the export first. A flow with nothing else in
+  it ends with *Done*. On the person's page and on Migrations, its line reads *Photos* and *Not
+  started · Waiting for the Takeout export · how to make one →*.
+- **The reader opens the folder a download's parts were put in** (`downloadInFolder`). The flow
+  names the folder before the export exists, and Google stamps each download, so the flow cannot
+  name a part. This also fixes a promise already made: the archive form and the Nextcloud guide
+  said *"upload the .zip parts into one folder, and name that folder here"*, and the reader refused
+  such a folder as one with no `Takeout` in it. A folder that opened before opens the same way. A
+  folder holding two downloads is refused, with both named.
+- **Proved by** five cases in `StartMigration.unit.test.tsx` (three new, two rewritten), four in
+  `start-plan.unit.test.ts`, three in `MigrationLines.unit.test.tsx`, one in
+  `an-export-in-the-destinations-files.unit.test.ts` (the flow's exact body, accepted), and in the
+  reader: two new layouts in the six-layout suite, three folder cases, and one over WebDAV.
+  Mutations caught: Start starting the export's migration, the export posted without `where`, and
+  the reader reading a folder of parts as a tree.
+- **The guide** (`docs/guides/{en,nl}/archive.md`) has *From Start a migration* (`#from-the-flow`),
+  which the waiting line links to.
+
 **2026-10-04: a company's mail through its own Microsoft app, behind the company question (open
 question 5, item 1).** On *What moves?*, Microsoft's mail carries *Is this a company account with
 an administrator?*. A yes offers the mail through the organisation's own app, with application

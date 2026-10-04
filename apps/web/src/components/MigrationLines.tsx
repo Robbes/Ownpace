@@ -15,6 +15,7 @@
  * carry the check, and says *Kept in step* instead.
  */
 import React from 'react';
+import { Link } from 'react-router';
 import { stageOf, type DiscoveryDomain, type Stage } from '@openmig/shared';
 import type { MappingListItem } from '../services/mapping-service.ts';
 import {
@@ -28,7 +29,7 @@ import {
 } from '../services/stage-line.ts';
 import StateChip from './StateChip.tsx';
 import ProviderTile from './ProviderTile.tsx';
-import { DataTypeLabel } from './icons/data-type-icons.tsx';
+import { DataTypeIcon, DataTypeLabel } from './icons/data-type-icons.tsx';
 import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import { formatNumber } from '../i18n/datetime.ts';
 
@@ -138,6 +139,12 @@ export const MigrationLines: React.FC<{ migration: MigrationLineFacts; progress?
         const facts = progress ? factsOf(m, domain, progress) : undefined;
         const stage = facts ? lineStage(facts) : listStage(m);
         const sentence = facts ? sentenceOf(stage, facts).text : undefined;
+        // AN EXPORT'S LINE (0153 open question 5, item 2; drawn in
+        // `wf-person-page.svg`): its files are its photos (owner decision D5),
+        // and before it starts it waits for the export, which the line says,
+        // with how to make one, rather than *No pass yet*.
+        const fromExport = m.sourceType === 'archive';
+        const waitsForExport = fromExport && stage === 'not_started';
         return (
           <li
             key={domain}
@@ -145,14 +152,28 @@ export const MigrationLines: React.FC<{ migration: MigrationLineFacts; progress?
             {...(stage ? { 'data-stage': stage } : {})}
             className="flex flex-wrap items-center gap-x-4 gap-y-1 py-1 text-sm"
           >
-            <DataTypeLabel domain={domain} size={18} />
+            {fromExport && domain === 'file' ? (
+              <span className="inline-flex items-center gap-2">
+                <DataTypeIcon name="photos" size={18} className="shrink-0" />
+                <span>{t('start.what.photos')}</span>
+              </span>
+            ) : (
+              <DataTypeLabel domain={domain} size={18} />
+            )}
             <span className="flex items-center gap-2 text-gray-700">
               <ProviderTile type={m.sourceType} role="source" size={20} />
               <span aria-hidden="true">→</span>
               <ProviderTile type={m.targetType} role="target" size={20} />
             </span>
             {stage && <StateChip entity="stage" state={stage} />}
-            {facts ? (
+            {waitsForExport ? (
+              <span className="text-gray-600">
+                {t('people.line.waitsForExport')} ·{' '}
+                <Link to="/docs/archive#from-the-flow" className="text-blue-700 hover:underline">
+                  {t('people.line.howToExport')} →
+                </Link>
+              </span>
+            ) : facts ? (
               sentence && <span className="text-gray-600">{sentence}</span>
             ) : (
               <span className="text-gray-500">
