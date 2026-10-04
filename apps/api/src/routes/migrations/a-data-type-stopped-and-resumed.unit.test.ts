@@ -80,6 +80,14 @@ beforeAll(async () => {
   // The managed chain too: a resume in the lane raises `occupancy_peak`.
   await runManagedMigrations({ driver, logger: () => {} });
   await sql('INSERT INTO tenant (id, name) VALUES ($1,$2)', [TENANT, 'stops']);
+  // Room for everything this file runs at the same time: an agreed Extra
+  // large (workplan 0109 T6). This file is not about the tier's paths, which
+  // `a-start-past-the-tier.unit.test.ts` holds.
+  await sql(
+    `INSERT INTO data_allowance (tenant_id, kind, tier_id, band_gb, price_eur, consented_by)
+     VALUES ($1, 'tier', 'xl', 15000, 0, 'room for the test')`,
+    [TENANT],
+  );
   await sql(
     `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
      VALUES ($1,$2,'source','imap','i','{}'::jsonb,'connected')`,
