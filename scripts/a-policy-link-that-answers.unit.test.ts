@@ -452,6 +452,28 @@ describe("the mail's link to the privacy policy (0139 T4)", () => {
   });
 });
 
+describe("the grant mail's link to the Alpha conditions (0139 T4)", () => {
+  // The access-granted mail links the conditions during the alpha, from the
+  // same module and the same key as the share mail's privacy line, so it is
+  // held to the same two things: the web's address, and a file the build
+  // writes in the mail's language.
+  it.each([
+    ['unset, the production site', undefined, (): string => built().publicSite],
+    ['the OTA test site, with a trailing slash', `${OTA_SITE}/`, (): string => OTA_SITE],
+  ])('%s: the address the web links, and a file the build writes, in every language', async (_name, value, origin) => {
+    const web = await loadModule();
+    const mail = await loadMailModule();
+    for (const locale of legalPagesBuilt().keys()) {
+      const lang = locale as 'en' | 'nl';
+      const address = mail.alphaConditionsUrl(lang, value === undefined ? {} : { [MAIL_SETTING]: value });
+      expect(address, `${MAIL_MODULE} and ${MODULE} disagree on the ${locale} Alpha conditions`).toBe(
+        web.legalUrl('alpha', lang, value === undefined ? {} : { [SETTING]: value }),
+      );
+      expectWritten(address, origin(), locale, 'alpha');
+    }
+  });
+});
+
 describe('the one place in the web app that names a legal page', () => {
   /** Every shipped .ts/.tsx under apps/web/src; tests excluded, they pin literals. */
   function webSources(dir = join(REPO_ROOT, 'apps/web/src')): string[] {

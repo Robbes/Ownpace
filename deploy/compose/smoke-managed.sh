@@ -5485,11 +5485,56 @@ fi
 # a gate that already said PASS. So the gate runs the jobs ITSELF and only
 # then believes the silence: "no queue fired yet" becomes "the queue was
 # drained and still nothing".
+#
+# THE JOBS THAT CAN MAIL, BY NAME (workplan 0150; the owner, 2026-10-04). A
+# bare cron.php is not a drain. Nextcloud 34 stops asking for jobs once 14
+# minutes have passed (`14 * 60` in core/Service/CronService.php), and this
+# demo's queue, which only the gate runs and the owner's migrations keep
+# filling, outlasted that in E2E (managed) #232 and #233 alike: 841 s each,
+# stopped, not emptied. Named, cron.php runs only these, in seconds, and
+# reaches each one: calendar reminders (they mail every attendee of the
+# event, which is the canary's way in), activity mail and its digest,
+# notification mail, and share reminders. A timed job whose interval has not
+# passed since its last run is skipped, named or not (JobList::getNext). And
+# every name must be a job this Nextcloud has: a name an upgrade changed
+# drains nothing and still exits 0, so a missing one fails here instead. The
+# rest of the queue still runs, after the check and not waited for (below).
+NC_MAIL_JOBS=(
+  'OCA\DAV\BackgroundJob\EventReminderJob'
+  'OCA\Activity\BackgroundJob\EmailNotification'
+  'OCA\Activity\BackgroundJob\DigestMail'
+  'OCA\Notifications\BackgroundJob\SendNotificationMails'
+  'OCA\Files_Sharing\SharesReminderJob'
+)
 if [ -n "$BALANCE_TAG" ]; then
-  if ! docker exec -u www-data "${NEXTCLOUD_CONTAINER:-${COMPOSE_PROJECT}-nextcloud}" php -f /var/www/html/cron.php >/dev/null 2>&1; then
+  nc_container="${NEXTCLOUD_CONTAINER:-${COMPOSE_PROJECT}-nextcloud}"
+  for job in "${NC_MAIL_JOBS[@]}"; do
+    # Read whole, then matched: a `| grep -q` that stops reading early can
+    # SIGPIPE the writer, and under pipefail a found job would read as missing.
+    listed="$(docker exec -u www-data "$nc_container" php /var/www/html/occ background-job:list \
+      --class="$job" --output=json 2>/dev/null || true)"
+    case "$listed" in
+      *'"class":'*) ;;
+      *)
+        echo "this Nextcloud has no job ${job}: an upgrade renamed it, or its app is"
+        echo "  off. The drain below cannot reach a job it does not name, so the list of"
+        echo "  jobs that can mail (NC_MAIL_JOBS, above) needs reading again."
+        fail_at "the drain names a job this Nextcloud does not have: ${job}"
+        ;;
+    esac
+  done
+  drain_started=$SECONDS
+  if ! drain_out="$(docker exec -u www-data "$nc_container" \
+      php -f /var/www/html/cron.php -- --verbose "${NC_MAIL_JOBS[@]}" 2>&1)"; then
     echo "the queue drain itself failed — the silence below is UN-drained, and a queued"
-    echo "mail could still be sitting behind it (docker exec … php -f cron.php)."
+    echo "mail could still be sitting behind it (docker exec … php -f cron.php -- --verbose"
+    echo "and the jobs that can mail). Its last lines:"
+    printf '%s\n' "$drain_out" | tail -5 | sed 's/^/    /'
     fail_at
+  else
+    drain_ran="$(grep -c '^Starting job ' <<<"$drain_out" || true)"
+    echo "drained the jobs that can mail in $((SECONDS - drain_started))s: ${drain_ran} of ${#NC_MAIL_JOBS[@]} ran"
+    echo "  (one whose interval has not passed since its last run waits for it)"
   fi
   sched_mail_after="$(curl -fsS --get "${MAILPIT}/api/v1/search" \
     --data-urlencode "query=openmig-attendee-${BALANCE_TAG}" | jq -r '.messages_count // 0')"
@@ -5500,6 +5545,18 @@ if [ -n "$BALANCE_TAG" ]; then
     fail_at
   else
     echo "and nothing after the take-back either — no CANCEL fan-out"
+  fi
+  # THE REST OF THE QUEUE, NOT WAITED FOR (the owner, 2026-10-04). The full
+  # cron.php was also this demo's only housekeeping: trash and version expiry,
+  # sync-token pruning and the rest, as it has no cron of its own. It still
+  # runs once per gate run, for up to Nextcloud's 14 minutes, but detached: the
+  # check above no longer rests on it, so the gate does not wait for it.
+  if docker exec -d -u www-data "$nc_container" php -f /var/www/html/cron.php >/dev/null 2>&1; then
+    echo "the rest of the demo Nextcloud's jobs run on in the background (cron.php, up to 14 minutes, not waited for)"
+  else
+    echo "could not start the rest of the demo Nextcloud's jobs in the background (docker exec -d … php -f"
+    echo "  cron.php). This demo has no other cron, so its trash, versions and sync tokens wait."
+    fail_at
   fi
 fi
 
