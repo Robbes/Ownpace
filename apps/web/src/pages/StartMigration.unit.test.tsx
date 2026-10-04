@@ -13,7 +13,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DISCOVERY_DOMAINS, lifecycleCounts, type Person } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, lifecycleCounts, sourceFaceIsExperimental, type Person } from '@openmig/shared';
 import StartMigration, { CheckStep } from './StartMigration.tsx';
 import type { PlannedMigration } from '../services/start-plan.ts';
 import { personLinkApi } from '../services/grant-link-service.ts';
@@ -237,6 +237,21 @@ describe('What moves? (screen 3)', () => {
     // account; Tasks through the account, whose tasks face has not.
     expect(within(google).getByRole('checkbox', { name: 'Email' })).toBeInTheDocument();
     expect(within(google).getByRole('checkbox', { name: 'Tasks Experimental' })).toBeInTheDocument();
+  });
+
+  it('tags every face of the Microsoft 365 account that has not met a real account, as the wizard did', async () => {
+    // The wizard's data-type step held this until it retired (0153 D5): the
+    // tag is part of the box's name, which a screen reader reads (0145 T2).
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Microsoft 365']);
+    const microsoft = screen.getByRole('group', { name: /^From Microsoft/ });
+    for (const face of ['calendar', 'contact', 'file', 'task'] as const) {
+      expect(sourceFaceIsExperimental('microsoft', face), face).toBe(true);
+    }
+    for (const name of ['Calendar Experimental', 'Contacts Experimental', 'Files Experimental', 'Tasks Experimental']) {
+      expect(within(microsoft).getByRole('checkbox', { name })).toBeInTheDocument();
+    }
   });
 
   it('offers Google’s photos from a Takeout export, unticked and tagged, and says to ask now once ticked', async () => {

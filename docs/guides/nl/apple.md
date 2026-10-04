@@ -28,14 +28,14 @@ U typt geen van die servers. Het zijn de gepubliceerde waarden van Apple, in dit
 3. Maak er een en geef het een naam die u later herkent, bijvoorbeeld `Ownpace`.
 4. Apple toont het **één keer**, in de vorm `abcd-efgh-ijkl-mnop`. Kopieer het nu; u kunt het niet nog eens zien, en wie het kwijt is, trekt het in en maakt een nieuw.
 
-### 2. Voeg de verbinding toe {#apple}
+### 2. Voeg het account toe {#apple}
 
-Verbindingen → **Verbinding toevoegen** → **Apple account (iCloud)**. Twee vakken:
+Vink bij **Welk account verlaat u?** **Apple iCloud** aan. Bij **Uw accounts verbinden** heeft het formulier twee vakken:
 
 - **Gebruikersnaam**: uw iCloud-adres, `you@icloud.com`.
 - **App-specifiek wachtwoord**: plak wat Apple u toonde.
 
-**Toevoegen en testen.** De test vraagt elk onderdeel op zijn eigen server: agenda's op `caldav.icloud.com`, contacten op `contacts.icloud.com`, mail op `imap.mail.me.com`. Hij meldt per onderdeel wat hij vond, met aantallen. Een onderdeel dat hij niet kon meten, zegt op de kaart **waarom**, in plaats van een kaal `?` te tonen.
+Druk op **Aanmelding controleren**. Op de pagina **Accounts** staat hetzelfde formulier onder **Account toevoegen** → **Apple account (iCloud)**, met **Toevoegen en testen**. De test vraagt elk onderdeel op zijn eigen server: agenda's op `caldav.icloud.com`, contacten op `contacts.icloud.com`, mail op `imap.mail.me.com`. Hij meldt per onderdeel wat hij vond, met aantallen. Een onderdeel dat hij niet kon meten, zegt op de kaart **waarom**, in plaats van een kaal `?` te tonen.
 
 ### Waarom er geen knop Verbinden met Apple is {#no-button}
 
@@ -53,7 +53,7 @@ E-mail, agenda's, contacten en herinneringen, wat u aanvinkt. Niet iCloud Drive.
 
 De herinneringen van Apple zijn `VTODO`-objecten op dezelfde CalDAV-server als uw agenda's, dus dezelfde inloggegevens bereiken beide. Maar het zijn **geen** afspraken, en dit product doet ook niet alsof. Taken zijn een eigen soort gegevens, apart van afspraken. Een herinnering als afspraak in de agenda zetten, zou iets opleveren wat gemigreerd lijkt en fout is.
 
-Het doel moet dus ook taken kunnen dragen. Een CalDAV-doel dat in zijn `supported-calendar-component-set` alleen `VEVENT` noemt, kan ze niet aannemen, en de wizard zegt dat wanneer u kiest wat u migreert, in plaats van halverwege een ronde te falen.
+Het doel moet dus ook taken kunnen dragen. Een CalDAV-doel dat in zijn `supported-calendar-component-set` alleen `VEVENT` noemt, kan ze niet aannemen, en dat blijkt pas bij de eerste ronde: zijn test telt de takenlijsten die het heeft, en kan niet zien of het taken aanneemt. In de ronde wordt elke taak bij het schrijven geweigerd, en staat ze onder **Mislukkingen** met een zin die zegt wat er geschreven werd en wat het doel aanneemt. Kies voor taken een doel dat takenlijsten bewaart, zoals een Nextcloud.
 
 ### Bestanden: iCloud Drive, en waarom het een nee is en geen ? {#files}
 

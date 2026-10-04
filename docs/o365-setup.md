@@ -81,8 +81,11 @@ Both paths use the same app registration but different permission configurations
 > ([`guides/en/microsoft.md`](guides/en/microsoft.md#application), and its Dutch twin), and the
 > lists below match it.
 
-**Managed Path (Application Permissions)** — the wizard's *Via the Graph API* (`graph`) and
-*Via IMAP* (`oauth2`) cards. Both read one mailbox's mail, and an administrator consents:
+**Managed Path (Application Permissions)** — the *Via the Graph API* (`graph`) and *Via IMAP*
+(`oauth2`) cards on the Accounts page; on *Start a migration*,
+*Through our own app, with Microsoft Graph* and *Through our own app, with IMAP*, offered under
+Microsoft 365's *Email* on *What moves?* once *Is this a company account with an administrator?*
+is answered *Yes*. Both read one mailbox's mail, and an administrator consents:
 - *Via the Graph API*: **Microsoft Graph → Application permissions** → `Mail.Read` ("Read mail in
   all mailboxes"). The source reads `/users/{mailbox}/…` with a `https://graph.microsoft.com/.default`
   token (`mail-source-factory.ts`).
@@ -92,8 +95,9 @@ Both paths use the same app registration but different permission configurations
   client-credentials flow (`graph-calendar`, `graph-contacts`, `graph-drive`, `graph-todo` with a
   `mailbox`) adds the application permission for each face it reads: `Calendars.Read`,
   `Contacts.Read`, `Files.Read.All` (there is no application `Files.Read`) and `Tasks.Read.All`
-  (there is no application `Tasks.Read`). The managed wizard's two cards do not build those faces:
-  a stored `o365` connection resolves them to the DAV builder (`source-face-builders.ts`).
+  (there is no application `Tasks.Read`). The two cards do not build those faces on managed (on
+  *Start a migration* they carry the mail alone, and the account's sign-in the rest): a stored
+  `o365` connection resolves them to the DAV builder (`source-face-builders.ts`).
 
 **Self-Host Path (Delegated Permissions)** — **Microsoft Graph → Delegated permissions**, each
 asked for only by the face that uses it:

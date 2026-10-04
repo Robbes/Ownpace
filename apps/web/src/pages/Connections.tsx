@@ -349,14 +349,13 @@ const Row: React.FC<{
           {cardsOfThisKind ? (
             // A kind two cards store as, whose checklists differ: one link per
             // card, by the card's name, rather than one of them picked for the
-            // person (0148 T5 (a)). Both say where they came from, as below.
+            // person (0148 T5 (a)).
             <span className="text-sm text-gray-700 inline-flex flex-wrap items-center gap-x-2">
               <span>{t('connections.setupSteps')}:</span>
               {cardsOfThisKind.map((card) => (
                 <Link
                   key={card.type}
                   to={`/setup/${connection.role}/${card.type}`}
-                  state={{ from: '/connections' }}
                   className="text-blue-700 hover:underline"
                 >
                   {t(card.nameKey)}
@@ -369,9 +368,6 @@ const Row: React.FC<{
               // way, and looking one up by kind answers an empty checklist that
               // reads as "nothing to set up" (workplan 0065).
               to={`/setup/${connection.role}/${wizardTypeForConnectionKind(connection.kind)}`}
-              // Say where this link came FROM, so the checklist's back link
-              // returns here instead of to a wizard nobody opened (0074).
-              state={{ from: '/connections' }}
               className="text-sm text-blue-700 hover:underline"
             >
               {t('connections.setupSteps')}

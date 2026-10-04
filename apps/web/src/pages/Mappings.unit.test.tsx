@@ -167,8 +167,8 @@ describe('Migrations — a failed read is never an empty list (hard rule 9)', ()
     for (const link of screen.getAllByRole('link', { name: 'Start a migration' })) {
       expect(link).toHaveAttribute('href', '/start');
     }
-    // The wizard stays reachable, by hand (0153 T4).
-    expect(screen.getByRole('link', { name: 'Add one migration by hand' })).toHaveAttribute('href', '/mappings/new');
+    // The one way in since the wizard retired (0153 D5).
+    expect(screen.queryByRole('link', { name: 'Add one migration by hand' })).not.toBeInTheDocument();
     expect(screen.queryByText('Could not load the migrations list.')).not.toBeInTheDocument();
   });
 });

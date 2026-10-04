@@ -13,7 +13,7 @@
  * they are real in both editions.
  */
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router';
+import { Routes, Route, Navigate, useSearchParams } from 'react-router';
 import { useAuthStore } from './stores/auth-store.ts';
 import Layout from './components/Layout.tsx';
 import AcceptanceGate from './components/AcceptanceGate.tsx';
@@ -22,7 +22,6 @@ import Person from './pages/Person.tsx';
 import PersonReport from './pages/PersonReport.tsx';
 import StartMigration from './pages/StartMigration.tsx';
 import MappingDetail from './pages/MappingDetail.tsx';
-import CreateMapping from './pages/CreateMapping.tsx';
 import ConfirmMapping from './pages/ConfirmMapping.tsx';
 import Tenants from './pages/Tenants.tsx';
 import Login from './pages/Login.tsx';
@@ -105,6 +104,19 @@ const ManagedOnly: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 /** An appliance-only screen; managed lands on its own home instead. */
 const SelfhostOnly: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   isSelfHost() ? <>{children}</> : <Navigate to="/mappings" replace />;
+
+/**
+ * THE WIZARD'S OLD ADDRESS (0153 D5; the owner, 2026-10-04: *"go with the
+ * recommendations"*). The four-step wizard retired once *Start a migration*
+ * reached every card (`every-card-through-start-a-migration.unit.test.tsx`).
+ * A bookmark, a guide or an old mail's link to `/mappings/new` lands on the
+ * flow, for the same person where it named one.
+ */
+const ToStartAMigration: React.FC = () => {
+  const [params] = useSearchParams();
+  const person = params.get('person');
+  return <Navigate to={person ? `/start?person=${encodeURIComponent(person)}` : '/start'} replace />;
+};
 
 /**
  * WHERE `/` GOES, and the third door onto the same trap.
@@ -273,8 +285,10 @@ const AppRoutes: React.FC = () => {
         {/* A person's report: each migration's, one section each (0154 T5). */}
         <Route path="people/:personId/report" element={<PersonReport />} />
         {/* Start a migration (0153 T4): who, from where, what, to where.
-            Managed only, as the wizard it will replace is, for the same
-            reason: it creates migrations through the managed /api. */}
+            Managed only, as the wizard it replaced was, for the same reason:
+            it creates migrations through the managed /api, and the
+            appliance's config comes from its config DIRECTORY by design
+            (standing decision 6). */}
         <Route
           path="start"
           element={
@@ -283,23 +297,20 @@ const AppRoutes: React.FC = () => {
             </ManagedOnly>
           }
         />
-        {/* The creation wizard is managed-only twice over: it posts to the
-            managed /api, and the appliance's config comes from its config
-            DIRECTORY by design (standing decision 6) — a UI that pretended
-            to create mappings there would contradict the design, not just
-            error. */}
+        {/* The creation wizard's address (0153 D5): it retired, and the
+            address leads to the flow, managed-only as both always were. */}
         <Route
           path="mappings/new"
           element={
             <ManagedOnly>
-              <CreateMapping />
+              <ToStartAMigration />
             </ManagedOnly>
           }
         />
-        {/* The green light at a real URL (0037 T2): managed-only like the
-            wizard that leads here — it drives the managed discover/start
-            API — and the appliance's own /confirm is that edition's
-            equivalent, which is exactly where ManagedOnly redirects it. */}
+        {/* The green light at a real URL (0037 T2): managed-only, since it
+            drives the managed discover/start API, and the appliance's own
+            /confirm is that edition's equivalent, which is exactly where
+            ManagedOnly redirects it. */}
         <Route
           path="mappings/:mappingId/confirm"
           element={

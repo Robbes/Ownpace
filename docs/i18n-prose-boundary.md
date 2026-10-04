@@ -101,9 +101,10 @@ of* it.
      documentation uses, under a line saying the provider shows them in the
      reader's language. Where `strings.ts` already carries the provider's
      Dutch word (*Geautoriseerde omleidings-URI’s*, *Domeinbrede delegatie*,
-     *Admin-console*), the guide uses that word, so the wizard and the guide
+     *Admin-console*), the guide uses that word, so the screens and the guide
      do not give one control two names;
-   - the wizard's labels as `strings.ts` has them in that language;
+   - the screens' labels (*Start a migration*, the Accounts page) as
+     `strings.ts` has them in that language;
    - a server finding or refusal quoted verbatim, in English, as it is shown.
 
    The `docs/*-setup.md` files are the operator and self-host documents, in

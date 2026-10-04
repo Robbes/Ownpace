@@ -10,9 +10,10 @@
  *    organisation and a note in the person's own words, and said one line
  *    about why, with no link and no word on how long (privacy §4.4 and §9
  *    say both);
- *  - **the Connect buttons** (`ProviderConsentPanel` and the wizard's own
- *    button, which share `ConsentLines`) hand us the keys to a whole
- *    mailbox, and `docs/google-oauth-verification.md` §5 requires *"Links to
+ *  - **the Connect buttons** (`ProviderConsentPanel`, which the account form
+ *    draws on *Start a migration* and on the Accounts page; the wizard's own
+ *    button shared its `ConsentLines` until it retired, 0153 D5) hand us the
+ *    keys to a whole mailbox, and `docs/google-oauth-verification.md` §5 requires *"Links to
  *    the privacy policy and terms sit beside the button, not in a footer."*;
  *  - **the report form** (`ReportProblem.tsx`) sends a description, a
  *    screenshot and a list of facts to the support mailbox, and said what it
@@ -39,7 +40,7 @@
  * linked anything, and `access.privacy` named no period.
  */
 import React from 'react';
-import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -103,7 +104,7 @@ vi.mock('../services/api.ts', async (importOriginal) => {
 
 import RequestAccess from '../pages/RequestAccess.tsx';
 import ReportProblem from '../pages/ReportProblem.tsx';
-import CreateMapping from '../pages/CreateMapping.tsx';
+import { AccountForm } from './AccountForm.tsx';
 import { ProviderConsentPanel, useProviderConsent } from './ProviderConsent.tsx';
 
 const LOCALES: ReadonlyArray<Locale> = ['en', 'nl'];
@@ -256,9 +257,25 @@ describe('the Connect buttons', () => {
       });
     }
 
-    it(`${locale}: the wizard's Google account says the same beside its own button`, async () => {
-      wrap(locale, <CreateMapping />, '/mappings/new', '/mappings/new');
-      fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
+    it(`${locale}: Start a migration's Google account says the same beside its button`, async () => {
+      // The form the flow draws on *Connect your accounts*, where the wizard's
+      // own button was until it retired (0153 D5).
+      wrap(
+        locale,
+        <AccountForm
+          role="source"
+          type="google"
+          variant="flow"
+          values={{ username: 'owner@example.invalid' }}
+          onValues={() => {}}
+          displayName="Anna · Google"
+          onDisplayName={() => {}}
+          onAdded={() => {}}
+          domains={['calendar', 'contact', 'task']}
+        />,
+        '/start',
+        '/start',
+      );
       const name = STRINGS[locale]['wizard.google.connect'];
       await waitFor(() => expect(screen.getByRole('button', { name })).toBeTruthy());
       await bothBeside(screen.getByRole('button', { name }), locale);

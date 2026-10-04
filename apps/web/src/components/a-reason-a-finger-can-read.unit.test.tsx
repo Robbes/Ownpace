@@ -11,8 +11,9 @@
  *
  * Now the reason is text under the button with `role="status"`, the pattern
  * of Next's reason at the foot of the wizard, and the tooltip is gone. What is
- * pinned, in both doors (the Connections page's panel and the wizard's source
- * step), in English and in Dutch:
+ * pinned, in the consent panel the Accounts page and *Start a migration* share
+ * (the wizard's source step said it too, until it retired: 0153 D5), in
+ * English and in Dutch:
  *
  * - with nothing ticked, the button is disabled, it carries no `title`, and
  *   the reason is visible text in a status straight under it, heard once;
@@ -56,7 +57,6 @@ vi.mock('../services/mapping-service', () => ({
   setupApi: { get: vi.fn(), setStep: vi.fn() },
 }));
 
-import CreateMapping from '../pages/CreateMapping.tsx';
 import Connections from '../pages/Connections.tsx';
 
 type Locale = 'en' | 'nl';
@@ -119,13 +119,6 @@ const DOORS: ReadonlyArray<{ readonly name: string; readonly open: (locale: Loca
     open: async (locale) => {
       wrap(locale, <Connections />, '/connections');
       fireEvent.click(await screen.findByRole('button', { name: words(locale, 'connections.add') }));
-      pickGoogleAccount();
-    },
-  },
-  {
-    name: 'the wizard’s source step',
-    open: async (locale) => {
-      wrap(locale, <CreateMapping />, '/mappings/new');
       pickGoogleAccount();
     },
   },

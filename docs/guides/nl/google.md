@@ -6,13 +6,13 @@ Deze handleiding gaat over de Google-kaarten: de kaart **Google account**, en de
 
 ## Wat u nodig hebt {#before}
 
-- Het Google-account waarvan de gegevens verhuizen, en de aanmelding ervan. De knop **Verbinden met Google** in de wizard opent het eigen toestemmingsscherm van Google voor dat account.
+- Het Google-account waarvan de gegevens verhuizen, en de aanmelding ervan. **Verbinden met Google**, bij **Uw accounts verbinden**, opent het eigen toestemmingsscherm van Google voor dat account.
 - Is het account van iemand anders, dan hebt u diens wachtwoord niet nodig: [stuur een toegangslink](#grant-link).
 - Migreert u een hele Workspace met veel accounts? Lees dan eerst [domeinbrede delegatie](#domain-wide-delegation). Die vervangt een toestemming per persoon per product door één handeling van een beheerder, en er is een Workspace-beheerder voor nodig.
 
 ## Koppelen {#connect}
 
-Elke kaart vraagt het adres van het account, onder **Gebruikersnaam**, en een **Refresh-token**, dat **Verbinden met Google** invult: druk op de knop, kies het account bij Google en geef toestemming. Het token komt vanzelf in het veld. Daarna leest **Verbindingen testen en bewaren** het account één keer, via precies wat een ronde zou opbouwen, voordat er iets verhuist.
+Elke kaart vraagt het adres van het account, onder **Gebruikersnaam**, en een **Refresh-token**, dat **Verbinden met Google** invult: druk op de knop, kies het account bij Google en geef toestemming. Het token komt vanzelf in het veld, en het account wordt in één keer bewaard en getest: de test leest het één keer, via precies wat een ronde zou opbouwen, voordat er iets verhuist.
 
 ### Google account {#google}
 
@@ -24,11 +24,13 @@ Het token vraagt `https://www.googleapis.com/auth/drive.readonly`, en verder nie
 
 Het token is **gedelegeerd**: het leest de Drive van de persoon die toestemming geeft, met de gedeelde Drives die die persoon kan zien. Voor een hele Workspace is er een tweede weg, die u zelf kiest: **[domeinbrede delegatie](#domain-wide-delegation)**, aan het eind van deze handleiding. Tokens per gebruiker blijven de standaard: de kleinste toegang, per persoon in te trekken, en zonder beheerder.
 
-Het veld **Hoofdmap-ID** laat de migratie ergens anders beginnen dan in Mijn Drive. Een **gedeelde Drive** heeft een eigen ID, en een **map die iemand met dit account deelde** ook. "Gedeeld met mij" is een weergave en geen map, dus wat erin staat verschijnt nooit onder de boom van Mijn Drive; een aparte migratie die bij de ID van de gedeelde map begint, is hoe zo'n map verhuist. De ID's die dit token kan bereiken, ziet u met de knop **Gedeelde Drives en mappen bekijken…** in de stap Bron: een lijst, alleen lezend, via dezelfde koppeling die een migratie gebruikt. Losse gedeelde bestanden, die met u gedeeld zijn maar niet in een map staan waar u kunt beginnen, vallen erbuiten.
+Een migratie kan ergens anders beginnen dan in Mijn Drive: een **gedeelde Drive** heeft een eigen ID, en een **map die iemand met dit account deelde** ook. "Gedeeld met mij" is een weergave en geen map, dus wat erin staat verschijnt nooit onder de boom van Mijn Drive; een aparte migratie die bij de gedeelde map begint, is hoe zo'n map verhuist. Losse gedeelde bestanden, die met u gedeeld zijn maar niet in een map staan, vallen erbuiten.
 
-**Bij Migratie starten** heet dezelfde keuze **Alleen één map**, onder **Bestanden** bij *Wat wilt u migreren?*, voor het Google-account zoals voor deze kaart. Is het account verbonden, plak dan het adres van de map uit Google Drive; de ID wordt eruit gelezen. Of druk op **Gedeelde drives en gedeelde mappen tonen** en kies er een. De pagina van de migratie zegt daarna uit welke map de bestanden worden gelezen. De map kan veranderen tot het eerste bestand is gekopieerd; daarna is een andere map een andere migratie.
+De keuze heet **Alleen één map**, onder **Bestanden** bij **Wat wilt u migreren?**, voor het Google-account zoals voor deze kaart. Is het account verbonden, plak dan het adres van de map uit Google Drive; de ID wordt eruit gelezen. Of druk op **Gedeelde drives en gedeelde mappen tonen** en kies er een: een lijst, alleen lezend, via dezelfde koppeling die een migratie gebruikt. De pagina van de migratie zegt daarna uit welke map de bestanden worden gelezen. De map kan veranderen tot het eerste bestand is gekopieerd; daarna is een andere map een andere migratie.
 
-**Google Documenten, Spreadsheets, Presentaties en Tekeningen** hebben geen bestand om te kopiëren, alleen een weergave die Google maakt, en de wizard vraagt in welk formaat elke soort moet aankomen. Bij elke keuze zet Drive het document om; hier wordt niets geconverteerd.
+Op de pagina **Accounts** heeft het formulier van deze kaart ook een veld **Hoofdmap-ID**, dat elke migratie van dat account laat beginnen bij de map met die ID.
+
+**Google Documenten, Spreadsheets, Presentaties en Tekeningen** hebben geen bestand om te kopiëren, alleen een weergave die Google maakt, en **Wat wilt u migreren?** vraagt onder **Bestanden** in welk formaat elke soort moet aankomen. Bij elke keuze zet Drive het document om; hier wordt niets geconverteerd.
 
 - Documenten komen aan als `.odt` (OpenDocument), `.docx` (Microsoft Office) of `.pdf`.
 - Spreadsheets komen aan als `.ods`, `.xlsx` of `.pdf`.
@@ -47,11 +49,11 @@ Het geëxporteerde bestand krijgt de naam van het document **plus de extensie va
 
 **Een token met toestemming voor Drive werkt niet.** Een refresh-token draagt de scopes waarvoor toestemming is gegeven, en een token voor `drive.readonly` antwoordt `invalid_scope` zodra er een token voor mail wordt gevraagd. **Verbinden met Google** op de kaart Gmail vraagt de mailscope.
 
-Alleen voor een **persoonlijk** account kan het veld **App-wachtwoord** de toestemming vervangen. Lees [het deel daarover](#app-password) voordat u het kiest: Google raadt het af, het vraagt tweestapsverificatie, het bestaat niet op een Workspace-account, en het geeft ruimere toegang, niet smallere. **Beide invullen verandert niets**: de toestemming wint zodra die compleet is, dus een app-wachtwoord dat van een eerdere poging is blijven staan, kan niet ongemerkt de plaats innemen.
+Alleen voor een **persoonlijk** account kan het veld **App-wachtwoord**, onder **Liever een app-wachtwoord gebruiken**, de toestemming vervangen. Lees [het deel daarover](#app-password) voordat u het kiest: Google raadt het af, het vraagt tweestapsverificatie, het bestaat niet op een Workspace-account, en het geeft ruimere toegang, niet smallere. **Beide invullen verandert niets**: de toestemming wint zodra die compleet is, dus een app-wachtwoord dat van een eerdere poging is blijven staan, kan niet ongemerkt de plaats innemen.
 
 #### Een persoonlijk Gmail-account kan een app-wachtwoord gebruiken, en Google ziet dat liever niet {#app-password}
 
-Voor **alleen mail**, en alleen op een **persoonlijk** Google-account, is er een kortere weg: een **app-wachtwoord**. Plak het in het veld **App-wachtwoord** van de wizard en laat de OAuth-velden leeg. De rest van de migratie is precies hetzelfde: dezelfde mappen, dezelfde berichten, dezelfde herkenning van dubbelen.
+Voor **alleen mail**, en alleen op een **persoonlijk** Google-account, is er een kortere weg: een **app-wachtwoord**. Open **Liever een app-wachtwoord gebruiken**, plak het in **App-wachtwoord**, en druk op **Aanmelding controleren** in plaats van op **Verbinden met Google**. De rest van de migratie is precies hetzelfde: dezelfde mappen, dezelfde berichten, dezelfde herkenning van dubbelen.
 
 **Google raadt app-wachtwoorden af, en wij ook.** Dat is geen formaliteit:
 
@@ -105,7 +107,7 @@ De schermen van Google staan hieronder met hun Engelse namen; Google toont ze in
 - Contacten: `https://www.googleapis.com/auth/carddav`
 - Taken: `https://www.googleapis.com/auth/tasks.readonly`
 
-4. **Vul het in**: plak het hele sleutelbestand in het veld **Serviceaccount-sleutel** van de wizard, en geef bij elke migratie het account op. De refresh-tokenvelden zijn dan niet meer verplicht; de weigeringen zeggen het als er iets ontbreekt.
+4. **Vul het in**: beantwoord **Is dit een bedrijfsaccount met een beheerder?** met **Ja**, plak het hele sleutelbestand in **Serviceaccount-sleutel**, en geef bij elke migratie het account op onder **Gebruikersnaam**. Op de pagina **Accounts** staat het veld open in beeld. De refresh-tokenvelden zijn dan niet meer verplicht; de weigeringen zeggen het als er iets ontbreekt.
 5. **Trek het in bij de overstap.** Verwijder de delegatie in de Admin-console (en de sleutel) als de migratie klaar is. De sleutel leeft zo lang als de migratie, en deze stap hoort evengoed bij de verhuizing als stap 3.
 
 ## Wat er meegaat {#what-moves}
@@ -153,9 +155,9 @@ Elk van deze geeft dezelfde `invalid_grant` van Google, en de melding van de tes
 
 ## Met een eigen app {#own-app}
 
-Dit doet u één keer, in **uw eigen** Google Cloud-project, zodat Ownpace een Google-account kan lezen met een client van uzelf. Het levert twee waarden op, client-ID en clientgeheim, die in het deel **Uw eigen Google-client gebruiken** van de wizard horen, naast **Verbinden met Google**.
+Dit doet u één keer, in **uw eigen** Google Cloud-project, zodat Ownpace een Google-account kan lezen met een client van uzelf. Het levert twee waarden op, client-ID en clientgeheim, die in het deel **Uw eigen Google-client gebruiken** horen, onder **Verbinden met Google**.
 
-**Hetzelfde model als bij Microsoft, om dezelfde redenen.** De appregistratie staat in **uw** project en is door u geregistreerd; de inloggegevens blijven bij u; en intrekken doet u zelf: verwijder de OAuth-client en elk token is dood. De knop **Verbinden met Google** in de wizard regelt de toestemming voor u met uw eigen client: hij opent het toestemmingsscherm van Google met uw client-ID en geheim, en vult het refresh-token voor u in.
+**Hetzelfde model als bij Microsoft, om dezelfde redenen.** De appregistratie staat in **uw** project en is door u geregistreerd; de inloggegevens blijven bij u; en intrekken doet u zelf: verwijder de OAuth-client en elk token is dood. **Verbinden met Google** regelt de toestemming voor u met uw eigen client: hij opent het toestemmingsscherm van Google met uw client-ID en geheim, en vult het refresh-token voor u in.
 
 De schermen van Google Cloud staan hieronder met hun Engelse namen; Google toont ze in de taal van uw account.
 
@@ -194,9 +196,9 @@ Deze keuze maakte u [hierboven](#own-app-whose-account). In de woorden van de co
 
 **APIs & Services → Credentials → Create credentials → OAuth client ID.**
 
-Kies **Web application** en voeg een adres toe onder Geautoriseerde omleidings-URI’s (Authorised redirect URIs): de wizard toont de precieze waarde als u met uw eigen client op **Verbinden met Google** drukt, zodat een verschil zichtbaar is voordat Google weigert. Het eindigt op `/api/migrations/google/callback`. De omleiding is er alleen om het refresh-token één keer te krijgen; daarna gebruiken migraties het refresh-token rechtstreeks.
+Kies **Web application** en voeg een adres toe onder Geautoriseerde omleidings-URI’s (Authorised redirect URIs): het formulier toont de precieze waarde als u met uw eigen client op **Verbinden met Google** drukt, zodat een verschil zichtbaar is voordat Google weigert. Het eindigt op `/api/migrations/google/callback`. De omleiding is er alleen om het refresh-token één keer te krijgen; daarna gebruiken migraties het refresh-token rechtstreeks.
 
-Kopieer de **client ID** en het **client secret**, open **Uw eigen Google-client gebruiken** in de wizard, vul beide in en druk op **Verbinden met Google**.
+Kopieer de **client ID** en het **client secret**, open **Uw eigen Google-client gebruiken** onder **Verbinden met Google**, vul beide in en druk op **Verbinden met Google**.
 
 ### 4. Het refresh-token, met de hand {#own-app-token}
 
@@ -204,6 +206,6 @@ Kopieer de **client ID** en het **client secret**, open **Uw eigen Google-client
 
 1. Tandwiel → **Use your own OAuth credentials** → plak de client-ID en het geheim.
 2. Vul links in het scopevak de scope in van het product dat u leest → **Authorize APIs**, en meld u aan als het account dat u migreert.
-3. **Exchange authorization code for tokens.** Kopieer het **refresh token** naar het veld **Refresh-token** van de wizard.
+3. **Exchange authorization code for tokens.** Kopieer het **refresh token** naar het veld **Refresh-token** van het formulier.
 
 De playground is een gemak, geen vereiste. Elke OAuth2-authorization-code-flow met uw eigen client werkt, zolang die om `access_type=offline` vraagt: zonder dat geeft Google alleen een toegangstoken, dat na een uur verloopt en niet te vernieuwen is.

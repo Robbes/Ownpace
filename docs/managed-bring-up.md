@@ -1571,17 +1571,18 @@ GOOGLE_ACCOUNT_SCOPE_CLASS=restricted
 ```
 
 Restart the API afterwards. **No web rebuild** — unlike the `VITE_*` values in
-§8b, the wizard asks the API what this deployment serves
-(`GET /api/provider-accounts`) rather than having it compiled in, so the
-account card and its tick boxes follow the setting on the next page load.
+§8b, *Start a migration* and the Accounts page ask the API what this deployment
+serves (`GET /api/provider-accounts`) rather than having it compiled in, so how
+many Google sign-ins the flow asks for, and the Google account card's tick
+boxes on the Accounts page, follow the setting on the next page load.
 There is deliberately no `VITE_` twin: two separately settable copies of one
 fact is how a screen comes to offer what the server then refuses.
 
 #### Nobody has to paste a client secret
 
-Registering the client is one job; typing it into a wizard once per connection
+Registering the client is one job; typing it into a form once per connection
 is another, and the second one is transcription work with a secret in it. Set
-the pair once and the wizard stops asking:
+the pair once and the forms stop asking:
 
 ```bash
 # in deploy/compose/.env
@@ -1595,11 +1596,12 @@ this is — and the client is read at the moment a token is minted. Rotating the
 secret at Google is therefore this one edit and a restart, not an edit per
 connection.
 
-**And the wizard knows.** `GET /api/provider-accounts` answers
-`client: deployment` once both halves are set, so the wizard — and the
-Connections page's add-form — fold the Client ID and client secret away behind
-*Use your own Google application instead*, enable *Connect with Google* without
-them, and leave the address, the token and the button as the whole form. Open
+**And the forms know.** `GET /api/provider-clients` answers `google: deployment`
+once both halves are set (and `GET /api/provider-accounts` answers
+`client: deployment`), so the account form — on *Start a migration* and on the
+Accounts page — folds the Client ID, the client secret and the refresh token
+away behind *Use your own Google client*, and enables *Connect with Google*
+without them. Open
 the fold and enter both to use your own client; enter one and it asks for the
 other rather than pairing it with the deployment's. The shared-drive browse
 behind a Drive source follows the same rule: the token alone is enough.
@@ -1611,8 +1613,9 @@ never an override ([ADR-0041](./adr/0041-who-owns-the-oauth-client.md)).
 **Both or neither.** A client id with no secret cannot exchange an
 authorization code, so half of it is refused with the missing name rather than
 failing at Google's token endpoint hours later. The same rule holds for a
-connection's *own* pair, at every door — the wizard, the API, the add-form, a
-rotation and the consent itself alike: half of one is refused where it is
+connection's *own* pair, at every door — the account form (*Start a migration*
+and the Accounts page), the API, a rotation and the consent itself alike: half
+of one is refused where it is
 sent, never completed with the deployment's other half. The rotation panel
 therefore offers the Client ID beside the secret, so a rotated pair is a pair.
 
@@ -1653,8 +1656,8 @@ So at Google, once, for the client this deployment uses:
    to the scopes, beside the calendar, CardDAV and `tasks.readonly` ones.
 3. **Credentials → your OAuth client → Authorised redirect URIs.** It must
    carry `https://<your API host>/api/migrations/google/callback` — the exact
-   string, which `POST /api/migrations/google/authorize` also returns so the
-   wizard can show it.
+   string, which `POST /api/migrations/google/authorize` also returns and the
+   app's *Redirect URIs* page lists (`GET /api/redirect-uris`).
 4. **`API_URL` must be the address the API is reached at from OUTSIDE**, because the
    redirect is built from it. The example ships `API_URL=http://localhost:3001`,
    and with the default `VITE_API_URL=/api` the API is actually reached on the
@@ -1685,8 +1688,10 @@ button — it is not a publishing status to run a customer on.
 
 #### What it looks like when it worked
 
-- The **Google account** card on step 1 of the wizard offers five object types
-  instead of three, and its hint stops mentioning a security review.
+- *Start a migration* asks one Google sign-in for everything ticked under
+  Google, rather than a sign-in of their own for mail and files; on the Accounts
+  page, the **Google account** card's consent offers five data types instead of
+  three.
 - The consent button asks for exactly the ticked faces — never more, and never
   fewer without saying so.
 - The connection's **qualification badges** report each face separately, read
@@ -1697,8 +1702,8 @@ button — it is not a publishing status to run a customer on.
 #### The deployment's own Dropbox app (2026-09-02)
 
 The same idea, for Dropbox: set the pair once and *Connect with Dropbox* appears
-in the wizard and on the Connections page, with the App key and secret folded
-away behind *Use your own Dropbox app instead*.
+on *Start a migration* and on the Accounts page, with the App key and secret
+folded away behind *Use your own Dropbox app*.
 
 1. **[Dropbox App Console](https://www.dropbox.com/developers/apps) → Create app**
    → *Scoped access* → *Full Dropbox*. **Permissions**: `files.metadata.read`
@@ -1730,7 +1735,8 @@ consent, the create door, the mapping door and the rotation panel alike; and
 the pair is handed only to a Dropbox row — `clientId`/`clientSecret` are shared
 key names, and a Google connection is never given Dropbox's app. `GET
 /api/provider-clients` answers `dropbox: deployment` once both halves are set,
-which is what the wizard reads before it offers the button.
+which is what the account form reads, on *Start a migration* and the Accounts
+page, before it offers the button.
 
 #### The deployment's own Entra registration (workplan 0114)
 
@@ -1790,7 +1796,8 @@ connection's own pair wins, and its own `tenantId` travels with it rather than
 being replaced by the deployment's; both or neither, refused as half a pair at
 every door; and the pair is handed only to a `microsoft` row. `GET
 /api/provider-clients` answers `microsoft: deployment` once both halves are
-set, which is what the wizard reads before it offers the button.
+set, which is what the account form reads, on *Start a migration* and the
+Accounts page, before it offers the button.
 
 **What a customer sees when their tenant says no.** Two refusals are a tenant
 policy rather than anything you configured: `AADSTS65001` (an administrator

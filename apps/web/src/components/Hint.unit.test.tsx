@@ -41,6 +41,5 @@ describe('whyKeyOf — the folded twin, by convention', () => {
 
   it('answers nothing for a hint with nothing to fold', () => {
     expect(whyKeyOf('wizard.refreshToken.hint')).toBeUndefined();
-    expect(whyKeyOf('wizard.domain.email.hint')).toBeUndefined();
   });
 });

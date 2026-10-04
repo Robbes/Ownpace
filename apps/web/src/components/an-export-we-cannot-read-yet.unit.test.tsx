@@ -15,9 +15,11 @@
  * ('to be tested'-label)."* D10 keeps the card offered on managed too, so
  * this holds on a managed and an appliance build alike:
  *
- * - at both doors, the wizard and the Connections page, an option whose export
- *   has no reader carries the tag as text in its name. Google Takeout carries
- *   none, for as long as it is the only export with a reader;
+ * - on the Accounts page, an option whose export has no reader carries the
+ *   tag as text in its name (the wizard did too, until it retired: 0153 D5;
+ *   *Start a migration* says Apple's export is *To be tested* under Apple's
+ *   tile, `StartMigration.unit.test.tsx`). Google Takeout carries none, for as
+ *   long as it is the only export with a reader;
  * - choosing that option shows D7's line under the field, as a status the
  *   select points at, and choosing Takeout shows none;
  * - the card's own hint carries the tag after Apple, in English and in Dutch.
@@ -73,7 +75,6 @@ vi.mock('../services/mapping-service', () => ({
   },
 }));
 
-import CreateMapping from '../pages/CreateMapping.tsx';
 import Connections from '../pages/Connections.tsx';
 import { LocaleProvider } from '../i18n/index.tsx';
 import { STRINGS } from '../i18n/strings.ts';
@@ -109,18 +110,6 @@ const client = () =>
 
 /** Each door as the app mounts it, in the reader's language. */
 const DOORS = {
-  wizard: async (locale: Locale) => {
-    window.localStorage.setItem('ownpace.locale', locale);
-    render(
-      <QueryClientProvider client={client()}>
-        <LocaleProvider>
-          <MemoryRouter initialEntries={['/mappings/new']}>
-            <CreateMapping />
-          </MemoryRouter>
-        </LocaleProvider>
-      </QueryClientProvider>,
-    );
-  },
   connections: async (locale: Locale) => {
     window.localStorage.setItem('ownpace.locale', locale);
     render(
@@ -152,7 +141,6 @@ const optionText = (select: HTMLSelectElement, value: string): string =>
   [...select.options].find((o) => o.value === value)?.textContent ?? '';
 
 beforeEach(() => {
-  // The wizard remembers its non-secret half across mounts (0069).
   globalThis.sessionStorage.clear();
   window.localStorage.clear();
 });

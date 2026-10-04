@@ -2,7 +2,7 @@
 
 De kaart **Microsoft 365 account** meldt zich aan met een **appregistratie in Microsoft Entra ID** en een refresh-token waarvoor het account dat u migreert toestemming geeft. Die kaart leest alleen, en dat zit in de opbouw zelf: de toestemming vraagt alleen de gedelegeerde `.Read`-rechten die onder [Met een eigen app](#own-app) staan, dus dit product kan niet in het postvak, de agenda's, de contacten of OneDrive schrijven, ook niet als het dat zou willen. Dat is een afgedwongen garantie, geen belofte op papier. De kaarten **Via de Graph-API** en **Via IMAP** werken anders, met de registratie van een beheerder: zie [de registratie die deze twee kaarten nodig hebben](#application).
 
-**De meeste mensen hebben alleen de eerste kaart nodig.** Heeft deze dienst een eigen registratie, dan tonen de wizard en de pagina Verbindingen een knop **Verbinden met Microsoft**, en hoeft u niets onder [Met een eigen app](#own-app) te doen. Lees dat deel alleen als u liever uw eigen registratie gebruikt.
+**De meeste mensen hebben alleen de eerste kaart nodig.** Heeft deze dienst een eigen registratie, dan tonen **Migratie starten** en de pagina **Accounts** een knop **Verbinden met Microsoft**, en hoeft u niets onder [Met een eigen app](#own-app) te doen. Lees dat deel alleen als u liever uw eigen registratie gebruikt.
 
 ## Wat u nodig hebt {#before}
 
@@ -28,7 +28,7 @@ U kunt ook uw eigen registratie gebruiken: open **Uw eigen appregistratie gebrui
 
 ### Via de Graph-API {#graph}
 
-**Via IMAP** en **Via de Graph-API** melden zich aan met uw eigen registratie, met **toepassingsrechten** die een beheerder in uw eigen tenant verleent. Dat is wat een beheerder nodig heeft die de postvakken van anderen migreert; de gedelegeerde toestemming van de kaart **Microsoft 365 account** kan dat nooit. De wizard vraagt het adres van het postvak, onder **Gebruikersnaam**, en de **Tenant-ID**, de **Client-ID (applicatie-ID)** en het **Clientgeheim** van die registratie.
+**Via IMAP** en **Via de Graph-API** melden zich aan met uw eigen registratie, met **toepassingsrechten** die een beheerder in uw eigen tenant verleent. Dat is wat een beheerder nodig heeft die de postvakken van anderen migreert; de gedelegeerde toestemming van de kaart **Microsoft 365 account** kan dat nooit. Vink daarvoor bij **Wat wilt u migreren?** onder Microsoft 365 **E-mail** aan, beantwoord **Is dit een bedrijfsaccount met een beheerder?** met **Ja**, en kies **Via onze eigen app, met Microsoft Graph** of **Via onze eigen app, met IMAP**. **Uw accounts verbinden** vraagt dan het adres van het postvak, onder **Gebruikersnaam**, en de **Tenant-ID**, de **Client-ID (applicatie-ID)** en het **Clientgeheim** van die registratie.
 
 Beide kaarten lezen de mail van één postvak. Agenda's, contacten, OneDrive en To Do lopen via de kaart **Microsoft 365 account**.
 
@@ -43,11 +43,11 @@ Dezelfde vier velden als bij **Via de Graph-API**; deze kaart leest het postvak 
 Deze twee kaarten vragen altijd een eigen registratie, wat deze dienst ook heeft. Daarom staan de stappen hier en niet onder [Met een eigen app](#own-app). Een beheerder van uw Microsoft 365-organisatie doet ze één keer. Microsoft toont zijn beheercentra in de taal van uw browser; hieronder staan de schermen met hun Engelse namen, zoals Microsoft ze in zijn documentatie noemt.
 
 1. [Entra-beheercentrum](https://entra.microsoft.com) → Identity → Applications → **App registrations** → New registration. Kies **Accounts in this organizational directory only**, laat het omleidingsadres leeg en registreer.
-2. Kopieer op de pagina Overview de **Application (client) ID** en de **Directory (tenant) ID**. Die horen in de velden **Client-ID (applicatie-ID)** en **Tenant-ID** van de wizard.
+2. Kopieer op de pagina Overview de **Application (client) ID** en de **Directory (tenant) ID**. Die horen in de velden **Client-ID (applicatie-ID)** en **Tenant-ID** van het formulier.
 3. **Certificates & secrets** → New client secret. Kopieer de **Value** meteen, want Entra toont die maar één keer. Die hoort in het veld **Clientgeheim**.
 4. Voeg het recht toe van de kaart die u gebruikt, en geef er als beheerder toestemming voor: de twee delen hieronder hebben de stappen. Een toepassingsrecht heeft geen aangemelde persoon om het aan te vragen, dus het werkt pas als een beheerder toestemming heeft gegeven.
 
-Er komt geen refresh-token aan te pas: deze kaarten melden zich aan als de toepassing zelf, en de wizard vraagt er ook geen.
+Er komt geen refresh-token aan te pas: deze kaarten melden zich aan als de toepassing zelf, en het formulier vraagt er ook geen.
 
 #### Via de Graph-API: het recht in Microsoft Graph {#application-graph}
 
@@ -57,7 +57,7 @@ Er komt geen refresh-token aan te pas: deze kaarten melden zich aan als de toepa
 
 Verder niets: de kaart leest mail, en dit ene recht dekt dat. Druk daarna op **Grant admin consent for** uw organisatie, en bevestig.
 
-**Weet hoe ver dit recht reikt voordat u het verleent.** Als toepassingsrecht kan `Mail.Read` elk postvak in de organisatie lezen, niet alleen het postvak dat u in de wizard invult. Deze dienst leest alleen het postvak dat de verbinding noemt, en schrijft er nooit in. Exchange Online kan een toepassing in plaats daarvan `Mail.Read` geven voor alleen de postvakken die u noemt; Microsoft beschrijft dat als Role Based Access Control for Applications in Exchange Online. Dat vervangt deze stap, het beperkt hem niet: een `Mail.Read` waarvoor hier toestemming is gegeven, reikt tot elk postvak, wat Exchange ook zegt. Een beheerder die de smallere weg wil, verleent `Mail.Read` hier dus niet, en kent in Exchange de toepassingsrol toe met een bereik.
+**Weet hoe ver dit recht reikt voordat u het verleent.** Als toepassingsrecht kan `Mail.Read` elk postvak in de organisatie lezen, niet alleen het postvak dat u in het formulier invult. Deze dienst leest alleen het postvak dat het account noemt, en schrijft er nooit in. Exchange Online kan een toepassing in plaats daarvan `Mail.Read` geven voor alleen de postvakken die u noemt; Microsoft beschrijft dat als Role Based Access Control for Applications in Exchange Online. Dat vervangt deze stap, het beperkt hem niet: een `Mail.Read` waarvoor hier toestemming is gegeven, reikt tot elk postvak, wat Exchange ook zegt. Een beheerder die de smallere weg wil, verleent `Mail.Read` hier dus niet, en kent in Exchange de toepassingsrol toe met een bereik.
 
 #### Via IMAP: het recht in Exchange Online {#application-imap}
 
@@ -130,7 +130,7 @@ AADSTS700016: Application with identifier '…' was not found in the directory '
 
 Dat lijkt op een tikfout in de client-ID, maar dat is het niet.
 
-Is uw registratie met opzet voor één tenant, typ dan de Directory (tenant) ID in het veld **Tenant-ID** van de wizard, zodat de toestemming in uw directory plaatsvindt. Laat het anders leeg.
+Is uw registratie met opzet voor één tenant, beantwoord dan **Is dit een bedrijfsaccount met een beheerder?** met **Ja** en typ de Directory (tenant) ID in **Tenant-ID**, zodat de toestemming in uw directory plaatsvindt. Laat het anders leeg.
 
 #### Omleidingsadres {#own-app-redirect}
 
