@@ -14,7 +14,7 @@ without D"*, *"5. A"*, *"6. A"*).
   Proved by `provider-directory.unit.test.ts` (every port box starts with the number its example
   shows), the Accounts page's case, and two flow cases, for a source and for a new destination.
 - **A destination that measured it cannot take a ticked data type is marked on *Where does it
-  go?* (C, not D).** In its own pull request.
+  go?* (C, not D).** Built: the second bullet under *Not carried over* below says how.
 - **App-password Gmail where the restricted scopes are declared: nothing now (A).** To build
   only when a deployment sets `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`.
 - **A saved *Export archive* account: the card leaves the managed Accounts page (A).** In its own
