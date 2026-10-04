@@ -4,6 +4,26 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04: every card through *Start a migration* (D5; open question 5, item 7, the first
+part).** The wizard retires once the flow reaches every card a migration can be made from, and the
+reachability test moves to `/start`, as the recommendation said.
+
+- **`every-card-through-start-a-migration.unit.test.tsx` walks each of the eleven cards** a
+  migration can be made from to the screen that asks for its account. Its row is there, named for
+  the card, with the form a person fills, and *Next* waits for it in words that name no field.
+  Microsoft's two app-registration cards are reached behind the company question, Gmail and Google
+  Drive where the restricted scopes are not declared, and the Google account where they are. The
+  export archive is reached through Google's Takeout tick box, and that screen says it needs no
+  sign-in.
+- **Every destination card is offered** on *Where does it go?*, as *Add …* under a data type it
+  takes.
+- **A card added without a walk fails by name**, and so does a destination the flow cannot
+  offer. A mutation that never routes Microsoft's mail through a company's app fails the two cards
+  it reaches.
+- **Left for the retirement itself:** the links that still lead to the wizard (*Add one migration
+  by hand* on Migrations and on a person's page, the setup checklist's way back), its route, and
+  its code, tests and words.
+
 **2026-10-04: the root folder, *Only one folder* (open question 5, item 4, the third and last
 part).** The owner chose A: on *What moves?*, under *Files*, with the wizard's *Browse…*, for a
 new and a saved account alike and for the Google account too.
