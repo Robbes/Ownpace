@@ -85,13 +85,13 @@ Wat er terugkomt, in de eigen beschrijving van Apple:
 
 Tijden staan overal in **UTC**, dus er hoeft niets uit een lokaal tijdsverschil te worden geraden.
 
-Apple is ongewoon duidelijk over waar dit voor is: op de vraag of u de gegevens naar een andere aanbieder kunt verhuizen, antwoordt Apple in het Engels: "Yes. We provide your data in industry-standard formats designed to be easy to import into other services." Dus ja: in standaardformaten die gemaakt zijn om makkelijk in andere diensten te importeren.
+Apple is ongewoon duidelijk over waar dit voor is: op de vraag of u de gegevens naar een andere aanbieder kunt meenemen, antwoordt Apple in het Engels: "Yes. We provide your data in industry-standard formats designed to be easy to import into other services." Dus ja: in standaardformaten die gemaakt zijn om makkelijk in andere diensten te importeren.
 
 ### Wat de export niet bevat, en één ding om na te kijken {#export-not}
 
 - **Berichten.** iMessage en sms zijn op uw apparaat versleuteld en voor niemand leesbaar zonder uw toegangscode. Ze zitten niet in de export, en geen migratie kan ze meenemen.
 - **Gekochte apps, boeken, films, tv of muziek.** U krijgt de lijst van wat u kocht; de inhoud zelf downloadt u opnieuw uit de winkel.
-- **Sommige velden zijn gemaskeerd.** Apple maskeert bepaalde gegevens in de bestanden die het geeft, als bescherming tegen fraude: kaart- en bankgegevens, apparaat-ID's en **e-mailadressen**. Of dat maskeren ook de contactkaarten zelf raakt, is **niet iets om aan te nemen, de ene of de andere kant op**: het zou de `.vcf`-bestanden nutteloos maken voor de verhuizing die Apple hierboven beschrijft, dus waarschijnlijk geldt het voor de gegevens over activiteit en aankopen. Kijk uw eigen export na voordat u een verhuizing van contacten eromheen plant.
+- **Sommige velden zijn gemaskeerd.** Apple maskeert bepaalde gegevens in de bestanden die het geeft, als bescherming tegen fraude: kaart- en bankgegevens, apparaat-ID's en **e-mailadressen**. Of dat maskeren ook de contactkaarten zelf raakt, is **niet iets om aan te nemen, de ene of de andere kant op**: het zou de `.vcf`-bestanden nutteloos maken voor het importeren elders dat Apple hierboven belooft, dus waarschijnlijk geldt het voor de gegevens over activiteit en aankopen. Kijk uw eigen export na voordat u een migratie van contacten eromheen plant.
 
 ### Twee grenzen om te kennen voordat u begint {#export-limits}
 
@@ -105,7 +105,7 @@ Een **terugkerende** planning bestaat wel, en ze is smal: in de Europese Unie, h
 
 ### Welke weg u echt wilt {#which-route}
 
-Verhuist u **e-mail, agenda's, contacten of herinneringen**, gebruik dan de verbinding hierboven: die leeft, gaat stap voor stap mee, en niets wacht een week. De export is alleen van waarde voor de twee onderdelen die de verbinding niet bereikt: **iCloud Drive en Foto's**.
+Migreert u **e-mail, agenda's, contacten of herinneringen**, gebruik dan de verbinding hierboven: die leeft, gaat stap voor stap mee, en niets wacht een week. De export is alleen van waarde voor de twee onderdelen die de verbinding niet bereikt: **iCloud Drive en Foto's**.
 
 Zegt iemand u dat iCloud Drive automatisch te migreren is, vraag dan welke API diegene gebruikte.
 
@@ -129,4 +129,4 @@ Een app-specifiek wachtwoord wordt **ingetrokken op `account.apple.com` → Aanm
 
 Het goede nieuws is dat intrekken **precies** is. Het raakt alleen dat wachtwoord: het wachtwoord van uw Apple-account blijft zoals het is, elke andere app blijft werken, en niets hoeft opnieuw te worden aangemeld. Dat is het tegenovergestelde van het gebruikelijke advies om het wachtwoord van uw account te wijzigen, wat het meest verstorende is wat u kunt doen, en de ene handeling die dit wachtwoord niet intrekt.
 
-Trek het in zodra de migratie klaar is. Niets hier hangt ervan af dat het langer leeft dan de verhuizing.
+Trek het in zodra de migratie klaar is. Niets hier hangt ervan af dat het langer leeft dan de migratie.

@@ -6,13 +6,13 @@ Deze handleiding gaat over de Google-kaarten: de kaart **Google account**, en de
 
 ## Wat u nodig hebt {#before}
 
-- Het Google-account waarvan de gegevens verhuizen, en de aanmelding ervan. **Verbinden met Google**, bij **Uw accounts verbinden**, opent het eigen toestemmingsscherm van Google voor dat account.
+- Het Google-account waarvan u de gegevens migreert, en de aanmelding ervan. **Verbinden met Google**, bij **Uw accounts verbinden**, opent het eigen toestemmingsscherm van Google voor dat account.
 - Is het account van iemand anders, dan hebt u diens wachtwoord niet nodig: [stuur een toegangslink](#grant-link).
 - Migreert u een hele Workspace met veel accounts? Lees dan eerst [domeinbrede delegatie](#domain-wide-delegation). Die vervangt een toestemming per persoon per product door één handeling van een beheerder, en er is een Workspace-beheerder voor nodig.
 
 ## Koppelen {#connect}
 
-Elke kaart vraagt het adres van het account, onder **Gebruikersnaam**, en een **Refresh-token**, dat **Verbinden met Google** invult: druk op de knop, kies het account bij Google en geef toestemming. Het token komt vanzelf in het veld, en het account wordt in één keer bewaard en getest: de test leest het één keer, via precies wat een ronde zou opbouwen, voordat er iets verhuist.
+Elke kaart vraagt het adres van het account, onder **Gebruikersnaam**, en een **Refresh-token**, dat **Verbinden met Google** invult: druk op de knop, kies het account bij Google en geef toestemming. Het token komt vanzelf in het veld, en het account wordt in één keer bewaard en getest: de test leest het één keer, via precies wat een ronde zou opbouwen, voordat er iets wordt gekopieerd.
 
 ### Google account {#google}
 
@@ -24,7 +24,7 @@ Het token vraagt `https://www.googleapis.com/auth/drive.readonly`, en verder nie
 
 Het token is **gedelegeerd**: het leest de Drive van de persoon die toestemming geeft, met de gedeelde Drives die die persoon kan zien. Voor een hele Workspace is er een tweede weg, die u zelf kiest: **[domeinbrede delegatie](#domain-wide-delegation)**, aan het eind van deze handleiding. Tokens per gebruiker blijven de standaard: de kleinste toegang, per persoon in te trekken, en zonder beheerder.
 
-Een migratie kan ergens anders beginnen dan in Mijn Drive: een **gedeelde Drive** heeft een eigen ID, en een **map die iemand met dit account deelde** ook. "Gedeeld met mij" is een weergave en geen map, dus wat erin staat verschijnt nooit onder de boom van Mijn Drive; een aparte migratie die bij de gedeelde map begint, is hoe zo'n map verhuist. Losse gedeelde bestanden, die met u gedeeld zijn maar niet in een map staan, vallen erbuiten.
+Een migratie kan ergens anders beginnen dan in Mijn Drive: een **gedeelde Drive** heeft een eigen ID, en een **map die iemand met dit account deelde** ook. "Gedeeld met mij" is een weergave en geen map, dus wat erin staat verschijnt nooit onder de boom van Mijn Drive; een aparte migratie die bij de gedeelde map begint, is hoe zo'n map meegaat. Losse gedeelde bestanden, die met u gedeeld zijn maar niet in een map staan, vallen erbuiten.
 
 De keuze heet **Alleen één map**, onder **Bestanden** bij **Wat wilt u migreren?**, voor het Google-account zoals voor deze kaart. Is het account verbonden, plak dan het adres van de map uit Google Drive; de ID wordt eruit gelezen. Of druk op **Gedeelde drives en gedeelde mappen tonen** en kies er een: een lijst, alleen lezend, via dezelfde koppeling die een migratie gebruikt. De pagina van de migratie zegt daarna uit welke map de bestanden worden gelezen. De map kan veranderen tot het eerste bestand is gekopieerd; daarna is een andere map een andere migratie.
 
@@ -108,11 +108,11 @@ De schermen van Google staan hieronder met hun Engelse namen; Google toont ze in
 - Taken: `https://www.googleapis.com/auth/tasks.readonly`
 
 4. **Vul het in**: beantwoord **Is dit een bedrijfsaccount met een beheerder?** met **Ja**, plak het hele sleutelbestand in **Serviceaccount-sleutel**, en geef bij elke migratie het account op onder **Gebruikersnaam**. Op de pagina **Accounts** staat het veld open in beeld. De refresh-tokenvelden zijn dan niet meer verplicht; de weigeringen zeggen het als er iets ontbreekt.
-5. **Trek het in bij de overstap.** Verwijder de delegatie in de Admin-console (en de sleutel) als de migratie klaar is. De sleutel leeft zo lang als de migratie, en deze stap hoort evengoed bij de verhuizing als stap 3.
+5. **Trek het in bij de overstap.** Verwijder de delegatie in de Admin-console (en de sleutel) als de migratie klaar is. De sleutel leeft zo lang als de migratie, en deze stap hoort evengoed bij de migratie als stap 3.
 
 ## Wat er meegaat {#what-moves}
 
-**Wat er met labels gebeurt.** Via IMAP toont Gmail elk label als een map, en die verhuizen als mappen. Gmail toont ook drie weergaven die berichten uit andere mappen nog eens bevatten: All Mail, Starred en Important. Die kopiëren zou elk bericht dubbel opleveren, één keer per weergave waarin het staat. Daarom slaat Ownpace die drie weergaven over (herkend aan de eigen kenmerken `\All`/`\Flagged`/`\Important` van Google, die in elke taal gelijk blijven) en migreert alles wat echt is: INBOX, uw labels, Sent, Drafts. Prullenbak en Spam worden standaard niet gekopieerd, zoals bij elke IMAP-bron, terwijl de prullenbak wel wordt gelezen als bewijs van verwijderingen. Een bericht met meerdere labels staat in meerdere mappen, maar mail wordt herkend aan de Message-ID, dus het wordt **één keer gekopieerd**, naar de map waar een ronde het eerst ziet. Wordt het later onder een ander label gezien, dan wordt het niet opnieuw gekopieerd; het kan wel in de wachtrij **Verplaatsingen** verschijnen als melding van een plaatsing aan de bronkant. Dat is informatie, geen opdracht. Labelt u veel, dan beschrijft die wachtrij vooral de labels van Gmail, en niet iets wat u deed.
+**Wat er met labels gebeurt.** Via IMAP toont Gmail elk label als een map, en die gaan mee als mappen. Gmail toont ook drie weergaven die berichten uit andere mappen nog eens bevatten: All Mail, Starred en Important. Die kopiëren zou elk bericht dubbel opleveren, één keer per weergave waarin het staat. Daarom slaat Ownpace die drie weergaven over (herkend aan de eigen kenmerken `\All`/`\Flagged`/`\Important` van Google, die in elke taal gelijk blijven) en migreert alles wat echt is: INBOX, uw labels, Sent, Drafts. Prullenbak en Spam worden standaard niet gekopieerd, zoals bij elke IMAP-bron, terwijl de prullenbak wel wordt gelezen als bewijs van verwijderingen. Een bericht met meerdere labels staat in meerdere mappen, maar mail wordt herkend aan de Message-ID, dus het wordt **één keer gekopieerd**, naar de map waar een ronde het eerst ziet. Wordt het later onder een ander label gezien, dan wordt het niet opnieuw gekopieerd; het kan wel in de wachtrij **Verplaatsingen** verschijnen als melding van een plaatsing aan de bronkant. Dat is informatie, geen opdracht. Labelt u veel, dan beschrijft die wachtrij vooral de labels van Gmail, en niet iets wat u deed.
 
 ### Wat een Drive-migratie nog niet doet {#drive-not-yet}
 

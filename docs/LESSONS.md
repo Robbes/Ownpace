@@ -496,6 +496,10 @@ reading a file drops off its entry by itself.
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 
+### `apps/web/src/pages/Docs.tsx`
+
+- [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)).
+
 ### `apps/web/src/pages/Grant.tsx`
 
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
@@ -1431,6 +1435,14 @@ reading a file drops off its entry by itself.
 ### `docs/guides/en/imap.md`
 
 - [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
+
+### `docs/guides/nl/archive.md`
+
+- [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)).
+
+### `docs/guides/nl/google.md`
+
+- [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)).
 
 ### `docs/incident-runbook.md`
 
@@ -4303,7 +4315,10 @@ Reads:
 - `apps/api/src/routes/billing/billing-party.unit.test.ts`
 - `apps/web/src/i18n/i18n.unit.test.tsx`
 - `apps/web/src/i18n/strings.ts`
+- `apps/web/src/pages/Docs.tsx`
 - `docs/cutover-communication-templates.md`
+- `docs/guides/nl/archive.md`
+- `docs/guides/nl/google.md`
 - `packages/shared/src/erasure-scope.ts`
 - `packages/shared/src/share-announcement.ts`
 - `site/site.unit.test.ts`
