@@ -54,6 +54,7 @@ import { CUSTOMER_TYPES, INDICATIVE_PROFILES, OBJECT_TYPES, PROFILES_VERSION, SI
 import { DATA_TYPES, DESTINATIONS, PROTOCOL_NAMES } from './destinations.mjs';
 import { SPRITE, icon } from './icons.mjs';
 import { LEAVING, DOMAIN_OF, EXPORT_TARGETS } from './sources.mjs';
+import { PROOF_LINKS } from './proof.mjs';
 import { heroMove } from './hero.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -754,7 +755,7 @@ ${banner}
 ${body}
 </div></main>
 <footer class="site"><div class="wrap">
-  <div><strong>Ownpace</strong> — ${c.footerTag}<br />${c.footerOss}${
+  <div><strong>Ownpace</strong> — ${c.footerTag}<br />${c.footerOss(PROOF_LINKS)}${
     buildStamp() ? `<br /><span class="build">${buildStamp()}</span>` : ''
   }</div>
   <div>
@@ -800,10 +801,13 @@ const orderHref = (locale, tier) => {
 
 // ------------------------------------------------------------------- pages --
 
+/** Words that carry a claim's link take it from proof.mjs (0152 T8); others are as written. */
+const linked = (words) => (typeof words === 'function' ? words(PROOF_LINKS) : words);
+
 function cards(list) {
   return (
     '<div class="cards">' +
-    list.map(([h, p]) => `<div class="card"><h3>${h}</h3><p>${p}</p></div>`).join('') +
+    list.map(([h, p]) => `<div class="card"><h3>${linked(h)}</h3><p>${linked(p)}</p></div>`).join('') +
     '</div>'
   );
 }
@@ -1065,7 +1069,7 @@ ${SPRITE}
     <ul class="leaving-row" aria-labelledby="leaving-label">${LEAVING.map((p) => `<li>${leavingLink(locale, p, 28, false)}</li>`).join('')}</ul>
   </div>
 </section>
-<div class="cards facts">${c.facts.map(([h, p]) => `<div class="card"><h3>${h}</h3><p>${p}</p></div>`).join('')}</div>
+<div class="cards facts">${c.facts.map(([h, p]) => `<div class="card"><h3>${linked(h)}</h3><p>${linked(p)}</p></div>`).join('')}</div>
 <h2>${c.nav.how}</h2>
 <ol class="strip">${c.strip.steps
     .map(([h, p], i) => `<li><span class="step" aria-hidden="true">${i + 1}</span><div><h3>${h}</h3><p>${p}</p></div></li>`)

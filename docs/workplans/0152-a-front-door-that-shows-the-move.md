@@ -4,6 +4,25 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04, night: T8 (a) and (b) are built** (R8 step 12). The site's claims link what holds
+them, in the public repository:
+- the footer's *Open source* links the repository, and *Run it yourself* the self-host quickstart;
+- the hero's fact *Nothing is deleted at the source* (T3) and *the software has no way to delete
+  from a source* link `a-source-that-only-reads`, the guard that counts every source connector's
+  methods;
+- *Whatever cannot be moved* links the scope manifest;
+- *open source* in *European, all the way down* links the repository.
+
+`site/proof.mjs` names the files once.
+- **Guard:** `scripts/claims-you-can-check.unit.test.ts`:
+  - every link to a file in the repository names a file in the tree;
+  - each claim links its own proof in both languages, every page's footer included;
+  - the repository is the one the README clones.
+
+  Mutations caught: the guard renamed, the Dutch claim unlinked.
+- **Not built:** (c), the company in the footer, waits for 0139.
+- **T0:** no new words; four phrases and the footer's two became links.
+
 **2026-10-04, night: the guides are public** (the owner: *"Guide links on the Leaving pages: yes,
 make public"*). Each Leaving page links a guide section per limit, such as `/docs/google#gmail`,
 and the app sent a visitor without an account to its sign-in page instead.
@@ -466,7 +485,7 @@ together, from one audit of the site and the app on `main` at `83eb73e` (§1).
 | T5 A page per provider a person leaves | 🟡 **(a) and (b) built 2026-10-04; (a) 5's source waits for T7 (a), (c) for the site's address; its words wait for T0** | §3. *Leaving Google*, *Leaving Microsoft 365*, *Leaving iCloud*, *Leaving Dropbox*, *Leaving Box*, *Leaving another mail provider*: what moves, the limits, what the person does, the destinations it can go to, a typical cost. Built from copies of the app's own verdicts, each guarded. |
 | T6 Pricing that reads in one pass | 🟡 **(a) done: the sentence by #1317, its guard beside D6's. (c) built 2026-10-04, with T2 (#1471). (d) built 2026-10-03, with (g)'s principle on the page. (b) and (e) built 2026-10-04. (f)'s words on the page and in the terms built 2026-10-04, its withdrawal button not. The rest proposed, before the first invitation (D5)** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) The withdrawal button, and the year's end (D11, amended 2026-10-04). (g) The principle, the price that pays for the work (D12). |
 | T7 A calculator that ends in a button | 🟡 **(c), (d) and (e) built 2026-10-04; (a) and (b) proposed, before the first invitation** | §3. (a) *Request access* carries the answers along. (b) *Until when?* says which payment suits it. (c) The layout faults and a live region. (d) Box as a source. (e) Several sources at once, and Tasks. |
-| T8 Claims you can check | 📋 **Proposed; before the first invitation (D5)** | §3. "Open source" links the repository. Each proof point links the guard that holds it. The footer names the company once 0139 publishes it; until then that line is the one part that waits. |
+| T8 Claims you can check | 🟡 **(a) and (b) built 2026-10-04; (c) waits for 0139's company details** | §3. "Open source" links the repository. Each proof point links the guard that holds it. The footer names the company once 0139 publishes it; until then that line is the one part that waits. |
 | T9 One look from the site to the app | ✅ **Built 2026-10-04** | §3. `/request-access` and `/login` take the site's palette and logo, and link back to the site. The identity provider's own branding stays 0135 T6. |
 
 ## 1. What there is today
