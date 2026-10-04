@@ -68,6 +68,15 @@ describe('which card carries a type, and whose verdict its tag reads (step 3)', 
     expect(sourceFaceIsExperimental(carrierOf('google', 'email', NARROW), 'email')).toBe(false);
     expect(sourceFaceIsExperimental(carrierOf('google', 'email', RESTRICTED), 'email')).toBe(true);
   });
+
+  it('is a company’s own app for Microsoft’s mail where it chose one, and only for the mail (0153 open question 5)', () => {
+    expect(carrierOf('microsoft', 'email', {}, { microsoftMail: 'graph' })).toBe('graph');
+    expect(carrierOf('microsoft', 'email', {}, { microsoftMail: 'oauth2' })).toBe('oauth2');
+    expect(carrierOf('microsoft', 'calendar', {}, { microsoftMail: 'graph' })).toBe('microsoft');
+    // Another provider's mail is untouched by Microsoft's choice.
+    expect(carrierOf('google', 'email', NARROW, { microsoftMail: 'graph' })).toBe('gmail');
+    expect(carrierOf('imap', 'email', {}, { microsoftMail: 'graph' })).toBe('imap');
+  });
 });
 
 describe('where photos come from (step 3)', () => {
@@ -118,6 +127,17 @@ describe('which accounts to connect for what was ticked (step 4)', () => {
   it('asks nothing of a provider with nothing ticked', () => {
     expect(connectionsFor('dropbox', [])).toEqual([]);
     expect(connectionsFor('apple', ['file'])).toEqual([]);
+  });
+
+  it('asks a company’s own app for Microsoft’s mail apart, and the account for the rest', () => {
+    expect(connectionsFor('microsoft', ['email', 'calendar', 'file'], {}, { microsoftMail: 'graph' })).toEqual([
+      { provider: 'microsoft', card: 'microsoft', types: ['calendar', 'file'] },
+      { provider: 'microsoft', card: 'graph', types: ['email'] },
+    ]);
+    // Mail alone needs the company's app alone.
+    expect(connectionsFor('microsoft', ['email'], {}, { microsoftMail: 'oauth2' })).toEqual([
+      { provider: 'microsoft', card: 'oauth2', types: ['email'] },
+    ]);
   });
 });
 

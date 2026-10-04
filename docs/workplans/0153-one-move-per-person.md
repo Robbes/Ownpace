@@ -4,6 +4,23 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04: a company's mail through its own Microsoft app, behind the company question (open
+question 5, item 1).** On *What moves?*, Microsoft's mail carries *Is this a company account with
+an administrator?*. A yes offers the mail through the organisation's own app, with application
+permissions, through Microsoft Graph or through IMAP, beside the Microsoft sign-in.
+
+- **The mail goes through the company's app, and the rest through the account** (`carrierOf`,
+  `PlanChoices`). *Connect your accounts* asks the app for the mail and the account's sign-in for
+  anything else ticked, as Google asks Gmail apart where the restricted scopes are not declared.
+  Only the mail moves because the account's other faces cannot run on application permissions
+  yet: they read `/me`.
+- **The app's row shows its tenant, client ID and secret.** The app is already the company's
+  answer, so the account form does not ask the company question again (`ORGANISATION_APP_CARDS`).
+- **A saved app is offered whichever way its mail is read:** `o365` is one kind for both cards.
+- **A No takes the choice back**, and the one sign-in carries everything again.
+- **Proved by** three cases in `StartMigration.unit.test.tsx` and two in
+  `start-plan.unit.test.ts`.
+
 **2026-10-04: the owner chose the recommendations for the wizard's four (open question 5).**
 *"go with the recommendations"*. The build, in this order, each its own pull request:
 

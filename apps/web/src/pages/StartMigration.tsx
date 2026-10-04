@@ -72,6 +72,8 @@ import {
   offers,
   photosThrough,
   type ConnectionNeed,
+  type MicrosoftMailThrough,
+  type PlanChoices,
   type PlannedMigration,
   type Route,
   type ServedFacts,
@@ -294,6 +296,9 @@ const StartMigration: React.FC = () => {
   const [nativeFormats, setNativeFormats] = React.useState<NativeFilePolicyByKind>(LEAVE_ALL_BEHIND);
   const [paperFormat, setPaperFormat] = React.useState<DropboxPaperPolicy>(SUGGESTED_PAPER_FORMAT);
   const [destination, setDestination] = React.useState<Partial<Record<DiscoveryDomain, string>>>({});
+  // A company's mail through its own app (`PlanChoices`, 0153 open question 5).
+  const [microsoftMail, setMicrosoftMail] = React.useState<MicrosoftMailThrough | undefined>(undefined);
+  const choices: PlanChoices = React.useMemo(() => (microsoftMail ? { microsoftMail } : {}), [microsoftMail]);
 
   const people: ReadonlyArray<Person> = (peopleQuery.data?.people ?? []).filter(
     (p) => !p.implicit && p.displayName !== null,
@@ -315,7 +320,7 @@ const StartMigration: React.FC = () => {
     who.personId === null ? who.name.trim() : (people.find((p) => p.id === who.personId)?.displayName ?? '');
   const accounts = useAccounts(personName);
   const needs: ReadonlyArray<ConnectionNeed> = providers.flatMap((provider) =>
-    connectionsFor(provider, movesFrom(provider), served),
+    connectionsFor(provider, movesFrom(provider), served, choices),
   );
   /** The source accounts chosen, per card; undefined until each is. */
   const sourceOf = (need: ConnectionNeed): Signed | undefined =>
@@ -541,6 +546,8 @@ const StartMigration: React.FC = () => {
               onNativeFormats={setNativeFormats}
               paperFormat={paperFormat}
               onPaperFormat={setPaperFormat}
+              microsoftMail={microsoftMail}
+              onMicrosoftMail={setMicrosoftMail}
               byHand={byHand}
             />
           )}
@@ -809,6 +816,9 @@ export const WhatStep: React.FC<{
   onNativeFormats: (next: NativeFilePolicyByKind) => void;
   paperFormat: DropboxPaperPolicy;
   onPaperFormat: (next: DropboxPaperPolicy) => void;
+  /** A company's mail through its own app, where its administrator chose that (0153 open question 5). */
+  microsoftMail?: MicrosoftMailThrough | undefined;
+  onMicrosoftMail?: (next: MicrosoftMailThrough | undefined) => void;
   byHand: string;
 }> = ({
   providers,
@@ -819,6 +829,8 @@ export const WhatStep: React.FC<{
   onNativeFormats,
   paperFormat,
   onPaperFormat,
+  microsoftMail,
+  onMicrosoftMail = () => undefined,
   byHand,
 }) => {
   const { t, locale } = useLocale();
@@ -851,7 +863,10 @@ export const WhatStep: React.FC<{
             <div className="mt-2 space-y-1">
               {offers(provider, served).map((type) => {
                 const on = moves.includes(type);
-                const experimental = sourceFaceIsExperimental(carrierOf(provider, type, served), type);
+                const experimental = sourceFaceIsExperimental(
+                  carrierOf(provider, type, served, microsoftMail ? { microsoftMail } : {}),
+                  type,
+                );
                 return (
                   <div key={type}>
                     <label className="flex min-h-[44px] cursor-pointer items-center gap-3">
@@ -882,6 +897,9 @@ export const WhatStep: React.FC<{
                       <div className="ml-8 mt-1 mb-3">
                         <PaperFormatChooser value={paperFormat} onChange={onPaperFormat} id="start-paper-format" />
                       </div>
+                    )}
+                    {on && type === 'email' && provider === 'microsoft' && (
+                      <MicrosoftMailChoice value={microsoftMail} onChange={onMicrosoftMail} />
                     )}
                   </div>
                 );
@@ -928,12 +946,89 @@ export const WhatStep: React.FC<{
   );
 };
 
-/** Saved accounts a card can sign in with: its own kind, never one whose grant was withdrawn. */
+/** The words for each way a company's mail can be read, in the order they are offered. */
+const MAIL_THROUGH: ReadonlyArray<{ readonly value: MicrosoftMailThrough | undefined; readonly key: StringKey }> = [
+  { value: undefined, key: 'start.what.orgApp.signIn' },
+  { value: 'graph', key: 'start.what.orgApp.graph' },
+  { value: 'oauth2', key: 'start.what.orgApp.imap' },
+];
+
+/**
+ * MAIL THROUGH A COMPANY'S OWN APP (0153 open question 5; the owner, 2026-10-04:
+ * *"go with the recommendations"*). Behind the company question, as Google's
+ * domain-wide key is in the account form: an administrator's own Entra app,
+ * with application permissions, reads the mail, through Microsoft Graph or
+ * through IMAP. It is the only way to a shared mailbox. The account's sign-in
+ * still carries whatever else was ticked, so a No changes nothing.
+ */
+export const MicrosoftMailChoice: React.FC<{
+  value: MicrosoftMailThrough | undefined;
+  onChange: (next: MicrosoftMailThrough | undefined) => void;
+}> = ({ value, onChange }) => {
+  const { t } = useLocale();
+  const [company, setCompany] = React.useState(value !== undefined);
+  const name = React.useId();
+  return (
+    <fieldset className="ml-8 mt-1 mb-3">
+      <legend className="text-sm text-gray-700">{t('start.company.question')}</legend>
+      <div className="mt-1 flex gap-6">
+        <label className="inline-flex min-h-[44px] items-center gap-2 text-sm text-gray-700">
+          <input
+            type="radio"
+            name={`${name}-company`}
+            checked={!company}
+            onChange={() => {
+              setCompany(false);
+              onChange(undefined);
+            }}
+          />
+          {t('start.company.no')}
+        </label>
+        <label className="inline-flex min-h-[44px] items-center gap-2 text-sm text-gray-700">
+          <input type="radio" name={`${name}-company`} checked={company} onChange={() => setCompany(true)} />
+          {t('start.company.yes')}
+        </label>
+      </div>
+      {company && (
+        <div className="mt-2">
+          <p className="text-sm text-gray-700">{t('start.what.orgApp.lead')}</p>
+          <div className="mt-1 space-y-1">
+            {MAIL_THROUGH.map((way) => (
+              <label key={way.key} className="flex min-h-[44px] cursor-pointer items-center gap-3">
+                <input
+                  type="radio"
+                  name={`${name}-through`}
+                  checked={value === way.value}
+                  onChange={() => onChange(way.value)}
+                  className="h-4 w-4"
+                />
+                <span className="text-sm text-gray-900">
+                  {t(way.key)}
+                  {way.value !== undefined && sourceCardIsExperimental(way.value) && <ExperimentalTag />}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+    </fieldset>
+  );
+};
+
+/**
+ * Saved accounts a card can sign in with: its own kind, never one whose grant
+ * was withdrawn. A company's own app is one kind (`o365`) whichever way its
+ * mail is read, so either of its cards offers it.
+ */
 export const savedSources = (
   saved: ReadonlyArray<ConnectionSummary>,
   card: string,
 ): ReadonlyArray<ConnectionSummary> =>
-  saved.filter((c) => c.role === 'source' && c.status !== 'revoked' && wizardTypeForConnectionKind(c.kind) === card);
+  saved.filter((c) => {
+    if (c.role !== 'source' || c.status === 'revoked') return false;
+    const kindCard = wizardTypeForConnectionKind(c.kind);
+    return kindCard === card || (card === 'oauth2' && kindCard === 'graph');
+  });
 
 /** Saved destinations that can take a data type (`destinationsFor`). */
 export const savedTargets = (

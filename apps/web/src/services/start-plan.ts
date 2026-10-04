@@ -12,7 +12,10 @@
  *   it cannot in a line of their own (T7 (e));
  * - **which card carries each type** (`carrierOf`), which is also whose
  *   verdict its *Experimental* tag reads (0131 D6): Google's mail through its
- *   `gmail` card is proven, and through the account it is not yet;
+ *   `gmail` card is proven, and through the account it is not yet. A company
+ *   may have Microsoft's mail read through its own app, with application
+ *   permissions (`PlanChoices`, 0153 open question 5): the `graph` or `oauth2`
+ *   card then carries the mail, and the account the rest;
  * - **where a provider's photos come from** (`photosThrough`): an export
  *   archive, never a sign-in, so *What moves?* says how and ticks nothing;
  * - **which accounts to connect for what was ticked** (`connectionsFor`): one
@@ -68,6 +71,19 @@ export interface ServedFacts {
   readonly googleClient?: 'deployment' | 'connection';
 }
 
+/**
+ * How a company's mail is read, where its administrator chose its own app
+ * (0153 open question 5): through Microsoft Graph or through IMAP, both with
+ * application permissions, which is also the only way to a shared mailbox.
+ */
+export type MicrosoftMailThrough = 'graph' | 'oauth2';
+
+/** What the person chose on *What moves?* that changes which card carries a type. */
+export interface PlanChoices {
+  /** Microsoft's mail through the organisation's own app, rather than the account's sign-in. */
+  readonly microsoftMail?: MicrosoftMailThrough;
+}
+
 const inOrder = (types: Iterable<DiscoveryDomain>): DiscoveryDomain[] => {
   const set = new Set(types);
   return TYPE_ORDER.filter((d) => set.has(d));
@@ -107,9 +123,16 @@ export function cannotGive(provider: StartProvider, served: ServedFacts = {}): D
 /**
  * The card that carries a type from a provider: its account, except Google's
  * mail and files where this deployment has not declared the restricted
- * scopes, which the `gmail` and `google-drive` cards carry (0106 T3b).
+ * scopes, which the `gmail` and `google-drive` cards carry (0106 T3b), and
+ * Microsoft's mail where a company chose its own app (`PlanChoices`).
  */
-export function carrierOf(provider: StartProvider, type: DiscoveryDomain, served: ServedFacts = {}): string {
+export function carrierOf(
+  provider: StartProvider,
+  type: DiscoveryDomain,
+  served: ServedFacts = {},
+  choices: PlanChoices = {},
+): string {
+  if (provider === 'microsoft' && type === 'email' && choices.microsoftMail) return choices.microsoftMail;
   if (provider !== 'google') return provider;
   if ((served.google ?? PROVIDER_ACCOUNT_DOMAINS.google).includes(type)) return 'google';
   return type === 'email' ? 'gmail' : 'google-drive';
@@ -168,18 +191,20 @@ export interface ConnectionNeed {
 /**
  * The sign-ins a provider's ticked types need, in the order they are asked:
  * one per card that carries them (`carrierOf`), so one per provider except
- * Google's mail and files where the restricted scopes are not declared. The
- * provider's own account comes first, and a card of its own after it. A
- * provider with nothing ticked needs nothing.
+ * Google's mail and files where the restricted scopes are not declared, and
+ * Microsoft's mail through a company's own app. The provider's own account
+ * comes first, and a card of its own after it. A provider with nothing ticked
+ * needs nothing.
  */
 export function connectionsFor(
   provider: StartProvider,
   ticked: ReadonlyArray<DiscoveryDomain>,
   served: ServedFacts = {},
+  choices: PlanChoices = {},
 ): ConnectionNeed[] {
   const needs = new Map<string, DiscoveryDomain[]>([[provider, []]]);
   for (const type of inOrder(ticked.filter((d) => offers(provider, served).includes(d)))) {
-    const card = carrierOf(provider, type, served);
+    const card = carrierOf(provider, type, served, choices);
     needs.set(card, [...(needs.get(card) ?? []), type]);
   }
   return [...needs].filter(([, types]) => types.length > 0).map(([card, types]) => ({ provider, card, types }));
