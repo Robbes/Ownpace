@@ -993,8 +993,13 @@ paths:
       tags: [Tenants]
       summary: Change a member's role
       description: |
-        Owner/admin only. Removing your own last owner role is refused — the
-        last owner cannot demote themselves out of the tenant.
+        Owner/admin only. Only an owner may make somebody an owner or change
+        an owner's role, an invitation as owner included; an admin gets `403`
+        (workplan 0137 T3). The last active owner cannot be demoted (`400`,
+        `Cannot demote the last owner`). Only active owners count: an
+        invitation as owner, or a declined one, is not a second owner. The
+        count and the change are one transaction with the owner rows locked,
+        so two owners demoting each other at once cannot both succeed.
 
         During the alpha the new role is `owner` or `admin` (workplan 0137
         T7); any other role sent as a string answers `400` with
@@ -1015,28 +1020,48 @@ paths:
           content:
             application/json:
               schema: { type: object }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409':
-          description: Refused — this change would leave the tenant without an owner.
+        '400':
+          description: |
+            Refused: this change would leave the tenant without an active owner
+            (`Cannot demote the last owner`), or the body is not valid.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: |
+            Not an owner or admin, or an admin granting the owner role or
+            changing an owner's role.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NotFound' }
     delete:
       tags: [Tenants]
-      summary: Remove a member
+      summary: Remove a member, or withdraw an invitation
+      description: |
+        Owner/admin only. Nobody removes themselves. Only an owner may remove
+        an owner, or withdraw an invitation as owner; an admin gets `403`
+        (workplan 0137 T3). The last active owner cannot be removed, and an
+        owner may still withdraw an invitation as owner or remove a declined
+        one. The guards, the removal and its `member.removed` audit record are
+        one transaction with the owner rows locked.
       responses:
-        '200': { description: Removed. }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409':
-          description: Refused — removing this member would leave the tenant without an owner.
+        '204': { description: Removed. }
+        '400':
+          description: |
+            Refused: `Cannot remove yourself from the tenant`, or
+            `Cannot remove the last owner`.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Not an owner or admin, or an admin removing an owner.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /api/tenants/{tenantId}/members/{memberId}/resend:
     parameters:

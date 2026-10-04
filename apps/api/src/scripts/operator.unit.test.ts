@@ -131,9 +131,11 @@ describe('the script still executes when executed', () => {
  * The owner pressed the enrolment button on their own deployment on 2026-09-01
  * and became the sole owner of an organisation, permanently: the product
  * refuses `Cannot remove yourself from the tenant`, and refuses again with
- * `Cannot remove the last owner`. Both are the right answer to a customer, and
- * neither had an answer for platform staff who had joined something to look at
- * it. "One button I clicked, in weird Dutch, makes me an owner for ever."
+ * `Cannot remove the last owner` (since 0137 T3 (c), anyone else is told
+ * `Only an owner can remove an owner` first). Both are the right answer to a
+ * customer, and neither had an answer for platform staff who had joined
+ * something to look at it. "One button I clicked, in weird Dutch, makes me an
+ * owner for ever."
  *
  * `leave` is that answer, and what is pinned here is that it stayed narrow.
  * The guards below are the whole of what makes a machine-level removal

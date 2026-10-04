@@ -4,6 +4,14 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04, latest: §8's admin clause now says less than the code does (0137 T3 (c)).** On
+branch `claude/ownpace-public-readiness-y7orc6-the-owner-guarded-on-every-door`, not merged, only
+an owner may change or remove an owner; an admin gets 403. §8 of `site/legal/alpha.md` and
+`alpha.nl.md` still ends the admin clause with *"and make somebody an owner"* / *"en iemand
+eigenaar maken"*, so it leaves that out. The clause is no wider than the code, only shorter. The
+words are the owner's, version 1.0, pinned in `ACCEPTED_WORDS`, so they change with the next
+version.
+
 **2026-10-04, later: the note half of ops-app-sentences (a) changes by the owner's welcome**
 (0131 D4's amendment), on the same branch, not merged. The Alpha note is now the owner's welcome
 and its two links. It carries no backup sentence. The reworded one-copy sentence stays word for
