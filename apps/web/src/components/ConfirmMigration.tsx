@@ -10,6 +10,7 @@ import ScopeManifestPanel from './confirm/ScopeManifestPanel.tsx';
 import { scopeFamilyOfConnectionKind, scopeManifestFor, timeBeforeStart, type DiscoveryDomain } from '@openmig/shared';
 import { TimeBeforeStartLine } from './TimeBeforeStartLine.tsx';
 import { CeilingAtStartNote, measuredBytes } from './CeilingAtStartNote.tsx';
+import { PathsAtStartNote } from './PathsAtStartNote.tsx';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { mappingApi, scopeManifestApi, type DiscoveryResponse } from '../services/mapping-service.ts';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
@@ -341,6 +342,9 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
   const count = useMigrationCount(mappingId);
   const { domains, stillCounting, countUnfinished } = count;
   const [refusedAcked, setRefusedAcked] = React.useState(false);
+  // Whether the question at Start stands (0109 T6, the path axis): the plain
+  // Start gives way to its two ways on, since the server would refuse it.
+  const [askingPaths, setAskingPaths] = React.useState(false);
 
   const manifest = useQuery({
     queryKey: ['scope-manifest'],
@@ -445,21 +449,35 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
 
       {/* The data ceiling, before the press (0109 T6): a note, never a block. */}
       {!stillCounting && <CeilingAtStartNote bytes={measuredBytes(domains)} />}
+      {/* More at the same time than the tier runs (0109 T6, the path axis):
+          move up and start, side by side with what fits now. */}
+      {!stillCounting && (
+        <PathsAtStartNote
+          mappingIds={[mappingId]}
+          disabled={startMutation.isPending || (needsAcknowledgement(domains) && !refusedAcked)}
+          onAsking={setAskingPaths}
+          onStart={(only) => {
+            if (only === undefined || only.includes(mappingId)) startMutation.mutate();
+          }}
+        />
+      )}
 
       <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => startMutation.mutate()}
-          // NOT A BLOCK — a tick-box one line up, and only when something is
-          // actually refused. A migration with nothing to warn about starts
-          // exactly as it did. The count, while it is coming, is the other
-          // wait: fifteen minutes at most.
-          disabled={startMutation.isPending || stillCounting || (needsAcknowledgement(domains) && !refusedAcked)}
-          aria-describedby={stillCounting ? startWaitsId : undefined}
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {startMutation.isPending ? t('confirm.starting') : t('confirm.start')}
-        </button>
+        {!askingPaths && (
+          <button
+            type="button"
+            onClick={() => startMutation.mutate()}
+            // NOT A BLOCK — a tick-box one line up, and only when something is
+            // actually refused. A migration with nothing to warn about starts
+            // exactly as it did. The count, while it is coming, is the other
+            // wait: fifteen minutes at most.
+            disabled={startMutation.isPending || stillCounting || (needsAcknowledgement(domains) && !refusedAcked)}
+            aria-describedby={stillCounting ? startWaitsId : undefined}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {startMutation.isPending ? t('confirm.starting') : t('confirm.start')}
+          </button>
+        )}
       </div>
     </div>
   );

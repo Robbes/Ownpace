@@ -449,8 +449,11 @@ what *Start* offers, and who enforces it:
   during the alpha.
 
 Built (0109 T6): the server's check (`path-ceiling.ts`, refused in `path-lifecycle-wiring.ts` as
-409 `paths_need_a_yes`) and the `axis` column. The question at *Start*, with prices, follows the
-2026-09-29 list's pull request.
+409 `paths_need_a_yes`), the `axis` column, and the question at *Start* (`GET /api/billing/paths`,
+`POST /api/billing/paths/yes`, `PathsAtStart.tsx`): what *Start* would take, by the server's own
+rule, and side by side, moving up at the new tier's monthly (asked once more with the money said,
+then everything starts) or starting what fits now. The plain *Start* gives way while the question
+stands; during the alpha it is a note.
 
 This replaces two passages of the Decision above: in *Downgrade is automatic; upgrade is
 consented*, the sentence beginning *"On the **data** axis the tier moves automatically"*; and in
@@ -667,7 +670,8 @@ rules above are the prices the site quotes, and nothing is charged during the Al
   force 2026-10-03*.
 - **2026-10-04** — The path axis: one agreed tier for both axes, both ways side by side at
   *Start*, enforced by the server (owner: *"A"*, *"side by side"*, *"Enforced by the server"*); the
-  data allowance stays cumulative. The server's check is built. Record: *Amendment 2026-10-03*.
+  data allowance stays cumulative. The server's check and the question at *Start* are built.
+  Record: *Amendment 2026-10-03*.
 
 The full record, word for word as it read before this consolidation:
 [history/0014-cost-recovery-billing.md](./history/0014-cost-recovery-billing.md).

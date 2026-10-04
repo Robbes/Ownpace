@@ -351,11 +351,16 @@ export class PgDataAllowanceStore {
     return rows;
   }
 
-  /** Record one yes. Append-only: the table refuses UPDATE and DELETE to the app. */
+  /**
+   * Record one yes. Append-only: the table refuses UPDATE and DELETE to the app.
+   * `axis` says which limit asked (managed 0039): the data ceiling, or the
+   * paths at *Start*. The tier agreed is one for both.
+   */
   async record(
     tenantId: TenantId,
     grant: AllowanceGrant & { readonly priceEur: number },
     consentedBy: string,
+    axis: 'data' | 'paths' = 'data',
   ): Promise<void> {
     await this.db.insert(dataAllowance).values({
       tenantId,
@@ -364,6 +369,7 @@ export class PgDataAllowanceStore {
       bandGb: grant.bandGb,
       priceEur: grant.priceEur,
       consentedBy,
+      axis,
     });
   }
 }
