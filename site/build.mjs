@@ -547,15 +547,22 @@ a.verdict { text-decoration: underline; text-decoration-thickness: 1px; }
 .calc label.opt { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.2rem 0; cursor: pointer; }
 .calc .hint { color: var(--muted); font-size: 0.9rem; margin: 0.5rem 0 0; }
 .calc .amounts { display: grid; gap: 0.5rem 1rem; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); margin-top: 0.75rem; }
-.calc .amount { display: flex; align-items: baseline; gap: 0.5rem; }
+.calc .amount { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.5rem; min-width: 0; }
+/* The label on its own line, and the item count wrapping under the box rather
+   than running into the next field (0152 T7 (c): at 1280 pixels Calendar's
+   "2,000 items" ran into Files). */
+.calc .amount label { flex-basis: 100%; }
 .calc .amount input { width: 6.5rem; padding: 0.35rem 0.5rem; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; }
 .calc .amount .items { color: var(--muted); font-size: 0.8rem; }
 .calc .amount[data-off] { opacity: 0.45; }
 #paths-line { font-weight: 600; margin: 1.5rem 0 0.5rem; }
 .axes { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); margin: 1rem 0; }
-.axis { border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.25rem; position: relative; }
+.axis { border: 1px solid var(--line); border-radius: 12px; padding: 2.4rem 1.25rem 1rem; position: relative; }
 .axis .val { font-size: 1.6rem; font-weight: 700; }
-.axis .decides { display: none; position: absolute; top: 0.75rem; right: 1rem;
+/* Above the heading, in room both cards reserve, so it never covers the heading
+   (at 390 pixels it covered "Migrations at the same time") and both cards keep
+   their headings on one line whichever one decides. */
+.axis .decides { display: none; position: absolute; top: 0.75rem; left: 1.25rem;
   background: var(--mint); color: #06201c; font-size: 0.68rem; font-weight: 700;
   letter-spacing: 0.05em; text-transform: uppercase; padding: 0.15rem 0.5rem; border-radius: 999px; }
 .axis[data-decides] .decides { display: inline-block; }
@@ -1055,7 +1062,6 @@ const CALC_GLUE = `
   var cfg = JSON.parse(document.getElementById('calc-config').textContent);
   var S = cfg.strings;
   function $(id) { return document.getElementById(id); }
-  function sizeOf(gb) { return gb >= 1000 ? (gb / 1000) + ' TB' : gb + ' GB'; }
   function radio(name) {
     var el = document.querySelector('input[name="' + name + '"]:checked');
     return el ? el.value : null;
@@ -1224,6 +1230,7 @@ function calculatorPage(locale) {
   </fieldset>
 </div>
 
+<div id="result" aria-live="polite">
 <p id="paths-line"></p>
 
 <div class="axes">
@@ -1246,6 +1253,7 @@ function calculatorPage(locale) {
   <p class="fine">${esc(COPY[locale].vatIncluded)}</p>
 </div>
 <p id="beyond-line" hidden>${esc(c.beyondLine)} <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
+</div>
 
 <p id="gmail-line" class="fine" hidden></p>
 <p id="topup-line" class="fine"></p>
