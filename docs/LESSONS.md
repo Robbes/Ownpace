@@ -474,6 +474,7 @@ reading a file drops off its entry by itself.
 - [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)).
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 - [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
+- [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
 
 ### `apps/web/src/pages/Billing.tsx`
 
@@ -2038,6 +2039,7 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/target-domains.ts`
 
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
+- [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
 
 ### `packages/shared/src/target-domains.unit.test.ts`
 
@@ -2296,10 +2298,20 @@ reading a file drops off its entry by itself.
 - [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
 - [the-test-site-sent-people-to-production](../scripts/the-test-site-sent-people-to-production.unit.test.ts) — THE TEST SITE HANDED VISITORS TO PRODUCTION.
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
+- [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
 
 ### `site/copy.mjs`
 
 - [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
+- [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
+
+### `site/destinations.mjs`
+
+- [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
+
+### `site/icons.mjs`
+
+- [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
 
 ### `site/legal/README.md`
 
@@ -5092,6 +5104,19 @@ Reads:
 - `deploy/compose/managed.yml`
 - `scripts/an-integration-test-is-handed-its-database.unit.test.ts`
 - `site/build.mjs`
+
+### [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts)
+
+WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
+
+Reads:
+
+- `apps/web/src/i18n/strings.ts`
+- `packages/shared/src/target-domains.ts`
+- `site/build.mjs`
+- `site/copy.mjs`
+- `site/destinations.mjs`
+- `site/icons.mjs`
 
 ### [workplan-index](../scripts/workplan-index.unit.test.ts)
 
