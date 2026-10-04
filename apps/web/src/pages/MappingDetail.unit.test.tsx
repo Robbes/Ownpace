@@ -454,7 +454,7 @@ describe('the schedule panel (the owner, 2026-09-28)', () => {
     editionFlag.selfhost = true;
     renderHub();
     expect(await screen.findByRole('heading', { name: 'Before you switch' })).toBeInTheDocument();
-    expect(screen.queryByText('Sync schedule')).toBeNull();
+    expect(screen.queryByText(STRINGS.en['settings.schedule'])).toBeNull();
     expect(mappingApiGet).not.toHaveBeenCalled();
   });
 });

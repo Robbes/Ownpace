@@ -24,6 +24,11 @@
  * asks for its field: refuse it in the table and this panel stops offering the
  * press and says why. A refusal from the route is shown as the refusal it is
  * (hard rule 9), never as a save that worked.
+ *
+ * FOLDED, IN A FAMILY'S WORDS (workplan 0153 T6 (b), approved by the owner on
+ * 2026-09-28): *How often to look for changes*, where it said *Sync schedule*.
+ * Closed, the fold still says the cadence in force, in the chooser's own words,
+ * so nobody opens it to find out how often a migration runs.
  */
 import React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -33,7 +38,10 @@ import { mappingApi } from '../services/mapping-service.ts';
 import { revisionRefusals, serverMessage } from '../services/api.ts';
 import { useT } from '../i18n/index.tsx';
 import { Hint } from './Hint.tsx';
-import { ScheduleChooser, isSchedulePreset } from './ScheduleChooser.tsx';
+import { SCHEDULE_PRESETS, ScheduleChooser, isSchedulePreset } from './ScheduleChooser.tsx';
+
+/** The tick's default for a migration with no schedule (`DEFAULT_SYNC_SCHEDULE`). */
+const QUARTER_HOURLY = '*/15 * * * *';
 
 const SchedulePanel: React.FC<{
   mappingId: string;
@@ -56,6 +64,10 @@ const SchedulePanel: React.FC<{
   const changed = chosen !== undefined && chosen !== current;
 
   const verdict = mayRevise('schedule');
+  // What runs now, in the chooser's words: every 15 minutes for a migration
+  // with no schedule of its own (the tick's default), and nothing for one that
+  // holds a cadence the chooser does not offer, which the line inside says.
+  const inForce = SCHEDULE_PRESETS.find((preset) => preset.value === (current ?? QUARTER_HOURLY));
 
   const save = async () => {
     if (chosen === undefined) return;
@@ -81,11 +93,14 @@ const SchedulePanel: React.FC<{
   };
 
   return (
-    <section className="mt-8 p-4 bg-white border border-gray-200 rounded-lg">
-      <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-        <Clock className="w-4 h-4 text-gray-500" />
+    <details className="mt-8 p-4 bg-white border border-gray-200 rounded-lg">
+      {/* A plain summary, as the app's other folds have, so it keeps the
+          browser's disclosure triangle and reads as something that opens. */}
+      <summary className="cursor-pointer select-none text-sm font-semibold text-gray-900">
+        <Clock className="inline w-4 h-4 mr-1.5 align-text-bottom text-gray-500" />
         {t('settings.schedule')}
-      </h3>
+        {inForce && <span className="font-normal text-gray-600"> · {t(inForce.labelKey)}</span>}
+      </summary>
       {verdict.allowed ? (
         <>
           {!isSchedulePreset(current) && (
@@ -134,7 +149,7 @@ const SchedulePanel: React.FC<{
           {t('settings.schedule.failed')} {failed}
         </p>
       )}
-    </section>
+    </details>
   );
 };
 

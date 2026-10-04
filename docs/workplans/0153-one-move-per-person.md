@@ -4,6 +4,21 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04: T6 (b)'s schedule is folded, in the owner's words.** On a migration's page,
+*Sync schedule* / *Synchronisatieschema* is now a fold, closed, headed *How often to look for
+changes* / *Hoe vaak naar wijzigingen kijken*, as approved on 2026-09-28.
+
+- **Closed, it says the cadence in force** in the chooser's own words: *How often to look for
+  changes · Hourly*, and *Every 15 minutes* for a migration with no schedule of its own. A
+  cadence the chooser does not offer, which only the API sets, is said inside, as before.
+- **The summary is plain,** as the app's other folds are, so it keeps the browser's disclosure
+  triangle and reads as something that opens.
+- **With it, every word in T6 (b)'s table is in the product,** except the wizard's own step
+  names, which go when the wizard retires (D5). The glossary has the row.
+- **Proved by** `a-cadence-with-nowhere-to-change-it` (three new cases, one in Dutch). Five
+  mutations are caught: open by default, no cadence on the fold, no default cadence, the old
+  words, and a section instead of a fold.
+
 **2026-10-04: T3 and T5 are built in full, and T4 and T1 (c) wait only for the wizard to retire.**
 Read against the code with 0154's last part in (#1445, on which this lands).
 
@@ -880,7 +895,7 @@ person, and a flow that fills it.
 | T3 The Migrations page lists people | ✅ **Built: the page lists people (#1341); it is the landing page, the Dashboard is gone, and the menu is the drawing's (#1343); the menu counts beside *Needs you* what waits (#1346); each row's stage and line come from the progress read (0154 T1 (b) and (d), #1422)** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
 | T4 *Start a migration*: who, from where, what, to where | 🟡 **Built (#1372, #1378), with *Someone else* by a grant link (#1386), one per person since T5 (b); screen 6 says how long (0154 T3 (a)). Waiting: the wizard retires once the reachability test passes through the flow (D5), after the owner's four questions. Before the first invitation** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
 | T5 A page per person | ✅ **Built: the person, their migrations, their rows and their steps (#1353, with 0154 T1, T2 and T4); one link per person, in T5 (b)'s four slices (#1394, #1396, #1401, #1408), with *Report this link* (#1402), asking again (#1407), start when granted (#1409), and what waits for their grant (#1413)** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
-| T6 Words a family reads | 🟡 **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, before the first invitation. The Dutch says *migratie* everywhere the product speaks, with two guards (#1342). (c)'s two guards built (#1347)** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |
+| T6 Words a family reads | 🟡 **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, the schedule folded last; the wizard's own step names go when it retires (D5). The Dutch says *migratie* everywhere the product speaks, with two guards (#1342). (c)'s two guards built (#1347)** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |
 | T7 Defaults a family can pass | ✅ **(a) to (f) built inside T4 (#1378); the wizard's progress line too (#1383)** | §3. Buttons that look like buttons, with the reason in text. A Soverin sign-in in two visible fields. A Nextcloud address, not a DAV URL. Business-only fields only on the business path. The limit blamed on the side that has it. Tiles and icons: `tiles.svg`, `icons.svg`. |
 | T8 The appliance shows its person's page | ✅ **Built: its landing once every migration has started, Review & confirm until then; the page's rows from `/status`; *Migrations* first in its menu** | §3. The same page, fed by the appliance's one implicit grouping. No list or create screen (0034 stands). |
 
