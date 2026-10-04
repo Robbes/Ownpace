@@ -2,7 +2,13 @@
 
 > **In one line:** Self-service help beyond the in-app setup guides: a help section on `www.ownpace.eu` rendered by `site/build.mjs` from the same `docs/guides` markdown `Docs.tsx` serves, FAQ and troubleshooting pages fed by support reports, and later Zammad's Knowledge Base for broad articles.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-10-04 (update this block at the end of every session)
+
+**2026-10-04: the guides answer everybody on managed** (0152; the owner: *"Guide links on the
+Leaving pages: yes, make public"*). Without a session, `/docs` and `/docs/<guide>` draw the guide
+in the front door's look (`PublicDocs`, chosen by `GuidesForEverybody` in `AppRoutes.tsx`), so
+the site's Leaving pages link a section with no *sign in first*. *Who can reach them* below is as
+of 2026-09-28. The rest of this plan stays parked.
 
 **2026-09-28: opened from the owner's question, and parked whole at the owner's word.** The
 owner asked: *"Also reason on Zammad: can it evanually offer a complete self-service-portal for
@@ -90,7 +96,8 @@ Every file and line below was read on `main` at `93958ac3` on 2026-09-28.
   (`/login`, `/auth/callback`) and the 404 page (:140-190, :507). None of them links a guide. The
   person who follows a grant link *"will never have an Ownpace account"* (the route's comment), so
   they cannot open one. On the appliance, `ProtectedRoute` lets everything through: it is
-  *"single-user, bound to localhost"* (:85).
+  *"single-user, bound to localhost"* (:85). *(As of 2026-09-28. Since 2026-10-04 the guides
+  answer a visitor without a session too, see the Status above.)*
 - **The appliance.** It runs its own build of the same app, in selfhost mode
   (`apps/web/src/appliance-bundle.unit.test.ts`:49-72), which inlines the same guides, so it reads
   them with no network. Its `/docs` index adds one line to the operator documents on GitHub

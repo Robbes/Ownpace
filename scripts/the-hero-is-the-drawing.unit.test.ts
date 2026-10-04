@@ -50,7 +50,8 @@ type Copy = Record<
   'en' | 'nl',
   {
     hero: HeroWords;
-    facts: Array<[string, string]>;
+    /** A fact that is a claim links its proof: its words are a function of the links (0152 T8). */
+    facts: Array<[string | ((links: Record<string, string>) => string), string]>;
     strip: { steps: Array<[string, string]>; more: string };
     dataTypes: Record<string, string>;
     leaving: { photos: string };
@@ -118,6 +119,7 @@ describe('the hero is the drawing (0152 T3)', () => {
       'build.mjs',
     );
     const COPY = (await site<{ COPY: Copy }>('copy.mjs')).COPY;
+    const { PROOF_LINKS } = await site<{ PROOF_LINKS: Record<string, string> }>('proof.mjs');
     for (const [locale, file] of [
       ['en', 'index.html'],
       ['nl', 'nl/index.html'],
@@ -137,7 +139,8 @@ describe('the hero is the drawing (0152 T3)', () => {
 
       const after = html.slice(html.indexOf('</section>'));
       let at = 0;
-      for (const [h, p] of c.facts) {
+      for (const [words, p] of c.facts) {
+        const h = typeof words === 'function' ? words(PROOF_LINKS) : words;
         const found = after.indexOf(`<h3>${h}</h3><p>${p}</p>`, at);
         expect(found, `${file}: the fact "${h}" is missing or out of order`).toBeGreaterThan(at - 1);
         at = found;

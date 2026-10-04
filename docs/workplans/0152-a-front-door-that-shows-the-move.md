@@ -4,6 +4,85 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04, night: T8 (a) and (b) are built** (R8 step 12). The site's claims link what holds
+them, in the public repository:
+- the footer's *Open source* links the repository, and *Run it yourself* the self-host quickstart;
+- the hero's fact *Nothing is deleted at the source* (T3) and *the software has no way to delete
+  from a source* link `a-source-that-only-reads`, the guard that counts every source connector's
+  methods;
+- *Whatever cannot be moved* links the scope manifest;
+- *open source* in *European, all the way down* links the repository.
+
+`site/proof.mjs` names the files once.
+- **Guard:** `scripts/claims-you-can-check.unit.test.ts`:
+  - every link to a file in the repository names a file in the tree;
+  - each claim links its own proof in both languages, every page's footer included;
+  - the repository is the one the README clones.
+
+  Mutations caught: the guard renamed, the Dutch claim unlinked.
+- **Not built:** (c), the company in the footer, waits for 0139.
+- **T0:** no new words; four phrases and the footer's two became links.
+
+**2026-10-04, night: the guides are public** (the owner: *"Guide links on the Leaving pages: yes,
+make public"*). Each Leaving page links a guide section per limit, such as `/docs/google#gmail`,
+and the app sent a visitor without an account to its sign-in page instead.
+- **`/docs` and `/docs/<guide>` open for everybody on managed.** With a session nothing changes:
+  the guide is inside the app's layout. Without one, the same guide is drawn in the front door's
+  look (T9), as `/login` draws it: *← ownpace.eu*, the site's mark, the language switch, and
+  under the guide the request page's *Already have an account? Sign in* and the build stamp
+  (`PublicDocs.tsx`). Every other page still sends a visitor without a session to sign in. The
+  appliance has nobody to sign in, and is unchanged.
+- **One reading of "signed in"** (`stores/signed-in.ts`). The route table's redirect, the guides'
+  frame and the guide page all read it.
+- **Without a session the guide asks the API nothing.** The app's client takes a 401 for a dead
+  session and sends the browser to the sign-in page, which is the bounce this removes. So the
+  own-app section stays open, as it does where the answer never comes.
+- **The guide opens in the page's language.** Each guide link carries the Leaving page's
+  `?locale=`, as the Request access link does, and `PublicDocs` takes it once, before the first
+  paint, so a reader of the Dutch page whose browser is set to English reads the Dutch guide.
+- **Not shown to a visitor:** the alpha note, since which line a visitor who was not invited reads
+  is open question 5.
+- **Guards:**
+  - `apps/web/src/pages/a-guide-you-can-read-before-you-sign-in.unit.test.tsx`, over the real
+    route table: every guide section a Leaving page links (read off `site/sources.mjs`) opens on
+    its section without a session, in the front door's look and at the address asked for, and
+    nothing goes through the app's clients; the Dutch guide leads back to the Dutch site;
+    `?locale=nl` opens the Dutch guide for an English browser, and an unknown value nothing; a link
+    to another guide stays in the frame and starts at the top; with a session, the layout's menu
+    and the deployment's facts, as before; every other page still leads to sign-in; the
+    appliance keeps its layout.
+  - `test/ui/managed-ui.ui.test.ts`, in the shipped bundle: `/docs/google#gmail` without a
+    session, with the guide's one read answering 401, stays on its section in the site's teal and
+    asks the API only for the build stamp.
+  - `Docs.unit.test.tsx` signs its reader in, and reads the page without a session once.
+  - `scripts/leaving-pages-say-what-the-app-says.unit.test.ts` (7.): each built Leaving page links
+    its guide sections in its own language.
+  - `a-version-you-can-see-before-you-sign-in` now finds `PublicDocs` outside the layout, and
+    holds it to its build stamp.
+
+  Mutations caught: the guide asking without a session (in the browser it lands on `/login`), the
+  guides sent to sign in again, the appliance taken for signed out, a link to another guide that
+  kept the old scroll, and `?locale=` left unread.
+- **T0:** the label's new words, *In the guide* / *In de handleiding*, without *(sign in first)* /
+  *(eerst aanmelden)*.
+**2026-10-04, night: T7 (a)'s form half is built.** The request form reads the answers the site
+already has: `?from=`, `?what=` and `?who=`, each matched against its list as `?tier=` is.
+*What are you moving?* arrives with one sentence built from them, in the language the site asked
+for: *"Moving away from Google: email, calendar, contacts, and files, for one person."*
+- **Nothing new is stored.** It is the note, which the person edits like anything they type. An
+  unknown value is left out, and with nothing known there is no sentence.
+- **Several sources, and Tasks** (the owner, 2026-10-04): `?from=` may be a list, as the estimate
+  now ticks several, and the sentence names each: *"Moving away from Google and Dropbox: email,
+  tasks, and files, for one person."* Tasks is one of the data types, in the app's word for it.
+- **The site half is #1489:** the estimate's *Request access* and each *Leaving…* page carry
+  their answers; T7's row turns ✅ with it.
+- **Guard:** `RequestAccess.unit.test.tsx`:
+  - the form arrives with the sentence, and sends what the person leaves in the field;
+  - it says it in Dutch when the site asks for Dutch, before the page switches;
+  - it names every known source in a list, once, and tasks as the app names them;
+  - an unknown value is left out, and nothing known means no sentence.
+- **T0:** the sentence's words, in both languages.
+
 **2026-10-04, night: T3 is built** (R8 step 10, after T5). The home page's hero shows the move:
 - **The picture** is `hero-move.svg`, inlined by `site/hero.mjs`: the old account, Ownpace
   copying and then keeping in step, the new home. Its data types are the app's words, the rest
@@ -160,9 +239,9 @@ and *Leaving another mail provider*, *Weg bij …* in Dutch. Each has the plan's
   - Dropbox's estimate lands on Free, as its page says;
   - a value the estimate does not offer changes nothing.
 - **Not built:** (a) 5's *Request access* carrying the source waits for T7 (a), since the request
-  has no place for it yet. (c) waits for the site's own address. The guide links lead a visitor
-  without an account to the app's sign-in. They say so (*sign in first*); 0151's help section is
-  where they should point (T5 (d)).
+  has no place for it yet. (c) waits for the site's own address. The guide links open the app's
+  guide sections, which a visitor without an account can read since *the guides are public*
+  (above); 0151's help section is where they should point once it exists (T5 (d)).
 - **T0:** every sentence on the six pages, and *Leaving…* / *Weg bij…*, in both languages, are new
   words for the owner's reading.
 
@@ -423,7 +502,7 @@ together, from one audit of the site and the app on `main` at `83eb73e` (§1).
 | T5 A page per provider a person leaves | 🟡 **(a) and (b) built 2026-10-04; (a) 5's source waits for T7 (a), (c) for the site's address; its words wait for T0** | §3. *Leaving Google*, *Leaving Microsoft 365*, *Leaving iCloud*, *Leaving Dropbox*, *Leaving Box*, *Leaving another mail provider*: what moves, the limits, what the person does, the destinations it can go to, a typical cost. Built from copies of the app's own verdicts, each guarded. |
 | T6 Pricing that reads in one pass | 🟡 **(a) done: the sentence by #1317, its guard beside D6's. (c) built 2026-10-04, with T2 (#1471). (d) built 2026-10-03, with (g)'s principle on the page. (b) and (e) built 2026-10-04. (f)'s words on the page and in the terms built 2026-10-04, its withdrawal button not. The rest proposed, before the first invitation (D5)** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) The withdrawal button, and the year's end (D11, amended 2026-10-04). (g) The principle, the price that pays for the work (D12). |
 | T7 A calculator that ends in a button | 🟡 **(c), (d) and (e) built 2026-10-04; (a) and (b) proposed, before the first invitation** | §3. (a) *Request access* carries the answers along. (b) *Until when?* says which payment suits it. (c) The layout faults and a live region. (d) Box as a source. (e) Several sources at once, and Tasks. |
-| T8 Claims you can check | 📋 **Proposed; before the first invitation (D5)** | §3. "Open source" links the repository. Each proof point links the guard that holds it. The footer names the company once 0139 publishes it; until then that line is the one part that waits. |
+| T8 Claims you can check | 🟡 **(a) and (b) built 2026-10-04; (c) waits for 0139's company details** | §3. "Open source" links the repository. Each proof point links the guard that holds it. The footer names the company once 0139 publishes it; until then that line is the one part that waits. |
 | T9 One look from the site to the app | ✅ **Built 2026-10-04** | §3. `/request-access` and `/login` take the site's palette and logo, and link back to the site. The identity provider's own branding stays 0135 T6. |
 
 ## 1. What there is today

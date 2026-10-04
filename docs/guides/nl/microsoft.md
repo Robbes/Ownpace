@@ -6,7 +6,7 @@ De kaart **Microsoft 365 account** meldt zich aan met een **appregistratie in Mi
 
 ## Wat u nodig hebt {#before}
 
-- Het Microsoft-account waarvan de gegevens verhuizen, en de aanmelding ervan: een werk- of schoolaccount, of een persoonlijk Microsoft-account.
+- Het Microsoft-account waarvan u de gegevens migreert, en de aanmelding ervan: een werk- of schoolaccount, of een persoonlijk Microsoft-account.
 - Als uw organisatie wil dat een beheerder apps goedkeurt: die beheerder. De toestemming zegt het als dat nodig is; zie [Als de test iets meldt](#when-test-says).
 - Voor de kaarten **Via IMAP** en **Via de Graph-API**: een appregistratie in uw eigen tenant, met toestemming van een beheerder. Zie [de registratie die ze nodig hebben](#application).
 

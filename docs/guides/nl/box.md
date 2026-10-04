@@ -38,15 +38,15 @@ De derde waarde is het **numerieke** gebruikers-ID van het account dat u migreer
 
 Vink bij **Welk account verlaat u?** **Box** aan. Bij **Uw accounts verbinden** vraagt het formulier alles: het adres van het account onder **Gebruikersnaam**, het getal uit stap 3 onder **Box-gebruikers-ID (numeriek)**, en de twee waarden uit stap 1 onder **Client-ID (applicatie-ID)** en **Clientgeheim**; het geheim wordt versleuteld bewaard. **Aanmelding controleren** haalt één keer een lijst op, alleen lezend, via precies wat een ronde zou opbouwen.
 
-Wilt u één map verhuizen in plaats van het hele account, kies dan **Alleen één map**, onder **Bestanden** bij **Wat wilt u migreren?**. Is het account verbonden, plak dan het adres van de map uit Box: het getal aan het eind is de map-ID. De mappen van Box worden daar niet opgesomd.
+Wilt u één map migreren in plaats van het hele account, kies dan **Alleen één map**, onder **Bestanden** bij **Wat wilt u migreren?**. Is het account verbonden, plak dan het adres van de map uit Box: het getal aan het eind is de map-ID. De mappen van Box worden daar niet opgesomd.
 
 Op de pagina **Accounts** heeft het formulier van Box ook een veld **ID van de hoofdmap**. Laat u het leeg, dan betekent dat `0`: de hoofdmap van het account ("All Files"); een map-ID beperkt elke migratie van dat account tot die map.
 
-Een map waarvoor het account is uitgenodigd (een **gedeelde samenwerkingsmap**) staat in de eigen boom van het account en verhuist als gewone inhoud; laat een aparte migratie bij de map-ID beginnen om alleen die map te migreren.
+Een map waarvoor het account is uitgenodigd (een **gedeelde samenwerkingsmap**) staat in de eigen boom van het account en gaat mee als gewone inhoud; laat een aparte migratie bij de map-ID beginnen om alleen die map te migreren.
 
 ## Wat er meegaat {#what-moves}
 
-De inhoud van de bestanden, precies en met een sha1-controle, en de mappenboom verhuizen. De deelinstellingen (met wie iets gedeeld is), samenwerkingen, opmerkingen, taken, de weergave van Box Notes, de versiegeschiedenis en **weblinks** (bladwijzers: verwijzingen, geen bestanden) blijven achter.
+De inhoud van de bestanden, precies en met een sha1-controle, en de mappenboom gaan mee. De deelinstellingen (met wie iets gedeeld is), samenwerkingen, opmerkingen, taken, de weergave van Box Notes, de versiegeschiedenis en **weblinks** (bladwijzers: verwijzingen, geen bestanden) blijven achter.
 
 ### De prullenbak, en waarom die ertoe doet {#trash}
 
