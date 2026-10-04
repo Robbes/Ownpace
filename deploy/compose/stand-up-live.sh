@@ -68,7 +68,9 @@
 #       needs no entry); WEB_URL
 #       or CORS_ORIGIN not https://app.ownpace.eu; the identity provider not
 #       at id.ownpace.eu on 443, secure, TLS ended in front; NODE_ENV not
-#       production; TRUST_PROXY not 2 or 3, the proxies in front of the api
+#       production (T4); ALERT_ENABLED not exactly true (testers are on live,
+#       so it is not stood up without alerts: workplan 0142 T0, the owner,
+#       2026-10-04); TRUST_PROXY not 2 or 3, the proxies in front of the api
 #       (NetBird's and the web container's nginx, so the api's log names the
 #       visitor, and 3 where NetBird's cluster adds one: T3 (d); more believes
 #       the caller's own header); BACKUP_RETENTION_DAYS empty, 0 or not a whole
@@ -537,22 +539,7 @@ keys_ending() {
   sed -n "s/^\\(export[[:space:]][[:space:]]*\\)\\{0,1\\}\\([A-Za-z_][A-Za-z0-9_]*${2}\\)=.*/\\2/p" "$1" | sort -u
 }
 
-# unread_keys <env-file> — each line that sets a key in a form env_value does
-# not read and Compose does: indented, a space before '=', or YAML's ':' for
-# '=' (compose-go's dotenv takes all three, and bash the indented one). As
-# <line>:<key>, one per line. Only the key's name is taken from the line, never
-# its value: the awk test stack_may_be_live makes for the marker, for every key.
-unread_keys() {
-  [ -f "$1" ] || return 0
-  awk '
-    /^(export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=/ { next }
-    match($0, /^[[:space:]]*(export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*[[:space:]]*[=:]/) {
-      key = substr($0, 1, RLENGTH)
-      sub(/^[[:space:]]*(export[[:space:]]+)?/, "", key)
-      sub(/[[:space:]]*[=:]$/, "", key)
-      print NR ":" key
-    }' "$1"
-}
+# unread_keys <env-file>: in env-read.sh, which deploy-live.sh sources too.
 
 # check_settings <problems-array> — every setting of live's .env that is wrong
 # for live, by its key.
@@ -645,7 +632,16 @@ check_settings() {
   [ "$(env_value "$ENV_FILE" ZITADEL_TLS_MODE)" = external ] ||
     _p+=("ZITADEL_TLS_MODE: not external: TLS ends in front of the provider (T1b step 4).")
   [ "$(env_value "$ENV_FILE" NODE_ENV)" = production ] ||
-    _p+=("NODE_ENV: not production (T4).")
+    _p+=("NODE_ENV: not production. Live runs production; managed.yml takes no default (T4).")
+  # Alerts on from the first bring-up (0142 T0; the owner, 2026-10-04:
+  # "Refuse to deploy"). Testers are on live, so it is not stood up without
+  # them. Exactly true: env_value keeps double quotes, as for SMTP_* below,
+  # so "true" in them is refused too, and so are True and 1: one spelling,
+  # the one the guide and the example give. With alerts on, a row that
+  # stays red for three minutes during the bring-up mails the owner: that is
+  # expected, and shows mail arrives.
+  [ "$(env_value "$ENV_FILE" ALERT_ENABLED)" = true ] ||
+    _p+=("ALERT_ENABLED: not true. Testers are on live, so it is not stood up without alerts. Set ALERT_ENABLED=true in live's .env (workplan 0142 T0), and send the test alert T0 asks for once live stands.")
   # The visitor's address in the api's log and its per-caller limit (the
   # owner, 2026-09-28, ops-trust-proxy (b); privacy §4.5; T3 (d)). Two proxies
   # stand in front of live's api: NetBird's, which sets X-Forwarded-For to the
@@ -1326,7 +1322,14 @@ owner_steps() {
      line of the api's, the web's and the site's log, read apart (the
      bring-up guide, "After the script", step 6; workplan 0132 T3 (d)).
      Paste those lines nowhere public.
-  7. Write the date, the tag and each check's outcome, never a value, in
+  7. Send the test alert (workplan 0142 T0 step 2): from ~/${LIVE_PROJECT},
+       docker compose -f deploy/compose/managed.yml stop web
+     wait four minutes, then
+       docker compose -f deploy/compose/managed.yml start web
+     The rows that read the public address each mail you an alert, then a
+     recovery; the Identity provider row stays quiet. Write the date and the
+     outcome in workplan 0142's Status block.
+  8. Write the date, the tag and each check's outcome, never a value, in
      workplan 0132's Status block (T0 step 6).
 EOF
 }
