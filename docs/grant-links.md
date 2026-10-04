@@ -89,7 +89,7 @@ gives each migration's reason, once each, and each names what to fix:
 ### How many at once
 
 On the managed service, an organisation may hold as many grant links that can still be used as
-its tier runs migrations at the same time: Tiny 1, Small 4, Medium 20, Large 50, Extra large
+its tier runs migrations at the same time: Free 1, Small 4, Medium 20, Large 50, Extra large
 200. The tier is the one your usage screen shows, so an organisation running more migrations
 gets more links as it grows. Only live links count: a link that was used, revoked or has expired
 does not, and a progress link never does, since it grants nothing. A person's link counts once,

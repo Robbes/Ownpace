@@ -4,6 +4,19 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04: the list of 2026-09-29 reaches the data ceiling** (with #1435, 0152 T6 (d)). A move
+up is agreed at the new tier's monthly price, with nothing once, since there is no setup fee; a
+top-up costs the tier's monthly once (the owner's answer (b)); Free replaces Tiny and has no top-up
+(`no_top_up_on_free`). On Small the break-even reads €5 once against €7 a month saved, about 22
+days. `data_allowance.price_eur` stays whole euros, a move up's monthly or a top-up's price once;
+no row predates this, since no yes is taken during the alpha. A pause written before still reads,
+and its `setupEur` is not read.
+
+- **Guards:** `data-ceiling.unit.test.ts` (every monthly whole euros; a move up has nothing once; the
+  top-up never pays back at once); `a-yes-before-the-ceiling-moves.unit.test.ts` (Medium agreed at
+  €12; Free refused as a row by either name); `DataCeiling.unit.test.tsx` (the move up is sent at
+  the monthly it showed); `a-pause-the-customer-can-read.unit.test.ts` (an older pause still reads).
+
 **2026-10-04: the path axis's server check is built** (the owner, 2026-10-04: one agreed tier for
 both axes, *"A"*; both ways side by side at *Start*; *"Enforced by the server"*; the data
 allowance stays cumulative). A start that takes slots past the agreed tier's paths at the same

@@ -222,7 +222,7 @@ describe('a grant lands on a migration of a person whose move was started', () =
 
   it('past the agreed tier, leaves it a draft and throws nothing: the owner is asked at Start (0109 T6)', async () => {
     // Without the room this file's setup agreed to, Anna's three slots are
-    // past Tiny's one already, and the draft would add a fourth.
+    // past Free's one already, and the draft would add a fourth.
     await q('DELETE FROM data_allowance WHERE tenant_id = $1', [TENANT]);
     try {
       expect(await startWhenGranted(driver, { tenantId: TENANT, mappingIds: [DRAFT] })).toEqual([]);

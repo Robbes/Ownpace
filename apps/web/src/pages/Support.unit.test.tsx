@@ -501,8 +501,8 @@ describe('the package the month has earned so far (0109 T4, surfaced)', () => {
       name: 'Small',
       paths: 4,
       data_gb: 750,
-      setup: 8,
-      monthly: 4,
+      monthly_cents: 500,
+      annual_cents: 3000,
     },
     decided_by: 'paths',
     evidence: { peak_paths: 3, gb_moved: 100 },
@@ -546,7 +546,7 @@ describe('the package the month has earned so far (0109 T4, surfaced)', () => {
   it('says a quiet month plainly rather than rendering a bare zero', async () => {
     const { container } = mountWithUsage({
       ...USAGE,
-      tier: { id: 'tiny', name: 'Tiny', paths: 1, data_gb: 250, setup: 0, monthly: 0 },
+      tier: { id: 'free', name: 'Free', paths: 1, data_gb: 250, monthly_cents: 0, annual_cents: 0 },
       decided_by: 'both',
       evidence: { peak_paths: 0, gb_moved: 0 },
       recorded_peak_paths: 0,
@@ -555,9 +555,9 @@ describe('the package the month has earned so far (0109 T4, surfaced)', () => {
       paths_by_state: {},
     });
     expect(await screen.findByText(STRINGS.en['support.usage.noPeak'])).toBeInTheDocument();
-    // Tiny is free (ADR-0014, 2026-09-24): the operator reads "free", which is
+    // Free is free (ADR-0014, 2026-09-24): the operator reads "free", which is
     // what they quote to the customer, not "€0.00 per month".
-    expect(container.textContent).toContain(`Tiny · ${STRINGS.en['support.usage.free']}`);
+    expect(container.textContent).toContain(`Free · ${STRINGS.en['support.usage.free']}`);
     expect(container.textContent).not.toContain(STRINGS.en['support.usage.perMonth']);
   });
 

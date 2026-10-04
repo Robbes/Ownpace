@@ -59,12 +59,7 @@ export const CeilingAtStart: React.FC<{ bytes: number }> = ({ bytes }) => {
       {c.holds ? (
         <p>
           {t('ceiling.atStart.holds')}{' '}
-          {c.moveUp &&
-            t('pause.dataCeiling.moveUp', {
-              tier: c.moveUp.name,
-              setup: number(c.moveUp.setupEur),
-              monthly: number(c.moveUp.monthlyEur),
-            })}{' '}
+          {c.moveUp && t('pause.dataCeiling.moveUp', { tier: c.moveUp.name, monthly: number(c.moveUp.monthlyEur) })}{' '}
           {c.topUp && t('pause.dataCeiling.topUp', { band: size(c.topUp.bandGb), price: number(c.topUp.priceEur) })}{' '}
           {t('ceiling.atStart.choose')}{' '}
           <Link to="/billing" className="underline font-medium">

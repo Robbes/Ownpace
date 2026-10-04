@@ -57,7 +57,7 @@ afterAll(async () => {
 });
 
 describe('operator.sh links, on a real database', () => {
-  it('shows an organisation that has run nothing on Tiny, and writes nothing', async () => {
+  it('shows an organisation that has run nothing on Free, and writes nothing', async () => {
     const got = await runLinksCommand(pool, { kind: 'show', tenantId: TENANT }, BY, NOW);
 
     expect(got).toMatchObject({ name: 'Example Works BV', live: 0, limit: { limit: 1, from: { kind: 'tier' } } });

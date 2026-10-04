@@ -88,7 +88,7 @@ describe('what it prints', () => {
       ...base,
       live: 1,
       limit: { limit: 30, from: { kind: 'override', until } },
-      tierLimit: { limit: 1, from: { kind: 'tier', tier: tier('tiny') } },
+      tierLimit: { limit: 1, from: { kind: 'tier', tier: tier('free') } },
       allowance: {
         liveLinks: 30,
         until,
@@ -106,7 +106,7 @@ describe('what it prints', () => {
   });
 
   it('says so when an override has ended', () => {
-    const tiny = { limit: 1, from: { kind: 'tier', tier: tier('tiny') } } as const;
+    const tiny = { limit: 1, from: { kind: 'tier', tier: tier('free') } } as const;
     const lines = describeStanding({
       ...base,
       limit: tiny,

@@ -15,12 +15,14 @@
  * longer says is the exact failure the guard exists to stop, and it is visible
  * to a customer rather than to us.
  *
- * Money is in whole euro because every published price is. If a price ever
- * needs cents, change this to integer cents and fix the formatter — do not
- * introduce a float.
+ * Money is in integer CENTS (workplan 0152 T6 (d)): a year shown per month is
+ * €2.50 for Small, and a float would sooner or later print €2.4999999. There is
+ * no setup fee any more (ADR-0014, 2026-10-03): a tier is a monthly price and a
+ * yearly one, and a year costs six months — `site/site.unit.test.ts` holds that
+ * for every paid tier.
  */
 
-/** @typedef {{ id: string, name: string, who: string, paths: number, dataGb: number, setup: number, monthly: number, note: string }} Tier */
+/** @typedef {{ id: string, name: string, who: string, paths: number, dataGb: number, monthly: number, annual: number, note: string }} Tier */
 
 /** Bytes are quoted in whole GB up to 1 TB and in TB above it. */
 export const GB_PER_TB = 1000;
@@ -28,13 +30,13 @@ export const GB_PER_TB = 1000;
 /** @type {Tier[]} */
 export const TIERS = [
   {
-    id: 'tiny',
-    name: 'Tiny',
+    id: 'free',
+    name: 'Free',
     who: 'One person, one thing at a time',
     paths: 1,
     dataGb: 250,
-    setup: 0,
     monthly: 0,
+    annual: 0,
     note: 'Move your mail, then your contacts, then your calendar, then your files — one after another. The patient option, and free.',
   },
   {
@@ -43,8 +45,8 @@ export const TIERS = [
     who: 'One person, everything at once',
     paths: 4,
     dataGb: 750,
-    setup: 8,
-    monthly: 4,
+    monthly: 500,
+    annual: 3000,
     note: 'Everything you own, moving at the same time. Most people who are leaving one provider for another want this one.',
   },
   {
@@ -53,8 +55,8 @@ export const TIERS = [
     who: 'A household, a team, or a small business',
     paths: 20,
     dataGb: 2 * GB_PER_TB,
-    setup: 15,
-    monthly: 8,
+    monthly: 1200,
+    annual: 7200,
     note: 'Five people with everything, or four with room to spare. Self-service, with a manual and somewhere to ask questions.',
   },
   {
@@ -63,8 +65,8 @@ export const TIERS = [
     who: 'An SME',
     paths: 50,
     dataGb: 7.5 * GB_PER_TB,
-    setup: 50,
-    monthly: 39,
+    monthly: 4000,
+    annual: 24000,
     note: 'Where a real person gets involved: planning, the cutover, and someone to call when a provider does something strange.',
   },
   {
@@ -73,8 +75,8 @@ export const TIERS = [
     who: 'An organisation, or an MSP',
     paths: 200,
     dataGb: 15 * GB_PER_TB,
-    setup: 150,
-    monthly: 99,
+    monthly: 8000,
+    annual: 48000,
     note: 'Many accounts, one migration, one relationship.',
   },
 ];
@@ -189,21 +191,15 @@ export const STATUS_URL = (() => {
   return url.toString().replace(/\/+$/, '');
 })();
 
-/** @param {number} euro */
-export const money = (euro) => `€${euro}`;
+export { money } from './calculator.mjs';
 
 /** @param {number} gb */
 export const size = (gb) => (gb >= GB_PER_TB ? `${gb / GB_PER_TB} TB` : `${gb} GB`);
 
 /**
- * The first month is setup + one month, and every later month is the monthly.
- * Published totals are derived here rather than typed, so they cannot drift
- * from the two columns beside them — which is the defect ADR-0014 found in its
- * own table on the day it was written.
+ * What a paid tier costs over `months`, paying monthly. Derived rather than
+ * typed, so a published total cannot drift from the column beside it — which
+ * is the defect ADR-0014 found in its own table on the day it was written.
  * @param {Tier} tier @param {number} months
  */
-export const total = (tier, months) => tier.setup + tier.monthly * months;
-
-/** @param {Tier} tier */
-export const firstMonth = (tier) => tier.setup + tier.monthly;
-
+export const total = (tier, months) => tier.monthly * months;

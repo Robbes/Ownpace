@@ -81,38 +81,39 @@ live in [README.md](./README.md), the register.
 ## [ADR-0014: Cost-recovery billing for the managed edition](./0014-cost-recovery-billing.md)
 
 - **A path is one kind of thing, from one account, to one account**: mail, contacts, calendar,
-  files and tasks are separate paths, and every price says so. Only a data type the migration
-  carries is a path (`scope_selection.included`).
+  files and tasks are separate paths. Only a data type the migration carries is a path
+  (`scope_selection.included`).
 - **A tier has two axes, and you are on the higher of them**: paths at the same time, and data
   moved — cumulative, each item's first successful copy. Past Extra large: *talk to us*.
   `site/site.unit.test.ts` and `packages/managed/src/tier-calculator.unit.test.ts` parse this
   table: prices change here.
 
-  | tier | paths at the same time | data moved | setup | monthly |
+  | tier | paths at the same time | data moved | monthly | a year |
   |---|---|---|---|---|
-  | **Tiny** | 1 | 250 GB | free | free |
-  | **Small** | 4 | 750 GB | €8 | €4 |
-  | **Medium** | 20 | 2 TB | €15 | €8 |
-  | **Large** | 50 | 7.5 TB | €50 | €39 |
-  | **Extra large** | 200 | 15 TB | €150 | €99 |
+  | **Free** | 1 | 250 GB | free | free |
+  | **Small** | 4 | 750 GB | €5 | €30 |
+  | **Medium** | 20 | 2 TB | €12 | €72 |
+  | **Large** | 50 | 7.5 TB | €40 | €240 |
+  | **Extra large** | 200 | 15 TB | €80 | €480 |
 
-- **Tiny is free, and free means no billing**: no payment method, no invoice, no top-up. Guard:
+- **Free is free, and free means no billing**: no payment method, no invoice, no top-up. Guard:
   `site/site.unit.test.ts` (*free*, never *€0*).
 - **`holdsASlot` (`@openmig/ledger`) is the slot rule**: `active`, `paused` and `continuous`
   hold a slot; `ready`, `cutover` and `done` hold none; a stop releases one only in the lane,
   whose customer is first told the bill does not stop at cutover.
 - **The month bills its peak; the tier is derived, never picked.** Downgrade is automatic,
-  announced, never blocking a path. Setup is paid on the highest tier reached, in steps. Not
-  built yet (0109 T5–T6).
+  announced, never blocking a path. No setup fee. Not built yet (0109 T5–T6).
 - **Every step up is consented and paid for.** A path waits for the yes at activation; at the
   data ceiling, outside the alpha, new first copies wait for a move up or a one-off top-up
-  (another band for the setup fee again; the meter never rewinds). Without that yes, a month bills
-  the tier it was on.
-- **What a customer is told, and what we will not do, are rules** (*Decision*): every price
-  published; *Start* warns when the preflight will not fit; no per-GB, compute or per-path
-  figure; no billing past 12 months unconfirmed. *"No profit" STANDS*.
-- **Pending (accepted 2026-10-03; in force once built, 0152 T6 (d)):** Free replaces Tiny, no
-  setup fees, a year at six months' price; the price pays for the work.
+  (another band for the tier's monthly, once; the meter never rewinds). Without that yes, a
+  month bills the tier it was on.
+- **A year is credit at six months' price**: each month takes its own tier at half its monthly
+  price; what is left is refunded on stopping, or carried into the renewal. Not built yet
+  (0111).
+- **What we tell, and will not do, are rules** (*Decision*): every price published, VAT
+  included; *Start* warns when the preflight will not fit; no per-GB, compute or per-path
+  figure; no billing past 12 months unconfirmed. **The price pays for the work**;
+  self-hosting stays free.
 
 ## [ADR-0015: Backup scope — stack DR vs end-user data vs optional extra backup](./0015-backup-scope.md)
 

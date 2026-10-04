@@ -185,10 +185,11 @@ describe('Billing Route Isolation', () => {
       expect(response.body.decidedBy).toBe('data');
       expect(response.body.evidence.gbMoved).toBe(900);
       expect(response.body.evidence.peakPaths).toBe(3);
-      // ADR-0014's table is whole EUROS. The screen scales to cents itself;
-      // the wire must carry the published figure, not a pre-scaled one.
-      expect(response.body.tier.setup).toBe(15);
-      expect(response.body.tier.monthly).toBe(8);
+      // ADR-0014's Medium, in CENTS on the wire (the unit the screen's
+      // formatter takes), and no setup fee: there is none since 2026-10-03.
+      expect(response.body.tier.monthlyCents).toBe(1200);
+      expect(response.body.tier.annualCents).toBe(7200);
+      expect(response.body.tier).not.toHaveProperty('setup');
       // And the retired metered model is off the wire, not merely off screen.
       expect(response.body.currentCost).toBeUndefined();
     });
@@ -222,7 +223,7 @@ describe('Billing Route Isolation', () => {
       expect(response.body.evidence.gbMoved).toBe(0);
       expect(response.body.evidence.peakPaths).toBe(0);
       // Nothing measured still has an answer — the smallest band, not null.
-      expect(response.body.tier.id).toBe('tiny');
+      expect(response.body.tier.id).toBe('free');
     });
 
     it('should return 401 without token', async () => {

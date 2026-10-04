@@ -16,6 +16,7 @@ import {
   firstCopyGate,
   decideYes,
   holdsAtCeiling,
+  monthlyEur,
   topUpPriceEur,
   type AllowanceGrant,
 } from './data-ceiling.ts';
@@ -26,10 +27,10 @@ const small = tier('small');
 const medium = tier('medium');
 
 describe('the allowance', () => {
-  it('is Tiny until the customer moves up', () => {
+  it('is Free until the customer moves up', () => {
     const a = allowanceOf([]);
-    expect(a.tier.id).toBe('tiny');
-    expect(a.ceilingGb).toBe(tier('tiny').dataGb);
+    expect(a.tier.id).toBe('free');
+    expect(a.ceilingGb).toBe(tier('free').dataGb);
     expect(a.topUps).toBe(0);
   });
 
@@ -63,28 +64,30 @@ describe('the ceiling', () => {
     expect(ceilingOf(a, a.ceilingGb * 2).state).toBe('reached');
   });
 
-  it('offers no top-up on Tiny: from Tiny the only way out is moving up', () => {
+  it('offers no top-up on Free: from Free the only way out is moving up', () => {
     const c = ceilingOf(allowanceOf([]), 240);
     expect(c.topUp).toBeNull();
     expect(c.moveUp?.tier.id).toBe('small');
-    expect(c.moveUp?.setupEur).toBe(small.setup);
-    expect(topUpPriceEur(tier('tiny'))).toBeNull();
+    expect(c.moveUp?.monthlyEur).toBe(5);
+    expect(topUpPriceEur(tier('free'))).toBeNull();
   });
 
-  it('prices a move up at the difference in setup, then the new monthly', () => {
+  it('prices a move up at the new monthly, and nothing once: the list of 2026-09-29 has no setup fee', () => {
     const c = ceilingOf(allowanceOf([{ kind: 'tier', tierId: 'small', bandGb: small.dataGb }]), 700);
-    expect(c.moveUp?.tier.id).toBe('medium');
-    expect(c.moveUp?.setupEur).toBe(medium.setup - small.setup);
-    expect(c.moveUp?.monthlyEur).toBe(medium.monthly);
+    expect(c.moveUp).toEqual({ tier: medium, monthlyEur: 12, ceilingGb: medium.dataGb });
   });
 
-  it('prices a top-up at the tier\'s own setup fee, for another whole band, in force until 0152 T6 (d)', () => {
+  it('prices a top-up at the tier\'s monthly, once, for another whole band (the owner\'s answer (b))', () => {
     const c = ceilingOf(allowanceOf([{ kind: 'tier', tierId: 'small', bandGb: small.dataGb }]), 700);
-    expect(c.topUp).toEqual({ tierId: 'small', bandGb: small.dataGb, priceEur: small.setup, ceilingGb: 2 * small.dataGb });
+    expect(c.topUp).toEqual({ tierId: 'small', bandGb: small.dataGb, priceEur: 5, ceilingGb: 2 * small.dataGb });
+  });
+
+  it('prices in whole euros, the unit a yes is recorded in (`data_allowance.price_eur`)', () => {
+    for (const t of MANAGED_TIERS) expect(Number.isInteger(monthlyEur(t)), t.id).toBe(true);
   });
 
   it('moves up to a tier that lifts the hold, not to one the data is already past', () => {
-    // 800 GB on Tiny: Small's 750 GB would land on its ceiling again.
+    // 800 GB on Free: Small's 750 GB would land on its ceiling again.
     const c = ceilingOf(allowanceOf([]), 800);
     expect(c.state).toBe('reached');
     expect(c.moveUp?.tier.id).toBe('medium');
@@ -103,21 +106,23 @@ describe('the ceiling', () => {
     const xl = tier('xl');
     const c = ceilingOf(allowanceOf([{ kind: 'tier', tierId: 'xl', bandGb: xl.dataGb }]), xl.dataGb);
     expect(c.moveUp).toBeNull();
-    expect(c.topUp?.priceEur).toBe(xl.setup);
+    expect(c.topUp?.priceEur).toBe(monthlyEur(xl));
   });
 });
 
 describe('the break-even', () => {
-  it('is ADR-0014\'s own example on Small: €1 more once, €4 a month saved, back in about a week', () => {
+  it('on Small: the top-up is €5 once, it saves €7 a month against Medium, and pays back in about three weeks', () => {
     const c = ceilingOf(allowanceOf([{ kind: 'tier', tierId: 'small', bandGb: small.dataGb }]), 700);
-    expect(breakEvenOf(c)).toEqual({ extraOnceEur: 1, savedMonthlyEur: 4, paysBackInDays: 8 });
+    expect(breakEvenOf(c)).toEqual({ extraOnceEur: 5, savedMonthlyEur: 7, paysBackInDays: 22 });
   });
 
-  it('pays back at once when the top-up costs less outright', () => {
-    const c = ceilingOf(allowanceOf([{ kind: 'tier', tierId: 'medium', bandGb: medium.dataGb }]), 1900);
-    const b = breakEvenOf(c)!;
-    expect(b.extraOnceEur).toBeLessThan(0);
-    expect(b.paysBackInDays).toBe(0);
+  it('never pays back at once: a top-up costs a month\'s price once, and a move up nothing once', () => {
+    for (const id of ['small', 'medium', 'large']) {
+      const t = tier(id);
+      const b = breakEvenOf(ceilingOf(allowanceOf([{ kind: 'tier', tierId: id as 'small', bandGb: t.dataGb }]), t.dataGb))!;
+      expect(b.extraOnceEur, id).toBe(monthlyEur(t));
+      expect(b.paysBackInDays, id).toBeGreaterThan(0);
+    }
   });
 
   it('is not said when only one way on is offered', () => {
@@ -131,25 +136,28 @@ describe('a yes', () => {
   const onSmall = ceilingOf(allowanceOf([{ kind: 'tier', tierId: 'small', bandGb: small.dataGb }]), 700);
 
   it('to the offer shown becomes its row', () => {
-    expect(decideYes(onSmall, { choice: 'top_up', tierId: 'small', priceEur: small.setup })).toEqual({
+    expect(decideYes(onSmall, { choice: 'top_up', tierId: 'small', priceEur: 5 })).toEqual({
       ok: true,
-      grant: { kind: 'top_up', tierId: 'small', bandGb: small.dataGb, priceEur: small.setup },
+      grant: { kind: 'top_up', tierId: 'small', bandGb: small.dataGb, priceEur: 5 },
     });
-    expect(decideYes(onSmall, { choice: 'move_up', tierId: 'medium', priceEur: medium.setup - small.setup })).toEqual({
+    // A move up's price is the monthly agreed to: there is nothing to pay once.
+    expect(decideYes(onSmall, { choice: 'move_up', tierId: 'medium', priceEur: 12 })).toEqual({
       ok: true,
-      grant: { kind: 'tier', tierId: 'medium', bandGb: medium.dataGb, priceEur: medium.setup - small.setup },
+      grant: { kind: 'tier', tierId: 'medium', bandGb: medium.dataGb, priceEur: 12 },
     });
   });
 
   it('to a tier or a price that is not offered now is refused: nobody agrees to a price they were not shown', () => {
     expect(decideYes(onSmall, { choice: 'move_up', tierId: 'large', priceEur: 42 })).toEqual({ ok: false, reason: 'offer_changed' });
     expect(decideYes(onSmall, { choice: 'top_up', tierId: 'small', priceEur: 1 })).toEqual({ ok: false, reason: 'offer_changed' });
+    // The move up's old price, the setup difference, is not what is offered now.
+    expect(decideYes(onSmall, { choice: 'move_up', tierId: 'medium', priceEur: 7 })).toEqual({ ok: false, reason: 'offer_changed' });
   });
 
-  it('to a top-up on Tiny is refused, and so is a move past Extra large', () => {
-    expect(decideYes(ceilingOf(allowanceOf([]), 10), { choice: 'top_up', tierId: 'tiny', priceEur: 0 })).toEqual({
+  it('to a top-up on Free is refused, and so is a move past Extra large', () => {
+    expect(decideYes(ceilingOf(allowanceOf([]), 10), { choice: 'top_up', tierId: 'free', priceEur: 0 })).toEqual({
       ok: false,
-      reason: 'no_top_up_on_tiny',
+      reason: 'no_top_up_on_free',
     });
     const xl = tier('xl');
     const top = ceilingOf(allowanceOf([{ kind: 'tier', tierId: 'xl', bandGb: xl.dataGb }]), 1);
@@ -175,8 +183,8 @@ describe('the hold', () => {
       kind: 'data-ceiling',
       ceilingGb: small.dataGb,
       held: 3,
-      moveUp: { name: medium.name, setupEur: medium.setup - small.setup, monthlyEur: medium.monthly },
-      topUp: { bandGb: small.dataGb, priceEur: small.setup },
+      moveUp: { name: medium.name, monthlyEur: 12 },
+      topUp: { bandGb: small.dataGb, priceEur: 5 },
     });
     expect(ceilingHoldReason(ceilingOf(allowanceOf([]), 250), 1)).toMatchObject({ topUp: null });
   });

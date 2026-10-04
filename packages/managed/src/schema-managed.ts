@@ -448,7 +448,13 @@ export const bytesMoved = pgTable('bytes_moved', {
  * migration 0037): a move up to a tier, or a top-up band of the tier the
  * customer was on. Append-only: the ceiling is the highest tier moved up to
  * plus every band bought, and a top-up raises the ceiling without rewinding
- * `bytes_moved`. Tiny is no row (`allowanceOf` in `data-ceiling.ts`).
+ * `bytes_moved`. Free (Tiny in 0037's text) is no row (`allowanceOf` in
+ * `data-ceiling.ts`).
+ *
+ * `price_eur` is the price the customer was shown, in whole euros. Since the
+ * list of 2026-09-29 (0152 T6 (d)): for a move up, the new tier's monthly
+ * price, as there is no setup fee; for a top-up, the tier's monthly, once.
+ * 0037's own comment still says the setup difference, the price before.
  */
 export const dataAllowance = pgTable(
   'data_allowance',

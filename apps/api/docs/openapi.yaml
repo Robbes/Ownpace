@@ -5650,10 +5650,10 @@ paths:
                     type: [object, 'null']
                     description: |
                       Both ways on side by side, when both are offered: what the
-                      top-up costs once over the move up (`extraOnceEur`, below zero
-                      when it costs less), what staying saves each month
-                      (`savedMonthlyEur`), and about how many days it takes to pay
-                      back (`paysBackInDays`).
+                      top-up costs once (`extraOnceEur`; a move up costs nothing
+                      once, since the list of 2026-09-29 has no setup fee), what
+                      staying saves each month (`savedMonthlyEur`), and about how
+                      many days it takes to pay back (`paysBackInDays`).
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
@@ -5663,7 +5663,9 @@ paths:
       summary: Say yes to moving up a tier, or to a one-off top-up
       description: |
         One append-only row per yes (managed migration 0037), carrying the price
-        shown, which the invoice will charge. The body names the offer the page
+        shown, which the invoice will charge: for a move up, the new tier's
+        monthly price; for a top-up, the tier's monthly, once. Whole euros. The
+        body names the offer the page
         showed; when the tier or the price is not what is offered now, the yes is
         refused with the current offer, so nobody agrees to a price they were not
         shown. Refused during the alpha, where nothing is charged.
@@ -5690,7 +5692,7 @@ paths:
         '409':
           description: |
             Not taken: `offer_changed` (with the offer as it stands now),
-            `no_top_up_on_tiny`, `talk_to_us`, or `nothing_charged_during_the_alpha`.
+            `no_top_up_on_free`, `talk_to_us`, or `nothing_charged_during_the_alpha`.
           content:
             application/json:
               schema: { type: object }
@@ -6933,12 +6935,12 @@ components:
             The published tier the usage lands on, or null past the table's
             end — the same deliberate "talk to us" the pricing page has.
           properties:
-            id: { type: string, enum: [tiny, small, medium, large, xl] }
+            id: { type: string, enum: [free, small, medium, large, xl] }
             name: { type: string }
             paths: { type: integer, description: The tier's simultaneous-path capacity. }
             data_gb: { type: number, description: The tier's cumulative-data ceiling, decimal GB. }
-            setup: { type: number, description: One-off, EUR. }
-            monthly: { type: number, description: Per month, EUR. }
+            monthly_cents: { type: integer, description: Per month, euro cents, VAT included. No setup fee. }
+            annual_cents: { type: integer, description: A year paid ahead, euro cents (six months' price). }
         decided_by:
           type: string
           enum: [paths, data, both]

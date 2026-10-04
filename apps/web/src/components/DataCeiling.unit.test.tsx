@@ -24,29 +24,29 @@ vi.mock('../services/billing-service.ts', async (importOriginal) => ({
 const getCeiling = vi.mocked(billingApi.getCeiling);
 const sayYes = vi.mocked(billingApi.sayYesToCeiling);
 
-/** On Small, past 80%: both ways on, and ADR-0014's own break-even. */
+/** On Small, past 80%: both ways on, and the break-even, on the list of 2026-09-29. */
 const NEAR_ON_SMALL: Ceiling = {
-  tier: { id: 'small', name: 'Small', paths: 4, monthly: 4 },
+  tier: { id: 'small', name: 'Small', paths: 4, monthly: 5 },
   ceilingGb: 750,
   topUps: 0,
   gbMoved: 700,
   share: 700 / 750,
   state: 'near',
   holds: true,
-  moveUp: { tierId: 'medium', name: 'Medium', paths: 20, setupEur: 7, monthlyEur: 8, ceilingGb: 2000 },
-  topUp: { tierId: 'small', bandGb: 750, priceEur: 8, ceilingGb: 1500 },
-  breakEven: { extraOnceEur: 1, savedMonthlyEur: 4, paysBackInDays: 8 },
+  moveUp: { tierId: 'medium', name: 'Medium', paths: 20, monthlyEur: 12, ceilingGb: 2000 },
+  topUp: { tierId: 'small', bandGb: 750, priceEur: 5, ceilingGb: 1500 },
+  breakEven: { extraOnceEur: 5, savedMonthlyEur: 7, paysBackInDays: 22 },
 };
 
-const UNDER_ON_TINY: Ceiling = {
-  tier: { id: 'tiny', name: 'Tiny', paths: 1, monthly: 0 },
+const UNDER_ON_FREE: Ceiling = {
+  tier: { id: 'free', name: 'Free', paths: 1, monthly: 0 },
   ceilingGb: 250,
   topUps: 0,
   gbMoved: 10,
   share: 0.04,
   state: 'under',
   holds: true,
-  moveUp: { tierId: 'small', name: 'Small', paths: 4, setupEur: 8, monthlyEur: 4, ceilingGb: 750 },
+  moveUp: { tierId: 'small', name: 'Small', paths: 4, monthlyEur: 5, ceilingGb: 750 },
   topUp: null,
   breakEven: null,
 };
@@ -78,9 +78,9 @@ beforeEach(() => {
 
 describe('where the data stands', () => {
   it('says how much has moved against the ceiling, and offers nothing below 80%', async () => {
-    getCeiling.mockResolvedValue(UNDER_ON_TINY);
+    getCeiling.mockResolvedValue(UNDER_ON_FREE);
     renderCard();
-    expect(await screen.findByText(/10 GB of 250 GB moved, on Tiny/)).toBeVisible();
+    expect(await screen.findByText(/10 GB of 250 GB moved, on Free/)).toBeVisible();
     expect(screen.getByText(/From 80% of the ceiling/)).toBeVisible();
     expect(screen.queryByRole('button')).toBeNull();
   });
@@ -103,16 +103,18 @@ describe('from 80%, both ways on', () => {
   it('names both prices side by side, and the break-even', async () => {
     getCeiling.mockResolvedValue(NEAR_ON_SMALL);
     renderCard();
-    expect(await screen.findByText(/Move up to Medium: €7\.00 once, then €8\.00 a month/)).toBeVisible();
-    expect(screen.getByText(/Or buy another 750 GB once, for €8\.00/)).toBeVisible();
-    expect(screen.getByText(/costs €1\.00 more once and saves €4\.00 a month, so it pays back in about 8 day/)).toBeVisible();
+    expect(await screen.findByText(/Move up to Medium: €12\.00 a month\. Your ceiling becomes 2 TB/)).toBeVisible();
+    // No setup fee since the list of 2026-09-29: a move up costs nothing once.
+    expect(screen.queryByText(/once, then/)).toBeNull();
+    expect(screen.getByText(/Or buy another 750 GB once, for €5\.00/)).toBeVisible();
+    expect(screen.getByText(/costs €5\.00 more once and saves €7\.00 a month, so it pays back in about 22 day/)).toBeVisible();
     expect(screen.getByText(/the better buy when you need more migrations at once: Medium runs 20/)).toBeVisible();
   });
 
-  it('says on Tiny that the way on is moving up', async () => {
-    getCeiling.mockResolvedValue({ ...UNDER_ON_TINY, gbMoved: 250, share: 1, state: 'reached' });
+  it('says on Free that the way on is moving up', async () => {
+    getCeiling.mockResolvedValue({ ...UNDER_ON_FREE, gbMoved: 250, share: 1, state: 'reached' });
     renderCard();
-    expect(await screen.findByText('Tiny has no top-up: the way on is moving up.')).toBeVisible();
+    expect(await screen.findByText('Free has no top-up: the way on is moving up.')).toBeVisible();
     expect(screen.getByText(/Your data ceiling is reached/)).toBeVisible();
   });
 });
@@ -122,7 +124,7 @@ describe('the yes', () => {
     getCeiling.mockResolvedValue(NEAR_ON_SMALL);
     renderCard();
     fireEvent.click(await screen.findByRole('button', { name: 'Move up to Medium' }));
-    expect(screen.getByText('You agree to pay €7.00 once, then €8.00 a month, for Medium.')).toBeVisible();
+    expect(screen.getByText('You agree to pay €12.00 a month for Medium.')).toBeVisible();
     expect(sayYes).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
     expect(screen.queryByText(/You agree to pay/)).toBeNull();
@@ -137,28 +139,38 @@ describe('the yes', () => {
       topUps: 1,
       share: 700 / 1500,
       state: 'under',
-      topUp: { tierId: 'small', bandGb: 750, priceEur: 8, ceilingGb: 2250 },
+      topUp: { tierId: 'small', bandGb: 750, priceEur: 5, ceilingGb: 2250 },
     });
     renderCard();
     fireEvent.click(await screen.findByRole('button', { name: 'Buy another 750 GB' }));
     fireEvent.click(screen.getByRole('button', { name: 'Yes, I agree' }));
-    await waitFor(() => expect(sayYes).toHaveBeenCalledWith({ choice: 'top_up', tierId: 'small', priceEur: 8 }));
+    await waitFor(() => expect(sayYes).toHaveBeenCalledWith({ choice: 'top_up', tierId: 'small', priceEur: 5 }));
     expect(await screen.findByText('Done: your data ceiling is now 1.5 TB.')).toBeVisible();
+  });
+
+  it('carries a move up at the monthly it showed: there is nothing to pay once', async () => {
+    getCeiling.mockResolvedValue(NEAR_ON_SMALL);
+    sayYes.mockResolvedValue({ ...NEAR_ON_SMALL, tier: { id: 'medium', name: 'Medium', paths: 20, monthly: 12 } });
+    renderCard();
+    fireEvent.click(await screen.findByRole('button', { name: 'Move up to Medium' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, I agree' }));
+    await waitFor(() => expect(sayYes).toHaveBeenCalledWith({ choice: 'move_up', tierId: 'medium', priceEur: 12 }));
   });
 
   it('refused because the offer changed, shows the offer now and says nothing was agreed', async () => {
     getCeiling.mockResolvedValue(NEAR_ON_SMALL);
     const now: Ceiling = {
       ...NEAR_ON_SMALL,
-      gbMoved: 760,
-      moveUp: { tierId: 'medium', name: 'Medium', paths: 20, setupEur: 9, monthlyEur: 8, ceilingGb: 2000 },
+      // The meter passed Medium's ceiling in between: the move up is now to Large.
+      gbMoved: 2100,
+      moveUp: { tierId: 'large', name: 'Large', paths: 50, monthlyEur: 40, ceilingGb: 7500 },
     };
     sayYes.mockRejectedValue(refused({ error: 'offer_changed', reason: 'What is offered has changed.', ceiling: now }));
     renderCard();
     fireEvent.click(await screen.findByRole('button', { name: 'Move up to Medium' }));
     fireEvent.click(screen.getByRole('button', { name: 'Yes, I agree' }));
     expect(await screen.findByText(/nothing was agreed\. This is the offer now/)).toBeVisible();
-    expect(screen.getByText(/Move up to Medium: €9\.00 once/)).toBeVisible();
+    expect(screen.getByText(/Move up to Large: €40\.00 a month/)).toBeVisible();
   });
 });
 
@@ -167,7 +179,7 @@ describe('during the alpha', () => {
     getCeiling.mockResolvedValue({ ...NEAR_ON_SMALL, gbMoved: 900, share: 1.2, state: 'reached', holds: false });
     renderCard();
     expect(await screen.findByText(/During the Alpha nothing waits at the ceiling/)).toBeVisible();
-    expect(screen.getByText(/Move up to Medium: €7\.00 once/)).toBeVisible();
+    expect(screen.getByText(/Move up to Medium: €12\.00 a month/)).toBeVisible();
     expect(screen.queryByRole('button')).toBeNull();
     expect(screen.queryByText(/New items wait/)).toBeNull();
     expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('100');

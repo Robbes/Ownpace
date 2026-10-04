@@ -44,7 +44,7 @@ import LegalLinks from '../components/LegalLinks.tsx';
  * rename of a tier a code change on both sides for no gain. The tier that gets
  * BILLED is derived from what actually runs (ADR-0014) and never from this.
  */
-const TIERS = ['Tiny', 'Small', 'Medium', 'Large', 'Extra large'] as const;
+const TIERS = ['Free', 'Small', 'Medium', 'Large', 'Extra large'] as const;
 
 interface AccessRequestBody {
   email: string;

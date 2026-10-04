@@ -872,7 +872,7 @@ const en = {
   'billing.apiCalls': 'API calls',
   // ADR-0014's tier, on the customer's own usage screen (0121 T4).
   'billing.yourTier': 'What this puts you on',
-  'billing.tierSetup': 'to set up',
+  'billing.tierPerYear': 'for a year',
   'billing.tierPerMonth': 'per month',
   'billing.tierFree': 'Free: nothing is invoiced on this tier',
   'billing.tierDecidedByPaths': 'Set by how many migrations ran at the same time.',
@@ -897,7 +897,7 @@ const en = {
   'billing.ceiling.alpha':
     'During the Alpha nothing waits at the ceiling and nothing is charged, so there is nothing to agree to yet. The prices below are what the ways on cost after the Alpha.',
   'billing.ceiling.moveUp':
-    'Move up to {tier}: {setup} once, then {monthly} a month. Your ceiling becomes {ceiling}, and {paths} migrations can run at once.',
+    'Move up to {tier}: {monthly} a month. Your ceiling becomes {ceiling}, and {paths} migrations can run at once.',
   'billing.ceiling.moveUp.button': 'Move up to {tier}',
   'billing.ceiling.talkToUs': 'There is no tier past {tier}. Talk to us and we will price it properly.',
   'billing.ceiling.topUp':
@@ -909,7 +909,7 @@ const en = {
   'billing.ceiling.breakEven.cheaper': 'Topping up costs no more once, and saves {saved} a month.',
   'billing.ceiling.betterBuy':
     'Moving up is the better buy when you need more migrations at once: {next} runs {nextPaths} at the same time, {tier} {paths}.',
-  'billing.ceiling.confirm.moveUp': 'You agree to pay {setup} once, then {monthly} a month, for {tier}.',
+  'billing.ceiling.confirm.moveUp': 'You agree to pay {monthly} a month for {tier}.',
   'billing.ceiling.confirm.topUp': 'You agree to pay {price} once for another {band}.',
   'billing.ceiling.confirm.yes': 'Yes, I agree',
   'billing.ceiling.confirm.no': 'Not now',
@@ -2171,7 +2171,7 @@ const en = {
   'ceiling.atStart.alpha': 'During the Alpha nothing waits at the ceiling and nothing is charged.',
   'pause.dataCeiling':
     'New items wait at your data ceiling of {ceiling}: {held} not copied yet. Changes to what is already copied carry on.',
-  'pause.dataCeiling.moveUp': 'Move up to {tier}: €{setup} once, then €{monthly} a month.',
+  'pause.dataCeiling.moveUp': 'Move up to {tier}: €{monthly} a month.',
   'pause.dataCeiling.topUp': 'Or buy another {band} once, for €{price}.',
   'pause.dataCeiling.why':
     'Every step up is your choice: nothing moves your tier or adds room without your yes. Choose on the Billing page, and copying carries on from where it stopped.',
@@ -3791,7 +3791,7 @@ const nl: Record<keyof typeof en, string> = {
   'billing.apiCalls': 'API-aanroepen',
   // ADR-0014's tier, on the customer's own usage screen (0121 T4).
   'billing.yourTier': 'Waar u hiermee op uitkomt',
-  'billing.tierSetup': 'inrichting',
+  'billing.tierPerYear': 'voor een jaar',
   'billing.tierPerMonth': 'per maand',
   'billing.tierFree': 'Gratis: op dit pakket wordt niets gefactureerd',
   'billing.tierDecidedByPaths': 'Bepaald door hoeveel migraties tegelijk liepen.',
@@ -3815,7 +3815,7 @@ const nl: Record<keyof typeof en, string> = {
   'billing.ceiling.alpha':
     'Tijdens de Alpha wacht er niets bij de limiet en wordt niets in rekening gebracht, dus er is nog niets om mee in te stemmen. De prijzen hieronder zijn wat de wegen verder na de Alpha kosten.',
   'billing.ceiling.moveUp':
-    'Ga naar {tier}: eenmalig {setup}, daarna {monthly} per maand. Uw limiet wordt {ceiling}, en er kunnen {paths} migraties tegelijk lopen.',
+    'Ga naar {tier}: {monthly} per maand. Uw limiet wordt {ceiling}, en er kunnen {paths} migraties tegelijk lopen.',
   'billing.ceiling.moveUp.button': 'Ga naar {tier}',
   'billing.ceiling.talkToUs': 'Er is geen pakket boven {tier}. Neem contact op, dan prijzen we het goed.',
   'billing.ceiling.topUp':
@@ -3827,7 +3827,7 @@ const nl: Record<keyof typeof en, string> = {
   'billing.ceiling.breakEven.cheaper': 'Bijkopen kost eenmalig niet meer, en bespaart {saved} per maand.',
   'billing.ceiling.betterBuy':
     'Een groter pakket is de betere koop als er meer migraties tegelijk moeten lopen: {next} draait er {nextPaths} tegelijk, {tier} {paths}.',
-  'billing.ceiling.confirm.moveUp': 'U gaat akkoord met eenmalig {setup}, daarna {monthly} per maand, voor {tier}.',
+  'billing.ceiling.confirm.moveUp': 'U gaat akkoord met {monthly} per maand voor {tier}.',
   'billing.ceiling.confirm.topUp': 'U gaat akkoord met eenmalig {price} voor nog {band} erbij.',
   'billing.ceiling.confirm.yes': 'Ja, akkoord',
   'billing.ceiling.confirm.no': 'Nu niet',
@@ -4643,7 +4643,7 @@ const nl: Record<keyof typeof en, string> = {
   'ceiling.atStart.alpha': 'Tijdens de Alpha wacht er niets bij de limiet en wordt niets in rekening gebracht.',
   'pause.dataCeiling':
     'Nieuwe items wachten bij uw datalimiet van {ceiling}: {held} nog niet gekopieerd. Wijzigingen aan wat al gekopieerd is gaan door.',
-  'pause.dataCeiling.moveUp': 'Ga naar {tier}: eenmalig €{setup}, daarna €{monthly} per maand.',
+  'pause.dataCeiling.moveUp': 'Ga naar {tier}: €{monthly} per maand.',
   'pause.dataCeiling.topUp': 'Of koop eenmalig nog {band} erbij, voor €{price}.',
   'pause.dataCeiling.why':
     'Elke stap omhoog is uw keuze: niets verhoogt uw pakket of uw ruimte zonder uw ja. Kies op de pagina Facturering, en het kopiëren gaat verder waar het stopte.',

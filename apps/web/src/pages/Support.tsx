@@ -629,9 +629,9 @@ const TenantUsage: React.FC<{ usage: SupportTenantUsage }> = ({ usage }) => {
             <span className="text-gray-600">
               {' '}
               ·{' '}
-              {usage.tier.setup === 0 && usage.tier.monthly === 0
+              {usage.tier.monthly_cents === 0 && usage.tier.annual_cents === 0
                 ? t('support.usage.free')
-                : `${currency(usage.tier.monthly * 100, 'EUR')} ${t('support.usage.perMonth')}`}
+                : `${currency(usage.tier.monthly_cents, 'EUR')} ${t('support.usage.perMonth')}`}
             </span>
           )}
         </p>

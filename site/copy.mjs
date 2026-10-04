@@ -65,12 +65,10 @@ export const COPY = {
     ctaPricing: 'See what it costs',
     ctaAllTiers: 'All five tiers, in full',
     ctaHow: 'How a migration works',
-    heroFine: (from) =>
-      `From ${from} for the first month. Prices published in full — no quote, no sales call.`,
     // The first tier is free (ADR-0014, 2026-09-24): "From €0" would read as a
     // price that could be billed, so the line says what free covers instead.
     heroFree: (name, data) =>
-      `${name} is free: one migration at a time, up to ${data}. Every price is published in full — no quote, no sales call.`,
+      `${name}: one migration at a time, up to ${data}. Every price is published in full — no quote, no sales call.`,
     diffTitle: 'What makes this different',
     diff: [
       ['It is a move, not a copy',
@@ -95,10 +93,10 @@ export const COPY = {
     costTitle: 'What it costs',
     costLede:
       'Two numbers decide your price: how many things you are moving <strong>at the same time</strong>, and how much data you have moved in total. You are on whichever is higher, and finishing a migration lowers your bill by itself.',
-    costPick: (name, first, monthly, paths, data) =>
-      `Most people want <strong>${name}</strong> — ${first} for the first month, then ${monthly} a month, for ${paths} migrations at once and ${data}.`,
-    tierFirstMonth: 'first month',
-    tierThen: 'a month after that',
+    costPick: (name, monthly, annual, paths, data) =>
+      `Most people want <strong>${name}</strong> — ${monthly} a month, or ${annual} for a year, for ${paths} migrations at once and ${data}. There is no setup fee.`,
+    tierMonth: 'a month',
+    tierYear: 'for a year, half the monthly price',
     // Toward consumers a displayed price IS the final price (workplan 0111
     // T8): this says so out loud, with no rate in the copy — which country's
     // VAT sits inside it is the seller's problem, decided per invoice by the
@@ -106,8 +104,8 @@ export const COPY = {
     vatIncluded: 'All prices include VAT.',
     tierPaths: (n) => `<strong>${n}</strong> migration${n === 1 ? '' : 's'} at the same time`,
     tierData: (s) => `<strong>${s}</strong> of data moved`,
-    tierSetup: (m) => `${m} of that first month is one-off setup`,
-    tierThree: (m) => `${m} for a three-month migration`,
+    tierNoSetup: 'No setup fee',
+    tierThree: (m) => `${m} for a three-month migration, paying monthly`,
     tierStart: (name) => `Start with ${name}`,
     tierBadge: 'Most people',
     tierFree: 'Free',
@@ -159,22 +157,20 @@ export const COPY = {
       tierLine: 'That lands on {0}.',
       tierDerived:
         'Derived from your answers, never picked — and it keeps deriving: finish migrations and the tier falls by itself.',
-      tierSetup: '{0} one-off setup',
       tierMonthly: '{0} a month',
-      tierFree: 'Free: no setup fee, nothing a month, and no invoice.',
+      tierYear: '{0} for a year, paid ahead: half the monthly price',
+      tierFree: 'Free: nothing a month, and no invoice.',
       tierFreeEdge: 'A second migration at the same time, or more than {0}, moves you to {1} — and we ask you first.',
-      tierFirstMonth: '{0} for the first month, setup included',
-      tierThree: '{0} for a three-month move in total',
-      stepUpRule: 'Step up later and you pay only the difference in setup.',
+      tierThree: '{0} for a three-month move in total, paying monthly',
+      stepUpRule: 'There is no setup fee: moving up later costs only the higher monthly, from then on.',
       beyondLine:
         'Past the published scale. Here we look at your actual case before quoting — talk to us.',
       billDown:
         'Finishing migrations lowers your bill by itself, automatically. The data axis never falls, so the size of what you moved sets a floor under the tier — or a top-up buys another whole band of room and you stay where you are.',
       topUpLine:
-        'On {0}: {1} once buys another {2} of data room at the same monthly. Moving up to {3} instead costs {4} now and {5} more a month.',
+        'On {0}: {1} once buys another {2} of data room at the same monthly. Moving up to {3} instead costs {4} more a month.',
       topUpBreakEven:
-        'The top-up costs {0} more up front and saves {1} a month — it pays for itself in about {2} days.',
-      topUpCheaper: 'The top-up is the cheaper choice from the first euro.',
+        'If you will keep going for longer than about {0} days, the top-up is the cheaper choice; if you will stop sooner, moving up is.',
       gmailCeiling:
         'Google caps Gmail IMAP downloads at 2.5 GB per account per day, so {0} GB of mail needs at least {1} days. That minimum comes from Google’s published ceiling, not from a bandwidth guess — and it is exactly why Ownpace syncs continuously and cuts over when you are ready.',
       gmailLonger: 'Note: that is longer than the {0} you picked — the mail sets the pace here.',
@@ -222,10 +218,8 @@ export const COPY = {
     ctaPricing: 'Bekijk wat het kost',
     ctaAllTiers: 'Alle vijf de pakketten, volledig',
     ctaHow: 'Hoe een migratie verloopt',
-    heroFine: (from) =>
-      `Vanaf ${from} voor de eerste maand. Prijzen staan er volledig op — geen offerte, geen verkoopgesprek.`,
     heroFree: (name, data) =>
-      `${name} is gratis: één migratie tegelijk, tot ${data}. Alle prijzen staan er volledig op — geen offerte, geen verkoopgesprek.`,
+      `${name}: één migratie tegelijk, tot ${data}. Alle prijzen staan er volledig op — geen offerte, geen verkoopgesprek.`,
     diffTitle: 'Wat dit anders maakt',
     diff: [
       ['Het is een migratie, geen kopie',
@@ -250,15 +244,15 @@ export const COPY = {
     costTitle: 'Wat het kost',
     costLede:
       'Twee getallen bepalen uw prijs: hoeveel migraties er <strong>tegelijk</strong> lopen, en hoeveel gegevens u in totaal hebt gemigreerd. U zit op het hoogste van die twee, en een migratie afronden verlaagt uw rekening vanzelf.',
-    costPick: (name, first, monthly, paths, data) =>
-      `De meeste mensen willen <strong>${name}</strong> — ${first} voor de eerste maand, daarna ${monthly} per maand, voor ${paths} migraties tegelijk en ${data}.`,
-    tierFirstMonth: 'eerste maand',
-    tierThen: 'per maand daarna',
+    costPick: (name, monthly, annual, paths, data) =>
+      `De meeste mensen willen <strong>${name}</strong> — ${monthly} per maand, of ${annual} voor een jaar, voor ${paths} migraties tegelijk en ${data}. Er zijn geen inrichtingskosten.`,
+    tierMonth: 'per maand',
+    tierYear: 'voor een jaar, de helft van de maandprijs',
     vatIncluded: 'Alle prijzen zijn inclusief btw.',
     tierPaths: (n) => `<strong>${n}</strong> migratie${n === 1 ? '' : 's'} tegelijk`,
     tierData: (s) => `<strong>${s}</strong> aan gemigreerde gegevens`,
-    tierSetup: (m) => `${m} van die eerste maand is eenmalige inrichting`,
-    tierThree: (m) => `${m} voor een migratie van drie maanden`,
+    tierNoSetup: 'Geen inrichtingskosten',
+    tierThree: (m) => `${m} voor een migratie van drie maanden, per maand betaald`,
     tierStart: (name) => `Begin met ${name}`,
     tierBadge: 'Meest gekozen',
     tierFree: 'Gratis',
@@ -305,22 +299,20 @@ export const COPY = {
       tierLine: 'Dat komt uit op {0}.',
       tierDerived:
         'Afgeleid uit uw antwoorden, nooit gekozen — en het blijft afleiden: rond migraties af en het pakket zakt vanzelf.',
-      tierSetup: '{0} eenmalige inrichting',
-      tierFree: 'Gratis: geen inrichtingskosten, niets per maand en geen factuur.',
+      tierFree: 'Gratis: niets per maand en geen factuur.',
       tierFreeEdge: 'Een tweede migratie tegelijk, of meer dan {0}, brengt u naar {1} — en we vragen het u eerst.',
       tierMonthly: '{0} per maand',
-      tierFirstMonth: '{0} voor de eerste maand, inrichting inbegrepen',
-      tierThree: '{0} voor een migratie van drie maanden in totaal',
-      stepUpRule: 'Later een pakket omhoog? Dan betaalt u alleen het verschil in inrichting.',
+      tierYear: '{0} voor een jaar, vooruitbetaald: de helft van de maandprijs',
+      tierThree: '{0} voor een migratie van drie maanden in totaal, per maand betaald',
+      stepUpRule: 'Er zijn geen inrichtingskosten: later een pakket omhoog kost alleen het hogere maandbedrag, vanaf dat moment.',
       beyondLine:
         'Voorbij de gepubliceerde schaal. Hier kijken we eerst naar uw werkelijke situatie — neem contact op.',
       billDown:
         'Migraties afronden verlaagt uw rekening vanzelf, automatisch. De gegevens-as zakt nooit, dus de omvang van wat u migreerde legt een bodem onder het pakket — óf een bijkoop geeft u een hele extra band aan ruimte en u blijft waar u zit.',
       topUpLine:
-        'Op {0}: {1} eenmalig koopt nog eens {2} aan gegevensruimte, tegen hetzelfde maandbedrag. In plaats daarvan omhoog naar {3} kost nu {4} en {5} per maand extra.',
+        'Op {0}: {1} eenmalig koopt nog eens {2} aan gegevensruimte, tegen hetzelfde maandbedrag. In plaats daarvan omhoog naar {3} kost {4} per maand extra.',
       topUpBreakEven:
-        'De bijkoop kost vooraf {0} meer en bespaart {1} per maand — dat is in ongeveer {2} dagen terugverdiend.',
-      topUpCheaper: 'De bijkoop is vanaf de eerste euro de goedkopere keuze.',
+        'Gaat u langer door dan ongeveer {0} dagen, dan is de bijkoop goedkoper; stopt u eerder, dan is omhoog gaan goedkoper.',
       gmailCeiling:
         'Google begrenst Gmail-IMAP-downloads op 2,5 GB per account per dag, dus {0} GB e-mail heeft minstens {1} dagen nodig. Dat minimum volgt uit Googles gepubliceerde plafond, niet uit een bandbreedtegok — en het is precies waarom Ownpace doorlopend synchroniseert en pas overstapt wanneer u er klaar voor bent.',
       gmailLonger: 'Let op: dat is langer dan de {0} die u koos — de e-mail bepaalt hier het tempo.',

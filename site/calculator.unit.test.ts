@@ -32,6 +32,7 @@ import {
   deriveTier,
   fill,
   gmailMailDays,
+  money,
   topUpAgainstStepUp,
   freeTier,
 } from './calculator.mjs';
@@ -64,7 +65,7 @@ describe('the tier derivation — two axes, higher wins', () => {
 
   it('says both when the axes agree', () => {
     const d = deriveTier(TIERS, 1, 100);
-    expect(d.tier?.name).toBe('Tiny');
+    expect(d.tier?.name).toBe('Free');
     expect(d.decidedBy).toBe('both');
   });
 
@@ -100,15 +101,16 @@ describe('the band and the ceiling', () => {
 });
 
 describe('the top-up against the step-up — break-even shown, nobody steered', () => {
-  it("pins ADR-0014's Small example: €1 more up front, €4 a month saved, back in about a week", () => {
+  it("prices Small's top-up at its monthly, once, against Medium's €7 a month more: even after about 22 days", () => {
+    // The owner's answer (b), 2026-10-03: a top-up costs the tier's monthly
+    // price, once. There is no setup fee left to pay again on a step up.
     const small = TIERS.find((t) => t.id === 'small')!;
     const medium = TIERS.find((t) => t.id === 'medium')!;
     const vs = topUpAgainstStepUp(small, medium)!;
-    expect(vs.topUpOnce).toBe(8);
-    expect(vs.stepUpNow).toBe(7);
-    expect(vs.stepUpMonthlyMore).toBe(4);
-    expect(vs.extraUpFront).toBe(1);
-    expect(vs.paybackDays).toBe(8);
+    expect(vs.topUpOnce).toBe(500);
+    expect(vs.stepUpMonthlyMore).toBe(700);
+    expect(vs.breakEvenDays).toBe(22);
+    expect(money(vs.topUpOnce)).toBe('€5');
   });
 
   it('has no comparison to offer past the last tier', () => {
@@ -116,13 +118,13 @@ describe('the top-up against the step-up — break-even shown, nobody steered', 
   });
 
   it('offers a free tier no top-up: it would cost nothing and make the data axis mean nothing (ADR-0014, 2026-09-24)', () => {
-    const tiny = TIERS.find((t) => t.id === 'tiny')!;
+    const free = TIERS.find((t) => t.id === 'free')!;
     const small = TIERS.find((t) => t.id === 'small')!;
-    expect(freeTier(tiny)).toBe(true);
+    expect(freeTier(free)).toBe(true);
     expect(freeTier(small)).toBe(false);
-    // Before this, the page would have said: "On Tiny: €0 once buys another
-    // 250 GB … The top-up is the cheaper choice from the first euro."
-    expect(topUpAgainstStepUp(tiny, small)).toBeNull();
+    // Without this, the page would say: "On Free: free once buys another
+    // 250 GB …", a top-up that makes the data axis mean nothing.
+    expect(topUpAgainstStepUp(free, small)).toBeNull();
     // Every paid tier keeps its comparison.
     for (const [i, t] of TIERS.slice(0, -1).entries()) {
       if (!freeTier(t)) expect(topUpAgainstStepUp(t, TIERS[i + 1])).not.toBeNull();

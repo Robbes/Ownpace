@@ -155,7 +155,7 @@ describe('the public site renders', () => {
     await page.close();
   }, 60_000);
 
-  it('lands one migration on Tiny and says free, with no top-up; a second one lands on Small (ADR-0014, 2026-09-24)', async () => {
+  it('lands one migration on Free and says free, with no top-up; a second one lands on Small (ADR-0014, 2026-09-24)', async () => {
     // The estimator's words come from the page's own script, so only a
     // browser sees them: one person, contacts only, is one migration and a
     // fraction of a GB.
@@ -171,28 +171,27 @@ describe('the public site renders', () => {
         const shown = (id: string) => !(document.getElementById(id) as HTMLElement).hidden;
         return {
           name: text('tier-name'),
-          setup: text('tier-setup'),
           monthly: text('tier-monthly'),
-          first: shown('tier-first'),
+          year: text('tier-year'),
           three: shown('tier-three'),
           topUp: text('topup-line'),
         };
       });
 
-    const tiny = await read();
-    expect(tiny.name).toContain('Tiny');
-    expect(tiny.setup).toBe('Free: no setup fee, nothing a month, and no invoice.');
-    expect(tiny.monthly).toContain('moves you to Small');
-    expect(tiny.first, 'a free tier has no first-month price to show').toBe(false);
-    expect(tiny.three).toBe(false);
-    expect(tiny.topUp, 'a free tier offers no top-up').toBe('');
-    expect(JSON.stringify(tiny)).not.toMatch(/€0(?![\d.,])/);
+    const free = await read();
+    expect(free.name).toContain('Free');
+    expect(free.monthly).toBe('Free: nothing a month, and no invoice.');
+    expect(free.year).toContain('moves you to Small');
+    expect(free.three, 'a free tier has no three-month total to show').toBe(false);
+    expect(free.topUp, 'a free tier offers no top-up').toBe('');
+    expect(JSON.stringify(free)).not.toMatch(/€0(?![\d.,])/);
 
     await page.check('#what-mail');
     const small = await read();
     expect(small.name).toContain('Small');
-    expect(small.setup).toContain('€8');
-    expect(small.first).toBe(true);
+    expect(small.monthly).toBe('€5 a month');
+    expect(small.year).toContain('€30 for a year');
+    expect(small.three).toBe(true);
     expect(small.topUp).not.toBe('');
     await page.close();
   }, 60_000);

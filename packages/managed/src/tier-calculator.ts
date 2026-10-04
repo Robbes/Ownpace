@@ -37,27 +37,28 @@ import { PgBytesMovedStore } from './bytes-moved.ts';
 export const GB_PER_TB = 1000;
 
 export interface ManagedTier {
-  readonly id: 'tiny' | 'small' | 'medium' | 'large' | 'xl';
+  readonly id: 'free' | 'small' | 'medium' | 'large' | 'xl';
   readonly name: string;
   /** Migrations at the same time this tier fits. */
   readonly paths: number;
   /** Cumulative data ceiling, in GB (decimal — 1 TB = 1000 GB, the site's convention). */
   readonly dataGb: number;
-  /** One-off, EUR. */
-  readonly setup: number;
-  /** Per month, EUR. */
-  readonly monthly: number;
+  /** Per month, in euro CENTS (VAT included). There is no setup fee (ADR-0014, 2026-10-03). */
+  readonly monthlyCents: number;
+  /** A year paid ahead, in euro cents: six months' price (ADR-0014). */
+  readonly annualCents: number;
 }
 
 /** ADR-0014's five, in ascending order. Numbers guarded against the ADR's own table. */
 export const MANAGED_TIERS: ReadonlyArray<ManagedTier> = [
   // Free since 2026-09-24, and free means no billing: no invoice, no payment
-  // method, no top-up (ADR-0014's operative rules).
-  { id: 'tiny', name: 'Tiny', paths: 1, dataGb: 250, setup: 0, monthly: 0 },
-  { id: 'small', name: 'Small', paths: 4, dataGb: 750, setup: 8, monthly: 4 },
-  { id: 'medium', name: 'Medium', paths: 20, dataGb: 2 * GB_PER_TB, setup: 15, monthly: 8 },
-  { id: 'large', name: 'Large', paths: 50, dataGb: 7.5 * GB_PER_TB, setup: 50, monthly: 39 },
-  { id: 'xl', name: 'Extra large', paths: 200, dataGb: 15 * GB_PER_TB, setup: 150, monthly: 99 },
+  // method, no top-up (ADR-0014's operative rules). It was called Tiny until
+  // the price list of 2026-09-29 came into force (0152 T6 (d)).
+  { id: 'free', name: 'Free', paths: 1, dataGb: 250, monthlyCents: 0, annualCents: 0 },
+  { id: 'small', name: 'Small', paths: 4, dataGb: 750, monthlyCents: 500, annualCents: 3000 },
+  { id: 'medium', name: 'Medium', paths: 20, dataGb: 2 * GB_PER_TB, monthlyCents: 1200, annualCents: 7200 },
+  { id: 'large', name: 'Large', paths: 50, dataGb: 7.5 * GB_PER_TB, monthlyCents: 4000, annualCents: 24000 },
+  { id: 'xl', name: 'Extra large', paths: 200, dataGb: 15 * GB_PER_TB, monthlyCents: 8000, annualCents: 48000 },
 ];
 
 export interface TierDerivation {

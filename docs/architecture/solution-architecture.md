@@ -307,6 +307,8 @@ Tenant = household/SMB; `tenant_id` everywhere + Postgres RLS (in force on the A
 
 **Billing is cost-recovery, not for profit.** Price ≈ allocated infrastructure + operations, split across tenants. Cost drivers: orchestration (Trigger.dev self-host or cloud), managed Postgres, object storage, egress (mostly during initial copy; steady-state delta is cheap), and any reseller target licensing. Suggested model: a low flat monthly per tenant covering the shared baseline, plus marginal pass-through for storage/egress, reviewed periodically to stay break-even. The **self-host edition is free** (the user runs their own infrastructure). [ADR-0014]
 
+> **2026-09-29: amended by ADR-0014 (0152 D12)**, in force 2026-10-03. The price pays for what it takes to run and build the service (servers, support, and the time spent building and improving the software); running it yourself stays free. The prices are ADR-0014's table: five tiers, no setup fee, and a year at six months' price.
+
 ## 17. Security, privacy & compliance
 **Legality of migration (verified).** Accessing a user's **own** mailbox with their consent is the default Microsoft consent model and is explicitly allowed; Microsoft even shipped dedicated migration APIs (Graph Mailbox Import/Export, GA 2026). For shared mailboxes / org-wide reads, **application permissions + admin consent** are required, scoped least-privilege via **Application Access Policy**. Compliance items remain (Microsoft APIs Terms of Use, Publisher Verification for the multi-tenant app, possibly app attestation) — tracked in §25.
 

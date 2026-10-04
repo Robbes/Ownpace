@@ -67,7 +67,6 @@ export const PausedBecause: React.FC<{
         reason.moveUp
           ? t('pause.dataCeiling.moveUp', {
               tier: reason.moveUp.name,
-              setup: number(reason.moveUp.setupEur),
               monthly: number(reason.moveUp.monthlyEur),
             })
           : '',

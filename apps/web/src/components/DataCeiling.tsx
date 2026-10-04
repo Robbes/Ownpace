@@ -122,7 +122,7 @@ const CeilingBody: React.FC<{
 
   const pendingYes: CeilingYes | null =
     asking === 'move_up' && moveUp
-      ? { choice: 'move_up', tierId: moveUp.tierId, priceEur: moveUp.setupEur }
+      ? { choice: 'move_up', tierId: moveUp.tierId, priceEur: moveUp.monthlyEur }
       : asking === 'top_up' && topUp
         ? { choice: 'top_up', tierId: topUp.tierId, priceEur: topUp.priceEur }
         : null;
@@ -173,7 +173,6 @@ const CeilingBody: React.FC<{
             <Offer
               sentence={t('billing.ceiling.moveUp', {
                 tier: moveUp.name,
-                setup: eur(moveUp.setupEur),
                 monthly: eur(moveUp.monthlyEur),
                 ceiling: size(moveUp.ceilingGb),
                 paths: moveUp.paths,
@@ -223,11 +222,7 @@ const CeilingBody: React.FC<{
         <div className="p-4 rounded-lg bg-blue-50 space-y-3" role="alertdialog" aria-live="polite">
           <p className="text-gray-900">
             {pendingYes.choice === 'move_up' && moveUp
-              ? t('billing.ceiling.confirm.moveUp', {
-                  setup: eur(moveUp.setupEur),
-                  monthly: eur(moveUp.monthlyEur),
-                  tier: moveUp.name,
-                })
+              ? t('billing.ceiling.confirm.moveUp', { monthly: eur(moveUp.monthlyEur), tier: moveUp.name })
               : topUp
                 ? t('billing.ceiling.confirm.topUp', { price: eur(topUp.priceEur), band: size(topUp.bandGb) })
                 : null}

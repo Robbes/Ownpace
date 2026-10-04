@@ -129,16 +129,25 @@ describe('a screen that quoted a retired price', () => {
     ).not.toMatch(/^\s*currentCost:/m);
   });
 
-  it("the tier's whole EUROS are scaled before a formatter that takes CENTS", () => {
+  it("the tier's CENTS reach a formatter that takes cents, unscaled", () => {
+    // Until 2026-10-03 the tier was in whole euros and the screen had to scale
+    // it; the price list of 2026-09-29 moved every copy to integer cents (a year
+    // per month is €2.50 on Small). Scaling a cents figure again prints a
+    // HUNDRED times the price, so the guard turned round with the unit.
     const screen = read(WEB_SCREEN);
-    for (const field of ['setup', 'monthly']) {
+    for (const field of ['monthlyCents', 'annualCents']) {
       expect(
         screen,
-        `Billing.tsx passes tier.${field} to currency() unscaled. ADR-0014's table is in ` +
-          'whole euros (Medium is `setup: 15`) and formatCurrency takes cents, so this ' +
-          `prints a HUNDREDTH of the real price on the line a customer buys from.`,
-      ).toMatch(new RegExp(`currency\\(\\s*usage\\.tier\\.${field}\\s*\\*\\s*100`));
+        `Billing.tsx no longer passes tier.${field} to currency() as it is.`,
+      ).toMatch(new RegExp(`currency\\(\\s*usage\\.tier\\.${field}\\s*,`));
+      expect(
+        screen,
+        `Billing.tsx scales tier.${field}, which is already cents: that prints a hundred times the price.`,
+      ).not.toMatch(new RegExp(`usage\\.tier\\.${field}\\s*\\*\\s*100`));
     }
+    expect(screen, 'a setup fee is back on the Billing screen; ADR-0014 dropped them').not.toMatch(
+      /usage\.tier\.setup/,
+    );
   });
 
   it('every string the tier block renders exists in BOTH languages', () => {

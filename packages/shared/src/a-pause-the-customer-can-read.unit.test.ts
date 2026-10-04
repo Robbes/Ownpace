@@ -51,8 +51,8 @@ const AT_THE_CEILING = {
   kind: 'data-ceiling',
   ceilingGb: 750,
   held: 3,
-  moveUp: { name: 'Medium', setupEur: 7, monthlyEur: 8 },
-  topUp: { bandGb: 750, priceEur: 8 },
+  moveUp: { name: 'Medium', monthlyEur: 12 },
+  topUp: { bandGb: 750, priceEur: 5 },
 };
 
 describe('a reason read back out of jsonb is checked, never cast', () => {
@@ -67,11 +67,15 @@ describe('a reason read back out of jsonb is checked, never cast', () => {
     expect(isPauseReason({ ...AT_THE_CEILING, moveUp: null, topUp: null })).toBe(true);
   });
 
+  it('reads a data ceiling written before the list of 2026-09-29, whose move up still named a setup fee', () => {
+    expect(isPauseReason({ ...AT_THE_CEILING, moveUp: { name: 'Medium', setupEur: 7, monthlyEur: 8 } })).toBe(true);
+  });
+
   it('refuses a data ceiling without its numbers or with a half-written offer (0109 T6)', () => {
     expect(isPauseReason({ kind: 'data-ceiling' })).toBe(false);
     expect(isPauseReason({ ...AT_THE_CEILING, held: -1 })).toBe(false);
-    expect(isPauseReason({ ...AT_THE_CEILING, moveUp: { name: 'Medium', setupEur: 7 } })).toBe(false);
-    expect(isPauseReason({ ...AT_THE_CEILING, topUp: { bandGb: '750', priceEur: 8 } })).toBe(false);
+    expect(isPauseReason({ ...AT_THE_CEILING, moveUp: { name: 'Medium' } })).toBe(false);
+    expect(isPauseReason({ ...AT_THE_CEILING, topUp: { bandGb: '750', priceEur: 5 } })).toBe(false);
   });
 
   it('refuses a kind this build has no sentence for', () => {

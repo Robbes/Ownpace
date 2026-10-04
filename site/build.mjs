@@ -45,7 +45,6 @@ import {
   money,
   size,
   total,
-  firstMonth,
 } from './prices.mjs';
 import { freeTier as free } from './calculator.mjs';
 import { securityTxt } from './security-txt.mjs';
@@ -626,11 +625,11 @@ function tierCards(locale) {
       const prices = free(t)
         ? `<div class="price">${c.tierFree} <span>${c.tierFreeFor}</span></div>
   <div class="price" style="font-size:1.1rem">${c.tierNoInvoice} <span>${c.tierNoInvoiceWhy}</span></div>`
-        : `<div class="price">${money(firstMonth(t))} <span>${c.tierFirstMonth}</span></div>
-  <div class="price" style="font-size:1.1rem">${money(t.monthly)} <span>${c.tierThen}</span></div>`;
+        : `<div class="price">${money(t.monthly)} <span>${c.tierMonth}</span></div>
+  <div class="price" style="font-size:1.1rem">${money(t.annual)} <span>${c.tierYear}</span></div>`;
       const terms = free(t)
         ? `<li>${c.tierFreeEdge(next.name)}</li>`
-        : `<li>${c.tierSetup(money(t.setup))}</li>
+        : `<li>${c.tierNoSetup}</li>
     <li>${c.tierThree(money(total(t, 3)))}</li>`;
       return `<div class="tier${featured ? ' featured' : ''}">
   ${featured ? `<span class="badge">${c.tierBadge}</span>` : ''}
@@ -661,7 +660,7 @@ function landing(locale) {
     <a class="btn btn-primary" href="${esc(orderHref(locale, null))}">${c.ctaOrder}</a>
     <a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${c.ctaPricing}</a>
   </div>
-  <p class="fineprint">${free(TIERS[0]) ? c.heroFree(TIERS[0].name, size(TIERS[0].dataGb)) : c.heroFine(money(firstMonth(TIERS[0])))} ${esc(c.vatIncluded)}</p>
+  <p class="fineprint">${c.heroFree(TIERS[0].name, size(TIERS[0].dataGb))} ${esc(c.vatIncluded)}</p>
 </section>
 
 <h2>${c.diffTitle}</h2>
@@ -673,7 +672,7 @@ ${cards(c.wont)}
 
 <h2>${c.costTitle}</h2>
 <p>${c.costLede}</p>
-<p>${c.costPick(small.name, money(firstMonth(small)), money(small.monthly), small.paths, size(small.dataGb))}</p>
+<p>${c.costPick(small.name, money(small.monthly), money(small.annual), small.paths, size(small.dataGb))}</p>
 <div class="cta">
   <a class="btn btn-primary" href="${urlFor(locale, 'pricing')}">${c.ctaAllTiers}</a>
   <a class="btn btn-ghost" href="${urlFor(locale, 'how')}">${c.ctaHow}</a>
@@ -712,7 +711,6 @@ const CALC_GLUE = `
   var cfg = JSON.parse(document.getElementById('calc-config').textContent);
   var S = cfg.strings;
   function $(id) { return document.getElementById(id); }
-  function euro(n) { return '\\u20ac' + n; }
   function sizeOf(gb) { return gb >= 1000 ? (gb / 1000) + ' TB' : gb + ' GB'; }
   function radio(name) {
     var el = document.querySelector('input[name="' + name + '"]:checked');
@@ -778,19 +776,15 @@ const CALC_GLUE = `
     $('tier-name').textContent = fill(S.tierLine, t.name);
     var next = cfg.tiers[cfg.tiers.indexOf(t) + 1];
     var isFree = freeTier(t);
-    $('tier-setup').textContent = isFree ? S.tierFree : fill(S.tierSetup, euro(t.setup));
-    $('tier-monthly').textContent = isFree ? fill(S.tierFreeEdge, sizeOf(t.dataGb), next.name) : fill(S.tierMonthly, euro(t.monthly));
-    $('tier-first').hidden = isFree;
+    $('tier-monthly').textContent = isFree ? S.tierFree : fill(S.tierMonthly, money(t.monthly));
+    $('tier-year').textContent = isFree ? fill(S.tierFreeEdge, sizeOf(t.dataGb), next.name) : fill(S.tierYear, money(t.annual));
     $('tier-three').hidden = isFree;
-    $('tier-first').textContent = fill(S.tierFirstMonth, euro(t.setup + t.monthly));
-    $('tier-three').textContent = fill(S.tierThree, euro(t.setup + t.monthly * 3));
+    $('tier-three').textContent = fill(S.tierThree, money(t.monthly * 3));
 
     var vs = topUpAgainstStepUp(t, next);
     $('topup-line').textContent = !vs ? '' :
-      fill(S.topUpLine, t.name, euro(vs.topUpOnce), sizeOf(t.dataGb), next.name, euro(vs.stepUpNow), euro(vs.stepUpMonthlyMore))
-      + ' ' + (vs.extraUpFront <= 0 ? S.topUpCheaper
-        : vs.paybackDays === null ? ''
-        : fill(S.topUpBreakEven, euro(vs.extraUpFront), euro(vs.stepUpMonthlyMore), vs.paybackDays));
+      fill(S.topUpLine, t.name, money(vs.topUpOnce), sizeOf(t.dataGb), next.name, money(vs.stepUpMonthlyMore))
+      + ' ' + fill(S.topUpBreakEven, vs.breakEvenDays);
 
     var gmail = $('gmail-line');
     var mailGb = types.indexOf('mail') !== -1 ? gbOf('mail') : 0;
@@ -826,7 +820,7 @@ function calculatorPage(locale) {
     objectTypes: OBJECT_TYPES,
     accounts: Object.fromEntries(CUSTOMER_TYPES.map((w) => [w.id, w.accounts])),
     profiles: INDICATIVE_PROFILES,
-    tiers: TIERS.map(({ id, name, paths, dataGb, setup, monthly }) => ({ id, name, paths, dataGb, setup, monthly })),
+    tiers: TIERS.map(({ id, name, paths, dataGb, monthly, annual }) => ({ id, name, paths, dataGb, monthly, annual })),
     strings: c,
   };
   const radios = (name, options, checkedId) =>
@@ -891,9 +885,8 @@ function calculatorPage(locale) {
   <h3 id="tier-name"></h3>
   <p class="fine">${esc(c.tierDerived)}</p>
   <ul>
-    <li id="tier-setup"></li>
     <li id="tier-monthly"></li>
-    <li id="tier-first"></li>
+    <li id="tier-year"></li>
     <li id="tier-three"></li>
   </ul>
   <p class="fine">${esc(c.stepUpRule)}</p>

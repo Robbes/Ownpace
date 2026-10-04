@@ -45,18 +45,18 @@ const repoRoot = join(here, '..', '..', '..');
 const size = (gb: number): string => (gb >= GB_PER_TB ? `${gb / GB_PER_TB} TB` : `${gb} GB`);
 
 /**
- * A price cell: `free`, or whole euros. Anything else is a broken table and
+ * A price cell, in CENTS: `free`, or whole euros. Anything else is a broken table and
  * fails by name: a lenient parse read "free", "—" and a garbled cell alike as
  * zero, which is the one price that must never arrive by accident.
  */
-function euros(cell: string, what: string): number {
-  const value = cell === 'free' ? 0 : /^€\d+$/.test(cell) ? Number(cell.slice(1)) : Number.NaN;
+function cents(cell: string, what: string): number {
+  const value = cell === 'free' ? 0 : /^€\d+$/.test(cell) ? Number(cell.slice(1)) * 100 : Number.NaN;
   expect(Number.isNaN(value), `ADR-0014: ${what} reads "${cell}", which is neither "free" nor whole euros`).toBe(false);
   return value;
 }
 
 /** Parse ADR-0014's tier table — structurally identical to site/site.unit.test.ts. */
-function tiersFromAdr(): Map<string, { paths: number; data: string; setup: number; monthly: number }> {
+function tiersFromAdr(): Map<string, { paths: number; data: string; monthly: number; annual: number }> {
   const adr = readFileSync(join(repoRoot, 'docs/adr/0014-cost-recovery-billing.md'), 'utf8');
   // The table that holds NOW lives in the ADR's operative rules, amended in
   // place (ADR-0038); the narrative keeps the 2026-08-20 table as a record,
@@ -66,22 +66,22 @@ function tiersFromAdr(): Map<string, { paths: number; data: string; setup: numbe
   const rows = operative
     .split('\n')
     .map((l) => l.trim())
-    .filter((l) => /^\|\s*\*\*(Tiny|Small|Medium|Large|Extra large)\*\*/.test(l));
+    .filter((l) => /^\|\s*\*\*(Free|Small|Medium|Large|Extra large)\*\*/.test(l));
   expect(rows.length, "ADR-0014's operative rules no longer have a five-row tier table").toBe(5);
 
-  const out = new Map<string, { paths: number; data: string; setup: number; monthly: number }>();
+  const out = new Map<string, { paths: number; data: string; monthly: number; annual: number }>();
   for (const row of rows) {
     const c = row
       .split('|')
       .slice(1, -1)
       .map((x) => x.trim());
-    // | tier | paths at the same time | data moved | setup | monthly |
+    // | tier | paths at the same time | data moved | monthly | a year |
     const name = c[0]!.replace(/\*\*/g, '');
     out.set(name.toLowerCase(), {
       paths: Number(c[1]),
       data: c[2]!,
-      setup: euros(c[3]!, `${name}'s setup`),
-      monthly: euros(c[4]!, `${name}'s monthly`),
+      monthly: cents(c[3]!, `${name}'s monthly`),
+      annual: cents(c[4]!, `${name}'s year`),
     });
   }
   return out;
@@ -96,8 +96,9 @@ describe('the managed tiers agree with the decision that set them (ADR parity)',
       expect(a, `ADR-0014 has no row for "${t.name}"`).toBeDefined();
       const where = `${t.name}: tier-calculator.ts disagrees with ADR-0014`;
       expect(t.paths, `${where} on paths at the same time`).toBe(a!.paths);
-      expect(t.setup, `${where} on the setup fee`).toBe(a!.setup);
-      expect(t.monthly, `${where} on the monthly`).toBe(a!.monthly);
+      expect(t.monthlyCents, `${where} on the monthly`).toBe(a!.monthly);
+      expect(t.annualCents, `${where} on the year`).toBe(a!.annual);
+      expect(t.annualCents, `${t.name}: a year is not six months' price`).toBe(t.monthlyCents * 6);
       expect(size(t.dataGb), `${where} on the data ceiling`).toBe(a!.data);
     }
   });
@@ -273,7 +274,7 @@ describe('currentTier — the live derivation, with its evidence', () => {
   });
 
   it('the data axis wins when it is the higher one, and the evidence says so', async () => {
-    await seedPaths([['email', 'active']]); // 1 path → Tiny by paths
+    await seedPaths([['email', 'active']]); // 1 path → Free by paths
     await seedBytes(400e9); // 400 GB → Small by data
     const answer = await ask();
     expect(answer.tier?.id).toBe('small');
@@ -287,7 +288,7 @@ describe('currentTier — the live derivation, with its evidence', () => {
     const answer = await ask();
     expect(answer.evidence.peakPaths).toBe(0);
     expect(answer.evidence.gbMoved).toBe(0);
-    expect(answer.tier?.id).toBe('tiny');
+    expect(answer.tier?.id).toBe('free');
     expect(answer.decidedBy).toBe('both');
   });
 

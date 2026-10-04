@@ -3,7 +3,7 @@
 // ONE ISSUE AT A TIME PER ORGANISATION (workplan 0108 T8 (d)), on a real
 // Postgres with two connections: PGlite has one, and cannot show a race.
 //
-// An organisation on Tiny may hold one live grant link. Here the first issue
+// An organisation on Free may hold one live grant link. Here the first issue
 // is held open, its link written and not yet committed, while a second
 // arrives. The second must wait for the per-organisation lock, then count the
 // first's link and be refused. Without the lock it would count only what was

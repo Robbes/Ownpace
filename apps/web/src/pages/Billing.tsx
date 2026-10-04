@@ -74,12 +74,12 @@ const labelClass = 'block text-sm text-gray-600 mb-1';
  * and the form below it IS the remedy, so the ask and the answer share a card.
  */
 /**
- * A tier that costs nothing (Tiny, since 2026-09-24): no setup, no monthly,
- * and no invoice, so the screen says "free" rather than "€0.00", and asks for
- * no invoice details (ADR-0014).
+ * A tier that costs nothing (Free, since 2026-09-24): nothing a month, nothing
+ * a year, and no invoice, so the screen says "free" rather than "€0.00", and
+ * asks for no invoice details (ADR-0014).
  */
-const isFreeTier = (tier: { setup: number; monthly: number }): boolean =>
-  tier.setup === 0 && tier.monthly === 0;
+const isFreeTier = (tier: { monthlyCents: number; annualCents: number }): boolean =>
+  tier.monthlyCents === 0 && tier.annualCents === 0;
 
 const InvoiceDetailsCard: React.FC<{ free: boolean }> = ({ free }) => {
   const t = useT();
@@ -442,7 +442,7 @@ const InvoiceDetailsCard: React.FC<{ free: boolean }> = ({ free }) => {
  * the tier block keeps its prices, because the measurement is one of the
  * things worth trying (0121 T4), and a free tier keeps saying "free" (0109
  * T8). The two agree: the line says nothing is charged during the alpha, the
- * tier says nothing is invoiced on Tiny.
+ * tier says nothing is invoiced on Free.
  *
  * The second sentence is the free tier's own, word for word (owner,
  * 2026-09-24, 0131 open question 7: *"show the free tier's 'not needed' text
@@ -634,10 +634,9 @@ const Billing: React.FC = () => {
                 0121 T4, owner 2026-09-09: the measurement is instrumentation,
                 and the customer gets to see it).
 
-                MONEY UNIT: `currency` takes CENTS; ADR-0014's table is in
-                whole EUR (`setup: 15` is €15). Hence *100 — passing the raw
-                figure would print €0.15 for a €15 setup fee. A free tier
-                prints no money at all. */}
+                MONEY UNIT: `currency` takes CENTS, and so does the tier
+                (`monthlyCents: 500` is €5). There is no setup fee since
+                2026-10-03 (ADR-0014). A free tier prints no money at all. */}
             <div className="mt-6 p-4 bg-gray-50 rounded-lg">
               <h3 className="font-medium text-gray-900 mb-3">{t('billing.yourTier')}</h3>
               {usage.tier ? (
@@ -648,9 +647,9 @@ const Billing: React.FC = () => {
                       <span className="font-medium">{t('billing.tierFree')}</span>
                     ) : (
                       <span className="font-medium">
-                        {currency(usage.tier.setup * 100, 'EUR')} {t('billing.tierSetup')}
+                        {currency(usage.tier.monthlyCents, 'EUR')} {t('billing.tierPerMonth')}
                         {' · '}
-                        {currency(usage.tier.monthly * 100, 'EUR')} {t('billing.tierPerMonth')}
+                        {currency(usage.tier.annualCents, 'EUR')} {t('billing.tierPerYear')}
                       </span>
                     )}
                   </div>

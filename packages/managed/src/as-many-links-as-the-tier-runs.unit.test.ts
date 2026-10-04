@@ -5,7 +5,7 @@
  * the owner, 2026-09-24: "the Recommended"): `grant-link-allowance.ts` and
  * managed migration 0028.
  *
- *  - the number is the tier's migrations at the same time, Tiny 1 to Extra
+ *  - the number is the tier's migrations at the same time, Free 1 to Extra
  *    large 200, and past the table the largest tier's;
  *  - the operator's number replaces it while it stands, higher or lower, and
  *    an override past its day is no override;
@@ -83,9 +83,9 @@ afterAll(async () => {
 });
 
 describe('the number, from the tier and the override', () => {
-  it("is the tier's migrations at the same time, Tiny 1 to Extra large 200", () => {
+  it("is the tier's migrations at the same time, Free 1 to Extra large 200", () => {
     expect(MANAGED_TIERS.map((t) => [t.name, liveLinkLimit(t, undefined, NOW).limit])).toEqual([
-      ['Tiny', 1],
+      ['Free', 1],
       ['Small', 4],
       ['Medium', 20],
       ['Large', 50],
@@ -100,7 +100,7 @@ describe('the number, from the tier and the override', () => {
 
   it("is the operator's while it stands, higher or lower than the tier's", () => {
     const until = new Date('2026-10-02T00:00:00Z');
-    expect(liveLinkLimit(tier('tiny'), { liveLinks: 30, until }, NOW)).toEqual({
+    expect(liveLinkLimit(tier('free'), { liveLinks: 30, until }, NOW)).toEqual({
       limit: 30,
       from: { kind: 'override', until },
     });
@@ -121,10 +121,10 @@ describe('the number, from the tier and the override', () => {
 });
 
 describe('the number for an organisation, as the database has it', () => {
-  it('is Tiny for an organisation nothing has run for yet', async () => {
+  it('is Free for an organisation nothing has run for yet', async () => {
     const got = await withTenant(driver, QUIET, (db) => liveGrantLinkLimit(db, QUIET, NOW));
 
-    expect(got).toEqual({ limit: 1, from: { kind: 'tier', tier: tier('tiny') } });
+    expect(got).toEqual({ limit: 1, from: { kind: 'tier', tier: tier('free') } });
   });
 
   it("follows this month's peak, as the usage screen does", async () => {

@@ -11,7 +11,7 @@
  * the worst of both: a customer told no, and billed as yes.
  *
  * What is held:
- *  - on Tiny, a start of two kinds at once is refused, names Small, and
+ *  - on Free, a start of two kinds at once is refused, names Small, and
  *    keeps nothing: no slot, no status, no record of a change;
  *  - with a yes to Small on record, the same start goes ahead;
  *  - during the alpha, nothing is asked;
@@ -137,7 +137,7 @@ beforeEach(async () => {
   await owner('DELETE FROM scope_selection');
   await owner(`DELETE FROM audit_log WHERE action = 'mapping.status'`);
   await owner(`UPDATE mailbox_mapping SET status = 'paused'`);
-  // Two kinds at once: past Tiny's one.
+  // Two kinds at once: past Free's one.
   await owner(
     `INSERT INTO scope_selection (tenant_id, mapping_id, domain, included)
      VALUES ($1, $2, 'email', true), ($1, $2, 'calendar', true)`,
@@ -185,7 +185,7 @@ describe('Start, past the agreed tier', () => {
 
   it('never refuses a start that takes no new slot, though the organisation is past its tier', async () => {
     // Paused holds its slot: an organisation that started both during the
-    // alpha, on Tiny, resumes them, and no slot is added.
+    // alpha, on Free, resumes them, and no slot is added.
     await owner(
       `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state, first_activated_at)
        VALUES ($1, $2, 'email', 'paused', now()), ($1, $2, 'calendar', 'paused', now())`,
@@ -206,7 +206,7 @@ describe('Start, past the agreed tier', () => {
       [OTHER, OTHER_MAPPING],
     );
     await owner(`DELETE FROM scope_selection WHERE mapping_id = $1 AND domain = 'calendar'`, [MAPPING]);
-    // One kind here, on Tiny: it fits, whatever the other organisation runs.
+    // One kind here, on Free: it fits, whatever the other organisation runs.
     expect((await request(app).post(`/api/migrations/${MAPPING}/start`).send({})).status).toBe(200);
   });
 });
