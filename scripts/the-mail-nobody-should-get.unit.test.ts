@@ -370,3 +370,221 @@ esac
     }
   });
 });
+
+/**
+ * THE DRAIN REACHES THE JOBS THAT CAN MAIL (workplan 0150; the owner,
+ * 2026-10-04).
+ *
+ * The CANCEL side believed its silence after `cron.php`, and a bare
+ * `cron.php` is not a drain: Nextcloud 34 stops asking for jobs once 14
+ * minutes have passed. E2E (managed) #232 and #233 both stopped there, 841 s
+ * in, so neither could say the queue was drained. The smoke now names the jobs
+ * that can mail, runs only those for the check, makes sure each name is a job
+ * that exists (a renamed one drains nothing and still exits 0), and starts the
+ * rest of the queue afterwards, detached: it is also this demo's only
+ * housekeeping. These run that block exactly as the script has it, with a
+ * stub `docker` and `curl` that write down every call.
+ */
+describe('the drain reaches the jobs that can mail (0150)', () => {
+  const SMOKE_TEXT = readFileSync(join(COMPOSE, 'smoke-managed.sh'), 'utf8');
+  const start = SMOKE_TEXT.indexOf('NC_MAIL_JOBS=(');
+  const end = SMOKE_TEXT.indexOf('\nnote "the status page"', start);
+  const block = start < 0 || end < 0 ? '' : SMOKE_TEXT.slice(start, end);
+  const failAt = (() => {
+    const s = SMOKE_TEXT.indexOf('fail_at() {');
+    const e = SMOKE_TEXT.indexOf('\n}\n', s);
+    if (s < 0 || e < 0) throw new Error('fail_at() is no longer defined in smoke-managed.sh');
+    return SMOKE_TEXT.slice(s, e + 3);
+  })();
+
+  /** The five Nextcloud 34 jobs that can send mail, as the smoke must name them. */
+  const MAIL_JOBS = [
+    'OCA\\DAV\\BackgroundJob\\EventReminderJob',
+    'OCA\\Activity\\BackgroundJob\\EmailNotification',
+    'OCA\\Activity\\BackgroundJob\\DigestMail',
+    'OCA\\Notifications\\BackgroundJob\\SendNotificationMails',
+    'OCA\\Files_Sharing\\SharesReminderJob',
+  ];
+
+  // Answers the three ways the block calls docker: occ's job listing (one
+  // job, or `[]` for a name in MISSING_JOBS), the named drain (a verbose
+  // "Starting job" per name not in NOT_DUE, then CRON_EXIT), and the detached
+  // full run (DETACH_EXIT). Every call, docker's and curl's, goes to one log in
+  // the order made, so the order is asserted and not assumed.
+  const DOCKER = `#!/usr/bin/env bash
+set -u
+{ printf 'docker'; printf ' [%s]' "$@"; printf '\\n'; } >> "\${DRAIN_STUB_DIR:?}/calls.log"
+[ "$1" = exec ] || { echo "stub docker: unexpected $1" >&2; exit 64; }
+shift
+detached=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -d) detached=1; shift ;;
+    -u) shift 2 ;;
+    *) break ;;
+  esac
+done
+shift                                  # the container
+if [ "$detached" = 1 ]; then exit "\${DETACH_EXIT:-0}"; fi
+case "$*" in
+  "php /var/www/html/occ background-job:list "*)
+    cls="\${4#--class=}"
+    case " \${MISSING_JOBS:-} " in
+      *" $cls "*) echo '[]' ;;
+      *) echo '[{"id":"7","class":"listed","last_run":"1970-01-01T00:00:00+00:00","argument":"null"}]' ;;
+    esac ;;
+  "php -f /var/www/html/cron.php -- --verbose "*)
+    shift 5
+    for cls in "$@"; do
+      case " \${NOT_DUE:-} " in *" $cls "*) continue ;; esac
+      echo "Starting job $cls (id: 7, arguments: null)"
+      echo "Job $cls (id: 7, arguments: null) done in 0.00 seconds"
+    done
+    if [ "\${CRON_EXIT:-0}" != 0 ]; then echo "PHP Fatal error: the stub was told to fail"; exit "$CRON_EXIT"; fi ;;
+  *) echo "stub docker: unexpected exec $*" >&2; exit 64 ;;
+esac
+`;
+  const CURL = `#!/usr/bin/env bash
+{ printf 'curl'; printf ' [%s]' "$@"; printf '\\n'; } >> "\${DRAIN_STUB_DIR:?}/calls.log"
+printf '{"messages_count":%s}' "\${MAILPIT_COUNT:-0}"
+`;
+
+  type Run = { out: string; fail: string; reasons: string; calls: string[] };
+
+  function drain(env: Record<string, string> = {}): Run {
+    const dir = mkdtempSync(join(tmpdir(), 'maildrain-'));
+    try {
+      writeFileSync(join(dir, 'docker'), DOCKER, { mode: 0o755 });
+      writeFileSync(join(dir, 'curl'), CURL, { mode: 0o755 });
+      writeFileSync(
+        join(dir, 'run.sh'),
+        `set -uo pipefail\nfail=0\nSECTION=test\nFAIL_REASONS=""\n${failAt}\n${block}\n` +
+          `echo "FAIL=$fail"\nprintf 'REASONS:%s' "$FAIL_REASONS"\n`,
+      );
+      const out = execFileSync('bash', [join(dir, 'run.sh')], {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          PATH: `${dir}:${process.env.PATH ?? ''}`,
+          DRAIN_STUB_DIR: dir,
+          BALANCE_TAG: 'drain-t1',
+          NEXTCLOUD_CONTAINER: 'nc-under-test',
+          COMPOSE_PROJECT: 'unused',
+          MAILPIT: 'http://mailpit.test',
+          ...env,
+        },
+      });
+      const calls = existsSync(join(dir, 'calls.log'))
+        ? readFileSync(join(dir, 'calls.log'), 'utf8').trim().split('\n')
+        : [];
+      return {
+        out,
+        fail: /FAIL=(\d)/.exec(out)?.[1] ?? '?',
+        reasons: out.slice(out.indexOf('REASONS:') + 'REASONS:'.length),
+        calls,
+      };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  const bracketed = (...args: string[]): string => args.map((a) => ` [${a}]`).join('');
+  const NAMED_DRAIN =
+    'docker' +
+    bracketed('exec', '-u', 'www-data', 'nc-under-test', 'php', '-f', '/var/www/html/cron.php', '--', '--verbose', ...MAIL_JOBS);
+  const FULL_DETACHED =
+    'docker' + bracketed('exec', '-d', '-u', 'www-data', 'nc-under-test', 'php', '-f', '/var/www/html/cron.php');
+
+  it('is extractable — the block still exists to test', () => {
+    expect(block, 'NC_MAIL_JOBS=( … up to the status page is gone from smoke-managed.sh').toMatch(
+      /cron\.php[\s\S]*openmig-attendee-\$\{BALANCE_TAG\}/,
+    );
+  });
+
+  it('names exactly the jobs that can mail in Nextcloud 34, each as its own word', () => {
+    const run = drain();
+    expect(
+      run.calls,
+      'the check drains the five jobs that can mail, by name, verbose, and nothing\n' +
+        'else: a bare cron.php stops at 14 minutes with the queue unemptied (E2E #232, #233).',
+    ).toContain(NAMED_DRAIN);
+    expect(run.out).toContain('drained the jobs that can mail in ');
+    expect(run.out).toContain(': 5 of 5 ran');
+    expect(run.out).toContain('and nothing after the take-back either — no CANCEL fan-out');
+    expect(run.fail).toBe('0');
+  });
+
+  it('asks Nextcloud that every named job exists before trusting the drain', () => {
+    const run = drain();
+    for (const job of MAIL_JOBS) {
+      expect(run.calls).toContain(
+        'docker' +
+          bracketed('exec', '-u', 'www-data', 'nc-under-test', 'php', '/var/www/html/occ', 'background-job:list', `--class=${job}`, '--output=json'),
+      );
+    }
+  });
+
+  it('fails on a name this Nextcloud has no job for, and says which', () => {
+    const missing = 'OCA\\Activity\\BackgroundJob\\DigestMail';
+    const run = drain({ MISSING_JOBS: missing });
+    expect(
+      run.fail,
+      'a renamed job drains nothing and cron.php still exits 0, so a name Nextcloud\n' +
+        'does not have must fail the gate, not pass it on a drain that never ran.',
+    ).toBe('1');
+    expect(run.reasons).toContain(`the drain names a job this Nextcloud does not have: ${missing}`);
+    expect(run.calls, 'the rest still runs, so the log shows what the drain did').toContain(NAMED_DRAIN);
+  });
+
+  it('a job whose interval has not passed is not a failure', () => {
+    const run = drain({
+      NOT_DUE: 'OCA\\DAV\\BackgroundJob\\EventReminderJob OCA\\Activity\\BackgroundJob\\DigestMail OCA\\Files_Sharing\\SharesReminderJob',
+    });
+    expect(run.out).toContain(': 2 of 5 ran');
+    expect(
+      run.fail,
+      'Nextcloud skips a timed job whose interval has not passed since its last\n' +
+        'run (JobList::getNext), named or not. That is not a broken drain.',
+    ).toBe('0');
+  });
+
+  it('a drain that fails says so, with its last lines, and fails', () => {
+    const run = drain({ CRON_EXIT: '255' });
+    expect(run.fail).toBe('1');
+    expect(run.out).toContain('the queue drain itself failed');
+    expect(run.out).toContain('    PHP Fatal error: the stub was told to fail');
+  });
+
+  it('a mail to the canary after the take-back fails the check', () => {
+    const run = drain({ MAILPIT_COUNT: '1' });
+    expect(run.fail).toBe('1');
+    expect(run.out).toContain('THE TAKE-BACK SENT MAIL: 1 message(s)');
+  });
+
+  it('drains before it searches, and starts the rest of the queue detached, after', () => {
+    const run = drain({ MAILPIT_COUNT: '1' });
+    const drained = run.calls.indexOf(NAMED_DRAIN);
+    const searched = run.calls.findIndex((c) => c.startsWith('curl') && c.includes('query=openmig-attendee-drain-t1'));
+    const rest = run.calls.indexOf(FULL_DETACHED);
+    expect(drained, 'the named drain ran').toBeGreaterThanOrEqual(0);
+    expect(searched, 'the catcher was searched for the canary').toBeGreaterThan(drained);
+    expect(
+      rest,
+      'the full cron.php is this demo’s only housekeeping (the owner, 2026-10-04): it\n' +
+        'runs after the check, whatever the check found, detached so the gate does not wait.',
+    ).toBeGreaterThan(searched);
+    expect(run.out).toContain('the rest of the demo Nextcloud');
+  });
+
+  it('a rest of the queue that cannot start fails, as a drain that could not run did', () => {
+    const run = drain({ DETACH_EXIT: '1' });
+    expect(run.fail).toBe('1');
+    expect(run.out).toContain('could not start the rest of the demo Nextcloud');
+  });
+
+  it('stands down with no tag: no canary, so nothing to drain for', () => {
+    const run = drain({ BALANCE_TAG: '' });
+    expect(run.calls).toEqual([]);
+    expect(run.fail).toBe('0');
+  });
+});
