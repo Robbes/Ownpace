@@ -50,7 +50,7 @@ import {
 import { freeTier as free, deriveTier, GMAIL_IMAP_GB_PER_DAY } from './calculator.mjs';
 import { securityTxt } from './security-txt.mjs';
 import { LOCALES, DEFAULT_LOCALE, localeRoot, COPY } from './copy.mjs';
-import { CUSTOMER_TYPES, INDICATIVE_PROFILES, OBJECT_TYPES, PROFILES_VERSION } from './profiles.mjs';
+import { CUSTOMER_TYPES, INDICATIVE_PROFILES, OBJECT_TYPES, PROFILES_VERSION, SIZE_ASKED } from './profiles.mjs';
 import { DATA_TYPES, DESTINATIONS, PROTOCOL_NAMES } from './destinations.mjs';
 import { SPRITE, icon } from './icons.mjs';
 import { LEAVING, DOMAIN_OF, EXPORT_TARGETS } from './sources.mjs';
@@ -1035,13 +1035,21 @@ const CALC_GLUE = `
   function ticked() {
     return cfg.objectTypes.filter(function (t) { return $('what-' + t).checked; });
   }
+  // Every source ticked: a person can leave several at once (the owner, 2026-10-04).
+  function sources() {
+    return Array.prototype.map.call(document.querySelectorAll('input[name="from"]:checked'), function (el) { return el.value; });
+  }
+  function asked(t) { return cfg.asked.indexOf(t) !== -1; }
+  // A size the page asks for is read from its field; the rest are the
+  // assumption for who is moving, said in one line rather than asked.
   function gbOf(t) {
+    if (!asked(t)) return cfg.profiles[radio('who')][t].gb;
     var n = Number($('gb-' + t).value);
     return isFinite(n) && n > 0 ? n : 0;
   }
   function prefill() {
     var who = radio('who');
-    cfg.objectTypes.forEach(function (t) {
+    cfg.asked.forEach(function (t) {
       var cell = cfg.profiles[who][t];
       $('gb-' + t).value = String(cell.gb);
       $('items-' + t).textContent = fill(S.itemsAssumed, cell.items.toLocaleString(cfg.locale));
@@ -1049,21 +1057,36 @@ const CALC_GLUE = `
   }
   function recompute() {
     var who = radio('who');
-    var from = radio('from');
+    var from = sources();
     var until = radio('until');
     var types = ticked();
-    cfg.objectTypes.forEach(function (t) {
+    // One migration per type per source, as the app makes them; a type no
+    // ticked source brings is said, and neither counted nor sized.
+    var made = migrationsFrom(cfg.offers, from, types);
+    var counted = types.filter(function (t) { return made.uncounted.indexOf(t) === -1; });
+    cfg.asked.forEach(function (t) {
       var row = $('amount-' + t);
-      if (types.indexOf(t) === -1) row.setAttribute('data-off', ''); else row.removeAttribute('data-off');
+      if (counted.indexOf(t) === -1) row.setAttribute('data-off', ''); else row.removeAttribute('data-off');
     });
+    var small = counted.filter(function (t) { return !asked(t); })
+      .reduce(function (sum, t) { return sum + gbOf(t); }, 0);
+    var smallLine = $('small-line');
+    smallLine.hidden = counted.every(asked);
+    smallLine.textContent = fill(S.smallLine, small < 1 ? S.lessThanOneGb : sizeOf(Math.round(small * 10) / 10));
+    var uncounted = $('uncounted-line');
+    uncounted.hidden = from.length === 0 || made.uncounted.length === 0;
+    uncounted.textContent = fill(S.uncountedLine, made.uncounted.map(function (t) { return S.what[t]; }).join(', '));
 
-    var paths = cfg.accounts[who] * types.length;
-    var gb = types.reduce(function (sum, t) { return sum + gbOf(t); }, 0);
+    var paths = cfg.accounts[who] * made.perAccount;
+    var gb = counted.reduce(function (sum, t) { return sum + gbOf(t); }, 0);
     gb = Math.round(gb * 10) / 10;
 
-    var names = types.map(function (t) { return S.what[t]; }).join(', ');
+    var names = made.groups.map(function (g) {
+      return fill(S.fromGroup, g.types.map(function (t) { return S.what[t]; }).join(', '), S.fromName[g.from]);
+    }).join('; ');
     $('paths-line').textContent =
-      types.length === 0 ? S.pathsNone
+      from.length === 0 ? S.pathsNoSource
+        : paths === 0 ? S.pathsNone
         : paths === 1 ? fill(S.pathsOne, names)
         : fill(S.pathsMany, names, S.forWho[who], paths);
 
@@ -1079,9 +1102,9 @@ const CALC_GLUE = `
     if (d.decidedBy === 'data' || d.decidedBy === 'both') dataAxis.setAttribute('data-decides', '');
 
     var card = $('tier-card'), beyond = $('beyond-line');
-    if (!d.tier || types.length === 0) {
+    if (!d.tier || paths === 0) {
       card.hidden = true;
-      beyond.hidden = types.length === 0;
+      beyond.hidden = paths === 0;
       $('topup-line').textContent = '';
       $('gmail-line').hidden = true;
       return;
@@ -1103,8 +1126,8 @@ const CALC_GLUE = `
       + ' ' + fill(S.topUpBreakEven, vs.breakEvenDays);
 
     var gmail = $('gmail-line');
-    var mailGb = types.indexOf('mail') !== -1 ? gbOf('mail') : 0;
-    if (from === 'google' && mailGb > 0) {
+    var mailGb = counted.indexOf('mail') !== -1 ? gbOf('mail') : 0;
+    if (from.indexOf('google') !== -1 && mailGb > 0) {
       var days = gmailMailDays(mailGb);
       var chosen = { m1: 30, m3: 90, m6: 180, ready: null }[until];
       gmail.textContent = fill(S.gmailCeiling, mailGb, days)
@@ -1121,14 +1144,16 @@ const CALC_GLUE = `
     el.addEventListener('input', recompute);
     el.addEventListener('change', recompute);
   });
-  // Arriving from a Leaving… page (0152 T5): ?from= chooses the source and
-  // ?what= ticks what moves. Each is matched against the page's own options,
-  // so a value it does not offer changes nothing.
-  var asked = new URLSearchParams(location.search);
-  document.querySelectorAll('input[name="from"]').forEach(function (el) {
-    if (el.value === asked.get('from')) el.checked = true;
+  // Arriving from a Leaving… page (0152 T5): ?from= ticks the sources, one or
+  // a list, and ?what= ticks what moves. Each is matched against the page's own
+  // options, so a value it does not offer changes nothing.
+  var query = new URLSearchParams(location.search);
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('input[name="from"]'));
+  var from = (query.get('from') || '').split(',').filter(function (v) {
+    return boxes.some(function (el) { return el.value === v; });
   });
-  var what = (asked.get('what') || '').split(',').filter(function (t) { return cfg.objectTypes.indexOf(t) !== -1; });
+  if (from.length > 0) boxes.forEach(function (el) { el.checked = from.indexOf(el.value) !== -1; });
+  var what = (query.get('what') || '').split(',').filter(function (t) { return cfg.objectTypes.indexOf(t) !== -1; });
   if (what.length > 0) cfg.objectTypes.forEach(function (t) { $('what-' + t).checked = what.indexOf(t) !== -1; });
   prefill();
   recompute();
@@ -1138,11 +1163,36 @@ const CALC_GLUE = `
 /** The one script, the one hash. Exported for the drift test against nginx. */
 export const CALC_SCRIPT = CALC_LIB + CALC_GLUE;
 
+/**
+ * What each answer to *Moving away from?* brings, and the migration each type
+ * travels in (`calculator.mjs`'s `migrationsFrom`), read off the Leaving
+ * pages' verdicts, which `scripts/leaving-pages-say-what-the-app-says` holds
+ * to the app: a type that moves travels as itself, photos a source keeps among
+ * its files travel with Files, and a type a source does not keep, or that
+ * cannot move, is not there. *Somewhere else* may keep anything.
+ */
+export function calcOffers() {
+  const typeOf = { email: 'mail', contact: 'contacts', calendar: 'calendar', task: 'tasks', file: 'files', photos: 'photos' };
+  /** @type {Record<string, Record<string, string>>} */
+  const offers = { other: Object.fromEntries(OBJECT_TYPES.map((t) => [t, t])) };
+  for (const page of LEAVING) {
+    if (page.from === 'other') continue;
+    /** @type {Record<string, string>} */
+    const carries = {};
+    for (const row of page.rows) if (row.verdict !== 'no') carries[typeOf[row.type]] = typeOf[row.type];
+    if (carries.files && !page.rows.some((row) => row.type === 'photos')) carries.photos = 'files';
+    offers[page.from] = carries;
+  }
+  return offers;
+}
+
 function calculatorPage(locale) {
   const c = COPY[locale].calc;
   const config = {
     locale: COPY[locale].htmlLang,
     objectTypes: OBJECT_TYPES,
+    asked: SIZE_ASKED,
+    offers: calcOffers(),
     accounts: Object.fromEntries(CUSTOMER_TYPES.map((w) => [w.id, w.accounts])),
     profiles: INDICATIVE_PROFILES,
     tiers: TIERS.map(({ id, name, paths, dataGb, monthly, annual }) => ({ id, name, paths, dataGb, monthly, annual })),
@@ -1155,12 +1205,20 @@ function calculatorPage(locale) {
           `<label class="opt"><input type="radio" name="${name}" value="${id}"${id === checkedId ? ' checked' : ''} /> ${esc(label)}</label>`,
       )
       .join('\n      ');
+  // Several sources at once (the owner, 2026-10-04): tick boxes, Google ticked.
+  const fromBoxes = Object.entries(c.from)
+    .map(
+      ([id, label]) =>
+        `<label class="opt"><input type="checkbox" name="from" value="${id}"${id === 'google' ? ' checked' : ''} /> ${esc(label)}</label>`,
+    )
+    .join('\n      ');
   const defaultTicked = ['mail', 'contacts', 'calendar', 'files'];
   const whatBoxes = OBJECT_TYPES.map(
     (t) =>
       `<label class="opt"><input type="checkbox" id="what-${t}"${defaultTicked.includes(t) ? ' checked' : ''} /> ${esc(c.what[t])}</label>`,
   ).join('\n      ');
-  const amounts = OBJECT_TYPES.map(
+  // Only the sizes a person can read off a storage page (profiles.mjs's SIZE_ASKED).
+  const amounts = SIZE_ASKED.map(
     (t) => `<div class="amount" id="amount-${t}"><label for="gb-${t}">${esc(c.what[t])}</label>
         <input id="gb-${t}" type="number" min="0" step="0.1" inputmode="decimal" /> <span>${esc(c.gbLabel)}</span>
         <span class="items" id="items-${t}"></span></div>`,
@@ -1181,7 +1239,8 @@ function calculatorPage(locale) {
     <div class="opts">${radios('who', c.who, 'individual')}</div>
   </fieldset>
   <fieldset><legend>${esc(c.fromLegend)}</legend>
-    <div class="opts">${radios('from', c.from, 'google')}</div>
+    <p class="hint">${esc(c.fromHint)}</p>
+    <div class="opts">${fromBoxes}</div>
   </fieldset>
   <fieldset><legend>${esc(c.whatLegend)}</legend>
     <div class="opts">${whatBoxes}</div>
@@ -1189,6 +1248,7 @@ function calculatorPage(locale) {
   <fieldset><legend>${esc(c.howMuchLegend)}</legend>
     <p class="hint">${esc(c.howMuchHint)}</p>
     <div class="amounts">${amounts}</div>
+    <p class="hint" id="small-line" hidden></p>
   </fieldset>
   <fieldset><legend>${esc(c.untilLegend)}</legend>
     <div class="opts">${radios('until', c.until, 'ready')}</div>
@@ -1198,6 +1258,7 @@ function calculatorPage(locale) {
 
 <div id="result" aria-live="polite">
 <p id="paths-line"></p>
+<p id="uncounted-line" class="fine" hidden></p>
 
 <div class="axes">
   <div class="axis" id="axis-paths"><span class="decides">${esc(c.axisDecides)}</span>

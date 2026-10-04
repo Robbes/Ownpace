@@ -35,8 +35,10 @@ import {
   money,
   topUpAgainstStepUp,
   freeTier,
+  migrationsFrom,
   sizeOf,
 } from './calculator.mjs';
+import { OBJECT_TYPES, PROFILES_VERSION, SIZE_ASKED, pathsFor } from './profiles.mjs';
 import { GMAIL_IMAP_DOWNLOAD_BYTES_PER_DAY } from '../packages/shared/src/rate-budget.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -44,7 +46,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 // The same guard-rail as site.unit.test.ts: prices.mjs refuses to resolve
 // APP_URL without being told which app this build is for.
 process.env.OWNPACE_APP_URL ??= 'https://app.ota.ownpace.eu';
-const { rendered, CALC_SCRIPT } = await import('./build.mjs');
+const { rendered, CALC_SCRIPT, calcOffers } = await import('./build.mjs');
 const { TIERS } = await import('./prices.mjs');
 
 const calcPages = rendered.filter((p: { file: string }) =>
@@ -73,6 +75,64 @@ describe('the tier derivation — two axes, higher wins', () => {
   it('answers "talk to us" past the end of the table, never a guessed tier', () => {
     expect(deriveTier(TIERS, 500, 100).tier).toBeNull();
     expect(deriveTier(TIERS, 1, 999_999).tier).toBeNull();
+  });
+});
+
+describe('several sources at once (the owner, 2026-10-04)', () => {
+  const offers = calcOffers() as Record<string, Record<string, string>>;
+
+  it('counts one migration per type per source, as the app makes them: Google and Dropbox both with files are two', () => {
+    const made = migrationsFrom(offers, ['google', 'dropbox'], ['mail', 'contacts', 'calendar', 'files']);
+    expect(made.groups).toEqual([
+      { from: 'google', types: ['mail', 'contacts', 'calendar', 'files'], migrations: 4 },
+      { from: 'dropbox', types: ['files'], migrations: 1 },
+    ]);
+    expect(made.perAccount).toBe(5);
+    expect(made.uncounted).toEqual([]);
+  });
+
+  it('moves photos a source keeps among its files with Files, and Google Photos as its own (Takeout)', () => {
+    expect(migrationsFrom(offers, ['dropbox'], ['files', 'photos'])).toMatchObject({ perAccount: 1, uncounted: [] });
+    expect(migrationsFrom(offers, ['microsoft'], ['photos'])).toMatchObject({ perAccount: 1, uncounted: [] });
+    expect(migrationsFrom(offers, ['google'], ['files', 'photos'])).toMatchObject({ perAccount: 2, uncounted: [] });
+    // A whole Google move is six: four kinds, files, and the Takeout's photos.
+    expect(migrationsFrom(offers, ['google'], [...OBJECT_TYPES]).perAccount).toBe(6);
+  });
+
+  it('counts nothing a source does not let go of, and says which type that left out', () => {
+    // iCloud Drive and iCloud Photos do not move (the Leaving page says why).
+    const apple = migrationsFrom(offers, ['apple'], ['mail', 'files', 'photos']);
+    expect(apple).toMatchObject({ perAccount: 1, uncounted: ['files', 'photos'] });
+    // Dropbox keeps no mail, so mail from Dropbox alone is no migration at all.
+    expect(migrationsFrom(offers, ['dropbox'], ['mail'])).toEqual({ groups: [], perAccount: 0, uncounted: ['mail'] });
+    // No source ticked is no migration, and nothing to blame on a source.
+    expect(migrationsFrom(offers, [], ['mail'])).toEqual({ groups: [], perAccount: 0, uncounted: ['mail'] });
+  });
+
+  it('reads what each source brings off the Leaving pages, and takes anything from somewhere else', () => {
+    const brings = (from: string) => Object.keys(offers[from]!).sort();
+    expect(brings('google')).toEqual(['calendar', 'contacts', 'files', 'mail', 'photos', 'tasks']);
+    expect(brings('microsoft')).toEqual(['calendar', 'contacts', 'files', 'mail', 'photos', 'tasks']);
+    expect(offers.microsoft!.photos).toBe('files');
+    expect(brings('apple')).toEqual(['calendar', 'contacts', 'mail', 'tasks']);
+    expect(brings('dropbox')).toEqual(['files', 'photos']);
+    expect(brings('box')).toEqual(['files', 'photos']);
+    expect(brings('other')).toEqual([...OBJECT_TYPES].sort());
+  });
+
+  it("agrees with profiles.mjs's pathsFor where one source keeps every type", () => {
+    for (const [who, accounts] of [['individual', 1], ['family', 4], ['sme', 10]] as const) {
+      const types = ['mail', 'contacts', 'calendar', 'tasks', 'files'];
+      expect(accounts * migrationsFrom(offers, ['other'], types).perAccount).toBe(pathsFor(who, types));
+    }
+  });
+
+  it('offers every source the Leaving pages send here, Box included (0152 T7 (d))', () => {
+    for (const page of calcPages) {
+      const boxes = [...page.html.matchAll(/<input type="checkbox" name="from" value="([a-z]+)"/g)].map((m) => m[1]);
+      expect(boxes, page.file).toEqual(['google', 'microsoft', 'apple', 'dropbox', 'box', 'other']);
+      expect(Object.keys(offers).sort()).toEqual([...boxes].sort());
+    }
   });
 });
 
@@ -220,16 +280,20 @@ describe('the words the page must and must not say (T5, grep-guarded)', () => {
       // Bands, never single numbers, with the rung's accuracy stated.
       expect(p.html).toContain('50%');
       // A visible version and date — a quoted estimate gets screenshotted.
-      expect(p.html).toContain('v1, 2026-08-26');
+      expect(p.html).toContain(`v${PROFILES_VERSION.version}, ${PROFILES_VERSION.date}`);
       // The line about what it cannot know.
       expect(p.html).toMatch(/preflight verifies|voorcontrole verifieert/);
       // Bill-goes-down, and its floor, in the same breath.
       expect(p.html).toMatch(/sets a floor|legt een bodem/);
       // The ceiling sentence machinery (0090 T5) is in the shipped script.
       expect(p.html).toContain('gmailMailDays');
-      // Editable assumptions: an input per object type.
-      expect(p.html).toContain('id="gb-mail"');
-      expect(p.html).toContain('id="gb-photos"');
+      // Editable assumptions: an input per size a person can read off a
+      // storage page, and none for the ones nobody can (the owner, 2026-10-04).
+      for (const t of SIZE_ASKED) expect(p.html).toContain(`id="gb-${t}"`);
+      for (const t of OBJECT_TYPES.filter((o) => !(SIZE_ASKED as readonly string[]).includes(o))) {
+        expect(p.html, `a size field for ${t}, which nobody can read off a storage page`).not.toContain(`id="gb-${t}"`);
+      }
+      expect(p.html).toContain('id="small-line"');
     }
   });
 
