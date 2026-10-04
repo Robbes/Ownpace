@@ -335,6 +335,57 @@ describe('the public site renders', () => {
     await odd.page.close();
   }, 90_000);
 
+  it('lays the estimate out without overlap at 1280 and 390 pixels, and says its result politely (0152 T7 (c))', async () => {
+    for (const width of [1280, 390]) {
+      const { page } = await open('/estimate.html', width);
+      // Each field's parts stay in its own cell: the item count wraps under
+      // the box rather than running into the next field.
+      const spills = await page.$$eval('.calc .amount', (cells) =>
+        cells.flatMap((cell) => {
+          const box = cell.getBoundingClientRect();
+          return [...cell.children]
+            .filter((part) => {
+              const r = part.getBoundingClientRect();
+              return r.right > box.right + 1 || r.left < box.left - 1;
+            })
+            .map((part) => `${cell.id}: "${part.textContent?.trim()}"`);
+        }),
+      );
+      expect(spills, `${width}px: a field's parts run out of its cell`).toEqual([]);
+      const overlaps = await page.$$eval('.calc .amount', (cells) => {
+        const r = cells.map((c) => c.getBoundingClientRect());
+        const out: string[] = [];
+        for (let i = 0; i < r.length; i++)
+          for (let j = i + 1; j < r.length; j++)
+            if (r[i]!.left < r[j]!.right - 1 && r[j]!.left < r[i]!.right - 1 && r[i]!.top < r[j]!.bottom - 1 && r[j]!.top < r[i]!.bottom - 1)
+              out.push(`${cells[i]!.id} and ${cells[j]!.id}`);
+        return out;
+      });
+      expect(overlaps, `${width}px: two fields overlap`).toEqual([]);
+      // The badge sits above its card's heading, never on it.
+      const covered = await page.$$eval('.axis[data-decides]', (axes) =>
+        axes
+          .filter((axis) => {
+            const badge = axis.querySelector('.decides')!.getBoundingClientRect();
+            const heading = axis.querySelector('.decides + div')!.getBoundingClientRect();
+            return badge.bottom > heading.top + 1 && badge.right > heading.left && badge.left < heading.right;
+          })
+          .map((axis) => axis.id),
+      );
+      expect(await page.$$eval('.axis[data-decides]', (a) => a.length), 'no card says it decides').toBeGreaterThan(0);
+      expect(covered, `${width}px: the badge covers its heading`).toEqual([]);
+      await page.close();
+    }
+    // One polite region holds the result, so a screen reader hears the new tier.
+    const { page } = await open('/estimate.html');
+    const region = await page.$eval('#result', (e) => ({
+      live: e.getAttribute('aria-live'),
+      holds: ['paths-line', 'axis-paths', 'axis-data', 'tier-card'].every((id) => !!e.querySelector(`#${id}`)),
+    }));
+    expect(region).toEqual({ live: 'polite', holds: true });
+    await page.close();
+  }, 90_000);
+
   it('reaches the other language, and comes back', async () => {
     const { page } = await open('/');
     await page.click('header.site a.lang');
