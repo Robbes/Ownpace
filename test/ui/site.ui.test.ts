@@ -252,7 +252,7 @@ describe('the public site renders', () => {
     expect(onMenu, 'Tab never reaches the menu').toBe(true);
     await page.keyboard.press('Enter');
     expect(await shown('nav.menu'), 'Enter does not open the menu').toBe(true);
-    const links = await page.$$eval('nav.menu a', (as) =>
+    const links = await page.$$eval('nav.menu > a', (as) =>
       as.map((a) => ({ text: a.textContent, href: a.getAttribute('href'), right: a.getBoundingClientRect().right })),
     );
     expect(links.map((l) => l.text)).toEqual(['Home', 'How it works', 'Pricing', 'Sign in']);
@@ -260,6 +260,27 @@ describe('the public site renders', () => {
     for (const l of links) expect(l.right, `${l.text} runs off a 390 pixel screen`).toBeLessThanOrEqual(390);
     await page.keyboard.press('Tab');
     expect(await page.evaluate(() => document.activeElement?.textContent)).toBe('Home');
+    // Leaving… folds inside the menu (0152 T5 (b)): closed until Enter, then its six fit the screen.
+    expect(await shown('nav.menu .leaving-list'), 'Leaving… is open inside the menu before anybody opens it').toBe(false);
+    for (let i = 0; i < 3; i++) await page.keyboard.press('Tab');
+    expect(
+      await page.evaluate(() => document.activeElement?.matches('nav.menu details.leaving > summary') ?? false),
+      'Tab does not reach Leaving… after Pricing',
+    ).toBe(true);
+    await page.keyboard.press('Enter');
+    expect(await shown('nav.menu .leaving-list'), 'Enter does not open Leaving…').toBe(true);
+    const leaving = await page.$$eval('nav.menu .leaving-list a', (as) =>
+      as.map((a) => ({ name: a.getAttribute('aria-label'), right: a.getBoundingClientRect().right })),
+    );
+    expect(leaving.map((l) => l.name)).toEqual([
+      'Leaving Google',
+      'Leaving Microsoft 365',
+      'Leaving Apple iCloud',
+      'Leaving Dropbox',
+      'Leaving Box',
+      'Leaving another mail provider',
+    ]);
+    for (const l of leaving) expect(l.right, `${l.name} runs off a 390 pixel screen`).toBeLessThanOrEqual(390);
     const overflows = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     expect(overflows, 'the open menu scrolls sideways').toBe(false);
     await page.close();
@@ -270,6 +291,134 @@ describe('the public site renders', () => {
     expect(await wide.page.isVisible('details.menu > summary'), 'a wide screen shows the phone menu').toBe(false);
     await wide.page.close();
   }, 60_000);
+
+  it('keeps the header one row just above the phone menu, in both languages, and opens Leaving… on screen (0152 T5 (b))', async () => {
+    // 48rem is where the menu folds: just above it the header carries all its
+    // pages, and the longest language must still fit in one row.
+    for (const path of ['/', '/nl/']) {
+      const { page } = await open(path, 780);
+      const fit = await page.evaluate(() => {
+        const header = document.querySelector('header.site')!.getBoundingClientRect();
+        const nav = document.querySelector('nav.site')!.getBoundingClientRect();
+        const lang = document.querySelector('header.site a.lang')!.getBoundingClientRect();
+        return { height: header.height, navBottom: nav.bottom, navRight: nav.right, langLeft: lang.left, langTop: lang.top };
+      });
+      expect(await page.isVisible('nav.site'), `${path}: at 780 pixels the header folds into the menu`).toBe(true);
+      expect(fit.height, `${path}: the header wraps at 780 pixels`).toBeLessThanOrEqual(65);
+      expect(fit.navRight, `${path}: the header's pages run into the language switch`).toBeLessThanOrEqual(fit.langLeft);
+      await page.close();
+    }
+
+    const { page } = await open('/', 1200);
+    expect(await page.isVisible('nav.site .leaving-list'), 'Leaving… is open before anybody opens it').toBe(false);
+    await page.click('nav.site details.leaving > summary');
+    const list = await page.$$eval('nav.site .leaving-list a', (as) =>
+      as.map((a) => {
+        const r = a.getBoundingClientRect();
+        return { name: a.getAttribute('aria-label'), left: r.left, right: r.right, height: r.height };
+      }),
+    );
+    expect(list).toHaveLength(6);
+    for (const l of list) {
+      expect(l.height, `${l.name} is not drawn`).toBeGreaterThan(0);
+      expect(l.left, `${l.name} opens off the left of the screen`).toBeGreaterThanOrEqual(0);
+      expect(l.right, `${l.name} opens off the right of the screen`).toBeLessThanOrEqual(1200);
+    }
+    await page.click('nav.site .leaving-list a[aria-label="Leaving Dropbox"]');
+    await page.waitForLoadState('networkidle');
+    expect(new URL(page.url()).pathname).toBe('/leaving-dropbox.html');
+    await page.close();
+  }, 60_000);
+
+  it('opens a Leaving… page on a phone without sideways scroll, and its estimate on the page’s own case (0152 T5)', async () => {
+    for (const path of ['/leaving-google.html', '/nl/weg-bij-microsoft-365.html', '/leaving-another-mail-provider.html']) {
+      const { page, failed } = await open(path, 390);
+      const overflows = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+      expect(overflows, `${path} scrolls horizontally at 390px`).toBe(false);
+      expect(failed, `${path} requested something that 4xx'd`).toEqual([]);
+      await page.close();
+    }
+    // Dropbox's typical case is one person's files: the estimate opens with
+    // Dropbox chosen and only files ticked, and lands where the page said.
+    const { page } = await open('/leaving-dropbox.html', 1200);
+    const said = await page.evaluate(() => {
+      const h2 = [...document.querySelectorAll('h2')].find((h) => h.textContent === 'A typical cost')!;
+      return (h2.nextElementSibling as HTMLElement).textContent;
+    });
+    expect(said).toContain('Free');
+    await page.click('text=Work out what yours costs');
+    await page.waitForLoadState('networkidle');
+    const state = await page.evaluate(() => ({
+      from: (document.querySelector('input[name="from"]:checked') as HTMLInputElement | null)?.value,
+      ticked: [...document.querySelectorAll<HTMLInputElement>('input[id^="what-"]')].filter((i) => i.checked).map((i) => i.id),
+      tier: document.getElementById('tier-name')?.textContent ?? '',
+    }));
+    expect(state.from).toBe('dropbox');
+    expect(state.ticked).toEqual(['what-files']);
+    expect(state.tier, 'the estimate lands on another tier than the page said').toContain('Free');
+    await page.close();
+
+    // A value the calculator does not offer changes nothing.
+    const odd = await open('/estimate.html?from=%22%3E%3Cimg&what=nothing,mail%22', 1200);
+    const kept = await odd.page.evaluate(() => ({
+      from: (document.querySelector('input[name="from"]:checked') as HTMLInputElement | null)?.value,
+      ticked: [...document.querySelectorAll<HTMLInputElement>('input[id^="what-"]')].filter((i) => i.checked).map((i) => i.id),
+    }));
+    expect(kept.from).toBe('google');
+    expect(kept.ticked).toEqual(['what-mail', 'what-contacts', 'what-calendar', 'what-files']);
+    await odd.page.close();
+  }, 90_000);
+
+  it('lays the estimate out without overlap at 1280 and 390 pixels, and says its result politely (0152 T7 (c))', async () => {
+    for (const width of [1280, 390]) {
+      const { page } = await open('/estimate.html', width);
+      // Each field's parts stay in its own cell: the item count wraps under
+      // the box rather than running into the next field.
+      const spills = await page.$$eval('.calc .amount', (cells) =>
+        cells.flatMap((cell) => {
+          const box = cell.getBoundingClientRect();
+          return [...cell.children]
+            .filter((part) => {
+              const r = part.getBoundingClientRect();
+              return r.right > box.right + 1 || r.left < box.left - 1;
+            })
+            .map((part) => `${cell.id}: "${part.textContent?.trim()}"`);
+        }),
+      );
+      expect(spills, `${width}px: a field's parts run out of its cell`).toEqual([]);
+      const overlaps = await page.$$eval('.calc .amount', (cells) => {
+        const r = cells.map((c) => c.getBoundingClientRect());
+        const out: string[] = [];
+        for (let i = 0; i < r.length; i++)
+          for (let j = i + 1; j < r.length; j++)
+            if (r[i]!.left < r[j]!.right - 1 && r[j]!.left < r[i]!.right - 1 && r[i]!.top < r[j]!.bottom - 1 && r[j]!.top < r[i]!.bottom - 1)
+              out.push(`${cells[i]!.id} and ${cells[j]!.id}`);
+        return out;
+      });
+      expect(overlaps, `${width}px: two fields overlap`).toEqual([]);
+      // The badge sits above its card's heading, never on it.
+      const covered = await page.$$eval('.axis[data-decides]', (axes) =>
+        axes
+          .filter((axis) => {
+            const badge = axis.querySelector('.decides')!.getBoundingClientRect();
+            const heading = axis.querySelector('.decides + div')!.getBoundingClientRect();
+            return badge.bottom > heading.top + 1 && badge.right > heading.left && badge.left < heading.right;
+          })
+          .map((axis) => axis.id),
+      );
+      expect(await page.$$eval('.axis[data-decides]', (a) => a.length), 'no card says it decides').toBeGreaterThan(0);
+      expect(covered, `${width}px: the badge covers its heading`).toEqual([]);
+      await page.close();
+    }
+    // One polite region holds the result, so a screen reader hears the new tier.
+    const { page } = await open('/estimate.html');
+    const region = await page.$eval('#result', (e) => ({
+      live: e.getAttribute('aria-live'),
+      holds: ['paths-line', 'axis-paths', 'axis-data', 'tier-card'].every((id) => !!e.querySelector(`#${id}`)),
+    }));
+    expect(region).toEqual({ live: 'polite', holds: true });
+    await page.close();
+  }, 90_000);
 
   it('reaches the other language, and comes back', async () => {
     const { page } = await open('/');

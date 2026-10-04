@@ -44,7 +44,7 @@ export const COPY = {
     // phone (workplan 0152 T2).
     navName: 'Main',
     menu: 'Menu',
-    files: { home: 'index.html', how: 'how-it-works.html', pricing: 'pricing.html', calculator: 'estimate.html', privacy: 'privacy.html', terms: 'terms.html', alpha: 'alpha.html', guide: 'alpha-guide.html' },
+    files: { home: 'index.html', how: 'how-it-works.html', pricing: 'pricing.html', calculator: 'estimate.html', privacy: 'privacy.html', terms: 'terms.html', alpha: 'alpha.html', guide: 'alpha-guide.html', 'leaving-google': 'leaving-google.html', 'leaving-microsoft': 'leaving-microsoft-365.html', 'leaving-apple': 'leaving-icloud.html', 'leaving-dropbox': 'leaving-dropbox.html', 'leaving-box': 'leaving-box.html', 'leaving-mail': 'leaving-another-mail-provider.html' },
     skip: 'Skip to content',
     footerTag: 'move your own data, at your own pace.',
     footerOss: 'Open source under the Apache License 2.0. Run it yourself, or let us run it.',
@@ -89,6 +89,102 @@ export const COPY = {
       protocols: { name: 'Any other provider', sub: 'that speaks IMAP, CalDAV, CardDAV or WebDAV' },
     },
     dataTypes: { email: 'Email', calendar: 'Calendar', contact: 'Contacts', file: 'Files', task: 'Tasks' },
+    // Leaving… (workplan 0152 T5): a page per provider a person leaves. What
+    // each row may say is sources.mjs's, held to the app by
+    // scripts/leaving-pages-say-what-the-app-says.unit.test.ts; these are only
+    // the words.
+    leaving: {
+      menu: 'Leaving…',
+      names: {
+        google: 'Google',
+        microsoft: 'Microsoft 365',
+        apple: 'Apple iCloud',
+        dropbox: 'Dropbox',
+        box: 'Box',
+        mail: 'Another mail provider',
+      },
+      title: { mail: 'Leaving another mail provider' },
+      titleOf: (name) => `Leaving ${name}`,
+      lede: { mail: 'What Ownpace moves from a mail provider that is not on this list, and what you do yourself.' },
+      ledeOf: (name) => `What Ownpace moves from ${name}, the limits that come with it, and what you do yourself.`,
+      photos: 'Photos',
+      whatMoves: 'What moves',
+      verdict: { moves: 'Moves', limit: 'Moves, with a limit', no: 'Does not move' },
+      goesTo: 'Goes to',
+      destShort: { soverin: 'Soverin', nextcloud: 'Nextcloud', jmap: 'a JMAP server' },
+      anyProvider: (protocol) => `any ${protocol} provider`,
+      or: 'or',
+      experimental: 'Experimental',
+      experimentalWhy: 'Built, not yet run against a real account of this kind. Keep your old account and check what arrives.',
+      staysBehind: 'Stays behind:',
+      staysBehindItems: {
+        'Google Keep': 'Google Keep',
+        'Google Sites, Forms': 'Google Sites and Forms',
+        'Revision history': 'a document’s earlier versions',
+        'SharePoint extras': 'SharePoint’s version history, permissions, metadata, lists and pages',
+        'Teams chat & calls': 'Teams chats and calls',
+        Planner: 'Planner',
+        'Power Automate': 'Power Automate',
+        InfoPath: 'InfoPath',
+        OneNote: 'OneNote, unless set up separately',
+        'Retention holds': 'retention holds',
+        'Other O365 apps': 'the other Office 365 apps',
+      },
+      limitsTitle: 'Limits you should know',
+      // The app's guide sits behind its sign-in until the site has a help
+      // section of its own (0152 T5 (d), 0151), and the link says so.
+      guideLink: 'In the guide (sign in first)',
+      limits: {
+        gmailDaily: (gb) =>
+          `Google lets a Gmail mailbox be read at up to ${gb} GB a day, so a large mailbox takes days. Ownpace keeps copying until all of it is in, and your old account works as usual meanwhile.`,
+        googleNative:
+          'Google Docs, Sheets, Slides and Drawings have no file to copy. They arrive in the format you choose: OpenDocument, Microsoft Office or PDF. Forms, Sites and My Maps have no export at all.',
+        takeout:
+          'Google lets no app read a whole photo library. Photos come only through a Google Takeout export, which you ask Google for and put in your new home’s files.',
+        otherMailboxes:
+          'The Microsoft 365 button reads the mailbox of the person who signs in. To move other people’s mailboxes as an administrator, your organisation registers an app of its own. A shared mailbox needs one too, and no real shared mailbox has been copied that way yet.',
+        reminders:
+          'Reminders arrive as tasks, so your new home must keep task lists, as Soverin and Nextcloud do. A CalDAV server that keeps only calendars refuses them, task by task.',
+        icloudDrive:
+          'Apple offers no way into iCloud Drive for anyone outside Apple, so its files cannot be read from the account. Apple’s own data export holds them, and Ownpace cannot read that export yet.',
+        appleExport:
+          'Ownpace cannot reach iCloud Photos from the account either. Apple’s data export holds them, and Ownpace cannot read that export yet: request one only for your own records for now.',
+        paper:
+          'Dropbox Paper docs have no file to copy. They arrive exported, as Markdown or HTML, whichever you choose. Sharing, file requests and version history stay behind.',
+        boxTrash:
+          'Ownpace reads your Box trash to tell a file you deleted from one that only went missing. If your organisation turned the trash off, deletions are only listed for you to do by hand. Sharing, collaborations, comments, tasks, version history and web links stay behind.',
+        imapOnlyMail: 'Over IMAP only mail is read. Calendars and contacts on a mail account are not.',
+      },
+      stepsTitle: 'What you will do',
+      stepKind: {
+        button: 'A button',
+        password: 'A password',
+        app: 'An app of your own',
+        export: 'An export you ask for',
+      },
+      steps: {
+        google: 'Sign in with Google and allow Ownpace to read your calendars, contacts and tasks.',
+        gmail:
+          'Sign in with Google again for your mail, which Google asks about on its own. On a personal account an app password can stand in, though Google advises against it.',
+        'google-drive': 'And once more for your Drive, which Google lets Ownpace read and never change.',
+        archive:
+          'For photos, ask Google for a Takeout export of Google Photos, and put it in a folder called Takeout at the top of your new home’s files.',
+        microsoft:
+          'Sign in with Microsoft and allow Ownpace to read what you tick: mail, calendars, contacts, OneDrive and To Do.',
+        graph: 'An administrator who moves other people’s mailboxes registers an app in Microsoft Entra instead, once.',
+        apple:
+          'Create an app-specific password in your Apple Account, and enter it with your Apple Account’s address. Apple offers no sign-in button for this.',
+        dropbox: 'Sign in with Dropbox and allow Ownpace to read your files.',
+        box: 'Someone creates an app in Box’s developer console, a Box administrator authorises it once, and you enter its client id and secret with the numeric id of the account you leave.',
+        imap: 'Your mail server’s address and your password, or an app password if your provider uses them.',
+      },
+      costTitle: 'A typical cost',
+      costPaid: (what, tier, price) => `One person moving their ${what} at once: ${tier}, ${price} a month.`,
+      costFree: (what, tier) => `One person moving their ${what}: ${tier}, nothing a month and no invoice.`,
+      costOneAtATime: (tier) => `Or one at a time, on ${tier}.`,
+      and: 'and',
+      nextTitle: 'The next step',
+    },
     diffTitle: 'What makes this different',
     diff: [
       ['It is a move, not a copy',
@@ -248,7 +344,7 @@ export const COPY = {
     },
     navName: 'Hoofdmenu',
     menu: 'Menu',
-    files: { home: 'index.html', how: 'hoe-het-werkt.html', pricing: 'prijzen.html', calculator: 'schatting.html', privacy: 'privacy.html', terms: 'voorwaarden.html', alpha: 'alpha.html', guide: 'alpha-handleiding.html' },
+    files: { home: 'index.html', how: 'hoe-het-werkt.html', pricing: 'prijzen.html', calculator: 'schatting.html', privacy: 'privacy.html', terms: 'voorwaarden.html', alpha: 'alpha.html', guide: 'alpha-handleiding.html', 'leaving-google': 'weg-bij-google.html', 'leaving-microsoft': 'weg-bij-microsoft-365.html', 'leaving-apple': 'weg-bij-icloud.html', 'leaving-dropbox': 'weg-bij-dropbox.html', 'leaving-box': 'weg-bij-box.html', 'leaving-mail': 'weg-bij-een-andere-mailaanbieder.html' },
     skip: 'Naar de inhoud',
     footerTag: 'neem uw gegevens mee, in uw eigen tempo.',
     footerOss:
@@ -281,6 +377,97 @@ export const COPY = {
       protocols: { name: 'Elke andere aanbieder', sub: 'die IMAP, CalDAV, CardDAV of WebDAV spreekt' },
     },
     dataTypes: { email: 'E-mail', calendar: 'Agenda', contact: 'Contacten', file: 'Bestanden', task: 'Taken' },
+    leaving: {
+      menu: 'Weg bij…',
+      names: {
+        google: 'Google',
+        microsoft: 'Microsoft 365',
+        apple: 'Apple iCloud',
+        dropbox: 'Dropbox',
+        box: 'Box',
+        mail: 'Een andere mailaanbieder',
+      },
+      title: { mail: 'Weg bij een andere mailaanbieder' },
+      titleOf: (name) => `Weg bij ${name}`,
+      lede: { mail: 'Wat Ownpace migreert uit een mailaanbieder die niet in dit rijtje staat, en wat u zelf doet.' },
+      ledeOf: (name) => `Wat Ownpace uit ${name} migreert, de grenzen die daarbij horen, en wat u zelf doet.`,
+      photos: 'Foto’s',
+      whatMoves: 'Wat er meegaat',
+      verdict: { moves: 'Gaat mee', limit: 'Gaat mee, met een grens', no: 'Gaat niet mee' },
+      goesTo: 'Gaat naar',
+      destShort: { soverin: 'Soverin', nextcloud: 'Nextcloud', jmap: 'een JMAP-server' },
+      anyProvider: (protocol) => `elke ${protocol}-aanbieder`,
+      or: 'of',
+      experimental: 'Experimenteel',
+      experimentalWhy:
+        'Gebouwd, maar nog niet gebruikt met een echt account van deze soort. Houd uw oude account aan en controleer wat er aankomt.',
+      staysBehind: 'Blijft achter:',
+      staysBehindItems: {
+        'Google Keep': 'Google Keep',
+        'Google Sites, Forms': 'Google Sites en Formulieren',
+        'Revision history': 'eerdere versies van een document',
+        'SharePoint extras': 'de versiegeschiedenis, rechten, metagegevens, lijsten en pagina’s van SharePoint',
+        'Teams chat & calls': 'Teams-chats en -gesprekken',
+        Planner: 'Planner',
+        'Power Automate': 'Power Automate',
+        InfoPath: 'InfoPath',
+        OneNote: 'OneNote, tenzij apart ingesteld',
+        'Retention holds': 'bewaarblokkeringen',
+        'Other O365 apps': 'de andere Office 365-apps',
+      },
+      limitsTitle: 'Grenzen om te kennen',
+      guideLink: 'In de handleiding (eerst aanmelden)',
+      limits: {
+        gmailDaily: (gb) =>
+          `Google laat een Gmail-postbus lezen tot ${gb} GB per dag, dus een grote postbus kost dagen. Ownpace blijft kopiëren tot alles binnen is, en uw oude account werkt intussen gewoon.`,
+        googleNative:
+          'Google Documenten, Spreadsheets, Presentaties en Tekeningen hebben geen bestand om te kopiëren. Ze komen aan in het formaat dat u kiest: OpenDocument, Microsoft Office of pdf. Formulieren, Sites en Mijn kaarten zijn helemaal niet te exporteren.',
+        takeout:
+          'Google laat geen enkele app een hele fotobibliotheek lezen. Foto’s komen alleen via een Google Takeout-export, die u bij Google aanvraagt en in de bestanden van uw nieuwe thuis zet.',
+        otherMailboxes:
+          'De Microsoft 365-knop leest de postbus van wie zich aanmeldt. Om als beheerder de postbussen van anderen te migreren, registreert uw organisatie een eigen app. Een gedeelde postbus heeft die ook nodig, en op die manier is nog geen echte gedeelde postbus gekopieerd.',
+        reminders:
+          'Herinneringen komen aan als taken, dus uw nieuwe thuis moet takenlijsten bewaren, zoals Soverin en Nextcloud doen. Een CalDAV-server die alleen agenda’s bewaart, weigert ze, taak voor taak.',
+        icloudDrive:
+          'Apple biedt niemand buiten Apple toegang tot iCloud Drive, dus de bestanden zijn niet vanuit het account te lezen. Apples eigen gegevensexport bevat ze, en die export kan Ownpace nog niet lezen.',
+        appleExport:
+          'Ook iCloud-foto’s kan Ownpace niet vanuit het account bereiken. Apples gegevensexport bevat ze, en die export kan Ownpace nog niet lezen: vraag er voorlopig alleen een aan voor uw eigen archief.',
+        paper:
+          'Dropbox Paper-documenten hebben geen bestand om te kopiëren. Ze komen geëxporteerd aan, als Markdown of HTML, wat u kiest. Delen, bestandsverzoeken en eerdere versies blijven achter.',
+        boxTrash:
+          'Ownpace leest uw Box-prullenbak om een bestand dat u verwijderde te onderscheiden van een dat alleen ontbreekt. Heeft uw organisatie de prullenbak uitgezet, dan worden verwijderingen alleen opgesomd, om zelf te doen. Delen, samenwerkingen, opmerkingen, taken, eerdere versies en weblinks blijven achter.',
+        imapOnlyMail: 'Via IMAP wordt alleen e-mail gelezen. Agenda’s en contacten bij een mailaccount niet.',
+      },
+      stepsTitle: 'Wat u zelf doet',
+      stepKind: {
+        button: 'Een knop',
+        password: 'Een wachtwoord',
+        app: 'Een eigen app',
+        export: 'Een export die u aanvraagt',
+      },
+      steps: {
+        google: 'Meld u aan bij Google en geef Ownpace toegang om uw agenda’s, contacten en taken te lezen.',
+        gmail:
+          'Meld u opnieuw aan bij Google voor uw e-mail, waar Google apart om vraagt. Bij een persoonlijk account kan een app-wachtwoord dat vervangen, al raadt Google het af.',
+        'google-drive': 'En nog één keer voor uw Drive, die Ownpace van Google mag lezen en nooit mag wijzigen.',
+        archive:
+          'Vraag voor foto’s bij Google een Takeout-export van Google Foto’s aan, en zet die in een map Takeout bovenaan in de bestanden van uw nieuwe thuis.',
+        microsoft:
+          'Meld u aan bij Microsoft en geef Ownpace toegang om te lezen wat u aanvinkt: e-mail, agenda’s, contacten, OneDrive en To Do.',
+        graph: 'Een beheerder die de postbussen van anderen migreert, registreert in plaats daarvan één keer een app in Microsoft Entra.',
+        apple:
+          'Maak een app-specifiek wachtwoord aan in uw Apple-account, en vul het in met het adres van uw Apple-account. Apple biedt hier geen aanmeldknop voor.',
+        dropbox: 'Meld u aan bij Dropbox en geef Ownpace toegang om uw bestanden te lezen.',
+        box: 'Iemand maakt een app aan in de ontwikkelaarsconsole van Box, een Box-beheerder geeft die één keer toestemming, en u vult de client-id en het geheim ervan in, met het numerieke id van het account dat u verlaat.',
+        imap: 'Het adres van uw mailserver en uw wachtwoord, of een app-wachtwoord als uw aanbieder die gebruikt.',
+      },
+      costTitle: 'Wat het meestal kost',
+      costPaid: (what, tier, price) => `Eén persoon die ${what} tegelijk migreert: ${tier}, ${price} per maand.`,
+      costFree: (what, tier) => `Eén persoon die ${what} migreert: ${tier}, niets per maand en geen factuur.`,
+      costOneAtATime: (tier) => `Of één voor één, op ${tier}.`,
+      and: 'en',
+      nextTitle: 'De volgende stap',
+    },
     diffTitle: 'Wat dit anders maakt',
     diff: [
       ['Het is een migratie, geen kopie',
