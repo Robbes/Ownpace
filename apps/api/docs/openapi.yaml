@@ -2232,6 +2232,13 @@ paths:
         none, or in the other spelling, is a `400` naming the key. Once the
         ledger holds an item, the folder is refused as below.
 
+        The folder the copies land in, `targetFolderPrefix`, is applied on the
+        same terms, through the parser create uses: an empty one merges the
+        copies into the destination's own folders. A folder another migration
+        between the same two accounts already copies into is a `409`
+        `duplicate_mapping`, in the words create answers with. The migration's
+        own read says it as `targetFolderPrefix`, or null.
+
         Fields that cannot change on a migration that already holds items are
         REFUSED rather than dropped: the source or target system, the source
         root folder, and the destination account. Reconnecting the same account
@@ -2253,7 +2260,11 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
           description: |
-            Two refusals, told apart by `error`.
+            Refusals, told apart by `error`.
+
+            `duplicate_mapping`: the folder the copies land in is one another
+            migration between the same two accounts already copies into
+            (`existingMappingId`, `existingMappingName`). Nothing was written.
 
             `revision_refused`: one or more fields cannot be revised on a
             migration that already exists. Every refused field is listed, each
@@ -2279,7 +2290,7 @@ paths:
                   - { $ref: '#/components/schemas/AccountClosed' }
                   - type: object
                     properties:
-                      error: { type: string, enum: [revision_refused, lifecycle_refused] }
+                      error: { type: string, enum: [revision_refused, lifecycle_refused, duplicate_mapping] }
                       message: { type: string }
                       hint: { type: string }
                       code:
@@ -2287,6 +2298,8 @@ paths:
                         enum: [own_door, after_cutover, finished, before_cutover, unknown]
                       from: { type: string }
                       to: { type: string }
+                      existingMappingId: { type: string }
+                      existingMappingName: { type: string, nullable: true }
                       refused:
                         type: array
                         items:
@@ -2294,7 +2307,7 @@ paths:
                           properties:
                             field:
                               type: string
-                              enum: [source.type, target.type, source.rootFolderId, target.account]
+                              enum: [source.type, target.type, source.rootFolderId, target.account, target.folderPrefix]
                             reason: { type: string }
     delete:
       tags: [Migrations]

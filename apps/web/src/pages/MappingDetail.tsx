@@ -329,6 +329,17 @@ const MappingDetail: React.FC = () => {
           })}
         </p>
       )}
+      {/* WHERE THE COPIES LAND (0153 open question 5, item 4): the folder
+          chosen as *Put it in a folder of its own*, or the destination's own
+          folders. Said, never offered for change: once anything is copied, a
+          move would leave the copies behind. Only where the read says. */}
+      {detail.data && detail.data.targetFolderPrefix !== undefined && (
+        <p className="mt-1 text-sm text-gray-600">
+          {detail.data.targetFolderPrefix
+            ? t('hub.lands.folder', { folder: detail.data.targetFolderPrefix })
+            : t('hub.lands.merged')}
+        </p>
+      )}
       {/* A GRANT THE PERSON TOOK BACK (workplan 0108 T8 (c)), said before
           anything that reads as progress: the status can still say Active,
           and nothing reads their account until they grant it again. The

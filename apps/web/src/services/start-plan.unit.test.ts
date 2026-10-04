@@ -19,6 +19,8 @@ import {
   nextcloudAddress,
   nextcloudDavUrl,
   offers,
+  sharesItsDestination,
+  type PlannedMigration,
   type Route,
 } from './start-plan.ts';
 
@@ -271,5 +273,32 @@ describe('what somebody else can connect themselves, by a grant link (0108)', ()
     for (const card of ['microsoft', 'apple', 'dropbox', 'box', 'imap']) {
       expect(grantableByLink(card, OWN_CLIENT)).toBe(false);
     }
+  });
+});
+
+describe('a migration that shares its destination (0153 open question 5, item 4)', () => {
+  const m = (source: string, target: string, types: PlannedMigration['types']): PlannedMigration => ({
+    provider: 'imap',
+    sourceCard: 'imap',
+    sourceConnectionId: source,
+    sourceUsername: `${source}@example.nl`,
+    targetCard: 'soverin',
+    targetConnectionId: target,
+    types,
+  });
+
+  it('is one whose data types another migration also sends to its destination', () => {
+    const a = m('a', 'sov', ['email']);
+    const b = m('b', 'sov', ['email', 'calendar']);
+    expect(sharesItsDestination(a, [a, b])).toBe(true);
+    expect(sharesItsDestination(b, [a, b])).toBe(true);
+  });
+
+  it('is not one that shares only the destination, or only the data types', () => {
+    const mail = m('a', 'sov', ['email']);
+    const calendar = m('b', 'sov', ['calendar']);
+    const elsewhere = m('c', 'other', ['email']);
+    expect(sharesItsDestination(mail, [mail, calendar, elsewhere])).toBe(false);
+    expect(sharesItsDestination(mail, [mail])).toBe(false);
   });
 });

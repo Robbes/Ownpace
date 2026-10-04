@@ -4,6 +4,31 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04: where the copies land, *Put it in a folder of its own* on screen 5 (open question
+5, item 4, the second part).** Until now the flow could not make a second migration between the
+same two accounts: it sent no folder, and the refusal's remedy, *give this one a different target
+folder*, was on no screen.
+
+- ***Where does it go?* ends with *Where the copies land*:** one fold per migration, *Put it in a
+  folder of its own*. It is closed and empty by default, so the copies merge into the
+  destination's own folders as before.
+- **It opens, filled in with the account each comes from, where another migration sends the same
+  data types to the same destination**, and says why (`sharesItsDestination`). Examples are two
+  accounts' mail into one mailbox, or Dropbox's files beside a Takeout's photos in one Nextcloud.
+  Mail and calendars from one Google account to one Soverin share a destination and nothing else,
+  so nothing opens.
+- **The migration page says where the copies land**: in the folder named, or in the destination's
+  own folders. The detail read returns `targetFolderPrefix`. The page offers no change, since
+  after the first item a move would leave the copies behind.
+- **The update route writes the folder until the first item**, through the parser create uses. It
+  used to drop it without a word. It is refused after the first item (`target.folderPrefix` in
+  the shared table, `onceCopied`), and where another migration between the same two accounts
+  already copies into that folder, in create's own words. The constraint is never left to answer.
+- **Proved by** two cases on the flow, two in `start-plan.unit.test.ts`, three on the migration
+  page, five against real rows, and one in shared. A mutation removing the clash check is caught.
+  The Takeout case now expects the export's folder of its own, since Dropbox's files go to the
+  same Nextcloud.
+
 **2026-10-04: *Rename* on the migration page, and the update route writing the name and the root
 folder (open question 5, item 4, the first part).** The flow names each migration itself, and the
 recommendation put *Rename* on the migration page for the name a person would rather read.
@@ -25,8 +50,8 @@ recommendation put *Rename* on the migration page for the name a person would ra
 - **Proved by** seven cases against real rows in `a-name-and-a-folder-the-route-writes`, three in
   shared, and four on the migration page. Two mutations are caught: dropping the name, and a ledger
   read that always says nothing was copied.
-- **Still to come for item 4:** the folder prefix on screen 5, the root folder on screen 3, and the
-  privacy sentence on TLS for the lawyer.
+- **Still to come for item 4:** the root folder on screen 3, and the privacy sentence on TLS for
+  the lawyer.
 
 **2026-10-04: the Google Calendar and Google Contacts cards retired for new migrations (open
 question 5, item 3).** The Google account is the same way in and asks Google for only what was

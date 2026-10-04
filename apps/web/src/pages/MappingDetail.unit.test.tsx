@@ -461,6 +461,28 @@ describe('the schedule panel (the owner, 2026-09-28)', () => {
   });
 });
 
+describe('where the copies land (0153 open question 5, item 4)', () => {
+  it('names the folder they land in, where one was chosen', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ targetFolderPrefix: 'anna@gmail.com' }));
+    renderHub();
+    expect(
+      await screen.findByText('The copies land in the folder anna@gmail.com of the destination.'),
+    ).toBeInTheDocument();
+  });
+
+  it('says they merge into the destination’s own folders where none was', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ targetFolderPrefix: null }));
+    renderHub();
+    expect(await screen.findByText("The copies land in the destination's own folders.")).toBeInTheDocument();
+  });
+
+  it('says nothing where the read does not say', async () => {
+    renderHub();
+    await screen.findByRole('heading', { level: 2, name: 'Acme mail' });
+    expect(screen.queryByText(/The copies land/)).toBeNull();
+  });
+});
+
 describe('Rename, beside the title (0153 open question 5, item 4)', () => {
   it('renames from beside the title, and the heading reads the stored name', async () => {
     mappingRenameMock.mockResolvedValue({ id: 'acme-mail', name: 'Anna’s mail', updatedAt: '2026-10-04T08:00:00Z' });

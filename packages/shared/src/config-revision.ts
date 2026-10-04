@@ -69,6 +69,7 @@ export const REVISABLE_FIELDS = [
   'source.type',
   'target.type',
   'target.account',
+  'target.folderPrefix',
 ] as const;
 
 export type RevisableField = (typeof REVISABLE_FIELDS)[number];
@@ -245,6 +246,24 @@ const RULES: ReadonlyArray<Rule> = [
         'nothing recording that it is there. Reconnecting the same account with a new ' +
         'password or a renewed sign-in is a different thing and is done on the ' +
         'Connections page. To copy into a different account, start a new migration.',
+    },
+  },
+  {
+    /**
+     * WHERE THE COPIES LAND in the destination (0153 open question 5, item 4):
+     * *Put it in a folder of its own* on *Where does it go?*. Moved after the
+     * first item, the copies already made would stay in the old folder with
+     * nothing recording that they are there: the root folder's problem, from
+     * the destination's side. Before it, nothing is anywhere yet.
+     */
+    field: 'target.folderPrefix',
+    onceCopied: true,
+    verdict: {
+      allowed: false,
+      reason:
+        'The folder this migration copies into cannot be changed once it has copied anything — ' +
+        'what is already there would be left in the old folder, with nothing recording that it ' +
+        'is there. To copy into another folder, start a new migration.',
     },
   },
 ];

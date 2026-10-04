@@ -514,7 +514,8 @@ describe('Where does it go? (screen 5)', () => {
     await toWhereTo(user);
     expect(screen.getByRole('combobox', { name: 'Where email goes' })).toHaveDisplayValue('Anna Soverin');
     expect(screen.getByRole('combobox', { name: 'Where files goes' })).toHaveDisplayValue('Anna Nextcloud');
-    expect(screen.queryByRole('heading', { level: 3 })).not.toBeInTheDocument();
+    // No form for a new account: its heading names the one to add.
+    expect(screen.queryByRole('heading', { level: 3, name: /^Add / })).not.toBeInTheDocument();
     expect(next()).toBeEnabled();
   });
 });
@@ -1084,6 +1085,9 @@ describe('Google’s photos from a Takeout export (0153 open question 5, item 2)
       sourceConfig: { username: '', provider: 'google-takeout', path: 'Takeout', where: 'target' },
       targetConfig: { username: 'anna', password: '' },
       syncConfig: { domains: ['file'], schedule: '0 2 * * *' },
+      // The Dropbox files go to the same Nextcloud, so each gets a folder of
+      // its own (0153 open question 5, item 4).
+      targetFolderPrefix: 'Google Takeout',
     });
     expect(vi.mocked(addMigrationToPerson)).toHaveBeenCalledWith('p-new', 'm-photos');
     const waits = screen.getByRole('heading', { level: 3, name: 'Photos: Google Takeout → Nextcloud' }).parentElement!;
@@ -1180,5 +1184,73 @@ describe('a saved Google Calendar or Contacts account, on the Google tile (0153 
     await onTo(user, 'Connect your accounts');
     await screen.findAllByRole('radio');
     expect(screen.queryByRole('radio', { name: /Anna Calendar/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('where the copies land (0153 open question 5, item 4)', () => {
+  /** Mail from Gmail and from another provider, both into one Soverin: every account saved. */
+  const SAVED = [
+    account({ id: 'c-gmail', kind: 'gmail', displayName: 'Anna Gmail', knownValues: { username: 'anna@gmail.com' } }),
+    account({ id: 'c-mail', knownValues: { username: 'anna@example.nl' } }),
+    account({ id: 'c-soverin', role: 'target', kind: 'soverin', displayName: 'Anna Soverin', knownValues: { username: 'anna@soverin.net' } }),
+  ];
+  const createMock = vi.mocked(mappingApi.create);
+
+  beforeEach(() => {
+    listMock.mockResolvedValue(SAVED);
+    vi.mocked(createPerson).mockResolvedValue({ ...ANNA, id: 'p-new' });
+    vi.mocked(addMigrationToPerson).mockResolvedValue({ ...ANNA, id: 'p-new' });
+    createMock.mockImplementation(async (input) => ({ id: `m-${input.sourceConnectionId}` }) as never);
+    vi.mocked(mappingApi.discover).mockResolvedValue({} as never);
+    vi.mocked(scopeManifestApi.get).mockResolvedValue({ version: 'v1', migrates: [], partial: [], doesNotMigrate: [] });
+  });
+
+  /** Gmail's mail alone from Google, and another provider's mail, to *Where does it go?*. */
+  async function twoMailboxesIntoOne(user: ReturnType<typeof userEvent.setup>) {
+    await toWhatMoves(user, ['Google', 'Another mail provider']);
+    const google = screen.getByRole('group', { name: 'From Google' });
+    for (const type of ['Calendar', 'Contacts', 'Files', 'Tasks Experimental']) {
+      await user.click(within(google).getByRole('checkbox', { name: type }));
+    }
+    await onTo(user, 'Connect your accounts');
+    await screen.findAllByText(/^Connected as/);
+    return onTo(user, 'Where does it go?');
+  }
+
+  it('gives each a folder of its own where two accounts’ mail goes into one mailbox, and says why', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await twoMailboxesIntoOne(user);
+    const folders = screen.getAllByLabelText('Folder');
+    expect(folders.map((f) => (f as HTMLInputElement).value).sort()).toEqual(['anna@example.nl', 'anna@gmail.com']);
+    expect(
+      screen.getAllByText('Another migration sends the same kind of data here, so each gets a folder of its own.'),
+    ).toHaveLength(2);
+    // What is typed is what is sent.
+    const gmail = folders.find((f) => (f as HTMLInputElement).value === 'anna@gmail.com')!;
+    await user.clear(gmail);
+    await user.type(gmail, 'Gmail');
+    await user.click(next());
+    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceConnectionId: 'c-gmail', targetFolderPrefix: 'Gmail' }),
+    );
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceConnectionId: 'c-mail', targetFolderPrefix: 'anna@example.nl' }),
+    );
+  });
+
+  it('sends no folder where nothing else goes to the same place, and keeps the fold closed', async () => {
+    listMock.mockResolvedValue([SAVED[1]!, SAVED[2]!]);
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Another mail provider']);
+    await onTo(user, 'Connect your accounts');
+    await screen.findAllByText(/^Connected as/);
+    await onTo(user, 'Where does it go?');
+    expect(screen.getByText('Put it in a folder of its own').closest('details')).not.toHaveAttribute('open');
+    await user.click(next());
+    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    expect(createMock.mock.calls[0]![0]).not.toHaveProperty('targetFolderPrefix');
   });
 });

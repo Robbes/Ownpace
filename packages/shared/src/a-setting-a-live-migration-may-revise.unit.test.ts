@@ -164,6 +164,12 @@ describe('the root folder may change until something is copied', () => {
     expect(mayRevise('source.rootFolderId').allowed).toBe(false);
   });
 
+  it('lets the folder the copies land in change on the same terms (0153 open question 5, item 4)', () => {
+    expect(mayRevise('target.folderPrefix', { copiedAnything: false })).toEqual({ allowed: true });
+    expect(mayRevise('target.folderPrefix', { copiedAnything: true }).allowed).toBe(false);
+    expect(mayRevise('target.folderPrefix').allowed).toBe(false);
+  });
+
   it('changes no other row: the source, the target and its account stay refused', () => {
     const refused = refusalsFor(['source.type', 'target.type', 'target.account'], { copiedAnything: false });
     expect(refused.map((r) => r.field)).toEqual(['source.type', 'target.type', 'target.account']);

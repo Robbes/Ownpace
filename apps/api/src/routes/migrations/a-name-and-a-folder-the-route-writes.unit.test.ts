@@ -17,6 +17,11 @@
  * ledger holds an item, and refused after, in the table's words; a source
  * with no folder, and the other spelling, are refused by name; an empty folder
  * takes it off the override, except where the account itself holds one.
+ *
+ * And the folder the copies land in (`targetFolderPrefix`), which the route
+ * dropped without a word: written until the first item, refused after, and
+ * refused where another migration between the same two accounts already
+ * copies into it, in the words create uses for the same index.
  */
 
 process.env.SECRET_ENCRYPTION_KEY =
@@ -36,6 +41,8 @@ const CONN = {
   dropboxOwnRoot: '0153a500-e29b-41d4-a716-446655440113',
   imap: '0153a500-e29b-41d4-a716-446655440114',
   copied: '0153a500-e29b-41d4-a716-446655440115',
+  twin: '0153a500-e29b-41d4-a716-446655440116',
+  target: '0153a500-e29b-41d4-a716-446655440117',
 } as const;
 const BOX = {
   drive: '0153a500-e29b-41d4-a716-446655440121',
@@ -43,6 +50,8 @@ const BOX = {
   dropboxOwnRoot: '0153a500-e29b-41d4-a716-446655440123',
   imap: '0153a500-e29b-41d4-a716-446655440124',
   copied: '0153a500-e29b-41d4-a716-446655440125',
+  twin: '0153a500-e29b-41d4-a716-446655440126',
+  target: '0153a500-e29b-41d4-a716-446655440127',
 } as const;
 const MAPPING = {
   drive: '0153a500-e29b-41d4-a716-446655440131',
@@ -50,6 +59,8 @@ const MAPPING = {
   dropboxOwnRoot: '0153a500-e29b-41d4-a716-446655440133',
   imap: '0153a500-e29b-41d4-a716-446655440134',
   copied: '0153a500-e29b-41d4-a716-446655440135',
+  twinA: '0153a500-e29b-41d4-a716-446655440136',
+  twinB: '0153a500-e29b-41d4-a716-446655440137',
 } as const;
 
 let driver: LedgerDriver;
@@ -83,6 +94,8 @@ async function read(sql: string, params: unknown[]): Promise<Record<string, unkn
 const overrideOf = async (mapping: string) =>
   (await read('SELECT source_config_override AS o FROM mailbox_mapping WHERE id = $1', [mapping]))['o'];
 const nameOf = async (mapping: string) => (await read('SELECT name FROM mailbox_mapping WHERE id = $1', [mapping]))['name'];
+const prefixOf = async (mapping: string) =>
+  (await read('SELECT target_folder_prefix AS p FROM mailbox_mapping WHERE id = $1', [mapping]))['p'];
 
 const put = (mapping: string, body: Record<string, unknown>) =>
   request(app).put(`/api/migrations/${mapping}`).send(body);
@@ -97,7 +110,7 @@ beforeAll(async () => {
       SecretStore.encryptCredentials({ clientId: 'c', clientSecret: 's', refreshToken: 'r' }).encrypted,
     );
     await q('INSERT INTO tenant (id, name) VALUES ($1,$2)', [TENANT, 'folders']);
-    const rows: ReadonlyArray<[keyof typeof CONN, string, Record<string, unknown>]> = [
+    const rows: ReadonlyArray<[keyof typeof CONN & keyof typeof MAPPING, string, Record<string, unknown>]> = [
       ['drive', 'google_drive', { type: 'google-drive' }],
       ['dropbox', 'dropbox', { type: 'dropbox' }],
       ['dropboxOwnRoot', 'dropbox', { type: 'dropbox', rootPath: '/Werk' }],
@@ -119,6 +132,23 @@ beforeAll(async () => {
         [MAPPING[key], TENANT, BOX[key], `${key} migration`],
       );
     }
+    // Two migrations between the same two accounts, one in a folder of its own.
+    await q(
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
+       VALUES ($1,$2,'source','google_drive','twin','{"type":"google-drive"}'::jsonb,'connected',$4),
+              ($3,$2,'target','soverin','target','{"type":"soverin"}'::jsonb,'connected',$4)`,
+      [CONN.twin, TENANT, CONN.target, secret],
+    );
+    await q(
+      `INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address)
+       VALUES ($1,$2,$3,'user','twin@example.invalid'), ($4,$2,$5,'user','target@example.invalid')`,
+      [BOX.twin, TENANT, CONN.twin, BOX.target, CONN.target],
+    );
+    await q(
+      `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, status, name, target_folder_prefix)
+       VALUES ($1,$2,$3,$4,'paused','twin A','Anna'), ($5,$2,$3,$4,'paused','twin B',NULL)`,
+      [MAPPING.twinA, TENANT, BOX.twin, BOX.target, MAPPING.twinB],
+    );
     // One item in one ledger: that migration has copied something.
     await q(
       `INSERT INTO item (tenant_id, mapping_id, domain, collection, natural_key, natural_key_hash, status)
@@ -188,5 +218,41 @@ describe('a root folder, until something is copied', () => {
     const own = await put(MAPPING.dropboxOwnRoot, { sourceConfig: { rootPath: '' } });
     expect(own.status).toBe(400);
     expect(JSON.stringify(own.body.details)).toContain('set on its account');
+  });
+});
+
+describe('the folder the copies land in, until something is copied', () => {
+  it('writes it on a migration that has copied nothing, through the parser create uses', async () => {
+    const res = await put(MAPPING.twinB, { targetFolderPrefix: '/Gmail/' });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(await prefixOf(MAPPING.twinB)).toBe('Gmail');
+  });
+
+  it('refuses a folder another migration between the same accounts copies into, in create’s words', async () => {
+    const res = await put(MAPPING.twinB, { targetFolderPrefix: 'Anna' });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('duplicate_mapping');
+    expect(res.body.existingMappingId).toBe(MAPPING.twinA);
+    expect(res.body.message).toContain('A migration between these two accounts already exists');
+    expect(await prefixOf(MAPPING.twinB)).toBe('Gmail');
+  });
+
+  it('refuses it once something was copied, in the table’s words', async () => {
+    const res = await put(MAPPING.copied, { targetFolderPrefix: 'Elsewhere' });
+    expect(res.status).toBe(409);
+    expect(res.body.refused.map((r: { field: string }) => r.field)).toEqual(['target.folderPrefix']);
+    expect(await prefixOf(MAPPING.copied)).toBeNull();
+  });
+
+  it('refuses a folder the parser refuses, on the key it was sent under', async () => {
+    const res = await put(MAPPING.twinB, { targetFolderPrefix: 'a/../b' });
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body.details)).toContain('targetFolderPrefix');
+  });
+
+  it('is said by the migration’s own read', async () => {
+    const res = await request(app).get(`/api/migrations/${MAPPING.twinA}`);
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.targetFolderPrefix).toBe('Anna');
   });
 });

@@ -80,6 +80,7 @@ import {
   exportDestinations,
   exportMigration,
   exportOf,
+  sharesItsDestination,
   type ConnectionNeed,
   type MicrosoftMailThrough,
   type PlanChoices,
@@ -312,6 +313,9 @@ const StartMigration: React.FC = () => {
   // read from (0153 open question 5, item 2).
   const [exportsTicked, setExportsTicked] = React.useState<ReadonlyArray<StartProvider>>([]);
   const [exportTo, setExportTo] = React.useState<string | undefined>(undefined);
+  // The folder each migration's copies land in, as typed (0153 open question
+  // 5, item 4); a migration not touched follows `prefixOf`.
+  const [prefixes, setPrefixes] = React.useState<Readonly<Record<string, string>>>({});
 
   const people: ReadonlyArray<Person> = (peopleQuery.data?.people ?? []).filter(
     (p) => !p.implicit && p.displayName !== null,
@@ -448,6 +452,18 @@ const StartMigration: React.FC = () => {
    * formats chosen on *What moves?*, and the default schedule, daily at 02:00
    * (T4, *Underneath*).
    */
+  /**
+   * WHERE A MIGRATION'S COPIES LAND (0153 open question 5, item 4): what was
+   * typed, else a folder named after the account it comes from where another
+   * migration sends the same data types to the same destination, else none,
+   * so the copies merge into the destination's own folders, as before.
+   */
+  const prefixOf = (m: PlannedMigration): string =>
+    prefixes[pairKey(m)] ?? (sharesItsDestination(m, planned) ? m.sourceUsername || fromWord(m) : '');
+  const prefixFor = (m: PlannedMigration) => {
+    const folder = prefixOf(m).trim();
+    return folder === '' ? {} : { targetFolderPrefix: folder };
+  };
   const inputFor = (m: PlannedMigration): CreateMappingInput => {
     if (m.sourceCard === EXPORT_CARD) {
       // An export (0153 open question 5, item 2): no account to reuse, so its
@@ -460,6 +476,7 @@ const StartMigration: React.FC = () => {
         sourceConfig: { username: '', provider: exportOf(m.provider)!.archive, path: TAKEOUT_FOLDER, where: 'target' },
         targetConfig: { username: m.targetUsername ?? '', password: '' },
         syncConfig: { domains: [...m.types], schedule: '0 2 * * *' },
+        ...prefixFor(m),
       };
     }
     const files = m.types.includes('file');
@@ -479,6 +496,7 @@ const StartMigration: React.FC = () => {
       },
       targetConfig: { username: m.targetUsername ?? '', password: '' },
       syncConfig: { domains: [...m.types], schedule: '0 2 * * *' },
+      ...prefixFor(m),
     };
   };
 
@@ -658,6 +676,13 @@ const StartMigration: React.FC = () => {
               exportRow={
                 exporting.length === 0 ? undefined : { choice: exportDestinationOf(), onChoice: setExportTo }
               }
+              lands={{
+                planned,
+                titles,
+                prefixOf,
+                shared: (m) => sharesItsDestination(m, planned),
+                onPrefix: (m, folder) => setPrefixes((prev) => ({ ...prev, [pairKey(m)]: folder })),
+              }}
             />
           )}
         </div>
@@ -1625,7 +1650,9 @@ export const ToStep: React.FC<{
   onAddedFor: (card: WizardTargetType, connectionId: string) => void;
   /** Where an export is read from, on a row of its own (0153 open question 5, item 2). */
   exportRow?: { readonly choice: string; readonly onChoice: (choice: string) => void } | undefined;
-}> = ({ types, accounts, destinationOf, onDestination, onAddedFor, exportRow }) => {
+  /** Where each migration's copies land, once its accounts are chosen (0153 open question 5, item 4). */
+  lands?: LandsProps;
+}> = ({ types, accounts, destinationOf, onDestination, onAddedFor, exportRow, lands }) => {
   const { t, locale } = useLocale();
   const accountLabel = useAccountLabel();
   if (accounts.loading) return <p className="text-sm text-gray-500">{t('common.loading')}</p>;
@@ -1745,7 +1772,67 @@ export const ToStep: React.FC<{
       {pending.map((card) => (
         <NewDestination key={card} card={card} accounts={accounts} onAdded={(id) => onAddedFor(card, id)} />
       ))}
+      {lands && lands.planned.length > 0 && <WhereTheCopiesLand {...lands} />}
     </div>
+  );
+};
+
+/** What *Where the copies land* reads and writes, from the flow's own state. */
+interface LandsProps {
+  readonly planned: ReadonlyArray<PlannedMigration>;
+  readonly titles: Readonly<Record<string, string>>;
+  readonly prefixOf: (m: PlannedMigration) => string;
+  readonly shared: (m: PlannedMigration) => boolean;
+  readonly onPrefix: (m: PlannedMigration, folder: string) => void;
+}
+
+/**
+ * WHERE THE COPIES LAND (0153 open question 5, item 4; the owner, 2026-10-04:
+ * *"go with the recommendations"*). One fold per migration, *Put it in a
+ * folder of its own*: closed and empty, so the copies merge into the
+ * destination's own folders as before, except where another migration sends
+ * the same data types to the same place. There it is open and filled in with
+ * the account each comes from, and says why. It is also the way past the
+ * refusal of a second migration between the same two accounts, whose remedy,
+ * *a different target folder*, no screen offered.
+ */
+const WhereTheCopiesLand: React.FC<LandsProps> = ({ planned, titles, prefixOf, shared, onPrefix }) => {
+  const { t } = useLocale();
+  const headingId = React.useId();
+  return (
+    <section aria-labelledby={headingId}>
+      <h3 id={headingId} className="text-sm font-semibold text-gray-900">
+        {t('start.to.lands')}
+      </h3>
+      <ul className="mt-2 space-y-3">
+        {planned.map((m) => {
+          const key = pairKey(m);
+          const folder = prefixOf(m);
+          const inputId = `lands-${key}`;
+          return (
+            <li key={key} data-lands={key} className="rounded-lg border border-gray-200 p-3">
+              <p className="text-sm text-gray-900">{titles[key] ?? ''}</p>
+              {shared(m) && <p className="mt-1 text-sm text-gray-600">{t('start.to.ownFolder.shared')}</p>}
+              <details open={shared(m) || folder !== ''} className="mt-1">
+                <summary className="cursor-pointer text-sm text-blue-700">{t('start.to.ownFolder')}</summary>
+                <div className="mt-2 flex flex-col gap-1">
+                  <label htmlFor={inputId} className="text-sm font-medium text-gray-700">
+                    {t('start.to.ownFolder.label')}
+                  </label>
+                  <input
+                    id={inputId}
+                    className="input min-h-[44px] max-w-md"
+                    value={folder}
+                    onChange={(e) => onPrefix(m, e.target.value)}
+                  />
+                  <p className="text-sm text-gray-600">{t('start.to.ownFolder.hint')}</p>
+                </div>
+              </details>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 };
 
