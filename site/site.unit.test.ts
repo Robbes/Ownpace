@@ -997,3 +997,41 @@ describe('the pricing page opens on yearly, and compares only prices on sale now
     }
   });
 });
+
+describe('the pricing page asks its rules as questions (workplan 0152 T6 (b))', () => {
+  it('puts every rule under its heading in a question, answered word for word by its paragraph, in both languages', async () => {
+    const { COPY } = (await import('./copy.mjs')) as unknown as {
+      COPY: Record<'en' | 'nl', { pricingRules: { heading: string; questions: Array<[string, string]> } }>;
+    };
+    const pages = await renderedPages();
+    for (const [locale, file, source] of [
+      ['en', 'pricing.html', 'site/pages/en/pricing.md'],
+      ['nl', 'nl/prijzen.html', 'site/pages/nl/prijzen.md'],
+    ] as const) {
+      const { heading, questions } = COPY[locale].pricingRules;
+      // The leads in the source, in order: every bold-led paragraph under the heading.
+      const md = read(source);
+      const section = md.slice(md.indexOf(`## ${heading}`), md.indexOf('\n## ', md.indexOf(`## ${heading}`) + 1));
+      const leads = [...section.matchAll(/^\*\*([^*]+)\*\*/gm)].map((m) => m[1]!);
+      expect(leads.length, `${source}: the rules under "${heading}" are gone`).toBeGreaterThan(8);
+      const html = pages.find((p) => p.file === file)!.html;
+      const asked = [...html.matchAll(/<details class="qa"><summary>([^<]+)<\/summary><p><strong>([^<]+)<\/strong>/g)].map(
+        (m) => ({ question: m[1]!, lead: m[2]! }),
+      );
+      expect(asked.map((a) => a.lead), `${file}: not every rule became a question, in order`).toEqual(leads);
+      expect(asked.map((a) => [a.lead, a.question])).toEqual(questions);
+      // A question is a question.
+      for (const a of asked) expect(a.question, `${file}: "${a.question}"`).toMatch(/\?$/);
+    }
+  });
+
+  it('keeps the exception to "finishing lowers your bill" within three answers of it', async () => {
+    const html = (await renderedPages()).find((p) => p.file === 'pricing.html')!.html;
+    const answers = [...html.matchAll(/<details class="qa">[\s\S]*?<\/details>/g)].map((m) => m[0]);
+    const finishing = answers.findIndex((a) => a.includes('Finishing lowers your bill'));
+    const unless = answers.findIndex((a) => a.includes('Unless you ask us to keep copying'));
+    expect(finishing).toBeGreaterThan(-1);
+    expect(unless - finishing, 'the exception drifted away from the answer it qualifies').toBeGreaterThan(0);
+    expect(unless - finishing).toBeLessThan(4);
+  });
+});
