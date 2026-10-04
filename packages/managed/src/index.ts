@@ -46,6 +46,7 @@ export * from './bytes-moved.ts';
 export * from './tier-calculator.ts';
 export * from './data-ceiling.ts';
 export * from './path-ceiling.ts';
+export * from './billed-tier.ts';
 export * from './grant-link-allowance.ts';
 export * from './people.ts';
 export * from './person-link-store.ts';

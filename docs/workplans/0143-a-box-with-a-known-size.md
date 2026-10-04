@@ -2,7 +2,15 @@
 
 > **In one line:** Sizing the reference machine for the alpha's two stacks: Trigger.dev machine presets, a pass cap in `managed-sync-tick`, per-organisation limits, streamed files to `JmapFileTarget`, a largest-file refusal, plane retention and a measured load rehearsal.
 
-## Status — 2026-10-03 (update this block at the end of every session)
+## Status — 2026-10-04 (update this block at the end of every session)
+
+**2026-10-04: the owner accepted unpruned run rows during the Alpha (0131 T3).** Asked whether
+run records may stay unpruned during the Alpha, the owner chose *"Accept (Recommended)"*:
+*"Record it as decided. The retention rule for never-billed organisations stays parked (0143 T6)
+until the Alpha ends, and 0143 T9 keeps measuring what the rows cost."* So T6 stays
+🅿️ **Parked**, its trigger unchanged, and T9's sitting will count the `run`, `run_event` and
+`item` rows, which is what they cost. Nothing is built for it. 0131 §3 T3 records the question
+whole.
 
 **2026-10-03, night: the plane's limit set and read back on the OTA stack by the gate (T1 step
 3; open question 9).** E2E (managed) #232 on `main` (`1f6d5ea`) was the gate's first run with
@@ -831,7 +839,7 @@ unproved until then:
 | T3 A streamed file reaches a JMAP target | 🔨 **T3a built 2026-09-27**, merged as #1243: the refusal names the file, its size and WebDAV; **T3b built 2026-09-29**, merged as #1355 (`2ce6546`): the stream sent as the upload, and a file over the server's `maxSizeUpload` refused up front, naming it; 0141 T8's nightly leg next — *was:* T3b 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
 | T4 A file no pass can carry is refused up front, with a sentence | 🔨 **(a) built 2026-09-27**, merged as #1259: 10 GB, the owner's number, and a category of its own, `too_large`; the attempts after the alpha 📋 **Proposed** — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** A stated largest file, refused before a byte moves, and parked for a person rather than retried. The kill loop for smaller files that are still too slow comes after. |
 | T5 Every data type of a migration gets a turn in a pass | ✅ **done** in #1262, merged 2026-09-27: (c), small first, then a fair share of what is left — *was:* 📋 **Decided 2026-09-27: (c)** (open question 3) | §3. After the first invitation. It has to be built **before a tester with a large Microsoft 365 mailbox and more than mail ticked** is granted. Small data types go first, and each type gets a fair share of what is left. |
-| T6 Runs of organisations that are never invoiced | 🅿️ **Parked (trigger: the alpha runs past the 60-day run window, or its organisations carry on after it)** | §3. Nothing an alpha of a few weeks writes is old enough to prune, even with the rule changed. |
+| T6 Runs of organisations that are never invoiced | 🅿️ **Parked (trigger: the alpha runs past the 60-day run window, or its organisations carry on after it)** | §3. Nothing an alpha of a few weeks writes is old enough to prune, even with the rule changed. The owner accepted unpruned run rows during the Alpha (2026-10-04, 0131 T3); the trigger is unchanged. |
 | T7 What the task plane keeps, and for how long | 📋 **Proposed** | §3. After the first invitation, sooner if T9's runway is short. Registry clean-up on both planes, task-event and run-record retention, host image and build-cache pruning, and the ClickHouse volume the OTA stack left behind. |
 | T8 `pg_stat_statements` on | ✅ **Built 2026-09-29, merged 2026-10-03**, after #1358 (both change `bootstrap-managed.sh`): the preload with utility statements left out, the extension in the bring-up's data phase, and the runbook's query; proved by `a-database-that-counts-its-queries` (6 cases, all failing on `main`) and on a throwaway PostgreSQL 16 cluster — *was:* 📋 **Proposed** | §3. Before T9 if it is ready. Not a condition of the first invitation. Utility statements are not tracked, so a password change is never recorded. |
 | T9 One measured rehearsal of the alpha's shape | ✅ **The script done** in #1235, merged 2026-09-27 — *was:* 📋 Proposed. ⏳ **Owner** (the sitting) | §3. **Alpha minimum.** Twenty organisations × M migrations against the demo servers, on the OTA stack with live standing beside it, plus one large drive and one large mailbox of the owner's own. Memory, containers, pool waits, statements and disk are recorded for the whole machine. The numbers set T0's final values and the invite ceiling. |
@@ -1511,6 +1519,11 @@ The OTA stack's demo tenants fall under the same rule, so their run rows are kep
 of them holds an invoice issued before the route was retired. That cannot be seen from here. T9's
 row counts show what their runs cost the machine.
 
+**2026-10-04: accepted by the owner.** Asked in 0131 T3 whether run rows may stay unpruned during
+the Alpha, the owner chose *"Accept (Recommended)"*: *"Record it as decided. The retention rule
+for never-billed organisations stays parked (0143 T6) until the Alpha ends, and 0143 T9 keeps
+measuring what the rows cost."* The trigger above is unchanged.
+
 **When the trigger fires:** with the alpha setting on (0131 T1), managed retention prunes an
 organisation with no issued invoice by the window alone. That is `safeUpTo: 'nothing-is-billed'`,
 the appliance's answer in `apps/selfhost/src/index.ts`. The day billing returns, the setting is
@@ -1646,6 +1659,10 @@ the machine is.
   (free space ÷ growth per day).
 - The ten statements with the most total time, with T8.
 - Counts of `rate_limited` and `quota_exceeded` failures, for T10.
+
+*(2026-10-04: the owner accepted unpruned run rows during the Alpha (0131 T3), and with it that
+T9 keeps measuring what the rows cost. The row counts of `run`, `run_event` and `item` above are
+that measurement. T6 stays parked.)*
 
 **Pass or fail.**
 

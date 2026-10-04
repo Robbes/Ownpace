@@ -134,19 +134,22 @@ describe('a screen that quoted a retired price', () => {
     // it; the price list of 2026-09-29 moved every copy to integer cents (a year
     // per month is €2.50 on Small). Scaling a cents figure again prints a
     // HUNDRED times the price, so the guard turned round with the unit.
+    // Since 2026-10-04 the panel prints the tier it names (`shownTier`: what
+    // the month bills, or during the alpha what was used) as `tier`, so either
+    // spelling is the tier.
     const screen = read(WEB_SCREEN);
     for (const field of ['monthlyCents', 'annualCents']) {
       expect(
         screen,
         `Billing.tsx no longer passes tier.${field} to currency() as it is.`,
-      ).toMatch(new RegExp(`currency\\(\\s*usage\\.tier\\.${field}\\s*,`));
+      ).toMatch(new RegExp(`currency\\(\\s*(usage\\.)?tier\\.${field}\\s*,`));
       expect(
         screen,
         `Billing.tsx scales tier.${field}, which is already cents: that prints a hundred times the price.`,
-      ).not.toMatch(new RegExp(`usage\\.tier\\.${field}\\s*\\*\\s*100`));
+      ).not.toMatch(new RegExp(`\\btier\\.${field}\\s*\\*\\s*100`));
     }
     expect(screen, 'a setup fee is back on the Billing screen; ADR-0014 dropped them').not.toMatch(
-      /usage\.tier\.setup/,
+      /\btier\.setup/,
     );
   });
 

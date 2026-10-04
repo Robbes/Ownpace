@@ -4,6 +4,24 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04: the alpha's data does not count, and the Billing page says what the month bills**
+(the owner, 2026-10-04: *"In total for ever, and the alpha's data doesn't count"*). Data counts in
+total, for ever, never per month or per year, as built. What moved while the stage was `alpha`
+never counts: `bytes_moved.alpha_bytes` (managed 0040) rises with the total during the alpha and
+never after, every byte on the meter before 0040 is the alpha's, and the ceiling, the hold, the tier
+(`currentTier`, `tierNow`, the usage screen, the operator's view) read `bytes - alpha_bytes`. Once
+the alpha is over the tier panel is *What this month bills*: what it used, never above the agreed
+tier (`billedTierOf`), so a band bought keeps Small where the data alone measures Medium, and one
+sentence says why when what was used is past it; under it, the most at once, data in total against
+its ceiling, and what the alpha moved. During the alpha the panel names what was used, as before;
+Start's note at the ceiling says nothing, since nothing moved then counts.
+
+- **Guards:** `the-alphas-data-does-not-count.unit.test.ts` (the backfill over a database that had
+  a meter row before 0040, proved by removing it; both numbers only rise; the ceiling and the tier
+  read what counts); `billed-tier.unit.test.ts`; `what-this-month-bills.unit.test.ts` (the routes
+  over PGlite); `Billing.unit.test.tsx`, `DataCeiling.unit.test.tsx`,
+  `CeilingAtStart.unit.test.tsx`; `first-copy-meter-wired.unit.test.ts` (the flush says the stage).
+
 **2026-10-04: the question at *Start* is built** (the path axis's other half; the owner,
 2026-10-04: *"side by side"*). Before the press, *Start* asks the server what starting would hold
 against the agreed tier (`GET /api/billing/paths`, the server's own rule through `pathsForecast`),
@@ -215,7 +233,7 @@ per mapping, so nothing above it can be right until that moves.
 | T3 The first-copy byte meter, append-only | ✅ **Built 2026-08-30** (engine statistic + managed migration 0016 + worker flush) | `firstCopyBytes` computed in the one shared loop at the moment of each target CREATE; `bytes_moved` raised by the managed worker after each pass, raise-only by trigger. Never the same query as 0090's byte budget, and never a live-row SUM — proved byte-exact by sensitivity at the engine. |
 | T4 The tier calculator, and its drift guard | ✅ **Built 2026-08-30** (`tier-calculator.ts`, on T1–T3 the same evening); **surfaced 2026-08-31** on the support tenant screen | The third copy of the numbers, held to the first two: the same structurally-identical ADR-table parse the site guard runs, PLUS an agreement grid driving this derivation and `site/calculator.mjs`'s over every boundary (195 points — tier and axis must match). `currentTier` derives from the month's peak (with T2's true-up, closing the quiet-month gap) and the meter's total, and answers with the EVIDENCE T5 quotes. Proved by breaking: a one-euro price drift and a wrong-axis derivation each turn red. **Surfaced**: `support_tenant_usage` (managed 0017) + `observedTier` (the read-only twin — looking moves no billing mark) render tier, axis, peak+date, live per-state counts and GB on the operator's tenant screen, parity with `currentTier` pinned before and after its true-up — so a wrong derivation is seen by the operator months before a customer sees a bill. **The view read a different month from the customer until 2026-09-09**: its join was `date_trunc('month', now())::date` — session-timezone dependent, like the writer — while the tenant's own `/api/billing/usage` read the peak in UTC. For the last hour or two of every month the earlier pair of eyes was looking at a different number from the one it exists to check. Managed migration 0024 pins the join to UTC. |
 | T5 The invoice says the tier and its evidence | 📋 Planned (needs T2–T4) | One line, a tier name, a peak and a date — and the per-driver breakdown gone. **Carries a dependency found in 0121 T4 (2026-09-09):** `rowFromIssuedInvoice` reads `metadata.costByDriver` off issued invoices to answer for months the run ledger no longer holds, and returns `null` without it — so dropping the breakdown makes newer months vanish from usage history SILENTLY while older ones keep rendering. T5 either keeps writing a breakdown or teaches that fallback the tier shape. Same reshape covers `/usage/history`, which still prices its ledger-derived rows with the retired `calculateCost` (nothing renders them today). |
-| T6 Top-ups, step-ups and the floor | 🟡 **The data axis built 2026-10-03** (managed 0037, `data-ceiling.ts`, `/api/billing/ceiling`, `DataCeiling.tsx`, `firstCopyAllowed`, `CeilingAtStart.tsx`); **the path axis 2026-10-04** (`path-ceiling.ts`, managed 0039, `/api/billing/paths`, `PathsAtStart.tsx`): the server's check and the question at *Start*. Not during the alpha (owner: *"A"*) | The mechanics ADR-0014 published and nothing implements. |
+| T6 Top-ups, step-ups and the floor | 🟡 **The data axis built 2026-10-03** (managed 0037, `data-ceiling.ts`, `/api/billing/ceiling`, `DataCeiling.tsx`, `firstCopyAllowed`, `CeilingAtStart.tsx`); **the path axis 2026-10-04** (`path-ceiling.ts`, managed 0039, `/api/billing/paths`, `PathsAtStart.tsx`): the server's check and the question at *Start*; **what the month bills, and the alpha's data never counting, 2026-10-04** (managed 0040, `billed-tier.ts`). Not during the alpha (owner: *"A"*) | The mechanics ADR-0014 published and nothing implements. |
 | T7 Extend the leakage guard before, not after | ✅ **Obsolete as written — resolved by the guard itself, verified 2026-08-30** | The premise ("a fixed list of five") is stale: the guard's table list now DERIVES from the managed chain's own SQL, so `occupancy_peak` was appliance-forbidden the moment migration 0015 existed, with no list to edit. Verified green with the new table; T3's meter inherits the same coverage for free. |
 | T8 The free band, if acquisition wants one | ✅ **Decided and built 2026-09-24**: Tiny is free | The owner: *"make the Tiny tier Free, no billing needed."* Tiny itself, not a new row; no invoice, no payment method, no top-up. See the section below and ADR-0014's amendment. |
 

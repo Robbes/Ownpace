@@ -148,7 +148,8 @@ export async function currentTier(db: PgDatabase, tenantId: TenantId): Promise<T
   await peaks.recordCurrentOccupancy(tenantId);
   const now = new Date();
   const peak = await peaks.forMonth(tenantId, now);
-  const bytes = await new PgBytesMovedStore(db).total(tenantId);
+  // What counts: the alpha's data does not (managed 0040).
+  const bytes = await new PgBytesMovedStore(db).counted(tenantId);
   // Decimal GB, matching the published table's unit; Number is exact far past
   // any ceiling in it (2^53 bytes ≈ 9 million TB).
   const gbMoved = Number(bytes) / 1e9;

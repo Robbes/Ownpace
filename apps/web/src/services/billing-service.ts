@@ -59,10 +59,28 @@ export const UsageResponseSchema = z.object({
   // 2026-09-09, because ADR-0014 retired that model in August and this API
   // refuses to mint an invoice from it. Parsing a field the server no longer
   // sends would fail the whole screen, so it is gone from the shape too.
+  /** What was used. Null past the end of the published table. */
   tier: TierSchema.nullable(),
   decidedBy: z.enum(['paths', 'data', 'both']),
+  /** `gbMoved` as it counts: what the alpha moved does not (managed 0040). */
   evidence: TierEvidenceSchema,
   period: z.string(),
+  /**
+   * What the month bills: what it used, never above the agreed tier (0109 T6),
+   * and why, when what was used is past it: bands bought cover the data, more
+   * ran at the same time than the tier runs, or more moved than its ceiling.
+   */
+  billed: z.object({
+    tier: TierSchema,
+    beyond: z.array(z.enum(['bands', 'paths', 'data'])),
+  }),
+  /** The data ceiling the data counts against, and the bands bought for it. */
+  ceilingGb: z.number(),
+  topUps: z.number(),
+  /** Moved during the alpha, which never counts (the owner, 2026-10-04). */
+  gbMovedInTheAlpha: z.number(),
+  /** False during the alpha, where nothing is billed. */
+  holds: z.boolean(),
 });
 
 /** GET /billing/invoices rows — the DB enum's words (`mollie`, not Stripe),
@@ -158,6 +176,8 @@ export const CeilingSchema = z.object({
   ceilingGb: z.number(),
   topUps: z.number(),
   gbMoved: z.number(),
+  /** Moved during the alpha, which never counts against the ceiling (the owner, 2026-10-04). */
+  gbMovedInTheAlpha: z.number(),
   share: z.number(),
   state: z.enum(['under', 'near', 'reached']),
   holds: z.boolean(),

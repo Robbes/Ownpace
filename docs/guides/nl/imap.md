@@ -17,7 +17,7 @@ Aan beide kanten vraagt de kaart **IMAP** dezelfde velden. In **Migratie starten
 
 1. Vink bij **Welk account verlaat u?** **Een andere mailaanbieder** aan. Ook **Andere manieren om te verbinden (IMAP)** leidt ernaartoe.
 2. Vul bij **Uw accounts verbinden** de naam van de IMAP-server in bij **Host**, zoals `imap.example.com`: alleen de naam, zonder `https://` of een pad erachter.
-3. Typ bij **Poort** de poort die uw aanbieder opgeeft voor IMAP met SSL: meestal `993`, dat het vak als voorbeeld toont. Er is geen vakje voor SSL/TLS: deze dienst verbindt altijd daarmee.
+3. **Poort** is ingevuld met `993`, de gebruikelijke poort voor IMAP met SSL. Verander die alleen als uw aanbieder een andere opgeeft. Er is geen vakje voor SSL/TLS: deze dienst verbindt altijd daarmee.
 4. Vul bij **Gebruikersnaam** de gebruikersnaam van het postvak in.
 5. Vul bij **Wachtwoord** het app-wachtwoord in, of het wachtwoord van het postvak als de aanbieder dat voor IMAP toelaat.
 6. Druk op **Aanmelding controleren**.
@@ -28,7 +28,7 @@ De test meldt zich alleen-lezen aan en schrijft niets. Werkt het, dan staat er *
 
 1. Kies bij **Waar gaat het naartoe?**, in de rij voor e-mail, **IMAP toevoegen** onder **Een nieuw account**.
 2. Vul bij **Host** de naam van de IMAP-server in waar de mail naartoe gaat, zoals `imap.example.com`.
-3. Typ bij **Poort** de IMAP-poort die uw aanbieder opgeeft, meestal `993`.
+3. **Poort** is ingevuld met `993`. Verander die alleen als uw aanbieder een andere IMAP-poort opgeeft.
 4. Vul bij **Gebruikersnaam** en **Wachtwoord** de gegevens van het doelpostvak in.
 5. Druk op **Aanmelding controleren**.
 

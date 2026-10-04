@@ -21,13 +21,15 @@ import { CheckCircle2, XCircle, HelpCircle, Loader2 } from 'lucide-react';
 import {
   credentialFieldsFor,
   isFailureCategory,
-  providerDefaultsFor,
+  formDefaultsFor,
   wizardTypeForConnectionKind,
   type FailureCategory,
 } from '@openmig/shared';
 import { connectionKindName } from '../components/ProviderTile.tsx';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
-import { frontDoorCards } from '../components/front-door-cards.ts';
+import { frontDoorCards, type FrontDoorCard } from '../components/front-door-cards.ts';
+import { isSelfHost } from '../services/edition.ts';
+import { EXPORT_CARD } from '../services/start-plan.ts';
 import {
   type ConnectionDeleted,
   connectionsApi,
@@ -511,18 +513,30 @@ const Row: React.FC<{
  * with the answers is the create route's shape builders, unchanged, so a
  * connection added here is one a sync pass can use.
  */
+/**
+ * The cards this page offers. On managed, not the export archive (the owner,
+ * 2026-10-04, on 0153's *not carried over*: *"6. A"*): *Start a migration*
+ * reads a Takeout from the folder `Takeout` of the destination's files, and
+ * an archive saved here led nowhere. The appliance keeps the card, as before.
+ */
+function accountCards(role: 'source' | 'target'): ReadonlyArray<FrontDoorCard> {
+  const cards = frontDoorCards(role);
+  return isSelfHost() ? cards : cards.filter((card) => card.id !== EXPORT_CARD);
+}
+
 const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   const t = useT();
   const [open, setOpen] = React.useState(false);
   const [role, setRole] = React.useState<'source' | 'target'>('source');
   // The first card of the side, the same one the role switch below lands on —
   // so opening the form and switching the role read as the same door.
-  const [type, setType] = React.useState(frontDoorCards('source')[0]?.id ?? '');
+  const [type, setType] = React.useState(accountCards('source')[0]?.id ?? '');
   // What is typed stays here, so a Cancel keeps it for the next opening; the
   // form below begins its probe answer and its consent afresh each time it
   // is drawn (`AccountForm`, 0145 T4).
   const [displayName, setDisplayName] = React.useState('');
-  const [values, setValues] = React.useState<Record<string, string>>({});
+  // The start a pick of the same card gives: its usual port, where it has one.
+  const [values, setValues] = React.useState<Record<string, string>>(() => ({ ...formDefaultsFor('source', type) }));
 
   if (!open) {
     return (
@@ -558,10 +572,10 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
               role="radio"
               aria-checked={role === r}
               onClick={() => {
-                const first = frontDoorCards(r)[0]?.id ?? '';
+                const first = accountCards(r)[0]?.id ?? '';
                 setRole(r);
                 setType(first);
-                setValues({ ...providerDefaultsFor(r, first) });
+                setValues({ ...formDefaultsFor(r, first) });
               }}
               className={`px-4 py-1.5 text-sm font-medium ${
                 role === r ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
@@ -576,17 +590,17 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
       <div className="mt-4">
         <span className="block text-sm text-gray-700 mb-2">{t('connections.type')}</span>
         <FrontDoorChooser
-          cards={frontDoorCards(role)}
+          cards={accountCards(role)}
           role={role}
           selectedId={type}
           onPick={(card) => {
             setType(card.id);
             // THE DIRECTORY FILLS THE BOXES (0106 T5, owner 2026-09-03): a
             // named provider's published servers and ports, editable, and
-            // measured by Test like anything typed. A fresh pick starts from
-            // them exactly as it used to start from nothing; a protocol card
-            // still starts from nothing, because "IMAP" names no provider.
-            setValues({ ...providerDefaultsFor(role, card.id) });
+            // measured by Test like anything typed. A protocol card names no
+            // provider, so it starts from its usual port alone (owner
+            // 2026-10-04): "IMAP" is 993 whoever serves it.
+            setValues({ ...formDefaultsFor(role, card.id) });
           }}
           gridClass={role === 'source' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}
         />

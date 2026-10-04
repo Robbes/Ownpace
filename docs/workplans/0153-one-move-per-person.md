@@ -4,6 +4,22 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04, later: the owner answers the four *not carried over* below** (*"3. B"*, *"4. C,
+without D"*, *"5. A"*, *"6. A"*).
+
+- **The port is filled in (B).** A protocol card starts with its usual port, editable, at both
+  doors (`formDefaultsFor`): 993 for IMAP, and 443 for JMAP, CalDAV, CardDAV and WebDAV. A named
+  provider's published values still go over it. No *Pre-filled from* line is drawn for a port no
+  provider published. The IMAP, JMAP and DAV guides say the box is filled in, in both languages.
+  Proved by `provider-directory.unit.test.ts` (every port box starts with the number its example
+  shows), the Accounts page's case, and two flow cases, for a source and for a new destination.
+- **A destination that measured it cannot take a ticked data type is marked on *Where does it
+  go?* (C, not D).** Built: the second bullet under *Not carried over* below says how.
+- **App-password Gmail where the restricted scopes are declared: nothing now (A).** To build
+  only when a deployment sets `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`.
+- **A saved *Export archive* account: the card leaves the managed Accounts page (A).** Built: the
+  last bullet under *Not carried over* below says how.
+
 **2026-10-04: the wizard retires (D5; open question 5, item 7, the second part).** *Start a
 migration* is the one way a migration is made on managed, and T4, T1 (c) and T6 end with it.
 
@@ -38,14 +54,25 @@ migration* is the one way a migration is made on managed, and T4, T1 (c) and T6 
     *Where does it go?*, before anything is set up (`measuredNoRefusal`). Neither catches a
     CalDAV server that takes no tasks: its task face counts task lists and never says no, so
     each task is refused by name in the first pass, under *Failures*. The Apple guide promised
-    an earlier warning, and now says this.
+    an earlier warning, and now says this. **Done 2026-10-04 (the owner: *"4. C, without D"*):**
+    on *Where does it go?* a saved account whose last test found it does not take a ticked type
+    is marked in its row's list (*does not take tasks*) and never suggested, a line under the
+    row says so with the account's own evidence in a fold, and *Leave … out* takes the type out
+    of what moves where something else still would. Chosen anyway (a new account whose first
+    test finds it), Next waits with *Choose a destination that takes …*. The create door's
+    refusal stays as the safety net, and a CalDAV server still never says no (D was not
+    chosen). Proved by three flow cases and the Dutch sentences' names.
   - On a deployment that declares Google's restricted scopes, the flow reads Gmail through the
     Google account, whose form has no app-password fold, and a saved Gmail account is not
     offered there (`savedSources` matches the carrier's kind). An app-password Gmail account
     is then reachable only where the declaration is absent.
   - A saved *Export archive* account is no longer a way into a migration: the flow reads a
     Takeout from the folder `Takeout` of the destination's files (item 2). The Accounts page still
-    adds one, and its test says what an export holds.
+    adds one, and its test says what an export holds. **Done 2026-10-04 (the owner: *"6. A"*):**
+    the managed Accounts page no longer offers the card (`accountCards`); the appliance's still
+    does, and the archive guide's section says so, in both languages. Proved by
+    `an-export-in-the-destinations-files` (no card on managed) and the archive form's cases, which
+    now run on the appliance.
 - **Proved by** `a-line-under-the-box-both-doors-draw` (27 cases: every field with a line, on
   every card, on the Accounts page; and the flow's three placements), the redirect cases in
   `AppRoutes.unit.test.tsx`, the docs guard with `start.*`, and the UI test's walk through `/start`.

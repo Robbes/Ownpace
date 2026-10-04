@@ -15,7 +15,9 @@
  *
  * During the alpha the ceiling warns and holds nothing, and no yes is taken
  * (the owner, 2026-10-03: *"A"*): the card says where the data stands and what
- * the ways on will cost, and offers no button.
+ * the ways on will cost, and offers no button. What the alpha moves never
+ * counts (the owner, 2026-10-04): it is said on a line of its own, beside
+ * what does.
  */
 import React from 'react';
 import axios from 'axios';
@@ -133,6 +135,11 @@ const CeilingBody: React.FC<{
         {t('billing.ceiling.moved', { moved: size(ceiling.gbMoved), ceiling: size(ceiling.ceilingGb), tier: tier.name })}
         {ceiling.topUps > 0 && <> {t('billing.ceiling.bands', { count: ceiling.topUps })}</>}
       </p>
+      {/* What the alpha moved never counts (the owner, 2026-10-04), and is
+          said, so the number above is not read as everything moved. */}
+      {ceiling.gbMovedInTheAlpha > 0 && (
+        <p className="text-gray-600">{t('billing.ceiling.alphaMoved', { moved: size(ceiling.gbMovedInTheAlpha) })}</p>
+      )}
       <div
         className="h-2 w-full rounded-full bg-gray-100 overflow-hidden"
         role="progressbar"

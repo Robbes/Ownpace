@@ -308,7 +308,8 @@ What grows:
 - Run rows are pruned per organisation only as far back as its newest issued invoice, and *"a
   tenant with none is skipped entirely, keeping all of its runs"*
   (`apps/worker/src/jobs/managed-retention.ts`). In a free alpha, no organisation's runs are
-  pruned (0131 T3 proposes accepting that).
+  pruned (0131 T3 proposes accepting that). *(2026-10-04: accepted by the owner, 0131 T3;
+  0143 T6 stays parked.)*
 - `run_event` (60 days) and `app_event` (30 days, 0129 T3) are pruned.
 - `managed.yml` sets no retention for the Trigger.dev plane's database, ClickHouse, MinIO or the
   task registry. A search for `ttl` or `retention` finds only `BACKUP_RETENTION_DAYS`. The review

@@ -38,10 +38,11 @@ import {
   ARCHIVE_PROVIDER_NAMES,
   ARCHIVE_PROVIDER_ORIGINS,
   TARGET_TYPE_DOMAINS,
-  providerDefaultsFor,
+  formDefaultsFor,
   scopeFamilyOf,
   scopeManifestFor,
   providerDisplayName,
+  qualifiedAnswerFor,
   sourceCardIsExperimental,
   sourceFaceIsExperimental,
   wizardTypeForConnectionKind,
@@ -617,11 +618,23 @@ const StartMigration: React.FC = () => {
         })
           ? t('start.connect.needFolder')
           : undefined;
-      case 'to':
-        return types.some((type) => accounts.signed(destinationOf(type)) === undefined) ||
+      case 'to': {
+        if (
+          types.some((type) => accounts.signed(destinationOf(type)) === undefined) ||
           (exporting.length > 0 && exportTarget === undefined)
-          ? t('start.to.needAll')
-          : undefined;
+        ) {
+          return t('start.to.needAll');
+        }
+        // A destination whose last test found it does not take its type: the
+        // create door would refuse it, so the screen says so first.
+        const refused = types.find((type) => {
+          const chosen = accounts.saved.find((c) => c.id === destinationOf(type));
+          return chosen !== undefined && measuredCannotTake(chosen, type) !== undefined;
+        });
+        return refused === undefined
+          ? undefined
+          : t('start.to.cannotTakeChosen', { type: t(DOMAIN_STRING_KEY[refused]).toLocaleLowerCase(locale) });
+      }
       default:
         return undefined;
     }
@@ -709,6 +722,20 @@ const StartMigration: React.FC = () => {
               }}
               exportRow={
                 exporting.length === 0 ? undefined : { choice: exportDestinationOf(), onChoice: setExportTo }
+              }
+              onLeaveOut={
+                types.length > 1 || exporting.length > 0
+                  ? (type) => {
+                      // Out of every provider's ticks, as if unticked on *What moves?*.
+                      setTicked((prev) => {
+                        const next = { ...prev };
+                        for (const provider of providers) {
+                          next[provider] = movesFrom(provider).filter((d) => d !== type);
+                        }
+                        return next;
+                      });
+                    }
+                  : undefined
               }
               lands={{
                 planned,
@@ -1335,14 +1362,32 @@ export const savedTargets = (
   );
 
 /**
+ * What a saved destination's last test MEASURED it cannot take (0106 T3a): the
+ * account's own evidence, or undefined where it can or was never asked. Only
+ * a measured no counts, as at the create door (`measuredNoRefusal`), which
+ * stays the safety net: *Where does it go?* says it first (the owner,
+ * 2026-10-04, on 0153's *not carried over*: *"4. C, without D"*).
+ */
+export function measuredCannotTake(
+  c: ConnectionSummary,
+  type: DiscoveryDomain,
+): { readonly detail: string } | undefined {
+  const record = qualifiedAnswerFor(c.qualification, type);
+  return record?.answer === 'no' ? { detail: record.detail } : undefined;
+}
+
+/**
  * Where a data type goes until the person says otherwise (T4, *Where to?*):
  * a saved account that takes it, Soverin for mail, calendars, contacts and
  * tasks and Nextcloud for files first, as drawn; and with none saved, a new
- * account of that kind, with its published servers already in the boxes.
+ * account of that kind, with its published servers already in the boxes. An
+ * account whose last test found it does not take the type is never suggested.
  */
 export function defaultDestination(type: DiscoveryDomain, saved: ReadonlyArray<ConnectionSummary>): string {
   const prefer: WizardTargetType = type === 'file' ? 'nextcloud' : 'soverin';
-  const candidates = savedTargets(saved, type).filter((c) => c.status === 'connected');
+  const candidates = savedTargets(saved, type).filter(
+    (c) => c.status === 'connected' && measuredCannotTake(c, type) === undefined,
+  );
   const found = candidates.find((c) => c.kind === prefer) ?? candidates[0];
   return found?.id ?? `new:${prefer}`;
 }
@@ -1555,7 +1600,7 @@ const NeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts; someoneElse?
   const name = providerDisplayName(need.card);
   // *Another mail provider* is the IMAP card, named as step 2 named it.
   const title = need.card === 'imap' ? t('start.from.otherMail') : name;
-  const initial = providerDefaultsFor('source', need.card);
+  const initial = formDefaultsFor('source', need.card);
   return (
     <li className="rounded-lg border border-gray-200 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1935,7 +1980,12 @@ export const ToStep: React.FC<{
   exportRow?: { readonly choice: string; readonly onChoice: (choice: string) => void } | undefined;
   /** Where each migration's copies land, once its accounts are chosen (0153 open question 5, item 4). */
   lands?: LandsProps;
-}> = ({ types, accounts, destinationOf, onDestination, onAddedFor, exportRow, lands }) => {
+  /**
+   * Take a data type out of what moves, where a saved account's last test
+   * found it does not take it; absent where nothing else would move.
+   */
+  onLeaveOut?: ((type: DiscoveryDomain) => void) | undefined;
+}> = ({ types, accounts, destinationOf, onDestination, onAddedFor, exportRow, lands, onLeaveOut }) => {
   const { t, locale } = useLocale();
   const accountLabel = useAccountLabel();
   if (accounts.loading) return <p className="text-sm text-gray-500">{t('common.loading')}</p>;
@@ -1968,6 +2018,13 @@ export const ToStep: React.FC<{
         {types.map((type) => {
           const saved = savedTargets(accounts.saved, type);
           const blamed = chosenCards.filter((card) => !TARGET_TYPE_DOMAINS[card].includes(type));
+          // A saved account whose last test found it does not take this type:
+          // marked in the list, never suggested, and said under the row with
+          // its own evidence (the owner, 2026-10-04: "4. C, without D").
+          const refusing = saved.flatMap((c) => {
+            const cannot = measuredCannotTake(c, type);
+            return cannot === undefined ? [] : [{ account: c, detail: cannot.detail }];
+          });
           return (
             <li key={type}>
               <div className="flex flex-wrap items-center gap-3">
@@ -1985,11 +2042,16 @@ export const ToStep: React.FC<{
                 >
                   {saved.length > 0 && (
                     <optgroup label={t('start.to.yours')}>
-                      {saved.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {accountLabel(c)}
-                        </option>
-                      ))}
+                      {saved.map((c) => {
+                        const cannot = refusing.some((r) => r.account.id === c.id);
+                        return (
+                          <option key={c.id} value={c.id} disabled={cannot}>
+                            {cannot
+                              ? t('start.to.cannotTake.option', { account: accountLabel(c), type: word(type) })
+                              : accountLabel(c)}
+                          </option>
+                        );
+                      })}
                     </optgroup>
                   )}
                   <optgroup label={t('start.to.new')}>
@@ -2006,6 +2068,31 @@ export const ToStep: React.FC<{
                   {t('start.to.doesNotTake', { provider: providerDisplayName(card), type: word(type) })}
                 </p>
               ))}
+              {refusing.length > 0 && (
+                <div className="mt-1 space-y-1 text-sm sm:ml-36" data-cannot-take={type}>
+                  {refusing.map(({ account, detail }) => (
+                    <div key={account.id}>
+                      <p className={destinationOf(type) === account.id ? 'text-red-800' : 'text-gray-600'}>
+                        {t('start.to.cannotTake', { account: accountLabel(account), type: word(type) })}
+                      </p>
+                      <details>
+                        <summary className="cursor-pointer text-blue-700">{t('start.to.cannotTake.why')}</summary>
+                        {detail !== '' && <p className="mt-1 text-gray-700">{detail}</p>}
+                        <p className="mt-1 text-gray-600">{t('start.to.cannotTake.retest')}</p>
+                      </details>
+                    </div>
+                  ))}
+                  {onLeaveOut && (
+                    <button
+                      type="button"
+                      onClick={() => onLeaveOut(type)}
+                      className="min-h-[44px] px-3 py-1.5 border border-gray-300 rounded-lg text-gray-800 hover:bg-gray-50"
+                    >
+                      {t('start.to.leaveOut', { type: word(type) })}
+                    </button>
+                  )}
+                </div>
+              )}
             </li>
           );
         })}
@@ -2126,7 +2213,7 @@ const NewDestination: React.FC<{
 }> = ({ card, accounts, onAdded }) => {
   const { t } = useLocale();
   const key = `target:${card}`;
-  const initial = providerDefaultsFor('target', card);
+  const initial = formDefaultsFor('target', card);
   const name = providerDisplayName(card);
   return (
     <section className="rounded-lg border border-gray-200 p-4">

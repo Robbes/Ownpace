@@ -115,7 +115,8 @@ export async function tierNow(db: PgDatabase, tenantId: string): Promise<Managed
   const id = tenantId as TenantId;
   const peak = await new PgOccupancyPeakStore(db).forMonth(id, new Date());
   const pathsNow = await new PgPathLifecycleStore(db).slotsHeld(id);
-  const bytes = await new PgBytesMovedStore(db).total(id);
+  // What counts toward the tier: the alpha's data does not (managed 0040).
+  const bytes = await new PgBytesMovedStore(db).counted(id);
   // Decimal GB, the tier table's unit, as every reader of the meter divides it.
   return observedTier(peak?.peakPaths ?? 0, pathsNow, Number(bytes) / 1e9).tier;
 }
