@@ -16,10 +16,9 @@
  *   the last screen, so leaving half-way leaves no empty card behind.
  * - **Which account are you leaving?** Six tiles, none ticked, more than one
  *   allowed (D1). A tile that has not met a real account says so (0131 D6).
- *   A server by its protocol is added by hand, in the wizard, which stays as
- *   *Add one migration by hand* until this flow carries every card (T4, *The
- *   four-step wizard stays reachable*). An export has no line of its own: it
- *   sits under its provider (0153 open question 5, item 2).
+ *   A server by its protocol is IMAP, which is *Another mail provider*: the
+ *   fold under the tiles says so, and ticks it (0153 open question 5). An
+ *   export has no line of its own: it sits under its provider (item 2).
  * - **What moves?** Per provider, the data types it can give on this
  *   deployment, all ticked; the ones it cannot give in a line of their own,
  *   blamed on the provider (T7 (e)). Asked before any sign-in, so each sign-in
@@ -594,9 +593,6 @@ const StartMigration: React.FC = () => {
     }
   })();
 
-  /** The wizard, for a card this flow does not carry yet; the person comes along. */
-  const byHand = who.personId === null ? '/mappings/new' : `/mappings/new?person=${encodeURIComponent(who.personId)}`;
-
   const reasonId = React.useId();
 
   return (
@@ -616,7 +612,7 @@ const StartMigration: React.FC = () => {
           {step === 'who' && (
             <WhoStep people={people} peopleFailed={peopleQuery.isError} who={who} onWho={setWho} />
           )}
-          {step === 'from' && <FromStep providers={providers} onProviders={setProviders} byHand={byHand} />}
+          {step === 'from' && <FromStep providers={providers} onProviders={setProviders} />}
           {step === 'what' && (
             <WhatStep
               providers={providers}
@@ -836,8 +832,7 @@ export const WhoStep: React.FC<{
 export const FromStep: React.FC<{
   providers: ReadonlyArray<StartProvider>;
   onProviders: (providers: ReadonlyArray<StartProvider>) => void;
-  byHand: string;
-}> = ({ providers, onProviders, byHand }) => {
+}> = ({ providers, onProviders }) => {
   const { t } = useLocale();
   const label = useProviderLabel();
   const toggle = (provider: StartProvider) =>
@@ -886,14 +881,21 @@ export const FromStep: React.FC<{
       {/* No line for an export archive (0153 open question 5, item 2): every
           export has a provider, so it sits under that provider's tile on the
           next screen. */}
+      {/* OTHER WAYS TO CONNECT, without the wizard (0153 open question 5): the
+          one source protocol is IMAP, and it is the tile above. The fold named
+          CalDAV, CardDAV, WebDAV and JMAP too, which are destinations only. */}
       <details>
         <summary className="cursor-pointer text-sm text-blue-700">{t('start.from.other')}</summary>
-        <p className="mt-2 text-sm text-gray-700">
-          {t('start.from.other.line')}{' '}
-          <Link to={byHand} className="text-blue-700 underline hover:no-underline">
-            {t('start.byHand')}
-          </Link>
-        </p>
+        <p className="mt-2 text-sm text-gray-700">{t('start.from.other.line')}</p>
+        {!providers.includes('imap') && (
+          <button
+            type="button"
+            onClick={() => toggle('imap')}
+            className="mt-2 min-h-[44px] px-4 py-2 bg-white border border-gray-300 text-gray-800 rounded-lg hover:bg-gray-50"
+          >
+            {t('start.from.other.choose')}
+          </button>
+        )}
       </details>
     </div>
   );

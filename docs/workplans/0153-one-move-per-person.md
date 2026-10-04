@@ -4,6 +4,21 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04: *Other ways to connect* without the wizard, and the two texts that promised sources
+no door has (open question 5, the part needed before the wizard goes).** IMAP is the one source
+protocol, and *Another mail provider* is its tile. CalDAV, CardDAV, WebDAV and JMAP are
+destinations only.
+
+- **The fold under the tiles names IMAP alone**: *Other ways to connect (IMAP)*. It says that any
+  mail server is read over IMAP, as *Another mail provider*, and that the four others are where
+  things go, chosen on *Where does it go?*. A button ticks the tile. It no longer links to the
+  wizard.
+- ***Another mail provider*'s line says what is true**: over IMAP only mail is read, and a mail
+  provider's calendar and contacts have no way in here yet. It used to say *"Add those by hand"*,
+  for sources no door has.
+- **Proved by** the screen-2 case in `StartMigration.unit.test.tsx`, rewritten: no export line, the
+  fold's words, no wizard link, and the button ticking the tile.
+
 **2026-10-04: where the copies land, *Put it in a folder of its own* on screen 5 (open question
 5, item 4, the second part).** Until now the flow could not make a second migration between the
 same two accounts: it sent no folder, and the refusal's remedy, *give this one a different target
