@@ -4,6 +4,12 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04: what the end of the alpha turns on is written down.** The hold, the yes, the path
+check and whether a first copy counts all switch on `OWNPACE_STAGE`, which reaches the tasks only
+through `set-task-env.sh`. [docs/ending-the-alpha.md](../ending-the-alpha.md) is the switch and
+its checks (among them: `bytes_moved` rows with `bytes > alpha_bytes` appear once passes copy new
+items). Before it, this plan's T5 (the invoice) is one of the things that must exist.
+
 **2026-10-04, later: a move up's `price_eur` stays its monthly** (the owner, 2026-10-04: *"2.
 A"*). Asked what a yes to a move up records now that there is no setup fee, the owner kept it as
 built: `data_allowance.price_eur` holds the new tier's monthly price, the one the card showed and
