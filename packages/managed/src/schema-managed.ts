@@ -551,6 +551,12 @@ export const person = pgTable(
     displayName: text('display_name').notNull(),
     email: text('email'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * When the email saying everything of theirs has arrived was claimed
+     * (workplan 0154 T7, migration 0038): once per person, by the pass that
+     * found the last first copy in. NULL until then.
+     */
+    firstCopyAnnouncedAt: timestamp('first_copy_announced_at', { withTimezone: true }),
   },
   (t) => [index('person_tenant_idx').on(t.tenantId, t.createdAt)],
 );

@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices, endOrKeepPath, pathEndingRefusalReason, pathEndingChoices, readGraceEnds, readGraceEndedWithoutAChoice, type PathEnding } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices, endOrKeepPath, pathEndingRefusalReason, pathEndingChoices, readGraceEnds, readGraceEndedWithoutAChoice, readFirstCopyFacts, type PathEnding } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -43,7 +43,7 @@ import {
   qualificationReportLines,
   qualifyAccount,
 } from '@openmig/orchestration/account-qualification';
-import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, foundByDomain, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow, stepFrom, stopReasonOf, HALT_IN_WORDS } from '@openmig/shared';
+import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, foundByDomain, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow, stepFrom, stopReasonOf, HALT_IN_WORDS, firstCopyOf, type FirstCopyFacts } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
 // three cannot drift apart in the explanations that stop somebody destroying
@@ -523,6 +523,28 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     }
   };
 
+  /**
+   * EVERYTHING ARRIVED, SAID ONCE (workplan 0154 T7; the owner: "One per
+   * person"). The appliance's one person is every migration it has, so the
+   * first-copy email goes out on the pass that finishes the last of their
+   * first copies, and names each data type (`firstCopyOf`). A pass says it
+   * only when it was not so as the pass began, which a restart cannot repeat
+   * for copies that arrived before it; the flag keeps two passes finishing
+   * together to one mail. Read one migration at a time: the appliance's
+   * driver holds one scope at once.
+   */
+  let firstCopySaid = false;
+  const everythingArrived = async () => {
+    const facts: FirstCopyFacts[] = [];
+    for (const x of mappings) {
+      const tenantId = x.config.tenantId as string;
+      facts.push(
+        await withTenant(persistenceBackend.driver, tenantId, (tdb) => readFirstCopyFacts(tdb, tenantId, x.mailboxMappingId)),
+      );
+    }
+    return firstCopyOf(facts);
+  };
+
   const byId = (c: { mappingId: string }): LoadedMapping => {
     const found = mappings.find((m) => m.config.mappingId === c.mappingId);
     // Cannot happen — the list the collector walks IS this list — but a
@@ -944,6 +966,18 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // type its owner stopped stops the copy after what is in flight, not
       // at the end of the firing. No organisation is read: the appliance's
       // one organisation is always open (`organisation-open.ts`).
+      // Whether everything had arrived as this pass began (0154 T7): only a
+      // pass that finds it newly so says it. A read that fails says nothing,
+      // and the pass goes on.
+      const arrivedBefore = firstCopySaid
+        ? undefined
+        : await everythingArrived().then(
+            (f) => f.complete,
+            (err) => {
+              log.warn(`[first-copy] could not read the first copy: ${err instanceof Error ? err.message : String(err)}`);
+              return undefined;
+            },
+          );
       const results = await runAllDomains(
         configWithCorrectMappingId,
         statusStore,
@@ -1026,6 +1060,17 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           results.find((r) => r.error)?.error,
         ),
       );
+
+      if (arrivedBefore === false && !firstCopySaid) {
+        const after = await everythingArrived().catch((err: unknown) => {
+          log.warn(`[first-copy] could not read the first copy: ${err instanceof Error ? err.message : String(err)}`);
+          return undefined;
+        });
+        if (after?.complete && !firstCopySaid) {
+          firstCopySaid = true;
+          await tell({ kind: 'first_copy_complete', domains: after.domains });
+        }
+      }
     } catch (err) {
       // Surface, never swallow (hard rule 9). The scheduler keeps running.
       //
