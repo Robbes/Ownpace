@@ -19,6 +19,18 @@ again, the owner chose to take that card off the managed Accounts page (0153's *
 over*: *"6. A"*). The appliance keeps it, labelled experimental as before; *Via IMAP* stays on
 both editions, tagged (D5). The archive guide's section says where each is.
 
+**2026-10-04, night: T7's first half is built: every link in a guide resolves.** A visitor
+without an account reads the guides now (0152, *the guides are public*), so a link that goes
+nowhere is in front of a stranger. `apps/web/src/pages/every-link-in-a-guide-resolves.unit.test.tsx`
+draws every served guide in both languages with the page's own renderer (`GuideArticle`) and
+follows each link it drew: one to another guide or its section names a guide served in the same
+language and a section that guide has (the rendered ids, not a second reading of the Markdown);
+one to the same page names an id on it; anything else leaves over `https:`. A link to a file
+under `docs/` that is not served fails, as the plan asks. Every link holds today: the two the plan
+named (`grant-links.md`, `o365-application-access.md`) are no longer linked. Mutation caught: a
+Dutch link to a section the Microsoft guide does not have. The second half, refusals that carry a
+guide handle, is still proposed.
+
 **2026-09-28, the Photos sentence left on purpose is gone.** On branch
 `claude/loving-goodall-24prqs`; not merged. `google-workspace-setup.md` no longer asks the reader
 to say so if they need their photos moved: its Photos paragraph now ends as the Google guide's
@@ -886,7 +898,7 @@ the owner announced for *Via IMAP* (D5).
 | T4 A Dutch and an English guide for each source and target | 🔨 **(a) built**, merged in #1189 (2026-09-26): the six served guides in Dutch, the same outline and ids as the English, the per-language label guard. ✅ **(b) done** in #1191, merged 2026-09-26: the IMAP, JMAP, DAV, Nextcloud and Soverin guides in Dutch and English, each card's `guide` field, the checklist's and the wizard's links, and the guards. Review fixed 2026-09-26. 📋 **Decided 2026-09-24** (D4, D8) | §3. Eleven guides for the twenty cards. Dutch first. Five are new: IMAP (source and target), JMAP, DAV, Nextcloud and Soverin. The i18n prose boundary gains a class for guides. **Before**, in Dutch and in English, for the cards live offers (D8). |
 | T5 The checklist says what must be done first | ✅ **(a) done** in #1205, merged 2026-09-27: profiles for Apple, Nextcloud and Soverin, and each Microsoft registration card its own recipe (the Graph profile's text, found under T8); the Google account card's was T2 (b)'s. Review fixed 2026-09-27: an `o365` row on Connections links both cards' checklists, and the administrator question is asked only where a step needs one. (b) not started — *was:* 📋 **Proposed** | §3. Profiles for Apple, Nextcloud and Soverin, and Google's for the Google account card (**before**); the Microsoft account card's and the archive's (**after**). |
 | T6 A renderer that keeps a guide's shape | 🟡 **(a) built**, merged in #1159 (2026-09-24); (b) not started. 📋 **Decided 2026-09-24** (D6): `Docs.tsx` is extended, with no new dependency | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |
-| T7 Every link in a guide resolves, and a refusal links its guide | 📋 **Proposed** | §3. A guard over every served link; refusals carry a guide handle beside their words instead of naming a `.md` file. **After**, apart from the two sentences in T2 (d). |
+| T7 Every link in a guide resolves, and a refusal links its guide | 🟡 **The guides' links built 2026-10-04; the refusals' handles proposed** | §3. A guard over every served link; refusals carry a guide handle beside their words instead of naming a `.md` file. **After**, apart from the two sentences in T2 (d). |
 | T8 The Microsoft app-registration recipe | 🔨 **(a) and (b) written**, merged in #1189 (2026-09-26), in both languages at the Microsoft guide's `{#application}`: `Mail.Read` under Microsoft Graph; `IMAP.AccessAsApp` under Office 365 Exchange Online, with `New-ServicePrincipal` and `Add-MailboxPermission`. Checked against Microsoft's published page sources, not walked; `o365-setup.md` corrected. Reviewed and fixed 2026-09-26: Exchange's RBAC route replaces the Entra grant rather than narrowing it, `-UserPrincipalName`, read-only scoped to the card that has it. (c) merged in #1173. The tenant walks ⏳ **Owner** (D5) | §3. Both recipes go into the `microsoft` guide with T4, **before** the first invitation, because both cards are offered then. (a) the *Graph API* card's permissions corrected; its walk before the card's first tester. (b) a recipe for *Via IMAP* written from Microsoft's documentation; its walk is the run the owner announced (D5). |
 | T9 The export read from a folder in the migration's own files | ✅ **done** in #1178, merged 2026-09-25. 📋 **Decided 2026-09-24** (D11) | §3. The archive form's choice and the doors' `where`, for a Nextcloud or WebDAV target; a JMAP target is refused by sentence. The archive guide's section, and the gate's archive step moved to the demo Nextcloud. **Before**, stacked on 0136 T5. |
 
