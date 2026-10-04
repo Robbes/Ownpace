@@ -2,7 +2,20 @@
 
 > **In one line:** Making the alpha's no-backups decision true on `ownpace-live`: `BACKUP_RETENTION_DAYS` equal to the days a pre-deploy copy is kept, so the erasure sentence says so, alpha-conditions wording, a runbook note on a lost machine, an off-machine `.env` copy, and a design for drilled database backups.
 
-## Status — 2026-09-29 (update this block at the end of every session)
+## Status — 2026-10-04 (update this block at the end of every session)
+
+**2026-10-04: the alpha note no longer carries the backup sentence; both mails keep it.** The
+owner gave the note new words, a welcome, and chose *"Welcome only"* (0131 D4's amendment). So
+the note says nothing about backups any more. Both Alpha mails, the access-granted mail and the
+invitation, open with the same welcome and keep the sentence word for word: EN *"There are no
+backups, apart from one copy before each update, kept up to 7 days."*, NL *"Er worden geen
+back-ups gemaakt, op één kopie vlak voor elke update na, die hoogstens 7 dagen wordt bewaard."*
+The Alpha conditions §6 say it too. The tester guide names the one copy before an update, but
+not how long it is kept: since this change a tester reads the 7 days only in the two mails and in
+the conditions §6. `what-the-mails-say` holds the sentence in both mails, and `what-the-app-says`
+holds that no line says *"nothing is backed up"* again. 0131 T5's row for this plan and T2's row
+below are amended to match. On branch `claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`,
+not merged.
 
 **2026-09-29, latest: review fixes to the copy before an update**, same branch, not merged
 (0139's Status block, 2026-09-29). The daily duties now delete the copy once it is older than 6
@@ -310,7 +323,7 @@ runbook's recipe and `docs/deployment.md` as fixed in #1137.
 |---|---|---|
 | T0 The owner's steps on the reference machine | ⏳ **Owner** | §3. `BACKUP_RETENTION_DAYS` in live's `.env` (`~/.persistent/ownpace-live/.env`, which live's checkout links to), set when 0132 T1b seeds it and read back from live's API container: N, the most days a copy made before a deploy is kept (open question 1 (b), 2026-09-28), and `0` only while no copy is taken. A copy older than N days deleted, whether or not a deploy followed it (by the daily duties since 0139's copy before an update, built 2026-09-28, not merged; by hand again whenever their timer is not active, 2026-09-29). T4's copies, if the owner takes them. Dates and outcomes go in this block, never values. |
 | T1 The erasure sentence says there are no backups | ✅ **done** in #1214, merged 2026-09-27: (a) the wording and (b) the start-up check, a warning in production and fatal with the alpha setting on (open question 4, the owner's answer still owed). (c), the check of the Trigger.dev store, done 2026-09-27, merged as #1240: it found tester data, and open question 3 was answered (a) the same day. That (a) built 2026-09-28, not merged: a run's error, discovery's output and its logs leave Trigger.dev a reference and a category — *was:* 📋 Decided 2026-09-24 (D1) for the setting and the wording; the start-up check 📋 Proposed | §3. The close response then says *"This deployment keeps no backups"*. The comments that say the reference deployment keeps seven days are corrected. The code default stays 7, for the reason §3 gives. (a) is the wording, (b) the start-up check, (c) *A check before the sentence is trusted*. |
-| T2 The alpha conditions say it, in Dutch first | 📋 **Decided 2026-09-24** (D1, D2, D3); one sentence added 2026-09-28 for the dump before each deploy (open question 1 (b)) | §3. A paragraph drafted here for 0139's lawyer's pass. 0131 T1's note carries the short form. |
+| T2 The alpha conditions say it, in Dutch first | 📋 **Decided 2026-09-24** (D1, D2, D3); one sentence added 2026-09-28 for the dump before each deploy (open question 1 (b)) | §3. A paragraph drafted here for 0139's lawyer's pass. 0131 T1's note carries the short form. *(2026-10-04: since the owner's welcome (0131 D4's amendment), both Alpha mails carry the short form, and the conditions §6 the full one. The tester guide names the one copy before an update, but not its 7 days. The note is the owner's welcome only.)* |
 | T3 What a lost machine costs, written down | ✅ **done** in #1238, merged 2026-09-27: the runbook's section, ADR-0020 amended, the downgrade refusal, no squash in the alpha — *was:* 📋 **Proposed** | §3. A runbook section for the owner. ADR-0020's operative rule is amended to what is built. No squash of either migration chain during the alpha. |
 | T4 The keys and the list of testers, once, off the machine | ⏳ **Owner** (recommended) | §3. A copy of live's `.env` that only the owner can open, taken after live's first bring-up (0132 T1b to T1d) and before the first tester connects. The list of testers, because the access queue that holds it would be lost too. |
 | T5 Backups of both databases, encrypted, off the machine, drilled | 🅿️ **Parked (trigger: before the first paying customer, or when the alpha ends, whichever comes first)** | §3. Both databases and the roles, one retention number for the pruning and the erasure sentence, a restore drill in the managed gate and on live's timer (0132 T7), a dump before each migrating deploy of live (0132 T6), a stated RPO and RTO. The dump before each deploy comes during the alpha already, on the machine (open question 1 (b), 2026-09-28). |
@@ -632,7 +645,9 @@ them goes to 0139 T6 with the other logs. The findings are written in the Status
 
 ### T2 — the alpha conditions say it, in Dutch first
 
-0131 T1's note already says *"nothing is backed up"* / *"er worden geen back-ups gemaakt"*. The
+0131 T1's note already says *"nothing is backed up"* / *"er worden geen back-ups gemaakt"*.
+*(2026-10-04: no longer. The note is the owner's welcome; both Alpha mails carry the short form,
+reworded in 0139 T4. See the Status block.)* The
 alpha conditions (0139) need the full statement: what is not backed up, what survives, and what
 a tester does. The draft below goes through the lawyer's pass (D3), and the lawyer decides the
 final words. The Dutch is what testers read first (D2).
@@ -642,9 +657,9 @@ and `alpha.md` (0139 T2, version 0.1), with the copy made before each update (op
 (b)) written into it. §6 is the text from then on: a sentence drafted here for that copy is §6's
 and is changed there, so the two cannot become two wordings.)*
 
-> **Geen back-ups.** Tijdens de alfa maken wij geen back-ups van de eigen gegevens van de dienst:
+> **Geen back-ups.** Tijdens de Alpha maken wij geen back-ups van de eigen gegevens van de dienst:
 > uw organisatie, de accounts die u hebt gekoppeld, uw verhuizingen en hun geschiedenis, en uw
-> Ownpace-inlogaccount. Gaat de machine waarop de alfa draait verloren, dan gaan die gegevens mee
+> Ownpace-inlogaccount. Gaat de machine waarop de Alpha draait verloren, dan gaan die gegevens mee
 > verloren. Uw eigen gegevens niet: Ownpace verwijdert niets uit uw oude account, en wat naar uw
 > nieuwe aanbieder is gekopieerd, blijft daar staan. Wij laten u dan opnieuw toe, net als de
 > eerste keer. U logt opnieuw in, koppelt uw accounts opnieuw en zet uw verhuizingen opnieuw op.
@@ -655,9 +670,9 @@ and is changed there, so the two cannot become two wordings.)*
 > andere aanbieder hebt gegeven, blijft daar bestaan tot u die intrekt. Gaat de machine verloren,
 > trek die toegang dan in, en geef haar opnieuw wanneer u opnieuw koppelt.
 
-> **No backups.** During the alpha we make no backups of the service's own records: your
+> **No backups.** During the Alpha we make no backups of the service's own records: your
 > organisation, the accounts you connected, your migrations and their history, and your Ownpace
-> sign-in. If the machine the alpha runs on is lost, those records are lost with it. Your data is
+> sign-in. If the machine the Alpha runs on is lost, those records are lost with it. Your data is
 > not: Ownpace removes nothing from your old account, and what was copied to your new provider
 > stays there. We would then let you in again, as the first time. You sign in again, connect your
 > accounts again and set up your migrations again. The first pass recognises what is already at

@@ -1437,7 +1437,7 @@ first invitation.
   *"STATED by the code that refused"* (`packages/shared/src/failure-category.ts`), and its comment
   widens from the migration's own settings to *the migration's or this service's stated limits*.
   So the file is parked on first sight and not retried.
-- The sentence, a draft for 0144 to match: *"<path> is 12.4 GB. During the alpha this service
+- The sentence, a draft for 0144 to match: *"<path> is 12.4 GB. During the Alpha this service
   copies files up to 2 GB, because a larger file can take longer than one pass may run. Nothing
   was copied and nothing was changed; every other file continues. Copy this one by hand."*
 

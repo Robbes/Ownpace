@@ -71,7 +71,7 @@ const ALPHA_ROLES = ['owner', 'admin'] as const;
 
 const OWNER_OR_ADMIN_ONLY = {
   error: 'owner_or_admin_only',
-  message: 'During the alpha, a person can only be an owner or an admin.',
+  message: 'During the Alpha, a person can only be an owner or an admin.',
 } as const;
 
 /**

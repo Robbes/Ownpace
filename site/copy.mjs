@@ -201,7 +201,7 @@ export const COPY = {
       privacy: 'Privacy',
       terms: 'Voorwaarden',
     },
-    files: { home: 'index.html', how: 'hoe-het-werkt.html', pricing: 'prijzen.html', calculator: 'schatting.html', privacy: 'privacy.html', terms: 'voorwaarden.html', alpha: 'alpha.html', guide: 'alfa-handleiding.html' },
+    files: { home: 'index.html', how: 'hoe-het-werkt.html', pricing: 'prijzen.html', calculator: 'schatting.html', privacy: 'privacy.html', terms: 'voorwaarden.html', alpha: 'alpha.html', guide: 'alpha-handleiding.html' },
     skip: 'Naar de inhoud',
     footerTag: 'neem uw gegevens mee, in uw eigen tempo.',
     footerOss:

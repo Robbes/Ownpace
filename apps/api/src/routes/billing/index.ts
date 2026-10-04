@@ -352,7 +352,7 @@ router.post('/ceiling/yes', authenticate, requireBillingWrite, async (req: Authe
       return void res.status(400).json({ error: 'invalid_yes', message: reason, reason });
     }
     if (!holdsAtCeiling(process.env.OWNPACE_STAGE)) {
-      const reason = 'Nothing is charged during the alpha, so there is nothing to agree to yet.';
+      const reason = 'Nothing is charged during the Alpha, so there is nothing to agree to yet.';
       return void res.status(409).json({ error: 'nothing_charged_during_the_alpha', message: reason, reason });
     }
     const outcome = await withTenantDb(tenantId, getSharedPool(), async (db) => {

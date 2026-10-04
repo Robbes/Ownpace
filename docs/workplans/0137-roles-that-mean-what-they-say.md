@@ -323,13 +323,13 @@ a new data type) waits for the end of the alpha.
 The owner chooses one of the options in open question 1, and the alpha conditions (0139) carry
 the sentence. A draft, Dutch first:
 
-- NL: *"Nodig tijdens de alfa niemand anders uit in uw organisatie. Wil iemand een verhuizing
+- NL: *"Nodig tijdens de Alpha niemand anders uit in uw organisatie. Wil iemand een verhuizing
   volgen, stuur dan de voortgangslink van die verhuizing: die toont aantallen en status, nooit de
   inhoud. Nodigt u toch iemand uit, geef die persoon dan de rol beheerder, en weet dat een
   beheerder alles kan wat u kunt, behalve de organisatie sluiten of heropenen, het toepassen van
   verwijderingen of het automatisch toepassen van verplaatsingen aan- of uitzetten, en iemand
   eigenaar maken."*
-- EN: *"During the alpha, do not invite anyone else into your organisation. If somebody wants to
+- EN: *"During the Alpha, do not invite anyone else into your organisation. If somebody wants to
   follow a migration, send them that migration's progress link: it shows counts and states, never
   content. If you do invite someone, invite them as an admin, and know that an admin can do
   everything you can except close or reopen the organisation, turn applying deletions or
@@ -506,8 +506,8 @@ role-from-row"*, names the new suite.
 The stopgap, if the first invitation goes out before T2 and T6 are merged.
 
 - `InviteMemberSchema` and `UpdateMemberRoleSchema` in `members.ts` accept `owner` and `admin`.
-  Anything else is a 400 with one sentence: *"Tijdens de alfa kan iemand alleen eigenaar of
-  beheerder zijn."* / *"During the alpha, a person can only be an owner or an admin."*
+  Anything else is a 400 with one sentence: *"Tijdens de Alpha kan iemand alleen eigenaar of
+  beheerder zijn."* / *"During the Alpha, a person can only be an owner or an admin."*
 - The Team page offers owner and admin, defaults to admin, and says in one line what an admin can
   do.
 - Rows that already hold `member` or `viewer` are listed before the first invitation, on

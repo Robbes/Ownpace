@@ -19,8 +19,10 @@
  *   sent    — they have it.
  *   off     — this deployment sends no mail (no SMTP, or no `WEB_URL` to name
  *             where to sign in). Nobody was told; telling them is yours.
- *   failed  — the mail server refused, or the privacy policy's address could
- *             not be built. The invitation stands; send again, or tell them.
+ *   failed  — the mail server refused, or an address the mail names (the
+ *             privacy policy's, and during the alpha the conditions' and the
+ *             tester guide's) could not be built. The invitation stands; send
+ *             again, or tell them.
  *   limited — this organisation has used today's invitation mails. The relay
  *             also carries the sign-in codes (0133), so a script inviting
  *             addresses by the hundred must not spend them.
@@ -36,7 +38,12 @@
 
 import { eq } from 'drizzle-orm';
 import { tenant } from '@openmig/ledger/schema-pg';
-import { log, privacyPolicyUrl, readTenantNotificationPrefs } from '@openmig/shared';
+import {
+  log,
+  privacyPolicyUrl,
+  readTenantNotificationPrefs,
+  type NotificationEvent,
+} from '@openmig/shared';
 import {
   appUrl,
   channelIsOn,
@@ -113,13 +120,24 @@ export async function mailInvitation(
     return 'failed';
   }
   const locale = readTenantNotificationPrefs(organisation.settings).locale;
-  let privacyPolicy: string;
+  let event: NotificationEvent;
   try {
-    privacyPolicy = privacyPolicyUrl(locale, process.env);
+    // Every address the mail names, in its language, from one LEGAL_SITE_URL:
+    // the privacy policy, and during the alpha the conditions and the guide
+    // (0131 T1 (b)). Built here, inside the guard, so a value the mail cannot
+    // use is `failed` and never a throw after the invitation committed.
+    event = memberInvitedEvent({
+      organisation: organisation.name,
+      invitedBy,
+      appUrl: where,
+      email: invitation.email,
+      privacyPolicy: privacyPolicyUrl(locale, process.env),
+      locale,
+    });
   } catch (error) {
     // A LEGAL_SITE_URL the mail cannot use: sent without its privacy line,
     // the mail would say less than privacy §4.6 promises, so it is not sent.
-    log.error('[members] the invitation mail cannot name the privacy policy:', error);
+    log.error('[members] the invitation mail cannot build the addresses it names from LEGAL_SITE_URL:', error);
     return 'failed';
   }
 
@@ -133,15 +151,5 @@ export async function mailInvitation(
   }
   perInvitation.take(invitation.memberId);
 
-  return tell(
-    invitation.email,
-    locale,
-    memberInvitedEvent({
-      organisation: organisation.name,
-      invitedBy,
-      appUrl: where,
-      email: invitation.email,
-      privacyPolicy,
-    }),
-  );
+  return tell(invitation.email, locale, event);
 }

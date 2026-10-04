@@ -61,7 +61,16 @@
  *     its own, `apps/web/src/services/tester-guide-link.ts`, on the origin
  *     this module makes from the same setting. Every address it gives must be
  *     a file an ALPHA build writes, for that language, and no other shipped
- *     file names the guide's file.
+ *     file in the web app names the guide's file. The mails link it too
+ *     (0131 T1 (b), 2026-10-04: the access-granted mail and the invitation,
+ *     during the alpha), so `privacy-policy-link.ts` writes the guide's file a
+ *     second time, for point 6's reason, and is held here to the web's and
+ *     to the files an alpha build writes. And the OTA site's documented build
+ *     hands the stack's own `OWNPACE_STAGE` to `node site/build.mjs`
+ *     (`www.yml`'s header, the bring-up's site section, and the command the
+ *     build prints when `OWNPACE_APP_URL` is missing): the app on that
+ *     stack links the guide whenever its `.env` says alpha, and a site built
+ *     without it has no guide, so every one of those links would be a 404.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -593,5 +602,73 @@ describe("the tester guide's link (0144 T1)", () => {
     // And the module itself names no host: its origin is legal-links.ts's.
     const own = read(GUIDE_MODULE).replace(/\/\*[^]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     expect(own).not.toContain(new URL(built().publicSite).host);
+  });
+
+  describe("the mails' link to the guide (0131 T1 (b), 2026-10-04)", () => {
+    it.each([
+      ['unset, the production site', undefined, (): string => built().publicSite],
+      ['the OTA test site, with a trailing slash', `${OTA_SITE}/`, (): string => OTA_SITE],
+    ])('%s: the address the web links, and the file an alpha build writes, in every language', async (_name, value, origin) => {
+      const web = await loadGuideModule();
+      const mail = await loadMailModule();
+      expect(typeof mail.testerGuideUrl, `${MAIL_MODULE} makes no address for the guide`).toBe('function');
+      for (const locale of guideFilesBuilt(ALPHA).keys()) {
+        const lang = locale as 'en' | 'nl';
+        const address = mail.testerGuideUrl(lang, value === undefined ? {} : { [MAIL_SETTING]: value });
+        expect(address, `${MAIL_MODULE} and ${GUIDE_MODULE} disagree on the ${locale} guide`).toBe(
+          web.testerGuideUrl(lang, value === undefined ? {} : { [SETTING]: value }),
+        );
+        expectWritten(address, origin(), locale, 'guide', built(ALPHA).pages);
+      }
+    });
+
+    it('has a file in every language the web has one in', async () => {
+      const web = await loadGuideModule();
+      const mail = await loadMailModule();
+      expect(Object.keys(mail.TESTER_GUIDE_FILE ?? {}).sort()).toEqual(Object.keys(web.TESTER_GUIDE_FILES).sort());
+    });
+
+    it('refuses a value the web refuses, naming both names', async () => {
+      const mail = await loadMailModule();
+      expect(() => mail.testerGuideUrl('nl', { [MAIL_SETTING]: 'www.ownpace.eu' })).toThrow(MAIL_SETTING);
+      expect(() => mail.testerGuideUrl('nl', { [MAIL_SETTING]: 'www.ownpace.eu' })).toThrow(SETTING);
+    });
+  });
+
+  describe("the OTA site's documented build hands the stack's own stage", () => {
+    /** `OWNPACE_STAGE` read from the stack's own `.env`, with the repo's one reader. */
+    const STAGE_FROM_ENV = /OWNPACE_STAGE="\$\(env_value deploy\/compose\/\.env OWNPACE_STAGE\)"/;
+
+    /** The lines of a text that run the site build for the OTA app, with the line before each. */
+    const otaBuilds = (text: string): string[] =>
+      text
+        .split('\n')
+        .map((line, i, all) => `${all[i - 1] ?? ''}\n${line}`)
+        .filter((pair) => /node site\/build\.mjs/.test(pair.split('\n')[1]!) && /app\.ota\.ownpace\.eu/.test(pair));
+
+    it.each([
+      ["www.yml's header", 'deploy/compose/www.yml'],
+      ["the bring-up's site section", 'docs/managed-bring-up.md'],
+      ["the build's own refusal without OWNPACE_APP_URL, which prints the command", 'site/prices.mjs'],
+    ])('%s', (_where, file) => {
+      let text = read(file);
+      if (file.endsWith('.md')) {
+        const at = text.indexOf('## The public site is a separate stack');
+        expect(at, 'the bring-up has no site section').toBeGreaterThan(-1);
+        text = text.slice(at, text.indexOf('\n## ', at + 1));
+      }
+      const commands = otaBuilds(text);
+      expect(commands.length, `${file} documents no build of the OTA site`).toBeGreaterThan(0);
+      for (const command of commands) {
+        expect(
+          command,
+          `${file} builds the OTA site without the stack's own OWNPACE_STAGE. The app on\n` +
+            'that stack links the tester guide whenever its .env says alpha; a site built\n' +
+            'without it writes no guide, so every one of those links is a 404.',
+        ).toMatch(STAGE_FROM_ENV);
+      }
+      // Read with the repo's one reader, never the shell's value.
+      expect(text).toContain('. deploy/compose/env-read.sh');
+    });
   });
 });

@@ -166,7 +166,7 @@ describe('during the alpha', () => {
   it('says where the data stands and what the ways on cost, and offers no button', async () => {
     getCeiling.mockResolvedValue({ ...NEAR_ON_SMALL, gbMoved: 900, share: 1.2, state: 'reached', holds: false });
     renderCard();
-    expect(await screen.findByText(/During the alpha nothing waits at the ceiling/)).toBeVisible();
+    expect(await screen.findByText(/During the Alpha nothing waits at the ceiling/)).toBeVisible();
     expect(screen.getByText(/Move up to Medium: €7\.00 once/)).toBeVisible();
     expect(screen.queryByRole('button')).toBeNull();
     expect(screen.queryByText(/New items wait/)).toBeNull();

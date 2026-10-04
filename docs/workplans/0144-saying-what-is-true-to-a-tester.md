@@ -2,7 +2,49 @@
 
 > **In one line:** What a tester is told: a Dutch tester guide, a known-limitations page guarded by the feature matrix, corrected read-only wording on site and grant page, `APPLY_FLAG_WARNING`, a support contact, Request access on sign-in, organisation closure.
 
-## Status — 2026-10-03 (update this block at the end of every session)
+## Status — 2026-10-04 (update this block at the end of every session)
+
+**2026-10-04, later: the guide carries facts the note dropped.** The alpha note is now the
+owner's welcome and its two links (0131 D4's amendment). So the guide, with both Alpha mails and
+the conditions, is where a tester reads what the Alpha means: nothing is charged, the Alpha can
+end, no backups apart from one copy before each update, and keep your old account. The guide
+already says each of them; nothing in it changed. It does not say how long the copy is kept: the
+7 days are in both mails and the conditions §6 only. Adding *"kept up to 7 days"* to both guides
+is an owner item, because the Dutch needs the owner's read. Not done here.
+
+**2026-10-04: the spelling is *Alpha*, the guide's Dutch address moved, and the app and the mails
+link the guide. On `claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged.**
+The 2026-10-03 entry left the spelling to the owner. On #1439 the owner answered *"akkoord,
+Alpha"*: the test phase is *Alpha*, a proper name with a capital, in both languages, as the
+conditions write it.
+
+- **The pages.** The guide says *Alpha* in its title, its headings and its text, in both
+  languages. The Dutch file moved by `git mv` to `site/pages/nl/alpha-handleiding.md`, served as
+  `/nl/alpha-handleiding.html`, and its first section's id to `wat-de-alpha-is`. The other ids
+  stay, `#hulp` among them. The English stays `site/pages/en/alpha-guide.md` at
+  `/alpha-guide.html`, with all its ids; only its heading reads *What the Alpha is*. The page
+  titles are *Handleiding voor de Alpha* and *Guide to the Alpha*. **No redirect:** the old
+  address was never published. Live's `WWW_LIVE` is false, and the OTA site was built without
+  `OWNPACE_STAGE`, so no build anyone could reach ever wrote it.
+- **The links.** The alpha note (0131 T1 (b)) links the Alpha conditions and then the guide, on
+  every page it stands on, `/request-access` included; the request page has no guide link of its
+  own besides the note's. The access-granted mail and the invitation mail end their alpha
+  paragraph with the conditions' address and the guide's, in the mail's language: EN *"Read the
+  guide to the Alpha before you start:"*, NL *"Lees de handleiding voor de Alpha voordat u
+  begint:"*. The API's copy of the file names is `TESTER_GUIDE_FILE` in `privacy-policy-link.ts`,
+  held to the web's `TESTER_GUIDE_FILES` and to the alpha build's files by
+  `a-policy-link-that-answers`.
+- **The OTA site.** `www.yml`'s documented build, the bring-up's site section and the command
+  the build prints when `OWNPACE_APP_URL` is missing hand the stack's own `OWNPACE_STAGE`, read
+  from its `.env`, to `node site/build.mjs`. So `www.ota.ownpace.eu` carries the guide when its
+  stack runs the alpha, once a person rebuilds it.
+- **Proved.** The renamed guide's cases in `site.unit.test.ts` (7 failed on cd318823), the new
+  `scripts/the-alpha-by-its-name.unit.test.ts` (13 of 17 failed: among them the guide's file
+  name, its titles and its text, and the note's name for it, which is the page's title), and the
+  link cases in `an-alpha-said-out-loud`, `a-policy-link-that-answers` and the mail tests. All
+  green after.
+
+Still the owner's: the read of the Dutch against live's screens (T0).
 
 **2026-10-03: T1 built on `claude/ownpace-public-readiness-y7orc6-a-guide-for-the-alpha-tester`,
 not merged. The owner reads the Dutch before it merges (T0).** The owner was advised where the
@@ -484,7 +526,7 @@ Everything a tester reads is written in Dutch first and translated into English 
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner's words: the address, the site copy, the guide read in Dutch | ⏳ **Owner**: the site copy and the Dutch read. The address ✅ **answered** 2026-09-27, in 0133 (open questions 2 and 3): `support@ownpace.eu`; it goes in `ownpace-live`'s `.env` as `VITE_SUPPORT_EMAIL`; *was:* ⏳ **Owner**, all three | §3. The address testers write to (0133 open question 3). Approval or rewrite of T3's site copy. A read of T1's Dutch before it is published. **Before the first invitation.** |
-| T1 A Dutch tester guide | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-guide-for-the-alpha-tester`, not merged** (2026-10-03), the short form; the Dutch read ⏳ **Owner**, before merge; the links from the request page and the access-granted mail follow — *was:* 📋 **Proposed** (D1, D3) | §3. One page on the site that carries the alpha's texts (0139 T10): what the alpha is, before you start, how to start, what is experimental, how to get help, how to leave. Built only when the site is built for the alpha. **Before the first invitation**, in its short form. |
+| T1 A Dutch tester guide | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-guide-for-the-alpha-tester`, merged (#1439)** (2026-10-03), the short form; the Dutch read ⏳ **Owner**. 🔨 **2026-10-04, on `claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged:** spelt *Alpha*, served at `/nl/alpha-handleiding.html`, and linked by the alpha note (on every page it stands on, the request page included), the access-granted mail and the invitation — *was:* 📋 **Proposed** (D1, D3) | §3. One page on the site that carries the alpha's texts (0139 T10): what the alpha is, before you start, how to start, what is experimental, how to get help, how to leave. Built only when the site is built for the alpha. **Before the first invitation**, in its short form. |
 | T2 A known-limitations page the feature matrix keeps true | 📋 **Proposed** (D4) | §3. A copy on the site, in Dutch and English, and a guard that fails when it disagrees with the matrix's open gaps or 0131 T2's verdicts. **After.** |
 | T3 "Read-only" replaced by what is true | ✅ **(a) and (c) done** in #1188, merged 2026-09-26. 📋 **Decided 2026-09-25 (owner)**. (b), the site copy, ⏳ **Owner** (T0). The setup title and the password hint 📋 **Proposed** (after) | §3. The grant page says "read-only" only when Google enforces it. One line beside *Connect with Google*. Site copy, how-it-works, the grant-link guide and one setup title. **Before the first invitation**: the Connect line and the site copy, and the grant page if testers send grant links (0140 open question 2). |
 | T4 The warning in front of the delete switch says what the check does | 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` in both languages. Making removal fail closed is W18, now 0149, whose T1 to T3 land before the first invitation (0149 D1). **After**, written once 0149 T3 has landed, because T3 changes what the check does (0149 T6). |
@@ -776,8 +818,8 @@ The dates go in the Status block.
 
 ### T1 — a Dutch tester guide (proposed; before the first invitation, short form)
 
-**Where.** `site/pages/nl/alfa-handleiding.md`, written first, and its translation
-`site/pages/en/alpha-guide.md`. They are served as `/nl/alfa-handleiding.html` and
+**Where.** `site/pages/nl/alpha-handleiding.md`, written first, and its translation
+`site/pages/en/alpha-guide.md`. They are served as `/nl/alpha-handleiding.html` and
 `/alpha-guide.html` on the site that publishes the alpha's texts. Since the owner's ownpace-live
 decision that is the production site, `www.ownpace.eu` (0139 T10 and its open question 1). They
 are rendered only when the site is built with 0131 T1's alpha setting (working name
@@ -801,7 +843,7 @@ the link.
 full text is written against the first tester's real screens (T0). The points, and where each
 comes from:
 
-1. **Wat de alfa is.** Free, invited, a few weeks, no obligations either side, no backups
+1. **Wat de Alpha is.** Free, invited, a few weeks, no obligations either side, no backups
    (D1, D5). The binding words are in the conditions (0139 T2), linked here, and this guide is
    not a contract (D2).
 2. **Voordat u begint.**
@@ -879,7 +921,7 @@ build, in three parts:
 
 - *Experimenteel*: what the label marks (D4);
 - *Wat (nog) niet mee kan*: the open gaps;
-- *Goed om te weten in de alfa*, only in the alpha build. It covers Google asking again after
+- *Goed om te weten in de Alpha*, only in the alpha build. It covers Google asking again after
   about a week (0140), no backups (0134), in-app browsers (0140 T3), the permission a provider's
   screen describes (T3), a destination that was not empty (T5), and the export archive on managed
   (0131 T2, open question 4). It also says that a cutover cannot be undone from the screen: the
@@ -1137,8 +1179,8 @@ where the form is off, as the sidebar line says.)*
 
 **The GitHub chooser.**
 
-- A first contact link in `config.yml`, in English and Dutch: *"Using the hosted Ownpace alpha? /
-  Gebruikt u de Ownpace-alfa?"*. Its `about` says: do not open an issue here; use *Report a
+- A first contact link in `config.yml`, in English and Dutch: *"Using the hosted Ownpace Alpha? /
+  Gebruikt u de Alpha van Ownpace?"*. Its `about` says: do not open an issue here; use *Report a
   problem* in the app or the address in the tester guide; never post mailbox contents, addresses
   or screenshots of your data. Its URL is T1's *Hulp* section, on the site that publishes the
   alpha's texts (0139 T10).

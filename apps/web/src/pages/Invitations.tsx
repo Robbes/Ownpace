@@ -121,8 +121,10 @@ const Invitations: React.FC = () => {
 
         {/* The alpha note (workplan 0131 T1), under the title. Outside `Layout`,
             so the note there never reaches this page, and an invited member
-            never passes `/request-access` or receives the grant mail: this is
-            where they first read what they are being asked to join. */}
+            never passes `/request-access` or receives the grant mail. The note
+            here is the same welcome they met at `/login`, and in their
+            invitation mail when it was mailed. What the Alpha means is in that
+            mail (0156 T3). */}
         <AlphaNote />
 
         {error !== null && (

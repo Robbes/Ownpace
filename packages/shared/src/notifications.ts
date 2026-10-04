@@ -817,14 +817,14 @@ export type NotificationEvent =
        */
       readonly email: string;
       /**
-       * The deployment runs the alpha (workplan 0131 T1), so the mail says so,
-       * in the same words as the note on the app's pages.
+       * The deployment runs the alpha (workplan 0131 T1), so the mail says so.
+       * It opens with the note's welcome and then says what the Alpha means
+       * (the owner, 2026-10-04).
        *
        * Set by the API from `OWNPACE_STAGE` (`accessGrantedEvent` in
        * `apps/api/src/access-notify.ts`); absent or false everywhere else, and
-       * the mail then says nothing about an alpha. The tester guide's link
-       * (0131 T1 (b), 0144 T1) joins the same paragraph once the site renders
-       * the guide.
+       * the mail then says nothing about an alpha. The conditions' line and
+       * the tester guide's line (0131 T1 (b), 0144 T1) end the same paragraph.
        */
       readonly alpha?: boolean;
       /**
@@ -838,6 +838,15 @@ export type NotificationEvent =
        * `LEGAL_SITE_URL` (`alphaConditionsUrl` in `privacy-policy-link.ts`).
        */
       readonly alphaConditions?: Readonly<Record<NotificationLocale, string>>;
+      /**
+       * Where the tester guide is, per language (0131 T1 (b), 0144 T1): the
+       * line after the conditions', the paragraph's last, and only with
+       * `alpha`. Picked by the same locale, for the same reason. The API makes
+       * them from `LEGAL_SITE_URL` (`testerGuideUrl` in
+       * `privacy-policy-link.ts`). The guide's own page, never a section of
+       * it: outside the alpha this mail carries no fragment at all.
+       */
+      readonly testerGuide?: Readonly<Record<NotificationLocale, string>>;
     }
   | {
       /**
@@ -918,6 +927,13 @@ export type NotificationEvent =
       readonly privacyPolicy: string;
       /** The deployment runs the alpha (workplan 0131 T1), as on `access_granted`. */
       readonly alpha?: boolean;
+      /**
+       * Where the Alpha conditions are, in the mail's language, as the
+       * privacy policy's address is (`alphaConditionsUrl`). Only with `alpha`.
+       */
+      readonly alphaConditions?: string;
+      /** Where the tester guide is, in the mail's language (`testerGuideUrl`). Only with `alpha`. */
+      readonly testerGuide?: string;
     }
   | {
       /**
@@ -1048,6 +1064,7 @@ interface EventLines {
   readonly grantedNoLink: string;
   readonly grantedAlpha: string;
   readonly grantedConditions: string;
+  readonly grantedGuide: string;
   readonly declinedIntro: string;
   readonly declinedReply: string;
   readonly invitedIntro: string;
@@ -1103,18 +1120,26 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'There is no link or code in this email to keep: it is safe to forward and it grants ' +
       'nobody anything. As for your password, we store only a hash of it, in the sign-in ' +
       'service we run.',
-    // The alpha note (workplan 0131 T1), word for word what the app's pages say
-    // (`alpha.note.*` in apps/web's strings.ts; a web test holds the two
-    // together). The copy before an update is the Alpha conditions §6 and
-    // privacy §9 (0139 T4, ops-app-sentences (a)).
+    // The Alpha paragraph (workplan 0131 T1). It opens with the note's welcome,
+    // word for word what the app's pages say (`alpha.note.*` in apps/web's
+    // strings.ts; `an-alpha-said-out-loud.unit.test.tsx` holds the two
+    // together). Then the facts, word for word as the note said them until the
+    // owner's welcome replaced it (0131 D4's amendment, 2026-10-04: "Welcome,
+    // then the facts"). The copy before an update is the Alpha conditions §6
+    // and privacy §9 (0139 T4, ops-app-sentences (a)). One line, so the
+    // conditions' and the guide's lines follow it in the same paragraph.
     grantedAlpha:
-      'Alpha: a small invited group is trying this service out. Nothing is charged, and the alpha ' +
-      'can end. There are no backups, apart from one copy before each update, kept up to 7 days. ' +
-      'Keep your old account until you have checked what arrived.',
+      'Welcome to the Alpha! Try Ownpace at your own pace, and help others move to European ' +
+      'alternatives more easily. Nothing is charged, and the Alpha can end. There are no backups, ' +
+      'apart from one copy before each update, kept up to 7 days. Keep your old account until you ' +
+      'have checked what arrived.',
     // Under the alpha paragraph, with the conditions' address after it (0139
     // T4, with 0131 T1). The texts' own title, as the acceptance screen and
     // the site name them.
     grantedConditions: 'Read the Alpha conditions here:',
+    // After it, the tester guide's address (0131 T1 (b), 0144 T1): the guide
+    // page's own title, in the conditions line's form, and when to read it.
+    grantedGuide: 'Read the guide to the Alpha before you start:',
     // No reason, and no false hope. "We are not able to offer you a place right
     // now" is what is true; dressing it as "not yet" would be a promise nobody
     // made, and listing criteria would invite an argument about them.
@@ -1181,11 +1206,13 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'geeft niemand toegang. Van uw wachtwoord bewaren we alleen een hash, in de ' +
       'aanmeldservice die we zelf draaien.',
     grantedAlpha:
-      'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit. Er wordt niets in rekening ' +
-      'gebracht en de alfa kan stoppen. Er worden geen back-ups gemaakt, op één kopie vlak voor ' +
-      'elke update na, die hoogstens 7 dagen wordt bewaard. Houd uw oude account tot u hebt ' +
-      'gecontroleerd wat er is aangekomen.',
+      'Welkom bij de Alpha! Probeer Ownpace rustig aan uit, en help anderen makkelijker over te ' +
+      'stappen naar Europese alternatieven. Er wordt niets in rekening gebracht en de Alpha kan ' +
+      'stoppen. Er worden geen back-ups gemaakt, op één kopie vlak voor elke update na, die ' +
+      'hoogstens 7 dagen wordt bewaard. Houd uw oude account tot u hebt gecontroleerd wat er is ' +
+      'aangekomen.',
     grantedConditions: 'Lees hier de voorwaarden voor de Alpha:',
+    grantedGuide: 'Lees de handleiding voor de Alpha voordat u begint:',
     declinedIntro:
       'Bedankt voor uw interesse in Ownpace. Een mens heeft uw aanvraag gelezen en wij kunnen u ' +
       'op dit moment geen plek aanbieden.',
@@ -1263,10 +1290,11 @@ export function renderEvent(
       // Last, as a paragraph of its own: the steps above stay together, and
       // this is about the service rather than about signing in. The link to
       // the conditions ends it, in this mail's language (0139 T4, with 0131
-      // T1); the tester guide's joins it once the site renders the guide.
+      // T1), and then the tester guide's (0131 T1 (b), 0144 T1).
       if (event.alpha) {
         lines.push('', b.grantedAlpha);
         if (event.alphaConditions) lines.push(`${b.grantedConditions} ${event.alphaConditions[locale]}`);
+        if (event.testerGuide) lines.push(`${b.grantedGuide} ${event.testerGuide[locale]}`);
       }
       break;
     case 'access_declined':
@@ -1285,7 +1313,13 @@ export function renderEvent(
       lines.push(b.invitedVerify, '');
       lines.push(b.grantedNoLink, '');
       lines.push(b.invitedIgnore);
-      if (event.alpha) lines.push('', b.grantedAlpha);
+      // During the alpha, the grant mail's paragraph and its two links, in
+      // this mail's language (0131 T1 (b)); the privacy line stays last.
+      if (event.alpha) {
+        lines.push('', b.grantedAlpha);
+        if (event.alphaConditions) lines.push(`${b.grantedConditions} ${event.alphaConditions}`);
+        if (event.testerGuide) lines.push(`${b.grantedGuide} ${event.testerGuide}`);
+      }
       lines.push('', `${b.invitedPrivacy} ${event.privacyPolicy}`);
       break;
     case 'first_copy_complete': {

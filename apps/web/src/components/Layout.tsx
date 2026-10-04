@@ -583,8 +583,8 @@ const Layout: React.FC = () => {
             keyboard float an overlay above the viewport bottom, which hid the
             wizard's Next button behind it with nothing left to scroll to. */}
         <main className="p-4 pb-24 lg:p-8 lg:pb-8">
-          {/* The alpha note (workplan 0131 T1), first: a standing fact about
-              the service, on every signed-in page, in the same amber shape as
+          {/* The alpha note (workplan 0131 T1), first: a standing welcome,
+              not a failure, on every signed-in page, in the same amber shape as
               the hold below. Nothing unless the deployment runs the alpha, and
               never on the appliance. */}
           <AlphaNote className="mb-4" />

@@ -1,6 +1,10 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
- * "Alpha: a small invited group is trying this service out." (workplan 0131 T1)
+ * "Welkom bij de Alpha! Probeer Ownpace rustig aan uit, en help anderen
+ * makkelijker over te stappen naar Europese alternatieven." (workplan 0131 T1;
+ * the owner's words, 2026-10-04). In English, their translation: "Welcome to
+ * the Alpha! Try Ownpace at your own pace, and help others move to European
+ * alternatives more easily."
  *
  * Shown at the top of every signed-in page: `Layout.tsx`, beside the platform
  * hold's banner, and under the title of `/invitations`, which sits outside
@@ -12,21 +16,36 @@
  *
  * The shape is the platform hold's, deliberately: an amber note, `role="note"`.
  * Two kinds of platform news in two shapes would look like two different kinds
- * of thing. A note and not an alert: it is a standing fact about the service,
+ * of thing. A note and not an alert: it is a standing welcome, not a failure,
  * and `role="alert"` would be read out on every page a screen reader opens.
  *
- * The words are the access-granted mail's, sentence for sentence
- * (`grantedAlpha` in @openmig/shared's notifications.ts), and match the Alpha
- * conditions: the copy before an update, kept up to 7 days, is their §6 (0139
- * T4, ops-app-sentences (a)). They are three dictionary keys because
- * each had to fit the copy budget's generic fifteen words, which the owner
- * dropped on 2026-09-25; they read as one paragraph.
+ * The Dutch is the owner's welcome, word for word (0131 D4's amendment,
+ * 2026-10-04); the English is its translation, not the owner's words. The note
+ * is that and its links, and nothing else (*"Welcome only"*). Until then it
+ * said what the Alpha means: nothing charged, it can end, no backups apart
+ * from one copy, keep the old account. Both mails now open with the same
+ * welcome and then give those facts, word for word (`grantedAlpha` in
+ * @openmig/shared's notifications.ts), and the Alpha conditions and the tester
+ * guide say them too. Two dictionary keys, because the first sentence is the
+ * bold lead.
+ *
+ * After the words, the note links what a tester reads next (0131 T1 (b)): the
+ * Alpha conditions (0139 T2) and the tester guide (0144 T1), in the reader's
+ * language, each named by its own title and opening in a new tab, drawn by
+ * `LegalLinks` as every other link to the texts is. Always shown, also before
+ * the site has them (the owner, 2026-10-03: *"Always shown"*). On the
+ * acceptance screen the list below the note links the conditions as well:
+ * one note, the same everywhere, is worth the second link there.
+ *
+ * Written *Alpha*, a proper name, in both languages (the owner, 2026-10-04,
+ * on #1439: *"akkoord, Alpha"*), as the conditions write it.
  */
 
 import React from 'react';
 import { useT } from '../i18n/index.tsx';
 import { isSelfHost } from '../services/edition.ts';
 import { alphaFrom } from '../services/stage.ts';
+import LegalLinks from './LegalLinks.tsx';
 
 /**
  * Whether this bundle was built for the alpha, and is not an appliance.
@@ -56,14 +75,13 @@ export const AlphaNote: React.FC<{
   return (
     <div role="note" className={className ? `${className} ${SHAPE}` : SHAPE}>
       <p>
-        <span className="font-medium">{t('alpha.note.lead')}</span> {t('alpha.note.terms')}{' '}
-        {t('alpha.note.keep')}
+        <span className="font-medium">{t('alpha.note.lead')}</span> {t('alpha.note.welcome')}
       </p>
-      {/* 0131 T1 (b): the links to the alpha conditions (0139 T2) and the
-          tester guide (0144 T1) go here, in the reader's language, through
-          0139 T10's module (`LegalLinks`). The grant mail's paragraph links
-          the conditions since 0139 T4, and the request form links them under
-          the form; the note itself does not yet. */}
+      {/* 0131 T1 (b): the conditions, then the guide, as the grant mail and
+          the invitation end their alpha paragraph. */}
+      <p className="mt-1">
+        <LegalLinks pages={['alpha']} guide />
+      </p>
     </div>
   );
 };
