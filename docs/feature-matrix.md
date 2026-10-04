@@ -337,20 +337,20 @@ rather than as one row:
   presents. They arrive as ordinary content.
 - ✅ **A folder shared with the account (Drive)** migrates by rooting a **separate mapping**
   at the folder's own id (workplan 0051) — the same parent-scoped, all-drives-guarded
-  listing every root uses. The browse (**Show shared drives and shared folders** on *Start a
-  migration*, `scripts/list-shared-folders.ts`) lists these folders beside the shared drives,
-  sharer's address included. "Shared with me"
-  itself is a view, not a folder — no walk from My Drive reaches it, which is why the root
-  is the mechanism.
+  listing every root uses. The browse (**Show shared drives and shared folders** on
+  *Start a migration*, `scripts/list-shared-folders.ts`) lists these folders beside the
+  shared drives, sharer's address included. "Shared with me" itself is a view, not a
+  folder — no walk from My Drive reaches it, which is why the root is the mechanism.
 - ✅ **A collaborated folder (Box)** needs no feature: Box places a folder you were
   invited to into the account's own tree ("All Files"), so it migrates as ordinary
   content — the WebDAV posture, not the Drive one. Rooting a mapping at its
   `rootFolderId` scopes to just that folder.
 - ✅ **A mounted shared folder (Dropbox)** lives in the account's own tree and migrates as
   ordinary content — its path is a valid `rootPath`. The browse (**Show shared folders** on
-  *Start a migration*, `scripts/list-dropbox-shared-folders.ts`; optional `sharing.read` scope) lists what the
-  account can see; an **unmounted** share is shown path-less — it has no place in the tree
-  until the account mounts it in Dropbox itself, which no migration tool should do for it.
+  *Start a migration*, `scripts/list-dropbox-shared-folders.ts`; optional `sharing.read`
+  scope) lists what the account can see; an **unmounted** share is shown path-less — it has
+  no place in the tree until the account mounts it in Dropbox itself, which no migration
+  tool should do for it.
 - ⛔ **Loose shared files (Drive)** — shared with the account but not inside a folder it can
   root at — are still not enumerated by any pass. A **shortcut** the owner added to My
   Drive surfaces as a per-item refusal in the failures queue (a pointer, not a file) —
@@ -408,7 +408,7 @@ These hold across all object types, and are features rather than gaps:
 | JMAP calendar target | 🚫 parked (recurrence round-trip) | workplan 0031 T1 |
 | Drive loose shared *files* (shared folders root a mapping since 0051; shortcuts are refused loudly) | ⛔ not enumerated | Shared content section above; workplan 0051 |
 | Sharing checklist: live Nextcloud OCS proof (digest counts, report section and confirm-once addresses shipped) | ⏳ rides the owner runbook | ADR-0032; workplan 0052 T6 |
-| M365 calendar / contacts / OneDrive / To Do against a real tenant — reachable on managed as the Microsoft 365 account's faces since workplan 0114, through *Start a migration* since the wizard retired (0153 D5) (delegated: the signed-in user's own data; another user's store still needs `oauth2`/`graph` with application permissions) | ⏳ wired; a live connection Test, no migration measured | workplans 0054, 0114 |
+| M365 calendar / contacts / OneDrive / To Do against a real tenant — reachable on managed as the Microsoft 365 account's faces since workplan 0114, and through *Start a migration* since the wizard retired, 0153 D5 (delegated: the signed-in user's own data; another user's store still needs `oauth2`/`graph` with application permissions) | ⏳ wired; a live connection Test, no migration measured | workplans 0054, 0114 |
 | A shared mailbox (Pattern S) copied from a real tenant — `source.mailbox` over Graph, with application permissions and an administrator's consent; the Microsoft 365 account's delegated grant reads the signed-in person's own mailbox only | ⏳ built, not yet copied from a real shared mailbox; the scope manifest shows it under *Partial* | workplan 0027 T0; workplan 0141 T10 |
 | Dropbox against a real account | ⏳ built, unproven | workplan 0055 T3(a) |
 | Dropbox native formats: a Paper doc, or any file Dropbox hands over only as an export | ⏳ a Paper doc is exported as Markdown or HTML once the migration names a format: the appliance's mapping file takes it, and *Start a migration* asks for it on *What moves?* with Markdown suggested, the migration's page changes it, and the confirm screen counts the Paper docs left behind before Start; unset, a Paper doc is refused by name and parked on first sight, and every other such file always is | workplan 0150 T3, T4 |
@@ -425,8 +425,8 @@ These hold across all object types, and are features rather than gaps:
 ## Live proofs
 
 What a source has done against a real account, written down (workplan 0141 T1). Both doors tag a
-source card (a provider's tile on *Start a migration*), a face on its *What moves?* and Google's
-whole-domain option *Experimental* from one table, `SOURCE_PROOFS` in `packages/shared/src/front-door.ts` (workplan
+source card or a provider's tile, a face on *What moves?* and Google's whole-domain option
+*Experimental* from one table, `SOURCE_PROOFS` in `packages/shared/src/front-door.ts` (workplan
 0131 T2). A verdict there says proven only by naming a row below. A change to one goes into the
 same pull request as the change to the other, and a face whose connector is rebuilt goes back to
 experimental in the pull request that rebuilds it. The Email table's ✅ for `oauth2` and `graph`
@@ -438,10 +438,10 @@ until one is (0148 D5). A shared mailbox (Pattern S) has a verdict of its own,
 
 **What counts as a live proof.** All seven:
 
-1. **The product's own path:** *Start a migration* on `ownpace-live` (the wizard, before it retired:
-   0153 D5), or on the OTA stack where a
-   sitting needs it, or the appliance with a mapping file, through the product's own connector for
-   that kind and face. A harness with a client of its own does not count.
+1. **The product's own path:** *Start a migration* on `ownpace-live` (the wizard, before it
+   retired: 0153 D5), or on the OTA stack where a sitting needs it, or the appliance with a
+   mapping file, through the product's own connector for that kind and face. A harness with a
+   client of its own does not count.
 2. **A real account at the provider,** with data a person made. A fixture does not count. A server
    we run counts only as *a server we run*, and the row says so.
 3. **A completed pass:** it ended `completed`, not paused, failed or stopped.

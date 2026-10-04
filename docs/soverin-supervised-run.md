@@ -169,10 +169,10 @@ may write to):
 ## D — the tiny migration
 
 1. Create one mapping through *Start a migration*: source = the seeded source
-   (see *Before the sitting*), with *Calendar* and *Contacts* ticked on *What
-   moves?*; target = the Soverin connection from A, chosen under *Your
-   accounts* for both on *Where does it go?*. One Soverin connection carries
-   both (`TARGET_TYPE_DOMAINS`), so one mapping does the work.
+   (see *Before the sitting*), with *Calendar* and *Contacts* ticked on
+   *What moves?*; target = the Soverin connection from A, chosen under
+   *Your accounts* for both on *Where does it go?*. One Soverin connection
+   carries both (`TARGET_TYPE_DOMAINS`), so one mapping does the work.
 2. **Note the mapping id** — step H needs it. It is in the migration page's
    URL (`/mappings/<id>`), or listed by `GET /api/migrations`.
 3. Start it with *Start* on *Check, then start*, the screen *Start a migration*

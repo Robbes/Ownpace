@@ -242,18 +242,19 @@ journey:
 1. Bring up `deploy/compose/managed.yml` on the Spark (worker included — the
    destructive path runs through Trigger.dev there, so a missing worker shows
    up as receipts stuck `queued`, which is itself worth seeing once).
-2. Walk **Start a migration** (`/start`): tick **Google** on **Which account
-   are you leaving?**, and **Files** alone on **What moves?**, with **Only one
-   folder** for the dedicated test folder (*The safety rails*, below). On
-   **Connect your accounts**, type the account under **Username** and the same
-   three values Stage 1 proved (client ID, client secret and refresh token,
-   under **Use your own Google client** where the deployment carries a client
-   of its own), and press **Check the sign-in**. Once the account is connected,
-   the screen asks for the folder. Then, on **Where does it go?**, choose your
-   Nextcloud/Stalwart. The wizard's check that pinned the **file** data
-   type retired with it (0153 D5): **Where does it go?** offers only
-   destinations that take files, and a create the server refuses shows there
-   as *Not set up: …*, in the server's own words.
+2. Walk **Start a migration** (`/start`): tick **Google** on
+   **Which account are you leaving?**, and **Files** alone on **What moves?**,
+   with **Only one folder** for the dedicated test folder (*The safety rails*,
+   below). On **Connect your accounts**, type the account under **Username**
+   and the same three values Stage 1 proved (client ID, client secret and
+   refresh token, under **Use your own Google client** where the deployment
+   carries a client of its own), and press **Check the sign-in**. Once the
+   account is connected, the screen asks for the folder. Then, on
+   **Where does it go?**, choose your Nextcloud/Stalwart. The wizard's check
+   that pinned the **file** data type retired with it (0153 D5):
+   **Where does it go?** offers only destinations that take files, and a
+   create the server refuses shows there as *Not set up: …*, in the server's
+   own words.
 3. **Next** on **Where does it go?** sets the migration up (it lands paused, by
    design); **Check, then start** counts it, and **Start** starts it. Then run
    drills A–E from Stage 2 at `/mappings/<id>/moves` and
@@ -282,10 +283,10 @@ a real Gmail account (a disposable one is fine and better):
    Gmail account. Configure either edition (appliance:
    `GOOGLE_MAIL_REFRESH_TOKEN` + a mapping with
    `"source": { "type": "gmail", "user": "you@gmail.com" }`; managed: the
-   **Gmail** form, which **Start a migration** draws on **Connect your
-   accounts** for **Email** under **Google** where the deployment has not
-   declared Google's restricted scopes; where it has, the Google account
-   carries the mail).
+   **Gmail** form, which **Start a migration** draws on
+   **Connect your accounts** for **Email** under **Google** where the
+   deployment has not declared Google's restricted scopes; where it has, the
+   Google account carries the mail).
 2. **Question one — the handshake**: does the first pass connect and list?
    A failure here is scope consent or client config, and the error should name
    which; if it does not, that sentence is the bug to send back.
@@ -316,8 +317,9 @@ account as Stage 5:
    `GOOGLE_CONTACTS_REFRESH_TOKEN` + a calendar/contacts domain naming
    `"type": "google-calendar"` / `"google-contacts"`; managed: **Calendar** and
    **Contacts** ticked under **Google** on **Start a migration**, which the
-   Google account carries over the same DAV read path, since the **Google
-   Calendar** and **Google Contacts** cards make no new migrations (0153).
+   Google account carries over the same DAV read path, since the
+   **Google Calendar** and **Google Contacts** cards make no new migrations
+   (0153).
    **Question zero, added 2026-09-20 — the narrower calendar scope.** The
    console lists `.../auth/calendar.readonly` *under the CalDAV API*, which
    suggests Google's CalDAV endpoint accepts it; this product never writes a
@@ -427,11 +429,11 @@ one of them.
    the page's `lang` follows it (`<html lang="nl">` or `"en"`, in the browser's inspector).
 2. **The source.** Start a migration (*Migratie starten* / *Start a migration*, which opens
    `/start`). On *Voor wie?* / *Who is it for?* each types a name. On *Welk account verlaat u?* /
-   *Which account are you leaving?* A ticks *Google* and B ticks *Microsoft 365*, and on *Wat wilt
-   u migreren?* / *What moves?* the data types stay as they are. On *Uw accounts verbinden* /
-   *Connect your accounts*, A types the address under *Gebruikersnaam* and presses *Verbinden met
-   Google*, once for each Google row the screen lists; B types the address under *Username* and
-   presses *Connect with Microsoft*.
+   *Which account are you leaving?* A ticks *Google* and B ticks *Microsoft 365*, and on
+   *Wat wilt u migreren?* / *What moves?* the data types stay as they are. On
+   *Uw accounts verbinden* / *Connect your accounts*, A types the address under *Gebruikersnaam*
+   and presses *Verbinden met Google*, once for each Google row the screen lists; B types the
+   address under *Username* and presses *Connect with Microsoft*.
    **Expect:** the provider's consent completes, and the account's row says *Verbonden als …* /
    *Connected as …*. For B, write down what Microsoft's screens showed and whether the app was
    marked unverified: that record is 0140 T6's.
@@ -612,16 +614,17 @@ The steps, on each phone:
 3. Open the menu (*Menu*), then close it with *Sluiten*, and once more with the grey backdrop.
    **Expect:** when the menu opens, the screen reader is on *Sluiten*. When it closes, the reader
    is back on *Menu* (T1).
-4. In *Migratie starten*, tick *Google* on *Welk account verlaat u?*, go on to *Uw accounts
-   verbinden*, type the address under *Gebruikersnaam* and press *Verbinden met Google*.
+4. In *Migratie starten*, tick *Google* on *Welk account verlaat u?*, go on to
+   *Uw accounts verbinden*, type the address under *Gebruikersnaam* and press
+   *Verbinden met Google*.
    **Expect:** Google's page opens, the result arrives back on that screen, and Google's tab
    closes (T5). Where the button is greyed out, the reason is written under it (T7 (a)).
 5. Press *Volgende* on each screen of *Migratie starten*.
    **Expect:** each screen starts at the top of the page, and the screen reader reads its
-   heading, such as *"Welk account verlaat u?"*; the line above it says *"Stap 2 van 6"* (T3
-   (a)). The six screens are *Voor wie?*, *Welk account verlaat u?*, *Wat wilt u migreren?*,
-   *Uw accounts verbinden*, *Waar gaat het naartoe?* and *Controleren, dan starten*. The
-   wizard's four steps retired with it (0153 D5).
+   heading, such as *"Welk account verlaat u?"*; the line above it says *"Stap 2 van 6"*
+   (T3 (a)). The six screens are *Voor wie?*, *Welk account verlaat u?*,
+   *Wat wilt u migreren?*, *Uw accounts verbinden*, *Waar gaat het naartoe?* and
+   *Controleren, dan starten*. The wizard's four steps retired with it (0153 D5).
 6. For each app on each phone, issue a fresh grant link on the person's page (Stage 8's step 6,
    *Toegangslink maken*), because a link that has been accepted is spent. Once the account is
    connected, the new link asks for it again (*Opnieuw verbinden met Google als …*), which is

@@ -82,10 +82,10 @@ Both paths use the same app registration but different permission configurations
 > lists below match it.
 
 **Managed Path (Application Permissions)** — the *Via the Graph API* (`graph`) and *Via IMAP*
-(`oauth2`) cards on the Accounts page; on *Start a migration*, *Through our own app, with
-Microsoft Graph* and *Through our own app, with IMAP*, offered under Microsoft 365's *Email* on
-*What moves?* once *Is this a company account with an administrator?* is answered *Yes*. Both
-read one mailbox's mail, and an administrator consents:
+(`oauth2`) cards on the Accounts page; on *Start a migration*,
+*Through our own app, with Microsoft Graph* and *Through our own app, with IMAP*, offered under
+Microsoft 365's *Email* on *What moves?* once *Is this a company account with an administrator?*
+is answered *Yes*. Both read one mailbox's mail, and an administrator consents:
 - *Via the Graph API*: **Microsoft Graph → Application permissions** → `Mail.Read` ("Read mail in
   all mailboxes"). The source reads `/users/{mailbox}/…` with a `https://graph.microsoft.com/.default`
   token (`mail-source-factory.ts`).

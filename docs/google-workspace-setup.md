@@ -173,9 +173,9 @@ sign in to yourself. Manually, using Google's own
 ### A personal Gmail account can skip all of this — and Google would rather you did not
 
 For **mail only**, and only on a **personal** Google account, there is a shorter road: an
-**app password**. Paste it into the Gmail form's *App password* field, under *Use an app
-password instead* on *Start a migration* (or set `GOOGLE_MAIL_APP_PASSWORD` on an appliance),
-and leave the three OAuth fields empty. Everything
+**app password**. Paste it into the Gmail form's *App password* field, under
+*Use an app password instead* on *Start a migration* (or set `GOOGLE_MAIL_APP_PASSWORD` on an
+appliance), and leave the three OAuth fields empty. Everything
 else about the migration is identical: same folders, same messages, same duplicate-detection.
 
 **Google recommends against app passwords, and so do we.** That is not a formality:
@@ -220,10 +220,10 @@ GOOGLE_CLIENT_SECRET=…
 GOOGLE_REFRESH_TOKEN=…
 ```
 
-Managed — the same three, on the **Google Drive** form: on *Start a migration*'s **Connect
-your accounts**, for **Files** under **Google** where the deployment has not declared Google's
-restricted scopes (where it has, the Google account's form takes them), or on the **Accounts**
-page. They are stored encrypted on the source connection under exactly these names: `clientId`,
+Managed — the same three, on the **Google Drive** form: on *Start a migration*'s
+**Connect your accounts**, for **Files** under **Google** where the deployment has not declared
+Google's restricted scopes (where it has, the Google account's form takes them), or on the
+**Accounts** page. They are stored encrypted on the source connection under exactly these names: `clientId`,
 `clientSecret`, `refreshToken`.
 
 Then the mapping's file domain:
@@ -243,8 +243,9 @@ named by its own id, and so is a **folder somebody shared with this account**:
 "Shared with me" is a view, not a folder, so its contents never appear under My
 Drive's tree — rooting a separate mapping at the shared folder's id is how such a folder
 migrates. To see the ids this credential can reach, choose **Only one folder** under
-**Files** on *Start a migration*'s **What moves?**, and press **Show shared drives and shared
-folders** under the account on **Connect your accounts** once it is connected — a
+**Files** on *Start a migration*'s **What moves?**, and press
+**Show shared drives and shared folders** under the account on **Connect your accounts** once
+it is connected — a
 read-only listing through the same connector a migration uses. (Running from configuration
 files instead? `pnpm exec tsx scripts/list-shared-drives.ts` and
 `pnpm exec tsx scripts/list-shared-folders.ts` answer the same question.) Loose shared *files* — shared with you but not inside a folder you
@@ -444,14 +445,14 @@ GOOGLE_CLIENT_SECRET=…                          # the same secret as Drive
 GOOGLE_MAIL_REFRESH_TOKEN=…                     # the MAIL-consented token
 ```
 
-Managed — the same three, on the **Gmail** form: on *Start a migration*'s **Connect your
-accounts**, for **Email** under **Google** where the deployment has not declared Google's
-restricted scopes, or on the **Accounts** page. Stored
+Managed — the same three, on the **Gmail** form: on *Start a migration*'s
+**Connect your accounts**, for **Email** under **Google** where the deployment has not declared
+Google's restricted scopes, or on the **Accounts** page. Stored
 encrypted on the source connection as `clientId`, `clientSecret`, `refreshToken`.
 
 Or, for a **personal** account only, the app password instead of all three —
-`GOOGLE_MAIL_APP_PASSWORD` on an appliance, `appPassword` on the Gmail form (under *Use an app
-password instead* on *Start a migration*). Read
+`GOOGLE_MAIL_APP_PASSWORD` on an appliance, `appPassword` on the Gmail form (under
+*Use an app password instead* on *Start a migration*). Read
 [the section above](#a-personal-gmail-account-can-skip-all-of-this--and-google-would-rather-you-did-not)
 before choosing it: Google recommends against it, it needs 2-step verification, it does not
 exist on a Workspace account, and it is the wider credential rather than the narrower one.
@@ -517,8 +518,8 @@ The mapping needs only the address, like Gmail:
 
 (`"type": "google-contacts"` for the contacts domain, with a CardDAV or JMAP target.)
 Managed — the Google account, which *Start a migration* uses for **Calendar** and **Contacts**
-under **Google**: client ID, client secret and refresh token on its form on **Connect your
-accounts**, stored encrypted as
+under **Google**: client ID, client secret and refresh token on its form on
+**Connect your accounts**, stored encrypted as
 `clientId`, `clientSecret`, `refreshToken`. The **Google Calendar** and **Google Contacts**
 cards make no new migrations since workplan 0153: the **Accounts** page keeps them for the
 accounts added with them, and *Start a migration* offers such a saved account where it carries
@@ -612,10 +613,10 @@ account (the subject); what widens is the credential, not any mapping.
    | Contacts | `https://www.googleapis.com/auth/carddav` |
    | Tasks | `https://www.googleapis.com/auth/tasks.readonly` |
 
-4. **Configure it**: on *Start a migration*'s Google form, answer **Yes** to *Is this a
-   company account with an administrator?* (on the **Accounts** page the field is in plain
-   view), paste the whole key file into "Service account key", and state each migration's
-   account under **Username**. (If you run Ownpace yourself from
+4. **Configure it**: on *Start a migration*'s Google form, answer **Yes** to
+   *Is this a company account with an administrator?* (on the **Accounts** page the field is
+   in plain view), paste the whole key file into "Service account key", and state each
+   migration's account under **Username**. (If you run Ownpace yourself from
    configuration files, the same key goes in `GOOGLE_SERVICE_ACCOUNT_KEY`, with each
    mapping's account as `user` — for Drive too.) The
    refresh-token fields stop being required; the refusals will say so if something is
