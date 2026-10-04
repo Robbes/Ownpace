@@ -440,6 +440,10 @@ reading a file drops off its entry by itself.
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 
+### `apps/web/src/components/ProviderTile.tsx`
+
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
+
 ### `apps/web/src/components/SiteMark.tsx`
 
 - [one-look-from-the-site-to-the-app](../scripts/one-look-from-the-site-to-the-app.unit.test.ts) — ONE LOOK FROM THE SITE TO THE APP (workplan 0152 T9).
@@ -1424,6 +1428,10 @@ reading a file drops off its entry by itself.
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 
+### `docs/guides/en/imap.md`
+
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
+
 ### `docs/incident-runbook.md`
 
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
@@ -2338,6 +2346,7 @@ reading a file drops off its entry by itself.
 - [a-mount-that-went-blind](../scripts/a-mount-that-went-blind.unit.test.ts) — THE REPUBLISH THAT MADE THE SITE DISAPPEAR.
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-version-the-tester-accepted](../scripts/a-version-the-tester-accepted.unit.test.ts) — A VERSION THE TESTER ACCEPTED (workplan 0139 T3).
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 - [one-look-from-the-site-to-the-app](../scripts/one-look-from-the-site-to-the-app.unit.test.ts) — ONE LOOK FROM THE SITE TO THE APP (workplan 0152 T9).
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
@@ -2348,8 +2357,13 @@ reading a file drops off its entry by itself.
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
 - [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
 
+### `site/calculator.mjs`
+
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
+
 ### `site/copy.mjs`
 
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [one-look-from-the-site-to-the-app](../scripts/one-look-from-the-site-to-the-app.unit.test.ts) — ONE LOOK FROM THE SITE TO THE APP (workplan 0152 T9).
 - [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
 - [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
@@ -2433,8 +2447,13 @@ reading a file drops off its entry by itself.
 ### `site/prices.mjs`
 
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 - [the-test-site-sent-people-to-production](../scripts/the-test-site-sent-people-to-production.unit.test.ts) — THE TEST SITE HANDED VISITORS TO PRODUCTION.
+
+### `site/profiles.mjs`
+
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 
 ### `site/security-txt.mjs`
 
@@ -2444,6 +2463,10 @@ reading a file drops off its entry by itself.
 ### `site/site.unit.test.ts`
 
 - [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)).
+
+### `site/sources.mjs`
+
+- [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 
 ### `site/tsconfig.json`
 
@@ -4607,6 +4630,21 @@ Reads:
 - `deploy/compose/managed.yml`
 - `deploy/compose/setup-zitadel.sh`
 - `scripts/bootstrap-managed.unit.test.ts`
+
+### [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts)
+
+THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
+
+Reads:
+
+- `apps/web/src/components/ProviderTile.tsx`
+- `docs/guides/en/imap.md`
+- `site/build.mjs`
+- `site/calculator.mjs`
+- `site/copy.mjs`
+- `site/prices.mjs`
+- `site/profiles.mjs`
+- `site/sources.mjs`
 
 ### [legal-docs](../scripts/legal-docs.unit.test.ts)
 
