@@ -54,6 +54,7 @@ import { CUSTOMER_TYPES, INDICATIVE_PROFILES, OBJECT_TYPES, PROFILES_VERSION, SI
 import { DATA_TYPES, DESTINATIONS, PROTOCOL_NAMES } from './destinations.mjs';
 import { SPRITE, icon } from './icons.mjs';
 import { LEAVING, DOMAIN_OF, EXPORT_TARGETS } from './sources.mjs';
+import { heroMove } from './hero.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, 'dist');
@@ -425,6 +426,26 @@ nav.menu .leaving-list a { display: flex; align-items: center; gap: 0.6rem; padd
 /* hero */
 .hero { padding: clamp(3rem, 8vw, 6rem) 0 2rem; }
 .hero h1 { margin-top: 0; max-width: 20ch; }
+/* The hero's picture beside its words on a wide screen, and under its buttons on
+   a phone, so the buttons stay in the first screen (0152 T3 (a)). */
+.hero { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "words" "picture" "leaving"; column-gap: 3rem; }
+.hero-words { grid-area: words; }
+.hero-picture { grid-area: picture; margin: 2.25rem 0 0; }
+.hero-leaving { grid-area: leaving; }
+.hero-move { display: block; width: 100%; max-width: 560px; height: auto; }
+@media (min-width: 60rem) {
+  .hero { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-areas: "words picture" "leaving picture"; }
+  .hero-picture { margin: 0; align-self: center; }
+}
+/* Three facts under the hero, and How it works in three steps (0152 T3). */
+.facts { margin-top: 0; }
+.facts .card h3 { font-size: 1.05rem; }
+.strip { list-style: none; padding: 0; margin: 1.5rem 0 0.75rem; display: grid; gap: 1rem 2rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); }
+.strip li { display: flex; gap: 0.9rem; align-items: flex-start; }
+.strip .step { font-size: 1.6rem; line-height: 1; min-width: 1.2ch; color: var(--teal); }
+@media (prefers-color-scheme: dark) { .strip .step { color: var(--mint); } }
+.strip h3 { margin: 0 0 0.3rem; font-size: 1.05rem; }
+.strip p { margin: 0; color: var(--muted); }
 .lede { font-size: clamp(1.05rem, 2.2vw, 1.3rem); color: var(--muted); max-width: 58ch; }
 .cta { display: flex; gap: 0.75rem; flex-wrap: wrap; margin: 2rem 0 0; }
 .btn {
@@ -454,10 +475,11 @@ nav.menu .leaving-list a { display: flex; align-items: center; gap: 0.6rem; padd
 .types .via { color: var(--muted); font-size: 0.85rem; margin-left: auto; }
 /* The hero's six Leaving… names (0152 T5 (b)). */
 .leaving-label { font-weight: 700; margin: 2rem 0 0.6rem; }
-/* Three by two beside the hero's words, as wf-site-home.svg draws it; two by three on a phone. */
+/* Under the hero's words: two by three beside the picture and on a phone, three by
+   two where the words have the width to themselves, every name on one line. */
 .leaving-row {
   list-style: none; padding: 0; margin: 0; display: grid; gap: 0.6rem 1.5rem; max-width: 42rem;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr));
 }
 .leaving-row a { display: flex; align-items: center; gap: 0.6rem; font-weight: 600; text-decoration: none; }
 .leaving-row a:hover span:last-child { text-decoration: underline; }
@@ -860,7 +882,6 @@ function whereTo(locale) {
   return `
 <h2>${c.whereTitle}</h2>
 <p>${c.whereLede}</p>
-${SPRITE}
 <div class="cards">${DESTINATIONS.map(card).join('')}</div>
 `;
 }
@@ -1017,18 +1038,31 @@ ${behind}
 function landing(locale) {
   const c = COPY[locale];
   const small = TIERS.find((t) => t.id === 'small');
+  const types = { ...c.dataTypes, photos: c.leaving.photos };
   return `
+${SPRITE}
 <section class="hero">
-  <h1>${c.heroTitle}</h1>
-  <p class="lede">${c.heroLede}</p>
-  <div class="cta">
-    <a class="btn btn-primary" href="${esc(orderHref(locale, null))}">${c.ctaOrder}</a>
-    <a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${c.ctaPricing}</a>
+  <div class="hero-words">
+    <h1>${c.heroTitle}</h1>
+    <p class="lede">${c.heroLede}</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="${esc(orderHref(locale, null))}">${c.ctaOrder}</a>
+      <a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${c.ctaPricing}</a>
+    </div>
+    <p class="fineprint">${c.heroFree(TIERS[0].name, size(TIERS[0].dataGb))} ${esc(c.vatIncluded)}</p>
   </div>
-  <p class="fineprint">${c.heroFree(TIERS[0].name, size(TIERS[0].dataGb))} ${esc(c.vatIncluded)}</p>
-  <p class="leaving-label" id="leaving-label">${c.leaving.menu}</p>
-  <ul class="leaving-row" aria-labelledby="leaving-label">${LEAVING.map((p) => `<li>${leavingLink(locale, p, 28, false)}</li>`).join('')}</ul>
+  <div class="hero-picture">${heroMove({ ...c.hero, types })}</div>
+  <div class="hero-leaving">
+    <p class="leaving-label" id="leaving-label">${c.leaving.menu}</p>
+    <ul class="leaving-row" aria-labelledby="leaving-label">${LEAVING.map((p) => `<li>${leavingLink(locale, p, 28, false)}</li>`).join('')}</ul>
+  </div>
 </section>
+<div class="cards facts">${c.facts.map(([h, p]) => `<div class="card"><h3>${h}</h3><p>${p}</p></div>`).join('')}</div>
+<h2>${c.nav.how}</h2>
+<ol class="strip">${c.strip.steps
+    .map(([h, p], i) => `<li><span class="step" aria-hidden="true">${i + 1}</span><div><h3>${h}</h3><p>${p}</p></div></li>`)
+    .join('')}</ol>
+<p><a href="${urlFor(locale, 'how')}">${c.strip.more} <span aria-hidden="true">→</span></a></p>
 ${whereTo(locale)}
 <h2>${c.diffTitle}</h2>
 ${cards(c.diff)}
@@ -1473,6 +1507,12 @@ export function build({ alpha = ALPHA } = {}) {
           );
         }
         if (key === 'pricing') body = asQuestions(body, c.pricingRules);
+        // How it works ends where a reader decides (0152 T3 (c)): the hero's two buttons.
+        if (key === 'how') {
+          body +=
+            `<div class="cta"><a class="btn btn-primary" href="${esc(orderHref(locale, null))}">${c.ctaOrder}</a>` +
+            `<a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${c.ctaPricing}</a></div>`;
+        }
         if ((key === 'privacy' || key === 'terms') && c.translationNote) {
           body = `<blockquote><p>${c.translationNote}</p></blockquote>\n` + body;
         }

@@ -76,6 +76,32 @@ export const COPY = {
     // price that could be billed, so the line says what free covers instead.
     heroFree: (name, data) =>
       `${name}: one migration at a time, up to ${data}. Every price is published in full — no quote, no sales call.`,
+    // The hero's picture (workplan 0152 T3 (a)): hero.mjs draws it, and these
+    // are its words; the data types in it are dataTypes', as the app names them.
+    hero: {
+      title: 'Your data moves from your old account to your new home',
+      desc: 'Email, calendar, contacts, files and photos go from the old account through Ownpace to the new home. Ownpace copies them, then keeps them in step until you switch.',
+      old: 'Your old account',
+      new: 'Your new home',
+      copies: 'copies',
+      keeps: ['then keeps in step,', 'until you switch'],
+    },
+    // Three facts under the hero (T3 (a)). None says "read-only": that word is
+    // 0144 T3's to keep within what the scopes allow.
+    facts: [
+      ['Nothing is deleted at the source.', 'Your old account stays whole: it is your way back.'],
+      ['Kept in step until you switch.', 'New mail and changed files keep arriving.'],
+      ['A list of what arrived, item by item.', 'And what could not come, with the reason.'],
+    ],
+    // How it works, in three steps (T3 (b)): its five folded, linking the whole page.
+    strip: {
+      steps: [
+        ['Connect the account you are leaving', 'Your old account stays as it is.'],
+        ['We copy, then keep copying', 'Every change arrives in your new home.'],
+        ['Switch when you are ready', 'Check what arrived first. No deadline.'],
+      ],
+      more: 'The whole of How it works',
+    },
     // Where to (workplan 0152 T4): what the app moves data into, from the
     // guarded copy in destinations.mjs. The data types are named as the app
     // names them (its 'domain.*' strings), and a guard holds them equal.
@@ -397,6 +423,27 @@ export const COPY = {
     ctaEstimate: 'Reken uit wat het u kost',
     heroFree: (name, data) =>
       `${name}: één migratie tegelijk, tot ${data}. Alle prijzen staan er volledig op — geen offerte, geen verkoopgesprek.`,
+    hero: {
+      title: 'Uw gegevens gaan van uw oude account naar uw nieuwe thuis',
+      desc: 'E-mail, agenda, contacten, bestanden en foto’s gaan van het oude account via Ownpace naar het nieuwe thuis. Ownpace kopieert ze, en houdt ze daarna bij tot u overstapt.',
+      old: 'Uw oude account',
+      new: 'Uw nieuwe thuis',
+      copies: 'kopieert',
+      keeps: ['houdt daarna bij,', 'tot u overstapt'],
+    },
+    facts: [
+      ['Bij de bron wordt niets verwijderd.', 'Uw oude account blijft heel: het is uw weg terug.'],
+      ['Bijgehouden tot u overstapt.', 'Nieuwe e-mail en gewijzigde bestanden blijven binnenkomen.'],
+      ['Een lijst van wat er aankwam, item voor item.', 'En van wat niet mee kon, met de reden.'],
+    ],
+    strip: {
+      steps: [
+        ['Koppel het account dat u verlaat', 'Uw oude account blijft zoals het is.'],
+        ['Wij kopiëren, en blijven kopiëren', 'Elke wijziging komt aan in uw nieuwe thuis.'],
+        ['Stap over wanneer u klaar bent', 'Controleer eerst wat er aankwam. Geen deadline.'],
+      ],
+      more: 'Alles over hoe het werkt',
+    },
     whereTitle: 'Waar naartoe',
     whereLede:
       'Uw nieuwe thuis is een account dat u opent bij een Europese aanbieder, en dat u aan hen betaalt. Ownpace migreert uw gegevens daarheen en houdt ze bij.',
