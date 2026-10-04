@@ -730,6 +730,20 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
         doesNotMigrate: [],
       },
       [`POST /api/migrations/${NEW}/start`]: { id: NEW, status: 'active' },
+      // The data ceiling (0109 T6): Tiny with 248 GB moved, so this mailbox's
+      // 3.4 GB passes it, and Start says so, and still starts.
+      'GET /api/billing/ceiling': {
+        tier: { id: 'tiny', name: 'Tiny', paths: 1, monthly: 0 },
+        ceilingGb: 250,
+        topUps: 0,
+        gbMoved: 248,
+        share: 0.992,
+        state: 'near',
+        holds: true,
+        moveUp: { tierId: 'small', name: 'Small', paths: 4, setupEur: 8, monthlyEur: 4, ceilingGb: 750 },
+        topUp: null,
+        breakEven: null,
+      },
     };
     Object.assign(FIXTURES, added);
     const missesBefore = apiMisses.length;
@@ -750,6 +764,10 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
       await l.page.getByRole('heading', { level: 2, name: 'Where does it go?' }).waitFor({ timeout: 10_000 });
       await next();
       await l.page.getByRole('heading', { level: 2, name: 'Check, then start' }).waitFor({ timeout: 15_000 });
+      // Past the ceiling, the step says so with the price of moving up, and
+      // never blocks: Start opens all the same.
+      await l.page.getByText(/pass your data ceiling of 250 GB/).waitFor({ timeout: 15_000 });
+      await l.page.getByText('Move up to Small: €8 once, then €4 a month.', { exact: false }).waitFor();
       const start = l.page.getByRole('button', { name: 'Start', exact: true });
       await expect.poll(() => start.isEnabled(), { timeout: 15_000 }).toBe(true);
       await start.click();
