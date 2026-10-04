@@ -165,19 +165,22 @@ Bent u zakelijke klant, dan geldt dit hoofdstuk niet voor u.
 
 Er wordt **maandelijks achteraf** gefactureerd, via de betaalwijze die u hebt vastgelegd, door
 onze betaaldienstverlener Mollie. Op Free wordt niets gefactureerd, dus er valt niets vast te
-leggen. Bieden we een vooruitbetaalde termijn met korting aan — een jaar, bijvoorbeeld — en
-kiest u die, dan wordt die termijn bij aanvang gefactureerd; de korting is de prijs van de
-toezegging.
+leggen. Kiest u ervoor **een jaar vooruit te betalen**, dan wordt dat bij aanvang
+gefactureerd, tegen de prijs van zes maanden, en geldt het als tegoed: elke maand van het jaar
+krijgt haar eigen pakket, tegen de helft van de maandprijs van dat pakket.
 
 **Een maandabonnement kunt u op elk moment opzeggen**, per het einde van de lopende maand. Geen
 minimumduur, geen opzegtermijn, geen opzegkosten.
 
-**Een vooruitbetaalde termijn loopt door tot zijn einde** als u tijdens die termijn opzegt; er
-wordt niet naar rato terugbetaald, want de korting was al de prijs van de toezegging. Na een
-eerste termijn loopt een abonnement **van maand tot maand** door, en zegt u op zoals elk
+**Een vooruitbetaald jaar wordt niet terugbetaald**, niet geheel en niet gedeeltelijk, want de
+korting is de prijs van het vooruitbetalen; uw herroepingsrecht (§7) blijft onverlet. Wat er
+aan het einde van het jaar over is, **betaalt de maanden daarna**, elke maand tegen de
+maandprijs van haar pakket, tot het op is. Zegt u op terwijl er nog tegoed is, dan betaalt het
+nog de maanden die u gebruikt tot het op is, en daarna wordt er niets gefactureerd. Anders loopt
+een abonnement, zodra het tegoed op is, **van maand tot maand** door, en zegt u op zoals elk
 maandabonnement: op elk moment, per het einde van de lopende maand — voor consumenten is dat de
-wet, en wij passen het op iedereen toe. Een vooruitbetaalde termijn verlengt nooit opnieuw als
-vooruitbetaalde termijn zonder dat u daar opnieuw voor kiest.
+wet, en wij passen het op iedereen toe. Een jaar wordt nooit verlengd met een nieuw jaar zonder
+dat u daar opnieuw voor kiest.
 
 Twee toezeggingen die ons beperken in plaats van u:
 
@@ -185,8 +188,8 @@ Twee toezeggingen die ons beperken in plaats van u:
   iets te doen valt, dan vragen we u geregeld of u hem wilt houden of afronden; dat beantwoordt u
   met één klik.
 - **We factureren niet langer dan twaalf maanden zonder uw uitdrukkelijke bevestiging.** Loopt
-  een migratie een jaar, dan moet u het opnieuw zeggen — een vooruitbetaalde termijn geldt
-  als die bevestiging voor de periode die hij dekt.
+  een migratie een jaar, dan moet u het opnieuw zeggen — een vooruitbetaald jaar geldt als die
+  bevestiging voor zijn eigen twaalf maanden, niet voor het tegoed dat daarna over is.
 
 Mislukt een betaling, dan laten we het u weten en proberen we het opnieuw voordat er iets wordt
 opgeschort. We verwijderen uw migratiegegevens niet vanwege een mislukte betaling zonder u eerst
