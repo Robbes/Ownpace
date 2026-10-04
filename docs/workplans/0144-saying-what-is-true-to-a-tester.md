@@ -2,7 +2,155 @@
 
 > **In one line:** What a tester is told: a Dutch tester guide, a known-limitations page guarded by the feature matrix, corrected read-only wording on site and grant page, `APPLY_FLAG_WARNING`, a support contact, Request access on sign-in, organisation closure.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-10-03 (update this block at the end of every session)
+
+**2026-10-03: T1 built on `claude/ownpace-public-readiness-y7orc6-a-guide-for-the-alpha-tester`,
+not merged. The owner reads the Dutch before it merges (T0).** The owner was advised where the
+guide goes, and answered: *"Agreed, write the Dutch version on the site"*. So it is one page on
+the public site, outside the nav, beside the Alpha conditions, Dutch first. This is the short
+form, before the first invitation. The full text is written later, against the first tester's
+real screens (T0).
+
+- **The pages.** `site/pages/nl/alfa-handleiding.md`, served as `/nl/alfa-handleiding.html`,
+  and its translation `site/pages/en/alpha-guide.md`, served as `/alpha-guide.html`. Six
+  sections, each a heading with an explicit id: `wat-de-alfa-is`, `voordat-u-begint`,
+  `zo-begint-u`, `wat-experimenteel-is`, `hulp` and `stoppen`, and in English
+  `what-the-alpha-is`, `before-you-start`, `how-to-start`, `what-is-experimental`, `help` and
+  `stopping`. The site's renderer learnt `## Heading {#id}`, so T6 (c)'s link to `#hulp`
+  survives a reworded heading. Under *Zo begint u* two `###` headings carry ids too,
+  `google-koppelen` and `google-opnieuw` (`google-connect` and `google-again`). The Dutch is
+  about 1,050 words. It links the conditions
+  (`./alpha.html`, the same language's), and says it is not a contract and that the conditions
+  are what bind. The request page is `[[REQUEST_ACCESS]]` in the Markdown, which the build
+  fills with that environment's address, as it fills the site's buttons.
+- **Only for the alpha, with a gate built new.** §3 says "rendered only when the site is built
+  with 0131 T1's alpha setting", and the task said to follow the conditions page. On `main` the
+  conditions are rendered in EVERY build (`OUTSIDE_NAV`, with no stage check), and neither the
+  site build nor live's deploy knew the setting. So there was no gate to copy, and §3 is
+  followed. `site/build.mjs` reads `OWNPACE_STAGE` by the rule the API and the web use
+  (`alpha`, trimmed, in any case) and renders `ALPHA_ONLY` (`guide`) only then. `build({ alpha
+  })` is exported, so the tests render both builds. `deploy-live.sh` hands live's own value,
+  read from its `.env` with `env_value`, to all three of its site builds (`--public --check`,
+  the test build and the build in the checkout). It is empty when the `.env` names none, and
+  never the shell's. The OTA site (`www.yml`) does not set it, so `www.ota.ownpace.eu` has no
+  guide. A build by hand shows it with `OWNPACE_STAGE=alpha node site/build.mjs`.
+  `docs/managed-bring-up.md` says both.
+- **What it says, and where each point comes from.** Each sentence is the conditions', an app
+  string's or the code's. The choices where §3 and the code differ: the page is *Accounts*, as
+  the Dutch app says, not §3's *Verbindingen*. Closing is "ask us": there is no button (T8 is
+  not built). The tester chooses when the data is erased (at once, or after 7, 30 or 90 days),
+  and the account is closed within 7 days (conditions §10). *Apply deletions* is described as
+  0149 T1 to T3 made it: off until switched on, per item, only a copy Ownpace wrote, never a
+  file, calendar entry or contact changed at the new provider, and for mail no such check. The
+  second button, *Automatisch toepassen van verplaatsingen inschakelen*, is named, said to be
+  off by default and shown only once deletions are on, and to clear up the old copy of a moved
+  file without a choice per item. The target folder is promised for mail, and for files only
+  on a *WebDAV* or *Nextcloud* destination (see the review below). It says *Ownpace
+  leest alleen*, never *alleen-lezen* (T3). It says "een kleine groep", with no number. It does
+  not say that nothing uses the access after closing, which is not yet true (0139 T7).
+- **Left out, because it is not proven.** Also listed in the Dutch file's comment, for the
+  owner. Google's own Dutch words on its unverified-app screen (0140 T2 (a)): the guide says
+  only that a warning comes, that this is expected, to go on to Ownpace, and to tick everything
+  Ownpace asks for. It names no button, because whether a test user's screen has an advanced
+  option was not seen. The sign-in
+  service's screens: registration and the confirmation mail. The number of testers (D1 says 10
+  to 20; the conditions say "a small group"). 0145 T9 (a)'s paragraph on phones and screen
+  readers, which is written after 0145 T10's walk on two phones. A list of what is experimental,
+  which is T2's page. The guide says instead: if you are unsure, ask before connecting.
+- **The app's address for it.** `apps/web/src/services/tester-guide-link.ts`:
+  `TESTER_GUIDE_FILES` and `testerGuideUrl(locale)`, on the origin `legalSiteFrom` makes from
+  `VITE_LEGAL_SITE_URL`. It is a module of its own and not in `LEGAL_PAGES`. That list is held
+  to exactly the pages the build renders from `site/legal/`, in every build, and the grant page
+  shows each of them. The guide is a page of `site/pages/` and only in an alpha build. Nothing
+  links it yet.
+- **Not linked from the alpha note.** `AlphaNote.tsx` renders on `/request-access` too, which
+  another branch is changing. And a link there would be a 404 on live until `www.ownpace.eu` is
+  published. The note's links to the conditions and the guide are 0131 T1 (b), with the
+  follow-up below.
+
+Guards. `site/site.unit.test.ts` has a new block of 7 cases: an alpha build writes both pages;
+a build without the setting writes neither and still writes the conditions; the six ids, in
+order, in both languages; the conditions linked and "not a contract" said; every link a file
+the alpha build writes, an app route in `AppRoutes.tsx`, an id on the page or the support
+address; nothing in the nav of any page; and, in a child process, `alpha`, ` Alpha ` and
+`ALPHA` render the guide, while unset, empty, `beta` and `alpha2` do not. The *verhuizen* case
+and the renderer case now read the alpha build too. `scripts/a-policy-link-that-answers` has a
+point 7 with 6 cases, which build the site for the alpha in a child process.
+`scripts/a-read-only-claim-with-its-scope` scans both guide pages. In
+`scripts/a-deploy-from-a-named-tag` the site-build stub records the stage. The switched-on case
+now exports `OWNPACE_STAGE=alpha` in the shell and expects an empty stage, and a new case puts
+`OWNPACE_STAGE=alpha` in live's `.env` and `beta` in the shell, and expects `alpha` in all three
+builds.
+
+On the unchanged code, 18 of 86 cases in the first three files failed, and both deploy cases
+(the shell's stage reached the build, and the `.env`'s did not). Mutations, each restored: the
+gate ignored (3 fail), the rule not trimmed (1), the guide in the nav (3), a link to a file not
+written (1), the request page written into the Markdown (1), the token left unfilled (2), no
+"geen contract" (1), *verhuizen* in the guide (1), *alleen-lezen* in it (1), the module's wrong
+Dutch file (2), the module's own host (4), another web file naming the guide (1), `site_up`
+without the stage (2), and the stage never read from the `.env` (1). Removing an id from a
+heading changes nothing, because each id equals its heading's slug today. Rewording *Hulp* to
+*Hulp krijgen* without its id fails the ids case, and passes with `{#hulp}`.
+
+**Review, 2026-10-03, fixed on the branch.** Ten findings on the text, all read against the
+code; nine fixed, one in part.
+
+- **Blocking: the target folder for files.** The guide said everything goes under the target
+  folder, for mail and files. For mail that holds (`reconcile.ts`). For files it holds only on
+  a WebDAV or Nextcloud destination: `WebDAVTargetWriter` is the one writer with
+  `ownsTargetFolderPrefix`, and `buildFileTargetFor` builds `JmapFileTarget` without the
+  folder. `dav-sync.ts` then prefixes only the directories, and the JMAP writer puts every file
+  at the account root under its source path: the split tree WebDAV had before 2026-09-22. The
+  wizard keeps `jmap` as the target for Drive, Dropbox, Box and the archive, and the API does
+  not refuse a folder there. The guide now promises the folder for mail, and for files only on
+  *WebDAV* or *Nextcloud*, and says to ask first. **Not fixed here, a follow-up:** the writer
+  itself, and the wizard's own hint `wizard.targetPrefix.hint` ("Alles komt onder deze map
+  terecht"), which makes the same promise for every target.
+- **The mail has no sign-in link.** Step 3 said "via de link in die e-mail", and the
+  access-granted mail says it holds no link or code. It now says to go to the address after
+  *Meld u hier aan*, the mail's own words.
+- **Google first, with a channel.** The bullet is first in *Voordat u begint* and names
+  `support@ownpace.eu`. Step 5 says to connect Google only after we answer.
+- **Google's warning screen.** A `###` *Als u Google koppelt* says a warning comes, that this is
+  expected, and to tick everything. It quotes no Google words (above).
+- **Deletions.** It now says what a deletion is (something deleted in the old account), and
+  names the second button and its default, in short sentences. Both languages say
+  *knop*/*button*.
+- **B1.** The reason for an empty destination is four short sentences, and "daar" is now *bij uw
+  nieuwe aanbieder*. *Wat de alfa is* opens with what Ownpace does and what a migration is.
+  *beheerde*, *token*, *issue* and *ronde* are gone.
+- **The by-hand route.** The target-folder bullet says it is not step 5's route.
+- **Headings.** *Als Google opnieuw vraagt* is a `###` with an id, so a heading list finds it.
+  The six `##` ids are unchanged.
+- **Length, in part.** Cut: the one-copy and acceptance details of *Na de alfa*, the version
+  example, and what the report form sends by itself. Not cut to the 750 words asked: the fixes
+  above add about 130 words a tester needs before connecting, and short sentences cost words.
+  The page went from about 945 words to about 1,050, now under eight headings a reader can scan.
+
+After merging main, the *Verwijderingen* bullet names the two switches as #1429 (0156 T6) renamed
+them: *Handmatig verwijderen inschakelen* and *Automatisch verwijderen inschakelen* (*Turn on
+deleting by hand*, *Turn on automatic removal*). The second still shows only once the first is
+on. Every label either page puts in italics was then checked against the app's strings on the
+merged head, and each is there.
+
+Linking the guide is unchanged by the review: the request page and the access-granted mail are
+on the other branch, and follow it.
+
+Follows, after the other branch merges (it changes `RequestAccess.tsx`, the access-granted mail
+and others): the link from the request page, and the link in the access-granted mail, beside
+0131 T1's alpha paragraph. The web takes the address from `tester-guide-link.ts`. The API needs
+its own copy of the file name, as the privacy link has in `privacy-policy-link.ts`. Then the
+alpha note's links (0131 T1 (b)).
+
+Unblocked: T6 (c), the GitHub chooser. Its URL is this page's `#hulp` on the production site.
+
+Waits for the owner: the read of the Dutch against live's screens, before merge (T0), and the
+spelling. The conditions and the acceptance screen write *Alpha*, the app's note and the mail
+*alfa*, and the guide *alfa*. When the guide can be seen: only on a `--public` site, which is
+refused while privacy 1.2 and terms 1.3 say draft, and live keeps `WWW_LIVE=false` until they
+are final (0139 T10). So the guide's step 4, "accept the three texts", holds whenever it is
+served: once no text is a draft, live asks for acceptance (`LEGAL_DRAFTS`, held to the version
+lines by `a-version-the-tester-accepted`).
 
 **2026-09-28: T6 (a) built on `claude/ownpace-public-readiness-y7orc6-a-person-to-write-to`, not
 merged.** This is 0131 §6's group R1, step 4, without its (c). T6 (a) is the address on the pages
@@ -336,7 +484,7 @@ Everything a tester reads is written in Dutch first and translated into English 
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner's words: the address, the site copy, the guide read in Dutch | ⏳ **Owner**: the site copy and the Dutch read. The address ✅ **answered** 2026-09-27, in 0133 (open questions 2 and 3): `support@ownpace.eu`; it goes in `ownpace-live`'s `.env` as `VITE_SUPPORT_EMAIL`; *was:* ⏳ **Owner**, all three | §3. The address testers write to (0133 open question 3). Approval or rewrite of T3's site copy. A read of T1's Dutch before it is published. **Before the first invitation.** |
-| T1 A Dutch tester guide | 📋 **Proposed** (D1, D3) | §3. One page on the site that carries the alpha's texts (0139 T10): what the alpha is, before you start, how to start, what is experimental, how to get help, how to leave. Built only when the site is built for the alpha. **Before the first invitation**, in its short form. |
+| T1 A Dutch tester guide | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-guide-for-the-alpha-tester`, not merged** (2026-10-03), the short form; the Dutch read ⏳ **Owner**, before merge; the links from the request page and the access-granted mail follow — *was:* 📋 **Proposed** (D1, D3) | §3. One page on the site that carries the alpha's texts (0139 T10): what the alpha is, before you start, how to start, what is experimental, how to get help, how to leave. Built only when the site is built for the alpha. **Before the first invitation**, in its short form. |
 | T2 A known-limitations page the feature matrix keeps true | 📋 **Proposed** (D4) | §3. A copy on the site, in Dutch and English, and a guard that fails when it disagrees with the matrix's open gaps or 0131 T2's verdicts. **After.** |
 | T3 "Read-only" replaced by what is true | ✅ **(a) and (c) done** in #1188, merged 2026-09-26. 📋 **Decided 2026-09-25 (owner)**. (b), the site copy, ⏳ **Owner** (T0). The setup title and the password hint 📋 **Proposed** (after) | §3. The grant page says "read-only" only when Google enforces it. One line beside *Connect with Google*. Site copy, how-it-works, the grant-link guide and one setup title. **Before the first invitation**: the Connect line and the site copy, and the grant page if testers send grant links (0140 open question 2). |
 | T4 The warning in front of the delete switch says what the check does | 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` in both languages. Making removal fail closed is W18, now 0149, whose T1 to T3 land before the first invitation (0149 D1). **After**, written once 0149 T3 has landed, because T3 changes what the check does (0149 T6). |

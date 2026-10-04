@@ -57,6 +57,36 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, '..');
 const read = (p: string) => readFileSync(join(REPO, p), 'utf8');
 
+/** One page the build renders, as `site/build.mjs` returns it. */
+interface Page {
+  readonly locale: string;
+  readonly key: string;
+  readonly file: string;
+  readonly html: string;
+}
+
+/** What `site/build.mjs` renders at load, with the environment this file runs in. */
+async function renderedPages(): Promise<Page[]> {
+  const { rendered } = (await import('./build.mjs')) as unknown as { rendered: Page[] };
+  return rendered;
+}
+
+/**
+ * The pages a build renders when told it is for the alpha, or not, asked in
+ * this process (workplan 0144 T1). The environment's own switch is held below,
+ * in a child process, so these never depend on what the shell exported.
+ */
+async function buildFor(alpha: boolean): Promise<Page[]> {
+  const m = (await import('./build.mjs')) as unknown as {
+    build?: (opts: { alpha: boolean }) => { rendered: Page[] };
+  };
+  expect(typeof m.build, 'site/build.mjs does not export build({ alpha }), so an alpha build cannot be asked for').toBe(
+    'function',
+  );
+  return m.build!({ alpha }).rendered;
+}
+const alphaBuild = (): Promise<Page[]> => buildFor(true);
+
 /**
  * A price cell: `free`, or whole euros. Anything else is a broken table and
  * fails by name: a lenient parse read "free", "—" and a garbled cell alike as
@@ -265,12 +295,13 @@ describe('both locales are complete', () => {
    * nothing is excused now.
    */
   it('says no form of verhuizen on any Dutch page the site writes (0152 D6)', async () => {
-    const { rendered } = (await import('./build.mjs')) as unknown as {
-      rendered: Array<{ file: string; html: string }>;
-    };
-    const dutch = rendered.filter((p) => p.file.startsWith('nl/'));
-    // Vacuity: the home page, how it works, pricing, the estimate, and the
-    // three legal texts that said it longest.
+    // Both builds: the pages only an alpha build writes (the tester guide,
+    // 0144 T1) are Dutch the product speaks too.
+    const dutch = [...(await renderedPages()), ...(await alphaBuild())].filter((p) =>
+      p.file.startsWith('nl/'),
+    );
+    // Vacuity: the home page, how it works, pricing, the estimate, the
+    // three legal texts that said it longest, and the tester guide.
     expect(dutch.map((p) => p.file)).toEqual(
       expect.arrayContaining([
         'nl/index.html',
@@ -280,6 +311,7 @@ describe('both locales are complete', () => {
         'nl/privacy.html',
         'nl/voorwaarden.html',
         'nl/alpha.html',
+        'nl/alfa-handleiding.html',
       ]),
     );
     for (const page of dutch) {
@@ -290,11 +322,16 @@ describe('both locales are complete', () => {
 
 describe('the renderer covers what the documents actually use', () => {
   it('leaves no Markdown unrendered in any built page', async () => {
-    const { rendered } = (await import('./build.mjs')) as unknown as {
-      rendered: Array<{ file: string; html: string }>;
-    };
-    for (const page of rendered) {
+    // The alpha build too, whose guide is the one page with explicit heading
+    // ids and a build-time address (0144 T1).
+    const pages = [...(await renderedPages()), ...(await alphaBuild())];
+    expect(pages.map((p) => p.file)).toContain('nl/alfa-handleiding.html');
+    for (const page of pages) {
       const body = page.html.split('<main')[1] ?? '';
+      // An explicit heading id, `## Hulp {#hulp}`, is an attribute, never text,
+      // and a `[[TOKEN]]` the build fills in is never left for a reader.
+      expect(body, `${page.file}: an explicit heading id was left in the text`).not.toMatch(/\{#[a-z0-9-]*\}/);
+      expect(body, `${page.file}: a [[TOKEN]] was left unfilled`).not.toMatch(/\[\[[A-Z_]+\]\]/);
       // Each of these means a construct reached the output as source text.
       expect(body, `${page.file}: unrendered bold`).not.toMatch(/\*\*\S/);
       expect(body, `${page.file}: unrendered table row`).not.toMatch(/\n\|.*\|/);
@@ -304,6 +341,160 @@ describe('the renderer covers what the documents actually use', () => {
       // index must never be resolved against a number that came from prose.
       expect(body, `${page.file}: parking marker leaked`).not.toContain(String.fromCharCode(0));
       expect(body, `${page.file}: a placeholder resolved to nothing`).not.toContain('undefined');
+    }
+  });
+});
+
+/**
+ * THE TESTER GUIDE IS THE ALPHA'S, AND ONLY THE ALPHA'S (workplan 0144 T1).
+ *
+ * The owner, 2026-10-03: *"Agreed, write the Dutch version on the site"*. One
+ * page, Dutch first, `nl/alfa-handleiding.html`, with its translation at
+ * `alpha-guide.html`, outside the nav as the Alpha conditions are.
+ *
+ * Unlike the conditions, it is rendered ONLY when the site is built for the
+ * alpha: `OWNPACE_STAGE=alpha`, the one setting the API and the web build read
+ * for it (0131 T1). The conditions are rendered in every build because the
+ * acceptance screen links them; the guide is a how-to for people taking part,
+ * and a build without the setting leaves it out, so it leaves the site when
+ * the alpha ends (0144 §3 T1). These cases hold what §3 asks of it: both
+ * files with the setting and neither without it, the six section ids, every
+ * link resolving, nothing in the nav, and the conditions linked as what binds.
+ */
+describe('the tester guide is rendered for the alpha only (workplan 0144 T1)', () => {
+  const GUIDE = { en: 'alpha-guide.html', nl: 'nl/alfa-handleiding.html' } as const;
+  /** The six sections, in order, by their stable ids: §3's points 1 to 6. */
+  const SECTIONS = {
+    nl: ['wat-de-alfa-is', 'voordat-u-begint', 'zo-begint-u', 'wat-experimenteel-is', 'hulp', 'stoppen'],
+    en: ['what-the-alpha-is', 'before-you-start', 'how-to-start', 'what-is-experimental', 'help', 'stopping'],
+  } as const;
+  /** The words that say the guide binds nobody, and the conditions do. */
+  const NOT_A_CONTRACT = { nl: /geen contract/, en: /not a contract/ } as const;
+
+  const page = (pages: Page[], file: string): Page => {
+    const found = pages.find((p) => p.file === file);
+    expect(found, `${file} is not among the pages: ${pages.map((p) => p.file).join(', ')}`).toBeDefined();
+    return found!;
+  };
+  const body = (p: Page): string => p.html.split('<main')[1]?.split('</main>')[0] ?? '';
+
+  it('an alpha build writes it in both languages, under the key "guide"', async () => {
+    const pages = await alphaBuild();
+    for (const [locale, file] of Object.entries(GUIDE)) {
+      const p = page(pages, file);
+      expect(p.locale).toBe(locale);
+      expect(p.key).toBe('guide');
+    }
+  });
+
+  it('a build that is not for the alpha writes neither, and still writes the conditions', async () => {
+    const pages = await buildFor(false);
+    expect(pages.map((p) => p.file)).toEqual(expect.arrayContaining(['alpha.html', 'nl/alpha.html']));
+    for (const file of Object.values(GUIDE)) {
+      expect(pages.map((p) => p.file), `${file} is written without the alpha setting`).not.toContain(file);
+    }
+  });
+
+  it('carries the six sections, in order, each a heading with its stable id', async () => {
+    const pages = await alphaBuild();
+    for (const [locale, ids] of Object.entries(SECTIONS)) {
+      const html = body(page(pages, GUIDE[locale as keyof typeof GUIDE]));
+      const found = [...html.matchAll(/<h2 id="([^"]+)">/g)].map((m) => m[1]);
+      expect(found, `the ${locale} guide's sections`).toEqual([...ids]);
+    }
+  });
+
+  it('links the Alpha conditions in its own language, and says it is not a contract', async () => {
+    const pages = await alphaBuild();
+    for (const [locale, file] of Object.entries(GUIDE)) {
+      const html = body(page(pages, file));
+      // `./alpha.html` beside the guide is the conditions in the same language:
+      // `alpha.html` in English at the root, `nl/alpha.html` in Dutch.
+      expect(html, `the ${locale} guide does not link the conditions`).toContain('href="./alpha.html"');
+      const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+      expect(text, `the ${locale} guide does not say it is not a contract`).toMatch(
+        NOT_A_CONTRACT[locale as keyof typeof NOT_A_CONTRACT],
+      );
+    }
+  });
+
+  it('links nothing that does not answer: a page the alpha build writes, an app route, or the support address', async () => {
+    const pages = await alphaBuild();
+    const { APP_URL, SUPPORT_EMAIL } = (await import('./prices.mjs')) as unknown as {
+      APP_URL: string;
+      SUPPORT_EMAIL: string;
+    };
+    // The app's top-level routes, read from the route table as text.
+    const routes = new Set(
+      [...read('apps/web/src/AppRoutes.tsx').matchAll(/\bpath="(\/[^"]*)"/g)].map((m) => m[1]!),
+    );
+    expect(routes, 'AppRoutes.tsx no longer has the routes this reads').toContain('/request-access');
+    const files = new Set(pages.map((p) => p.file));
+
+    for (const file of Object.values(GUIDE)) {
+      const html = body(page(pages, file));
+      const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]!));
+      const hrefs = [...html.matchAll(/<a [^>]*href="([^"]+)"/g)].map((m) => m[1]!.replace(/&amp;/g, '&'));
+      expect(hrefs.length, `${file} links nothing, so this case would pass over nothing`).toBeGreaterThan(1);
+      for (const href of hrefs) {
+        const why = `${file} links ${href}`;
+        if (href.startsWith('#')) {
+          expect(ids.has(href.slice(1)), `${why}, an id the page does not have`).toBe(true);
+        } else if (href.startsWith('mailto:')) {
+          expect(href, `${why}, which is not the support address`).toBe(`mailto:${SUPPORT_EMAIL}`);
+        } else if (href.startsWith(`${APP_URL}/`)) {
+          const path = new URL(href).pathname;
+          expect(routes.has(path), `${why}, and the app has no route ${path}`).toBe(true);
+        } else if (/^[a-z]+:/i.test(href)) {
+          throw new Error(`${why}: an address outside the site, the app and the support mailbox`);
+        } else {
+          // Relative to the page, as the site's nginx resolves it.
+          const target = new URL(href, `https://site.invalid/${file}`).pathname.slice(1).replace(/#.*$/, '');
+          expect(files.has(target), `${why}, a file the alpha build does not write`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('is left out of the nav of every page, its own included', async () => {
+    const pages = await alphaBuild();
+    // The nav's links are root-relative: `/alpha-guide.html`, `/nl/alfa-handleiding.html`.
+    const guideHrefs = Object.values(GUIDE).map((file) => `/${file}`);
+    for (const p of pages) {
+      const nav = /<nav class="site">([\s\S]*?)<\/nav>/.exec(p.html)?.[1] ?? '';
+      expect(nav, `${p.file} has no nav`).not.toBe('');
+      // The language switch is the one nav link a page has to its own other
+      // language, so the guide links the other guide there; nothing else does.
+      const links = [...nav.matchAll(/<a (?![^>]*class="lang")[^>]*href="([^"]+)"/g)].map((m) => m[1]!);
+      for (const href of guideHrefs) {
+        expect(links, `${p.file} has the guide in its nav`).not.toContain(href);
+      }
+    }
+  });
+
+  it('the setting is the one the API and the web build read, and only "alpha" turns it on', () => {
+    // In a child process, so the environment is the build's, as a deploy runs
+    // it. --check renders to memory and lists every page it would write.
+    const listed = (stage: string | undefined): string => {
+      const env: NodeJS.ProcessEnv = { ...process.env, OWNPACE_APP_URL: 'https://app.ota.ownpace.eu' };
+      delete env.OWNPACE_STAGE;
+      if (stage !== undefined) env.OWNPACE_STAGE = stage;
+      const r = spawnSync('node', [join(HERE, 'build.mjs'), '--check'], { env, encoding: 'utf8' });
+      expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+      return r.stdout;
+    };
+    for (const stage of ['alpha', ' Alpha ', 'ALPHA']) {
+      const out = listed(stage);
+      for (const file of Object.values(GUIDE)) {
+        expect(out, `OWNPACE_STAGE=${JSON.stringify(stage)} does not render ${file}`).toContain(`  ${file} `);
+      }
+    }
+    for (const stage of [undefined, '', 'beta', 'alpha2']) {
+      const out = listed(stage);
+      expect(out, `the vacuity check: ${JSON.stringify(stage)} renders the conditions`).toContain('  nl/alpha.html ');
+      for (const file of Object.values(GUIDE)) {
+        expect(out, `OWNPACE_STAGE=${JSON.stringify(stage)} renders ${file}`).not.toContain(`  ${file} `);
+      }
     }
   });
 });

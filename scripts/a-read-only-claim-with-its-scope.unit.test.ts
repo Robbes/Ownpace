@@ -88,6 +88,9 @@ const SURFACES: ReadonlyArray<Surface> = [
   { kind: 'markdown', path: 'docs/grant-links.md' },
   { kind: 'markdown', path: 'site/pages/en/how-it-works.md' },
   { kind: 'markdown', path: 'site/pages/nl/hoe-het-werkt.md' },
+  // The tester guide (0144 T1), which a tester reads before connecting.
+  { kind: 'markdown', path: 'site/pages/en/alpha-guide.md' },
+  { kind: 'markdown', path: 'site/pages/nl/alfa-handleiding.md' },
   { kind: 'string', key: 'setup.google.consent_scope.title', locale: 'en' },
   { kind: 'string', key: 'setup.google.consent_scope.title', locale: 'nl' },
 ];

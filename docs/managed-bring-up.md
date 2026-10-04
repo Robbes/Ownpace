@@ -1944,6 +1944,12 @@ GIT_SHA=$(git rev-parse --short HEAD) \
 Open the sign-in page: the note is under the title. Empty, or any value but
 `alpha`, is no note and no paragraph. The appliance never shows it.
 
+The same setting decides whether the public site carries the tester guide
+(`/nl/alfa-handleiding.html` and `/alpha-guide.html`, workplan 0144 T1):
+`deploy-live.sh` hands live's value to every site build, so with
+`WWW_LIVE=true` the guide is published with the next deploy. Built by hand,
+the site needs it in the shell: `OWNPACE_STAGE=alpha node site/build.mjs …`.
+
 **The same setting asks for acceptance** (workplan 0139 T3), **once no text is
 still a draft**. With `alpha`, every tester who signs in meets one screen before
 any other page: the Alpha conditions, the privacy policy and the terms, each
@@ -2287,7 +2293,9 @@ not move at all. Switch it on with the first tag whose texts are final.
    the checkout, whose exit code decides. A dry run runs that test build too;
    it builds nothing in the checkout. After the bring-up the deploy
    builds the site in the checkout
-   (`OWNPACE_APP_URL=https://app.ownpace.eu GIT_SHA=<commit> node site/build.mjs --public`),
+   (`OWNPACE_APP_URL=https://app.ownpace.eu OWNPACE_STAGE=<live's> GIT_SHA=<commit> node site/build.mjs --public`,
+   where `OWNPACE_STAGE` is the value in live's `.env`, never the shell's; with
+   `alpha` the site carries the tester guide, workplan 0144 T1),
    brings it up with
    `docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file deploy/compose/.env up -d --force-recreate`
    (a `WWW_PORT` another container publishes makes this `up` fail, and the
