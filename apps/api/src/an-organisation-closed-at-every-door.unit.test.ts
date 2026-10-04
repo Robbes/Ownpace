@@ -11,6 +11,7 @@
  * cutover, a discovery, *Start*, a verification, both applies, a
  * confirmation; creating a migration, moving one into the lane, adding,
  * resuming or keeping a data type; adding, testing or re-keying a connection;
+ * listing a saved account's folders, since 0153 open question 5, item 4;
  * the permission report; the sharing rescan and the share applies; and a grant
  * link's consent, which stored a new token and lifted a withdrawal.
  *
@@ -98,6 +99,8 @@ const JMAP = `${P}13`;
 const JMAP_BOX = `${P}23`;
 /** A Nextcloud destination with stored access, for Test and a new key. */
 const NEXTCLOUD = `${P}14`;
+/** A Dropbox source with stored access, for the folders *Only one folder* lists. */
+const DROPBOX = `${P}15`;
 
 const ACTIVE = `${P}31`;
 const DRAFT = `${P}32`;
@@ -169,7 +172,15 @@ vi.mock('@openmig/orchestration/probe-connection', async (importOriginal) => {
     probed.push(side);
     return { ok: true };
   };
-  return { ...actual, probeSourceConnection: vi.fn(passes('source')), probeTargetConnection: vi.fn(passes('target')) };
+  return {
+    ...actual,
+    probeSourceConnection: vi.fn(passes('source')),
+    probeTargetConnection: vi.fn(passes('target')),
+    listDropboxSharedFolders: vi.fn(async () => {
+      probed.push('folders');
+      return { ok: true, folders: [] };
+    }),
+  };
 });
 vi.mock('@openmig/orchestration/account-qualification', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@openmig/orchestration/account-qualification')>();
@@ -338,6 +349,15 @@ const WRITE_DOORS: readonly WriteDoor[] = [
     reset: () => sql(`UPDATE connection SET status = 'error' WHERE id = $1`, [NEXTCLOUD]),
   },
   {
+    // *Only one folder*'s Browse (0153 open question 5, item 4) reads the
+    // stored access to list a saved account's folders.
+    name: 'listing a connection’s folders',
+    method: 'get',
+    path: `/api/connections/${DROPBOX}/folders`,
+    spec: '/api/connections/{id}/folders',
+    accepted: 200,
+  },
+  {
     name: 'giving a connection a new key',
     method: 'put',
     path: `/api/connections/${NEXTCLOUD}/credentials`,
@@ -478,7 +498,8 @@ beforeAll(async () => {
        ($1, $5, 'source', 'imap', 'i', '{}'::jsonb, 'connected', NULL),
        ($2, $5, 'source', 'gmail', 'g', '{}'::jsonb, 'connected', $6),
        ($3, $5, 'target', 'jmap', 'j', '{"host":"dst.example.invalid","port":443}'::jsonb, 'connected', NULL),
-       ($4, $5, 'target', 'nextcloud', 'n', $7::jsonb, 'error', $8)`,
+       ($4, $5, 'target', 'nextcloud', 'n', $7::jsonb, 'error', $8),
+       ($9, $5, 'source', 'dropbox', 'd', '{}'::jsonb, 'connected', $10)`,
     [
       CONN,
       GMAIL,
@@ -488,6 +509,8 @@ beforeAll(async () => {
       sealed({ username: NAMED, clientId: CLIENT_ID, clientSecret: 'the-owners-secret-value' }),
       JSON.stringify({ url: DAV.url }),
       nextcloudSecret,
+      DROPBOX,
+      sealed({ refreshToken: 'a-dropbox-token', clientId: 'an-app-key', clientSecret: 'an-app-secret' }),
     ],
   );
   await sql(
@@ -573,7 +596,9 @@ const THE_ENQUEUE = 'enqueue-unless-held.ts';
 const CHECKS_BY_FILE: Readonly<Record<string, number>> = {
   'routes/migrations/index.ts': 7,
   'routes/migrations/operating-routes.ts': 4,
-  'routes/connections.ts': 3,
+  // One more since *Only one folder*'s Browse lists a saved account's folders
+  // (0153 open question 5, item 4).
+  'routes/connections.ts': 4,
   'routes/permissions.ts': 1,
   // Two more since a person's link (0153 T5 (b)): its page and its consent ask too.
   'routes/grant.ts': 4,
@@ -600,8 +625,9 @@ const USES_STORED_ACCESS =
  */
 const USES_BY_FILE: Readonly<Record<string, number>> = {
   // One more since a rotation keeps a Microsoft account's tenant (0153 open
-  // question 5), read after the rotation's close.
-  'routes/connections.ts': 12,
+  // question 5), read after the rotation's close, and one since the folder
+  // browse reads a saved account's sign-in, after its own.
+  'routes/connections.ts': 13,
   'routes/grant.ts': 2,
   'routes/migrations/account-on-connection.ts': 1,
   'routes/migrations/google-oauth-routes.ts': 3,

@@ -26,6 +26,8 @@ It is a **delegated** credential: it reads the Drive of the person who consents,
 
 The **Root folder ID** field roots the migration somewhere other than My Drive — a **shared drive** is named by its own id, and so is a **folder somebody shared with this account**: "Shared with me" is a view, not a folder, so its contents never appear under My Drive's tree — rooting a separate migration at the shared folder's id is how such a folder migrates. To see the ids this credential can reach, use the wizard's **Browse shared drives & folders…** button on the source step — a read-only listing through the same connector a migration uses. Loose shared files — shared with you but not inside a folder you can root at — stay out of scope.
 
+**On Start a migration** the same choice is **Only one folder**, under **Files** on *What moves?*, for the Google account as for this card. Once the account is connected, paste the folder's address from Google Drive, whose id is read out of it, or press **Show shared drives and shared folders** and pick one. The migration's page then says which folder its files are read from. The folder can change until the first file is copied; after that, another folder is another migration.
+
 **Google Docs, Sheets, Slides and Drawings** have no file to copy, only a rendering Google makes, and the wizard asks what each kind should arrive as. Every choice asks Drive to render the document; nothing is converted here.
 
 - Docs arrive as `.odt` (OpenDocument), `.docx` (Microsoft Office) or `.pdf`.

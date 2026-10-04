@@ -86,6 +86,38 @@ function sideLabel(name: string | null | undefined, kind: string, account: strin
   return known ? `${head} (${account})` : head;
 }
 
+/** The source kinds whose files start from a folder, by the key they keep it under. */
+const FOLDER_KEY_OF_KIND: Readonly<Record<string, 'rootFolderId' | 'rootPath'>> = {
+  google: 'rootFolderId',
+  google_drive: 'rootFolderId',
+  box: 'rootFolderId',
+  dropbox: 'rootPath',
+};
+
+/**
+ * WHERE A MIGRATION'S FILES START (0153 open question 5, item 4): one folder,
+ * chosen under *Only one folder* on *Start a migration*, or all of the
+ * account. Undefined where the migration moves no files, or reads them from a
+ * source that has no folder to start from. A Google folder is named by its id,
+ * which is all the migration holds.
+ */
+export function filesFromLine(
+  t: ReturnType<typeof useT>,
+  m: {
+    readonly sourceConnection?: { readonly kind: string } | null | undefined;
+    readonly sourceConfig: { readonly rootFolderId?: string | undefined; readonly rootPath?: string | undefined };
+    readonly syncConfig: { readonly domains: ReadonlyArray<string> };
+  },
+): string | undefined {
+  const kind = m.sourceConnection?.kind;
+  const key = kind === undefined ? undefined : FOLDER_KEY_OF_KIND[kind];
+  if (key === undefined || !m.syncConfig.domains.includes('file')) return undefined;
+  const folder = m.sourceConfig[key];
+  if (folder) return t(key === 'rootPath' ? 'hub.filesFrom.path' : 'hub.filesFrom.id', { folder });
+  const place = kind === 'google' || kind === 'google_drive' ? t('start.place.myDrive') : (connectionKindName(kind!) ?? kind!);
+  return t('hub.filesFrom.all', { place });
+}
+
 /**
  * The latest pass any of its data types completed: what the list carries as a
  * migration's last pass, and what a person's card reads before the progress
@@ -339,6 +371,12 @@ const MappingDetail: React.FC = () => {
             ? t('hub.lands.folder', { folder: detail.data.targetFolderPrefix })
             : t('hub.lands.merged')}
         </p>
+      )}
+      {/* WHERE ITS FILES START (0153 open question 5, item 4), said the same
+          way: once anything is copied, another folder would be another
+          migration. */}
+      {detail.data && filesFromLine(t, detail.data) !== undefined && (
+        <p className="mt-1 text-sm text-gray-600">{filesFromLine(t, detail.data)}</p>
       )}
       {/* A GRANT THE PERSON TOOK BACK (workplan 0108 T8 (c)), said before
           anything that reads as progress: the status can still say Active,

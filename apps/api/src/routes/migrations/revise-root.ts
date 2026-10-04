@@ -40,8 +40,14 @@ export async function hasCopiedAnything(db: PgDatabase, tenantId: string, mappin
 /** The two spellings of one setting: Drive and Box name a folder, Dropbox a path. */
 export type RootKey = 'rootFolderId' | 'rootPath';
 
-/** The key each source kind keeps its root folder under, where it has one. */
+/**
+ * The key each source kind keeps its root folder under, where it has one. A
+ * Google account's files are Drive's (`ACCOUNT_FACE_BUILDERS.google.file`),
+ * read with the same key, so *Only one folder* on *Start a migration* works
+ * for the account as it does for the Drive row.
+ */
 const ROOT_KEY_OF_KIND: Readonly<Record<string, RootKey>> = {
+  google: 'rootFolderId',
   google_drive: 'rootFolderId',
   box: 'rootFolderId',
   dropbox: 'rootPath',

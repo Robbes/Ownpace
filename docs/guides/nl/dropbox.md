@@ -19,6 +19,8 @@ Laat u het veld **Pad van de hoofdmap** leeg, dan verhuist de hele Dropbox; een 
 
 Een **gekoppelde gedeelde map** staat in de boom van het account en verhuist zoals elke andere map; het pad ervan is een geldig pad voor de hoofdmap. De knop **Gedeelde mappen bekijken…** in de wizard toont wat het account kan zien, met de paden erbij; een gedeelde map die niet is gekoppeld, heeft geen pad tot het account haar aan zijn Dropbox toevoegt.
 
+**Bij Migratie starten** kiest u **Alleen één map**, onder **Bestanden** bij *Wat wilt u migreren?*. Is het account verbonden, typ dan het pad van de map, plak het adres van de map van de website van Dropbox, of druk op **Gedeelde mappen tonen** en kies een map die aan het account is toegevoegd. De pagina van de migratie zegt daarna uit welke map de bestanden worden gelezen.
+
 De test vraagt Dropbox alleen naar het bovenste niveau van de hoofdmap, en antwoordt dus binnen seconden, hoe groot de Dropbox ook is; de migratie zelf loopt elke map langs. Naast het aantal mappen staat hoeveel de Dropbox bevat, uit het eigen ruimtegebruik dat Dropbox opgeeft.
 
 ## Wat er meegaat {#what-moves}

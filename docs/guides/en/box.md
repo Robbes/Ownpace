@@ -38,6 +38,8 @@ Pick Box in the wizard. Everything goes on the source step: the account's addres
 
 The **Root folder ID** field left empty means `0` — the account root ("All Files"); a folder id scopes the migration to that folder.
 
+**On Start a migration** choose **Only one folder**, under **Files** on *What moves?*. Once the account is connected, paste the folder's address from Box: the number at its end is the folder id. Box's folders are not listed there.
+
 A folder somebody invited the account to (a **collaborated folder**) sits in the account's own tree and migrates as ordinary content; root a separate migration at its folder id to migrate just it.
 
 ## What moves {#what-moves}

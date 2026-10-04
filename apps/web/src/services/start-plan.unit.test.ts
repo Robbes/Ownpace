@@ -14,11 +14,15 @@ import {
   exportDestinations,
   exportMigration,
   exportOf,
+  folderKeyOf,
+  folderValue,
+  foldersListable,
   grantableByLink,
   migrationsFor,
   nextcloudAddress,
   nextcloudDavUrl,
   offers,
+  offersOneFolder,
   sharesItsDestination,
   type PlannedMigration,
   type Route,
@@ -300,5 +304,48 @@ describe('a migration that shares its destination (0153 open question 5, item 4)
     const elsewhere = m('c', 'other', ['email']);
     expect(sharesItsDestination(mail, [mail, calendar, elsewhere])).toBe(false);
     expect(sharesItsDestination(mail, [mail])).toBe(false);
+  });
+});
+
+describe('where a migration’s files start (0153 open question 5, item 4)', () => {
+  it('is a folder by id on Google and Box, and by path on Dropbox; Microsoft’s files have none yet', () => {
+    expect(folderKeyOf('google')).toBe('rootFolderId');
+    expect(folderKeyOf('google-drive')).toBe('rootFolderId');
+    expect(folderKeyOf('box')).toBe('rootFolderId');
+    expect(folderKeyOf('dropbox')).toBe('rootPath');
+    expect(folderKeyOf('microsoft')).toBeUndefined();
+    expect(folderKeyOf('imap')).toBeUndefined();
+  });
+
+  it('is offered under Files for Google whichever card carries them, Dropbox and Box, and not for Microsoft', () => {
+    // Without the restricted scopes Google's files come through the Drive card; with them, the account.
+    expect(offersOneFolder('google')).toBe(true);
+    expect(offersOneFolder('google', { google: [...DISCOVERY_DOMAINS] })).toBe(true);
+    expect(offersOneFolder('dropbox')).toBe(true);
+    expect(offersOneFolder('box')).toBe(true);
+    expect(offersOneFolder('microsoft')).toBe(false);
+    expect(offersOneFolder('apple')).toBe(false);
+  });
+
+  it('lists the folders of a Google or Dropbox account, and not of Box, whose folder is typed', () => {
+    expect(['google', 'google-drive', 'dropbox'].every(foldersListable)).toBe(true);
+    expect(foldersListable('box')).toBe(false);
+  });
+
+  it('reads a folder’s id out of its Google Drive or Box address, and keeps an id as typed', () => {
+    expect(folderValue('google', 'https://drive.google.com/drive/folders/1AbC_d-9?usp=sharing')).toBe('1AbC_d-9');
+    expect(folderValue('google-drive', 'https://drive.google.com/drive/u/0/folders/0AFi9x')).toBe('0AFi9x');
+    expect(folderValue('google', 'https://drive.google.com/open?id=1Xyz')).toBe('1Xyz');
+    expect(folderValue('box', 'https://app.box.com/folder/123456789')).toBe('123456789');
+    expect(folderValue('google', '  1AbC  ')).toBe('1AbC');
+    expect(folderValue('google', '   ')).toBe('');
+  });
+
+  it('starts a Dropbox path at the top, without a slash at its end, and reads it out of an address', () => {
+    expect(folderValue('dropbox', 'Photos/2019/')).toBe('/Photos/2019');
+    expect(folderValue('dropbox', '/Photos')).toBe('/Photos');
+    expect(folderValue('dropbox', 'https://www.dropbox.com/home/Holiday%202019')).toBe('/Holiday 2019');
+    // The whole Dropbox is not one folder.
+    expect(folderValue('dropbox', '/')).toBe('');
   });
 });

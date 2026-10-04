@@ -4,6 +4,42 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04: the root folder, *Only one folder* (open question 5, item 4, the third and last
+part).** The owner chose A: on *What moves?*, under *Files*, with the wizard's *Browse…*, for a
+new and a saved account alike and for the Google account too.
+
+- ***What moves?* asks *All of My Drive* (*All of Dropbox*, *All of Box*) or *Only one folder***
+  under *Files*, where the card carrying them has a folder to start from (`offersOneFolder`).
+  Microsoft's files have none yet, so nothing is asked there. *Only one folder* says the folder is
+  chosen once the account is connected, since only then can its folders be listed.
+- ***Connect your accounts* asks which folder, under the account, once it is chosen.** A folder's
+  address from Google Drive or Box gives its id, and a Dropbox address or a path typed without its
+  slash gives the path from the top (`folderValue`). A connected Google or Dropbox account offers
+  the wizard's browse, *Show shared drives and shared folders* or *Show shared folders*, and a
+  folder picked fills the box. Next waits, in words, until each such account has a folder. An
+  account somebody else connects by a link has the box without the list.
+- **The browse reads the stored sign-in** (`GET /api/connections/:id/folders`), with the
+  deployment's own application where the account has none, as a Test reads it. Google's two lists
+  come back together, and where one is refused the other still shows, with the refusal beside it.
+  A Dropbox folder not added to the account is listed without a value, since it has no path yet.
+  Box lists nothing, as in the wizard. A closed organisation is refused before the sign-in is
+  read, and the door is a row in the closed-organisation sweep.
+- **The create sends the folder after the account's own**: `rootFolderId` or `rootPath`. The
+  Google account's create used to drop `rootFolderId` without a word. It is now kept in the
+  migration's override, and its files face, Drive's, reads it. The update route takes it for a
+  Google account too, before the first item.
+- **The flow's account forms no longer draw the folder**: it is the migration's, asked after.
+  The Accounts page keeps it.
+- **The migration page says where its files start**: from one folder, by its path or id, or from
+  all of My Drive, Dropbox or Box.
+- **Proved by** nine cases for the browse route, a door in the closed-organisation sweep, a
+  Google account's folder against real rows and at create, five in `start-plan.unit.test.ts`,
+  four on the flow and three on the migration page. Mutations caught: the deployment's client left
+  out of the browse; the Google account's folder dropped at create; the folder left off the
+  create. The flow's test also found a listed folder whose name and tag a screen reader would
+  have read as one word.
+- The guides for Google, Dropbox and Box say it in both languages.
+
 **2026-10-04: *Other ways to connect* without the wizard, and the two texts that promised sources
 no door has (open question 5, the part needed before the wizard goes).** IMAP is the one source
 protocol, and *Another mail provider* is its tile. CalDAV, CardDAV, WebDAV and JMAP are
@@ -65,7 +101,7 @@ recommendation put *Rename* on the migration page for the name a person would ra
 - **Proved by** seven cases against real rows in `a-name-and-a-folder-the-route-writes`, three in
   shared, and four on the migration page. Two mutations are caught: dropping the name, and a ledger
   read that always says nothing was copied.
-- **Still to come for item 4:** the root folder on screen 3.
+- **The root folder on screen 3** came after: see *Only one folder* above.
 - **No TLS switch on managed** (the owner chose B) needs nothing removed before the wizard goes:
   *Start a migration* encrypts every connection, and the Accounts page's forms never had a switch.
   The wizard's *Use SSL/TLS* is the last one. Privacy §11's *"unless you switch off SSL/TLS

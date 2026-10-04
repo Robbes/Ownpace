@@ -40,6 +40,8 @@ Kies Box in de wizard. Alles komt in de stap Bron: het adres van het account ond
 
 Laat u het veld **ID van de hoofdmap** leeg, dan betekent dat `0`: de hoofdmap van het account ("All Files"); een map-ID beperkt de migratie tot die map.
 
+**Bij Migratie starten** kiest u **Alleen één map**, onder **Bestanden** bij *Wat wilt u migreren?*. Is het account verbonden, plak dan het adres van de map uit Box: het getal aan het eind is de map-ID. De mappen van Box worden daar niet opgesomd.
+
 Een map waarvoor het account is uitgenodigd (een **gedeelde samenwerkingsmap**) staat in de eigen boom van het account en verhuist als gewone inhoud; laat een aparte migratie bij de map-ID beginnen om alleen die map te migreren.
 
 ## Wat er meegaat {#what-moves}

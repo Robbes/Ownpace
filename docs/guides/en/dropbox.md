@@ -19,6 +19,8 @@ The **Root folder path** field left empty migrates the whole Dropbox; a path sco
 
 A **mounted shared folder** lives in the account's tree and migrates like any other folder — its path is a valid root folder path. The wizard's **Browse shared folders…** button lists what the account can see, paths included; an unmounted share has no path until the account adds it to its Dropbox.
 
+**On Start a migration** choose **Only one folder**, under **Files** on *What moves?*. Once the account is connected, type the folder's path, paste its address from the Dropbox website, or press **Show shared folders** and pick one added to the account. The migration's page then says which folder its files are read from.
+
 Test asks Dropbox for the top level of the root folder only, so it answers in seconds on a Dropbox of any size; the migration itself walks every folder. Beside the folder count, the Measured line says how much the Dropbox holds, from Dropbox's own space-usage figure.
 
 ## What moves {#what-moves}
