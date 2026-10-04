@@ -428,7 +428,9 @@ sends a yes only after the money is said once more. The hold: before each new fi
 pass asks whether the meter, with what it has copied, is still below the ceiling
 (`PassClock.firstCopyAllowed`); a held item is not fetched and gets no row, an update carries on,
 the collection keeps its cursor, and the status names what waits with both prices. The tasks learn
-the stage from `OWNPACE_STAGE`, which `set-task-env.sh` uploads. The warning at *Start* follows.
+the stage from `OWNPACE_STAGE`, which `set-task-env.sh` uploads. At *Start*, a note adds what the
+preflight measured to what has moved and, past the ceiling, names both prices; it never blocks.
+The ask on the path axis is not built.
 
 This replaces two passages of the Decision above: in *Downgrade is automatic; upgrade is
 consented*, the sentence beginning *"On the **data** axis the tier moves automatically"*; and in
@@ -630,8 +632,8 @@ rules above are the prices the site quotes, and nothing is charged during the Al
   text: *Pending*.
 - **2026-10-03, last** — Not during the alpha (owner: *"A"*): the ceiling warns and nothing holds
   while the stage is `alpha`, and no yes is taken. The yes is built (managed 0037, 0109 T6's first
-  slice), the Billing page that asks for it, with the break-even, and the hold in the copy loop.
-  Record: *Amendment 2026-10-03*.
+  slice), the Billing page that asks for it, with the break-even, the hold in the copy loop, and
+  the note at *Start*. Record: *Amendment 2026-10-03*.
 
 The full record, word for word as it read before this consolidation:
 [history/0014-cost-recovery-billing.md](./history/0014-cost-recovery-billing.md).

@@ -2171,6 +2171,15 @@ const en = {
     'The limit belongs to your old provider, not to us. Passing it can lock you out of your own live mailbox for about a day, so copying stops before that happens. Nothing has failed and nothing is lost — the next pass carries on from exactly where this one stopped.',
   // The data ceiling (workplan 0109 T6): new first copies wait for the
   // customer's yes; updates carry on. Said with both prices (ADR-0014).
+  // The ceiling said at Start (workplan 0109 T6): the preflight's measure and
+  // the data already moved, against the ceiling. A note; it never blocks.
+  'ceiling.atStart':
+    'What these migrations hold, about {size}, and the {moved} already moved pass your data ceiling of {ceiling}.',
+  'ceiling.atStart.holds':
+    'At the ceiling, new items wait until you choose a way on; changes to what is already copied carry on.',
+  'ceiling.atStart.choose': 'Choose now, or start anyway and choose when they wait:',
+  'ceiling.atStart.billing': 'your data ceiling on the Billing page',
+  'ceiling.atStart.alpha': 'During the alpha nothing waits at the ceiling and nothing is charged.',
   'pause.dataCeiling':
     'New items wait at your data ceiling of {ceiling}: {held} not copied yet. Changes to what is already copied carry on.',
   'pause.dataCeiling.moveUp': 'Move up to {tier}: €{setup} once, then €{monthly} a month.',
@@ -4700,6 +4709,13 @@ const nl: Record<keyof typeof en, string> = {
     '{provider} heeft de daglimiet voor downloaden bereikt. Kopiëren gaat verder zodra die reset.',
   'pause.ceiling.why':
     'De limiet is van uw oude provider, niet van ons. Erover gaan kan u ongeveer een dag buitensluiten uit uw eigen live mailbox, dus stopt het kopiëren daarvóór. Er is niets misgegaan en er gaat niets verloren — de volgende ronde gaat verder waar deze stopte.',
+  'ceiling.atStart':
+    'Wat deze migraties bevatten, ongeveer {size}, en de {moved} die al verplaatst is, gaan samen over uw datalimiet van {ceiling}.',
+  'ceiling.atStart.holds':
+    'Bij de limiet wachten nieuwe items tot u een weg verder kiest; wijzigingen aan wat al gekopieerd is gaan door.',
+  'ceiling.atStart.choose': 'Kies nu, of start toch en kies wanneer ze wachten:',
+  'ceiling.atStart.billing': 'uw datalimiet op de pagina Facturering',
+  'ceiling.atStart.alpha': 'Tijdens de alfa wacht er niets bij de limiet en wordt niets in rekening gebracht.',
   'pause.dataCeiling':
     'Nieuwe items wachten bij uw datalimiet van {ceiling}: {held} nog niet gekopieerd. Wijzigingen aan wat al gekopieerd is gaan door.',
   'pause.dataCeiling.moveUp': 'Ga naar {tier}: eenmalig €{setup}, daarna €{monthly} per maand.',
