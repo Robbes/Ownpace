@@ -1661,8 +1661,13 @@ const en = {
   'start.from.otherMail': 'Another mail provider',
   'start.from.otherMail.inSentence': 'another mail provider',
   'start.from.needOne': 'Tick at least one account.',
-  'start.from.other': 'Other ways to connect (IMAP, CalDAV, CardDAV, WebDAV, JMAP)',
-  'start.from.other.line': 'A server is added by its protocol, one migration at a time.',
+  // OTHER WAYS TO CONNECT, without the wizard (0153 open question 5): IMAP
+  // is the one source protocol; CalDAV, CardDAV, WebDAV and JMAP are where
+  // things go, and this fold promised them as sources.
+  'start.from.other': 'Other ways to connect (IMAP)',
+  'start.from.other.line':
+    'Any mail server is read over IMAP: that is Another mail provider. CalDAV, CardDAV, WebDAV and JMAP are where things go, chosen on Where does it go?',
+  'start.from.other.choose': 'Choose Another mail provider',
   'start.byHand': 'Add one migration by hand',
   'start.what.heading': 'What moves?',
   'start.what.hint': 'Each sign-in asks only for what you tick here.',
@@ -1670,7 +1675,7 @@ const en = {
   'start.what.notFrom': 'Not from {provider}: {types}.',
   'start.what.notFrom.apple.why': 'Apple offers no way into iCloud Drive for anyone outside Apple.',
   'start.what.notFrom.imap.why':
-    "A mail provider's calendar and contacts come over CalDAV and CardDAV, where it offers them. Add those by hand.",
+    "Over IMAP only mail is read: a mail provider's calendar and contacts have no way in here yet.",
   'start.what.needOne': 'Tick at least one thing to move.',
   'start.what.photos': 'Photos',
   // A PROVIDER'S EXPORT UNDER ITS TILE (0153 open question 5, item 2): a tick
@@ -4574,8 +4579,10 @@ const nl: Record<keyof typeof en, string> = {
   'start.from.otherMail': 'Een andere mailaanbieder',
   'start.from.otherMail.inSentence': 'een andere mailaanbieder',
   'start.from.needOne': 'Vink minstens één account aan.',
-  'start.from.other': 'Andere manieren om te verbinden (IMAP, CalDAV, CardDAV, WebDAV, JMAP)',
-  'start.from.other.line': 'Een server voegt u toe via zijn protocol, één migratie tegelijk.',
+  'start.from.other': 'Andere manieren om te verbinden (IMAP)',
+  'start.from.other.line':
+    'Elke mailserver wordt via IMAP gelezen: dat is Een andere mailaanbieder. CalDAV, CardDAV, WebDAV en JMAP zijn bestemmingen, te kiezen bij Waar gaat het naartoe?',
+  'start.from.other.choose': 'Een andere mailaanbieder kiezen',
   'start.byHand': 'Eén migratie handmatig toevoegen',
   'start.what.heading': 'Wat wilt u migreren?',
   'start.what.hint': 'Elke aanmelding vraagt alleen om wat u hier aanvinkt.',
@@ -4583,7 +4590,7 @@ const nl: Record<keyof typeof en, string> = {
   'start.what.notFrom': 'Niet van {provider}: {types}.',
   'start.what.notFrom.apple.why': 'Apple biedt niemand buiten Apple een weg naar iCloud Drive.',
   'start.what.notFrom.imap.why':
-    'De agenda en contacten van een mailaanbieder komen via CalDAV en CardDAV, als die ze aanbiedt. Die voegt u handmatig toe.',
+    'Via IMAP wordt alleen e-mail gelezen: voor de agenda en contacten van een mailaanbieder is hier nog geen weg.',
   'start.what.needOne': 'Vink minstens één ding aan om te migreren.',
   'start.what.photos': "Foto's",
   'start.what.export.google-takeout': "Foto's: uit een Takeout-export",

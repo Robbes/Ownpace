@@ -204,19 +204,22 @@ describe('Which account are you leaving? (screen 2)', () => {
     expect(why.closest('label')).toBeNull();
   });
 
-  it('has no export line, since an export sits under its provider, and sends a protocol to the wizard, with the person', async () => {
-    // 0153 open question 5, item 2: every export has a provider.
+  it('has no export line, and its fold names IMAP alone, ticks Another mail provider, and leads to no wizard', async () => {
+    // 0153 open question 5: every export has a provider (item 2), and the one
+    // source protocol is IMAP, which is a tile. CalDAV, CardDAV, WebDAV and
+    // JMAP are destinations, and the fold no longer names them as ways in.
     const user = userEvent.setup();
     peopleMock.mockResolvedValue({ people: [ANNA], unassigned: [] });
     renderAt('/start?person=p-anna');
     await screen.findByRole('radio', { name: 'Anna Jansen' });
     await user.click(next());
     expect(screen.queryByText(/export archive/i)).not.toBeInTheDocument();
-    await user.click(screen.getByText(/^Other ways to connect/));
-    expect(screen.getByRole('link', { name: 'Add one migration by hand' })).toHaveAttribute(
-      'href',
-      '/mappings/new?person=p-anna',
-    );
+    await user.click(screen.getByText('Other ways to connect (IMAP)'));
+    expect(screen.getByText(/Any mail server is read over IMAP/)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Add one migration by hand' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Choose Another mail provider' }));
+    expect(screen.getByRole('checkbox', { name: 'Another mail provider' })).toBeChecked();
+    expect(screen.queryByRole('button', { name: 'Choose Another mail provider' })).not.toBeInTheDocument();
   });
 });
 
