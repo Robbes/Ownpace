@@ -109,6 +109,14 @@ beforeAll(async () => {
 
   const encrypted = (creds: Record<string, string>) => JSON.stringify(SecretStore.encryptCredentials(creds).encrypted);
   await q('INSERT INTO tenant (id, name) VALUES ($1, $2)', [TENANT, 'Acme Legal']);
+  // Room for everything this file runs at the same time: an agreed Extra
+  // large (workplan 0109 T6). This file is not about the tier's paths, which
+  // `a-start-past-the-tier.unit.test.ts` holds.
+  await q(
+    `INSERT INTO data_allowance (tenant_id, kind, tier_id, band_gb, price_eur, consented_by)
+     VALUES ($1, 'tier', 'xl', 15000, 0, 'room for the test')`,
+    [TENANT],
+  );
   // A Google source with the organisation's client and no token: what a
   // migration holds while it waits for its person to connect.
   await q(
@@ -210,6 +218,24 @@ describe('a grant lands on a migration of a person whose move was started', () =
     expect(await statusOf(ALSO_RUNNING)).toBe('active');
     expect(enqueued).toEqual([]);
     expect(await q(`SELECT 1 FROM audit_log WHERE action = 'mapping.status'`)).toEqual([]);
+  });
+
+  it('past the agreed tier, leaves it a draft and throws nothing: the owner is asked at Start (0109 T6)', async () => {
+    // Without the room this file's setup agreed to, Anna's three slots are
+    // past Tiny's one already, and the draft would add a fourth.
+    await q('DELETE FROM data_allowance WHERE tenant_id = $1', [TENANT]);
+    try {
+      expect(await startWhenGranted(driver, { tenantId: TENANT, mappingIds: [DRAFT] })).toEqual([]);
+      expect(await statusOf(DRAFT)).toBe('paused');
+      expect(await q('SELECT state FROM path_lifecycle WHERE mapping_id = $1', [DRAFT])).toEqual([]);
+      expect(enqueued).toEqual([]);
+    } finally {
+      await q(
+        `INSERT INTO data_allowance (tenant_id, kind, tier_id, band_gb, price_eur, consented_by)
+         VALUES ($1, 'tier', 'xl', 15000, 0, 'room for the test')`,
+        [TENANT],
+      );
+    }
   });
 
   it('starts nothing while an operator hold is open', async () => {
