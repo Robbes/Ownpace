@@ -2,7 +2,12 @@
 
 > **In one line:** Telling the operator when `ownpace-live` fails: an alert channel, Gatus alerts on the Ownpace status rows, a `managed-sync-tick` heartbeat, disk, queue and PgBouncer watches, an off-machine probe and `docs/incident-runbook.md`.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-10-04 (update this block at the end of every session)
+
+**2026-10-04: §3 T6 step 6 gets a dated note.** The Alpha note is now the owner's welcome (0131
+D4's amendment) and no longer tells a tester to keep their old account. Both Alpha mails and the
+tester guide do, as `docs/incident-runbook.md` already says. On branch
+`claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged.
 
 **2026-09-28: T1 merged as #1263, and T2's row with T6 as #1252.** Their entries below and their
 rows say so. Live's alerts stay off until its `.env` names the relay and turns `ALERT_ENABLED` on
@@ -757,7 +762,9 @@ do. For example:
 5. **Decide whether it is a personal-data breach.** If it may be, 0139 T8's procedure takes over
    from here. Its clock starts when the owner becomes aware, not when the assessment ends.
 6. **Tell the tester**, in Dutch. Say what is known, what is not, and what they should do with
-   their old account: keep it, as 0131 T1's draft note says.
+   their old account: keep it, as 0131 T1's draft note says. *(2026-10-04: since 0131 D4's
+   amendment the note is the owner's welcome and no longer says it. Both Alpha mails and the
+   tester guide do, as `docs/incident-runbook.md` now says.)*
 7. **Say it plainly if data is gone.** There are no backups during the alpha (D4, 0134). What was
    lost on the machine cannot be restored. The source account is untouched, because no connector
    writes to it (0131 T4), so a migration can be set up again.

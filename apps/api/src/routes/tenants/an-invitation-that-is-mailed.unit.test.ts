@@ -182,14 +182,14 @@ describe('inviting mails the invited person', () => {
   it.each([
     {
       locale: 'nl' as const,
-      lead: /^Alpha: een kleine, uitgenodigde groep/m,
+      lead: /^Welkom bij de Alpha! /m,
       conditions: 'Lees hier de voorwaarden voor de Alpha: https://site.example.test/nl/alpha.html',
       guide: 'Lees de handleiding voor de Alpha voordat u begint: https://site.example.test/nl/alpha-handleiding.html',
       never: ['https://site.example.test/alpha.html', 'https://site.example.test/alpha-guide.html'],
     },
     {
       locale: 'en' as const,
-      lead: /^Alpha: a small invited group/m,
+      lead: /^Welcome to the Alpha! /m,
       conditions: 'Read the Alpha conditions here: https://site.example.test/alpha.html',
       guide: 'Read the guide to the Alpha before you start: https://site.example.test/alpha-guide.html',
       never: ['https://site.example.test/nl/alpha.html', 'https://site.example.test/nl/alpha-handleiding.html'],

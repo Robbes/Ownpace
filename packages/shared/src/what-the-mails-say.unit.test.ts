@@ -15,9 +15,11 @@
  *    hash of it, in the sign-in service we run"*.
  *  - Its alpha paragraph said "nothing is backed up". Since 0139 T6 one copy
  *    is made right before each update and kept up to 7 days (privacy §9,
- *    Alpha conditions §6). The paragraph now names that copy. It is the alpha
- *    note's own words (`an-alpha-said-out-loud.unit.test.tsx` holds the two
- *    together).
+ *    Alpha conditions §6). The paragraph now names that copy. The alpha note
+ *    said the same until 2026-10-04; since then the note is the owner's
+ *    welcome and says nothing about backups (0131 D4's amendment), so this
+ *    file is where the sentence is held, in both mails that carry the Alpha
+ *    paragraph: this one and the invitation (0156 T3).
  *  - The mail to people items were shared with (Template 6) said nothing about
  *    who sent it or what is kept about them, and Art. 14(3)(b) GDPR asks for
  *    that at the first communication at the latest (privacy briefing, question
@@ -68,20 +70,34 @@ describe('the access-granted mail, about the password', () => {
   });
 });
 
-describe('the access-granted mail during the alpha, about backups', () => {
+describe('the access-granted and invitation mails during the alpha, about backups', () => {
   /** No backups, and the one exception with its limit. */
   const COPY = {
     en: /There are no backups, apart from one copy before each update, kept up to 7 days\./,
     nl: /Er worden geen back-ups gemaakt, op één kopie vlak voor elke update na, die hoogstens 7 dagen wordt bewaard\./,
   } as const;
 
+  /** Both mails with an Alpha paragraph, as the API builds them during the alpha. */
+  const ALPHA_MAILS = [
+    { ...GRANTED, alpha: true },
+    {
+      kind: 'member_invited',
+      organisation: 'Familie de Vries',
+      appUrl: 'https://app.example.test',
+      email: 'invited@example.test',
+      privacyPolicy: 'https://site.example.test/privacy.html',
+      alpha: true,
+    },
+  ] as const;
+
   it.each(LOCALES)('names the one copy before each update, kept up to 7 days, in %s', (locale) => {
-    expect(renderEvent({ ...GRANTED, alpha: true }, locale).body).toMatch(COPY[locale]);
+    for (const mail of ALPHA_MAILS) expect(renderEvent(mail, locale).body).toMatch(COPY[locale]);
   });
 
   it.each(LOCALES)('no longer says that nothing at all is backed up, in %s', (locale) => {
-    const { body } = renderEvent({ ...GRANTED, alpha: true }, locale);
-    expect(body).not.toMatch(/nothing is backed up|er worden geen back-ups gemaakt en/i);
+    for (const mail of ALPHA_MAILS) {
+      expect(renderEvent(mail, locale).body).not.toMatch(/nothing is backed up|er worden geen back-ups gemaakt en/i);
+    }
   });
 });
 

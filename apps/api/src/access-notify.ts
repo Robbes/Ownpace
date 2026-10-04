@@ -111,7 +111,8 @@ export function alphaFrom(env: { readonly OWNPACE_STAGE?: string }): boolean {
 
 /**
  * The mail a granted person receives, marked when the deployment runs the
- * alpha so that it says so in the note's words (`renderEvent`).
+ * alpha so that it opens with the note's welcome and then gives the facts
+ * (`renderEvent`).
  *
  * Built here rather than in the route so the setting is read in one place,
  * at the moment the mail is written, and so a test can hand it an

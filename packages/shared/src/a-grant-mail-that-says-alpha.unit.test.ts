@@ -4,17 +4,20 @@
  * A GRANT MAIL THAT SAYS ALPHA (workplan 0131 T1).
  *
  * The access-granted mail is the first thing a tester reads from the service,
- * before any page. During the alpha it says what the pages say: a small invited
- * group, nothing charged, an alpha that can end, no backups apart from one copy
- * before each update, kept up to 7 days, and keep the old account until what
- * arrived has been checked. In the language the
+ * before any page. During the Alpha its paragraph opens with the pages'
+ * welcome, the owner's own words (0131 D4's amendment, 2026-10-04), and then
+ * says what the Alpha means: nothing charged, an Alpha that can end, no
+ * backups apart from one copy before each update, kept up to 7 days, and keep
+ * the old account until what arrived has been checked. The note on the pages
+ * no longer says those facts (the owner: *"Welcome only"*), so the mail keeps
+ * them word for word (*"Welcome, then the facts"*). In the language the
  * request was made in (ADR-0013).
  *
  * Off unless the deployment sets it. The API reads `OWNPACE_STAGE` and marks
  * the event (`accessGrantedEvent` in `apps/api/src/access-notify.ts`); this
  * file is about what the mail then says, and that a mail without the mark says
  * nothing about an alpha at all. The pages' half, and the check that the mail
- * and the note carry the same words, is
+ * opens with the note's own words, is
  * `apps/web/src/components/an-alpha-said-out-loud.unit.test.tsx`.
  */
 
@@ -29,19 +32,22 @@ const GRANTED = {
 } as const;
 
 /**
- * The note's words: 0131 T1's, with the copy before an update since 0139 T4
- * (ops-app-sentences (a)), as the Alpha conditions §6 and privacy §9 say it.
+ * The owner's welcome (2026-10-04), then the facts as 0131 T1 said them, with
+ * the copy before an update since 0139 T4 (ops-app-sentences (a)), as the
+ * Alpha conditions §6 and privacy §9 say it.
  */
 const SAID = {
   en:
-    'Alpha: a small invited group is trying this service out. Nothing is charged, and the Alpha ' +
-    'can end. There are no backups, apart from one copy before each update, kept up to 7 days. ' +
-    'Keep your old account until you have checked what arrived.',
+    'Welcome to the Alpha! Try Ownpace at your own pace, and help others move to European ' +
+    'alternatives more easily. Nothing is charged, and the Alpha can end. There are no backups, ' +
+    'apart from one copy before each update, kept up to 7 days. Keep your old account until you ' +
+    'have checked what arrived.',
   nl:
-    'Alpha: een kleine, uitgenodigde groep probeert deze dienst uit. Er wordt niets in rekening ' +
-    'gebracht en de Alpha kan stoppen. Er worden geen back-ups gemaakt, op één kopie vlak voor ' +
-    'elke update na, die hoogstens 7 dagen wordt bewaard. Houd uw oude account tot u hebt ' +
-    'gecontroleerd wat er is aangekomen.',
+    'Welkom bij de Alpha! Probeer Ownpace rustig aan uit, en help anderen makkelijker over te ' +
+    'stappen naar Europese alternatieven. Er wordt niets in rekening gebracht en de Alpha kan ' +
+    'stoppen. Er worden geen back-ups gemaakt, op één kopie vlak voor elke update na, die ' +
+    'hoogstens 7 dagen wordt bewaard. Houd uw oude account tot u hebt gecontroleerd wat er is ' +
+    'aangekomen.',
 } as const;
 
 describe('the access-granted mail during the alpha', () => {

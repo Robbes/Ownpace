@@ -10,10 +10,12 @@
  * in with, never a token, and it does not tell them to open an app they have
  * no account for.
  *
- * During the alpha it says so in the note's words, and, as the access-granted
- * mail does, links the Alpha conditions and the tester guide after them, in
- * its own language (0131 T1 (b), 2026-10-04). The privacy line stays last.
- * Those cases failed on cd318823: the paragraph ended with no address.
+ * During the alpha it opens a paragraph with the note's welcome and then the
+ * facts (the owner, 2026-10-04, 0131 D4's amendment), and, as the
+ * access-granted mail does, links the Alpha conditions and the tester guide
+ * after them, in its own language (0131 T1 (b), 2026-10-04). The privacy line
+ * stays last. Those cases failed on cd318823: the paragraph ended with no
+ * address.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -62,9 +64,14 @@ describe('the invitation mail', () => {
     expect(body).toMatch(locale === 'en' ? /You are invited to join this organisation/ : /U bent uitgenodigd/);
   });
 
+  /** The note's welcome, which opens the alpha paragraph (the owner, 2026-10-04). */
+  const WELCOME = { en: 'Welcome to the Alpha! ', nl: 'Welkom bij de Alpha! ' } as const;
+  const opensWithTheWelcome = (body: string, locale: (typeof LOCALES)[number]) =>
+    body.split('\n').some((l) => l.startsWith(WELCOME[locale]));
+
   it.each(LOCALES)('carries the alpha paragraph only during the alpha, in %s', (locale) => {
-    expect(renderEvent(INVITED, locale).body).not.toMatch(/^Alpha:/m);
-    expect(renderEvent({ ...INVITED, alpha: true }, locale).body).toMatch(/^Alpha:/m);
+    expect(opensWithTheWelcome(renderEvent(INVITED, locale).body, locale)).toBe(false);
+    expect(opensWithTheWelcome(renderEvent({ ...INVITED, alpha: true }, locale).body, locale)).toBe(true);
   });
 
   /** The addresses the API hands it during the alpha, in the mail's language. */
@@ -85,7 +92,7 @@ describe('the invitation mail', () => {
 
   it.each(LOCALES)('during the alpha, links the conditions and the guide after the paragraph, in %s', (locale) => {
     const lines = renderEvent({ ...INVITED, alpha: true, ...LINKED[locale] }, locale).body.trimEnd().split('\n');
-    const lead = lines.findIndex((l) => l.startsWith('Alpha: '));
+    const lead = lines.findIndex((l) => l.startsWith(WELCOME[locale]));
     expect(lead, 'the alpha paragraph is gone').toBeGreaterThan(-1);
     // In the paragraph, straight after its words: conditions, then the guide.
     expect(lines[lead + 1]).toBe(`${SAYS[locale].conditions} ${LINKED[locale].alphaConditions}`);

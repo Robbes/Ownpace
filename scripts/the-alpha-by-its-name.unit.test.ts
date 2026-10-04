@@ -92,6 +92,9 @@ const WHY =
   'Alpha", "the Alpha can end". Never "alfa", never a lower-case "alpha"\n' +
   '(apps/web/src/i18n/GLOSSARY.md).';
 
+/** The welcome's first sentence, which names the Alpha (the owner, 2026-10-04). */
+const WELCOMED = { en: 'Welcome to the Alpha!', nl: 'Welkom bij de Alpha!' } as const;
+
 describe('1. the web dictionary', () => {
   it('has the values this reads, so an empty dictionary cannot pass', () => {
     for (const locale of ['en', 'nl'] as const) {
@@ -105,10 +108,9 @@ describe('1. the web dictionary', () => {
       .filter(([, value]) => misspelt(value).length > 0)
       .map(([key, value]) => `${key}: ${value}`);
     expect(wrong, WHY).toEqual([]);
-    // And the note names it, as the owner's own example does: "Alpha: een
-    // kleine, uitgenodigde groep …".
-    expect(STRINGS[locale]['alpha.note.lead']).toMatch(/^Alpha: /);
-    expect(STRINGS[locale]['alpha.note.terms']).toMatch(/\bAlpha\b/);
+    // And the note names it in its first words, the owner's welcome
+    // (2026-10-04, 0131 D4's amendment): "Welkom bij de Alpha!".
+    expect(STRINGS[locale]['alpha.note.lead']).toBe(WELCOMED[locale]);
   });
 });
 
@@ -141,8 +143,9 @@ describe('2. the mails that speak of the Alpha', () => {
   for (const [kind, event] of Object.entries(EVENTS)) {
     it.each(['en', 'nl'] as const)(`${kind} says Alpha, never alfa or a lower-case alpha, in %s`, (locale) => {
       const { subject, body } = renderEvent(event as unknown as NotificationEvent, locale);
-      // The vacuity check: the mail does speak of the Alpha.
-      expect(body).toMatch(/^Alpha: /m);
+      // The vacuity check: the mail does speak of the Alpha. Its paragraph
+      // opens with the note's welcome.
+      expect(body.split('\n')).toContainEqual(expect.stringMatching(new RegExp(`^${WELCOMED[locale]} `)));
       expect(misspelt(`${subject}\n${body}`), WHY).toEqual([]);
     });
   }

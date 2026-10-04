@@ -4,6 +4,14 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04, later: the guide carries facts the note dropped.** The alpha note is now the
+owner's welcome and its two links (0131 D4's amendment). So the guide, with both Alpha mails and
+the conditions, is where a tester reads what the Alpha means: nothing is charged, the Alpha can
+end, no backups apart from one copy before each update, and keep your old account. The guide
+already says each of them; nothing in it changed. It does not say how long the copy is kept: the
+7 days are in both mails and the conditions §6 only. Adding *"kept up to 7 days"* to both guides
+is an owner item, because the Dutch needs the owner's read. Not done here.
+
 **2026-10-04: the spelling is *Alpha*, the guide's Dutch address moved, and the app and the mails
 link the guide. On `claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged.**
 The 2026-10-03 entry left the spelling to the owner. On #1439 the owner answered *"akkoord,

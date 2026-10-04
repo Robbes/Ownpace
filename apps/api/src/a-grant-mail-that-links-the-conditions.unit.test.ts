@@ -4,11 +4,12 @@
  * A GRANT MAIL THAT LINKS THE CONDITIONS (workplan 0139 T4, with 0131 T1).
  *
  * The access-granted mail is the first thing a tester reads from the service.
- * During the alpha it says so in the note's words (0131 T1), and 0131 T1
- * planned the link beside them: *"the access-granted mail's sentence carries
- * the same link"*, built through 0139 T10's addresses once they existed. They
- * do: the site renders the Alpha conditions at `alpha.html` and
- * `nl/alpha.html`, and the acceptance screen links them (0139 T3).
+ * During the alpha it says so, opening with the note's welcome (0131 T1; the
+ * owner's words since 2026-10-04), and 0131 T1 planned the link beside them:
+ * *"the access-granted mail's sentence carries the same link"*, built through
+ * 0139 T10's addresses once they existed. They do: the site renders the Alpha
+ * conditions at `alpha.html` and `nl/alpha.html`, and the acceptance screen
+ * links them (0139 T3).
  *
  * So, while the deployment runs the alpha, the alpha paragraph ends with the
  * conditions' address, in the language the mail is written in, on the site

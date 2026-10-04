@@ -1941,7 +1941,9 @@ together, and by mail the day's 50 above.
 During the Alpha (workplan 0131 T1), every tester is told so: a
 note at the top of every signed-in page and under the title of the sign-in and
 request pages, and a paragraph at the end of the access-granted mail and of
-the invitation mail, in English and Dutch. The note ends with two links, the
+the invitation mail, in English and Dutch. The note is the owner's welcome;
+each mail's paragraph opens with the same welcome and then says what the Alpha
+means. The note ends with two links, the
 Alpha conditions and the tester guide, in the reader's language; each mail's
 paragraph ends with the same two addresses, in the mail's language (0131 T1
 (b)). It is off unless you set it, and you set it only on the stack testers

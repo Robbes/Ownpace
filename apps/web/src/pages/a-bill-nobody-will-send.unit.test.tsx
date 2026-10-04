@@ -83,6 +83,7 @@ import RequestAccess from './RequestAccess.tsx';
 import { billingApi } from '../services/billing-service.ts';
 import { LocaleProvider } from '../i18n/index.tsx';
 import { STRINGS } from '../i18n/strings.ts';
+import { renderEvent } from '@openmig/shared';
 
 /** 0131 T3's words. */
 const SAID = {
@@ -116,6 +117,19 @@ const SAID = {
 
 type Locale = keyof typeof SAID;
 const LOCALES = Object.keys(SAID) as Locale[];
+
+/** The two mails whose Alpha paragraph says nothing is charged (0131 T1, 0156 T3). */
+const ALPHA_MAILS = [
+  { kind: 'access_granted', organisation: 'De Vries', appUrl: 'https://app.example.test', email: 'a@example.test', alpha: true },
+  {
+    kind: 'member_invited',
+    organisation: 'De Vries',
+    appUrl: 'https://app.example.test',
+    email: 'b@example.test',
+    privacyPolicy: 'https://site.example.test/privacy.html',
+    alpha: true,
+  },
+] as const;
 
 /**
  * A paid tier: Medium, €15 to set up and €8 a month in ADR-0014's table. The
@@ -274,12 +288,14 @@ describe('with the alpha setting on', () => {
     expect(packageHint(locale)).toBe(`${SAID[locale].tierHint} ${SAID[locale].charged}`);
   });
 
-  it.each(LOCALES)('says "charged", as the alpha note does, then the free tier\'s own sentence, in %s', (locale) => {
-    // One promise in three places: the note at the top of every page (T1),
+  it.each(LOCALES)('says "charged", as the Alpha mails do, then the free tier\'s own sentence, in %s', (locale) => {
+    // One promise in three places: the Alpha paragraph of both mails (T1),
     // the Billing line and the request hint. The alpha covers every tier and
-    // says "charged". If the note's word changes, this line changes with it.
+    // says "charged". If the mails' word changes, this line changes with it.
+    // The note said it too until 2026-10-04; it is now the owner's welcome
+    // (0131 D4's amendment).
     const verb = { en: 'Nothing is charged', nl: 'niets in rekening gebracht' }[locale];
-    expect(STRINGS[locale]['alpha.note.terms']).toContain(verb);
+    for (const mail of ALPHA_MAILS) expect(renderEvent(mail, locale).body).toContain(verb);
     // Read from the product's dictionary, not from SAID above, so this case
     // fails when the product's words change, not only when the test's do.
     const charged = STRINGS[locale]['alpha.nothingCharged'];

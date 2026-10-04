@@ -2229,17 +2229,18 @@ const en = {
   // remembered, so nothing restarts it.
   'pause.hold.why':
     'Nothing is wrong with your migration and nothing is lost. Migrations already running finish normally, and scheduled copying starts again by itself once the update is done, from exactly where it stopped. Any copying you tried to start during the pause did not start: start it again after the update.',
-  // The alpha note (workplan 0131 T1): four sentences, one paragraph, the
-  // same words as the access-granted mail (`grantedAlpha` in @openmig/shared's
-  // notifications.ts; `an-alpha-said-out-loud.unit.test.tsx` holds the two
-  // together). Split into three keys; they render as one paragraph. The copy
-  // before an update is the Alpha conditions §6 and privacy §9 (0139 T4,
-  // ops-app-sentences (a); it said "nothing is backed up" until then).
-  // `what-the-app-says.unit.test.tsx`.
-  'alpha.note.lead': 'Alpha: a small invited group is trying this service out.',
-  'alpha.note.terms':
-    'Nothing is charged, and the Alpha can end. There are no backups, apart from one copy before each update, kept up to 7 days.',
-  'alpha.note.keep': 'Keep your old account until you have checked what arrived.',
+  // The alpha note (workplan 0131 T1): the owner's welcome (0131 D4's
+  // amendment, 2026-10-04), and then its two links. The owner wrote it in
+  // Dutch; this is its translation. It says "move", not "switch": the welcome's
+  // "overstappen" is not the cutover. Two keys, because the first sentence is
+  // the bold lead. Until then the note said what the Alpha
+  // means; those facts are now in both mails (`grantedAlpha` in
+  // @openmig/shared's notifications.ts), after this same welcome, and in the
+  // Alpha conditions and the tester guide. `an-alpha-said-out-loud.unit.test.tsx`
+  // holds that split: the note is the welcome and its links, and both mails
+  // open with the note's words.
+  'alpha.note.lead': 'Welcome to the Alpha!',
+  'alpha.note.welcome': 'Try Ownpace at your own pace, and help others move to European alternatives more easily.',
   // After the note's words, its two links (0131 T1 (b)): the Alpha conditions,
   // by `acceptance.doc.alpha`, and the tester guide (0144 T1), by this, the
   // guide page's own title (site/build.mjs, without " — Ownpace").
@@ -2247,8 +2248,8 @@ const en = {
   // Nothing charged (workplan 0131 T3): the first sentence of the Billing
   // line that takes the subtitle's place, and the last sentence of the
   // request form's package hint. One key, so the two cannot drift apart.
-  // "Charged", as the note says it, and not "invoiced", which is what a tier
-  // says (0109 T8).
+  // "Charged", as both mails' Alpha paragraph says it, and not "invoiced",
+  // which is what a tier says (0109 T8). The note no longer says it.
   'alpha.nothingCharged': 'Nothing is charged during the Alpha.',
   // A person to write to (workplan 0144 T6 (a)), in §3's words. `{address}` is
   // the deployment's VITE_SUPPORT_EMAIL, drawn as a mailto: link where it
@@ -4791,12 +4792,11 @@ const nl: Record<keyof typeof en, string> = {
   'pause.hold.since': 'Gepauzeerd sinds',
   'pause.hold.why':
     'Er is niets mis met uw migratie en er gaat niets verloren. Migraties die al liepen worden normaal afgerond, en het geplande kopiëren start vanzelf weer zodra de update klaar is, precies waar het stopte. Kopiëren dat u tijdens de pauze probeerde te starten, is niet gestart: start het na de update opnieuw.',
-  // 0131 T1's words, with de kopie vlak voor een update sinds 0139 T4 (zie het
-  // Engelse blok). Een veiligheidszin wordt niet ingekort (0118).
-  'alpha.note.lead': 'Alpha: een kleine, uitgenodigde groep probeert deze dienst uit.',
-  'alpha.note.terms':
-    'Er wordt niets in rekening gebracht en de Alpha kan stoppen. Er worden geen back-ups gemaakt, op één kopie vlak voor elke update na, die hoogstens 7 dagen wordt bewaard.',
-  'alpha.note.keep': 'Houd uw oude account tot u hebt gecontroleerd wat er is aangekomen.',
+  // Het welkom van de eigenaar, 2026-10-04, woord voor woord (zie het Engelse
+  // blok). De feiten staan in beide mails, ongewijzigd.
+  'alpha.note.lead': 'Welkom bij de Alpha!',
+  'alpha.note.welcome':
+    'Probeer Ownpace rustig aan uit, en help anderen makkelijker over te stappen naar Europese alternatieven.',
   'alpha.note.guide': 'Handleiding voor de Alpha',
   'alpha.nothingCharged': 'Tijdens de Alpha wordt niets in rekening gebracht.',
   // 0144 §3 T6's woorden; zie het Engelse blok.

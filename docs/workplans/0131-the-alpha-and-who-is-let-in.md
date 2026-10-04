@@ -4,6 +4,39 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04, later: the note is the owner's welcome (D4's amendment).** The owner gave the note
+new words, and minutes later changed their second half. D4's amendment quotes both messages and
+the two answers that followed. The note now says NL *"Welkom bij de Alpha! Probeer Ownpace
+rustig aan uit, en help anderen makkelijker over te stappen naar Europese alternatieven."*, EN
+(a translation; the owner wrote only the Dutch) *"Welcome to the Alpha! Try Ownpace at your own
+pace, and help others move to European alternatives more easily."*, and then its two links. Nothing else (*"Welcome only"*). It is the
+same note on every signed-in page, on `/login` and on `/request-access`.
+
+- **Both mails** (access-granted and invitation) open their Alpha paragraph with the same
+  welcome. Then the facts follow, word for word as before: nothing is charged, the Alpha can end,
+  no backups apart from one copy kept up to 7 days, keep your old account (*"Welcome, then the
+  facts"*). Then the conditions' line and the guide's line. The old first sentence, *"Alpha: a
+  small invited group is trying this service out."*, is gone from the note and the mails: the
+  welcome takes its place.
+- **The dictionary.** `alpha.note.lead` holds the first sentence, in bold. A new key,
+  `alpha.note.welcome`, holds the second. `alpha.note.terms` and `alpha.note.keep` are deleted:
+  nothing read them any more.
+- **Where the facts still reach a tester:** both mails, the Alpha conditions (accepted on the
+  acceptance screen), the tester guide, and the Billing line and the request hint
+  (`alpha.nothingCharged`, unchanged). The guide names the one copy before an update, but not
+  its 7 days: only both mails and the conditions §6 give those.
+
+Proved by guards changed first to the new decision. On aa8a576e, 54 cases failed. In web, 34:
+`an-alpha-said-out-loud` (the note is exactly the welcome and its two links; both mails open
+with the note's own words and then the facts; the note carries none of the facts) and
+`what-the-app-says` (the request form's note says nothing about backups, and both mails name the
+one copy). In node, 20: `the-alpha-by-its-name`, the grant and invitation mail tests in shared,
+and the three api tests that find the paragraph by its first words. `a-bill-nobody-will-send`
+now holds *"charged"* to both mails instead of the note. `what-the-mails-say` pins the one-copy
+sentence in the invitation mail too. All are green after. Same branch, not merged.
+After review, `an-alpha-said-out-loud` also holds the note's shape: the first sentence is its
+only bold text, and the two links' names are the owner's, written out in the test.
+
 **2026-10-04: T1 (b) built, and the Alpha spelt as the conditions spell it.** On #1439 the owner
 answered *"akkoord, Alpha"*. So the test phase is *Alpha*, a proper name with a capital, in the
 running text of both languages: *de Alpha kan stoppen*, *the Alpha can end*. The glossary's old
@@ -455,7 +488,7 @@ of the gate answer.
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 The word "Alpha" wherever a tester meets the service | 📋 **Decided 2026-09-24** (D1, D4); spelt *Alpha* in both languages since 2026-10-04 (#1439). (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-alpha-said-out-loud`, merged (#1160, 2026-09-24).** (b) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged (2026-10-04)**: the note, the grant mail and the invitation link the conditions and the guide. The backup clause changed in 0139 T4 (2026-09-29, §3) | §3. A note on every signed-in page, on the sign-in and request pages, and one sentence in the grant mail, in Dutch and English. Managed only. Off unless the deployment sets it. (a) is the setting, the note and the mail's paragraph; (b) is their links to the conditions and the tester guide. |
+| T1 The word "Alpha" wherever a tester meets the service | 📋 **Decided 2026-09-24** (D1, D4); spelt *Alpha* in both languages since 2026-10-04 (#1439). (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-alpha-said-out-loud`, merged (#1160, 2026-09-24).** (b) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged (2026-10-04)**: the note, the grant mail and the invitation link the conditions and the guide. The backup clause changed in 0139 T4 (2026-09-29, §3). The note's words are the owner's welcome (2026-10-04, D4's amendment), built on the same branch, not merged. The mails open with it and keep the facts | §3. A note on every signed-in page, on the sign-in and request pages, and one sentence in the grant mail, in Dutch and English. Managed only. Off unless the deployment sets it. (a) is the setting, the note and the mail's paragraph; (b) is their links to the conditions and the tester guide. |
 | T2 An "experimental" label on sources nobody has run against a real account | 🔨 **(a) Built on branch `claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven` (2026-09-24), merged (#1171, 2026-09-25)**: the table, the tag at both doors on both editions (the export archive card included, offered and tagged on managed: 0148 D10), in the data-type step and beside the whole-domain option, with 0141 T1. 📋 **Decided 2026-09-24** (D6); (b), the why's link to 0144 T2's page, not built | §3. One table in shared, read by both doors and by the wizard's data-type step. Both editions. |
 | T3 Billing says nothing is charged during the alpha | 📋 **Decided 2026-09-24** (D1). (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-bill-nobody-will-send`, merged (#1172, 2026-09-25)**: the Billing line and the request hint, and the invoice details card's *not needed* during the alpha (open question 7, answered). The cards and the run rows stay 📋 **Proposed** | §3. One sentence on the Billing page and one on the request form. Hiding the four metered cards, and leaving run rows unpruned for the alpha, are **Proposed**. |
 | T4 What the end of the alpha does to organisations, credentials and identities | 📋 **Decided 2026-09-28** (open question 1): (b), everything carries on under new conditions, perhaps on another host | §3 and open question 1. What exists today, and three options; the owner chose (b). |
@@ -672,6 +705,48 @@ labelled beta notice? And can you supply the address, the btw-id and the hosting
 So the lawyer's pass happens before the first invitation, the test is labelled "Alpha", and the
 owner supplies the facts the drafts leave as placeholders. 0139 carries this.
 
+**D4, amended 2026-10-04: how the note greets a tester.** The owner asked for new words on the
+note: *"Change the note in: Welkom in bij de Alpha! Probeer Ownpace rustig aan uit, en help met
+het nog beter maken voor een ieder die naar Europese alternatieven wil overstappen."* Minutes
+later the owner changed the second half: *"Small change "en help met het nog beter maken voor
+een ieder die naar Europese alternatieven wil overstappen." Into "en help anderen makkelijker
+over te stappen naar Europese alternatieven.""* The second message holds the final words.
+*"Welkom in bij"* is read as *"Welkom bij"*, an evident slip. Every other word is the owner's, as
+written; *"rustig aan"* stays.
+
+Asked two questions, the owner answered:
+
+- *Does the welcome replace the whole note, or only its first sentence?* — *"Welcome only"*. The
+  note is the welcome and its two links (*Voorwaarden voor de Alpha* · *Handleiding voor de
+  Alpha*), and nothing else.
+- *What should the access-granted and invitation mails say in their Alpha paragraph?* —
+  *"Welcome, then the facts (Recommended)"*. The paragraph opens with the welcome, both
+  sentences. The facts follow, word for word as they were. Then the conditions' line and the
+  guide's line.
+
+So the note says:
+
+- NL: *"Welkom bij de Alpha! Probeer Ownpace rustig aan uit, en help anderen makkelijker over te
+  stappen naar Europese alternatieven."*
+- EN: *"Welcome to the Alpha! Try Ownpace at your own pace, and help others move to European
+  alternatives more easily."*
+
+The owner wrote only the Dutch. The English is its translation, not the owner's words. It says
+*"move"* for *"overstappen"*, and not *"switch"*: here *overstappen* is a general move to
+European alternatives, not the cutover, which the glossary calls *switch* / *overstap*.
+
+The facts are no longer in the note: nothing is charged, the Alpha can end, there are no
+backups apart from one copy kept up to 7 days, and keep your old account until you have checked
+what arrived. A tester still meets them in both mails, in the Alpha conditions (accepted on the
+acceptance screen) and in the tester guide. The guide names the one copy before an update, but
+not how long it is kept: the 7 days are in both mails and the conditions §6. The Billing line
+and the request hint still say that nothing is charged. The safety sentences are not shortened
+(0118): both mails keep them, word for word, after the welcome. The note's old first sentence,
+*"Alpha: a small invited group is trying this service out."*, is read as replaced by the
+welcome, in the note and in the mails alike: it was the note's lead, not one of the facts the
+second answer keeps. D1 stands as written. Managed only, during the Alpha only; never the
+appliance.
+
 **D5 — no backups during the alpha.** *How much loss is acceptable, how fast must service come
 back, and where are backups kept?* — *"None during the test"*. On the missing database backup:
 *"No obligations during controlled test"*.
@@ -773,6 +848,13 @@ conditions' line and the guide's, EN *"Read the guide to the Alpha before you st
 *"Lees de handleiding voor de Alpha voordat u begint:"*, and the invitation mail's with the same
 two, in the organisation's language. The words are spelt *Alpha* since the owner's *"akkoord,
 Alpha"* on #1439; the Status block says what proved it.)*
+*(2026-10-04, later: the owner's welcome; see D4's amendment. The note now says exactly the
+welcome, NL *"Welkom bij de Alpha! Probeer Ownpace rustig aan uit, en help anderen makkelijker
+over te stappen naar Europese alternatieven."*, EN (its translation) *"Welcome to the Alpha!
+Try Ownpace at your own pace, and help others move to European alternatives more easily."*, and
+then its two links. Both mails' Alpha paragraph opens with the welcome and keeps the facts word for word, then the
+conditions' line and the guide's line. The rule above, that the words must match the Alpha
+conditions, now applies to the mails.)*
 
 **Guards.** Each of these fails on today's code:
 
@@ -864,9 +946,10 @@ Nextcloud or WebDAV files (0148 D11), built by 0148 T9.
 - Unchanged: the invoice list, which is empty, and the payment methods, where the page offers
   no way to add one. The *"Invoice details"* form (who invoices are addressed to, with an address
   and a VAT number) also stays as it is; the alpha asks nobody to fill it in, and T1's note says
-  nothing is charged. So during the alpha the card shows the free tier's *"Not needed while your
-  tier is free: nothing is invoiced."* on every tier, in place of the amber ask (open question 7,
-  answered 2026-09-24).
+  nothing is charged *(2026-10-04: since the owner's welcome, both Alpha mails, the Billing line
+  and the request hint say it; the note welcomes and no longer does)*. So during the alpha the
+  card shows the free tier's *"Not needed while your tier is free: nothing is invoiced."* on every
+  tier, in place of the amber ask (open question 7, answered 2026-09-24).
 
 **The request page.** The package question (*"Which package looks right?"*) stays, because it
 tells the owner roughly how large a request is. Its hint gains the sentence *"Nothing is charged
@@ -966,7 +1049,7 @@ contains more than its row.
 | 0131 The alpha (this plan) | T1 and T3 on `ownpace-live` with the setting on. T2 built. T4 decided, and 0139's conditions say what the end does. Open question 6 answered, and the answer in place. | T1 (a), T2 (a) and T3 (a) merged (#1160, #1171, #1172); not yet on `ownpace-live`. T4 decided 2026-09-28: (b), and §3 T4 lists what (b) needs. Open question 6 answered 2026-09-28: (a), with 0137 T7, built on branch `claude/ownpace-public-readiness-y7orc6-an-owner-or-an-admin-for-the-alpha`, not merged; until it merges, any owner or admin can invite by email address with any role (§1). |
 | 0132 ownpace-live beside the nightly gate, on one box | 0132's T1, T1b to T1e, and T3 (D3). **T1:** container names, networks and scripts take the stack from `COMPOSE_PROJECT_NAME`, and a guard fails on a fixed stack name and on any hard-coded `ownpace-managed_` name. Every network live's containers join, the one its task runs join included, is live's own and named after it (0132 D9: *"all need to land in their own seperate docker network, with names corresponding with 'ownpace-live'."*). **T1b:** `ownpace-live` has its own checkout and `.env`, fresh secrets from its first bring-up, its own ports and no demo. The owner sets its database passwords in live's `.env` before that bring-up (0132 D8: *"ill set them in .env for the ownpace-live before bringup."*), and its application role is created with its own password before anything migrates, because otherwise the baseline creates it with the repository's literal. **T1c:** its own Trigger.dev plane, never the OTA one. **T1d:** its own identity provider at `id.ownpace.eu`, and a web build that names it as the issuer. **T1e:** the production names routed to live's ports. **T3:** checked from a machine off the mesh, port 443 on the production names answers over TLS, the OTA names answer as 0132's open question 7 decides, and nothing else answers; every port that need not be reachable is bound to loopback in both stacks (T1f). The result is written in 0132. Deploying live by hand from a tag (T1g) goes with 0146. The tag live first runs names a commit on which both nightly gates are green on their last N scheduled runs (0132 T6, step 1). 0141 T14 states that rule: scheduled runs only, since a dispatched run's moment was chosen, and a failed or cancelled scheduled run resets the count. The review suggested five, and the owner names N. The runbook and the release checklist say what D3 decided (0132 T1g). | `managed.yml` pins `name: ownpace-managed` and gives 17 services a fixed `container_name`, and scripts address containers by those names, so a second stack cannot start beside the OTA one (0132 §1). The owner reports the ports unreachable off the mesh (D3). `managed.yml` publishes seven ports (the database, the API, the web app, the status page, the identity provider and two for Trigger.dev) on all interfaces, and `www.yml` the site's, unless the host restricts them. The application role's password is a literal in the shared baseline migration (`packages/ledger/migrations/0001_baseline.sql`), and `ensure-env-secrets.sh` generates neither that password nor the database owner's; `trigger-db`'s password is a literal in `managed.yml` that no `.env` reaches (0132 D8, T2). Compose names the stack's two networks after the project, but the network task runs join is a literal in `managed.yml` (`DOCKER_RUNNER_NETWORKS: ownpace-managed_ownpace-network`), and `ownpace-managed_` names are hard-coded on 13 lines in six files (0132 T1). |
 | 0133 Mail that reaches a tester | On `ownpace-live`, one address outside the owner's own domains walks through the request, the grant mail, the identity provider's verification mail and the first sign-in, and every mail arrives in that inbox. SPF, DKIM and DMARC pass for the sending domain. Live's API and its identity provider both send through the relay, the provider with a login: `setup-zitadel.sh` hands it `SMTP_USER` and `SMTP_PASSWORD` since #1137 (merged 2026-09-24). The notice that a request has arrived reaches the owner. | `managed.env.example` still defaults `SMTP_HOST` to `mailpit`, so mail stays on the box until live's `.env` names the relay; the relay, its login and the DNS are still the owner's (0133 T0), and the sending address is decided, `support@ownpace.eu`. The bring-up starts Mailpit only with the demo or while `SMTP_HOST` is `mailpit`, names one left running without stopping it, and notes a `NOTIFY_FROM` or `NOTIFY_TO` still at `.invalid` once a relay is set (0133 T3 (b), (c), #1260, merged 2026-09-28). The identity provider reaches a relay over TLS whatever `SMTP_SECURE` says, and `setup-zitadel.sh` updates the stack's own provider from `.env` (T2 items 2 to 4, #1249); the API's and the tasks' mail never sends a login without TLS (T2 item 5, #1245); both merged 2026-09-27. None of it is on `ownpace-live`, which is not stood up (0132 T1b), and T4's walk with an outside inbox is not done. |
-| 0134 No backups during the alpha, said truthfully | The alpha conditions, T1's note and the grant mail all say what live keeps: no backups, only a copy made before each update, kept at most N days (0134 open question 1, answered 2026-09-28: (b)). T1's note and the grant mail no longer say *"nothing is backed up"* without that qualification (§3 T1). Live's `BACKUP_RETENTION_DAYS` is N from the first copy, and `0` only while no copy exists (0134 T0). The owner deletes a copy older than N days, whether or not a deploy followed it, and checks that none is left (0134 T0 step 4). Nothing the product shows promises a backup that does not exist. The owner has written down what a lost database costs a tester. | The application database has no backup (review); on `ownpace-live` it will hold the testers' data. The runbook's manual recipe dumps the zitadel database and the roles as well since #1137 (merged 2026-09-24), and says neither dump is usable without the stack's `.env`. N is not named. T1's note and the grant mail say *"nothing is backed up"* / *"er worden geen back-ups gemaakt"*. Nothing takes or deletes the copy before a deploy: `deploy-live.sh` leaves it to the owner (0132 T6 step 4), and 0132 T7's duties do not delete one. |
+| 0134 No backups during the alpha, said truthfully | The alpha conditions, T1's note and the grant mail all say what live keeps: no backups, only a copy made before each update, kept at most N days (0134 open question 1, answered 2026-09-28: (b)). T1's note and the grant mail no longer say *"nothing is backed up"* without that qualification (§3 T1). *(2026-10-04: since the owner's *"Welcome only"* (D4's amendment), the conditions §6 and both Alpha mails say it, and the note does not: it is the welcome and its links. The tester guide names the one copy before an update, but not how long it is kept.)* Live's `BACKUP_RETENTION_DAYS` is N from the first copy, and `0` only while no copy exists (0134 T0). The owner deletes a copy older than N days, whether or not a deploy followed it, and checks that none is left (0134 T0 step 4). Nothing the product shows promises a backup that does not exist. The owner has written down what a lost database costs a tester. | The application database has no backup (review); on `ownpace-live` it will hold the testers' data. The runbook's manual recipe dumps the zitadel database and the roles as well since #1137 (merged 2026-09-24), and says neither dump is usable without the stack's `.env`. N is not named. T1's note and the grant mail say *"nothing is backed up"* / *"er worden geen back-ups gemaakt"*. *(2026-10-04: stale since 0139 T4 (#1375, merged 2026-09-29), which reworded both to the one copy before each update, kept up to 7 days. Since the owner's welcome the note says nothing about backups, and both Alpha mails keep the reworded sentence.)* Nothing takes or deletes the copy before a deploy: `deploy-live.sh` leaves it to the owner (0132 T6 step 4), and 0132 T7's duties do not delete one. |
 | 0135 The sign-in page is the front door | Public organisation registration is off at `ownpace-live`'s identity provider (`id.ownpace.eu`), and the setting has been read back; 0135 applies the same to the OTA instance. A user of another organisation cannot sign in to the project. | Open, which is the upstream default (review), so a new instance starts open. The owner reports that no other organisations are hosted on the OTA instance (D3). |
 | 0136 A host we are asked to reach | 0136's minimum, after its explanation. A host a tester types is refused before any connection when it resolves to loopback, a private or link-local range, or a compose service name, and redirects are checked too. The Docker networks and their gateway are among the refused ranges, because through them a container can reach the other stack's host-published ports (D3). The alternative is the owner's written acceptance, given in the knowledge that every tester is someone the owner let in. | The rule is merged (#1216), every client of a tenant's host goes through it (#1223), and #1230 switches it on in the managed API at start-up and in every task module as it loads, admitting only the exact names in the operator's `OWNPACE_REACHABLE_HOSTS` (0136 T1 (a)'s third slice, T2); the appliance never switches it on. The bring-up refuses a Docker network outside the rule's ranges (0136 T1 (b), #1224). All four merged 2026-09-27. The gate's demo phase lists the demo's two compose names, and live's list is to stay empty; `ownpace-live` is not stood up (0132 T1b), and 0136's Status does not yet record a gate run through the rule. |
 | 0137 Roles that mean what they say | A viewer or member cannot delete, cut over, repoint credentials or apply deletions. Until that is built, testers invite nobody below admin, and the conditions say so. An admin cannot invite an owner: done in #1137 (merged 2026-09-24), where the invite route answers 403. | Most writes are open to every role (review, including an integration test that asserts it). |

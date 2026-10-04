@@ -13,10 +13,20 @@
  * page" is `Layout`'s AND `/invitations`, which sits outside `Layout` on
  * purpose (0099): an invited member never passes `/request-access` and never
  * receives the grant mail, so that screen is where they first meet the
- * service. And `/request-access` keeps the note after the request is sent. The same words
- * close the access-granted mail, and the last case below holds the two
- * together, because 0139's conditions will change them and a note that says
- * one thing while the mail says another is worse than either alone.
+ * service. And `/request-access` keeps the note after the request is sent.
+ *
+ * WHAT IT SAYS IS THE OWNER'S WELCOME (0131 D4's amendment, 2026-10-04): *"Welkom
+ * bij de Alpha! Probeer Ownpace rustig aan uit, en help anderen makkelijker over
+ * te stappen naar Europese alternatieven."*, and its English translation
+ * *"Welcome to the Alpha! Try Ownpace at your own pace, and help others move to
+ * European alternatives more easily."* Then its two links, and nothing else (the
+ * owner: *"Welcome only"*). Until then the note said what the Alpha means:
+ * nothing charged, it can end, no backups apart from one copy, keep the old
+ * account. Those facts are no longer in the note. Both mails carry them, word
+ * for word, after the same welcome (the owner: *"Welcome, then the facts"*). The
+ * Alpha conditions and the tester guide say them too. The last cases below hold
+ * that split: the note is exactly the welcome and its links, and both mails
+ * open their Alpha paragraph with the note's own words and then give the facts.
  *
  * WITHOUT THE SETTING, NONE OF IT. The OTA stack and every other deployment
  * carry no note. And an APPLIANCE never does, whatever its bundle was built
@@ -107,25 +117,53 @@ import type * as LegalLinks from '../services/legal-links.ts';
 import type * as GuideLink from '../services/tester-guide-link.ts';
 
 /**
- * 0131 T1's words, with the copy before an update since 0139 T4
- * (ops-app-sentences (a)): they match the Alpha conditions §6 and privacy §9.
+ * The owner's welcome (0131 D4's amendment, 2026-10-04): the owner's Dutch, and
+ * its English translation. The whole of what the note says. `lead` is its first
+ * sentence, the bold one. "Welkom in bij" in the owner's message is read as
+ * "Welkom bij".
  */
 const SAID = {
   en: {
-    lead: 'Alpha: a small invited group is trying this service out.',
-    all:
-      'Alpha: a small invited group is trying this service out. Nothing is charged, and the Alpha ' +
-      'can end. There are no backups, apart from one copy before each update, kept up to 7 days. ' +
-      'Keep your old account until you have checked what arrived.',
+    lead: 'Welcome to the Alpha!',
+    welcome:
+      'Welcome to the Alpha! Try Ownpace at your own pace, and help others move to European ' +
+      'alternatives more easily.',
   },
   nl: {
-    lead: 'Alpha: een kleine, uitgenodigde groep probeert deze dienst uit.',
-    all:
-      'Alpha: een kleine, uitgenodigde groep probeert deze dienst uit. Er wordt niets in rekening ' +
-      'gebracht en de Alpha kan stoppen. Er worden geen back-ups gemaakt, op één kopie vlak voor ' +
-      'elke update na, die hoogstens 7 dagen wordt bewaard. Houd uw oude account tot u hebt ' +
-      'gecontroleerd wat er is aangekomen.',
+    lead: 'Welkom bij de Alpha!',
+    welcome:
+      'Welkom bij de Alpha! Probeer Ownpace rustig aan uit, en help anderen makkelijker over te ' +
+      'stappen naar Europese alternatieven.',
   },
+} as const;
+
+/**
+ * The note's second paragraph, as a reader meets it: the two links by the
+ * names the owner gave them (*"Voorwaarden voor de Alpha · Handleiding voor de
+ * Alpha"*), each with its new tab said. Literals, not the dictionary, so a
+ * word slipped into a link's name is not let in unseen.
+ */
+const LINKS = {
+  en: 'Alpha conditions (opens in a new tab) · Guide to the Alpha (opens in a new tab)',
+  nl: 'Voorwaarden voor de Alpha (opent in een nieuw tabblad) · Handleiding voor de Alpha (opent in een nieuw tabblad)',
+} as const;
+
+/**
+ * What the Alpha means, word for word as the note said it until 2026-10-04 and
+ * as both mails still say it after the welcome. The copy before an update is
+ * the Alpha conditions §6 and privacy §9 (0139 T4, ops-app-sentences (a)).
+ */
+const FACTS = {
+  en: [
+    'Nothing is charged, and the Alpha can end.',
+    'There are no backups, apart from one copy before each update, kept up to 7 days.',
+    'Keep your old account until you have checked what arrived.',
+  ],
+  nl: [
+    'Er wordt niets in rekening gebracht en de Alpha kan stoppen.',
+    'Er worden geen back-ups gemaakt, op één kopie vlak voor elke update na, die hoogstens 7 dagen wordt bewaard.',
+    'Houd uw oude account tot u hebt gecontroleerd wat er is aangekomen.',
+  ],
 } as const;
 
 type Locale = keyof typeof SAID;
@@ -203,6 +241,9 @@ const PAGE_NAMES = Object.keys(PAGES) as Page[];
 
 const inLocale = (locale: Locale) => window.localStorage.setItem('ownpace.locale', locale);
 
+/** Text as a reader meets it: every run of white space one space. */
+const flat = (text: string | null): string => (text ?? '').replace(/\s+/g, ' ').trim();
+
 /** The note, found by its first sentence and returned as the element that carries the role. */
 function theNote(locale: Locale): HTMLElement {
   const lead = screen.getByText(SAID[locale].lead);
@@ -250,10 +291,23 @@ describe('with the alpha setting on', () => {
   });
 
   for (const page of PAGE_NAMES) {
-    it.each(LOCALES)(`${page} says it, whole, in %s`, async (locale) => {
+    it.each(LOCALES)(`${page} says the owner's welcome, and then only its two links, in %s`, async (locale) => {
       inLocale(locale);
       await PAGES[page]();
-      expect(theNote(locale)).toHaveTextContent(SAID[locale].all);
+      const note = theNote(locale);
+      // Two paragraphs: the welcome, word for word, and the links by their
+      // names, each with its new tab said. No text stands outside them, so
+      // nothing can come back into the note unseen ("Welcome only").
+      const paragraphs = Array.from(note.children);
+      expect(paragraphs.map((p) => p.tagName)).toEqual(['P', 'P']);
+      const said = paragraphs.map((p) => flat(p.textContent));
+      expect(said).toEqual([SAID[locale].welcome, LINKS[locale]]);
+      expect(note.textContent).toBe(paragraphs.map((p) => p.textContent).join(''));
+      // The first sentence is the bold lead, and nothing else in the note is
+      // bold.
+      expect(within(note).getByText(SAID[locale].lead)).toHaveClass('font-medium');
+      const bold = note.querySelectorAll('.font-medium, .font-semibold, .font-bold, strong, b');
+      expect(Array.from(bold, (el) => el.textContent)).toEqual([SAID[locale].lead]);
     });
   }
 
@@ -319,9 +373,17 @@ describe('with the alpha setting on', () => {
     expect(STRINGS.nl['alpha.note.guide']).toBe('Handleiding voor de Alpha');
   });
 
+  it('names the conditions as the owner named them, the new tab said in words', () => {
+    // The owner: "Voorwaarden voor de Alpha · Handleiding voor de Alpha".
+    expect(STRINGS.en['acceptance.doc.alpha']).toBe('Alpha conditions');
+    expect(STRINGS.nl['acceptance.doc.alpha']).toBe('Voorwaarden voor de Alpha');
+    expect(STRINGS.en['acceptance.newTab']).toBe('(opens in a new tab)');
+    expect(STRINGS.nl['acceptance.newTab']).toBe('(opent in een nieuw tabblad)');
+  });
+
   it('is a note, never an alarm', () => {
-    // A standing fact about the service, not a failure. `role="alert"` would
-    // be read out on every page a screen reader opens.
+    // A standing welcome, not a failure. `role="alert"` would be read out on
+    // every page a screen reader opens.
     PAGES.layout();
     expect(theNote('en')).toHaveAttribute('role', 'note');
     expect(theNote('en').closest('[role="alert"]')).toBeNull();
@@ -359,21 +421,56 @@ describe('on an appliance, never', () => {
   }
 });
 
-describe('the grant mail says what the pages say', () => {
-  /** The mail as the API builds it during the alpha (`accessGrantedEvent`). */
-  const grantedInTheAlpha = {
-    kind: 'access_granted',
-    organisation: 'Familie de Vries',
-    appUrl: 'https://app.ownpace.eu',
-    email: 'stranger@example.test',
-    alpha: true,
+describe('both Alpha mails open with the note\'s welcome, then say what the note no longer does', () => {
+  /**
+   * The two mails that carry the Alpha paragraph, as the API builds them during
+   * the Alpha (`accessGrantedEvent`, and the invitation route, 0156 T3).
+   */
+  const MAILS = {
+    access_granted: {
+      kind: 'access_granted',
+      organisation: 'Familie de Vries',
+      appUrl: 'https://app.ownpace.eu',
+      email: 'stranger@example.test',
+      alpha: true,
+    },
+    member_invited: {
+      kind: 'member_invited',
+      organisation: 'Familie Berentsen',
+      invitedBy: 'rob@example.test',
+      appUrl: 'https://app.ownpace.eu',
+      email: 'test@ownpace.test',
+      privacyPolicy: 'https://www.ownpace.eu/privacy.html',
+      alpha: true,
+    },
   } as const;
 
-  it.each(LOCALES)('in %s, word for word', (locale) => {
-    const onScreen = (['alpha.note.lead', 'alpha.note.terms', 'alpha.note.keep'] as const)
-      .map((key) => STRINGS[locale][key])
-      .join(' ');
-    expect(onScreen).toBe(SAID[locale].all);
-    expect(renderEvent(grantedInTheAlpha, locale).body).toContain(onScreen);
+  beforeEach(() => {
+    vi.stubEnv('VITE_OWNPACE_STAGE', 'alpha');
+  });
+
+  for (const [kind, event] of Object.entries(MAILS)) {
+    it.each(LOCALES)(`${kind}, in %s: the note's words, as the page shows them, then the facts word for word`, (locale) => {
+      inLocale(locale);
+      PAGES.layout();
+      // Read from the note itself, so the mail follows what a tester sees.
+      const welcome = flat(theNote(locale).querySelector('p')!.textContent);
+      expect(welcome).toBe(SAID[locale].welcome);
+      const alpha = renderEvent(event, locale)
+        .body.split('\n\n')
+        .filter((paragraph) => paragraph.startsWith(SAID[locale].lead));
+      expect(alpha, 'no paragraph of the mail opens with the welcome, or more than one does').toHaveLength(1);
+      // The paragraph's first line; the conditions and the guide follow it
+      // when the API hands their addresses (`an-invitation-that-says-who-asked`).
+      expect(alpha[0]!.split('\n')[0]).toBe([welcome, ...FACTS[locale]].join(' '));
+    });
+  }
+
+  it.each(LOCALES)('and the note itself carries none of those facts, in %s', (locale) => {
+    inLocale(locale);
+    PAGES.layout();
+    const note = document.querySelector('[role="note"]');
+    expect(note, 'no alpha note with the setting on').not.toBeNull();
+    for (const fact of FACTS[locale]) expect(flat(note!.textContent)).not.toContain(fact);
   });
 });
