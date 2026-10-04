@@ -34,11 +34,12 @@
  * numbers come from `migration_discovery` medians rather than judgement.
  */
 export const PROFILES_VERSION = {
-  version: 1,
-  date: '2026-08-26',
+  version: 2,
+  date: '2026-10-04',
   measured: false,
   source:
-    'Workplan 0088 T2 starting assumptions (owner-merged 2026-08-19), transcribed verbatim. ' +
+    'Workplan 0088 T2 starting assumptions (owner-merged 2026-08-19), transcribed verbatim; ' +
+    'tasks added 2026-10-04 (the owner, workplan 0152 T7), a judgement. ' +
     'To be replaced by measured medians from migration_discovery.',
 };
 
@@ -57,9 +58,19 @@ export const OBJECT_TYPES = /** @type {const} */ ([
   'mail',
   'contacts',
   'calendar',
+  'tasks',
   'files',
   'photos',
 ]);
+
+/**
+ * The sizes the estimate ASKS for: the ones a person can read off their
+ * provider's own storage page (the owner, 2026-10-04: GB for contacts, tasks
+ * and calendar *"does not make sense … They dont know that"*). The rest are
+ * counted at their assumed size, and the page says so in one line rather than
+ * asking a question nobody can answer.
+ */
+export const SIZE_ASKED = /** @type {const} */ (['mail', 'files', 'photos']);
 
 /**
  * @typedef {{ items: number, gb: number, provenance: string }} ProfileCell
@@ -90,6 +101,14 @@ export const INDICATIVE_PROFILES = {
       gb: 0.2,
       provenance: 'Workplan 0088 T2 starting assumption: a few years of appointments. Unmeasured.',
     },
+    tasks: {
+      items: 200,
+      gb: 0.01,
+      provenance:
+        'Added 2026-10-04 (the owner, workplan 0152 T7), a judgement: a task list or two. A task ' +
+        'is a line of text, so it is carried as 0.01 GB, as contacts are carried as 0.1, so the ' +
+        'size axis never reads zero for a list that exists. Unmeasured.',
+    },
     files: {
       items: 10_000,
       gb: 30,
@@ -119,6 +138,13 @@ export const INDICATIVE_PROFILES = {
       gb: 0.5,
       provenance: 'Workplan 0088 T2 starting assumption. Unmeasured.',
     },
+    tasks: {
+      items: 800,
+      gb: 0.01,
+      provenance:
+        'Added 2026-10-04 (the owner, workplan 0152 T7), a judgement: four people’s lists, ' +
+        'carried as 0.01 GB like the individual’s. Unmeasured.',
+    },
     files: {
       items: 40_000,
       gb: 120,
@@ -147,6 +173,13 @@ export const INDICATIVE_PROFILES = {
       gb: 2,
       provenance: 'Workplan 0088 T2 starting assumption. Unmeasured.',
     },
+    tasks: {
+      items: 4_000,
+      gb: 0.01,
+      provenance:
+        'Added 2026-10-04 (the owner, workplan 0152 T7), a judgement: ten people’s lists, ' +
+        'carried as 0.01 GB like the individual’s. Unmeasured.',
+    },
     files: {
       items: 250_000,
       gb: 600,
@@ -166,11 +199,16 @@ export const INDICATIVE_PROFILES = {
 /**
  * The ADR-0014 unit made arithmetic: one object type, from one account, to
  * one account. An individual ticking mail, contacts, calendar and files is
- * FOUR paths, not one; a family of four ticking the same is sixteen.
+ * FOUR paths, not one; a family of four ticking the same is sixteen. Tasks
+ * are a path of their own, as the app moves and bills them.
  *
  * Deliberately blind to shared mailboxes and shared drives: those are extra
  * accounts, and the page asks about accounts — it must not silently pad the
  * count with a guess about resources nobody named.
+ *
+ * This is one source that keeps every ticked type. Several sources, and a
+ * type a source does not keep, are `calculator.mjs`'s `migrationsFrom`, which
+ * the page runs and `calculator.unit.test.ts` holds to this for that case.
  *
  * @param {string} customerTypeId
  * @param {ReadonlyArray<string>} tickedTypes

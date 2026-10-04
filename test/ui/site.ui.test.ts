@@ -144,15 +144,65 @@ describe('the public site renders', () => {
 
   it('lines the tier prices up, which is the one page where it shows', async () => {
     const { page } = await open('/pricing.html');
-    const layout = await page.evaluate(() => {
-      const tops = [...document.querySelectorAll('.tier .price')]
-        .filter((_, i) => i % 2 === 0)
-        .map((e) => Math.round(e.getBoundingClientRect().top));
-      return { cards: document.querySelectorAll('.tier').length, baselines: new Set(tops).size };
-    });
-    expect(layout.cards, 'the pricing page lost a tier').toBe(5);
-    expect(layout.baselines, 'the tier prices sit at different heights').toBe(1);
+    // Each card's first price on screen: the switch hides one of a paid card's two.
+    const baselines = () =>
+      page.evaluate(() => {
+        const tops = [...document.querySelectorAll('.tier')].map((tier) => {
+          const shown = [...tier.querySelectorAll('.price')].find((e) => e.getClientRects().length > 0);
+          return shown ? Math.round(shown.getBoundingClientRect().top) : -1;
+        });
+        return { cards: tops.length, baselines: new Set(tops).size, hidden: tops.filter((t) => t < 0).length };
+      });
+    const yearly = await baselines();
+    expect(yearly.cards, 'the pricing page lost a tier').toBe(5);
+    expect(yearly.hidden, 'a card shows no price').toBe(0);
+    expect(yearly.baselines, 'the tier prices sit at different heights').toBe(1);
+    await page.click('label[for="pay-month"]');
+    expect((await baselines()).baselines, 'on monthly the tier prices sit at different heights').toBe(1);
     await page.close();
+  }, 60_000);
+
+  it('asks the pricing rules as questions, each answer closed until it is opened from the keyboard (0152 T6 (b))', async () => {
+    const { page } = await open('/pricing.html');
+    const questions = await page.$$eval('details.qa > summary', (s) => s.map((e) => e.textContent));
+    expect(questions.length, 'the pricing page has no questions').toBeGreaterThan(8);
+    const shown = () => page.evaluate((sel) => {
+      const p = [...document.querySelectorAll('details.qa')].find((d) => d.querySelector('summary')?.textContent === sel)?.querySelector('p');
+      return p?.checkVisibility({ visibilityProperty: true }) ?? false;
+    }, 'Does pausing lower it?');
+    expect(await shown(), 'an answer is open before anybody asks').toBe(false);
+    await page.focus('details.qa:nth-of-type(3) > summary');
+    expect(await page.evaluate(() => document.activeElement?.textContent)).toBe('Does pausing lower it?');
+    await page.keyboard.press('Enter');
+    expect(await shown(), 'Enter does not open the answer').toBe(true);
+    await page.close();
+  }, 60_000);
+
+  it('opens the prices on yearly, and shows monthly by a click or the keyboard (0152 T6 (e), D10)', async () => {
+    const { page } = await open('/pricing.html');
+    const small = () =>
+      page.evaluate(() => {
+        const card = [...document.querySelectorAll('.tier')].find((t) => t.querySelector('h3')?.textContent === 'Small')!;
+        const shown = (sel: string) =>
+          [...card.querySelectorAll(sel)].filter((e) => e.getClientRects().length > 0).map((e) => e.textContent?.trim());
+        return { price: shown('.price'), year: shown('.price-year') };
+      });
+    expect(await small(), 'the page does not open on yearly').toEqual({ price: ['€2.50 a month'], year: ['€30 a year'] });
+    await page.click('label[for="pay-month"]');
+    expect(await small(), 'Monthly does not show the monthly price').toEqual({ price: ['€5 a month'], year: [] });
+    // The keyboard: Tab reaches the checked radio, and an arrow moves the choice.
+    await page.click('label[for="pay-year"]');
+    await page.focus('#pay-year');
+    await page.keyboard.press('ArrowRight');
+    expect(await page.isChecked('#pay-month'), 'an arrow key does not move the switch').toBe(true);
+    expect((await small()).price).toEqual(['€5 a month']);
+    await page.close();
+
+    const phone = await open('/nl/prijzen.html', 390);
+    const overflows = await phone.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+    expect(overflows, 'the Dutch pricing page scrolls sideways at 390px').toBe(false);
+    expect(await phone.page.isVisible('fieldset.pay-switch'), 'the switch is not on a phone').toBe(true);
+    await phone.page.close();
   }, 60_000);
 
   it('lands one migration on Free and says free, with no top-up; a second one lands on Small (ADR-0014, 2026-09-24)', async () => {
@@ -296,6 +346,35 @@ describe('the public site renders', () => {
     await page.close();
   }, 60_000);
 
+  it('shows the move beside the hero’s words on a wide screen, and under its buttons on a phone (0152 T3 (a))', async () => {
+    const wide = await open('/', 1280);
+    const w = await wide.page.evaluate(() => {
+      const picture = document.querySelector('svg.hero-move')!.getBoundingClientRect();
+      const lede = document.querySelector('.hero .lede')!.getBoundingClientRect();
+      return { left: picture.left, width: picture.width, top: picture.top, bottom: picture.bottom, ledeRight: lede.right, ledeTop: lede.top };
+    });
+    expect(w.left, 'the picture is not beside the words').toBeGreaterThanOrEqual(w.ledeRight);
+    expect(w.width, 'the picture is too small to read').toBeGreaterThan(400);
+    expect(w.top, 'the picture starts below the fold').toBeLessThan(900);
+    await wide.page.close();
+
+    // A phone's first screen is about 844 pixels: the buttons must be in it,
+    // and the picture comes after them, on the screen.
+    const phone = await open('/nl/', 390);
+    const p = await phone.page.evaluate(() => {
+      const cta = document.querySelector('.hero .cta')!.getBoundingClientRect();
+      const picture = document.querySelector('svg.hero-move')!.getBoundingClientRect();
+      return { ctaBottom: cta.bottom, top: picture.top, left: picture.left, right: picture.right };
+    });
+    expect(p.ctaBottom, 'the hero’s buttons are not in a phone’s first screen').toBeLessThanOrEqual(844);
+    expect(p.top, 'the picture comes before the buttons on a phone').toBeGreaterThan(p.ctaBottom);
+    expect(p.left).toBeGreaterThanOrEqual(0);
+    expect(p.right, 'the picture runs off a 390 pixel screen').toBeLessThanOrEqual(390);
+    const overflows = await phone.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+    expect(overflows, 'the home page scrolls sideways at 390px').toBe(false);
+    await phone.page.close();
+  }, 60_000);
+
   it('opens a Leaving… page on a phone without sideways scroll, and its estimate on the page’s own case (0152 T5)', async () => {
     for (const path of ['/leaving-google.html', '/nl/weg-bij-microsoft-365.html', '/leaving-another-mail-provider.html']) {
       const { page, failed } = await open(path, 390);
@@ -384,6 +463,85 @@ describe('the public site renders', () => {
     }));
     expect(region).toEqual({ live: 'polite', holds: true });
     await page.close();
+  }, 90_000);
+
+  it('takes several sources at once, counts each one’s migrations, and asks sizes only for mail, files and photos (the owner, 2026-10-04)', async () => {
+    const { page } = await open('/estimate.html');
+    const state = () =>
+      page.evaluate(() => {
+        const said = (id: string) => {
+          const el = document.getElementById(id) as HTMLElement;
+          return el.hidden ? null : el.textContent;
+        };
+        return {
+          kind: (document.querySelector('input[name="from"]') as HTMLInputElement).type,
+          from: [...document.querySelectorAll<HTMLInputElement>('input[name="from"]')].filter((i) => i.checked).map((i) => i.value),
+          sizes: [...document.querySelectorAll('.calc .amount input')].map((i) => i.id),
+          paths: document.getElementById('axis-paths-val')!.textContent,
+          line: document.getElementById('paths-line')!.textContent,
+          small: said('small-line'),
+          uncounted: said('uncounted-line'),
+          card: said('tier-card') !== null,
+        };
+      });
+
+    const google = await state();
+    expect(google.kind, 'the sources are a choice of one again').toBe('checkbox');
+    expect(google.from).toEqual(['google']);
+    expect(google.sizes, 'a size nobody can read off a storage page is asked').toEqual(['gb-mail', 'gb-files', 'gb-photos']);
+    expect(google.paths).toBe('4');
+    expect(google.small).toBe('Contacts, calendars and tasks take little room, so we count them for you: less than 1 GB.');
+    expect(google.uncounted).toBeNull();
+
+    // Dropbox as well: its files are a migration of their own, as the app makes them.
+    await page.check('input[name="from"][value="dropbox"]');
+    const both = await state();
+    expect(both.from).toEqual(['google', 'dropbox']);
+    expect(both.paths).toBe('5');
+    expect(both.line).toBe(
+      'Mail, Contacts, Calendar, Files from Google; Files from Dropbox, for one person — that is 5 migrations at the same time.',
+    );
+
+    // Tasks are a migration of their own, sized for the person rather than asked.
+    await page.check('#what-tasks');
+    expect((await state()).paths).toBe('6');
+    expect(await page.$('#gb-tasks'), 'a size field for tasks').toBeNull();
+
+    // Apple alone: iCloud Drive does not move, so files are said, not counted.
+    await page.uncheck('input[name="from"][value="google"]');
+    await page.uncheck('input[name="from"][value="dropbox"]');
+    await page.check('input[name="from"][value="apple"]');
+    const apple = await state();
+    expect(apple.paths).toBe('4');
+    expect(apple.uncounted).toBe('Not counted, because we cannot move this from what you ticked: Files.');
+    expect(await page.getAttribute('#amount-files', 'data-off'), 'a size that is not counted still looks counted').toBe('');
+
+    // No source at all: nothing is counted, and the page asks for one.
+    await page.uncheck('input[name="from"][value="apple"]');
+    const none = await state();
+    expect(none.line).toBe('Tick what you are leaving and the count appears here.');
+    expect(none.uncounted).toBeNull();
+    expect(none.card, 'a tier for no source at all').toBe(false);
+
+    // Only what takes little room: no size is asked for, and the line says the sum.
+    await page.check('input[name="from"][value="google"]');
+    for (const t of ['mail', 'files']) await page.uncheck(`#what-${t}`);
+    const small = await state();
+    expect(small.paths).toBe('3');
+    expect(small.small).toContain('less than 1 GB');
+    for (const t of ['mail', 'files', 'photos'])
+      expect(await page.getAttribute(`#amount-${t}`, 'data-off'), `${t} is asked for though nothing ticked needs it`).toBe('');
+    await page.close();
+
+    // Arriving with a list ticks exactly those, in either language.
+    const listed = await open('/nl/schatting.html?from=google,box&what=files', 1200);
+    const nl = await listed.page.evaluate(() => ({
+      from: [...document.querySelectorAll<HTMLInputElement>('input[name="from"]')].filter((i) => i.checked).map((i) => i.value),
+      line: document.getElementById('paths-line')!.textContent,
+    }));
+    expect(nl.from).toEqual(['google', 'box']);
+    expect(nl.line).toBe('Bestanden van Google; Bestanden van Box, voor één persoon — dat zijn 2 migraties tegelijk.');
+    await listed.page.close();
   }, 90_000);
 
   it('reaches the other language, and comes back', async () => {

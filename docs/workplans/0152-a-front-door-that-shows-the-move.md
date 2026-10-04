@@ -7,8 +7,9 @@
 **2026-10-04, night: T8 (a) and (b) are built** (R8 step 12). The site's claims link what holds
 them, in the public repository:
 - the footer's *Open source* links the repository, and *Run it yourself* the self-host quickstart;
-- *the software has no way to delete from a source* links `a-source-that-only-reads`, the guard
-  that counts every source connector's methods;
+- the hero's fact *Nothing is deleted at the source* (T3) and *the software has no way to delete
+  from a source* link `a-source-that-only-reads`, the guard that counts every source connector's
+  methods;
 - *Whatever cannot be moved* links the scope manifest;
 - *open source* in *European, all the way down* links the repository.
 
@@ -19,9 +20,121 @@ them, in the public repository:
   - the repository is the one the README clones.
 
   Mutations caught: the guard renamed, the Dutch claim unlinked.
-- **Not built:** the link from T3's fact *Nothing is deleted at the source* joins T3's branch once
-  both are on main. (c), the company in the footer, waits for 0139.
-- **T0:** no new words; three phrases and the footer's two became links.
+- **Not built:** (c), the company in the footer, waits for 0139.
+- **T0:** no new words; four phrases and the footer's two became links.
+
+**2026-10-04, night: T3 is built** (R8 step 10, after T5). The home page's hero shows the move:
+- **The picture** is `hero-move.svg`, inlined by `site/hero.mjs`: the old account, Ownpace
+  copying and then keeping in step, the new home. Its data types are the app's words, the rest
+  is in the page's language. It sits beside the hero's words on a wide screen and under its
+  buttons on a phone, follows the page into dark mode, and is an image named by its own title
+  and description. Its icons come from the page's one sprite, which moves to the top of the page.
+- **Three facts** under the hero, as cards: nothing is deleted at the source; kept in step until
+  you switch; a list of what arrived, item by item. None says *read-only* (0144 T3).
+- **(b):** How it works in three steps, linking the whole page.
+- **(c):** How it works ends with *Request access* and *See what it costs*. Its step 5 says what
+  switching is: pointing your apps at the new provider, and for a domain of your own, changing
+  where its mail is delivered.
+- **Guard:** `scripts/the-hero-is-the-drawing.unit.test.ts`:
+  - the picture's shapes are the drawing's, line for line, and only its words differ;
+  - the drawing's symbols are `icons.svg`'s, which the page's sprite carries;
+  - every word is in the page's language, the data types as the app names them;
+  - each home page shows it once, after its buttons, then the facts and the three steps;
+  - How it works ends with both buttons.
+
+  Mutations caught: a ring moved one pixel, the picture before the buttons, an English word in
+  the Dutch picture, a fact dropped. `test/ui/site.ui.test.ts`: at 1280 pixels the picture
+  is beside the lede and over 400 pixels wide; at 390 the buttons are in the first screen and the
+  picture follows them, on the screen.
+- **Not built:** the app screen that joins the drawing (D8), and the link from each fact to the
+  guard that holds it (T8).
+- **T0:** the picture's words, the three facts, the three steps and the switching sentence, in
+  both languages, are new words for the owner's reading.
+
+**2026-10-04, night: T6 (b) is built** (R8 step 11, after T6 (e)). The pricing page's eleven
+rules are questions now, each answered by the paragraph that was there, word for word:
+- *Is there a free way?*, *Does the bill go down when I finish?*, *Does pausing lower it?*, *What
+  if I keep copying after I switch?*, and seven more, in both languages (*Kan het gratis?*, …).
+- Each is a `<details>` that opens without a script, written by `build.mjs`, because the
+  Markdown renderer escapes raw HTML. The Markdown keeps its bold-led paragraphs.
+- `copy.mjs` pairs each lead with its question, in the page's order. A rule that is not the next
+  lead, or a question left over, stops the build.
+- The exception to *finishing lowers your bill* stays within three answers of it.
+  `a-sixth-state-added-to-only-one-list` says answers rather than paragraphs now.
+- **Guard:** `site/site.unit.test.ts`:
+  - every rule under the heading is a question, in order, in both languages, and each question
+    ends in a question mark;
+  - the rendered exception sits within three answers of its promise.
+
+  `test/ui/site.ui.test.ts`: the answers are closed until a question is opened, from the
+  keyboard.
+- **T0:** the eleven questions, in both languages, are new words for the owner's reading.
+
+**2026-10-04, night: T6 (e) is built** (R8 step 11). The pricing page opens on yearly, as D10 asks:
+- **The switch:** *How you pay: Yearly · Monthly* (*Hoe u betaalt: Per jaar · Per maand*). It is a
+  fieldset of two radio inputs with no script: `:has(:checked)` shows one of each paid card's
+  two answers, and a browser without `:has()` shows both. D3's rule sits under it: *"Done within
+  six months? Pay monthly. Longer, or not sure? A year costs the same as six months."*
+- **On yearly,** each paid tier shows:
+  - the year divided by twelve: €2.50, €6, €20, €40 a month;
+  - the year's total in bold under it, *€30 a year*;
+  - *paid yearly, in advance*, and *half the monthly price*.
+- **On monthly,** each paid tier shows its monthly price and *No minimum term: stop whenever you
+  like*.
+- **Free** shows the same three lines in both: *Free*, *for as long as it runs*, *No invoice, no
+  card, no billing details*. That is how `wf-pricing.svg` draws it, and the cards' lists now
+  line up.
+- **The guardrails hold:** no price struck through, none called a former price, no countdown, and
+  the year's total always beside its per-month figure. A year that does not divide into whole
+  cents stops the build.
+- **Guard:** `site/site.unit.test.ts`:
+  - the page opens on yearly, with a labelled switch and no form;
+  - each paid card has its per-month figure for a year with the year's total beside it, and its
+    monthly price;
+  - no `<s>`, `<del>` or `line-through`, no former price, no countdown.
+
+  `test/ui/site.ui.test.ts`:
+  - the page opens on yearly: Small shows €2.50 and €30 a year;
+  - Monthly, by a click and by an arrow key, shows €5;
+  - the prices line up in both views;
+  - the Dutch page fits 390 pixels.
+- **T0:** *How you pay*, *Yearly*, *Monthly*, *paid yearly, in advance*, *half the monthly price*,
+  *No minimum term: stop whenever you like* and the rule, in both languages, are new words for the
+  owner's reading, and for the lawyer's (0139).
+
+**2026-10-04, night: the estimate takes several sources, and Tasks** (the owner's two remarks of
+2026-10-04, T7 (e); T7 (d) with them):
+- **Moving away from?** is tick boxes, so a person leaving Google and Dropbox ticks both. *Box* is
+  one of them (T7 (d)), and its Leaving page now opens the estimate on Box. A `?from=` may carry a
+  list.
+- **One migration per data type per source,** as the app counts them: Google and Dropbox both
+  with files are two. `calculator.mjs`'s `migrationsFrom` counts it from what each source brings,
+  which `build.mjs` reads off the Leaving pages' verdicts:
+  - a data type that moves is a migration of its own;
+  - photos a source keeps among its files travel with *Files* (Microsoft, Dropbox, Box);
+  - a data type a source does not keep, or that cannot move, is not counted, and the page says
+    so: *"Not counted, because we cannot move this from what you ticked: Files."*
+  - *Somewhere else* may keep anything.
+- **Tasks is a data type of its own,** so a whole Google move is six: mail, contacts, calendar,
+  tasks, files, and the Takeout's photos. The profiles are version 2; tasks are a judgement,
+  carried as 0.01 GB.
+- **Sizes are asked only for mail, files and photos,** which a storage page shows. Contacts,
+  calendars and tasks come from the profile, in one line: *"Contacts, calendars and tasks take
+  little room, so we count them for you: less than 1 GB."*
+- **(d) needed no profile row:** the profiles are per person and data type, not per source.
+- **Guards:**
+  - `site/calculator.unit.test.ts`: Google and Dropbox with files are two; photos travel with
+    files; Apple's files are not counted; no source counts nothing; one source that keeps
+    everything agrees with `pathsFor`; what each source brings; every source a Leaving page
+    sends here is offered.
+  - `site/profiles.unit.test.ts`: tasks, the sizes asked, version 2.
+  - `test/ui/site.ui.test.ts`: tick boxes; Google and Dropbox are five, said per source; tasks
+    make six with no size field; Apple's files said and greyed; no source, no tier; a list
+    arriving on the Dutch page. The script changed, so `$csp_calc` is re-pinned.
+- **With today's table** a whole Google move, six, lands on Medium. The owner's new table of
+  2026-10-04 (Free and Small six, Medium twelve) is ADR-0014's next amendment, and puts it on Free.
+- **T0:** new words for the owner's reading: the hint under *Moving away from?*, the small line,
+  the not-counted line, *Files from Dropbox* in the count, and *Box*.
 
 **2026-10-04, night: T5 (a) and (b) are built** (R8 step 10). Six pages in each language:
 *Leaving Google*, *Leaving Microsoft 365*, *Leaving Apple iCloud*, *Leaving Dropbox*, *Leaving Box*
@@ -325,11 +438,11 @@ together, from one audit of the site and the app on `main` at `83eb73e` (§1).
 | T0 The owner reads the new copy | ⏳ **Owner; before the first invitation, before each task merges. D6's *migratie* is built on the site's own pages; the legal texts are 0139's** | §3. Site copy is the owner's to approve (0144 T0). Every new sentence here is a proposal, in both languages. It includes *migratie* for *verhuizing* (D6) and the new *Why it is priced this way* (T6 (g)). |
 | T1 The alpha, said on the site | 🟡 **(b) built 2026-10-04; (a)'s line waits for open question 5 (2026-10-04)** | §3. The app's alpha sentence on every site page while the alpha setting is on. The unbacked *"Most people"* and *"Meest gekozen"* become a fact about the tier. *(2026-10-04: the app's sentence is now the owner's welcome (0131 D4's amendment), so copied as it is, every visitor would read the welcome. Open question 5.)* |
 | T2 A shorter menu, and a header that fits a phone | ✅ **Built 2026-10-04, with T6 (c); *Leaving…* joined it with T5 (b); its words wait for T0** | §3. The header reads Home · How it works · Pricing · Sign in, plus the language switch. Privacy and Terms move to the footer. On a phone the menu folds into a `<details>`, which needs no script. |
-| T3 The hero shows the move | 📋 **Proposed; before the first invitation** | §3. The drawing `hero-move.svg`, inlined: the old account's data, then Ownpace, then the new home, with our own icons (D4). Three facts sit under it, and a three-step strip links to *How it works*. An app screen joins it once 0153 T5 exists. |
+| T3 The hero shows the move | ✅ **Built 2026-10-04; its words wait for T0, and the app screen joins it later (D8)** | §3. The drawing `hero-move.svg`, inlined: the old account's data, then Ownpace, then the new home, with our own icons (D4). Three facts sit under it, and a three-step strip links to *How it works*. An app screen joins it once 0153 T5 exists. |
 | T4 The destinations, named | ✅ **Built 2026-10-04; its words wait for T0** | §3. A *Where to* section names what the app supports, from a site copy of the app's list with a guard that it matches. It says plainly that the new account is one the person opens and pays for themselves. |
 | T5 A page per provider a person leaves | 🟡 **(a) and (b) built 2026-10-04; (a) 5's source waits for T7 (a), (c) for the site's address; its words wait for T0** | §3. *Leaving Google*, *Leaving Microsoft 365*, *Leaving iCloud*, *Leaving Dropbox*, *Leaving Box*, *Leaving another mail provider*: what moves, the limits, what the person does, the destinations it can go to, a typical cost. Built from copies of the app's own verdicts, each guarded. |
-| T6 Pricing that reads in one pass | 🟡 **(a) done: the sentence by #1317, its guard beside D6's. (c) built 2026-10-04, with T2 (#1471). (d) built 2026-10-03, with (g)'s principle on the page. (f)'s words on the page and in the terms built 2026-10-04, its withdrawal button not. The rest proposed, before the first invitation (D5)** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) The withdrawal button, and the year's end (D11, amended 2026-10-04). (g) The principle, the price that pays for the work (D12). |
-| T7 A calculator that ends in a button | 🟡 **(c) built 2026-10-04; (a), (b) and (d) proposed, before the first invitation** | §3. (a) *Request access* carries the answers along. (b) *Until when?* says which payment suits it. (c) The layout faults and a live region. (d) Box as a source. |
+| T6 Pricing that reads in one pass | 🟡 **(a) done: the sentence by #1317, its guard beside D6's. (c) built 2026-10-04, with T2 (#1471). (d) built 2026-10-03, with (g)'s principle on the page. (b) and (e) built 2026-10-04. (f)'s words on the page and in the terms built 2026-10-04, its withdrawal button not. The rest proposed, before the first invitation (D5)** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) The withdrawal button, and the year's end (D11, amended 2026-10-04). (g) The principle, the price that pays for the work (D12). |
+| T7 A calculator that ends in a button | 🟡 **(c), (d) and (e) built 2026-10-04; (a) and (b) proposed, before the first invitation** | §3. (a) *Request access* carries the answers along. (b) *Until when?* says which payment suits it. (c) The layout faults and a live region. (d) Box as a source. (e) Several sources at once, and Tasks. |
 | T8 Claims you can check | 🟡 **(a) and (b) built 2026-10-04; (c) waits for 0139's company details** | §3. "Open source" links the repository. Each proof point links the guard that holds it. The footer names the company once 0139 publishes it; until then that line is the one part that waits. |
 | T9 One look from the site to the app | ✅ **Built 2026-10-04** | §3. `/request-access` and `/login` take the site's palette and logo, and link back to the site. The identity provider's own branding stays 0135 T6. |
 
@@ -837,6 +950,15 @@ links `estimate.html`. The home page's *What it costs* block gets the same butto
 
 (d) **Box as a source.** *Moving away from?* gains *Box*, with a profile row in
 `profiles.mjs` and its provenance (`profiles.unit.test.ts` requires one).
+
+(e) **Several sources at once, and Tasks** (the owner, 2026-10-04: *"'moving away from' should
+offer multiple sources instead of radio options. And i dont think it makes sense to let people
+fill in GB for contacts, tasks and calander. They dont know that"*).
+
+- *Moving away from?* is tick boxes, and the count is one migration per data type per source.
+- *Tasks* is a data type of its own, as the app moves and bills it.
+- Sizes are asked only for mail, files and photos; contacts, calendars and tasks are counted
+  from the profile and said in one line.
 
 ### T8 — claims you can check (before the first invitation, D5)
 

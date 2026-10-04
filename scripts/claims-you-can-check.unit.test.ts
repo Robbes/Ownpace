@@ -13,7 +13,8 @@
  *    renamed or deleted is a claim that outlived its proof, and this fails on it.
  * 2. **Each claim links its own proof, in both languages:** the footer's *Open
  *    source* the repository and *Run it yourself* the self-host quickstart;
- *    *the software has no way to delete from a source* the guard that counts
+ *    the hero's fact *Nothing is deleted at the source* and *the software has
+ *    no way to delete from a source* the guard that counts
  *    every source connector's methods; *Whatever cannot be moved* the scope
  *    manifest; the open-source sentence the repository.
  * 3. **The repository is the one the README clones,** so the site cannot point
@@ -76,11 +77,13 @@ describe('the site links each claim to what holds it (0152 T8)', () => {
     const pages = await rendered();
     const expectations: Record<'en' | 'nl', Array<[string, string]>> = {
       en: [
+        ['Nothing is deleted at the source.', PROOF_LINKS.readsOnly!],
         ['the software has no way to delete from a source', PROOF_LINKS.readsOnly!],
         ['Whatever cannot be moved', PROOF_LINKS.cannotMove!],
         ['open source', PROOF_LINKS.repository!],
       ],
       nl: [
+        ['Bij de bron wordt niets verwijderd.', PROOF_LINKS.readsOnly!],
         ['de software heeft simpelweg geen manier om iets bij een bron te verwijderen', PROOF_LINKS.readsOnly!],
         ['Wat niet mee kan', PROOF_LINKS.cannotMove!],
         ['open source', PROOF_LINKS.repository!],

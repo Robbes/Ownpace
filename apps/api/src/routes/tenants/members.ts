@@ -15,14 +15,18 @@ import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
-import { eq, and, count } from 'drizzle-orm';
+import { eq, and, or, sql } from 'drizzle-orm';
 import * as schema from '@openmig/managed/schema-managed';
 import { PgLedger } from '@openmig/ledger';
+import type { PgDatabase } from '@openmig/ledger';
 import type { TenantId } from '@openmig/shared';
 import {
+  countActiveOwners,
   demotesLastOwner,
   removesLastOwner,
+  changesOwnerWithoutPermission,
   grantsOwnerWithoutPermission,
+  isActiveOwnerAmong,
   isSelfRemoval,
 } from './member-guards.ts';
 import { serverFault } from '../../server-fault.ts';
@@ -43,6 +47,67 @@ const router = Router();
  * and the script to one spelling.
  */
 export const MEMBER_REMOVED_ACTION = 'member.removed';
+
+/** A refusal a membership change answers with, decided inside its transaction. */
+type Refusal = { readonly status: 400 | 403 | 404; readonly body: { error: string; message: string } };
+
+const MEMBER_NOT_FOUND: Refusal = { status: 404, body: { error: 'Not found', message: 'Member not found' } };
+const forbidden = (message: string): Refusal => ({ status: 403, body: { error: 'Forbidden', message } });
+const badRequest = (message: string): Refusal => ({ status: 400, body: { error: 'Bad Request', message } });
+
+/**
+ * THE OWNER ROWS AND THE TARGET, LOCKED (workplan 0137 T3 (b); the owner,
+ * 2026-10-04: "two demotions at once cannot both pass").
+ *
+ * Read with `FOR UPDATE` inside the transaction that writes, so the count a
+ * guard reads is the count when the write lands. Two owners demoting or
+ * removing each other at once queue here, and the second reads the rows the
+ * first has written: a demoted owner's row no longer matches, a removed one is
+ * gone. Every owner row is locked, whatever its status, so an invitation as
+ * owner is not accepted or declined halfway through either. The target comes
+ * in the same statement when it is not an owner. Postgres says which row is
+ * the target, since it compares uuids and not strings: an id written in
+ * capitals is the same member here as in GET.
+ *
+ * Only active owners count (`countActiveOwners`), as `other_owners` in
+ * `apps/api/src/scripts/operator.ts` counts them: an invitation as owner, or
+ * a declined one, used to count as a second owner and let the only real one
+ * go.
+ *
+ * Whether the requester is an owner comes from the same rows
+ * (`requesterIsOwner`). An owner's own row is one of the owner rows, so no
+ * other read is needed. `authenticate` read the role before the lock: an owner
+ * demoted or removed while their request waited was still an owner there, and
+ * could demote or remove another owner, or make themselves owner again.
+ */
+async function lockOwnersAndTarget(
+  db: PgDatabase,
+  tenantId: string,
+  memberId: string,
+  requesterUserId: string | undefined,
+) {
+  const rows = await db
+    .select({
+      id: schema.tenantMember.id,
+      userId: schema.tenantMember.userId,
+      role: schema.tenantMember.role,
+      status: schema.tenantMember.status,
+      isTarget: sql<boolean>`${schema.tenantMember.id} = ${memberId}`,
+    })
+    .from(schema.tenantMember)
+    .where(
+      and(
+        eq(schema.tenantMember.tenantId, tenantId),
+        or(eq(schema.tenantMember.role, 'owner'), eq(schema.tenantMember.id, memberId)),
+      ),
+    )
+    .for('update');
+  return {
+    target: rows.find((row) => row.isTarget),
+    activeOwners: countActiveOwners(rows),
+    requesterIsOwner: isActiveOwnerAmong(rows, requesterUserId),
+  };
+}
 
 // Lazy pool initialization - created on first use, not at module load
 let _dbPool: ReturnType<typeof getDbPool> | null = null;
@@ -177,7 +242,7 @@ router.post(
 
       // Granting owner is owner-only on EVERY door (member-guards.ts): an
       // invitation as owner is a grant that lands on acceptance.
-      if (grantsOwnerWithoutPermission(body.role, req.userRole)) {
+      if (grantsOwnerWithoutPermission(body.role, req.userRole === 'owner')) {
         return res.status(403).json({
           error: 'Forbidden',
           message: 'Only an owner can grant the owner role',
@@ -402,8 +467,9 @@ router.get(
 
 /**
  * PATCH /api/tenants/:tenantId/members/:memberId
- * 
- * Update member role
+ *
+ * Update member role. Only an owner may make an owner or change an owner's
+ * role, and the last active owner keeps theirs (0137 T3).
  */
 router.patch(
   '/:memberId',
@@ -422,53 +488,35 @@ router.patch(
         });
       }
 
-      // Look up the target member's current role + the tenant's owner count
-      // (both RLS-scoped) to evaluate the guards below.
-      const { target, ownerCount } = await withTenantDb(tenantId, getSharedPool(), async (db) => {
-        const targetRows = await db.select({ role: schema.tenantMember.role })
-          .from(schema.tenantMember)
-          .where(
-            and(
-              eq(schema.tenantMember.id, memberId),
-              eq(schema.tenantMember.tenantId, tenantId),
-            )
-          );
-        const ownerRows = await db.select({ count: count() })
-          .from(schema.tenantMember)
-          .where(
-            and(
-              eq(schema.tenantMember.tenantId, tenantId),
-              eq(schema.tenantMember.role, 'owner'),
-            )
-          );
-        return { target: targetRows[0], ownerCount: ownerRows[0]?.count ?? 0 };
-      });
+      // The guards and the write in ONE transaction, with the owner rows and
+      // the target locked (0137 T3 (b)): the count a guard reads is the count
+      // when the write lands, and so is whether the caller is an owner.
+      const outcome = await withTenantDb(tenantId, getSharedPool(), async (db) => {
+        const { target, activeOwners, requesterIsOwner } = await lockOwnersAndTarget(
+          db,
+          tenantId,
+          memberId,
+          req.userId,
+        );
+        if (!target) return { refused: MEMBER_NOT_FOUND };
 
-      if (!target) {
-        res.status(404).json({ error: 'Not found', message: 'Member not found' });
-        return;
-      }
+        // Granting the owner role is owner-only — an admin must not self-escalate.
+        if (grantsOwnerWithoutPermission(body.role, requesterIsOwner)) {
+          return { refused: forbidden('Only an owner can grant the owner role') };
+        }
 
-      // Granting the owner role is owner-only — an admin must not self-escalate.
-      if (grantsOwnerWithoutPermission(body.role, req.userRole)) {
-        res.status(403).json({
-          error: 'Forbidden',
-          message: 'Only an owner can grant the owner role',
-        });
-        return;
-      }
+        // Demoting an owner is owner-only too (0137 T3 (c)).
+        if (changesOwnerWithoutPermission(target.role, requesterIsOwner)) {
+          return { refused: forbidden("Only an owner can change an owner's role") };
+        }
 
-      // Never demote the tenant's last owner (would leave it with no owner).
-      if (demotesLastOwner(target.role, body.role, ownerCount)) {
-        res.status(400).json({
-          error: 'Bad Request',
-          message: 'Cannot demote the last owner',
-        });
-        return;
-      }
+        // Never demote the tenant's last active owner (would leave it with no
+        // owner). Only the one active owner demoting themselves gets here.
+        if (demotesLastOwner(target, body.role, activeOwners)) {
+          return { refused: badRequest('Cannot demote the last owner') };
+        }
 
-      const [updatedMember] = await withTenantDb(tenantId, getSharedPool(), async (db) => {
-        return await db.update(schema.tenantMember)
+        const [updated] = await db.update(schema.tenantMember)
           .set({ role: body.role, updatedAt: new Date() })
           .where(
             and(
@@ -477,15 +525,14 @@ router.patch(
             )
           )
           .returning();
+        return updated ? { updated } : { refused: MEMBER_NOT_FOUND };
       });
 
-      if (!updatedMember) {
-        res.status(404).json({
-          error: 'Not found',
-          message: 'Member not found',
-        });
+      if (outcome.refused) {
+        res.status(outcome.refused.status).json(outcome.refused.body);
         return;
       }
+      const updatedMember = outcome.updated;
 
       res.json({
         id: updatedMember.id,
@@ -510,8 +557,10 @@ router.patch(
 
 /**
  * DELETE /api/tenants/:tenantId/members/:memberId
- * 
- * Remove a member from the tenant
+ *
+ * Remove a member from the tenant, or withdraw an invitation. Nobody removes
+ * themselves, only an owner removes an owner, and the last active owner stays
+ * (0137 T3).
  */
 router.delete(
   '/:memberId',
@@ -529,70 +578,43 @@ router.delete(
         });
       }
 
-      // Get the member's role + user id first (RLS-scoped).
-      const memberData = await withTenantDb(tenantId, getSharedPool(), async (db) => {
-        return await db.select({ role: schema.tenantMember.role, userId: schema.tenantMember.userId })
-          .from(schema.tenantMember)
-          .where(
-            and(
-              eq(schema.tenantMember.id, memberId),
-              eq(schema.tenantMember.tenantId, tenantId),
-            )
-          );
-      });
-
-      if (!memberData || memberData.length === 0) {
-        res.status(404).json({
-          error: 'Not found',
-          message: 'Member not found',
-        });
-        return;
-      }
-
-      const target = memberData[0]!;
-
-      // Prevent removing yourself — compare the member's USER id (not its row id,
-      // which is what :memberId is) to the authenticated user's id.
-      if (isSelfRemoval(req.userId, target.userId)) {
-        res.status(400).json({
-          error: 'Bad Request',
-          message: 'Cannot remove yourself from the tenant',
-        });
-        return;
-      }
-
-      // Prevent removing the last owner.
-      if (target.role === 'owner') {
-        const ownerCount = await withTenantDb(tenantId, getSharedPool(), async (db) => {
-          const result = await db.select({ count: count() })
-            .from(schema.tenantMember)
-            .where(
-              and(
-                eq(schema.tenantMember.tenantId, tenantId),
-                eq(schema.tenantMember.role, 'owner'),
-              )
-            );
-          return result[0]?.count ?? 0;
-        });
-
-        if (removesLastOwner(target.role, ownerCount)) {
-          res.status(400).json({
-            error: 'Bad Request',
-            message: 'Cannot remove the last owner',
-          });
-          return;
-        }
-      }
-
-      // The removal and its record, in one transaction: a record that cannot
+      // The guards, the removal and its record in ONE transaction, with the
+      // owner rows and the target locked (0137 T3 (b)): the count a guard
+      // reads is the count when the removal lands, and a record that cannot
       // be written rolls the removal back, never a removal left unrecorded.
-      // The detail names the subject, which is what the record is for, and no
-      // address (0137 T4). It names the row as the delete found it, not as the
-      // read above did: an invitee's first sign-in (claimRequestedMembership,
-      // auth.ts) turns the same row from a `pending:` placeholder into their
-      // subject in between, and a record of the placeholder would leave the
-      // strays duty taking their account for one nobody let in (0135 T8).
-      await withTenantDb(tenantId, getSharedPool(), async (db) => {
+      const refused = await withTenantDb(tenantId, getSharedPool(), async (db) => {
+        const { target, activeOwners, requesterIsOwner } = await lockOwnersAndTarget(
+          db,
+          tenantId,
+          memberId,
+          req.userId,
+        );
+        if (!target) return MEMBER_NOT_FOUND;
+
+        // Prevent removing yourself — compare the member's USER id (not its row id,
+        // which is what :memberId is) to the authenticated user's id.
+        if (isSelfRemoval(req.userId, target.userId)) {
+          return badRequest('Cannot remove yourself from the tenant');
+        }
+
+        // Removing an owner is owner-only (0137 T3 (c)).
+        if (changesOwnerWithoutPermission(target.role, requesterIsOwner)) {
+          return forbidden('Only an owner can remove an owner');
+        }
+
+        // Prevent removing the last active owner. No request reaches this
+        // today: the caller is an active owner other than the target, so two
+        // are left. It stays in case either guard above ever changes.
+        if (removesLastOwner(target, activeOwners)) {
+          return badRequest('Cannot remove the last owner');
+        }
+
+        // The detail names the subject, which is what the record is for, and
+        // no address (0137 T4). It names the row as the delete found it. The
+        // lock keeps an invitee's first sign-in (claimRequestedMembership,
+        // auth.ts), which turns a `pending:` placeholder into their subject,
+        // from landing in between; a record of the placeholder would leave the
+        // strays duty taking their account for one nobody let in (0135 T8).
         const [gone] = await db.delete(schema.tenantMember)
           .where(
             and(
@@ -606,7 +628,7 @@ router.delete(
             role: schema.tenantMember.role,
             status: schema.tenantMember.status,
           });
-        if (!gone) return;
+        if (!gone) return MEMBER_NOT_FOUND;
         await new PgLedger(db).recordAuditEvent(tenantId as TenantId, {
           actor: req.userId ?? 'unknown',
           action: MEMBER_REMOVED_ACTION,
@@ -619,8 +641,13 @@ router.delete(
             via: 'the Team page',
           },
         });
+        return null;
       });
 
+      if (refused) {
+        res.status(refused.status).json(refused.body);
+        return;
+      }
       res.status(204).send();
     } catch (error) {
       serverFault(res, 'remove_failed', 'removing this member', error);
