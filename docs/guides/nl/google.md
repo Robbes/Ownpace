@@ -2,7 +2,7 @@
 
 De Microsoft-tegenhanger van deze handleiding is [de Microsoft-handleiding](microsoft.md).
 
-Deze handleiding gaat over de Google-kaarten in de wizard: de kaart **Google account**, en de vier kaarten die elk één Google-product lezen. Heeft deze dienst een eigen Google-app, dan drukt u op **Verbinden met Google** en geeft u bij Google toestemming, en hoeft u op deze pagina niets aan te maken. De stappen om een eigen app te maken staan aan het eind, onder [Met een eigen app](#own-app), voor als u liever uw eigen app gebruikt.
+Deze handleiding gaat over de Google-kaarten: de kaart **Google account**, en de kaarten die elk één Google-product lezen. Google Calendar en Google Contacts zijn niet meer voor nieuwe migraties, omdat het account ze allebei draagt. Heeft deze dienst een eigen Google-app, dan drukt u op **Verbinden met Google** en geeft u bij Google toestemming, en hoeft u op deze pagina niets aan te maken. De stappen om een eigen app te maken staan aan het eind, onder [Met een eigen app](#own-app), voor als u liever uw eigen app gebruikt.
 
 ## Wat u nodig hebt {#before}
 
@@ -63,11 +63,15 @@ Het dagelijkse downloadplafond is **precies hetzelfde**: Google legt het op aan 
 
 ### Google Calendar {#google-calendar}
 
+**Niet meer voor nieuwe migraties.** De kaart **Google account** draagt agenda's, en **Migratie starten** vraagt Google alleen om wat u aanvinkt. Deze kaart blijft op de pagina **Accounts** staan voor accounts die ermee zijn toegevoegd, en die blijven werken. **Migratie starten** biedt zo'n account aan waar Agenda het enige is wat u bij Google aanvinkt.
+
 Google spreekt nog steeds de protocollen die dit product al kent, dus deze bron is de gewone CalDAV-koppeling, gericht op de agendaserver van Google, met één verschil: **de DAV-servers van Google accepteren alleen OAuth**, dus de verzoeken dragen een token dat uit uw refresh-token wordt gemaakt, geen wachtwoord.
 
 Het token moet toestemming hebben voor de agendascope, `https://www.googleapis.com/auth/calendar`. Een token met toestemming voor Drive, mail of contacten antwoordt hier `invalid_scope`. Google Taken staan niet op de CalDAV van Google: de kaart **Google account** leest ze, met `https://www.googleapis.com/auth/tasks.readonly`.
 
 ### Google Contacts {#google-contacts}
+
+**Niet meer voor nieuwe migraties**, net als Google Calendar: de kaart **Google account** draagt contacten, en een bewaard Google Contacts-account wordt aangeboden waar Contacten het enige is wat u bij Google aanvinkt.
 
 Hetzelfde, voor contacten: de gewone CardDAV-koppeling, gericht op de contactenserver van Google, die ook alleen OAuth accepteert.
 

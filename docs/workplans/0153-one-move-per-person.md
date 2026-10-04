@@ -4,6 +4,23 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04: the Google Calendar and Google Contacts cards retired for new migrations (open
+question 5, item 3).** The Google account is the same way in and asks Google for only what was
+ticked, so the two cards offered nothing to choose between.
+
+- **Both cards are `connectionOnly`.** The Accounts page keeps them, for the accounts added with
+  them, which keep working, as do their migrations. The wizard no longer offers them, and its two
+  branches for them went: the compiler refused them as unreachable.
+- ***Start a migration* offers a saved one on the Google tile** where it carries exactly what was
+  ticked: a Google Calendar account where Calendar is all that is ticked from Google, a Google
+  Contacts account where Contacts is (`savedSources`). The migration is made with that account's
+  own card, since the create door holds a reused account to its kind.
+- **The Google guide says so** in both languages, at both cards' sections and in its opening.
+- **Proved by** two cases in `StartMigration.unit.test.tsx` and one in
+  `front-door-cards.unit.test.ts`; the wizard's tests drop the two cards from its door. Two
+  mutations are caught: offering the saved account whatever was ticked, and making the migration
+  with the Google account's card.
+
 **2026-10-04: Google's photos from a Takeout export, under the Google tile (open question 5,
 item 2).** Every export has a provider, so it sits with that provider's data types:
 

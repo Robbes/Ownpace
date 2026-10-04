@@ -122,7 +122,8 @@ afterEach(() => {
 const CARDS: ReadonlyArray<[string, 'google' | 'dropbox', string]> = [
   ['Google Drive', 'google', 'wizard.about.googleDrive'],
   ['Gmail', 'google', 'wizard.about.gmail'],
-  ['Google Calendar', 'google', 'wizard.about.googleDav'],
+  // Google Calendar left the wizard (0153 open question 5, item 3): retired
+  // for new migrations, the Google account carries calendars.
   ['Dropbox', 'dropbox', 'wizard.about.dropbox'],
 ];
 

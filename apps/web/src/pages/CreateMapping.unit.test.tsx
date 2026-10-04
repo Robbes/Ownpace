@@ -780,9 +780,10 @@ describe('CreateMapping — Gmail\'s app password (0153 T1 (b))', () => {
     expect(screen.getByText('App password')).toBeInTheDocument();
     expect(screen.getByText('Personal Google accounts only; leave empty to use OAuth.')).toBeInTheDocument();
 
-    // An app password is an IMAP credential: Drive, Calendar, Contacts and
-    // the account card are not reached over IMAP.
-    for (const card of [/^Google Drive/, /^Google Calendar/, /^Google account/]) {
+    // An app password is an IMAP credential: Drive and the account card are
+    // not reached over IMAP. (Calendar and Contacts are retired from this
+    // door, 0153 open question 5, item 3.)
+    for (const card of [/^Google Drive/, /^Google account/]) {
       fireEvent.click(screen.getByRole('button', { name: card }));
       expect(screen.queryByPlaceholderText('xxxx xxxx xxxx xxxx'), `${card} draws an app password`).toBeNull();
     }
@@ -1551,12 +1552,10 @@ describe('CreateMapping — the export chooser follows the FILES (owner 2026-09-
   });
 
   it('is offered by no Google source that carries no files', () => {
-    // Gmail and the DAV pair share Drive's credential SHAPE and none of its
-    // content: a chooser keyed on "is this Google" rather than on "does this
-    // carry files" would land here.
+    // Gmail shares Drive's credential SHAPE and none of its content: a chooser
+    // keyed on "is this Google" rather than on "does this carry files" would
+    // land here. (The DAV pair did too, until it was retired from this door.)
     renderWizard();
-    fireEvent.click(screen.getByRole('button', { name: /^Google Calendar/ }));
-    expect(policyBox()).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
     expect(policyBox()).toBeNull();
   });
