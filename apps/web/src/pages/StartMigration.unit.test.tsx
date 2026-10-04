@@ -1126,3 +1126,59 @@ describe('Google’s photos from a Takeout export (0153 open question 5, item 2)
     expect(startMock).not.toHaveBeenCalled();
   });
 });
+
+describe('a saved Google Calendar or Contacts account, on the Google tile (0153 open question 5, item 3)', () => {
+  /** Their cards are retired for new migrations; an account saved with one keeps working. */
+  const SAVED = [
+    account({ id: 'c-gcal', kind: 'google_calendar', displayName: 'Anna Calendar', knownValues: { username: 'anna@gmail.com' } }),
+    account({ id: 'c-soverin', role: 'target', kind: 'soverin', displayName: 'Anna Soverin', knownValues: { username: 'anna@soverin.net' } }),
+  ];
+  const createMock = vi.mocked(mappingApi.create);
+
+  beforeEach(() => {
+    listMock.mockResolvedValue(SAVED);
+    vi.mocked(createPerson).mockResolvedValue({ ...ANNA, id: 'p-new' });
+    vi.mocked(addMigrationToPerson).mockResolvedValue({ ...ANNA, id: 'p-new' });
+    createMock.mockResolvedValue({ id: 'm-cal' } as never);
+    vi.mocked(mappingApi.discover).mockResolvedValue({} as never);
+    vi.mocked(scopeManifestApi.get).mockResolvedValue({ version: 'v1', migrates: [], partial: [], doesNotMigrate: [] });
+  });
+
+  /** Google, with only these of its data types left ticked. */
+  async function googleWith(user: ReturnType<typeof userEvent.setup>, keep: string[]) {
+    await toWhatMoves(user, ['Google']);
+    const google = screen.getByRole('group', { name: 'From Google' });
+    for (const type of ['Email', 'Calendar', 'Contacts', 'Files', 'Tasks Experimental']) {
+      if (!keep.includes(type)) await user.click(within(google).getByRole('checkbox', { name: type }));
+    }
+  }
+
+  it('is offered where only Calendar is ticked, and the migration is made through it', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await googleWith(user, ['Calendar']);
+    await onTo(user, 'Connect your accounts');
+    // The one saved account that carries what was ticked is the default.
+    expect(await screen.findByRole('radio', { name: 'Anna Calendar (anna@gmail.com)' })).toBeChecked();
+    await onTo(user, 'Where does it go?');
+    await user.click(next());
+    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceType: 'google-calendar',
+        sourceConnectionId: 'c-gcal',
+        targetConnectionId: 'c-soverin',
+        syncConfig: { domains: ['calendar'], schedule: '0 2 * * *' },
+      }),
+    );
+  });
+
+  it('is not offered where more is ticked than it carries', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await googleWith(user, ['Calendar', 'Contacts']);
+    await onTo(user, 'Connect your accounts');
+    await screen.findAllByRole('radio');
+    expect(screen.queryByRole('radio', { name: /Anna Calendar/ })).not.toBeInTheDocument();
+  });
+});

@@ -340,7 +340,7 @@ const StartMigration: React.FC = () => {
   /** The source accounts chosen, per card; undefined until each is. */
   const sourceOf = (need: ConnectionNeed): Signed | undefined =>
     accounts.signed(
-      accounts.choice(`source:${need.card}`, savedSources(accounts.saved, need.card), who.someoneElse),
+      accounts.choice(`source:${need.card}`, savedSources(accounts.saved, need.card, need.types), who.someoneElse),
     );
   /** Whether the person connects this card themselves, by a grant link (0108). */
   const byLink = (card: string): boolean => who.someoneElse && grantableByLink(card, served);
@@ -360,7 +360,9 @@ const StartMigration: React.FC = () => {
         {
           type,
           provider: need.provider,
-          sourceCard: need.card,
+          // A saved Google Calendar or Contacts account is made with its own
+          // card, since the create door holds a reused account to its kind.
+          sourceCard: RETIRED_GOOGLE_CARDS[from.card] === undefined ? need.card : from.card,
           sourceConnectionId: from.connectionId,
           sourceUsername: from.username,
           targetCard: to.card as WizardTargetType,
@@ -1160,18 +1162,34 @@ export const MicrosoftMailChoice: React.FC<{
 };
 
 /**
+ * THE TWO RETIRED GOOGLE CARDS, and the one data type each reads (0153 open
+ * question 5, item 3). No new migration is made with either, and an account
+ * saved with one is offered for the Google tile where it carries exactly what
+ * was ticked.
+ */
+const RETIRED_GOOGLE_CARDS: Readonly<Record<string, DiscoveryDomain>> = {
+  'google-calendar': 'calendar',
+  'google-contacts': 'contact',
+};
+
+/**
  * Saved accounts a card can sign in with: its own kind, never one whose grant
  * was withdrawn. A company's own app is one kind (`o365`) whichever way its
- * mail is read, so either of its cards offers it.
+ * mail is read, so either of its cards offers it. Google's account card also
+ * offers a saved Google Calendar or Google Contacts account where the ticked
+ * types are that one's alone.
  */
 export const savedSources = (
   saved: ReadonlyArray<ConnectionSummary>,
   card: string,
+  types: ReadonlyArray<DiscoveryDomain> = [],
 ): ReadonlyArray<ConnectionSummary> =>
   saved.filter((c) => {
     if (c.role !== 'source' || c.status === 'revoked') return false;
     const kindCard = wizardTypeForConnectionKind(c.kind);
-    return kindCard === card || (card === 'oauth2' && kindCard === 'graph');
+    if (kindCard === card || (card === 'oauth2' && kindCard === 'graph')) return true;
+    const only = RETIRED_GOOGLE_CARDS[kindCard];
+    return card === 'google' && only !== undefined && types.length === 1 && types[0] === only;
   });
 
 /** Saved destinations that can take a data type (`destinationsFor`). */
@@ -1369,7 +1387,7 @@ const NeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts; someoneElse?
   const { list } = useFormatters();
   const accountLabel = useAccountLabel();
   const key = `source:${need.card}`;
-  const saved = savedSources(accounts.saved, need.card);
+  const saved = savedSources(accounts.saved, need.card, need.types);
   const choice = accounts.choice(key, saved, someoneElse);
   const signed = accounts.signed(choice);
   const name = providerDisplayName(need.card);
@@ -1476,7 +1494,7 @@ const LinkedNeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts }> = ({
   const addressId = React.useId();
   const reasonId = React.useId();
   const key = `source:${need.card}`;
-  const saved = savedSources(accounts.saved, need.card);
+  const saved = savedSources(accounts.saved, need.card, need.types);
   const choice = accounts.choice(key, saved, true);
   const signed = accounts.signed(choice);
   const name = providerDisplayName(need.card);

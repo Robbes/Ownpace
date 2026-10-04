@@ -181,8 +181,9 @@ const SOURCE_TYPES: { name: string; required: [RegExp, string][] }[] = [
   { name: 'Google account', required: google('account.apps.googleusercontent.com') },
   { name: 'Google Drive', required: google('drive.apps.googleusercontent.com') },
   { name: 'Gmail', required: google('gmail.apps.googleusercontent.com') },
-  { name: 'Google Calendar', required: google('gcal.apps.googleusercontent.com') },
-  { name: 'Google Contacts', required: google('gcon.apps.googleusercontent.com') },
+  // Google Calendar and Google Contacts are retired from this door (0153 open
+  // question 5, item 3): `connectionOnly`, so the coverage check below asks
+  // for no row of theirs, and the Google account carries both.
   // Dropbox calls it an App key on screen, which is what the App Console calls
   // it. The blocked-reason line must call it that too.
   {
