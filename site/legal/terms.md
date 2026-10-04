@@ -381,6 +381,14 @@
       months drew, or a share of the year's price? And may the credit run
       with no end date, or must it have one; is what is left lost when the
       customer closes the account (§11)?
+  28. §6: the tiers of 2026-10-04 (ADR-0014, Amendment 2026-10-04, evening).
+      Free runs six migrations at the same time, up to 150 GB, at one pass
+      a day; and a customer may choose a higher tier than their use needs,
+      which is then the least they pay. Was: one migration at a time, up to
+      250 GB; and the tier "not chosen from a menu". Left for the lawyer,
+      before the first paid tier (terms-paid-tier-lawyer-checks (a)): does a
+      chosen tier need its own order button (precondition C), and may a
+      month that used less still bill the chosen tier?
 
   The questions of v1.1 and v1.2, with where each stands now:
 
@@ -550,13 +558,14 @@ Prices are published in full on [the pricing page](./pricing.html). You never ne
 quote, and there is no price you only learn after speaking to somebody.
 
 - Your tier is **derived from what you use** — how many migrations run at the same time, and
-  how much data you have moved — not chosen from a menu.
+  how much data you have moved. You may choose a higher tier, for example for its pace; that
+  tier is then the least you pay.
 - **Finishing migrations lowers your bill automatically**, without you asking. The amount of
   data you have moved sets a floor.
-- **Free is free**: one migration at a time, up to 250 GB, with no monthly charge and no
-  invoice. You register no payment method for it. Growing past it — a second migration at the
-  same time, or more data — moves you to a paid tier, and we ask you before it does; nothing is
-  billed for a month you did not agree to leave Free.
+- **Free is free**: six migrations at the same time, up to 150 GB, at one pass a day, with no
+  monthly charge and no invoice. You register no payment method for it. Growing past it — more
+  data, or more migrations at the same time — moves you to a paid tier, and we ask you before it
+  does; nothing is billed for a month you did not agree to leave Free.
 - There is **no setup fee** on any tier. A year paid ahead costs six months' price.
 - **Prices include VAT.** What you see is what you pay. Invoices to business customers state
   the VAT treatment that applies to them — Dutch VAT, intra-EU reverse charge on a validated

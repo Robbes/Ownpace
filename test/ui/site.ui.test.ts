@@ -155,7 +155,7 @@ describe('the public site renders', () => {
     await page.close();
   }, 60_000);
 
-  it('lands one migration on Free and says free, with no top-up; a second one lands on Small (ADR-0014, 2026-09-24)', async () => {
+  it('lands a small move on Free and says free and its pace, with no top-up; more data than Free holds lands on Small (ADR-0014, 2026-10-04)', async () => {
     // The estimator's words come from the page's own script, so only a
     // browser sees them: one person, contacts only, is one migration and a
     // fraction of a GB.
@@ -174,6 +174,7 @@ describe('the public site renders', () => {
           monthly: text('tier-monthly'),
           year: text('tier-year'),
           three: shown('tier-three'),
+          pace: shown('tier-pace') ? text('tier-pace') : null,
           topUp: text('topup-line'),
         };
       });
@@ -184,14 +185,18 @@ describe('the public site renders', () => {
     expect(free.year).toContain('moves you to Small');
     expect(free.three, 'a free tier has no three-month total to show').toBe(false);
     expect(free.topUp, 'a free tier offers no top-up').toBe('');
+    expect(free.pace, 'Free does not say its pace').toContain('One pass a day');
     expect(JSON.stringify(free)).not.toMatch(/€0(?![\d.,])/);
 
-    await page.check('#what-mail');
+    // Free and Small run as many at the same time; more data than Free's moves it.
+    await page.check('#what-files');
+    await page.fill('#gb-files', '200');
     const small = await read();
     expect(small.name).toContain('Small');
     expect(small.monthly).toBe('€5 a month');
     expect(small.year).toContain('€30 for a year');
     expect(small.three).toBe(true);
+    expect(small.pace, 'a paid tier says Free’s pace').toBeNull();
     expect(small.topUp).not.toBe('');
     await page.close();
   }, 60_000);

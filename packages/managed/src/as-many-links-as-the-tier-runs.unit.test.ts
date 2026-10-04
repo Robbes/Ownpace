@@ -5,8 +5,8 @@
  * the owner, 2026-09-24: "the Recommended"): `grant-link-allowance.ts` and
  * managed migration 0028.
  *
- *  - the number is the tier's migrations at the same time, Free 1 to Extra
- *    large 200, and past the table the largest tier's;
+ *  - the number is the tier's migrations at the same time, Free 6 to Extra
+ *    large 50, and past the table the largest tier's;
  *  - the operator's number replaces it while it stands, higher or lower, and
  *    an override past its day is no override;
  *  - the tier is read as the organisation's own usage screen reads it: this
@@ -63,10 +63,10 @@ beforeAll(async () => {
   ]) {
     await owner(`INSERT INTO tenant (id, name) VALUES ($1, $2)`, [id, name]);
   }
-  // Five migrations at the same time this month: Medium, whose number is 20.
+  // Eight migrations at the same time this month: Medium, whose number is 12.
   await owner(
     `INSERT INTO occupancy_peak (tenant_id, month, peak_paths, peak_at)
-     VALUES ($1, date_trunc('month', now())::date, 5, now())`,
+     VALUES ($1, date_trunc('month', now())::date, 8, now())`,
     [BUSY],
   );
   // Past the data axis of the table (15 TB): "talk to us".
@@ -83,19 +83,19 @@ afterAll(async () => {
 });
 
 describe('the number, from the tier and the override', () => {
-  it("is the tier's migrations at the same time, Free 1 to Extra large 200", () => {
+  it("is the tier's migrations at the same time, Free 6 to Extra large 50", () => {
     expect(MANAGED_TIERS.map((t) => [t.name, liveLinkLimit(t, undefined, NOW).limit])).toEqual([
-      ['Free', 1],
-      ['Small', 4],
-      ['Medium', 20],
-      ['Large', 50],
-      ['Extra large', 200],
+      ['Free', 6],
+      ['Small', 6],
+      ['Medium', 12],
+      ['Large', 24],
+      ['Extra large', 50],
     ]);
   });
 
   it("is the largest tier's past the end of the table", () => {
-    expect(liveLinkLimit(null, undefined, NOW)).toEqual({ limit: 200, from: { kind: 'past_the_table' } });
-    expect(LIVE_LINKS_PAST_THE_TABLE).toBe(200);
+    expect(liveLinkLimit(null, undefined, NOW)).toEqual({ limit: 50, from: { kind: 'past_the_table' } });
+    expect(LIVE_LINKS_PAST_THE_TABLE).toBe(50);
   });
 
   it("is the operator's while it stands, higher or lower than the tier's", () => {
@@ -110,7 +110,7 @@ describe('the number, from the tier and the override', () => {
   it("is the tier's again the moment the override's day has passed", () => {
     const until = new Date('2026-09-24T12:00:00Z');
     expect(liveLinkLimit(tier('small'), { liveLinks: 30, until }, NOW)).toEqual({
-      limit: 4,
+      limit: 6,
       from: { kind: 'tier', tier: tier('small') },
     });
   });
@@ -124,19 +124,19 @@ describe('the number for an organisation, as the database has it', () => {
   it('is Free for an organisation nothing has run for yet', async () => {
     const got = await withTenant(driver, QUIET, (db) => liveGrantLinkLimit(db, QUIET, NOW));
 
-    expect(got).toEqual({ limit: 1, from: { kind: 'tier', tier: tier('free') } });
+    expect(got).toEqual({ limit: 6, from: { kind: 'tier', tier: tier('free') } });
   });
 
   it("follows this month's peak, as the usage screen does", async () => {
     const got = await withTenant(driver, BUSY, (db) => liveGrantLinkLimit(db, BUSY, NOW));
 
-    expect(got).toEqual({ limit: 20, from: { kind: 'tier', tier: tier('medium') } });
+    expect(got).toEqual({ limit: 12, from: { kind: 'tier', tier: tier('medium') } });
   });
 
   it('follows the meter past the end of the table', async () => {
     const got = await withTenant(driver, HEAVY, (db) => liveGrantLinkLimit(db, HEAVY, NOW));
 
-    expect(got).toEqual({ limit: 200, from: { kind: 'past_the_table' } });
+    expect(got).toEqual({ limit: 50, from: { kind: 'past_the_table' } });
   });
 
   it("is the operator's where one is set", async () => {
@@ -151,7 +151,7 @@ describe('the number for an organisation, as the database has it', () => {
     const conn = await driver.acquire();
     try {
       const peaks = await conn.query(`SELECT peak_paths FROM occupancy_peak WHERE tenant_id = $1`, [BUSY]);
-      expect(peaks.rows).toEqual([{ peak_paths: 5 }]);
+      expect(peaks.rows).toEqual([{ peak_paths: 8 }]);
       const quiet = await conn.query(`SELECT 1 FROM occupancy_peak WHERE tenant_id = $1`, [QUIET]);
       expect(quiet.rows).toEqual([]);
     } finally {

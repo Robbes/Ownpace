@@ -87,7 +87,7 @@ describe('the ceiling', () => {
   });
 
   it('moves up to a tier that lifts the hold, not to one the data is already past', () => {
-    // 800 GB on Free: Small's 750 GB would land on its ceiling again.
+    // 800 GB on Free: Small's 500 GB would land on its ceiling again.
     const c = ceilingOf(allowanceOf([]), 800);
     expect(c.state).toBe('reached');
     expect(c.moveUp?.tier.id).toBe('medium');
@@ -167,18 +167,18 @@ describe('a yes', () => {
 
 describe('the hold', () => {
   it('lets a first copy through while the meter, with this pass, is below the ceiling', () => {
-    const gate = firstCopyGate(ceilingOf(allowanceOf([]), 249));
+    const gate = firstCopyGate(ceilingOf(allowanceOf([]), 149));
     expect(gate(0)).toBe(true);
     expect(gate(999_999_999)).toBe(true);
     expect(gate(1_000_000_000)).toBe(false);
   });
 
   it('holds every first copy from the first when the ceiling was reached before the pass', () => {
-    expect(firstCopyGate(ceilingOf(allowanceOf([]), 250))(0)).toBe(false);
+    expect(firstCopyGate(ceilingOf(allowanceOf([]), 150))(0)).toBe(false);
   });
 
   it('says what waits and both ways on, with their prices', () => {
-    const c = ceilingOf(allowanceOf([{ kind: 'tier', tierId: 'small', bandGb: small.dataGb }]), 750);
+    const c = ceilingOf(allowanceOf([{ kind: 'tier', tierId: 'small', bandGb: small.dataGb }]), 500);
     expect(ceilingHoldReason(c, 3)).toEqual({
       kind: 'data-ceiling',
       ceilingGb: small.dataGb,
@@ -186,7 +186,7 @@ describe('the hold', () => {
       moveUp: { name: medium.name, monthlyEur: 12 },
       topUp: { bandGb: small.dataGb, priceEur: 5 },
     });
-    expect(ceilingHoldReason(ceilingOf(allowanceOf([]), 250), 1)).toMatchObject({ topUp: null });
+    expect(ceilingHoldReason(ceilingOf(allowanceOf([]), 150), 1)).toMatchObject({ topUp: null });
   });
 });
 

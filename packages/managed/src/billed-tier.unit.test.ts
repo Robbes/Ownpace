@@ -36,8 +36,8 @@ describe('the tier a month bills', () => {
   });
 
   it('never climbs past the agreed tier when more ran at the same time than it runs', () => {
-    // Five at once, on Free: what an organisation still running from the alpha may show.
-    expect(billed([], 5, 10)).toEqual({ tier: tier('free'), beyond: ['paths'] });
+    // Eight at once, on Free: what an organisation still running from the alpha may show.
+    expect(billed([], 8, 10)).toEqual({ tier: tier('free'), beyond: ['paths'] });
   });
 
   it('never climbs past the agreed tier when more was moved than its ceiling', () => {

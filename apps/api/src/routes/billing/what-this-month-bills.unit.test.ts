@@ -102,7 +102,7 @@ describe('the alpha\'s data', () => {
     expect(res.status).toBe(200);
     expect(res.body.evidence.gbMoved).toBe(100);
     expect(res.body.gbMovedInTheAlpha).toBe(600);
-    // 100 GB fits Free; the 700 GB in total would have needed Small.
+    // 100 GB fits Free; the 700 GB in total would have needed Medium.
     expect(res.body.tier.id).toBe('free');
     expect(res.body.billed).toEqual({ tier: expect.objectContaining({ id: 'free' }), beyond: [] });
   });
@@ -130,12 +130,15 @@ describe('what this month bills', () => {
 
   it('bills the agreed tier when more ran at the same time than it runs, and says so', async () => {
     const month = new Date().toISOString().slice(0, 7) + '-01';
-    await owner(`INSERT INTO occupancy_peak (tenant_id, month, peak_paths, peak_at) VALUES ($1, $2, 5, now())`, [
+    // One more at the same time than Free runs.
+    const peak = MANAGED_TIERS[0]!.paths + 1;
+    await owner(`INSERT INTO occupancy_peak (tenant_id, month, peak_paths, peak_at) VALUES ($1, $2, $3, now())`, [
       TENANT,
       month,
+      peak,
     ]);
     const res = await request(app).get('/api/billing/usage');
-    expect(res.body.evidence.peakPaths).toBe(5);
+    expect(res.body.evidence.peakPaths).toBe(peak);
     expect(res.body.tier.id).not.toBe('free');
     expect(res.body.billed).toEqual({ tier: expect.objectContaining({ id: 'free' }), beyond: ['paths'] });
   });

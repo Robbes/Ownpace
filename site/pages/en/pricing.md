@@ -6,19 +6,23 @@ somebody.
 **Two numbers decide your tier, and you are on whichever is higher:** how many things you
 are moving **at the same time**, and how much data you have moved **in total**.
 
-Your mail, your contacts, your calendar and your files are four separate migrations. One
-person moving all four at once is four at the same time; one person moving them one after
-another is one.
+Your mail, your contacts, your calendar, your tasks and your files are separate migrations,
+and photos from a Google export are one more. One person moving all six at once is six at the
+same time; one person moving them one after another is one.
 
 [[TIERS]]
 
 ## The parts worth knowing before you pay
 
-**Free is free.** One migration at a time, up to 250 GB, costs nothing: nothing a month, no
-invoice, and no card or billing details to give us. Moving your mail, then your
-contacts, then your calendar, then your files, one after another, is the free way. Starting
-more at once is the faster way, and it is priced like any other tier. A second migration at
-the same time, or more than 250 GB, moves you to Small, and we ask you before it does.
+**Free is free.** Six migrations at the same time, up to 150 GB, cost nothing: nothing a
+month, no invoice, and no card or billing details to give us. That is everything one person
+moves, at one pass a day: the first right after the free preflight, the small things first and
+the files last. A paid tier copies pass after pass. More than 150 GB moves you to Small, more
+than six migrations at the same time to Medium, and we ask you before it does.
+
+**You may choose a higher tier.** Your tier is worked out from what you move. You may also
+choose a higher one, Small for its pace while Free would do, for example; that tier is then the
+least you pay.
 
 **Finishing lowers your bill, automatically.** When a migration cuts over it stops counting,
 and the tier falls on its own without you asking. So if you start everything at once, the bill
@@ -58,7 +62,7 @@ storage page before you start.
 **Running out of room does not have to mean moving up a tier.** You can buy another whole
 band of room for your tier's monthly price, once, and stay where you are. Tiers buy capacity;
 top-ups buy room. Whichever is cheaper for you is the one we will point at. Free has no
-top-up: past its 250 GB, it is Small.
+top-up: past its 150 GB, it is Small.
 
 **We do not take money from inattention.** If a migration is running with nothing left to
 do, we ask you — in one click — whether to keep it or finish it. And we never bill past

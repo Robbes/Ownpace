@@ -59,7 +59,8 @@ describe('the tier derivation — two axes, higher wins', () => {
   });
 
   it('lets the migration axis decide when it is the higher one', () => {
-    const d = deriveTier(TIERS, 16, 40);
+    // Ten at once is past Free's and Small's six (ADR-0014, 2026-10-04).
+    const d = deriveTier(TIERS, 10, 40);
     expect(d.tier?.name).toBe('Medium');
     expect(d.decidedBy).toBe('paths');
   });
@@ -124,7 +125,7 @@ describe('the top-up against the step-up — break-even shown, nobody steered', 
     expect(freeTier(free)).toBe(true);
     expect(freeTier(small)).toBe(false);
     // Without this, the page would say: "On Free: free once buys another
-    // 250 GB …", a top-up that makes the data axis mean nothing.
+    // 150 GB …", a top-up that makes the data axis mean nothing.
     expect(topUpAgainstStepUp(free, small)).toBeNull();
     // Every paid tier keeps its comparison.
     for (const [i, t] of TIERS.slice(0, -1).entries()) {
@@ -244,9 +245,11 @@ describe('the words the page must and must not say (T5, grep-guarded)', () => {
   it('is a calculator, not a plan selector: no tier is offered as a choice', () => {
     for (const p of calcPages as Array<{ file: string; html: string }>) {
       // The tier card exists once, empty, filled by derivation — the page has
-      // no per-tier buttons or radio group naming tiers.
+      // no per-tier buttons or radio group naming tiers. A person may pick a
+      // higher tier in the app (ADR-0014, 2026-10-04); this page says it
+      // works out the least the answers need.
       expect(p.html).not.toMatch(/name="tier"/);
-      expect(p.html).toMatch(/never picked|nooit gekozen/);
+      expect(p.html).toMatch(/the least they need|het minste dat ze nodig hebben/);
     }
   });
 });
