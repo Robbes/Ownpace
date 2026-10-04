@@ -75,6 +75,16 @@ const {
   microsoftAuthorize: vi.fn(),
 }));
 
+// The edition, through the sanctioned seam: managed unless a case says not.
+const { editionFlag } = vi.hoisted(() => ({ editionFlag: { selfhost: false } }));
+vi.mock('../services/edition.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/edition.ts')>();
+  return { ...actual, isSelfHost: () => editionFlag.selfhost };
+});
+afterEach(() => {
+  editionFlag.selfhost = false;
+});
+
 vi.mock('../services/mapping-service', () => ({
   connectionsApi: { list, test: testConnection, rotate, remove, add },
   providerClientsApi: { get: providerClients },
@@ -749,7 +759,9 @@ describe('adding a connection through the front door', () => {
     // field, so the body this form posts must carry none — the managed gate's
     // honest body was refused for exactly that until the door followed the
     // descriptor. And "which export" is a CLOSED list: a misspelt id is not
-    // refused, it is a reader that finds none of its landmarks.
+    // refused, it is a reader that finds none of its landmarks. The appliance
+    // draws the card; managed no longer does (the owner, 2026-10-04: "6. A").
+    editionFlag.selfhost = true;
     await open();
     fireEvent.click(screen.getByRole('button', { name: /^Export archive/ }));
     const which = screen.getByLabelText(/^Which export/) as HTMLSelectElement;
@@ -758,9 +770,9 @@ describe('adding a connection through the front door', () => {
     expect([...which.options].map((o) => o.textContent)).toContain('Google Takeout');
 
     fireEvent.change(which, { target: { value: 'google-takeout' } });
-    // A managed build, where the export is in a folder of the destination's
-    // files unless somebody says otherwise (0148 T9) — so the path is asked for
-    // as that folder, and the store is posted with it.
+    // The export in a folder of the destination's files (0148 T9), so the path
+    // is asked for as that folder, and the store is posted with it.
+    fireEvent.click(screen.getByRole('radio', { name: /^In a folder of your destination's files/ }));
     fireEvent.change(screen.getByLabelText(/^Folder in your destination's files/), {
       target: { value: 'Exports/takeout-20260904' },
     });

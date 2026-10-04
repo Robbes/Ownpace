@@ -12,8 +12,9 @@
  * end.
  *
  * The owner, D7: *"Leave the Apple-export option in but be clear about it
- * ('to be tested'-label)."* D10 keeps the card offered on managed too, so
- * this holds on a managed and an appliance build alike:
+ * ('to be tested'-label)."* The Accounts page offers the card on the
+ * appliance; managed no longer does (the owner, 2026-10-04, on 0153's *not
+ * carried over*: *"6. A"*), so this holds on the appliance build:
  *
  * - on the Accounts page, an option whose export has no reader carries the
  *   tag as text in its name (the wizard did too, until it retired: 0153 D5;
@@ -98,10 +99,8 @@ const SAID = {
 type Locale = keyof typeof SAID;
 const LOCALES = Object.keys(SAID) as Locale[];
 
-const EDITIONS = [
-  { edition: 'managed', selfhost: false },
-  { edition: 'appliance', selfhost: true },
-] as const;
+/** Where the Accounts page draws the export card: the appliance (managed: `an-export-in-the-destinations-files`). */
+const EDITIONS = [{ edition: 'appliance', selfhost: true }] as const;
 
 const hasReader = (p: ArchiveProvider): boolean => ARCHIVE_PROVIDERS_WITH_READERS.includes(p);
 

@@ -90,12 +90,12 @@ In de contact- en agendagegevens die Apple exporteert, zijn **e-mailadressen ged
 
 De map mag de `.zip`-delen bevatten of wat ze uitgepakt opleveren: allebei werkt. Staan er twee verschillende exports in, dan wordt dat geweigerd en worden ze allebei genoemd, zodat we nooit de ene lezen en de andere weglaten.
 
-### Toevoegen op de pagina Accounts {#archive}
+### Op een eigen appliance: de pagina Accounts {#archive}
 
-Druk op de pagina **Accounts** op **Account toevoegen** en kies **Export archive**. Die vraagt drie dingen:
+Op een eigen appliance biedt de pagina **Accounts** het aan: druk op **Account toevoegen** en kies **Export archive**. Die vraagt drie dingen:
 
 - **Welke export**: Google Takeout, of Apple Data & Privacy (nog te testen: die kunnen we nog niet lezen).
-- **Waar de export staat**: **In een map in de bestanden van uw bestemming (Nextcloud of WebDAV)**, of **Op de schijf van deze appliance**. Het tweede is voor migraties die lopen op een computer waar u bestanden op kunt zetten; waar dat niet zo is, toont het formulier die keuze grijs, met de regel "Alleen op een eigen appliance".
+- **Waar de export staat**: **In een map in de bestanden van uw bestemming (Nextcloud of WebDAV)**, of **Op de schijf van deze appliance**.
 - De map, in een vak waarvan de naam die keuze volgt. **Map in de bestanden van uw bestemming**: de map zoals uw bestanden die tonen, vanaf de hoofdmap, zoals `Exports/takeout-20260904`, of één `.zip` daarin (zie [Uw export in uw eigen Nextcloud](#own-nextcloud)). **Waar het archief staat**, voor een schijf: de map waarin u de download uitpakte, of de `.zip` zelf.
 
 Druk dan op **Toevoegen en testen**. Testen verplaatst niets. Voor een export op een schijf opent het het archief en vertelt het u wat erin zit. Voor een export in de bestanden van uw bestemming zegt het dat de export bij de preflight wordt geteld, omdat de bestemming bij een migratie hoort en er tot dan nergens te kijken valt. Hoe dan ook weet u, voordat er iets verhuist:
@@ -105,11 +105,11 @@ Druk dan op **Toevoegen en testen**. Testen verplaatst niets. Voor een export op
 - hoeveel mappen of albums,
 - en **welke datums de export beslaat**, zodat u in één oogopslag ziet of het de export is die u denkt.
 
-**Migratie starten** gebruikt geen archief dat hier is toegevoegd: het leest de foto's van Google uit de map `Takeout` in de bestanden van de bestemming, zoals [Vanuit Migratie starten](#from-the-flow) beschrijft. Een archief dat u hier toevoegt, vertelt u wat een export bevat.
+Elders biedt de pagina **Accounts** het niet aan: **Migratie starten** leest de foto's van Google uit de map `Takeout` in de bestanden van de bestemming, zoals [Vanuit Migratie starten](#from-the-flow) beschrijft. Een archief dat u hier toevoegt, vertelt u wat een export bevat.
 
 ### Uw export in uw eigen Nextcloud {#own-nextcloud}
 
-De export hoeft niet op een schijf te staan. Staan de bestanden waar u naartoe verhuist in een Nextcloud, of op een andere server die uw bestanden via WebDAV aanbiedt, dan kunt u de export daar neerzetten, en lezen wij hem uit die map. Laat het formulier u geen schijf kiezen, dan is dit de manier om ons een export te geven.
+De export hoeft niet op een schijf te staan. Staan de bestanden waar u naartoe verhuist in een Nextcloud, of op een andere server die uw bestanden via WebDAV aanbiedt, dan kunt u de export daar neerzetten, en lezen wij hem uit die map. Zonder eigen appliance is dit de manier om ons een export te geven.
 
 **Uitpakken is niet nodig.** Upload de `.zip`-bestanden precies zoals Google ze leverde, alle delen in dezelfde map. Wij lezen ze waar ze staan, een paar megabyte tegelijk, en veranderen ze nooit. Hebt u de export al in die map uitgepakt, dan werkt dat ook.
 

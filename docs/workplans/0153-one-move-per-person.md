@@ -45,7 +45,11 @@ migration* is the one way a migration is made on managed, and T4, T1 (c) and T6 
     is then reachable only where the declaration is absent.
   - A saved *Export archive* account is no longer a way into a migration: the flow reads a
     Takeout from the folder `Takeout` of the destination's files (item 2). The Accounts page still
-    adds one, and its test says what an export holds.
+    adds one, and its test says what an export holds. **Done 2026-10-04 (the owner: *"6. A"*):**
+    the managed Accounts page no longer offers the card (`accountCards`); the appliance's still
+    does, and the archive guide's section says so, in both languages. Proved by
+    `an-export-in-the-destinations-files` (no card on managed) and the archive form's cases, which
+    now run on the appliance.
 - **Proved by** `a-line-under-the-box-both-doors-draw` (27 cases: every field with a line, on
   every card, on the Accounts page; and the flow's three placements), the redirect cases in
   `AppRoutes.unit.test.tsx`, the docs guard with `start.*`, and the UI test's walk through `/start`.
