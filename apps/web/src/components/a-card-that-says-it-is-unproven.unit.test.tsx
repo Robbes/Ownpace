@@ -210,7 +210,8 @@ describe.each(['en', 'nl'] as const)('the Accounts page tags exactly the experim
     it(`the Connections page, on a ${build} build`, async () => {
       edition.selfhost = selfhost;
       await renderAddForm(locale);
-      const cards = frontDoorCards('source');
+      // Managed offers no export archive card (the owner, 2026-10-04: "6. A").
+      const cards = frontDoorCards('source').filter((card) => selfhost || card.id !== 'archive');
       for (const card of cards) {
         const button = cardButton(card, locale);
         expect(button.textContent?.includes(tag), `${card.id} on the Connections page`).toBe(
@@ -236,16 +237,19 @@ describe.each(['en', 'nl'] as const)('the Accounts page tags exactly the experim
 /**
  * Nothing is hidden on managed (0148 D10). The owner: *"Hide the archive card
  * on manage: I don't want them hidden. I want labelled as 'expirimental'."*
+ * Since then *Start a migration* reads a Takeout from the destination's own
+ * files, and an archive saved on the managed Accounts page led nowhere; asked
+ * again, the owner chose to take that one card off managed (2026-10-04, on
+ * 0153's *not carried over*: *"6. A"*). The appliance keeps it.
  *
  * The walks above iterate the lists the doors read, so a card dropped from a
  * list on one edition would leave them green: they would simply never look
- * for it. These look for the cards by name on the screen, on a MANAGED build
- * as well as the appliance, and ask that each is there and says it is
- * experimental. The export archive is the card the owner named; *Via IMAP*
- * stays on managed and stays tagged until the owner's run is recorded (0148
- * D5).
+ * for it. These look for the cards by name on the screen, and ask that each
+ * is there and says it is experimental: *Via IMAP* on both editions, where it
+ * stays tagged until the owner's run is recorded (0148 D5), and the export
+ * archive on the appliance.
  */
-describe.each(['en', 'nl'] as const)('the cards the owner kept are offered and tagged on both editions (%s)', (locale) => {
+describe.each(['en', 'nl'] as const)('the cards the owner kept are offered and tagged (%s)', (locale) => {
   const tag = STRINGS[locale]['frontDoor.experimental'];
   const kept = SOURCE_CARDS.filter((c) => c.id === 'archive' || c.id === 'oauth2');
 
@@ -261,7 +265,10 @@ describe.each(['en', 'nl'] as const)('the cards the owner kept are offered and t
     it(`on the Connections page, on a ${build} build`, async () => {
       edition.selfhost = selfhost;
       await renderAddForm(locale);
-      for (const card of kept) {
+      if (!selfhost) {
+        expect(screen.queryByRole('button', { name: /^Export archive/ }), 'the export archive on managed').toBeNull();
+      }
+      for (const card of kept.filter((c) => selfhost || c.id !== 'archive')) {
         const button = cardButton(card, locale);
         expect(button.textContent, `${card.id} is offered on the Connections page and not tagged`).toContain(tag);
         expect(button, `${card.id}: the tag is not part of the card's name`).toHaveAccessibleName(tagIn(tag));
@@ -272,6 +279,8 @@ describe.each(['en', 'nl'] as const)('the cards the owner kept are offered and t
 
 describe('the why folds beside the card, never inside it (0145 T2)', () => {
   it('each experimental card has its fold as a sibling, closed, saying why', async () => {
+    // The appliance draws every source card, the export archive among them.
+    edition.selfhost = true;
     await renderAddForm();
     const experimental = frontDoorCards('source').filter((c) => sourceCardIsExperimental(c.id));
     expect(experimental.length).toBeGreaterThan(0);
