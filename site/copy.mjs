@@ -234,7 +234,7 @@ export const COPY = {
       },
       small: {
         who: 'One person, at full pace',
-        note: 'The first copy runs pass after pass. After it we look for changes as often as you choose, down to every 15 minutes.',
+        note: 'The first copy runs pass after pass. After it we look for changes every hour, or as often as every 15 minutes if you choose.',
       },
       medium: {
         who: 'Two people, or a small team',
@@ -522,7 +522,7 @@ export const COPY = {
       },
       small: {
         who: 'Eén persoon, op volle snelheid',
-        note: 'De eerste kopie loopt ronde na ronde door. Daarna kijken we zo vaak als u kiest of er iets veranderd is, tot elke 15 minuten.',
+        note: 'De eerste kopie loopt ronde na ronde door. Daarna kijken we elk uur of er iets veranderd is, of elke 15 minuten als u dat kiest.',
       },
       medium: {
         who: 'Twee personen, of een klein team',

@@ -5,8 +5,9 @@
 ## Status — 2026-10-04 (update this block at the end of every session)
 
 **2026-10-04, evening: opened** from the owner's three messages of that day, which ADR-0014's
-*Amendment 2026-10-04, evening* quotes. T1 is built in the pull request that opens this plan.
-T2 to T6 are proposed, each one pull request. T7 is a proposal the owner asked to be reasoned
+*Amendment 2026-10-04, evening* quotes. T1 is built in the pull request that opens this plan,
+with T4's hourly default: *Start a migration* stores every hour where it stored daily at 02:00.
+The rest of T2 to T6 is proposed, each one pull request. T7 is a proposal the owner asked to be reasoned
 out (*"Reason on that, also in terms of load for our service and customer demand"*): §7 does,
 and it waits for the owner.
 
@@ -15,7 +16,7 @@ and it waits for the owner.
 | T1 The tier table | ✅ **Built 2026-10-04** | §1. Free 6 and 150 GB, Small 6 and 500 GB, Medium 12 and 1.5 TB, Large 24 and 6 TB, Extra large 50 and 15 TB: ADR-0014's table, `site/prices.mjs`, `MANAGED_TIERS`, the site's tier texts in both languages, and terms §6. |
 | T2 Free at one pass a day | 📋 **Proposed** | §2. The managed tick makes a Free migration due 24 hours after its last pass started, its first copy included; a paid one keeps 0156 T5's first copy back to back. |
 | T3 Small kinds first, files last, across a Free organisation's migrations | 📋 **Proposed** | §3. Within a pass `PASS_ORDER` already does it; between migrations due the same day, one that carries only files, or an export, goes last. |
-| T4 The doors know the pace, and paid looks every hour | 📋 **Proposed** | §4. The API refuses a schedule faster than a tier allows; *How often to look for changes* offers what the tier allows; a migration *Start* makes looks every hour on a paid tier. |
+| T4 The doors know the pace, and paid looks every hour | 🟡 **Hourly default built 2026-10-04; the doors proposed** | §4. A migration *Start* makes looks every hour (`StartMigration.tsx`'s `HOURLY`, *How often to look for changes*'s first preset). The API refusing a schedule faster than a tier allows, and the chooser offering what the tier allows, wait for T2's tier fact. |
 | T5 The app says the pace | 📋 **Proposed** | §5. *"One pass a day, up to 50 minutes. Next pass at 07:12."*, with how many days the first copy needs, on the migration's and the person's pages. |
 | T6 Picking a tier | 📋 **Proposed** | §6. The Billing page offers every tier above the derived one; a pick is the person's yes, the month bills at least the picked tier, and the downgrade stops there. |
 | T7 The default slows once everything is in step | ⏳ **Waits for the owner** (proposed, not decided) | §7. Hourly for 14 days after the first copy, then every 6 hours, then daily after 30 days; a schedule the person chose is never changed. |
@@ -91,9 +92,11 @@ it works out the least tier the answers need.
   (picking a tier, T6).
 - ***How often to look for changes*** (`ScheduleChooser`) offers only *once a day* on Free, with
   one line on why; on a paid tier every preset from 15 minutes.
-- **Paid looks every hour by default** (the owner, 2026-10-04): a migration *Start* makes stores
-  no schedule, and the managed default becomes hourly, offset per migration as now. A schedule
-  somebody chose is kept as written. The appliance keeps its 15 minutes.
+- **Paid looks every hour by default** (the owner, 2026-10-04): built with T1. A migration
+  *Start* makes stores `0 * * * *`, *How often to look for changes*'s first preset, where it
+  stored `0 2 * * *`. A schedule somebody chose is kept as written, and the appliance keeps its
+  own. Later, if the tick's minute :00 grows crowded, an offset per migration as
+  `defaultScheduleFor` gives the 15-minute default.
 - **A tier that falls** (a paid organisation back on Free): a chosen schedule faster than daily
   runs daily, and the page says so. Nothing is rewritten.
 
