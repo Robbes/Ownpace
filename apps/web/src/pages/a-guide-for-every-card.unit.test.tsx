@@ -50,6 +50,13 @@ import {
 
 const { setupGet } = vi.hoisted(() => ({ setupGet: vi.fn() }));
 
+// The edition, through the sanctioned seam: managed unless a case says not.
+const { editionFlag } = vi.hoisted(() => ({ editionFlag: { selfhost: false } }));
+vi.mock('../services/edition.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/edition.ts')>();
+  return { ...actual, isSelfHost: () => editionFlag.selfhost };
+});
+
 vi.mock('../services/mapping-service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/mapping-service.ts')>()),
   setupApi: { get: setupGet, setStep: vi.fn() },
@@ -130,6 +137,7 @@ const languagesOf = (slug: string): Locale[] => LOCALES.filter((locale) => SOURC
 
 beforeEach(() => {
   setupGet.mockReset();
+  editionFlag.selfhost = false;
   globalThis.sessionStorage.clear();
   window.localStorage.setItem('ownpace.locale', 'en');
 });
@@ -261,6 +269,9 @@ describe('the account form links the picked card’s section, at both doors (014
   };
 
   it.each(SOURCE_CARDS.map((card) => ({ id: card.id, card })))('source $id', async ({ card }) => {
+    // The export archive is on the appliance's Accounts page only (the owner,
+    // 2026-10-04: "6. A"); every other card is on both.
+    editionFlag.selfhost = card.id === 'archive';
     await openForm('source');
     pick(card);
     expect(guideLink().getAttribute('href')).toBe(hrefFor(card));

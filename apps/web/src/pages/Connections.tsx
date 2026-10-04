@@ -27,7 +27,9 @@ import {
 } from '@openmig/shared';
 import { connectionKindName } from '../components/ProviderTile.tsx';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
-import { frontDoorCards } from '../components/front-door-cards.ts';
+import { frontDoorCards, type FrontDoorCard } from '../components/front-door-cards.ts';
+import { isSelfHost } from '../services/edition.ts';
+import { EXPORT_CARD } from '../services/start-plan.ts';
 import {
   type ConnectionDeleted,
   connectionsApi,
@@ -511,13 +513,24 @@ const Row: React.FC<{
  * with the answers is the create route's shape builders, unchanged, so a
  * connection added here is one a sync pass can use.
  */
+/**
+ * The cards this page offers. On managed, not the export archive (the owner,
+ * 2026-10-04, on 0153's *not carried over*: *"6. A"*): *Start a migration*
+ * reads a Takeout from the folder `Takeout` of the destination's files, and
+ * an archive saved here led nowhere. The appliance keeps the card, as before.
+ */
+function accountCards(role: 'source' | 'target'): ReadonlyArray<FrontDoorCard> {
+  const cards = frontDoorCards(role);
+  return isSelfHost() ? cards : cards.filter((card) => card.id !== EXPORT_CARD);
+}
+
 const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   const t = useT();
   const [open, setOpen] = React.useState(false);
   const [role, setRole] = React.useState<'source' | 'target'>('source');
   // The first card of the side, the same one the role switch below lands on —
   // so opening the form and switching the role read as the same door.
-  const [type, setType] = React.useState(frontDoorCards('source')[0]?.id ?? '');
+  const [type, setType] = React.useState(accountCards('source')[0]?.id ?? '');
   // What is typed stays here, so a Cancel keeps it for the next opening; the
   // form below begins its probe answer and its consent afresh each time it
   // is drawn (`AccountForm`, 0145 T4).
@@ -559,7 +572,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
               role="radio"
               aria-checked={role === r}
               onClick={() => {
-                const first = frontDoorCards(r)[0]?.id ?? '';
+                const first = accountCards(r)[0]?.id ?? '';
                 setRole(r);
                 setType(first);
                 setValues({ ...formDefaultsFor(r, first) });
@@ -577,7 +590,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
       <div className="mt-4">
         <span className="block text-sm text-gray-700 mb-2">{t('connections.type')}</span>
         <FrontDoorChooser
-          cards={frontDoorCards(role)}
+          cards={accountCards(role)}
           role={role}
           selectedId={type}
           onPick={(card) => {

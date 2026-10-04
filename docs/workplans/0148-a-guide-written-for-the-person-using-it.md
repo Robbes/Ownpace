@@ -2,7 +2,14 @@
 
 > **In one line:** Dutch and English customer guides per source and target card, operator text kept in `docs/*-setup.md`, no own-app hints where the deployment carries one, the export archive labelled experimental and readable from the tester's Nextcloud or WebDAV files, `Docs.tsx` extended.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-10-04 (update this block at the end of every session)
+
+**2026-10-04: D10 no longer holds for the archive card on managed.** Once the wizard retired,
+*Start a migration* read a Takeout from the folder `Takeout` of the destination's own files (0153
+open question 5, item 2), and an archive saved on the managed Accounts page led nowhere. Asked
+again, the owner chose to take that card off the managed Accounts page (0153's *not carried
+over*: *"6. A"*). The appliance keeps it, labelled experimental as before; *Via IMAP* stays on
+both editions, tagged (D5). The archive guide's section says where each is.
 
 **2026-09-28, the Photos sentence left on purpose is gone.** On branch
 `claude/loving-goodall-24prqs`; not merged. `google-workspace-setup.md` no longer asks the reader

@@ -17,8 +17,8 @@ without D"*, *"5. A"*, *"6. A"*).
   go?* (C, not D).** Built: the second bullet under *Not carried over* below says how.
 - **App-password Gmail where the restricted scopes are declared: nothing now (A).** To build
   only when a deployment sets `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`.
-- **A saved *Export archive* account: the card leaves the managed Accounts page (A).** In its own
-  pull request.
+- **A saved *Export archive* account: the card leaves the managed Accounts page (A).** Built: the
+  last bullet under *Not carried over* below says how.
 
 **2026-10-04: the wizard retires (D5; open question 5, item 7, the second part).** *Start a
 migration* is the one way a migration is made on managed, and T4, T1 (c) and T6 end with it.
@@ -68,7 +68,11 @@ migration* is the one way a migration is made on managed, and T4, T1 (c) and T6 
     is then reachable only where the declaration is absent.
   - A saved *Export archive* account is no longer a way into a migration: the flow reads a
     Takeout from the folder `Takeout` of the destination's files (item 2). The Accounts page still
-    adds one, and its test says what an export holds.
+    adds one, and its test says what an export holds. **Done 2026-10-04 (the owner: *"6. A"*):**
+    the managed Accounts page no longer offers the card (`accountCards`); the appliance's still
+    does, and the archive guide's section says so, in both languages. Proved by
+    `an-export-in-the-destinations-files` (no card on managed) and the archive form's cases, which
+    now run on the appliance.
 - **Proved by** `a-line-under-the-box-both-doors-draw` (27 cases: every field with a line, on
   every card, on the Accounts page; and the flow's three placements), the redirect cases in
   `AppRoutes.unit.test.tsx`, the docs guard with `start.*`, and the UI test's walk through `/start`.

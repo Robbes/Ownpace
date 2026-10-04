@@ -11,19 +11,18 @@
  * supporting target."*
  *
  * So the archive form asks WHERE the export is, from the one descriptor. The
- * Accounts page draws it; the wizard did too, until it retired (0153 D5), and
- * *Start a migration* sets a Takeout up in the destination's files itself
- * (`StartMigration.unit.test.tsx`):
+ * wizard drew it until it retired (0153 D5), and *Start a migration* sets a
+ * Takeout up in the destination's files itself (`StartMigration.unit.test.tsx`).
+ * On managed that left an archive saved on the Accounts page leading nowhere,
+ * so the page no longer offers the card there (the owner, 2026-10-04, on
+ * 0153's *not carried over*: *"6. A"*). The appliance's Accounts page still
+ * draws it:
  *
  *  - a folder of the destination's files, or this appliance's disk;
- *  - on managed the destination is the default, and the disk is SHOWN,
- *    disabled, with *Only on a self-hosted appliance* (D10: nothing is hidden;
- *    the owner: *"'Only on a self-hosted appliance': ok"*);
- *  - on the appliance the disk stays the default, so no existing mapping
- *    changes meaning;
+ *  - the disk stays the default, so no existing mapping changes meaning;
  *  - the path's label follows the choice, and the form posts `where`.
  */
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -96,25 +95,19 @@ function escape(text: string): string {
 
 describe.each([['the Connections page', openConnectionsForm]])('%s asks where the export is', (_door, open) => {
   it('offers the two places, from the descriptor', async () => {
+    editionFlag.selfhost = true;
     await open();
     pickArchive();
     expect(radio(TO_TARGET)).toBeTruthy();
     expect(radio(ON_DISK)).toBeTruthy();
   });
 
-  it('on managed: the destination is the default, and the disk is shown disabled, with its line', async () => {
+  it('on managed: offers no export archive card, since nothing could start from one (the owner: "6. A")', async () => {
     await open();
-    pickArchive();
-    expect(radio(TO_TARGET).checked).toBe(true);
-    expect(radio(TO_TARGET).disabled).toBe(false);
-    const disk = radio(ON_DISK);
-    expect(disk.checked).toBe(false);
-    expect(disk.disabled, 'the disk option can be chosen on managed').toBe(true);
-    // Shown, not hidden (D10), and it says why it cannot be chosen.
-    const option = disk.closest('label')!;
-    expect(within(option).getByText(ONLY_APPLIANCE)).toBeTruthy();
-    // The path follows the choice: a folder of the person's own files.
-    expect(screen.getByText(en['wizard.archivePath.target'], { selector: 'label, span' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Export archive/ })).toBeNull();
+    // The rest of the sources are there, the first one picked.
+    expect(screen.getByRole('button', { name: /^IMAP/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Google account/ })).toBeTruthy();
   });
 
   it('on the appliance: the disk stays the default, and both can be chosen', async () => {
@@ -134,9 +127,11 @@ describe.each([['the Connections page', openConnectionsForm]])('%s asks where th
 
 describe('the doors post where', () => {
   it('the Connections page posts `where: "target"` beside the folder', async () => {
+    editionFlag.selfhost = true;
     await openConnectionsForm();
     pickArchive();
     fireEvent.change(screen.getByLabelText(/^Which export/), { target: { value: 'google-takeout' } });
+    fireEvent.click(radio(TO_TARGET));
     fireEvent.change(screen.getByLabelText(new RegExp(`^${escape(en['wizard.archivePath.target'])}`)), {
       target: { value: 'Exports/takeout-20260904' },
     });
