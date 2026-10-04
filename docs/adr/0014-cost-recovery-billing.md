@@ -35,12 +35,12 @@
   | **Extra large** | 50 | 15 TB | €80 | €480 |
 
 - **Free is free, and free means no billing**: no payment method, no invoice, no top-up; one
-  pass a day (0157). Guard: `site/site.unit.test.ts` (*free*, never *€0*).
+  pass a day outside the alpha (0157). Guard: `site/site.unit.test.ts` (*free*, never *€0*).
 - **`holdsASlot` (`@openmig/ledger`) is the slot rule**: `active`, `paused` and `continuous`
   hold a slot; `ready`, `cutover` and `done` hold none; a stop releases one only in the lane,
   whose customer is first told the bill does not stop at cutover.
-- **The month bills its peak, or a higher tier picked.** Downgrade is automatic down to it,
-  announced, never blocking. No setup fee. Not built (0109 T5–T6, 0157).
+- **The month bills its peak, or a higher tier picked.** Downgrade: automatic down to it,
+  announced, never blocking. No setup fee. Not built (0109, 0157).
 - **Every step up is consented and paid for.** A path waits for the yes at activation; at the
   data ceiling, outside the alpha, new first copies wait for a move up or a one-off top-up
   (another band for the tier's monthly, once). Without that yes, a month bills the tier it
@@ -737,6 +737,12 @@ yes someone may pick a tier. So Free can pick higher if they see fit."*
 - **What the owner was told it costs**: a household of four moving everything is 24 paths, Large
   at €40 a month rather than Medium at €12; a business of ten moving five kinds each is 50, Extra
   large.
+- **The alpha is free for everything** (the owner, asked whether Free's pace holds during the
+  alpha: *"No, alpha is free for everything that testers want to do. So also the higher tiers are
+  free for them."*): while the stage is `alpha`, Free's pace does not hold, and every tier's room
+  and pace are a tester's for nothing, as the data ceiling already is not held (*Amendment
+  2026-10-03*). The Alpha conditions' §3 (*"Nothing is charged during the Alpha"*) already says
+  so.
 - **Proposed, not decided** (the owner: *"Perhaps we need to later think of lowering the default
   given frequency when all was moved, but someone want to keep the snyc."*): after the first
   copy, hourly for 14 days, then every 6 hours, and daily after 30 days; a schedule the person
@@ -807,8 +813,9 @@ Nothing is billed during the Alpha, and the path ceiling is off while it lasts.
   fifty on Extra large; 150 GB, 500 GB, 1.5 TB and 6 TB, Extra large's 15 TB kept; Free at one
   pass a day, the first right after the preflight, small kinds first and files last; paid tiers
   hourly by default, as often as every 15 minutes; a person may pick a higher tier, which the
-  month then bills at least (owner, three messages). Credit left after a year pays the full
-  monthly price (owner: *"Yes, full"*). Record: *Amendment 2026-10-04, evening*.
+  month then bills at least (owner, three messages); none of it holds in the alpha, which is free
+  for everything (owner). Credit left after a year pays the full monthly price (owner: *"Yes,
+  full"*). Record: *Amendment 2026-10-04, evening*.
 
 The full record, word for word as it read before this consolidation:
 [history/0014-cost-recovery-billing.md](./history/0014-cost-recovery-billing.md).

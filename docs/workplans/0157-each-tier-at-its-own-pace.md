@@ -72,9 +72,10 @@ it works out the least tier the answers need.
   0037): its tier needs a grant, in a managed migration.
 - ***Sync now* on Free:** it starts a pass without the tick, as now. Proposed: on Free it is
   refused while a pass ran in the last 24 hours, with the time of the next one, so the pace holds.
-- **Not during the alpha**, as the data ceiling is not (ADR-0014, the owner's *"A"* of
-  2026-10-03): while the stage is `alpha`, every organisation is on Free and nobody pays, so a
-  pass a day would only slow the testing the alpha is for. Proposed; the owner decides.
+- **Not during the alpha** (the owner, 2026-10-04: *"No, alpha is free for everything that
+  testers want to do. So also the higher tiers are free for them."*): while the stage is `alpha`,
+  a Free migration runs at a paid tier's pace, as the data ceiling is not held then either
+  (ADR-0014, the owner's *"A"* of 2026-10-03). The stage is read as `holdsAtCeiling` reads it.
 - **Guards:** a unit test of `isSyncDue` with the fact, and a tick test: a Free migration that
   ran 23 hours ago is not due, at 24 hours it is, and a paid one is due at 15 minutes while its
   first copy is unfinished; in the alpha, a Free one is due as a paid one is.
@@ -122,7 +123,8 @@ it works out the least tier the answers need.
   next month.
 - **The pace** follows the billed tier at once (T2).
 - **Outside the alpha** a pick of a paid tier passes the order button that says it carries an
-  obligation to pay (terms precondition C, question 28). During the alpha nothing is billed.
+  obligation to pay (terms precondition C, question 28). During the alpha every tier is free
+  (the owner, 2026-10-04), so a pick costs nothing and needs no order button.
 
 ## 7. T7 — the default slows once everything is in step (proposed, not decided)
 
