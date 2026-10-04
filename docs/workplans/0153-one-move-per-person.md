@@ -4,6 +4,21 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04: where the wizard's four go, with options for the owner (open question 5).** The
+owner asked whether the plan placed the four, and if it did not, for options and a
+recommendation, with a suggestion of their own for each.
+
+- **The plan drops none of them, and places only some.** Placed: the export line and the photos
+  line in the design, built as links to the wizard; and the delegated Microsoft sign-in, with
+  its own-registration fold. Not placed: the app-only Microsoft registrations, the two
+  single-purpose Google cards, and all four settings.
+- **Open question 5 holds each item's options and the recommendation.** Each is read against the
+  plan, the code, and how other migration tools present the same thing.
+- **Found on the way, and listed there:**
+  - the Microsoft consent never sends a tenant, so a single-tenant registration cannot consent;
+  - the flow cannot make a second migration between the same two accounts;
+  - *Another mail provider* tells people to add CalDAV and CardDAV by hand, which no door can do.
+
 **2026-10-04: T6 (b)'s schedule is folded, in the owner's words.** On a migration's page,
 *Sync schedule* / *Synchronisatieschema* is now a fold, closed, headed *How often to look for
 changes* / *Hoe vaak naar wijzigingen kijken*, as approved on 2026-09-28.
@@ -1538,3 +1553,144 @@ pages. `a-class-tailwind-draws-nothing-for.unit.test.ts` catches a class that re
      titles change. Nothing built depends on it yet.
 3. ~~**T0 (c):** *Accounts* instead of *Connections*?~~ **Answered 2026-09-28 (D7):** yes.
 4. ~~**T3 (b):** does the Dashboard go?~~ **Answered 2026-09-28 (D7):** yes.
+5. **Retiring the wizard (D5): where its four go.** Asked 2026-10-04; options and
+   recommendations the same day. The plan drops none of the four. Each is read below against the
+   plan, the code, and the research of 2026-10-04 into how other migration tools present it.
+   That research found the same pattern in tool after tool:
+   - they default to their own app, and the customer's own registration is a separate method for
+     IT administrators;
+   - data types sit under one card per account;
+   - protocols sit under *other provider*;
+   - expert settings are folded, or set after creation.
+
+   1. **A Microsoft 365 app registration.** The owner's suggestion: *the same as Google's flow*.
+      - *Already in place:* the delegated sign-in (`microsoft`) works as Google's does:
+        - one consent through the deployment's app;
+        - the customer's own registration folded under *Use your own app registration*;
+        - the tenant behind *Is this a company account with an administrator?* (T7 (d)).
+      - *Not placed:* the application-permission registrations, *Via the Graph API* and *Via
+        IMAP* (kind `o365`: tenant, client ID and secret, no consent).
+        - They are what an IT department with its own Entra app uses, and the only way to shared
+          mailboxes (0114).
+        - 0114, 0148 D5 and 0148 T8 keep them.
+      - *Options:*
+        - (A) Behind the company question on the Microsoft tile, as Google's domain-wide key is:
+          *Your organisation's own app, with application permissions*.
+          - It asks for the tenant, client ID and secret, with no consent.
+          - It reads through Microsoft Graph, with IMAP as the alternative inside it.
+          - The tile offers saved `o365` accounts.
+        - (B) Both under *Other ways to connect*.
+        - (C) Only on Accounts, with the tile offering saved `o365` accounts.
+        - (D) Drop them. That loses shared mailboxes, against 0114.
+      - **Recommended: A.** It carries the owner's suggestion to its end:
+        - Google's organisation credential already sits behind that question;
+        - other tools keep their own-app route as a separate method for administrators, never in
+          the default path.
+      - Two fixes go with it:
+        - The consent sends the tenant. Today neither door does, so a single-tenant registration
+          gets *application not found*.
+        - Replacing a `microsoft` account's credentials keeps its tenant. Today the tenant is
+          dropped.
+   2. **A Google Takeout export.** The owner's suggestion: *the same as with Apple*.
+      - *In the plan:* placed in the design, but built only as links to the wizard. The design
+        has:
+        - screen 2's *An export archive* line;
+        - screen 3's photos line;
+        - the person page's *Waiting for your Takeout export* row.
+      - *Earlier owner decisions:*
+        - 0148 D10: labelled *Experimental*, never hidden.
+        - 0148 D11: read from the destination's own files.
+        - 0148 D7: Apple's export stays, marked *To be tested*.
+      - *Options:*
+        - (A) Under its provider, as a data type.
+          - On the Google tile, *Photos: from a Takeout export (Experimental)* is a tick box.
+          - Ticking it makes an archive migration that reads the export from the destination's
+            files and waits, as drawn, until the export is there.
+          - Apple's tile gets *iCloud Drive and photos: from Apple's export (To be tested)* the
+            same way, once its reader exists.
+          - The separate *An export archive* line goes, since every export has a provider.
+        - (B) Keep *An export archive* as its own line under the tiles, built into the flow
+          (which export, where, and the path).
+        - (C) Accounts only.
+      - **Recommended: A,** with the labels D7 and D10 decided.
+        - Other tools that read Takeout name the provider first (*Import from Google Photos*),
+          then the export.
+        - Since March 2025, Google's photos API reads only what an app uploaded itself, so
+          Takeout is the one way to a whole library.
+   3. **The separate Google Calendar and Google Contacts cards.** The owner's suggestion:
+      *perhaps similar to generic IMAP*, under *Other ways to connect*.
+      - *In the code:* they are the Google account's own calendar and contacts reader
+        (`google-dav`, OAuth over Google's CalDAV and CardDAV), asking one scope each.
+        - The Google tile's consent asks only for the ticked types, so a calendar-only migration
+          through the tile asks for the same one scope.
+        - They are kept for older rows.
+      - *Options:*
+        - (A) Retire them for new migrations; the tile is the way.
+          - Accounts and migrations of these kinds keep working, and the tile offers a saved one.
+          - The cards become `connectionOnly`.
+        - (B) The owner's suggestion: under *Other ways to connect*, beside the protocols.
+        - (C) Accounts only.
+      - **Recommended: A,** with B as a fine second.
+        - IMAP sits under *other ways* because it is a different way in: another protocol, to
+          any server.
+        - These two are the same way in as the tile, so there is nothing to choose between.
+        - Other tools offer one card per account, with the data types under it.
+   4. **The four settings.** Each belongs with what it is a property of.
+      - **Folder prefix** (`targetFolderPrefix`, a property of the migration).
+        - *Options:*
+          - (A) On screen 5, per destination, folded: *Put it in a folder of its own*.
+            - Empty by default, so the copies merge, as today.
+            - Filled in and open, with the source's address, when a second account goes to the
+              same destination.
+            - Shown on the migration page as where the copies land, and never changed after
+              copying.
+          - (B) Always automatic, never asked.
+          - (C) Only on the migration page, before the first pass.
+        - **Recommended: A.**
+          - Today the flow cannot make a second migration between the same two accounts. It
+            sends no prefix, and the refusal's remedy, *give this one a different target
+            folder*, is on no screen.
+          - One tool the research read puts copies in a *migrated from…* folder by default.
+      - **SSL/TLS** (a property of the account, `connection.config`).
+        - *Options:*
+          - (A) In the account form's *Server settings* fold, on by default, in the flow and on
+            Accounts.
+          - (B) No switch on managed: always encrypted, as the flow already is.
+            - A Nextcloud address typed with `http://` keeps its scheme.
+            - The appliance's mapping file keeps `tls` for a server on the home network.
+        - **Recommended: B.**
+          - The wizard's switch is already lost on its main path. *Test* saves the account
+            through a route that takes text only, so the account is stored with encryption on.
+          - A family's server without TLS is too rare to justify a switch that sends a password
+            in the clear.
+          - Privacy §11 (*unless you switch off SSL/TLS yourself*) goes to the lawyer with it.
+      - **Custom naming** (the migration's label; nothing reads it).
+        - *Options:*
+          - (A) Automatic, as the flow does it (*{person} — {provider} to {destination}*), with
+            *Rename* on the migration page. 0125's table already permits it; the route does not
+            write it yet.
+          - (B) A name box on screen 6, prefilled.
+        - **Recommended: A.**
+      - **A root folder or path** (Drive, Dropbox; a property of the migration, stored in
+        `source_config_override`).
+        - *Options:*
+          - (A) On screen 3, under *Files*: *Everything* or *Only one folder*, with the wizard's
+            *Browse…*.
+            - For a new and a saved account alike, and for the Google account too.
+            - Shown on the migration page, and never changed after copying (0125).
+          - (B) Keep it in the account form's *More options*, where it was built without the
+            plan, and add it for a saved account.
+          - (C) On the migration page, before the first pass.
+        - **Recommended: A.** It answers *what* to move, not *which account*. Other tools choose
+          the folder per transfer, not on the connection.
+        - Two fixes go with it. The migration route:
+          - refuses `rootFolderId` even before anything was copied;
+          - drops `rootPath` without a word.
+   - **Needed before the wizard goes, though none of it is a decision:**
+     - *Other ways to connect* links to the wizard, so the flow needs its own.
+     - IMAP is the only source protocol; CalDAV, CardDAV, WebDAV and JMAP are destinations only.
+       So two texts promise sources no door has:
+       - the fold's *(IMAP, CalDAV, CardDAV, WebDAV, JMAP)*;
+       - *Another mail provider*'s *Add those by hand*.
+     - The reachability test moves to `/start`. A card that is retired becomes `connectionOnly`
+       rather than losing its row.
