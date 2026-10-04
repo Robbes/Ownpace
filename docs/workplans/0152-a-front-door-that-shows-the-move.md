@@ -4,6 +4,49 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04, night: the guides are public** (the owner: *"Guide links on the Leaving pages: yes,
+make public"*). Each Leaving page links a guide section per limit, such as `/docs/google#gmail`,
+and the app sent a visitor without an account to its sign-in page instead.
+- **`/docs` and `/docs/<guide>` open for everybody on managed.** With a session nothing changes:
+  the guide is inside the app's layout. Without one, the same guide is drawn in the front door's
+  look (T9), as `/login` draws it: *← ownpace.eu*, the site's mark, the language switch, and
+  under the guide the request page's *Already have an account? Sign in* and the build stamp
+  (`PublicDocs.tsx`). Every other page still sends a visitor without a session to sign in. The
+  appliance has nobody to sign in, and is unchanged.
+- **One reading of "signed in"** (`stores/signed-in.ts`). The route table's redirect, the guides'
+  frame and the guide page all read it.
+- **Without a session the guide asks the API nothing.** The app's client takes a 401 for a dead
+  session and sends the browser to the sign-in page, which is the bounce this removes. So the
+  own-app section stays open, as it does where the answer never comes.
+- **The guide opens in the page's language.** Each guide link carries the Leaving page's
+  `?locale=`, as the Request access link does, and `PublicDocs` takes it once, before the first
+  paint, so a reader of the Dutch page whose browser is set to English reads the Dutch guide.
+- **Not shown to a visitor:** the alpha note, since which line a visitor who was not invited reads
+  is open question 5.
+- **Guards:**
+  - `apps/web/src/pages/a-guide-you-can-read-before-you-sign-in.unit.test.tsx`, over the real
+    route table: every guide section a Leaving page links (read off `site/sources.mjs`) opens on
+    its section without a session, in the front door's look and at the address asked for, and
+    nothing goes through the app's clients; the Dutch guide leads back to the Dutch site;
+    `?locale=nl` opens the Dutch guide for an English browser, and an unknown value nothing; a link
+    to another guide stays in the frame and starts at the top; with a session, the layout's menu
+    and the deployment's facts, as before; every other page still leads to sign-in; the
+    appliance keeps its layout.
+  - `test/ui/managed-ui.ui.test.ts`, in the shipped bundle: `/docs/google#gmail` without a
+    session, with the guide's one read answering 401, stays on its section in the site's teal and
+    asks the API only for the build stamp.
+  - `Docs.unit.test.tsx` signs its reader in, and reads the page without a session once.
+  - `scripts/leaving-pages-say-what-the-app-says.unit.test.ts` (7.): each built Leaving page links
+    its guide sections in its own language.
+  - `a-version-you-can-see-before-you-sign-in` now finds `PublicDocs` outside the layout, and
+    holds it to its build stamp.
+
+  Mutations caught: the guide asking without a session (in the browser it lands on `/login`), the
+  guides sent to sign in again, the appliance taken for signed out, a link to another guide that
+  kept the old scroll, and `?locale=` left unread.
+- **T0:** the label's new words, *In the guide* / *In de handleiding*, without *(sign in first)* /
+  *(eerst aanmelden)*.
+
 **2026-10-04, night: the estimate takes several sources, and Tasks** (the owner's two remarks of
 2026-10-04, T7 (e); T7 (d) with them):
 - **Moving away from?** is tick boxes, so a person leaving Google and Dropbox ticks both. *Box* is
@@ -81,9 +124,9 @@ and *Leaving another mail provider*, *Weg bij …* in Dutch. Each has the plan's
   - Dropbox's estimate lands on Free, as its page says;
   - a value the estimate does not offer changes nothing.
 - **Not built:** (a) 5's *Request access* carrying the source waits for T7 (a), since the request
-  has no place for it yet. (c) waits for the site's own address. The guide links lead a visitor
-  without an account to the app's sign-in. They say so (*sign in first*); 0151's help section is
-  where they should point (T5 (d)).
+  has no place for it yet. (c) waits for the site's own address. The guide links open the app's
+  guide sections, which a visitor without an account can read since *the guides are public*
+  (above); 0151's help section is where they should point once it exists (T5 (d)).
 - **T0:** every sentence on the six pages, and *Leaving…* / *Weg bij…*, in both languages, are new
   words for the owner's reading.
 

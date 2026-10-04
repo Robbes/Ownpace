@@ -919,9 +919,14 @@ function leavingPage(locale, page) {
     .map((l) => {
       const [slug, section] = l.guide.split('#');
       const text = l.id === 'gmailDaily' ? L.limits.gmailDaily(GMAIL_IMAP_GB_PER_DAY.toLocaleString(c.htmlLang)) : L.limits[l.id];
+      // The page's language rides along, as on the Request access link
+      // (`orderHref`): the guide opens without an account, outside the app's
+      // menu, and `PublicDocs` takes it once, so a reader of the Dutch page
+      // reads the Dutch guide whatever their browser is set to.
+      const guide = `${APP_URL}/docs/${slug}?locale=${encodeURIComponent(locale)}#${section}`;
       return (
         `<li id="limit-${l.id}"><p>${text}</p>` +
-        `<p class="guide"><a href="${esc(`${APP_URL}/docs/${slug}#${section}`)}">${L.guideLink}</a></p></li>`
+        `<p class="guide"><a href="${esc(guide)}">${L.guideLink}</a></p></li>`
       );
     })
     .join('');
