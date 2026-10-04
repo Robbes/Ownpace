@@ -28,6 +28,7 @@ import { useAuthStore } from '../stores/auth-store.ts';
 import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import StateChip from '../components/StateChip.tsx';
 import { isAlpha } from '../components/AlphaNote.tsx';
+import DataCeiling from '../components/DataCeiling.tsx';
 
 /** A failed read said as such (hard rule 9 / 0033 T2) — before this, a failed
  *  usage read rendered "No usage data available yet" and a failed invoices
@@ -683,6 +684,10 @@ const Billing: React.FC = () => {
           <p className="text-gray-500">{t('billing.noUsage')}</p>
         )}
       </div>
+
+      {/* The data ceiling and the yes that moves it (0109 T6): where the data
+          stands against what was agreed to, and from 80% both ways on. */}
+      <DataCeiling />
 
       {/* Who invoices are addressed to — above the invoices it will be on. */}
       {/* During the alpha nothing is invoiced on any tier (0131 T3, owner's
