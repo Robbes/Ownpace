@@ -4,6 +4,38 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04, night: T6 (e) is built** (R8 step 11). The pricing page opens on yearly, as D10 asks:
+- **The switch:** *How you pay: Yearly · Monthly* (*Hoe u betaalt: Per jaar · Per maand*). It is a
+  fieldset of two radio inputs with no script: `:has(:checked)` shows one of each paid card's
+  two answers, and a browser without `:has()` shows both. D3's rule sits under it: *"Done within
+  six months? Pay monthly. Longer, or not sure? A year costs the same as six months."*
+- **On yearly,** each paid tier shows:
+  - the year divided by twelve: €2.50, €6, €20, €40 a month;
+  - the year's total in bold under it, *€30 a year*;
+  - *paid yearly, in advance*, and *half the monthly price*.
+- **On monthly,** each paid tier shows its monthly price and *No minimum term: stop whenever you
+  like*.
+- **Free** shows the same three lines in both: *Free*, *for as long as it runs*, *No invoice, no
+  card, no billing details*. That is how `wf-pricing.svg` draws it, and the cards' lists now
+  line up.
+- **The guardrails hold:** no price struck through, none called a former price, no countdown, and
+  the year's total always beside its per-month figure. A year that does not divide into whole
+  cents stops the build.
+- **Guard:** `site/site.unit.test.ts`:
+  - the page opens on yearly, with a labelled switch and no form;
+  - each paid card has its per-month figure for a year with the year's total beside it, and its
+    monthly price;
+  - no `<s>`, `<del>` or `line-through`, no former price, no countdown.
+
+  `test/ui/site.ui.test.ts`:
+  - the page opens on yearly: Small shows €2.50 and €30 a year;
+  - Monthly, by a click and by an arrow key, shows €5;
+  - the prices line up in both views;
+  - the Dutch page fits 390 pixels.
+- **T0:** *How you pay*, *Yearly*, *Monthly*, *paid yearly, in advance*, *half the monthly price*,
+  *No minimum term: stop whenever you like* and the rule, in both languages, are new words for the
+  owner's reading, and for the lawyer's (0139).
+
 **2026-10-04, evening: T1 (b) is built, with a defect it found.** No page says what *"most people"*
 choose any more, since nothing counts it.
 - **The home page's cost line** says *"**Small**, for one person moving everything at once: €5 a
@@ -223,7 +255,7 @@ together, from one audit of the site and the app on `main` at `83eb73e` (§1).
 | T3 The hero shows the move | 📋 **Proposed; before the first invitation** | §3. The drawing `hero-move.svg`, inlined: the old account's data, then Ownpace, then the new home, with our own icons (D4). Three facts sit under it, and a three-step strip links to *How it works*. An app screen joins it once 0153 T5 exists. |
 | T4 The destinations, named | 📋 **Proposed; before the first invitation** | §3. A *Where to* section names what the app supports, from a site copy of the app's list with a guard that it matches. It says plainly that the new account is one the person opens and pays for themselves. |
 | T5 A page per provider a person leaves | 📋 **Proposed; before the first invitation (D5)** | §3. *Leaving Google*, *Leaving Microsoft 365*, *Leaving iCloud*, *Leaving Dropbox*, *Leaving Box*, *Leaving another mail provider*: what moves, the limits, what the person does, the destinations it can go to, a typical cost. Built from copies of the app's own verdicts, each guarded. |
-| T6 Pricing that reads in one pass | 🟡 **(a) done: the sentence by #1317, its guard beside D6's. (c) built 2026-10-04, with T2 (#1471). (d) built 2026-10-03, with (g)'s principle on the page. (f)'s words on the page and in the terms built 2026-10-04, its withdrawal button not. The rest proposed, before the first invitation (D5)** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) The withdrawal button, and the year's end (D11, amended 2026-10-04). (g) The principle, the price that pays for the work (D12). |
+| T6 Pricing that reads in one pass | 🟡 **(a) done: the sentence by #1317, its guard beside D6's. (c) built 2026-10-04, with T2 (#1471). (d) built 2026-10-03, with (g)'s principle on the page. (e) built 2026-10-04. (f)'s words on the page and in the terms built 2026-10-04, its withdrawal button not. The rest proposed, before the first invitation (D5)** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) The withdrawal button, and the year's end (D11, amended 2026-10-04). (g) The principle, the price that pays for the work (D12). |
 | T7 A calculator that ends in a button | 📋 **Proposed; before the first invitation** | §3. (a) *Request access* carries the answers along. (b) *Until when?* says which payment suits it. (c) The layout faults and a live region. (d) Box as a source. |
 | T8 Claims you can check | 📋 **Proposed; before the first invitation (D5)** | §3. "Open source" links the repository. Each proof point links the guard that holds it. The footer names the company once 0139 publishes it; until then that line is the one part that waits. |
 | T9 One look from the site to the app | ✅ **Built 2026-10-04** | §3. `/request-access` and `/login` take the site's palette and logo, and link back to the site. The identity provider's own branding stays 0135 T6. |

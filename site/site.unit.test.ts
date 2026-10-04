@@ -226,11 +226,11 @@ describe('the published prices agree with the decision that set them', () => {
       expect(at, `${file} has no Free card`).toBeGreaterThan(-1);
       return html.slice(at, html.indexOf('</div>\n', html.indexOf('<ul>', at)));
     };
-    expect(card('pricing.html')).toContain('Free <span>');
-    expect(card('pricing.html')).toContain('No invoice <span>');
+    expect(card('pricing.html')).toContain('<div class="price">Free</div>');
+    expect(card('pricing.html')).toContain('No invoice, no card');
     expect(card('pricing.html')).toContain('moves you to Small');
-    expect(card('nl/prijzen.html')).toContain('Gratis <span>');
-    expect(card('nl/prijzen.html')).toContain('Geen factuur <span>');
+    expect(card('nl/prijzen.html')).toContain('<div class="price">Gratis</div>');
+    expect(card('nl/prijzen.html')).toContain('Geen factuur, geen kaart');
     // The landing page's line says what free covers, where it used to say
     // "From €6 for the first month".
     expect(rendered.find((p) => p.file === 'index.html')!.html).toContain('Free: one migration at a time, up to 250 GB.');
@@ -922,5 +922,61 @@ describe('a public build refuses a legal page whose version line says draft', ()
     const check = build({ public: true, check: true });
     expect(check.status, check.out).not.toBe(0);
     expect(counts(check.out), check.out).toEqual({ placeholders: '0', draftLines: '4' });
+  });
+});
+
+describe('the pricing page opens on yearly, and compares only prices on sale now (workplan 0152 T6 (e), D10)', () => {
+  const pricing = async () =>
+    (await renderedPages()).filter((p) => p.key === 'pricing').map((p) => ({ file: p.file, html: p.html }));
+
+  it('opens on yearly, with a switch a keyboard and a screen reader can use', async () => {
+    for (const { file, html } of await pricing()) {
+      // A real radio group under a visible label: a fieldset, its legend, two labelled inputs.
+      expect(html, `${file}: no labelled switch`).toMatch(/<fieldset class="pay-switch"><legend>[^<]+<\/legend>/);
+      expect(html, `${file}: the page does not open on yearly`).toContain(
+        '<input type="radio" name="pay" id="pay-year" value="year" checked /><label for="pay-year">',
+      );
+      expect(html).toMatch(/<input type="radio" name="pay" id="pay-month" value="month" \/><label for="pay-month">/);
+      expect(html, `${file}: the switch sits inside a form, which the site's CSP refuses`).not.toMatch(/<form\b/);
+    }
+  });
+
+  it('shows each paid tier a year as twelve months, with the year’s total in bold beside it, and its monthly price', async () => {
+    const { TIERS, money } = (await import('./prices.mjs')) as unknown as {
+      TIERS: Array<{ id: string; name: string; monthly: number; annual: number }>;
+      money: (cents: number) => string;
+    };
+    const { COPY } = (await import('./copy.mjs')) as unknown as {
+      COPY: Record<'en' | 'nl', { payYearTotal: (m: string) => string; payHalf: string }>;
+    };
+    for (const { file, html } of await pricing()) {
+      const locale = file.startsWith('nl/') ? 'nl' : 'en';
+      const cards = html.split(/<div class="tier(?: featured)?">/).slice(1);
+      expect(cards).toHaveLength(TIERS.length);
+      for (const [i, t] of TIERS.entries()) {
+        const card = cards[i]!;
+        if (t.monthly === 0) {
+          expect(card, `${file}: Free has a yearly view`).not.toContain('when-year');
+          continue;
+        }
+        const year = /<div class="when-year">([\s\S]*?)<\/div>\s*<div class="when-month">/.exec(card)?.[1];
+        expect(year, `${file}: ${t.name} has no yearly view`).toBeDefined();
+        // The per-month figure and the year's total, in the same card, never one without the other.
+        expect(year, `${file}: ${t.name}'s year per month`).toContain(`<div class="price">${money(t.annual / 12)} <span>`);
+        expect(year, `${file}: ${t.name}'s yearly total is not beside it`).toContain(
+          `<div class="price-year">${COPY[locale].payYearTotal(money(t.annual))}</div>`,
+        );
+        expect(year).toContain(COPY[locale].payHalf);
+        expect(card, `${file}: ${t.name}'s monthly price`).toContain(`<div class="price">${money(t.monthly)} <span>`);
+      }
+    }
+  });
+
+  it('strikes no price through and calls none a former price', async () => {
+    for (const { file, html } of await pricing()) {
+      expect(html, `${file} strikes a price through`).not.toMatch(/<s>|<s\s|<del\b|<strike\b|line-through/);
+      expect(html, `${file} names a former price`).not.toMatch(/\bwas €|\bnow only\b|\bvoorheen\b|\bnu slechts\b|van €\d[^<]*voor €/i);
+      expect(html, `${file} counts down`).not.toMatch(/limited time|for a limited|tijdelijk|alleen vandaag|only today/i);
+    }
   });
 });

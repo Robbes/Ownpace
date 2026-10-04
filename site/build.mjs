@@ -432,6 +432,27 @@ nav.menu a:first-child { border-top: 0; }
 .tier ul li { padding: 0.3rem 0; border-top: 1px solid var(--line); }
 .tier .note { color: var(--muted); font-size: 0.9rem; margin-top: auto; padding-top: 1rem; }
 
+/* How you pay (0152 T6 (e)): a switch that needs no script and opens on yearly.
+   Each paid card carries both answers, and the switch shows one. Where :has() is
+   unknown both show, which is wordier and never wrong. */
+.pay-switch { border: 0; padding: 0; margin: 1.75rem 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; }
+.pay-switch legend { float: left; padding: 0; font-weight: 650; }
+.pay-options { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+.pay-options input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.pay-options label { padding: 0.3rem 1rem; border-radius: 999px; cursor: pointer; color: var(--muted); font-weight: 600; font-size: 0.95rem; }
+.pay-options input:checked + label { background: var(--teal); color: #fff; }
+.pay-options input:focus-visible + label { outline: 2px solid var(--teal); outline-offset: 2px; }
+@media (prefers-color-scheme: dark) {
+  .pay-options input:checked + label { background: var(--mint); color: #06201c; }
+  .pay-options input:focus-visible + label { outline-color: var(--mint); }
+}
+.pay-rule { color: var(--muted); margin: 0.6rem 0 0; }
+.pay:has(#pay-month:checked) .when-year, .pay:has(#pay-year:checked) .when-month { display: none; }
+.tier .price-year { font-size: 1.1rem; font-weight: 700; margin-top: 0.15rem; }
+.tier .price-how { color: var(--muted); font-size: 0.85rem; }
+.tier .half { display: block; margin-top: 0.35rem; color: var(--teal); font-size: 0.85rem; font-weight: 650; }
+@media (prefers-color-scheme: dark) { .tier .half { color: var(--mint); } }
+
 /* calculator (workplan 0088 T3) */
 .calc fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.25rem 1.25rem; margin: 1.25rem 0; }
 .calc legend { font-weight: 650; padding: 0 0.4rem; }
@@ -653,10 +674,23 @@ function tierCards(locale) {
       // as a price that could be billed (ADR-0014, 2026-09-24).
       const next = TIERS[i + 1];
       const prices = free(t)
-        ? `<div class="price">${c.tierFree} <span>${c.tierFreeFor}</span></div>
-  <div class="price" style="font-size:1.1rem">${c.tierNoInvoice} <span>${c.tierNoInvoiceWhy}</span></div>`
-        : `<div class="price">${money(t.monthly)} <span>${c.tierMonth}</span></div>
-  <div class="price" style="font-size:1.1rem">${money(t.annual)} <span>${c.tierYear}</span></div>`;
+        ? `<div class="price">${c.tierFree}</div>
+  <div class="price-year">${c.tierFreeFor}</div>
+  <div class="price-how">${c.tierNoInvoice}, ${c.tierNoInvoiceWhy}</div>`
+        : // A year shown per month is the year divided by twelve, with the year's
+          // total in bold under it, never in small print, and the comparison of
+          // two prices on sale now: nothing struck through, no former price. A
+          // year that does not divide into whole cents stops the build in money().
+          `<div class="when-year">
+    <div class="price">${money(t.annual / 12)} <span>${c.tierMonth}</span></div>
+    <div class="price-year">${c.payYearTotal(money(t.annual))}</div>
+    <div class="price-how">${c.payYearHow}</div>
+    <div class="half">${c.payHalf}</div>
+  </div>
+  <div class="when-month">
+    <div class="price">${money(t.monthly)} <span>${c.tierMonth}</span></div>
+    <div class="price-how">${c.payMonthHow}</div>
+  </div>`;
       const terms = free(t)
         ? `<li>${c.tierFreeEdge(next.name)}</li>`
         : `<li>${c.tierNoSetup}</li>
@@ -1010,7 +1044,12 @@ export function build({ alpha = ALPHA } = {}) {
             .replace('{MAILTO}', `mailto:${SUPPORT_EMAIL}`);
           body = body.replace(
             '<p>[[TIERS]]</p>',
-            tierCards(locale) +
+            `<div class="pay"><fieldset class="pay-switch"><legend>${c.payLabel}</legend><div class="pay-options">` +
+              `<input type="radio" name="pay" id="pay-year" value="year" checked /><label for="pay-year">${c.payYear}</label>` +
+              `<input type="radio" name="pay" id="pay-month" value="month" /><label for="pay-month">${c.payMonth}</label>` +
+              `</div></fieldset><p class="pay-rule">${c.payRule}</p>` +
+              tierCards(locale) +
+              '</div>' +
               `<div class="cta"><a class="btn btn-ghost" href="${urlFor(locale, 'calculator')}">${c.ctaEstimate}</a></div>` +
               `<p class="fineprint">${esc(c.vatIncluded)}</p>` +
               `<p class="fineprint">${beyond}</p>`,
