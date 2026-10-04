@@ -18,11 +18,13 @@
  *   - in production, blank is a WARNING that names both honest answers: `0`
  *     when nothing is backed up, and the number of days backups are kept;
  *   - with the alpha setting on (`OWNPACE_STAGE=alpha`, 0131 T1), blank is
- *     FATAL whatever `NODE_ENV` says, because `managed.yml` defaults
- *     `NODE_ENV` to `development` and an alpha stack must not start while it
- *     quotes backups by default. It names `ownpace-live`'s own number, 7, the
- *     most days a dump taken before a deploy is kept (0134 open question 1
- *     (b), 2026-09-28), and no longer points at 0 "as during the alpha";
+ *     FATAL whatever `NODE_ENV` says, because the OTA stack runs
+ *     `development` by the owner's choice (workplan 0132 T4, 2026-10-04; until
+ *     then `managed.yml` defaulted it to `development`) and an alpha stack must
+ *     not start while it quotes backups by default. It names `ownpace-live`'s
+ *     own number, 7, the most days a dump taken before a deploy is kept (0134
+ *     open question 1 (b), 2026-09-28), and no longer points at 0 "as during
+ *     the alpha";
  *   - a stated number, `0` or `7`, is never a problem.
  *
  * Whether the alpha case should be fatal or only a warning is 0134 open

@@ -128,10 +128,12 @@ export const assertProductionUrlConfig = (
  *    nothing is backed up, and the number of days backups are kept.
  *  - With the alpha setting on (`OWNPACE_STAGE=alpha`, 0131 T1), blank is
  *    FATAL whatever NODE_ENV says, so an alpha stack cannot start while it
- *    quotes backups by default. It does not wait for production because
- *    `managed.yml` defaults NODE_ENV to `development`. It names live's own
- *    number, 7, the most days a dump taken before a deploy is kept (0134 open
- *    question 1 (b), 2026-09-28), so it never points live's operator at 0.
+ *    quotes backups by default. It does not wait for production because the
+ *    OTA stack runs `development` by the owner's choice (workplan 0132 T4,
+ *    2026-10-04); `managed.yml` no longer defaults NODE_ENV, every stack's
+ *    `.env` names it. It names live's own number, 7, the most days a dump
+ *    taken before a deploy is kept (0134 open question 1 (b), 2026-09-28),
+ *    so it never points live's operator at 0.
  *  - A stated number, 0 or 7 or any other, is never a problem here. A value
  *    that is not a whole number is refused where it is read, by
  *    `backupRetentionDaysFromEnv`.

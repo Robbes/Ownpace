@@ -2,9 +2,84 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-09-29 (update this block at the end of every session)
+## Status — 2026-10-04 (update this block at the end of every session)
 
-**2026-09-29, latest: review fixes to T6 step 4 and T7's backstop**, same branch, not merged;
+**2026-10-04, latest: T4 decided and built, and T4b added** (audit item 4, *settings that fail
+safe*), on branch `claude/ownpace-public-readiness-y7orc6-a-stack-that-names-its-mode`, not
+merged. The owner's answers: the OTA stack runs *"Development, said explicitly"*, and a live
+deploy without `ALERT_ENABLED=true` is refused (*"Refuse to deploy"*, 0142 T0). §3 T4 quotes both
+and names the rejected options; the first proposal, production on both, is kept there as history.
+
+- **Every stack names its mode.** `managed.yml` takes `${NODE_ENV:?…}` with no default; the
+  example keeps `production`, so a copied stack fails safe. The gate writes `development` into the
+  OTA stack's `.env` when it gives no value (absent, blank, whitespace, a note alone), before its
+  backfill from the example, and logs it. A value that is there is kept, with a warning when it
+  is not `development`. The bring-up names the fix when Compose cannot render without it.
+- **Live.** `deploy-live.sh` refuses a `.env` whose `NODE_ENV` is not `production` or whose
+  `ALERT_ENABLED` is not exactly `true`, or with a line in a form its reader does not read and
+  the bring-up does, before the fetch and any docker call, in `--dry-run` too, and asks the api
+  container after the bring-up. `stand-up-live.sh` refuses the same `ALERT_ENABLED`, and its
+  last steps ask for 0142 T0's test alert.
+- **T4b: an issuer without an audience does not start.** No workplan owned it. The API refuses to
+  start with `JWT_ISSUER` set and `JWT_AUDIENCE` empty, on every `NODE_ENV`, and the verifier
+  never passes an empty audience (a 500 naming the setting, before the issuer is asked).
+  `setup-zitadel.sh` writes both, so nothing changes on either stack.
+- **Proved, guards first, each run on the unchanged code** (counts after the review round
+  below).
+  - `scripts/a-stack-that-names-its-mode.unit.test.ts` (new, 19 cases): 14 red before, 19 green
+    after. It runs the gate's Fill step for real: absent, blank, whitespace, a note alone or `""`
+    gives development, written and persisted; production or development already there, bare, with
+    `export` or in double quotes, is kept and named, with a warning for production and none for
+    development. With the write moved after the loop by hand, the absent and blank cases went red:
+    the loop had written production. With the warning's `echo` replaced by `:`, the two production
+    cases went red. It also runs `load_env` with a `docker` stub: on a `.env` without `NODE_ENV` it
+    names both `env-upsert.sh` lines and this task, not `ensure-env-secrets.sh`.
+  - `scripts/managed-env-contract.unit.test.ts` (8 cases): 2 red before (NODE_ENV required with
+    the example's production; the gate's write before its loop), all green after.
+  - `scripts/a-deploy-from-a-named-tag.unit.test.ts` (158 cases): 14 red before (eight `.env`
+    refusals and three lines its reader does not read, each also in `--dry-run`; the api
+    container's production on the happy path; two deploys that did not take on the container's
+    answer), all green after.
+  - `scripts/a-first-bring-up-of-live.unit.test.ts` (174 cases): 5 red before (four
+    `ALERT_ENABLED` refusals; the fix and 0142 T0 named, on `--resume` too), all green after.
+  - `apps/api`: 19 red before. `auth.unit.test.ts` (6 cases): a token minted for
+    `some-other-service` was let through with `JWT_AUDIENCE` absent or empty, and given a 401 when
+    blank, with `JWT_SECRET` beside the issuer or not; now a 500 before the issuer is asked (the
+    stubbed discovery fetch is never called). `auth-verify.unit.test.ts` (13 cases):
+    `assertManagedAudience`, with and without `JWT_SECRET`; its call, the first statement of
+    `index.ts`'s start block; and the API itself, started with `node src/index.ts`, an issuer, a
+    secret and no audience or database, on `NODE_ENV` development, production and unset: it stops
+    on `JWT_AUDIENCE`, never on `DATABASE_URL`. All green after.
+  - Fixtures only, green before and after: `one-rule-for-a-release-tag` (14), and
+    `issuer-is-replaceable`, which now sets an audience.
+- **Review round, same day** (each shown red by a mutation, then green):
+  - `deploy-live.sh` read `NODE_ENV` and `ALERT_ENABLED` at the start of a line only. An indented
+    `NODE_ENV=development` after a correct line passed, and the bring-up's `set -a; . .env` and
+    Compose put it in force. It now refuses any key set in such a form, by line and key, as the
+    stand-up does; `unread_keys` moved into `env-read.sh`. Its failure after the bring-up no
+    longer blames a shell export, which the bring-up's `set -a` overrides.
+  - The gate tested the line's shape, not its value: whitespace or a note counted as set, and an
+    `export` line as absent, so development was appended after it. It reads the value now, and its
+    loop leaves `NODE_ENV` alone.
+  - Mutations the first build's tests let through: the boot call wrapped in a production check;
+    an early return when `JWT_SECRET` is set; `getJWKS` asked before the door's refusal; the
+    gate's warning dropped; the bring-up's advice dropped. Each now turns a test red.
+- **For the owner, on each stack.**
+  - **Live: before the next live deploy (or the stand-up), add `ALERT_ENABLED=true` to live's
+    `.env`**, beside `NODE_ENV=production`. Once live stands, send 0142 T0's test alert and write
+    its outcome in 0142's Status block. While alerts are on, a row red for three minutes during a
+    bring-up mails you.
+  - **OTA: read the gate's first run on a `main` carrying this.** Its Fill step logs either
+    `wrote NODE_ENV=development` or `NODE_ENV is set in the OTA stack's .env, and kept:
+    NODE_ENV=…`. `managed.env.example` has said `production` since 2026-07-19, and the bring-up
+    copies it into a fresh `.env`, so the persisted file may say production already; what it says
+    cannot be seen from here. If the run kept `production`, it also warns; then run
+    `./deploy/compose/env-upsert.sh ~/.persistent/ownpace-managed/.env NODE_ENV=development`.
+    A hand-run compose call in `~/ownpace-managed` needs the line too: a linked `.env` gets it
+    from the gate's first run; a copy of its own needs it added by hand with `env-upsert.sh`
+    (`docs/managed-bring-up.md`, *The OTA stack*).
+
+**2026-09-29: review fixes to T6 step 4 and T7's backstop**, same branch, not merged;
 0139's Status block (2026-09-29) says what each fixes and what proved it.
 
 - **T6 (a): a tag without the scripts live is kept by is refused before anything moves.**
@@ -781,7 +856,9 @@ on live, which is not stood up (T1b); the script has run only against the stubs 
   and the exit stays the deploy's, 0 or 3.
 - **NODE_ENV (T4).** Not built: `managed.yml` still has `NODE_ENV: ${NODE_ENV:-development}` for
   the API, and no check reads it. The script does not invent one; it prints that NODE_ENV is not
-  checked and why.
+  checked and why. *2026-10-04: built with T4. The script refuses a live `.env` whose `NODE_ENV`
+  is not `production` or whose `ALERT_ENABLED` is not `true` (0142 T0), before the fetch, and asks
+  the api container after the bring-up; the "not checked" line is gone.*
 - **The guard, and that it failed first.** `scripts/a-deploy-from-a-named-tag.unit.test.ts`, 61
   cases as first built (83 since `--dry-run`, 84 with the one-line exit, below). Each builds a checkout of its own: a real git
   repository with a bare origin beside it, whose commits carry the script, `env-read.sh`,
@@ -1649,7 +1726,8 @@ conflicted: both new entries kept. Nothing has run on the machine, and live does
 | T1g Live is deployed by hand from a tag; CI never touches it | The code half ✅ **done** in #1265, merged 2026-09-28 (`c292fffb`); live's own deploys are T6 (a) — *was:* 🔨 the code half built on branch `claude/ownpace-public-readiness-y7orc6-a-gate-that-leaves-the-alpha-alone`, not merged (2026-09-27); 📋 **Decided 2026-09-24** (D7); the code 📋 **Proposed** | §3. The OTA stack keeps following `main` nightly. The procedure is T6; tags are 0146's. The marker's name, `STACK_KIND=production`, is defined once in `deploy/compose/stack-kind.sh` (2026-09-27, with 0143 T9's script), and this task's refusals source it. Built: the gate's refusal (`refuse-live-env.sh`, in the restore, before its first copy), the reader's refusal of live's marker on the OTA project, and the runbook's and release checklist's wording; the Status block says how. |
 | T2 Database passwords the repository does not contain | The rotation script ✅ **done** in #1307, merged 2026-09-28 (`83eb73ed`): `rotate-db-passwords.sh` (`--check`, `--sync`, `--rotate [--with-trigger-stores]`) with `db-roles.sh`, approved by the owner (2026-09-28); on the OTA stack the change itself (T0 step 2) is the owner's to run. The `trigger-db` part 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-first-bring-up-of-live`, not merged (2026-09-28): `TRIGGER_DB_PASSWORD`, read by `managed.yml` and falling back to today's literal, set only by the stand-up script on a new volume. The bring-up's code, (b) and the refusals of shipped values 📋 **Proposed** — *was:* 📋 **Decided 2026-09-24** (D2, D3) on the machine; the code 📋 **Proposed** | §3. Now chiefly the OTA stack, whose roles hold the shipped values: `ALTER ROLE`, because `.env` does not reach a role that already exists. On live the owner sets them in its `.env` before its first bring-up (D8, T1b). The bring-up sets the roles from `.env`, and refuses shipped values on a real address. |
 | T3 "Not reachable from the internet", checked | (b) the exposure check and (c) the outside probe ✅ **done** in #1271, merged 2026-09-28 (`6088f469`), not yet run on the machine or dispatched; (a) the binds ✅ **done** in #1236, merged 2026-09-27, with #1253; (d) the path a tester's request takes 🔨 **its code half built** on branch `claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird`, not merged (2026-09-28, review fixes 2026-09-29): live's `TRUST_PROXY=2` (the stand-up takes 2 or 3 and nothing else), both nginx logs record the address NetBird passes on, the gate's public log filters it out, and the check *one log line of each on live* written, its lines read apart; the check itself waits for live to stand (T1b to T1e); (c) asks the four names for NetBird's sign-in on the same branch (0139, item 8) — *was:* (d) 📋 **Proposed**, waits for live to stand (T1b to T1e); *earlier:* (b) and (c) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-port-nobody-meant-to-open`, not merged (2026-09-28); 📋 **Proposed** (D2, D4, D7); (a) the binds 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. Before the first check and probe the owner sets `EXPOSURE_ALLOW` in each stack's `.env` to every address any container on the machine is published on (both stacks' `*_BIND` values, the site's `WWW_BIND`, the demo's `STALWART_BIND`; commas, no space), and the repository variable `EXPOSURE_PROBE_LIVE_PORTS`. |
-| T4 A stack that does not say it is production does not start | 📋 **Proposed** | §3. `managed.yml`'s `development` default becomes a required value. Live sets `production` at T1b. |
+| T4 A stack that does not say it is production does not start | 🔨 **Built** on branch `claude/ownpace-public-readiness-y7orc6-a-stack-that-names-its-mode`, not merged (2026-10-04); 📋 **Decided 2026-10-04** by the owner: every stack names its mode, the OTA stack runs *"Development, said explicitly"*, and a live `.env` without `ALERT_ENABLED=true` is refused (*"Refuse to deploy"*, 0142 T0); rejected: *"Production on both"* (the first proposal), *"Warn only"*, *"Leave as is"* — *was:* 📋 **Proposed** (production on both) | §3. `managed.yml` takes `${NODE_ENV:?…}`, no default. The example keeps `production`. The gate writes `development` into the OTA stack's `.env` when it gives no value, before its backfill. `stand-up-live.sh` and `deploy-live.sh` refuse a live `.env` whose `NODE_ENV` is not `production` or whose `ALERT_ENABLED` is not `true`, and a line either does not read; `deploy-live.sh` also asks the api container. |
+| T4b An issuer without an audience does not start (added 2026-10-04; no workplan owned it) | 🔨 **Built** on branch `claude/ownpace-public-readiness-y7orc6-a-stack-that-names-its-mode`, not merged (2026-10-04); stated in the plan, no owner decision needed | §3. The API refuses to start when `JWT_ISSUER` is set and `JWT_AUDIENCE` is empty, on every stack and whatever `NODE_ENV` says, and its verifier never passes an empty audience. Both stacks get `JWT_AUDIENCE` from `setup-zitadel.sh`, so nothing changes there. |
 | T5 No demo in the alpha, and the values that left the machine replaced | ✅ **Closed for live 2026-09-24** (D7), and the refusal of `--with-demo` on live 🔨 **built** on branch `claude/ownpace-public-readiness-y7orc6-a-first-bring-up-of-live`, not merged (2026-09-28); 🅿️ **Parked for the OTA stack (trigger: 0026 row 24's own, the OTA stack stops being a demo)** — *was:* the refusal 📋 **Proposed** | §3 and §4. Live never had the demo or its values, so there is nothing to replace. `bootstrap-managed.sh` refuses `--with-demo` on a `.env` that is, or could be, live's (`stack_may_be_live`). Routes (a) and (b) are kept for the OTA stack. |
 | T6 One way to deploy live, from a tag | Step 4, the copy before the update, 🔨 **built 2026-09-28** into `deploy-live.sh` with `copy-before-update.sh` (0139, rec-copies (a)), review fixes 2026-09-29 (a tag without the scripts live is kept by refused, the rollback's `since`), on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, **not merged**; (a) `deploy-live.sh` ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), with 0146 T5 (a), not yet run on live; (b) ✅ **done** in #1232, merged 2026-09-27: every enqueue in the API goes through one function that answers 409 with the hold's sentence; the three web gaps (b) left ✅ **done** in #1284, merged 2026-09-28 (`f7a7a270`). The procedure's steps on the machine are the owner's, once live stands (T1b) and 0146 has cut a release tag — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); (b) ✅ **done** in #1232, merged 2026-09-27; the procedure and (a), `deploy-live.sh`, 📋 **Proposed** (D1, D5, D7) | §3. Hold, drain, a tag, bring-up without the demo, checks, lift. Replaces three procedures that disagree. With 0146. (a) is the deploy script, (b) the hold at every door. The Status block (2026-09-28) says how (a) was built. |
 | T7 What the gate does for the OTA stack, done for live | The drill off live, its duty replaced by the copy's backstop `copies`, 🔨 **built 2026-09-28** (0139, rec-drill (a)), review fixes 2026-09-29 (6 days less an hour, each file by its own age), on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, **not merged**; ✅ **done** in #1276, merged 2026-09-28 (`b2e63ab0`): `box-duties.sh`, `setup-zitadel.sh --token-only` and `--count-organisations`, and a user timer in the bring-up; waits for live to stand (T1b to T1e, from 0146 T0's tag) and for the owner to install the timer — *was:* 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-duty-the-gate-used-to-do`, not merged (2026-09-28); 📋 **Proposed**, with T1b | §3. The identity provider's provisioning token, the Trigger.dev database drill (until 2026-09-28; since then the copy's backstop, 0139), T3's check and 0135's organisation count, on a timer on the machine, for live. |
@@ -1833,7 +1911,9 @@ example sets `production`. Several refusals apply only in production:
 
 The gate's backfill from the example covers only the keys `managed.yml` marks required, and
 `NODE_ENV` is not one of them. So a `.env` without it runs in development. What the OTA stack's
-API has cannot be seen from here; T0 asks it.
+API has cannot be seen from here; T0 asks it. *(2026-10-04: no longer; `managed.yml` takes
+`${NODE_ENV:?…}`, and the gate writes development on the OTA stack when its `.env` gives no value
+(T4).)*
 
 **Values that left the machine.** 0020 records that the stack's generated values (*"DB password,
 `SECRET_ENCRYPTION_KEY`, `tr_prod_` key"*) *"have appeared in pasted logs"*. It also records that
@@ -2011,6 +2091,9 @@ switching the gate off. D7 drops it: the gate keeps running, on the OTA stack.)
      the first reboot after T3 (a) is on the machine, for both stacks and the site.
    - `docker compose -f deploy/compose/managed.yml exec -T api printenv NODE_ENV` prints
      `production` (T4). Run the same from `~/ownpace-managed` for the OTA stack.
+     *2026-10-04: there it prints `development`, the owner's answer to T4, once that `.env` says
+     so. The gate writes it when the `.env` gives no value, and keeps a value that is there: if
+     its log says it kept `production`, set development in the persisted file (T4).*
    - `curl -s https://app.ownpace.eu/api/auth/mode` answers `managed`.
    - `curl -s https://id.ownpace.eu/.well-known/openid-configuration` names
      `https://id.ownpace.eu` as its `issuer`, and the sign-in button on `app.ownpace.eu` leads
@@ -2242,6 +2325,8 @@ question 2. D7 answers it again: the gate is not paused; it keeps the OTA stack.
    with port 443, secure, and TLS terminated in front, in the shape `managed.env.example` shows
    for the OTA names (T1d). The status page's probes default to `WEB_URL` and to the provider's
    own domain, so they follow without a setting of their own. `NODE_ENV=production` (T4).
+   *2026-10-04:* and `ALERT_ENABLED=true` (0142 T0); `stand-up-live.sh` refuses live without
+   either.
 5. **Passwords before the first bring-up (D8).** `ensure-env-secrets.sh` is the right tool for a
    new stack: every secret it knows is blank or a shipped placeholder, and the `env` phase fills
    each one with a fresh value.
@@ -2668,6 +2753,87 @@ believes the leftmost entry, which the caller writes.
 
 ### T4 — a stack that does not say it is production does not start
 
+**Decided 2026-10-04, by the owner, and built the same day** on branch
+`claude/ownpace-public-readiness-y7orc6-a-stack-that-names-its-mode`, not merged. Two questions
+(audit item 4, *settings that fail safe*):
+
+- *"Every stack will have to name its NODE_ENV (no silent 'development'). What should the test
+  stack (OTA) run?"* — **"Development, said explicitly"** (recommended): *"Live must say
+  production, and the live deploy checks it too. The test stack's .env says development, so its
+  self-signed test mail keeps working. The nightly E2E does not test production mode."*
+  Rejected: **"Production on both"**, this task's own first proposal (kept below as history). In
+  production the API turns notifications off while `SMTP_ALLOW_SELF_SIGNED=true`
+  (`packages/shared/src/notifications.ts`, `readNotifierConfig`), and the OTA stack's test mail
+  needs that switch.
+- *"Alerts on live are off unless ALERT_ENABLED=true is in live's .env. What should a live deploy
+  do when it isn't?"* — **"Refuse to deploy"** (recommended): *"stand-up-live and deploy-live
+  stop and say: set ALERT_ENABLED=true. Testers are on live, so nobody should be able to run it
+  without alerts. Your next live deploy needs that line first."* Rejected: **"Warn only"** and
+  **"Leave as is"**.
+
+**What was built.**
+
+- **`managed.yml`.** The api's `NODE_ENV` is `${NODE_ENV:?set NODE_ENV in .env - production on
+  live, development on a test stack (workplan 0132 T4)}`. It is the only service that sets it. A
+  `.env` without it, or with it blank, stops every Compose call with that message. The image's
+  own `ENV NODE_ENV=production` stays; under `managed.yml` it is never reached.
+- **`managed.env.example`** keeps `NODE_ENV=production`, with a note on the line above. Three
+  things read it: the bring-up's `env` phase copies it into a fresh `.env`, live's stand-up copies
+  it into live's, and the gate's backfill fills required keys from it. So a stack copied from it
+  starts in production: fail safe, and what live demands. A blank value was weighed and not
+  chosen: `managed-env-contract.unit.test.ts` requires every `${VAR:?}` key to be generated or
+  to have a non-empty example value; the bring-up's render would then refuse every fresh stack
+  and advise `ensure-env-secrets.sh`, which does not write a mode; and the gate's loop would stop
+  on a key with no default.
+- **The gate writes `development` on the OTA stack.** Its step *Fill in everything the repo
+  already knows how to supply* writes `NODE_ENV=development` when the value Compose would use is
+  empty (absent, blank, whitespace, a note alone, `""`), **before** the loop that backfills
+  required keys from the example, and logs it. A value that is there is kept and named in the
+  log, `export` form and double quotes too, with a warning when it is not `development`; the loop
+  then leaves `NODE_ENV` alone. After the loop, the loop would already have written production and
+  the copy-back persisted it. `scripts/a-stack-that-names-its-mode.unit.test.ts` runs the step
+  itself to prove the order. *(Review, same day: it first tested the line's shape, `^NODE_ENV=.`,
+  so a whitespace value or a note counted as set and an `export` line as absent; it reads the
+  value now.)*
+- **The bring-up's advice.** When Compose cannot render because `NODE_ENV` has no value,
+  `load_env` names the fix (`env-upsert.sh … NODE_ENV=production` on live,
+  `NODE_ENV=development` on a test stack) instead of `ensure-env-secrets.sh`. The note on a
+  freshly created `.env` lists `NODE_ENV` among the decisions. *(Review, same day: guarded in
+  `a-stack-that-names-its-mode`, which runs `load_env` with a `docker` stub.)*
+- **Live.** `stand-up-live.sh` already refused a `NODE_ENV` other than `production`.
+  `deploy-live.sh` now refuses it too, and an `ALERT_ENABLED` that is not exactly `true`, both
+  named at once, by key, before the fetch, the checkout or any docker call, in `--dry-run` too.
+  `stand-up-live.sh` refuses the same `ALERT_ENABLED`, on a `--resume` too, and its last steps
+  ask for 0142 T0's test alert. After the bring-up `deploy-live.sh` asks the api container
+  (`docker compose exec -T api printenv NODE_ENV`), as the stand-up does; it no longer prints
+  "not checked". `"true"` in double quotes is refused: the scripts' reader keeps double quotes,
+  as for `SMTP_*`. *(Review, same day:)* `deploy-live.sh` also refuses, by line and key, a line
+  that sets any key in a form its reader does not read and the bring-up does (indented, a space
+  before `=`, `:` for `=`), as the stand-up does: an indented `NODE_ENV=development` after a
+  correct line passed the check and ran. `unread_keys` moved into `env-read.sh`, which both
+  source. A shell export is not a cause of a wrong mode in the container: every phase of the
+  bring-up sources the `.env` with `set -a`, which overrides it; the failure names the two causes
+  that are left.
+- **Not built: "The refusal" below.** `load_env` refusing any `NODE_ENV` but `production` on a real
+  address would stop the OTA stack, which is at a real address and runs development by the owner's
+  answer.
+- **The task containers.** Unchanged. `set-task-env.sh` and `deploy-tasks.sh` source `.env` with
+  `set -a`, so on the OTA stack `NODE_ENV=development` now reaches the host-side
+  `pnpm install --frozen-lockfile` and the deploy CLI, where the `.env` did not set it. On live
+  `production` already did.
+
+**The rollout.** `deploy-live.sh` runs the copy of itself that was in the checkout before it
+moves, so its refusal binds from the deploy after the one that moves live onto a tag carrying
+it. That tag's `managed.yml` binds at once, and live's `.env` says production. Live is not stood
+up yet; `stand-up-live.sh` from such a tag enforces both at once. A hand-run compose call in
+`~/ownpace-managed` needs `NODE_ENV` in that checkout's `.env`: a linked `.env` gets it from the
+gate's first run on a `main` carrying this, a copy of its own needs it added by hand
+(`docs/managed-bring-up.md`, *The OTA stack*).
+
+**The first proposal (2026-09-24), kept as written.** *Superseded 2026-10-04 where it says
+production on the OTA stack: the gate's backfill now writes development there, and "The gate"
+and "The refusal" below are not built.*
+
 - **The change.** The API's entry in `managed.yml` gets `NODE_ENV: ${NODE_ENV:?…}`, with a message
   that names the fix.
   `managed-env-contract.unit.test.ts` then requires the example to carry a value; it carries
@@ -2682,7 +2848,34 @@ believes the leftmost entry, which the caller writes.
   `set-task-env.sh` does not upload `NODE_ENV`, and this plan did not verify what the runner image
   sets.
 - **The guard.** `scripts/a-stack-that-says-it-is-production.unit.test.ts` checks that no service
-  in `managed.yml` defaults `NODE_ENV` to `development`. It fails today on the API.
+  in `managed.yml` defaults `NODE_ENV` to `development`. It fails today on the API. *(Built
+  2026-10-04 as `scripts/a-stack-that-names-its-mode.unit.test.ts`, the name the owner's answer
+  fits.)*
+
+### T4b — an issuer without an audience does not start (added 2026-10-04)
+
+**No workplan owned this**, so it sits here, beside T4, from the same audit item. Stated in the
+plan without a question: no owner decision was needed.
+
+- **What was wrong.** `verifyManagedToken` in `apps/api/src/middleware/auth.ts` handed
+  `jwtVerify` `audience: process.env.JWT_AUDIENCE`. With that unset or empty, jose checked no
+  audience, so a token the issuer minted for any project passed. `auth.unit.test.ts` set an
+  audience in every case, so nothing showed it. A new case minted a token for
+  `some-other-service` with the audience unset, and the middleware let it through.
+- **The boot refusal.** `assertManagedAudience` in `auth.ts`, called first in `index.ts`'s start
+  block: with `JWT_ISSUER` set and `JWT_AUDIENCE` empty or blank, the API does not start, on every
+  `NODE_ENV`. Not inside `assertProductionAuthConfig`, which returns early outside production; the
+  OTA stack runs development. The message names the setting, that it is the sign-in project's id,
+  and the guide. It names no provider or script of one: `no-issuer-lock-in` keeps provider names
+  out of the shipped source (ADR-0042).
+- **At the door too.** `verifyManagedToken` never passes an empty audience. It refuses before it
+  asks the issuer anything, outside the try that would turn it into a 401, with a 500 that names
+  the setting (`AuthNotConfiguredError`, now with a message of its own).
+- **Nothing changes on either stack.** `setup-zitadel.sh` writes `JWT_ISSUER` and
+  `JWT_AUDIENCE=${PROJECT_ID}` in one call, and dies if the project has no id. The refusal is for
+  an issuer set by hand, the recipe in `docs/managed-bring-up.md`'s table of failures.
+- **`managed.yml` keeps `${JWT_AUDIENCE:-}`.** A `:?` there would refuse every fresh stack before
+  `setup-zitadel.sh` has run, and `idp-wiring.unit.test.ts` pins it.
 
 ### T5 — no demo in the alpha, and the values that left the machine replaced
 
@@ -2847,7 +3040,8 @@ document is changed to mark staged rollout and a backup before migrating as not 
    - `https://app.ownpace.eu/api/version` names the tag's commit.
    - `/api/ready` answers 200.
    - `/api/auth/mode` answers `managed`.
-   - T3's exposure check and T4's `NODE_ENV` check pass.
+   - T3's exposure check and T4's `NODE_ENV` check pass. *(2026-10-04: `deploy-live.sh` asks
+     the api container itself.)*
 8. Lift the hold. The tick's next summary shows passes started, and one of the owner's own
    migrations completes a pass on the new tasks.
 9. Record the date, the tag and the outcome in the deploy log (below).

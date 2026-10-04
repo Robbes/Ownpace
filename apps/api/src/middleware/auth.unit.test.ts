@@ -168,6 +168,7 @@ beforeEach(async () => {
 afterEach(() => {
   delete process.env.JWT_ISSUER;
   delete process.env.JWT_AUDIENCE;
+  delete process.env.JWT_SECRET;
   __setMembershipLookupForTests(null);
   stub.resolveKey = null;
   __resetJwksCacheForTests();
@@ -307,6 +308,40 @@ describe('authenticate — managed JWKS path, refusing a bad token', () => {
     const { status, passed } = await run(undefined);
     expect(status).toBe(401);
     expect(passed).toBe(false);
+  });
+});
+
+describe('authenticate — managed JWKS path with no audience configured (workplan 0132, 2026-10-04)', () => {
+  // With JWT_AUDIENCE unset, `jwtVerify` was handed `audience: undefined` and
+  // skipped the check: a token the issuer minted for ANY project opened this
+  // API. The boot refusal (`assertManagedAudience`) keeps such a server from
+  // starting; this is the same rule at the door, for a process that started
+  // some other way. It is our configuration that is wrong, so the answer is a
+  // 500 that names the setting, never a 401 that blames the caller's token.
+  // With JWT_SECRET beside the issuer too, as on both stacks (managed.yml
+  // requires it): the issuer still decides the mode, and the rule holds.
+  it.each([
+    ['absent', 'without', undefined],
+    ['empty', 'without', ''],
+    ['blank', 'without', '   '],
+    ['absent', 'with', undefined],
+    ['empty', 'with', ''],
+    ['blank', 'with', '   '],
+  ])('REFUSES a token minted for another project while JWT_AUDIENCE is %s, %s JWT_SECRET, naming the setting, before the issuer is asked', async (_label, secret, value) => {
+    if (value === undefined) delete process.env.JWT_AUDIENCE;
+    else process.env.JWT_AUDIENCE = value;
+    if (secret === 'with') process.env.JWT_SECRET = 'a-test-secret-that-is-no-placeholder-7f3a9c';
+    const forAnotherProject = await sign(issuerKeys.privateKey, claims(), { audience: 'some-other-service' });
+
+    const { status, passed, body } = await run(forAnotherProject);
+
+    expect(passed, "a token the issuer minted for another project opened this API").toBe(false);
+    expect(status).toBe(500);
+    expect(JSON.stringify(body)).toContain('JWT_AUDIENCE');
+    expect(JSON.stringify(body)).toContain("sign-in project's id");
+    // Refused on our own configuration, before discovery: the issuer's
+    // discovery document (the stubbed fetch) was never asked for.
+    expect(fetch, 'the issuer was asked before the refusal').not.toHaveBeenCalled();
   });
 });
 

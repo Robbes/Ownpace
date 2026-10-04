@@ -75,9 +75,11 @@ client:
 # Google outage is not the owner's to fix, and the page already shows it.
 #
 # OFF UNLESS THE STACK SAYS ON. Every alert below reads the one switch,
-# ALERT_ENABLED, which managed.yml defaults to false. Live's .env turns it on;
-# the OTA stack leaves it off, because the nightly gate recreates its web app
-# and API on schedule and the one person an alert would reach already knows.
+# ALERT_ENABLED, which managed.yml defaults to false. Live's .env turns it on,
+# and stand-up-live.sh and deploy-live.sh refuse a live .env without
+# ALERT_ENABLED=true (0142 T0; the owner, 2026-10-04). The OTA stack leaves it
+# off, because the nightly gate recreates its web app and API on schedule and
+# the one person an alert would reach already knows.
 #
 # THREE THINGS GATUS DOES, read in its source at v5.36.0 rather than assumed:
 #
