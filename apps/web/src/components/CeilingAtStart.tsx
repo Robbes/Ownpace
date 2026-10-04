@@ -17,9 +17,9 @@
  * Managed only, and for owners and admins, who are the ones the ceiling is
  * read for and who can say yes (`/billing/ceiling` is theirs, like the rest of
  * billing). Anyone else, and a read that fails, sees the step as it was: the
- * hold still says it at the ceiling. During the alpha it warns all the same,
- * and says nothing waits. Rendered through `CeilingAtStartNote`, which keeps
- * it out of the appliance's bundle.
+ * hold still says it at the ceiling. Nothing during the alpha: what moves then
+ * never counts (the owner, 2026-10-04), so there is nothing to pass. Rendered
+ * through `CeilingAtStartNote`, which keeps it out of the appliance's bundle.
  */
 import React from 'react';
 import { Link } from 'react-router';
@@ -44,7 +44,8 @@ export const CeilingAtStart: React.FC<{ bytes: number }> = ({ bytes }) => {
     retry: false,
   });
   const c = ceiling.data;
-  if (!c || bytes <= 0) return null;
+  // During the alpha what moves never counts, so it passes nothing.
+  if (!c || !c.holds || bytes <= 0) return null;
   const startingGb = bytes / BYTES_PER_GB;
   if (c.gbMoved + startingGb <= c.ceilingGb) return null;
 
@@ -56,19 +57,15 @@ export const CeilingAtStart: React.FC<{ bytes: number }> = ({ bytes }) => {
       <p>
         {t('ceiling.atStart', { size: size(startingGb), moved: size(c.gbMoved), ceiling: size(c.ceilingGb) })}
       </p>
-      {c.holds ? (
-        <p>
-          {t('ceiling.atStart.holds')}{' '}
-          {c.moveUp && t('pause.dataCeiling.moveUp', { tier: c.moveUp.name, monthly: number(c.moveUp.monthlyEur) })}{' '}
-          {c.topUp && t('pause.dataCeiling.topUp', { band: size(c.topUp.bandGb), price: number(c.topUp.priceEur) })}{' '}
-          {t('ceiling.atStart.choose')}{' '}
-          <Link to="/billing" className="underline font-medium">
-            {t('ceiling.atStart.billing')}
-          </Link>
-        </p>
-      ) : (
-        <p>{t('ceiling.atStart.alpha')}</p>
-      )}
+      <p>
+        {t('ceiling.atStart.holds')}{' '}
+        {c.moveUp && t('pause.dataCeiling.moveUp', { tier: c.moveUp.name, monthly: number(c.moveUp.monthlyEur) })}{' '}
+        {c.topUp && t('pause.dataCeiling.topUp', { band: size(c.topUp.bandGb), price: number(c.topUp.priceEur) })}{' '}
+        {t('ceiling.atStart.choose')}{' '}
+        <Link to="/billing" className="underline font-medium">
+          {t('ceiling.atStart.billing')}
+        </Link>
+      </p>
     </div>
   );
 };

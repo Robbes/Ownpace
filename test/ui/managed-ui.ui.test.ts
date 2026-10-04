@@ -737,6 +737,7 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
         ceilingGb: 250,
         topUps: 0,
         gbMoved: 248,
+        gbMovedInTheAlpha: 0,
         share: 0.992,
         state: 'near',
         holds: true,

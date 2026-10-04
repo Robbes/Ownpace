@@ -30,6 +30,7 @@ const NEAR_ON_SMALL: Ceiling = {
   ceilingGb: 750,
   topUps: 0,
   gbMoved: 700,
+  gbMovedInTheAlpha: 0,
   share: 700 / 750,
   state: 'near',
   holds: true,
@@ -43,6 +44,7 @@ const UNDER_ON_FREE: Ceiling = {
   ceilingGb: 250,
   topUps: 0,
   gbMoved: 10,
+  gbMovedInTheAlpha: 0,
   share: 0.04,
   state: 'under',
   holds: true,
@@ -89,6 +91,14 @@ describe('where the data stands', () => {
     getCeiling.mockResolvedValue({ ...NEAR_ON_SMALL, ceilingGb: 1500, topUps: 1, gbMoved: 1300, share: 1300 / 1500 });
     renderCard();
     expect(await screen.findByText(/1\.3 TB of 1\.5 TB moved, on Small\. That includes 1 extra band\(s\) bought/)).toBeVisible();
+  });
+
+  it('says what the alpha moved on a line of its own: it never counts (the owner, 2026-10-04)', async () => {
+    getCeiling.mockResolvedValue({ ...UNDER_ON_FREE, gbMovedInTheAlpha: 600 });
+    renderCard();
+    expect(
+      await screen.findByText('Another 600 GB was moved during the Alpha, which never counts toward your ceiling.'),
+    ).toBeInTheDocument();
   });
 
   it('says a failed read as one', async () => {

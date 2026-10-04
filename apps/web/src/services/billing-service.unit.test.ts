@@ -70,7 +70,19 @@ describe('UsageResponseSchema vs the usage route', () => {
       decidedBy: 'data',
       evidence: { peakPaths: 4, peakAt: '2026-08-12', gbMoved: 900 },
       period: '2026-08',
+      billed: {
+        tier: { id: 'small', name: 'Small', paths: 4, dataGb: 750, monthlyCents: 500, annualCents: 3000 },
+        beyond: ['bands'],
+      },
+      ceilingGb: 1500,
+      topUps: 1,
+      gbMovedInTheAlpha: 600,
+      holds: true,
     });
+    // What the month bills, beside what was used, and what the alpha moved
+    // (0109 T6; the owner, 2026-10-04).
+    expect(parsed.billed).toMatchObject({ tier: { id: 'small' }, beyond: ['bands'] });
+    expect(parsed.gbMovedInTheAlpha).toBe(600);
     // Whole EUROS, as ADR-0014's table publishes them — not cents. A schema
     // that shrugged here would let the screen print a hundredth of the price.
     expect(parsed.tier?.monthlyCents).toBe(1200);
@@ -93,6 +105,15 @@ describe('UsageResponseSchema vs the usage route', () => {
       decidedBy: 'both',
       evidence: { peakPaths: 900, peakAt: null, gbMoved: 90000 },
       period: '2026-08',
+      // Past the table, the month bills the agreed tier, and says why.
+      billed: {
+        tier: { id: 'xl', name: 'Extra large', paths: 200, dataGb: 15000, monthlyCents: 8000, annualCents: 48000 },
+        beyond: ['paths', 'data'],
+      },
+      ceilingGb: 15000,
+      topUps: 0,
+      gbMovedInTheAlpha: 0,
+      holds: true,
     });
     // "Talk to us" is the site's published ending. A schema that rejected it
     // would blank the whole screen for exactly the largest customer.
@@ -145,8 +166,17 @@ describe('UsageResponseSchema vs the usage route', () => {
         decidedBy: 'paths',
         evidence: { peakPaths: 1, peakAt: null, gbMoved: 1 },
         period: '2026-08',
+        // Everything else as the route serves it, so only the tier's id is wrong.
+        billed: {
+          tier: { id: 'free', name: 'Free', paths: 1, dataGb: 250, monthlyCents: 0, annualCents: 0 },
+          beyond: ['paths'],
+        },
+        ceilingGb: 250,
+        topUps: 0,
+        gbMovedInTheAlpha: 0,
+        holds: true,
       }),
-    ).toThrow();
+    ).toThrow(/enterprise|invalid/i);
   });
 });
 

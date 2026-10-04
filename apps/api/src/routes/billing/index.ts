@@ -29,6 +29,7 @@ import {
   PgBytesMovedStore,
   PgDataAllowanceStore,
   allowanceOf,
+  billedTierOf,
   breakEvenOf,
   decidePathsYes,
   decideYes,
@@ -204,14 +205,16 @@ router.get('/usage', authenticate, requireBillingRead, async (req: Authenticated
     // screen prices nothing, so this assembles the same three numbers and
     // hands them to `observedTier`, which derives the identical answer with
     // nothing written (0109 T4's rule, applied to the tenant's own screen).
-    const { metrics, peak, pathsNow, bytesMoved } = await withTenantDb(
+    const { metrics, peak, pathsNow, meter, grants } = await withTenantDb(
       tenantId,
       getSharedPool(),
       async (db) => ({
         metrics: await getUsageMetricsForPeriod(db, asTenantId(tenantId), periodStart, periodEnd),
         peak: await new PgOccupancyPeakStore(db).forMonth(asTenantId(tenantId), new Date()),
         pathsNow: await new PgPathLifecycleStore(db).slotsHeld(asTenantId(tenantId)),
-        bytesMoved: await new PgBytesMovedStore(db).total(asTenantId(tenantId)),
+        // What counts, and what the alpha moved, which does not (managed 0040).
+        meter: await new PgBytesMovedStore(db).read(asTenantId(tenantId)),
+        grants: await new PgDataAllowanceStore(db).grants(asTenantId(tenantId)),
       }),
     );
 
@@ -238,8 +241,21 @@ router.get('/usage', authenticate, requireBillingRead, async (req: Authenticated
     const { tier, decidedBy, evidence } = observedTier(
       peak?.peakPaths ?? 0,
       pathsNow,
-      Number(bytesMoved) / BYTES_PER_GB,
+      Number(meter.counted) / BYTES_PER_GB,
     );
+    // What the month bills: what it used, never above the agreed tier
+    // (ADR-0014; the owner, 2026-10-04). The page names it once the alpha
+    // ends; during the alpha nothing is billed, and it names what was used.
+    const allowance = allowanceOf(grants);
+    const billed = billedTierOf(tier, allowance, evidence.peakPaths, evidence.gbMoved);
+    const tierBody = (t: NonNullable<typeof tier>) => ({
+      id: t.id,
+      name: t.name,
+      paths: t.paths,
+      dataGb: t.dataGb,
+      monthlyCents: t.monthlyCents,
+      annualCents: t.annualCents,
+    });
 
     // NO `currentCost`. It used to carry `calculateCost` — base fee, per-GB
     // storage and egress, per-hour compute, VAT and a total — which is the
@@ -254,24 +270,25 @@ router.get('/usage', authenticate, requireBillingRead, async (req: Authenticated
     // measurement is instrumentation, and the customer gets to see it).
     res.json({
       usage,
-      // Null past the end of the table: the same deliberate "talk to us" the
-      // site publishes and the calculator returns.
-      tier: tier
-        ? {
-            id: tier.id,
-            name: tier.name,
-            paths: tier.paths,
-            dataGb: tier.dataGb,
-            monthlyCents: tier.monthlyCents,
-            annualCents: tier.annualCents,
-          }
-        : null,
+      // What was used. Null past the end of the table: the same deliberate
+      // "talk to us" the site publishes and the calculator returns.
+      tier: tier ? tierBody(tier) : null,
       decidedBy,
       evidence: {
         peakPaths: evidence.peakPaths,
         peakAt: peak?.peakAt ?? null,
+        // As it counts: the alpha's data does not.
         gbMoved: evidence.gbMoved,
       },
+      // What the month bills, and why, when what was used is past it.
+      billed: { tier: tierBody(billed.tier), beyond: billed.beyond },
+      // The data ceiling the data counts against, and the bands bought.
+      ceilingGb: allowance.ceilingGb,
+      topUps: allowance.topUps,
+      // Moved during the alpha, which never counts (the owner, 2026-10-04).
+      gbMovedInTheAlpha: Number(meter.inTheAlpha) / BYTES_PER_GB,
+      // False during the alpha, where nothing is billed.
+      holds: holdsAtCeiling(process.env.OWNPACE_STAGE),
       period: periodStart.slice(0, 7),
     });
   } catch (error) {
@@ -286,7 +303,7 @@ router.get('/usage', authenticate, requireBillingRead, async (req: Authenticated
  * and takes a yes: not during the alpha (the owner, 2026-10-03: *"A"*), where
  * nothing is charged and the ceiling only warns.
  */
-function ceilingBody(c: Ceiling, holds: boolean) {
+function ceilingBody(c: Ceiling, holds: boolean, gbMovedInTheAlpha: number) {
   return {
     tier: {
       id: c.allowance.tier.id,
@@ -297,6 +314,8 @@ function ceilingBody(c: Ceiling, holds: boolean) {
     ceilingGb: c.allowance.ceilingGb,
     topUps: c.allowance.topUps,
     gbMoved: c.gbMoved,
+    // Moved during the alpha, which never counts (the owner, 2026-10-04).
+    gbMovedInTheAlpha,
     share: c.share,
     state: c.state,
     holds,
@@ -315,6 +334,11 @@ function ceilingBody(c: Ceiling, holds: boolean) {
   };
 }
 
+/** What the alpha moved, in decimal GB: shown beside the ceiling, never counted against it. */
+async function alphaGbOf(db: Parameters<typeof readCeiling>[0], tenantId: string): Promise<number> {
+  return Number((await new PgBytesMovedStore(db).read(asTenantId(tenantId))).inTheAlpha) / BYTES_PER_GB;
+}
+
 /**
  * GET /api/billing/ceiling
  *
@@ -326,8 +350,11 @@ router.get('/ceiling', authenticate, requireBillingRead, async (req: Authenticat
   try {
     const tenantId = req.tenantId;
     if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
-    const ceiling = await withTenantDb(tenantId, getSharedPool(), (db) => readCeiling(db, asTenantId(tenantId)));
-    res.json(ceilingBody(ceiling, holdsAtCeiling(process.env.OWNPACE_STAGE)));
+    const { ceiling, alphaGb } = await withTenantDb(tenantId, getSharedPool(), async (db) => ({
+      ceiling: await readCeiling(db, asTenantId(tenantId)),
+      alphaGb: await alphaGbOf(db, tenantId),
+    }));
+    res.json(ceilingBody(ceiling, holdsAtCeiling(process.env.OWNPACE_STAGE), alphaGb));
   } catch (error) {
     serverFault(res, 'ceiling_failed', 'reading your data ceiling', error);
   }
@@ -366,10 +393,11 @@ router.post('/ceiling/yes', authenticate, requireBillingWrite, async (req: Authe
       // must not buy two bands. Released with the transaction.
       await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'data_allowance:' + tenantId}))`);
       const before = await readCeiling(db, asTenantId(tenantId));
+      const alphaGb = await alphaGbOf(db, tenantId);
       const decision = decideYes(before, parsed.data);
-      if (!decision.ok) return { refused: decision.reason, ceiling: before } as const;
+      if (!decision.ok) return { refused: decision.reason, ceiling: before, alphaGb } as const;
       await new PgDataAllowanceStore(db).record(asTenantId(tenantId), decision.grant, req.userId ?? 'unknown');
-      return { ceiling: await readCeiling(db, asTenantId(tenantId)) } as const;
+      return { ceiling: await readCeiling(db, asTenantId(tenantId)), alphaGb } as const;
     });
     const holds = holdsAtCeiling(process.env.OWNPACE_STAGE);
     if ('refused' in outcome) {
@@ -383,10 +411,10 @@ router.post('/ceiling/yes', authenticate, requireBillingWrite, async (req: Authe
         error: outcome.refused,
         message: reason,
         reason,
-        ceiling: ceilingBody(outcome.ceiling, holds),
+        ceiling: ceilingBody(outcome.ceiling, holds, outcome.alphaGb),
       });
     }
-    res.json(ceilingBody(outcome.ceiling, holds));
+    res.json(ceilingBody(outcome.ceiling, holds, outcome.alphaGb));
   } catch (error) {
     serverFault(res, 'ceiling_yes_failed', 'recording your yes', error);
   }
