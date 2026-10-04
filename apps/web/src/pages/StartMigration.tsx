@@ -78,6 +78,7 @@ import {
   type StartProvider,
 } from '../services/start-plan.ts';
 import { MigrationCountSection, useMigrationCount } from '../components/ConfirmMigration.tsx';
+import { CeilingAtStartNote, measuredBytes } from '../components/CeilingAtStartNote.tsx';
 import { needsAcknowledgement } from '../components/confirm/native-refusals.tsx';
 import ScopeManifestPanel from '../components/confirm/ScopeManifestPanel.tsx';
 import { PersonGrantLinkSection } from '../components/MappingLinksPanel.tsx';
@@ -1499,6 +1500,12 @@ export const CheckStep: React.FC<{
     (id: string, now: boolean) => setReady((prev) => (prev[id] === now ? prev : { ...prev, [id]: now })),
     [],
   );
+  // What each migration's count measured, for the data ceiling (0109 T6).
+  const [measured, setMeasured] = React.useState<Readonly<Record<string, number>>>({});
+  const onMeasured = React.useCallback(
+    (id: string, bytes: number) => setMeasured((prev) => (prev[id] === bytes ? prev : { ...prev, [id]: bytes })),
+    [],
+  );
   const [starting, setStarting] = React.useState(false);
   const [started, setStarted] = React.useState<ReadonlySet<string>>(new Set());
   const [startFailed, setStartFailed] = React.useState<Readonly<Record<string, string>>>({});
@@ -1564,6 +1571,7 @@ export const CheckStep: React.FC<{
             mappingId={m.id}
             title={titles[m.key] ?? ''}
             onReady={onReady}
+            onMeasured={onMeasured}
             {...(m.notAdded === undefined ? {} : { notAdded: m.notAdded })}
             {...(startFailed[m.id] === undefined ? {} : { failed: startFailed[m.id] })}
           />
@@ -1586,6 +1594,9 @@ export const CheckStep: React.FC<{
           {t('confirm.manifestError')} {serverMessage(manifest.error)}
         </p>
       )}
+      {/* The data ceiling, before the press (0109 T6): what Start starts, added
+          to what has moved. A note, never a block. */}
+      {allReady && <CeilingAtStartNote bytes={counted.reduce((sum, m) => sum + (measured[m.id] ?? 0), 0)} />}
       <div className="flex flex-col items-end">
         <button
           type="button"
@@ -1656,12 +1667,15 @@ const MigrationCheck: React.FC<{
   notAdded?: string;
   failed?: string;
   onReady: (mappingId: string, ready: boolean) => void;
-}> = ({ mappingId, title, notAdded, failed, onReady }) => {
+  onMeasured?: (mappingId: string, bytes: number) => void;
+}> = ({ mappingId, title, notAdded, failed, onReady, onMeasured }) => {
   const { t } = useLocale();
   const count = useMigrationCount(mappingId);
   const [acked, setAcked] = React.useState(false);
   const ready = !count.stillCounting && (!needsAcknowledgement(count.domains) || acked);
   React.useEffect(() => onReady(mappingId, ready), [mappingId, ready, onReady]);
+  const bytes = measuredBytes(count.domains);
+  React.useEffect(() => onMeasured?.(mappingId, bytes), [mappingId, bytes, onMeasured]);
   return (
     <div className="rounded-lg border border-gray-200 p-4">
       {notAdded !== undefined && (

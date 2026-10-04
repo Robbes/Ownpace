@@ -9,6 +9,7 @@ import {
 import ScopeManifestPanel from './confirm/ScopeManifestPanel.tsx';
 import { scopeFamilyOfConnectionKind, scopeManifestFor, timeBeforeStart, type DiscoveryDomain } from '@openmig/shared';
 import { TimeBeforeStartLine } from './TimeBeforeStartLine.tsx';
+import { CeilingAtStartNote, measuredBytes } from './CeilingAtStartNote.tsx';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { mappingApi, scopeManifestApi, type DiscoveryResponse } from '../services/mapping-service.ts';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
@@ -441,6 +442,9 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
           {t('confirm.countUnfinished')}
         </p>
       )}
+
+      {/* The data ceiling, before the press (0109 T6): a note, never a block. */}
+      {!stillCounting && <CeilingAtStartNote bytes={measuredBytes(domains)} />}
 
       <div className="flex justify-end">
         <button
