@@ -311,7 +311,7 @@ describe('both locales are complete', () => {
         'nl/privacy.html',
         'nl/voorwaarden.html',
         'nl/alpha.html',
-        'nl/alfa-handleiding.html',
+        'nl/alpha-handleiding.html',
       ]),
     );
     for (const page of dutch) {
@@ -325,7 +325,7 @@ describe('the renderer covers what the documents actually use', () => {
     // The alpha build too, whose guide is the one page with explicit heading
     // ids and a build-time address (0144 T1).
     const pages = [...(await renderedPages()), ...(await alphaBuild())];
-    expect(pages.map((p) => p.file)).toContain('nl/alfa-handleiding.html');
+    expect(pages.map((p) => p.file)).toContain('nl/alpha-handleiding.html');
     for (const page of pages) {
       const body = page.html.split('<main')[1] ?? '';
       // An explicit heading id, `## Hulp {#hulp}`, is an attribute, never text,
@@ -349,7 +349,7 @@ describe('the renderer covers what the documents actually use', () => {
  * THE TESTER GUIDE IS THE ALPHA'S, AND ONLY THE ALPHA'S (workplan 0144 T1).
  *
  * The owner, 2026-10-03: *"Agreed, write the Dutch version on the site"*. One
- * page, Dutch first, `nl/alfa-handleiding.html`, with its translation at
+ * page, Dutch first, `nl/alpha-handleiding.html`, with its translation at
  * `alpha-guide.html`, outside the nav as the Alpha conditions are.
  *
  * Unlike the conditions, it is rendered ONLY when the site is built for the
@@ -362,10 +362,10 @@ describe('the renderer covers what the documents actually use', () => {
  * link resolving, nothing in the nav, and the conditions linked as what binds.
  */
 describe('the tester guide is rendered for the alpha only (workplan 0144 T1)', () => {
-  const GUIDE = { en: 'alpha-guide.html', nl: 'nl/alfa-handleiding.html' } as const;
+  const GUIDE = { en: 'alpha-guide.html', nl: 'nl/alpha-handleiding.html' } as const;
   /** The six sections, in order, by their stable ids: §3's points 1 to 6. */
   const SECTIONS = {
-    nl: ['wat-de-alfa-is', 'voordat-u-begint', 'zo-begint-u', 'wat-experimenteel-is', 'hulp', 'stoppen'],
+    nl: ['wat-de-alpha-is', 'voordat-u-begint', 'zo-begint-u', 'wat-experimenteel-is', 'hulp', 'stoppen'],
     en: ['what-the-alpha-is', 'before-you-start', 'how-to-start', 'what-is-experimental', 'help', 'stopping'],
   } as const;
   /** The words that say the guide binds nobody, and the conditions do. */
@@ -458,7 +458,7 @@ describe('the tester guide is rendered for the alpha only (workplan 0144 T1)', (
 
   it('is left out of the nav of every page, its own included', async () => {
     const pages = await alphaBuild();
-    // The nav's links are root-relative: `/alpha-guide.html`, `/nl/alfa-handleiding.html`.
+    // The nav's links are root-relative: `/alpha-guide.html`, `/nl/alpha-handleiding.html`.
     const guideHrefs = Object.values(GUIDE).map((file) => `/${file}`);
     for (const p of pages) {
       const nav = /<nav class="site">([\s\S]*?)<\/nav>/.exec(p.html)?.[1] ?? '';

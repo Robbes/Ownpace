@@ -586,7 +586,7 @@ them.
 1. **Before connecting:** send the owner every Google address you will connect, both your own and
    any family member's you will send a link to. Wait until the owner says they are added (T0).
 2. **Connecting:** press *Verbinden met Google*. Google shows a page saying it has not verified
-   the app. This is expected during the alpha: open the advanced option and continue to Ownpace.
+   the app. This is expected during the Alpha: open the advanced option and continue to Ownpace.
    Leave every permission ticked (`docs/grant-links.md` already says this to a grant-link reader).
 3. **About a week later**, the migration stops with *"De verbinding met dit account is verlopen
    …"*. Under (a) this is expected, and nothing is lost. Open *Verbindingen*, press the reconnect

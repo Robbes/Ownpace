@@ -9,6 +9,11 @@
  * Like that mail it carries an address to sign in at and the address to sign
  * in with, never a token, and it does not tell them to open an app they have
  * no account for.
+ *
+ * During the alpha it says so in the note's words, and, as the access-granted
+ * mail does, links the Alpha conditions and the tester guide after them, in
+ * its own language (0131 T1 (b), 2026-10-04). The privacy line stays last.
+ * Those cases failed on cd318823: the paragraph ended with no address.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -57,9 +62,42 @@ describe('the invitation mail', () => {
     expect(body).toMatch(locale === 'en' ? /You are invited to join this organisation/ : /U bent uitgenodigd/);
   });
 
-  it('carries the alpha paragraph only during the alpha', () => {
-    expect(renderEvent(INVITED, 'en').body).not.toMatch(/^Alpha:/m);
-    expect(renderEvent({ ...INVITED, alpha: true }, 'en').body).toMatch(/^Alpha:/m);
+  it.each(LOCALES)('carries the alpha paragraph only during the alpha, in %s', (locale) => {
+    expect(renderEvent(INVITED, locale).body).not.toMatch(/^Alpha:/m);
+    expect(renderEvent({ ...INVITED, alpha: true }, locale).body).toMatch(/^Alpha:/m);
+  });
+
+  /** The addresses the API hands it during the alpha, in the mail's language. */
+  const LINKED = {
+    en: { alphaConditions: 'https://site.example.test/alpha.html', testerGuide: 'https://site.example.test/alpha-guide.html' },
+    nl: {
+      alphaConditions: 'https://site.example.test/nl/alpha.html',
+      testerGuide: 'https://site.example.test/nl/alpha-handleiding.html',
+    },
+  } as const;
+  const SAYS = {
+    en: { conditions: 'Read the Alpha conditions here:', guide: 'Read the guide to the Alpha before you start:' },
+    nl: {
+      conditions: 'Lees hier de voorwaarden voor de Alpha:',
+      guide: 'Lees de handleiding voor de Alpha voordat u begint:',
+    },
+  } as const;
+
+  it.each(LOCALES)('during the alpha, links the conditions and the guide after the paragraph, in %s', (locale) => {
+    const lines = renderEvent({ ...INVITED, alpha: true, ...LINKED[locale] }, locale).body.trimEnd().split('\n');
+    const lead = lines.findIndex((l) => l.startsWith('Alpha: '));
+    expect(lead, 'the alpha paragraph is gone').toBeGreaterThan(-1);
+    // In the paragraph, straight after its words: conditions, then the guide.
+    expect(lines[lead + 1]).toBe(`${SAYS[locale].conditions} ${LINKED[locale].alphaConditions}`);
+    expect(lines[lead + 2]).toBe(`${SAYS[locale].guide} ${LINKED[locale].testerGuide}`);
+    // And the privacy policy is still the last line (privacy §4.6).
+    expect(lines.at(-1)!.endsWith(INVITED.privacyPolicy)).toBe(true);
+  });
+
+  it.each(LOCALES)('outside the alpha, names neither, whatever it is handed, in %s', (locale) => {
+    const { body } = renderEvent({ ...INVITED, ...LINKED[locale] }, locale);
+    expect(body).not.toContain(LINKED[locale].alphaConditions);
+    expect(body).not.toContain(LINKED[locale].testerGuide);
   });
 
   it('has its own subject in both languages', () => {

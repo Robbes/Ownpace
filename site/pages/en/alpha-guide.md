@@ -1,35 +1,35 @@
 <!-- Copyright 2026 The Ownpace authors (Apache-2.0) -->
 <!-- English translation of the tester guide (workplan 0144 T1); the Dutch,
-     alfa-handleiding.md, is written first and is the one the owner reads
+     alpha-handleiding.md, is written first and is the one the owner reads
      (0144 T0). Keep the six section headings and their ids ({#...}) in step
      with it, and the two ### headings' ids too, and translate the Dutch,
      never the other way round. Its notes for the owner, what was left out
      and why, and why the target folder is promised for files only on WebDAV
      or Nextcloud, are in the Dutch file's comment and apply here too. -->
 
-# Guide to the alpha
+# Guide to the Alpha
 
-This page is for the people invited to the Ownpace alpha. Read it before you start.
+This page is for the people invited to the Alpha of Ownpace. Read it before you start.
 
 This guide is not a contract. What applies is in the [Alpha conditions](./alpha.html). Where this
 page says something different, the conditions apply.
 
-## What the alpha is {#what-the-alpha-is}
+## What the Alpha is {#what-the-alpha-is}
 
 Ownpace copies your mail, calendar, contacts and files from your old provider to your new one.
 In the app this is called a migration. We run the service for you.
 
-The alpha is a trial of that service. A small group takes part, and everyone was invited
-personally. The alpha lasts a few weeks.
+The Alpha is a trial of that service. A small group takes part, and everyone was invited
+personally. The Alpha lasts a few weeks.
 
 - **Free.** Nothing is charged.
 - **Households only.** You take part with your own accounts or your family's.
-- **No obligations, on either side.** You may stop at any time. We may stop the alpha or start it
+- **No obligations, on either side.** You may stop at any time. We may stop the Alpha or start it
   over. We tell you at least 7 days in advance by email. The service may falter.
 - **No backups.** Only right before an update do we make one copy. If the service's records are
   lost, you connect your accounts again and set up your migrations again. What is already at
   your new provider stays there.
-- **After the alpha** the service carries on, under new conditions.
+- **After the Alpha** the service carries on, under new conditions.
 
 ## Before you start {#before-you-start}
 
@@ -78,7 +78,7 @@ personally. The alpha lasts a few weeks.
 ### When you connect Google {#google-connect}
 
 Google first shows a warning that Google has not checked the app. That is expected during the
-alpha. Go on to Ownpace there. Make sure everything Ownpace asks for is ticked.
+Alpha. Go on to Ownpace there. Make sure everything Ownpace asks for is ticked.
 
 ### When Google asks again {#google-again}
 

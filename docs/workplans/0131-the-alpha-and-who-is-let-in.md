@@ -2,7 +2,42 @@
 
 > **In one line:** Umbrella for the managed alpha: its decisions (free, invite-only, Dutch, no backups), an alpha note on pages and grant mail, experimental labels on `SOURCE_CARDS`, Billing wording, end-of-alpha fate, go/no-go list for 0132 to 0150 and 0152 to 0154.
 
-## Status — 2026-10-03 (update this block at the end of every session)
+## Status — 2026-10-04 (update this block at the end of every session)
+
+**2026-10-04: T1 (b) built, and the Alpha spelt as the conditions spell it.** On #1439 the owner
+answered *"akkoord, Alpha"*. So the test phase is *Alpha*, a proper name with a capital, in the
+running text of both languages: *de Alpha kan stoppen*, *the Alpha can end*. The glossary's old
+rule, *alfa* in lower case, is gone. Every sentence a tester or an applicant reads changed: the
+note, the Billing line and the request hint, the ceiling lines, the too-large lines and the
+engine's sentence behind them, the Team page's refusal with the API's 400, the API's 409, both
+mails, and the tester guide. The guide's Dutch address moved with it, to
+`/nl/alpha-handleiding.html` (0144's Status). And T1 (b) is built:
+
+- **The note links the Alpha conditions and the tester guide** after its words, in the reader's
+  language, each by its own title, in a new tab, through `LegalLinks` (always shown, the owner's
+  choice of 2026-10-03). On the acceptance screen the list below the note links the conditions
+  as well: the note keeps one shape everywhere.
+- **The access-granted mail** ends its alpha paragraph with the conditions' line and then the
+  guide's: EN *"Read the guide to the Alpha before you start:"*, NL *"Lees de handleiding voor
+  de Alpha voordat u begint:"*, then the address.
+- **The invitation mail** (0156 T3) carries the same two lines after its alpha paragraph, in the
+  organisation's language. The privacy line stays last.
+- **The OTA site's documented build** hands the stack's own `OWNPACE_STAGE` to
+  `node site/build.mjs` (`www.yml`, the bring-up's site section, and the command the build prints
+  when `OWNPACE_APP_URL` is missing), so the guide the OTA app links is there when that stack runs
+  the alpha. Documentation only: a person rebuilds that site.
+
+Proved by guards written first. `scripts/the-alpha-by-its-name.unit.test.ts` is new: it reads the
+dictionary, both mails, every string in the source (with TypeScript's parser, so no comment is
+read and none hides code), and every page the site writes, and 13 of its 17 cases failed on
+cd318823. On the same code `an-alpha-said-out-loud` failed 23 of 50 with its link cases,
+`a-policy-link-that-answers` 7 of 45 (the mails' guide address, and the OTA build command in
+`www.yml`, the bring-up and the build's own refusal), and the mail and invitation tests in api
+and shared 19, the invitation in both languages. With the tests that quote the old words and the
+renamed guide's cases, 54 node cases and 39 web cases failed; all are green after. The invitation
+that cannot make its addresses from `LEGAL_SITE_URL` answers `failed`, sends nothing and spends
+no allowance; that case passed before too, and fails when the guard around the addresses is
+removed. On branch `claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged.
 
 **2026-10-03: session M may run the managed gate on `main` itself after a merge** (§6). Asked
 whether it should dispatch E2E (managed) on `main` after a merge rather than wait for the
@@ -420,7 +455,7 @@ of the gate answer.
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 The word "alpha" wherever a tester meets the service | 📋 **Decided 2026-09-24** (D1, D4). (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-alpha-said-out-loud`, merged (#1160, 2026-09-24).** (b) 📋 waits on 0139 T2, T10 and 0144 T1. The backup clause 📋 changes with 0134's N (2026-09-28, §3), not built | §3. A note on every signed-in page, on the sign-in and request pages, and one sentence in the grant mail, in Dutch and English. Managed only. Off unless the deployment sets it. (a) is the setting, the note and the mail's paragraph; (b) is their links to the conditions and the tester guide. |
+| T1 The word "Alpha" wherever a tester meets the service | 📋 **Decided 2026-09-24** (D1, D4); spelt *Alpha* in both languages since 2026-10-04 (#1439). (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-alpha-said-out-loud`, merged (#1160, 2026-09-24).** (b) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged (2026-10-04)**: the note, the grant mail and the invitation link the conditions and the guide. The backup clause changed in 0139 T4 (2026-09-29, §3) | §3. A note on every signed-in page, on the sign-in and request pages, and one sentence in the grant mail, in Dutch and English. Managed only. Off unless the deployment sets it. (a) is the setting, the note and the mail's paragraph; (b) is their links to the conditions and the tester guide. |
 | T2 An "experimental" label on sources nobody has run against a real account | 🔨 **(a) Built on branch `claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven` (2026-09-24), merged (#1171, 2026-09-25)**: the table, the tag at both doors on both editions (the export archive card included, offered and tagged on managed: 0148 D10), in the data-type step and beside the whole-domain option, with 0141 T1. 📋 **Decided 2026-09-24** (D6); (b), the why's link to 0144 T2's page, not built | §3. One table in shared, read by both doors and by the wizard's data-type step. Both editions. |
 | T3 Billing says nothing is charged during the alpha | 📋 **Decided 2026-09-24** (D1). (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-bill-nobody-will-send`, merged (#1172, 2026-09-25)**: the Billing line and the request hint, and the invoice details card's *not needed* during the alpha (open question 7, answered). The cards and the run rows stay 📋 **Proposed** | §3. One sentence on the Billing page and one on the request form. Hiding the four metered cards, and leaving run rows unpruned for the alpha, are **Proposed**. |
 | T4 What the end of the alpha does to organisations, credentials and identities | 📋 **Decided 2026-09-28** (open question 1): (b), everything carries on under new conditions, perhaps on another host | §3 and open question 1. What exists today, and three options; the owner chose (b). |
@@ -672,7 +707,7 @@ stack keeps its secrets as a demo (§4).
 
 ## 3. What each task does
 
-### T1 — the word "alpha" wherever a tester meets the service
+### T1 — the word "Alpha" wherever a tester meets the service
 
 **One setting, read in three places.** A deployment setting in `deploy/compose/.env` (for the
 alpha, `ownpace-live`'s own), unset by default. Its name is for the build to settle;
@@ -698,9 +733,9 @@ when something is wrong. The appliance never sets the setting.
 **What it says.** This is a draft. It must match 0139's alpha conditions once they exist.
 
 - EN: *"Alpha: a small invited group is trying this service out. Nothing is charged, nothing is
-  backed up, and the alpha can end. Keep your old account until you have checked what arrived."*
-- NL: *"Alfa: een kleine, uitgenodigde groep probeert deze dienst uit. Er wordt niets in rekening
-  gebracht, er worden geen back-ups gemaakt en de alfa kan stoppen. Houd uw oude account tot u
+  backed up, and the Alpha can end. Keep your old account until you have checked what arrived."*
+- NL: *"Alpha: een kleine, uitgenodigde groep probeert deze dienst uit. Er wordt niets in rekening
+  gebracht, er worden geen back-ups gemaakt en de Alpha kan stoppen. Houd uw oude account tot u
   hebt gecontroleerd wat er is aangekomen."*
 
 **2026-09-28: the backup clause follows 0134's N.** 0134 open question 1 (b) keeps a copy of
@@ -732,6 +767,12 @@ last line, in the mail's language: EN *"Read the Alpha conditions here:"*, NL *"
 voorwaarden voor de Alpha:"*, and the address. The request form links them under the form during
 the alpha. The note itself, and the tester guide's link, are still to do; 0139's Status block
 says where the rest stands.)*
+*(2026-10-04: built. The note links the conditions and then the guide, after its words, in the
+reader's language, through `LegalLinks`. The access-granted mail's paragraph ends with the
+conditions' line and the guide's, EN *"Read the guide to the Alpha before you start:"*, NL
+*"Lees de handleiding voor de Alpha voordat u begint:"*, and the invitation mail's with the same
+two, in the organisation's language. The words are spelt *Alpha* since the owner's *"akkoord,
+Alpha"* on #1439; the Status block says what proved it.)*
 
 **Guards.** Each of these fails on today's code:
 
@@ -806,7 +847,7 @@ Nextcloud or WebDAV files (0148 D11), built by 0148 T9.
 **The Billing page, when the setting says alpha:**
 
 - The subtitle is replaced, and the page opens with one line. EN: *"Nothing is charged during the
-  alpha. Not needed while your tier is free: nothing is invoiced."* NL: *"Tijdens de alfa wordt
+  Alpha. Not needed while your tier is free: nothing is invoiced."* NL: *"Tijdens de Alpha wordt
   niets in rekening gebracht. Niet nodig zolang uw pakket gratis is: er wordt niets
   gefactureerd."* The second sentence is the free tier's own (`billing.party.notNeeded`), by the
   owner's answer to open question 7 (2026-09-24); it replaced *"What you see here is measured so
@@ -829,7 +870,7 @@ Nextcloud or WebDAV files (0148 D11), built by 0148 T9.
 
 **The request page.** The package question (*"Which package looks right?"*) stays, because it
 tells the owner roughly how large a request is. Its hint gains the sentence *"Nothing is charged
-during the alpha."*
+during the Alpha."*
 
 **Nothing to build on the server.** The invoice route already refuses every call.
 `ownpace-live` keeps `MOLLIE_API_KEY` empty, which is a T5 check.

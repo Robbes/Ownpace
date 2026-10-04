@@ -445,10 +445,10 @@ sub-processors for this purpose.
 **The promise.** It is decided in substance (D2), and the wording is the owner's, for 0139 T2's
 conditions. A draft:
 
-- NL: *"Tijdens de alfa is er geen beloofde beschikbaarheid en geen beloofde reactietijd. Als er
+- NL: *"Tijdens de Alpha is er geen beloofde beschikbaarheid en geen beloofde reactietijd. Als er
   iets misgaat, krijgen wij een melding en kijken we er zo snel mogelijk naar. Merkt u het eerder,
   mail dan naar «het adres uit de voorwaarden»."*
-- EN: *"During the alpha there is no promised availability and no promised response time. When
+- EN: *"During the Alpha there is no promised availability and no promised response time. When
   something breaks, we are told and look at it as soon as we can. If you notice it first, write to
   «the address in the conditions»."*
 

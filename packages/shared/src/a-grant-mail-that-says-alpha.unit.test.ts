@@ -34,12 +34,12 @@ const GRANTED = {
  */
 const SAID = {
   en:
-    'Alpha: a small invited group is trying this service out. Nothing is charged, and the alpha ' +
+    'Alpha: a small invited group is trying this service out. Nothing is charged, and the Alpha ' +
     'can end. There are no backups, apart from one copy before each update, kept up to 7 days. ' +
     'Keep your old account until you have checked what arrived.',
   nl:
-    'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit. Er wordt niets in rekening ' +
-    'gebracht en de alfa kan stoppen. Er worden geen back-ups gemaakt, op één kopie vlak voor ' +
+    'Alpha: een kleine, uitgenodigde groep probeert deze dienst uit. Er wordt niets in rekening ' +
+    'gebracht en de Alpha kan stoppen. Er worden geen back-ups gemaakt, op één kopie vlak voor ' +
     'elke update na, die hoogstens 7 dagen wordt bewaard. Houd uw oude account tot u hebt ' +
     'gecontroleerd wat er is aangekomen.',
 } as const;

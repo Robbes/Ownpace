@@ -983,7 +983,7 @@ const en = {
   'billing.ceiling.reached':
     'Your data ceiling is reached. New items wait until you choose a way on; changes to what is already copied carry on.',
   'billing.ceiling.alpha':
-    'During the alpha nothing waits at the ceiling and nothing is charged, so there is nothing to agree to yet. The prices below are what the ways on cost after the alpha.',
+    'During the Alpha nothing waits at the ceiling and nothing is charged, so there is nothing to agree to yet. The prices below are what the ways on cost after the Alpha.',
   'billing.ceiling.moveUp':
     'Move up to {tier}: {setup} once, then {monthly} a month. Your ceiling becomes {ceiling}, and {paths} migrations can run at once.',
   'billing.ceiling.moveUp.button': 'Move up to {tier}',
@@ -1410,7 +1410,7 @@ const en = {
   'view.failure.policyRefused':
     'Some items were left out by this migration\u2019s own settings, not by either account.',
   'view.failure.tooLarge':
-    'Some files were left out: they are larger than this service copies during the alpha.',
+    'Some files were left out: they are larger than this service copies during the Alpha.',
   'view.failure.sourceRefused':
     'Your old account would not release some items. Nothing was sent to your new account.',
   'view.failure.targetRefused': 'Your new account would not accept some items.',
@@ -1879,7 +1879,7 @@ const en = {
   // larger than this service copies, refused before a byte was read. No
   // setting changes the answer, so the remedy names none.
   'failure.tooLarge':
-    'Not migrated: larger than this service copies during the alpha. Copy these files by hand, or leave them behind.',
+    'Not migrated: larger than this service copies during the Alpha. Copy these files by hand, or leave them behind.',
   // Also shortened on 2026-09-22 from the owner's draft, but kept GENERAL: this
   // category is not Drive's alone — a mail or calendar source that refuses an
   // item lands here too — so the owner's "like maps" belongs in the per-item
@@ -2188,7 +2188,7 @@ const en = {
     'At the ceiling, new items wait until you choose a way on; changes to what is already copied carry on.',
   'ceiling.atStart.choose': 'Choose now, or start anyway and choose when they wait:',
   'ceiling.atStart.billing': 'your data ceiling on the Billing page',
-  'ceiling.atStart.alpha': 'During the alpha nothing waits at the ceiling and nothing is charged.',
+  'ceiling.atStart.alpha': 'During the Alpha nothing waits at the ceiling and nothing is charged.',
   'pause.dataCeiling':
     'New items wait at your data ceiling of {ceiling}: {held} not copied yet. Changes to what is already copied carry on.',
   'pause.dataCeiling.moveUp': 'Move up to {tier}: €{setup} once, then €{monthly} a month.',
@@ -2214,14 +2214,18 @@ const en = {
   // `what-the-app-says.unit.test.tsx`.
   'alpha.note.lead': 'Alpha: a small invited group is trying this service out.',
   'alpha.note.terms':
-    'Nothing is charged, and the alpha can end. There are no backups, apart from one copy before each update, kept up to 7 days.',
+    'Nothing is charged, and the Alpha can end. There are no backups, apart from one copy before each update, kept up to 7 days.',
   'alpha.note.keep': 'Keep your old account until you have checked what arrived.',
+  // After the note's words, its two links (0131 T1 (b)): the Alpha conditions,
+  // by `acceptance.doc.alpha`, and the tester guide (0144 T1), by this, the
+  // guide page's own title (site/build.mjs, without " — Ownpace").
+  'alpha.note.guide': 'Guide to the Alpha',
   // Nothing charged (workplan 0131 T3): the first sentence of the Billing
   // line that takes the subtitle's place, and the last sentence of the
   // request form's package hint. One key, so the two cannot drift apart.
   // "Charged", as the note says it, and not "invoiced", which is what a tier
   // says (0109 T8).
-  'alpha.nothingCharged': 'Nothing is charged during the alpha.',
+  'alpha.nothingCharged': 'Nothing is charged during the Alpha.',
   // A person to write to (workplan 0144 T6 (a)), in §3's words. `{address}` is
   // the deployment's VITE_SUPPORT_EMAIL, drawn as a mailto: link where it
   // stands (`SupportLine.tsx`); without it neither is shown. `help.line` goes
@@ -2530,7 +2534,7 @@ const en = {
   // Deletions panel names them (0156 T6).
   'tenants.invite.adminCan':
     "An admin can do everything an owner can, except close or reopen the organisation, turn deleting by hand or the automatic removal of moved files' old copies on or off, and make somebody an owner.",
-  'tenants.ownerOrAdminOnly': 'During the alpha, a person can only be an owner or an admin.',
+  'tenants.ownerOrAdminOnly': 'During the Alpha, a person can only be an owner or an admin.',
   'tenants.notify.heading': 'Email summaries',
   'tenants.notify.intro':
     'How often a summary of waiting decisions is emailed; an empty one is never sent.',
@@ -3177,7 +3181,7 @@ const nl: Record<keyof typeof en, string> = {
   'failure.policyRefused.dropbox':
     'Nog niet gemigreerd: Dropbox Paper-documenten, die Dropbox alleen als export afgeeft. Kies een formaat onder Exportformaat voor Paper-documenten en klik op Probeer opnieuw \u2014 of laat deze items achter. Andere documenten die Dropbox in een eigen formaat bewaart, worden hier niet geëxporteerd: exporteer ze zelf vanuit Dropbox, of laat ze achter.',
   'failure.tooLarge':
-    'Niet gemigreerd: groter dan deze dienst tijdens de alfa kopieert. Kopieer deze bestanden met de hand, of laat ze achter.',
+    'Niet gemigreerd: groter dan deze dienst tijdens de Alpha kopieert. Kopieer deze bestanden met de hand, of laat ze achter.',
   'failure.sourceRefused':
     'Niet gemigreerd: het oude account wilde dit niet afgeven, dus er is niets naar het nieuwe gestuurd \u2014 daar valt niets te controleren. Probeer opnieuw als dat veranderd is, of laat deze items achter.',
   'failure.targetRefused':
@@ -3957,7 +3961,7 @@ const nl: Record<keyof typeof en, string> = {
   'billing.ceiling.reached':
     'Uw datalimiet is bereikt. Nieuwe items wachten tot u een weg verder kiest; wijzigingen aan wat al gekopieerd is gaan door.',
   'billing.ceiling.alpha':
-    'Tijdens de alfa wacht er niets bij de limiet en wordt niets in rekening gebracht, dus er is nog niets om mee in te stemmen. De prijzen hieronder zijn wat de wegen verder na de alfa kosten.',
+    'Tijdens de Alpha wacht er niets bij de limiet en wordt niets in rekening gebracht, dus er is nog niets om mee in te stemmen. De prijzen hieronder zijn wat de wegen verder na de Alpha kosten.',
   'billing.ceiling.moveUp':
     'Ga naar {tier}: eenmalig {setup}, daarna {monthly} per maand. Uw limiet wordt {ceiling}, en er kunnen {paths} migraties tegelijk lopen.',
   'billing.ceiling.moveUp.button': 'Ga naar {tier}',
@@ -4317,7 +4321,7 @@ const nl: Record<keyof typeof en, string> = {
   'view.failure.policyRefused':
     'Sommige items bleven liggen door de instellingen van deze migratie, niet door uw accounts.',
   'view.failure.tooLarge':
-    'Sommige bestanden bleven liggen: ze zijn groter dan deze dienst tijdens de alfa kopieert.',
+    'Sommige bestanden bleven liggen: ze zijn groter dan deze dienst tijdens de Alpha kopieert.',
   'view.failure.sourceRefused':
     'Uw oude account gaf sommige items niet vrij. Er ging niets naar uw nieuwe account.',
   'view.failure.targetRefused': 'Uw nieuwe account wilde sommige items niet aannemen.',
@@ -4731,7 +4735,7 @@ const nl: Record<keyof typeof en, string> = {
     'Bij de limiet wachten nieuwe items tot u een weg verder kiest; wijzigingen aan wat al gekopieerd is gaan door.',
   'ceiling.atStart.choose': 'Kies nu, of start toch en kies wanneer ze wachten:',
   'ceiling.atStart.billing': 'uw datalimiet op de pagina Facturering',
-  'ceiling.atStart.alpha': 'Tijdens de alfa wacht er niets bij de limiet en wordt niets in rekening gebracht.',
+  'ceiling.atStart.alpha': 'Tijdens de Alpha wacht er niets bij de limiet en wordt niets in rekening gebracht.',
   'pause.dataCeiling':
     'Nieuwe items wachten bij uw datalimiet van {ceiling}: {held} nog niet gekopieerd. Wijzigingen aan wat al gekopieerd is gaan door.',
   'pause.dataCeiling.moveUp': 'Ga naar {tier}: eenmalig €{setup}, daarna €{monthly} per maand.',
@@ -4745,11 +4749,12 @@ const nl: Record<keyof typeof en, string> = {
     'Er is niets mis met uw migratie en er gaat niets verloren. Migraties die al liepen worden normaal afgerond, en het geplande kopiëren start vanzelf weer zodra de update klaar is, precies waar het stopte. Kopiëren dat u tijdens de pauze probeerde te starten, is niet gestart: start het na de update opnieuw.',
   // 0131 T1's words, with de kopie vlak voor een update sinds 0139 T4 (zie het
   // Engelse blok). Een veiligheidszin wordt niet ingekort (0118).
-  'alpha.note.lead': 'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit.',
+  'alpha.note.lead': 'Alpha: een kleine, uitgenodigde groep probeert deze dienst uit.',
   'alpha.note.terms':
-    'Er wordt niets in rekening gebracht en de alfa kan stoppen. Er worden geen back-ups gemaakt, op één kopie vlak voor elke update na, die hoogstens 7 dagen wordt bewaard.',
+    'Er wordt niets in rekening gebracht en de Alpha kan stoppen. Er worden geen back-ups gemaakt, op één kopie vlak voor elke update na, die hoogstens 7 dagen wordt bewaard.',
   'alpha.note.keep': 'Houd uw oude account tot u hebt gecontroleerd wat er is aangekomen.',
-  'alpha.nothingCharged': 'Tijdens de alfa wordt niets in rekening gebracht.',
+  'alpha.note.guide': 'Handleiding voor de Alpha',
+  'alpha.nothingCharged': 'Tijdens de Alpha wordt niets in rekening gebracht.',
   // 0144 §3 T6's woorden; zie het Engelse blok.
   'help.line':
     'Komt u er niet uit? Mail naar {address} en noem de pagina waarop u bent. Stuur nooit een wachtwoord.',
@@ -5020,7 +5025,7 @@ const nl: Record<keyof typeof en, string> = {
   'tenants.invite.role': 'Rol',
   'tenants.invite.adminCan':
     'Een beheerder kan alles wat een eigenaar kan, behalve de organisatie sluiten of heropenen, handmatig verwijderen of het automatisch verwijderen van oude kopieën van verplaatste bestanden aan- of uitzetten en iemand eigenaar maken.',
-  'tenants.ownerOrAdminOnly': 'Tijdens de alfa kan iemand alleen eigenaar of beheerder zijn.',
+  'tenants.ownerOrAdminOnly': 'Tijdens de Alpha kan iemand alleen eigenaar of beheerder zijn.',
   'tenants.notify.heading': 'E-mailsamenvattingen',
   'tenants.notify.intro':
     'Hoe vaak een samenvatting van wachtende beslissingen wordt gemaild; een lege wordt nooit verstuurd.',

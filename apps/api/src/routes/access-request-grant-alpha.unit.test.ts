@@ -79,7 +79,7 @@ app.use('/api/access-requests', accessRoutes);
 /** 0131 T1's first sentence, in each language: enough to know the paragraph is there. */
 const LEAD = {
   en: 'Alpha: a small invited group is trying this service out.',
-  nl: 'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit.',
+  nl: 'Alpha: een kleine, uitgenodigde groep probeert deze dienst uit.',
 } as const;
 
 async function rows(sql: string, params: unknown[] = []): Promise<Array<Record<string, unknown>>> {

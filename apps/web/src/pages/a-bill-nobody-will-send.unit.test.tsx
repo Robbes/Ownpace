@@ -87,8 +87,8 @@ import { STRINGS } from '../i18n/strings.ts';
 /** 0131 T3's words. */
 const SAID = {
   en: {
-    charged: 'Nothing is charged during the alpha.',
-    line: 'Nothing is charged during the alpha. Not needed while your tier is free: nothing is invoiced.',
+    charged: 'Nothing is charged during the Alpha.',
+    line: 'Nothing is charged during the Alpha. Not needed while your tier is free: nothing is invoiced.',
     notNeeded: 'Not needed while your tier is free: nothing is invoiced.',
     missing: 'Not provided yet. Invoices cannot be issued until this is filled in.',
     // Today's words, for the control.
@@ -99,9 +99,9 @@ const SAID = {
     package: /which package looks right/i,
   },
   nl: {
-    charged: 'Tijdens de alfa wordt niets in rekening gebracht.',
+    charged: 'Tijdens de Alpha wordt niets in rekening gebracht.',
     line:
-      'Tijdens de alfa wordt niets in rekening gebracht. Niet nodig zolang uw pakket gratis is: ' +
+      'Tijdens de Alpha wordt niets in rekening gebracht. Niet nodig zolang uw pakket gratis is: ' +
       'er wordt niets gefactureerd.',
     notNeeded: 'Niet nodig zolang uw pakket gratis is: er wordt niets gefactureerd.',
     missing: 'Nog niet ingevuld. Er kunnen geen facturen worden uitgereikt totdat dit is ingevuld.',

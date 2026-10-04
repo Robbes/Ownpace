@@ -21,12 +21,24 @@
  * T4, ops-app-sentences (a)). They are three dictionary keys because
  * each had to fit the copy budget's generic fifteen words, which the owner
  * dropped on 2026-09-25; they read as one paragraph.
+ *
+ * After the words, the note links what a tester reads next (0131 T1 (b)): the
+ * Alpha conditions (0139 T2) and the tester guide (0144 T1), in the reader's
+ * language, each named by its own title and opening in a new tab, drawn by
+ * `LegalLinks` as every other link to the texts is. Always shown, also before
+ * the site has them (the owner, 2026-10-03: *"Always shown"*). On the
+ * acceptance screen the list below the note links the conditions as well:
+ * one note, the same everywhere, is worth the second link there.
+ *
+ * Written *Alpha*, a proper name, in both languages (the owner, 2026-10-04,
+ * on #1439: *"akkoord, Alpha"*), as the conditions write it.
  */
 
 import React from 'react';
 import { useT } from '../i18n/index.tsx';
 import { isSelfHost } from '../services/edition.ts';
 import { alphaFrom } from '../services/stage.ts';
+import LegalLinks from './LegalLinks.tsx';
 
 /**
  * Whether this bundle was built for the alpha, and is not an appliance.
@@ -59,11 +71,11 @@ export const AlphaNote: React.FC<{
         <span className="font-medium">{t('alpha.note.lead')}</span> {t('alpha.note.terms')}{' '}
         {t('alpha.note.keep')}
       </p>
-      {/* 0131 T1 (b): the links to the alpha conditions (0139 T2) and the
-          tester guide (0144 T1) go here, in the reader's language, through
-          0139 T10's module (`LegalLinks`). The grant mail's paragraph links
-          the conditions since 0139 T4, and the request form links them under
-          the form; the note itself does not yet. */}
+      {/* 0131 T1 (b): the conditions, then the guide, as the grant mail and
+          the invitation end their alpha paragraph. */}
+      <p className="mt-1">
+        <LegalLinks pages={['alpha']} guide />
+      </p>
     </div>
   );
 };

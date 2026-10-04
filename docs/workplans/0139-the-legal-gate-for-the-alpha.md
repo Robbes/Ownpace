@@ -2,7 +2,24 @@
 
 > **In one line:** Legal gate for the alpha: `site/legal` placeholders filled and published, a lawyer's pass, alpha conditions, acceptance recorded at first sign-in, notices where data is collected, sub-processors, retention, account closure, breach procedure, `SECURITY.md`.
 
-## Status — 2026-10-03 (update this block at the end of every session)
+## Status — 2026-10-04 (update this block at the end of every session)
+
+**2026-10-04: the two links the 2026-10-03 entry left open are built (0131 T1 (b))**, on
+`claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged. The alpha note links
+the Alpha conditions and the tester guide after its words, in the reader's language, through
+`LegalLinks`, always shown (the owner's 2026-10-03 choice). The invitation mail (0156 T3) now
+carries the conditions' line after its alpha paragraph, as the grant mail does, and both mails
+then the guide's line: EN *"Read the guide to the Alpha before you start:"*, NL *"Lees voordat u
+begint de handleiding voor de Alpha:"*. The invitation's addresses are in the organisation's
+language, one string each like its privacy line, which stays last. The API makes the guide's
+address in `privacy-policy-link.ts` by the conditions' rule (`TESTER_GUIDE_FILE`,
+`testerGuideUrl`), and `a-policy-link-that-answers` holds it to the web's and to the alpha
+build's files. With it, the owner's *"akkoord, Alpha"* (#1439): the app, the mails and the
+API's sentences write *Alpha* as these texts do, never *alfa*. The texts themselves did not
+change. Guards first: on cd318823, 7 of `a-policy-link-that-answers`' 45 cases, 3 of the
+invitation's 17 in shared, 2 of the route's 11 (the invitation in Dutch and in English), 5 of
+`access-notify`'s 16 and 4 of `a-grant-mail-that-links-the-conditions`' 10 failed, with 23 of the
+note's 50. All green after.
 
 **2026-10-03, latest: T4's notices built, the sign-in page's links with them (0135 T5)**, on
 branch `claude/ownpace-public-readiness-y7orc6-a-notice-where-data-is-collected`, not merged.

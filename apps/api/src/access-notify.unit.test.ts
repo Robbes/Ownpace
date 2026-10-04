@@ -43,6 +43,7 @@ import {
   __setChannelForTests,
   accessGrantedEvent,
   alphaFrom,
+  memberInvitedEvent,
   tell,
   tellOperator,
 } from './access-notify.ts';
@@ -206,6 +207,11 @@ describe('the grant mail says alpha when the deployment does', () => {
       // Where the conditions are, per language (0139 T4): what the mail
       // links is `a-grant-mail-that-links-the-conditions.unit.test.ts`.
       alphaConditions: { en: 'https://www.ownpace.eu/alpha.html', nl: 'https://www.ownpace.eu/nl/alpha.html' },
+      // And the tester guide, beside them (0131 T1 (b), 0144 T1).
+      testerGuide: {
+        en: 'https://www.ownpace.eu/alpha-guide.html',
+        nl: 'https://www.ownpace.eu/nl/alpha-handleiding.html',
+      },
     });
     // Unmarked, not `alpha: false`: outside the alpha the event is exactly what
     // it was before there was an alpha.
@@ -214,7 +220,7 @@ describe('the grant mail says alpha when the deployment does', () => {
 
   it.each([
     ['en', 'Alpha: a small invited group is trying this service out.'],
-    ['nl', 'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit.'],
+    ['nl', 'Alpha: een kleine, uitgenodigde groep probeert deze dienst uit.'],
   ] as const)('what is sent in %s carries the paragraph with the setting, and not without', async (locale, lead) => {
     __setChannelForTests(channel() as never);
 
@@ -227,5 +233,60 @@ describe('the grant mail says alpha when the deployment does', () => {
     SENT.length = 0;
     await expect(tell(GRANTED.email, locale, accessGrantedEvent(GRANTED, {}))).resolves.toBe('sent');
     expect(SENT[0]?.body).not.toContain(lead);
+  });
+});
+
+/**
+ * The invitation during the alpha (0156 T3, with 0131 T1 (b)): the setting is
+ * read here too, and the event carries the conditions' and the guide's
+ * addresses as it carries the privacy policy's, one string each, in the
+ * mail's own language.
+ */
+describe('the invitation mail says alpha, and links its texts, when the deployment does', () => {
+  const INVITED = {
+    organisation: 'Familie Berentsen',
+    invitedBy: 'rob@example.test',
+    appUrl: 'https://app.ownpace.eu',
+    email: 'test@ownpace.test',
+    privacyPolicy: 'https://www.ownpace.eu/nl/privacy.html',
+  } as const;
+
+  it.each([
+    ['nl', 'https://www.ownpace.eu/nl/alpha.html', 'https://www.ownpace.eu/nl/alpha-handleiding.html'],
+    ['en', 'https://www.ownpace.eu/alpha.html', 'https://www.ownpace.eu/alpha-guide.html'],
+  ] as const)('in %s, with the setting, the addresses in that language', (locale, conditions, guide) => {
+    expect(memberInvitedEvent({ ...INVITED, locale }, { OWNPACE_STAGE: 'alpha' })).toEqual({
+      kind: 'member_invited',
+      organisation: INVITED.organisation,
+      invitedBy: INVITED.invitedBy,
+      appUrl: INVITED.appUrl,
+      email: INVITED.email,
+      privacyPolicy: INVITED.privacyPolicy,
+      alpha: true,
+      alphaConditions: conditions,
+      testerGuide: guide,
+    });
+  });
+
+  it('on the site LEGAL_SITE_URL names', () => {
+    const event = memberInvitedEvent(
+      { ...INVITED, locale: 'nl' },
+      { OWNPACE_STAGE: 'alpha', LEGAL_SITE_URL: 'https://www.ota.ownpace.eu/' },
+    );
+    expect(event).toMatchObject({
+      alphaConditions: 'https://www.ota.ownpace.eu/nl/alpha.html',
+      testerGuide: 'https://www.ota.ownpace.eu/nl/alpha-handleiding.html',
+    });
+  });
+
+  it('without the setting, none of it', () => {
+    expect(memberInvitedEvent({ ...INVITED, locale: 'nl' }, {})).toEqual({
+      kind: 'member_invited',
+      organisation: INVITED.organisation,
+      invitedBy: INVITED.invitedBy,
+      appUrl: INVITED.appUrl,
+      email: INVITED.email,
+      privacyPolicy: INVITED.privacyPolicy,
+    });
   });
 });

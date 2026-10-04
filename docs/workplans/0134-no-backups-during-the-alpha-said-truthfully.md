@@ -642,9 +642,9 @@ and `alpha.md` (0139 T2, version 0.1), with the copy made before each update (op
 (b)) written into it. §6 is the text from then on: a sentence drafted here for that copy is §6's
 and is changed there, so the two cannot become two wordings.)*
 
-> **Geen back-ups.** Tijdens de alfa maken wij geen back-ups van de eigen gegevens van de dienst:
+> **Geen back-ups.** Tijdens de Alpha maken wij geen back-ups van de eigen gegevens van de dienst:
 > uw organisatie, de accounts die u hebt gekoppeld, uw verhuizingen en hun geschiedenis, en uw
-> Ownpace-inlogaccount. Gaat de machine waarop de alfa draait verloren, dan gaan die gegevens mee
+> Ownpace-inlogaccount. Gaat de machine waarop de Alpha draait verloren, dan gaan die gegevens mee
 > verloren. Uw eigen gegevens niet: Ownpace verwijdert niets uit uw oude account, en wat naar uw
 > nieuwe aanbieder is gekopieerd, blijft daar staan. Wij laten u dan opnieuw toe, net als de
 > eerste keer. U logt opnieuw in, koppelt uw accounts opnieuw en zet uw verhuizingen opnieuw op.
@@ -655,9 +655,9 @@ and is changed there, so the two cannot become two wordings.)*
 > andere aanbieder hebt gegeven, blijft daar bestaan tot u die intrekt. Gaat de machine verloren,
 > trek die toegang dan in, en geef haar opnieuw wanneer u opnieuw koppelt.
 
-> **No backups.** During the alpha we make no backups of the service's own records: your
+> **No backups.** During the Alpha we make no backups of the service's own records: your
 > organisation, the accounts you connected, your migrations and their history, and your Ownpace
-> sign-in. If the machine the alpha runs on is lost, those records are lost with it. Your data is
+> sign-in. If the machine the Alpha runs on is lost, those records are lost with it. Your data is
 > not: Ownpace removes nothing from your old account, and what was copied to your new provider
 > stays there. We would then let you in again, as the first time. You sign in again, connect your
 > accounts again and set up your migrations again. The first pass recognises what is already at

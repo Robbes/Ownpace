@@ -16,6 +16,10 @@
  * - the answer says what became of the mail (`notified`), and a deployment
  *   that sends no mail, or names nowhere to sign in, answers `off` with the
  *   invitation saved all the same;
+ * - during the alpha it links the Alpha conditions and the tester guide in
+ *   the organisation's language, English and Dutch both (0131 T1 (b)), and
+ *   a `LEGAL_SITE_URL` it cannot make them from answers `failed`, with the
+ *   invitation saved, nothing sent and no allowance spent;
  * - a duplicate invitation is refused and mails nobody;
  * - Send again mails an open invitation, at most once in ten minutes, and
  *   refuses one that was answered or that a granted access request made.
@@ -99,6 +103,13 @@ let saved: Record<string, string | undefined>;
 const invite = (email: string) =>
   request(app).post(`/api/tenants/${TENANT}/members`).send({ email, role: 'admin' });
 
+/** The organisation's summary language, which its invitations are written in. */
+const organisationSpeaks = (locale: 'en' | 'nl') =>
+  rows('UPDATE tenant SET settings = $2 WHERE id = $1', [
+    TENANT,
+    JSON.stringify({ notifications: { digest: 'daily', locale } }),
+  ]);
+
 beforeAll(async () => {
   driver = pgliteDriver({ role: 'app_user' });
   await runMigrations({ driver, logger: () => {} });
@@ -161,6 +172,77 @@ describe('inviting mails the invited person', () => {
     expect(mail.body).toMatch(/privacyverklaring/);
     // An address, never a token: nothing in it signs anybody in.
     expect(mail.body).not.toMatch(/token|code=|\?invite/i);
+    // Outside the alpha, no conditions and no guide.
+    expect(mail.body).not.toMatch(/alpha\.html|alpha-guide|alpha-handleiding/);
+  });
+
+  // 0131 T1 (b), 2026-10-04. The addresses follow the organisation's
+  // language, on the site LEGAL_SITE_URL names; the other language's never
+  // appear. Both languages, so neither can be written into the route.
+  it.each([
+    {
+      locale: 'nl' as const,
+      lead: /^Alpha: een kleine, uitgenodigde groep/m,
+      conditions: 'Lees hier de voorwaarden voor de Alpha: https://site.example.test/nl/alpha.html',
+      guide: 'Lees de handleiding voor de Alpha voordat u begint: https://site.example.test/nl/alpha-handleiding.html',
+      never: ['https://site.example.test/alpha.html', 'https://site.example.test/alpha-guide.html'],
+    },
+    {
+      locale: 'en' as const,
+      lead: /^Alpha: a small invited group/m,
+      conditions: 'Read the Alpha conditions here: https://site.example.test/alpha.html',
+      guide: 'Read the guide to the Alpha before you start: https://site.example.test/alpha-guide.html',
+      never: ['https://site.example.test/nl/alpha.html', 'https://site.example.test/nl/alpha-handleiding.html'],
+    },
+  ])(
+    'during the alpha, links the Alpha conditions and the tester guide, in the organisation’s language ($locale)',
+    async ({ locale, lead, conditions, guide, never }) => {
+      process.env.OWNPACE_STAGE = 'alpha';
+      await organisationSpeaks(locale);
+      try {
+        const res = await invite(`alpha-${locale}@ownpace.test`);
+
+        expect(res.status).toBe(201);
+        expect(res.body.notified).toBe('sent');
+        const body = SENT[0]!.body;
+        expect(body).toMatch(lead);
+        expect(body).toContain(conditions);
+        expect(body).toContain(guide);
+        for (const other of never) expect(body).not.toContain(other);
+      } finally {
+        await organisationSpeaks('nl');
+      }
+    },
+  );
+
+  it('answers FAILED, with the invitation saved and nothing spent, when LEGAL_SITE_URL cannot make its addresses', async () => {
+    // A value the mail refuses (no scheme). The addresses are made after the
+    // invitation committed, so a throw there would be a 500 for an invitation
+    // that exists. The guard turns it into `failed`, and sends nothing.
+    process.env.OWNPACE_STAGE = 'alpha';
+    process.env.LEGAL_SITE_URL = 'www.ownpace.eu';
+
+    const res = await invite('kapot@ownpace.test');
+
+    expect(res.status).toBe(201);
+    expect(res.body.notified).toBe('failed');
+    expect(SENT).toHaveLength(0);
+    expect(await rows('SELECT status FROM tenant_member WHERE email = $1', ['kapot@ownpace.test'])).toEqual([
+      { status: 'invited' },
+    ]);
+
+    // Nothing was taken from either allowance: the organisation's day and this
+    // invitation's ten minutes are taken together, after the guard. So Send
+    // again, at once, is not refused as too soon, and it mails.
+    process.env.LEGAL_SITE_URL = 'https://site.example.test';
+    const again = await request(app).post(`/api/tenants/${TENANT}/members/${res.body.id as string}/resend`);
+    expect(again.status).toBe(200);
+    expect(again.body.notified).toBe('sent');
+    expect(SENT).toHaveLength(1);
+    // And the day's twenty are all there: Send again took one, nineteen more go.
+    for (let i = 0; i < 19; i++) {
+      expect((await invite(`daarna${i}@ownpace.test`)).body.notified, `invitation ${i + 2}`).toBe('sent');
+    }
   });
 
   it('answers OFF, with the invitation saved, when this deployment sends no mail', async () => {

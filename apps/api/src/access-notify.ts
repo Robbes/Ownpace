@@ -38,6 +38,7 @@ import {
   alphaConditionsUrl,
   createNotifier,
   renderEvent,
+  testerGuideUrl,
   type LegalSiteForMailEnv,
   type NotificationEvent,
   type NotificationLocale,
@@ -117,7 +118,8 @@ export function alphaFrom(env: { readonly OWNPACE_STAGE?: string }): boolean {
  * environment instead of changing the process's.
  *
  * During the alpha it also carries where the Alpha conditions are (0139 T4,
- * with 0131 T1), in both languages, so the mail links them in its own:
+ * with 0131 T1) and where the tester guide is (0131 T1 (b), 0144 T1), in both
+ * languages, so the mail links them in its own:
  * `LEGAL_SITE_URL`, which `managed.yml` fills from the web build's
  * `VITE_LEGAL_SITE_URL`, empty being the production site. A value the link
  * cannot use never reaches here after a commit: the api's start makes the
@@ -137,6 +139,7 @@ export function accessGrantedEvent(
       ? {
           alpha: true,
           alphaConditions: { en: alphaConditionsUrl('en', env), nl: alphaConditionsUrl('nl', env) },
+          testerGuide: { en: testerGuideUrl('en', env), nl: testerGuideUrl('nl', env) },
         }
       : {}),
   };
@@ -146,6 +149,13 @@ export function accessGrantedEvent(
  * The mail an invited person receives (workplan 0156 T3), marked for the alpha
  * the same way and for the same reason as `accessGrantedEvent`: the setting is
  * read in one place, when the mail is written.
+ *
+ * During the alpha it carries the Alpha conditions' and the tester guide's
+ * addresses too (0131 T1 (b)), as it carries the privacy policy's: one string
+ * each, in the mail's own language, which `locale` names (the organisation's
+ * summary language, `invitation-mail.ts`). Built from `LEGAL_SITE_URL` by the
+ * same rule; a value it cannot use throws, and the caller builds this inside
+ * the guard that turns that into `failed`.
  */
 export function memberInvitedEvent(
   invited: {
@@ -154,8 +164,10 @@ export function memberInvitedEvent(
     readonly appUrl: string;
     readonly email: string;
     readonly privacyPolicy: string;
+    /** The mail's language, for the alpha's addresses. */
+    readonly locale: NotificationLocale;
   },
-  env: { readonly OWNPACE_STAGE?: string } = process.env,
+  env: { readonly OWNPACE_STAGE?: string } & LegalSiteForMailEnv = process.env,
 ): NotificationEvent {
   return {
     kind: 'member_invited',
@@ -164,7 +176,13 @@ export function memberInvitedEvent(
     appUrl: invited.appUrl,
     email: invited.email,
     privacyPolicy: invited.privacyPolicy,
-    ...(alphaFrom(env) ? { alpha: true } : {}),
+    ...(alphaFrom(env)
+      ? {
+          alpha: true,
+          alphaConditions: alphaConditionsUrl(invited.locale, env),
+          testerGuide: testerGuideUrl(invited.locale, env),
+        }
+      : {}),
   };
 }
 

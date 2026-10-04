@@ -22,18 +22,29 @@
  * carry no note. And an APPLIANCE never does, whatever its bundle was built
  * with: an appliance lets nobody in, so there is no alpha for it to be in.
  *
+ * AND IT LINKS WHAT A TESTER READS NEXT (0131 T1 (b), 2026-10-04). After its
+ * words the note links the Alpha conditions and the tester guide (0144 T1), in
+ * the reader's language, each named by its own title, in a new tab, as every
+ * other link to the texts is (`LegalLinks`). Shown always, also before the
+ * site has them (the owner, 2026-10-03: *"Always shown"*). The addresses are
+ * the modules' (`services/legal-links.ts`, `services/tester-guide-link.ts`),
+ * wrapped here so their default is the OTA test site: a page that wrote the
+ * production address itself would show a link this file does not find.
+ *
  * The setting is a build argument, `VITE_OWNPACE_STAGE`, stubbed here the way
  * Vite would bake it (`isAlpha` in `AlphaNote.tsx` reads it directly so this
  * works).
  * The edition is mocked through `services/edition`, the sanctioned seam.
  */
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderEvent } from '@openmig/shared';
 
-const { editionFlag, authState } = vi.hoisted(() => ({
+const { OTA, editionFlag, authState } = vi.hoisted(() => ({
+  /** The OTA stack's test site: the address modules' default for every page here. */
+  OTA: { VITE_LEGAL_SITE_URL: 'https://www.ota.ownpace.eu' },
   editionFlag: { selfhost: false },
   authState: {
     isAuthenticated: true,
@@ -48,6 +59,24 @@ const { editionFlag, authState } = vi.hoisted(() => ({
 vi.mock('../services/edition.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../services/edition.ts')>();
   return { ...actual, isSelfHost: () => editionFlag.selfhost };
+});
+
+vi.mock('../services/legal-links.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof LegalLinks>();
+  return {
+    ...actual,
+    legalUrl: (page: LegalLinks.LegalPage, locale: Locale, source: LegalLinks.LegalSiteEnv = OTA) =>
+      actual.legalUrl(page, locale, source),
+    legalLinks: (locale: Locale, source: LegalLinks.LegalSiteEnv = OTA) => actual.legalLinks(locale, source),
+  };
+});
+
+vi.mock('../services/tester-guide-link.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof GuideLink>();
+  return {
+    ...actual,
+    testerGuideUrl: (locale: Locale, source: LegalLinks.LegalSiteEnv = OTA) => actual.testerGuideUrl(locale, source),
+  };
 });
 
 vi.mock('../stores/auth-store.ts', () => ({
@@ -74,6 +103,8 @@ import Invitations from '../pages/Invitations.tsx';
 import apiClient from '../services/api.ts';
 import { LocaleProvider } from '../i18n/index.tsx';
 import { STRINGS } from '../i18n/strings.ts';
+import type * as LegalLinks from '../services/legal-links.ts';
+import type * as GuideLink from '../services/tester-guide-link.ts';
 
 /**
  * 0131 T1's words, with the copy before an update since 0139 T4
@@ -83,15 +114,15 @@ const SAID = {
   en: {
     lead: 'Alpha: a small invited group is trying this service out.',
     all:
-      'Alpha: a small invited group is trying this service out. Nothing is charged, and the alpha ' +
+      'Alpha: a small invited group is trying this service out. Nothing is charged, and the Alpha ' +
       'can end. There are no backups, apart from one copy before each update, kept up to 7 days. ' +
       'Keep your old account until you have checked what arrived.',
   },
   nl: {
-    lead: 'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit.',
+    lead: 'Alpha: een kleine, uitgenodigde groep probeert deze dienst uit.',
     all:
-      'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit. Er wordt niets in rekening ' +
-      'gebracht en de alfa kan stoppen. Er worden geen back-ups gemaakt, op één kopie vlak voor ' +
+      'Alpha: een kleine, uitgenodigde groep probeert deze dienst uit. Er wordt niets in rekening ' +
+      'gebracht en de Alpha kan stoppen. Er worden geen back-ups gemaakt, op één kopie vlak voor ' +
       'elke update na, die hoogstens 7 dagen wordt bewaard. Houd uw oude account tot u hebt ' +
       'gecontroleerd wat er is aangekomen.',
   },
@@ -180,12 +211,26 @@ function theNote(locale: Locale): HTMLElement {
   return note as HTMLElement;
 }
 
-/** Nothing on the page names an alpha, in either language. */
+/** Nothing on the page names an alpha, in either language, or links its texts. */
 function noAlphaAnywhere(): void {
   for (const locale of LOCALES) {
     expect(screen.queryByText(SAID[locale].lead)).toBeNull();
   }
   expect(document.body.textContent ?? '').not.toMatch(/\balpha\b|\balfa\b/i);
+  const alphaLinks = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href]'))
+    .map((a) => a.href)
+    .filter((href) => /(?:alpha\.html|alpha-guide\.html|al(?:ph|f)a-handleiding\.html)$/.test(href));
+  expect(alphaLinks, 'a page outside the alpha links the Alpha conditions or the guide').toEqual([]);
+}
+
+/**
+ * Where the note's two links go, in a language, on the site the pages were
+ * given: the real modules, asked with the OTA site.
+ */
+async function addresses(locale: Locale): Promise<{ conditions: string; guide: string }> {
+  const legal = await vi.importActual<typeof LegalLinks>('../services/legal-links.ts');
+  const guide = await vi.importActual<typeof GuideLink>('../services/tester-guide-link.ts');
+  return { conditions: legal.legalUrl('alpha', locale, OTA), guide: guide.testerGuideUrl(locale, OTA) };
 }
 
 beforeEach(() => {
@@ -237,6 +282,41 @@ describe('with the alpha setting on', () => {
     const note = theNote('en');
     expect(title.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(note.compareDocumentPosition(rest()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  for (const page of PAGE_NAMES) {
+    it.each(LOCALES)(
+      `${page}: after its words, links the Alpha conditions and the tester guide, in %s, in a new tab`,
+      async (locale) => {
+        inLocale(locale);
+        await PAGES[page]();
+        const note = theNote(locale);
+        const links = within(note).getAllByRole('link') as HTMLAnchorElement[];
+        const want = await addresses(locale);
+        // The conditions first, as the texts that bind; then the guide.
+        expect(links.map((a) => a.href)).toEqual([want.conditions, want.guide]);
+        const names = [STRINGS[locale]['acceptance.doc.alpha'], STRINGS[locale]['alpha.note.guide']];
+        links.forEach((link, i) => {
+          // Each named by its own title, and the new tab said out loud.
+          const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          expect(link).toHaveAccessibleName(
+            new RegExp(`^${escaped(names[i]!)}\\s*${escaped(STRINGS[locale]['acceptance.newTab'])}$`),
+          );
+          expect(link.target).toBe('_blank');
+          expect(link.rel).toMatch(/\bnoopener\b/);
+          expect(link.rel).toMatch(/\bnoreferrer\b/);
+          // After the words, never in the middle of them.
+          const lead = within(note).getByText(SAID[locale].lead);
+          expect(lead.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        });
+      },
+    );
+  }
+
+  it('names the guide by its own title, the page the link opens', () => {
+    // The site's page title, without " — Ownpace" (site/build.mjs, META.guide).
+    expect(STRINGS.en['alpha.note.guide']).toBe('Guide to the Alpha');
+    expect(STRINGS.nl['alpha.note.guide']).toBe('Handleiding voor de Alpha');
   });
 
   it('is a note, never an alarm', () => {

@@ -406,8 +406,10 @@ one of them.
 
 1. **The language.** Open the dashboard.
    **Expect:** A sees Dutch and B sees English. The amber note at the top of the page begins
-   *"Alfa: een kleine, uitgenodigde groep probeert deze dienst uit."* for A and *"Alpha: a
-   small invited group is trying this service out."* for B. No note means live's web bundle
+   *"Alpha: een kleine, uitgenodigde groep probeert deze dienst uit."* for A and *"Alpha: a
+   small invited group is trying this service out."* for B. It ends with two links, each
+   opening a new tab: *Voorwaarden voor de Alpha* · *Handleiding voor de Alpha* for A, and
+   *Alpha conditions* · *Guide to the Alpha* for B. No note means live's web bundle
    was not built for the alpha (`VITE_OWNPACE_STAGE`, `apps/web/src/services/stage.ts`). Press
    the other language (the **EN** and **NL** buttons in the menu): the page's text changes, and
    the page's `lang` follows it (`<html lang="nl">` or `"en"`, in the browser's inspector).
