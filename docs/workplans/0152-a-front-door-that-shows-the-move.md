@@ -36,6 +36,40 @@
   *No minimum term: stop whenever you like* and the rule, in both languages, are new words for the
   owner's reading, and for the lawyer's (0139).
 
+**2026-10-04, night: the estimate takes several sources, and Tasks** (the owner's two remarks of
+2026-10-04, T7 (e); T7 (d) with them):
+- **Moving away from?** is tick boxes, so a person leaving Google and Dropbox ticks both. *Box* is
+  one of them (T7 (d)), and its Leaving page now opens the estimate on Box. A `?from=` may carry a
+  list.
+- **One migration per data type per source,** as the app counts them: Google and Dropbox both
+  with files are two. `calculator.mjs`'s `migrationsFrom` counts it from what each source brings,
+  which `build.mjs` reads off the Leaving pages' verdicts:
+  - a data type that moves is a migration of its own;
+  - photos a source keeps among its files travel with *Files* (Microsoft, Dropbox, Box);
+  - a data type a source does not keep, or that cannot move, is not counted, and the page says
+    so: *"Not counted, because we cannot move this from what you ticked: Files."*
+  - *Somewhere else* may keep anything.
+- **Tasks is a data type of its own,** so a whole Google move is six: mail, contacts, calendar,
+  tasks, files, and the Takeout's photos. The profiles are version 2; tasks are a judgement,
+  carried as 0.01 GB.
+- **Sizes are asked only for mail, files and photos,** which a storage page shows. Contacts,
+  calendars and tasks come from the profile, in one line: *"Contacts, calendars and tasks take
+  little room, so we count them for you: less than 1 GB."*
+- **(d) needed no profile row:** the profiles are per person and data type, not per source.
+- **Guards:**
+  - `site/calculator.unit.test.ts`: Google and Dropbox with files are two; photos travel with
+    files; Apple's files are not counted; no source counts nothing; one source that keeps
+    everything agrees with `pathsFor`; what each source brings; every source a Leaving page
+    sends here is offered.
+  - `site/profiles.unit.test.ts`: tasks, the sizes asked, version 2.
+  - `test/ui/site.ui.test.ts`: tick boxes; Google and Dropbox are five, said per source; tasks
+    make six with no size field; Apple's files said and greyed; no source, no tier; a list
+    arriving on the Dutch page. The script changed, so `$csp_calc` is re-pinned.
+- **With today's table** a whole Google move, six, lands on Medium. The owner's new table of
+  2026-10-04 (Free and Small six, Medium twelve) is ADR-0014's next amendment, and puts it on Free.
+- **T0:** new words for the owner's reading: the hint under *Moving away from?*, the small line,
+  the not-counted line, *Files from Dropbox* in the count, and *Box*.
+
 **2026-10-04, night: T5 (a) and (b) are built** (R8 step 10). Six pages in each language:
 *Leaving Google*, *Leaving Microsoft 365*, *Leaving Apple iCloud*, *Leaving Dropbox*, *Leaving Box*
 and *Leaving another mail provider*, *Weg bij …* in Dutch. Each has the plan's five parts:
@@ -342,7 +376,7 @@ together, from one audit of the site and the app on `main` at `83eb73e` (§1).
 | T4 The destinations, named | ✅ **Built 2026-10-04; its words wait for T0** | §3. A *Where to* section names what the app supports, from a site copy of the app's list with a guard that it matches. It says plainly that the new account is one the person opens and pays for themselves. |
 | T5 A page per provider a person leaves | 🟡 **(a) and (b) built 2026-10-04; (a) 5's source waits for T7 (a), (c) for the site's address; its words wait for T0** | §3. *Leaving Google*, *Leaving Microsoft 365*, *Leaving iCloud*, *Leaving Dropbox*, *Leaving Box*, *Leaving another mail provider*: what moves, the limits, what the person does, the destinations it can go to, a typical cost. Built from copies of the app's own verdicts, each guarded. |
 | T6 Pricing that reads in one pass | 🟡 **(a) done: the sentence by #1317, its guard beside D6's. (c) built 2026-10-04, with T2 (#1471). (d) built 2026-10-03, with (g)'s principle on the page. (e) built 2026-10-04. (f)'s words on the page and in the terms built 2026-10-04, its withdrawal button not. The rest proposed, before the first invitation (D5)** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) The withdrawal button, and the year's end (D11, amended 2026-10-04). (g) The principle, the price that pays for the work (D12). |
-| T7 A calculator that ends in a button | 🟡 **(c) built 2026-10-04; (a), (b) and (d) proposed, before the first invitation** | §3. (a) *Request access* carries the answers along. (b) *Until when?* says which payment suits it. (c) The layout faults and a live region. (d) Box as a source. |
+| T7 A calculator that ends in a button | 🟡 **(c), (d) and (e) built 2026-10-04; (a) and (b) proposed, before the first invitation** | §3. (a) *Request access* carries the answers along. (b) *Until when?* says which payment suits it. (c) The layout faults and a live region. (d) Box as a source. (e) Several sources at once, and Tasks. |
 | T8 Claims you can check | 📋 **Proposed; before the first invitation (D5)** | §3. "Open source" links the repository. Each proof point links the guard that holds it. The footer names the company once 0139 publishes it; until then that line is the one part that waits. |
 | T9 One look from the site to the app | ✅ **Built 2026-10-04** | §3. `/request-access` and `/login` take the site's palette and logo, and link back to the site. The identity provider's own branding stays 0135 T6. |
 
@@ -850,6 +884,15 @@ links `estimate.html`. The home page's *What it costs* block gets the same butto
 
 (d) **Box as a source.** *Moving away from?* gains *Box*, with a profile row in
 `profiles.mjs` and its provenance (`profiles.unit.test.ts` requires one).
+
+(e) **Several sources at once, and Tasks** (the owner, 2026-10-04: *"'moving away from' should
+offer multiple sources instead of radio options. And i dont think it makes sense to let people
+fill in GB for contacts, tasks and calander. They dont know that"*).
+
+- *Moving away from?* is tick boxes, and the count is one migration per data type per source.
+- *Tasks* is a data type of its own, as the app moves and bills it.
+- Sizes are asked only for mail, files and photos; contacts, calendars and tasks are counted
+  from the profile and said in one line.
 
 ### T8 — claims you can check (before the first invitation, D5)
 

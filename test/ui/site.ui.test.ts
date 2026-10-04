@@ -420,6 +420,85 @@ describe('the public site renders', () => {
     await page.close();
   }, 90_000);
 
+  it('takes several sources at once, counts each one’s migrations, and asks sizes only for mail, files and photos (the owner, 2026-10-04)', async () => {
+    const { page } = await open('/estimate.html');
+    const state = () =>
+      page.evaluate(() => {
+        const said = (id: string) => {
+          const el = document.getElementById(id) as HTMLElement;
+          return el.hidden ? null : el.textContent;
+        };
+        return {
+          kind: (document.querySelector('input[name="from"]') as HTMLInputElement).type,
+          from: [...document.querySelectorAll<HTMLInputElement>('input[name="from"]')].filter((i) => i.checked).map((i) => i.value),
+          sizes: [...document.querySelectorAll('.calc .amount input')].map((i) => i.id),
+          paths: document.getElementById('axis-paths-val')!.textContent,
+          line: document.getElementById('paths-line')!.textContent,
+          small: said('small-line'),
+          uncounted: said('uncounted-line'),
+          card: said('tier-card') !== null,
+        };
+      });
+
+    const google = await state();
+    expect(google.kind, 'the sources are a choice of one again').toBe('checkbox');
+    expect(google.from).toEqual(['google']);
+    expect(google.sizes, 'a size nobody can read off a storage page is asked').toEqual(['gb-mail', 'gb-files', 'gb-photos']);
+    expect(google.paths).toBe('4');
+    expect(google.small).toBe('Contacts, calendars and tasks take little room, so we count them for you: less than 1 GB.');
+    expect(google.uncounted).toBeNull();
+
+    // Dropbox as well: its files are a migration of their own, as the app makes them.
+    await page.check('input[name="from"][value="dropbox"]');
+    const both = await state();
+    expect(both.from).toEqual(['google', 'dropbox']);
+    expect(both.paths).toBe('5');
+    expect(both.line).toBe(
+      'Mail, Contacts, Calendar, Files from Google; Files from Dropbox, for one person — that is 5 migrations at the same time.',
+    );
+
+    // Tasks are a migration of their own, sized for the person rather than asked.
+    await page.check('#what-tasks');
+    expect((await state()).paths).toBe('6');
+    expect(await page.$('#gb-tasks'), 'a size field for tasks').toBeNull();
+
+    // Apple alone: iCloud Drive does not move, so files are said, not counted.
+    await page.uncheck('input[name="from"][value="google"]');
+    await page.uncheck('input[name="from"][value="dropbox"]');
+    await page.check('input[name="from"][value="apple"]');
+    const apple = await state();
+    expect(apple.paths).toBe('4');
+    expect(apple.uncounted).toBe('Not counted, because we cannot move this from what you ticked: Files.');
+    expect(await page.getAttribute('#amount-files', 'data-off'), 'a size that is not counted still looks counted').toBe('');
+
+    // No source at all: nothing is counted, and the page asks for one.
+    await page.uncheck('input[name="from"][value="apple"]');
+    const none = await state();
+    expect(none.line).toBe('Tick what you are leaving and the count appears here.');
+    expect(none.uncounted).toBeNull();
+    expect(none.card, 'a tier for no source at all').toBe(false);
+
+    // Only what takes little room: no size is asked for, and the line says the sum.
+    await page.check('input[name="from"][value="google"]');
+    for (const t of ['mail', 'files']) await page.uncheck(`#what-${t}`);
+    const small = await state();
+    expect(small.paths).toBe('3');
+    expect(small.small).toContain('less than 1 GB');
+    for (const t of ['mail', 'files', 'photos'])
+      expect(await page.getAttribute(`#amount-${t}`, 'data-off'), `${t} is asked for though nothing ticked needs it`).toBe('');
+    await page.close();
+
+    // Arriving with a list ticks exactly those, in either language.
+    const listed = await open('/nl/schatting.html?from=google,box&what=files', 1200);
+    const nl = await listed.page.evaluate(() => ({
+      from: [...document.querySelectorAll<HTMLInputElement>('input[name="from"]')].filter((i) => i.checked).map((i) => i.value),
+      line: document.getElementById('paths-line')!.textContent,
+    }));
+    expect(nl.from).toEqual(['google', 'box']);
+    expect(nl.line).toBe('Bestanden van Google; Bestanden van Box, voor één persoon — dat zijn 2 migraties tegelijk.');
+    await listed.page.close();
+  }, 90_000);
+
   it('reaches the other language, and comes back', async () => {
     const { page } = await open('/');
     await page.click('header.site a.lang');
