@@ -98,10 +98,14 @@ describe('the site answers a wrong address with a page about it', () => {
   it('keeps the 404 out of the navigation', () => {
     // It has no place in the nav: it is not a destination, it is what an
     // address that is not a destination gets.
+    // Both navs: the header's and the phone's menu (0152 T2). A page with no
+    // nav would pass vacuously, so it fails instead.
     for (const p of pages()) {
-      expect(p.html, `${p.file} links to a 404 page from its nav`).not.toMatch(
-        /<nav class="site">[^]*?href="[^"]*404\.html"/,
-      );
+      const navs = [...p.html.matchAll(/<nav class="(?:site|menu)"[^>]*>([^]*?)<\/nav>/g)].map((m) => m[1]!);
+      expect(navs.length, `${p.file} has no nav to check`).toBeGreaterThan(0);
+      for (const nav of navs) {
+        expect(nav, `${p.file} links to a 404 page from its nav`).not.toMatch(/href="[^"]*404\.html"/);
+      }
     }
   });
 });

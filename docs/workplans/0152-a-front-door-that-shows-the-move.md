@@ -4,6 +4,35 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04, evening: T2 and T6 (c) are built** (R8 step 9, its first part). The header reads
+*Home · How it works · Pricing · Sign in*, then the language switch.
+- **Sign in** goes to the app's sign-in page, built from `APP_URL` (`SIGN_IN_URL` in
+  `site/prices.mjs`), so a test site never sends anybody to production's.
+- **On a phone** (40rem and narrower) the four fold into a `<details>` menu that opens without a
+  script, under the site's CSP. The name, the language switch and *Menu* share one row, 56
+  pixels high. A drawn chevron turns when it opens; the browser tells a screen reader whether it
+  is open. The language switch stays outside the menu, as the answer to open question 4 asked.
+- **The estimate leaves the header,** and T6 (c) links it: *Work out what yours costs* sits
+  under the tier cards, and leads the home page's *What it costs*, beside *All five tiers, in
+  full*, as `wf-site-home.svg` draws it. That block's *How a migration works* goes, since the
+  header carries it. Privacy and Terms stay in the footer only.
+- **Guards:** `site/site.unit.test.ts`:
+  - every page's header lists the four, the phone's menu the same four, *Sign in* the app's,
+    and the language switch beside them;
+  - the estimate is linked from pricing and home, and Privacy and Terms from the footer;
+  - the guide stays out of both navs, and so does the 404 page
+    (`pages-that-do-not-exist`, which looked for the old `<nav class="site">` exactly and would
+    have matched nothing once the nav gained a label; it now fails on a page with no nav).
+
+  `test/ui/site.ui.test.ts`, at 390 pixels:
+  - one row under 64 pixels, with the wide header hidden and the language switch shown;
+  - the menu is closed until Tab reaches it and Enter opens it, and its links fit the screen;
+  - at 1200 pixels the header shows its pages, and no menu.
+
+  Mutations caught: the estimate back in the header, and the pricing page's button removed.
+- **T0:** *Sign in* / *Aanmelden* (the app's own word), *Menu*, and *Work out what yours costs* /
+  *Reken uit wat het u kost* are new words for the owner's reading.
+
 **2026-10-04: a new question for the owner, open question 5: which line the site shows during
 the Alpha.** T1 (a) copies the app's alpha sentence to every site page. Since 0131 D4's
 amendment that sentence is the owner's welcome, *"Welcome to the Alpha! Try Ownpace at your own
@@ -135,7 +164,7 @@ together, from one audit of the site and the app on `main` at `83eb73e` (§1).
 |---|---|---|
 | T0 The owner reads the new copy | ⏳ **Owner; before the first invitation, before each task merges. D6's *migratie* is built on the site's own pages; the legal texts are 0139's** | §3. Site copy is the owner's to approve (0144 T0). Every new sentence here is a proposal, in both languages. It includes *migratie* for *verhuizing* (D6) and the new *Why it is priced this way* (T6 (g)). |
 | T1 The alpha, said on the site | 📋 **Proposed; before the first invitation**; (a)'s line waits for open question 5 (2026-10-04) | §3. The app's alpha sentence on every site page while the alpha setting is on. The unbacked *"Most people"* and *"Meest gekozen"* become a fact about the tier. *(2026-10-04: the app's sentence is now the owner's welcome (0131 D4's amendment), so copied as it is, every visitor would read the welcome. Open question 5.)* |
-| T2 A shorter menu, and a header that fits a phone | 📋 **Proposed; before the first invitation** | §3. The header reads Home · How it works · Pricing · Sign in, plus the language switch. Privacy and Terms move to the footer. On a phone the menu folds into a `<details>`, which needs no script. |
+| T2 A shorter menu, and a header that fits a phone | ✅ **Built 2026-10-04, with T6 (c); its words wait for T0** | §3. The header reads Home · How it works · Pricing · Sign in, plus the language switch. Privacy and Terms move to the footer. On a phone the menu folds into a `<details>`, which needs no script. |
 | T3 The hero shows the move | 📋 **Proposed; before the first invitation** | §3. The drawing `hero-move.svg`, inlined: the old account's data, then Ownpace, then the new home, with our own icons (D4). Three facts sit under it, and a three-step strip links to *How it works*. An app screen joins it once 0153 T5 exists. |
 | T4 The destinations, named | 📋 **Proposed; before the first invitation** | §3. A *Where to* section names what the app supports, from a site copy of the app's list with a guard that it matches. It says plainly that the new account is one the person opens and pays for themselves. |
 | T5 A page per provider a person leaves | 📋 **Proposed; before the first invitation (D5)** | §3. *Leaving Google*, *Leaving Microsoft 365*, *Leaving iCloud*, *Leaving Dropbox*, *Leaving Box*, *Leaving another mail provider*: what moves, the limits, what the person does, the destinations it can go to, a typical cost. Built from copies of the app's own verdicts, each guarded. |

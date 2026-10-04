@@ -196,12 +196,53 @@ describe('the public site renders', () => {
     await page.close();
   }, 60_000);
 
+  it('fits a phone: one row under 64 pixels, and its menu opens from the keyboard (0152 T2)', async () => {
+    const { page } = await open('/', 390);
+    // checkVisibility, not a box: a closed <details> keeps its content laid
+    // out and skips painting it (content-visibility), so a box proves nothing.
+    const shown = (selector: string) =>
+      page.evaluate((s) => document.querySelector(s)?.checkVisibility({ visibilityProperty: true }) ?? false, selector);
+    const height = await page.evaluate(() => document.querySelector('header.site')!.getBoundingClientRect().height);
+    expect(height, 'the header is taller than one row on a phone').toBeLessThan(64);
+    expect(await shown('nav.site'), 'the wide header shows on a phone').toBe(false);
+    expect(await shown('header.site a.lang'), 'the language switch is hidden on a phone').toBe(true);
+    expect(await shown('nav.menu'), 'the menu is open before anybody opens it').toBe(false);
+
+    // From the top of the page, by Tab alone: the skip link, the name, the
+    // language switch, then the menu.
+    let onMenu = false;
+    for (let i = 0; i < 6 && !onMenu; i++) {
+      await page.keyboard.press('Tab');
+      onMenu = await page.evaluate(() => document.activeElement?.matches('details.menu > summary') ?? false);
+    }
+    expect(onMenu, 'Tab never reaches the menu').toBe(true);
+    await page.keyboard.press('Enter');
+    expect(await shown('nav.menu'), 'Enter does not open the menu').toBe(true);
+    const links = await page.$$eval('nav.menu a', (as) =>
+      as.map((a) => ({ text: a.textContent, href: a.getAttribute('href'), right: a.getBoundingClientRect().right })),
+    );
+    expect(links.map((l) => l.text)).toEqual(['Home', 'How it works', 'Pricing', 'Sign in']);
+    expect(links.at(-1)!.href).toBe('https://app.ota.ownpace.eu/login');
+    for (const l of links) expect(l.right, `${l.text} runs off a 390 pixel screen`).toBeLessThanOrEqual(390);
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => document.activeElement?.textContent)).toBe('Home');
+    const overflows = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+    expect(overflows, 'the open menu scrolls sideways').toBe(false);
+    await page.close();
+
+    // On a wide screen the same pages sit in the header, and there is no menu.
+    const wide = await open('/', 1200);
+    expect(await wide.page.isVisible('nav.site'), 'the header lost its pages on a wide screen').toBe(true);
+    expect(await wide.page.isVisible('details.menu > summary'), 'a wide screen shows the phone menu').toBe(false);
+    await wide.page.close();
+  }, 60_000);
+
   it('reaches the other language, and comes back', async () => {
     const { page } = await open('/');
-    await page.click('nav.site a.lang');
+    await page.click('header.site a.lang');
     await page.waitForLoadState('networkidle');
     expect(await page.getAttribute('html', 'lang')).toBe('nl');
-    await page.click('nav.site a.lang');
+    await page.click('header.site a.lang');
     await page.waitForLoadState('networkidle');
     expect(await page.getAttribute('html', 'lang')).toBe('en');
     await page.close();
