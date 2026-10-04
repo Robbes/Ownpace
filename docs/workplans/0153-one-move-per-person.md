@@ -17,8 +17,8 @@ without D"*, *"5. A"*, *"6. A"*).
   go?* (C, not D).** In its own pull request.
 - **App-password Gmail where the restricted scopes are declared: nothing now (A).** To build
   only when a deployment sets `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`.
-- **A saved *Export archive* account: the card leaves the managed Accounts page (A).** In its own
-  pull request.
+- **A saved *Export archive* account: the card leaves the managed Accounts page (A).** Built: the
+  last bullet under *Not carried over* below says how.
 
 **2026-10-04: the wizard retires (D5; open question 5, item 7, the second part).** *Start a
 migration* is the one way a migration is made on managed, and T4, T1 (c) and T6 end with it.
