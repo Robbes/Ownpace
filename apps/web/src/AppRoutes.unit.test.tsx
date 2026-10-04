@@ -8,7 +8,9 @@
  * marker must be absent — mounting is when queries fire). The worst offender
  * pinned explicitly: /mappings/new on the appliance used to mount the
  * managed creation wizard on the edition whose config is read-only BY DESIGN
- * (standing decision 6). Per-mapping routes stay shared — real in both.
+ * (standing decision 6). The wizard has retired since (0153 D5), and its
+ * address leads to Start a migration. Per-mapping routes stay shared — real
+ * in both.
  */
 import type { ReactNode } from 'react';
 import { render, screen } from '@testing-library/react';
@@ -70,8 +72,11 @@ vi.mock('./pages/AccessRequests', () => ({ default: () => <div>screen:access-req
 vi.mock('./pages/Mappings', () => ({ default: () => <div>screen:mappings</div> }));
 vi.mock('./pages/Person', () => ({ default: () => <div>screen:person</div> }));
 vi.mock('./pages/MappingDetail', () => ({ default: () => <div>screen:mapping-detail</div> }));
-vi.mock('./pages/CreateMapping', () => ({ default: () => <div>screen:create-mapping</div> }));
-vi.mock('./pages/StartMigration', () => ({ default: () => <div>screen:start-migration</div> }));
+// Its marker says the query it was opened with, for the wizard's old address (0153 D5).
+vi.mock('./pages/StartMigration', async () => {
+  const { useLocation } = await import('react-router');
+  return { default: () => <div>screen:start-migration{useLocation().search}</div> };
+});
 vi.mock('./pages/ConfirmMapping', () => ({ default: () => <div>screen:confirm-mapping</div> }));
 vi.mock('./pages/Tenants', () => ({ default: () => <div>screen:tenants</div> }));
 vi.mock('./pages/Billing', () => ({ default: () => <div>screen:billing</div> }));
@@ -135,8 +140,9 @@ describe('appliance builds redirect managed-only URLs to /confirm', () => {
     // Migrations, the list of people, stays managed: the appliance has one
     // (its person's page, below, 0153 T8).
     '/mappings': 'screen:mappings',
-    '/mappings/new': 'screen:create-mapping',
-    // Start a migration (0153 T4) creates through the managed API, as the wizard does.
+    // The wizard's old address leads to Start a migration (0153 D5), managed-only as both are.
+    '/mappings/new': 'screen:start-migration',
+    // Start a migration (0153 T4) creates through the managed API.
     '/start': 'screen:start-migration',
     // The green light drives the managed discover/start API; the appliance's
     // own /confirm is that edition's equivalent — exactly where this lands.
@@ -173,6 +179,18 @@ describe('the managed-only screens still mount on managed', () => {
     renderAt('/tenants');
 
     expect(await screen.findByText('screen:tenants')).toBeInTheDocument();
+  });
+
+  it('the wizard’s old address, a bookmark or a guide’s link, lands on Start a migration (0153 D5)', async () => {
+    renderAt('/mappings/new');
+
+    expect(await screen.findByText('screen:start-migration')).toBeInTheDocument();
+  });
+
+  it('for the person it named, where it named one', async () => {
+    renderAt('/mappings/new?person=p-anna');
+
+    expect(await screen.findByText('screen:start-migration?person=p-anna')).toBeInTheDocument();
   });
 });
 

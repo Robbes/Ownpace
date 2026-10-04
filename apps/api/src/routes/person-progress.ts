@@ -37,16 +37,30 @@
 
 import { createHash } from 'node:crypto';
 import type { Pool } from 'pg';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
-import { PgLedger, PgMigrationStatusStore, type LedgerDriver, type PgDatabase } from '@openmig/ledger';
+import {
+  PgLedger,
+  PgMigrationStatusStore,
+  RunStore,
+  readPathPhases,
+  type LedgerDriver,
+  type PgDatabase,
+} from '@openmig/ledger';
 import { personMigration } from '@openmig/managed/schema-managed';
 import {
   MAPPING_LIFECYCLES,
+  RATE_PASSES,
   buildDomainStatusReports,
+  checkFactsOf,
+  discoveryForSelection,
+  foundByDomain,
   reasonPair,
   viewGrantFor,
   viewRowFor,
+  viewStageOf,
+  viewTimeOf,
+  type ViewProgressExtras,
   type Bilingual,
   type GrantWithdrawal,
   type MappingId,
@@ -64,12 +78,15 @@ import { namedAccount, readGrantRows } from './migrations/grant-subject.ts';
 import { isGrantableSourceKind } from './migrations/grant-link-readiness.ts';
 import { googleAccountKey } from './migrations/signed-in-account.ts';
 import { GRANT_WITHDRAWN_ACTION, WITHDRAWAL_ACTOR, grantedToken } from './withdraw-grant.ts';
+import { runReportOf } from './migrations/operating-routes.ts';
 
 /** One migration's counts and states, as every progress page shows them. */
-export interface MigrationProgress {
+export interface MigrationProgress extends ViewProgressExtras {
   readonly state: MappingLifecycle;
   readonly started: boolean;
   readonly domains: readonly ViewDomainRow[];
+  /** The source's kind, to name who slowed it; absent when its connection could not be read. */
+  readonly from?: string;
 }
 
 /**
@@ -94,16 +111,85 @@ export async function migrationProgress(
         `impossible; refusing to guess what the migration's state is.`,
     );
   }
-  const [domainStatus, failures, adopted] = await Promise.all([
-    new PgMigrationStatusStore(db).getStatus(tenantId as TenantId, mappingId as MappingId),
-    new PgLedger(db).listFailures(tenantId as TenantId, mappingId as MappingId),
-    new PgLedger(db).countAdoptedByDomain(tenantId as TenantId, mappingId as MappingId),
+  const tenant = tenantId as TenantId;
+  const mapping = mappingId as MappingId;
+  const [domainStatus, failures, adopted, discovery, scopeRows, phases, checks, history, sources] = await Promise.all([
+    new PgMigrationStatusStore(db).getStatus(tenant, mapping),
+    new PgLedger(db).listFailures(tenant, mapping),
+    new PgLedger(db).countAdoptedByDomain(tenant, mapping),
+    // What the line sets each count against, and the time before Start
+    // (0154 T2, T3, T8): discovery, read by the owner's own rule.
+    new schema.PgDiscoveryStore(db).getDiscovery(tenant, mapping),
+    db
+      .select({ domain: schema.scopeSelection.domain })
+      .from(schema.scopeSelection)
+      .where(
+        and(
+          eq(schema.scopeSelection.tenantId, tenantId),
+          eq(schema.scopeSelection.mappingId, mappingId),
+          eq(schema.scopeSelection.included, true),
+        ),
+      ),
+    // Each data type's phase and stop, and the check: what its stage is read from.
+    readPathPhases(db, tenantId, mappingId),
+    db
+      .select()
+      .from(schema.verificationRun)
+      .where(and(eq(schema.verificationRun.tenantId, tenantId), eq(schema.verificationRun.mappingId, mappingId)))
+      .orderBy(desc(schema.verificationRun.startedAt))
+      .limit(1),
+    // The last passes, for the time left; their events stay here.
+    new RunStore(db).listRunsWithEvents(tenant, mapping, { limit: RATE_PASSES * 2, eventsPerRun: 0 }),
+    // The source's kind and IMAP host, for the time before Start. Read for
+    // the estimate alone: neither reaches the page but the kind, as the
+    // person's page already names it.
+    db
+      .select({
+        kind: schema.connection.kind,
+        config: schema.connection.config,
+        override: schema.mailboxMapping.sourceConfigOverride,
+      })
+      .from(schema.mailboxMapping)
+      .innerJoin(schema.mailbox, eq(schema.mailbox.id, schema.mailboxMapping.sourceMailboxId))
+      .innerJoin(schema.connection, eq(schema.connection.id, schema.mailbox.connectionId))
+      .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId))),
   ]);
+  const selected = scopeRows.map((r) => r.domain);
+  const reports = buildDomainStatusReports(
+    domainStatus,
+    failures,
+    adopted,
+    foundByDomain(discoveryForSelection(discovery, selected)),
+  );
+  const check = checkFactsOf(runReportOf(checks[0]), mappingId);
+  const waiting = failures.filter((f) => f.needsDecision).length;
+  const source = sources[0];
+  // Merged as a pass merges it (`build-deps-from-mapping`): the mapping's
+  // override over the connection's, key by key.
+  const config = {
+    ...((source?.config as Record<string, unknown> | null) ?? {}),
+    ...((source?.override as Record<string, unknown> | null) ?? {}),
+  };
+  const host = typeof config.host === 'string' && config.host !== '' ? config.host : undefined;
+  const time = viewTimeOf({
+    lifecycle: status as MappingLifecycle,
+    reports,
+    passes: history.runs,
+    source: source?.kind,
+    ...(host ? { sourceHost: host } : {}),
+    selected,
+    discovery,
+  });
   return {
     state: status as MappingLifecycle,
     // Absence, not zero: see `MigrationView.started`.
     started: domainStatus.length > 0,
-    domains: buildDomainStatusReports(domainStatus, failures, adopted).map(viewRowFor),
+    domains: reports.map((r) =>
+      viewRowFor(r, viewStageOf(r, phases ? phases.phaseOf(r.domain) : { phase: status }, check, waiting)),
+    ),
+    ...(source ? { from: source.kind } : {}),
+    ...(check.state === 'passed' ? { checkPassedAt: check.at } : {}),
+    ...(time ? { time } : {}),
   };
 }
 
@@ -233,6 +319,8 @@ export async function readPersonView(
       state: progress.state,
       started: progress.started,
       domains: progress.domains,
+      ...(progress.checkPassedAt ? { checkPassedAt: progress.checkPassedAt } : {}),
+      ...(progress.time ? { time: progress.time } : {}),
       account: refFor(m.mappingId),
     });
   }

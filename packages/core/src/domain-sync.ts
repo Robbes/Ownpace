@@ -954,6 +954,12 @@ export interface DomainSyncResult {
    */
   readonly firstCopyBytes: number;
   /**
+   * Items that would have been a first copy and waited at the data ceiling
+   * instead (`firstCopyAllowed`, 0109 T6). Not failed and not recorded: the
+   * next pass after the yes copies them. 0 without a gate.
+   */
+  readonly heldAtCeiling: number;
+  /**
    * What failed and why, for the operator-facing queue.
    *
    * Carries the natural-key HASH, not the natural key: a file's natural key is
@@ -1138,6 +1144,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     listDiscardedKeys,
     sourceIsAuthorityOnExistence,
     downloadMeter,
+    firstCopyAllowed,
     snapshot,
     deadline,
     now = Date.now,
@@ -1160,6 +1167,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   let updated = 0;
   let needsDecision = 0;
   let leftBehind = 0;
+  // First copies that waited at the data ceiling (`firstCopyAllowed`).
+  let heldAtCeiling = 0;
   // The source lists a key again after `apply` removed the target's copy for
   // it. Never re-created — see `DomainSyncResult.reappearedAfterRemoval`.
   let reappearedAfterRemoval = 0;
@@ -1603,6 +1612,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     const { items, nextCursor, removed, listedElsewhere } = listing;
     const seenHere = seenByCollection.get(collectionPath) ?? new Set<string>();
     seenByCollection.set(collectionPath, seenHere);
+    // Whether an item of this collection waited at the data ceiling: then its
+    // cursor stays, so the pass after the yes lists it again (below).
+    const heldBeforeThisCollection = heldAtCeiling;
 
     // Set aside, NOT acted on here. Resolving a removal report needs to know
     // whether the same item turned up anywhere else in this pass — a UID moved
@@ -1897,6 +1909,18 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       // to compute; on a fetch failure there is none, which is honest.
       let ch = '';
       try {
+        // THE DATA CEILING (0109 T6, ADR-0014's amendment of 2026-10-03): a
+        // first copy waits for the customer's yes to a move up or a top-up,
+        // once the managed edition says the ceiling is reached. Only a first
+        // copy: an update to an item already copied carries on, so what has
+        // been copied stays in sync. Before the fetch, so a held item costs no
+        // download; an item keyed only by its own bytes is asked below, once
+        // its key is known. Counted, never failed, and given no row.
+        if (naturalKeyHash !== undefined && !rewriteOf && firstCopyAllowed && !firstCopyAllowed(firstCopyBytes)) {
+          heldAtCeiling += 1;
+          return;
+        }
+
         // The pre-fetch gate (0090 T4): read the meter BEFORE spending it.
         // At zero remaining this item is left for tomorrow — un-counted, not
         // failed — and the pass stops taking new work. Reading costs one
@@ -1940,6 +1964,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         // earlier answer when this one has nothing to say.
         itemName = displayName?.(item, raw) ?? itemName;
 
+        const keyedByItsBytes = naturalKeyHash === undefined;
         if (naturalKeyHash === undefined) {
           // The key could not be known from the listing, so derive it now.
           // Mail with no Message-ID is keyed by a hash of its own bytes; that
@@ -2087,6 +2112,13 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
             // so the writer must update it rather than insert a second one.
             hasExistingRow = true;
           }
+        }
+
+        // The data ceiling, for an item whose key came from its own bytes: it
+        // could only be asked once the key said this is a first copy (above).
+        if (keyedByItsBytes && !rewriteOf && firstCopyAllowed && !firstCopyAllowed(firstCopyBytes)) {
+          heldAtCeiling += 1;
+          return;
         }
 
         // Hashed AFTER any key derivation, so for a message we rewrote this is
@@ -2462,7 +2494,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // unprocessed, and the next pass — the one the pause promises — would
     // never see them. `paused()` rather than a named reason, so a pause added
     // later cannot advance a cursor by being forgotten in this one condition.
-    if (cursors && !retryablePending && !paused() && !firstReadSawNothing) {
+    // And a collection one of whose items waited at the data ceiling keeps
+    // its cursor for the same reason a retrying one does: advancing it would
+    // retire that item, and the yes would lift a hold on nothing.
+    const heldHere = heldAtCeiling > heldBeforeThisCollection;
+    if (cursors && !retryablePending && !paused() && !firstReadSawNothing && !heldHere) {
       // Held, not advanced, while this collection's removals are unresolved:
       // they are resolved at the end of the pass, or on a later pass if this
       // one stops before reaching every collection (below).
@@ -2780,6 +2816,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     failed,
     updated,
     firstCopyBytes,
+    heldAtCeiling,
     changedButAdopted,
     conflicted,
     needsDecision,

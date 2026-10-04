@@ -44,7 +44,7 @@ Stage 10 points here. What changed, and why:
 - **A source the sitting may seed, and it has not been chosen.** This runbook
   was written for the OTA stack's demo Nextcloud as the SOURCE, because we may
   seed only what we host. **On `main` that cannot go through the front
-  door.** The wizard and the Connections page offer the source cards in
+  door.** *Start a migration* and the Accounts page offer the source cards in
   `SOURCE_CARDS` (`apps/web/src/components/front-door-cards.ts`), and the
   create route accepts the same list (`sourceType` in
   `apps/api/src/routes/migrations/index.ts`). Neither has CalDAV, CardDAV or
@@ -77,7 +77,7 @@ that, and this section plus D are walked again.
    owner. Use a person whose only organisation on this stack is this one:
    step H's token is theirs, and the lane names no organisation, so the API
    takes the person's only membership (`resolveTenant`).
-2. *Connections* → *Add a connection*; *Source or target?* → **Targets**;
+2. *Accounts* → *Add an account*; *Source or target?* → **Targets**;
    *Provider* → **Soverin** — one row for the one account, which carries
    calendars, contacts, mail and tasks. The boxes come pre-filled
    with what Soverin's own help pages publish: host `caldav.soverin.net`,
@@ -168,14 +168,15 @@ may write to):
 
 ## D — the tiny migration
 
-1. Create one mapping through the wizard: source = the seeded source (see
-   *Before the sitting*), target = the Soverin connection from A, data types
-   calendars and contacts. One Soverin connection carries both
-   (`TARGET_TYPE_DOMAINS`), so one mapping does the work.
+1. Create one mapping through *Start a migration*: source = the seeded source
+   (see *Before the sitting*), with *Calendar* and *Contacts* ticked on
+   *What moves?*; target = the Soverin connection from A, chosen under
+   *Your accounts* for both on *Where does it go?*. One Soverin connection
+   carries both (`TARGET_TYPE_DOMAINS`), so one mapping does the work.
 2. **Note the mapping id** — step H needs it. It is in the migration page's
    URL (`/mappings/<id>`), or listed by `GET /api/migrations`.
-3. Start it with *Start migration* on the confirm page the wizard ends on.
-   Later passes: *Trigger sync* on the *Migrations* list, or
+3. Start it with *Start* on *Check, then start*, the screen *Start a migration*
+   ends on. Later passes: *Trigger sync* on the *Migrations* list, or
    `POST /api/migrations/<id>/sync`.
 4. While it runs, nothing else: a handful of DAV writes is the whole load —
    no load worth a provider's attention.

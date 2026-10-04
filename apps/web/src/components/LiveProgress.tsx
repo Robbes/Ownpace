@@ -29,6 +29,7 @@ import type {
   FailureCategory,
   FailureSide,
   PauseReason,
+  Stage,
 } from '@openmig/shared';
 import { useT, useLocale, useFormatters } from '../i18n/index.tsx';
 import StateChip from './StateChip.tsx';
@@ -102,7 +103,18 @@ export interface LiveProgressRow {
   readonly stoppedByOwner?: true;
 }
 
-const LiveProgress: React.FC<{ domains: readonly LiveProgressRow[] }> = ({ domains }) => {
+const LiveProgress: React.FC<{
+  domains: readonly LiveProgressRow[];
+  /**
+   * Each data type's stage in a person's words (0154 T1, on a migration's own
+   * page), from the facts a person's card reads. Where one is given it stands
+   * in for the pass's state word, so the page and the card say the same thing
+   * about one data type; a failed pass keeps its word beside it, since the
+   * stage alone would not say the last pass failed. Absent, as on the review
+   * screen, the strip says the pass's state, as it always has.
+   */
+  stages?: Readonly<Partial<Record<DomainStatusReport['domain'], Stage>>>;
+}> = ({ domains, stages }) => {
   const t = useT();
   const { locale } = useLocale();
   const { relativeToNow } = useFormatters();
@@ -164,10 +176,22 @@ const LiveProgress: React.FC<{ domains: readonly LiveProgressRow[] }> = ({ domai
               title: t('confirm.progress.leftAsIs.why'),
             });
           }
+          const stage = stages?.[d.domain];
           return (
-            <li key={d.domain} className="text-sm text-gray-800 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <li
+              key={d.domain}
+              data-domain={d.domain}
+              className="text-sm text-gray-800 flex flex-wrap items-center gap-x-2 gap-y-0.5"
+            >
               <span className="font-medium">{t(DOMAIN_KEY[d.domain])}</span>
-              <StateChip entity="domain" state={d.state} />
+              {stage ? (
+                <>
+                  <StateChip entity="stage" state={stage} />
+                  {d.state === 'failed' && <StateChip entity="domain" state={d.state} />}
+                </>
+              ) : (
+                <StateChip entity="domain" state={d.state} />
+              )}
               <span>
                 {count}
                 {bytes && (

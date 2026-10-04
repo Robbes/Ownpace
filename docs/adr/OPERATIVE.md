@@ -104,9 +104,9 @@ live in [README.md](./README.md), the register.
 - **The month bills its peak; the tier is derived, never picked.** Downgrade is automatic,
   announced, never blocking a path. No setup fee. Not built yet (0109 T5–T6).
 - **Every step up is consented and paid for.** A path waits for the yes at activation; at the
-  data ceiling, new first copies wait for a move up or a one-off top-up (another band, for the
-  tier's monthly once: a higher ceiling, never a rewound meter). Without that yes, a month
-  bills the tier it was on.
+  data ceiling, outside the alpha, new first copies wait for a move up or a one-off top-up
+  (another band for the tier's monthly, once; the meter never rewinds). Without that yes, a
+  month bills the tier it was on.
 - **A year is credit at six months' price**: each month takes its own tier at half its monthly
   price; what is left is refunded on stopping, or carried into the renewal. Not built yet
   (0111).

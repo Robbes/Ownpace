@@ -11,40 +11,38 @@ IMAP is the standard way a mail program reads a mailbox. This service uses it on
 
 ## Connecting {#connect}
 
-The **IMAP** card asks for the same fields on both sides. You find it on the wizard's source step and on its target step.
+The **IMAP** card asks for the same fields on both sides. In **Start a migration** it is **Another mail provider** where a mailbox is left, and **Add IMAP** where the mail goes.
 
 ### IMAP as the source {#imap-source}
 
-1. On the source step, pick the **IMAP** card.
-2. In **Host**, type the IMAP server's name, such as `imap.example.com`: the name alone, with no `https://` or path.
-3. **Port** already holds `993`, the usual port for IMAP with SSL. Change it only if your provider gives another.
-4. Leave **Use SSL/TLS** ticked. **Test and save connections** tests and saves the connection with SSL/TLS, whatever the box says.
-5. In **Username**, type the mailbox's user name.
-6. In **Password**, type the app password, or the mailbox's password if the provider allows it for IMAP.
-7. Press **Test and save connections**.
+1. On **Which account are you leaving?**, tick **Another mail provider**. **Other ways to connect (IMAP)** leads to it too.
+2. On **Connect your accounts**, type the IMAP server's name in **Host**, such as `imap.example.com`: the name alone, with no `https://` or path.
+3. In **Port**, type the port your provider gives for IMAP with SSL: usually `993`, which the box shows as its example. There is no box for SSL/TLS: this service always connects with it.
+4. In **Username**, type the mailbox's user name.
+5. In **Password**, type the app password, or the mailbox's password if the provider allows it for IMAP.
+6. Press **Check the sign-in**.
 
-The test signs in read-only and writes nothing. When it works it says **Connected.**, with what it found underneath, and the connection is saved. For the next migration, pick it under **Reuse a saved source connection** rather than typing it all again. The **Open the setup checklist** link under the cards puts the preparation on a list that remembers what you have done.
+The test signs in read-only and writes nothing. When it works it says **Connected.**, with what it found underneath, and the account is saved. For the next migration, **Connect your accounts** offers it, so nothing is typed again. The **Setup steps** link under the form puts the preparation on a list that remembers what you have done.
 
 ### IMAP as the target {#imap-target}
 
-1. On the target step, pick the **IMAP** card.
+1. On **Where does it go?**, in the row for email, choose **Add IMAP** under **A new account**.
 2. In **Host**, type the name of the IMAP server the mail goes to, such as `imap.example.com`.
-3. **Port** already holds `443`, which is not an IMAP port. Replace it with the IMAP port your provider gives, usually `993`.
-4. Leave **Use SSL/TLS** ticked; here too the test and the saved connection use SSL/TLS.
-5. In **Username** and **Password**, type the target mailbox's details.
-6. Press **Test and save connections**.
+3. In **Port**, type the IMAP port your provider gives, usually `993`.
+4. In **Username** and **Password**, type the target mailbox's details.
+5. Press **Check the sign-in**.
 
 Here too the test writes nothing: it signs in and counts the target mailbox's folders.
 
-The **Target folder (optional)** box says where the mail lands. Empty merges into the account: the source's folders arrive beside the folders already there. With a folder name, such as `Gmail`, everything lands under that folder; useful when several sources share one target.
+**Where the copies land**, under the rows, says where the mail goes in that account. Left as it is, the mail merges into the account: the source's folders arrive beside the folders already there. Open **Put it in a folder of its own** and type a name in **Folder**, such as `Gmail`, and everything lands under that folder. Where two migrations send mail to the same account, it opens by itself, filled in with the account each comes from.
 
-You can also add an IMAP connection in advance, under **Connections** → **Add a connection**. Choose the side under **Source or target?**, then the **IMAP** card, and press **Add and test**.
+You can also add an IMAP account in advance, under **Accounts** → **Add an account**. Choose **Sources** or **Targets** under **Source or target?**, then the **IMAP** card, and press **Add and test**.
 
 ## What moves {#what-moves}
 
-- **As a source** this card reads mail: the mailbox's folders and the messages in them. On the migration step, tick **Email** only. Calendars and contacts do not travel over IMAP: this service does not measure them on an IMAP connection either.
-- **As a target** this card receives mail only. On the migration step, **Calendar**, **Contacts**, **Files** and **Tasks** are then off, with the line **Not available over the selected target protocol.** For those, create a second migration, to a CalDAV, CardDAV or WebDAV target ([the DAV guide](dav.md)) or to a Nextcloud ([the Nextcloud guide](nextcloud.md)).
-- Folders the target does not have yet are created. Sent and Drafts become the target account's own Sent and Drafts. Under a **Target folder** they arrive as ordinary folders inside it, because a mail program can only have one of each.
+- **As a source** this card reads mail: the mailbox's folders and the messages in them. On **What moves?**, a mail provider offers **Email** alone, and says why: over IMAP only mail is read. This service does not measure calendars or contacts on an IMAP account either.
+- **As a target** this card receives mail only: on **Where does it go?**, only the row for email offers it. Calendars, contacts, files and tasks go to a CalDAV, CardDAV or WebDAV target ([the DAV guide](dav.md)) or to a Nextcloud ([the Nextcloud guide](nextcloud.md)), chosen in their own rows, and **Start a migration** makes a migration for each.
+- Folders the target does not have yet are created. Sent and Drafts become the target account's own Sent and Drafts. In a folder of its own, they arrive as ordinary folders inside it, because a mail program can only have one of each.
 - A migration may run again and again: a message already in the target is recognised and not copied a second time.
 
 ## When the test reports a problem {#when-test-says}
@@ -53,11 +51,11 @@ What a mail server itself answers, this service shows word for word, in the serv
 
 - **The password is refused**, for example with `AUTHENTICATIONFAILED` or a line with `LOGIN failed`. Check the user name. With two-factor authentication on, most providers want an app-specific password instead of the account password.
 - **The server cannot be reached**, or refuses the connection. Check **Host** and **Port** against what your provider gives for IMAP with SSL.
-- **No answer within 20 seconds.** The test says so and keeps the connection anyway, so it can be tested again later.
-- **A second test tries the same server.** After a failed test the wizard keeps the connection with the **Host**, **Port** and **Username** it was first given, and pressing the button again retries only the password. To test corrected details, delete that connection under **Connections**, then open the wizard again, retype the password and press **Test and save connections**.
+- **No answer within 20 seconds.** The test says so.
+- **A failed test starts afresh.** **Try again** takes away the account the failed test saved and opens the form again with what you typed, so a corrected **Host**, **Port** or **Username** is tested as typed. On the **Accounts** page, delete the account that failed and add it again.
 
 ## Stopping {#leaving}
 
 - A migration is deleted under **Migrations**. The confirmation says what that does: **Removes the migration’s settings and record; nothing at your source or destination is touched.** What was already copied stays in the target.
-- A connection is deleted under **Connections**, with **Delete**. That deletes this service's copy of the password. The password itself stays valid at the provider, and the screen says so too: **We deleted our copy; this provider has no revocation we can call.**
+- An account is deleted under **Accounts**, with **Delete**. That deletes this service's copy of the password. The password itself stays valid at the provider, and the screen says so too: **We deleted our copy; this provider has no revocation we can call.**
 - So revoke the app password at your provider, or change the mailbox's password. Only the account holder can. An app password can be revoked without changing the person's own password.

@@ -82,8 +82,9 @@ would produce something that looks migrated and is wrong.
 
 That means the target must also carry tasks. A CalDAV target that advertises
 only `VEVENT` in its `supported-calendar-component-set` cannot take them, and
-the wizard says so when you pick the domains rather than failing halfway
-through a run.
+nothing refuses it before a run: *Start a migration* offers a CalDAV account
+for *Tasks* by its kind. The tasks are refused during the pass, and each
+refused write names the component it carried and the ones the collection takes.
 
 ## Files: iCloud Drive, and why it is a *no* rather than a `?`
 

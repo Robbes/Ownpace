@@ -2,17 +2,17 @@
 
 The Microsoft equivalent of this guide is [the Microsoft guide](microsoft.md).
 
-This guide is for the Google cards in the wizard: the **Google account**, and the four cards that each read one Google product. Where this service has its own Google app, you press **Connect with Google** and approve at Google, and nothing on this page asks you to create anything. The steps to create an app of your own are at the end, under [With your own app](#own-app), for when you would rather use yours.
+This guide is for the Google cards: the **Google account**, and the cards that each read one Google product. Google Calendar and Google Contacts are retired for new migrations, since the account carries both. Where this service has its own Google app, you press **Connect with Google** and approve at Google, and nothing on this page asks you to create anything. The steps to create an app of your own are at the end, under [With your own app](#own-app), for when you would rather use yours.
 
 ## What you need {#before}
 
-- The Google account whose data moves, and its sign-in. The wizard's **Connect with Google** button opens Google's own consent screen for that account.
+- The Google account whose data moves, and its sign-in. **Connect with Google**, on **Connect your accounts**, opens Google's own consent screen for that account.
 - If the account belongs to somebody else, you do not need their password: [send them a grant link](#grant-link) instead.
 - Migrating a whole Workspace with many accounts? Read [domain-wide delegation](#domain-wide-delegation) first — it replaces one consent ceremony per person per product with a single admin action, and it needs a Workspace administrator.
 
 ## Connecting {#connect}
 
-Each card asks for the account's address, under **Username**, and for a **Refresh token**, which **Connect with Google** fills in: press it, choose the account at Google, and approve. The token lands in the field by itself. Then **Test and save connections** reads the account once, through exactly what a pass would build, before anything migrates.
+Each card asks for the account's address, under **Username**, and for a **Refresh token**, which **Connect with Google** fills in: press it, choose the account at Google, and approve. The token lands in the field by itself, and the account is saved and tested in one go: the test reads it once, through exactly what a pass would build, before anything migrates.
 
 ### Google account {#google}
 
@@ -24,9 +24,13 @@ The token asks for `https://www.googleapis.com/auth/drive.readonly`, and nothing
 
 It is a **delegated** credential: it reads the Drive of the person who consents, including the shared drives that person can see. For a whole Workspace there is a second, opt-in path — **[domain-wide delegation](#domain-wide-delegation)**, at the end of this guide. Per-user tokens stay the default: smallest access, revocable per person, no admin needed.
 
-The **Root folder ID** field roots the migration somewhere other than My Drive — a **shared drive** is named by its own id, and so is a **folder somebody shared with this account**: "Shared with me" is a view, not a folder, so its contents never appear under My Drive's tree — rooting a separate migration at the shared folder's id is how such a folder migrates. To see the ids this credential can reach, use the wizard's **Browse shared drives & folders…** button on the source step — a read-only listing through the same connector a migration uses. Loose shared files — shared with you but not inside a folder you can root at — stay out of scope.
+A migration can start somewhere other than My Drive: a **shared drive** is named by its own id, and so is a **folder somebody shared with this account**. "Shared with me" is a view, not a folder, so its contents never appear under My Drive's tree; starting a separate migration at the shared folder is how such a folder migrates. Loose shared files, shared with you but not inside a folder, stay out of scope.
 
-**Google Docs, Sheets, Slides and Drawings** have no file to copy, only a rendering Google makes, and the wizard asks what each kind should arrive as. Every choice asks Drive to render the document; nothing is converted here.
+The choice is **Only one folder**, under **Files** on **What moves?**, for the Google account as for this card. Once the account is connected, paste the folder's address from Google Drive, whose id is read out of it, or press **Show shared drives and shared folders** and pick one: a read-only listing through the same connector a migration uses. The migration's page then says which folder its files are read from. The folder can change until the first file is copied; after that, another folder is another migration.
+
+On the **Accounts** page, this card's form also has a **Root folder ID** field, which starts every migration of that account at the folder with that id.
+
+**Google Docs, Sheets, Slides and Drawings** have no file to copy, only a rendering Google makes, and **What moves?** asks under **Files** what each kind should arrive as. Every choice asks Drive to render the document; nothing is converted here.
 
 - Docs arrive as `.odt` (OpenDocument), `.docx` (Microsoft Office) or `.pdf`.
 - Sheets arrive as `.ods`, `.xlsx` or `.pdf`.
@@ -45,11 +49,11 @@ The exported file lands under the document's name **plus the extension of whatev
 
 **A Drive-consented token will not work.** A refresh token carries the scopes it was consented with, and one minted for `drive.readonly` answers `invalid_scope` the first time a mail token is requested. **Connect with Google** on the Gmail card asks for the mail scope.
 
-For a **personal** account only, the **App password** field can stand in for the consent. Read [the section on it](#app-password) before choosing it: Google recommends against it, it needs 2-step verification, it does not exist on a Workspace account, and it is the wider credential rather than the narrower one. **Entering both changes nothing** — the consent wins whenever it is complete, so an app password left behind from an earlier attempt cannot quietly take over.
+For a **personal** account only, the **App password** field, under **Use an app password instead**, can stand in for the consent. Read [the section on it](#app-password) before choosing it: Google recommends against it, it needs 2-step verification, it does not exist on a Workspace account, and it is the wider credential rather than the narrower one. **Entering both changes nothing** — the consent wins whenever it is complete, so an app password left behind from an earlier attempt cannot quietly take over.
 
 #### A personal Gmail account can use an app password — and Google would rather you did not {#app-password}
 
-For **mail only**, and only on a **personal** Google account, there is a shorter road: an **app password**. Paste it into the wizard's **App password** field and leave the OAuth fields empty. Everything else about the migration is identical: same folders, same messages, same duplicate-detection.
+For **mail only**, and only on a **personal** Google account, there is a shorter road: an **app password**. Open **Use an app password instead**, paste it into **App password**, and press **Check the sign-in** rather than **Connect with Google**. Everything else about the migration is identical: same folders, same messages, same duplicate-detection.
 
 **Google recommends against app passwords, and so do we.** That is not a formality:
 
@@ -63,11 +67,15 @@ If it is used, the daily download ceiling is **exactly the same** — Google enf
 
 ### Google Calendar {#google-calendar}
 
+**Retired for new migrations.** The **Google account** card carries calendars, and **Start a migration** asks Google for only what you tick. This card stays on the **Accounts** page for accounts added with it, which keep working, and **Start a migration** offers such an account where Calendar is all you tick from Google.
+
 Google still speaks the protocols this product already implements, so this source is the ordinary CalDAV connector aimed at Google's calendar endpoint, with one difference: **Google's DAV endpoints take OAuth only**, so requests carry a token minted from your refresh token instead of a password.
 
 The token must be consented with the calendar scope, `https://www.googleapis.com/auth/calendar`. A token consented for Drive, mail or contacts answers `invalid_scope` here. Google Tasks are not on Google's CalDAV: the **Google account** card reads them, with `https://www.googleapis.com/auth/tasks.readonly`.
 
 ### Google Contacts {#google-contacts}
+
+**Retired for new migrations**, as Google Calendar is: the **Google account** card carries contacts, and a saved Google Contacts account is offered where Contacts is all you tick from Google.
 
 The same, for contacts: the ordinary CardDAV connector aimed at Google's contacts endpoint, which also takes OAuth only.
 
@@ -97,7 +105,7 @@ A Workspace admin can authorise a **service account** to impersonate users, once
 - Contacts: `https://www.googleapis.com/auth/carddav`
 - Tasks: `https://www.googleapis.com/auth/tasks.readonly`
 
-4. **Enter it**: paste the whole key file into the wizard's **Service account key** field and state each migration's account. The refresh-token fields stop being required; the refusals will say so if something is missing.
+4. **Enter it**: answer **Yes** to **Is this a company account with an administrator?**, paste the whole key file into **Service account key**, and state each migration's account under **Username**. On the **Accounts** page the field is in plain view. The refresh-token fields stop being required; the refusals will say so if something is missing.
 5. **Revoke at cutover.** Delete the Admin-console delegation entry (and the key) when the migration finishes — the credential's lifetime is the migration's, and this step is as much part of the move as step 3.
 
 ## What moves {#what-moves}
@@ -115,7 +123,7 @@ Stated here rather than discovered:
 
 ### Google Photos, and the device backups {#photos}
 
-**Photos are not migrated, and the reason is Google's, not ours.** Since 31 March 2025 the Photos Library API no longer lets a third-party application read a person's library: an app may see only the items it uploaded itself, or items the person picks by hand in Google's own picker, one selection at a time. A complete, unattended copy of a photo library through the API is therefore not possible for any product, and a connection that offered it would be promising something Google refuses. The complete route Google leaves open is **Google Takeout** — the person exports their library as an archive — which is a snapshot to download rather than an account to read, and so a different kind of migration than the account cards on this page. The **Export archive** card reads a Takeout of Google Photos: [the archive guide](archive.md) says how to ask Google for one, and where it has to be for the card to read it.
+**Photos are not migrated, and the reason is Google's, not ours.** Since 31 March 2025 the Photos Library API no longer lets a third-party application read a person's library: an app may see only the items it uploaded itself, or items the person picks by hand in Google's own picker, one selection at a time. A complete, unattended copy of a photo library through the API is therefore not possible for any product, and a connection that offered it would be promising something Google refuses. The complete route Google leaves open is **Google Takeout** — the person exports their library as an archive — which is a snapshot to download rather than an account to read, and so a different kind of migration than the account cards on this page. The **Export archive** card reads a Takeout of Google Photos: [the archive guide](archive.md) says how to ask Google for one, and where it has to be for the card to read it. On **Start a migration** it is the **Photos: from a Takeout export** tick box under Google: see [From Start a migration](archive.md#from-the-flow).
 
 **And the obvious hope does not rescue it.** Google publishes a Data Portability API for people in the European Economic Area, the United Kingdom and Switzerland, built to satisfy the Digital Markets Act, which sounds like exactly the answer. Its full list of scopes was read on 4 September 2026, and again on 28 September 2026, when it held 73: **Google Photos is not among them**, nor is Drive, Gmail, Contacts or Calendar. What it carries is search and activity history, Chrome, Maps contributions, Play and YouTube, and since December 2025 Pixel and Nest data too. The two scopes that look like photos are not: one is what you posted on Maps, the other is Street View uploads. So a photo library now has two separate reasons to be out of reach, and Takeout is not a workaround while something better arrives — it is the only complete route there is.
 
@@ -145,9 +153,9 @@ Each produces the same `invalid_grant` from Google, and the test's message lists
 
 ## With your own app {#own-app}
 
-This is what you do once, in **your own** Google Cloud project, to let Ownpace read a Google account with a client of your own. It ends with two values — client id and client secret — that go in the wizard's **Use your own Google client** fold, beside **Connect with Google**.
+This is what you do once, in **your own** Google Cloud project, to let Ownpace read a Google account with a client of your own. It ends with two values — client id and client secret — that go in the **Use your own Google client** fold, under **Connect with Google**.
 
-**The same model as for Microsoft, for the same reasons.** The app registration lives in **your** project, registered by you; the credential never leaves your custody; and revoking it is yours — delete the OAuth client and every token dies. The wizard's **Connect with Google** button runs the consent for you against your own client: it opens Google's consent screen with your client ID and secret, and fills the refresh token in for you.
+**The same model as for Microsoft, for the same reasons.** The app registration lives in **your** project, registered by you; the credential never leaves your custody; and revoking it is yours — delete the OAuth client and every token dies. **Connect with Google** runs the consent for you against your own client: it opens Google's consent screen with your client ID and secret, and fills the refresh token in for you.
 
 ### Start here: whose Google account is it? {#own-app-whose-account}
 
@@ -184,9 +192,9 @@ You made this choice [above](#own-app-whose-account). To restate it in the conso
 
 **APIs & Services → Credentials → Create credentials → OAuth client ID.**
 
-Pick **Web application** and add an authorised redirect URI: the wizard shows the exact value to register when you press **Connect with Google** with your own client, so a mismatch is visible before Google refuses it. It ends in `/api/migrations/google/callback`. The redirect exists only to obtain the refresh token once; migrations use the refresh token directly from then on.
+Pick **Web application** and add an authorised redirect URI: the form shows the exact value to register when you press **Connect with Google** with your own client, so a mismatch is visible before Google refuses it. It ends in `/api/migrations/google/callback`. The redirect exists only to obtain the refresh token once; migrations use the refresh token directly from then on.
 
-Copy the **client ID** and **client secret**, open **Use your own Google client** in the wizard, enter both, and press **Connect with Google**.
+Copy the **client ID** and **client secret**, open **Use your own Google client** under **Connect with Google**, enter both, and press **Connect with Google**.
 
 ### 4. The refresh token, by hand {#own-app-token}
 
@@ -194,6 +202,6 @@ Copy the **client ID** and **client secret**, open **Use your own Google client*
 
 1. Gear icon → **Use your own OAuth credentials** → paste the client ID and secret.
 2. In the scope box on the left, enter the scope of the product you will read → **Authorize APIs**, and sign in as the account being migrated.
-3. **Exchange authorization code for tokens.** Copy the **refresh token** into the wizard's **Refresh token** field.
+3. **Exchange authorization code for tokens.** Copy the **refresh token** into the form's **Refresh token** field.
 
 The playground is a convenience, not a requirement. Any OAuth2 authorization-code flow against your own client works, as long as it asks for `access_type=offline` — without that Google returns an access token only, which expires in an hour and cannot be renewed.

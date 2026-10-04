@@ -730,6 +730,20 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
         doesNotMigrate: [],
       },
       [`POST /api/migrations/${NEW}/start`]: { id: NEW, status: 'active' },
+      // The data ceiling (0109 T6): Tiny with 248 GB moved, so this mailbox's
+      // 3.4 GB passes it, and Start says so, and still starts.
+      'GET /api/billing/ceiling': {
+        tier: { id: 'tiny', name: 'Tiny', paths: 1, monthly: 0 },
+        ceilingGb: 250,
+        topUps: 0,
+        gbMoved: 248,
+        share: 0.992,
+        state: 'near',
+        holds: true,
+        moveUp: { tierId: 'small', name: 'Small', paths: 4, setupEur: 8, monthlyEur: 4, ceilingGb: 750 },
+        topUp: null,
+        breakEven: null,
+      },
     };
     Object.assign(FIXTURES, added);
     const missesBefore = apiMisses.length;
@@ -750,6 +764,10 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
       await l.page.getByRole('heading', { level: 2, name: 'Where does it go?' }).waitFor({ timeout: 10_000 });
       await next();
       await l.page.getByRole('heading', { level: 2, name: 'Check, then start' }).waitFor({ timeout: 15_000 });
+      // Past the ceiling, the step says so with the price of moving up, and
+      // never blocks: Start opens all the same.
+      await l.page.getByText(/pass your data ceiling of 250 GB/).waitFor({ timeout: 15_000 });
+      await l.page.getByText('Move up to Small: €8 once, then €4 a month.', { exact: false }).waitFor();
       const start = l.page.getByRole('button', { name: 'Start', exact: true });
       await expect.poll(() => start.isEnabled(), { timeout: 15_000 }).toBe(true);
       await start.click();
@@ -770,72 +788,28 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
     expectClean(l, 'an old /dashboard link');
     await l.page.close();
   });
-});
 
-describe("the wizard's progress row (0153 T7 (f))", () => {
-  // The line between two steps was drawn absolutely from 4rem to the step's
-  // right edge, so it ran through every label longer than a word. Only a
-  // layout engine can see that: jsdom has no boxes. Measured at a laptop's
-  // width in both languages, where the labels show, and down to a phone's,
-  // where four of them do not fit and the row must still not push the page.
-  const cases = [
-    { locale: 'en', width: 1280 },
-    { locale: 'nl', width: 1280 },
-    { locale: 'nl', width: 768 },
-    { locale: 'nl', width: 640 },
-    { locale: 'nl', width: 360 },
-  ] as const;
-  // What the wizard's first step reads on opening, answered as an account
-  // with nothing saved yet. Removed after, so no other case sees them.
-  const wizardReads: Record<string, unknown> = {
-    'GET /api/connections': { connections: [] },
-    'GET /api/provider-accounts': { google: { domains: ['calendar', 'contact', 'task'], client: 'deployment' } },
-    'GET /api/provider-clients': { google: 'deployment' },
-  };
-  for (const { locale, width } of cases) {
-    it(`draws the line between the labels, never through them (${locale}, ${width}px)`, async () => {
-      Object.assign(FIXTURES, wizardReads);
-      try {
-        const l = await open('/mappings/new', { locale });
-        await l.page.setViewportSize({ width, height: 800 });
-        await l.page.waitForSelector('[data-step-label]');
-
-        const boxes = async (selector: string) =>
-          l.page.$$eval(selector, (els) =>
-            els.map((el) => {
-              const r = el.getBoundingClientRect();
-              return { text: (el.textContent ?? '').trim(), left: r.left, right: r.right, top: r.top, bottom: r.bottom };
-            }),
-          );
-        const labels = await boxes('[data-step-label]');
-        const lines = await boxes('[data-step-line]');
-        expect(labels).toHaveLength(4);
-        expect(lines, 'one line between each two steps').toHaveLength(3);
-        // Every step is still named to a screen reader where its label is not
-        // shown (wizard.step.*).
-        expect(labels.map((b) => b.text)).toEqual(
-          locale === 'nl' ? ['Bron', 'Doel', 'Migratie', 'Controleren'] : ['Source', 'Target', 'Migration', 'Review'],
-        );
-
-        for (const line of lines) {
-          expect(line.right - line.left, 'the line is drawn at all').toBeGreaterThan(0);
-          for (const label of labels) {
-            const crosses =
-              line.left < label.right && line.right > label.left && line.top < label.bottom && line.bottom > label.top;
-            expect(crosses, `the line crosses "${label.text}"`).toBe(false);
-          }
-        }
-        const overflow = await l.page.evaluate(
-          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-        );
-        expect(overflow, 'the row pushes the page sideways').toBeLessThanOrEqual(0);
-        expectClean(l, `the wizard (${locale}, ${width}px)`);
-        await l.page.close();
-      } finally {
-        for (const key of Object.keys(wizardReads)) delete FIXTURES[key];
-      }
-    });
-  }
+  it("sends the retired wizard's address to Start a migration, for the person it named (0153 D5)", async () => {
+    // What the flow reads as it opens, as the walk above serves it.
+    const added: Record<string, unknown> = {
+      'GET /api/connections': { connections: [] },
+      'GET /api/provider-accounts': {
+        google: { domains: ['calendar', 'contact', 'task'], client: 'deployment' },
+        microsoft: { domains: ['email', 'calendar', 'contact', 'file', 'task'] },
+      },
+      'GET /api/provider-clients': { google: 'deployment', dropbox: 'deployment', microsoft: 'deployment' },
+    };
+    Object.assign(FIXTURES, added);
+    try {
+      const l = await open(`/mappings/new?person=${PERSON}`);
+      await l.page.waitForURL(`**/start?person=${PERSON}`, { timeout: 10_000 });
+      await l.page.getByRole('heading', { level: 2, name: 'Who is it for?' }).waitFor({ timeout: 10_000 });
+      expectClean(l, "the wizard's old address");
+      await l.page.close();
+    } finally {
+      for (const key of Object.keys(added)) delete FIXTURES[key];
+    }
+  });
 });
 
 describe('the build stamp', () => {
@@ -910,15 +884,27 @@ describe("a sign-in's example (the owner, 2026-09-29)", () => {
   // 'someone@example.com'". Whether a placeholder shows is the browser's to
   // decide, so it is asked of one: its colour before and after focus.
   it('shows someone@example.com in grey, and takes it away when the box is clicked', async () => {
-    const wizardReads: Record<string, unknown> = {
+    const flowReads: Record<string, unknown> = {
       'GET /api/connections': { connections: [] },
       'GET /api/provider-accounts': { google: { domains: ['calendar', 'contact', 'task'], client: 'deployment' } },
       'GET /api/provider-clients': { google: 'deployment' },
     };
-    Object.assign(FIXTURES, wizardReads);
+    Object.assign(FIXTURES, flowReads);
     try {
-      const l = await open('/mappings/new');
-      await l.page.getByRole('button', { name: /^Google account/ }).click();
+      // On Start a migration's Connect, where an account is added since the
+      // wizard retired (0153 D5): Google's calendar, through the account.
+      const l = await open('/start');
+      const next = () => l.page.getByRole('button', { name: 'Next' }).click();
+      await l.page.getByLabel('Name').fill('Anna');
+      await next();
+      await l.page.getByRole('checkbox', { name: /^Google/ }).check();
+      await next();
+      await l.page.getByRole('heading', { level: 2, name: 'What moves?' }).waitFor({ timeout: 10_000 });
+      for (const type of ['Email', 'Contacts', 'Files', 'Tasks']) {
+        await l.page.getByRole('checkbox', { name: new RegExp(`^${type}`) }).uncheck();
+      }
+      await next();
+      await l.page.getByRole('heading', { level: 2, name: 'Connect your accounts' }).waitFor({ timeout: 10_000 });
       const box = l.page.getByRole('textbox', { name: /^Username/ });
       expect(await box.getAttribute('placeholder')).toBe('someone@example.com');
 
@@ -929,10 +915,10 @@ describe("a sign-in's example (the owner, 2026-09-29)", () => {
       expect(await exampleColour(), 'the example goes once the box is clicked').toBe('rgba(0, 0, 0, 0)');
       await box.blur();
       expect(await exampleColour(), 'and comes back when it is left empty').toBe(before);
-      expectClean(l, "the wizard's Google sign-in");
+      expectClean(l, "Start a migration's Google sign-in");
       await l.page.close();
     } finally {
-      for (const key of Object.keys(wizardReads)) delete FIXTURES[key];
+      for (const key of Object.keys(flowReads)) delete FIXTURES[key];
     }
   });
 });

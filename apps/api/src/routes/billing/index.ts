@@ -27,6 +27,12 @@ import {
   observedTier,
   PgOccupancyPeakStore,
   PgBytesMovedStore,
+  PgDataAllowanceStore,
+  breakEvenOf,
+  decideYes,
+  holdsAtCeiling,
+  readCeiling,
+  type Ceiling,
   type ViesRequester,
 } from '@openmig/managed';
 import * as schema from '@openmig/managed/schema-managed';
@@ -263,6 +269,120 @@ router.get('/usage', authenticate, requireBillingRead, async (req: Authenticated
     });
   } catch (error) {
     serverFault(res, 'usage_failed', 'reading your usage', error);
+  }
+});
+
+/**
+ * The data ceiling as the Billing page shows it (workplan 0109 T6).
+ *
+ * `holds` says whether this deployment holds new first copies at the ceiling
+ * and takes a yes: not during the alpha (the owner, 2026-10-03: *"A"*), where
+ * nothing is charged and the ceiling only warns.
+ */
+function ceilingBody(c: Ceiling, holds: boolean) {
+  return {
+    tier: {
+      id: c.allowance.tier.id,
+      name: c.allowance.tier.name,
+      paths: c.allowance.tier.paths,
+      monthly: c.allowance.tier.monthly,
+    },
+    ceilingGb: c.allowance.ceilingGb,
+    topUps: c.allowance.topUps,
+    gbMoved: c.gbMoved,
+    share: c.share,
+    state: c.state,
+    holds,
+    moveUp: c.moveUp
+      ? {
+          tierId: c.moveUp.tier.id,
+          name: c.moveUp.tier.name,
+          paths: c.moveUp.tier.paths,
+          setupEur: c.moveUp.setupEur,
+          monthlyEur: c.moveUp.monthlyEur,
+          ceilingGb: c.moveUp.ceilingGb,
+        }
+      : null,
+    topUp: c.topUp,
+    // ADR-0014: "at 80%, offer both and show the break-even".
+    breakEven: breakEvenOf(c),
+  };
+}
+
+/**
+ * GET /api/billing/ceiling
+ *
+ * Where the organisation's data stands against its ceiling, and the two ways
+ * on: move up a tier, or a one-off top-up (ADR-0014's amendment of
+ * 2026-10-03). Read-only.
+ */
+router.get('/ceiling', authenticate, requireBillingRead, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
+    const ceiling = await withTenantDb(tenantId, getSharedPool(), (db) => readCeiling(db, asTenantId(tenantId)));
+    res.json(ceilingBody(ceiling, holdsAtCeiling(process.env.OWNPACE_STAGE)));
+  } catch (error) {
+    serverFault(res, 'ceiling_failed', 'reading your data ceiling', error);
+  }
+});
+
+const YesSchema = z.object({
+  choice: z.enum(['move_up', 'top_up']),
+  tierId: z.string().min(1),
+  priceEur: z.number().int().min(0),
+});
+
+/**
+ * POST /api/billing/ceiling/yes
+ *
+ * The customer's yes to the offer they were shown: a move up, or a top-up.
+ * One append-only `data_allowance` row (managed 0037), carrying the price
+ * shown, which the invoice will charge (0109 T5). Refused, with the offer as
+ * it stands now, when the tier or the price sent is not what is offered.
+ * Refused during the alpha, where nothing is charged.
+ */
+router.post('/ceiling/yes', authenticate, requireBillingWrite, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
+    const parsed = YesSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const reason = 'Say which way on (move_up or top_up), the tier and the price you were shown.';
+      return void res.status(400).json({ error: 'invalid_yes', message: reason, reason });
+    }
+    if (!holdsAtCeiling(process.env.OWNPACE_STAGE)) {
+      const reason = 'Nothing is charged during the alpha, so there is nothing to agree to yet.';
+      return void res.status(409).json({ error: 'nothing_charged_during_the_alpha', message: reason, reason });
+    }
+    const outcome = await withTenantDb(tenantId, getSharedPool(), async (db) => {
+      // One yes at a time per organisation: two presses of the same offer
+      // must not buy two bands. Released with the transaction.
+      await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'data_allowance:' + tenantId}))`);
+      const before = await readCeiling(db, asTenantId(tenantId));
+      const decision = decideYes(before, parsed.data);
+      if (!decision.ok) return { refused: decision.reason, ceiling: before } as const;
+      await new PgDataAllowanceStore(db).record(asTenantId(tenantId), decision.grant, req.userId ?? 'unknown');
+      return { ceiling: await readCeiling(db, asTenantId(tenantId)) } as const;
+    });
+    const holds = holdsAtCeiling(process.env.OWNPACE_STAGE);
+    if ('refused' in outcome) {
+      const reason =
+        outcome.refused === 'offer_changed'
+          ? 'What is offered has changed since the page was shown. Look at the new offer before saying yes.'
+          : outcome.refused === 'no_top_up_on_tiny'
+            ? 'Tiny has no top-up: from Tiny the way on is moving up.'
+            : 'There is no tier past this one. Talk to us.';
+      return void res.status(409).json({
+        error: outcome.refused,
+        message: reason,
+        reason,
+        ceiling: ceilingBody(outcome.ceiling, holds),
+      });
+    }
+    res.json(ceilingBody(outcome.ceiling, holds));
+  } catch (error) {
+    serverFault(res, 'ceiling_yes_failed', 'recording your yes', error);
   }
 });
 

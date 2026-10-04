@@ -12,9 +12,15 @@
  *   it cannot in a line of their own (T7 (e));
  * - **which card carries each type** (`carrierOf`), which is also whose
  *   verdict its *Experimental* tag reads (0131 D6): Google's mail through its
- *   `gmail` card is proven, and through the account it is not yet;
- * - **where a provider's photos come from** (`photosThrough`): an export
- *   archive, never a sign-in, so *What moves?* says how and ticks nothing;
+ *   `gmail` card is proven, and through the account it is not yet. A company
+ *   may have Microsoft's mail read through its own app, with application
+ *   permissions (`PlanChoices`, 0153 open question 5): the `graph` or `oauth2`
+ *   card then carries the mail, and the account the rest;
+ * - **a provider's export** (`exportOf`), under its own tile, since every
+ *   export has a provider (0153 open question 5, item 2): Google's Takeout is
+ *   a tick box, read from a folder of the destination's own files
+ *   (`exportMigration`), and Apple's export, which no reader opens yet, is a
+ *   line saying so;
  * - **which accounts to connect for what was ticked** (`connectionsFor`): one
  *   sign-in per provider for exactly the ticked types (T1 (c) by
  *   construction). Where this deployment has not declared Google's restricted
@@ -32,6 +38,7 @@
  * `GET /api/provider-accounts`, as the wizard reads it.
  */
 import {
+  ARCHIVE_READABLE_TARGETS,
   DISCOVERY_DOMAINS,
   PROVIDER_ACCOUNT_DOMAINS,
   TARGET_TYPE_DOMAINS,
@@ -66,6 +73,19 @@ export interface ServedFacts {
    * of its own needs the deployment's (`grantableByLink`).
    */
   readonly googleClient?: 'deployment' | 'connection';
+}
+
+/**
+ * How a company's mail is read, where its administrator chose its own app
+ * (0153 open question 5): through Microsoft Graph or through IMAP, both with
+ * application permissions, which is also the only way to a shared mailbox.
+ */
+export type MicrosoftMailThrough = 'graph' | 'oauth2';
+
+/** What the person chose on *What moves?* that changes which card carries a type. */
+export interface PlanChoices {
+  /** Microsoft's mail through the organisation's own app, rather than the account's sign-in. */
+  readonly microsoftMail?: MicrosoftMailThrough;
 }
 
 const inOrder = (types: Iterable<DiscoveryDomain>): DiscoveryDomain[] => {
@@ -107,27 +127,88 @@ export function cannotGive(provider: StartProvider, served: ServedFacts = {}): D
 /**
  * The card that carries a type from a provider: its account, except Google's
  * mail and files where this deployment has not declared the restricted
- * scopes, which the `gmail` and `google-drive` cards carry (0106 T3b).
+ * scopes, which the `gmail` and `google-drive` cards carry (0106 T3b), and
+ * Microsoft's mail where a company chose its own app (`PlanChoices`).
  */
-export function carrierOf(provider: StartProvider, type: DiscoveryDomain, served: ServedFacts = {}): string {
+export function carrierOf(
+  provider: StartProvider,
+  type: DiscoveryDomain,
+  served: ServedFacts = {},
+  choices: PlanChoices = {},
+): string {
+  if (provider === 'microsoft' && type === 'email' && choices.microsoftMail) return choices.microsoftMail;
   if (provider !== 'google') return provider;
   if ((served.google ?? PROVIDER_ACCOUNT_DOMAINS.google).includes(type)) return 'google';
   return type === 'email' ? 'gmail' : 'google-drive';
 }
 
+/** A provider's export: which one, and whether this build reads it. */
+export interface ProviderExport {
+  readonly archive: ArchiveProvider;
+  /** `hasArchiveReader`: a tick box where it reads it, a line saying so where it does not. */
+  readonly readable: boolean;
+}
+
 /**
- * The export a provider's photos come through, where this build can read it
- * (`hasArchiveReader`): Google's Takeout today. Apple's export waits on its
- * reader (0148 T3), so Apple has none yet, and a provider with no photos of
- * its own has none at all.
+ * THE EXPORT UNDER A PROVIDER'S TILE (0153 open question 5, item 2; the owner,
+ * 2026-10-04: *"go with the recommendations"*). Every export has a provider,
+ * so it sits with that provider's data types rather than on a line of its own.
+ *
+ * Google's Takeout is the one way to a whole photo library: since March 2025
+ * Google's photos API reads only what an app uploaded itself. Apple's export
+ * carries iCloud Drive and photos, and no reader opens it yet (0148 D7, T3),
+ * so it is not `readable`. A provider with no export has none.
  */
-export function photosThrough(provider: StartProvider): ArchiveProvider | undefined {
+export function exportOf(provider: StartProvider): ProviderExport | undefined {
   const archive: Partial<Record<StartProvider, ArchiveProvider>> = {
     google: 'google-takeout',
     apple: 'apple-privacy',
   };
-  const through = archive[provider];
-  return through !== undefined && hasArchiveReader(through) ? through : undefined;
+  const found = archive[provider];
+  return found === undefined ? undefined : { archive: found, readable: hasArchiveReader(found) };
+}
+
+/**
+ * WHERE A TAKEOUT IS PUT: a folder of this name at the top of the
+ * destination's files (0148 D11). The flow names it before the export exists,
+ * so it cannot name a part, since Google stamps each download; the reader
+ * opens the parts the folder holds.
+ */
+export const TAKEOUT_FOLDER = 'Takeout';
+
+/**
+ * The destinations an export can be read from (0148 D11): files the reader can
+ * ask for by byte range. Nextcloud and WebDAV today; a JMAP destination's
+ * files cannot be, and the create door refuses it in those words.
+ */
+export function exportDestinations(): ReadonlyArray<WizardTargetType> {
+  return ARCHIVE_READABLE_TARGETS;
+}
+
+/** The card an export's migration is made with: the archive, as the create door knows it. */
+export const EXPORT_CARD = 'archive';
+
+/**
+ * AN EXPORT'S MIGRATION (0153 open question 5, item 2): from the folder the
+ * export is put in, to the files of the same destination. It has no account
+ * to sign in to, so its source is made with it (`sourceConnectionId` holds a
+ * key of the flow's own, never sent), and it carries files, which is what
+ * photos are in an export (owner decision D5, 2026-09-04).
+ */
+export function exportMigration(
+  provider: StartProvider,
+  to: { readonly card: WizardTargetType; readonly connectionId: string; readonly username?: string },
+): PlannedMigration {
+  return {
+    provider,
+    sourceCard: EXPORT_CARD,
+    sourceConnectionId: `export:${provider}`,
+    sourceUsername: '',
+    targetCard: to.card,
+    targetConnectionId: to.connectionId,
+    ...(to.username ? { targetUsername: to.username } : {}),
+    types: ['file'],
+  };
 }
 
 /**
@@ -168,18 +249,20 @@ export interface ConnectionNeed {
 /**
  * The sign-ins a provider's ticked types need, in the order they are asked:
  * one per card that carries them (`carrierOf`), so one per provider except
- * Google's mail and files where the restricted scopes are not declared. The
- * provider's own account comes first, and a card of its own after it. A
- * provider with nothing ticked needs nothing.
+ * Google's mail and files where the restricted scopes are not declared, and
+ * Microsoft's mail through a company's own app. The provider's own account
+ * comes first, and a card of its own after it. A provider with nothing ticked
+ * needs nothing.
  */
 export function connectionsFor(
   provider: StartProvider,
   ticked: ReadonlyArray<DiscoveryDomain>,
   served: ServedFacts = {},
+  choices: PlanChoices = {},
 ): ConnectionNeed[] {
   const needs = new Map<string, DiscoveryDomain[]>([[provider, []]]);
   for (const type of inOrder(ticked.filter((d) => offers(provider, served).includes(d)))) {
-    const card = carrierOf(provider, type, served);
+    const card = carrierOf(provider, type, served, choices);
     needs.set(card, [...(needs.get(card) ?? []), type]);
   }
   return [...needs].filter(([, types]) => types.length > 0).map(([card, types]) => ({ provider, card, types }));
@@ -248,6 +331,104 @@ export function migrationsFor(routes: ReadonlyArray<Route>): PlannedMigration[] 
   const first = (m: { types: ReadonlyArray<DiscoveryDomain> }) => TYPE_ORDER.indexOf(m.types[0]!);
   return [...pairs.values()].map((m) => ({ ...m, types: inOrder(m.types) })).sort((a, b) => first(a) - first(b));
 }
+
+/**
+ * WHETHER ANOTHER MIGRATION SENDS THE SAME KIND OF DATA TO THE SAME PLACE
+ * (0153 open question 5, item 4). Two accounts' mail in one mailbox, or two
+ * accounts' files in one Nextcloud, would merge into the same folders; so
+ * *Where does it go?* opens *Put it in a folder of its own* for each, filled
+ * in with the account it comes from. Mail and calendars from one Google
+ * account to one Soverin share a destination and nothing else, and merge
+ * nothing.
+ */
+export function sharesItsDestination(m: PlannedMigration, planned: ReadonlyArray<PlannedMigration>): boolean {
+  return planned.some(
+    (other) =>
+      other !== m &&
+      other.targetConnectionId === m.targetConnectionId &&
+      other.types.some((type) => m.types.includes(type)),
+  );
+}
+
+/**
+ * WHERE A MIGRATION'S FILES START (0153 open question 5, item 4; the owner,
+ * 2026-10-04: *"go with the recommendations"*). Under *Files* on *What
+ * moves?*, *All of …* or *Only one folder*; the folder itself is asked once
+ * the account is connected, since only then can the account's folders be
+ * listed. It answers *what* moves, not *which account*, so it is the
+ * migration's, and a saved account takes one as readily as a new one.
+ *
+ * A folder by its id on Google (an account or a Drive row) and Box, and by
+ * its path on Dropbox, the keys a migration's source reads (`rootFolderId`,
+ * `rootPath`). Microsoft's files have no folder to start from yet.
+ */
+export type FolderKey = 'rootFolderId' | 'rootPath';
+
+const FOLDER_KEY_OF_CARD: Readonly<Record<string, FolderKey>> = {
+  google: 'rootFolderId',
+  'google-drive': 'rootFolderId',
+  box: 'rootFolderId',
+  dropbox: 'rootPath',
+};
+
+/** The key a card's migration keeps its folder under; undefined where it reads the whole account. */
+export function folderKeyOf(card: string): FolderKey | undefined {
+  return FOLDER_KEY_OF_CARD[card];
+}
+
+/** Whether *Only one folder* is offered under a provider's *Files*: where the card carrying them has one. */
+export function offersOneFolder(
+  provider: StartProvider,
+  served: ServedFacts = {},
+  choices: PlanChoices = {},
+): boolean {
+  return offers(provider, served).includes('file') && folderKeyOf(carrierOf(provider, 'file', served, choices)) !== undefined;
+}
+
+/**
+ * Whether a connected account's folders can be listed (`GET
+ * /api/connections/:id/folders`): Google's shared drives and shared folders,
+ * Dropbox's shared folders. Box's folder is typed, as in the wizard.
+ */
+export function foldersListable(card: string): boolean {
+  return card === 'google' || card === 'google-drive' || card === 'dropbox';
+}
+
+/**
+ * The folder as a migration stores it, from what was typed or pasted. A
+ * folder's address is what a person has to hand: Google Drive's
+ * (`…/folders/<id>`, or `…?id=<id>`) and Box's (`…/folder/<number>`) give its
+ * id, and Dropbox's (`…/home/<path>`) its path. A Dropbox path starts at `/`
+ * and has no `/` at its end. Anything else is kept as typed, trimmed, for the
+ * server's parser to read: an id is not a shape this can check. Empty means
+ * no folder was named.
+ */
+export function folderValue(card: string, typed: string): string {
+  const text = typed.trim();
+  if (text === '') return '';
+  if (folderKeyOf(card) === 'rootPath') {
+    const fromLink = /^https?:\/\/(?:www\.)?dropbox\.com\/home(\/[^?#]*)?/i.exec(text);
+    let path = fromLink ? safeDecode(fromLink[1] ?? '/') : text;
+    if (!path.startsWith('/')) path = `/${path}`;
+    // `/` alone is the whole Dropbox, which is not one folder.
+    return path.replace(/\/+$/, '');
+  }
+  if (!/^https?:\/\//i.test(text)) return text;
+  const id =
+    card === 'box'
+      ? /\/folder\/(\d+)/.exec(text)
+      : (/\/folders\/([A-Za-z0-9_-]+)/.exec(text) ?? /[?&]id=([A-Za-z0-9_-]+)/.exec(text));
+  return id ? id[1]! : text;
+}
+
+/** A path from an address, as it was meant: `%20` is a space, and a broken escape stays as typed. */
+const safeDecode = (s: string): string => {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+};
 
 /**
  * A Nextcloud's DAV root, from the address a person opens it at (T7 (c)):

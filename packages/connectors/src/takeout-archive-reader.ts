@@ -20,7 +20,8 @@ import { ZipUnreadable } from './zip-archive.ts';
  *
  * Reads a Takeout as the person has it: the folder they extracted, or the
  * `.zip` download itself — one part, or every part of a multi-part download
- * from any one of them. Until 2026-09-20 this read an extracted tree only,
+ * from any one of them, or the folder its parts were put in (since 0153 open
+ * question 5, `downloadInFolder`). Until 2026-09-20 this read an extracted tree only,
  * because the repository carried no zip reader and taking one on was a
  * supply-chain decision (0116 D7); the owner decided on a reader of our own,
  * `zip-archive.ts`, and the tree seam in `archive-tree.ts` is what lets this
@@ -569,8 +570,8 @@ const TARBALL = /\.(tgz|tar\.gz|tar)$/i;
 const ZIP = /\.zip$/i;
 
 /**
- * The tree behind a location: the folder the person extracted, or the
- * download itself — on the appliance's disk, or inside the customer's own
+ * The tree behind a location: the folder the person extracted, the download
+ * itself, or the folder its parts were put in — on the appliance's disk, or inside the customer's own
  * file target (0116 T4, the relay), whichever store the reader was given.
  * Everything refused here is refused with the sentence the surfaces show,
  * because every case is one the person can act on — and none of them may
@@ -584,7 +585,10 @@ async function openTakeoutTree(store: ArchiveStore, path: string): Promise<Archi
         'running, or was saved somewhere else, it will look like this.',
     );
   }
-  if (found.kind === 'folder') return store.folderTree(path);
+  if (found.kind === 'folder') {
+    const download = await downloadInFolder(store, path);
+    return download === undefined ? store.folderTree(path) : openDownload(store, download);
+  }
   const { name } = store.split(path);
   if (TARBALL.test(name)) {
     throw new ArchiveUnreadable(
@@ -595,6 +599,45 @@ async function openTakeoutTree(store: ArchiveStore, path: string): Promise<Archi
   if (!ZIP.test(name)) {
     throw new ArchiveUnreadable(`This archive could not be opened — ${name} is a file, not a folder or a .zip download.`);
   }
+  return openDownload(store, path);
+}
+
+/**
+ * THE DOWNLOAD A FOLDER HOLDS, where it holds the `.zip` parts rather than what
+ * they extract to (0153 open question 5, item 2).
+ *
+ * *Start a migration* points a Takeout at a folder of the destination's files
+ * before the export exists, so it cannot name a part: Google stamps each
+ * download when it is made. And the archive form has long said *"Upload the
+ * .zip parts of the export into one folder … and name that folder here"*,
+ * which this reader refused as a folder with no `Takeout` in it.
+ *
+ * Undefined where the folder is read as a tree, as before: it holds an
+ * extracted `Takeout`, or no `.zip` at all. So every folder that opened before
+ * opens the same way. Two downloads in one folder are refused by name, because
+ * reading either one would leave the other out without a word.
+ */
+async function downloadInFolder(store: ArchiveStore, folder: string): Promise<string | undefined> {
+  const names = await store.list(folder);
+  if (names.includes(TAKEOUT_ROOT)) return undefined;
+  const downloads = new Map<string, string>();
+  for (const name of names.filter((n) => ZIP.test(n)).sort()) {
+    const part = PART_NAME.exec(name);
+    const stem = part && part[2]!.startsWith('0') ? part[1]! : name;
+    if (!downloads.has(stem)) downloads.set(stem, name);
+  }
+  if (downloads.size > 1) {
+    throw new ArchiveUnreadable(
+      `This archive could not be opened — ${store.describe(folder)} holds more than one download: ` +
+        `${[...downloads.keys()].join(', ')}. Keep one export's parts in this folder, or name one .zip of the one to read.`,
+    );
+  }
+  const [first] = downloads.values();
+  return first === undefined ? undefined : store.join(folder, first);
+}
+
+/** A `.zip` download, with every part beside it, as one tree. */
+async function openDownload(store: ArchiveStore, path: string): Promise<ArchiveTree> {
   try {
     return await openZipTree(await takeoutPartsBeside(path, store), (part) => store.source(part));
   } catch (err) {

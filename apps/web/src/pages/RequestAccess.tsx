@@ -13,6 +13,16 @@
  * action becomes a LINK here, and its CSP does not move.
  *
  * Managed-only, like `/login`: an appliance has an owner who already has it.
+ *
+ * **What it keeps, said under the form** (workplan 0139 T4). The form stores
+ * an address, a name, an organisation and a note in the person's own words
+ * (managed migration 0002), so under the button it says why and for how long,
+ * in privacy §9's terms (`access.privacy`), and links the privacy policy in
+ * the reader's language. During the alpha it links the Alpha conditions
+ * beside it: that is what the person is asking to join. Whether this bundle
+ * runs the alpha is `isAlpha()`, the same answer the note above the form and
+ * the acceptance screen use (0131 T1). The links open in a new tab, so a
+ * half-typed request is still here afterwards (`LegalLinks`).
  */
 import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
@@ -23,6 +33,7 @@ import { useT, useLocale } from '../i18n/index.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
 import AlphaNote, { isAlpha } from '../components/AlphaNote.tsx';
 import SupportLine from '../components/SupportLine.tsx';
+import LegalLinks from '../components/LegalLinks.tsx';
 
 /**
  * ADR-0014's five, by name only.
@@ -272,6 +283,11 @@ const RequestAccess: React.FC = () => {
           </button>
 
           <p className="text-xs text-gray-500">{t('access.privacy')}</p>
+          {/* The texts the line above stands on, in the reader's language
+              (0139 T4): the policy, and during the alpha the conditions. */}
+          <p className="text-xs text-gray-500">
+            <LegalLinks pages={isAlpha() ? ['privacy', 'alpha'] : ['privacy']} />
+          </p>
           <p className="text-center">
             <Link to="/login" className="text-sm text-blue-600 hover:text-blue-500">
               {t('access.backToSignIn')}

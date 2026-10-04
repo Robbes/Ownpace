@@ -10,23 +10,27 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { STRINGS } from '../i18n/strings.ts';
 
 const {
   mappingApiGet,
+  mappingRenameMock,
   mappingDiscoveryMock,
   fetchAllDiscoveryMock,
+  fetchRunsMock,
   fetchStatusMock,
   fetchAttentionMock,
   fetchProgressMock,
   editionFlag,
 } = vi.hoisted(() => ({
   mappingApiGet: vi.fn(),
+  mappingRenameMock: vi.fn(),
   mappingDiscoveryMock: vi.fn(),
   fetchAllDiscoveryMock: vi.fn(),
+  fetchRunsMock: vi.fn(),
   fetchStatusMock: vi.fn(),
   fetchAttentionMock: vi.fn(),
   fetchProgressMock: vi.fn(),
@@ -34,7 +38,7 @@ const {
 }));
 
 vi.mock('../services/mapping-service', () => ({
-  mappingApi: { get: mappingApiGet, getDiscovery: mappingDiscoveryMock },
+  mappingApi: { get: mappingApiGet, getDiscovery: mappingDiscoveryMock, rename: mappingRenameMock },
 }));
 
 // VITE_EDITION is baked in by vite `define` (edition.unit.test.ts explains why
@@ -47,7 +51,7 @@ vi.mock('../services/edition', () => ({
 // The runs panel has its own tests (RunsPanel.unit.test.tsx); here it only
 // needs to not fetch over the network while the hub's links are asserted.
 vi.mock('../services/operating-service', () => ({
-  fetchRuns: vi.fn().mockResolvedValue({ runs: [] }),
+  fetchRuns: fetchRunsMock,
   fetchStatus: fetchStatusMock,
   // The steps' counts (0154 T4): what waits in each queue.
   fetchAttention: fetchAttentionMock,
@@ -116,6 +120,7 @@ beforeEach(() => {
   fetchProgressMock.mockResolvedValue({ mappings: [{ mappingId: 'acme-mail', domains: [], check: { state: 'not_run' } }] });
   mappingDiscoveryMock.mockResolvedValue({ mappingId: 'acme-mail', discovered: false, domains: [] });
   fetchAllDiscoveryMock.mockResolvedValue({});
+  fetchRunsMock.mockResolvedValue({ runs: [] });
 });
 
 const step = (key: string) => document.querySelector(`[data-step="${key}"]`) as HTMLElement;
@@ -150,6 +155,9 @@ describe('the per-mapping navigation', () => {
   it('shows the mapping name when the detail read succeeds', async () => {
     renderHub();
     expect(await screen.findByRole('heading', { name: 'Acme mail' })).toBeInTheDocument();
+    // The report, as a page and as a download (0154 T5).
+    expect(screen.getByRole('link', { name: 'The report →' })).toHaveAttribute('href', '/mappings/acme-mail/report');
+    expect(screen.getByRole('button', { name: 'Download the report' })).toBeInTheDocument();
   });
 
   it('keeps every link working when the detail read fails — navigation never dead-ends', async () => {
@@ -448,8 +456,109 @@ describe('the schedule panel (the owner, 2026-09-28)', () => {
     editionFlag.selfhost = true;
     renderHub();
     expect(await screen.findByRole('heading', { name: 'Before you switch' })).toBeInTheDocument();
-    expect(screen.queryByText('Sync schedule')).toBeNull();
+    expect(screen.queryByText(STRINGS.en['settings.schedule'])).toBeNull();
     expect(mappingApiGet).not.toHaveBeenCalled();
+  });
+});
+
+describe('where the copies land (0153 open question 5, item 4)', () => {
+  it('names the folder they land in, where one was chosen', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ targetFolderPrefix: 'anna@gmail.com' }));
+    renderHub();
+    expect(
+      await screen.findByText('The copies land in the folder anna@gmail.com of the destination.'),
+    ).toBeInTheDocument();
+  });
+
+  it('says they merge into the destination’s own folders where none was', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ targetFolderPrefix: null }));
+    renderHub();
+    expect(await screen.findByText("The copies land in the destination's own folders.")).toBeInTheDocument();
+  });
+
+  it('says nothing where the read does not say', async () => {
+    renderHub();
+    await screen.findByRole('heading', { level: 2, name: 'Acme mail' });
+    expect(screen.queryByText(/The copies land/)).toBeNull();
+  });
+});
+
+describe('where its files start (0153 open question 5, item 4)', () => {
+  const files = (kind: string, sourceConfig: Record<string, unknown>, domains = ['file']) =>
+    aMapping({ sourceConnection: { id: 'c-1', name: 'Anna', kind }, sourceConfig, syncConfig: { domains } });
+
+  it('names the one folder they are read from: a Dropbox path, and a Google folder by its id', async () => {
+    mappingApiGet.mockResolvedValue(files('dropbox', { rootPath: '/Holiday/2019' }));
+    const { unmount } = renderHub();
+    expect(await screen.findByText('Its files are read from /Holiday/2019 only.')).toBeInTheDocument();
+    unmount();
+    mappingApiGet.mockResolvedValue(files('google', { rootFolderId: 'f-1' }));
+    renderHub('acme-mail', new QueryClient({ defaultOptions: { queries: { retry: false } } }));
+    expect(await screen.findByText('Its files are read from one folder only: f-1.')).toBeInTheDocument();
+  });
+
+  it('says all of the account where no folder was chosen, as a person names it', async () => {
+    mappingApiGet.mockResolvedValue(files('google_drive', {}));
+    renderHub();
+    expect(await screen.findByText('Its files are read from all of My Drive.')).toBeInTheDocument();
+  });
+
+  it('says nothing for a migration with no files, or from a source with no folder to start from', async () => {
+    mappingApiGet.mockResolvedValue(files('google', {}, ['calendar']));
+    const { unmount } = renderHub();
+    await screen.findByRole('heading', { level: 2, name: 'Acme mail' });
+    expect(screen.queryByText(/Its files are read/)).toBeNull();
+    unmount();
+    mappingApiGet.mockResolvedValue(files('microsoft', {}));
+    renderHub('acme-mail', new QueryClient({ defaultOptions: { queries: { retry: false } } }));
+    await screen.findByRole('heading', { level: 2, name: 'Acme mail' });
+    expect(screen.queryByText(/Its files are read/)).toBeNull();
+  });
+});
+
+describe('Rename, beside the title (0153 open question 5, item 4)', () => {
+  it('renames from beside the title, and the heading reads the stored name', async () => {
+    mappingRenameMock.mockResolvedValue({ id: 'acme-mail', name: 'Anna’s mail', updatedAt: '2026-10-04T08:00:00Z' });
+    renderHub();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Acme mail' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    const box = screen.getByLabelText('Name of this migration');
+    expect(box).toHaveValue('Acme mail');
+    fireEvent.change(box, { target: { value: '  Anna’s mail  ' } });
+    mappingApiGet.mockResolvedValue(aMapping({ name: 'Anna’s mail' }));
+    fireEvent.click(within(box.closest('form')!).getByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('heading', { level: 2, name: 'Anna’s mail' })).toBeInTheDocument();
+    expect(mappingRenameMock).toHaveBeenCalledWith('acme-mail', 'Anna’s mail');
+  });
+
+  it('says why a rename did not land, and keeps the box with what was typed', async () => {
+    mappingRenameMock.mockRejectedValue(new Error('The service is down.'));
+    renderHub();
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename' }));
+    const box = screen.getByLabelText('Name of this migration');
+    fireEvent.change(box, { target: { value: 'Anna’s mail' } });
+    fireEvent.click(within(box.closest('form')!).getByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Not renamed:');
+    expect(screen.getByLabelText('Name of this migration')).toHaveValue('Anna’s mail');
+  });
+
+  it('waits for a name, and Cancel leaves the title as it was', async () => {
+    renderHub();
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename' }));
+    const box = screen.getByLabelText('Name of this migration');
+    fireEvent.change(box, { target: { value: '   ' } });
+    const form = within(box.closest('form')!);
+    expect(form.getByRole('button', { name: 'Save' })).toBeDisabled();
+    fireEvent.click(form.getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByRole('heading', { level: 2, name: 'Acme mail' })).toBeInTheDocument();
+    expect(mappingRenameMock).not.toHaveBeenCalled();
+  });
+
+  it('is not offered on the appliance, whose names are its mapping files’', async () => {
+    editionFlag.selfhost = true;
+    renderHub();
+    expect(await screen.findByRole('heading', { name: 'Before you switch' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Rename' })).toBeNull();
   });
 });
 
@@ -515,6 +624,173 @@ describe('the live progress strip', () => {
     expect(screen.getByText(/last synced/)).toBeInTheDocument();
     // The other mapping's numbers must not leak into this hub.
     expect(screen.queryByText(/^999 /)).not.toBeInTheDocument();
+    expect(mappingApiGet).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * WHERE IT IS, IN A PERSON'S WORDS (workplan 0154 T1, a migration's own page):
+ * what a person's card says of this migration, from the same facts and the
+ * same functions. Beside the name, the migration's stage: the least advanced
+ * of its data types, the card's data types. On each row of the strip, that
+ * data type's own, and a failed pass keeps its word beside it.
+ */
+describe('where it is, in a person’s words (0154 T1)', () => {
+  const yesterday = new Date(Date.now() - 86_400_000).toISOString();
+  /** A row of the strip, as both editions serve it. */
+  const stripRow = (domain: string, state: string, over: Record<string, unknown> = {}) => ({
+    domain,
+    state,
+    itemsSynced: 12,
+    itemsFailed: 0,
+    bytesTransferred: 0,
+    itemsRetrying: 0,
+    itemsNeedingDecision: 0,
+    ...over,
+  });
+  /** The same data type, as the progress read has it. */
+  const progressRow = (domain: string, state: string, over: Record<string, unknown> = {}) => ({
+    domain,
+    state,
+    phase: 'active',
+    itemsSynced: 12,
+    bytesTransferred: 0,
+    ...over,
+  });
+  const progressOf = (domains: unknown[], check: Record<string, unknown> = { state: 'not_run' }) => ({
+    mappings: [{ mappingId: 'acme-mail', domains, check }],
+  });
+  const kept = { lastSyncedAt: yesterday };
+  /** What sits beside the migration's name. */
+  const header = async (name = 'Acme mail') => (await screen.findByRole('heading', { name })).parentElement!;
+  /** One data type's row of the strip. */
+  const row = (domain: string) => {
+    const rows = document.querySelectorAll(`li[data-domain="${domain}"]`);
+    expect(rows).toHaveLength(1);
+    return rows[0]!.textContent ?? '';
+  };
+
+  it('says the least advanced beside the name, and each data type’s own on its row', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({
+        syncConfig: { domains: ['email', 'calendar'] },
+        domainStatus: [stripRow('email', 'completed', kept), stripRow('calendar', 'in_progress')],
+      }),
+    );
+    fetchProgressMock.mockResolvedValue(
+      progressOf([progressRow('email', 'completed', kept), progressRow('calendar', 'in_progress')]),
+    );
+    renderHub();
+    const beside = await header();
+    await vi.waitFor(() => expect(beside.textContent).toContain('Copying'));
+    expect(beside.textContent).not.toContain('Active');
+    expect(row('email')).toContain('Kept in step');
+    expect(row('email')).not.toContain('Completed');
+    expect(row('calendar')).toContain('Copying');
+    expect(row('calendar')).not.toContain('Syncing');
+  });
+
+  /** The card draws a line for each data type the migration carries, touched by a pass or not. */
+  it('counts a data type no pass has touched yet, as the card does', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({ syncConfig: { domains: ['email', 'calendar'] }, domainStatus: [stripRow('email', 'completed', kept)] }),
+    );
+    fetchProgressMock.mockResolvedValue(progressOf([progressRow('email', 'completed', kept)]));
+    renderHub();
+    const beside = await header();
+    await vi.waitFor(() => expect(row('email')).toContain('Kept in step'));
+    expect(beside.textContent).toContain('Copying');
+    expect(beside.textContent).not.toContain('Kept in step');
+  });
+
+  /** Hard rule 9: Ready to switch needs the check passed and the failures that block Finish counted. */
+  it('says Ready to switch only once the check passed and nothing counted blocks Finish', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({ syncConfig: { domains: ['email'] }, domainStatus: [stripRow('email', 'completed', kept)] }),
+    );
+    fetchProgressMock.mockResolvedValue(
+      progressOf([progressRow('email', 'completed', kept)], { state: 'passed', at: yesterday }),
+    );
+    fetchAttentionMock.mockResolvedValue({
+      mappings: [
+        {
+          mappingId: 'acme-mail',
+          pendingDecisions: 0,
+          deletionsWaiting: 0,
+          movesWaiting: 0,
+          failuresWaiting: 0,
+          readyForCutover: true,
+          autoApplied: 0,
+          sharingOpen: 0,
+        },
+      ],
+    });
+    const { unmount } = renderHub();
+    const beside = await header();
+    await vi.waitFor(() => expect(beside.textContent).toContain('Ready to switch'));
+    expect(row('email')).toContain('Ready to switch');
+    unmount();
+
+    // The failures could not be counted: it stays kept in step.
+    fetchAttentionMock.mockRejectedValue(new Error('the database is unreachable'));
+    renderHub();
+    const again = await header();
+    await vi.waitFor(() => expect(row('email')).toContain('Kept in step'));
+    expect(again.textContent).toContain('Kept in step');
+    expect(again.textContent).not.toContain('Ready to switch');
+  });
+
+  it('keeps a failed pass’s word beside the stage', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({
+        syncConfig: { domains: ['email'] },
+        domainStatus: [stripRow('email', 'failed', { ...kept, itemsFailed: 3 })],
+      }),
+    );
+    fetchProgressMock.mockResolvedValue(progressOf([progressRow('email', 'failed', kept)]));
+    renderHub();
+    await header();
+    await vi.waitFor(() => expect(row('email')).toContain('Kept in step'));
+    expect(row('email')).toContain('Failed');
+  });
+
+  it('says what the card says until the progress read has it, and each row its pass', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({ syncConfig: { domains: ['email'] }, domainStatus: [stripRow('email', 'completed', kept)] }),
+    );
+    // Still being read, and failed.
+    for (const read of [() => new Promise(() => undefined), () => Promise.reject(new Error('the database is unreachable'))]) {
+      fetchProgressMock.mockImplementation(read);
+      const { unmount } = renderHub();
+      const beside = await header();
+      await vi.waitFor(() => expect(row('email')).toContain('Completed'));
+      // A migration that has finished a pass, as the list reads it.
+      expect(beside.textContent).toContain('Kept in step');
+      expect(row('email')).not.toContain('Kept in step');
+      unmount();
+    }
+  });
+
+  it('selfhost: reads the data types and their passes from /status, and says the same', async () => {
+    editionFlag.selfhost = true;
+    fetchStatusMock.mockResolvedValue({
+      status: 'ok',
+      mappings: [
+        {
+          mappingId: 'acme-mail',
+          migrationStatus: 'active',
+          domains: [stripRow('email', 'completed', kept), stripRow('contact', 'in_progress')],
+        },
+      ],
+    });
+    fetchProgressMock.mockResolvedValue(
+      progressOf([progressRow('email', 'completed', kept), progressRow('contact', 'in_progress')]),
+    );
+    renderHub();
+    const beside = await header('Migration');
+    await vi.waitFor(() => expect(beside.textContent).toContain('Copying'));
+    expect(row('email')).toContain('Kept in step');
+    expect(row('contact')).toContain('Copying');
     expect(mappingApiGet).not.toHaveBeenCalled();
   });
 });
@@ -704,5 +980,107 @@ describe('how long, before the first pass reports (0154 T3 (a))', () => {
     expect(
       await screen.findByText('Within a day, because this mailbox holds less than the 2.5 GB a day Google lets one download.'),
     ).toBeInTheDocument();
+  });
+});
+
+/**
+ * HOW LONG, DURING THE COPY (workplan 0154 T3 (b)): once a pass has reported,
+ * from the last passes' own pace and what is left of T2's totals, in place of
+ * the count's estimate; nothing once nothing is left.
+ */
+describe('how long, during the copy (0154 T3 (b))', () => {
+  const DAY = 86_400_000;
+  const T0 = Date.parse('2026-10-01T02:00:00.000Z');
+  /** Newest first: a pass a day, each 50 minutes. */
+  const passes = (...items: number[]) =>
+    items.map((n, i) => {
+      const start = T0 + (items.length - 1 - i) * DAY;
+      return {
+        id: `r-${i}`,
+        mappingId: 'acme-mail',
+        type: 'delta',
+        kind: 'initial_copy',
+        status: 'success',
+        startedAt: new Date(start).toISOString(),
+        finishedAt: new Date(start + 50 * 60_000).toISOString(),
+        itemsProcessed: n,
+        errors: 0,
+        createdAt: new Date(start).toISOString(),
+        events: [],
+      };
+    });
+  const row = (over: Record<string, unknown> = {}) => ({
+    domain: 'email',
+    state: 'in_progress',
+    itemsSynced: 10_000,
+    itemsFound: 19_000,
+    itemsFailed: 0,
+    bytesTransferred: 0,
+    itemsRetrying: 0,
+    itemsNeedingDecision: 0,
+    lastSyncedAt: '2026-10-03T02:50:00.000Z',
+    ...over,
+  });
+
+  it('says the range the last passes’ pace gives, in place of the count’s estimate', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ sourceType: 'gmail', domainStatus: [row()] }));
+    fetchRunsMock.mockResolvedValue({ runs: passes(2_000, 1_500, 1_200) });
+    renderHub();
+    expect(await screen.findByText('About 4 to 8 days more, from the last 3 passes.')).toBeInTheDocument();
+    expect(mappingDiscoveryMock).not.toHaveBeenCalled();
+  });
+
+  it('leaves the count’s estimate in place while the first pass is still running', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({ sourceType: 'gmail', domainStatus: [row({ lastSyncedAt: undefined })] }),
+    );
+    mappingDiscoveryMock.mockResolvedValue({
+      mappingId: 'acme-mail',
+      discovered: true,
+      domains: [{ domain: 'email', collections: 4, items: 19_000, bytes: 10.4e9, discoveredAt: '2026-10-01T00:00:00.000Z' }],
+    });
+    fetchRunsMock.mockResolvedValue({ runs: passes(2_000, 1_500, 1_200) });
+    renderHub();
+    expect(
+      await screen.findByText('About 4 to 5 days, because Google lets a mailbox download 2.5 GB a day.'),
+    ).toBeInTheDocument();
+    await screen.findByText('2,000 items this pass');
+    expect(document.querySelector('[data-time-while-copying]')).toBeNull();
+  });
+
+  it('says it will know after three passes, and how many it has', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ sourceType: 'gmail', domainStatus: [row()] }));
+    fetchRunsMock.mockResolvedValue({ runs: passes(2_000) });
+    renderHub();
+    expect(await screen.findByText('We will know after three passes; 1 so far.')).toBeInTheDocument();
+  });
+
+  it('names the provider that slowed it, first', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({ sourceType: 'o365', domainStatus: [row({ lastErrorCategory: 'rate_limited' })] }),
+    );
+    fetchRunsMock.mockResolvedValue({ runs: passes(2_000, 1_500, 1_200) });
+    renderHub();
+    expect(
+      await screen.findByText('Slowed by Microsoft 365. About 4 to 8 days more, from the last 3 passes.'),
+    ).toBeInTheDocument();
+  });
+
+  /** Kept in step has no time left; a total nobody counted has no remainder (hard rule 9). */
+  it('says nothing once nothing is left, or where a total is not known', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({ sourceType: 'gmail', domainStatus: [row({ state: 'completed', itemsSynced: 19_000 })] }),
+    );
+    fetchRunsMock.mockResolvedValue({ runs: passes(2_000, 1_500, 1_200) });
+    const { unmount } = renderHub();
+    // The run history has landed, so the line had what it needed.
+    await screen.findByText('2,000 items this pass');
+    expect(screen.queryByText('How long:')).not.toBeInTheDocument();
+    unmount();
+
+    mappingApiGet.mockResolvedValue(aMapping({ sourceType: 'gmail', domainStatus: [row({ itemsFound: undefined })] }));
+    renderHub();
+    await screen.findByText('2,000 items this pass');
+    expect(screen.queryByText('How long:')).not.toBeInTheDocument();
   });
 });

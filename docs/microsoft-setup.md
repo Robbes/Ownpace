@@ -9,9 +9,9 @@ could not write to the mailbox, calendar, contacts or OneDrive even if it wanted
 enforced guarantee, not a promise in a document.
 
 **Most people should not need this page.** Where the deployment you use carries its own
-registration (the operator sets it once — see *Configure it*), the wizard and the Connections
-page show a **Connect with Microsoft** button, and nothing on this page is your problem. Read
-on if you are that operator, or if you would rather use your own registration.
+registration (the operator sets it once — see *Configure it*), *Start a migration* and the
+**Accounts** page show a **Connect with Microsoft** button, and nothing on this page is your
+problem. Read on if you are that operator, or if you would rather use your own registration.
 
 ## 1. Create the app registration
 

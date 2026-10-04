@@ -335,3 +335,57 @@ describe('of about how many', () => {
     );
   });
 });
+
+/**
+ * EACH DATA TYPE'S STAGE, ON A MIGRATION'S OWN PAGE (workplan 0154 T1). Where
+ * the page gives one, it stands in for the pass's state word, so the page and
+ * a person's card say one thing about a data type, and a failed pass keeps its
+ * word beside it. Where none is given, as on the review screen, the strip says
+ * the pass's state, as it always has.
+ */
+describe('a data type’s stage, where the page gives one (0154 T1)', () => {
+  afterEach(() => window.localStorage.removeItem('ownpace.locale'));
+  const line = (domain: string) => document.querySelector(`li[data-domain="${domain}"]`)?.textContent ?? '';
+
+  it('says the stage in place of the pass’s state', () => {
+    render(
+      <LiveProgress
+        domains={[row({ state: 'in_progress', itemsFailed: 0 }), row({ domain: 'calendar', state: 'completed', itemsFailed: 0 })]}
+        stages={{ email: 'copying', calendar: 'kept_in_step' }}
+      />,
+    );
+    expect(line('email')).toContain('Copying');
+    expect(line('email')).not.toContain('Syncing');
+    expect(line('calendar')).toContain('Kept in step');
+    expect(line('calendar')).not.toContain('Completed');
+  });
+
+  it('keeps a failed pass’s word beside it, which the stage alone would not say', () => {
+    render(<LiveProgress domains={[row()]} stages={{ email: 'kept_in_step' }} />);
+    expect(line('email')).toContain('Kept in step');
+    expect(line('email')).toContain('Failed');
+  });
+
+  it('says the pass’s state for a data type with no stage, and for all of them when none is given', () => {
+    const domains = [row({ state: 'in_progress', itemsFailed: 0 }), row({ domain: 'contact', state: 'in_progress', itemsFailed: 0 })];
+    const { unmount } = render(<LiveProgress domains={domains} stages={{ email: 'copying' }} />);
+    expect(line('contact')).toContain('Syncing');
+    expect(line('contact')).not.toContain('Copying');
+    unmount();
+
+    render(<LiveProgress domains={domains} />);
+    expect(line('email')).toContain('Syncing');
+    expect(line('email')).not.toContain('Copying');
+  });
+
+  it('in Dutch', () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    render(
+      <LocaleProvider>
+        <LiveProgress domains={[row()]} stages={{ email: 'kept_in_step' }} />
+      </LocaleProvider>,
+    );
+    expect(line('email')).toContain('Wordt bijgehouden');
+    expect(line('email')).toContain('Mislukt');
+  });
+});

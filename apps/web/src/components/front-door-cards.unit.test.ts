@@ -41,6 +41,18 @@ describe('the front door offers exactly what the product accepts', () => {
     expect(migratableSourceCards().map((c) => c.id)).toContain('archive');
   });
 
+  it('retires Google Calendar and Google Contacts for new migrations, and keeps them on Accounts (0153 open question 5, item 3)', () => {
+    // The Google account is the same way in and asks for only what was
+    // ticked, so a second card for each offered nothing to choose between.
+    // An account saved with one keeps working, so the Accounts door keeps it.
+    const migratable = migratableSourceCards().map((c) => c.id);
+    for (const id of ['google-calendar', 'google-contacts']) {
+      expect(SOURCE_CARDS.map((c) => c.id)).toContain(id);
+      expect(migratable).not.toContain(id);
+    }
+    expect(migratable).toContain('google');
+  });
+
   it('the wizard drops ONLY the connection-only cards — not a hand-copied list', () => {
     // Stated from the other side, so a filter that quietly grew a second
     // condition (or a card that quietly gained the flag) fails here rather

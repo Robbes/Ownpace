@@ -38,6 +38,13 @@
  * first pass is enqueued after, as *Start* enqueues it; one that cannot be is
  * logged, and the tick picks the active migration up on its own cadence.
  *
+ * ## Past the agreed tier, it waits (workplan 0109 T6)
+ *
+ * A start that would hold more slots than the organisation's agreed tier runs
+ * is refused (`PathsNeedAYes`), here as at *Start*, and nobody is on the page
+ * to be asked. That migration stays a draft and the rest are started; the
+ * owner sees it unstarted and is asked at *Start*.
+ *
  * Its tick for files a format would refuse is not asked: the owner chose to
  * have the rest of a move start after one count (*"at least once"*). What it
  * could not copy shows in its queues, as for any pass.
@@ -60,7 +67,7 @@ import { withTenantDb } from '../../middleware/auth.ts';
 import { enqueueIfFree } from '../../enqueue-unless-held.ts';
 import { GRANT_ACTOR } from './grant-ending.ts';
 import { resolveSyncJob } from './job-resolution.ts';
-import { movePathsWithMapping } from './path-lifecycle-wiring.ts';
+import { PathsNeedAYes, movePathsWithMapping } from './path-lifecycle-wiring.ts';
 import { readPersonGrantSubject } from './person-grant-subject.ts';
 
 /**
@@ -233,6 +240,11 @@ export async function startWhenGranted(
         });
         await movePathsWithMapping(db, tenantId, mappingId, { from: row.status, to: 'active' });
         return true;
+      }).catch((error: unknown) => {
+        // Past the agreed tier: this one waits, rolled back, and the rest go on.
+        if (!(error instanceof PathsNeedAYes)) throw error;
+        log.info(`[api] mapping ${mappingId} did not start when granted: ${error.message}`);
+        return false;
       });
       if (moved) started.push(mappingId);
     }

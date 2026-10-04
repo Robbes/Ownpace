@@ -33,6 +33,8 @@ export * from './path-phase.ts';
 export * from './stage.ts';
 export * from './progress.ts';
 export * from './time-before-start.ts';
+export * from './time-while-copying.ts';
+export * from './first-copy.ts';
 // ADR-0050 (amended 2026-09-28), workplan 0153 T2: the person a migration is
 // for, in the shapes both editions answer.
 export * from './people.ts';

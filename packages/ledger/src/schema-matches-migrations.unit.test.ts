@@ -185,6 +185,16 @@ const NARROWER_ON_PURPOSE: Record<string, { privileges: string[]; why: string }>
       'nothing else either. A new version is a new row. The one deleter is the erasure purge, ' +
       'through the owner connection (PURGED_TABLES).',
   },
+  data_allowance: {
+    privileges: ['INSERT', 'SELECT'],
+    why:
+      'Each yes to a step up at the data ceiling (workplan 0109 T6, managed migration 0037): a ' +
+      'decision the customer made, with the price they were shown, which the invoice will ' +
+      'charge. A yes that could be edited afterwards agrees to nothing, so the request path ' +
+      'appends and reads, and UPDATE and DELETE are REVOKED from the default the baseline ' +
+      'grants. A top-up is a new row that raises the ceiling; nothing is rewound. The one ' +
+      'deleter is the erasure purge, through the system role (PURGED_TABLES).',
+  },
   platform_operator: {
     privileges: ['SELECT'],
     why:

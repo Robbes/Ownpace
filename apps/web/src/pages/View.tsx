@@ -50,7 +50,7 @@
 import React from 'react';
 import { useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { isPauseReason, type FailureCategory, type MappingLifecycle } from '@openmig/shared';
+import { isPauseReason, type FailureCategory, type MappingLifecycle, type ViewTime } from '@openmig/shared';
 import {
   viewApi,
   type MigrationViewPayload,
@@ -70,6 +70,10 @@ import BuildStamp from '../components/BuildStamp.tsx';
 import LanguageSwitch from '../components/LanguageSwitch.tsx';
 import ReportThisLink from '../components/ReportThisLink.tsx';
 import { providerName } from '../components/ProviderTile.tsx';
+import StateChip from '../components/StateChip.tsx';
+import { useLineSentence } from '../components/MigrationLines.tsx';
+import { TimeBeforeStartLine } from '../components/TimeBeforeStartLine.tsx';
+import { TimeWhileCopyingLine } from '../components/TimeWhileCopyingLine.tsx';
 
 /** The grant a page may take back: a migration's, or one account's on a person's page. */
 type PageGrant = MigrationViewPayload['grant'];
@@ -101,9 +105,21 @@ const STATE_SENTENCE: Record<MappingLifecycle, StringKey> = {
 const plural = (base: string, n: number): StringKey =>
   `${base}.${n === 1 ? 'one' : 'many'}` as StringKey;
 
-const DomainRow: React.FC<{ row: ViewRow }> = ({ row }) => {
+/**
+ * One data type: its stage and the owner's line under it (0154 T8), then what
+ * waits and why.
+ *
+ * The stage is the server's, worked out from the facts the owner's line reads,
+ * and the sentence is the owner's, in the same words (`useLineSentence`):
+ * *18,234 of ~19,000 · last pass 2 minutes ago*, *The check passed yesterday*.
+ * Where the sentence does not say when, the page's own *Up to date as of* does,
+ * with the date, as it did before. A row with no stage, from a server that
+ * worked out none, reads as it always has.
+ */
+const DomainRow: React.FC<{ row: ViewRow; checkPassedAt?: string }> = ({ row, checkPassedAt }) => {
   const t = useT();
   const { dateTime } = useFormatters();
+  const sentenceOf = useLineSentence();
 
   // A COMPLETION is the only honest source for "up to date as of"; when there
   // has never been one, the page says when a pass last did something instead,
@@ -114,16 +130,37 @@ const DomainRow: React.FC<{ row: ViewRow }> = ({ row }) => {
     : row.lastActiveAt
       ? t('view.lastWorked', { date: dateTime(row.lastActiveAt) })
       : t('view.notYet');
+  const line = row.stage
+    ? sentenceOf(row.stage, {
+        row,
+        check: checkPassedAt ? { state: 'passed', at: checkPassedAt } : { state: 'not_run' },
+      })
+    : undefined;
+  // When, once: not where the line already says it, and not where the stage
+  // does. *Still copying* under *Paused* would contradict it, and *Not
+  // started yet* under *Not started* would only repeat it.
+  const saysWhen = !row.stage
+    ? true
+    : line?.says.includes('lastPass')
+      ? false
+      : row.lastSyncedAt
+        ? true
+        : row.stage === 'copying';
 
   return (
-    <li className="py-3 border-b border-gray-100 last:border-b-0">
+    <li className="py-3 border-b border-gray-100 last:border-b-0" data-domain={row.domain}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-4">
         <span className="font-medium text-gray-900">{t(DOMAIN_STRING_KEY[row.domain])}</span>
-        <span className="text-gray-900">
-          {t(plural('view.copied', row.itemsSynced), { count: String(row.itemsSynced) })}
-        </span>
+        {row.stage ? (
+          <StateChip entity="stage" state={row.stage} />
+        ) : (
+          <span className="text-gray-900">
+            {t(plural('view.copied', row.itemsSynced), { count: String(row.itemsSynced) })}
+          </span>
+        )}
       </div>
-      <p className="mt-0.5 text-sm text-gray-600">{when}</p>
+      {line && line.text !== '' && <p className="mt-0.5 text-gray-900">{line.text}</p>}
+      {saysWhen && <p className="mt-0.5 text-sm text-gray-600">{when}</p>}
 
       {row.itemsNeedingDecision > 0 && (
         // Counted, never described. What is waiting is a decision by the person
@@ -307,6 +344,24 @@ const TheAccessTheyGave: React.FC<{
   );
 };
 
+/**
+ * How long (0154 T3, T8), as the owner's migration page says it: before the
+ * first pass from the count, during the copy from the passes. The server
+ * decided whether anything is said; this only says it.
+ */
+const HowLong: React.FC<{ time: ViewTime | undefined; from: string | undefined }> = ({ time, from }) => {
+  if (!time) return null;
+  return time.kind === 'beforeStart' ? (
+    <TimeBeforeStartLine className="mt-3 text-sm text-gray-700" time={time.estimate} />
+  ) : (
+    <TimeWhileCopyingLine
+      className="mt-3 text-sm text-gray-700"
+      time={time.estimate}
+      provider={providerName(from ?? '', 'source')}
+    />
+  );
+};
+
 /** One migration on a person's page: where it goes, where it is, and its rows. */
 const PersonMigration: React.FC<{ migration: PersonViewPayload['migrations'][number]; grant: PageGrant }> = ({
   migration,
@@ -331,10 +386,16 @@ const PersonMigration: React.FC<{ migration: PersonViewPayload['migrations'][num
       ) : (
         <ul className="mt-2">
           {migration.domains.map((row) => (
-            <DomainRow key={row.domain} row={row} />
+            <DomainRow
+              key={row.domain}
+              row={row}
+              {...(migration.checkPassedAt ? { checkPassedAt: migration.checkPassedAt } : {})}
+            />
           ))}
         </ul>
       )}
+      {/* A withdrawn grant reads nothing, so there is nothing to wait for. */}
+      {grant.state !== 'withdrawn' && <HowLong time={migration.time} from={migration.from} />}
     </div>
   );
 };
@@ -477,7 +538,11 @@ const View: React.FC = () => {
             <>
               <ul className="mt-6">
                 {one.domains.map((row) => (
-                  <DomainRow key={row.domain} row={row} />
+                  <DomainRow
+                    key={row.domain}
+                    row={row}
+                    {...(one.checkPassedAt ? { checkPassedAt: one.checkPassedAt } : {})}
+                  />
                 ))}
               </ul>
               {moved > 0 && (
@@ -487,6 +552,7 @@ const View: React.FC = () => {
               )}
             </>
           )}
+          {one.grant.state !== 'withdrawn' && <HowLong time={one.time} from={one.from} />}
 
           {link && <TheAccessTheyGave link={link} grant={one.grant} organisation={one.organisation} />}
           {/* Report this link (0108 T8 (d)), for somebody who granted and then

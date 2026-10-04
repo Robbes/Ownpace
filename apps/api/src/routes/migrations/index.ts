@@ -13,7 +13,25 @@ import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth.ts'
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { recordMappingStatusChange } from './mapping-status-audit.ts';
 import { readsAPersonsGrant } from './whose-data.ts';
-import { activateAddedPath, endOrKeepDataType, movePathsWithMapping, stopOrResumeDataType } from './path-lifecycle-wiring.ts';
+import {
+  PathsNeedAYes,
+  activateAddedPath,
+  endOrKeepDataType,
+  movePathsWithMapping,
+  pathsNeedAYesBody,
+  stopOrResumeDataType,
+} from './path-lifecycle-wiring.ts';
+
+/**
+ * A start past the agreed tier's paths, answered as the refusal it is (workplan
+ * 0109 T6): 409 with the numbers and the tier that runs them, never a 500.
+ * Every door that takes slots asks this first in its catch.
+ */
+function refusedPastTheTier(res: Response, error: unknown): boolean {
+  if (!(error instanceof PathsNeedAYes)) return false;
+  res.status(409).json(pathsNeedAYesBody(error));
+  return true;
+}
 import { eq, and, desc, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import {
@@ -142,6 +160,7 @@ import { serverFault } from '../../server-fault.ts';
 import { probeAnswers } from '../../probe-answer.ts';
 import { refusedOverTestLimit } from '../../probe-limit.ts';
 import { archiveOnServerRefusal } from '../archive-on-the-server.ts';
+import { hasCopiedAnything, prefixClash, revisedRoot, rootRevision } from './revise-root.ts';
 
 /** Take the first row of a RETURNING result or fail loudly (no silent nulls). */
 function firstOrThrow<T>(rows: T[], what: string): T {
@@ -803,7 +822,12 @@ export function sourceConfigOverride(
       // reused account connection would silently inherit the first one's
       // export choice — and a person who picked PDF for their files would have
       // no way to leave them behind next time.
-      return keep({ user: cfg.username, ...exportFormatOverride(cfg) });
+      //
+      // And the folder its files start from, for the same reason (0153 open
+      // question 5, item 4): *Only one folder* on *Start a migration* sends it
+      // for the account as for the Drive row, and the face reads it with
+      // Drive's parser. Dropped here, it was dropped without a word.
+      return keep({ user: cfg.username, rootFolderId: cfg.rootFolderId, ...exportFormatOverride(cfg) });
     case 'graph':
       // The tenant is the app registration's, which the connection holds.
       return keep({ mailbox: cfg.username });
@@ -823,10 +847,11 @@ export function sourceConfigOverride(
  *
  * ONLY the fields this route can act on. `schedule` is collected since the
  * route writes it (the owner, 2026-09-28): the table permits it, and asking
- * keeps the table the one place that says so. `name` is permitted by the table
- * and is not collected, because this route does not write it yet: collecting
- * it would put it through a refusal check it passes and change nothing, which
- * reads like support it does not have.
+ * keeps the table the one place that says so. `name` is collected since the
+ * route writes it too (*Rename*, 0153 open question 5, item 4); until then it
+ * was answered 200 and dropped. A root folder is `rootFolderId` on Drive and
+ * Box and `rootPath` on Dropbox, one field to the table: `rootPath` was
+ * dropped without a word.
  *
  * A field is proposed when it is PRESENT, not when it differs from what is
  * stored. "May this change at all" is a property of the field, so a body
@@ -837,14 +862,18 @@ export function sourceConfigOverride(
 export function proposedRevisions(
   body: Pick<
     z.infer<typeof UpdateMappingSchema>,
-    'sourceType' | 'targetType' | 'sourceConfig' | 'targetConfig' | 'syncConfig'
+    'name' | 'sourceType' | 'targetType' | 'sourceConfig' | 'targetConfig' | 'syncConfig' | 'targetFolderPrefix'
   >,
 ): readonly RevisableField[] {
   const proposed: RevisableField[] = [];
+  if (body.name !== undefined) proposed.push('name');
   if (body.sourceType !== undefined) proposed.push('source.type');
   if (body.targetType !== undefined) proposed.push('target.type');
-  if (body.sourceConfig?.rootFolderId !== undefined) proposed.push('source.rootFolderId');
+  if (body.sourceConfig?.rootFolderId !== undefined || body.sourceConfig?.rootPath !== undefined) {
+    proposed.push('source.rootFolderId');
+  }
   if (body.targetConfig?.username !== undefined) proposed.push('target.account');
+  if (body.targetFolderPrefix !== undefined) proposed.push('target.folderPrefix');
   if (body.syncConfig?.schedule !== undefined) proposed.push('schedule');
   return proposed;
 }
@@ -1863,6 +1892,25 @@ export const UpdateMappingSchema = CreateMappingBase.partial()
     if (body.sourceConfig) refuseUnreadableExportFormat(ctx, body.sourceConfig);
     if (body.syncConfig?.schedule !== undefined) refuseUnreadableSchedule(ctx, body.syncConfig.schedule);
     refuseTestersThrottle(ctx, body.throttleConfig);
+    // The folder the copies land in, by the parser create and the appliance
+    // read it with (0153 open question 5, item 4).
+    if (body.targetFolderPrefix !== undefined) {
+      try {
+        parseTargetFolderPrefix(body.targetFolderPrefix);
+      } catch (e) {
+        if (!(e instanceof ConfigError)) throw e;
+        ctx.addIssue({ code: 'custom', path: ['targetFolderPrefix'], message: e.message });
+      }
+    }
+    // A name of spaces is no name (0153 open question 5, item 4): the route
+    // stores it trimmed, and a migration called nothing is one nobody can find.
+    if (body.name !== undefined && body.name.trim() === '') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['name'],
+        message: "A migration's name cannot be empty: type the words it should be called by.",
+      });
+    }
   });
 
 /**
@@ -2654,6 +2702,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       updatedAt: created.updatedAt.toISOString(),
     });
   } catch (error) {
+    if (refusedPastTheTier(res, error)) return;
     if (error instanceof z.ZodError) {
       res.status(400).json({
         error: 'Validation error',
@@ -2953,6 +3002,9 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
         { withholdProse: readsAPersonsGrant(mapping) },
       ),
       lastSyncAt,
+      // WHERE THE COPIES LAND (0153 open question 5, item 4): the folder of the
+      // destination they are put in, or null where they merge into its own.
+      targetFolderPrefix: mapping.targetFolderPrefix ?? null,
       // When the person who granted through a link took it back (0108 T8 (c)),
       // or null. The page says so above everything else: nothing reads the
       // account until they grant it again, whatever the status says.
@@ -3035,6 +3087,12 @@ router.put(
       if (body.syncConfig?.schedule !== undefined) {
         updateData.schedule = body.syncConfig.schedule;
       }
+      // THE NAME (*Rename*, 0153 open question 5, item 4): a label nothing reads
+      // to decide anything (`mayRevise('name')`), stored trimmed. It was
+      // answered 200 and dropped.
+      if (body.name !== undefined) {
+        updateData.name = body.name.trim();
+      }
 
       /**
        * WHAT A LIVE MIGRATION MAY CHANGE ABOUT ITSELF (workplan 0125 T1/T3).
@@ -3069,7 +3127,17 @@ router.put(
        * landed. Every refused field at once, never the first — somebody who
        * changed three and is told about one fixes it and is refused again.
        */
-      const refused = refusalsFor(proposedRevisions(body));
+      const rootRevised = rootRevision(body.sourceConfig);
+      const prefixRevised = body.targetFolderPrefix !== undefined;
+      // WHETHER IT HAS COPIED ANYTHING, asked only where the answer decides
+      // (0153 open question 5, item 4): a root folder, and the folder the
+      // copies land in, may change until the ledger holds an item. Asked again
+      // beside the write below, since a pass may copy its first item in between.
+      const copiedAnything =
+        rootRevised === undefined && !prefixRevised
+          ? undefined
+          : await withTenantDb(tenantId, pool, (db) => hasCopiedAnything(db, tenantId, mappingId));
+      const refused = refusalsFor(proposedRevisions(body), copiedAnything === undefined ? {} : { copiedAnything });
       if (refused.length > 0) {
         res.status(409).json({
           error: 'revision_refused',
@@ -3162,7 +3230,34 @@ router.put(
             return { kind: 'format_for_another_source', sourceKind: source.kind } as const;
           }
         }
-        const currentOverride = !revisesFormat
+        // THE ROOT FOLDER, asked again beside the write: a pass that copied its
+        // first item since the read above makes the change unsafe now. Its
+        // source decides which spelling applies, and whether any does.
+        let rootSource: { readonly kind: string; readonly config: unknown } | undefined;
+        if ((rootRevised || prefixRevised) && (await hasCopiedAnything(db, tenantId, mappingId))) {
+          return { kind: 'copied_since', fields: [...(rootRevised ? ['source.rootFolderId' as const] : []), ...(prefixRevised ? ['target.folderPrefix' as const] : [])] } as const;
+        }
+        // THE FOLDER THE COPIES LAND IN, beside no other migration between the
+        // same two accounts in the same folder: the index that holds create to
+        // that holds this write too, and is asked first so the answer is a
+        // sentence rather than a constraint error.
+        if (prefixRevised) {
+          const prefix = parseTargetFolderPrefix(body.targetFolderPrefix) ?? null;
+          const clash = await prefixClash(db, tenantId, mappingId, prefix);
+          if (clash) return { kind: 'duplicate', existingId: clash.id, existingName: clash.name } as const;
+          updateData.targetFolderPrefix = prefix;
+        }
+        if (rootRevised) {
+          [rootSource] = await db
+            .select({ kind: schema.connection.kind, config: schema.connection.config })
+            .from(schema.mailboxMapping)
+            .innerJoin(schema.mailbox, eq(schema.mailbox.id, schema.mailboxMapping.sourceMailboxId))
+            .innerJoin(schema.connection, eq(schema.connection.id, schema.mailbox.connectionId))
+            .where(
+              and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId)),
+            );
+        }
+        const currentOverride = !revisesFormat && !rootRevised
           ? undefined
           : ((
               await db
@@ -3175,6 +3270,17 @@ router.put(
                   ),
                 )
             )[0]?.o as Record<string, unknown> | null | undefined);
+        // The override the row holds next: the format merged over it, and the
+        // root folder checked against its source (`revisedRoot`).
+        let nextOverride: Record<string, unknown> | undefined;
+        if (revisesFormat || rootRevised) {
+          nextOverride = { ...(currentOverride ?? {}), ...revisedFormat };
+          if (rootRevised && rootSource) {
+            const root = revisedRoot(rootRevised, rootSource, nextOverride);
+            if (!root.ok) return { kind: 'root_refused', field: root.field, message: root.message } as const;
+            nextOverride = root.override;
+          }
+        }
         const [row] = await db
           .update(schema.mailboxMapping)
           // Stamped LAST so it cannot be spread away by a field above, and
@@ -3183,9 +3289,7 @@ router.put(
           // ran through here leaving no timestamp at all (workplan 0109 T1).
           .set({
             ...updateData,
-            ...(revisesFormat
-              ? { sourceConfigOverride: { ...(currentOverride ?? {}), ...revisedFormat } }
-              : {}),
+            ...(nextOverride !== undefined ? { sourceConfigOverride: nextOverride } : {}),
             updatedAt: new Date(),
           })
           .where(
@@ -3216,6 +3320,32 @@ router.put(
         return { kind: 'updated', row } as const;
       });
 
+      if (outcome.kind === 'copied_since') {
+        // The table's own refusals, as the check before the transaction gives them.
+        res.status(409).json({
+          error: 'revision_refused',
+          message: 'Some of what was asked for cannot change on a migration that already exists.',
+          refused: refusalsFor(outcome.fields).map((r) => ({ field: r.field, reason: r.reason })),
+        });
+        return;
+      }
+      if (outcome.kind === 'duplicate') {
+        // The sentence create answers with, for the same index.
+        res.status(409).json({
+          error: 'duplicate_mapping',
+          existingMappingId: outcome.existingId,
+          existingMappingName: outcome.existingName,
+          message: new DuplicateMappingError(outcome.existingId, outcome.existingName).message,
+        });
+        return;
+      }
+      if (outcome.kind === 'root_refused') {
+        res.status(400).json({
+          error: 'Validation error',
+          details: [{ code: 'custom', path: ['sourceConfig', outcome.field], message: outcome.message }],
+        });
+        return;
+      }
       if (outcome.kind === 'format_for_another_source') {
         // 400: the request names a setting this migration's source does not
         // have, anchored on the key the way the schema's refusals are.
@@ -3267,6 +3397,7 @@ router.put(
         updatedAt: updated.updatedAt,
       });
     } catch (error) {
+      if (refusedPastTheTier(res, error)) return;
       if (error instanceof z.ZodError) {
         res.status(400).json({
           error: 'Validation error',
@@ -4024,6 +4155,7 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
 
     res.json({ id: mappingId, status: 'active', activated, ...(firstRun ? { firstRun } : {}) });
   } catch (error) {
+    if (refusedPastTheTier(res, error)) return;
     serverFault(res, 'start_failed', 'starting this migration', error);
   }
 });
@@ -4154,6 +4286,7 @@ router.post('/:mappingId/domains', authenticate, async (req: AuthenticatedReques
     }
     res.json({ id: mappingId, added: domain, domains: outcome.domains });
   } catch (error) {
+    if (refusedPastTheTier(res, error)) return;
     serverFault(res, 'add_kind_failed', 'adding a kind to this migration', error);
   }
 });
@@ -4203,6 +4336,7 @@ function stopOrResumeRoute(stop: boolean) {
       }
       res.json({ id: mappingId, domain, stopped: stop, changed: outcome.changed });
     } catch (error) {
+      if (refusedPastTheTier(res, error)) return;
       serverFault(res, `${action}_domain_failed`, `${stop ? 'stopping' : 'resuming'} a data type`, error);
     }
   };
@@ -4270,6 +4404,7 @@ function endOrKeepRoute(ending: PathEnding) {
       }
       res.json({ id: mappingId, domain, ending, ...outcome });
     } catch (error) {
+      if (refusedPastTheTier(res, error)) return;
       serverFault(res, `${ending}_domain_failed`, `${ending === 'end' ? 'ending' : 'keeping'} a data type`, error);
     }
   };

@@ -12,7 +12,7 @@
 import './refuse-internal-addresses.ts';
 import { z } from 'zod';
 import { schemaTask, queue } from '@trigger.dev/sdk';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import {
   autoApplyRelocations,
   runShadowPass,
@@ -28,6 +28,7 @@ import {
 import { budgetPauseToReason, HALT_IN_WORDS } from '@openmig/shared';
 import { passStepBefore, whyThisDataTypeStops, type PassHalt, type PassSkip } from './stopping-a-pass.ts';
 import { leavesAReference, planeErrorFor } from './what-a-run-leaves.ts';
+import { announceFirstCopy } from './the-first-copy-email.ts';
 import type {
   TenantId,
   MappingId,
@@ -46,7 +47,7 @@ import {
   PgMigrationStatusStore,
   RunStore,
 } from '@openmig/ledger';
-import { PgBytesMovedStore } from '@openmig/managed';
+import { PgBytesMovedStore, ceilingHoldReason, firstCopyGate, holdsAtCeiling, readCeiling } from '@openmig/managed';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import {
   log,
@@ -394,6 +395,47 @@ export const runDeltaSync = schemaTask({
           await new RunStore(db).logEvent(tenantId, runId, 'info', line);
         });
       }
+      // THE FIRST COPY, ASKED ABOUT ONCE (workplan 0154 T7): the data types
+      // with no completed pass when this one began, and whether it completed
+      // one of them. Only then is the person's first copy worth asking about.
+      // `completed_at` alone: the status read's counts over the item table are
+      // not wanted for a yes or no.
+      const unfinishedAtStart = new Set(
+        await withTenant(pool, tenantId, async (db) =>
+          (
+            await db
+              .select({ domain: schemaPg.migrationStatus.domain, completedAt: schemaPg.migrationStatus.completedAt })
+              .from(schemaPg.migrationStatus)
+              .where(
+                and(
+                  eq(schemaPg.migrationStatus.tenantId, tenantId),
+                  eq(schemaPg.migrationStatus.mappingId, mappingId),
+                ),
+              )
+          )
+            .filter((r) => r.completedAt !== null)
+            .map((r) => r.domain),
+        ).then((completed) => domains.filter((d) => !completed.includes(d))),
+      );
+      let finishedAFirstCopy = false;
+      // Everything of the person's in? Asked only by a pass that finished a
+      // first copy, once its data types are marked, and never allowed to fail
+      // the pass: a pass that copied everything is no less done for a mail
+      // that did not go. Asked on the way out of a failed pass too, since a
+      // data type that threw after another finished its first copy must not
+      // be why the person never hears.
+      const sayTheFirstCopy = async (): Promise<void> => {
+        if (!finishedAFirstCopy) return;
+        try {
+          const said = await announceFirstCopy(pool, tenantId, mappingId);
+          log.info(`[first-copy] ${mappingId}: ${said}`);
+        } catch (err) {
+          log.error(
+            `[first-copy] ${mappingId}: could not say the first copy is in:`,
+            err instanceof Error ? err.message : err,
+          );
+        }
+      };
       for (const domain of domains) {
         // THE MAPPING MAY HAVE BEEN PAUSED SINCE THIS RUN WAS ENQUEUED.
         //
@@ -498,9 +540,22 @@ export const runDeltaSync = schemaTask({
           // after what it is copying at that moment, not at its deadline.
           // Spread into every pass below as one object, so a data type cannot
           // be handed its deadline without its question.
+          // THE HOLD AT THE DATA CEILING (workplan 0109 T6, ADR-0014's
+          // amendment of 2026-10-03). Every step up is consented and paid for:
+          // at the ceiling, new first copies wait for the customer's yes to a
+          // move up or a top-up, while updates to what is already copied carry
+          // on. Read fresh for each data type, after the one before it added
+          // its bytes to the meter (below). Not during the alpha (the owner,
+          // 2026-10-03: "A"), where nothing is charged and no yes is taken:
+          // this process learns the stage from OWNPACE_STAGE, which
+          // set-task-env.sh uploads to the task environment.
+          const ceiling = holdsAtCeiling(process.env.OWNPACE_STAGE)
+            ? await withTenant(pool, tenantId, (db) => readCeiling(db, tenantId))
+            : null;
           const passStops: PassClock = {
             deadline: typeDeadline,
             whyItStops: () => whyThisDataTypeStops(pool, tenantId, mappingId, domain),
+            ...(ceiling ? { firstCopyAllowed: firstCopyGate(ceiling) } : {}),
           };
 
           // Whether this domain rescans from scratch — per domain, so "redo the
@@ -522,6 +577,8 @@ export const runDeltaSync = schemaTask({
             adopted: number;
             skipped: number;
             firstCopyBytes?: number;
+            /** New first copies that waited at the data ceiling (0109 T6). */
+            heldAtCeiling?: number;
             budgetPause?: BudgetPause;
             deadlinePause?: DeadlinePause;
             haltPause?: HaltPause;
@@ -560,6 +617,7 @@ export const runDeltaSync = schemaTask({
                 ...(pass.firstCopyBytes !== undefined
                   ? { firstCopyBytes: pass.firstCopyBytes }
                   : {}),
+                ...(pass.heldAtCeiling ? { heldAtCeiling: pass.heldAtCeiling } : {}),
               };
             } finally {
               await deps.close();
@@ -716,10 +774,14 @@ export const runDeltaSync = schemaTask({
            * (`noteUnreadCollections`, below).
            */
           const unread = result.unreadCollections ?? [];
-          if (!pause && unread.length === 0) {
+          // And one whose new items waited at the data ceiling has not
+          // finished either: they are copied on the pass after the yes.
+          const held = result.heldAtCeiling ?? 0;
+          if (!pause && unread.length === 0 && held === 0) {
             await withTenant(pool, tenantId, async (db) => {
               await new PgMigrationStatusStore(db).markCompleted(tenantId, mappingId, domain, result.metrics);
             });
+            if (unfinishedAtStart.has(domain)) finishedAFirstCopy = true;
           } else if (pause) {
             /**
              * The customer's half of the same fact — but only for the ceiling.
@@ -759,6 +821,35 @@ export const runDeltaSync = schemaTask({
               );
             });
           }
+          if (held > 0 && ceiling) {
+            // The customer's half, with both prices: the hold is theirs to
+            // lift, so it is on their screen, unlike the deadline. Not over a
+            // stop they were told about first (a Pause, a withdrawn grant) or
+            // the day's download budget, whose own sentence says when it
+            // resets; the next pass that holds says it then.
+            if (!result.haltPause && !result.budgetPause) {
+              await withTenant(pool, tenantId, async (db) => {
+                await new PgMigrationStatusStore(db).markPaused(
+                  tenantId,
+                  mappingId,
+                  domain,
+                  ceilingHoldReason(ceiling, held),
+                );
+              });
+            }
+            await withTenant(pool, tenantId, async (db) => {
+              await new RunStore(db).logEvent(
+                tenantId,
+                runId,
+                'info',
+                `${domain}: ${held} new item(s) wait at the organisation's data ceiling of ` +
+                  `${ceiling.allowance.ceilingGb} GB, for its yes to a move up or a top-up on the ` +
+                  'Billing page. Changes to what was already copied carried on, nothing failed, ' +
+                  'and the cursors stayed where they are, so the pass after the yes copies them.',
+                { domain, heldAtCeiling: held, ceilingGb: ceiling.allowance.ceilingGb },
+              );
+            });
+          }
           // After the pause's own write, which clears the last error, so the
           // note it would have cleared stands; and on every pass that returned,
           // so a note an earlier pass wrote goes once the collection is read.
@@ -792,7 +883,8 @@ export const runDeltaSync = schemaTask({
             // type its owner stopped differently (`final-sync.ts`).
             ...(result.haltPause
               ? { stopped: 'halt' as const, haltedBecause: result.haltPause.reason }
-              : result.deadlinePause ? { stopped: 'deadline' as const } : result.budgetPause ? { stopped: 'budget' as const } : {}),
+              : result.deadlinePause ? { stopped: 'deadline' as const } : result.budgetPause ? { stopped: 'budget' as const }
+              : held > 0 ? { stopped: 'ceiling' as const } : {}),
           };
           // The data axis (0109 T3): this pass's first-copy bytes join the
           // tenant's lifetime meter. Managed-side by construction — the
@@ -936,6 +1028,8 @@ export const runDeltaSync = schemaTask({
           // Re-throw so Trigger.dev records the failure (hard rule 9 — no masking),
           // under the event's reference and category, and without its words: the
           // lines above keep those (0134, open question 3 (a); what-a-run-leaves.ts).
+          // A first copy this pass finished is said first (0154 T7).
+          await sayTheFirstCopy();
           throw await planeErrorFor(
             error,
             { task: 'run-delta-sync', tenantId, mappingId },
@@ -947,6 +1041,7 @@ export const runDeltaSync = schemaTask({
       log.info('Delta sync completed successfully');
 
       await closeRun('succeeded', 0);
+      await sayTheFirstCopy();
 
       const report: DeltaSyncOutput = {
         asked: domains,

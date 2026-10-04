@@ -2,7 +2,332 @@
 
 > **In one line:** The Migrations page lists people: one flow (who, from where, what, to where) takes a person from one or more old accounts to a new home and creates their migrations underneath, and protocols, kinds and ids stay off screen until needed. Four faults the audit found go first.
 
-## Status — 2026-10-03 (update this block at the end of every session)
+## Status — 2026-10-04 (update this block at the end of every session)
+
+**2026-10-04: the wizard retires (D5; open question 5, item 7, the second part).** *Start a
+migration* is the one way a migration is made on managed, and T4, T1 (c) and T6 end with it.
+
+- **The wizard is gone**: `CreateMapping.tsx`, its tests, its walk and its draft. `/mappings/new`
+  sends to `/start`, keeping the person it was opened for (`?person=`). *Add one migration by
+  hand* is gone from Migrations and from a person's page. The setup checklist's way back leads to
+  Accounts, and the Accounts page no longer sends anyone to the wizard. The confirm page's line
+  about a migration not added to a person went too, since only the wizard made one. 96 strings only
+  the wizard and its links used went from both languages, with the comments that described them.
+  The setup checklist's lines that sent a person to the wizard say what to do now, and a guard in
+  `i18n.unit.test.tsx` fails on any string, in either language, that names the wizard.
+- **What only the wizard drew, the account form now draws, at both doors.** A field's own line and
+  its why, folded (0118 T1): the Apple password that is not the Apple Account password, the
+  domain-wide key's width in amber, the mail server Soverin needs only for mail, ten in all. And
+  beside *Setup steps*, the link to the card's own section of its guide, in a new tab.
+- **The guides walk the flow,** all eleven, in both languages. They name its screens and buttons:
+  *Which account are you leaving?*, *Connect your accounts* and *Check the sign-in*, *Where does
+  it go?* with *Add …*, *Where the copies land* and *Try again*. The Accounts page appears by its
+  own name and buttons. No guide says *Use SSL/TLS*, since no screen has the box, and the three
+  that told a person to delete a failed connection and reopen the wizard say what *Try again*
+  does. The docs guard reads the flow's labels (`start.*`) too, so a label one language quotes
+  has its twin in the other, and no guide names a step, since no screen has one.
+- **Privacy §11 says what the code does,** in both languages, as the lawyer's briefing proposed:
+  TLS always, and an address typed with `http://` reached as typed. It is marked for the
+  lawyer's pass.
+- **The operator documents** name the flow and the Accounts page where they named the wizard.
+- **Not carried over, and said for the owner:**
+  - The wizard filled in 993 and 443 as the port. The forms show them as the example only, and
+    the Accounts page pins that a protocol card fills in nothing, so a person types the port.
+  - The wizard took away a data type that the destination had measured it cannot take (0106
+    T3a). The flow offers it, and the create door refuses it in the account's own words on
+    *Where does it go?*, before anything is set up (`measuredNoRefusal`). Neither catches a
+    CalDAV server that takes no tasks: its task face counts task lists and never says no, so
+    each task is refused by name in the first pass, under *Failures*. The Apple guide promised
+    an earlier warning, and now says this.
+  - On a deployment that declares Google's restricted scopes, the flow reads Gmail through the
+    Google account, whose form has no app-password fold, and a saved Gmail account is not
+    offered there (`savedSources` matches the carrier's kind). An app-password Gmail account
+    is then reachable only where the declaration is absent.
+  - A saved *Export archive* account is no longer a way into a migration: the flow reads a
+    Takeout from the folder `Takeout` of the destination's files (item 2). The Accounts page still
+    adds one, and its test says what an export holds.
+- **Proved by** `a-line-under-the-box-both-doors-draw` (27 cases: every field with a line, on
+  every card, on the Accounts page; and the flow's three placements), the redirect cases in
+  `AppRoutes.unit.test.tsx`, the docs guard with `start.*`, and the UI test's walk through `/start`.
+  Two mutations are caught: the form drawing no line, and a Dutch guide naming a button the
+  screen does not show.
+
+**2026-10-04: every card through *Start a migration* (D5; open question 5, item 7, the first
+part).** The wizard retires once the flow reaches every card a migration can be made from, and the
+reachability test moves to `/start`, as the recommendation said.
+
+- **`every-card-through-start-a-migration.unit.test.tsx` walks each of the eleven cards** a
+  migration can be made from to the screen that asks for its account. Its row is there, named for
+  the card, with the form a person fills, and *Next* waits for it in words that name no field.
+  Microsoft's two app-registration cards are reached behind the company question, Gmail and Google
+  Drive where the restricted scopes are not declared, and the Google account where they are. The
+  export archive is reached through Google's Takeout tick box, and that screen says it needs no
+  sign-in.
+- **Every destination card is offered** on *Where does it go?*, as *Add …* under a data type it
+  takes.
+- **A card added without a walk fails by name**, and so does a destination the flow cannot
+  offer. A mutation that never routes Microsoft's mail through a company's app fails the two cards
+  it reaches.
+- **Left for the retirement itself:** the links that still lead to the wizard (*Add one migration
+  by hand* on Migrations and on a person's page, the setup checklist's way back), its route, and
+  its code, tests and words.
+
+**2026-10-04: the root folder, *Only one folder* (open question 5, item 4, the third and last
+part).** The owner chose A: on *What moves?*, under *Files*, with the wizard's *Browse…*, for a
+new and a saved account alike and for the Google account too.
+
+- ***What moves?* asks *All of My Drive* (*All of Dropbox*, *All of Box*) or *Only one folder***
+  under *Files*, where the card carrying them has a folder to start from (`offersOneFolder`).
+  Microsoft's files have none yet, so nothing is asked there. *Only one folder* says the folder is
+  chosen once the account is connected, since only then can its folders be listed.
+- ***Connect your accounts* asks which folder, under the account, once it is chosen.** A folder's
+  address from Google Drive or Box gives its id, and a Dropbox address or a path typed without its
+  slash gives the path from the top (`folderValue`). A connected Google or Dropbox account offers
+  the wizard's browse, *Show shared drives and shared folders* or *Show shared folders*, and a
+  folder picked fills the box. Next waits, in words, until each such account has a folder. An
+  account somebody else connects by a link has the box without the list.
+- **The browse reads the stored sign-in** (`GET /api/connections/:id/folders`), with the
+  deployment's own application where the account has none, as a Test reads it. Google's two lists
+  come back together, and where one is refused the other still shows, with the refusal beside it.
+  A Dropbox folder not added to the account is listed without a value, since it has no path yet.
+  Box lists nothing, as in the wizard. A closed organisation is refused before the sign-in is
+  read, and the door is a row in the closed-organisation sweep.
+- **The create sends the folder after the account's own**: `rootFolderId` or `rootPath`. The
+  Google account's create used to drop `rootFolderId` without a word. It is now kept in the
+  migration's override, and its files face, Drive's, reads it. The update route takes it for a
+  Google account too, before the first item.
+- **The flow's account forms no longer draw the folder**: it is the migration's, asked after.
+  The Accounts page keeps it.
+- **The migration page says where its files start**: from one folder, by its path or id, or from
+  all of My Drive, Dropbox or Box.
+- **Proved by** nine cases for the browse route, a door in the closed-organisation sweep, a
+  Google account's folder against real rows and at create, five in `start-plan.unit.test.ts`,
+  four on the flow and three on the migration page. Mutations caught: the deployment's client left
+  out of the browse; the Google account's folder dropped at create; the folder left off the
+  create. The flow's test also found a listed folder whose name and tag a screen reader would
+  have read as one word.
+- The guides for Google, Dropbox and Box say it in both languages.
+
+**2026-10-04: *Other ways to connect* without the wizard, and the two texts that promised sources
+no door has (open question 5, the part needed before the wizard goes).** IMAP is the one source
+protocol, and *Another mail provider* is its tile. CalDAV, CardDAV, WebDAV and JMAP are
+destinations only.
+
+- **The fold under the tiles names IMAP alone**: *Other ways to connect (IMAP)*. It says that any
+  mail server is read over IMAP, as *Another mail provider*, and that the four others are where
+  things go, chosen on *Where does it go?*. A button ticks the tile. It no longer links to the
+  wizard.
+- ***Another mail provider*'s line says what is true**: over IMAP only mail is read, and a mail
+  provider's calendar and contacts have no way in here yet. It used to say *"Add those by hand"*,
+  for sources no door has.
+- **Proved by** the screen-2 case in `StartMigration.unit.test.tsx`, rewritten: no export line, the
+  fold's words, no wizard link, and the button ticking the tile.
+
+**2026-10-04: where the copies land, *Put it in a folder of its own* on screen 5 (open question
+5, item 4, the second part).** Until now the flow could not make a second migration between the
+same two accounts: it sent no folder, and the refusal's remedy, *give this one a different target
+folder*, was on no screen.
+
+- ***Where does it go?* ends with *Where the copies land*:** one fold per migration, *Put it in a
+  folder of its own*. It is closed and empty by default, so the copies merge into the
+  destination's own folders as before.
+- **It opens, filled in with the account each comes from, where another migration sends the same
+  data types to the same destination**, and says why (`sharesItsDestination`). Examples are two
+  accounts' mail into one mailbox, or Dropbox's files beside a Takeout's photos in one Nextcloud.
+  Mail and calendars from one Google account to one Soverin share a destination and nothing else,
+  so nothing opens.
+- **The migration page says where the copies land**: in the folder named, or in the destination's
+  own folders. The detail read returns `targetFolderPrefix`. The page offers no change, since
+  after the first item a move would leave the copies behind.
+- **The update route writes the folder until the first item**, through the parser create uses. It
+  used to drop it without a word. It is refused after the first item (`target.folderPrefix` in
+  the shared table, `onceCopied`), and where another migration between the same two accounts
+  already copies into that folder, in create's own words. The constraint is never left to answer.
+- **Proved by** two cases on the flow, two in `start-plan.unit.test.ts`, three on the migration
+  page, five against real rows, and one in shared. A mutation removing the clash check is caught.
+  The Takeout case now expects the export's folder of its own, since Dropbox's files go to the
+  same Nextcloud.
+
+**2026-10-04: *Rename* on the migration page, and the update route writing the name and the root
+folder (open question 5, item 4, the first part).** The flow names each migration itself, and the
+recommendation put *Rename* on the migration page for the name a person would rather read.
+
+- ***Rename* sits beside the migration's title** on managed. It turns into a box with *Save* and
+  *Cancel*, and the heading reads the stored name once it is saved. A failure is said beside it
+  and keeps what was typed. The appliance's names stay its mapping files'.
+- **The update route writes the name**, trimmed, and refuses a name of spaces. It used to answer
+  200 and drop it.
+- **The two fixes the root folder needed.** A root folder may change until the migration's ledger
+  holds an item. `rootFolderId` on Drive and Box, and `rootPath` on Dropbox, go into the
+  migration's own override, through the parser a pass reads them with. The route used to refuse
+  `rootFolderId` on every migration and drop `rootPath` without a word. Once an item exists, the
+  table's refusal stands. It is asked again beside the write, since a pass may copy its first
+  item in between. A source with no folder, and the other spelling, are refused by name. An empty
+  folder takes it off the override, except where the account itself holds one.
+- **The rule is shared's** (`RevisionFacts`, `onceCopied`): the appliance's comparison cannot say
+  whether anything was copied, so it keeps its refusal.
+- **Proved by** seven cases against real rows in `a-name-and-a-folder-the-route-writes`, three in
+  shared, and four on the migration page. Two mutations are caught: dropping the name, and a ledger
+  read that always says nothing was copied.
+- **The root folder on screen 3** came after: see *Only one folder* above.
+- **No TLS switch on managed** (the owner chose B) needs nothing removed before the wizard goes:
+  *Start a migration* encrypts every connection, and the Accounts page's forms never had a switch.
+  The wizard's *Use SSL/TLS* is the last one. Privacy §11's *"unless you switch off SSL/TLS
+  yourself"* is in the lawyer's briefing at the top of `site/legal/privacy.md`, with a proposed
+  wording for when the wizard retires. The rendered text stays until then (applied when it
+  retired: see the retirement's entry above).
+
+**2026-10-04: the Google Calendar and Google Contacts cards retired for new migrations (open
+question 5, item 3).** The Google account is the same way in and asks Google for only what was
+ticked, so the two cards offered nothing to choose between.
+
+- **Both cards are `connectionOnly`.** The Accounts page keeps them, for the accounts added with
+  them, which keep working, as do their migrations. The wizard no longer offers them, and its two
+  branches for them went: the compiler refused them as unreachable.
+- ***Start a migration* offers a saved one on the Google tile** where it carries exactly what was
+  ticked: a Google Calendar account where Calendar is all that is ticked from Google, a Google
+  Contacts account where Contacts is (`savedSources`). The migration is made with that account's
+  own card, since the create door holds a reused account to its kind.
+- **The Google guide says so** in both languages, at both cards' sections and in its opening.
+- **Proved by** two cases in `StartMigration.unit.test.tsx` and one in
+  `front-door-cards.unit.test.ts`; the wizard's tests drop the two cards from its door. Two
+  mutations are caught: offering the saved account whatever was ticked, and making the migration
+  with the Google account's card.
+
+**2026-10-04: Google's photos from a Takeout export, under the Google tile (open question 5,
+item 2).** Every export has a provider, so it sits with that provider's data types:
+
+- **On *What moves?*, under Google, *Photos: from a Takeout export* is a tick box.** It is tagged
+  *Experimental* by the archive card's verdict (0148 D10), and it starts unticked, because it asks
+  the person to request the export. Ticked, it says to ask now, with a link to Google Takeout,
+  since an export can take days to prepare.
+- **Under Apple, *iCloud Drive and photos: from Apple's export* is a line**, tagged *To be tested*,
+  with the archive form's own sentence (0148 D7). There is nothing to tick until a reader exists
+  (`exportOf(…).readable`).
+- **Screen 2's *An export archive* line is gone.** A server by its protocol still goes to the
+  wizard.
+- **The export needs no sign-in, and *Connect* says so.** *Where does it go?* gives the photos a
+  row of their own, offering only destinations whose files serve byte ranges (Nextcloud, WebDAV;
+  0148 D11). It follows the files' destination where that one can serve the export.
+- **It sets up one archive migration**: `{provider: 'google-takeout', path: 'Takeout', where:
+  'target'}`, made with its source because an export has no account (`exportMigration`).
+- **It waits for the export, as drawn.** *Check, then start* neither counts it nor starts it. It
+  says what to do: ask Google, put the `.zip` files in the folder `Takeout` of the destination,
+  then *Review and start* on its page, which counts the export first. A flow with nothing else in
+  it ends with *Done*. On the person's page and on Migrations, its line reads *Photos* and *Not
+  started · Waiting for the Takeout export · how to make one →*.
+- **The reader opens the folder a download's parts were put in** (`downloadInFolder`). The flow
+  names the folder before the export exists, and Google stamps each download, so the flow cannot
+  name a part. This also fixes a promise already made: the archive form and the Nextcloud guide
+  said *"upload the .zip parts into one folder, and name that folder here"*, and the reader refused
+  such a folder as one with no `Takeout` in it. A folder that opened before opens the same way. A
+  folder holding two downloads is refused, with both named.
+- **Proved by** five cases in `StartMigration.unit.test.tsx` (three new, two rewritten), four in
+  `start-plan.unit.test.ts`, three in `MigrationLines.unit.test.tsx`, one in
+  `an-export-in-the-destinations-files.unit.test.ts` (the flow's exact body, accepted), and in the
+  reader: two new layouts in the six-layout suite, three folder cases, and one over WebDAV.
+  Mutations caught: Start starting the export's migration, the export posted without `where`, and
+  the reader reading a folder of parts as a tree.
+- **The guide** (`docs/guides/{en,nl}/archive.md`) has *From Start a migration* (`#from-the-flow`),
+  which the waiting line links to.
+
+**2026-10-04: a company's mail through its own Microsoft app, behind the company question (open
+question 5, item 1).** On *What moves?*, Microsoft's mail carries *Is this a company account with
+an administrator?*. A yes offers the mail through the organisation's own app, with application
+permissions, through Microsoft Graph or through IMAP, beside the Microsoft sign-in.
+
+- **The mail goes through the company's app, and the rest through the account** (`carrierOf`,
+  `PlanChoices`). *Connect your accounts* asks the app for the mail and the account's sign-in for
+  anything else ticked, as Google asks Gmail apart where the restricted scopes are not declared.
+  Only the mail moves because the account's other faces cannot run on application permissions
+  yet: they read `/me`.
+- **The app's row shows its tenant, client ID and secret.** The app is already the company's
+  answer, so the account form does not ask the company question again (`ORGANISATION_APP_CARDS`).
+- **A saved app is offered whichever way its mail is read:** `o365` is one kind for both cards.
+- **A No takes the choice back**, and the one sign-in carries everything again.
+- **Proved by** three cases in `StartMigration.unit.test.tsx` and two in
+  `start-plan.unit.test.ts`.
+
+**2026-10-04: the owner chose the recommendations for the wizard's four (open question 5).**
+*"go with the recommendations"*. The build, in this order, each its own pull request:
+
+1. The two Microsoft tenant fixes, below, with this record.
+2. Mail through an organisation's own Microsoft app, behind the company question.
+3. Takeout's photos as a tick box under Google; Apple's export as its line; the separate
+   export line goes.
+4. The single-purpose Google Calendar and Contacts cards retired for new migrations.
+5. The four settings: the folder prefix on screen 5, the root folder on screen 3, *Rename* on
+   the migration page, and no TLS switch on managed.
+6. *Other ways to connect* without the wizard, and the two texts that promise CalDAV and
+   CardDAV sources.
+7. The reachability test through `/start`, and then the wizard retires (D5). Both done
+   2026-10-04 (#1462, and the retirement's entry at the top).
+
+**The first pull request fixes the two Microsoft defects** found while answering open
+question 5:
+
+- **The consent asks in the registration's own directory.** A tenant typed beside the person's
+  own pair goes with the consent, in both doors, so a single-tenant registration no longer gets
+  *application not found* from `common`.
+- **Replacing a Microsoft account's token keeps its tenant.** The rotation keeps the stored
+  tenant when the same registration is rotated (the same client id, or the deployment's on both
+  sides). A different pair brings its own tenant, or none.
+- **Proved by** `a-microsoft-consent-in-its-own-directory` (2 cases) and
+  `a-rotation-that-kept-its-directory` (5). Three mutations are caught: the rotation ignoring
+  the kept tenant, any pair inheriting it, and the consent sending none.
+
+**2026-10-04: where the wizard's four go, with options for the owner (open question 5).** The
+owner asked whether the plan placed the four, and if it did not, for options and a
+recommendation, with a suggestion of their own for each.
+
+- **The plan drops none of them, and places only some.** Placed: the export line and the photos
+  line in the design, built as links to the wizard; and the delegated Microsoft sign-in, with
+  its own-registration fold. Not placed: the app-only Microsoft registrations, the two
+  single-purpose Google cards, and all four settings.
+- **Open question 5 holds each item's options and the recommendation.** Each is read against the
+  plan, the code, and how other migration tools present the same thing.
+- **Found on the way, and listed there:**
+  - the Microsoft consent never sends a tenant, so a single-tenant registration cannot consent;
+  - the flow cannot make a second migration between the same two accounts;
+  - *Another mail provider* tells people to add CalDAV and CardDAV by hand, which no door can do.
+
+**2026-10-04: T6 (b)'s schedule is folded, in the owner's words.** On a migration's page,
+*Sync schedule* / *Synchronisatieschema* is now a fold, closed, headed *How often to look for
+changes* / *Hoe vaak naar wijzigingen kijken*, as approved on 2026-09-28.
+
+- **Closed, it says the cadence in force** in the chooser's own words: *How often to look for
+  changes · Hourly*, and *Every 15 minutes* for a migration with no schedule of its own. A
+  cadence the chooser does not offer, which only the API sets, is said inside, as before.
+- **The summary is plain,** as the app's other folds are, so it keeps the browser's disclosure
+  triangle and reads as something that opens.
+- **With it, every word in T6 (b)'s table is in the product,** except the wizard's own step
+  names, which go when the wizard retires (D5). The glossary has the row.
+- **Proved by** `a-cadence-with-nowhere-to-change-it` (three new cases, one in Dutch). Five
+  mutations are caught: open by default, no cadence on the fold, no default cadence, the old
+  words, and a section instead of a fold.
+
+**2026-10-04: T3 and T5 are built in full, and T4 and T1 (c) wait only for the wizard to retire.**
+Read against the code with 0154's last part in (#1445, on which this lands).
+
+- **T3, the Migrations page.** Each card's rows now have their own stage and a sentence under
+  it, from the progress read (0154 T1 (b) and (d), #1422), set against what discovery found
+  (0154 T2, #1420). The rest was built in #1341, #1343 and #1346: the count of what needs the
+  person, *Start a migration* and *Add a migration*, the top line, the menu, the empty state,
+  and a failed read said as one (`managed-ui.ui.test.ts`).
+- **T5, a page per person.** Its rows are filled the same way. Its steps are one list with
+  counts (0154 T4), and its links are the person's (T5 (b), four slices), with start when
+  granted.
+- **T4's screen 6 says how long before Start.** `MigrationCountSection`, which *Start a
+  migration* draws once per migration, shows 0154 T3 (a)'s range and its reason once the count
+  is in.
+- **What is left is the wizard.** T4 and T1 (c) end when *Add one migration by hand* retires
+  (D5). Before it can, the reachability test has to pass through the flow, and four questions
+  are the owner's:
+  1. how a Microsoft 365 app registration is handled;
+  2. whether a Google Takeout export is offered;
+  3. whether the separate Google Calendar and Google Contacts cards go;
+  4. whether four settings the flow does not offer go: the folder prefix, the SSL/TLS switch,
+     custom naming, and a migration's own root folder.
 
 **2026-10-03, evening: the managed gate asks a person for the progress link (E2E (managed)
 #232).** #1408 made links a person's, and `POST /api/migrations/:id/links` refuses with `409
@@ -852,12 +1177,12 @@ person, and a flow that fills it.
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner's words and the ADR | ✅ **Words decided 2026-09-28 (D6, D7); ADR-0050 accepted 2026-09-28 (#1327)** | §3. Dutch says *migratie*, never *verhuizing*. A person's card carries their name. *Accounts*, not *Connections*. The code says `person` (ADR-0050's amendment); `move` was its first name. |
-| T1 Four faults the audit found | 🟡 **(a) in #1315 and (d) in #1316, each proved by its guard; (b) drawn and guarded (#1349); (c) is T4's, by construction; all before the first invitation** | §3. (a) Review & confirm listed every source's limits on managed. (b) The Gmail app password the guide names is not in the wizard. (c) The Microsoft consent is sent before the data types are chosen: T4 fixes it by construction (the owner, 2026-09-28: no press). (d) A raw state word on Finish. |
+| T1 Four faults the audit found | ✅ **(a) in #1315 and (d) in #1316, each proved by its guard; (b) drawn and guarded (#1349); (c) is T4's, by construction, and ended with the wizard's retirement (D5): *Start a migration* is the one door, and its consent asks for what was ticked** | §3. (a) Review & confirm listed every source's limits on managed. (b) The Gmail app password the guide names is not in the wizard. (c) The Microsoft consent is sent before the data types are chosen: T4 fixes it by construction (the owner, 2026-09-28: no press). (d) A raw state word on Finish. |
 | T2 ADR-0050: a move is a person's migrations | ✅ **ADR-0050 accepted 2026-09-28 (#1327), amended the same night: *person*. The tables and `/api/people` built, with the appliance's implicit person (#1332)** | §3. A `person` row and `person_migration` in `packages/managed/migrations` (0031). The appliance answers one implicit person. The billed unit (a path) and the migration (a mapping) do not change. Deleting a person deletes no migration. |
-| T3 The Migrations page lists people | 🟡 **Built in two halves: the page lists people (#1341); it is the landing page, the Dashboard is gone, and the menu is the drawing's (#1343). The menu counts beside *Needs you* what waits (#1346). The progress line and *Ready to switch* are built (0154 T1 (b) and (d)), from the progress read. Before the first invitation** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
-| T4 *Start a migration*: who, from where, what, to where | 🟡 **Built (#1372, #1378), with *Someone else* by a grant link (#1386), one per person since T5 (b). Waiting: screen 6's time estimate (0154 T3 (a)), and the wizard retires once the reachability test passes through the flow (D5). Before the first invitation** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
-| T5 A page per person | 🟡 **First slice built (#1353): the person, their migrations, and their steps before they switch. One link per person (ADR-0035's amendment of 2026-09-29) is built, T5 (b)'s four slices (#1394, #1396, #1401, #1408), with *Report this link* (#1402), asking again (#1407), start when granted (#1409), and the page saying what waits for their grant (#1413); the progress lines wait on 0154 T2. Before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
-| T6 Words a family reads | 🟡 **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, before the first invitation. The Dutch says *migratie* everywhere the product speaks, with two guards (#1342). (c)'s two guards built (#1347)** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |
+| T3 The Migrations page lists people | ✅ **Built: the page lists people (#1341); it is the landing page, the Dashboard is gone, and the menu is the drawing's (#1343); the menu counts beside *Needs you* what waits (#1346); each row's stage and line come from the progress read (0154 T1 (b) and (d), #1422)** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
+| T4 *Start a migration*: who, from where, what, to where | ✅ **Built (#1372, #1378), with *Someone else* by a grant link (#1386), one per person since T5 (b); screen 6 says how long (0154 T3 (a)). The owner's four questions answered and built (open question 5), every card reached through `/start` (#1462), and the wizard retired (D5)** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
+| T5 A page per person | ✅ **Built: the person, their migrations, their rows and their steps (#1353, with 0154 T1, T2 and T4); one link per person, in T5 (b)'s four slices (#1394, #1396, #1401, #1408), with *Report this link* (#1402), asking again (#1407), start when granted (#1409), and what waits for their grant (#1413)** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
+| T6 Words a family reads | ✅ **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, the schedule folded last; the wizard's own step names went with it (D5). The Dutch says *migratie* everywhere the product speaks, with two guards (#1342). (c)'s two guards built (#1347)** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |
 | T7 Defaults a family can pass | ✅ **(a) to (f) built inside T4 (#1378); the wizard's progress line too (#1383)** | §3. Buttons that look like buttons, with the reason in text. A Soverin sign-in in two visible fields. A Nextcloud address, not a DAV URL. Business-only fields only on the business path. The limit blamed on the side that has it. Tiles and icons: `tiles.svg`, `icons.svg`. |
 | T8 The appliance shows its person's page | ✅ **Built: its landing once every migration has started, Review & confirm until then; the page's rows from `/status`; *Migrations* first in its menu** | §3. The same page, fed by the appliance's one implicit grouping. No list or create screen (0034 stands). |
 
@@ -1500,3 +1825,144 @@ pages. `a-class-tailwind-draws-nothing-for.unit.test.ts` catches a class that re
      titles change. Nothing built depends on it yet.
 3. ~~**T0 (c):** *Accounts* instead of *Connections*?~~ **Answered 2026-09-28 (D7):** yes.
 4. ~~**T3 (b):** does the Dashboard go?~~ **Answered 2026-09-28 (D7):** yes.
+5. ~~**Retiring the wizard (D5): where its four go.**~~ **Answered 2026-10-04:** *"go with the
+   recommendations"*. Asked 2026-10-04; options and recommendations the same day. The plan drops none of the four. Each is read below against the
+   plan, the code, and the research of 2026-10-04 into how other migration tools present it.
+   That research found the same pattern in tool after tool:
+   - they default to their own app, and the customer's own registration is a separate method for
+     IT administrators;
+   - data types sit under one card per account;
+   - protocols sit under *other provider*;
+   - expert settings are folded, or set after creation.
+
+   1. **A Microsoft 365 app registration.** The owner's suggestion: *the same as Google's flow*.
+      - *Already in place:* the delegated sign-in (`microsoft`) works as Google's does:
+        - one consent through the deployment's app;
+        - the customer's own registration folded under *Use your own app registration*;
+        - the tenant behind *Is this a company account with an administrator?* (T7 (d)).
+      - *Not placed:* the application-permission registrations, *Via the Graph API* and *Via
+        IMAP* (kind `o365`: tenant, client ID and secret, no consent).
+        - They are what an IT department with its own Entra app uses, and the only way to shared
+          mailboxes (0114).
+        - 0114, 0148 D5 and 0148 T8 keep them.
+      - *Options:*
+        - (A) Behind the company question on the Microsoft tile, as Google's domain-wide key is:
+          *Your organisation's own app, with application permissions*.
+          - It asks for the tenant, client ID and secret, with no consent.
+          - It reads through Microsoft Graph, with IMAP as the alternative inside it.
+          - The tile offers saved `o365` accounts.
+        - (B) Both under *Other ways to connect*.
+        - (C) Only on Accounts, with the tile offering saved `o365` accounts.
+        - (D) Drop them. That loses shared mailboxes, against 0114.
+      - **Recommended: A.** It carries the owner's suggestion to its end:
+        - Google's organisation credential already sits behind that question;
+        - other tools keep their own-app route as a separate method for administrators, never in
+          the default path.
+      - Two fixes go with it:
+        - The consent sends the tenant. Today neither door does, so a single-tenant registration
+          gets *application not found*.
+        - Replacing a `microsoft` account's credentials keeps its tenant. Today the tenant is
+          dropped.
+   2. **A Google Takeout export.** The owner's suggestion: *the same as with Apple*.
+      - *In the plan:* placed in the design, but built only as links to the wizard. The design
+        has:
+        - screen 2's *An export archive* line;
+        - screen 3's photos line;
+        - the person page's *Waiting for your Takeout export* row.
+      - *Earlier owner decisions:*
+        - 0148 D10: labelled *Experimental*, never hidden.
+        - 0148 D11: read from the destination's own files.
+        - 0148 D7: Apple's export stays, marked *To be tested*.
+      - *Options:*
+        - (A) Under its provider, as a data type.
+          - On the Google tile, *Photos: from a Takeout export (Experimental)* is a tick box.
+          - Ticking it makes an archive migration that reads the export from the destination's
+            files and waits, as drawn, until the export is there.
+          - Apple's tile gets *iCloud Drive and photos: from Apple's export (To be tested)* the
+            same way, once its reader exists.
+          - The separate *An export archive* line goes, since every export has a provider.
+        - (B) Keep *An export archive* as its own line under the tiles, built into the flow
+          (which export, where, and the path).
+        - (C) Accounts only.
+      - **Recommended: A,** with the labels D7 and D10 decided.
+        - Other tools that read Takeout name the provider first (*Import from Google Photos*),
+          then the export.
+        - Since March 2025, Google's photos API reads only what an app uploaded itself, so
+          Takeout is the one way to a whole library.
+   3. **The separate Google Calendar and Google Contacts cards.** The owner's suggestion:
+      *perhaps similar to generic IMAP*, under *Other ways to connect*.
+      - *In the code:* they are the Google account's own calendar and contacts reader
+        (`google-dav`, OAuth over Google's CalDAV and CardDAV), asking one scope each.
+        - The Google tile's consent asks only for the ticked types, so a calendar-only migration
+          through the tile asks for the same one scope.
+        - They are kept for older rows.
+      - *Options:*
+        - (A) Retire them for new migrations; the tile is the way.
+          - Accounts and migrations of these kinds keep working, and the tile offers a saved one.
+          - The cards become `connectionOnly`.
+        - (B) The owner's suggestion: under *Other ways to connect*, beside the protocols.
+        - (C) Accounts only.
+      - **Recommended: A,** with B as a fine second.
+        - IMAP sits under *other ways* because it is a different way in: another protocol, to
+          any server.
+        - These two are the same way in as the tile, so there is nothing to choose between.
+        - Other tools offer one card per account, with the data types under it.
+   4. **The four settings.** Each belongs with what it is a property of.
+      - **Folder prefix** (`targetFolderPrefix`, a property of the migration).
+        - *Options:*
+          - (A) On screen 5, per destination, folded: *Put it in a folder of its own*.
+            - Empty by default, so the copies merge, as today.
+            - Filled in and open, with the source's address, when a second account goes to the
+              same destination.
+            - Shown on the migration page as where the copies land, and never changed after
+              copying.
+          - (B) Always automatic, never asked.
+          - (C) Only on the migration page, before the first pass.
+        - **Recommended: A.**
+          - Today the flow cannot make a second migration between the same two accounts. It
+            sends no prefix, and the refusal's remedy, *give this one a different target
+            folder*, is on no screen.
+          - One tool the research read puts copies in a *migrated from…* folder by default.
+      - **SSL/TLS** (a property of the account, `connection.config`).
+        - *Options:*
+          - (A) In the account form's *Server settings* fold, on by default, in the flow and on
+            Accounts.
+          - (B) No switch on managed: always encrypted, as the flow already is.
+            - A Nextcloud address typed with `http://` keeps its scheme.
+            - The appliance's mapping file keeps `tls` for a server on the home network.
+        - **Recommended: B.**
+          - The wizard's switch is already lost on its main path. *Test* saves the account
+            through a route that takes text only, so the account is stored with encryption on.
+          - A family's server without TLS is too rare to justify a switch that sends a password
+            in the clear.
+          - Privacy §11 (*unless you switch off SSL/TLS yourself*) goes to the lawyer with it.
+      - **Custom naming** (the migration's label; nothing reads it).
+        - *Options:*
+          - (A) Automatic, as the flow does it (*{person} — {provider} to {destination}*), with
+            *Rename* on the migration page. 0125's table already permits it; the route does not
+            write it yet.
+          - (B) A name box on screen 6, prefilled.
+        - **Recommended: A.**
+      - **A root folder or path** (Drive, Dropbox; a property of the migration, stored in
+        `source_config_override`).
+        - *Options:*
+          - (A) On screen 3, under *Files*: *Everything* or *Only one folder*, with the wizard's
+            *Browse…*.
+            - For a new and a saved account alike, and for the Google account too.
+            - Shown on the migration page, and never changed after copying (0125).
+          - (B) Keep it in the account form's *More options*, where it was built without the
+            plan, and add it for a saved account.
+          - (C) On the migration page, before the first pass.
+        - **Recommended: A.** It answers *what* to move, not *which account*. Other tools choose
+          the folder per transfer, not on the connection.
+        - Two fixes go with it. The migration route:
+          - refuses `rootFolderId` even before anything was copied;
+          - drops `rootPath` without a word.
+   - **Needed before the wizard goes, though none of it is a decision:**
+     - *Other ways to connect* links to the wizard, so the flow needs its own.
+     - IMAP is the only source protocol; CalDAV, CardDAV, WebDAV and JMAP are destinations only.
+       So two texts promise sources no door has:
+       - the fold's *(IMAP, CalDAV, CardDAV, WebDAV, JMAP)*;
+       - *Another mail provider*'s *Add those by hand*.
+     - The reachability test moves to `/start`. A card that is retired becomes `connectionOnly`
+       rather than losing its row.

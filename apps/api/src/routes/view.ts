@@ -160,6 +160,11 @@ router.get(
         // nothing. See `MigrationView.started`.
         started: progress.started,
         domains: progress.domains,
+        // Who slowed it, by kind, and the check and the time (0154 T8): the
+        // same as each migration on a person's page.
+        ...(progress.from ? { from: progress.from } : {}),
+        ...(progress.checkPassedAt ? { checkPassedAt: progress.checkPassedAt } : {}),
+        ...(progress.time ? { time: progress.time } : {}),
         expiresAt: expiresAt.toISOString(),
         grant: viewGrantFor(mapping),
       };

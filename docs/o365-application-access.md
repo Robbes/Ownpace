@@ -132,9 +132,9 @@ ID** and **Directory (tenant) ID**.
 
 | Value | Managed edition | Self-host appliance |
 |---|---|---|
-| Tenant ID, Client ID | CreateMapping wizard, source step (oauth2/graph source types) | `OAUTH2_TENANT_ID` / `OAUTH2_CLIENT_ID` in `deploy/selfhost/.env` (Docker) or `C:\ProgramData\OpenMigrate\config\secrets.cmd` (Windows) |
-| Client secret | wizard, credentials step — encrypted at rest (`SecretStore`), masked on read-back | `OAUTH2_CLIENT_SECRET`, same files; mappings reference secrets **by env-var name**, never inline |
-| Refresh token (delegated flow) | not collected by the wizard yet (the wizard's o365 path is client-credentials) | `OAUTH2_REFRESH_TOKEN`, same files |
+| Tenant ID, Client ID | the `oauth2`/`graph` form: on *Start a migration*'s *Connect your accounts*, once *What moves?* reads Microsoft 365's mail *Through our own app* (behind *Is this a company account with an administrator?*), or on the Accounts page | `OAUTH2_TENANT_ID` / `OAUTH2_CLIENT_ID` in `deploy/selfhost/.env` (Docker) or `C:\ProgramData\OpenMigrate\config\secrets.cmd` (Windows) |
+| Client secret | the same form — encrypted at rest (`SecretStore`), masked on read-back | `OAUTH2_CLIENT_SECRET`, same files; mappings reference secrets **by env-var name**, never inline |
+| Refresh token (delegated flow) | not collected for `oauth2`/`graph`, whose managed path is client-credentials; managed's delegated sign-in is the Microsoft 365 account's *Connect with Microsoft* ([`microsoft-setup.md`](./microsoft-setup.md)) | `OAUTH2_REFRESH_TOKEN`, same files |
 
 Exact variable names and a from-scratch walkthrough with screenshots-level
 detail: `docs/o365-setup.md`. The rest of this document is the

@@ -73,6 +73,8 @@ import {
   MAPPING_LIFECYCLES,
   buildCompletionReport,
   buildDomainStatusReports,
+  discoveryForSelection,
+  foundByDomain,
   renderCompletionReportMarkdown,
   finishTransition,
   log,
@@ -327,6 +329,21 @@ router.get(
         const adopted = await ledger.countAdoptedByDomain(tenantId, mappingId);
         const moves = await ledger.listMoves(tenantId, mappingId);
         const deletions = await ledger.listDeletions(tenantId, mappingId);
+        // What discovery found of each data type the migration carries (0154
+        // T2, T5): the report says what was found beside what arrived, by the
+        // rule the migration's own page reads it by.
+        const discovery = await new schema.PgDiscoveryStore(db).getDiscovery(tenantId, mappingId);
+        const scopeRows = await db
+          .select({ domain: schema.scopeSelection.domain })
+          .from(schema.scopeSelection)
+          .where(
+            and(
+              eq(schema.scopeSelection.tenantId, s.tenantId),
+              eq(schema.scopeSelection.mappingId, s.mappingId),
+              eq(schema.scopeSelection.included, true),
+            ),
+          );
+        const found = foundByDomain(discoveryForSelection(discovery, scopeRows.map((r) => r.domain)));
         const mappingRows = await db
           .select({
             name: schema.mailboxMapping.name,
@@ -352,6 +369,7 @@ router.get(
           statuses,
           failures,
           adopted,
+          found,
           moves,
           deletions,
           name: mappingRows[0]?.name ?? undefined,
@@ -372,7 +390,7 @@ router.get(
         // person granted (ADR-0035 decision 5): it reaches the owner's browser
         // as JSON beside the Markdown, and the text can name that person's
         // files. Failures, moves and deletions are only counted here.
-        domains: buildDomainStatusReports(gathered.statuses, gathered.failures, gathered.adopted, undefined, {
+        domains: buildDomainStatusReports(gathered.statuses, gathered.failures, gathered.adopted, gathered.found, {
           withholdProse: s.personGranted,
         }),
         moves: gathered.moves,

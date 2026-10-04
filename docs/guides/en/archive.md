@@ -11,9 +11,9 @@ An export is a **snapshot**. It contains everything up to the day it was prepare
 Two things, and neither of them is a password:
 
 - **Which export**: Google Takeout, or Apple Data & Privacy. This tells us how to read it — the two are laid out completely differently inside, and there is no way to tell from the files themselves.
-- **Where the archive is**: the `.zip` you downloaded, or the folder you extracted it into. A download in several parts: any one of the parts, and we read them all. That folder can be in the Nextcloud or WebDAV files you are moving to: see [Your export in your own Nextcloud](#own-nextcloud).
+- **Where the archive is**: the `.zip` you downloaded, the folder you put its parts in, or the folder you extracted it into. A download in several parts: any one of the parts, or the folder they are in, and we read them all. That folder can be in the Nextcloud or WebDAV files you are moving to: see [Your export in your own Nextcloud](#own-nextcloud).
 
-That is the whole connection. We never sign in anywhere on your behalf for this, so there is no account to link and nothing to revoke afterwards.
+That is all it takes. We never sign in anywhere on your behalf for this, so there is no account to link and nothing to revoke afterwards.
 
 ## Connecting {#connect}
 
@@ -76,22 +76,34 @@ Extract every part into the same folder.
 
 In the contact and calendar information Apple exports, **email addresses are partly hidden**. This does not affect your files or photos, which is what an Apple export would be read for.
 
-### Adding the connection {#archive}
+### From Start a migration {#from-the-flow}
 
-On the **Connections** page, add a connection and choose **Export archive**. It asks for three things:
+**Start a migration** offers Google's photos under the Google tile, on **What moves?**, as **Photos: from a Takeout export**. It is not ticked at first, because it asks something of you: you request the export yourself.
+
+1. Tick it, and ask Google for the export straight away, as [Asking for it](#takeout-request) describes: it can take a few days to prepare.
+2. On **Where does it go?**, choose where the photos go: a Nextcloud, or another account whose files are reached over WebDAV. The export is read from a folder called `Takeout` at the top of those same files.
+3. Finish the flow. The photos migration is set up, and waits for the export; the rest starts as usual. Its line says **Waiting for the Takeout export** until you start it.
+4. When the export arrives, upload its `.zip` files, exactly as Google delivered them, into that `Takeout` folder. Keep every part, and nothing else, in it.
+5. Open the migration and press **Review and start**. It counts what is in the export first, so you see the photos it found before anything moves.
+
+The folder can hold the `.zip` parts or what they extract to: either works. Two different exports in it is refused, with both named, so we never read one and leave the other out.
+
+### Adding it on the Accounts page {#archive}
+
+On the **Accounts** page, press **Add an account** and choose **Export archive**. It asks for three things:
 
 - **Which export**: Google Takeout, or Apple Data & Privacy (to be tested: we cannot read it yet).
 - **Where the export is**: **In a folder of your destination's files (Nextcloud or WebDAV)**, or **On this appliance's disk**. The second is for migrations that run on a computer you can put files on; where that is not so, the form shows it greyed out with the line *Only on a self-hosted appliance*.
 - The folder, in a box whose name follows that choice. **Folder in your destination's files**: the folder as your files show it, from the top, such as `Exports/takeout-20260904`, or one `.zip` in it (see [Your export in your own Nextcloud](#own-nextcloud)). **Where the archive is**, for a disk: the folder you extracted the download into, or the `.zip` itself.
 
-Then press **Add and test**. Testing does not move anything. For an export on a disk, it opens the archive and tells you what is in it; for an export in your destination's files, it says the export is counted at the preflight, because the destination is chosen with the migration and until then there is nowhere to look. Either way, before anything moves, you learn:
+Then press **Add and test**. Testing does not move anything. For an export on a disk, it opens the archive and tells you what is in it; for an export in your destination's files, it says the export is counted at the preflight, because the destination comes with a migration and until then there is nowhere to look. Either way, before anything moves, you learn:
 
 - how many items,
 - how many bytes,
 - how many folders or albums,
 - and **the range of dates the export covers**, so you can see at a glance whether it is the export you think it is.
 
-Once the test shows what the archive holds, create a migration from it the way you would from any account: choose **Export archive** as the source, pick the connection you added, choose where the files should go, and start it. Files and photos are the only kind of data an archive carries, so that is the only box to tick.
+**Start a migration** does not take an archive added here: it reads Google's photos from the folder `Takeout` of the destination's files, as [From Start a migration](#from-the-flow) describes. An archive added here tells you what an export holds.
 
 ### Your export in your own Nextcloud {#own-nextcloud}
 
@@ -99,15 +111,13 @@ The export does not have to be on a disk. If the files you are moving to are in 
 
 **There is no need to unpack it.** Upload the `.zip` files exactly as Google delivered them, every part into the same folder. We read them where they lie, a few megabytes at a time, and never change them. If you already unpacked the export into that folder, that works too.
 
-1. Upload the `.zip` parts into **one folder** of the files the migration will write to: the same Nextcloud or WebDAV account you will choose as the destination. Use the way you always add files, such as the Nextcloud website or its desktop app.
-2. In the wizard, choose **Export archive** as the source. Under **Where the export is**, choose **In a folder of your destination's files (Nextcloud or WebDAV)**.
-3. In **Folder in your destination's files**, type the folder as it appears in your files, from the top, for example `Exports/takeout-20260904`. You can also name one `.zip` in it: we read the parts beside it.
-4. Press **Test and save connections**. It says the export is counted at the preflight. That is expected: the destination is chosen on the target step, and until then there is nowhere to look.
-5. On the target step, choose that same Nextcloud or WebDAV account. The preflight then counts what is in the export, before anything moves.
+1. On **What moves?**, tick **Photos: from a Takeout export** under Google, and on **Where does it go?**, choose the Nextcloud or WebDAV account the photos go to. [From Start a migration](#from-the-flow) has the whole way.
+2. Upload the `.zip` parts into the folder `Takeout`, at the top of that same account's files. Use the way you always add files, such as the Nextcloud website or its desktop app.
+3. Open the migration and press **Review and start**. It counts what is in the export, before anything moves.
 
 **Your photos arrive as ordinary files and folders.** What we write into your files is never a `.zip`: every album becomes a folder, a photo in no album goes into a folder for its year, such as `Photos from 2019`, and one file at the top lists everything the export knew about each photo. See [Where things land](#where-things-land).
 
-This works with a Nextcloud or a WebDAV destination only. An account that holds no files, or a JMAP account, cannot hand us the export: JMAP does not let us read a file in pieces, and the target step says so.
+This works with a Nextcloud or a WebDAV destination only. An account that holds no files, or a JMAP account, cannot hand us the export: JMAP does not let us read a file in pieces, so **Where does it go?** offers only those two for the photos.
 
 **The `.zip` files stay where you put them.** We only read them, so after the migration they are still in that folder, and they take up as much space in your account as the export itself. Once you have checked that everything arrived, delete them yourself.
 

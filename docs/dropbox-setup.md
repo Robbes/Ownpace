@@ -16,7 +16,8 @@ folder). On the **Permissions** tab enable exactly:
 - `files.metadata.read`
 - `files.content.read`
 - `sharing.read` — optional, read-only too: it powers the shared-folder **browse**
-  (the wizard's "Browse shared folders" button and `scripts/list-dropbox-shared-folders.ts`).
+  (**Show shared folders**, on *Start a migration*'s **Connect your accounts**, and
+  `scripts/list-dropbox-shared-folders.ts`).
   Without it migrations work unchanged; the browse gets Dropbox's own refusal, naming
   the scope. *Connect with Dropbox* does not ask for it, so a token from the button
   cannot browse even where the app has it; a token consented the long way below can
@@ -29,8 +30,8 @@ values.
 ## 2. Consent, once, as the migrated account
 
 **The short way: press *Connect with Dropbox*.** Where the deployment you use carries its own
-Dropbox app (the operator sets it once — see *Configure it* below), the wizard and the
-Connections page show a **Connect with Dropbox** button beside the token field. It opens
+Dropbox app (the operator sets it once — see *Configure it* below), *Start a migration* and
+the **Accounts** page show a **Connect with Dropbox** button under the address. It opens
 Dropbox's consent screen for the account being migrated, and when that account approves, the
 refresh token lands in the field by itself and the connection is saved and tested in one go.
 Nothing is typed, and the App secret never leaves the server. You can still use your own app
@@ -85,9 +86,9 @@ run; nothing long-lived is stored beyond these three.
 (natural keys are relative to it, so the same tree lands the same way either way).
 
 A **mounted shared folder** lives in the account's tree and migrates like any other
-folder — its path is a valid `rootPath`. `scripts/list-dropbox-shared-folders.ts` (or
-the wizard's browse) lists what the account can see, paths included; an unmounted share
-has no path until the account adds it to its Dropbox.
+folder — its path is a valid `rootPath`. `scripts/list-dropbox-shared-folders.ts` (or, on
+managed, **Show shared folders**) lists what the account can see, paths included; an
+unmounted share has no path until the account adds it to its Dropbox.
 
 **Paper docs** arrive in the format the mapping names, and are refused by name while it names
 none (workplan 0150):
@@ -102,12 +103,14 @@ loading, and the refusal names the key. A format changed later copies each Paper
 under its new name. The copy in the old format stays, and the Deletions screen lists it as an
 earlier export, never as a deletion. The managed edition takes the same setting as
 `sourceConfig.nativeFilePolicies.paper` on the migration routes (`apps/api/docs/openapi.yaml`):
-the wizard asks for it on every Dropbox migration, with Markdown suggested, and the migration's
-page changes it under **Export format for Paper docs**.
+*Start a migration* asks for it on every Dropbox migration, as **Dropbox Paper docs** under
+**Files** on **What moves?**, with Markdown suggested, and the migration's page changes it
+under **Export format for Paper docs**.
 
-**Managed** — pick Dropbox in the wizard: the App key, App secret and refresh token all go
-on the source step, stored encrypted. The **Test and save connections** button runs one
-read-only listing through exactly what a pass would build.
+**Managed** — tick **Dropbox** on *Start a migration*'s **Which account are you leaving?**. On
+**Connect your accounts**, its form takes the App key, App secret and refresh token, stored
+encrypted, and **Check the sign-in** runs one read-only listing through exactly what a pass
+would build. The **Accounts** page's Dropbox form takes the same, with **Add and test**.
 
 **Managed, with the deployment's own app** — the operator sets the App key and App secret
 once, in the deployment's environment:

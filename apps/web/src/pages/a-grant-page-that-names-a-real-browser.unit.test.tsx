@@ -12,13 +12,13 @@
  *
  * So one plain line, always shown, with no sniffing for in-app browsers: above
  * *Continue with Google* on the grant page, and under *Connect with Google* in
- * the lines both doors share (`ConsentLines`). The grant page's ends *"The link
- * still works"*; the wizard's and the Connections page's end *"then sign in to
- * Ownpace there"*, because there is no grant link to reopen there.
+ * the lines the Accounts page and *Start a migration* share (`ConsentLines`).
+ * The grant page's ends *"The link still works"*; the panel's ends *"then sign
+ * in to Ownpace there"*, because there is no grant link to reopen there.
  *
  * What is pinned, in English and in Dutch: the grant page carries its line
- * before the button; the consent panel and the wizard carry theirs beside the
- * button, which points at it (`aria-describedby`), because there it comes
+ * before the button; the consent panel carries its own beside the button (as
+ * the wizard did, until it retired: 0153 D5), which points at it (`aria-describedby`), because there it comes
  * after the button and a screen reader would otherwise reach the button first
  * (the review of 2026-09-26); each names Safari and Chrome and the other
  * app's own "Open in browser"; and Dropbox's and Microsoft's buttons carry
@@ -27,7 +27,7 @@
 
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, cleanup } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { credentialFieldsFor } from '@openmig/shared';
@@ -64,7 +64,6 @@ vi.mock('../services/mapping-service', () => ({
 }));
 
 import Grant from './Grant.tsx';
-import CreateMapping from './CreateMapping.tsx';
 import { ProviderConsentPanel, useProviderConsent } from '../components/ProviderConsent.tsx';
 
 type Locale = 'en' | 'nl';
@@ -175,7 +174,7 @@ const Panel: React.FC<{ type: string }> = ({ type }) => {
   return <ProviderConsentPanel consent={consent} />;
 };
 
-describe('the consent panel and the wizard say it beside Connect with Google (0140 T3 (a))', () => {
+describe('the consent panel says it beside Connect with Google (0140 T3 (a))', () => {
   for (const locale of LOCALES) {
     const lineFor = (button: HTMLElement): HTMLElement => {
       const line = screen.getByText(words(locale, 'wizard.google.inAppBrowser'));
@@ -213,14 +212,5 @@ describe('the consent panel and the wizard say it beside Connect with Google (01
         expect(screen.queryByText(words(locale, 'wizard.google.inAppBrowser'))).toBeNull();
       });
     }
-
-    it(`${locale}: the wizard's Connect with Google carries the same line`, async () => {
-      wrap(locale, <CreateMapping />, '/mappings/new', '/mappings/new');
-      fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
-      await waitFor(() =>
-        expect(screen.getByRole('button', { name: words(locale, 'wizard.google.connect') })).toBeTruthy(),
-      );
-      lineFor(screen.getByRole('button', { name: words(locale, 'wizard.google.connect') }));
-    });
   }
 });

@@ -42,6 +42,10 @@ import { HttpTokenRevoker } from '@openmig/connectors';
 import { revokeCredentialRow } from '@openmig/orchestration/revoke-stored-credentials';
 import type { TokenRevoker } from '@openmig/shared';
 import {
+  credentialsForProbe,
+  listDropboxSharedFolders,
+  listGoogleSharedDrives,
+  listGoogleSharedFolders,
   probeSourceConnection,
   probeTargetConnection,
 } from '@openmig/orchestration/probe-connection';
@@ -878,6 +882,152 @@ router.post('/:id/test', authenticate, async (req: AuthenticatedRequest, res: Re
   }
 });
 
+/** Which browse a saved account's folders come from, by its kind. */
+const FOLDER_BROWSE_OF_KIND: Readonly<Record<string, 'google' | 'dropbox'>> = {
+  google: 'google',
+  google_drive: 'google',
+  dropbox: 'dropbox',
+};
+
+/** One folder a migration may start from, as the browse lists it. */
+export interface FolderToStartFrom {
+  /**
+   * What the migration's root becomes: a folder id on Google, a path on
+   * Dropbox. Absent where it cannot be chosen: a Dropbox folder shared with
+   * the account and not added to it has no path yet.
+   */
+  readonly value?: string;
+  readonly name: string;
+  readonly kind: 'shared-drive' | 'shared-folder';
+  /** Who shared it, where the provider says. */
+  readonly owner?: string;
+}
+
+/**
+ * THE FOLDERS A SAVED ACCOUNT CAN START FROM (0153 open question 5, item 4;
+ * the owner, 2026-10-04: *"go with the recommendations"*).
+ *
+ * *Only one folder* on *Start a migration* asks for the folder once the
+ * account is connected, and offers the wizard's *Browse…* for it. The
+ * wizard's browse takes the credential in the request, typed into its form.
+ * The flow saves the account first, so this one reads the stored credential,
+ * with the deployment's own application where the account has none, as the
+ * Test and a pass read it (`credentialsForProbe`).
+ *
+ * Google: the shared drives and the folders other accounts shared with this
+ * one, from the same two calls the wizard makes. A folder in the account's own
+ * Drive is pasted by its link, as in the wizard. Dropbox: its shared folders,
+ * where only one added to the account has a path to start from. Box lists
+ * nothing here, as the wizard did not: its folder is typed.
+ *
+ * Read-only, and nothing is stored. It uses the stored access, so a closed
+ * organisation is refused before the credential is read (0085 T2). Not under
+ * the limit on tests: it connects to the provider's own published service,
+ * never to an address somebody typed (0136 T3). A provider's refusal comes
+ * back in its own words, as the wizard's browse returns it. Where one of
+ * Google's two lists is refused, the other still comes back.
+ */
+router.get('/:id/folders', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.tenantId) {
+      return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found' });
+    }
+    const tenantId = req.tenantId;
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    if (!id) return void res.status(400).json({ error: 'invalid_path', reason: 'id is required' });
+
+    const found = await withTenantDb(tenantId, pool(), (db) =>
+      db
+        .select()
+        .from(schema.connection)
+        .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId))),
+    );
+    const row = found[0];
+    if (!row) {
+      return void res.status(404).json({ error: 'not_found', reason: 'No such connection.' });
+    }
+    const browse =
+      row.role === 'source' && Object.prototype.hasOwnProperty.call(FOLDER_BROWSE_OF_KIND, row.kind)
+        ? FOLDER_BROWSE_OF_KIND[row.kind]
+        : undefined;
+    if (browse === undefined) {
+      return void res.status(400).json({
+        error: 'no_folders',
+        reason:
+          row.role === 'source' && row.kind === 'box'
+            ? "Box's folders are not listed here: type the folder's number, from its address in Box."
+            : 'This account has no folders to list here: a migration from it reads the whole account.',
+      });
+    }
+    if (await refusedAsClosed(res, tenantId, pool())) return;
+    if (!row.secretRef) {
+      return void res.json({
+        ok: false,
+        reason:
+          'This account has no stored sign-in, so its folders cannot be listed. Connect it again first.',
+      });
+    }
+
+    const creds = credentialsForProbe(row.kind, SecretStore.decryptCredentials(row.secretRef));
+    if (browse === 'dropbox') {
+      const listed = await listDropboxSharedFolders(creds);
+      if (!listed.ok) return void res.json(listed);
+      const folders: FolderToStartFrom[] = listed.folders.map((f) => ({
+        ...(f.path ? { value: f.path } : {}),
+        name: f.name,
+        kind: 'shared-folder',
+      }));
+      return void res.json({ ok: true, key: 'rootPath', folders });
+    }
+
+    // Google: both lists, and the half that answered still comes back.
+    const [drives, shared] = await Promise.all([listGoogleSharedDrives(creds), listGoogleSharedFolders(creds)]);
+    const folders: FolderToStartFrom[] = [
+      ...(drives.ok ? drives.drives.map((d) => ({ value: d.id, name: d.name, kind: 'shared-drive' as const })) : []),
+      ...(shared.ok
+        ? shared.folders.map((f) => ({
+            value: f.id,
+            name: f.name,
+            kind: 'shared-folder' as const,
+            ...(f.owner ? { owner: f.owner } : {}),
+          }))
+        : []),
+    ];
+    const refusals = [...(drives.ok ? [] : [drives.reason]), ...(shared.ok ? [] : [shared.reason])];
+    if (!drives.ok && !shared.ok) return void res.json({ ok: false, reason: refusals.join(' ') });
+    res.json({
+      ok: true,
+      key: 'rootFolderId',
+      folders,
+      ...(refusals.length > 0 ? { refused: refusals.join(' ') } : {}),
+    });
+  } catch (error) {
+    serverFault(res, 'listing_failed', "listing this account's folders", error);
+  }
+});
+
+/**
+ * The tenant a Microsoft account's stored credential holds, where a rotation
+ * that sends none replaces the same registration: the same client id, or none
+ * on either side (the deployment's). Undefined otherwise, and wherever the
+ * stored credential cannot be read: the rotation then stores what was sent.
+ */
+export function keptTenant(
+  secretRef: unknown,
+  values: Readonly<Record<string, string>>,
+): string | undefined {
+  if ((values.tenantId ?? '').trim() !== '') return undefined;
+  let stored: Record<string, string>;
+  try {
+    stored = SecretStore.decryptCredentials(secretRef as object);
+  } catch {
+    return undefined;
+  }
+  const tenant = (stored.tenantId ?? '').trim();
+  if (tenant === '') return undefined;
+  return (stored.clientId ?? '').trim() === (values.clientId ?? '').trim() ? tenant : undefined;
+}
+
 /**
  * Replace a connection's credentials in place (workplan 0065).
  *
@@ -963,12 +1113,6 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
       }
     }
 
-    const half = checked.data as never;
-    const creds =
-      row.role === 'source'
-        ? sourceCredentialRecord({ sourceType: type as never, sourceConfig: half })
-        : { username: values.username ?? '', password: values.password ?? '' };
-
     // The CONFIG is deliberately left alone: rotation replaces a secret, not
     // where the migration is rooted. Changing both here would let a rotation
     // silently re-point a mapping at a different folder.
@@ -979,6 +1123,20 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
     if (await refusedAsClosed(res, tenantId, pool())) return;
     if (await refusedUntilAccepted(res, tenantId, req.userId, pool())) return;
     if (refusedOverTestLimit(req, res)) return;
+
+    // A ROTATION KEEPS THE DIRECTORY ITS REGISTRATION BELONGS TO (0153 open
+    // question 5). The panel offers what is required, secret or paired, and a
+    // Microsoft account's tenant is none of those, so replacing a revoked
+    // token dropped it, and the next pass asked `common` for a single-tenant
+    // application it could not find. Kept when the same registration is
+    // rotated; a different pair brings its own tenant, or none. Read after the
+    // close, as every use of the stored access is.
+    const kept = row.role === 'source' && row.kind === 'microsoft' ? keptTenant(row.secretRef, values) : undefined;
+    const half = (kept === undefined ? checked.data : { ...checked.data, tenantId: kept }) as never;
+    const creds =
+      row.role === 'source'
+        ? sourceCredentialRecord({ sourceType: type as never, sourceConfig: half })
+        : { username: values.username ?? '', password: values.password ?? '' };
     const answers = probeAnswers('replacing credentials', tenantId);
     const probe = answers.result(
       row.role === 'target'

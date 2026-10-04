@@ -28,11 +28,15 @@
  * to differ about what a stranger may see.
  */
 
-import type { DiscoveryDomain } from './discovery.ts';
+import { discoveryForSelection, type DiscoveryDomain, type DiscoveryRecord } from './discovery.ts';
 import type { DomainStatusReport, MappingLifecycle } from './operating-contract.ts';
 import type { FailureCategory, FailureSide } from './failure-category.ts';
 import type { PauseReason } from './pause-reason.ts';
 import type { MigrationStatus } from './ports.ts';
+import type { CheckFacts, PhaseFacts } from './progress.ts';
+import { stageOf, type Stage } from './stage.ts';
+import { timeBeforeStart, type TimeBeforeStart } from './time-before-start.ts';
+import { remainingItemsOf, timeWhileCopying, type PassFacts, type TimeWhileCopying } from './time-while-copying.ts';
 
 /**
  * One domain's progress, as a stranger may read it.
@@ -65,6 +69,25 @@ export interface ViewDomainRow {
    * from. Never a zero standing in for a question nobody asked.
    */
   readonly itemsAdopted?: number;
+  /**
+   * What discovery found of this data type (0154 T2, T8): the total the line
+   * sets its count against, *18,234 of ~19,000*. A count with no name, key or
+   * folder in it, so it crosses for the reason `itemsAdopted` does: without
+   * it a person reads how many arrived and not of how many. Absent where
+   * nobody counted, never a zero standing in for the count.
+   */
+  readonly itemsFound?: number;
+  /** Their size, where the source has cheap sizes: the files' *12.4 of ~38 GB*. */
+  readonly bytesFound?: number;
+  /**
+   * Where it is, in a person's words (0154 T1, T8): the stage the owner's line
+   * shows for it, worked out here from the same facts (`viewStageOf`). The
+   * stage crosses and its inputs do not: *Paused* says the data type no
+   * longer follows, and not whose stop it was, which is why `stoppedByOwner`
+   * stays at home. Absent for a phase the stage table does not place (hard
+   * rule 9), and the page then says what it said before stages existed.
+   */
+  readonly stage?: Stage;
   /** The last COMPLETION — the only honest source for "up to date as of". */
   readonly lastSyncedAt?: string;
   /** When a pass last touched this domain, completed or not. */
@@ -115,6 +138,12 @@ export interface MigrationView {
    */
   readonly started: boolean;
   readonly domains: readonly ViewDomainRow[];
+  /** The source's kind (`gmail`, `imap`, …), to name who slowed it in `time`. Absent when unread. */
+  readonly from?: string;
+  /** See `ViewProgressExtras.checkPassedAt`. */
+  readonly checkPassedAt?: string;
+  /** See `ViewProgressExtras.time`. */
+  readonly time?: ViewTime;
   /** When the link stops working. Somebody who bookmarked it is owed the date. */
   readonly expiresAt: string;
   /**
@@ -179,7 +208,7 @@ export function viewGrantFor(row: {
  * would carry today's two forbidden fields and every future one, silently, on
  * the day somebody adds it — which is the failure this module is the answer to.
  */
-export function viewRowFor(report: DomainStatusReport): ViewDomainRow {
+export function viewRowFor(report: DomainStatusReport, stage?: Stage): ViewDomainRow {
   return {
     domain: report.domain,
     state: report.state,
@@ -197,6 +226,11 @@ export function viewRowFor(report: DomainStatusReport): ViewDomainRow {
     ...(report.pausedReason ? { pausedReason: report.pausedReason } : {}),
     ...(report.lastErrorCategory ? { lastErrorCategory: report.lastErrorCategory } : {}),
     ...(report.failedSide ? { failedSide: report.failedSide } : {}),
+    // Counts, by the same `!== undefined` rule: a discovery that counted none
+    // is an answer, *none found*, and a missing one is no total at all.
+    ...(report.itemsFound !== undefined ? { itemsFound: report.itemsFound } : {}),
+    ...(report.bytesFound !== undefined ? { bytesFound: report.bytesFound } : {}),
+    ...(stage !== undefined ? { stage } : {}),
   };
 }
 
@@ -221,7 +255,111 @@ export const VIEW_ROW_FIELDS: readonly (keyof ViewDomainRow)[] = [
   'pausedReason',
   'lastErrorCategory',
   'failedSide',
+  'itemsFound',
+  'bytesFound',
+  'stage',
 ];
+
+/**
+ * How long, as a progress page says it (0154 T3, T8), by the rule the owner's
+ * pages use: before any pass has completed, from what the count found
+ * (`timeBeforeStart`); once one has, while the migration copies, from the
+ * last passes' own pace (`timeWhileCopying`). Numbers and closed words only,
+ * like every other field a link holder reads.
+ */
+export type ViewTime =
+  | { readonly kind: 'beforeStart'; readonly estimate: TimeBeforeStart }
+  | { readonly kind: 'whileCopying'; readonly estimate: TimeWhileCopying };
+
+/** What a migration's progress adds to its rows on a progress page (0154 T8). */
+export interface ViewProgressExtras {
+  /**
+   * When the check passed, for *Ready to switch*'s line: *The check passed
+   * yesterday*. Absent unless it passed. A check that did not pass, or could
+   * not run, is the owner's to read; this page says each data type's stage,
+   * which stays *Kept in step* until the check opens the way.
+   */
+  readonly checkPassedAt?: string;
+  /** How long; absent where nothing should be said (`viewTimeOf`). */
+  readonly time?: ViewTime;
+}
+
+/**
+ * A data type's stage for a progress page (0154 T8): `stageOf` on the facts
+ * the owner's line reads (`lineStage` in the web app). Its phase and its stop,
+ * its pass state, whether a pass over it completed, whether the check passed,
+ * and the failures that block Finish, which is the count `finishTransition`
+ * refuses on: those needing a decision, the digest's `failuresWaiting`.
+ */
+export function viewStageOf(
+  report: DomainStatusReport,
+  path: PhaseFacts,
+  check: CheckFacts,
+  failuresWaiting: number,
+): Stage | undefined {
+  return stageOf({
+    phase: path.phase,
+    ...(path.stopped === true || report.stoppedByOwner === true ? { stopped: true } : {}),
+    domainState: report.state,
+    completedOnce: Boolean(report.lastSyncedAt),
+    checkPassed: check.state === 'passed',
+    unresolvedFailures: failuresWaiting,
+  });
+}
+
+/**
+ * How long, for a progress page (0154 T3, T8), from the facts the owner's
+ * migration page reads.
+ *
+ * - **Before any pass has completed**, from the count, where it counted
+ *   something: Gmail's mail in days from its daily ceiling, anything else
+ *   *we will know after the first hour* (`timeBeforeStart`). Said while the
+ *   migration waits to start, or copies its first pass.
+ * - **Once a pass has completed, while it copies**, from the last passes
+ *   (`timeWhileCopying`), with the provider's slowing said where a copying
+ *   data type's last failure was the provider asking us to slow down.
+ * - **Nothing otherwise.** Past its copying (switching, done, kept in step
+ *   after the switch) there is nothing left to wait for, and on a migration
+ *   held after it started a range of days would be a promise nothing is
+ *   keeping.
+ */
+export function viewTimeOf(input: {
+  readonly lifecycle: MappingLifecycle;
+  /** The migration's status rows, with what discovery found (`buildDomainStatusReports`). */
+  readonly reports: readonly DomainStatusReport[];
+  /** Its run history, newest first. */
+  readonly passes: readonly PassFacts[];
+  /** The source's kind, and its IMAP host where it has one. */
+  readonly source: string | undefined;
+  readonly sourceHost?: string;
+  /** The data types the migration carries. */
+  readonly selected: readonly DiscoveryDomain[];
+  readonly discovery: readonly DiscoveryRecord[];
+}): ViewTime | undefined {
+  const rows = input.reports.filter((r) => r.state !== 'skipped');
+  const firstPassIn = rows.some((r) => Boolean(r.lastSyncedAt));
+  if (!firstPassIn) {
+    if (input.lifecycle !== 'active' && input.lifecycle !== 'paused') return undefined;
+    const counted = discoveryForSelection(input.discovery, input.selected);
+    if (counted.length === 0) return undefined;
+    return {
+      kind: 'beforeStart',
+      estimate: timeBeforeStart({
+        source: input.source,
+        ...(input.sourceHost ? { sourceHost: input.sourceHost } : {}),
+        domains: input.selected,
+        mailBytes: counted.find((d) => d.domain === 'email' && d.lastError === undefined)?.bytes,
+      }),
+    };
+  }
+  if (input.lifecycle !== 'active') return undefined;
+  const estimate = timeWhileCopying({
+    remainingItems: remainingItemsOf(rows),
+    passes: input.passes,
+    slowed: rows.some((r) => r.lastErrorCategory === 'rate_limited'),
+  });
+  return estimate ? { kind: 'whileCopying', estimate } : undefined;
+}
 
 /**
  * A PERSON'S PROGRESS PAGE (ADR-0035, amended 2026-09-29; workplan 0153 T5 (b),
@@ -254,6 +392,10 @@ export interface PersonViewMigration {
   /** See `MigrationView.started`: absence is not zero. */
   readonly started: boolean;
   readonly domains: readonly ViewDomainRow[];
+  /** See `ViewProgressExtras.checkPassedAt`. */
+  readonly checkPassedAt?: string;
+  /** See `ViewProgressExtras.time`. */
+  readonly time?: ViewTime;
   /** The `ref` of the account it reads, or null when it reads none through a link. */
   readonly account: string | null;
 }

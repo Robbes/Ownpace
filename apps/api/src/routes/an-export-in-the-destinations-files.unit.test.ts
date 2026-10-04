@@ -200,6 +200,32 @@ describe('POST /api/migrations — an export in a Nextcloud destination', () => 
     });
   });
 
+  it('accepts it as Start a migration posts it: a Takeout folder in a saved Nextcloud (0153 open question 5, item 2)', async () => {
+    // `exportMigration` in the web's start plan, and the body `inputFor`
+    // builds from it: no source to reuse, since an export has no account, and
+    // the destination the person chose for the photos.
+    const NEXTCLOUD_ID = '22222222-2222-4222-8222-222222222222';
+    selects = [[{ id: NEXTCLOUD_ID, role: 'target', kind: 'nextcloud', qualification: null }]];
+    const res = await request(app)
+      .post('/api/migrations')
+      .send({
+        name: 'Anna Jansen — Google Takeout to Nextcloud',
+        sourceType: 'archive',
+        targetType: 'nextcloud',
+        targetConnectionId: NEXTCLOUD_ID,
+        sourceConfig: { username: '', provider: 'google-takeout', path: 'Takeout', where: 'target' },
+        targetConfig: { username: 'anna', password: '' },
+        syncConfig: { domains: ['file'], schedule: '0 2 * * *' },
+      });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    const source = insertedInto(schema.connection).find((c) => c['role'] === 'source');
+    expect(source?.['config']).toEqual({ type: 'archive', provider: 'google-takeout', path: 'Takeout', where: 'target' });
+    // Written into the Nextcloud chosen for the photos, and set up paused.
+    expect(insertedInto(schema.mailbox).map((m) => m['connectionId'])).toContain(NEXTCLOUD_ID);
+    const [stored] = insertedInto(schema.mailboxMapping);
+    expect(stored?.['status']).toBe('paused');
+  });
+
   it('a REUSED connection’s override keeps `where` beside the path', async () => {
     // The second export of a series names its own place (0116 §5).
     selects = [

@@ -476,10 +476,6 @@ reading a file drops off its entry by itself.
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 
-### `apps/web/src/pages/CreateMapping.tsx`
-
-- [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
-
 ### `apps/web/src/pages/Grant.tsx`
 
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
@@ -501,6 +497,10 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/pages/ReportProblem.tsx`
 
 - [a-screenshot-the-front-door-lets-through](../scripts/a-screenshot-the-front-door-lets-through.unit.test.ts) — A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
+
+### `apps/web/src/pages/StartMigration.tsx`
+
+- [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 
 ### `apps/web/src/pages/end-user-docs.unit.test.tsx`
 
@@ -525,6 +525,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/web/src/services/legal-links.ts`
 
+- [a-notice-before-a-password](../scripts/a-notice-before-a-password.unit.test.ts) — A NOTICE BEFORE A PASSWORD (workplan 0135 T5, for 0139 T4).
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-version-the-tester-accepted](../scripts/a-version-the-tester-accepted.unit.test.ts) — A VERSION THE TESTER ACCEPTED (workplan 0139 T3).
 
@@ -544,6 +545,14 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/services/stage.ts`
 
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
+
+### `apps/web/src/services/start-plan.ts`
+
+- [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+
+### `apps/web/src/services/tester-guide-link.ts`
+
+- [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 
 ### `apps/web/vite.config.ts`
 
@@ -632,6 +641,7 @@ reading a file drops off its entry by itself.
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 - [a-pause-a-dispatcher-called-a-finish](../scripts/a-pause-a-dispatcher-called-a-finish.unit.test.ts) — Both dispatchers must tell a stop from a finish, and neither may bill a negative hour for it.
 - [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 
 ### `apps/worker/src/jobs/run-discovery.ts`
 
@@ -916,6 +926,7 @@ reading a file drops off its entry by itself.
 - [a-jit-that-compiled-a-crash](../scripts/a-jit-that-compiled-a-crash.unit.test.ts) — A SETTING THAT LOSES AN ALPHABETICAL RACE DOES NOTHING, SILENTLY.
 - [a-journal-that-outlived-the-container](../scripts/a-journal-that-outlived-the-container.unit.test.ts) — A JOURNAL THAT OUTLIVED THE CONTAINER (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default, as the text says"*, with the note *"needs checking"*; privacy §9, *Server logs*).
 - [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
+- [a-notice-before-a-password](../scripts/a-notice-before-a-password.unit.test.ts) — A NOTICE BEFORE A PASSWORD (workplan 0135 T5, for 0139 T4).
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2, its first and smallest part: Trigger.dev's own database).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
@@ -1072,6 +1083,7 @@ reading a file drops off its entry by itself.
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
 - [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
 
 ### `deploy/compose/setup-managed-demo.sh`
@@ -1090,6 +1102,7 @@ reading a file drops off its entry by itself.
 - [a-check-that-was-never-valid](../scripts/a-check-that-was-never-valid.unit.test.ts) — A password check that was valid for zero seconds, and the general rule that would have stopped it.
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-false-jq-could-not-report](../scripts/a-false-jq-could-not-report.unit.test.ts) — A `false` THE READER COULD NOT REPORT.
+- [a-notice-before-a-password](../scripts/a-notice-before-a-password.unit.test.ts) — A NOTICE BEFORE A PASSWORD (workplan 0135 T5, for 0139 T4).
 - [a-project-for-one-organisation](../scripts/a-project-for-one-organisation.unit.test.ts) — A PROJECT FOR ONE ORGANISATION (workplan 0135 T2).
 - [a-provider-skipped-in-silence](../scripts/a-provider-skipped-in-silence.unit.test.ts) — A PROVIDER SKIPPED IN SILENCE IS A BUTTON SOMEBODY LOOKS FOR.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
@@ -2313,6 +2326,10 @@ reading a file drops off its entry by itself.
 - [a-version-the-tester-accepted](../scripts/a-version-the-tester-accepted.unit.test.ts) — A VERSION THE TESTER ACCEPTED (workplan 0139 T3).
 - [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 
+### `site/pages/en/alpha-guide.md`
+
+- [a-read-only-claim-with-its-scope](../scripts/a-read-only-claim-with-its-scope.unit.test.ts) — A READ-ONLY CLAIM WITH ITS SCOPE (workplan 0144 T3).
+
 ### `site/pages/en/how-it-works.md`
 
 - [a-read-only-claim-with-its-scope](../scripts/a-read-only-claim-with-its-scope.unit.test.ts) — A READ-ONLY CLAIM WITH ITS SCOPE (workplan 0144 T3).
@@ -2320,6 +2337,10 @@ reading a file drops off its entry by itself.
 ### `site/pages/en/pricing.md`
 
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
+
+### `site/pages/nl/alfa-handleiding.md`
+
+- [a-read-only-claim-with-its-scope](../scripts/a-read-only-claim-with-its-scope.unit.test.ts) — A READ-ONLY CLAIM WITH ITS SCOPE (workplan 0144 T3).
 
 ### `site/pages/nl/hoe-het-werkt.md`
 
@@ -2445,8 +2466,9 @@ Reads:
 - `apps/web/src/components/ProviderConsent.tsx`
 - `apps/web/src/i18n/strings.ts`
 - `apps/web/src/pages/Connections.tsx`
-- `apps/web/src/pages/CreateMapping.tsx`
+- `apps/web/src/pages/StartMigration.tsx`
 - `apps/web/src/services/mapping-service.ts`
+- `apps/web/src/services/start-plan.ts`
 - `deploy/compose/managed.yml`
 - `packages/shared/src/provider-accounts.ts`
 - `packages/shared/src/provider-clients.ts`
@@ -3317,6 +3339,16 @@ Reads:
 - `.github/workflows/e2e-managed.yml`
 - `.github/workflows/e2e.yml`
 
+### [a-notice-before-a-password](../scripts/a-notice-before-a-password.unit.test.ts)
+
+A NOTICE BEFORE A PASSWORD (workplan 0135 T5, for 0139 T4).
+
+Reads:
+
+- `apps/web/src/services/legal-links.ts`
+- `deploy/compose/managed.yml`
+- `deploy/compose/setup-zitadel.sh`
+
 ### [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts)
 
 A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
@@ -3441,6 +3473,7 @@ Reads:
 - `apps/web/src/pages/Grant.tsx`
 - `apps/web/src/pages/Grant.unit.test.tsx`
 - `apps/web/src/services/legal-links.ts`
+- `apps/web/src/services/tester-guide-link.ts`
 - `apps/web/vite.config.ts`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
@@ -3570,7 +3603,9 @@ Reads:
 - `apps/web/src/a-permission-described-as-it-is.unit.test.tsx`
 - `apps/web/src/i18n/strings.ts`
 - `docs/grant-links.md`
+- `site/pages/en/alpha-guide.md`
 - `site/pages/en/how-it-works.md`
+- `site/pages/nl/alfa-handleiding.md`
 - `site/pages/nl/hoe-het-werkt.md`
 
 ### [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts)
@@ -4241,8 +4276,10 @@ Reads:
 - `apps/web/src/components/AlphaNote.tsx`
 - `apps/web/src/components/an-alpha-said-out-loud.unit.test.tsx`
 - `apps/web/src/services/stage.ts`
+- `apps/worker/src/jobs/run-delta-sync.ts`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
+- `deploy/compose/set-task-env.sh`
 - `deploy/selfhost/compose.dev.yml`
 - `deploy/selfhost/compose.drill.yml`
 - `deploy/selfhost/compose.pglite.yml`

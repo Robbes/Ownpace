@@ -36,7 +36,7 @@ in the managed edition only.
 | Domain ownership verified in Search Console | ⬜ Owner action | `ownpace.eu` |
 | Demo video showing the consent flow and each scope in use | ⬜ Owner action — **unblocked 2026-08-26** | 0089 T1 shipped: there is now a flow to film |
 | Scope justification, per scope | ✅ Drafted | §3 below |
-| In-product disclosure before the consent screen | 🟡 Built on the grant-link page (`apps/web/src/pages/Grant.tsx`); not yet beside the wizard's own *Connect with Google* | §5 below |
+| In-product disclosure before the consent screen | 🟡 Built on the grant-link page (`apps/web/src/pages/Grant.tsx`); not yet beside *Connect with Google* in the account form *Start a migration* and the Accounts page draw (`apps/web/src/components/AccountForm.tsx`) | §5 below |
 | Annual third-party security assessment, **restricted scopes only** | ⬜ Deferred deliberately | ADR-0041 — Drive is the only scope this would ever be bought for; the owner's stated intent (2026-08-26) is to buy it for Drive **later**. An intent is not a purchase — nothing is offered until it exists |
 
 **The two documents are drafts and must not be published as they stand.** Both carry
@@ -318,6 +318,17 @@ appears. Ownpace's version, once 0089 T1 exists:
 - The scopes are shown **as scopes**, not as a friendly summary — an ADR-0041 operative rule.
 - Links to the privacy policy and terms sit beside the button, not in a footer.
 - The disclosure appears before the redirect, never after.
+
+Where the links are (workplan 0139 T4, 2026-10-03): beside every *Connect with …* button on
+the managed service, in both doors — the Connections page's panel (`ProviderConsentPanel`) and
+the wizard's own button — through the lines both draw (`ConsentLines` in
+`apps/web/src/components/ProviderConsent.tsx`). One line, *"What we do with your data, and on
+what terms:"*, then the privacy policy and the terms in the reader's language, at the addresses
+`apps/web/src/services/legal-links.ts` makes from `VITE_LEGAL_SITE_URL`. The grant page links
+both in its disclosure line, after its button (#1137). A page that asks one person for several
+accounts has that line once, after all of them. `a-notice-where-data-is-collected.unit.test.tsx`
+finds both links in the button's own block, for Google, Microsoft and Dropbox, in both
+languages.
 
 ## 6. The order to do this in
 

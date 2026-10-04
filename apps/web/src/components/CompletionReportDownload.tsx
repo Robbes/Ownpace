@@ -6,6 +6,9 @@
  * time) and the Finish screen's aftermath block (the handover document, beside
  * the permissions handover it belongs with). Client-side blob download — the
  * server never learns where the file was saved.
+ *
+ * *Download the report* (0154 T5): the format is in the file's name, not on
+ * the button, and the word *Markdown* left it in both languages.
  */
 
 import React from 'react';
@@ -45,7 +48,7 @@ export const CompletionReportDownload: React.FC<{ mappingId: string }> = ({ mapp
             .finally(() => setBusy(false));
         }}
       >
-        {t('hub.completionReport')}
+        {t('migrationReport.download')}
       </button>
       {failed && <span className="ml-2 text-sm text-amber-800">{failed}</span>}
     </span>

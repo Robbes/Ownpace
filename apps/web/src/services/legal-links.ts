@@ -33,6 +33,10 @@
  * the build renders them, outside the site's nav, because the acceptance screen
  * (0139 T3) links them beside the privacy policy and the terms.
  *
+ * The tester guide (0144 T1) is on the same site and is not a legal text, so
+ * it is not in this table: `tester-guide-link.ts` makes its address, on the
+ * origin `legalSiteFrom` returns.
+ *
  * ## A value the links cannot use is refused
  *
  * The value reaches an `href`. Anything but a bare `http(s)` origin throws,

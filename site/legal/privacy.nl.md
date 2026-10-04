@@ -640,9 +640,9 @@ werkt. In Nederland is dat de **Autoriteit Persoonsgegevens** (autoriteitpersoon
 Toegangsgegevens versleuteld met AES-256-GCM, onder een sleutel die apart van de database met
 die gegevens wordt bewaard: in de eigen configuratie van de dienst, en in de instellingen van de
 achtergrondtaken, allebei op dezelfde machine. Verbindingen met uw aanbieders zijn versleuteld
-met TLS, en het certificaat van de aanbieder wordt gecontroleerd, tenzij u zelf SSL/TLS uitzet
-voor een account dat u koppelt met een servernaam; die verbinding is dan misschien niet
-versleuteld. Organisaties worden in de database zelf van elkaar gescheiden via row-level
+met TLS, en het certificaat van de aanbieder wordt gecontroleerd. Een adres dat u zelf typt en
+dat begint met http://, wordt bereikt zoals getypt, en die verbinding is niet versleuteld.
+Organisaties worden in de database zelf van elkaar gescheiden via row-level
 security (beveiliging per rij), voor de verzoeken van de app en voor de achtergrondtaken die de
 migraties uitvoeren. Onze supportschermen lezen via views die daar bewust buiten vallen, en
 elk van die views controleert dat de lezer een van de mensen is die de dienst draaien (§4.5).

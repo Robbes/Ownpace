@@ -63,7 +63,7 @@ import {
 } from '@openmig/shared';
 import { ChoiceField } from './ChoiceField.tsx';
 import { ExperimentalTag, wholeDomainOptionIsExperimental } from './ExperimentalTag.tsx';
-import { Hint } from './Hint.tsx';
+import { Hint, whyKeyOf } from './Hint.tsx';
 import { ProviderConsentPanel, useProviderConsent } from './ProviderConsent.tsx';
 import { isSelfHost } from '../services/edition.ts';
 import { connectionsApi, type TestConnectionResult } from '../services/mapping-service.ts';
@@ -79,9 +79,20 @@ import { useT, useLocale, type StringKey } from '../i18n/index.tsx';
 import { optionName } from '../i18n/option-name.ts';
 import { measuredText, probeText, qualificationEvidence, qualificationText } from '../i18n/probe-text.ts';
 import { nextcloudAddress, nextcloudDavUrl } from '../services/start-plan.ts';
+import { cardGuideHref } from './front-door-cards.ts';
 
 /** The fields a company path asks for (T7 (d)): an organisation's own registration, or Google's domain-wide key. */
 const COMPANY_FIELDS: ReadonlySet<string> = new Set(['serviceAccountKey', 'tenantId']);
+
+/** The folder a migration starts from: asked by the flow per migration, never on its account form. */
+const FOLDER_KEYS: ReadonlySet<string> = new Set(['rootFolderId', 'rootPath']);
+
+/**
+ * The cards that ARE a company's own app (0153 open question 5): Microsoft's
+ * mail with application permissions, through Graph or IMAP. Chosen behind the
+ * company question already, so their fields are shown, not asked about again.
+ */
+const ORGANISATION_APP_CARDS: ReadonlySet<string> = new Set(['graph', 'oauth2']);
 
 /** A check that failed on the server rather than on the sign-in: *Server settings* opens by itself (T7 (b)). */
 const SERVER_OUTCOMES: ReadonlySet<string> = new Set(['unreachable', 'insideOurNetwork', 'timedOut', 'targetStatus']);
@@ -255,7 +266,8 @@ export const AccountForm: React.FC<AccountFormProps> = ({
   const serverKeys: ReadonlySet<string> = flow
     ? new Set([...Object.keys(providerDefaultsFor(role, type)), 'url'])
     : new Set();
-  const companyFields = flow ? fields.filter((f) => COMPANY_FIELDS.has(f.key)) : [];
+  const organisationApp = ORGANISATION_APP_CARDS.has(type);
+  const companyFields = flow && !organisationApp ? fields.filter((f) => COMPANY_FIELDS.has(f.key)) : [];
   const [company, setCompany] = React.useState(() =>
     companyFields.some((f) => (values[f.key] ?? '').trim() !== ''),
   );
@@ -266,14 +278,21 @@ export const AccountForm: React.FC<AccountFormProps> = ({
   /** Where the account is kept, as typed, for a Nextcloud (T7 (c)); its DAV root is derived from it. */
   const [address, setAddress] = React.useState(() => nextcloudAddress(values.url ?? ''));
   const addressId = React.useId();
-  const placement = (field: CredentialField): 'server' | 'company' | 'more' | 'alternative' | 'shown' => {
+  /** The card's own section of its guide (`front-door-cards.ts`), where it has one. */
+  const guideHref = cardGuideHref(role, type);
+  const placement = (
+    field: CredentialField,
+  ): 'server' | 'company' | 'more' | 'alternative' | 'migration' | 'shown' => {
     if (!flow) return 'shown';
     if (serverKeys.has(field.key)) return 'server';
     // Gmail's app password: a way in of its own, under the consent's button.
     if (field.key === 'appPassword') return 'alternative';
-    if (COMPANY_FIELDS.has(field.key)) return 'company';
-    // Where in the account a migration starts (a folder, a path): its own
-    // choice, which a family seldom needs.
+    if (COMPANY_FIELDS.has(field.key) && !organisationApp) return 'company';
+    // Where in the account a migration starts (a folder, a path) is the
+    // migration's, asked once the account is connected, under *Only one
+    // folder* (0153 open question 5, item 4). The flow's form does not draw it.
+    if (FOLDER_KEYS.has(field.key)) return 'migration';
+    // Any other choice of the migration's own, which a family seldom needs.
     if (field.perMapping && !field.required) return 'more';
     return 'shown';
   };
@@ -401,21 +420,35 @@ export const AccountForm: React.FC<AccountFormProps> = ({
     );
 
   /**
-   * One labelled box; where it goes is the map below's decision. Google's
+   * One labelled box; where it goes is the map below's decision. Under it, the
+   * field's own line and its why in a fold, where the descriptor names one
+   * (0118 T1): the wizard drew them, and since it retired (0153 D5) this is
+   * the form both doors draw, so it draws them here. The service-account key
+   * keeps its amber: it is the one line to read before pasting. Google's
    * whole-domain option, not yet run against a real Workspace (0131 T2),
-   * carries the tag in its label and its why in a fold under the box, as the
-   * wizard shows it. The fold sits outside the `<label>`, so its words are not
-   * read as part of the box's name and pressing it does not focus the box.
+   * carries the tag in its label and its why in the same fold. The line sits
+   * outside the `<label>`, so its words are not read as part of the box's name
+   * and pressing the fold does not focus the box.
    */
-  const fieldBox = (field: CredentialField) =>
-    role === 'source' && wholeDomainOptionIsExperimental(field.key) ? (
-      <div className={`text-sm ${field.multiline ? 'sm:col-span-2' : ''}`}>
+  const fieldBox = (field: CredentialField) => {
+    const experimental = role === 'source' && wholeDomainOptionIsExperimental(field.key);
+    if (!field.hintKey && !experimental) return labelledBox(field);
+    const whyKey = field.hintKey ? whyKeyOf(field.hintKey) : undefined;
+    const why = [whyKey ? t(whyKey) : '', experimental ? t('frontDoor.experimental.wholeDomain.why') : '']
+      .filter((w) => w !== '')
+      .join(' ');
+    return (
+      <div className={`text-sm ${field.multiline || field.defaultValue ? 'sm:col-span-2' : ''}`}>
         {labelledBox(field)}
-        <Hint className="mt-1" why={t('frontDoor.experimental.wholeDomain.why')} />
+        <Hint
+          className="mt-1"
+          {...(field.hintKey ? { text: t(field.hintKey as StringKey) } : {})}
+          {...(why !== '' ? { why } : {})}
+          tone={field.key === 'serviceAccountKey' ? 'caution' : 'muted'}
+        />
       </div>
-    ) : (
-      labelledBox(field)
     );
+  };
 
   /**
    * The chosen option's own line, under its field (0148 T3, D7): an export no
@@ -629,8 +662,11 @@ export const AccountForm: React.FC<AccountFormProps> = ({
 
       {/* The prerequisites for whatever is selected — often the reason a value
           is missing is that nobody has been to the provider's console yet.
-          From the flow in a tab of its own, so its answers stay where they are. */}
-      <p className="mt-3">
+          From the flow in a tab of its own, so its answers stay where they are.
+          And the card's own section of its guide, in a new tab whichever door
+          it is (0148 T4), as the wizard linked it until it retired (0153 D5):
+          a guide is read with the form open beside it. */}
+      <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
         <Link
           to={`/setup/${role}/${type}`}
           className="text-sm text-blue-700 hover:underline"
@@ -638,6 +674,11 @@ export const AccountForm: React.FC<AccountFormProps> = ({
         >
           {t('connections.setupSteps')}
         </Link>
+        {guideHref !== undefined && (
+          <Link to={guideHref} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-700 hover:underline">
+            {t('setup.fullGuide')}
+          </Link>
+        )}
       </p>
 
       {result && (

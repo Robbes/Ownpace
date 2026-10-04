@@ -13,7 +13,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DISCOVERY_DOMAINS, lifecycleCounts, type Person } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, lifecycleCounts, sourceFaceIsExperimental, type Person } from '@openmig/shared';
 import StartMigration, { CheckStep } from './StartMigration.tsx';
 import type { PlannedMigration } from '../services/start-plan.ts';
 import { personLinkApi } from '../services/grant-link-service.ts';
@@ -41,7 +41,7 @@ vi.mock('../services/mapping-service', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/mapping-service.ts')>()),
   providerAccountsApi: { get: vi.fn() },
   providerClientsApi: { get: vi.fn() },
-  connectionsApi: { list: vi.fn(), add: vi.fn(), remove: vi.fn() },
+  connectionsApi: { list: vi.fn(), add: vi.fn(), remove: vi.fn(), folders: vi.fn() },
   mappingApi: { create: vi.fn(), start: vi.fn(), discover: vi.fn(), getDiscovery: vi.fn(), get: vi.fn() },
   scopeManifestApi: { get: vi.fn() },
 }));
@@ -204,14 +204,22 @@ describe('Which account are you leaving? (screen 2)', () => {
     expect(why.closest('label')).toBeNull();
   });
 
-  it('sends an export archive and a server by its protocol to the wizard, with the person', async () => {
+  it('has no export line, and its fold names IMAP alone, ticks Another mail provider, and leads to no wizard', async () => {
+    // 0153 open question 5: every export has a provider (item 2), and the one
+    // source protocol is IMAP, which is a tile. CalDAV, CardDAV, WebDAV and
+    // JMAP are destinations, and the fold no longer names them as ways in.
     const user = userEvent.setup();
     peopleMock.mockResolvedValue({ people: [ANNA], unassigned: [] });
     renderAt('/start?person=p-anna');
     await screen.findByRole('radio', { name: 'Anna Jansen' });
     await user.click(next());
-    const archive = screen.getByRole('link', { name: /An export archive \(Takeout, Apple\)/ });
-    expect(archive).toHaveAttribute('href', '/mappings/new?person=p-anna');
+    expect(screen.queryByText(/export archive/i)).not.toBeInTheDocument();
+    await user.click(screen.getByText('Other ways to connect (IMAP)'));
+    expect(screen.getByText(/Any mail server is read over IMAP/)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Add one migration by hand' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Choose Another mail provider' }));
+    expect(screen.getByRole('checkbox', { name: 'Another mail provider' })).toBeChecked();
+    expect(screen.queryByRole('button', { name: 'Choose Another mail provider' })).not.toBeInTheDocument();
   });
 });
 
@@ -222,24 +230,61 @@ describe('What moves? (screen 3)', () => {
     await toWhatMoves(user, ['Google']);
     const google = screen.getByRole('group', { name: 'From Google' });
     const ticks = within(google).getAllByRole('checkbox');
-    expect(ticks.map((c) => (c as HTMLInputElement).checked)).toEqual([true, true, true, true, true]);
+    // The five data types, and its photos from a Takeout export, unticked
+    // (0153 open question 5, item 2): that one costs the person a request.
+    expect(ticks.map((c) => (c as HTMLInputElement).checked)).toEqual([true, true, true, true, true, false]);
     // Mail goes through the gmail card here, which has run against a real
     // account; Tasks through the account, whose tasks face has not.
     expect(within(google).getByRole('checkbox', { name: 'Email' })).toBeInTheDocument();
     expect(within(google).getByRole('checkbox', { name: 'Tasks Experimental' })).toBeInTheDocument();
   });
 
-  it('says how photos come, and ticks nothing for them', async () => {
+  it('tags every face of the Microsoft 365 account that has not met a real account, as the wizard did', async () => {
+    // The wizard's data-type step held this until it retired (0153 D5): the
+    // tag is part of the box's name, which a screen reader reads (0145 T2).
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Microsoft 365']);
+    const microsoft = screen.getByRole('group', { name: /^From Microsoft/ });
+    for (const face of ['calendar', 'contact', 'file', 'task'] as const) {
+      expect(sourceFaceIsExperimental('microsoft', face), face).toBe(true);
+    }
+    for (const name of ['Calendar Experimental', 'Contacts Experimental', 'Files Experimental', 'Tasks Experimental']) {
+      expect(within(microsoft).getByRole('checkbox', { name })).toBeInTheDocument();
+    }
+  });
+
+  it('offers Google’s photos from a Takeout export, unticked and tagged, and says to ask now once ticked', async () => {
+    // 0153 open question 5, item 2; the tag is the archive card's verdict (0148 D10).
     const user = userEvent.setup();
     renderAt();
     await toWhatMoves(user, ['Google']);
     const google = screen.getByRole('group', { name: 'From Google' });
-    expect(within(google).getByText('Photos')).toBeInTheDocument();
-    expect(within(google).getByRole('link', { name: 'Ask for it at Google Takeout' })).toHaveAttribute(
+    const photos = within(google).getByRole('checkbox', { name: 'Photos: from a Takeout export Experimental' });
+    expect(photos).not.toBeChecked();
+    expect(
+      within(google).getByText('You ask Google for the export yourself, and put it in your new files when it arrives.'),
+    ).toBeInTheDocument();
+    expect(within(google).queryByRole('link', { name: 'Google Takeout' })).not.toBeInTheDocument();
+    await user.click(photos);
+    expect(within(google).getByText('It can take a few days to prepare, so ask for it now:')).toBeInTheDocument();
+    expect(within(google).getByRole('link', { name: 'Google Takeout' })).toHaveAttribute(
       'href',
       'https://takeout.google.com',
     );
-    expect(within(google).queryByRole('checkbox', { name: /Photos/ })).not.toBeInTheDocument();
+  });
+
+  it('says under Apple that its export cannot be read yet, To be tested, with nothing to tick (0148 D7)', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Apple iCloud']);
+    const apple = screen.getByRole('group', { name: 'From Apple iCloud' });
+    expect(within(apple).getByText("iCloud Drive and photos: from Apple's export")).toBeInTheDocument();
+    expect(within(apple).getByText('To be tested')).toBeInTheDocument();
+    expect(
+      within(apple).getByText('We cannot read an Apple export yet. Request one only for your own records.'),
+    ).toBeInTheDocument();
+    expect(within(apple).queryByRole('checkbox', { name: /iCloud Drive/ })).not.toBeInTheDocument();
   });
 
   it('asks what Google Docs become under Files, and only while Files is ticked', async () => {
@@ -487,7 +532,8 @@ describe('Where does it go? (screen 5)', () => {
     await toWhereTo(user);
     expect(screen.getByRole('combobox', { name: 'Where email goes' })).toHaveDisplayValue('Anna Soverin');
     expect(screen.getByRole('combobox', { name: 'Where files goes' })).toHaveDisplayValue('Anna Nextcloud');
-    expect(screen.queryByRole('heading', { level: 3 })).not.toBeInTheDocument();
+    // No form for a new account: its heading names the one to add.
+    expect(screen.queryByRole('heading', { level: 3, name: /^Add / })).not.toBeInTheDocument();
     expect(next()).toBeEnabled();
   });
 });
@@ -864,5 +910,480 @@ describe('Start once one count is in, and the rest when they connect', () => {
     expect(await screen.findByText('You can start once Anna Jansen has connected and a count is in.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
     expect(screen.queryByText(/starts by itself/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * MAIL THROUGH A COMPANY'S OWN MICROSOFT APP (0153 open question 5; the owner,
+ * 2026-10-04: *"go with the recommendations"*). Behind the company question
+ * under Microsoft's mail, as Google's domain-wide key is in the account form:
+ * an administrator's own Entra app, with application permissions, reads the
+ * mail, through Graph or IMAP. The account's sign-in still carries the rest,
+ * and a No changes nothing.
+ */
+describe('mail through a company’s own Microsoft app (0153 open question 5)', () => {
+  const createMock = vi.mocked(mappingApi.create);
+  const ORG = account({ id: 'c-org', kind: 'o365', displayName: 'Contoso mail app', knownValues: { username: 'info@contoso.example' } });
+  const SOVERIN = account({ id: 'c-soverin', role: 'target', kind: 'soverin', displayName: 'Contoso Soverin', knownValues: { username: 'info@contoso.eu' } });
+
+  /** *What moves?*'s Microsoft section, by its legend. */
+  const microsoftSection = () => screen.getByRole('group', { name: /^From Microsoft 365/ });
+
+  it('asks the company question under Microsoft’s mail, and a No changes nothing', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Microsoft 365']);
+    const section = microsoftSection();
+    const question = within(section).getByRole('group', { name: 'Is this a company account with an administrator?' });
+    expect(within(question).getByRole('radio', { name: 'No' })).toBeChecked();
+    expect(within(section).queryByRole('radio', { name: /Through our own app/ })).not.toBeInTheDocument();
+
+    await user.click(within(question).getByRole('radio', { name: 'Yes' }));
+    expect(within(section).getByRole('radio', { name: 'With the Microsoft sign-in' })).toBeChecked();
+    expect(within(section).getByRole('radio', { name: /^Through our own app, with Microsoft Graph/ })).toBeInTheDocument();
+    expect(within(section).getByRole('radio', { name: /^Through our own app, with IMAP/ })).toBeInTheDocument();
+    expect(within(section).getByText(/That is also how a shared mailbox is read/)).toBeInTheDocument();
+
+    // Chosen, and taken back with a No: still the one sign-in.
+    await user.click(within(section).getByRole('radio', { name: /^Through our own app, with Microsoft Graph/ }));
+    await user.click(within(question).getByRole('radio', { name: 'No' }));
+    await onTo(user, 'Connect your accounts');
+    expect(await screen.findByText('Microsoft 365 account')).toBeInTheDocument();
+    expect(screen.queryByText('Microsoft 365 (Graph API)')).not.toBeInTheDocument();
+  });
+
+  it('asks the organisation’s app for the mail, with its tenant in view, and the account for the rest', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Microsoft 365']);
+    const section = microsoftSection();
+    await user.click(within(section).getByRole('radio', { name: 'Yes' }));
+    await user.click(within(section).getByRole('radio', { name: /^Through our own app, with Microsoft Graph/ }));
+    await onTo(user, 'Connect your accounts');
+
+    const rows = screen.getAllByRole('listitem');
+    const org = rows.find((r) => within(r).queryByText('Microsoft 365 (Graph API)'))!;
+    expect(org).toBeDefined();
+    expect(within(org).getByText('One sign-in: email')).toBeInTheDocument();
+    // The organisation's app IS the company's answer: its fields are shown, not asked about again.
+    expect(within(org).getByRole('textbox', { name: /^Tenant ID/ })).toBeInTheDocument();
+    expect(within(org).getByRole('textbox', { name: /^Client ID/ })).toBeInTheDocument();
+    expect(within(org).getByLabelText(/^Client secret/)).toBeInTheDocument();
+    expect(within(org).queryByRole('group', { name: 'Is this a company account with an administrator?' })).not.toBeInTheDocument();
+    const account365 = rows.find((r) => within(r).queryByText('Microsoft 365 account'))!;
+    expect(within(account365).getByText('One sign-in: calendar, contacts, files, and tasks')).toBeInTheDocument();
+  });
+
+  it('takes the saved organisation app as the mail’s account, and sets the mail up through it', async () => {
+    listMock.mockResolvedValue([ORG, SOVERIN]);
+    vi.mocked(createPerson).mockResolvedValue({ ...ANNA, id: 'p-new' });
+    vi.mocked(addMigrationToPerson).mockResolvedValue({ ...ANNA, id: 'p-new' });
+    createMock.mockResolvedValue({ id: 'm-mail' } as never);
+    vi.mocked(mappingApi.discover).mockResolvedValue({} as never);
+    vi.mocked(scopeManifestApi.get).mockResolvedValue({ version: 'v1', migrates: [], partial: [], doesNotMigrate: [] });
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Microsoft 365']);
+    const section = microsoftSection();
+    // Mail alone, through the company's own app with IMAP.
+    for (const type of ['Calendar', 'Contacts', 'Files', 'Tasks']) {
+      await user.click(within(section).getByRole('checkbox', { name: new RegExp(`^${type}`) }));
+    }
+    await user.click(within(section).getByRole('radio', { name: 'Yes' }));
+    await user.click(within(section).getByRole('radio', { name: /^Through our own app, with IMAP/ }));
+    await onTo(user, 'Connect your accounts');
+    // One kind whichever way its mail is read: the saved app is offered, and the one is the default.
+    expect(await screen.findByRole('radio', { name: 'Contoso mail app (info@contoso.example)' })).toBeChecked();
+    await onTo(user, 'Where does it go?');
+    await user.click(next());
+    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    expect(createMock).toHaveBeenCalledTimes(1);
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceType: 'oauth2',
+        sourceConnectionId: 'c-org',
+        targetConnectionId: 'c-soverin',
+        sourceConfig: { username: 'info@contoso.example' },
+        syncConfig: { domains: ['email'], schedule: '0 2 * * *' },
+      }),
+    );
+  });
+});
+
+describe('Google’s photos from a Takeout export (0153 open question 5, item 2)', () => {
+  /** Files from Dropbox, and two destinations, every account saved. */
+  const SAVED = [
+    account({ id: 'c-dropbox', kind: 'dropbox', displayName: 'Anna Dropbox', knownValues: { username: 'anna@example.nl' } }),
+    account({ id: 'c-soverin', role: 'target', kind: 'soverin', displayName: 'Anna Soverin', knownValues: { username: 'anna@soverin.net' } }),
+    account({ id: 'c-cloud', role: 'target', kind: 'nextcloud', displayName: 'Anna Nextcloud', knownValues: { username: 'anna' } }),
+  ];
+  const createMock = vi.mocked(mappingApi.create);
+  const startMock = vi.mocked(mappingApi.start);
+  const discoverMock = vi.mocked(mappingApi.discover);
+
+  beforeEach(() => {
+    listMock.mockResolvedValue(SAVED);
+    vi.mocked(createPerson).mockResolvedValue({ ...ANNA, id: 'p-new' });
+    vi.mocked(addMigrationToPerson).mockResolvedValue({ ...ANNA, id: 'p-new' });
+    createMock.mockImplementation(async (input) => ({ id: input.sourceType === 'archive' ? 'm-photos' : 'm-files' }) as never);
+    discoverMock.mockResolvedValue({} as never);
+    vi.mocked(mappingApi.get).mockImplementation(
+      async (id: string) =>
+        ({
+          id,
+          tenantId: 't1',
+          name: id,
+          sourceType: 'dropbox',
+          targetType: 'nextcloud',
+          status: 'paused',
+          mode: 'mirror',
+          syncConfig: { domains: ['file'] },
+          sourceConfig: {},
+          targetConfig: {},
+          domainStatus: [],
+          createdAt: '2026-09-29T08:00:00Z',
+          updatedAt: '2026-09-29T08:00:00Z',
+        }) as unknown as Mapping,
+    );
+    vi.mocked(mappingApi.getDiscovery).mockImplementation(async (id: string) => ({
+      mappingId: id,
+      discovered: true,
+      domains: [{ domain: 'file', collections: 1, items: 10, bytes: 1024, discoveredAt: '2026-09-29T08:05:00Z' }],
+    }) as never);
+    vi.mocked(scopeManifestApi.get).mockResolvedValue({ version: 'v1', migrates: [], partial: [], doesNotMigrate: [] });
+    startMock.mockResolvedValue({ id: 'm', status: 'active' } as never);
+  });
+
+  /** Google's photos and nothing else of Google's. */
+  async function onlyPhotosFromGoogle(user: ReturnType<typeof userEvent.setup>) {
+    const google = screen.getByRole('group', { name: 'From Google' });
+    for (const type of ['Email', 'Calendar', 'Contacts', 'Files', 'Tasks Experimental']) {
+      await user.click(within(google).getByRole('checkbox', { name: type }));
+    }
+    await user.click(within(google).getByRole('checkbox', { name: 'Photos: from a Takeout export Experimental' }));
+  }
+
+  it('asks no sign-in for them, and reads them from a destination whose files can serve the export', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Google', 'Dropbox']);
+    await onlyPhotosFromGoogle(user);
+    await onTo(user, 'Connect your accounts');
+    expect(screen.getByText('Photos need no sign-in: they come from the Takeout export.')).toBeInTheDocument();
+    await screen.findAllByText('Connected as anna@example.nl');
+    await onTo(user, 'Where does it go?');
+    const photos = screen.getByRole('combobox', { name: 'Where photos goes' });
+    // The files go to a Nextcloud, which serves an export, so the photos follow them.
+    expect(photos).toHaveValue('c-cloud');
+    expect(within(photos).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'Anna Nextcloud (anna)',
+      'Add WebDAV',
+      'Add Nextcloud',
+    ]);
+    expect(
+      screen.getByText('Read from the folder Takeout in these files, once the export is put there.'),
+    ).toBeInTheDocument();
+  });
+
+  it('sets them up as an export in the destination’s files, waiting for it, and Start leaves them', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Google', 'Dropbox']);
+    await onlyPhotosFromGoogle(user);
+    await onTo(user, 'Connect your accounts');
+    await screen.findAllByText('Connected as anna@example.nl');
+    await onTo(user, 'Where does it go?');
+    await user.click(next());
+    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    expect(createMock).toHaveBeenCalledWith({
+      name: 'Anna Jansen — Google Takeout to Nextcloud',
+      sourceType: 'archive',
+      targetType: 'nextcloud',
+      targetConnectionId: 'c-cloud',
+      sourceConfig: { username: '', provider: 'google-takeout', path: 'Takeout', where: 'target' },
+      targetConfig: { username: 'anna', password: '' },
+      syncConfig: { domains: ['file'], schedule: '0 2 * * *' },
+      // The Dropbox files go to the same Nextcloud, so each gets a folder of
+      // its own (0153 open question 5, item 4).
+      targetFolderPrefix: 'Google Takeout',
+    });
+    expect(vi.mocked(addMigrationToPerson)).toHaveBeenCalledWith('p-new', 'm-photos');
+    const waits = screen.getByRole('heading', { level: 3, name: 'Photos: Google Takeout → Nextcloud' }).parentElement!;
+    expect(within(waits).getByText('Set up, and waiting for the Takeout export:')).toBeInTheDocument();
+    expect(
+      within(waits).getByText(
+        'When it arrives, put its .zip files, as Google sends them, in the folder Takeout of Nextcloud.',
+      ),
+    ).toBeInTheDocument();
+    expect(within(waits).getByRole('link', { name: 'Google Takeout' })).toHaveAttribute('href', 'https://takeout.google.com');
+    const start = screen.getByRole('button', { name: 'Start' });
+    await vi.waitFor(() => expect(start).toBeEnabled());
+    // There is nothing to count until the export is there, so no count is asked for.
+    expect(discoverMock.mock.calls.map(([id]) => id)).not.toContain('m-photos');
+    await user.click(start);
+    expect(startMock).toHaveBeenCalledWith('m-files');
+    expect(startMock).not.toHaveBeenCalledWith('m-photos');
+    expect(await screen.findByText('The person’s page')).toBeInTheDocument();
+  });
+
+  it('ends with Done where the photos are all that moves, and Next waits for the tick alone', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Google']);
+    const google = screen.getByRole('group', { name: 'From Google' });
+    for (const type of ['Email', 'Calendar', 'Contacts', 'Files', 'Tasks Experimental']) {
+      await user.click(within(google).getByRole('checkbox', { name: type }));
+    }
+    expect(next()).toBeDisabled();
+    await user.click(within(google).getByRole('checkbox', { name: 'Photos: from a Takeout export Experimental' }));
+    expect(next()).toBeEnabled();
+    await onTo(user, 'Connect your accounts');
+    expect(next()).toBeEnabled();
+    await onTo(user, 'Where does it go?');
+    await user.click(next());
+    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    expect(screen.queryByRole('button', { name: 'Start' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    expect(await screen.findByText('The person’s page')).toBeInTheDocument();
+    expect(startMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('a saved Google Calendar or Contacts account, on the Google tile (0153 open question 5, item 3)', () => {
+  /** Their cards are retired for new migrations; an account saved with one keeps working. */
+  const SAVED = [
+    account({ id: 'c-gcal', kind: 'google_calendar', displayName: 'Anna Calendar', knownValues: { username: 'anna@gmail.com' } }),
+    account({ id: 'c-soverin', role: 'target', kind: 'soverin', displayName: 'Anna Soverin', knownValues: { username: 'anna@soverin.net' } }),
+  ];
+  const createMock = vi.mocked(mappingApi.create);
+
+  beforeEach(() => {
+    listMock.mockResolvedValue(SAVED);
+    vi.mocked(createPerson).mockResolvedValue({ ...ANNA, id: 'p-new' });
+    vi.mocked(addMigrationToPerson).mockResolvedValue({ ...ANNA, id: 'p-new' });
+    createMock.mockResolvedValue({ id: 'm-cal' } as never);
+    vi.mocked(mappingApi.discover).mockResolvedValue({} as never);
+    vi.mocked(scopeManifestApi.get).mockResolvedValue({ version: 'v1', migrates: [], partial: [], doesNotMigrate: [] });
+  });
+
+  /** Google, with only these of its data types left ticked. */
+  async function googleWith(user: ReturnType<typeof userEvent.setup>, keep: string[]) {
+    await toWhatMoves(user, ['Google']);
+    const google = screen.getByRole('group', { name: 'From Google' });
+    for (const type of ['Email', 'Calendar', 'Contacts', 'Files', 'Tasks Experimental']) {
+      if (!keep.includes(type)) await user.click(within(google).getByRole('checkbox', { name: type }));
+    }
+  }
+
+  it('is offered where only Calendar is ticked, and the migration is made through it', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await googleWith(user, ['Calendar']);
+    await onTo(user, 'Connect your accounts');
+    // The one saved account that carries what was ticked is the default.
+    expect(await screen.findByRole('radio', { name: 'Anna Calendar (anna@gmail.com)' })).toBeChecked();
+    await onTo(user, 'Where does it go?');
+    await user.click(next());
+    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceType: 'google-calendar',
+        sourceConnectionId: 'c-gcal',
+        targetConnectionId: 'c-soverin',
+        syncConfig: { domains: ['calendar'], schedule: '0 2 * * *' },
+      }),
+    );
+  });
+
+  it('is not offered where more is ticked than it carries', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await googleWith(user, ['Calendar', 'Contacts']);
+    await onTo(user, 'Connect your accounts');
+    await screen.findAllByRole('radio');
+    expect(screen.queryByRole('radio', { name: /Anna Calendar/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('where the copies land (0153 open question 5, item 4)', () => {
+  /** Mail from Gmail and from another provider, both into one Soverin: every account saved. */
+  const SAVED = [
+    account({ id: 'c-gmail', kind: 'gmail', displayName: 'Anna Gmail', knownValues: { username: 'anna@gmail.com' } }),
+    account({ id: 'c-mail', knownValues: { username: 'anna@example.nl' } }),
+    account({ id: 'c-soverin', role: 'target', kind: 'soverin', displayName: 'Anna Soverin', knownValues: { username: 'anna@soverin.net' } }),
+  ];
+  const createMock = vi.mocked(mappingApi.create);
+
+  beforeEach(() => {
+    listMock.mockResolvedValue(SAVED);
+    vi.mocked(createPerson).mockResolvedValue({ ...ANNA, id: 'p-new' });
+    vi.mocked(addMigrationToPerson).mockResolvedValue({ ...ANNA, id: 'p-new' });
+    createMock.mockImplementation(async (input) => ({ id: `m-${input.sourceConnectionId}` }) as never);
+    vi.mocked(mappingApi.discover).mockResolvedValue({} as never);
+    vi.mocked(scopeManifestApi.get).mockResolvedValue({ version: 'v1', migrates: [], partial: [], doesNotMigrate: [] });
+  });
+
+  /** Gmail's mail alone from Google, and another provider's mail, to *Where does it go?*. */
+  async function twoMailboxesIntoOne(user: ReturnType<typeof userEvent.setup>) {
+    await toWhatMoves(user, ['Google', 'Another mail provider']);
+    const google = screen.getByRole('group', { name: 'From Google' });
+    for (const type of ['Calendar', 'Contacts', 'Files', 'Tasks Experimental']) {
+      await user.click(within(google).getByRole('checkbox', { name: type }));
+    }
+    await onTo(user, 'Connect your accounts');
+    await screen.findAllByText(/^Connected as/);
+    return onTo(user, 'Where does it go?');
+  }
+
+  it('gives each a folder of its own where two accounts’ mail goes into one mailbox, and says why', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await twoMailboxesIntoOne(user);
+    const folders = screen.getAllByLabelText('Folder');
+    expect(folders.map((f) => (f as HTMLInputElement).value).sort()).toEqual(['anna@example.nl', 'anna@gmail.com']);
+    expect(
+      screen.getAllByText('Another migration sends the same kind of data here, so each gets a folder of its own.'),
+    ).toHaveLength(2);
+    // What is typed is what is sent.
+    const gmail = folders.find((f) => (f as HTMLInputElement).value === 'anna@gmail.com')!;
+    await user.clear(gmail);
+    await user.type(gmail, 'Gmail');
+    await user.click(next());
+    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceConnectionId: 'c-gmail', targetFolderPrefix: 'Gmail' }),
+    );
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceConnectionId: 'c-mail', targetFolderPrefix: 'anna@example.nl' }),
+    );
+  });
+
+  it('sends no folder where nothing else goes to the same place, and keeps the fold closed', async () => {
+    listMock.mockResolvedValue([SAVED[1]!, SAVED[2]!]);
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Another mail provider']);
+    await onTo(user, 'Connect your accounts');
+    await screen.findAllByText(/^Connected as/);
+    await onTo(user, 'Where does it go?');
+    expect(screen.getByText('Put it in a folder of its own').closest('details')).not.toHaveAttribute('open');
+    await user.click(next());
+    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    expect(createMock.mock.calls[0]![0]).not.toHaveProperty('targetFolderPrefix');
+  });
+});
+
+describe('Only one folder (0153 open question 5, item 4)', () => {
+  const foldersMock = vi.mocked(connectionsApi.folders);
+  const createMock = vi.mocked(mappingApi.create);
+
+  beforeEach(() => {
+    listMock.mockResolvedValue([
+      account({ id: 'c-drive', kind: 'google_drive', displayName: 'Anna Drive', knownValues: { username: 'anna@gmail.com' } }),
+      account({ id: 'c-dropbox', kind: 'dropbox', displayName: 'Anna Dropbox', knownValues: { username: 'anna@example.nl' } }),
+      account({ id: 'c-cloud', role: 'target', kind: 'nextcloud', displayName: 'Anna Nextcloud', knownValues: { username: 'anna' } }),
+    ]);
+    vi.mocked(createPerson).mockResolvedValue({ ...ANNA, id: 'p-new' });
+    // These cases read the create's body; they stop at it.
+    createMock.mockRejectedValue(new Error('not made here'));
+  });
+
+  /** Google's files, and nothing else of Google's. */
+  async function onlyFilesFromGoogle(user: ReturnType<typeof userEvent.setup>) {
+    const google = screen.getByRole('group', { name: 'From Google' });
+    for (const type of ['Email', 'Calendar', 'Contacts', 'Tasks Experimental']) {
+      await user.click(within(google).getByRole('checkbox', { name: type }));
+    }
+    return google;
+  }
+
+  it('offers all of the account or one folder under Files, and not where the files have no folder to start from', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Google', 'Microsoft 365']);
+    const google = screen.getByRole('group', { name: 'From Google' });
+    expect(within(google).getByRole('radio', { name: 'All of My Drive' })).toBeChecked();
+    await user.click(within(google).getByRole('radio', { name: 'Only one folder' }));
+    expect(within(google).getByRole('radio', { name: 'Only one folder' })).toHaveAccessibleDescription(
+      'You choose it once the account is connected.',
+    );
+    // Microsoft's files have no folder to start from yet.
+    const microsoft = screen.getByRole('group', { name: /^From Microsoft/ });
+    expect(within(microsoft).queryByRole('radio', { name: 'Only one folder' })).toBeNull();
+  });
+
+  it('asks for the folder once the account is chosen, lists what is shared with it, and sends the one picked', async () => {
+    foldersMock.mockResolvedValue({
+      ok: true,
+      key: 'rootFolderId',
+      folders: [
+        { value: 'd-1', name: 'Family', kind: 'shared-drive' },
+        { value: 'f-1', name: 'Holiday photos', kind: 'shared-folder', owner: 'sam@example.test' },
+      ],
+    });
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Google']);
+    const google = await onlyFilesFromGoogle(user);
+    await user.click(within(google).getByRole('radio', { name: 'Only one folder' }));
+    await onTo(user, 'Connect your accounts');
+    await screen.findByText('Connected as anna@gmail.com');
+    const box = screen.getByLabelText('Which folder: its link or ID');
+    expect(box).toHaveAccessibleDescription('Open the folder in Google Drive and copy its address.');
+    expect(next()).toBeDisabled();
+    expect(next()).toHaveAccessibleDescription('Say which folder, where only one folder moves.');
+
+    await user.click(screen.getByRole('button', { name: 'Show shared drives and shared folders' }));
+    expect(foldersMock).toHaveBeenCalledWith('c-drive');
+    expect(await screen.findByRole('radio', { name: 'Family shared drive' })).toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: 'Holiday photos from sam@example.test' }));
+    expect(box).toHaveValue('f-1');
+    expect(next()).toBeEnabled();
+
+    await onTo(user, 'Where does it go?');
+    await user.click(next());
+    await vi.waitFor(() => expect(createMock).toHaveBeenCalled());
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceType: 'google-drive',
+        sourceConnectionId: 'c-drive',
+        sourceConfig: expect.objectContaining({ username: 'anna@gmail.com', rootFolderId: 'f-1' }),
+      }),
+    );
+  });
+
+  it('takes a Dropbox path as typed, from the top, and says when the list cannot be read', async () => {
+    foldersMock.mockResolvedValue({ ok: false, reason: 'Token has been revoked.' });
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Dropbox']);
+    const dropbox = screen.getByRole('group', { name: 'From Dropbox' });
+    expect(within(dropbox).getByRole('radio', { name: 'All of Dropbox' })).toBeChecked();
+    await user.click(within(dropbox).getByRole('radio', { name: 'Only one folder' }));
+    await onTo(user, 'Connect your accounts');
+    await screen.findByText('Connected as anna@example.nl');
+    await user.click(screen.getByRole('button', { name: 'Show shared folders' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('The list could not be read: Token has been revoked.');
+    await user.type(screen.getByLabelText('Which folder: its path'), 'Holiday/2019/');
+
+    await onTo(user, 'Where does it go?');
+    await user.click(next());
+    await vi.waitFor(() => expect(createMock).toHaveBeenCalled());
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceType: 'dropbox',
+        sourceConfig: { username: 'anna@example.nl', rootPath: '/Holiday/2019', nativeFilePolicies: { paper: 'markdown' } },
+      }),
+    );
+  });
+
+  it('draws no folder on a new account’s form, since the folder is the migration’s and asked after', async () => {
+    listMock.mockResolvedValue([]);
+    const user = userEvent.setup();
+    renderAt();
+    await toWhatMoves(user, ['Dropbox']);
+    await onTo(user, 'Connect your accounts');
+    expect(screen.queryByText('More options')).toBeNull();
+    expect(screen.queryByLabelText('Root folder path')).toBeNull();
   });
 });

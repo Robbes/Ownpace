@@ -253,6 +253,7 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     scanned: result.scanned,
     created: result.created,
     firstCopyBytes: result.firstCopyBytes,
+    ...(result.heldAtCeiling > 0 ? { heldAtCeiling: result.heldAtCeiling } : {}),
     skipped: result.skipped,
     adopted: result.adopted,
     // The one count this result dropped, beside the comment below saying every

@@ -11,12 +11,20 @@ import {
   carrierOf,
   connectionsFor,
   destinationsFor,
+  exportDestinations,
+  exportMigration,
+  exportOf,
+  folderKeyOf,
+  folderValue,
+  foldersListable,
   grantableByLink,
   migrationsFor,
   nextcloudAddress,
   nextcloudDavUrl,
   offers,
-  photosThrough,
+  offersOneFolder,
+  sharesItsDestination,
+  type PlannedMigration,
   type Route,
 } from './start-plan.ts';
 
@@ -68,17 +76,44 @@ describe('which card carries a type, and whose verdict its tag reads (step 3)', 
     expect(sourceFaceIsExperimental(carrierOf('google', 'email', NARROW), 'email')).toBe(false);
     expect(sourceFaceIsExperimental(carrierOf('google', 'email', RESTRICTED), 'email')).toBe(true);
   });
+
+  it('is a company’s own app for Microsoft’s mail where it chose one, and only for the mail (0153 open question 5)', () => {
+    expect(carrierOf('microsoft', 'email', {}, { microsoftMail: 'graph' })).toBe('graph');
+    expect(carrierOf('microsoft', 'email', {}, { microsoftMail: 'oauth2' })).toBe('oauth2');
+    expect(carrierOf('microsoft', 'calendar', {}, { microsoftMail: 'graph' })).toBe('microsoft');
+    // Another provider's mail is untouched by Microsoft's choice.
+    expect(carrierOf('google', 'email', NARROW, { microsoftMail: 'graph' })).toBe('gmail');
+    expect(carrierOf('imap', 'email', {}, { microsoftMail: 'graph' })).toBe('imap');
+  });
 });
 
-describe('where photos come from (step 3)', () => {
-  it('is Google’s Takeout export, since a reader for it is built', () => {
-    expect(photosThrough('google')).toBe('google-takeout');
+describe('the export under a provider’s tile (step 3; 0153 open question 5, item 2)', () => {
+  it('is Google’s Takeout, which this build reads', () => {
+    expect(exportOf('google')).toEqual({ archive: 'google-takeout', readable: true });
   });
 
-  it('is nothing yet for Apple, whose export waits on its reader, and nothing for a provider with no photos', () => {
-    expect(photosThrough('apple')).toBeUndefined();
-    expect(photosThrough('dropbox')).toBeUndefined();
-    expect(photosThrough('imap')).toBeUndefined();
+  it('is Apple’s export, which no reader opens yet, and nothing for a provider with no export', () => {
+    expect(exportOf('apple')).toEqual({ archive: 'apple-privacy', readable: false });
+    expect(exportOf('dropbox')).toBeUndefined();
+    expect(exportOf('imap')).toBeUndefined();
+  });
+
+  it('is read from destinations whose files serve byte ranges, and never from a JMAP destination', () => {
+    expect(exportDestinations()).toEqual(['webdav', 'nextcloud']);
+    for (const card of exportDestinations()) expect(destinationsFor('file')).toContain(card);
+  });
+
+  it('makes one migration of files from the archive to the destination, with no account to sign in to', () => {
+    expect(exportMigration('google', { card: 'nextcloud', connectionId: 'nc-1', username: 'anna' })).toEqual({
+      provider: 'google',
+      sourceCard: 'archive',
+      sourceConnectionId: 'export:google',
+      sourceUsername: '',
+      targetCard: 'nextcloud',
+      targetConnectionId: 'nc-1',
+      targetUsername: 'anna',
+      types: ['file'],
+    });
   });
 });
 
@@ -118,6 +153,17 @@ describe('which accounts to connect for what was ticked (step 4)', () => {
   it('asks nothing of a provider with nothing ticked', () => {
     expect(connectionsFor('dropbox', [])).toEqual([]);
     expect(connectionsFor('apple', ['file'])).toEqual([]);
+  });
+
+  it('asks a company’s own app for Microsoft’s mail apart, and the account for the rest', () => {
+    expect(connectionsFor('microsoft', ['email', 'calendar', 'file'], {}, { microsoftMail: 'graph' })).toEqual([
+      { provider: 'microsoft', card: 'microsoft', types: ['calendar', 'file'] },
+      { provider: 'microsoft', card: 'graph', types: ['email'] },
+    ]);
+    // Mail alone needs the company's app alone.
+    expect(connectionsFor('microsoft', ['email'], {}, { microsoftMail: 'oauth2' })).toEqual([
+      { provider: 'microsoft', card: 'oauth2', types: ['email'] },
+    ]);
   });
 });
 
@@ -231,5 +277,75 @@ describe('what somebody else can connect themselves, by a grant link (0108)', ()
     for (const card of ['microsoft', 'apple', 'dropbox', 'box', 'imap']) {
       expect(grantableByLink(card, OWN_CLIENT)).toBe(false);
     }
+  });
+});
+
+describe('a migration that shares its destination (0153 open question 5, item 4)', () => {
+  const m = (source: string, target: string, types: PlannedMigration['types']): PlannedMigration => ({
+    provider: 'imap',
+    sourceCard: 'imap',
+    sourceConnectionId: source,
+    sourceUsername: `${source}@example.nl`,
+    targetCard: 'soverin',
+    targetConnectionId: target,
+    types,
+  });
+
+  it('is one whose data types another migration also sends to its destination', () => {
+    const a = m('a', 'sov', ['email']);
+    const b = m('b', 'sov', ['email', 'calendar']);
+    expect(sharesItsDestination(a, [a, b])).toBe(true);
+    expect(sharesItsDestination(b, [a, b])).toBe(true);
+  });
+
+  it('is not one that shares only the destination, or only the data types', () => {
+    const mail = m('a', 'sov', ['email']);
+    const calendar = m('b', 'sov', ['calendar']);
+    const elsewhere = m('c', 'other', ['email']);
+    expect(sharesItsDestination(mail, [mail, calendar, elsewhere])).toBe(false);
+    expect(sharesItsDestination(mail, [mail])).toBe(false);
+  });
+});
+
+describe('where a migration’s files start (0153 open question 5, item 4)', () => {
+  it('is a folder by id on Google and Box, and by path on Dropbox; Microsoft’s files have none yet', () => {
+    expect(folderKeyOf('google')).toBe('rootFolderId');
+    expect(folderKeyOf('google-drive')).toBe('rootFolderId');
+    expect(folderKeyOf('box')).toBe('rootFolderId');
+    expect(folderKeyOf('dropbox')).toBe('rootPath');
+    expect(folderKeyOf('microsoft')).toBeUndefined();
+    expect(folderKeyOf('imap')).toBeUndefined();
+  });
+
+  it('is offered under Files for Google whichever card carries them, Dropbox and Box, and not for Microsoft', () => {
+    // Without the restricted scopes Google's files come through the Drive card; with them, the account.
+    expect(offersOneFolder('google')).toBe(true);
+    expect(offersOneFolder('google', { google: [...DISCOVERY_DOMAINS] })).toBe(true);
+    expect(offersOneFolder('dropbox')).toBe(true);
+    expect(offersOneFolder('box')).toBe(true);
+    expect(offersOneFolder('microsoft')).toBe(false);
+    expect(offersOneFolder('apple')).toBe(false);
+  });
+
+  it('lists the folders of a Google or Dropbox account, and not of Box, whose folder is typed', () => {
+    expect(['google', 'google-drive', 'dropbox'].every(foldersListable)).toBe(true);
+    expect(foldersListable('box')).toBe(false);
+  });
+
+  it('reads a folder’s id out of its Google Drive or Box address, and keeps an id as typed', () => {
+    expect(folderValue('google', 'https://drive.google.com/drive/folders/1AbC_d-9?usp=sharing')).toBe('1AbC_d-9');
+    expect(folderValue('google-drive', 'https://drive.google.com/drive/u/0/folders/0AFi9x')).toBe('0AFi9x');
+    expect(folderValue('google', 'https://drive.google.com/open?id=1Xyz')).toBe('1Xyz');
+    expect(folderValue('box', 'https://app.box.com/folder/123456789')).toBe('123456789');
+    expect(folderValue('google', '  1AbC  ')).toBe('1AbC');
+    expect(folderValue('google', '   ')).toBe('');
+  });
+
+  it('starts a Dropbox path at the top, without a slash at its end, and reads it out of an address', () => {
+    expect(folderValue('dropbox', 'Photos/2019/')).toBe('/Photos/2019');
+    expect(folderValue('dropbox', '/Photos')).toBe('/Photos');
+    expect(folderValue('dropbox', 'https://www.dropbox.com/home/Holiday%202019')).toBe('/Holiday 2019');
+    // The whole Dropbox is not one folder.
+    expect(folderValue('dropbox', '/')).toBe('');
   });
 });

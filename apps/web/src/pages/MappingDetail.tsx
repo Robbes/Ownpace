@@ -32,22 +32,27 @@ export { progressRefetchInterval, PROGRESS_POLL_ACTIVE_MS, PROGRESS_POLL_IDLE_MS
 import { progressRefetchInterval } from '../services/progress-poll.ts';
 import { mappingApi } from '../services/mapping-service.ts';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
-import { fetchAllDiscovery, fetchAttention, fetchStatus } from '../services/operating-service.ts';
+import { fetchAllDiscovery, fetchAttention, fetchRuns, fetchStatus } from '../services/operating-service.ts';
 import { fetchProgress } from '../services/progress-service.ts';
 import { checksOf } from '../services/cutover-steps.ts';
+import { linesProgressOf } from '../services/stage-line.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
 import RunsPanel from '../components/RunsPanel.tsx';
 import MappingLinksPanel from '../components/MappingLinksPanel.tsx';
 import ExportPolicyPanel from '../components/ExportPolicyPanel.tsx';
+import { RenameMigration } from '../components/RenameMigration.tsx';
 import SchedulePanel from '../components/SchedulePanel.tsx';
 import MigrationKindsPanel from '../components/MigrationKindsPanel.tsx';
 import CompletionReportDownload from '../components/CompletionReportDownload.tsx';
 import LiveProgress from '../components/LiveProgress.tsx';
+import { lineStages, stagesByDomain } from '../components/MigrationLines.tsx';
 import StateChip from '../components/StateChip.tsx';
 import { connectionKindName } from '../components/ProviderTile.tsx';
 import { CutoverSteps } from '../components/CutoverSteps.tsx';
 import { TimeBeforeStartLine } from '../components/TimeBeforeStartLine.tsx';
-import { timeBeforeStart } from '@openmig/shared';
+import { TimeWhileCopyingLine } from '../components/TimeWhileCopyingLine.tsx';
+import { leastAdvancedStage, remainingItemsOf, timeBeforeStart, timeWhileCopying } from '@openmig/shared';
+import { providerName } from '../components/ProviderTile.tsx';
 import { serverMessage } from '../services/api.ts';
 
 /**
@@ -81,6 +86,50 @@ function sideLabel(name: string | null | undefined, kind: string, account: strin
   return known ? `${head} (${account})` : head;
 }
 
+/** The source kinds whose files start from a folder, by the key they keep it under. */
+const FOLDER_KEY_OF_KIND: Readonly<Record<string, 'rootFolderId' | 'rootPath'>> = {
+  google: 'rootFolderId',
+  google_drive: 'rootFolderId',
+  box: 'rootFolderId',
+  dropbox: 'rootPath',
+};
+
+/**
+ * WHERE A MIGRATION'S FILES START (0153 open question 5, item 4): one folder,
+ * chosen under *Only one folder* on *Start a migration*, or all of the
+ * account. Undefined where the migration moves no files, or reads them from a
+ * source that has no folder to start from. A Google folder is named by its id,
+ * which is all the migration holds.
+ */
+export function filesFromLine(
+  t: ReturnType<typeof useT>,
+  m: {
+    readonly sourceConnection?: { readonly kind: string } | null | undefined;
+    readonly sourceConfig: { readonly rootFolderId?: string | undefined; readonly rootPath?: string | undefined };
+    readonly syncConfig: { readonly domains: ReadonlyArray<string> };
+  },
+): string | undefined {
+  const kind = m.sourceConnection?.kind;
+  const key = kind === undefined ? undefined : FOLDER_KEY_OF_KIND[kind];
+  if (key === undefined || !m.syncConfig.domains.includes('file')) return undefined;
+  const folder = m.sourceConfig[key];
+  if (folder) return t(key === 'rootPath' ? 'hub.filesFrom.path' : 'hub.filesFrom.id', { folder });
+  const place = kind === 'google' || kind === 'google_drive' ? t('start.place.myDrive') : (connectionKindName(kind!) ?? kind!);
+  return t('hub.filesFrom.all', { place });
+}
+
+/**
+ * The latest pass any of its data types completed: what the list carries as a
+ * migration's last pass, and what a person's card reads before the progress
+ * read has it (`listStage`).
+ */
+function latestPass(rows: readonly { readonly lastSyncedAt?: string }[] | undefined): string | undefined {
+  let latest: string | undefined;
+  for (const d of rows ?? []) {
+    if (d.lastSyncedAt && (latest === undefined || d.lastSyncedAt > latest)) latest = d.lastSyncedAt;
+  }
+  return latest;
+}
 
 const MappingDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -176,6 +225,16 @@ const MappingDetail: React.FC = () => {
     retry: false,
   });
 
+  // HOW LONG, DURING THE COPY (0154 T3 (b)): from the last passes' own pace,
+  // once a pass has reported. The run history's own query, so the panel below
+  // and this line share one read.
+  const runs = useQuery({
+    queryKey: ['runs', id],
+    queryFn: () => fetchRuns(id!),
+    enabled: Boolean(id) && firstPassIn,
+    refetchInterval: 30_000,
+  });
+
   if (!id) {
     return <p className="text-sm text-amber-800">{t('hub.noId')}</p>;
   }
@@ -196,17 +255,61 @@ const MappingDetail: React.FC = () => {
           domains: isSelfHost() ? counted.map((d) => d.domain) : (detail.data?.syncConfig.domains ?? []),
           mailBytes: counted.find((d) => d.domain === 'email' && d.lastError === undefined)?.bytes,
         });
+  // What is left, and whether the provider slowed it: from the strip's rows,
+  // the totals T2 set each count against. A data type with no total leaves it
+  // unknown, and the line says nothing (hard rule 9).
+  const sourceType = isSelfHost()
+    ? status.data?.mappings.find((m) => m.mappingId === id)?.sourceType
+    : detail.data?.sourceType;
+  const copyingRows = (progressDomains ?? []).filter((d) => d.state !== 'skipped');
+  const timeWhile =
+    firstPassIn && runs.data
+      ? timeWhileCopying({
+          remainingItems: remainingItemsOf(copyingRows),
+          passes: runs.data.runs,
+          slowed: copyingRows.some((d) => d.lastErrorCategory === 'rate_limited'),
+        })
+      : undefined;
   const lifecycle = isSelfHost()
     ? status.data?.mappings.find((m) => m.mappingId === id)?.migrationStatus
     : detail.data?.status;
+  // WHERE IT IS, IN A PERSON'S WORDS (0154 T1, the migration's own page): what
+  // a person's card says of this migration, from the same facts and the same
+  // functions (`MigrationLines.tsx`). Its data types are the card's: its
+  // selection on managed, as the list carries it, and the status's rows on the
+  // appliance, as its person's page reads them. Once the progress read has this
+  // migration, each row of the strip says its own stage, and the header the
+  // least advanced; before, the header says what the card says then.
+  const lineFacts =
+    lifecycle === undefined
+      ? undefined
+      : {
+          status: lifecycle,
+          domains: isSelfHost() ? (progressDomains ?? []).map((d) => d.domain) : (detail.data?.syncConfig.domains ?? []),
+          lastSyncAt: latestPass(progressDomains),
+        };
+  const lines = linesProgressOf(
+    progressQuery.data,
+    id,
+    attentionQuery.data?.mappings.find((a) => a.mappingId === id),
+    attentionQuery.isSuccess,
+  );
+  const stages = lineFacts && lines ? stagesByDomain(lineFacts, lines) : {};
+  const migrationStage = lineFacts ? leastAdvancedStage(lineStages(lineFacts, lines)) : undefined;
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold text-gray-900">
-          {detail.data?.name ?? t('hub.fallbackTitle')}
-        </h2>
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {/* *Rename* beside the title (0153 open question 5, item 4), where the
+            detail read is in: managed only, as the appliance's names are its
+            mapping files'. */}
+        <RenameMigration
+          mappingId={id}
+          name={detail.data?.name}
+          fallback={t('hub.fallbackTitle')}
+          editable={Boolean(detail.data) && !isSelfHost()}
+        />
+        <div className="ml-auto flex items-center gap-3">
           {/* Active only (0128). A migration in the continuous lane is
               after its cutover, and no update brings it back before one: the
               pause it offered was refused every time it was pressed. The lane
@@ -230,7 +333,11 @@ const MappingDetail: React.FC = () => {
               {t('mappings.action.reviewAndStart')}
             </Link>
           )}
-          {detail.data?.status && <StateChip entity="lifecycle" state={detail.data.status} />}
+          {migrationStage ? (
+            <StateChip entity="stage" state={migrationStage} />
+          ) : (
+            detail.data?.status && <StateChip entity="lifecycle" state={detail.data.status} />
+          )}
         </div>
       </div>
       {pauseFailed && <p className="mt-1 text-sm text-red-700">{pauseFailed}</p>}
@@ -254,6 +361,23 @@ const MappingDetail: React.FC = () => {
           })}
         </p>
       )}
+      {/* WHERE THE COPIES LAND (0153 open question 5, item 4): the folder
+          chosen as *Put it in a folder of its own*, or the destination's own
+          folders. Said, never offered for change: once anything is copied, a
+          move would leave the copies behind. Only where the read says. */}
+      {detail.data && detail.data.targetFolderPrefix !== undefined && (
+        <p className="mt-1 text-sm text-gray-600">
+          {detail.data.targetFolderPrefix
+            ? t('hub.lands.folder', { folder: detail.data.targetFolderPrefix })
+            : t('hub.lands.merged')}
+        </p>
+      )}
+      {/* WHERE ITS FILES START (0153 open question 5, item 4), said the same
+          way: once anything is copied, another folder would be another
+          migration. */}
+      {detail.data && filesFromLine(t, detail.data) !== undefined && (
+        <p className="mt-1 text-sm text-gray-600">{filesFromLine(t, detail.data)}</p>
+      )}
       {/* A GRANT THE PERSON TOOK BACK (workplan 0108 T8 (c)), said before
           anything that reads as progress: the status can still say Active,
           and nothing reads their account until they grant it again. The
@@ -275,8 +399,11 @@ const MappingDetail: React.FC = () => {
       </details>
       {/* The completion report (workplan 0047): every number on it already
           lives on some screen below — this is the ONE document version, for
-          handing over. */}
-      <div className="mt-2">
+          handing over. Since 0154 T5 a page too, in the reader's language. */}
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+        <Link to={`/mappings/${encodeURIComponent(id)}/report`} className="text-sm text-blue-700 hover:underline">
+          {t('migrationReport.open')} →
+        </Link>
         <CompletionReportDownload mappingId={id} />
       </div>
       {detail.error != null && (
@@ -285,11 +412,18 @@ const MappingDetail: React.FC = () => {
 
       {progressDomains && progressDomains.length > 0 && (
         <div className="mt-4">
-          <LiveProgress domains={progressDomains} />
+          <LiveProgress domains={progressDomains} stages={stages} />
         </div>
       )}
 
       {timeBefore && <TimeBeforeStartLine className="mt-4 text-sm text-gray-700" time={timeBefore} />}
+      {timeWhile && (
+        <TimeWhileCopyingLine
+          className="mt-4 text-sm text-gray-700"
+          time={timeWhile}
+          provider={providerName(sourceType ?? '', 'source')}
+        />
+      )}
 
       {/* The list IS a sequence (0034 T4), and since 0154 T4 one list with a
           person's page: each step with its count, its state in words, and

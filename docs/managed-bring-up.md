@@ -905,6 +905,22 @@ and no other. `ZITADEL_DEFAULT_LANGUAGE` in `.env`, `nl` or `en`, is its default
 set `nl` on live, where the testers are. Empty keeps the instance's own. Every run
 sets both and reads them back, and prints them in its summary.
 
+**The notice on its registration and sign-in pages** (workplan 0135 T5, for
+0139 T4). The page where a tester types a name, an address and a password links
+the privacy policy and the terms: the instance privacy policy's `privacyLink`
+and `tosLink`, which the page's footer shows and its registration form asks to
+accept. Both are made from `VITE_LEGAL_SITE_URL` in `.env`, the key the web
+app's links come from, by the same rule: empty is `https://www.ownpace.eu`, the
+OTA stack's is its test site, and a value the web build refuses stops the run
+before anything is written. They are the Dutch pages, `nl/privacy.html` and
+`nl/voorwaarden.html`: Zitadel keeps one link per instance, and the testers are
+Dutch; those pages switch to English. Every run writes the policy when a link
+differs, copies its other five fields back as they were, and reads it back on
+the instance and on the project's organisation, whose own policy would stand in
+front of the instance's. It prints both addresses in its summary. A fresh
+instance has them from `managed.yml`. They are always shown, also before the
+texts are published there (the owner, 2026-10-03).
+
 **Then restart the API and REBUILD the web app, or nothing changes.** The API
 only needs the new environment; the web app bakes `VITE_*` in at build time, so
 a container built before the script ran has no issuer in its bundle and still
@@ -1555,17 +1571,18 @@ GOOGLE_ACCOUNT_SCOPE_CLASS=restricted
 ```
 
 Restart the API afterwards. **No web rebuild** — unlike the `VITE_*` values in
-§8b, the wizard asks the API what this deployment serves
-(`GET /api/provider-accounts`) rather than having it compiled in, so the
-account card and its tick boxes follow the setting on the next page load.
+§8b, *Start a migration* and the Accounts page ask the API what this deployment
+serves (`GET /api/provider-accounts`) rather than having it compiled in, so how
+many Google sign-ins the flow asks for, and the Google account card's tick
+boxes on the Accounts page, follow the setting on the next page load.
 There is deliberately no `VITE_` twin: two separately settable copies of one
 fact is how a screen comes to offer what the server then refuses.
 
 #### Nobody has to paste a client secret
 
-Registering the client is one job; typing it into a wizard once per connection
+Registering the client is one job; typing it into a form once per connection
 is another, and the second one is transcription work with a secret in it. Set
-the pair once and the wizard stops asking:
+the pair once and the forms stop asking:
 
 ```bash
 # in deploy/compose/.env
@@ -1579,11 +1596,12 @@ this is — and the client is read at the moment a token is minted. Rotating the
 secret at Google is therefore this one edit and a restart, not an edit per
 connection.
 
-**And the wizard knows.** `GET /api/provider-accounts` answers
-`client: deployment` once both halves are set, so the wizard — and the
-Connections page's add-form — fold the Client ID and client secret away behind
-*Use your own Google application instead*, enable *Connect with Google* without
-them, and leave the address, the token and the button as the whole form. Open
+**And the forms know.** `GET /api/provider-clients` answers `google: deployment`
+once both halves are set (and `GET /api/provider-accounts` answers
+`client: deployment`), so the account form — on *Start a migration* and on the
+Accounts page — folds the Client ID, the client secret and the refresh token
+away behind *Use your own Google client*, and enables *Connect with Google*
+without them. Open
 the fold and enter both to use your own client; enter one and it asks for the
 other rather than pairing it with the deployment's. The shared-drive browse
 behind a Drive source follows the same rule: the token alone is enough.
@@ -1595,8 +1613,9 @@ never an override ([ADR-0041](./adr/0041-who-owns-the-oauth-client.md)).
 **Both or neither.** A client id with no secret cannot exchange an
 authorization code, so half of it is refused with the missing name rather than
 failing at Google's token endpoint hours later. The same rule holds for a
-connection's *own* pair, at every door — the wizard, the API, the add-form, a
-rotation and the consent itself alike: half of one is refused where it is
+connection's *own* pair, at every door — the account form (*Start a migration*
+and the Accounts page), the API, a rotation and the consent itself alike: half
+of one is refused where it is
 sent, never completed with the deployment's other half. The rotation panel
 therefore offers the Client ID beside the secret, so a rotated pair is a pair.
 
@@ -1637,8 +1656,8 @@ So at Google, once, for the client this deployment uses:
    to the scopes, beside the calendar, CardDAV and `tasks.readonly` ones.
 3. **Credentials → your OAuth client → Authorised redirect URIs.** It must
    carry `https://<your API host>/api/migrations/google/callback` — the exact
-   string, which `POST /api/migrations/google/authorize` also returns so the
-   wizard can show it.
+   string, which `POST /api/migrations/google/authorize` also returns and the
+   app's *Redirect URIs* page lists (`GET /api/redirect-uris`).
 4. **`API_URL` must be the address the API is reached at from OUTSIDE**, because the
    redirect is built from it. The example ships `API_URL=http://localhost:3001`,
    and with the default `VITE_API_URL=/api` the API is actually reached on the
@@ -1669,8 +1688,10 @@ button — it is not a publishing status to run a customer on.
 
 #### What it looks like when it worked
 
-- The **Google account** card on step 1 of the wizard offers five object types
-  instead of three, and its hint stops mentioning a security review.
+- *Start a migration* asks one Google sign-in for everything ticked under
+  Google, rather than a sign-in of their own for mail and files; on the Accounts
+  page, the **Google account** card's consent offers five data types instead of
+  three.
 - The consent button asks for exactly the ticked faces — never more, and never
   fewer without saying so.
 - The connection's **qualification badges** report each face separately, read
@@ -1681,8 +1702,8 @@ button — it is not a publishing status to run a customer on.
 #### The deployment's own Dropbox app (2026-09-02)
 
 The same idea, for Dropbox: set the pair once and *Connect with Dropbox* appears
-in the wizard and on the Connections page, with the App key and secret folded
-away behind *Use your own Dropbox app instead*.
+on *Start a migration* and on the Accounts page, with the App key and secret
+folded away behind *Use your own Dropbox app*.
 
 1. **[Dropbox App Console](https://www.dropbox.com/developers/apps) → Create app**
    → *Scoped access* → *Full Dropbox*. **Permissions**: `files.metadata.read`
@@ -1714,7 +1735,8 @@ consent, the create door, the mapping door and the rotation panel alike; and
 the pair is handed only to a Dropbox row — `clientId`/`clientSecret` are shared
 key names, and a Google connection is never given Dropbox's app. `GET
 /api/provider-clients` answers `dropbox: deployment` once both halves are set,
-which is what the wizard reads before it offers the button.
+which is what the account form reads, on *Start a migration* and the Accounts
+page, before it offers the button.
 
 #### The deployment's own Entra registration (workplan 0114)
 
@@ -1774,7 +1796,8 @@ connection's own pair wins, and its own `tenantId` travels with it rather than
 being replaced by the deployment's; both or neither, refused as half a pair at
 every door; and the pair is handed only to a `microsoft` row. `GET
 /api/provider-clients` answers `microsoft: deployment` once both halves are
-set, which is what the wizard reads before it offers the button.
+set, which is what the account form reads, on *Start a migration* and the
+Accounts page, before it offers the button.
 
 **What a customer sees when their tenant says no.** Two refusals are a tenant
 policy rather than anything you configured: `AADSTS65001` (an administrator
@@ -1944,6 +1967,12 @@ GIT_SHA=$(git rev-parse --short HEAD) \
 Open the sign-in page: the note is under the title. Empty, or any value but
 `alpha`, is no note and no paragraph. The appliance never shows it.
 
+The same setting decides whether the public site carries the tester guide
+(`/nl/alfa-handleiding.html` and `/alpha-guide.html`, workplan 0144 T1):
+`deploy-live.sh` hands live's value to every site build, so with
+`WWW_LIVE=true` the guide is published with the next deploy. Built by hand,
+the site needs it in the shell: `OWNPACE_STAGE=alpha node site/build.mjs …`.
+
 **The same setting asks for acceptance** (workplan 0139 T3), **once no text is
 still a draft**. With `alpha`, every tester who signs in meets one screen before
 any other page: the Alpha conditions, the privacy policy and the terms, each
@@ -2103,7 +2132,10 @@ and read only their list of organisations with `SYSTEM_DATABASE_URL` (workplan
 0138 T2); the other three scheduled jobs connect with `SYSTEM_DATABASE_URL`, and
 every task that opens `openTaskPools` reads its audit key with it (T3 step 2).
 It also uploads `OWNPACE_REACHABLE_HOSTS`, and deletes it from the plane when
-`.env` leaves it empty, so the tasks admit exactly the names the API does.
+`.env` leaves it empty, so the tasks admit exactly the names the API does; and
+`OWNPACE_STAGE` the same way, so the sync pass holds nothing at an
+organisation's data ceiling during the alpha, when the API takes no yes, and
+holds again from the first run after the alpha ends (workplan 0109 T6).
 **It uploads nothing of the database owner's.** The two names the owner went
 up under, `DATABASE_URL` (until 0138 T3 step 2) and `DIRECT_DATABASE_URL`
 (until step 1), are deleted by its forget run, `set-task-env.sh
@@ -2284,7 +2316,9 @@ not move at all. Switch it on with the first tag whose texts are final.
    the checkout, whose exit code decides. A dry run runs that test build too;
    it builds nothing in the checkout. After the bring-up the deploy
    builds the site in the checkout
-   (`OWNPACE_APP_URL=https://app.ownpace.eu GIT_SHA=<commit> node site/build.mjs --public`),
+   (`OWNPACE_APP_URL=https://app.ownpace.eu OWNPACE_STAGE=<live's> GIT_SHA=<commit> node site/build.mjs --public`,
+   where `OWNPACE_STAGE` is the value in live's `.env`, never the shell's; with
+   `alpha` the site carries the tester guide, workplan 0144 T1),
    brings it up with
    `docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file deploy/compose/.env up -d --force-recreate`
    (a `WWW_PORT` another container publishes makes this `up` fail, and the

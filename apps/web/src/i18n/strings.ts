@@ -102,6 +102,10 @@ const en = {
   'report.reference': 'the reference on your screen: {reference}',
   'report.category': 'the kind of error: {category}',
   'report.replyTo': 'Replies go to {email}.',
+  // The policy beside what the form says it sends (0139 T4): privacy §4.5
+  // says why a report is kept, and §9 for how long. The link follows, named
+  // as the text names itself (`acceptance.doc.privacy`).
+  'report.privacy': 'Why we keep your report, and for how long:',
   // What the browser says of itself (workplan 0130 T6, Part B), as the form
   // lists it when the service's lines cannot be had. The server writes each
   // as a line of its own, in English, when they can.
@@ -469,6 +473,11 @@ const en = {
   // server has forgotten it, and a tap would end on its English "expired"
   // refusal. So the link goes, and this asks for the press that starts anew.
   'wizard.consent.windowExpired': 'The link to {provider}’s page has expired. Press {button} again.',
+  // Beside every Connect button, on the managed service (0139 T4;
+  // docs/google-oauth-verification.md §5: "Links to the privacy policy and
+  // terms sit beside the button, not in a footer."). The two links follow,
+  // named as the texts name themselves (`acceptance.doc.*`).
+  'wizard.consent.legal': 'What we do with your data, and on what terms:',
   // The deployment's own client (ADR-0041, owner decision 2026-09-01): the
   // pair becomes optional as a whole, and a half-typed pair is named rather
   // than silently completed with the deployment's other half.
@@ -615,14 +624,6 @@ const en = {
   // since Tasks joined, 0126 T2), because "why is Gmail a separate card" is
   // the first question this card raises.
   'wizard.proto.google.hint': 'One Google account, one sign-in: calendars, contacts and tasks.',
-  // The same card where the DEPLOYMENT'S own Google application carries the
-  // restricted scopes (ADR-0041, owner decision 2026-09-01). The sentence
-  // above names a wall that is not there on such an installation, and a card
-  // that does that sends somebody looking for the wrong problem. The
-  // single-purpose cards stay: an existing mapping keeps working, and one
-  // account per face is still a reasonable thing to want.
-  'wizard.proto.google.hint.restricted':
-    'One Google account, one sign-in: mail, calendars, contacts, files and tasks.',
   'wizard.proto.googleDrive.hint': 'Files from a Google Drive (read-only OAuth)',
   'wizard.proto.dropbox.hint': 'Files from a Dropbox (read-only OAuth app)',
   'wizard.proto.box.hint': 'Files from a Box account (read-only platform app)',
@@ -630,14 +631,9 @@ const en = {
   'wizard.boxUserId.placeholder': 'e.g. 1234567890',
   'wizard.boxRootFolderId': 'Root folder ID',
   'wizard.boxRootFolderId.placeholder': 'Empty = All Files',
-  'wizard.review.boxUser': 'Box user',
   'wizard.dropboxAppKey': 'App key',
   'wizard.dropboxRootPath': 'Root folder path',
   'wizard.dropboxRootPath.placeholder': 'e.g. /Team Docs',
-  'wizard.browseDropboxFolders': 'Browse shared folders…',
-  'wizard.noDropboxSharedFolders': 'This account sees no shared folders.',
-  'wizard.dropboxUnmounted': 'not mounted — add it to your Dropbox first',
-  'wizard.review.wholeDropbox': 'the whole Dropbox',
   'wizard.proto.gmail.hint': 'Email from a Gmail mailbox (OAuth over IMAP)',
   'wizard.proto.googleCalendar.hint': 'Calendars from a Google account (OAuth over CalDAV)',
   'wizard.proto.googleContacts.hint': 'Contacts from a Google account (OAuth over CardDAV)',
@@ -649,23 +645,12 @@ const en = {
   'wizard.refreshToken.hint': 'The account’s delegated token; treat it as a password.',
   'wizard.rootFolderId': 'Root folder ID',
   'wizard.rootFolderId.placeholder': 'Empty = all of My Drive',
-  'wizard.review.myDrive': 'My Drive',
-  'wizard.targetPrefix': 'Target folder (optional)',
-  'wizard.targetPrefix.placeholder': 'Empty = merge into the account',
-  'wizard.targetPrefix.hint': 'Everything lands under this folder; empty merges into the account.',
-  'wizard.targetPrefix.why':
-    'Useful when several sources share one target and you want a subfolder per source, such as "Gmail". Empty is the default: one account, one place to work. Under a folder, Sent and Drafts arrive as ordinary folders inside it rather than becoming the account’s own Sent and Drafts; a mail app can only have one of each.',
-  'hub.completionReport': 'Download the completion report (Markdown)',
   'wizard.serviceAccountKey': 'Service account key',
   'wizard.serviceAccountKey.placeholder': 'Paste the whole JSON key file',
   'wizard.serviceAccountKey.width':
     'This key can read every user in the domain; revoke it at cutover.',
   'wizard.serviceAccountKey.why':
     'Domain-wide delegation can read any Workspace user, though each migration still names one account. Authorise only the scopes you need in the Admin console, and revoke the delegation at cutover.',
-  'wizard.browseSharedDrives': 'Browse shared drives & folders…',
-  'wizard.noSharedDrives': 'No shared drives or folders visible; an empty root migrates My Drive.',
-  'wizard.sharedDrivesGroup': 'Shared drives',
-  'wizard.sharedFoldersGroup': 'Folders shared with me',
   'wizard.nativePolicy': 'Google Docs, Sheets, Slides and Drawings',
   'wizard.nativePolicy.hint':
     'They have no file to copy, only a rendering Google makes.',
@@ -764,7 +749,7 @@ const en = {
     'Under a format a Paper doc arrives under a new name (Notes.paper.md), so it is new to the migration. The next pass copies each one, and the line recorded under its old name closes by itself, because the doc is no longer listed by it. A doc Dropbox does not offer in this format stays on the Failures screen once, saying so. Saving changes nothing by itself: the pass does it. Other documents Dropbox keeps in a format of its own stay behind.',
   // HOW OFTEN A MIGRATION SYNCS, changed on its own page (the owner,
   // 2026-09-28). The four cadences are the wizard's own words.
-  'settings.schedule': 'Sync schedule',
+  'settings.schedule': 'How often to look for changes',
   'settings.schedule.default': 'Now: every 15 minutes, because this migration has no schedule of its own.',
   'settings.schedule.own': 'Now: {schedule}, set outside this page.',
   // The first copy runs pass after pass whatever the schedule, and the
@@ -808,18 +793,6 @@ const en = {
     'The last data type still copying. To stop it, end the migration instead.',
   'settings.kinds.held.notRunning': 'This can be resumed once the migration runs again.',
   'settings.kinds.stop.failed': 'That did not change:',
-  'wizard.step.migration': 'Migration',
-  'wizard.testConnections.reused': 'Already saved; this only checks it still works.',
-  'wizard.connectionName': 'Name for this account',
-  'wizard.connectionName.taken':
-    'This name is already taken; it saves, but two alike are hard to tell apart.',
-  'wizard.testConnections.kept':
-    'The details were kept: correct them and try again, or return later under Accounts.',
-  'wizard.testConnections': 'Test and save connections',
-  'wizard.testing': 'Testing…',
-  'wizard.testConnections.hint': 'Signs in to both sides read-only and saves each side that works.',
-  'wizard.testConnections.why':
-    'It lists what it can see and writes nothing to either system. A side that works is saved as a connection, so leaving this wizard does not mean fetching those credentials again.',
   'wizard.proto.jmap.hint': 'Modern email protocol',
   'wizard.proto.caldav.hint': 'Calendar protocol',
   'wizard.proto.carddav.hint': 'Contact protocol',
@@ -829,21 +802,6 @@ const en = {
   // elsewhere should not have to discover that by ticking Email and
   // finding no writer behind it.
   'wizard.proto.nextcloud.hint': 'One account — calendars, contacts, files and tasks (no email)',
-  'wizard.title': 'Create Migration',
-  // The heading every step card opens with (workplan 0145 T3 (a)). It takes
-  // focus on Next and Back, so it is what a screen reader says for a new step.
-  'wizard.stepHeading': 'Step {n} of {total}: {step}',
-  'wizard.step.source': 'Source',
-  'wizard.step.target': 'Target',
-  // "Name & credentials", because the step LEADS with — and gates on — the
-  // migration name (0037 T5): a label saying only "Credentials" promised a
-  // different step than the one that renders.
-  'wizard.step.credentials': 'Name & credentials',
-  'wizard.step.dataTypes': 'Data Types',
-  'wizard.step.schedule': 'Schedule',
-  'wizard.step.review': 'Review',
-  'wizard.selectSource': 'Select Source System',
-  'wizard.selectTarget': 'Select Target System',
   'wizard.host': 'Host',
   'wizard.port': 'Port',
   // The DAV escape hatch (0105 T1) — see credential-fields.ts. It is the
@@ -852,7 +810,6 @@ const en = {
   // it is demanded, and the asterisk repeats that answer.
   'wizard.targetDavUrl': 'DAV base URL',
   'wizard.targetDavUrl.hint': 'Only when the server’s DAV root is not at the host root.',
-  'wizard.targetDavUrl.why': 'When filled in, this full URL is used and host and port are ignored.',
   // The SAME field on the Nextcloud door, where it is not an escape hatch:
   // the hint above talks about a host root, and that door has no host at all.
   'wizard.nextcloudDavUrl.hint':
@@ -868,10 +825,6 @@ const en = {
   // boxes, read when. They are measured by Test, never assumed.
   'wizard.providerDefaults.note':
     'Pre-filled from {provider}’s published settings, read {seen}. Test checks them.',
-  'wizard.useSsl': 'Use SSL/TLS',
-  'wizard.migrationName': 'Migration Name',
-  'wizard.migrationName.placeholder': 'For example: Anna’s mail',
-  'wizard.progress': 'Progress',
   'wizard.credentials': 'Credentials',
   // WHAT THE STAR MEANS, said once (2026-09-07). Eight labels used to carry
   // "(optional)" and the rest carried nothing, which read as "these eight are
@@ -891,15 +844,6 @@ const en = {
   'wizard.sourcePassword': 'Password',
   'wizard.targetUsername': 'Username',
   'wizard.targetPassword': 'Password',
-  'wizard.selectDataTypes': 'Select Data Types to Migrate',
-  'wizard.domain.email.hint': 'Email messages and folders',
-  'wizard.domain.calendar.hint': 'Events and appointments',
-  'wizard.domain.contact.hint': 'Address book entries',
-  'wizard.domain.file.hint': 'Attachments and documents',
-  'wizard.domain.task.hint': 'To-do lists and their tasks',
-  'wizard.schedule': 'Sync Schedule',
-  'wizard.scheduleHint':
-    'How often it repeats after the first copy, which starts when you press start and does not wait for this schedule.',
   'wizard.schedule.hourly': 'Hourly',
   'wizard.schedule.hourly.hint': 'Every hour',
   'wizard.schedule.daily': 'Daily',
@@ -908,40 +852,16 @@ const en = {
   'wizard.schedule.sixHourly.hint': 'Four times a day',
   'wizard.schedule.quarterHourly': 'Every 15 minutes',
   'wizard.schedule.quarterHourly.hint': 'Frequent sync',
-  'wizard.readyToCreate': 'Ready to create migration',
-  'wizard.reviewDetails': 'Migration Details',
-  'wizard.review.name': 'Name',
-  'wizard.review.source': 'Source',
-  'wizard.review.target': 'Target',
-  'wizard.review.schedule': 'Schedule',
-  'wizard.review.scheduleDefault': 'Daily at 2 AM',
-  'wizard.review.dataTypes': 'Data Types',
   'wizard.back': 'Back',
-  'wizard.cancel': 'Cancel',
   'wizard.next': 'Next',
-  'wizard.create': 'Create Migration',
-  'wizard.creating': 'Creating…',
   // Field-level honesty (0037 T3): the line beside a disabled Next names what
   // is missing instead of leaving a silently dead button.
   'wizard.missing.lead': 'To continue, fill in:',
-  'wizard.missing.dataTypes': 'select at least one data type',
-  'wizard.showPassword': 'Show password',
-  'wizard.hidePassword': 'Hide password',
-  'wizard.credentials.storage': 'Encrypted at rest, used only to connect, and never shown again.',
   // 0037 T6, answered 2026-08-10: oauth2/graph collect the per-customer
   // Entra app registration (ADR-0006's row-14 model).
   'wizard.tenantId': 'Tenant ID',
   'wizard.clientId': 'Client ID (application ID)',
   'wizard.sourceClientSecret': 'Client secret',
-  // 0037 T4: the coherence hint on an unselectable data type; the full
-  // refusal sentence comes from shared and renders verbatim.
-  'wizard.domain.notForTarget': 'Not available over the selected target protocol.',
-  // The account's own measured record on the domain step (0106 T3a). The
-  // full evidence sentence rides the hover title; unknown never locks.
-  'wizard.domain.measuredNo': 'This account cannot carry this; test it again if that changed.',
-  'wizard.domain.unmeasured': 'Not yet measured for this account; a test answers it.',
-  // 0037 T5: leaving a dirty wizard is a question, not a silent discard.
-  'wizard.leaveConfirm': 'Leave this wizard? Everything you typed here will be discarded.',
   'billing.title': 'Billing',
   'billing.subtitle': 'Manage your subscription, usage, and payments',
   'billing.currentUsage': 'Current Usage',
@@ -963,6 +883,41 @@ const en = {
   'billing.tierBeyondTable':
     'Past the published table — talk to us and we will price it properly.',
   'billing.noUsage': 'No usage data available yet',
+  // The data ceiling and the yes that moves it (workplan 0109 T6, ADR-0014's
+  // amendment of 2026-10-03): both ways on from 80%, with the break-even.
+  'billing.ceiling.title': 'Your data ceiling',
+  'billing.ceiling.moved': '{moved} of {ceiling} moved, on {tier}.',
+  'billing.ceiling.bands': 'That includes {count} extra band(s) bought.',
+  'billing.ceiling.under':
+    'From 80% of the ceiling, this card offers the two ways on: moving up, or another band once.',
+  'billing.ceiling.near':
+    'You have moved {share} of your data ceiling. At the ceiling, new items wait until you choose a way on; changes to what is already copied carry on.',
+  'billing.ceiling.reached':
+    'Your data ceiling is reached. New items wait until you choose a way on; changes to what is already copied carry on.',
+  'billing.ceiling.alpha':
+    'During the alpha nothing waits at the ceiling and nothing is charged, so there is nothing to agree to yet. The prices below are what the ways on cost after the alpha.',
+  'billing.ceiling.moveUp':
+    'Move up to {tier}: {setup} once, then {monthly} a month. Your ceiling becomes {ceiling}, and {paths} migrations can run at once.',
+  'billing.ceiling.moveUp.button': 'Move up to {tier}',
+  'billing.ceiling.talkToUs': 'There is no tier past {tier}. Talk to us and we will price it properly.',
+  'billing.ceiling.topUp':
+    'Or buy another {band} once, for {price}. Your ceiling becomes {ceiling}, and your monthly price stays the same.',
+  'billing.ceiling.topUp.button': 'Buy another {band}',
+  'billing.ceiling.noTopUp': '{tier} has no top-up: the way on is moving up.',
+  'billing.ceiling.breakEven':
+    'Topping up costs {extra} more once and saves {saved} a month, so it pays back in about {days} day(s).',
+  'billing.ceiling.breakEven.cheaper': 'Topping up costs no more once, and saves {saved} a month.',
+  'billing.ceiling.betterBuy':
+    'Moving up is the better buy when you need more migrations at once: {next} runs {nextPaths} at the same time, {tier} {paths}.',
+  'billing.ceiling.confirm.moveUp': 'You agree to pay {setup} once, then {monthly} a month, for {tier}.',
+  'billing.ceiling.confirm.topUp': 'You agree to pay {price} once for another {band}.',
+  'billing.ceiling.confirm.yes': 'Yes, I agree',
+  'billing.ceiling.confirm.no': 'Not now',
+  'billing.ceiling.done': 'Done: your data ceiling is now {ceiling}.',
+  'billing.ceiling.offerChanged':
+    'What is offered changed since this page was shown, so nothing was agreed. This is the offer now.',
+  'billing.ceiling.loadFailed': 'Your data ceiling could not be read',
+  'billing.ceiling.yesFailed': 'Your yes was not recorded:',
   'billing.invoices': 'Invoices',
   'billing.noInvoices': 'No invoices yet',
   'billing.invoice': 'Invoice',
@@ -989,6 +944,14 @@ const en = {
   'mappings.action.triggerSync': 'Trigger sync',
   'mappings.action.pause': 'Pause',
   'hub.connections': 'From {source} to {target}',
+  // Where the copies land (0153 open question 5, item 4).
+  'hub.lands.folder': 'The copies land in the folder {folder} of the destination.',
+  'hub.lands.merged': "The copies land in the destination's own folders.",
+  // WHERE ITS FILES START (0153 open question 5, item 4), said beside where
+  // the copies land.
+  'hub.filesFrom.all': 'Its files are read from all of {place}.',
+  'hub.filesFrom.path': 'Its files are read from {folder} only.',
+  'hub.filesFrom.id': 'Its files are read from one folder only: {folder}.',
   'hub.details': 'Details',
   'hub.migrationId': 'Migration ID:',
   'timeLeft.label': 'How long:',
@@ -997,6 +960,49 @@ const en = {
     'Within a day, because this mailbox holds less than the {ceiling} GB a day Google lets one download.',
   'timeLeft.notKnownYet': 'Depends on the provider; we will know after the first hour.',
   'timeLeft.filesLater': 'The files: we will know after the first hour.',
+  'timeLeft.copying.days': 'About {low} to {high} days more, from the last {n} passes.',
+  'timeLeft.copying.hours': 'About {low} to {high} hours more, from the last {n} passes.',
+  'timeLeft.copying.upToDays': 'Up to {high} days more, from the last {n} passes.',
+  'timeLeft.copying.upToHours': 'Up to {high} hours more, from the last {n} passes.',
+  'timeLeft.slowedBy': 'Slowed by {provider}.',
+  'timeLeft.afterThreePasses': 'We will know after three passes; {n} so far.',
+  'migrationReport.title': 'Report',
+  'migrationReport.person.title': 'Report: {name}',
+  'migrationReport.lead': 'What was found, what arrived, what could not come and why, and what the check compared.',
+  'migrationReport.loadFailed': 'Could not read this report.',
+  'migrationReport.verdict.complete': 'Complete: everything has arrived, and nothing waits on a decision.',
+  'migrationReport.verdict.decisionsPending': 'Everything has arrived, but some items still wait on a decision.',
+  'migrationReport.verdict.inProgress': 'Still under way: this is where it stands, not a closing report.',
+  'migrationReport.arrived.heading': 'What arrived',
+  'migrationReport.col.type': 'Type',
+  'migrationReport.col.found': 'Found',
+  'migrationReport.col.arrived': 'Arrived',
+  'migrationReport.col.leftAsIs': 'Left as it was',
+  'migrationReport.col.couldNotCome': 'Could not come',
+  'migrationReport.notCounted': 'not counted',
+  'migrationReport.why': 'Why:',
+  'migrationReport.seeWhich': 'See which, and why',
+  'migrationReport.notPart': 'Not part of this migration: {types}.',
+  'migrationReport.decisions.heading': 'What waits on a decision',
+  'migrationReport.decisions.none': 'Nothing waits on a decision.',
+  'migrationReport.removed.heading': 'What was removed, and on whose decision',
+  'migrationReport.removed.counts':
+    '{deletions} removed on a decision, {relocations} old copies of moved items removed, {refused} refused by a safeguard.',
+  'migrationReport.removed.inTheLog': 'Each removal is in the log, and was made only on a decision.',
+  'migrationReport.sharing.heading': 'Access carried over',
+  'migrationReport.sharing.counts': '{applied} re-created, {manual} done by hand, {skipped} not carried over, {open} still open.',
+  'migrationReport.check.heading': 'What the check compared',
+  'migrationReport.check.col.old': 'On the old system',
+  'migrationReport.check.col.new': 'On the new',
+  'migrationReport.check.col.contents': 'Contents compared',
+  'migrationReport.check.compared': '{matched} of {sampled} the same',
+  'migrationReport.access.heading': 'Access you granted, which only you can withdraw',
+  'migrationReport.access.lead': 'It still works after this migration, until you remove it. We cannot do this for you.',
+  'migrationReport.asOf': 'As it stood on {when}.',
+  'migrationReport.download': 'Download the report',
+  'migrationReport.toConfirmed': 'What is confirmed, item by item',
+  'migrationReport.open': 'The report',
+  'confirmed.toReport': 'What happened: the report',
   'mappings.action.pause.why':
     'No new passes are started. A pass already running stops starting new items within about fifteen seconds, and finishes the ones it has begun; a very large file can take longer. Nothing is lost: Review and start continues from where it stopped.',
   'mappings.action.startSync': 'Start sync',
@@ -1043,6 +1049,12 @@ const en = {
   'receipt.failedPrefix': 'The removal job failed:',
   'lifecycle.paused':
     'This migration has not started, so nothing has been copied and nothing can have diverged.',
+  // *Rename* beside a migration's title (0153 open question 5, item 4).
+  'hub.rename': 'Rename',
+  'hub.rename.label': 'Name of this migration',
+  'hub.rename.save': 'Save',
+  'hub.rename.saving': 'Saving…',
+  'hub.rename.failed': 'Not renamed:',
   'hub.fallbackTitle': 'Migration',
   'hub.orderIntro': 'Work them from the top, in this order.',
   'hub.noId': 'No mapping id in the address.',
@@ -1529,6 +1541,9 @@ const en = {
   // *18,234 of ~19,000 · last pass 2 minutes ago*. *Pass* is the
   // glossary's word for a round of copying; *the check* is the verification,
   // as the menu's *Check* names it, and the two are kept apart.
+  // An export's line before it starts (0153 open question 5, item 2).
+  'people.line.waitsForExport': 'Waiting for the Takeout export',
+  'people.line.howToExport': 'how to make one',
   'people.line.lastPass': 'last pass {when}',
   // What the count leaves out, short: its meaning is on the migration's page.
   'people.line.leftAsIs': '{count} left as they are',
@@ -1563,21 +1578,39 @@ const en = {
   'start.from.otherMail': 'Another mail provider',
   'start.from.otherMail.inSentence': 'another mail provider',
   'start.from.needOne': 'Tick at least one account.',
-  'start.from.archive': 'An export archive (Takeout, Apple)',
-  'start.from.other': 'Other ways to connect (IMAP, CalDAV, CardDAV, WebDAV, JMAP)',
-  'start.from.other.line': 'A server is added by its protocol, one migration at a time.',
-  'start.byHand': 'Add one migration by hand',
+  // OTHER WAYS TO CONNECT, without the wizard (0153 open question 5): IMAP
+  // is the one source protocol; CalDAV, CardDAV, WebDAV and JMAP are where
+  // things go, and this fold promised them as sources.
+  'start.from.other': 'Other ways to connect (IMAP)',
+  'start.from.other.line':
+    'Any mail server is read over IMAP: that is Another mail provider. CalDAV, CardDAV, WebDAV and JMAP are where things go, chosen on Where does it go?',
+  'start.from.other.choose': 'Choose Another mail provider',
   'start.what.heading': 'What moves?',
   'start.what.hint': 'Each sign-in asks only for what you tick here.',
   'start.what.from': 'From {provider}',
   'start.what.notFrom': 'Not from {provider}: {types}.',
   'start.what.notFrom.apple.why': 'Apple offers no way into iCloud Drive for anyone outside Apple.',
   'start.what.notFrom.imap.why':
-    "A mail provider's calendar and contacts come over CalDAV and CardDAV, where it offers them. Add those by hand.",
+    "Over IMAP only mail is read: a mail provider's calendar and contacts have no way in here yet.",
   'start.what.needOne': 'Tick at least one thing to move.',
+  // WHERE A MIGRATION'S FILES START (0153 open question 5, item 4): under
+  // Files, all of the account or one folder, chosen once the account is
+  // connected, when its folders can be listed.
+  'start.what.files.legend': 'Which files',
+  'start.what.files.all': 'All of {place}',
+  'start.what.files.one': 'Only one folder',
+  'start.what.files.one.line': 'You choose it once the account is connected.',
+  'start.place.myDrive': 'My Drive',
   'start.what.photos': 'Photos',
-  'start.what.photos.line': 'Through an export archive, which you add once it is in your new files.',
-  'start.what.photos.ask': 'Ask for it at {export}',
+  // A PROVIDER'S EXPORT UNDER ITS TILE (0153 open question 5, item 2): a tick
+  // box where this build reads it, a line where it does not (0148 D7).
+  'start.what.export.google-takeout': 'Photos: from a Takeout export',
+  'start.what.export.apple-privacy': "iCloud Drive and photos: from Apple's export",
+  'start.what.export.google-takeout.line':
+    'You ask Google for the export yourself, and put it in your new files when it arrives.',
+  'start.what.export.google-takeout.why':
+    'Google lets other apps read only the photos they uploaded themselves, so its export is the one way to a whole library.',
+  'start.what.export.askNow': 'It can take a few days to prepare, so ask for it now:',
   'start.connect.heading': 'Connect your accounts',
   'start.connect.googleApart': 'Google asks for mail and files apart on this service, so this takes {n} sign-ins.',
   'start.connect.asks': 'One sign-in: {types}',
@@ -1594,6 +1627,21 @@ const en = {
   'start.connect.theirAddress': 'Their address at {provider}',
   'start.connect.saveAddress': 'Save the address',
   'start.connect.addressNeeded': 'Type their address first.',
+  'start.connect.exportNoSignIn': 'Photos need no sign-in: they come from the Takeout export.',
+  'start.connect.folder.id': 'Which folder: its link or ID',
+  'start.connect.folder.path': 'Which folder: its path',
+  'start.connect.folder.google.hint': 'Open the folder in Google Drive and copy its address.',
+  'start.connect.folder.box.hint': 'Open the folder in Box and copy its address.',
+  'start.connect.folder.dropbox.hint': 'As Dropbox shows it, from the top folder: /Holiday/2019.',
+  'start.connect.folder.browse.google': 'Show shared drives and shared folders',
+  'start.connect.folder.browse.dropbox': 'Show shared folders',
+  'start.connect.folder.found': 'Shared with this account',
+  'start.connect.folder.drive': 'shared drive',
+  'start.connect.folder.from': 'from {owner}',
+  'start.connect.folder.notAdded': 'not added to this Dropbox, so it cannot be chosen',
+  'start.connect.folder.none': 'Nothing is shared with this account: type the folder above.',
+  'start.connect.folder.refused': 'The list could not be read:',
+  'start.connect.needFolder': 'Say which folder, where only one folder moves.',
   'start.accountsFailed': 'Your saved accounts could not be read. A new account still works.',
   'start.to.row': 'Where {type} goes',
   'start.to.yours': 'Your accounts',
@@ -1603,6 +1651,13 @@ const en = {
   'start.to.needAll': 'Add each new account first.',
   'start.to.settingUp': 'Setting up…',
   'start.to.failed': 'Not set up: {migration}.',
+  'start.to.exportFolder': 'Read from the folder {folder} in these files, once the export is put there.',
+  // WHERE THE COPIES LAND, per migration (0153 open question 5, item 4).
+  'start.to.lands': 'Where the copies land',
+  'start.to.ownFolder': 'Put it in a folder of its own',
+  'start.to.ownFolder.label': 'Folder',
+  'start.to.ownFolder.hint': "Left empty, the copies go into the account's own folders.",
+  'start.to.ownFolder.shared': 'Another migration sends the same kind of data here, so each gets a folder of its own.',
   'start.migrationName': '{person} — {provider} to {destination}',
   'start.check.intro': 'Set up and paused: nothing is copied before Start.',
   'start.check.route': '{types}: {from} → {to}',
@@ -1613,11 +1668,24 @@ const en = {
   'start.check.waitsForLink': 'Its count appears here once {person} has connected through the link above.',
   'start.check.startsWhenGranted': 'Once you have started the others, it starts by itself when {person} connects.',
   'start.check.waitsForACount': 'You can start once {person} has connected and a count is in.',
+  // AN EXPORT'S MIGRATION, SET UP AND WAITING (0153 open question 5, item 2).
+  'start.check.export.waits': 'Set up, and waiting for the Takeout export:',
+  'start.check.export.ask': 'Ask Google for it, with only Google Photos ticked:',
+  'start.check.export.put':
+    'When it arrives, put its .zip files, as Google sends them, in the folder {folder} of {destination}.',
+  'start.check.export.start': 'Then start it on its page, with Review and start: it counts the export first.',
+  'start.check.export.guide': 'Asking for a Takeout, step by step',
+  'start.check.done': 'Done',
   'start.check.later':
     "You can close this page. {person}'s page keeps these migrations: once they have connected, start each one from its Details.",
   'start.company.question': 'Is this a company account with an administrator?',
   'start.company.no': 'No',
   'start.company.yes': 'Yes',
+  'start.what.orgApp.lead':
+    "Your administrator can have the mail read through your organisation's own app, with application permissions. That is also how a shared mailbox is read.",
+  'start.what.orgApp.signIn': 'With the Microsoft sign-in',
+  'start.what.orgApp.graph': 'Through our own app, with Microsoft Graph',
+  'start.what.orgApp.imap': 'Through our own app, with IMAP',
   'start.moreOptions': 'More options',
   'start.appPassword': 'Use an app password instead',
   'start.serverSettings': 'Server settings',
@@ -1669,8 +1737,6 @@ const en = {
   'person.step.confirmed.done': 'Ready to read',
   'person.step.finish.notYet': 'Switch mail delivery, then end',
   'person.step.finish.done': 'Finished',
-  'createMapping.createFailed':
-    'Not created; your entries are still here, so fix what the message names and retry.',
   'billing.usageLoadFailed': 'Could not load the usage numbers.',
   'billing.pay': 'Pay',
   'billing.payFailed': 'The payment could not be started.',
@@ -2092,6 +2158,23 @@ const en = {
     '{provider} reached its daily download limit. Copying continues when that resets.',
   'pause.ceiling.why':
     'The limit belongs to your old provider, not to us. Passing it can lock you out of your own live mailbox for about a day, so copying stops before that happens. Nothing has failed and nothing is lost — the next pass carries on from exactly where this one stopped.',
+  // The data ceiling (workplan 0109 T6): new first copies wait for the
+  // customer's yes; updates carry on. Said with both prices (ADR-0014).
+  // The ceiling said at Start (workplan 0109 T6): the preflight's measure and
+  // the data already moved, against the ceiling. A note; it never blocks.
+  'ceiling.atStart':
+    'What these migrations hold, about {size}, and the {moved} already moved pass your data ceiling of {ceiling}.',
+  'ceiling.atStart.holds':
+    'At the ceiling, new items wait until you choose a way on; changes to what is already copied carry on.',
+  'ceiling.atStart.choose': 'Choose now, or start anyway and choose when they wait:',
+  'ceiling.atStart.billing': 'your data ceiling on the Billing page',
+  'ceiling.atStart.alpha': 'During the alpha nothing waits at the ceiling and nothing is charged.',
+  'pause.dataCeiling':
+    'New items wait at your data ceiling of {ceiling}: {held} not copied yet. Changes to what is already copied carry on.',
+  'pause.dataCeiling.moveUp': 'Move up to {tier}: €{setup} once, then €{monthly} a month.',
+  'pause.dataCeiling.topUp': 'Or buy another {band} once, for €{price}.',
+  'pause.dataCeiling.why':
+    'Every step up is your choice: nothing moves your tier or adds room without your yes. Choose on the Billing page, and copying carries on from where it stopped.',
   'pause.hold.heading': 'Copying is paused',
   // The DEFAULT sentence: always present, so a hold is never wordless when
   // nobody typed one. An operator's own words replace it, verbatim.
@@ -2557,46 +2640,6 @@ const en = {
   'nav.help': 'Help',
   'nav.needsYou.count.one': '1 waiting on you',
   'nav.needsYou.count.many': '{n} waiting on you',
-  'wizard.reuseSource': 'Reuse a saved source connection',
-  'wizard.reuseTarget': 'Reuse a saved target connection',
-  'wizard.reuseNone': 'Enter new credentials',
-  'wizard.reuse.hint': 'Reuses its saved credentials; the fields below disappear.',
-  // What a source type IS, one line after the card is picked, and the rest under More (0118 T1).
-  'wizard.about.o365': 'Uses an Entra app registration in your own tenant.',
-  'wizard.about.o365.more':
-    'Enter its tenant ID, client ID and client secret below, with the mailbox address. Register the app and grant admin consent in your own tenant first; the checklist below has the steps.',
-  'wizard.about.googleDrive': 'Uses your own Google OAuth client and a read-only token.',
-  'wizard.about.googleDrive.more':
-    'The token cannot write to the Drive. Google Docs, Sheets, Slides and Drawings have no file to copy until you choose a format for each kind; until then each one is reported by name, with the reason. The setup guide walks through all three values, and the Test and save connections button checks them against Google before anything is copied.',
-  // Where the deployment carries the provider's app (0148 T2 (a)): one line per
-  // provider, and the fold keeps only what is particular to the card.
-  'wizard.about.deploymentApp.google':
-    'Uses this service’s own Google app: press Connect with Google and approve at Google.',
-  'wizard.about.deploymentApp.dropbox':
-    'Uses this service’s own Dropbox app: press Connect with Dropbox and approve at Dropbox.',
-  'wizard.about.deploymentApp.googleDrive.more':
-    'Google Docs, Sheets, Slides and Drawings have no file to copy until you choose a format for each kind; until then each one is reported by name, with the reason.',
-  'wizard.about.dropbox': 'Uses your own read-only Dropbox app.',
-  'wizard.about.dropbox.more':
-    'Create it read-only: files.metadata.read and files.content.read, plus sharing.read if you want the shared-folder browse. The App key goes here; below it, the App secret goes in the client-secret field and the refresh token beside it.',
-  'wizard.about.box': 'Uses your own Box platform app, authorised once by a Box admin.',
-  'wizard.about.box.more':
-    'It authenticates with the Client Credentials Grant, so there is no refresh token: Box rotates refresh tokens on every use. The Client ID goes here with the numeric user id being migrated; the client secret goes below them. A Box admin authorises the app once under Admin Console → Apps → Custom Apps Manager.',
-  'wizard.about.gmail': 'Uses your own Google OAuth client; the token needs the mail scope.',
-  'wizard.about.gmail.more':
-    'The same client a Google Drive source uses, but its refresh token must be consented with https://mail.google.com/, the only scope Google accepts for IMAP. A token consented for Drive will not work here.',
-  'wizard.about.googleDav':
-    'Uses your own Google OAuth client; the token needs this product’s scope.',
-  'wizard.about.googleDav.more':
-    'The same client the other Google sources use, but the refresh token must be consented with https://www.googleapis.com/auth/calendar for Calendar or https://www.googleapis.com/auth/carddav for Contacts. A token consented for another Google product will not work here.',
-  'wizard.about.apple':
-    'Signs in with an app-specific password; iCloud Drive files cannot be migrated.',
-  'wizard.about.apple.more':
-    'Apple offers no consent screen for its own data, so you make an app-specific password instead, which takes a minute and can be revoked at any time. Nobody can migrate iCloud Drive files: Apple publishes no API for them.',
-  'wizard.about.archive':
-    'Photos land in folders named after your albums; a later export only adds.',
-  'wizard.about.archive.more':
-    'Connecting it shows what it holds: how many items, how many bytes, which albums, and the dates it covers. Each album is copied once, with one file listing everything Google knew about each photo. An archive is a snapshot of the day it was prepared, so a later export only adds; nothing is ever removed because an export no longer mentions it.',
   'connections.delete': 'Delete',
   'connections.rotate': 'Replace credentials',
   // The same panel, named for what it does on a row whose kind has a consent
@@ -2755,26 +2798,17 @@ const en = {
   'connections.removed.none': 'No credential was stored for it.',
   // Filled in, but not usable — distinct from "still needed" (0072).
   'connections.invalidValues.lead': 'These values cannot be used as they are:',
-  // The duplicate-migration refusal (workplan 0071 T6, owner decision
-  // 2026-08-18). Two mappings between the same two accounts, into the same
-  // place, copy every item twice — so the pair may only repeat under a
-  // different target folder, and this says which existing one is in the way.
-  'createMapping.duplicate.lead': 'You already have a migration between these two accounts:',
-  'createMapping.duplicate.why':
-    'Two migrations copying the same items into the same place would put everything on the target twice. Give this one a different target folder, or open the existing migration.',
-  'createMapping.duplicate.open': 'Open the existing migration',
   // ---- Provider setup checklist (workplan 0061) ----
   'setup.title': 'Provider setup',
   'setup.intro':
     'Steps to take in the provider’s console; ticks are saved for your whole organisation.',
-  'setup.backToWizard': '← Back to the wizard',
   'setup.backToConnections': '← Back to accounts',
   'setup.fullGuide': 'Read the full setup guide',
   'setup.settled': 'settled',
   'setup.stillOpen': 'still to do',
   'setup.waitingOnOthers': 'waiting on an administrator',
-  'setup.allDone': 'Everything is settled; complete the wizard.',
-  'setup.nothingToDo': 'Nothing to set up in advance; go straight to the wizard.',
+  'setup.allDone': 'Everything is settled; you can connect the account now.',
+  'setup.nothingToDo': 'Nothing to set up in advance; you can connect the account straight away.',
   // Every step was about one's own app, and this service has its own (0148 T2 (b)).
   'setup.deploymentApp':
     'Nothing to create: this service has its own {provider} app. Press Connect with {provider}.',
@@ -2803,7 +2837,6 @@ const en = {
   'setup.needsAnotherPerson': 'needs an administrator',
   'setup.needsAnotherPerson.hint':
     'Needs admin rights; usually the step you wait on.',
-  'setup.openChecklist': 'Open the setup checklist',
   'setup.box.create_app.title': 'Create a Box platform app',
   'setup.box.create_app.detail':
     'Box Developer Console → Create Platform App → Custom App, and choose Client Credentials Grant (Server Authentication).',
@@ -2830,7 +2863,7 @@ const en = {
   // each line is true with or without the button (0148 T2 (b)).
   'setup.dropbox.redirect_uri.title': 'Using the button? Register its redirect address',
   'setup.dropbox.redirect_uri.detail':
-    'Only for Connect with Dropbox in the wizard: under the button it shows an address. Add that exact address in the Dropbox App Console under OAuth 2 → Redirect URIs, then press the button again. Without the button, skip this step.',
+    'Only for Connect with Dropbox with your own app: under the button the form shows an address. Add that exact address in the Dropbox App Console under OAuth 2 → Redirect URIs, then press the button again. Without the button, skip this step.',
   'setup.dropbox.consent.title': 'Have the account owner consent once',
   'setup.dropbox.consent.detail':
     'Connect with Dropbox does this step and the next when the account owner presses it. Without the button, send the person whose Dropbox is being migrated through the authorisation URL for this app, with token_access_type=offline so Dropbox returns a refresh token.',
@@ -2892,7 +2925,7 @@ const en = {
   'setup.webdav.base_url.title': 'Note the WebDAV address',
   'setup.webdav.base_url.detail':
     'The server\u2019s WebDAV base URL for that account — Nextcloud shows it at the bottom of the Files settings page.',
-  'setup.webdav.base_url.yields': 'the host, port and path to put in the wizard.',
+  'setup.webdav.base_url.yields': 'the host, port and path to put in the form.',
   'setup.jmap.account_exists.title': 'Make sure the destination account exists',
   'setup.jmap.account_exists.detail':
     'Create the mailbox on the JMAP server first, with enough quota. Nothing here creates accounts.',
@@ -2920,7 +2953,7 @@ const en = {
   'setup.nextcloud.app_password.title': 'Create an app password',
   'setup.nextcloud.app_password.detail':
     'In Nextcloud: Settings → Security → Devices & sessions. Type a name under App name, such as Migration, press Create new app password and copy the password. Use it rather than the account’s own password: it can be revoked without changing yours.',
-  'setup.nextcloud.app_password.yields': 'an app password, for the wizard’s Password box.',
+  'setup.nextcloud.app_password.yields': 'an app password, for the form’s Password box.',
   'setup.nextcloud.dav_url.title': 'Note the address with /remote.php/dav',
   'setup.nextcloud.dav_url.detail':
     'The address you open Nextcloud at, with /remote.php/dav on the end, such as https://cloud.example.com/remote.php/dav. It goes in DAV base URL; there is no box for a host or a port. Nextcloud shows its WebDAV address at the bottom of the Files settings page: the name after /remote.php/dav/files/ is the user name to type.',
@@ -2934,7 +2967,7 @@ const en = {
   'setup.soverin.password.yields': 'the email address, and the password or an app password.',
   'setup.soverin.mail_server.title': 'Mail moving too? Keep the mail server',
   'setup.soverin.mail_server.detail':
-    'The wizard fills in Mail server, imap.soverin.net, and Mail port, 993, from Soverin’s published settings. If mail moves, leave Mail server filled in: a connection saved without it carries no mail. Calendars and contacts need no mail server.',
+    'The form fills in Mail server, imap.soverin.net, and Mail port, 993, from Soverin’s published settings. If mail moves, leave Mail server filled in: an account saved without it carries no mail. Calendars and contacts need no mail server.',
   // ---- Asking for access (workplan 0093) ----
   'access.title': 'Request access',
   'access.intro': 'Invite-only for now: tell us what you want to move, and we will email you.',
@@ -2956,9 +2989,14 @@ const en = {
   'access.failed': 'We could not send that:',
   'access.failedFallback': 'the request did not complete.',
   // Privacy §4.4's two purposes, decided and answered (0139 T4,
-  // ops-app-sentences (a); it said "only to answer you" until then).
+  // ops-app-sentences (a); it said "only to answer you" until then), and
+  // since 2026-10-03 privacy §9's period for a request, in short sentences:
+  // open, declined, granted. The links to the policy and, during the alpha,
+  // the conditions follow it under the form.
   'access.privacy':
-    'We keep what you type to decide on your request and to answer you; asking creates no account.',
+    'We keep what you type to decide on your request and to answer you; asking creates no account. ' +
+    'We keep it while your request is open. If we decline it, we delete it 30 days after our decision. ' +
+    'If we grant it, it stays with your account and is erased with it.',
   'access.backToSignIn': 'Already have an account? Sign in',
 } as const;
 
@@ -3039,6 +3077,7 @@ const nl: Record<keyof typeof en, string> = {
   'report.reference': 'de referentie op uw scherm: {reference}',
   'report.category': 'het soort fout: {category}',
   'report.replyTo': 'Antwoorden gaan naar {email}.',
+  'report.privacy': 'Waarom we uw melding bewaren, en hoelang:',
   'report.browser.language': 'de taal van dit scherm: Nederlands',
   'report.browser.timeZone': 'uw tijdzone: {timeZone}',
   'report.browser.width': 'de breedte van dit venster: {width} pixels',
@@ -3481,6 +3520,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.consent.windowBlocked':
     'Uw browser heeft de pagina van {provider} niet geopend. Open die met deze link:',
   'wizard.consent.windowExpired': 'De link naar de pagina van {provider} is verlopen. Druk opnieuw op {button}.',
+  'wizard.consent.legal': 'Wat we met uw gegevens doen, en onder welke voorwaarden:',
   'wizard.google.deploymentClient':
     'Deze installatie heeft een eigen Google-client; vul beide in om uw eigen te gebruiken.',
   'wizard.google.connect.halfClient':
@@ -3568,10 +3608,6 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.proto.oauth2.hint': 'IMAP met XOAUTH2, met Graph-terugval erachter (appregistratie)',
   'wizard.proto.graph.hint': 'Alleen de Graph-API (appregistratie)',
   'wizard.proto.google.hint': 'Eén Google-account, één aanmelding: agenda’s, contacten en taken.',
-  // Dezelfde kaart waar de EIGEN Google-applicatie van deze omgeving de
-  // restricted scopes draagt — zie het Engelse blok.
-  'wizard.proto.google.hint.restricted':
-    'Eén Google-account, één aanmelding: e-mail, agenda’s, contacten, bestanden en taken.',
   'wizard.proto.googleDrive.hint': 'Bestanden uit een Google Drive (alleen-lezen OAuth)',
   'wizard.proto.dropbox.hint': 'Bestanden uit een Dropbox (alleen-lezen OAuth-app)',
   'wizard.proto.box.hint': 'Bestanden uit een Box-account (alleen-lezen platform-app)',
@@ -3579,14 +3615,9 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.boxUserId.placeholder': 'bijv. 1234567890',
   'wizard.boxRootFolderId': 'ID van de hoofdmap',
   'wizard.boxRootFolderId.placeholder': 'Leeg = All Files',
-  'wizard.review.boxUser': 'Box-gebruiker',
   'wizard.dropboxAppKey': 'App-sleutel',
   'wizard.dropboxRootPath': 'Pad van de hoofdmap',
   'wizard.dropboxRootPath.placeholder': 'bijv. /Team Docs',
-  'wizard.browseDropboxFolders': 'Gedeelde mappen bekijken…',
-  'wizard.noDropboxSharedFolders': 'Dit account ziet geen gedeelde mappen.',
-  'wizard.dropboxUnmounted': 'niet gekoppeld — voeg deze eerst toe aan uw Dropbox',
-  'wizard.review.wholeDropbox': 'de hele Dropbox',
   'wizard.proto.gmail.hint': 'E-mail uit een Gmail-postvak (OAuth via IMAP)',
   'wizard.proto.googleCalendar.hint': "Agenda's uit een Google-account (OAuth via CalDAV)",
   'wizard.proto.googleContacts.hint': 'Contacten uit een Google-account (OAuth via CardDAV)',
@@ -3600,12 +3631,6 @@ const nl: Record<keyof typeof en, string> = {
     'Het gedelegeerde token van het account; behandel het als een wachtwoord.',
   'wizard.rootFolderId': 'Hoofdmap-ID',
   'wizard.rootFolderId.placeholder': 'Leeg = heel Mijn Drive',
-  'wizard.review.myDrive': 'Mijn Drive',
-  'wizard.targetPrefix': 'Doelmap (optioneel)',
-  'wizard.targetPrefix.placeholder': 'Leeg = samenvoegen in het account',
-  'wizard.targetPrefix.hint': 'Alles komt onder deze map terecht; leeg voegt samen in het account.',
-  'wizard.targetPrefix.why':
-    'Handig wanneer meerdere bronnen één doel delen en u per bron een submap wilt, zoals "Gmail". Leeg is de standaard: één account, één plek om te werken. Onder een map komen Verzonden en Concepten als gewone mappen daarbinnen terecht, in plaats van de Verzonden en Concepten van het account zelf te worden; een mailprogramma kan er maar één van elk hebben.',
   'settings.exportPolicy': 'Exportformaat voor Google-bestanden',
   'settings.exportPolicy.save': 'Dit formaat opslaan',
   'settings.exportPolicy.saving': 'Opslaan…',
@@ -3634,7 +3659,7 @@ const nl: Record<keyof typeof en, string> = {
     'De volgende ronde probeert {count} Paper-document(en) die tot nu toe bleven staan opnieuw, in dit formaat.',
   'settings.exportPolicy.paper.refusedBefore.why':
     'Onder een formaat komt een Paper-document aan onder een nieuwe naam (Notities.paper.md), dus het is nieuw voor de migratie. De volgende ronde kopieert elk document, en de regel die onder de oude naam is vastgelegd, sluit vanzelf, omdat het document niet meer onder die naam voorkomt. Een document dat Dropbox niet in dit formaat aanbiedt, staat één keer bij Mislukkingen, met die reden. Opslaan verandert zelf niets: de ronde doet het. Andere documenten die Dropbox in een eigen formaat bewaart, blijven staan.',
-  'settings.schedule': 'Synchronisatieschema',
+  'settings.schedule': 'Hoe vaak naar wijzigingen kijken',
   'settings.schedule.default': 'Nu: elk kwartier, omdat deze migratie geen eigen schema heeft.',
   'settings.schedule.own': 'Nu: {schedule}, buiten deze pagina ingesteld.',
   'settings.schedule.hint': 'Rondes lopen direct na elkaar tot de eerste kopie klaar is.',
@@ -3669,18 +3694,12 @@ const nl: Record<keyof typeof en, string> = {
     'Het laatste gegevenstype dat nog kopieert. Wilt u het stoppen, beëindig dan de migratie.',
   'settings.kinds.held.notRunning': 'Dit kan worden hervat zodra de migratie weer loopt.',
   'settings.kinds.stop.failed': 'Dat is niet gewijzigd:',
-  'hub.completionReport': 'Download het opleveringsrapport (Markdown)',
   'wizard.serviceAccountKey': 'Serviceaccount-sleutel',
   'wizard.serviceAccountKey.placeholder': 'Plak het volledige JSON-sleutelbestand',
   'wizard.serviceAccountKey.width':
     'Deze sleutel kan elke gebruiker in het domein lezen; trek hem bij de overstap in.',
   'wizard.serviceAccountKey.why':
     'Domeinbrede delegatie kan elke Workspace-gebruiker lezen, al benoemt elke migratie nog steeds één account. Autoriseer alleen de benodigde scopes in de Admin-console en trek de delegatie bij de overstap weer in.',
-  'wizard.browseSharedDrives': 'Gedeelde Drives en mappen bekijken…',
-  'wizard.noSharedDrives':
-    'Geen gedeelde Drives of mappen zichtbaar; een lege hoofdmap migreert Mijn Drive.',
-  'wizard.sharedDrivesGroup': 'Gedeelde Drives',
-  'wizard.sharedFoldersGroup': 'Met mij gedeelde mappen',
   'wizard.nativePolicy': 'Google Documenten, Spreadsheets, Presentaties en Tekeningen',
   'wizard.nativePolicy.hint':
     'Hiervan is geen bestand te kopiëren, alleen een weergave van Google.',
@@ -3715,19 +3734,6 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.paperFormat.arrives': 'Elk Paper-document komt aan als {ext}-bestand dat u kunt bewerken.',
   'wizard.paperFormat.arrives.why':
     'Een export is een weergave die Dropbox maakt, niet het Paper-document zelf: fijne opmaak kan verschuiven, en wat u op het nieuwe systeem wijzigt, gaat niet terug naar Dropbox. U kunt het formaat later wijzigen; al gekopieerde documenten houden het formaat waarin ze aankwamen.',
-  'wizard.step.migration': 'Migratie',
-  'wizard.testConnections.reused': 'Al bewaard; dit controleert alleen of hij nog werkt.',
-  'wizard.connectionName': 'Naam voor dit account',
-  'wizard.connectionName.taken':
-    'Deze naam bestaat al; hij wordt bewaard, maar twee gelijke namen zijn lastig te onderscheiden.',
-  'wizard.testConnections.kept':
-    'De gegevens zijn bewaard: corrigeer ze en probeer opnieuw, of kom later terug via Accounts.',
-  'wizard.testConnections': 'Verbindingen testen en bewaren',
-  'wizard.testing': 'Testen…',
-  'wizard.testConnections.hint':
-    'Meldt zich alleen-lezen aan beide kanten aan; werkende kanten worden bewaard.',
-  'wizard.testConnections.why':
-    'Het toont wat zichtbaar is en schrijft niets naar beide systemen. Een kant die werkt wordt als verbinding bewaard, zodat u die inloggegevens niet opnieuw hoeft op te halen als u de wizard verlaat.',
   'wizard.proto.jmap.hint': 'Modern e-mailprotocol',
   'wizard.proto.caldav.hint': 'Agendaprotocol',
   'wizard.proto.carddav.hint': 'Contactenprotocol',
@@ -3735,22 +3741,10 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.proto.soverin.hint': 'Eén account — e-mail, agenda’s en contacten',
   'wizard.proto.nextcloud.hint':
     'Eén account — agenda’s, contacten, bestanden en taken (geen e-mail)',
-  'wizard.title': 'Migratie aanmaken',
-  'wizard.stepHeading': 'Stap {n} van {total}: {step}',
-  'wizard.step.source': 'Bron',
-  'wizard.step.target': 'Doel',
-  'wizard.step.credentials': 'Naam & inloggegevens',
-  'wizard.step.dataTypes': 'Gegevenstypen',
-  'wizard.step.schedule': 'Schema',
-  'wizard.step.review': 'Controleren',
-  'wizard.selectSource': 'Kies het bronsysteem',
-  'wizard.selectTarget': 'Kies het doelsysteem',
   'wizard.host': 'Host',
   'wizard.port': 'Poort',
   'wizard.targetDavUrl': 'DAV-basis-URL',
   'wizard.targetDavUrl.hint': 'Alleen wanneer de DAV-root van de server niet op de hostroot staat.',
-  'wizard.targetDavUrl.why':
-    'Indien ingevuld wordt deze volledige URL gebruikt en worden host en poort genegeerd.',
   'wizard.nextcloudDavUrl.hint':
     'Het adres waarop u Nextcloud opent, met /remote.php/dav erachter.',
   'wizard.nextcloudDavUrl.why':
@@ -3762,25 +3756,12 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.soverinMailPort': 'Mailpoort',
   'wizard.providerDefaults.note':
     'Vooraf ingevuld met de gepubliceerde instellingen van {provider}, gelezen op {seen}. Test controleert ze.',
-  'wizard.useSsl': 'SSL/TLS gebruiken',
-  'wizard.migrationName': 'Naam van de migratie',
-  'wizard.migrationName.placeholder': 'Bijvoorbeeld: mail van Anna',
-  'wizard.progress': 'Voortgang',
   'wizard.credentials': 'Inloggegevens',
   'form.requiredLegend': 'Velden met * zijn verplicht.',
   'wizard.sourceUsername': 'Gebruikersnaam',
   'wizard.sourcePassword': 'Wachtwoord',
   'wizard.targetUsername': 'Gebruikersnaam',
   'wizard.targetPassword': 'Wachtwoord',
-  'wizard.selectDataTypes': 'Kies de te migreren gegevenstypen',
-  'wizard.domain.email.hint': 'E-mailberichten en mappen',
-  'wizard.domain.calendar.hint': 'Afspraken en agenda-items',
-  'wizard.domain.contact.hint': 'Adresboekvermeldingen',
-  'wizard.domain.file.hint': 'Bijlagen en documenten',
-  'wizard.domain.task.hint': 'Takenlijsten en de taken daarin',
-  'wizard.schedule': 'Synchronisatieschema',
-  'wizard.scheduleHint':
-    'Hoe vaak het herhaalt na de eerste kopie, die start zodra u op starten drukt en niet op dit schema wacht.',
   'wizard.schedule.hourly': 'Elk uur',
   'wizard.schedule.hourly.hint': 'Ieder uur',
   'wizard.schedule.daily': 'Dagelijks',
@@ -3789,33 +3770,12 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.schedule.sixHourly.hint': 'Vier keer per dag',
   'wizard.schedule.quarterHourly': 'Elk kwartier',
   'wizard.schedule.quarterHourly.hint': 'Frequente synchronisatie',
-  'wizard.readyToCreate': 'Klaar om de migratie aan te maken',
-  'wizard.reviewDetails': 'Migratiegegevens',
-  'wizard.review.name': 'Naam',
-  'wizard.review.source': 'Bron',
-  'wizard.review.target': 'Doel',
-  'wizard.review.schedule': 'Schema',
-  'wizard.review.scheduleDefault': 'Dagelijks om 02:00',
-  'wizard.review.dataTypes': 'Gegevenstypen',
   'wizard.back': 'Terug',
-  'wizard.cancel': 'Annuleren',
   'wizard.next': 'Volgende',
-  'wizard.create': 'Migratie aanmaken',
-  'wizard.creating': 'Aanmaken…',
   'wizard.missing.lead': 'Nog invullen om verder te gaan:',
-  'wizard.missing.dataTypes': 'kies minstens één gegevenstype',
-  'wizard.showPassword': 'Toon wachtwoord',
-  'wizard.hidePassword': 'Verberg wachtwoord',
-  'wizard.credentials.storage':
-    'Versleuteld opgeslagen, alleen gebruikt om te verbinden, en nooit meer getoond.',
   'wizard.tenantId': 'Tenant-ID',
   'wizard.clientId': 'Client-ID (applicatie-ID)',
   'wizard.sourceClientSecret': 'Clientgeheim',
-  'wizard.domain.notForTarget': 'Niet beschikbaar via het gekozen doelprotocol.',
-  'wizard.domain.measuredNo':
-    'Dit account kan dit niet dragen; test het opnieuw als dat veranderd is.',
-  'wizard.domain.unmeasured': 'Nog niet gemeten voor dit account; een test geeft het antwoord.',
-  'wizard.leaveConfirm': 'Deze wizard verlaten? Alles wat u hier hebt ingevuld gaat verloren.',
   'billing.title': 'Facturatie',
   'billing.subtitle': 'Beheer uw abonnement, verbruik en betalingen',
   'billing.currentUsage': 'Huidig verbruik',
@@ -3838,6 +3798,39 @@ const nl: Record<keyof typeof en, string> = {
   'billing.tierBeyondTable':
     'Voorbij de gepubliceerde tabel — neem contact op, dan prijzen we het goed.',
   'billing.noUsage': 'Nog geen verbruiksgegevens beschikbaar',
+  'billing.ceiling.title': 'Uw datalimiet',
+  'billing.ceiling.moved': '{moved} van {ceiling} verplaatst, op {tier}.',
+  'billing.ceiling.bands': 'Inclusief {count} extra blok(ken) bijgekocht.',
+  'billing.ceiling.under':
+    'Vanaf 80% van de limiet biedt deze kaart de twee wegen verder: naar een groter pakket, of eenmalig een extra blok.',
+  'billing.ceiling.near':
+    'U hebt {share} van uw datalimiet verplaatst. Bij de limiet wachten nieuwe items tot u een weg verder kiest; wijzigingen aan wat al gekopieerd is gaan door.',
+  'billing.ceiling.reached':
+    'Uw datalimiet is bereikt. Nieuwe items wachten tot u een weg verder kiest; wijzigingen aan wat al gekopieerd is gaan door.',
+  'billing.ceiling.alpha':
+    'Tijdens de alfa wacht er niets bij de limiet en wordt niets in rekening gebracht, dus er is nog niets om mee in te stemmen. De prijzen hieronder zijn wat de wegen verder na de alfa kosten.',
+  'billing.ceiling.moveUp':
+    'Ga naar {tier}: eenmalig {setup}, daarna {monthly} per maand. Uw limiet wordt {ceiling}, en er kunnen {paths} migraties tegelijk lopen.',
+  'billing.ceiling.moveUp.button': 'Ga naar {tier}',
+  'billing.ceiling.talkToUs': 'Er is geen pakket boven {tier}. Neem contact op, dan prijzen we het goed.',
+  'billing.ceiling.topUp':
+    'Of koop eenmalig nog {band} erbij, voor {price}. Uw limiet wordt {ceiling}, en uw maandprijs blijft gelijk.',
+  'billing.ceiling.topUp.button': 'Nog {band} erbij kopen',
+  'billing.ceiling.noTopUp': '{tier} kent geen bijkoop: de weg verder is een groter pakket.',
+  'billing.ceiling.breakEven':
+    'Bijkopen kost eenmalig {extra} meer en bespaart {saved} per maand, dus het is in ongeveer {days} dag(en) terugverdiend.',
+  'billing.ceiling.breakEven.cheaper': 'Bijkopen kost eenmalig niet meer, en bespaart {saved} per maand.',
+  'billing.ceiling.betterBuy':
+    'Een groter pakket is de betere koop als er meer migraties tegelijk moeten lopen: {next} draait er {nextPaths} tegelijk, {tier} {paths}.',
+  'billing.ceiling.confirm.moveUp': 'U gaat akkoord met eenmalig {setup}, daarna {monthly} per maand, voor {tier}.',
+  'billing.ceiling.confirm.topUp': 'U gaat akkoord met eenmalig {price} voor nog {band} erbij.',
+  'billing.ceiling.confirm.yes': 'Ja, akkoord',
+  'billing.ceiling.confirm.no': 'Nu niet',
+  'billing.ceiling.done': 'Gedaan: uw datalimiet is nu {ceiling}.',
+  'billing.ceiling.offerChanged':
+    'Het aanbod is veranderd sinds deze pagina werd getoond, dus er is nergens mee ingestemd. Dit is het aanbod nu.',
+  'billing.ceiling.loadFailed': 'Uw datalimiet kon niet worden gelezen',
+  'billing.ceiling.yesFailed': 'Uw akkoord is niet vastgelegd:',
   'billing.invoices': 'Facturen',
   'billing.noInvoices': 'Nog geen facturen',
   'billing.invoice': 'Factuur',
@@ -3861,6 +3854,11 @@ const nl: Record<keyof typeof en, string> = {
   'mappings.action.triggerSync': 'Synchroniseer nu',
   'mappings.action.pause': 'Pauzeren',
   'hub.connections': 'Van {source} naar {target}',
+  'hub.lands.folder': 'De kopieën komen in de map {folder} van de bestemming.',
+  'hub.lands.merged': 'De kopieën komen in de eigen mappen van de bestemming.',
+  'hub.filesFrom.all': 'De bestanden worden uit heel {place} gelezen.',
+  'hub.filesFrom.path': 'De bestanden worden alleen uit {folder} gelezen.',
+  'hub.filesFrom.id': 'De bestanden worden alleen uit één map gelezen: {folder}.',
   'hub.details': 'Details',
   'hub.migrationId': 'Migratie-ID:',
   'timeLeft.label': 'Hoe lang:',
@@ -3869,6 +3867,49 @@ const nl: Record<keyof typeof en, string> = {
     'Binnen een dag, omdat deze mailbox minder bevat dan de {ceiling} GB per dag die Google laat downloaden.',
   'timeLeft.notKnownYet': 'Hangt af van de aanbieder; na het eerste uur weten we het.',
   'timeLeft.filesLater': 'De bestanden: na het eerste uur weten we het.',
+  'timeLeft.copying.days': 'Ongeveer nog {low} tot {high} dagen, volgens de laatste {n} rondes.',
+  'timeLeft.copying.hours': 'Ongeveer nog {low} tot {high} uur, volgens de laatste {n} rondes.',
+  'timeLeft.copying.upToDays': 'Hoogstens nog {high} dagen, volgens de laatste {n} rondes.',
+  'timeLeft.copying.upToHours': 'Hoogstens nog {high} uur, volgens de laatste {n} rondes.',
+  'timeLeft.slowedBy': 'Vertraagd door {provider}.',
+  'timeLeft.afterThreePasses': 'Na drie rondes weten we het; {n} tot nu toe.',
+  'migrationReport.title': 'Rapport',
+  'migrationReport.person.title': 'Rapport: {name}',
+  'migrationReport.lead': 'Wat er is gevonden, wat er is aangekomen, wat niet mee kon en waarom, en wat de verificatie heeft vergeleken.',
+  'migrationReport.loadFailed': 'Dit rapport kon niet worden gelezen.',
+  'migrationReport.verdict.complete': 'Compleet: alles is aangekomen en niets wacht op een beslissing.',
+  'migrationReport.verdict.decisionsPending': 'Alles is aangekomen, maar sommige items wachten nog op een beslissing.',
+  'migrationReport.verdict.inProgress': 'Nog bezig: zo staat het nu, dit is geen afsluitend rapport.',
+  'migrationReport.arrived.heading': 'Wat er is aangekomen',
+  'migrationReport.col.type': 'Type',
+  'migrationReport.col.found': 'Gevonden',
+  'migrationReport.col.arrived': 'Aangekomen',
+  'migrationReport.col.leftAsIs': 'Ongemoeid gelaten',
+  'migrationReport.col.couldNotCome': 'Kon niet mee',
+  'migrationReport.notCounted': 'niet geteld',
+  'migrationReport.why': 'Waarom:',
+  'migrationReport.seeWhich': 'Bekijk welke, en waarom',
+  'migrationReport.notPart': 'Geen onderdeel van deze migratie: {types}.',
+  'migrationReport.decisions.heading': 'Wat op een beslissing wacht',
+  'migrationReport.decisions.none': 'Niets wacht op een beslissing.',
+  'migrationReport.removed.heading': 'Wat er is verwijderd, en op wiens beslissing',
+  'migrationReport.removed.counts':
+    '{deletions} verwijderd na een beslissing, {relocations} oude kopieën van verplaatste items verwijderd, {refused} geweigerd door een beveiliging.',
+  'migrationReport.removed.inTheLog': 'Elke verwijdering staat in het logboek en gebeurde alleen na een beslissing.',
+  'migrationReport.sharing.heading': 'Meegenomen toegang',
+  'migrationReport.sharing.counts': '{applied} opnieuw gemaakt, {manual} met de hand gedaan, {skipped} niet meegenomen, {open} nog open.',
+  'migrationReport.check.heading': 'Wat de verificatie heeft vergeleken',
+  'migrationReport.check.col.old': 'Op het oude systeem',
+  'migrationReport.check.col.new': 'Op het nieuwe',
+  'migrationReport.check.col.contents': 'Inhoud vergeleken',
+  'migrationReport.check.compared': '{matched} van {sampled} gelijk',
+  'migrationReport.access.heading': 'Toegang die u gaf en die alleen u kunt intrekken',
+  'migrationReport.access.lead': 'Die werkt na deze migratie nog, tot u hem verwijdert. Dat kunnen wij niet voor u doen.',
+  'migrationReport.asOf': 'Stand van {when}.',
+  'migrationReport.download': 'Download het rapport',
+  'migrationReport.toConfirmed': 'Wat is bevestigd, item voor item',
+  'migrationReport.open': 'Het rapport',
+  'confirmed.toReport': 'Wat er is gebeurd: het rapport',
   'mappings.action.pause.why':
     'Er worden geen nieuwe rondes gestart. Een ronde die al loopt, begint binnen ongeveer vijftien seconden niets nieuws meer en maakt af waar ze al aan begonnen was; een heel groot bestand kan langer duren. Er gaat niets verloren: Controleren en starten gaat verder waar het gebleven was.',
   'mappings.action.startSync': 'Start synchronisatie',
@@ -3901,6 +3942,11 @@ const nl: Record<keyof typeof en, string> = {
   'receipt.failedPrefix': 'De verwijdertaak is mislukt:',
   'lifecycle.paused':
     'Deze migratie is niet gestart, dus er is niets gekopieerd en niets kan zijn afgeweken.',
+  'hub.rename': 'Naam wijzigen',
+  'hub.rename.label': 'Naam van deze migratie',
+  'hub.rename.save': 'Opslaan',
+  'hub.rename.saving': 'Opslaan…',
+  'hub.rename.failed': 'Niet hernoemd:',
   'hub.fallbackTitle': 'Migratie',
   'hub.orderIntro': 'Werk ze van boven af, in deze volgorde.',
   'hub.noId': 'Geen mapping-id in het adres.',
@@ -4309,6 +4355,8 @@ const nl: Record<keyof typeof en, string> = {
   'people.noneYet': 'Nog niets voor deze persoon.',
   'people.lastPass': 'Laatste ronde {when}',
   'people.noPassYet': 'Nog geen ronde',
+  'people.line.waitsForExport': 'Wacht op de Takeout-export',
+  'people.line.howToExport': 'zo maakt u er een',
   'people.line.lastPass': 'laatste ronde {when}',
   'people.line.leftAsIs': '{count} ongemoeid gelaten',
   'people.line.checkPassed': 'De verificatie is {when} geslaagd',
@@ -4341,21 +4389,31 @@ const nl: Record<keyof typeof en, string> = {
   'start.from.otherMail': 'Een andere mailaanbieder',
   'start.from.otherMail.inSentence': 'een andere mailaanbieder',
   'start.from.needOne': 'Vink minstens één account aan.',
-  'start.from.archive': 'Een exportarchief (Takeout, Apple)',
-  'start.from.other': 'Andere manieren om te verbinden (IMAP, CalDAV, CardDAV, WebDAV, JMAP)',
-  'start.from.other.line': 'Een server voegt u toe via zijn protocol, één migratie tegelijk.',
-  'start.byHand': 'Eén migratie handmatig toevoegen',
+  'start.from.other': 'Andere manieren om te verbinden (IMAP)',
+  'start.from.other.line':
+    'Elke mailserver wordt via IMAP gelezen: dat is Een andere mailaanbieder. CalDAV, CardDAV, WebDAV en JMAP zijn bestemmingen, te kiezen bij Waar gaat het naartoe?',
+  'start.from.other.choose': 'Een andere mailaanbieder kiezen',
   'start.what.heading': 'Wat wilt u migreren?',
   'start.what.hint': 'Elke aanmelding vraagt alleen om wat u hier aanvinkt.',
   'start.what.from': 'Van {provider}',
   'start.what.notFrom': 'Niet van {provider}: {types}.',
   'start.what.notFrom.apple.why': 'Apple biedt niemand buiten Apple een weg naar iCloud Drive.',
   'start.what.notFrom.imap.why':
-    'De agenda en contacten van een mailaanbieder komen via CalDAV en CardDAV, als die ze aanbiedt. Die voegt u handmatig toe.',
+    'Via IMAP wordt alleen e-mail gelezen: voor de agenda en contacten van een mailaanbieder is hier nog geen weg.',
   'start.what.needOne': 'Vink minstens één ding aan om te migreren.',
+  'start.what.files.legend': 'Welke bestanden',
+  'start.what.files.all': 'Heel {place}',
+  'start.what.files.one': 'Alleen één map',
+  'start.what.files.one.line': 'Die kiest u zodra het account verbonden is.',
+  'start.place.myDrive': 'Mijn Drive',
   'start.what.photos': "Foto's",
-  'start.what.photos.line': 'Via een exportarchief, dat u toevoegt zodra het in uw nieuwe bestanden staat.',
-  'start.what.photos.ask': 'Vraag het aan bij {export}',
+  'start.what.export.google-takeout': "Foto's: uit een Takeout-export",
+  'start.what.export.apple-privacy': "iCloud Drive en foto's: uit de export van Apple",
+  'start.what.export.google-takeout.line':
+    'U vraagt de export zelf aan bij Google en zet hem in uw nieuwe bestanden zodra hij binnen is.',
+  'start.what.export.google-takeout.why':
+    "Google laat andere apps alleen de foto's lezen die ze zelf hebben geüpload, dus de export is de enige weg naar een hele bibliotheek.",
+  'start.what.export.askNow': 'Het klaarzetten kan een paar dagen duren, dus vraag hem nu aan:',
   'start.connect.heading': 'Uw accounts verbinden',
   'start.connect.googleApart': 'Google vraagt op deze dienst apart om e-mail en bestanden, dus dit zijn {n} aanmeldingen.',
   'start.connect.asks': 'Eén aanmelding: {types}',
@@ -4372,6 +4430,21 @@ const nl: Record<keyof typeof en, string> = {
   'start.connect.theirAddress': 'Hun adres bij {provider}',
   'start.connect.saveAddress': 'Adres bewaren',
   'start.connect.addressNeeded': 'Typ eerst hun adres.',
+  'start.connect.exportNoSignIn': "Foto's hebben geen aanmelding nodig: ze komen uit de Takeout-export.",
+  'start.connect.folder.id': 'Welke map: de link of het ID',
+  'start.connect.folder.path': 'Welke map: het pad',
+  'start.connect.folder.google.hint': 'Open de map in Google Drive en kopieer het adres.',
+  'start.connect.folder.box.hint': 'Open de map in Box en kopieer het adres.',
+  'start.connect.folder.dropbox.hint': 'Zoals Dropbox het toont, vanaf de bovenste map: /Vakantie/2019.',
+  'start.connect.folder.browse.google': 'Gedeelde drives en gedeelde mappen tonen',
+  'start.connect.folder.browse.dropbox': 'Gedeelde mappen tonen',
+  'start.connect.folder.found': 'Gedeeld met dit account',
+  'start.connect.folder.drive': 'gedeelde drive',
+  'start.connect.folder.from': 'van {owner}',
+  'start.connect.folder.notAdded': 'niet aan deze Dropbox toegevoegd, dus niet te kiezen',
+  'start.connect.folder.none': 'Er is niets met dit account gedeeld: vul de map hierboven in.',
+  'start.connect.folder.refused': 'De lijst kon niet worden gelezen:',
+  'start.connect.needFolder': 'Geef de map op, waar maar één map meegaat.',
   'start.accountsFailed': 'Uw bewaarde accounts konden niet worden gelezen. Een nieuw account werkt wel.',
   'start.to.row': 'Waar {type} naartoe gaat',
   'start.to.yours': 'Uw accounts',
@@ -4381,6 +4454,12 @@ const nl: Record<keyof typeof en, string> = {
   'start.to.needAll': 'Voeg eerst elk nieuw account toe.',
   'start.to.settingUp': 'Bezig met klaarzetten…',
   'start.to.failed': 'Niet klaargezet: {migration}.',
+  'start.to.exportFolder': 'Gelezen uit de map {folder} in deze bestanden, zodra de export daar staat.',
+  'start.to.lands': 'Waar de kopieën komen',
+  'start.to.ownFolder': 'In een eigen map zetten',
+  'start.to.ownFolder.label': 'Map',
+  'start.to.ownFolder.hint': 'Leeg gelaten komen de kopieën in de eigen mappen van het account.',
+  'start.to.ownFolder.shared': 'Een andere migratie stuurt hetzelfde soort gegevens hierheen, dus elk krijgt een eigen map.',
   'start.migrationName': '{person} — {provider} naar {destination}',
   'start.check.intro': 'Klaargezet en gepauzeerd: er wordt niets gekopieerd vóór Starten.',
   'start.check.route': '{types}: {from} → {to}',
@@ -4391,11 +4470,23 @@ const nl: Record<keyof typeof en, string> = {
   'start.check.waitsForLink': 'De telling verschijnt hier zodra {person} via de link hierboven verbonden is.',
   'start.check.startsWhenGranted': 'Zodra u de andere hebt gestart, start deze vanzelf wanneer {person} verbindt.',
   'start.check.waitsForACount': 'U kunt starten zodra {person} verbonden is en er een telling binnen is.',
+  'start.check.export.waits': 'Klaargezet, en wacht op de Takeout-export:',
+  'start.check.export.ask': "Vraag hem aan bij Google, met alleen Google Foto's aangevinkt:",
+  'start.check.export.put':
+    'Zet de .zip-bestanden zodra ze binnen zijn, zoals Google ze stuurt, in de map {folder} van {destination}.',
+  'start.check.export.start': 'Start de migratie daarna op haar pagina, met Controleren en starten: eerst wordt de export geteld.',
+  'start.check.export.guide': 'Een Takeout aanvragen, stap voor stap',
+  'start.check.done': 'Klaar',
   'start.check.later':
     'U kunt deze pagina sluiten. De pagina van {person} bewaart deze migraties: start elke migratie via Details zodra de verbinding er is.',
   'start.company.question': 'Is dit een bedrijfsaccount met een beheerder?',
   'start.company.no': 'Nee',
   'start.company.yes': 'Ja',
+  'start.what.orgApp.lead':
+    'Uw beheerder kan de e-mail laten lezen via de eigen app van uw organisatie, met toepassingsmachtigingen. Zo wordt ook een gedeelde mailbox gelezen.',
+  'start.what.orgApp.signIn': 'Met de aanmelding bij Microsoft',
+  'start.what.orgApp.graph': 'Via onze eigen app, met Microsoft Graph',
+  'start.what.orgApp.imap': 'Via onze eigen app, met IMAP',
   'start.moreOptions': 'Meer opties',
   'start.appPassword': 'Liever een app-wachtwoord gebruiken',
   'start.serverSettings': 'Serverinstellingen',
@@ -4441,8 +4532,6 @@ const nl: Record<keyof typeof en, string> = {
   'person.step.confirmed.done': 'Klaar om te lezen',
   'person.step.finish.notYet': 'Zet de e-mailbezorging om en rond dan af',
   'person.step.finish.done': 'Afgerond',
-  'createMapping.createFailed':
-    'Niet aangemaakt; uw invoer staat er nog. Herstel wat de melding noemt en probeer opnieuw.',
   'billing.usageLoadFailed': 'De verbruikscijfers konden niet worden geladen.',
   'billing.pay': 'Betalen',
   'billing.payFailed': 'De betaling kon niet worden gestart.',
@@ -4540,6 +4629,19 @@ const nl: Record<keyof typeof en, string> = {
     '{provider} heeft de daglimiet voor downloaden bereikt. Kopiëren gaat verder zodra die reset.',
   'pause.ceiling.why':
     'De limiet is van uw oude provider, niet van ons. Erover gaan kan u ongeveer een dag buitensluiten uit uw eigen live mailbox, dus stopt het kopiëren daarvóór. Er is niets misgegaan en er gaat niets verloren — de volgende ronde gaat verder waar deze stopte.',
+  'ceiling.atStart':
+    'Wat deze migraties bevatten, ongeveer {size}, en de {moved} die al verplaatst is, gaan samen over uw datalimiet van {ceiling}.',
+  'ceiling.atStart.holds':
+    'Bij de limiet wachten nieuwe items tot u een weg verder kiest; wijzigingen aan wat al gekopieerd is gaan door.',
+  'ceiling.atStart.choose': 'Kies nu, of start toch en kies wanneer ze wachten:',
+  'ceiling.atStart.billing': 'uw datalimiet op de pagina Facturering',
+  'ceiling.atStart.alpha': 'Tijdens de alfa wacht er niets bij de limiet en wordt niets in rekening gebracht.',
+  'pause.dataCeiling':
+    'Nieuwe items wachten bij uw datalimiet van {ceiling}: {held} nog niet gekopieerd. Wijzigingen aan wat al gekopieerd is gaan door.',
+  'pause.dataCeiling.moveUp': 'Ga naar {tier}: eenmalig €{setup}, daarna €{monthly} per maand.',
+  'pause.dataCeiling.topUp': 'Of koop eenmalig nog {band} erbij, voor €{price}.',
+  'pause.dataCeiling.why':
+    'Elke stap omhoog is uw keuze: niets verhoogt uw pakket of uw ruimte zonder uw ja. Kies op de pagina Facturering, en het kopiëren gaat verder waar het stopte.',
   'pause.hold.heading': 'Kopiëren is gepauzeerd',
   'pause.hold.default': 'We hebben het kopiëren gepauzeerd terwijl we het platform bijwerken.',
   'pause.hold.since': 'Gepauzeerd sinds',
@@ -4940,46 +5042,6 @@ const nl: Record<keyof typeof en, string> = {
   'nav.help': 'Hulp',
   'nav.needsYou.count.one': '1 wacht op u',
   'nav.needsYou.count.many': '{n} wachten op u',
-  'wizard.reuseSource': 'Bewaarde bronverbinding hergebruiken',
-  'wizard.reuseTarget': 'Bewaarde doelverbinding hergebruiken',
-  'wizard.reuseNone': 'Nieuwe inloggegevens invoeren',
-  'wizard.reuse.hint': 'Hergebruikt de bewaarde inloggegevens; de velden hieronder verdwijnen.',
-  // Wat een brontype IS, één regel nadat de kaart is gekozen, en de rest onder Meer (0118 T1).
-  'wizard.about.o365': 'Gebruikt een Entra-appregistratie in uw eigen tenant.',
-  'wizard.about.o365.more':
-    'Vul hieronder de tenant-ID, client-ID en het clientgeheim in, samen met het mailboxadres. Registreer de app en verleen eerst beheerderstoestemming in uw eigen tenant; de checklist hieronder heeft de stappen.',
-  'wizard.about.googleDrive': 'Gebruikt uw eigen Google OAuth-client en een alleen-lezen token.',
-  'wizard.about.googleDrive.more':
-    'Het token kan niet naar de Drive schrijven. Google Documenten, Spreadsheets, Presentaties en Tekeningen hebben geen bestand om te kopiëren totdat u per soort een formaat kiest; tot dan wordt elk bestand met naam gemeld, met de reden. De handleiding behandelt alle drie de waarden, en de knop Verbindingen testen en bewaren controleert ze bij Google voordat er iets wordt gekopieerd.',
-  'wizard.about.deploymentApp.google':
-    'Gebruikt de eigen Google-app van deze dienst: druk op Verbinden met Google en geef toestemming.',
-  'wizard.about.deploymentApp.dropbox':
-    'Gebruikt de eigen Dropbox-app van deze dienst: druk op Verbinden met Dropbox en geef toestemming.',
-  'wizard.about.deploymentApp.googleDrive.more':
-    'Google Documenten, Spreadsheets, Presentaties en Tekeningen hebben geen bestand om te kopiëren totdat u per soort een formaat kiest; tot dan wordt elk bestand met naam gemeld, met de reden.',
-  'wizard.about.dropbox': 'Gebruikt uw eigen alleen-lezen Dropbox-app.',
-  'wizard.about.dropbox.more':
-    'Maak deze alleen-lezen aan: files.metadata.read en files.content.read, plus sharing.read als u gedeelde mappen wilt bekijken. De App-sleutel komt hier; daaronder komt het App-geheim in het clientgeheim-veld en het refresh-token ernaast.',
-  'wizard.about.box':
-    'Gebruikt uw eigen Box-platform-app, eenmalig geautoriseerd door een Box-beheerder.',
-  'wizard.about.box.more':
-    'Hij authenticeert met de Client Credentials Grant, dus er is geen refresh-token: Box vernieuwt refresh-tokens bij elk gebruik. De Client-ID komt hier samen met het numerieke gebruikers-id dat wordt gemigreerd; het clientgeheim komt daaronder. Een Box-beheerder autoriseert de app eenmalig onder Admin Console → Apps → Custom Apps Manager.',
-  'wizard.about.gmail':
-    'Gebruikt uw eigen Google OAuth-client; het token heeft de mailscope nodig.',
-  'wizard.about.gmail.more':
-    'Dezelfde client als een Google Drive-bron, maar het refresh-token moet zijn toegestemd met https://mail.google.com/, de enige scope die Google voor IMAP accepteert. Een token dat voor Drive is toegestemd werkt hier niet.',
-  'wizard.about.googleDav':
-    'Gebruikt uw eigen Google OAuth-client; het token heeft de scope van dit product nodig.',
-  'wizard.about.googleDav.more':
-    'Dezelfde client als de andere Google-bronnen, maar het refresh-token moet zijn toegestemd met https://www.googleapis.com/auth/calendar voor Agenda of https://www.googleapis.com/auth/carddav voor Contacten. Een token dat voor een ander Google-product is toegestemd werkt hier niet.',
-  'wizard.about.apple':
-    'Meldt zich aan met een app-specifiek wachtwoord; iCloud Drive-bestanden zijn niet te migreren.',
-  'wizard.about.apple.more':
-    'Apple biedt geen toestemmingsscherm voor zijn eigen gegevens, dus u maakt in plaats daarvan een app-specifiek wachtwoord, wat een minuut kost en altijd weer in te trekken is. iCloud Drive-bestanden kan niemand migreren: Apple publiceert daar geen API voor.',
-  'wizard.about.archive':
-    'Foto’s komen in mappen met uw albumnamen; een latere export voegt alleen toe.',
-  'wizard.about.archive.more':
-    'Koppelen laat zien wat erin zit: hoeveel items, hoeveel bytes, welke albums en welke periode. Elk album wordt één keer gekopieerd, met één bestand waarin alles staat wat Google over elke foto wist. Een archief is een momentopname van de dag waarop het is klaargezet, dus een latere export voegt alleen toe; er wordt nooit iets verwijderd omdat een export het niet meer noemt.',
   'connections.delete': 'Verwijderen',
   'connections.rotate': 'Inloggegevens vervangen',
   'connections.reconnect': 'Opnieuw verbinden',
@@ -5081,22 +5143,17 @@ const nl: Record<keyof typeof en, string> = {
   'connections.removed.unsupported': 'Wij hebben onze kopie verwijderd; deze aanbieder biedt geen intrekking die wij kunnen aanroepen.',
   'connections.removed.none': 'Er waren geen inloggegevens voor opgeslagen.',
   'connections.invalidValues.lead': 'Deze waarden kunnen zo niet worden gebruikt:',
-  'createMapping.duplicate.lead': 'U heeft al een migratie tussen deze twee accounts:',
-  'createMapping.duplicate.why':
-    'Twee migraties die dezelfde items naar dezelfde plek kopiëren, zetten alles dubbel op het doel. Geef deze een andere doelmap, of open de bestaande migratie.',
-  'createMapping.duplicate.open': 'Open de bestaande migratie',
   // ---- Provider setup checklist (workplan 0061) ----
   'setup.title': 'Aanbieder instellen',
   'setup.intro':
     'Stappen in de console van de aanbieder; vinkjes worden voor uw hele organisatie bewaard.',
-  'setup.backToWizard': '← Terug naar de wizard',
   'setup.backToConnections': '← Terug naar accounts',
   'setup.fullGuide': 'Lees de volledige handleiding',
   'setup.settled': 'afgehandeld',
   'setup.stillOpen': 'nog te doen',
   'setup.waitingOnOthers': 'wacht op een beheerder',
-  'setup.allDone': 'Alles is afgehandeld; rond de wizard af.',
-  'setup.nothingToDo': 'Vooraf niets in te stellen; ga direct naar de wizard.',
+  'setup.allDone': 'Alles is afgehandeld; u kunt het account nu verbinden.',
+  'setup.nothingToDo': 'Vooraf niets in te stellen; u kunt het account meteen verbinden.',
   'setup.deploymentApp':
     'Niets aan te maken: deze dienst heeft een eigen {provider}-app. Druk op Verbinden met {provider}.',
   // ---- Aanbieder kiezen en de lijst afstemmen op wie u bent (workplan 0068) ----
@@ -5123,7 +5180,6 @@ const nl: Record<keyof typeof en, string> = {
   'setup.needsAnotherPerson': 'beheerder nodig',
   'setup.needsAnotherPerson.hint':
     'Vereist beheerdersrechten, dus op deze stap wacht u het vaakst.',
-  'setup.openChecklist': 'Open de instelchecklist',
   'setup.box.create_app.title': 'Maak een Box-platform-app',
   'setup.box.create_app.detail':
     'Box Developer Console → Create Platform App → Custom App, en kies Client Credentials Grant (Server Authentication).',
@@ -5147,7 +5203,7 @@ const nl: Record<keyof typeof en, string> = {
     'Zet op het tabblad Permissions files.metadata.read en files.content.read aan, en niets dat schrijft. Voeg sharing.read toe als u hier gedeelde mappen wilt kunnen bekijken.',
   'setup.dropbox.redirect_uri.title': 'Gebruikt u de knop? Registreer dan het redirect-adres',
   'setup.dropbox.redirect_uri.detail':
-    'Alleen voor Verbinden met Dropbox in de wizard: onder de knop verschijnt een adres. Voeg precies dat adres toe in de Dropbox App Console onder OAuth 2 → Redirect URIs en druk daarna opnieuw op de knop. Zonder de knop slaat u deze stap over.',
+    'Alleen voor Verbinden met Dropbox met uw eigen app: onder de knop toont het formulier een adres. Voeg precies dat adres toe in de Dropbox App Console onder OAuth 2 → Redirect URIs en druk daarna opnieuw op de knop. Zonder de knop slaat u deze stap over.',
   'setup.dropbox.consent.title': 'Laat de accounthouder eenmalig toestemming geven',
   'setup.dropbox.consent.detail':
     'Verbinden met Dropbox doet deze stap en de volgende als de accounthouder erop drukt. Zonder de knop stuurt u de persoon van wie de Dropbox gemigreerd wordt door de autorisatie-URL van deze app, met token_access_type=offline zodat Dropbox een refresh-token teruggeeft.',
@@ -5204,7 +5260,7 @@ const nl: Record<keyof typeof en, string> = {
   'setup.webdav.base_url.title': 'Noteer het WebDAV-adres',
   'setup.webdav.base_url.detail':
     'De WebDAV-basis-URL van de server voor dat account — Nextcloud toont deze onderaan de pagina met bestandsinstellingen.',
-  'setup.webdav.base_url.yields': 'de host, poort en het pad voor in de wizard.',
+  'setup.webdav.base_url.yields': 'de host, poort en het pad voor in het formulier.',
   'setup.jmap.account_exists.title': 'Zorg dat het doelaccount bestaat',
   'setup.jmap.account_exists.detail':
     'Maak de postbus eerst aan op de JMAP-server, met genoeg quota. Dit product maakt zelf geen accounts aan.',
@@ -5229,7 +5285,7 @@ const nl: Record<keyof typeof en, string> = {
   'setup.nextcloud.app_password.title': 'Maak een app-wachtwoord',
   'setup.nextcloud.app_password.detail':
     'In Nextcloud: Instellingen → Beveiliging → Apparaten & sessies. Typ bij App naam een naam, zoals Migratie, druk op Creëer een nieuw app wachtwoord en kopieer het wachtwoord. Gebruik dat in plaats van het accountwachtwoord zelf: het kan ingetrokken worden zonder uw eigen wachtwoord te wijzigen.',
-  'setup.nextcloud.app_password.yields': 'een app-wachtwoord, voor het vak Wachtwoord van de wizard.',
+  'setup.nextcloud.app_password.yields': 'een app-wachtwoord, voor het vak Wachtwoord van het formulier.',
   'setup.nextcloud.dav_url.title': 'Noteer het adres met /remote.php/dav',
   'setup.nextcloud.dav_url.detail':
     'Het adres waarop u Nextcloud opent, met /remote.php/dav erachter, zoals https://cloud.example.com/remote.php/dav. Dat vult u in bij DAV-basis-URL; er is geen vak voor een host of een poort. Nextcloud toont het WebDAV-adres onderaan de pagina met bestandsinstellingen: de naam na /remote.php/dav/files/ is de gebruikersnaam die u invult.',
@@ -5243,7 +5299,7 @@ const nl: Record<keyof typeof en, string> = {
   'setup.soverin.password.yields': 'het e-mailadres, en het wachtwoord of een app-wachtwoord.',
   'setup.soverin.mail_server.title': 'Gaat er mail mee? Laat de mailserver staan',
   'setup.soverin.mail_server.detail':
-    'De wizard vult Mailserver, imap.soverin.net, en Mailpoort, 993, in met de gepubliceerde instellingen van Soverin. Gaat er mail mee, laat Mailserver dan ingevuld: een verbinding die zonder Mailserver is bewaard, draagt geen mail. Agenda’s en contacten hebben geen mailserver nodig.',
+    'Het formulier vult Mailserver, imap.soverin.net, en Mailpoort, 993, in met de gepubliceerde instellingen van Soverin. Gaat er mail mee, laat Mailserver dan ingevuld: een account dat zonder Mailserver is bewaard, draagt geen mail. Agenda’s en contacten hebben geen mailserver nodig.',
   // ---- Asking for access (workplan 0093) ----
   'access.title': 'Toegang aanvragen',
   'access.intro':
@@ -5266,7 +5322,9 @@ const nl: Record<keyof typeof en, string> = {
   'access.failed': 'Wij konden dat niet versturen:',
   'access.failedFallback': 'de aanvraag is niet voltooid.',
   'access.privacy':
-    'Wij bewaren wat u invult om over uw aanvraag te beslissen en u te antwoorden; een aanvraag maakt geen account aan.',
+    'Wij bewaren wat u invult om over uw aanvraag te beslissen en u te antwoorden; een aanvraag maakt geen account aan. ' +
+    'Wij bewaren het zolang uw aanvraag openstaat. Wijzen wij die af, dan verwijderen wij het 30 dagen na ons besluit. ' +
+    'Kennen wij die toe, dan blijft het bij uw account en wordt het daarmee gewist.',
   'access.backToSignIn': 'Heeft u al een account? Aanmelden',
 };
 

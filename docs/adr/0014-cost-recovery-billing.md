@@ -42,9 +42,9 @@
 - **The month bills its peak; the tier is derived, never picked.** Downgrade is automatic,
   announced, never blocking a path. No setup fee. Not built yet (0109 T5–T6).
 - **Every step up is consented and paid for.** A path waits for the yes at activation; at the
-  data ceiling, new first copies wait for a move up or a one-off top-up (another band, for the
-  tier's monthly once: a higher ceiling, never a rewound meter). Without that yes, a month
-  bills the tier it was on.
+  data ceiling, outside the alpha, new first copies wait for a move up or a one-off top-up
+  (another band for the tier's monthly, once; the meter never rewinds). Without that yes, a
+  month bills the tier it was on.
 - **A year is credit at six months' price**: each month takes its own tier at half its monthly
   price; what is left is refunded on stopping, or carried into the renewal. Not built yet
   (0111).
@@ -414,6 +414,44 @@ awaited — keep copying, billed at the tier it was on, or hold — the owner an
   bigger tier with the break-even, so it no longer quotes the dearer way alone. Managed only:
   the self-hosted edition has no tiers.
 
+**Not during the alpha** (the owner, 2026-10-03: *"A"*, asked what the hold does while the alpha
+is free and nothing is charged). While the deployment's stage is `alpha` the ceiling warns and
+nothing holds, and no yes is taken: a tester's migration is never stopped by a price they would
+not pay. The hold and the yes go live when the alpha ends.
+
+**Built so far (0109 T6, first slice):** the yes, as ADR consequence 5 shaped it. `data_allowance`
+(managed migration 0037) holds one append-only row per yes, with the price shown; the ceiling is
+the highest tier moved up to plus every band bought (`data-ceiling.ts`); `GET
+/api/billing/ceiling` says where the data stands and the two ways on, and `POST
+/api/billing/ceiling/yes` takes a yes only to the offer shown, and none during the alpha. The
+Billing page shows where the data stands and, from 80%, both ways on with the break-even, and
+sends a yes only after the money is said once more. The hold: before each new first copy the
+pass asks whether the meter, with what it has copied, is still below the ceiling
+(`PassClock.firstCopyAllowed`); a held item is not fetched and gets no row, an update carries on,
+the collection keeps its cursor, and the status names what waits with both prices. The tasks learn
+the stage from `OWNPACE_STAGE`, which `set-task-env.sh` uploads. At *Start*, a note adds what the
+preflight measured to what has moved and, past the ceiling, names both prices; it never blocks.
+**The path axis (the owner, 2026-10-04).** Asked how a step up on the path axis is recorded,
+what *Start* offers, and who enforces it:
+
+- **One agreed tier for both axes** (*"A"*): a path yes is a row in the same append-only table
+  as a data yes (`data_allowance`, with `axis` saying which limit asked, managed 0039), and the
+  highest tier said yes to is the organisation's agreed tier on both axes. Each month still bills
+  what it used, never above the agreed tier. The data allowance stays cumulative, never per
+  month (*"Cumulative, as now"*).
+- **Side by side at *Start***: move up and start everything, or start what fits now.
+- **Enforced by the server**: a start that takes slots past the agreed tier's paths at the same
+  time is refused, at every door that takes one (Start, a migration created running, a status
+  change, a kind added to a running migration, a resume or a keep in the lane, a migration that
+  starts when its person connects), and nothing of it is kept. A start that takes no new slot is
+  never refused, so an organisation past its tier from the alpha can pause and resume. The
+  operator's cutover CLI and the rollback job are not asked: a recovery is not a step up. Not
+  during the alpha.
+
+Built (0109 T6): the server's check (`path-ceiling.ts`, refused in `path-lifecycle-wiring.ts` as
+409 `paths_need_a_yes`) and the `axis` column. The question at *Start*, with prices, follows the
+2026-09-29 list's pull request.
+
 This replaces two passages of the Decision above: in *Downgrade is automatic; upgrade is
 consented*, the sentence beginning *"On the **data** axis the tier moves automatically"*; and in
 *What it will not do*, *"Crossing it moves the tier, automatically and announced"*, with its
@@ -618,12 +656,18 @@ rules above are the prices the site quotes, and nothing is charged during the Al
 - **2026-10-03, last** — The price list of 2026-09-29 accepted, with its question 2 answered (a): a
   year is credit at six months' price (owner: *"a"*). In force once 0152 T6 (d) builds it. Its
   text: *Pending*.
-
+- **2026-10-03, last** — Not during the alpha (owner: *"A"*): the ceiling warns and nothing holds
+  while the stage is `alpha`, and no yes is taken. The yes is built (managed 0037, 0109 T6's first
+  slice), the Billing page that asks for it, with the break-even, the hold in the copy loop, and
+  the note at *Start*. Record: *Amendment 2026-10-03*.
 - **2026-10-03, in force** — The price list of 2026-09-29 comes into force with 0152 T6 (d):
   Free replaces Tiny, no setup fees, a year at six months' price as credit, a top-up at the
   tier's monthly price once, and the price pays for the work. The operative rules carry it; the
   *Pending* bullet and section go, and the section's text stays as *Amendment 2026-09-29, in
   force 2026-10-03*.
+- **2026-10-04** — The path axis: one agreed tier for both axes, both ways side by side at
+  *Start*, enforced by the server (owner: *"A"*, *"side by side"*, *"Enforced by the server"*); the
+  data allowance stays cumulative. The server's check is built. Record: *Amendment 2026-10-03*.
 
 The full record, word for word as it read before this consolidation:
 [history/0014-cost-recovery-billing.md](./history/0014-cost-recovery-billing.md).

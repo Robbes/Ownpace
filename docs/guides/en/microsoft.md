@@ -2,7 +2,7 @@
 
 The **Microsoft 365 account** card authenticates with an **app registration in Microsoft Entra ID** and a refresh token consented by the account being migrated. That card is read-only by construction: the consent asks only for the `.Read` delegated permissions listed under [With your own app](#own-app), so this product could not write to the mailbox, calendar, contacts or OneDrive even if it wanted to — an enforced guarantee, not a promise in a document. The **Via the Graph API** and **Via IMAP** cards work differently, with an administrator's registration: see [the registration these two cards need](#application).
 
-**Most people need only the first card.** Where this service has its own registration, the wizard and the Connections page show a **Connect with Microsoft** button, and nothing under [With your own app](#own-app) is your problem. Read it if you would rather use your own registration.
+**Most people need only the first card.** Where this service has its own registration, **Start a migration** and the **Accounts** page show a **Connect with Microsoft** button, and nothing under [With your own app](#own-app) is your problem. Read it if you would rather use your own registration.
 
 ## What you need {#before}
 
@@ -28,7 +28,7 @@ Test reads the consent back from Microsoft before it reaches anything, so the ba
 
 ### Via the Graph API {#graph}
 
-**Via IMAP** and **Via the Graph API** authenticate with your own registration under **application** permissions, granted by an administrator in your own tenant. That is what an administrator migrating other people's mailboxes needs, and the Microsoft 365 account card's delegated grant will never do it. The wizard asks for the mailbox address, under **Username**, and for the **Tenant ID**, the **Client ID (application ID)** and the **Client secret** of that registration.
+**Via IMAP** and **Via the Graph API** authenticate with your own registration under **application** permissions, granted by an administrator in your own tenant. That is what an administrator migrating other people's mailboxes needs, and the Microsoft 365 account card's delegated grant will never do it. To use one, tick **Email** under Microsoft 365 on **What moves?**, answer **Yes** to **Is this a company account with an administrator?**, and choose **Through our own app, with Microsoft Graph** or **Through our own app, with IMAP**. **Connect your accounts** then asks for the mailbox address, under **Username**, and for the **Tenant ID**, the **Client ID (application ID)** and the **Client secret** of that registration.
 
 Both cards read one mailbox's mail. Calendars, contacts, OneDrive and To Do come through the **Microsoft 365 account** card.
 
@@ -43,11 +43,11 @@ The same four fields as **Via the Graph API**; this card reads the mailbox over 
 These two cards always take a registration of your own, whatever this service carries, so its steps sit here rather than under [With your own app](#own-app). An administrator of your Microsoft 365 organisation does them once. The screens are named as Microsoft's admin centres name them in English.
 
 1. [Entra admin centre](https://entra.microsoft.com) → Identity → Applications → **App registrations** → New registration. Choose **Accounts in this organizational directory only**, leave the redirect address empty, and register.
-2. On the Overview page, copy the **Application (client) ID** and the **Directory (tenant) ID**. They go in the wizard's **Client ID (application ID)** and **Tenant ID** fields.
-3. **Certificates & secrets** → New client secret. Copy the **Value** at once, because Entra shows it only once. It goes in the wizard's **Client secret** field.
+2. On the Overview page, copy the **Application (client) ID** and the **Directory (tenant) ID**. They go in the form's **Client ID (application ID)** and **Tenant ID** fields.
+3. **Certificates & secrets** → New client secret. Copy the **Value** at once, because Entra shows it only once. It goes in the form's **Client secret** field.
 4. Add the permission of the card you use, and consent to it as an administrator: the two sections below have the steps. An application permission has no signed-in person to ask, so it works only once an administrator has consented.
 
-No refresh token is involved: these cards sign in as the application itself, and the wizard asks for none.
+No refresh token is involved: these cards sign in as the application itself, and the form asks for none.
 
 #### Via the Graph API: the Microsoft Graph permission {#application-graph}
 
@@ -57,7 +57,7 @@ No refresh token is involved: these cards sign in as the application itself, and
 
 Nothing else: the card reads mail, and this one permission covers it. Then **Grant admin consent for** your organisation, and confirm.
 
-**Read the width before you grant it.** As an application permission, `Mail.Read` can read every mailbox in the organisation, not only the one you type in the wizard. This service reads only the mailbox the connection names, and never writes to it. Exchange Online can instead give an application `Mail.Read` over named mailboxes only; Microsoft documents this as Role Based Access Control for Applications in Exchange Online. That replaces this step rather than narrowing it: a `Mail.Read` consented here reaches every mailbox whatever Exchange says, so an administrator who wants the narrower route does not grant `Mail.Read` here, and assigns Exchange's application role with a scope instead.
+**Read the width before you grant it.** As an application permission, `Mail.Read` can read every mailbox in the organisation, not only the one you type in the form. This service reads only the mailbox the account names, and never writes to it. Exchange Online can instead give an application `Mail.Read` over named mailboxes only; Microsoft documents this as Role Based Access Control for Applications in Exchange Online. That replaces this step rather than narrowing it: a `Mail.Read` consented here reaches every mailbox whatever Exchange says, so an administrator who wants the narrower route does not grant `Mail.Read` here, and assigns Exchange's application role with a scope instead.
 
 #### Via IMAP: the Exchange Online permission {#application-imap}
 
@@ -130,7 +130,7 @@ AADSTS700016: Application with identifier '…' was not found in the directory '
 
 which reads like a typo in the client id and is not one.
 
-If your registration is single-tenant on purpose, type its Directory (tenant) ID in the wizard's **Tenant ID** field, so the consent runs against your directory. Leave it empty otherwise.
+If your registration is single-tenant on purpose, answer **Yes** to **Is this a company account with an administrator?** and type its Directory (tenant) ID in **Tenant ID**, so the consent runs against your directory. Leave it empty otherwise.
 
 #### Redirect URI {#own-app-redirect}
 

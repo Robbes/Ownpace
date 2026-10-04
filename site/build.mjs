@@ -110,6 +110,23 @@ if (!PUBLIC && APP_URL === PUBLIC_APP_URL) {
   );
 }
 
+/**
+ * Whether this build is for the ALPHA (workplan 0144 T1).
+ *
+ * The same one setting the API and the web build read for it,
+ * `OWNPACE_STAGE=alpha` (0131 T1; `alphaFrom` in `apps/api/src/access-notify.ts`
+ * and `apps/web/src/services/stage.ts` hold the same rule). `alpha`, trimmed and
+ * in any case, is the only value that turns it on; unset, empty or anything
+ * else is off, which is every deployment but live during the alpha. The rule is
+ * written out here rather than imported, because `site/` imports nothing.
+ *
+ * It decides one thing: whether the pages in `ALPHA_ONLY` are rendered. A
+ * build without it leaves them out, so they leave the site when the alpha ends.
+ * `deploy-live.sh` hands every site build live's own value, read from its
+ * `.env`, and never the shell's.
+ */
+const ALPHA = (process.env.OWNPACE_STAGE ?? '').trim().toLowerCase() === 'alpha';
+
 // ---------------------------------------------------------------- markdown --
 
 const esc = (s) =>
@@ -178,11 +195,14 @@ function markdown(src) {
       i += 1;
       continue;
     }
-    const h = /^(#{1,4})\s+(.*)$/.exec(line);
+    // `## Hulp {#hulp}` gives the heading the id it names, so a link to the
+    // section (an issue form's, an invitation's) survives a reworded heading.
+    // Without one, the id is the heading's slug, as before.
+    const h = /^(#{1,4})\s+(.*?)(?:\s+\{#([a-z0-9-]+)\})?\s*$/.exec(line);
     if (h) {
       const level = h[1].length;
       const text = inline(h[2]);
-      const id = slug(h[2]);
+      const id = h[3] ?? slug(h[2]);
       out.push(`<h${level} id="${id}">${text}</h${level}>`);
       i += 1;
       continue;
@@ -443,6 +463,19 @@ const PAGE_KEYS = ['home', 'how', 'pricing', 'calculator', 'privacy', 'terms'];
  * every visitor's nav would offer conditions to people who cannot take part.
  */
 const OUTSIDE_NAV = ['alpha'];
+
+/**
+ * Pages rendered like `OUTSIDE_NAV`'s, and only when the build is for the
+ * alpha (`ALPHA` above).
+ *
+ * The tester guide (workplan 0144 T1; the owner, 2026-10-03: *"Agreed, write
+ * the Dutch version on the site"*): how to take part, written for the people
+ * invited, Dutch first. The conditions are rendered in every build, because the
+ * acceptance screen links them wherever it runs; the guide is the alpha's own,
+ * and leaves the site with it. Its address for the app is
+ * `apps/web/src/services/tester-guide-link.ts`.
+ */
+const ALPHA_ONLY = ['guide'];
 
 const urlFor = (locale, key) => {
   const file = COPY[locale].files[key];
@@ -888,8 +921,8 @@ function calculatorPage(locale) {
  * documents (workplan 0139 T10).
  */
 export const SOURCE = {
-  en: { how: 'pages/en/how-it-works.md', pricing: 'pages/en/pricing.md', privacy: 'legal/privacy.md', terms: 'legal/terms.md', alpha: 'legal/alpha.md' },
-  nl: { how: 'pages/nl/hoe-het-werkt.md', pricing: 'pages/nl/prijzen.md', privacy: 'legal/privacy.nl.md', terms: 'legal/terms.nl.md', alpha: 'legal/alpha.nl.md' },
+  en: { how: 'pages/en/how-it-works.md', pricing: 'pages/en/pricing.md', privacy: 'legal/privacy.md', terms: 'legal/terms.md', alpha: 'legal/alpha.md', guide: 'pages/en/alpha-guide.md' },
+  nl: { how: 'pages/nl/hoe-het-werkt.md', pricing: 'pages/nl/prijzen.md', privacy: 'legal/privacy.nl.md', terms: 'legal/terms.nl.md', alpha: 'legal/alpha.nl.md', guide: 'pages/nl/alfa-handleiding.md' },
 };
 
 const META = {
@@ -901,6 +934,7 @@ const META = {
     privacy: ['Privacy policy — Ownpace', 'What Ownpace holds, why, for how long, and what it never does.'],
     terms: ['Terms of service — Ownpace', 'The terms for the managed Ownpace service.'],
     alpha: ['Alpha conditions — Ownpace', 'The conditions for taking part in the Alpha of the managed Ownpace service.'],
+    guide: ['Guide to the alpha — Ownpace', 'For the people invited to the alpha: what it is, what to do before you start, how to start, where to get help and how to stop.'],
   },
   nl: {
     home: ['Ownpace — neem uw gegevens mee, in uw eigen tempo', 'Migreer uw e-mail, contacten, agenda en bestanden van Google of Microsoft naar een Europese aanbieder, doorlopend, en stap over wanneer u er klaar voor bent.'],
@@ -910,14 +944,21 @@ const META = {
     privacy: ['Privacyverklaring — Ownpace', 'Wat Ownpace bewaart, waarom, hoe lang, en wat het nooit doet.'],
     terms: ['Servicevoorwaarden — Ownpace', 'De voorwaarden voor de beheerde Ownpace-dienst.'],
     alpha: ['Voorwaarden voor de Alpha — Ownpace', 'De voorwaarden voor deelname aan de Alpha van de beheerde Ownpace-dienst.'],
+    guide: ['Handleiding voor de alfa — Ownpace', 'Voor wie is uitgenodigd voor de alfa: wat het is, wat u vooraf doet, hoe u begint, waar u hulp krijgt en hoe u stopt.'],
   },
 };
 
-function build() {
+/**
+ * Every page, rendered to memory. `alpha` says whether the build is for the
+ * alpha, which adds `ALPHA_ONLY`'s pages; it defaults to the environment's
+ * answer (`ALPHA`), and is a parameter so `site/site.unit.test.ts` can render
+ * both builds in one process.
+ */
+export function build({ alpha = ALPHA } = {}) {
   const rendered = [];
   for (const locale of LOCALES) {
     const c = COPY[locale];
-    for (const key of [...PAGE_KEYS, ...OUTSIDE_NAV]) {
+    for (const key of [...PAGE_KEYS, ...OUTSIDE_NAV, ...(alpha ? ALPHA_ONLY : [])]) {
       const [title, description] = META[locale][key];
       let body;
       if (key === 'home') {
@@ -925,7 +966,11 @@ function build() {
       } else if (key === 'calculator') {
         body = calculatorPage(locale);
       } else {
-        const md = readFileSync(join(HERE, SOURCE[locale][key]), 'utf8');
+        let md = readFileSync(join(HERE, SOURCE[locale][key]), 'utf8');
+        // The app's request page, which differs per environment (a test site
+        // hands its visitors to the test app): the guide names it as
+        // [[REQUEST_ACCESS]] and never writes an app's address itself.
+        if (key === 'guide') md = md.replace(/\[\[REQUEST_ACCESS\]\]/g, orderHref(locale, null));
         body = markdown(md);
         if (key === 'pricing') {
           const beyond = c

@@ -60,6 +60,14 @@ export interface FrontDoorCard {
    * walks six steps and ends in a refusal is worse than one that is not
    * there: it spends somebody's attention to tell them no. The Connections
    * page shows it, where every one of its answers is true.
+   *
+   * AND FOR A KIND RETIRED FOR NEW MIGRATIONS (0153 open question 5, item 3;
+   * the owner, 2026-10-04: *"go with the recommendations"*). Google Calendar
+   * and Google Contacts carry it: the Google account is the same way in, and
+   * asks Google for only what was ticked, so a second card for each offered
+   * nothing to choose between. Their accounts and migrations keep working,
+   * and *Start a migration* offers a saved one where it carries exactly what
+   * was ticked (`savedSources`).
    */
   readonly connectionOnly?: boolean;
 }
@@ -88,8 +96,8 @@ export const SOURCE_CARDS = [
   { id: 'oauth2', nameKey: 'wizard.m365.viaImap', hintKey: 'wizard.proto.oauth2.hint', guide: 'microsoft#oauth2' },
   { id: 'graph', nameKey: 'wizard.m365.viaGraph', hintKey: 'wizard.proto.graph.hint', guide: 'microsoft#graph' },
   // The ACCOUNT (workplan 0106 T3b), first among the Google cards because
-  // `FRONT_DOOR_FAMILIES` puts it first — "the usual choice first". The four
-  // product cards stay beside it and are the only way to mail and files on a
+  // `FRONT_DOOR_FAMILIES` puts it first — "the usual choice first". Drive and
+  // Gmail stay beside it and are the only way to mail and files on a
   // deployment that has not declared the restricted scope class.
   { id: 'google', name: 'Google account', hintKey: 'wizard.proto.google.hint', guide: 'google#google' },
   {
@@ -99,17 +107,21 @@ export const SOURCE_CARDS = [
     guide: 'google#google-drive',
   },
   { id: 'gmail', name: 'Gmail', hintKey: 'wizard.proto.gmail.hint', guide: 'google#gmail' },
+  // Retired for new migrations (0153 open question 5, item 3): the account
+  // above carries both, so they are offered on Accounts only (`connectionOnly`).
   {
     id: 'google-calendar',
     name: 'Google Calendar',
     hintKey: 'wizard.proto.googleCalendar.hint',
     guide: 'google#google-calendar',
+    connectionOnly: true,
   },
   {
     id: 'google-contacts',
     name: 'Google Contacts',
     hintKey: 'wizard.proto.googleContacts.hint',
     guide: 'google#google-contacts',
+    connectionOnly: true,
   },
   { id: 'dropbox', name: 'Dropbox', hintKey: 'wizard.proto.dropbox.hint', guide: 'dropbox#dropbox' },
   { id: 'box', name: 'Box', hintKey: 'wizard.proto.box.hint', guide: 'box#box' },
@@ -147,16 +159,15 @@ export const TARGET_CARDS = [
 export type SourceCard = (typeof SOURCE_CARDS)[number];
 
 /**
- * A source card the migration WIZARD may offer — every card that is not
- * `connectionOnly` (workplan 0116 T1).
+ * A source card a new migration may be made from — every card that is not
+ * `connectionOnly` (workplan 0116 T1). *Start a migration* reaches each of them
+ * (`every-card-through-start-a-migration.unit.test.tsx`), as the wizard did
+ * until it retired (0153 D5).
  *
- * A type rather than a runtime check alone, and that is the load-bearing half:
- * the wizard's `FormData.sourceType` is `CreateMappingInput['sourceType']`,
- * which the create route's enum defines. While the archive was connection-only
- * that union did not include it, so handing the chooser plain `SourceCard`s
- * made the wizard fail to compile — correctly — because it could then have set
- * a source type the API refuses. The compiler, not a filter somebody could
- * quietly drop, is what keeps the wizard out of a kind in that state.
+ * A type rather than a runtime check alone: while the archive was
+ * connection-only, the wizard's source type (the create route's enum) did not
+ * include it, and the compiler, not a filter somebody could quietly drop, kept
+ * the wizard out of a kind in that state.
  */
 export type MigratableSourceCard = Exclude<SourceCard, { connectionOnly: true }>;
 export type TargetCard = (typeof TARGET_CARDS)[number];
@@ -191,13 +202,14 @@ export function cardGuideHref(role: 'source' | 'target', id: string): string | u
 }
 
 /**
- * The cards the MIGRATION WIZARD may offer — everything a mapping can be
- * created from (workplan 0116 T1).
+ * The cards a new migration may be made from — everything a mapping can be
+ * created from (workplan 0116 T1), which *Start a migration* reaches.
  *
- * A function rather than a second list, so the two doors keep reading one
- * table: the connections page shows `frontDoorCards`, the wizard shows this,
- * and the difference between them is a flag somebody wrote down with a reason
- * beside it rather than a card that exists in one file and not the other.
+ * A function rather than a second list, so everything keeps reading one
+ * table: the Accounts page shows `frontDoorCards`, the reachability test walks
+ * this, and the difference between them is a flag somebody wrote down with a
+ * reason beside it rather than a card that exists in one file and not the
+ * other.
  */
 export function migratableSourceCards(): ReadonlyArray<MigratableSourceCard> {
   // `'connectionOnly' in c` rather than `c.connectionOnly`, and the awkwardness

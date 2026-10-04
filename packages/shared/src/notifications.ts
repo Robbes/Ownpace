@@ -822,11 +822,22 @@ export type NotificationEvent =
        *
        * Set by the API from `OWNPACE_STAGE` (`accessGrantedEvent` in
        * `apps/api/src/access-notify.ts`); absent or false everywhere else, and
-       * the mail then says nothing about an alpha. 0131 T1 (b) adds the links
-       * to the alpha conditions and the tester guide to the same paragraph, once
-       * 0139 T10's module can build their addresses.
+       * the mail then says nothing about an alpha. The tester guide's link
+       * (0131 T1 (b), 0144 T1) joins the same paragraph once the site renders
+       * the guide.
        */
       readonly alpha?: boolean;
+      /**
+       * Where the Alpha conditions are, per language (0139 T4, with 0131 T1).
+       * The last line of the alpha paragraph, in the mail's own language, and
+       * only with `alpha`: outside the alpha there are no conditions to read.
+       *
+       * Both languages, not one, so the address cannot disagree with the
+       * language the mail is written in: `renderEvent` picks it with the same
+       * locale it writes every other line in. The API makes them from
+       * `LEGAL_SITE_URL` (`alphaConditionsUrl` in `privacy-policy-link.ts`).
+       */
+      readonly alphaConditions?: Readonly<Record<NotificationLocale, string>>;
     }
   | {
       /**
@@ -907,6 +918,27 @@ export type NotificationEvent =
       readonly privacyPolicy: string;
       /** The deployment runs the alpha (workplan 0131 T1), as on `access_granted`. */
       readonly alpha?: boolean;
+    }
+  | {
+      /**
+       * Everything of a person's has arrived once (workplan 0154 T7; the
+       * owner, 2026-09-28: *"One per person"*).
+       *
+       * Sent when the last of their migrations finishes its first complete
+       * pass (`firstCopyOf`), and never again for that person: the moment a
+       * family most wants to hear about, in one mail rather than one per
+       * migration. It passes this channel's two rules: it is no summary that
+       * could arrive empty, and it says only something that happened.
+       *
+       * Addressed to whoever runs the migrations, as every event here but the
+       * three for people without an account, so it names the person. The
+       * appliance's one person is its operator, and the mail names nobody.
+       */
+      readonly kind: 'first_copy_complete';
+      /** The person, by the name the owner gave them; absent for the appliance's one person. */
+      readonly person?: string;
+      /** The data types that arrived, in the product's order. */
+      readonly domains: readonly DiscoveryDomain[];
     };
 
 /**
@@ -976,6 +1008,7 @@ const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string
     access_granted: 'Ownpace — your access is ready',
     access_declined: 'Ownpace — about your request',
     member_invited: 'Ownpace — you are invited to join an organisation',
+    first_copy_complete: 'Ownpace — everything has arrived',
   },
   nl: {
     decision_raised: 'Ownpace — een wijziging vraagt uw beslissing',
@@ -987,6 +1020,7 @@ const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string
     access_granted: 'Ownpace — uw toegang staat klaar',
     access_declined: 'Ownpace — over uw aanvraag',
     member_invited: 'Ownpace — u bent uitgenodigd voor een organisatie',
+    first_copy_complete: 'Ownpace — alles is aangekomen',
   },
 };
 
@@ -1013,6 +1047,7 @@ interface EventLines {
   readonly grantedVerify: string;
   readonly grantedNoLink: string;
   readonly grantedAlpha: string;
+  readonly grantedConditions: string;
   readonly declinedIntro: string;
   readonly declinedReply: string;
   readonly invitedIntro: string;
@@ -1021,6 +1056,11 @@ interface EventLines {
   readonly invitedVerify: string;
   readonly invitedIgnore: string;
   readonly invitedPrivacy: string;
+  readonly person: string;
+  readonly arrived: string;
+  readonly arrivedKept: string;
+  readonly and: string;
+  readonly domain: Readonly<Record<DiscoveryDomain, string>>;
 }
 
 const EVENT_BODY: Record<NotificationLocale, EventLines> = {
@@ -1071,6 +1111,10 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'Alpha: a small invited group is trying this service out. Nothing is charged, and the alpha ' +
       'can end. There are no backups, apart from one copy before each update, kept up to 7 days. ' +
       'Keep your old account until you have checked what arrived.',
+    // Under the alpha paragraph, with the conditions' address after it (0139
+    // T4, with 0131 T1). The texts' own title, as the acceptance screen and
+    // the site name them.
+    grantedConditions: 'Read the Alpha conditions here:',
     // No reason, and no false hope. "We are not able to offer you a place right
     // now" is what is true; dressing it as "not yet" would be a promise nobody
     // made, and listing criteria would invite an argument about them.
@@ -1098,6 +1142,14 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'Ownpace, the migration service that sent this message, keeps your address, the role you ' +
       'were invited with and whether you joined; its privacy policy says why, and for how long:',
     act: 'Open the app to act on this.',
+    // The first copy (0154 T7). Said without "in the new system": a person's
+    // mail can go to one provider and their files to another, and "it has
+    // arrived" is true of both.
+    person: 'Person',
+    arrived: 'Everything has arrived:',
+    arrivedKept: 'It is kept in step until you switch. Nothing is needed from you.',
+    and: 'and',
+    domain: { email: 'email', calendar: 'calendar', contact: 'contacts', file: 'files', task: 'tasks' },
   },
   nl: {
     migration: 'Migratie',
@@ -1133,6 +1185,7 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'gebracht en de alfa kan stoppen. Er worden geen back-ups gemaakt, op één kopie vlak voor ' +
       'elke update na, die hoogstens 7 dagen wordt bewaard. Houd uw oude account tot u hebt ' +
       'gecontroleerd wat er is aangekomen.',
+    grantedConditions: 'Lees hier de voorwaarden voor de Alpha:',
     declinedIntro:
       'Bedankt voor uw interesse in Ownpace. Een mens heeft uw aanvraag gelezen en wij kunnen u ' +
       'op dit moment geen plek aanbieden.',
@@ -1155,6 +1208,11 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'u bent uitgenodigd en of u bent toegetreden; waarom en hoelang staat in de ' +
       'privacyverklaring:',
     act: 'Open de app om actie te ondernemen.',
+    person: 'Persoon',
+    arrived: 'Alles is aangekomen:',
+    arrivedKept: 'Het wordt bijgehouden tot u overstapt. U hoeft niets te doen.',
+    and: 'en',
+    domain: { email: 'e-mail', calendar: 'agenda', contact: 'contacten', file: 'bestanden', task: 'taken' },
   },
 };
 
@@ -1203,9 +1261,13 @@ export function renderEvent(
       lines.push(b.grantedVerify, '');
       lines.push(b.grantedNoLink);
       // Last, as a paragraph of its own: the steps above stay together, and
-      // this is about the service rather than about signing in. 0131 T1 (b)'s
-      // links to the conditions and the tester guide belong in this paragraph.
-      if (event.alpha) lines.push('', b.grantedAlpha);
+      // this is about the service rather than about signing in. The link to
+      // the conditions ends it, in this mail's language (0139 T4, with 0131
+      // T1); the tester guide's joins it once the site renders the guide.
+      if (event.alpha) {
+        lines.push('', b.grantedAlpha);
+        if (event.alphaConditions) lines.push(`${b.grantedConditions} ${event.alphaConditions[locale]}`);
+      }
       break;
     case 'access_declined':
       lines.push(b.declinedIntro, '', b.declinedReply);
@@ -1226,6 +1288,15 @@ export function renderEvent(
       if (event.alpha) lines.push('', b.grantedAlpha);
       lines.push('', `${b.invitedPrivacy} ${event.privacyPolicy}`);
       break;
+    case 'first_copy_complete': {
+      const words = event.domains.map((d) => b.domain[d]);
+      const said =
+        words.length < 2 ? (words[0] ?? '') : `${words.slice(0, -1).join(', ')} ${b.and} ${words[words.length - 1]}`;
+      if (event.person) lines.push(`${b.person}: ${event.person}`, '');
+      lines.push(`${b.arrived} ${said}.`, '');
+      lines.push(b.arrivedKept);
+      break;
+    }
     case 'rollback_finished':
       lines.push(`${b.migration}: ${mappingLabel(event.mapping)}`, '');
       lines.push(b.rolledBack, '');
@@ -1244,6 +1315,8 @@ export function renderEvent(
     event.kind !== 'access_granted' &&
     event.kind !== 'access_declined' &&
     event.kind !== 'member_invited';
-  if (readerHasAnApp) lines.push('', b.act);
+  // Nor after the first copy, which has just said that nothing is needed:
+  // "act on this" under it would contradict it (0154 T7).
+  if (readerHasAnApp && event.kind !== 'first_copy_complete') lines.push('', b.act);
   return { subject, body: lines.join('\n') };
 }
