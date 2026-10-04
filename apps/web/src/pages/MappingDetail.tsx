@@ -35,6 +35,7 @@ import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
 import { fetchAllDiscovery, fetchAttention, fetchRuns, fetchStatus } from '../services/operating-service.ts';
 import { fetchProgress } from '../services/progress-service.ts';
 import { checksOf } from '../services/cutover-steps.ts';
+import { linesProgressOf } from '../services/stage-line.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
 import RunsPanel from '../components/RunsPanel.tsx';
 import MappingLinksPanel from '../components/MappingLinksPanel.tsx';
@@ -43,12 +44,13 @@ import SchedulePanel from '../components/SchedulePanel.tsx';
 import MigrationKindsPanel from '../components/MigrationKindsPanel.tsx';
 import CompletionReportDownload from '../components/CompletionReportDownload.tsx';
 import LiveProgress from '../components/LiveProgress.tsx';
+import { lineStages, stagesByDomain } from '../components/MigrationLines.tsx';
 import StateChip from '../components/StateChip.tsx';
 import { connectionKindName } from '../components/ProviderTile.tsx';
 import { CutoverSteps } from '../components/CutoverSteps.tsx';
 import { TimeBeforeStartLine } from '../components/TimeBeforeStartLine.tsx';
 import { TimeWhileCopyingLine } from '../components/TimeWhileCopyingLine.tsx';
-import { remainingItemsOf, timeBeforeStart, timeWhileCopying } from '@openmig/shared';
+import { leastAdvancedStage, remainingItemsOf, timeBeforeStart, timeWhileCopying } from '@openmig/shared';
 import { providerName } from '../components/ProviderTile.tsx';
 import { serverMessage } from '../services/api.ts';
 
@@ -83,6 +85,18 @@ function sideLabel(name: string | null | undefined, kind: string, account: strin
   return known ? `${head} (${account})` : head;
 }
 
+/**
+ * The latest pass any of its data types completed: what the list carries as a
+ * migration's last pass, and what a person's card reads before the progress
+ * read has it (`listStage`).
+ */
+function latestPass(rows: readonly { readonly lastSyncedAt?: string }[] | undefined): string | undefined {
+  let latest: string | undefined;
+  for (const d of rows ?? []) {
+    if (d.lastSyncedAt && (latest === undefined || d.lastSyncedAt > latest)) latest = d.lastSyncedAt;
+  }
+  return latest;
+}
 
 const MappingDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -226,6 +240,29 @@ const MappingDetail: React.FC = () => {
   const lifecycle = isSelfHost()
     ? status.data?.mappings.find((m) => m.mappingId === id)?.migrationStatus
     : detail.data?.status;
+  // WHERE IT IS, IN A PERSON'S WORDS (0154 T1, the migration's own page): what
+  // a person's card says of this migration, from the same facts and the same
+  // functions (`MigrationLines.tsx`). Its data types are the card's: its
+  // selection on managed, as the list carries it, and the status's rows on the
+  // appliance, as its person's page reads them. Once the progress read has this
+  // migration, each row of the strip says its own stage, and the header the
+  // least advanced; before, the header says what the card says then.
+  const lineFacts =
+    lifecycle === undefined
+      ? undefined
+      : {
+          status: lifecycle,
+          domains: isSelfHost() ? (progressDomains ?? []).map((d) => d.domain) : (detail.data?.syncConfig.domains ?? []),
+          lastSyncAt: latestPass(progressDomains),
+        };
+  const lines = linesProgressOf(
+    progressQuery.data,
+    id,
+    attentionQuery.data?.mappings.find((a) => a.mappingId === id),
+    attentionQuery.isSuccess,
+  );
+  const stages = lineFacts && lines ? stagesByDomain(lineFacts, lines) : {};
+  const migrationStage = lineFacts ? leastAdvancedStage(lineStages(lineFacts, lines)) : undefined;
 
   return (
     <div>
@@ -257,7 +294,11 @@ const MappingDetail: React.FC = () => {
               {t('mappings.action.reviewAndStart')}
             </Link>
           )}
-          {detail.data?.status && <StateChip entity="lifecycle" state={detail.data.status} />}
+          {migrationStage ? (
+            <StateChip entity="stage" state={migrationStage} />
+          ) : (
+            detail.data?.status && <StateChip entity="lifecycle" state={detail.data.status} />
+          )}
         </div>
       </div>
       {pauseFailed && <p className="mt-1 text-sm text-red-700">{pauseFailed}</p>}
@@ -315,7 +356,7 @@ const MappingDetail: React.FC = () => {
 
       {progressDomains && progressDomains.length > 0 && (
         <div className="mt-4">
-          <LiveProgress domains={progressDomains} />
+          <LiveProgress domains={progressDomains} stages={stages} />
         </div>
       )}
 
