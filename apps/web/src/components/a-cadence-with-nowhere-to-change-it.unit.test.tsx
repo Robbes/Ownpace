@@ -14,7 +14,9 @@
  *     "Saved" (hard rule 9);
  *  4. it offers what the wizard offers, through the wizard's own control, and
  *     every cadence offered is one the route accepts;
- *  5. each cadence's words say how often it runs, in both languages.
+ *  5. each cadence's words say how often it runs, in both languages;
+ *  6. it is a fold, closed, in a family's words (0153 T6 (b)), that says the
+ *     cadence in force without being opened.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -25,6 +27,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AxiosError, AxiosHeaders } from 'axios';
 import { describeCronScheduleProblem } from '@openmig/shared';
 import { STRINGS } from '../i18n/strings.ts';
+import { LocaleProvider } from '../i18n/index.tsx';
 
 const { setSchedule } = vi.hoisted(() => ({ setSchedule: vi.fn() }));
 vi.mock('../services/mapping-service', () => ({ mappingApi: { setSchedule } }));
@@ -167,5 +170,62 @@ describe('what is offered', () => {
     // The wizard, where the schedule is first chosen, says the same.
     expect(EN['wizard.scheduleHint']).toContain('does not wait for this schedule');
     expect(NL['wizard.scheduleHint']).toContain('niet op dit schema wacht');
+  });
+});
+
+/**
+ * FOLDED, IN A FAMILY'S WORDS (workplan 0153 T6 (b); the owner approved the
+ * words on 2026-09-28): *How often to look for changes* where it said *Sync
+ * schedule*, as a fold that stays closed until somebody opens it, and says the
+ * cadence in force while closed.
+ */
+describe('the fold, in a family’s words (0153 T6 (b))', () => {
+  /** The fold, by the words on it. */
+  const fold = () => screen.getByText(EN['settings.schedule']).closest('details');
+
+  it('is a fold, closed, headed in the owner’s words', () => {
+    renderPanel('0 * * * *');
+    expect(fold()).not.toBeNull();
+    expect(fold()).not.toHaveAttribute('open');
+    expect(EN['settings.schedule']).toBe('How often to look for changes');
+    expect(NL['settings.schedule']).toBe('Hoe vaak naar wijzigingen kijken');
+    // The chooser and its save sit inside it.
+    expect(fold()!.contains(save())).toBe(true);
+  });
+
+  it('says the cadence in force while closed, in the chooser’s words', () => {
+    const summary = () => fold()!.querySelector('summary')!.textContent;
+    const { unmount } = renderPanel('0 * * * *');
+    expect(summary()).toBe(`${EN['settings.schedule']} · ${EN['wizard.schedule.hourly']}`);
+    unmount();
+
+    // No schedule of its own: the tick's every 15 minutes.
+    const second = renderPanel(undefined);
+    expect(summary()).toContain(EN['wizard.schedule.quarterHourly']);
+    second.unmount();
+
+    // A cadence the chooser does not offer: nothing guessed on the fold, and
+    // the line inside says what runs.
+    renderPanel('30 3 * * 1');
+    expect(summary()).toBe(EN['settings.schedule']);
+    expect(screen.getByText(/^Now: 30 3 \* \* 1/)).toBeInTheDocument();
+  });
+
+  it('in Dutch', () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <LocaleProvider>
+          <QueryClientProvider client={qc}>
+            <SchedulePanel mappingId="m-1" current="0 2 * * *" />
+          </QueryClientProvider>
+        </LocaleProvider>,
+      );
+      const summary = screen.getByText(NL['settings.schedule']).closest('summary');
+      expect(summary?.textContent).toBe(`${NL['settings.schedule']} · ${NL['wizard.schedule.daily']}`);
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
   });
 });

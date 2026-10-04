@@ -763,7 +763,7 @@ const en = {
     'Under a format a Paper doc arrives under a new name (Notes.paper.md), so it is new to the migration. The next pass copies each one, and the line recorded under its old name closes by itself, because the doc is no longer listed by it. A doc Dropbox does not offer in this format stays on the Failures screen once, saying so. Saving changes nothing by itself: the pass does it. Other documents Dropbox keeps in a format of its own stay behind.',
   // HOW OFTEN A MIGRATION SYNCS, changed on its own page (the owner,
   // 2026-09-28). The four cadences are the wizard's own words.
-  'settings.schedule': 'Sync schedule',
+  'settings.schedule': 'How often to look for changes',
   'settings.schedule.default': 'Now: every 15 minutes, because this migration has no schedule of its own.',
   'settings.schedule.own': 'Now: {schedule}, set outside this page.',
   // The first copy runs pass after pass whatever the schedule, and the
@@ -3728,7 +3728,7 @@ const nl: Record<keyof typeof en, string> = {
     'De volgende ronde probeert {count} Paper-document(en) die tot nu toe bleven staan opnieuw, in dit formaat.',
   'settings.exportPolicy.paper.refusedBefore.why':
     'Onder een formaat komt een Paper-document aan onder een nieuwe naam (Notities.paper.md), dus het is nieuw voor de migratie. De volgende ronde kopieert elk document, en de regel die onder de oude naam is vastgelegd, sluit vanzelf, omdat het document niet meer onder die naam voorkomt. Een document dat Dropbox niet in dit formaat aanbiedt, staat één keer bij Mislukkingen, met die reden. Opslaan verandert zelf niets: de ronde doet het. Andere documenten die Dropbox in een eigen formaat bewaart, blijven staan.',
-  'settings.schedule': 'Synchronisatieschema',
+  'settings.schedule': 'Hoe vaak naar wijzigingen kijken',
   'settings.schedule.default': 'Nu: elk kwartier, omdat deze migratie geen eigen schema heeft.',
   'settings.schedule.own': 'Nu: {schedule}, buiten deze pagina ingesteld.',
   'settings.schedule.hint': 'Rondes lopen direct na elkaar tot de eerste kopie klaar is.',
