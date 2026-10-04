@@ -289,9 +289,15 @@ const BYTES_PER_GB = 1_000_000_000;
  * T6): is the meter, with what this pass has copied so far, still below the
  * ceiling? `PassClock.firstCopyAllowed` in the engine's words.
  *
- * Asked before the copy, so the copy that crosses the ceiling is the last one,
- * and the meter passes it by at most that one item. A ceiling already reached
- * when the pass starts holds every new first copy from the first.
+ * Asked before the copy, so within one pass the copy that crosses the ceiling
+ * is the last one. A ceiling already reached when the pass starts holds every
+ * new first copy from the first.
+ *
+ * The meter is read when the data type's pass begins and added to when it
+ * ends, so passes of one organisation running at once each count from the
+ * meter as it stood then, and together can pass the ceiling by up to the room
+ * left, once per pass. That errs toward copying more than was paid for, never
+ * less: ADR-0014, "it must under-bill, never halt".
  */
 export function firstCopyGate(ceiling: Ceiling): (firstCopyBytesThisPass: number) => boolean {
   const before = ceiling.gbMoved * BYTES_PER_GB;
