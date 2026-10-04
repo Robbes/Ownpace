@@ -985,19 +985,6 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
       }
     }
 
-    // A ROTATION KEEPS THE DIRECTORY ITS REGISTRATION BELONGS TO (0153 open
-    // question 5). The panel offers what is required, secret or paired, and a
-    // Microsoft account's tenant is none of those, so replacing a revoked
-    // token dropped it, and the next pass asked `common` for a single-tenant
-    // application it could not find. Kept when the same registration is
-    // rotated; a different pair brings its own tenant, or none.
-    const kept = row.role === 'source' && row.kind === 'microsoft' ? keptTenant(row.secretRef, values) : undefined;
-    const half = (kept === undefined ? checked.data : { ...checked.data, tenantId: kept }) as never;
-    const creds =
-      row.role === 'source'
-        ? sourceCredentialRecord({ sourceType: type as never, sourceConfig: half })
-        : { username: values.username ?? '', password: values.password ?? '' };
-
     // The CONFIG is deliberately left alone: rotation replaces a secret, not
     // where the migration is rooted. Changing both here would let a rotation
     // silently re-point a mapping at a different folder.
@@ -1008,6 +995,20 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
     if (await refusedAsClosed(res, tenantId, pool())) return;
     if (await refusedUntilAccepted(res, tenantId, req.userId, pool())) return;
     if (refusedOverTestLimit(req, res)) return;
+
+    // A ROTATION KEEPS THE DIRECTORY ITS REGISTRATION BELONGS TO (0153 open
+    // question 5). The panel offers what is required, secret or paired, and a
+    // Microsoft account's tenant is none of those, so replacing a revoked
+    // token dropped it, and the next pass asked `common` for a single-tenant
+    // application it could not find. Kept when the same registration is
+    // rotated; a different pair brings its own tenant, or none. Read after the
+    // close, as every use of the stored access is.
+    const kept = row.role === 'source' && row.kind === 'microsoft' ? keptTenant(row.secretRef, values) : undefined;
+    const half = (kept === undefined ? checked.data : { ...checked.data, tenantId: kept }) as never;
+    const creds =
+      row.role === 'source'
+        ? sourceCredentialRecord({ sourceType: type as never, sourceConfig: half })
+        : { username: values.username ?? '', password: values.password ?? '' };
     const answers = probeAnswers('replacing credentials', tenantId);
     const probe = answers.result(
       row.role === 'target'

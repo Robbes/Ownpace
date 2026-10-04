@@ -599,7 +599,9 @@ const USES_STORED_ACCESS =
  * the close, or its file is below with the reason.
  */
 const USES_BY_FILE: Readonly<Record<string, number>> = {
-  'routes/connections.ts': 11,
+  // One more since a rotation keeps a Microsoft account's tenant (0153 open
+  // question 5), read after the rotation's close.
+  'routes/connections.ts': 12,
   'routes/grant.ts': 2,
   'routes/migrations/account-on-connection.ts': 1,
   'routes/migrations/google-oauth-routes.ts': 3,
