@@ -1129,6 +1129,12 @@ const en = {
   'receipt.failedPrefix': 'The removal job failed:',
   'lifecycle.paused':
     'This migration has not started, so nothing has been copied and nothing can have diverged.',
+  // *Rename* beside a migration's title (0153 open question 5, item 4).
+  'hub.rename': 'Rename',
+  'hub.rename.label': 'Name of this migration',
+  'hub.rename.save': 'Save',
+  'hub.rename.saving': 'Saving…',
+  'hub.rename.failed': 'Not renamed:',
   'hub.fallbackTitle': 'Migration',
   'hub.orderIntro': 'Work them from the top, in this order.',
   'hub.noId': 'No mapping id in the address.',
@@ -4110,6 +4116,11 @@ const nl: Record<keyof typeof en, string> = {
   'receipt.failedPrefix': 'De verwijdertaak is mislukt:',
   'lifecycle.paused':
     'Deze migratie is niet gestart, dus er is niets gekopieerd en niets kan zijn afgeweken.',
+  'hub.rename': 'Naam wijzigen',
+  'hub.rename.label': 'Naam van deze migratie',
+  'hub.rename.save': 'Opslaan',
+  'hub.rename.saving': 'Opslaan…',
+  'hub.rename.failed': 'Niet hernoemd:',
   'hub.fallbackTitle': 'Migratie',
   'hub.orderIntro': 'Werk ze van boven af, in deze volgorde.',
   'hub.noId': 'Geen mapping-id in het adres.',

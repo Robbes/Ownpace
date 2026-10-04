@@ -93,6 +93,22 @@ export type RevisionVerdict =
 interface Rule {
   readonly field: RevisableField;
   readonly verdict: RevisionVerdict;
+  /**
+   * Refused only once the migration has copied something (0153 open question
+   * 5, item 4). Before that nothing sits outside the new value, so the reason
+   * the row gives is not yet true. Asked through `RevisionFacts`; a caller
+   * that cannot say is answered as if something was copied.
+   */
+  readonly onceCopied?: true;
+}
+
+/**
+ * What a caller knows about the migration, for the rows whose answer depends
+ * on it. Absent fields are read in the safe direction.
+ */
+export interface RevisionFacts {
+  /** Whether its ledger holds an item. Absent means it may. */
+  readonly copiedAnything?: boolean;
 }
 
 const RULES: ReadonlyArray<Rule> = [
@@ -166,6 +182,9 @@ const RULES: ReadonlyArray<Rule> = [
      * the items already copied stay exactly where they are.
      */
     field: 'source.rootFolderId',
+    // Before the first item, nothing is outside the new folder: a migration set
+    // up and not started may still choose it (0153 open question 5, item 4).
+    onceCopied: true,
     verdict: {
       allowed: false,
       reason:
@@ -245,12 +264,15 @@ const RULES: ReadonlyArray<Rule> = [
  * `parseGoogleDriveSource`'s question, and it is asked as well as this, never
  * instead of it.
  */
-export function mayRevise(field: RevisableField): RevisionVerdict {
+export function mayRevise(field: RevisableField, facts: RevisionFacts = {}): RevisionVerdict {
   const rule = RULES.find((r) => r.field === field);
   // Unreachable while the union and the table agree, and the guard test holds
   // that. `throw` rather than a permissive default: a field this table has no
   // opinion on must not be revised because nobody wrote a row for it.
   if (!rule) throw new Error(`no revision rule for "${field}" — add one to config-revision.ts`);
+  // Only a caller that KNOWS nothing was copied is let through: `undefined`
+  // is the appliance's comparison, which cannot say, and keeps its refusal.
+  if (rule.onceCopied && facts.copiedAnything === false) return { allowed: true };
   return rule.verdict;
 }
 
@@ -267,10 +289,11 @@ export function mayRevise(field: RevisableField): RevisionVerdict {
  */
 export function refusalsFor(
   fields: Iterable<RevisableField>,
+  facts: RevisionFacts = {},
 ): ReadonlyArray<{ readonly field: RevisableField; readonly reason: string }> {
   const refused: Array<{ field: RevisableField; reason: string }> = [];
   for (const field of fields) {
-    const verdict = mayRevise(field);
+    const verdict = mayRevise(field, facts);
     if (!verdict.allowed) refused.push({ field, reason: verdict.reason });
   }
   return refused;

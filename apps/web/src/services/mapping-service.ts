@@ -1132,6 +1132,19 @@ export const mappingApi = {
   },
 
   /**
+   * RENAME A MIGRATION (0153 open question 5, item 4: *Rename* on the
+   * migration page, the owner's choice of 2026-10-04).
+   *
+   * Sends the name and nothing else, for the reason the schedule's call does.
+   * The route stores it trimmed and refuses one of spaces, so what comes back
+   * is what was sent, and the page reads the stored name on its next read.
+   */
+  rename: async (mappingId: string, name: string) => {
+    const response = await apiClient.put(`/migrations/${mappingId}`, { name });
+    return z.object({ id: z.string(), name: z.string(), updatedAt: z.string() }).parse(response.data);
+  },
+
+  /**
    * ADD ONE DATA TYPE TO A MIGRATION THAT ALREADY EXISTS (workplan 0125 T6).
    *
    * Accepted exactly when the detail's `kindChoices` calls it addable; any

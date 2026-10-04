@@ -2220,6 +2220,18 @@ paths:
         Google format sent to one that does, is a `400` naming
         `sourceConfig.nativeFilePolicies`, and nothing is written.
 
+        The name is applied, stored trimmed; a name of spaces is a `400` on
+        `name` (0153 open question 5, item 4).
+
+        The source root folder is applied until the migration's ledger holds an
+        item: `sourceConfig.rootFolderId` on a Google Drive or Box migration,
+        `sourceConfig.rootPath` on a Dropbox one, merged into THIS mapping's
+        own source_config_override and validated by the parser a pass reads it
+        with. An empty value takes it off that override, and is a `400` where
+        the account itself holds the folder. A folder for a source that has
+        none, or in the other spelling, is a `400` naming the key. Once the
+        ledger holds an item, the folder is refused as below.
+
         Fields that cannot change on a migration that already holds items are
         REFUSED rather than dropped: the source or target system, the source
         root folder, and the destination account. Reconnecting the same account
