@@ -125,6 +125,25 @@ export const COPY = {
     payYearHow: 'paid yearly, in advance',
     payHalf: 'half the monthly price',
     payMonthHow: 'No minimum term: stop whenever you like',
+    // The pricing page's rules as questions (workplan 0152 T6 (b)): under this
+    // heading, each bold-led paragraph answers its question, [lead, question],
+    // in the page's order. build.mjs refuses a rule that is not the next lead.
+    pricingRules: {
+      heading: 'The parts worth knowing before you pay',
+      questions: [
+        ['Free is free.', 'Is there a free way?'],
+        ['Finishing lowers your bill, automatically.', 'Does the bill go down when I finish?'],
+        ['Pausing does not lower it.', 'Does pausing lower it?'],
+        ['Unless you ask us to keep copying.', 'What if I keep copying after I switch?'],
+        ['Stopping one kind of data works like a pause, until you have moved.', 'What if I stop one kind of data?'],
+        ['There is no setup fee.', 'Is there a setup fee?'],
+        ['A year costs six months.', 'What does a year cost?'],
+        ['The data figure only counts the first copy of anything.', 'What counts as data moved?'],
+        ['Running out of room does not have to mean moving up a tier.', 'What if I run out of room?'],
+        ['We do not take money from inattention.', 'What if a migration has nothing left to do?'],
+        ['Cancel whenever.', 'Can I stop whenever I like?'],
+      ],
+    },
     // Toward consumers a displayed price IS the final price (workplan 0111
     // T8): this says so out loud, with no rate in the copy — which country's
     // VAT sits inside it is the seller's problem, decided per invoice by the
@@ -316,6 +335,22 @@ export const COPY = {
     payYearHow: 'per jaar vooruitbetaald',
     payHalf: 'de helft van de maandprijs',
     payMonthHow: 'Geen minimumduur: stop wanneer u wilt',
+    pricingRules: {
+      heading: 'Wat u wilt weten voordat u betaalt',
+      questions: [
+        ['Free is gratis.', 'Kan het gratis?'],
+        ['Afronden verlaagt uw rekening, automatisch.', 'Gaat de rekening omlaag als ik klaar ben?'],
+        ['Pauzeren verlaagt hem niet.', 'Verlaagt pauzeren de rekening?'],
+        ['Tenzij u ons vraagt te blijven kopiëren.', 'En als ik na de overstap blijf kopiëren?'],
+        ['Eén soort gegevens stoppen werkt als pauzeren, tot u bent overgestapt.', 'En als ik één soort gegevens stop?'],
+        ['Er zijn geen inrichtingskosten.', 'Zijn er inrichtingskosten?'],
+        ['Een jaar kost zes maanden.', 'Wat kost een jaar?'],
+        ['Het gegevensgetal telt alleen de eerste kopie van iets.', 'Wat telt als gemigreerde gegevens?'],
+        ['Ruimte tekort komen hoeft niet te betekenen dat u omhoog moet.', 'En als ik ruimte tekortkom?'],
+        ['We verdienen niet aan onoplettendheid.', 'En als een migratie niets meer te doen heeft?'],
+        ['Opzeggen wanneer u wilt.', 'Kan ik opzeggen wanneer ik wil?'],
+      ],
+    },
     vatIncluded: 'Alle prijzen zijn inclusief btw.',
     tierPaths: (n) => `<strong>${n}</strong> migratie${n === 1 ? '' : 's'} tegelijk`,
     tierData: (s) => `<strong>${s}</strong> aan gemigreerde gegevens`,

@@ -263,9 +263,11 @@ describe('but the DOOR into the lane is deliberately still shut', () => {
     expect(finishing, 'the paragraph this one qualifies is gone').toBeGreaterThan(-1);
     const unless = pricing.indexOf('Unless you ask us to keep copying');
     expect(unless, 'the pricing page no longer says the lane keeps counting').toBeGreaterThan(-1);
-    // BESIDE it, not in a footnote. Three paragraphs is the width of the
-    // "parts worth knowing" list; further than that and a reader has met the
-    // promise and moved on before meeting the exception.
+    // BESIDE it, not in a footnote. Three answers is the width of the
+    // "parts worth knowing" questions (0152 T6 (b): each paragraph here is the
+    // answer to one, and site.unit.test.ts holds the rendered answers the same
+    // way); further than that and a reader has met the promise and moved on
+    // before meeting the exception.
     const between = pricing.slice(finishing, unless).split('\n\n').length;
     expect(between, 'the exception drifted away from the promise it qualifies').toBeLessThan(4);
   });
