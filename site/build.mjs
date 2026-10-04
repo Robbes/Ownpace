@@ -424,7 +424,7 @@ nav.menu a:first-child { border-top: 0; }
 /* pricing */
 .tiers { display: grid; gap: 0.85rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); margin: 2rem 0; }
 .tier {
-  border: 1px solid var(--line); border-radius: 12px; padding: 2.6rem 1.1rem 1.1rem;
+  border: 1px solid var(--line); border-radius: 12px; padding: 1.1rem;
   display: flex; flex-direction: column; position: relative;
 }
 .tier.featured { border-color: var(--teal); box-shadow: 0 0 0 1px var(--teal); }
@@ -442,13 +442,6 @@ nav.menu a:first-child { border-top: 0; }
 .tier ul { list-style: none; padding: 0; margin: 1rem 0; font-size: 0.93rem; }
 .tier ul li { padding: 0.3rem 0; border-top: 1px solid var(--line); }
 .tier .note { color: var(--muted); font-size: 0.9rem; margin-top: auto; padding-top: 1rem; }
-/* Absolutely placed, with room reserved by .tier's top padding, so every card's
-   heading — and therefore every price — sits on the same line. */
-.badge {
-  position: absolute; top: 0.9rem; left: 1.1rem;
-  background: var(--mint); color: #06201c; font-size: 0.68rem; font-weight: 700;
-  letter-spacing: 0.05em; text-transform: uppercase; padding: 0.15rem 0.5rem; border-radius: 999px;
-}
 
 /* calculator (workplan 0088 T3) */
 .calc fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.25rem 1.25rem; margin: 1.25rem 0; }
@@ -680,16 +673,15 @@ function tierCards(locale) {
         : `<li>${c.tierNoSetup}</li>
     <li>${c.tierThree(money(total(t, 3)))}</li>`;
       return `<div class="tier${featured ? ' featured' : ''}">
-  ${featured ? `<span class="badge">${c.tierBadge}</span>` : ''}
   <h3>${t.name}</h3>
-  <p class="who">${esc(t.who)}</p>
+  <p class="who">${esc(c.tierText[t.id].who)}</p>
   ${prices}
   <ul>
     <li>${c.tierPaths(t.paths)}</li>
     <li>${c.tierData(size(t.dataGb))}</li>
     ${terms}
   </ul>
-  <p class="note">${esc(t.note)}</p>
+  <p class="note">${esc(c.tierText[t.id].note)}</p>
   <p><a class="btn ${featured ? 'btn-primary' : 'btn-ghost'}" href="${esc(orderHref(locale, t))}">${c.tierStart(t.name)}</a></p>
 </div>`;
     }).join('') +

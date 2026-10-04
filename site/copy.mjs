@@ -114,7 +114,7 @@ export const COPY = {
     costLede:
       'Two numbers decide your price: how many things you are moving <strong>at the same time</strong>, and how much data you have moved in total. You are on whichever is higher, and finishing a migration lowers your bill by itself.',
     costPick: (name, monthly, annual, paths, data) =>
-      `Most people want <strong>${name}</strong> — ${monthly} a month, or ${annual} for a year, for ${paths} migrations at once and ${data}. There is no setup fee.`,
+      `<strong>${name}</strong>, for one person moving everything at once: ${monthly} a month, or ${annual} for a year, for ${paths} migrations at once and ${data}. There is no setup fee.`,
     tierMonth: 'a month',
     tierYear: 'for a year, half the monthly price',
     // Toward consumers a displayed price IS the final price (workplan 0111
@@ -127,7 +127,26 @@ export const COPY = {
     tierNoSetup: 'No setup fee',
     tierThree: (m) => `${m} for a three-month migration, paying monthly`,
     tierStart: (name) => `Start with ${name}`,
-    tierBadge: 'Most people',
+    // Each tier's subtitle and note, in the page's language (workplan 0152 T1
+    // (b)): they lived in prices.mjs in English only, so the Dutch pricing page
+    // printed them in English. No tier says "most people" any more: nothing
+    // counts who picks what, so it is said as a fact about the tier.
+    tierText: {
+      free: {
+        who: 'One person, one thing at a time',
+        note: 'Move your mail, then your contacts, then your calendar, then your files — one after another. The patient option, and free.',
+      },
+      small: { who: 'One person, everything at once', note: 'Everything you own, moving at the same time.' },
+      medium: {
+        who: 'A household, a team, or a small business',
+        note: 'Five people with everything, or four with room to spare. Self-service, with a manual and somewhere to ask questions.',
+      },
+      large: {
+        who: 'An SME',
+        note: 'Where a real person gets involved: planning, the cutover, and someone to call when a provider does something strange.',
+      },
+      xl: { who: 'An organisation, or an MSP', note: 'Many accounts, one migration, one relationship.' },
+    },
     tierFree: 'Free',
     tierFreeFor: 'for as long as it runs',
     tierNoInvoice: 'No invoice',
@@ -279,7 +298,7 @@ export const COPY = {
     costLede:
       'Twee getallen bepalen uw prijs: hoeveel migraties er <strong>tegelijk</strong> lopen, en hoeveel gegevens u in totaal hebt gemigreerd. U zit op het hoogste van die twee, en een migratie afronden verlaagt uw rekening vanzelf.',
     costPick: (name, monthly, annual, paths, data) =>
-      `De meeste mensen willen <strong>${name}</strong> — ${monthly} per maand, of ${annual} voor een jaar, voor ${paths} migraties tegelijk en ${data}. Er zijn geen inrichtingskosten.`,
+      `<strong>${name}</strong>, voor één persoon die alles tegelijk migreert: ${monthly} per maand, of ${annual} voor een jaar, voor ${paths} migraties tegelijk en ${data}. Er zijn geen inrichtingskosten.`,
     tierMonth: 'per maand',
     tierYear: 'voor een jaar, de helft van de maandprijs',
     vatIncluded: 'Alle prijzen zijn inclusief btw.',
@@ -288,7 +307,22 @@ export const COPY = {
     tierNoSetup: 'Geen inrichtingskosten',
     tierThree: (m) => `${m} voor een migratie van drie maanden, per maand betaald`,
     tierStart: (name) => `Begin met ${name}`,
-    tierBadge: 'Meest gekozen',
+    tierText: {
+      free: {
+        who: 'Eén persoon, één ding tegelijk',
+        note: 'Migreer uw e-mail, dan uw contacten, dan uw agenda, dan uw bestanden — de een na de ander. De geduldige keuze, en gratis.',
+      },
+      small: { who: 'Eén persoon, alles tegelijk', note: 'Al uw gegevens, tegelijk gemigreerd.' },
+      medium: {
+        who: 'Een huishouden, een team of een klein bedrijf',
+        note: 'Vijf mensen met alles, of vier met ruimte over. Zelfbediening, met een handleiding en een plek om vragen te stellen.',
+      },
+      large: {
+        who: 'Een mkb-bedrijf',
+        note: 'Hier komt een echt mens bij: de planning, de overstap, en iemand bij wie u terechtkunt als een aanbieder iets vreemds doet.',
+      },
+      xl: { who: 'Een organisatie, of een MSP', note: 'Veel accounts, één migratie, één aanspreekpunt.' },
+    },
     tierFree: 'Gratis',
     tierFreeFor: 'zolang het loopt',
     tierNoInvoice: 'Geen factuur',

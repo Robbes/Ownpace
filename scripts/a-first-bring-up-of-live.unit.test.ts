@@ -28,8 +28,10 @@
  *   tree that is not clean; a deploy log that already has a line; live's
  *   database volume already there without `--resume`; and each setting of
  *   live's `.env` that is wrong for live, named by its key and never by its
- *   value. None of them reaches the bring-up, generates a password or
- *   writes to the `.env`.
+ *   value, `NODE_ENV` not `production` (0132 T4) and `ALERT_ENABLED` not
+ *   exactly `true` (0142 T0; the owner, 2026-10-04: testers are on live, so
+ *   it is not stood up without alerts) among them. None of them reaches the
+ *   bring-up, generates a password or writes to the `.env`.
  *
  *   The passwords it generates never appear on any command line or in
  *   anything it prints: `openssl`'s output goes to `env-upsert.sh --stdin`,
@@ -158,6 +160,9 @@ const LIVE_ENV: Record<string, string> = {
   CORS_ORIGIN: 'https://app.ownpace.eu',
   WEB_URL: 'https://app.ownpace.eu',
   NODE_ENV: 'production',
+  // Testers are on live, so it is not stood up without alerts (0142 T0; the
+  // owner, 2026-10-04).
+  ALERT_ENABLED: 'true',
   // The proxies in front of live's api: NetBird's and the web container's
   // nginx (the owner, 2026-09-28, ops-trust-proxy (b); workplan 0132 T3 (d)).
   TRUST_PROXY: '2',
@@ -1011,6 +1016,14 @@ describe("refused before anything changes: live's .env, key by key, never a valu
     ['ZITADEL_EXTERNALSECURE not true', { ZITADEL_EXTERNALSECURE: 'false' }, 'ZITADEL_EXTERNALSECURE'],
     ['ZITADEL_TLS_MODE not external', { ZITADEL_TLS_MODE: 'disabled' }, 'ZITADEL_TLS_MODE'],
     ['NODE_ENV not production', { NODE_ENV: 'development' }, 'NODE_ENV'],
+    ['NODE_ENV absent', { NODE_ENV: undefined }, 'NODE_ENV'],
+    // Alerts on from the first bring-up (0142 T0; the owner, 2026-10-04:
+    // "Refuse to deploy"). Exactly true: Compose would hand gatus the double
+    // quotes' content, but env_value keeps them, as it does for SMTP_*.
+    ['ALERT_ENABLED absent', { ALERT_ENABLED: undefined }, 'ALERT_ENABLED'],
+    ["ALERT_ENABLED false, the example's value", { ALERT_ENABLED: 'false' }, 'ALERT_ENABLED'],
+    ['ALERT_ENABLED a word that is not true', { ALERT_ENABLED: 'yes-q8' }, 'ALERT_ENABLED', 'yes-q8'],
+    ['ALERT_ENABLED in double quotes', { ALERT_ENABLED: '"true"' }, 'ALERT_ENABLED'],
     ['TRUST_PROXY empty: the api would name the web container for every visitor', { TRUST_PROXY: '' }, 'TRUST_PROXY'],
     ["TRUST_PROXY 1: the web container's nginx alone, so NetBird for every visitor", { TRUST_PROXY: '1' }, 'TRUST_PROXY'],
     ["TRUST_PROXY true: every caller's own header believed", { TRUST_PROXY: 'true' }, 'TRUST_PROXY'],
@@ -1149,6 +1162,20 @@ describe("refused before anything changes: live's .env, key by key, never a valu
       const r = run(s);
       expectRefused(s, r, '- NODE_ENV', 'reads', envNow(s));
       expect(r.out).toContain('- WEB_BIND');
+    },
+    CASE_MS,
+  );
+
+  it(
+    "ALERT_ENABLED not true: the refusal names the line to add and the test alert (0142 T0), on a resume too",
+    () => {
+      const s = stage({ env: { ALERT_ENABLED: undefined } });
+      for (const args of [[], ['--resume']]) {
+        const r = run(s, args);
+        expectRefused(s, r, '- ALERT_ENABLED', 'reads', envNow(s));
+        expect(r.out).toContain('ALERT_ENABLED=true');
+        expect(r.out).toContain('0142 T0');
+      }
     },
     CASE_MS,
   );

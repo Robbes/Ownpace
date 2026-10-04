@@ -7,16 +7,23 @@
  *  - the tenant-membership gate (0020 T1): a verified signature is not an
  *    authorization; membership is confirmed and the role comes from the row.
  *  - assertProductionAuthConfig (0020 T2): placeholder secrets refuse to boot.
+ *  - assertManagedAudience (workplan 0132, 2026-10-04): an issuer without an
+ *    audience refuses to boot, on every NODE_ENV.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import jwt from 'jsonwebtoken';
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Request, Response } from 'express';
 import {
   authenticate,
   optionalAuth,
   selectAuthMode,
   assertProductionAuthConfig,
+  assertManagedAudience,
   __setMembershipLookupForTests,
 } from './auth.ts';
 
@@ -366,4 +373,94 @@ describe('assertProductionAuthConfig (0020 T2)', () => {
       } as NodeJS.ProcessEnv)
     ).not.toThrow();
   });
+});
+
+describe('assertManagedAudience: an issuer without an audience does not start (workplan 0132, 2026-10-04)', () => {
+  // With JWT_ISSUER set and JWT_AUDIENCE empty, verification checked no
+  // audience, so a token the issuer minted for ANY project passed. On every
+  // NODE_ENV, not only production: the OTA stack runs development (0132 T4,
+  // the owner's answer of 2026-10-04) and holds sign-ins too.
+  const ISSUER = 'https://issuer.example/';
+  // Both stacks carry JWT_SECRET beside the issuer: managed.yml requires it,
+  // and ensure-env-secrets.sh generates it. Not a placeholder, so nothing
+  // else refuses it. A check that returned early on it would be off for
+  // exactly the stacks it exists for.
+  const SECRET = 'a-test-secret-that-is-no-placeholder-7f3a9c';
+
+  it.each([
+    ['development', 'absent', undefined],
+    ['development', 'empty', ''],
+    ['development', 'blank', '  '],
+    ['production', 'absent', undefined],
+    ['production', 'empty', ''],
+    ['production', 'blank', '\t'],
+    ['unset', 'absent', undefined],
+  ])('NODE_ENV %s, JWT_AUDIENCE %s: refuses, naming the setting and where it comes from, with JWT_SECRET beside the issuer or not', (nodeEnv, _label, audience) => {
+    for (const secret of [undefined, SECRET]) {
+      const env: NodeJS.ProcessEnv = { JWT_ISSUER: ISSUER } as NodeJS.ProcessEnv;
+      if (nodeEnv !== 'unset') env.NODE_ENV = nodeEnv;
+      if (audience !== undefined) env.JWT_AUDIENCE = audience;
+      if (secret !== undefined) env.JWT_SECRET = secret;
+      expect(() => assertManagedAudience(env), `JWT_SECRET ${secret ? 'set' : 'absent'}`).toThrow(/JWT_AUDIENCE/);
+      expect(() => assertManagedAudience(env), `JWT_SECRET ${secret ? 'set' : 'absent'}`).toThrow(/sign-in project's id/);
+    }
+  });
+
+  it('passes an issuer with an audience', () => {
+    expect(() =>
+      assertManagedAudience({ NODE_ENV: 'production', JWT_ISSUER: ISSUER, JWT_AUDIENCE: '123456789' } as NodeJS.ProcessEnv),
+    ).not.toThrow();
+  });
+
+  it('passes a stack with no issuer: self-host (JWT_SECRET) and local dev have no audience to check', () => {
+    expect(() => assertManagedAudience({ NODE_ENV: 'production', JWT_SECRET: 'a-real-secret' } as NodeJS.ProcessEnv)).not.toThrow();
+    expect(() => assertManagedAudience({ NODE_ENV: 'development' } as NodeJS.ProcessEnv)).not.toThrow();
+  });
+
+  it('index.ts calls it first in its start block, unconditionally', () => {
+    // The first statement of the block, at the block's own indentation: not
+    // inside an `if` of its own, and before anything that could fail first
+    // and name something else. Comments do not count.
+    const index = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'index.ts'), 'utf8');
+    const start = index.indexOf("if (process.env.NODE_ENV !== 'test') {\n");
+    expect(start, 'no boot block found in apps/api/src/index.ts').toBeGreaterThan(-1);
+    const first = index
+      .slice(start)
+      .split('\n')
+      .slice(1)
+      .find((l) => l.trim() !== '' && !l.trim().startsWith('//'));
+    expect(first, 'the first statement of the start block').toBe('  assertManagedAudience();');
+  });
+
+  // The behaviour, not the text: the API itself, started as a stack starts
+  // it, with an issuer, a secret and no audience, and no database. It must
+  // stop on the audience before it asks for one, on every NODE_ENV: the OTA
+  // stack runs development (0132 T4). A call wrapped in a production check,
+  // or moved after the migrations, still reads as a call, and fails here.
+  const API_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+  it.each(['development', 'production', 'unset'])(
+    'the API started with NODE_ENV %s, an issuer and no audience stops on the audience, before the database',
+    (nodeEnv) => {
+      const env: NodeJS.ProcessEnv = {
+        PATH: process.env.PATH ?? '/usr/bin:/bin',
+        HOME: process.env.HOME ?? '/tmp',
+        JWT_ISSUER: ISSUER,
+        JWT_SECRET: SECRET,
+      } as NodeJS.ProcessEnv;
+      if (nodeEnv !== 'unset') env.NODE_ENV = nodeEnv;
+      const r = spawnSync(process.execPath, [join('src', 'index.ts')], {
+        cwd: API_DIR,
+        env,
+        encoding: 'utf8',
+        timeout: 60_000,
+      });
+      const out = `${r.stdout}${r.stderr}`;
+      expect(r.status, `the API did not stop:\n${out}`).not.toBe(0);
+      expect(r.status, `the API did not exit by itself:\n${out}`).not.toBeNull();
+      expect(out).toContain('JWT_AUDIENCE');
+      expect(out).toContain("sign-in project's id");
+      expect(out, 'it got past the audience to the database').not.toContain('DATABASE_URL is required');
+    },
+    90_000,
+  );
 });

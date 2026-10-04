@@ -67,8 +67,11 @@ look at first. Sources and Targets are never alerted on: a Google outage is not
 ours to fix, and the page already shows it.
 
 **It is off unless the stack turns it on.** `ALERT_ENABLED` defaults to `false`.
-Live's `.env` sets it to `true`; the OTA stack leaves it off, because the nightly
-gate recreates its web app and API on schedule. The mail goes through the same
+Live's `.env` sets it to `true`, and live is not stood up or deployed without it:
+`stand-up-live.sh` and `deploy-live.sh` refuse a live `.env` whose
+`ALERT_ENABLED` is not exactly `true`, because testers are on live (0142 T0;
+the owner, 2026-10-04). The OTA stack leaves it off, because the nightly gate
+recreates its web app and API on schedule. The mail goes through the same
 relay as the product's own (`SMTP_*`), from `NOTIFY_FROM` to `NOTIFY_TO`, unless
 `ALERT_SMTP_*`, `ALERT_FROM` or `ALERT_TO` say otherwise. A stack with no relay
 loads the page exactly as before and sends nothing.

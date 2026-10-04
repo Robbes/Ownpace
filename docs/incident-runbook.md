@@ -24,7 +24,9 @@ wake anyone.
 
 - **The status page.** Each Ownpace row below goes red on its own. The page also e-mails the owner
   when a row stays red for three minutes, and again when it is green again, where `ALERT_ENABLED`
-  is `true` (0142 T1): on live, once 0133's relay carries its mail. The mail names the row below.
+  is `true` (0142 T1): on live, once 0133's relay carries its mail. Live is not stood up or
+  deployed without it: `stand-up-live.sh` and `deploy-live.sh` refuse a live `.env` whose
+  `ALERT_ENABLED` is not `true` (0142 T0; the owner, 2026-10-04). The mail names the row below.
   On the OTA stack it is off, and the page has to be looked at.
 - **A tester's report,** through the report form (0130), which on live sends it as a mail to the
   support mailbox (no Zammad runs during the alpha, 0130 T5), or by mail to the address in the

@@ -55,7 +55,7 @@ import platformPauseRoutes from './routes/platform-pause.ts';
 import { problemReportRoutes } from './routes/problem-reports.ts';
 import { linkReportRoutes } from './routes/link-reports.ts';
 import { unreadableAnswerRoutes } from './routes/unreadable-answers.ts';
-import { assertProductionAuthConfig, getDbPool, selectAuthMode } from './middleware/auth.ts';
+import { assertManagedAudience, assertProductionAuthConfig, getDbPool, selectAuthMode } from './middleware/auth.ts';
 import { assertBackupRetentionConfig, assertProductionUrlConfig } from './config-guards.ts';
 import { maxMigrationsPerOrganisationFromEnv } from './routes/migrations/migration-cap.ts';
 import { refuseInternalAddressesFromEnv } from '@openmig/shared/reachable-host';
@@ -320,6 +320,10 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
 // the managed edition has no separate migration step, unlike apps/selfhost, so this is
 // the only thing that ever creates the managed schema on a fresh database.
 if (process.env.NODE_ENV !== 'test') {
+  // An issuer without an audience (workplan 0132, 2026-10-04): the API would
+  // accept a token the issuer minted for any project. Refused on every
+  // NODE_ENV that starts a server, not only production.
+  assertManagedAudience();
   // Fail-closed secrets (0020 T2): refuse to boot in production with a
   // known-placeholder JWT_SECRET rather than serve authenticated theater.
   assertProductionAuthConfig();

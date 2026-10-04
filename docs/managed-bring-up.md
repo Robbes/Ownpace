@@ -890,6 +890,11 @@ client (authorization-code + PKCE, no client secret — this is a browser app,
 and a secret shipped to every visitor is not a secret), and writes
 `JWT_ISSUER`, `JWT_AUDIENCE` and the two `VITE_OIDC_*` values back into
 `deploy/compose/.env`. Re-running it is safe; it adopts what already exists.
+`JWT_AUDIENCE` is the sign-in project's id, written in the same call as the
+issuer. **Never set the issuer without it:** the API refuses to start with
+`JWT_ISSUER` set and `JWT_AUDIENCE` empty, on every `NODE_ENV`, because it
+would accept a token the issuer minted for any project (workplan 0132,
+2026-10-04).
 
 **Two doors it keeps shut** (workplan 0135 T1 and T2). Nobody can found an
 organisation of their own at the provider: the form at
@@ -1505,9 +1510,11 @@ Ownpace group that stays red for three minutes sends the owner one e-mail, and a
 second when it is green again. It goes through the product's own relay, from
 `NOTIFY_FROM` to `NOTIFY_TO`, unless `ALERT_SMTP_HOST`, `ALERT_SMTP_PORT`,
 `ALERT_SMTP_USER`, `ALERT_SMTP_PASSWORD`, `ALERT_FROM` or `ALERT_TO` say
-otherwise. Turn it on for live, once its relay is set, and leave it off on the
-OTA stack, whose web app and API the nightly gate recreates on schedule. Apply
-a change with `docker compose -f deploy/compose/managed.yml up -d gatus`.
+otherwise. Live's `.env` carries `ALERT_ENABLED=true`: testers are on live, so
+`stand-up-live.sh` and `deploy-live.sh` refuse a live `.env` without it
+(workplan 0142 T0; the owner, 2026-10-04). Leave it off on the OTA stack, whose
+web app and API the nightly gate recreates on schedule. Apply a change with
+`docker compose -f deploy/compose/managed.yml up -d gatus`.
 `ALERT_SMTP_PORT` must be a number: with a word there the page does not load.
 [`status-page.md`](./status-page.md), *Who is told*, says what an alert cannot
 tell you.
@@ -3177,7 +3184,7 @@ No script can do these. The script checks each one before it changes anything.
      ZITADEL_EXTERNALDOMAIN=id.ownpace.eu ZITADEL_EXTERNALPORT=443 \
      ZITADEL_EXTERNALSECURE=true ZITADEL_TLS_MODE=external \
      NODE_ENV=production OWNPACE_STAGE=alpha BACKUP_RETENTION_DAYS=7 TRUST_PROXY=2 \
-     MAX_PASSES_IN_FLIGHT=6 \
+     ALERT_ENABLED=true MAX_PASSES_IN_FLIGHT=6 \
      SMTP_HOST=<the relay's submission host> SMTP_PORT=587 SMTP_SECURE= \
      SMTP_USER=<the sending address> NOTIFY_FROM=<the sending address> \
      NOTIFY_TO=<an address you read> \
@@ -3195,7 +3202,13 @@ No script can do these. The script checks each one before it changes anything.
    `OWNPACE_REACHABLE_HOSTS` empty, and keep `APP_DB_USER=app_user`. Write
    every line `KEY=value` at its start: Compose also reads a key indented, with
    a space before `=`, or with `:`, the script's checks do not, and it refuses
-   such a line. `BACKUP_RETENTION_DAYS=7` is the most days a dump of live's
+   such a line. `NODE_ENV=production` is live's mode: `managed.yml` takes no
+   default, and the script refuses anything else (workplan 0132 T4).
+   `ALERT_ENABLED=true` turns on the mail a red status row sends you, and the
+   script refuses live without it, since testers are on live (workplan 0142
+   T0). With it on, a row that stays red for three minutes during the bring-up
+   mails you: that is expected, and shows mail arrives.
+   `BACKUP_RETENTION_DAYS=7` is the most days a dump of live's
    databases taken before a deploy is kept, which the erasure sentence names
    (workplan 0134 open question 1 (b)); the script refuses it empty, `0`, or
    anything but a whole number above 0. `deploy-live.sh` takes that copy before
@@ -3279,7 +3292,8 @@ not clean; a deploy log with a line in it (live stands: use `deploy-live.sh`);
 live's database volume already there without `--resume`; and, all listed at
 once, a line of live's `.env` that sets a key in a form Compose reads and the
 checks do not (indented, a space before `=`, or `:`), every setting from steps
-2, 3 and 6 above that is wrong for live, a port that is any of the OTA stack's
+2, 3 and 6 above that is wrong for live (`NODE_ENV` not `production` and
+`ALERT_ENABLED` not exactly `true` among them, on a `--resume` too), a port that is any of the OTA stack's
 under whatever key (read from its persisted `.env`, or the compose files'
 default) or, on a first run, already in use, a port live publishes that lies in
 the kernel's ephemeral range and is not reserved (step 2; that refusal names the
@@ -3409,7 +3423,23 @@ it says which and logs nothing; fix it and run it again with `--resume`.
      block before the first invitation.
 
    These lines hold your address and NetBird's: paste them nowhere public.
-7. **The record.** The date, the tag and each check's outcome, never a value, in
+7. **The test alert** (workplan 0142 T0 step 2). Live runs with
+   `ALERT_ENABLED=true`. From `~/ownpace-live`:
+
+   ```bash
+   docker compose -f deploy/compose/managed.yml stop web
+   ```
+
+   Wait four minutes, then:
+
+   ```bash
+   docker compose -f deploy/compose/managed.yml start web
+   ```
+
+   The rows that read the public address each mail you an alert, then a
+   recovery. The Identity provider row stays quiet. Write the date and the
+   outcome in workplan 0142's Status block.
+8. **The record.** The date, the tag and each check's outcome, never a value, in
    workplan 0132's Status block (T0 step 6).
 
 ## Live's daily duties
@@ -3584,7 +3614,7 @@ journalctl --user -u ownpace-box-duties -n 200 --no-pager
 | `[setup-zitadel] FATAL: it did not become healthy within five minutes`, on a run where the provider is plainly up and serving | **A second waiter, on a health signal that no longer arrives.** `setup-zitadel.sh` polled `"Health":"healthy"` from `docker compose ps`; the identity provider has no healthcheck (see the rows above), so that field is never set and the wait always runs its full five minutes | Fixed: it now asks `/debug/ready` on the published port, the same address the bring-up uses. `nothing-waits-on-a-health-that-cannot-arrive.unit.test.ts` fails the build if any script waits on the health of a service that declares no healthcheck |
 | The bring-up prints `the identity provider never became ready at http://localhost:3126/debug/ready` | **The readiness check is asked from the host, not from inside the container**, because `zitadel ready` builds its URL from `ExternalPort` — the address the OUTSIDE reaches Zitadel on — and nothing listens there inside. Here that is a published port; behind netbird it is 443, terminated by something that is not Zitadel | Read the code the message names. `000` means nothing answered at all — check the container is up and the port published. Any other code means Zitadel answered and said no, which is a real not-ready and its log is the next place to look. The timeout is `IDP_READY_TIMEOUT` (default 300s); a first init applies every migration from scratch and a slow disk can need longer |
 | `[setup-zitadel] FATAL: could not read /machinekey/pat.txt (exit 127)` naming `"cat": executable file not found in $PATH` | **The provider's image has no shell and no coreutils.** `docker compose exec -T zitadel cat …` cannot work, and Docker reports that on STDOUT with exit 127 — so a command substitution captures the error message as if it were the file's contents. Before this refusal existed, that sentence was sent to Zitadel as a Bearer token, which answered `illegal base64 data at input byte 3` (byte 3 is the space after `OCI`) and then `Errors.Token.Invalid` | Nothing to do on a current checkout: the token is read off the VOLUME with busybox, via the `zitadel-machinekey` service that already mounts it. If you are reading the file by hand, do the same — `docker run --rm -v <project>_zitadel_machinekey:/m:ro busybox:1.38 cat /m/pat.txt` — and never `exec` into the provider's container, which has no binaries to run |
-| `[setup-zitadel] FATAL: GET /auth/v1/users/me answered HTTP 401` with `Errors.Token.Invalid (AUTH-7fs1e)` | **The token and the database disagree about which instance this is.** `/machinekey/pat.txt` is written at FIRST INIT and belongs to the instance created then. Clearing the zitadel DATABASE while keeping the machinekey VOLUME leaves a token for an instance that no longer exists; clearing the volume while keeping the database leaves no token at all, since init never runs again to write one. E2E (managed) #50 is the first of these. It can equally mean the token **expired**: each one lives `ZITADEL_PAT_LIFETIME_DAYS` (7) days and `setup-zitadel.sh` rotates it inside the last `ZITADEL_PAT_ROTATE_BELOW_DAYS` (3), so an expired token is what a gate that slept past the gap wakes up to — the refusal itself says which cause is in front of you | **The database and the volume go together.** Either keep the instance — sign in at `http://localhost:3126/ui/console` as the first user, read the client id from the Ownpace project's application, and `env-upsert.sh` `JWT_ISSUER` / `JWT_AUDIENCE` / `VITE_OIDC_CLIENT_ID` by hand — or start over, which destroys every account it holds: `docker compose -f deploy/compose/managed.yml rm -sf zitadel`, then `docker compose -f deploy/compose/managed.yml exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS zitadel WITH (FORCE)"'`, then `docker volume rm <project>_zitadel_machinekey`, then re-run. The `zitadel` ROLE can stay. Both halves, every time |
+| `[setup-zitadel] FATAL: GET /auth/v1/users/me answered HTTP 401` with `Errors.Token.Invalid (AUTH-7fs1e)` | **The token and the database disagree about which instance this is.** `/machinekey/pat.txt` is written at FIRST INIT and belongs to the instance created then. Clearing the zitadel DATABASE while keeping the machinekey VOLUME leaves a token for an instance that no longer exists; clearing the volume while keeping the database leaves no token at all, since init never runs again to write one. E2E (managed) #50 is the first of these. It can equally mean the token **expired**: each one lives `ZITADEL_PAT_LIFETIME_DAYS` (7) days and `setup-zitadel.sh` rotates it inside the last `ZITADEL_PAT_ROTATE_BELOW_DAYS` (3), so an expired token is what a gate that slept past the gap wakes up to — the refusal itself says which cause is in front of you | **The database and the volume go together.** Either keep the instance — sign in at `http://localhost:3126/ui/console` as the first user, read the client id from the Ownpace project's application, and `env-upsert.sh` `JWT_ISSUER` / `JWT_AUDIENCE` (the project's id; never the issuer alone, or the API refuses to start) / `VITE_OIDC_CLIENT_ID` by hand — or start over, which destroys every account it holds: `docker compose -f deploy/compose/managed.yml rm -sf zitadel`, then `docker compose -f deploy/compose/managed.yml exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS zitadel WITH (FORCE)"'`, then `docker volume rm <project>_zitadel_machinekey`, then re-run. The `zitadel` ROLE can stay. Both halves, every time |
 | `[setup-zitadel] FATAL:` a call to the identity provider's API refused, naming an HTTP status | **Read the status, they mean different things.** `401` — the provisioning token was not accepted: it **expired** (`setup-zitadel.sh` rotates it before that on every run, so this means the gate slept past the rotation window — mint a new personal access token on the `ownpace-setup` service user in the console and write it over `/machinekey/pat.txt`), or it belongs to an instance that no longer exists, because the zitadel DATABASE was cleared while the machinekey VOLUME was kept (`/machinekey/pat.txt` is written on FIRST INIT). `403` — the token is fine and `ownpace-setup` lacks the grant the call needs, which is a role to add, not a credential to replace. Anything else prints the provider's own words | Follow the remedy the refusal names — 401 sends you to REPROVISIONING at the bottom of `setup-zitadel.sh`, 403 to the console's org roles. Before E2E (managed) #49 all of these printed `could not create the project` and nothing else, because the response body went into `jq -r '.id'` and was discarded; the search above it could not fail at all, since `.result[]?` turns an error into the same empty output a real "no such project" gives |
 | `<project>-idp` restarts for ever; the OLDEST line in the failure window is `migration failed … name=34_add_cache_schema error="ERROR: partitioned tables cannot be unlogged (SQLSTATE 0A000)"` | **The identity provider is older than the database it is pointed at.** Zitadel's cache schema created an UNLOGGED PARTITIONED table and PostgreSQL removed support for that, so setup step 34 fails on every attempt and the provider can never finish starting. Not a misconfiguration, and no setting avoids it (zitadel/zitadel#10712) | Nothing to do on a current checkout: the pinned image is above the fix (zitadel/zitadel#11484), and `zitadel-image-matches-postgres.unit.test.ts` fails the build if the two pins are ever moved into a pairing that cannot initialise. If you hit this on an older checkout, raise the Zitadel pin — do not lower Postgres — and then clear the half-written database as the row below describes |
 | `<project>-idp` restarts for ever; the OLDEST line in the bring-up's failure window is `migration failed … name=03_default_instance error="open /machinekey/pat.txt: permission denied"` | **The machinekey volume is not writable by the identity provider.** Docker creates a new named volume's mount point owned by root, and the Zitadel image runs as a non-root user — which the error proves, since root could have written anywhere. `03_default_instance` creates the first human BEFORE the machine account, so while the admin password was being rejected this was never reached; fixing the password is what exposed it | Nothing to do by hand on a current checkout: the bring-up reads the image's own `Config.User` and prepares the volume before starting the provider. `v4.6.2` reports a NAME (`zitadel`), not a uid — so where that happens the bring-up reads the number out of the image's own `/etc/passwd`, the same file Docker resolves the name against, via `docker create` + `docker cp` (no shell in the image is assumed, and nothing is started). It REFUSES only a name that passwd does not explain, and that refusal prints the one-line `docker run` that prepares the volume by hand. Either way the half-written database from the failed attempts still has to be cleared — see the row below |
@@ -3686,7 +3716,13 @@ thing. One script moves it:
 
 What `deploy-live.sh` does, in order. It refuses, before the checkout or the
 stack changes, each with its own message: `--with-demo`; a `.env` without live's
-marker (`STACK_KIND=production`, `stack-kind.sh`) or without `WEB_URL`;
+marker (`STACK_KIND=production`, `stack-kind.sh`) or without `WEB_URL`; a
+`.env` whose `NODE_ENV` is not `production` (workplan 0132 T4) or whose
+`ALERT_ENABLED` is not exactly `true` (workplan 0142 T0: testers are on live,
+so nobody deploys it without alerts), both named at once, by key, before the
+fetch and any docker call, with any line that sets a key in a form the script
+does not read and the bring-up does (indented, a space before `=`, or `:`), by
+line and key, as the stand-up refuses it;
 `COMPOSE_ENV_FILES` or `COMPOSE_FILE` in the shell, or a project
 `docker compose config` reports that is not the one the checkout chooses; a
 working tree that is not clean; a ref that is not a tag, a tag not on origin, a
@@ -3704,9 +3740,9 @@ builds the images with the tag's commit as `GIT_SHA`. Then the checks, at the
 origin in `WEB_URL`: `/api/version` names the tag's commit **and** its version,
 and so does `/version.json`, the web app's own build (workplan 0145: a web image
 that did not move beside the API is a deploy that did not take, and a tag cut
-before 0145 has no such file), `/api/ready` answers 200, `/api/auth/mode` answers `managed`, and
-`exposure-check.sh` passes. `NODE_ENV` is not checked yet: workplan 0132 T4's
-check is not built, and the script says so. With `WWW_LIVE=true` in live's
+before 0145 has no such file), `/api/ready` answers 200, `/api/auth/mode` answers `managed`,
+`NODE_ENV` is `production` in the api container (asked with `docker compose
+exec -T api printenv NODE_ENV`), and `exposure-check.sh` passes. With `WWW_LIVE=true` in live's
 `.env` it also builds and serves `www.ownpace.eu` from the tag, before the
 exposure check, and refuses what would stop that before anything moves
 (*`www.ownpace.eu`: live's copy*, under *The public site*); without it, nothing
@@ -3768,7 +3804,35 @@ script has run only against the stubs in its guard,
 ### The OTA stack: the nightly gate, or a pull
 
 On the OTA stack (`~/ownpace-managed`) the nightly gate is the deploy: it
-brings `main` up every night. By hand, a stack that is already up takes a pull,
+brings `main` up every night.
+
+**Its `.env` carries `NODE_ENV=development`** (workplan 0132 T4; the owner,
+2026-10-04: *"Development, said explicitly"*), so its self-signed test mail keeps
+working: in production the API turns notifications off while
+`SMTP_ALLOW_SELF_SIGNED=true`. `managed.yml` takes no default, and every
+`docker compose -f deploy/compose/managed.yml` call (`ps`, `logs`, `exec`,
+`config`, not only `up`) stops on a `.env` without it, naming the fix. The gate
+writes `NODE_ENV=development` into the persisted `.env` when the file gives it
+no value (absent, blank, or a note alone), before it fills the rest from the
+example, and never over a value that is there; its log names the value it found
+or wrote, with a warning when that is not `development`. An OTA `.env` copied
+from the example before this may say `production`: the gate keeps it and warns.
+Then set development in the persisted file:
+
+```bash
+./deploy/compose/env-upsert.sh ~/.persistent/ownpace-managed/.env NODE_ENV=development
+```
+
+Until the gate's first run on a `main` that carries this, a hand-run compose
+call in `~/ownpace-managed` needs the line: when that checkout's `.env` is a
+link to the persisted file the gate's run adds it; when it is a copy of its
+own, add it by hand:
+
+```bash
+./deploy/compose/env-upsert.sh deploy/compose/.env NODE_ENV=development
+```
+
+By hand, a stack that is already up takes a pull,
 a rebuild of the two images that carry code, and — **sometimes** — a re-deploy
 of the tasks:
 

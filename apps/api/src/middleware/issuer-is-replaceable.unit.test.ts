@@ -88,6 +88,12 @@ beforeEach(() => {
   __setMembershipLookupForTests(async () => ({ role: 'owner' }));
   delete process.env.JWT_SECRET;
   delete process.env.JWT_JWKS_URI;
+  // Every managed stack has one, beside its issuer (setup-zitadel.sh writes
+  // both), and the middleware refuses an issuer without one before it asks
+  // the issuer anything (workplan 0132, 2026-10-04). Without it every case
+  // below would stop at that refusal: the discovery cases would see no fetch,
+  // and the 500 cases would pass for the wrong reason.
+  process.env.JWT_AUDIENCE = 'ownpace-project-id';
 });
 
 afterEach(() => {

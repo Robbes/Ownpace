@@ -621,6 +621,9 @@ shape.
   fatal whatever `NODE_ENV` says, so an alpha stack cannot start while it quotes backups by
   default. It does not wait for production because `managed.yml` defaults `NODE_ENV` to
   `development`, and making it a required value is 0132 T4, which is proposed.
+  *2026-10-04:* 0132 T4 is decided and built. `managed.yml` no longer defaults `NODE_ENV`, and
+  the OTA stack runs `development` by the owner's choice, said in its `.env`. So the reason
+  stands in a new form: the alpha case still must not wait for production.
 - `index.ts` calls it next to `assertProductionUrlConfig`.
 
 The guard is `apps/api/src/a-retention-somebody-stated.unit.test.ts`.
