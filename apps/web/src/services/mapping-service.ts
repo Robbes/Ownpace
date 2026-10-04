@@ -359,6 +359,12 @@ export const MappingSchema = z.object({
   // Optional for a payload from an API that predates it: absent reads as "not
   // withdrawn", which is what that API meant.
   grantWithdrawnAt: z.string().nullish(),
+  /**
+   * Where the copies land (0153 open question 5, item 4): the folder of the
+   * destination they are put in, or null where they merge into its own.
+   * Absent from a server older than this field, which says nothing either way.
+   */
+  targetFolderPrefix: z.string().nullish(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

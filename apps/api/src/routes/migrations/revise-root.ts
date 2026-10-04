@@ -16,9 +16,13 @@
  * - `rootRevision`: the folder a patch body sets, in the spelling it used;
  * - `revisedRoot`: that folder checked against the source it would apply to,
  *   through the parser a pass reads it with, as the override it becomes.
+ *
+ * And the folder the copies land in, on the same terms (`target.folderPrefix`):
+ * `prefixClash` asks whether another migration between the same two accounts
+ * already copies into that folder, which the index create is held to forbids.
  */
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger';
 import { ConfigError, parseDropboxSource, parseGoogleDriveSource } from '@openmig/shared';
@@ -122,4 +126,37 @@ export function revisedRoot(
     throw error;
   }
   return { ok: true, override: { ...currentOverride, [key]: revision.value } };
+}
+
+/**
+ * Another migration between the same two accounts that copies into this
+ * folder, or undefined. `uk_mapping_source_target_prefix` forbids two, with
+ * no folder counting as one folder; asked first, so the person reads a
+ * sentence rather than a constraint error.
+ */
+export async function prefixClash(
+  db: PgDatabase,
+  tenantId: string,
+  mappingId: string,
+  prefix: string | null,
+): Promise<{ readonly id: string; readonly name: string | null } | undefined> {
+  const [own] = await db
+    .select({ source: schema.mailboxMapping.sourceMailboxId, target: schema.mailboxMapping.targetMailboxId })
+    .from(schema.mailboxMapping)
+    .where(and(eq(schema.mailboxMapping.tenantId, tenantId), eq(schema.mailboxMapping.id, mappingId)));
+  if (!own || own.target === null) return undefined;
+  const [other] = await db
+    .select({ id: schema.mailboxMapping.id, name: schema.mailboxMapping.name })
+    .from(schema.mailboxMapping)
+    .where(
+      and(
+        eq(schema.mailboxMapping.tenantId, tenantId),
+        ne(schema.mailboxMapping.id, mappingId),
+        eq(schema.mailboxMapping.sourceMailboxId, own.source),
+        eq(schema.mailboxMapping.targetMailboxId, own.target),
+        sql`COALESCE(${schema.mailboxMapping.targetFolderPrefix}, '') = ${prefix ?? ''}`,
+      ),
+    )
+    .limit(1);
+  return other;
 }

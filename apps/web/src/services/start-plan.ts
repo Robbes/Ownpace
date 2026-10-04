@@ -333,6 +333,24 @@ export function migrationsFor(routes: ReadonlyArray<Route>): PlannedMigration[] 
 }
 
 /**
+ * WHETHER ANOTHER MIGRATION SENDS THE SAME KIND OF DATA TO THE SAME PLACE
+ * (0153 open question 5, item 4). Two accounts' mail in one mailbox, or two
+ * accounts' files in one Nextcloud, would merge into the same folders; so
+ * *Where does it go?* opens *Put it in a folder of its own* for each, filled
+ * in with the account it comes from. Mail and calendars from one Google
+ * account to one Soverin share a destination and nothing else, and merge
+ * nothing.
+ */
+export function sharesItsDestination(m: PlannedMigration, planned: ReadonlyArray<PlannedMigration>): boolean {
+  return planned.some(
+    (other) =>
+      other !== m &&
+      other.targetConnectionId === m.targetConnectionId &&
+      other.types.some((type) => m.types.includes(type)),
+  );
+}
+
+/**
  * A Nextcloud's DAV root, from the address a person opens it at (T7 (c)):
  * `cloud.example.eu` is `https://cloud.example.eu/remote.php/dav`. A scheme
  * typed stays as typed, a path it is installed under stays (`/nextcloud`),

@@ -160,7 +160,7 @@ import { serverFault } from '../../server-fault.ts';
 import { probeAnswers } from '../../probe-answer.ts';
 import { refusedOverTestLimit } from '../../probe-limit.ts';
 import { archiveOnServerRefusal } from '../archive-on-the-server.ts';
-import { hasCopiedAnything, revisedRoot, rootRevision } from './revise-root.ts';
+import { hasCopiedAnything, prefixClash, revisedRoot, rootRevision } from './revise-root.ts';
 
 /** Take the first row of a RETURNING result or fail loudly (no silent nulls). */
 function firstOrThrow<T>(rows: T[], what: string): T {
@@ -857,7 +857,7 @@ export function sourceConfigOverride(
 export function proposedRevisions(
   body: Pick<
     z.infer<typeof UpdateMappingSchema>,
-    'name' | 'sourceType' | 'targetType' | 'sourceConfig' | 'targetConfig' | 'syncConfig'
+    'name' | 'sourceType' | 'targetType' | 'sourceConfig' | 'targetConfig' | 'syncConfig' | 'targetFolderPrefix'
   >,
 ): readonly RevisableField[] {
   const proposed: RevisableField[] = [];
@@ -868,6 +868,7 @@ export function proposedRevisions(
     proposed.push('source.rootFolderId');
   }
   if (body.targetConfig?.username !== undefined) proposed.push('target.account');
+  if (body.targetFolderPrefix !== undefined) proposed.push('target.folderPrefix');
   if (body.syncConfig?.schedule !== undefined) proposed.push('schedule');
   return proposed;
 }
@@ -1886,6 +1887,16 @@ export const UpdateMappingSchema = CreateMappingBase.partial()
     if (body.sourceConfig) refuseUnreadableExportFormat(ctx, body.sourceConfig);
     if (body.syncConfig?.schedule !== undefined) refuseUnreadableSchedule(ctx, body.syncConfig.schedule);
     refuseTestersThrottle(ctx, body.throttleConfig);
+    // The folder the copies land in, by the parser create and the appliance
+    // read it with (0153 open question 5, item 4).
+    if (body.targetFolderPrefix !== undefined) {
+      try {
+        parseTargetFolderPrefix(body.targetFolderPrefix);
+      } catch (e) {
+        if (!(e instanceof ConfigError)) throw e;
+        ctx.addIssue({ code: 'custom', path: ['targetFolderPrefix'], message: e.message });
+      }
+    }
     // A name of spaces is no name (0153 open question 5, item 4): the route
     // stores it trimmed, and a migration called nothing is one nobody can find.
     if (body.name !== undefined && body.name.trim() === '') {
@@ -2986,6 +2997,9 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
         { withholdProse: readsAPersonsGrant(mapping) },
       ),
       lastSyncAt,
+      // WHERE THE COPIES LAND (0153 open question 5, item 4): the folder of the
+      // destination they are put in, or null where they merge into its own.
+      targetFolderPrefix: mapping.targetFolderPrefix ?? null,
       // When the person who granted through a link took it back (0108 T8 (c)),
       // or null. The page says so above everything else: nothing reads the
       // account until they grant it again, whatever the status says.
@@ -3109,12 +3123,13 @@ router.put(
        * changed three and is told about one fixes it and is refused again.
        */
       const rootRevised = rootRevision(body.sourceConfig);
+      const prefixRevised = body.targetFolderPrefix !== undefined;
       // WHETHER IT HAS COPIED ANYTHING, asked only where the answer decides
-      // (0153 open question 5, item 4): a root folder may change until the
-      // ledger holds an item. Asked again beside the write below, since a pass
-      // may copy its first item in between.
+      // (0153 open question 5, item 4): a root folder, and the folder the
+      // copies land in, may change until the ledger holds an item. Asked again
+      // beside the write below, since a pass may copy its first item in between.
       const copiedAnything =
-        rootRevised === undefined
+        rootRevised === undefined && !prefixRevised
           ? undefined
           : await withTenantDb(tenantId, pool, (db) => hasCopiedAnything(db, tenantId, mappingId));
       const refused = refusalsFor(proposedRevisions(body), copiedAnything === undefined ? {} : { copiedAnything });
@@ -3214,8 +3229,20 @@ router.put(
         // first item since the read above makes the change unsafe now. Its
         // source decides which spelling applies, and whether any does.
         let rootSource: { readonly kind: string; readonly config: unknown } | undefined;
+        if ((rootRevised || prefixRevised) && (await hasCopiedAnything(db, tenantId, mappingId))) {
+          return { kind: 'copied_since', fields: [...(rootRevised ? ['source.rootFolderId' as const] : []), ...(prefixRevised ? ['target.folderPrefix' as const] : [])] } as const;
+        }
+        // THE FOLDER THE COPIES LAND IN, beside no other migration between the
+        // same two accounts in the same folder: the index that holds create to
+        // that holds this write too, and is asked first so the answer is a
+        // sentence rather than a constraint error.
+        if (prefixRevised) {
+          const prefix = parseTargetFolderPrefix(body.targetFolderPrefix) ?? null;
+          const clash = await prefixClash(db, tenantId, mappingId, prefix);
+          if (clash) return { kind: 'duplicate', existingId: clash.id, existingName: clash.name } as const;
+          updateData.targetFolderPrefix = prefix;
+        }
         if (rootRevised) {
-          if (await hasCopiedAnything(db, tenantId, mappingId)) return { kind: 'root_copied' } as const;
           [rootSource] = await db
             .select({ kind: schema.connection.kind, config: schema.connection.config })
             .from(schema.mailboxMapping)
@@ -3288,12 +3315,22 @@ router.put(
         return { kind: 'updated', row } as const;
       });
 
-      if (outcome.kind === 'root_copied') {
-        // The table's own refusal, as the check before the transaction gives it.
+      if (outcome.kind === 'copied_since') {
+        // The table's own refusals, as the check before the transaction gives them.
         res.status(409).json({
           error: 'revision_refused',
           message: 'Some of what was asked for cannot change on a migration that already exists.',
-          refused: refusalsFor(['source.rootFolderId']).map((r) => ({ field: r.field, reason: r.reason })),
+          refused: refusalsFor(outcome.fields).map((r) => ({ field: r.field, reason: r.reason })),
+        });
+        return;
+      }
+      if (outcome.kind === 'duplicate') {
+        // The sentence create answers with, for the same index.
+        res.status(409).json({
+          error: 'duplicate_mapping',
+          existingMappingId: outcome.existingId,
+          existingMappingName: outcome.existingName,
+          message: new DuplicateMappingError(outcome.existingId, outcome.existingName).message,
         });
         return;
       }
