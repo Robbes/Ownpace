@@ -233,22 +233,31 @@ surprised you.
 
 ## Stage 4 — managed on the Spark: now a real test
 
-Both gaps this stage used to wait on are built: the wizard creates a
-`google-drive` source connection, and the relocation apply runs through its own
-queued job (`run-apply-relocation`) landing on its own receipt. So Stage 4 is
-Stage 2's drills through the managed journey:
+Both gaps this stage used to wait on are built: managed makes a Google Drive
+source (through **Start a migration** since the wizard retired, 0153 D5), and
+the relocation apply runs through its own queued job (`run-apply-relocation`)
+landing on its own receipt. So Stage 4 is Stage 2's drills through the managed
+journey:
 
 1. Bring up `deploy/compose/managed.yml` on the Spark (worker included — the
    destructive path runs through Trigger.dev there, so a missing worker shows
    up as receipts stuck `queued`, which is itself worth seeing once).
-2. Walk the wizard: source **Google Drive** — client ID, root folder, account,
-   client secret and refresh token are now **all on the source step** (workplan
-   0070 gave each side its own credentials; there is no separate credentials
-   step any more), the same three values Stage 1 proved. Then target your
-   Nextcloud/Stalwart, and note the wizard pins the **file** data type and
-   refuses the others in the same sentence the API would.
-3. Confirm the mapping (it lands paused, by design), start it, and run drills
-   A–E from Stage 2 at `/mappings/<id>/moves` and `/mappings/<id>/deletions`.
+2. Walk **Start a migration** (`/start`): tick **Google** on **Which account
+   are you leaving?**, and **Files** alone on **What moves?**, with **Only one
+   folder** for the dedicated test folder (*The safety rails*, below). On
+   **Connect your accounts**, type the account under **Username** and the same
+   three values Stage 1 proved (client ID, client secret and refresh token,
+   under **Use your own Google client** where the deployment carries a client
+   of its own), and press **Check the sign-in**. Once the account is connected,
+   the screen asks for the folder. Then, on **Where does it go?**, choose your
+   Nextcloud/Stalwart. The wizard's check that pinned the **file** data
+   type retired with it (0153 D5): **Where does it go?** offers only
+   destinations that take files, and a create the server refuses shows there
+   as *Not set up: …*, in the server's own words.
+3. **Next** on **Where does it go?** sets the migration up (it lands paused, by
+   design); **Check, then start** counts it, and **Start** starts it. Then run
+   drills A–E from Stage 2 at `/mappings/<id>/moves` and
+   `/mappings/<id>/deletions`.
    The one visible difference from the appliance: **apply answers with a
    queued receipt** the row polls to its outcome, instead of a synchronous
    sentence — refusals arrive in the same words either way.
@@ -258,8 +267,8 @@ Stage 2's drills through the managed journey:
    its own receipt. That is migration 0010's discriminator working in front
    of you.
 
-**Send back:** the wizard step where any sentence read wrong, and for one
-applied relocation the receipt JSON from
+**Send back:** the screen of **Start a migration** where any sentence read
+wrong, and for one applied relocation the receipt JSON from
 `GET /api/migrations/<id>/moves/<hash>/receipt`.
 
 ## Stage 5 — Gmail (workplan 0044): the two things only reality can prove
@@ -273,7 +282,10 @@ a real Gmail account (a disposable one is fine and better):
    Gmail account. Configure either edition (appliance:
    `GOOGLE_MAIL_REFRESH_TOKEN` + a mapping with
    `"source": { "type": "gmail", "user": "you@gmail.com" }`; managed: the
-   **Gmail** wizard card).
+   **Gmail** form, which **Start a migration** draws on **Connect your
+   accounts** for **Email** under **Google** where the deployment has not
+   declared Google's restricted scopes; where it has, the Google account
+   carries the mail).
 2. **Question one — the handshake**: does the first pass connect and list?
    A failure here is scope consent or client config, and the error should name
    which; if it does not, that sentence is the bug to send back.
@@ -302,8 +314,10 @@ account as Stage 5:
    `https://www.googleapis.com/auth/carddav` (Contacts). Configure either
    edition (appliance: `GOOGLE_CALENDAR_REFRESH_TOKEN` /
    `GOOGLE_CONTACTS_REFRESH_TOKEN` + a calendar/contacts domain naming
-   `"type": "google-calendar"` / `"google-contacts"`; managed: the two wizard
-   cards).
+   `"type": "google-calendar"` / `"google-contacts"`; managed: **Calendar** and
+   **Contacts** ticked under **Google** on **Start a migration**, which the
+   Google account carries over the same DAV read path, since the **Google
+   Calendar** and **Google Contacts** cards make no new migrations (0153).
    **Question zero, added 2026-09-20 — the narrower calendar scope.** The
    console lists `.../auth/calendar.readonly` *under the CalDAV API*, which
    suggests Google's CalDAV endpoint accepts it; this product never writes a
@@ -368,8 +382,8 @@ door, the job and the rollback are the managed gate's.
 
 ## Stage 8 — two strangers (workplan 0141 T12 (a); `ownpace-live`, before the first invitation)
 
-Two people who are not you walk the managed journey on live: sign-in, a source, the confirm
-page, a first pass, a progress link, a grant link, *Report a problem* and the Finish page's
+Two people who are not you walk the managed journey on live: sign-in, a source, *Check, then
+start*, a first pass, a progress link, a grant link, *Report a problem* and the Finish page's
 permission list. Nothing in the repository drives this journey in a browser against a real API
 (0141 §1). The phone half is Stage 9.
 
@@ -411,31 +425,36 @@ one of them.
    was not built for the alpha (`VITE_OWNPACE_STAGE`, `apps/web/src/services/stage.ts`). Press
    the other language (the **EN** and **NL** buttons in the menu): the page's text changes, and
    the page's `lang` follows it (`<html lang="nl">` or `"en"`, in the browser's inspector).
-2. **The source.** Start a migration (*Nieuwe migratie* / *New Migration*, which opens
-   `/mappings/new`). A chooses the *Google account* card and presses *Verbinden met Google*. B
-   chooses the *Microsoft 365 account* card and presses *Connect with Microsoft*.
-   **Expect:** the provider's consent completes and the wizard goes on with the connection. For
-   B, write down what Microsoft's screens showed and whether the app was marked unverified: that
-   record is 0140 T6's.
-3. **The tag and the scope.** Walk the wizard to its last step and press *Migratie aanmaken* /
-   *Create Migration*. The confirm page (`/mappings/<id>/confirm`) opens.
+2. **The source.** Start a migration (*Migratie starten* / *Start a migration*, which opens
+   `/start`). On *Voor wie?* / *Who is it for?* each types a name. On *Welk account verlaat u?* /
+   *Which account are you leaving?* A ticks *Google* and B ticks *Microsoft 365*, and on *Wat wilt
+   u migreren?* / *What moves?* the data types stay as they are. On *Uw accounts verbinden* /
+   *Connect your accounts*, A types the address under *Gebruikersnaam* and presses *Verbinden met
+   Google*, once for each Google row the screen lists; B types the address under *Username* and
+   presses *Connect with Microsoft*.
+   **Expect:** the provider's consent completes, and the account's row says *Verbonden als …* /
+   *Connected as …*. For B, write down what Microsoft's screens showed and whether the app was
+   marked unverified: that record is 0140 T6's.
+3. **The tag and the scope.** On *Waar gaat het naartoe?* / *Where does it go?*, choose the
+   target you provided for each data type and press *Volgende* / *Next*. The migrations are set
+   up, paused, and *Controleren, dan starten* / *Check, then start* opens.
    **Expect:**
-   - In the wizard, a source that has no live proof carries *Experimenteel* / *Experimental*
-     (`SOURCE_PROOFS` in `packages/shared/src/front-door.ts`). B's *Microsoft 365 account* card
-     carries it, and so does each of its data types. A's *Google account* card does not, but its
-     tasks data type does, and so does email where live offers it for a Google account.
-   - On the confirm page, B's scope list shows *Shared mailboxes* under *Partial*, and never
-     under *Migrates* (0141 T10). A's list has no shared-mailbox row: that row applies to the
-     Microsoft 365 account only. The list's column titles follow the language (*Gedeeltelijk*,
-     *Migreert*); its rows are English on both.
-4. **The first pass.** Press *Start migratie* / *Start migration*.
+   - On *Welk account verlaat u?* / *Which account are you leaving?* and *Wat wilt u migreren?* /
+     *What moves?*, a source that has no live proof carries *Experimenteel* / *Experimental*
+     (`SOURCE_PROOFS` in `packages/shared/src/front-door.ts`). B's *Microsoft 365* tile carries
+     it, and so does each of its data types. A's *Google* tile does not, but its tasks data type
+     does, and so does email where live reads it through the Google account.
+   - On *Controleren, dan starten* / *Check, then start*, B's scope list shows *Shared mailboxes*
+     under *Partial*, and never under *Migrates* (0141 T10). A's list has no shared-mailbox row:
+     that row applies to the Microsoft 365 account only. The list's column titles follow the
+     language (*Gedeeltelijk*, *Migreert*); its rows are English on both.
+4. **The first pass.** Press *Starten* / *Start* once every count is in. The person's page opens.
    **Expect:** the progress moves, and the first pass ends `completed` in the target you
    provided. Write down what the preflight found, what was copied and what was skipped, per data
    type.
 5. **A progress link.** Links are made per person (ADR-0035, amended 2026-09-29). Open the
-   person the migration is for from *Migraties* / *Migrations* (`/people/<id>`). A migration made
-   by hand belongs to nobody yet: its page (`/mappings/<id>`) asks *Voor wie is dit?* / *Who is
-   this for?* under *Links* first. On the person's page, under *Eén voortgangslink voor alles* /
+   person the migration is for, the one named on *Voor wie?* / *Who is it for?*, from *Migraties*
+   / *Migrations* (`/people/<id>`). On the person's page, under *Eén voortgangslink voor alles* /
    *One progress link for everything*, press *Voortgangslink maken* / *Create progress link*.
    Open the link signed out, in a private window.
    **Expect:** the page (`/view/<link>`) shows each of their migrations' progress, and nothing
@@ -564,7 +583,7 @@ partly there:
 | 0145 task | Steps below | On `main` |
 |---|---|---|
 | T1, the phone menu takes focus and gives it back | 3 | Yes, since #1169 (`Layout.tsx`) |
-| T3 (a), each wizard step starts at the top and says which it is | 5 | Yes, since #1206 (`CreateMapping.tsx`, `Layout.tsx`) |
+| T3 (a), each step starts at the top and says which it is | 5 | Yes, since #1206 in the wizard, which retired (0153 D5); *Start a migration* keeps the rule (`StartMigration.tsx`, `Layout.tsx`) |
 | T5 with T7 (a), the consent window opens on the press, and a greyed-out button says why | 4 | No |
 | T6, the grant page and the consent endings in one language | 6 | Yes, since #1208 |
 
@@ -593,14 +612,16 @@ The steps, on each phone:
 3. Open the menu (*Menu*), then close it with *Sluiten*, and once more with the grey backdrop.
    **Expect:** when the menu opens, the screen reader is on *Sluiten*. When it closes, the reader
    is back on *Menu* (T1).
-4. In the wizard, choose the *Google account* card and press *Verbinden met Google*.
-   **Expect:** Google's page opens, the result arrives back in the wizard, and Google's tab
-   closes (T5). Where the button is greyed out, the reason is written under it (T7 (a)). On
-   `main` it is only in the button's tooltip, which a finger cannot open.
-5. Press *Volgende* on each step.
-   **Expect:** each step starts at the top of the page, and the screen reader reads its
-   heading, such as *"Stap 2 van 4: Doel"* (T3 (a)). The four steps are *Bron*, *Doel*,
-   *Migratie* and *Controleren*.
+4. In *Migratie starten*, tick *Google* on *Welk account verlaat u?*, go on to *Uw accounts
+   verbinden*, type the address under *Gebruikersnaam* and press *Verbinden met Google*.
+   **Expect:** Google's page opens, the result arrives back on that screen, and Google's tab
+   closes (T5). Where the button is greyed out, the reason is written under it (T7 (a)).
+5. Press *Volgende* on each screen of *Migratie starten*.
+   **Expect:** each screen starts at the top of the page, and the screen reader reads its
+   heading, such as *"Welk account verlaat u?"*; the line above it says *"Stap 2 van 6"* (T3
+   (a)). The six screens are *Voor wie?*, *Welk account verlaat u?*, *Wat wilt u migreren?*,
+   *Uw accounts verbinden*, *Waar gaat het naartoe?* and *Controleren, dan starten*. The
+   wizard's four steps retired with it (0153 D5).
 6. For each app on each phone, issue a fresh grant link on the person's page (Stage 8's step 6,
    *Toegangslink maken*), because a link that has been accepted is spent. Once the account is
    connected, the new link asks for it again (*Opnieuw verbinden met Google als …*), which is
@@ -610,7 +631,7 @@ The steps, on each phone:
    that last page fits the screen (#1137). Each app's browser goes in the table below.
 7. Open the progress link.
    **Expect:** it can be read on the phone, and it does not scroll sideways.
-8. In Safari, set the page zoom to 200% and walk the wizard.
+8. In Safari, set the page zoom to 200% and walk *Migratie starten*.
    **Expect:** all its text and buttons can still be reached (WCAG 1.4.4).
 
 **The in-app browsers.** For the grant link, and for the sign-in link in the access-granted mail,
@@ -647,7 +668,7 @@ step H points it at that stack's API (0141 T7, under 0132 D7).
 
 **It cannot start yet.** The runbook's source was the OTA stack's demo Nextcloud, which we host
 and may seed. On `main` the managed front door offers no CalDAV, CardDAV or Nextcloud source:
-the wizard and the Connections page show the cards in `SOURCE_CARDS`
+*Start a migration* and the Accounts page offer the cards in `SOURCE_CARDS`
 (`apps/web/src/components/front-door-cards.ts`), and the create route accepts the same list.
 Which source the sitting uses is open question 9 in 0141, and it is yours. The runbook says so
 under *Before the sitting*.

@@ -43,8 +43,9 @@ That is a deliberate trade, and it is the reason this guide exists at all rather
 which is exactly the thing nobody should do with a secret.
 
 What we can do — and now do — is run the consent step for you against
-**your own** client: the wizard's **Connect with Google** button opens Google's consent
-screen with your client ID and secret, and fills the refresh token in for you. That removes
+**your own** client: **Connect with Google**, on *Start a migration* and on the **Accounts**
+page, opens Google's consent screen with your client ID and secret, and fills the refresh token
+in for you. That removes
 the whole of step 4 and changes step 3's redirect URI, while changing nothing about who
 holds the credential. Both steps below keep their manual path for anyone who prefers it.
 
@@ -103,10 +104,10 @@ You made this choice at the top of this guide. To restate it in the console's ow
 
 Pick **Web application** and add an authorised redirect URI:
 
-- **Using the wizard's Connect with Google button:** add
-  `https://<your Ownpace address>/api/migrations/google/callback` — the wizard shows the
-  exact value to register when you press the button, so a mismatch is visible before
-  Google refuses it.
+- **Using the Connect with Google button:** add
+  `https://<your Ownpace address>/api/migrations/google/callback` — the form shows the
+  exact value to register when you press the button with your own client, so a mismatch is
+  visible before Google refuses it.
 
   **If you browse to your Ownpace at a bare IP address** (say `https://100.64.0.1:3123`):
   Google does not accept a raw IP as a redirect URI, and the button will refuse with the
@@ -154,9 +155,9 @@ migrated, and often you cannot.
 > [grant links](./grant-links.md) for the whole of it, including what to say when somebody
 > tells you their link does not work.
 
-**The wizard's Connect with Google
-button does this step for you** — enter the client ID and secret from step 3, press it,
-consent in the popup, and the token lands in the field. That one is for an account you can
+**Connect with Google does this step for you** — enter the client ID and secret from step 3
+(under **Use your own Google client**, where the deployment carries a client of its own), press
+it, consent in the popup, and the token lands in the field. That one is for an account you can
 sign in to yourself. Manually, using Google's own
 [OAuth Playground](https://developers.google.com/oauthplayground/):
 
@@ -172,8 +173,9 @@ sign in to yourself. Manually, using Google's own
 ### A personal Gmail account can skip all of this — and Google would rather you did not
 
 For **mail only**, and only on a **personal** Google account, there is a shorter road: an
-**app password**. Paste it into the wizard's *App password* field (or set
-`GOOGLE_MAIL_APP_PASSWORD` on an appliance) and leave the three OAuth fields empty. Everything
+**app password**. Paste it into the Gmail form's *App password* field, under *Use an app
+password instead* on *Start a migration* (or set `GOOGLE_MAIL_APP_PASSWORD` on an appliance),
+and leave the three OAuth fields empty. Everything
 else about the migration is identical: same folders, same messages, same duplicate-detection.
 
 **Google recommends against app passwords, and so do we.** That is not a formality:
@@ -218,9 +220,10 @@ GOOGLE_CLIENT_SECRET=…
 GOOGLE_REFRESH_TOKEN=…
 ```
 
-Managed — the same three, entered in the create-mapping wizard (a **Google Drive** source:
-client ID, client secret and refresh token on the source step). They
-are stored encrypted on the source connection under exactly these names: `clientId`,
+Managed — the same three, on the **Google Drive** form: on *Start a migration*'s **Connect
+your accounts**, for **Files** under **Google** where the deployment has not declared Google's
+restricted scopes (where it has, the Google account's form takes them), or on the **Accounts**
+page. They are stored encrypted on the source connection under exactly these names: `clientId`,
 `clientSecret`, `refreshToken`.
 
 Then the mapping's file domain:
@@ -239,8 +242,9 @@ Then the mapping's file domain:
 named by its own id, and so is a **folder somebody shared with this account**:
 "Shared with me" is a view, not a folder, so its contents never appear under My
 Drive's tree — rooting a separate mapping at the shared folder's id is how such a folder
-migrates. To see the ids this credential can reach,
-use the wizard's **Browse shared drives & folders** button on the source step — a
+migrates. To see the ids this credential can reach, choose **Only one folder** under
+**Files** on *Start a migration*'s **What moves?**, and press **Show shared drives and shared
+folders** under the account on **Connect your accounts** once it is connected — a
 read-only listing through the same connector a migration uses. (Running from configuration
 files instead? `pnpm exec tsx scripts/list-shared-drives.ts` and
 `pnpm exec tsx scripts/list-shared-folders.ts` answer the same question.) Loose shared *files* — shared with you but not inside a folder you
@@ -298,8 +302,8 @@ not a change; that is what "the same" means here.
 **Every format carries every kind, and you choose per kind.** Docs can arrive as `.docx` and
 decks as `.odp`, or any other combination. The trade that is left is editability: OpenDocument
 and Office keep a file editable, and PDF is a picture of the document rather than a document
-anyone can edit again. The wizard says which kinds arrive as a PDF, on the screen where you
-choose.
+anyone can edit again. *Start a migration* says which kinds arrive as a PDF where you choose,
+under **Files** on **What moves?**, and so does the migration's own page.
 
 **`refuse` is still the default**, and still the honest one: nothing is copied and nothing is
 guessed at, each file is reported by name, and you decide. It is a decision rather than a
@@ -440,12 +444,14 @@ GOOGLE_CLIENT_SECRET=…                          # the same secret as Drive
 GOOGLE_MAIL_REFRESH_TOKEN=…                     # the MAIL-consented token
 ```
 
-Managed — the same three, entered in the create-mapping wizard (a **Gmail** source: client ID,
-client secret and refresh token on the source step). Stored
+Managed — the same three, on the **Gmail** form: on *Start a migration*'s **Connect your
+accounts**, for **Email** under **Google** where the deployment has not declared Google's
+restricted scopes, or on the **Accounts** page. Stored
 encrypted on the source connection as `clientId`, `clientSecret`, `refreshToken`.
 
 Or, for a **personal** account only, the app password instead of all three —
-`GOOGLE_MAIL_APP_PASSWORD` on an appliance, `appPassword` in the wizard. Read
+`GOOGLE_MAIL_APP_PASSWORD` on an appliance, `appPassword` on the Gmail form (under *Use an app
+password instead* on *Start a migration*). Read
 [the section above](#a-personal-gmail-account-can-skip-all-of-this--and-google-would-rather-you-did-not)
 before choosing it: Google recommends against it, it needs 2-step verification, it does not
 exist on a Workspace account, and it is the wider credential rather than the narrower one.
@@ -510,9 +516,13 @@ The mapping needs only the address, like Gmail:
 ```
 
 (`"type": "google-contacts"` for the contacts domain, with a CardDAV or JMAP target.)
-Managed — the **Google Calendar** / **Google Contacts** wizard cards: client ID, client secret
-and refresh token on the source step, stored encrypted as
-`clientId`, `clientSecret`, `refreshToken`.
+Managed — the Google account, which *Start a migration* uses for **Calendar** and **Contacts**
+under **Google**: client ID, client secret and refresh token on its form on **Connect your
+accounts**, stored encrypted as
+`clientId`, `clientSecret`, `refreshToken`. The **Google Calendar** and **Google Contacts**
+cards make no new migrations since workplan 0153: the **Accounts** page keeps them for the
+accounts added with them, and *Start a migration* offers such a saved account where it carries
+exactly what was ticked.
 
 **What only a real account can prove** (owner runbook, Stage 6): that Google's principal
 URLs answer this connector's discovery walk and that its sync-token behaviour matches the
@@ -602,8 +612,10 @@ account (the subject); what widens is the credential, not any mapping.
    | Contacts | `https://www.googleapis.com/auth/carddav` |
    | Tasks | `https://www.googleapis.com/auth/tasks.readonly` |
 
-4. **Configure it**: paste the whole key file into the wizard's "Service account key"
-   field and state each migration's account. (If you run Ownpace yourself from
+4. **Configure it**: on *Start a migration*'s Google form, answer **Yes** to *Is this a
+   company account with an administrator?* (on the **Accounts** page the field is in plain
+   view), paste the whole key file into "Service account key", and state each migration's
+   account under **Username**. (If you run Ownpace yourself from
    configuration files, the same key goes in `GOOGLE_SERVICE_ACCOUNT_KEY`, with each
    mapping's account as `user` — for Drive too.) The
    refresh-token fields stop being required; the refusals will say so if something is

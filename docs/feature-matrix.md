@@ -2,7 +2,7 @@
 
 **Ground truth, not aspiration.** Every row below mirrors the engines and the two shared
 coherence matrices (`SOURCE_TYPE_DOMAINS` / `TARGET_TYPE_DOMAINS` in
-`packages/shared/src/target-domains.ts`) — the same tables the wizard constrains with and
+`packages/shared/src/target-domains.ts`) — the same tables *Start a migration* offers destinations from and
 the create API refuses against. When this document and the code disagree, the code is right
 and this file has a bug; the per-domain detail links the ADR or workplan that carries each
 decision. Last reconciled: 2026-09-22.
@@ -206,7 +206,7 @@ Not (yet) migrated:
 
 | | generic WebDAV (Nextcloud, …) | Google Drive | Microsoft 365 | Dropbox | Box |
 |---|---|---|---|---|---|
-| **Source** | ✅ (`webdav`), incl. trash-bin read for deletion evidence | ✅ (`google-drive`, workplan 0042), My Drive, a **shared drive** or a **folder shared with the account** by id — browsable since workplans 0049/0051; bin read for evidence; **orphan check** (`scripts/list-drive-orphans.ts`, workplan 0058) reports owned files under no folder at all — Drive's `is:unorganized`, which no walk from a root can reach | ⏳ OneDrive/SharePoint (`graph-drive`, wired in workplan 0054; **workplan 0058 fixed three defects that made it unable to migrate a real drive** — a natural key read from a `path` field Graph never returns, which flattened every file onto the root; a folder listing that never recursed and omitted the root; and `isRename` comparing the same phantom field); appliance mapping files; deletions arrive as **`reported`-class evidence** from the delta stream's `deleted` facets (pinned by test, 0054 T4c corrected); another user's drive via `mailbox` needs `Files.Read.All` (see the setup doc's consent note) | ⏳ (`dropbox`, workplan 0055): the whole Dropbox or a `rootPath` — **browsable** via `sharing/list_folders` (wizard button + appliance script; mounted shares carry the path, optional `sharing.read` scope); the owner's own read-only app; `content_hash` change detection; **tombstone read** (`include_deleted`) gives `trashed`-class deletion evidence, absence-counting covers the rest; a **Paper doc**, or any file Dropbox marks as not downloadable, is refused by name and parked on first sight, not exported (workplan 0150) | ⏳ (`box`, workplan 0056): All Files or a `rootFolderId`; the owner's own read-only platform app via the **Client Credentials Grant** — no refresh token, because Box rotates refresh tokens on every use and stored credentials are never written back; the numeric subject user id rides the mapping (one subject per mapping); `sha1` change detection; **bin read** (`/folders/trash/items`, original paths recovered from the `path_collection` ancestor chain the listing already carries) gives `trashed`-class deletion evidence, so a Box deletion can be APPLIED, not only reported; **web links** are pointers, not files — not enumerated |
+| **Source** | ✅ (`webdav`), incl. trash-bin read for deletion evidence | ✅ (`google-drive`, workplan 0042), My Drive, a **shared drive** or a **folder shared with the account** by id — browsable since workplans 0049/0051; bin read for evidence; **orphan check** (`scripts/list-drive-orphans.ts`, workplan 0058) reports owned files under no folder at all — Drive's `is:unorganized`, which no walk from a root can reach | ⏳ OneDrive/SharePoint (`graph-drive`, wired in workplan 0054; **workplan 0058 fixed three defects that made it unable to migrate a real drive** — a natural key read from a `path` field Graph never returns, which flattened every file onto the root; a folder listing that never recursed and omitted the root; and `isRename` comparing the same phantom field); appliance mapping files; deletions arrive as **`reported`-class evidence** from the delta stream's `deleted` facets (pinned by test, 0054 T4c corrected); another user's drive via `mailbox` needs `Files.Read.All` (see the setup doc's consent note) | ⏳ (`dropbox`, workplan 0055): the whole Dropbox or a `rootPath` — **browsable** via `sharing/list_folders` (*Start a migration*'s **Show shared folders** + appliance script; mounted shares carry the path, optional `sharing.read` scope); the owner's own read-only app; `content_hash` change detection; **tombstone read** (`include_deleted`) gives `trashed`-class deletion evidence, absence-counting covers the rest; a **Paper doc**, or any file Dropbox marks as not downloadable, is refused by name and parked on first sight, not exported (workplan 0150) | ⏳ (`box`, workplan 0056): All Files or a `rootFolderId`; the owner's own read-only platform app via the **Client Credentials Grant** — no refresh token, because Box rotates refresh tokens on every use and stored credentials are never written back; the numeric subject user id rides the mapping (one subject per mapping); `sha1` change detection; **bin read** (`/folders/trash/items`, original paths recovered from the `path_collection` ancestor chain the listing already carries) gives `trashed`-class deletion evidence, so a Box deletion can be APPLIED, not only reported; **web links** are pointers, not files — not enumerated |
 | **Target** | ✅ WebDAV | 🚫 never a target | 🚫 never a target | 🚫 never a target | 🚫 never a target |
 
 Also a target: **JMAP files** (workplan 0031 T3). A file larger than 8 MB arrives as a stream, and
@@ -337,8 +337,9 @@ rather than as one row:
   presents. They arrive as ordinary content.
 - ✅ **A folder shared with the account (Drive)** migrates by rooting a **separate mapping**
   at the folder's own id (workplan 0051) — the same parent-scoped, all-drives-guarded
-  listing every root uses. The browse (wizard button, `scripts/list-shared-folders.ts`)
-  lists these folders beside the shared drives, sharer's address included. "Shared with me"
+  listing every root uses. The browse (**Show shared drives and shared folders** on *Start a
+  migration*, `scripts/list-shared-folders.ts`) lists these folders beside the shared drives,
+  sharer's address included. "Shared with me"
   itself is a view, not a folder — no walk from My Drive reaches it, which is why the root
   is the mechanism.
 - ✅ **A collaborated folder (Box)** needs no feature: Box places a folder you were
@@ -346,8 +347,8 @@ rather than as one row:
   content — the WebDAV posture, not the Drive one. Rooting a mapping at its
   `rootFolderId` scopes to just that folder.
 - ✅ **A mounted shared folder (Dropbox)** lives in the account's own tree and migrates as
-  ordinary content — its path is a valid `rootPath`. The browse (wizard button,
-  `scripts/list-dropbox-shared-folders.ts`; optional `sharing.read` scope) lists what the
+  ordinary content — its path is a valid `rootPath`. The browse (**Show shared folders** on
+  *Start a migration*, `scripts/list-dropbox-shared-folders.ts`; optional `sharing.read` scope) lists what the
   account can see; an **unmounted** share is shown path-less — it has no place in the tree
   until the account mounts it in Dropbox itself, which no migration tool should do for it.
 - ⛔ **Loose shared files (Drive)** — shared with the account but not inside a folder it can
@@ -395,7 +396,7 @@ These hold across all object types, and are features rather than gaps:
 - **Accounts, passwords and server settings do not migrate.** Mappings copy data between
   accounts that already exist; provisioning is out of scope on purpose.
 - **Both editions behave identically** (hard rule 5): every source and target above works
-  the same from a mapping file on the appliance and from the wizard on managed, refusing
+  the same from a mapping file on the appliance and from *Start a migration* on managed, refusing
   the same mistakes in the same words.
 
 ## The open gaps, in one place
@@ -407,10 +408,10 @@ These hold across all object types, and are features rather than gaps:
 | JMAP calendar target | 🚫 parked (recurrence round-trip) | workplan 0031 T1 |
 | Drive loose shared *files* (shared folders root a mapping since 0051; shortcuts are refused loudly) | ⛔ not enumerated | Shared content section above; workplan 0051 |
 | Sharing checklist: live Nextcloud OCS proof (digest counts, report section and confirm-once addresses shipped) | ⏳ rides the owner runbook | ADR-0032; workplan 0052 T6 |
-| M365 calendar / contacts / OneDrive / To Do against a real tenant — reachable in the managed wizard as the Microsoft 365 account's faces since workplan 0114 (delegated: the signed-in user's own data; another user's store still needs `oauth2`/`graph` with application permissions) | ⏳ wired; a live connection Test, no migration measured | workplans 0054, 0114 |
+| M365 calendar / contacts / OneDrive / To Do against a real tenant — reachable on managed as the Microsoft 365 account's faces since workplan 0114, through *Start a migration* since the wizard retired (0153 D5) (delegated: the signed-in user's own data; another user's store still needs `oauth2`/`graph` with application permissions) | ⏳ wired; a live connection Test, no migration measured | workplans 0054, 0114 |
 | A shared mailbox (Pattern S) copied from a real tenant — `source.mailbox` over Graph, with application permissions and an administrator's consent; the Microsoft 365 account's delegated grant reads the signed-in person's own mailbox only | ⏳ built, not yet copied from a real shared mailbox; the scope manifest shows it under *Partial* | workplan 0027 T0; workplan 0141 T10 |
 | Dropbox against a real account | ⏳ built, unproven | workplan 0055 T3(a) |
-| Dropbox native formats: a Paper doc, or any file Dropbox hands over only as an export | ⏳ a Paper doc is exported as Markdown or HTML once the migration names a format: the appliance's mapping file takes it, and the managed wizard asks for it with Markdown suggested, the migration's page changes it, and the confirm screen counts the Paper docs left behind before Start; unset, a Paper doc is refused by name and parked on first sight, and every other such file always is | workplan 0150 T3, T4 |
+| Dropbox native formats: a Paper doc, or any file Dropbox hands over only as an export | ⏳ a Paper doc is exported as Markdown or HTML once the migration names a format: the appliance's mapping file takes it, and *Start a migration* asks for it on *What moves?* with Markdown suggested, the migration's page changes it, and the confirm screen counts the Paper docs left behind before Start; unset, a Paper doc is refused by name and parked on first sight, and every other such file always is | workplan 0150 T3, T4 |
 | Box against a real account | ⏳ built, unproven | workplan 0056 T3(a) |
 | Whole-tenant Google migration (domain-wide delegation, opt-in) | ⏳ built, awaiting first contact with a real Workspace | ADR-0033; workplan 0053 |
 | Drive incremental delta (`changes.list`) | ⛔ deliberate cost/correctness trade | workplan 0042 T1 |
@@ -424,8 +425,8 @@ These hold across all object types, and are features rather than gaps:
 ## Live proofs
 
 What a source has done against a real account, written down (workplan 0141 T1). Both doors tag a
-source card, a face in the wizard's data-type step and Google's whole-domain option
-*Experimental* from one table, `SOURCE_PROOFS` in `packages/shared/src/front-door.ts` (workplan
+source card (a provider's tile on *Start a migration*), a face on its *What moves?* and Google's
+whole-domain option *Experimental* from one table, `SOURCE_PROOFS` in `packages/shared/src/front-door.ts` (workplan
 0131 T2). A verdict there says proven only by naming a row below. A change to one goes into the
 same pull request as the change to the other, and a face whose connector is rebuilt goes back to
 experimental in the pull request that rebuilds it. The Email table's ✅ for `oauth2` and `graph`
@@ -437,7 +438,8 @@ until one is (0148 D5). A shared mailbox (Pattern S) has a verdict of its own,
 
 **What counts as a live proof.** All seven:
 
-1. **The product's own path:** the managed wizard on `ownpace-live`, or on the OTA stack where a
+1. **The product's own path:** *Start a migration* on `ownpace-live` (the wizard, before it retired:
+   0153 D5), or on the OTA stack where a
    sitting needs it, or the appliance with a mapping file, through the product's own connector for
    that kind and face. A harness with a client of its own does not count.
 2. **A real account at the provider,** with data a person made. A fixture does not count. A server
