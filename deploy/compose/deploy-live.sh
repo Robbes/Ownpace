@@ -30,7 +30,8 @@
 #      app's own build (0145: /api/version is the API's, handed on by the web
 #      image, and says nothing of the page it serves; a tag cut before 0145
 #      has no /version.json, and cannot pass), /api/ready answers 200,
-#      /api/auth/mode answers `managed`; and runs exposure-check.sh
+#      /api/auth/mode answers `managed`, the api container's NODE_ENV is
+#      production (0132 T4, asked as stand-up-live.sh asks it); and runs exposure-check.sh
 #      (0132 T3 (b), on main since #1271), the tag's own copy, which must
 #      pass. It reads EXPOSURE_ALLOW from live's .env, which the owner sets;
 #      a tag cut before #1271 has no such script, and cannot pass. Before
@@ -97,9 +98,7 @@
 # owner's, before it. It does not LIFT the hold (step
 # 8): the owner lifts it after looking at what this printed, and watches the
 # tick's next summary and one of their own migrations complete a pass on the
-# new tasks, and then deletes the copy. It checks the drain; it does not wait for it. And it does not
-# check NODE_ENV: 0132 T4's check is not built (managed.yml still defaults it
-# to `development`), so there is nothing to ask yet, and it says so.
+# new tasks, and then deletes the copy. It checks the drain; it does not wait for it.
 #
 # IT REFUSES, BEFORE THE CHECKOUT OR THE STACK CHANGES, each with its own
 # message and a non-zero exit. (To read a tag origin has and this clone does
@@ -110,6 +109,16 @@
 #   a .env without live's marker (stack_is_live, stack-kind.sh): this deploys
 #       ownpace-live and nothing else; the OTA stack is the gate's
 #   a .env with no WEB_URL, the origin the checks ask
+#   a .env whose NODE_ENV is not production (workplan 0132 T4: managed.yml
+#       takes no default), or whose ALERT_ENABLED is not exactly true (0142
+#       T0: testers are on live, so nobody deploys it without alerts; the
+#       owner, 2026-10-04). Both named at once, by key, before the fetch and
+#       before any docker call. "true" in double quotes is refused: env_value
+#       keeps the quotes. With them, any line that sets a key in a form the
+#       script does not read and the bring-up does (indented, a space before
+#       '=', or ':' for '='), by line and key, as stand-up-live.sh refuses it:
+#       an indented NODE_ENV=development after a correct line would pass the
+#       check and run.
 #   COMPOSE_ENV_FILES or COMPOSE_FILE in the shell: the bring-up's Compose would
 #       follow them to another stack's files
 #   a working tree that is not clean, untracked files included: live runs what
@@ -334,6 +343,35 @@ main() {
       ;;
   esac
   app_origin="${web_url%/}"
+  # Live's mode and its alerts (the owner, 2026-10-04): NODE_ENV production
+  # (workplan 0132 T4: managed.yml takes no default) and ALERT_ENABLED true
+  # (0142 T0: testers are on live, so nobody deploys it without alerts). Read
+  # before the fetch, the checkout or any docker call, in a dry run too, and
+  # both named at once. Exactly: env_value keeps double quotes, so
+  # ALERT_ENABLED="true" is refused, as stand-up-live.sh refuses it.
+  #
+  # First, a line env_value does not read and the bring-up does (unread_keys,
+  # env-read.sh): an indented `  NODE_ENV=development` after a correct line
+  # passes env_value's reading, and bootstrap-managed.sh's `set -a; . .env`
+  # and Compose both put it in force. Any key, as stand-up-live.sh refuses it:
+  # the checks below read only the start of a line. By line and key, never the
+  # value.
+  local -a unready=()
+  local unread_line unread_key
+  while IFS=: read -r unread_line unread_key; do
+    [ -n "$unread_line" ] || continue
+    unready+=("${unread_key}: set on line ${unread_line} in a form this script does not read (indented, a space before '=', or ':' for '='), and Compose and the bring-up read it all the same. Write it KEY=value at the start of its line.")
+  done <<<"$(unread_keys "$ENV_FILE")"
+  [ "$(env_value "$ENV_FILE" NODE_ENV)" = production ] ||
+    unready+=("NODE_ENV: not production. Live runs production, and managed.yml takes no default (workplan 0132 T4):" \
+      "  ./deploy/compose/env-upsert.sh deploy/compose/.env NODE_ENV=production")
+  [ "$(env_value "$ENV_FILE" ALERT_ENABLED)" = true ] ||
+    unready+=("ALERT_ENABLED: not true. Testers are on live, so nobody deploys it without alerts (workplan 0142 T0):" \
+      "  ./deploy/compose/env-upsert.sh deploy/compose/.env ALERT_ENABLED=true" \
+      "  then send the test alert 0142 T0 asks for, once.")
+  if [ "${#unready[@]}" -gt 0 ]; then
+    refuse "live's .env is not ready for a deploy. Each line names a key, never its value:" "${unready[@]}"
+  fi
   for arg in COMPOSE_ENV_FILES COMPOSE_FILE; do
     if [ -n "${!arg+set}" ]; then
       refuse "this shell has ${arg} set. The bring-up's Compose would follow it to another stack's files instead of this checkout's." \
@@ -591,6 +629,22 @@ main() {
   else
     failures+=("/api/auth/mode: ${code}.")
   fi
+  # 0132 T4: the api container's own NODE_ENV, asked as stand-up-live.sh asks
+  # it. The .env said production before the checkout, in lines this script
+  # reads. A NODE_ENV exported in this shell is not a cause: every phase of
+  # the bring-up sources the .env with `set -a`, which overrides it. What is
+  # left: a NODE_ENV line in a form the check does not read, or a container
+  # the bring-up did not recreate.
+  local node_env
+  if node_env="$("${COMPOSE[@]}" exec -T api printenv NODE_ENV 2>/dev/null)"; then
+    if [ "$node_env" = production ]; then
+      say "  NODE_ENV in the api container: production"
+    else
+      failures+=("NODE_ENV in the api container is not production (workplan 0132 T4). Its value is not printed. The .env said production before the checkout. Look for a NODE_ENV line in a form the check does not read (indented, a space before '=', or ':' for '='), with: grep -n NODE_ENV deploy/compose/.env. Or this bring-up did not recreate the api container: docker compose -f deploy/compose/managed.yml ps api says how long it has been up.")
+    fi
+  else
+    failures+=("NODE_ENV: the api container could not be asked (docker compose exec -T api printenv NODE_ENV).")
+  fi
   # The site (0139 T10): the tag's, built here and brought up under its own
   # project, before the exposure check, which then covers it too.
   if [ "$site" = on ]; then
@@ -606,7 +660,6 @@ main() {
   else
     failures+=("${SCRIPT_DIR}/exposure-check.sh is not in this tag, so the exposure check (0132 T3) could not run.")
   fi
-  say "not checked: NODE_ENV. Workplan 0132 T4's check is not built (managed.yml still defaults NODE_ENV to development), so there is nothing to ask yet."
 
   if [ "${#failures[@]}" -gt 0 ]; then
     did_not_take "$deploy_log" "$tag" "$commit" "$verdict" "${failures[@]}"

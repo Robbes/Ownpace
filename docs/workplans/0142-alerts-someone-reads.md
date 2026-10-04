@@ -9,6 +9,16 @@ D4's amendment) and no longer tells a tester to keep their old account. Both Alp
 tester guide do, as `docs/incident-runbook.md` already says. On branch
 `claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged.
 
+**2026-10-04, also: live refuses to stand up or deploy without `ALERT_ENABLED=true`** (T0). The
+owner's answer, *"Refuse to deploy"*: *"Testers are on live, so nobody should be able to run it
+without alerts."* `stand-up-live.sh` and `deploy-live.sh` refuse a live `.env` whose
+`ALERT_ENABLED` is not exactly `true`, before anything changes, naming the key and this task.
+The OTA stack is untouched and stays off. Built with 0132 T4 on branch
+`claude/ownpace-public-readiness-y7orc6-a-stack-that-names-its-mode`, not merged; 0132's Status
+block says what proved it. **For the owner: before the next live deploy (or the stand-up), add
+`ALERT_ENABLED=true` to live's `.env`, and once live stands, send T0 step 2's test alert and
+write its outcome here.**
+
 **2026-09-28: T1 merged as #1263, and T2's row with T6 as #1252.** Their entries below and their
 rows say so. Live's alerts stay off until its `.env` names the relay and turns `ALERT_ENABLED` on
 (T0).
@@ -197,7 +207,7 @@ watch's issue reaches the owner (0141, 0146).
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The alert channel, and what the alpha promises | 📋 the channel **Decided 2026-09-27**: e-mail through 0133's relay (open question 1); ⏳ **Owner** for its settings and the test alert; the promise 📋 **Decided 2026-09-24** (D1, D2) | §3. **Alpha minimum.** One channel the owner reads, hosted in the EU: e-mail through 0133's relay, or a chat webhook. One test alert. A sentence for 0139's conditions: best effort, no promised response. |
+| T0 The alert channel, and what the alpha promises | 🔨 the refusal without `ALERT_ENABLED=true` **built 2026-10-04** on branch `claude/ownpace-public-readiness-y7orc6-a-stack-that-names-its-mode`, not merged (the owner, *"Refuse to deploy"*): `stand-up-live.sh` and `deploy-live.sh` refuse a live `.env` without it; 📋 the channel **Decided 2026-09-27**: e-mail through 0133's relay (open question 1); ⏳ **Owner** for its settings and the test alert; the promise 📋 **Decided 2026-09-24** (D1, D2) | §3. **Alpha minimum.** One channel the owner reads, hosted in the EU: e-mail through 0133's relay, or a chat webhook. One test alert. A sentence for 0139's conditions: best effort, no promised response. |
 | T1 The status page tells the owner when an Ownpace row goes red | 🔨 **Built 2026-09-27**, merged as #1263: e-mail on every Ownpace row, off unless `ALERT_ENABLED`, through the product's relay — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** An `alerting` block in `gatus.yaml`, with an address and a switch, as the Website row already has. Alerts on the Ownpace rows only. The switch is on in live's `.env` and off on the OTA stack. |
 | T2 A tick that says it ran | 🔨 **(a) built 2026-09-27**, merged as #1244: the beat and `GET /api/ready/scheduler`; the Gatus row, on the public page (open question 3), built 2026-09-27, merged as #1252 — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** The tick rewrites one row each minute. `GET /api/ready/scheduler` reads it, and a status row with an alert reads that route. `/api/ready` stays as it is. |
 | T3 The disk, and what grows on it | 📋 **Proposed** | §3. After the first invitation; **the first to add** if the owner wants one more. A free-space floor every ten minutes and one summary a day. Also gives 0132 T7's daily duties a voice. What to do about the growth belongs to 0143. |
@@ -433,6 +443,10 @@ So the channel's provider receives no personal data, and needs no line among 013
 sub-processors for this purpose.
 
 **The steps on live, before the first invitation, while nobody but the owner uses it:**
+
+*2026-10-04:* the switch is no longer only a step. `stand-up-live.sh` and `deploy-live.sh` refuse
+a live `.env` whose `ALERT_ENABLED` is not exactly `true` (the owner, *"Refuse to deploy"*), and
+the stand-up's last steps ask for the test alert in step 2.
 
 1. Choose (a) or (b), and put its settings and the switch in live's persisted `.env`
    (`~/.persistent/ownpace-live/.env`, 0132 T1b; T1 names the settings). Values stay out of this

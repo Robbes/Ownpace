@@ -62,6 +62,20 @@
  * added to document two api knobs, and nothing noticed. A key that has a
  * default in `managed.yml` now keeps its note on a line of its own.
  *
+ * ## NODE_ENV: required, and not the example's on the OTA stack (2026-10-04)
+ *
+ * `managed.yml` defaulted NODE_ENV to `development`, so a `.env` that did not
+ * say its mode ran a development API. It is now `${NODE_ENV:?}` (workplan 0132
+ * T4; the owner, 2026-10-04), and the example carries `production`, so a stack
+ * copied from it starts in production: fail safe, and what live's stand-up
+ * demands. It is the one required key whose value on the OTA stack is NOT the
+ * example's: that stack runs development, said explicitly, so its self-signed
+ * test mail keeps working. The gate's Fill step writes `NODE_ENV=development`
+ * when the key is absent or empty, BEFORE the loop that backfills from the
+ * example; `a-stack-that-names-its-mode.unit.test.ts` runs that step to prove
+ * the order. A blank example value would fail this file's first rule, and
+ * the gate's loop would refuse it as having no default.
+ *
  * ## What this cannot do
  *
  * It cannot see a runner's `.env`. A persisted file can still fall behind, and
@@ -147,6 +161,28 @@ describe('managed.yml cannot demand a variable nothing can supply', () => {
     expect(guard, 'ensure-env-secrets.sh must refuse to replace a live ZITADEL_MASTERKEY').toContain(
       'ZITADEL_MASTERKEY',
     );
+  });
+});
+
+describe('NODE_ENV: every stack names its mode (workplan 0132 T4)', () => {
+  it('is required, and the example supplies production, so a copied stack fails safe', () => {
+    expect(required, 'managed.yml defaults NODE_ENV again').toContain('NODE_ENV');
+    expect(generated.has('NODE_ENV'), 'a mode is a decision, not a secret to generate').toBe(false);
+    const lines = read('managed.env.example')
+      .split('\n')
+      .filter((l) => /^NODE_ENV=/.test(l));
+    expect(lines).toEqual(['NODE_ENV=production']);
+  });
+
+  it("the gate writes the OTA stack's development before its backfill from the example", () => {
+    // Text only, as a pointer: the order is proven by running the step, in
+    // a-stack-that-names-its-mode.unit.test.ts.
+    const gate = readFileSync(fileURLToPath(new URL('../.github/workflows/e2e-managed.yml', import.meta.url)), 'utf8');
+    const write = gate.indexOf('./deploy/compose/env-upsert.sh deploy/compose/.env NODE_ENV=development');
+    const loop = gate.indexOf('backfilled ${key} from managed.env.example');
+    expect(write, 'the gate no longer writes NODE_ENV=development').toBeGreaterThan(-1);
+    expect(loop, "the gate's backfill loop is no longer recognisable").toBeGreaterThan(-1);
+    expect(write, 'the write comes after the loop, which has then backfilled production').toBeLessThan(loop);
   });
 });
 

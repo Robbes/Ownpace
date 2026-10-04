@@ -247,7 +247,17 @@ load_env() {
     printf '%s\n' "$config_err" | sed 's/^/    /' >&2
     local var=""
     if [[ "$config_err" =~ required\ variable\ ([A-Za-z_][A-Za-z0-9_]*) ]]; then var="${BASH_REMATCH[1]}"; fi
-    if [ -n "$var" ]; then
+    if [ "$var" = NODE_ENV ]; then
+      # A decision, not a secret (workplan 0132 T4; the owner, 2026-10-04):
+      # ensure-env-secrets.sh does not write it, so it is not the advice.
+      echo "!!! NODE_ENV has no value in ${ENV_FILE}." >&2
+      echo "!!! This breaks EVERY compose command, not just the service named above." >&2
+      echo "!!! Every stack names its mode (workplan 0132 T4). On live:" >&2
+      echo "!!!   ./deploy/compose/env-upsert.sh ${ENV_FILE} NODE_ENV=production" >&2
+      echo "!!! On a test stack:" >&2
+      echo "!!!   ./deploy/compose/env-upsert.sh ${ENV_FILE} NODE_ENV=development" >&2
+      echo "!!! The nightly gate writes development on the OTA stack itself, when the .env gives it no value." >&2
+    elif [ -n "$var" ]; then
       echo "!!! ${var} has no value in ${ENV_FILE}." >&2
       echo "!!! This breaks EVERY compose command, not just the service named above." >&2
       echo "!!! Generate the missing secrets (idempotent — it rotates nothing):" >&2
@@ -1064,9 +1074,10 @@ phase_env() {
 
     ${ENV_FILE} has just been created. Read it before anything uses it —
     the passwords, the public URLs (CORS_ORIGIN / WEB_URL / API_URL), the
-    prices in PRICING_* (integer CENTS), TRIGGER_TLS_HOST, and the *_BIND
+    prices in PRICING_* (integer CENTS), TRIGGER_TLS_HOST, the *_BIND
     addresses (TRIGGER_TLS_BIND beside TRIGGER_TLS_HOST, WEB_BIND and
-    ZITADEL_BIND where a public name is routed here) are decisions, not
+    ZITADEL_BIND where a public name is routed here), and NODE_ENV
+    (production, as copied; development on a test stack) are decisions, not
     defaults. docs/managed-bring-up.md, phase 2, says what each one costs.
 
     Edit it directly, or:

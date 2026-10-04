@@ -26,6 +26,13 @@
  *   a database it cannot read (never taken for "nothing in flight", hard
  *   rule 9), a working tree that is not clean, and `--with-demo` are all
  *   refused before the checkout moves. None of them may reach the bring-up.
+ *   Nor may a live `.env` whose `NODE_ENV` is not `production` (0132 T4) or
+ *   whose `ALERT_ENABLED` is not exactly `true` (0142 T0; the owner,
+ *   2026-10-04, "Refuse to deploy"): both are named at once, by key, before
+ *   the fetch and before any docker call, in a dry run too. So is a line that
+ *   sets any key in a form the check does not read and the bring-up does
+ *   (indented, a space before `=`, `:` for `=`), by line and key: an
+ *   indented `NODE_ENV` after a correct one would pass the check and run.
  *
  *   Its dry run moves something, or refuses less. `--dry-run` is what the
  *   owner runs, with the hold on, to learn whether the deploy can be undone
@@ -56,9 +63,10 @@
  *   It says a deploy took when it did not. After the bring-up it asks the app
  *   at the origin in `WEB_URL`: `/api/version` must name the tag's commit AND
  *   its version (0146 T5: a right commit with the wrong version is a deploy
- *   that did not take), `/api/ready` 200, `/api/auth/mode` `managed`, and the
- *   exposure check must pass. Any failure says the deploy did not take, keeps
- *   the hold, and exits non-zero.
+ *   that did not take), `/api/ready` 200, `/api/auth/mode` `managed`, the api
+ *   container's NODE_ENV `production` (0132 T4), and the exposure check must
+ *   pass. Any failure says the deploy did not take, keeps the hold, and exits
+ *   non-zero.
  *
  *   It lifts the hold. It must not: step 8 is the owner's, after looking. So
  *   no statement it sends the database writes anything.
@@ -289,6 +297,13 @@ case "$1" in
     shift
     [ "$1" = -T ] && shift
     svc="$1"; shift
+    # The api container's NODE_ENV, asked after the bring-up (0132 T4).
+    if [ "$svc" = api ]; then
+      [ "$*" = "printenv NODE_ENV" ] || { echo "docker stub: unexpected exec: api $*" >&2; exit 97; }
+      [ -z "\${STUB_API_EXEC_FAIL:-}" ] || { echo 'service "api" is not running' >&2; exit 1; }
+      echo "\${STUB_NODE_ENV:-production}"
+      exit 0
+    fi
     if [ "$svc" != postgres ] || [ "$1" != sh ] || [ "$2" != -c ]; then
       echo "docker stub: unexpected exec: $svc $*" >&2; exit 97
     fi
@@ -525,6 +540,10 @@ const LIVE_ENV = [
   `WEB_URL=https://${APP_HOST}`,
   'POSTGRES_USER=openmigrate',
   'POSTGRES_DB=openmigrate',
+  // Live names its mode (workplan 0132 T4) and has its alerts on (0142 T0):
+  // the deploy refuses a .env without either (the owner, 2026-10-04).
+  'NODE_ENV=production',
+  'ALERT_ENABLED=true',
   '',
 ].join('\n');
 
@@ -898,6 +917,105 @@ describe('a stack, a checkout or a moment that is not ready is refused, and noth
     CASE_MS,
   );
 
+  // Live names its mode (workplan 0132 T4) and has its alerts on (0142 T0):
+  // the owner, 2026-10-04, "Refuse to deploy". Both are read before the
+  // checkout, the fetch or any docker call, and named by key, never by value.
+  // [label, the .env, keys named, keys not named, a value that must not be printed]
+  const WRONG_SETTINGS: Array<[string, string, string[], string[], string?]> = [
+    ['NODE_ENV absent', LIVE_ENV.replace('NODE_ENV=production\n', ''), ['NODE_ENV'], ['ALERT_ENABLED']],
+    ['NODE_ENV not production', LIVE_ENV.replace('NODE_ENV=production', 'NODE_ENV=staging-q8'), ['NODE_ENV'], ['ALERT_ENABLED'], 'staging-q8'],
+    ['NODE_ENV left empty', LIVE_ENV.replace('NODE_ENV=production', 'NODE_ENV='), ['NODE_ENV'], ['ALERT_ENABLED']],
+    ['ALERT_ENABLED absent', LIVE_ENV.replace('ALERT_ENABLED=true\n', ''), ['ALERT_ENABLED'], ['NODE_ENV:']],
+    ['ALERT_ENABLED false, the example\'s value', LIVE_ENV.replace('ALERT_ENABLED=true', 'ALERT_ENABLED=false'), ['ALERT_ENABLED'], ['NODE_ENV:']],
+    ['ALERT_ENABLED a word that is not true', LIVE_ENV.replace('ALERT_ENABLED=true', 'ALERT_ENABLED=yes-q9'), ['ALERT_ENABLED'], ['NODE_ENV:'], 'yes-q9'],
+    ['ALERT_ENABLED in double quotes', LIVE_ENV.replace('ALERT_ENABLED=true', 'ALERT_ENABLED="true"'), ['ALERT_ENABLED'], ['NODE_ENV:']],
+    [
+      'both at once, each named',
+      LIVE_ENV.replace('NODE_ENV=production\n', '').replace('ALERT_ENABLED=true\n', ''),
+      ['NODE_ENV', 'ALERT_ENABLED'],
+      [],
+    ],
+  ];
+
+  it.each(WRONG_SETTINGS)(
+    "a .env that is wrong for live: %s",
+    (_label, dotEnv, named, notNamed, value) => {
+      const s = stage({ releases: [NEXT], dotEnv });
+      for (const args of [[NEXT.tag], ['--dry-run', NEXT.tag]]) {
+        const r = run(s, args);
+        expect(r.status, `${args.join(' ')}:\n${r.out}`).toBe(1);
+        expect(r.out).toContain('[deploy-live] refused: ');
+        for (const key of named) expect(r.out).toContain(`${key}:`);
+        for (const key of notNamed) expect(r.out).not.toContain(key);
+        if (named.includes('NODE_ENV')) {
+          expect(r.out).toContain('env-upsert.sh deploy/compose/.env NODE_ENV=production');
+          expect(r.out).toContain('0132 T4');
+        }
+        if (named.includes('ALERT_ENABLED')) {
+          expect(r.out).toContain('ALERT_ENABLED=true');
+          expect(r.out).toContain('0142 T0');
+        }
+        if (value) expect(r.out, "the file's own value is never printed").not.toContain(value);
+        expect(r.out).toContain('The checkout and the stack are as they were.');
+        expect(r.out, 'it fetched before refusing').not.toContain('fetching tags');
+        expectNothingChanged(s, r.out);
+        expect(called(s, 'copy-before-update'), 'a copy was taken for a deploy that is refused').toEqual([]);
+      }
+    },
+    CASE_MS,
+  );
+
+  // A line the check above does not read, and the bring-up does. env_value
+  // reads a key at the start of its line; bootstrap-managed.sh's
+  // `set -a; . .env` takes an indented one too, and Compose also a space
+  // before '=' and ':' for '='. The last one wins in both. So an indented
+  // `NODE_ENV=staging-q7` after a correct line passed the check, and the
+  // bring-up recreated live's api in it; an indented ALERT_ENABLED turned
+  // live's alerts off with nothing noticing. Refused, any key, by line and
+  // key, as stand-up-live.sh refuses it.
+  // [label, the .env, the key, its line]
+  const UNREAD: Array<[string, string, string, number]> = [
+    [
+      'an indented NODE_ENV after a correct one',
+      LIVE_ENV.replace('NODE_ENV=production\n', 'NODE_ENV=production\n  NODE_ENV=staging-q7\n'),
+      'NODE_ENV',
+      LIVE_ENV.split('\n').indexOf('NODE_ENV=production') + 2,
+    ],
+    [
+      'an indented ALERT_ENABLED after a correct one',
+      LIVE_ENV.replace('ALERT_ENABLED=true\n', 'ALERT_ENABLED=true\n\tALERT_ENABLED=off-q6\n'),
+      'ALERT_ENABLED',
+      LIVE_ENV.split('\n').indexOf('ALERT_ENABLED=true') + 2,
+    ],
+    [
+      "any other key, with ':' for '='",
+      `${LIVE_ENV}OWNPACE_REACHABLE_HOSTS: nextcloud-q5\n`,
+      'OWNPACE_REACHABLE_HOSTS',
+      LIVE_ENV.split('\n').length,
+    ],
+  ];
+
+  it.each(UNREAD)(
+    'a .env with a line the check does not read: %s',
+    (_label, dotEnv, key, line) => {
+      const s = stage({ releases: [NEXT], dotEnv });
+      for (const args of [[NEXT.tag], ['--dry-run', NEXT.tag]]) {
+        const r = run(s, args);
+        expect(r.status, `${args.join(' ')}:\n${r.out}`).toBe(1);
+        expect(r.out).toContain('[deploy-live] refused: ');
+        expect(r.out).toContain(`${key}: set on line ${line} in a form this script does not read`);
+        for (const value of ['staging-q7', 'off-q6', 'nextcloud-q5']) {
+          expect(r.out, "the file's own value is never printed").not.toContain(value);
+        }
+        expect(r.out).toContain('The checkout and the stack are as they were.');
+        expect(r.out, 'it fetched before refusing').not.toContain('fetching tags');
+        expectNothingChanged(s, r.out);
+        expect(called(s, 'copy-before-update'), 'a copy was taken for a deploy that is refused').toEqual([]);
+      }
+    },
+    CASE_MS,
+  );
+
   it(
     'a working tree with a changed file',
     () => {
@@ -1098,7 +1216,8 @@ describe('a deploy that took', () => {
       ]);
       expect(called(s, 'exposure-check')).toEqual([`exposure-check --env-file ${join(s.compose, '.env')}`]);
       expect(r.out).toMatch(/the deploy took/);
-      expect(r.out).toMatch(/NODE_ENV/);
+      // The api container says production (0132 T4), asked as stand-up-live.sh asks it.
+      expect(r.out).toContain('NODE_ENV in the api container: production');
 
       // The hold stays on: step 8 is the owner's, after looking.
       expect(r.out).toMatch(/The hold is still on/);
@@ -1203,6 +1322,11 @@ describe('a deploy that did not take keeps the hold and exits non-zero', () => {
       /\/api\/auth\/mode/,
     ],
     ['the exposure check finds a port', () => ({ STUB_EXPOSURE_EXIT: '1' }), /exposure/],
+    // The api container's own NODE_ENV (0132 T4). Not a shell export: the
+    // bring-up sources the .env with `set -a`, which overrides one. A line
+    // the check does not read, or a container the bring-up did not recreate.
+    ['the api container does not run production', () => ({ STUB_NODE_ENV: 'development' }), /NODE_ENV in the api container is not production[\s\S]*grep -n NODE_ENV/],
+    ['the api container cannot be asked its NODE_ENV', () => ({ STUB_API_EXEC_FAIL: '1' }), /NODE_ENV: the api container could not be asked/],
     ['the bring-up fails', () => ({ STUB_BOOTSTRAP_EXIT: '1' }), /bootstrap-managed\.sh/],
     ['the bring-up stops for the owner', () => ({ STUB_BOOTSTRAP_EXIT: '2' }), /bootstrap-managed\.sh/],
     ['the dependencies do not install', () => ({ STUB_PNPM_EXIT: '1' }), /pnpm install/],

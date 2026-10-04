@@ -297,12 +297,44 @@ jobs:
         # A variable in neither is a genuine gap and this refuses, naming it.
         # `managed-env-contract.unit.test.ts` fails the build before that can
         # reach a runner.
+        #
+        # ONE REQUIRED KEY IS NOT THE EXAMPLE'S: NODE_ENV (workplan 0132 T4).
+        # The example says production, so that a stack copied from it fails
+        # safe. The OTA stack runs development, said explicitly, so its
+        # self-signed test mail keeps working (the owner, 2026-10-04). So it is
+        # written BEFORE the loop: after it, the loop would already have
+        # backfilled production and the copy-back persisted it. Only when the
+        # value Compose would use is empty (absent, blank, whitespace, a note
+        # alone, or ""); a value that is there is kept, `export` form too, and
+        # named in the log. The loop then leaves NODE_ENV alone: its own test,
+        # `^KEY=.`, does not see an `export` line, and would append production
+        # after it (scripts/a-stack-that-names-its-mode.unit.test.ts runs this).
         run: |
           set -euo pipefail
           ./deploy/compose/ensure-env-secrets.sh
 
+          . deploy/compose/env-read.sh
+          # As Compose reads it: env_value keeps double quotes, and Compose
+          # does not.
+          mode="$(env_value deploy/compose/.env NODE_ENV)"
+          mode="${mode#\"}"
+          mode="${mode%\"}"
+          if [ -n "$mode" ]; then
+            echo "NODE_ENV is set in the OTA stack's .env, and kept: NODE_ENV=${mode}"
+            if [ "$mode" != development ]; then
+              echo "::warning::The OTA stack runs NODE_ENV=${mode}, not development (workplan 0132 T4). In production the API turns notifications off while SMTP_ALLOW_SELF_SIGNED=true. To change it, set NODE_ENV=development in the persisted .env."
+            fi
+          else
+            # Not --if-absent: that tests `^NODE_ENV=.`, and would keep a
+            # line whose value is only whitespace or a note.
+            ./deploy/compose/env-upsert.sh deploy/compose/.env NODE_ENV=development
+            echo "NODE_ENV was not set: wrote NODE_ENV=development (the OTA stack runs development, workplan 0132 T4, the owner 2026-10-04)"
+          fi
+
           required=$(grep -oE '\$\{[A-Z_]+:\?' deploy/compose/managed.yml | sed 's/\${//;s/:?//' | sort -u)
           for key in $required; do
+            # Written or kept above, and never the example's production.
+            [ "$key" = NODE_ENV ] && continue
             grep -qE "^${key}=." deploy/compose/.env 2>/dev/null && continue
             value="$(grep -E "^${key}=" deploy/compose/managed.env.example | tail -1 | cut -d= -f2- || true)"
             if [ -z "$value" ]; then

@@ -89,6 +89,26 @@ env_value() {
   fi
 }
 
+# unread_keys <env-file> — each line that sets a key in a form env_value does
+# not read and Compose does: indented, a space before '=', or YAML's ':' for
+# '=' (compose-go's dotenv takes all three, and bash the indented one). As
+# <line>:<key>, one per line. Only the key's name is taken from the line, never
+# its value: the awk test stack_may_be_live makes for the marker, for every key.
+# A caller that judges a value with env_value refuses what this lists, or its
+# check passes on a line that is not the one in force: stand-up-live.sh and
+# deploy-live.sh both do (workplan 0132 T4).
+unread_keys() {
+  [ -f "$1" ] || return 0
+  awk '
+    /^(export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=/ { next }
+    match($0, /^[[:space:]]*(export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*[[:space:]]*[=:]/) {
+      key = substr($0, 1, RLENGTH)
+      sub(/^[[:space:]]*(export[[:space:]]+)?/, "", key)
+      sub(/[[:space:]]*[=:]$/, "", key)
+      print NR ":" key
+    }' "$1"
+}
+
 # stack_kind_clean <value> — a value of live's marker (stack-kind.sh) as it is
 # compared: without surrounding whitespace or double quotes, in lower case.
 # Here rather than in stack-kind.sh because compose_project below compares it
