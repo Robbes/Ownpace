@@ -319,6 +319,17 @@ appears. Ownpace's version, once 0089 T1 exists:
 - Links to the privacy policy and terms sit beside the button, not in a footer.
 - The disclosure appears before the redirect, never after.
 
+Where the links are (workplan 0139 T4, 2026-10-03): beside every *Connect with …* button on
+the managed service, in both doors — the Connections page's panel (`ProviderConsentPanel`) and
+the wizard's own button — through the lines both draw (`ConsentLines` in
+`apps/web/src/components/ProviderConsent.tsx`). One line, *"What we do with your data, and on
+what terms:"*, then the privacy policy and the terms in the reader's language, at the addresses
+`apps/web/src/services/legal-links.ts` makes from `VITE_LEGAL_SITE_URL`. The grant page links
+both in its disclosure line, after its button (#1137). A page that asks one person for several
+accounts has that line once, after all of them. `a-notice-where-data-is-collected.unit.test.tsx`
+finds both links in the button's own block, for Google, Microsoft and Dropbox, in both
+languages.
+
 ## 6. The order to do this in
 
 1. **Verify §2 and §4's marked claims** from the live Google pages. Cheapest step, and it can

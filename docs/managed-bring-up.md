@@ -905,6 +905,22 @@ and no other. `ZITADEL_DEFAULT_LANGUAGE` in `.env`, `nl` or `en`, is its default
 set `nl` on live, where the testers are. Empty keeps the instance's own. Every run
 sets both and reads them back, and prints them in its summary.
 
+**The notice on its registration and sign-in pages** (workplan 0135 T5, for
+0139 T4). The page where a tester types a name, an address and a password links
+the privacy policy and the terms: the instance privacy policy's `privacyLink`
+and `tosLink`, which the page's footer shows and its registration form asks to
+accept. Both are made from `VITE_LEGAL_SITE_URL` in `.env`, the key the web
+app's links come from, by the same rule: empty is `https://www.ownpace.eu`, the
+OTA stack's is its test site, and a value the web build refuses stops the run
+before anything is written. They are the Dutch pages, `nl/privacy.html` and
+`nl/voorwaarden.html`: Zitadel keeps one link per instance, and the testers are
+Dutch; those pages switch to English. Every run writes the policy when a link
+differs, copies its other five fields back as they were, and reads it back on
+the instance and on the project's organisation, whose own policy would stand in
+front of the instance's. It prints both addresses in its summary. A fresh
+instance has them from `managed.yml`. They are always shown, also before the
+texts are published there (the owner, 2026-10-03).
+
 **Then restart the API and REBUILD the web app, or nothing changes.** The API
 only needs the new environment; the web app bakes `VITE_*` in at build time, so
 a container built before the script ran has no issuer in its bundle and still

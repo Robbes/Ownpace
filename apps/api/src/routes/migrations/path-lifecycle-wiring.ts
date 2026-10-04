@@ -16,7 +16,24 @@
  * The moving itself lives in the ledger since 2026-09-24
  * (`paths-follow-the-mapping.ts`, with its two deliberate asymmetries), so the
  * cutover CLI's and the rollback job's writes move the same rows by the same
- * rule. What stays here is this edition's half: the month's peak.
+ * rule. What stays here is this edition's half: the month's peak, and the
+ * agreed tier's paths.
+ *
+ * ## A start past the agreed tier waits for the yes (workplan 0109 T6)
+ *
+ * ADR-0014: *"a path waits for the yes at activation"*. Every door here that
+ * takes slots counts the slots held before, moves the paths, then counts again
+ * under a lock per organisation (`refusePastTheTier`): a move that took slots
+ * and left more held than the agreed tier runs throws `PathsNeedAYes`, and the
+ * whole transaction, the status write with it, rolls back. Counted after the
+ * move rather than predicted before it, so the rule for which paths move
+ * (`pathFollows`) stays in one place. The lock is taken after the move and
+ * before the second count, so two starts at once are counted one after the
+ * other, each seeing the other's slots once it commits.
+ *
+ * Only these doors, the customer's. The operator's cutover CLI and the
+ * rollback job write through the ledger's own door, unasked: a recovery is not
+ * a step up. Not during the alpha (the owner, 2026-10-03: *"A"*).
  */
 
 import {
@@ -30,8 +47,66 @@ import {
   type PathStopChange,
   type PathStopOutcome,
 } from '@openmig/ledger';
-import { PgOccupancyPeakStore } from '@openmig/managed';
+import { sql } from 'drizzle-orm';
+import {
+  PgDataAllowanceStore,
+  PgOccupancyPeakStore,
+  allowanceOf,
+  holdsAtCeiling,
+  pathsPastTheTier,
+  pathsPastTheTierReason,
+  type PathsPastTheTier,
+} from '@openmig/managed';
 import type { DiscoveryDomain, MappingId, TenantId } from '@openmig/shared';
+
+type Db = ConstructorParameters<typeof PgPathLifecycleStore>[0];
+
+/**
+ * A start that would hold more slots than the agreed tier runs, refused
+ * (workplan 0109 T6). Thrown inside the door's transaction, so nothing of the
+ * start is kept; the routes answer it with 409 `paths_need_a_yes`
+ * (`pathsNeedAYesBody`).
+ */
+export class PathsNeedAYes extends Error {
+  readonly past: PathsPastTheTier;
+
+  constructor(past: PathsPastTheTier) {
+    super(pathsPastTheTierReason(past));
+    this.name = 'PathsNeedAYes';
+    this.past = past;
+  }
+}
+
+/** The 409 a route answers a `PathsNeedAYes` with: the sentence, the numbers, and the tier that runs them. */
+export function pathsNeedAYesBody(error: PathsNeedAYes) {
+  const { tier, after, needs } = error.past;
+  return {
+    error: 'paths_need_a_yes',
+    message: error.message,
+    reason: error.message,
+    tier: { id: tier.id, name: tier.name, paths: tier.paths },
+    after,
+    needs: needs ? { id: needs.id, name: needs.name, paths: needs.paths } : null,
+  };
+}
+
+/** How many slots the organisation holds now. */
+function slotsHeld(db: Db, tenantId: string): Promise<number> {
+  return new PgPathLifecycleStore(db).slotsHeld(tenantId as TenantId);
+}
+
+/**
+ * Refuse a move that took slots past the agreed tier: the second count, under
+ * the organisation's lock, against the highest tier it said yes to.
+ */
+async function refusePastTheTier(db: Db, tenantId: string, before: number): Promise<void> {
+  if (!holdsAtCeiling(process.env.OWNPACE_STAGE)) return;
+  await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'path_slots:' + tenantId}))`);
+  const after = await slotsHeld(db, tenantId);
+  const allowance = allowanceOf(await new PgDataAllowanceStore(db).grants(tenantId as TenantId));
+  const past = pathsPastTheTier(allowance, before, after);
+  if (past) throw new PathsNeedAYes(past);
+}
 
 /**
  * Move every included path of one mapping to follow a mapping-status change,
@@ -49,7 +124,9 @@ export async function movePathsWithMapping(
   mappingId: string,
   change: PathsChange,
 ): Promise<void> {
+  const before = await slotsHeld(db, tenantId);
   const { slotsTaken } = await movePaths(db, tenantId, mappingId, change);
+  if (slotsTaken) await refusePastTheTier(db, tenantId, before);
   // The month's high-water mark rises with the slots just taken (0109 T2) —
   // same transaction, so a committed activation cannot miss its peak. This
   // file is the managed API's; the appliance never imports these routes,
@@ -76,7 +153,9 @@ export async function activateAddedPath(
   mappingId: string,
   domain: DiscoveryDomain,
 ): Promise<void> {
+  const before = await slotsHeld(db, tenantId);
   await new PgPathLifecycleStore(db).activate(tenantId as TenantId, mappingId as MappingId, domain);
+  await refusePastTheTier(db, tenantId, before);
   // The month's high-water mark rises with the slot, as it does on a start.
   await new PgOccupancyPeakStore(db).recordCurrentOccupancy(tenantId as TenantId);
 }
@@ -91,8 +170,10 @@ export async function stopOrResumeDataType(
   tenantId: string,
   change: PathStopChange,
 ): Promise<PathStopOutcome> {
+  const before = await slotsHeld(db, tenantId);
   const outcome = await stopOrResumePath(db, tenantId, change);
   if ('slotsTaken' in outcome && outcome.slotsTaken) {
+    await refusePastTheTier(db, tenantId, before);
     await new PgOccupancyPeakStore(db).recordCurrentOccupancy(tenantId as TenantId);
   }
   return outcome;
@@ -109,8 +190,10 @@ export async function endOrKeepDataType(
   tenantId: string,
   change: PathEndingChange,
 ): Promise<PathEndingOutcome> {
+  const before = await slotsHeld(db, tenantId);
   const outcome = await endOrKeepPath(db, tenantId, change);
   if ('slotsTaken' in outcome && outcome.slotsTaken) {
+    await refusePastTheTier(db, tenantId, before);
     await new PgOccupancyPeakStore(db).recordCurrentOccupancy(tenantId as TenantId);
   }
   return outcome;
