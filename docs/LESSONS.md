@@ -2317,10 +2317,13 @@ reading a file drops off its entry by itself.
 - [a-mount-that-went-blind](../scripts/a-mount-that-went-blind.unit.test.ts) — THE REPUBLISH THAT MADE THE SITE DISAPPEAR.
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-version-the-tester-accepted](../scripts/a-version-the-tester-accepted.unit.test.ts) — A VERSION THE TESTER ACCEPTED (workplan 0139 T3).
+- [claims-you-can-check](../scripts/claims-you-can-check.unit.test.ts) — CLAIMS YOU CAN CHECK (workplan 0152 T8 (a), (b)).
 - [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 - [one-look-from-the-site-to-the-app](../scripts/one-look-from-the-site-to-the-app.unit.test.ts) — ONE LOOK FROM THE SITE TO THE APP (workplan 0152 T9).
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
+- [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 - [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
+- [the-test-site-sent-people-to-production](../scripts/the-test-site-sent-people-to-production.unit.test.ts) — THE TEST SITE HANDED VISITORS TO PRODUCTION.
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
 - [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
 
@@ -4458,6 +4461,7 @@ CLAIMS YOU CAN CHECK (workplan 0152 T8 (a), (b)).
 
 Reads:
 
+- `site/build.mjs`
 - `site/proof.mjs`
 
 ### [connector-coverage](../scripts/connector-coverage.unit.test.ts)
@@ -4781,6 +4785,7 @@ Reads:
 - `apps/web/src/AppRoutes.tsx`
 - `apps/web/src/i18n/strings.ts`
 - `deploy/compose/www-nginx.conf`
+- `site/build.mjs`
 - `site/prices.mjs`
 
 ### [pasteable-hints](../scripts/pasteable-hints.unit.test.ts)
@@ -5078,6 +5083,7 @@ THE TEST SITE HANDED VISITORS TO PRODUCTION.
 
 Reads:
 
+- `site/build.mjs`
 - `site/prices.mjs`
 
 ### [the-volume-a-recipe-forgot-to-prepare](../scripts/the-volume-a-recipe-forgot-to-prepare.unit.test.ts)
