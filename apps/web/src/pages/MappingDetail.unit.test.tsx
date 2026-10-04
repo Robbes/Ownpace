@@ -526,6 +526,173 @@ describe('the live progress strip', () => {
 });
 
 /**
+ * WHERE IT IS, IN A PERSON'S WORDS (workplan 0154 T1, a migration's own page):
+ * what a person's card says of this migration, from the same facts and the
+ * same functions. Beside the name, the migration's stage: the least advanced
+ * of its data types, the card's data types. On each row of the strip, that
+ * data type's own, and a failed pass keeps its word beside it.
+ */
+describe('where it is, in a person’s words (0154 T1)', () => {
+  const yesterday = new Date(Date.now() - 86_400_000).toISOString();
+  /** A row of the strip, as both editions serve it. */
+  const stripRow = (domain: string, state: string, over: Record<string, unknown> = {}) => ({
+    domain,
+    state,
+    itemsSynced: 12,
+    itemsFailed: 0,
+    bytesTransferred: 0,
+    itemsRetrying: 0,
+    itemsNeedingDecision: 0,
+    ...over,
+  });
+  /** The same data type, as the progress read has it. */
+  const progressRow = (domain: string, state: string, over: Record<string, unknown> = {}) => ({
+    domain,
+    state,
+    phase: 'active',
+    itemsSynced: 12,
+    bytesTransferred: 0,
+    ...over,
+  });
+  const progressOf = (domains: unknown[], check: Record<string, unknown> = { state: 'not_run' }) => ({
+    mappings: [{ mappingId: 'acme-mail', domains, check }],
+  });
+  const kept = { lastSyncedAt: yesterday };
+  /** What sits beside the migration's name. */
+  const header = async (name = 'Acme mail') => (await screen.findByRole('heading', { name })).parentElement!;
+  /** One data type's row of the strip. */
+  const row = (domain: string) => {
+    const rows = document.querySelectorAll(`li[data-domain="${domain}"]`);
+    expect(rows).toHaveLength(1);
+    return rows[0]!.textContent ?? '';
+  };
+
+  it('says the least advanced beside the name, and each data type’s own on its row', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({
+        syncConfig: { domains: ['email', 'calendar'] },
+        domainStatus: [stripRow('email', 'completed', kept), stripRow('calendar', 'in_progress')],
+      }),
+    );
+    fetchProgressMock.mockResolvedValue(
+      progressOf([progressRow('email', 'completed', kept), progressRow('calendar', 'in_progress')]),
+    );
+    renderHub();
+    const beside = await header();
+    await vi.waitFor(() => expect(beside.textContent).toContain('Copying'));
+    expect(beside.textContent).not.toContain('Active');
+    expect(row('email')).toContain('Kept in step');
+    expect(row('email')).not.toContain('Completed');
+    expect(row('calendar')).toContain('Copying');
+    expect(row('calendar')).not.toContain('Syncing');
+  });
+
+  /** The card draws a line for each data type the migration carries, touched by a pass or not. */
+  it('counts a data type no pass has touched yet, as the card does', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({ syncConfig: { domains: ['email', 'calendar'] }, domainStatus: [stripRow('email', 'completed', kept)] }),
+    );
+    fetchProgressMock.mockResolvedValue(progressOf([progressRow('email', 'completed', kept)]));
+    renderHub();
+    const beside = await header();
+    await vi.waitFor(() => expect(row('email')).toContain('Kept in step'));
+    expect(beside.textContent).toContain('Copying');
+    expect(beside.textContent).not.toContain('Kept in step');
+  });
+
+  /** Hard rule 9: Ready to switch needs the check passed and the failures that block Finish counted. */
+  it('says Ready to switch only once the check passed and nothing counted blocks Finish', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({ syncConfig: { domains: ['email'] }, domainStatus: [stripRow('email', 'completed', kept)] }),
+    );
+    fetchProgressMock.mockResolvedValue(
+      progressOf([progressRow('email', 'completed', kept)], { state: 'passed', at: yesterday }),
+    );
+    fetchAttentionMock.mockResolvedValue({
+      mappings: [
+        {
+          mappingId: 'acme-mail',
+          pendingDecisions: 0,
+          deletionsWaiting: 0,
+          movesWaiting: 0,
+          failuresWaiting: 0,
+          readyForCutover: true,
+          autoApplied: 0,
+          sharingOpen: 0,
+        },
+      ],
+    });
+    const { unmount } = renderHub();
+    const beside = await header();
+    await vi.waitFor(() => expect(beside.textContent).toContain('Ready to switch'));
+    expect(row('email')).toContain('Ready to switch');
+    unmount();
+
+    // The failures could not be counted: it stays kept in step.
+    fetchAttentionMock.mockRejectedValue(new Error('the database is unreachable'));
+    renderHub();
+    const again = await header();
+    await vi.waitFor(() => expect(row('email')).toContain('Kept in step'));
+    expect(again.textContent).toContain('Kept in step');
+    expect(again.textContent).not.toContain('Ready to switch');
+  });
+
+  it('keeps a failed pass’s word beside the stage', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({
+        syncConfig: { domains: ['email'] },
+        domainStatus: [stripRow('email', 'failed', { ...kept, itemsFailed: 3 })],
+      }),
+    );
+    fetchProgressMock.mockResolvedValue(progressOf([progressRow('email', 'failed', kept)]));
+    renderHub();
+    await header();
+    await vi.waitFor(() => expect(row('email')).toContain('Kept in step'));
+    expect(row('email')).toContain('Failed');
+  });
+
+  it('says what the card says until the progress read has it, and each row its pass', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({ syncConfig: { domains: ['email'] }, domainStatus: [stripRow('email', 'completed', kept)] }),
+    );
+    // Still being read, and failed.
+    for (const read of [() => new Promise(() => undefined), () => Promise.reject(new Error('the database is unreachable'))]) {
+      fetchProgressMock.mockImplementation(read);
+      const { unmount } = renderHub();
+      const beside = await header();
+      await vi.waitFor(() => expect(row('email')).toContain('Completed'));
+      // A migration that has finished a pass, as the list reads it.
+      expect(beside.textContent).toContain('Kept in step');
+      expect(row('email')).not.toContain('Kept in step');
+      unmount();
+    }
+  });
+
+  it('selfhost: reads the data types and their passes from /status, and says the same', async () => {
+    editionFlag.selfhost = true;
+    fetchStatusMock.mockResolvedValue({
+      status: 'ok',
+      mappings: [
+        {
+          mappingId: 'acme-mail',
+          migrationStatus: 'active',
+          domains: [stripRow('email', 'completed', kept), stripRow('contact', 'in_progress')],
+        },
+      ],
+    });
+    fetchProgressMock.mockResolvedValue(
+      progressOf([progressRow('email', 'completed', kept), progressRow('contact', 'in_progress')]),
+    );
+    renderHub();
+    const beside = await header('Migration');
+    await vi.waitFor(() => expect(beside.textContent).toContain('Copying'));
+    expect(row('email')).toContain('Kept in step');
+    expect(row('contact')).toContain('Copying');
+    expect(mappingApiGet).not.toHaveBeenCalled();
+  });
+});
+
+/**
  * STOP AND RESUME ONE DATA TYPE, ON BOTH EDITIONS (workplan 0128 T4, slice
  * 3c; the owner's D4: the appliance gets the same choice). One panel, two
  * payloads: managed's detail carries `stopChoices`, the appliance's `/status`
