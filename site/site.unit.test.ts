@@ -58,18 +58,18 @@ const REPO = join(HERE, '..');
 const read = (p: string) => readFileSync(join(REPO, p), 'utf8');
 
 /**
- * A price cell: `free`, or whole euros. Anything else is a broken table and
- * fails by name: a lenient parse read "free", "—" and a garbled cell alike as
- * zero, which is the one price that must never arrive by accident.
+ * A price cell, in CENTS: `free`, or whole euros. Anything else is a broken
+ * table and fails by name: a lenient parse read "free", "—" and a garbled cell
+ * alike as zero, which is the one price that must never arrive by accident.
  */
-function euros(cell: string, what: string): number {
-  const value = cell === 'free' ? 0 : /^€\d+$/.test(cell) ? Number(cell.slice(1)) : Number.NaN;
+function cents(cell: string, what: string): number {
+  const value = cell === 'free' ? 0 : /^€\d+$/.test(cell) ? Number(cell.slice(1)) * 100 : Number.NaN;
   expect(Number.isNaN(value), `ADR-0014: ${what} reads "${cell}", which is neither "free" nor whole euros`).toBe(false);
   return value;
 }
 
 /** Parse ADR-0014's own tier table — the source this file is guarded against. */
-function tiersFromAdr(): Map<string, { paths: number; data: string; setup: number; monthly: number }> {
+function tiersFromAdr(): Map<string, { paths: number; data: string; monthly: number; annual: number }> {
   const adr = read('docs/adr/0014-cost-recovery-billing.md');
   // The table that holds NOW lives in the ADR's operative rules, amended in
   // place (ADR-0038); the narrative keeps the 2026-08-20 table as a record,
@@ -79,22 +79,22 @@ function tiersFromAdr(): Map<string, { paths: number; data: string; setup: numbe
   const rows = operative
     .split('\n')
     .map((l) => l.trim())
-    .filter((l) => /^\|\s*\*\*(Tiny|Small|Medium|Large|Extra large)\*\*/.test(l));
+    .filter((l) => /^\|\s*\*\*(Free|Small|Medium|Large|Extra large)\*\*/.test(l));
   expect(rows.length, "ADR-0014's operative rules no longer have a five-row tier table").toBe(5);
 
-  const out = new Map<string, { paths: number; data: string; setup: number; monthly: number }>();
+  const out = new Map<string, { paths: number; data: string; monthly: number; annual: number }>();
   for (const row of rows) {
     const c = row
       .split('|')
       .slice(1, -1)
       .map((x) => x.trim());
-    // | tier | paths at the same time | data moved | setup | monthly |
+    // | tier | paths at the same time | data moved | monthly | a year |
     const name = c[0]!.replace(/\*\*/g, '');
     out.set(name.toLowerCase(), {
       paths: Number(c[1]),
       data: c[2]!,
-      setup: euros(c[3]!, `${name}'s setup`),
-      monthly: euros(c[4]!, `${name}'s monthly`),
+      monthly: cents(c[3]!, `${name}'s monthly`),
+      annual: cents(c[4]!, `${name}'s year`),
     });
   }
   return out;
@@ -111,19 +111,30 @@ describe('the published prices agree with the decision that set them', () => {
       expect(a, `ADR-0014 has no row for "${t.name}"`).toBeDefined();
       const where = `${t.name}: site/prices.mjs disagrees with ADR-0014`;
       expect(t.paths, `${where} on paths at the same time`).toBe(a!.paths);
-      expect(t.setup, `${where} on the setup fee`).toBe(a!.setup);
       expect(t.monthly, `${where} on the monthly`).toBe(a!.monthly);
+      expect(t.annual, `${where} on the year`).toBe(a!.annual);
+      expect(t, `${t.name}: a setup fee is back in site/prices.mjs (ADR-0014 dropped them)`).not.toHaveProperty('setup');
       // The ADR writes "750 GB" / "2 TB"; size() must produce the same string.
       expect(size(t.dataGb), `${where} on the data ceiling`).toBe(a!.data);
     }
   });
 
-  it('derives the first month rather than restating it', async () => {
-    const { TIERS, firstMonth, total } = await import('./prices.mjs');
+  it('prices a year at six months, in every tier (ADR-0014, 2026-10-03)', async () => {
+    const { TIERS, total } = await import('./prices.mjs');
     for (const t of TIERS) {
-      expect(firstMonth(t)).toBe(t.setup + t.monthly);
-      expect(total(t, 3)).toBe(t.setup + t.monthly * 3);
+      expect(t.annual, `${t.name}: a year is not six months' price`).toBe(t.monthly * 6);
+      expect(total(t, 3)).toBe(t.monthly * 3);
+      expect(Number.isInteger(t.monthly) && Number.isInteger(t.annual), `${t.name}: a price that is not whole cents`).toBe(true);
     }
+  });
+
+  it('writes cents as a price, and refuses a price that is not whole cents', async () => {
+    const { money } = await import('./prices.mjs');
+    expect(money(500)).toBe('€5');
+    expect(money(250)).toBe('€2.50');
+    expect(money(48000)).toBe('€480');
+    expect(money(605)).toBe('€6.05');
+    expect(() => money(2.5)).toThrow(/whole cents/);
   });
 
   it('says "free" for the free tier, and never "€0", on every page (ADR-0014, 2026-09-24)', async () => {
@@ -136,8 +147,8 @@ describe('the published prices agree with the decision that set them', () => {
     }
     const card = (file: string) => {
       const html = rendered.find((p) => p.file === file)!.html;
-      const at = html.indexOf('<h3>Tiny</h3>');
-      expect(at, `${file} has no Tiny card`).toBeGreaterThan(-1);
+      const at = html.indexOf('<h3>Free</h3>');
+      expect(at, `${file} has no Free card`).toBeGreaterThan(-1);
       return html.slice(at, html.indexOf('</div>\n', html.indexOf('<ul>', at)));
     };
     expect(card('pricing.html')).toContain('Free <span>');
@@ -147,8 +158,13 @@ describe('the published prices agree with the decision that set them', () => {
     expect(card('nl/prijzen.html')).toContain('Geen factuur <span>');
     // The landing page's line says what free covers, where it used to say
     // "From €6 for the first month".
-    expect(rendered.find((p) => p.file === 'index.html')!.html).toContain('Tiny is free: one migration at a time, up to 250 GB.');
-    expect(rendered.find((p) => p.file === 'nl/index.html')!.html).toContain('Tiny is gratis: één migratie tegelijk, tot 250 GB.');
+    expect(rendered.find((p) => p.file === 'index.html')!.html).toContain('Free: one migration at a time, up to 250 GB.');
+    expect(rendered.find((p) => p.file === 'nl/index.html')!.html).toContain('Free: één migratie tegelijk, tot 250 GB.');
+    // And no page still names the tier Free replaced, or a setup fee.
+    for (const page of rendered.filter((p) => !/^(nl\/)?(privacy|terms|voorwaarden|alpha)\.html$/.test(p.file))) {
+      expect(page.html, `${page.file} still names Tiny`).not.toMatch(/\bTiny\b/);
+      expect(page.html, `${page.file} still quotes a setup fee`).not.toMatch(/one-off setup|setup fee is|eenmalige inrichting/i);
+    }
     // And no page still says there is nothing to gain by going one at a time.
     for (const page of rendered) {
       expect(page.html, `${page.file} still says rationing gains nothing`).not.toMatch(

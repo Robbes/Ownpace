@@ -27,12 +27,14 @@ import apiClient from './api.ts';
  * one: it is the site's own published ending, "talk to us".
  */
 export const TierSchema = z.object({
-  id: z.enum(['tiny', 'small', 'medium', 'large', 'xl']),
+  id: z.enum(['free', 'small', 'medium', 'large', 'xl']),
   name: z.string(),
   paths: z.number(),
   dataGb: z.number(),
-  setup: z.number(),
-  monthly: z.number(),
+  /** Euro cents, VAT included. There is no setup fee (ADR-0014, 2026-10-03). */
+  monthlyCents: z.number().int(),
+  /** A year paid ahead, in euro cents: six months' price. */
+  annualCents: z.number().int(),
 });
 
 /** Which axis forced the answer, and the observations behind it. */

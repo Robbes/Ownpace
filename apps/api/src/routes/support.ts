@@ -155,8 +155,8 @@ function usageForScreen(row: Row | undefined) {
           name: tier.name,
           paths: tier.paths,
           data_gb: tier.dataGb,
-          setup: tier.setup,
-          monthly: tier.monthly,
+          monthly_cents: tier.monthlyCents,
+          annual_cents: tier.annualCents,
         }
       : null,
     decided_by: decidedBy,

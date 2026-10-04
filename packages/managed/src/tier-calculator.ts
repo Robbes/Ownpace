@@ -37,27 +37,28 @@ import { PgBytesMovedStore } from './bytes-moved.ts';
 export const GB_PER_TB = 1000;
 
 export interface ManagedTier {
-  readonly id: 'tiny' | 'small' | 'medium' | 'large' | 'xl';
+  readonly id: 'free' | 'small' | 'medium' | 'large' | 'xl';
   readonly name: string;
   /** Migrations at the same time this tier fits. */
   readonly paths: number;
   /** Cumulative data ceiling, in GB (decimal — 1 TB = 1000 GB, the site's convention). */
   readonly dataGb: number;
-  /** One-off, EUR. */
-  readonly setup: number;
-  /** Per month, EUR. */
-  readonly monthly: number;
+  /** Per month, in euro CENTS (VAT included). There is no setup fee (ADR-0014, 2026-10-03). */
+  readonly monthlyCents: number;
+  /** A year paid ahead, in euro cents: six months' price (ADR-0014). */
+  readonly annualCents: number;
 }
 
 /** ADR-0014's five, in ascending order. Numbers guarded against the ADR's own table. */
 export const MANAGED_TIERS: ReadonlyArray<ManagedTier> = [
   // Free since 2026-09-24, and free means no billing: no invoice, no payment
-  // method, no top-up (ADR-0014's operative rules).
-  { id: 'tiny', name: 'Tiny', paths: 1, dataGb: 250, setup: 0, monthly: 0 },
-  { id: 'small', name: 'Small', paths: 4, dataGb: 750, setup: 8, monthly: 4 },
-  { id: 'medium', name: 'Medium', paths: 20, dataGb: 2 * GB_PER_TB, setup: 15, monthly: 8 },
-  { id: 'large', name: 'Large', paths: 50, dataGb: 7.5 * GB_PER_TB, setup: 50, monthly: 39 },
-  { id: 'xl', name: 'Extra large', paths: 200, dataGb: 15 * GB_PER_TB, setup: 150, monthly: 99 },
+  // method, no top-up (ADR-0014's operative rules). It was called Tiny until
+  // the price list of 2026-09-29 came into force (0152 T6 (d)).
+  { id: 'free', name: 'Free', paths: 1, dataGb: 250, monthlyCents: 0, annualCents: 0 },
+  { id: 'small', name: 'Small', paths: 4, dataGb: 750, monthlyCents: 500, annualCents: 3000 },
+  { id: 'medium', name: 'Medium', paths: 20, dataGb: 2 * GB_PER_TB, monthlyCents: 1200, annualCents: 7200 },
+  { id: 'large', name: 'Large', paths: 50, dataGb: 7.5 * GB_PER_TB, monthlyCents: 4000, annualCents: 24000 },
+  { id: 'xl', name: 'Extra large', paths: 200, dataGb: 15 * GB_PER_TB, monthlyCents: 8000, annualCents: 48000 },
 ];
 
 export interface TierDerivation {
@@ -159,5 +160,60 @@ export async function currentTier(db: PgDatabase, tenantId: TenantId): Promise<T
       ...(peak?.peakAt ? { peakAt: peak.peakAt } : {}),
       gbMoved,
     },
+  };
+}
+
+/**
+ * What *Start* says before it starts (ADR-0014, *Amendment 2026-10-03*: "the
+ * preflight says it first"; workplan 0109 T6).
+ *
+ * At the data ceiling new first copies hold until the customer chooses: move
+ * up a tier, or buy a one-off top-up. The Start step adds what has already
+ * been moved to what the preflight measured for the migrations being started,
+ * and when the sum passes the ceiling it names both ways on, so nobody meets
+ * the hold without having been told. It NEVER blocks Start: the forecast is an
+ * estimate (a data type without a size counts as nothing, and items the
+ * destination already holds count although the meter will not), and the hold
+ * is the safety net.
+ *
+ * The tier is the one the start lands on by paths, against the data already
+ * moved: `pathsAfterStart` is the month's peak or the slots held now plus the
+ * paths this start adds, whichever is higher. Its ceiling is the one the hold
+ * stops at. null when the forecast fits, and past the end of the table, where
+ * the answer is *talk to us* and there is no published price to name.
+ *
+ * A top-up costs the tier's monthly price, once (the owner's answer (b),
+ * 2026-10-03); Free has none, so from Free the only way on is moving up.
+ */
+export interface DataCeilingForecast {
+  /** The tier the start lands on, whose ceiling the forecast passes. */
+  readonly tier: ManagedTier;
+  /** Data already moved plus what the preflight measured, decimal GB. */
+  readonly forecastGb: number;
+  /** The ceiling the hold stops at: the tier's own data band. */
+  readonly ceilingGb: number;
+  /** The tier a move up goes to; null past the end of the table. */
+  readonly next: ManagedTier | null;
+  /** The one-off top-up for another band, in cents; null on a free tier. */
+  readonly topUpCents: number | null;
+}
+
+export function dataCeilingForecast(
+  pathsAfterStart: number,
+  gbMoved: number,
+  gbStarting: number,
+): DataCeilingForecast | null {
+  const { tier } = deriveTier(pathsAfterStart, gbMoved);
+  if (!tier) return null;
+  const forecastGb = gbMoved + gbStarting;
+  if (forecastGb <= tier.dataGb) return null;
+  const at = MANAGED_TIERS.indexOf(tier);
+  const free = tier.monthlyCents === 0 && tier.annualCents === 0;
+  return {
+    tier,
+    forecastGb,
+    ceilingGb: tier.dataGb,
+    next: MANAGED_TIERS[at + 1] ?? null,
+    topUpCents: free ? null : tier.monthlyCents,
   };
 }

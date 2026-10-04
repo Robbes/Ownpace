@@ -1264,7 +1264,7 @@ credential out of a table and into a scrollback is not a cleanup.
 
 **How many grant links an organisation may hold at once** (workplan 0108 T8
 (d)). As many live grant links as its tier runs migrations at the same time:
-Tiny 1, Small 4, Medium 20, Large 50, Extra large 200, and the largest past the
+Free 1, Small 4, Medium 20, Large 50, Extra large 200, and the largest past the
 end of the table. A customer who needs more for a while, to hand out a week's
 links at once, gets a number of their own:
 

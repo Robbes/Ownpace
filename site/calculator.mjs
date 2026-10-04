@@ -35,7 +35,7 @@
  * answer is "talk to us", deliberately — past the scale we look at the actual
  * case rather than quote.
  *
- * @param {Array<{id:string,name:string,paths:number,dataGb:number,setup:number,monthly:number}>} tiers
+ * @param {Array<{id:string,name:string,paths:number,dataGb:number,monthly:number,annual:number}>} tiers
  * @param {number} paths
  * @param {number} gb
  * @returns {{ tier: (typeof tiers)[number] | null, decidedBy: 'paths' | 'data' | 'both' }}
@@ -92,45 +92,56 @@ export function gmailMailDays(mailGb) {
 /**
  * The one decision on the page a visitor could get wrong, priced honestly
  * (ADR-0014: at the data ceiling, offer BOTH ways out and show the
- * break-even; taking no profit means having no reason to steer).
+ * break-even; we do not steer).
  *
  * Topping up buys another whole data band on the SAME tier for that tier's
- * setup fee. Stepping up to the next tier costs the DIFFERENCE in setup now
- * and the difference in monthly from then on (step-ups charge only the
- * difference). `extraUpFront` is what the top-up costs beyond the step-up's
- * up-front difference; divided by the monthly saving it pays back in
- * `paybackDays`. Negative `extraUpFront` means the top-up is cheaper from the
- * first euro — no break-even to wait for.
+ * monthly price, once (the owner's answer (b), 2026-10-03). Stepping up to the
+ * next tier costs the difference in monthly from then on; there is no setup
+ * fee to pay again. So the top-up is the cheaper way out for anyone who will
+ * keep going longer than `breakEvenDays`, and stepping up is cheaper for
+ * anyone who will stop sooner.
  *
- * @param {{setup:number,monthly:number}} tier
- * @param {{setup:number,monthly:number}=} next absent past the last tier
- * @returns {{ topUpOnce: number, stepUpNow: number, stepUpMonthlyMore: number, extraUpFront: number, paybackDays: number | null } | null}
+ * Prices are integer cents, as `prices.mjs` keeps them.
+ *
+ * @param {{monthly:number,annual:number}} tier
+ * @param {{monthly:number,annual:number}=} next absent past the last tier
+ * @returns {{ topUpOnce: number, stepUpMonthlyMore: number, breakEvenDays: number } | null}
  */
 export function topUpAgainstStepUp(tier, next) {
-  // A free tier has no top-up: it would cost its setup fee, nothing, and make
+  // A free tier has no top-up: it would cost its monthly, nothing, and make
   // the data axis meaningless. Past its band it is the next tier (ADR-0014).
   if (!next || freeTier(tier)) return null;
-  const stepUpNow = next.setup - tier.setup;
   const stepUpMonthlyMore = next.monthly - tier.monthly;
-  const extraUpFront = tier.setup - stepUpNow;
-  const paybackDays =
-    extraUpFront > 0 && stepUpMonthlyMore > 0
-      ? Math.ceil((extraUpFront / stepUpMonthlyMore) * 30)
-      : extraUpFront <= 0
-        ? 0
-        : null;
-  return { topUpOnce: tier.setup, stepUpNow, stepUpMonthlyMore, extraUpFront, paybackDays };
+  return {
+    topUpOnce: tier.monthly,
+    stepUpMonthlyMore,
+    breakEvenDays: Math.ceil((tier.monthly / stepUpMonthlyMore) * 30),
+  };
 }
 
 /**
- * A tier that costs nothing (Tiny, since 2026-09-24): no setup, no monthly,
- * and no invoice. Every page says "free" for it and never a zero amount,
- * which reads as a price that could be billed.
+ * A tier that costs nothing (Free, since 2026-09-24): nothing a month, nothing
+ * a year, and no invoice. Every page says "free" for it and never a zero
+ * amount, which reads as a price that could be billed.
  *
- * @param {{setup:number,monthly:number}} tier
+ * @param {{monthly:number,annual:number}} tier
  */
 export function freeTier(tier) {
-  return tier.setup === 0 && tier.monthly === 0;
+  return tier.monthly === 0 && tier.annual === 0;
+}
+
+/**
+ * Integer cents as the site writes a price: whole euros bare (`€5`), anything
+ * else with its two decimals (`€2.50`). Never a float in, never a rounding
+ * out: a price that is not whole cents is a broken price, and says so.
+ *
+ * @param {number} cents
+ */
+export function money(cents) {
+  if (!Number.isInteger(cents)) throw new Error('a price must be whole cents, not ' + cents);
+  const euros = Math.floor(cents / 100);
+  const rest = cents % 100;
+  return '\u20ac' + euros + (rest === 0 ? '' : '.' + (rest < 10 ? '0' : '') + rest);
 }
 
 /**

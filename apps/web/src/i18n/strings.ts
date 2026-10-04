@@ -952,7 +952,7 @@ const en = {
   'billing.apiCalls': 'API calls',
   // ADR-0014's tier, on the customer's own usage screen (0121 T4).
   'billing.yourTier': 'What this puts you on',
-  'billing.tierSetup': 'to set up',
+  'billing.tierPerYear': 'for a year',
   'billing.tierPerMonth': 'per month',
   'billing.tierFree': 'Free: nothing is invoiced on this tier',
   'billing.tierDecidedByPaths': 'Set by how many migrations ran at the same time.',
@@ -1745,6 +1745,15 @@ const en = {
   // (the owner, 2026-09-28), and then opens without it, saying so
   // (`ConfirmMigration.tsx`, `stillCounting`).
   'confirm.startWaits': 'You can start once the count is in, or after 15 minutes at most.',
+  // What Start says first (ADR-0014, Amendment 2026-10-03; DataCeilingNotice.tsx).
+  'startForecast.title': 'This start may pass {tier}’s data ceiling',
+  'startForecast.body':
+    'With what has already been moved, this start comes to about {forecast}, past {tier}’s {ceiling}. When the ceiling is reached, new items wait until you choose how to go on:',
+  'startForecast.moveUp': 'Move up to {next}: {price} a month.',
+  'startForecast.topUp': 'Buy another {ceiling} on {tier}: {price} once.',
+  'startForecast.anyway':
+    'You can choose now, or start anyway and choose when it is reached. This is an estimate from the count above: a data type without a size counts as nothing.',
+  'startForecast.failed': 'Whether this start fits your tier could not be checked:',
   'confirm.countUnfinished':
     'The count did not finish within 15 minutes. You can start anyway: anything that cannot be copied is listed on the migration’s page once it is found.',
   // The manifest that could not be read (0153 T1 (a)): the reason follows,
@@ -3832,7 +3841,7 @@ const nl: Record<keyof typeof en, string> = {
   'billing.apiCalls': 'API-aanroepen',
   // ADR-0014's tier, on the customer's own usage screen (0121 T4).
   'billing.yourTier': 'Waar u hiermee op uitkomt',
-  'billing.tierSetup': 'inrichting',
+  'billing.tierPerYear': 'voor een jaar',
   'billing.tierPerMonth': 'per maand',
   'billing.tierFree': 'Gratis: op dit pakket wordt niets gefactureerd',
   'billing.tierDecidedByPaths': 'Bepaald door hoeveel migraties tegelijk liepen.',
@@ -4517,6 +4526,14 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.countError': 'Het tellen is niet gestart:',
   'confirm.countAgain': 'Dit scherm telt vanzelf opnieuw zodra het kopiëren weer begint.',
   'confirm.startWaits': 'U kunt starten zodra de telling binnen is, of uiterlijk na 15 minuten.',
+  'startForecast.title': 'Deze start passeert mogelijk het plafond van {tier}',
+  'startForecast.body':
+    'Met wat er al gemigreerd is, komt deze start uit op ongeveer {forecast}, boven de {ceiling} van {tier}. Wordt het plafond bereikt, dan wachten nieuwe items tot u kiest hoe het verder gaat:',
+  'startForecast.moveUp': 'Omhoog naar {next}: {price} per maand.',
+  'startForecast.topUp': 'Nog eens {ceiling} bijkopen op {tier}: {price} eenmalig.',
+  'startForecast.anyway':
+    'U kunt nu kiezen, of toch starten en kiezen wanneer het plafond bereikt is. Dit is een schatting op basis van de telling hierboven: een gegevenssoort zonder omvang telt als niets.',
+  'startForecast.failed': 'Of deze start in uw pakket past, kon niet worden nagegaan:',
   'confirm.countUnfinished':
     'De telling was na 15 minuten niet klaar. U kunt toch starten: wat niet gekopieerd kan worden, staat op de pagina van de migratie zodra het gevonden is.',
   'confirm.manifestError': 'De lijst van wat er migreert kon niet worden gelezen:',

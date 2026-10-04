@@ -80,6 +80,7 @@ import {
 import { MigrationCountSection, useMigrationCount } from '../components/ConfirmMigration.tsx';
 import { needsAcknowledgement } from '../components/confirm/native-refusals.tsx';
 import ScopeManifestPanel from '../components/confirm/ScopeManifestPanel.tsx';
+import DataCeilingNotice from '../components/confirm/DataCeilingNotice.tsx';
 import { PersonGrantLinkSection } from '../components/MappingLinksPanel.tsx';
 import { personLinkApi } from '../services/grant-link-service.ts';
 import { AccountForm } from '../components/AccountForm.tsx';
@@ -1586,6 +1587,9 @@ export const CheckStep: React.FC<{
           {t('confirm.manifestError')} {serverMessage(manifest.error)}
         </p>
       )}
+      {/* What Start says first, beside it (ADR-0014, Amendment 2026-10-03):
+          the migrations this press starts, once their counts are in. */}
+      <DataCeilingNotice mappingIds={counted.map((m) => m.id)} ready={allReady} />
       <div className="flex flex-col items-end">
         <button
           type="button"

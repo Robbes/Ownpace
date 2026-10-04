@@ -114,12 +114,13 @@ export interface SupportMigrationDomain {
  */
 export interface SupportTenantUsage {
   readonly tier: {
-    readonly id: 'tiny' | 'small' | 'medium' | 'large' | 'xl';
+    readonly id: 'free' | 'small' | 'medium' | 'large' | 'xl';
     readonly name: string;
     readonly paths: number;
     readonly data_gb: number;
-    readonly setup: number;
-    readonly monthly: number;
+    /** Euro cents, VAT included; there is no setup fee (ADR-0014). */
+    readonly monthly_cents: number;
+    readonly annual_cents: number;
   } | null;
   /** Which axis forced the answer — the higher one wins. */
   readonly decided_by: 'paths' | 'data' | 'both';

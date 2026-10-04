@@ -1,8 +1,8 @@
 # ADR-0014: Cost-recovery billing for the managed edition
 
-- **Status:** Accepted 2026-06-20; amended six times and retitled once (latest 2026-10-03); the
-  price list proposed 2026-09-29 accepted 2026-10-03, in force once built (0152 T6 (d));
-  consolidated 2026-10-03 (ADR-0051)
+- **Status:** Accepted 2026-06-20; amended seven times and retitled once (latest 2026-10-03,
+  when the price list of 2026-09-29 came into force with 0152 T6 (d)); consolidated 2026-10-03
+  (ADR-0051)
 - **Date:** 2026-06-20; consolidated 2026-10-03
 - **Deciders:** owner
 - **Relates to:** [ADR-0029](./0029-public-site-is-server-rendered-and-legible.md) (the public
@@ -19,38 +19,39 @@
      node scripts/adr-operative.mjs --write -->
 
 - **A path is one kind of thing, from one account, to one account**: mail, contacts, calendar,
-  files and tasks are separate paths, and every price says so. Only a data type the migration
-  carries is a path (`scope_selection.included`).
+  files and tasks are separate paths. Only a data type the migration carries is a path
+  (`scope_selection.included`).
 - **A tier has two axes, and you are on the higher of them**: paths at the same time, and data
   moved — cumulative, each item's first successful copy. Past Extra large: *talk to us*.
   `site/site.unit.test.ts` and `packages/managed/src/tier-calculator.unit.test.ts` parse this
   table: prices change here.
 
-  | tier | paths at the same time | data moved | setup | monthly |
+  | tier | paths at the same time | data moved | monthly | a year |
   |---|---|---|---|---|
-  | **Tiny** | 1 | 250 GB | free | free |
-  | **Small** | 4 | 750 GB | €8 | €4 |
-  | **Medium** | 20 | 2 TB | €15 | €8 |
-  | **Large** | 50 | 7.5 TB | €50 | €39 |
-  | **Extra large** | 200 | 15 TB | €150 | €99 |
+  | **Free** | 1 | 250 GB | free | free |
+  | **Small** | 4 | 750 GB | €5 | €30 |
+  | **Medium** | 20 | 2 TB | €12 | €72 |
+  | **Large** | 50 | 7.5 TB | €40 | €240 |
+  | **Extra large** | 200 | 15 TB | €80 | €480 |
 
-- **Tiny is free, and free means no billing**: no payment method, no invoice, no top-up. Guard:
+- **Free is free, and free means no billing**: no payment method, no invoice, no top-up. Guard:
   `site/site.unit.test.ts` (*free*, never *€0*).
 - **`holdsASlot` (`@openmig/ledger`) is the slot rule**: `active`, `paused` and `continuous`
   hold a slot; `ready`, `cutover` and `done` hold none; a stop releases one only in the lane,
   whose customer is first told the bill does not stop at cutover.
 - **The month bills its peak; the tier is derived, never picked.** Downgrade is automatic,
-  announced, never blocking a path. Setup is paid on the highest tier reached, in steps. Not
-  built yet (0109 T5–T6).
+  announced, never blocking a path. No setup fee. Not built yet (0109 T5–T6).
 - **Every step up is consented and paid for.** A path waits for the yes at activation; at the
   data ceiling, new first copies wait for a move up or a one-off top-up (another band, for the
-  setup fee again: a higher ceiling, never a rewound meter). Without that yes, a month bills the
-  tier it was on.
-- **What a customer is told, and what we will not do, are rules** (*Decision*): every price
-  published; *Start* warns when the preflight will not fit; no per-GB, compute or per-path
-  figure; no billing past 12 months unconfirmed. *"No profit" STANDS*.
-- **Pending (accepted 2026-10-03; in force once built, 0152 T6 (d)):** Free replaces Tiny, no
-  setup fees, a year at six months' price; the price pays for the work.
+  tier's monthly once: a higher ceiling, never a rewound meter). Without that yes, a month
+  bills the tier it was on.
+- **A year is credit at six months' price**: each month takes its own tier at half its monthly
+  price; what is left is refunded on stopping, or carried into the renewal. Not built yet
+  (0111).
+- **What we tell, and will not do, are rules** (*Decision*): every price published, VAT
+  included; *Start* warns when the preflight will not fit; no per-GB, compute or per-path
+  figure; no billing past 12 months unconfirmed. **The price pays for the work**;
+  self-hosting stays free.
 
 ## Context
 
@@ -436,11 +437,17 @@ hold, and with them that screen says when the ceiling is reached, what waits, an
 None of the preflight's warning is built either: neither the Start step nor the start door reads
 the tier, the meter or the preflight today, and the calculator quotes only the bigger tier.
 
-## Pending — Free, a year at the price of six months, no setup fees, and the price pays for the work (proposed 2026-09-29, 0152 D9–D12; accepted 2026-10-03, not in force until built)
+## Amendment 2026-09-29, in force 2026-10-03 — Free, a year at the price of six months, no setup fees, and the price pays for the work (0152 D9–D12)
 
-<!-- The record's text, word for word, then the owner's answers. When it comes into force with
-     0152 T6 (d)'s pull request (ADR-0051): fold it into the Decision and the operative rules,
-     remove the Pending bullet and this section, and log it. -->
+<!-- The record's text, word for word, then the owner's answers. It was this ADR's Pending
+     section until 0152 T6 (d)'s pull request brought it into force; the operative rules above
+     now carry it (ADR-0051). -->
+
+**In force 2026-10-03**, with 0152 T6 (d): the operative table, `site/prices.mjs` and
+`packages/managed/src/tier-calculator.ts` changed together. Where this amendment and the
+*Decision* above disagree (Tiny, the setup fee paid in steps, the top-up at the setup fee, the
+break-even against a setup difference, *"No profit" STANDS*), this amendment holds. The text
+below is the record as it was accepted, and its *"Status: proposed"* line is part of that record.
 
 **Status: proposed, for the owner's acceptance.** Nothing in the operative rules above changes
 until the owner accepts it. The price guards (`site/site.unit.test.ts`,
@@ -611,6 +618,16 @@ rules above are the prices the site quotes, and nothing is charged during the Al
 - **2026-10-03, last** — The price list of 2026-09-29 accepted, with its question 2 answered (a): a
   year is credit at six months' price (owner: *"a"*). In force once 0152 T6 (d) builds it. Its
   text: *Pending*.
+
+- **2026-10-03, in force** — The price list of 2026-09-29 comes into force with 0152 T6 (d):
+  Free replaces Tiny, no setup fees, a year at six months' price as credit, a top-up at the
+  tier's monthly price once, and the price pays for the work. The operative rules carry it; the
+  *Pending* bullet and section go, and the section's text stays as *Amendment 2026-09-29, in
+  force 2026-10-03*.
+
+- **2026-10-03, built** — *Start* warns when the preflight will not fit (`dataCeilingForecast`,
+  `POST /api/billing/start-forecast`, `DataCeilingNotice`; 0109 T6). The hold and the top-up are
+  not built yet. Nothing was decided.
 
 The full record, word for word as it read before this consolidation:
 [history/0014-cost-recovery-billing.md](./history/0014-cost-recovery-billing.md).

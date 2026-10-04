@@ -122,19 +122,19 @@ te vragen, en er is geen prijs die u pas hoort na een gesprek.
   hoeveel gegevens u hebt gemigreerd — niet gekozen uit een menu.
 - **Migraties afronden verlaagt uw rekening automatisch**, zonder dat u erom vraagt. De
   hoeveelheid gemigreerde gegevens legt daarbij een ondergrens.
-- **Tiny is gratis**: één migratie tegelijk, tot 250 GB, zonder inrichtingskosten, zonder
-  maandbedrag en zonder factuur. U legt er geen betaalwijze voor vast. Groeit u eroverheen —
-  een tweede migratie tegelijk, of meer gegevens — dan gaat u naar een betaald pakket, en we
-  vragen het u eerst; voor een maand waarin u niet hebt ingestemd Tiny te verlaten, wordt
-  niets gerekend.
-- De inrichtingskosten worden **één keer** gerekend, voor het hoogste pakket dat u bereikt.
-  Later omhoog kost alleen het verschil; weer omlaag betekent nooit opnieuw rekenen.
+- **Free is gratis**: één migratie tegelijk, tot 250 GB, zonder maandbedrag en zonder
+  factuur. U legt er geen betaalwijze voor vast. Groeit u eroverheen — een tweede migratie
+  tegelijk, of meer gegevens — dan gaat u naar een betaald pakket, en we vragen het u eerst;
+  voor een maand waarin u niet hebt ingestemd Free te verlaten, wordt niets gerekend.
+- Op geen enkel pakket zijn er **inrichtingskosten**. Een jaar vooruit kost de prijs van zes
+  maanden.
 - **Prijzen zijn inclusief btw.** Wat u ziet is wat u betaalt. Facturen aan zakelijke klanten
   vermelden de btw-behandeling die op hen van toepassing is — Nederlandse btw, binnen de EU
   verlegde btw op een gevalideerd btw-nummer, of levering buiten de EU.
 
-**Kostendekking, geen winst**: de dienst is geprijsd om te dekken wat het kost om te draaien.
-Dat is een uitspraak over hoe prijzen tot stand komen, geen belofte dat een bepaalde prijs nooit
+**De kosten omvatten ons werk**: de prijs betaalt wat nodig is om de dienst te draaien en te
+bouwen — de servers, de ondersteuning, en de tijd die het kost om de software te bouwen en te
+verbeteren. Dat is een uitspraak over hoe prijzen tot stand komen, geen belofte dat een bepaalde prijs nooit
 verandert. Een prijswijziging voor een abonnement dat u al hebt, is een wijziging onder §12: we
 melden die minstens 30 dagen vooraf, en u kunt opzeggen voordat ze ingaat. Naar een betaald
 pakket gaat u alleen nadat u dat bevestigt, met een knop die duidelijk zegt dat u bestelt met een
@@ -164,14 +164,13 @@ Bent u zakelijke klant, dan geldt dit hoofdstuk niet voor u.
 ## 8. Facturatie, verlenging, en niet betalen voor vergeten
 
 Er wordt **maandelijks achteraf** gefactureerd, via de betaalwijze die u hebt vastgelegd, door
-onze betaaldienstverlener Mollie. Op Tiny wordt niets gefactureerd, dus er valt niets vast te
+onze betaaldienstverlener Mollie. Op Free wordt niets gefactureerd, dus er valt niets vast te
 leggen. Bieden we een vooruitbetaalde termijn met korting aan — een jaar, bijvoorbeeld — en
 kiest u die, dan wordt die termijn bij aanvang gefactureerd; de korting is de prijs van de
 toezegging.
 
 **Een maandabonnement kunt u op elk moment opzeggen**, per het einde van de lopende maand. Geen
-minimumduur, geen opzegtermijn, geen opzegkosten. Al betaalde inrichtingskosten worden niet
-terugbetaald — het werk waarvoor ze betaald zijn, is gedaan.
+minimumduur, geen opzegtermijn, geen opzegkosten.
 
 **Een vooruitbetaalde termijn loopt door tot zijn einde** als u tijdens die termijn opzegt; er
 wordt niet naar rato terugbetaald, want de korting was al de prijs van de toezegging. Na een

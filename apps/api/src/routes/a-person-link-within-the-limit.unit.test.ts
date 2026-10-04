@@ -12,7 +12,7 @@
  * `one-issue-at-a-time.integration.test.ts`'s. What this file holds is the
  * door acting on them:
  *
- * - an organisation on Tiny is issued one live grant link and refused the
+ * - an organisation on Free is issued one live grant link and refused the
  *   second, with the sentence that names its tier, and nothing written;
  * - a migration's link sent before the person's replaced it counts in the same
  *   limit while it is live;
@@ -89,7 +89,7 @@ beforeAll(async () => {
   await runManagedMigrations({ driver, logger: () => {} });
 
   // A Gmail source with its own client and its account named: a migration a
-  // grant link can serve. No allowance and no peak: the organisation is on Tiny.
+  // grant link can serve. No allowance and no peak: the organisation is on Free.
   const creds = JSON.stringify(
     SecretStore.encryptCredentials({
       username: 'anna@example.invalid',
@@ -137,7 +137,7 @@ beforeEach(async () => {
 });
 
 describe('as many live grant links as the tier runs migrations (0108 T8 (d))', () => {
-  it('issues an organisation on Tiny one live grant link, and refuses the second, writing nothing', async () => {
+  it('issues an organisation on Free one live grant link, and refuses the second, writing nothing', async () => {
     expect((await issue()).status).toBe(201);
 
     const second = await issue();
@@ -146,7 +146,7 @@ describe('as many live grant links as the tier runs migrations (0108 T8 (d))', (
     expect(second.body).toMatchObject({ error: 'grant_links_at_limit', live: 1, limit: 1 });
     expect(second.body.reason).toBe(
       'This organisation has 1 grant link that can still be used, and may hold 1 at once: ' +
-        'as many as its tier, Tiny, runs migrations at the same time. ' +
+        'as many as its tier, Free, runs migrations at the same time. ' +
         'Revoke one that is no longer needed, or wait until one is used or expires.',
     );
     expect(await liveGrantRows()).toBe(1);

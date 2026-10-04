@@ -529,17 +529,17 @@ quote, and there is no price you only learn after speaking to somebody.
   how much data you have moved — not chosen from a menu.
 - **Finishing migrations lowers your bill automatically**, without you asking. The amount of
   data you have moved sets a floor.
-- **Tiny is free**: one migration at a time, up to 250 GB, with no setup fee, no monthly
-  charge and no invoice. You register no payment method for it. Growing past it — a second
-  migration at the same time, or more data — moves you to a paid tier, and we ask you before
-  it does; nothing is billed for a month you did not agree to leave Tiny.
-- The setup fee is charged **once**, on the highest tier you reach. Moving up later costs only
-  the difference; moving back down never re-charges it.
+- **Free is free**: one migration at a time, up to 250 GB, with no monthly charge and no
+  invoice. You register no payment method for it. Growing past it — a second migration at the
+  same time, or more data — moves you to a paid tier, and we ask you before it does; nothing is
+  billed for a month you did not agree to leave Free.
+- There is **no setup fee** on any tier. A year paid ahead costs six months' price.
 - **Prices include VAT.** What you see is what you pay. Invoices to business customers state
   the VAT treatment that applies to them — Dutch VAT, intra-EU reverse charge on a validated
   VAT number, or supply outside the EU.
 
-**Cost recovery, not profit**: the service is priced to cover what it costs to run. That is a
+**Costs include our work**: the price pays for what it takes to run and build the service —
+the servers, the support, and the time spent building and improving the software. That is a
 statement of intent about how prices are set, not a promise that any particular price will
 never change. A change of price for a subscription you already have is a change under §12: we
 tell you at least 30 days ahead, and you may cancel before it applies. We move you to a paid
@@ -570,13 +570,12 @@ If you are a business customer, this section does not apply to you.
 ## 8. Billing, renewal, and not billing you for forgetting
 
 Billing is **monthly in arrears**, by the payment method you registered, through our payment
-provider Mollie. On Tiny nothing is billed, so there is nothing to register. If we offer a
+provider Mollie. On Free nothing is billed, so there is nothing to register. If we offer a
 discounted term paid up front — a year, say — and you choose it, that term is billed at its
 start; the discount is the price of the commitment.
 
 **You can cancel a monthly subscription at any time**, effective at the end of the current
-month. There is no minimum term, no notice period and no cancellation fee. Setup fees already
-paid are not refunded — the work they paid for was done.
+month. There is no minimum term, no notice period and no cancellation fee.
 
 **A prepaid term runs to its end** if you cancel during it; it is not refunded pro rata,
 because the discount was already the price of the commitment. After an initial term, a
