@@ -186,6 +186,8 @@ export function useProviderConsent(opts: {
       ? { clientId: (values.clientId ?? '').trim(), clientSecret: values.clientSecret ?? '' }
       : {};
   const pairMissing = pairRequired && !(clientIdTyped && clientSecretTyped);
+  const tenantTyped = (values.tenantId ?? '').trim();
+  const ownTenant = tenantTyped === '' ? {} : { tenantId: tenantTyped };
   const facesMissing = isAccountKind && domains.length === 0;
   // Every required field but the token the consent fills. Pressed before the
   // address was typed, the add door answered "Still needed: username" to a
@@ -236,7 +238,10 @@ export function useProviderConsent(opts: {
         // The ACCOUNT asks for exactly the faces ticked, so the consent screen
         // and the ticks cannot disagree; the single-purpose kinds ask for
         // their own one scope.
-        microsoft: () => mappingApi.microsoftAuthorize({ domains, ...ownPair, locale }),
+        // With the person's own pair goes their own directory, where one was
+        // typed: a single-tenant registration consenting against `common`
+        // gets *application not found* (0153 open question 5).
+        microsoft: () => mappingApi.microsoftAuthorize({ domains, ...ownPair, ...ownTenant, locale }),
         google: () =>
           mappingApi.googleAuthorize(
             isAccountKind
