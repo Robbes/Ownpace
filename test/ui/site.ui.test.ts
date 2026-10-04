@@ -171,7 +171,8 @@ describe('the public site renders', () => {
       return p?.checkVisibility({ visibilityProperty: true }) ?? false;
     }, 'Does pausing lower it?');
     expect(await shown(), 'an answer is open before anybody asks').toBe(false);
-    await page.focus('details.qa:nth-of-type(3) > summary');
+    // By its words, not its place: a rule added above it moves it down the list.
+    await page.locator('details.qa > summary', { hasText: 'Does pausing lower it?' }).focus();
     expect(await page.evaluate(() => document.activeElement?.textContent)).toBe('Does pausing lower it?');
     await page.keyboard.press('Enter');
     expect(await shown(), 'Enter does not open the answer').toBe(true);

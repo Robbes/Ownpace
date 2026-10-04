@@ -228,6 +228,7 @@ export const COPY = {
       heading: 'The parts worth knowing before you pay',
       questions: [
         ['Free is free.', 'Is there a free way?'],
+        ['You may choose a higher tier.', 'Can I choose a higher tier?'],
         ['Finishing lowers your bill, automatically.', 'Does the bill go down when I finish?'],
         ['Pausing does not lower it.', 'Does pausing lower it?'],
         ['Unless you ask us to keep copying.', 'What if I keep copying after I switch?'],
@@ -547,6 +548,7 @@ export const COPY = {
       heading: 'Wat u wilt weten voordat u betaalt',
       questions: [
         ['Free is gratis.', 'Kan het gratis?'],
+        ['U mag een hoger pakket kiezen.', 'Mag ik een hoger pakket kiezen?'],
         ['Afronden verlaagt uw rekening, automatisch.', 'Gaat de rekening omlaag als ik klaar ben?'],
         ['Pauzeren verlaagt hem niet.', 'Verlaagt pauzeren de rekening?'],
         ['Tenzij u ons vraagt te blijven kopiëren.', 'En als ik na de overstap blijf kopiëren?'],
