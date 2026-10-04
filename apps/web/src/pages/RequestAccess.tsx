@@ -26,7 +26,6 @@
  */
 import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { Mail } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import apiClient from '../services/api.ts';
 import { useT, useLocale } from '../i18n/index.tsx';
@@ -34,6 +33,8 @@ import BuildStamp from '../components/BuildStamp.tsx';
 import AlphaNote, { isAlpha } from '../components/AlphaNote.tsx';
 import SupportLine from '../components/SupportLine.tsx';
 import LegalLinks from '../components/LegalLinks.tsx';
+import SiteMark from '../components/SiteMark.tsx';
+import BackToSite from '../components/BackToSite.tsx';
 
 /**
  * ADR-0014's five, by name only.
@@ -114,7 +115,7 @@ const RequestAccess: React.FC = () => {
 
   const field =
     'appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 ' +
-    'text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm';
+    'text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-site-teal focus:border-site-teal sm:text-sm';
   const label = 'block text-sm font-medium text-gray-700 mb-1';
   const hint = 'mt-1 text-xs text-gray-500';
 
@@ -122,12 +123,18 @@ const RequestAccess: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
         <div className="max-w-md w-full text-center space-y-4">
+          <div className="text-left">
+            <BackToSite />
+          </div>
+          <div className="flex justify-center">
+            <SiteMark className="w-12 h-12" />
+          </div>
           <h2 className="text-2xl font-extrabold text-gray-900">{t('access.sent')}</h2>
           <p className="text-sm text-gray-600">{t('access.sentDetail')}</p>
           {/* Still here once the request has gone (workplan 0131 T1): the page
               is the same address, and what was asked to join has not changed. */}
           <AlphaNote className="text-left" />
-          <Link to="/login" className="inline-block text-sm text-blue-600 hover:text-blue-500">
+          <Link to="/login" className="inline-block text-sm text-site-teal hover:underline">
             {t('access.backToSignIn')}
           </Link>
           {/* A person to write to (workplan 0144 T6 (a)), here too: waiting
@@ -143,10 +150,11 @@ const RequestAccess: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <div className="flex justify-center">
-            <div className="w-16 h-16 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Mail className="w-10 h-10 text-white" />
-            </div>
+          {/* The site's look, and the way back to it (workplan 0152 T9): a
+              visitor arrives here from the site's Request access. */}
+          <BackToSite />
+          <div className="mt-6 flex justify-center">
+            <SiteMark className="w-16 h-16" />
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             {t('access.title')}
@@ -279,7 +287,7 @@ const RequestAccess: React.FC = () => {
           <button
             type="submit"
             disabled={send.isPending || email.trim() === ''}
-            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-site-teal hover:bg-site-teal/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-site-teal disabled:opacity-50"
           >
             {send.isPending ? t('access.sending') : t('access.submit')}
           </button>
@@ -291,7 +299,7 @@ const RequestAccess: React.FC = () => {
             <LegalLinks pages={isAlpha() ? ['privacy', 'alpha'] : ['privacy']} />
           </p>
           <p className="text-center">
-            <Link to="/login" className="text-sm text-blue-600 hover:text-blue-500">
+            <Link to="/login" className="text-sm text-site-teal hover:underline">
               {t('access.backToSignIn')}
             </Link>
           </p>
