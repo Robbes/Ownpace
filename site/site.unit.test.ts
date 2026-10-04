@@ -595,23 +595,34 @@ describe('the call to action leads somewhere the service can answer', () => {
   });
 });
 
-describe('the header is short, and no page is left without a link to it (workplan 0152 T2, T6 (c))', () => {
-  /** The links of a page's header nav (`site`, on a wide screen) or its phone menu (`menu`). */
+describe('the header is short, and no page is left without a link to it (workplan 0152 T2, T5 (b), T6 (c))', () => {
+  /**
+   * The links of a page's header nav (`site`, on a wide screen) or its phone
+   * menu (`menu`), each by the text it shows: a Leaving… link's tile is hidden
+   * from a screen reader and is not its text.
+   */
   const navLinks = (html: string, which: 'site' | 'menu') => {
     const nav = new RegExp(`<nav class="${which}"[^>]*>([\\s\\S]*?)</nav>`).exec(html)?.[1];
     expect(nav, `no <nav class="${which}">`).toBeDefined();
-    return [...nav!.matchAll(/<a href="([^"]+)"[^>]*>([^<]+)<\/a>/g)].map((m) => ({ href: m[1]!, text: m[2]! }));
+    return [...nav!.matchAll(/<a href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)].map((m) => ({
+      href: m[1]!,
+      text: m[2]!.replace(/<span class="tile[^"]*" aria-hidden="true">[^<]*<\/span>/g, '').replace(/<[^>]+>/g, ''),
+    }));
   };
 
-  it('lists Home, How it works, Pricing and Sign in, in both, on every page', async () => {
+  it('lists Home, How it works, Pricing, the six Leaving… pages and Sign in, in both, on every page', async () => {
     const { SIGN_IN_URL, APP_URL } = (await import('./prices.mjs')) as unknown as {
       SIGN_IN_URL: string;
       APP_URL: string;
     };
     expect(SIGN_IN_URL, 'Sign in is built from the app this build is for').toBe(`${APP_URL}/login`);
+    const leaving: Record<string, string[]> = {
+      en: ['Google', 'Microsoft 365', 'Apple iCloud', 'Dropbox', 'Box', 'Another mail provider'],
+      nl: ['Google', 'Microsoft 365', 'Apple iCloud', 'Dropbox', 'Box', 'Een andere mailaanbieder'],
+    };
     const expected: Record<string, string[]> = {
-      en: ['Home', 'How it works', 'Pricing', 'Sign in'],
-      nl: ['Home', 'Hoe het werkt', 'Prijzen', 'Aanmelden'],
+      en: ['Home', 'How it works', 'Pricing', ...leaving.en!, 'Sign in'],
+      nl: ['Home', 'Hoe het werkt', 'Prijzen', ...leaving.nl!, 'Aanmelden'],
     };
     for (const page of await renderedPages()) {
       const wide = navLinks(page.html, 'site');
