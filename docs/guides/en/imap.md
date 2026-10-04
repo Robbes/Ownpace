@@ -17,7 +17,7 @@ The **IMAP** card asks for the same fields on both sides. In **Start a migration
 
 1. On **Which account are you leaving?**, tick **Another mail provider**. **Other ways to connect (IMAP)** leads to it too.
 2. On **Connect your accounts**, type the IMAP server's name in **Host**, such as `imap.example.com`: the name alone, with no `https://` or path.
-3. In **Port**, type the port your provider gives for IMAP with SSL: usually `993`, which the box shows as its example. There is no box for SSL/TLS: this service always connects with it.
+3. **Port** is filled in with `993`, the usual port for IMAP with SSL. Change it only if your provider gives another. There is no box for SSL/TLS: this service always connects with it.
 4. In **Username**, type the mailbox's user name.
 5. In **Password**, type the app password, or the mailbox's password if the provider allows it for IMAP.
 6. Press **Check the sign-in**.
@@ -28,7 +28,7 @@ The test signs in read-only and writes nothing. When it works it says **Connecte
 
 1. On **Where does it go?**, in the row for email, choose **Add IMAP** under **A new account**.
 2. In **Host**, type the name of the IMAP server the mail goes to, such as `imap.example.com`.
-3. In **Port**, type the IMAP port your provider gives, usually `993`.
+3. **Port** is filled in with `993`. Change it only if your provider gives another IMAP port.
 4. In **Username** and **Password**, type the target mailbox's details.
 5. Press **Check the sign-in**.
 

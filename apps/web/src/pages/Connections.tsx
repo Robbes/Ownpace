@@ -21,7 +21,7 @@ import { CheckCircle2, XCircle, HelpCircle, Loader2 } from 'lucide-react';
 import {
   credentialFieldsFor,
   isFailureCategory,
-  providerDefaultsFor,
+  formDefaultsFor,
   wizardTypeForConnectionKind,
   type FailureCategory,
 } from '@openmig/shared';
@@ -522,7 +522,8 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   // form below begins its probe answer and its consent afresh each time it
   // is drawn (`AccountForm`, 0145 T4).
   const [displayName, setDisplayName] = React.useState('');
-  const [values, setValues] = React.useState<Record<string, string>>({});
+  // The start a pick of the same card gives: its usual port, where it has one.
+  const [values, setValues] = React.useState<Record<string, string>>(() => ({ ...formDefaultsFor('source', type) }));
 
   if (!open) {
     return (
@@ -561,7 +562,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
                 const first = frontDoorCards(r)[0]?.id ?? '';
                 setRole(r);
                 setType(first);
-                setValues({ ...providerDefaultsFor(r, first) });
+                setValues({ ...formDefaultsFor(r, first) });
               }}
               className={`px-4 py-1.5 text-sm font-medium ${
                 role === r ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
@@ -583,10 +584,10 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
             setType(card.id);
             // THE DIRECTORY FILLS THE BOXES (0106 T5, owner 2026-09-03): a
             // named provider's published servers and ports, editable, and
-            // measured by Test like anything typed. A fresh pick starts from
-            // them exactly as it used to start from nothing; a protocol card
-            // still starts from nothing, because "IMAP" names no provider.
-            setValues({ ...providerDefaultsFor(role, card.id) });
+            // measured by Test like anything typed. A protocol card names no
+            // provider, so it starts from its usual port alone (owner
+            // 2026-10-04): "IMAP" is 993 whoever serves it.
+            setValues({ ...formDefaultsFor(role, card.id) });
           }}
           gridClass={role === 'source' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}
         />

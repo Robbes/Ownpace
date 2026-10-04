@@ -4,6 +4,22 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04, later: the owner answers the four *not carried over* below** (*"3. B"*, *"4. C,
+without D"*, *"5. A"*, *"6. A"*).
+
+- **The port is filled in (B).** A protocol card starts with its usual port, editable, at both
+  doors (`formDefaultsFor`): 993 for IMAP, and 443 for JMAP, CalDAV, CardDAV and WebDAV. A named
+  provider's published values still go over it. No *Pre-filled from* line is drawn for a port no
+  provider published. The IMAP, JMAP and DAV guides say the box is filled in, in both languages.
+  Proved by `provider-directory.unit.test.ts` (every port box starts with the number its example
+  shows), the Accounts page's case, and two flow cases, for a source and for a new destination.
+- **A destination that measured it cannot take a ticked data type is marked on *Where does it
+  go?* (C, not D).** In its own pull request.
+- **App-password Gmail where the restricted scopes are declared: nothing now (A).** To build
+  only when a deployment sets `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`.
+- **A saved *Export archive* account: the card leaves the managed Accounts page (A).** In its own
+  pull request.
+
 **2026-10-04: the wizard retires (D5; open question 5, item 7, the second part).** *Start a
 migration* is the one way a migration is made on managed, and T4, T1 (c) and T6 end with it.
 

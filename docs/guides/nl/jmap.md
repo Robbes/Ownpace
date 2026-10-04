@@ -14,7 +14,7 @@ JMAP is een nieuwer protocol voor mail en contacten, dat een mailserver via het 
 
 1. Kies bij **Waar gaat het naartoe?** **JMAP toevoegen** onder **Een nieuw account**, in elke rij waarvan de gegevens daarheen gaan: e-mail, contacten of bestanden. Eén formulier voegt het account voor allemaal toe.
 2. Vul bij **Host** de naam van de server in, zoals `jmap.example.com`: alleen de naam, zonder `https://` ervoor.
-3. Typ bij **Poort** `443`, dat het vak als voorbeeld toont, of de poort die de server gebruikt. Er is geen vakje voor SSL/TLS: deze dienst spreekt de server altijd aan via `https://`.
+3. **Poort** is ingevuld met `443`, dat de meeste servers gebruiken. Verander die alleen als de server een andere poort gebruikt. Er is geen vakje voor SSL/TLS: deze dienst spreekt de server altijd aan via `https://`.
 4. Vul bij **Gebruikersnaam** en **Wachtwoord** de gegevens van het postvak in.
 5. Druk op **Aanmelding controleren**.
 
