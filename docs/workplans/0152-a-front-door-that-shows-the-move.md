@@ -4,6 +4,24 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04, evening: T1 (b) is built, with a defect it found.** No page says what *"most people"*
+choose any more, since nothing counts it.
+- **The home page's cost line** says *"**Small**, for one person moving everything at once: €5 a
+  month…"*, in the drawing's words, in both languages.
+- **The badge goes.** Its proposed words, *"One person moving everything at once"*, would repeat
+  the line printed under it, *"One person, everything at once"*. The card keeps its outline.
+  Small's note drops *"Most people who are leaving one provider for another want this one."*
+- **The Dutch pricing page printed each tier's subtitle and note in English.** They lived in
+  `prices.mjs` in English only. They are copy now, per language (`tierText` in `copy.mjs`), and
+  `prices.mjs` holds the numbers.
+- **Guard:** `site/site.unit.test.ts`:
+  - each tier's subtitle and note are in the page's own language;
+  - no page says *most people*, *meeste mensen* or *meest gekozen*;
+  - the home page's sentence is pinned in both languages.
+
+  Mutation caught: an English note on the Dutch page.
+- **T0:** the Dutch subtitles and notes are new words for the owner's reading.
+
 **2026-10-04, evening: T2 and T6 (c) are built** (R8 step 9, its first part). The header reads
 *Home · How it works · Pricing · Sign in*, then the language switch.
 - **Sign in** goes to the app's sign-in page, built from `APP_URL` (`SIGN_IN_URL` in
@@ -163,7 +181,7 @@ together, from one audit of the site and the app on `main` at `83eb73e` (§1).
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner reads the new copy | ⏳ **Owner; before the first invitation, before each task merges. D6's *migratie* is built on the site's own pages; the legal texts are 0139's** | §3. Site copy is the owner's to approve (0144 T0). Every new sentence here is a proposal, in both languages. It includes *migratie* for *verhuizing* (D6) and the new *Why it is priced this way* (T6 (g)). |
-| T1 The alpha, said on the site | 📋 **Proposed; before the first invitation**; (a)'s line waits for open question 5 (2026-10-04) | §3. The app's alpha sentence on every site page while the alpha setting is on. The unbacked *"Most people"* and *"Meest gekozen"* become a fact about the tier. *(2026-10-04: the app's sentence is now the owner's welcome (0131 D4's amendment), so copied as it is, every visitor would read the welcome. Open question 5.)* |
+| T1 The alpha, said on the site | 🟡 **(b) built 2026-10-04; (a)'s line waits for open question 5 (2026-10-04)** | §3. The app's alpha sentence on every site page while the alpha setting is on. The unbacked *"Most people"* and *"Meest gekozen"* become a fact about the tier. *(2026-10-04: the app's sentence is now the owner's welcome (0131 D4's amendment), so copied as it is, every visitor would read the welcome. Open question 5.)* |
 | T2 A shorter menu, and a header that fits a phone | ✅ **Built 2026-10-04, with T6 (c); its words wait for T0** | §3. The header reads Home · How it works · Pricing · Sign in, plus the language switch. Privacy and Terms move to the footer. On a phone the menu folds into a `<details>`, which needs no script. |
 | T3 The hero shows the move | 📋 **Proposed; before the first invitation** | §3. The drawing `hero-move.svg`, inlined: the old account's data, then Ownpace, then the new home, with our own icons (D4). Three facts sit under it, and a three-step strip links to *How it works*. An app screen joins it once 0153 T5 exists. |
 | T4 The destinations, named | 📋 **Proposed; before the first invitation** | §3. A *Where to* section names what the app supports, from a site copy of the app's list with a guard that it matches. It says plainly that the new account is one the person opens and pays for themselves. |

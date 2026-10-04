@@ -158,6 +158,33 @@ describe('the published prices agree with the decision that set them', () => {
     }
   });
 
+  it('says what each tier is in the page’s language, and as a fact, never as "most people" (0152 T1 (b))', async () => {
+    const { TIERS } = await import('./prices.mjs');
+    const { COPY } = (await import('./copy.mjs')) as unknown as {
+      COPY: Record<'en' | 'nl', { tierText: Record<string, { who: string; note: string }> }>;
+    };
+    const pages = await renderedPages();
+    const html = (file: string) => pages.find((p) => p.file === file)!.html;
+    for (const [locale, other, file] of [
+      ['en', 'nl', 'pricing.html'],
+      ['nl', 'en', 'nl/prijzen.html'],
+    ] as const) {
+      for (const t of TIERS) {
+        const own = COPY[locale].tierText[t.id];
+        expect(own?.who && own?.note, `${locale}: ${t.name} has no subtitle or note`).toBeTruthy();
+        expect(html(file), `${file}: ${t.name}'s subtitle is not its own language's`).toContain(own!.who);
+        // The defect this replaces: the Dutch page printed English tier text.
+        expect(html(file), `${file}: ${t.name}'s note is in ${other}`).not.toContain(COPY[other].tierText[t.id]!.note);
+      }
+    }
+    // Nothing counts who picks what, so no page says what most people do.
+    for (const page of pages) {
+      expect(page.html, `${page.file} claims what most people choose`).not.toMatch(/most people|meeste mensen|meest gekozen/i);
+    }
+    expect(html('index.html')).toContain('<strong>Small</strong>, for one person moving everything at once: €5 a month');
+    expect(html('nl/index.html')).toContain('<strong>Small</strong>, voor één persoon die alles tegelijk migreert: €5 per maand');
+  });
+
   it('writes cents as a price, and refuses a price that is not whole cents', async () => {
     const { money } = await import('./prices.mjs');
     expect(money(500)).toBe('€5');
