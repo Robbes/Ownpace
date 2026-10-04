@@ -4,6 +4,27 @@
 
 ## Status — 2026-10-04 (update this block at the end of every session)
 
+**2026-10-04, night: T1 is built on each migration's page, which now says what a person's card
+says.** Beside the migration's name is its stage in words, the least advanced of its data types,
+where the lifecycle word stood (*Active*, *Continuous*). Each row of the live strip says its data
+type's stage where it said the pass's state. A failed pass keeps *Failed* beside it, since the
+stage alone would not say that the last pass failed.
+
+- **One reading** (`MigrationLines.tsx`). The page calls the card's own functions over the card's
+  own data types: `lineStages` for the name, and `stagesByDomain` for the rows. A data type
+  counts whether or not a pass has reached it: the migration's selection on managed, the
+  status's rows on the appliance. One that no pass has reached says *Copying* on both screens.
+- **Before the progress read has the migration, or where it failed,** the name says what the
+  card says then, from the lifecycle and the last pass, and the rows say their pass state.
+  *Ready to switch* is never guessed: it needs the check passed and the failures that block
+  Finish counted.
+- **Both editions.** The appliance's page had no word beside its title, and it now has the stage.
+- **The sentence under a stage (T1 (b)) is not repeated here.** The strip's own row says more:
+  the counts, what failed or retries, and the last pass. The steps say what needs the person
+  (T4).
+
+With the top line of Migrations (0153 T3, #1343), every place T1 (d) lists now shows the stages.
+
 **2026-10-04, night: T7 is built: the first-copy email, once per person.** A `first_copy_complete`
 kind in 0030's channel, as the owner decided (*"One per person"*). It is sent once, when the last
 of a person's migrations finishes its first complete pass, and names the person and each data
@@ -418,7 +439,7 @@ of a move after it. The evening's answer puts everything before.
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 One line that says where a person's migrations are | 🟡 **(a) merged in #1326; (b) and (d) merged in #1422 for a person's card and page; (c) built by 0153 T3 (c); the migration's own page next; before the first invitation** | §3. A stage in plain words, derived from the states the server already reports. One sentence, and what needs the person. On the person's card, their page and each migration. Drawing: `wf-person-page.svg`. |
+| T1 One line that says where a person's migrations are | ✅ **Built: (a) merged in #1326; (b) and (d) merged in #1422 for a person's card and page; (c) built by 0153 T3 (c); each migration's page says the card's stages** | §3. A stage in plain words, derived from the states the server already reports. One sentence, and what needs the person. On the person's card, their page and each migration. Drawing: `wf-person-page.svg`. |
 | T2 Totals: *of about how many* | ✅ **Merged in #1420: *"18,234 of ~19,000"*, a bar and the bytes, on each data type's row in both editions** | §3. Synced counts set against what discovery found, as a share and in bytes. *About*, because the source keeps changing. |
 | T3 Time left, as a range with its reason | ✅ **Built: before Start, a range with its reason from Gmail's ceiling, and *we will know after the first hour* for the rest (a); during the copy, a range from the last passes' pace (b)** | §3. (a) Before Start, from the counts and the limits the product already knows (Gmail's 2.5 GB a day). (b) During the copy, from the rate of recent passes. Never a single number, and nothing when it cannot know. |
 | T4 The cutover steps with counts and state | ✅ **Built: one list on a migration's page and a person's, each step with its count and state in words, and the check as it last ran** | §3. The seven cards become one ordered list. Each has its count and *done*, *needs you* or *not yet*, summed for the move across its migrations. |

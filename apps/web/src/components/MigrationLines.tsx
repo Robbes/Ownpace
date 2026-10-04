@@ -15,7 +15,7 @@
  * carry the check, and says *Kept in step* instead.
  */
 import React from 'react';
-import { stageOf, type Stage } from '@openmig/shared';
+import { stageOf, type DiscoveryDomain, type Stage } from '@openmig/shared';
 import type { MappingListItem } from '../services/mapping-service.ts';
 import {
   fitLine,
@@ -43,7 +43,7 @@ export function listStage(m: Pick<MappingListItem, 'status' | 'lastSyncAt'>): St
  */
 export type MigrationLineFacts = Pick<MappingListItem, 'sourceType' | 'targetType' | 'status' | 'domains' | 'lastSyncAt'>;
 
-function factsOf(m: MigrationLineFacts, domain: string, progress: LinesProgress): LineFacts {
+function factsOf(m: Pick<MigrationLineFacts, 'status'>, domain: string, progress: LinesProgress): LineFacts {
   return {
     row: progress.report.domains.find((d) => d.domain === domain),
     migrationStatus: m.status,
@@ -56,9 +56,29 @@ function factsOf(m: MigrationLineFacts, domain: string, progress: LinesProgress)
  * Each line's stage, as the lines draw them: what a person's stage is the least
  * advanced of. Without the progress read, the migration's one stage.
  */
-export function lineStages(m: MigrationLineFacts, progress?: LinesProgress): (Stage | undefined)[] {
+export function lineStages(
+  m: Pick<MigrationLineFacts, 'status' | 'domains' | 'lastSyncAt'>,
+  progress?: LinesProgress,
+): (Stage | undefined)[] {
   if (!progress) return [listStage(m)];
   return m.domains.map((domain) => lineStage(factsOf(m, domain, progress)));
+}
+
+/**
+ * The same stages by data type, for a migration's own page (0154 T1), which
+ * draws one beside each row of its strip: from the facts a line reads, so the
+ * page and the card say one thing about one data type.
+ */
+export function stagesByDomain(
+  m: Pick<MigrationLineFacts, 'status' | 'domains'>,
+  progress: LinesProgress,
+): Partial<Record<DiscoveryDomain, Stage>> {
+  const out: Partial<Record<DiscoveryDomain, Stage>> = {};
+  for (const domain of m.domains) {
+    const stage = lineStage(factsOf(m, domain, progress));
+    if (stage) out[domain] = stage;
+  }
+  return out;
 }
 
 /** A line's sentence, and which parts it kept within the budget. */
