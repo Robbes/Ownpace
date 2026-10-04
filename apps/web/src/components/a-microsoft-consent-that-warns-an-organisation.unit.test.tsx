@@ -12,14 +12,15 @@
  * pressing *Connect with Microsoft*, as `microsoftConsentRefusal`'s sentence
  * for `AADSTS65001` and `AADSTS90094`. §4.4 advises that they read it before.
  *
- * So one line beside the button, in both doors (`ConsentLines`), true whether
+ * So one line beside the button, in the consent panel the Accounts page and
+ * *Start a migration* share (`ConsentLines`), true whether
  * or not publisher verification (T5) is done: a work or school account may
  * need its organisation's administrator to approve Ownpace first, and a
  * personal Microsoft account does not.
  *
  * What is pinned, in English and in Dutch: the line sits beside *Connect with
- * Microsoft* in the consent panel with the deployment's app, and in the
- * wizard; the button points at it (`aria-describedby`), because it comes after
+ * Microsoft* in the consent panel with the deployment's app (the wizard said
+ * it too, until it retired: 0153 D5); the button points at it (`aria-describedby`), because it comes after
  * the button in the page and T6's point is that it is heard BEFORE the button
  * is pressed (the review of 2026-09-26, after 0148's precedent); it names the
  * administrator, the work or school account and the personal one; and
@@ -28,7 +29,7 @@
 
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, cleanup } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { credentialFieldsFor } from '@openmig/shared';
@@ -58,7 +59,6 @@ vi.mock('../services/mapping-service', () => ({
   setupApi: { get: vi.fn(), setStep: vi.fn() },
 }));
 
-import CreateMapping from '../pages/CreateMapping.tsx';
 import { ProviderConsentPanel, useProviderConsent } from './ProviderConsent.tsx';
 
 type Locale = 'en' | 'nl';
@@ -142,15 +142,6 @@ describe('the sentence a tester reads before Connect with Microsoft (0140 T6 (b)
       const button = await screen.findByRole('button', { name: words(locale, 'wizard.microsoft.connect') });
       const line = lineBeside(button);
       for (const says of SAYS[locale]) expect(line.textContent).toMatch(says);
-    });
-
-    it(`${locale}: the wizard's Microsoft 365 account says the same beside its button`, async () => {
-      wrap(locale, <CreateMapping />, '/mappings/new', '/mappings/new');
-      fireEvent.click(screen.getByRole('button', { name: /^Microsoft 365 account/ }));
-      await waitFor(() =>
-        expect(screen.getByRole('button', { name: words(locale, 'wizard.microsoft.connect') })).toBeTruthy(),
-      );
-      lineBeside(screen.getByRole('button', { name: words(locale, 'wizard.microsoft.connect') }));
     });
 
     for (const provider of ['google', 'dropbox'] as const) {

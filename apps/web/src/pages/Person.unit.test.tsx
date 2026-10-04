@@ -159,10 +159,8 @@ describe("a person's page (0153 T5)", () => {
     const details = screen.getAllByRole('link', { name: 'Details →' });
     expect(details.map((a) => a.getAttribute('href'))).toEqual(['/mappings/m-mail', '/mappings/m-files']);
     expect(screen.getByRole('link', { name: 'Add a migration' })).toHaveAttribute('href', '/start?person=p-anna');
-    expect(screen.getByRole('link', { name: 'Add one migration by hand' })).toHaveAttribute(
-      'href',
-      '/mappings/new?person=p-anna',
-    );
+    // The one way in since the wizard retired (0153 D5).
+    expect(screen.queryByRole('link', { name: 'Add one migration by hand' })).not.toBeInTheDocument();
   });
 
   it('lists the steps before they switch, in cutover order, summed, with a state in words', async () => {

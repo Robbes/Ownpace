@@ -51,7 +51,6 @@ import {
 } from '@openmig/shared';
 import { STRINGS, LOCALES, type Locale, type StringKey } from '../i18n/strings.ts';
 import { SOURCE_CARDS, TARGET_CARDS, type FrontDoorCard } from '../components/front-door-cards.ts';
-import { SOURCE_FORM_FIELD, TARGET_FORM_FIELD } from './CreateMapping.tsx';
 
 /** Every served guide, `docs/guides/<locale>/<slug>.md`, as `Docs.tsx` inlines them. */
 const GUIDES = import.meta.glob('../../../../docs/guides/*/*.md', {
@@ -114,7 +113,7 @@ const OPERATOR_MATERIAL = [
     label: 'an edition heading',
     re: /^\*\*(Appliance|Managed)\b/m,
     instead:
-      'Write the one way this reader connects, in the wizard or on the Connections page; ' +
+      'Write the one way this reader connects, in Start a migration or on the Accounts page; ' +
       'what an appliance owner sets stays in the operator document in docs/.',
   },
   {
@@ -159,7 +158,7 @@ const OPERATOR_MATERIAL = [
   {
     label: 'an environment file',
     re: /\.env\b/,
-    instead: 'Name the field in the wizard the value goes in; the environment file is the operator’s.',
+    instead: 'Name the field on the account form the value goes in; the environment file is the operator’s.',
   },
   {
     label: 'the task-environment script',
@@ -169,7 +168,7 @@ const OPERATOR_MATERIAL = [
   {
     label: 'an environment assignment',
     re: /^\s*[A-Z][A-Z0-9]*_[A-Z0-9_]+=/m,
-    instead: 'Name the field in the wizard the value goes in, with the wizard’s own label.',
+    instead: 'Name the field on the account form the value goes in, with the form’s own label.',
   },
   {
     label: 'a constant or variable in backticks',
@@ -272,7 +271,7 @@ function guideOf(card: FrontDoorCard): { slug: string; section: string } {
 
 describe('the guides mention what the connector actually needs', () => {
   // The synonyms below are English, so this reads the English guides. The
-  // wizard's own labels, in each language, are read by the label cases after
+  // account form's own labels, in each language, are read by the label cases after
   // this one (0148 T4), which cover the Dutch guides as well; this one stays,
   // since it also accepts the provider's own word.
   const bySlug = new Map(
@@ -332,7 +331,7 @@ describe('the guides mention what the connector actually needs', () => {
 
     expect(
       missing,
-      `en/${slug}.md never mentions ${missing.join(', ')}, which the wizard REQUIRES for a ` +
+      `en/${slug}.md never mentions ${missing.join(', ')}, which the account form REQUIRES for a ` +
         `'${type}' ${role}. Somebody following this guide reaches the form without the ` +
         `value it demands. Either the guide is out of date or the field is.`,
     ).toEqual([]);
@@ -340,14 +339,15 @@ describe('the guides mention what the connector actually needs', () => {
 });
 
 /**
- * THE WIZARD'S OWN LABELS, IN EACH LANGUAGE (workplan 0148 T4).
+ * THE ACCOUNT FORM'S OWN LABELS, IN EACH LANGUAGE (workplan 0148 T4).
  *
  * The case above reads English synonyms, so it could not read a Dutch guide,
- * and it accepts a provider's word for a field ("App key") where the wizard
+ * and it accepts a provider's word for a field ("App key") where the form
  * shows another. A guide is followed with the form open beside it, so in the
- * card's own section every field the wizard REQUIRES is named as the wizard
+ * card's own section every field the form REQUIRES is named as the form
  * labels it, in that guide's language: `STRINGS[locale][field.labelKey]` for
- * `credentialFieldsFor(side, card)`.
+ * `credentialFieldsFor(side, card)`. The labels keep the wizard's keys
+ * (`wizard.*`), which the descriptor named before the wizard retired (0153 D5).
  *
  * `LABELS_PENDING` names the guides split out of the operator documents
  * before this case existed, whose card sections name a field in the
@@ -387,7 +387,7 @@ function sectionOf(body: string, section: string): string | undefined {
   return lines.slice(start, end === -1 ? undefined : end).join('\n');
 }
 
-describe('each card\'s section names its fields as the wizard labels them, in the guide\'s language', () => {
+describe('each card\'s section names its fields as the account form labels them, in the guide\'s language', () => {
   const guideText = (locale: Locale, slug: string) =>
     Object.entries(GUIDES).find(([p]) => nameOf(p) === `${locale}/${slug}`)?.[1];
 
@@ -434,7 +434,7 @@ describe('each card\'s section names its fields as the wizard labels them, in th
       expect(
         missing,
         `${locale}/${slug}.md's section {#${section}} does not name ${missing.join(', ')}, which the ` +
-          `wizard asks for on the ${role} card '${id}' under exactly that label. Quote it as the ` +
+          `account form asks for on the ${role} card '${id}' under exactly that label. Quote it as the ` +
           `form shows it, so the reader can find the box.`,
       ).toEqual([]);
     }
@@ -449,7 +449,7 @@ describe('each card\'s section names its fields as the wizard labels them, in th
 });
 
 /**
- * THE WIZARD'S OWN LABELS, IN THE GUIDE'S OWN LANGUAGE (workplan 0148 T4).
+ * THE PRODUCT'S OWN LABELS, IN THE GUIDE'S OWN LANGUAGE (workplan 0148 T4).
  *
  * The synonym list above is English, so it read the English guides only, and
  * it accepts any word for a field ("App key" for `clientId`) because it was
@@ -460,21 +460,23 @@ describe('each card\'s section names its fields as the wizard labels them, in th
  *
  * Two cases, each per language, both read from `strings.ts`:
  *
- *  1. every field the wizard REQUIRES for a card is named in that card's
- *     guide by the label the wizard shows in the guide's language
+ *  1. every field the account form REQUIRES for a card is named in that
+ *     card's guide by the label the form shows in the guide's language
  *     (`STRINGS[locale][field.labelKey]`), not by a synonym;
  *  2. a label the guide quotes in bold is the label of ITS language: a bold
- *     span that is one of the wizard's labels in the other language, and not
+ *     span that is one of the product's labels in the other language, and not
  *     in this one, is a label left untranslated; and a label quoted in one
  *     language's guide is named in the other's too, so the two guides send
  *     their readers to the same controls.
  *
- * "One of the wizard's labels" is a string under the keys a guide quotes
- * from — the wizard's, the Connections page's, the grant links' and the
- * navigation's — short enough to be a label rather than a sentence.
+ * "One of the product's labels" is a string under the keys a guide quotes
+ * from — the account form's (`wizard.*`, the descriptor's keys), *Start a
+ * migration*'s (`start.*`, since the guides walk it: 0153 D5), the Accounts
+ * page's, the grant links' and the navigation's — short enough to be a label
+ * rather than a sentence.
  */
-describe('each guide quotes the wizard\'s labels in its own language (0148 T4)', () => {
-  const LABEL_KEYS = /^(wizard|connections|grantLink|nav|hub)\./;
+describe('each guide quotes the product\'s labels in its own language (0148 T4)', () => {
+  const LABEL_KEYS = /^(wizard|start|connections|grantLink|nav|hub)\./;
   /** label → the keys that carry it, per language. */
   const labels = (locale: Locale) => {
     const out = new Map<string, string[]>();
@@ -511,7 +513,7 @@ describe('each guide quotes the wizard\'s labels in its own language (0148 T4)',
   // nl/microsoft's **Refresh-token** to **Vernieuwingstoken** and the case
   // still passed, because "een refresh-token" stood in plain prose two lines
   // up. A word in a sentence is not the reader's way to the box.
-  it.each(fieldCases)('$locale/$slug quotes every required field of $type by the wizard\'s label', ({ locale, type, slug }) => {
+  it.each(fieldCases)('$locale/$slug quotes every required field of $type by the form\'s label', ({ locale, type, slug }) => {
     const quoted = new Set(boldIn(guideAt(locale, slug)!));
     const missing = credentialFieldsFor('source', type)
       .filter((f) => f.required)
@@ -521,7 +523,7 @@ describe('each guide quotes the wizard\'s labels in its own language (0148 T4)',
     expect(
       missing,
       `${locale}/${slug}.md never quotes ${missing.map((l) => `“**${l}**”`).join(', ')}, which is how the ` +
-        `wizard labels a field it REQUIRES for a '${type}' source in this language. Quote the label in ` +
+        `account form labels a field it REQUIRES for a '${type}' source in this language. Quote the label in ` +
         'bold, exactly as the screen shows it, so the reader can find the box.',
     ).toEqual([]);
   });
@@ -544,7 +546,7 @@ describe('each guide quotes the wizard\'s labels in its own language (0148 T4)',
     expect(
       untranslated,
       `${nameOf(path)} quotes ${untranslated.map((s) => `“${s}”`).join(', ')} in bold, which is the ` +
-        'wizard’s label in another language. Quote the label this language’s screen shows ' +
+        'product’s label in another language. Quote the label this language’s screen shows ' +
         '(strings.ts has it under the same key).',
     ).toEqual([]);
   });
@@ -609,21 +611,22 @@ describe('the Apple export carries its to-be-tested tag and line (0148 D7)', () 
 });
 
 /**
- * The wizard has had four steps since it stopped being six — source, target,
- * migration, review — and each side's credentials sit on that side's own step.
- * The Box, Dropbox and Google guides, and three of the wizard's own about-lines
- * in both languages, went on sending people to "the credentials step", which
- * the wizard no longer has. A step named to a customer is one the wizard has.
+ * The wizard had four steps once it stopped having six, and the guides went on
+ * sending people to "the credentials step", which it no longer had. The wizard
+ * has retired since (0153 D5). *Start a migration* has screens, each named by
+ * its heading, and no steps, so a guide names none: a step named to a customer
+ * is one that does not exist.
  */
-describe('the guides and the wizard name only the steps the wizard has', () => {
-  const WIZARD_STEPS = new Set(['source', 'target', 'migration', 'review']);
+describe('the guides name no step, since no screen has one', () => {
+  const STEPS_THAT_EXIST = new Set<string>();
   const NAMED_STEP = /\b(?:on|at|to|rides) the ([a-z-]+) step\b/gi;
   const stepsNamedIn = (text: string) =>
-    [...text.matchAll(NAMED_STEP)].map((m) => m[1]!.toLowerCase()).filter((s) => !WIZARD_STEPS.has(s));
+    [...text.matchAll(NAMED_STEP)].map((m) => m[1]!.toLowerCase()).filter((s) => !STEPS_THAT_EXIST.has(s));
 
   it('reads a step name where one is written', () => {
     expect(stepsNamedIn('the secret rides the credentials step; the id goes on the source step')).toEqual([
       'credentials',
+      'source',
     ]);
   });
 
@@ -632,21 +635,17 @@ describe('the guides and the wizard name only the steps the wizard has', () => {
   });
 
   /**
-   * The Dutch guides name a step by its Dutch name, as the wizard's step bar
-   * shows it ("in de stap Bron"), so the English pattern above cannot see
-   * them. A step named in a Dutch guide is one of the four the bar carries.
+   * The Dutch guides named a step by its Dutch name, as the wizard's step bar
+   * showed it ("in de stap Bron"), so the English pattern above cannot see
+   * them. None is named now either.
    */
-  const DUTCH_STEPS = new Set(
-    (['source', 'target', 'migration', 'review'] as const).map((step) => STRINGS.nl[`wizard.step.${step}`]),
-  );
   const NAMED_STEP_NL = /\b(?:in|bij|op|naar) de stap ([A-Z][\p{L}&-]*)/gu;
-  const dutchStepsNamedIn = (text: string) =>
-    [...text.matchAll(NAMED_STEP_NL)].map((m) => m[1]!).filter((s) => !DUTCH_STEPS.has(s));
+  const dutchStepsNamedIn = (text: string) => [...text.matchAll(NAMED_STEP_NL)].map((m) => m[1]!);
 
   it('reads a Dutch step name where one is written', () => {
-    expect(DUTCH_STEPS).toEqual(new Set(['Bron', 'Doel', 'Migratie', 'Controleren']));
     expect(dutchStepsNamedIn('het geheim komt in de stap Inloggegevens; het id in de stap Bron')).toEqual([
       'Inloggegevens',
+      'Bron',
     ]);
   });
 
@@ -654,7 +653,7 @@ describe('the guides and the wizard name only the steps the wizard has', () => {
     expect(dutchStepsNamedIn(GUIDES[path]!)).toEqual([]);
   });
 
-  it('the wizard\'s own words, in both languages', () => {
+  it('the product\'s own words, in both languages', () => {
     expect(Object.values(STRINGS.en).flatMap(stepsNamedIn)).toEqual([]);
     expect(Object.values(STRINGS.nl).filter((v) => /stap met inloggegevens/i.test(v))).toEqual([]);
   });
@@ -809,60 +808,4 @@ describe('the Microsoft guide carries both registration recipes (0148 T8)', () =
       expect(sectionOf(guide(), 'graph')).toContain('](#application-graph)');
     });
   }
-});
-
-/**
- * The Google Drive card's about-line ended "…and ends with one read-only
- * command that proves them": a repository command, which is for whoever runs
- * the service (0148 T1). The button that checks the same three values against
- * Google is on the same screen, so the line names it, in each language by that
- * language's own label and as a button, so the label does not read as a verb.
- */
-describe('the wizard names its own button, not a command', () => {
-  it.each(['en', 'nl'] as const)('%s', (locale) => {
-    const more = STRINGS[locale]['wizard.about.googleDrive.more'];
-    const label = STRINGS[locale]['wizard.testConnections'];
-    // Named as a control, so the label does not run into the verbs around it.
-    expect(more).toContain(locale === 'en' ? `the ${label} button` : `de knop ${label}`);
-    expect(more).not.toMatch(/command|commando/i);
-  });
-});
-
-/**
- * A GUIDE NAMES ONLY A FIELD THE WIZARD DRAWS (workplan 0153 T1 (b)).
- *
- * The cases above ask that a guide name every field the wizard requires.
- * Nothing asked the other way round, and it went wrong: the Google guide told
- * a personal account to make an app password and type it into the Gmail card,
- * and the wizard never drew that box. The descriptor declared it; the
- * wizard's field map had no entry, so the field was skipped without a word.
- *
- * So for every card, a descriptor field whose label its guide's section names,
- * in any language the guide is written in, must be one the wizard draws: one
- * `SOURCE_FORM_FIELD` or `TARGET_FORM_FIELD` maps.
- */
-describe('no card section names a field the wizard does not draw (0153 T1 (b))', () => {
-  const guideText = (locale: Locale, slug: string) =>
-    Object.entries(GUIDES).find(([p]) => nameOf(p) === `${locale}/${slug}`)?.[1];
-
-  it.each(EVERY_CARD.map(({ role, card }) => ({ role, id: card.id, card })))('$role $id', ({ role, id, card }) => {
-    const { slug, section } = guideOf(card);
-    const drawn: Readonly<Record<string, unknown>> = role === 'source' ? SOURCE_FORM_FIELD : TARGET_FORM_FIELD;
-    const fields = credentialFieldsFor(role, id);
-    for (const locale of LOCALES) {
-      const body = guideText(locale, slug);
-      if (body === undefined) continue;
-      const text = sectionOf(body, section) ?? '';
-      const notDrawn = fields
-        .filter((f) => labelKeysOf(fields, f).some((key) => text.includes(STRINGS[locale][key as StringKey])))
-        .filter((f) => !Object.prototype.hasOwnProperty.call(drawn, f.key))
-        .map((f) => f.key);
-      expect(
-        notDrawn,
-        `${locale}/${slug}.md's section {#${section}} names ${notDrawn.join(', ')}, which the wizard ` +
-          `does not draw on the ${role} card '${id}'. Draw it (the field map in CreateMapping.tsx), ` +
-          `or take it out of the guide.`,
-      ).toEqual([]);
-    }
-  });
 });

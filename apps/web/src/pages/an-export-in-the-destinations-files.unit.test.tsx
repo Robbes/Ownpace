@@ -10,8 +10,10 @@
  * from a folder in the tester's Nextcloud or other target files-kind
  * supporting target."*
  *
- * So both doors that draw the archive form — the wizard and the Connections
- * page — ask WHERE the export is, from the one descriptor:
+ * So the archive form asks WHERE the export is, from the one descriptor. The
+ * Accounts page draws it; the wizard did too, until it retired (0153 D5), and
+ * *Start a migration* sets a Takeout up in the destination's files itself
+ * (`StartMigration.unit.test.tsx`):
  *
  *  - a folder of the destination's files, or this appliance's disk;
  *  - on managed the destination is the default, and the disk is SHOWN,
@@ -19,18 +21,12 @@
  *    the owner: *"'Only on a self-hosted appliance': ok"*);
  *  - on the appliance the disk stays the default, so no existing mapping
  *    changes meaning;
- *  - the path's label follows the choice, and the doors post `where`.
- *
- * In the wizard, the Test of an export in the destination answers that it is
- * counted at the preflight, and the person continues on that answer; the
- * target step then says, in the create door's own words, when the chosen
- * destination has no files an export can be read from.
+ *  - the path's label follows the choice, and the form posts `where`.
  */
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router';
+import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { archiveInTargetRefusal } from '@openmig/shared';
 import { STRINGS } from '../i18n/strings.ts';
 
 const { editionFlag } = vi.hoisted(() => ({ editionFlag: { selfhost: false } }));
@@ -63,7 +59,6 @@ vi.mock('../services/mapping-service', () => ({
 }));
 
 const { connectionsApi } = await import('../services/mapping-service.ts');
-const { default: CreateMapping } = await import('./CreateMapping.tsx');
 const { default: Connections } = await import('./Connections.tsx');
 
 const en = STRINGS.en;
@@ -81,18 +76,6 @@ beforeEach(() => {
 const client = () =>
   new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 
-function renderWizard() {
-  return render(
-    <QueryClientProvider client={client()}>
-      <MemoryRouter initialEntries={['/mappings/new']}>
-        <Routes>
-          <Route path="/mappings/new" element={<CreateMapping />} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
-}
-
 async function openConnectionsForm() {
   render(
     <QueryClientProvider client={client()}>
@@ -106,17 +89,12 @@ async function openConnectionsForm() {
 
 const pickArchive = () => fireEvent.click(screen.getByRole('button', { name: /^Export archive/ }));
 const radio = (name: string) => screen.getByRole('radio', { name: new RegExp(`^${escape(name)}`) }) as HTMLInputElement;
-const nextButton = () => screen.getByRole('button', { name: /^(Next|Create Migration)$/ });
-const blockedReason = () => screen.queryByRole('status')?.textContent ?? null;
 
 function escape(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-describe.each([
-  ['the wizard', async () => renderWizard()],
-  ['the Connections page', openConnectionsForm],
-])('%s asks where the export is', (_door, open) => {
+describe.each([['the Connections page', openConnectionsForm]])('%s asks where the export is', (_door, open) => {
   it('offers the two places, from the descriptor', async () => {
     await open();
     pickArchive();
@@ -172,133 +150,5 @@ describe('the doors post where', () => {
       displayName: 'my photos',
       values: { provider: 'google-takeout', path: 'Exports/takeout-20260904', where: 'target' },
     });
-  });
-
-  it('the wizard’s Test posts `where`, answers at the preflight, and lets the person continue', async () => {
-    vi.mocked(connectionsApi.add).mockResolvedValue({
-      id: 'c-archive',
-      ok: false,
-      reason: 'counted at the preflight',
-      outcome: { code: 'countedAtPreflight' },
-    });
-    renderWizard();
-    pickArchive();
-    fireEvent.change(screen.getByLabelText(/^Which export/), { target: { value: 'google-takeout' } });
-    fireEvent.change(screen.getByLabelText(new RegExp(`^${escape(en['wizard.archivePath.target'])}`)), {
-      target: { value: 'Exports/takeout-20260904' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: en['wizard.testConnections'] }));
-    await waitFor(() => expect(connectionsApi.add).toHaveBeenCalled());
-    expect(vi.mocked(connectionsApi.add).mock.calls[0]![0]).toMatchObject({
-      role: 'source',
-      type: 'archive',
-      values: { provider: 'google-takeout', path: 'Exports/takeout-20260904', where: 'target' },
-    });
-    expect(await screen.findByText(en['probe.countedAtPreflight'])).toBeTruthy();
-    // KEPT AND USED (0148 T9 review): the answer is not a failure, so the
-    // wizard continues on the row it just stored. A connection in use hides
-    // what belongs to the connection — which export — and keeps this
-    // mapping's own answers, where and which folder. Without that, the create
-    // door would store the same archive a second time.
-    await waitFor(() => expect(screen.queryByLabelText(/^Which export/)).toBeNull());
-    expect(radio(TO_TARGET).checked).toBe(true);
-    expect(screen.getByLabelText(new RegExp(`^${escape(en['wizard.archivePath.target'])}`))).toBeTruthy();
-    expect(connectionsApi.add).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(nextButton()).toBeEnabled());
-  });
-});
-
-/**
- * A STORED ROW SAYS WHERE IT IS (0148 T9 review). A reused connection's choice
- * starts from the row's own `where`, not this edition's default: the screen
- * shows the store the pass will read, and the target step judges that one.
- */
-describe('the wizard reusing a stored archive connection', () => {
-  const stored = (knownValues: Record<string, string>) =>
-    [
-      {
-        id: 'c-stored',
-        role: 'source',
-        kind: 'archive',
-        displayName: 'my photos',
-        status: 'connected',
-        createdAt: '2026-09-01T00:00:00Z',
-        usedByMigrations: 0,
-        knownValues,
-      },
-    ] as never;
-
-  it('on the appliance, a row in the destination’s files shows the destination, not the disk', async () => {
-    editionFlag.selfhost = true;
-    vi.mocked(connectionsApi.list).mockResolvedValue(stored({ where: 'target' }));
-    renderWizard();
-    pickArchive();
-    await waitFor(() => expect(screen.queryByLabelText(/^Which export/)).toBeNull());
-    expect(radio(TO_TARGET).checked).toBe(true);
-    expect(radio(ON_DISK).checked).toBe(false);
-  });
-
-  it('on managed, a row stored before `where` shows the disk it is on, disabled', async () => {
-    vi.mocked(connectionsApi.list).mockResolvedValue(stored({}));
-    renderWizard();
-    pickArchive();
-    await waitFor(() => expect(screen.queryByLabelText(/^Which export/)).toBeNull());
-    expect(radio(ON_DISK).checked).toBe(true);
-    expect(radio(ON_DISK).disabled).toBe(true);
-    // Marked and not answerable here: the create door refuses the disk on
-    // managed, so Next says so on this step, and the other answer is the way on.
-    fireEvent.change(screen.getByLabelText(new RegExp(`^${escape(en['wizard.archivePath'])}`)), {
-      target: { value: 'Exports/takeout-20261104' },
-    });
-    expect(nextButton()).toBeDisabled();
-    expect(blockedReason()).toContain(en['wizard.archiveWhere']);
-    fireEvent.click(radio(TO_TARGET));
-    await waitFor(() => expect(nextButton()).toBeEnabled());
-  });
-
-  it('still asks for this migration’s folder: the door refuses a reuse without one', async () => {
-    vi.mocked(connectionsApi.list).mockResolvedValue(stored({ where: 'target' }));
-    renderWizard();
-    pickArchive();
-    await waitFor(() => expect(screen.queryByLabelText(/^Which export/)).toBeNull());
-    expect(nextButton()).toBeDisabled();
-    expect(blockedReason()).toContain(en['wizard.archivePath.target']);
-    fireEvent.change(screen.getByLabelText(new RegExp(`^${escape(en['wizard.archivePath.target'])}`)), {
-      target: { value: 'Exports/takeout-20261104' },
-    });
-    await waitFor(() => expect(nextButton()).toBeEnabled());
-  });
-});
-
-describe('the wizard’s target step reads the same rule as the create door', () => {
-  async function toTargetStep() {
-    renderWizard();
-    pickArchive();
-    fireEvent.change(screen.getByLabelText(/^Which export/), { target: { value: 'google-takeout' } });
-    fireEvent.change(screen.getByLabelText(new RegExp(`^${escape(en['wizard.archivePath.target'])}`)), {
-      target: { value: 'Exports/takeout-20260904' },
-    });
-    await waitFor(() => expect(nextButton()).toBeEnabled());
-    fireEvent.click(nextButton());
-  }
-
-  it('a JMAP destination is refused in the create door’s words, and Next with it', async () => {
-    await toTargetStep();
-    fireEvent.click(screen.getByRole('button', { name: /^JMAP/ }));
-    expect(blockedReason()).toContain(archiveInTargetRefusal('jmap')!);
-    expect(nextButton()).toBeDisabled();
-  });
-
-  it('a destination with no files is refused, naming the ones that have them', async () => {
-    await toTargetStep();
-    fireEvent.click(screen.getByRole('button', { name: /^IMAP/ }));
-    expect(blockedReason()).toContain(archiveInTargetRefusal('imap')!);
-  });
-
-  it('a Nextcloud destination is not refused for it', async () => {
-    await toTargetStep();
-    fireEvent.click(screen.getByRole('button', { name: /^Nextcloud/ }));
-    expect(blockedReason() ?? '').not.toContain('have no files');
-    expect(blockedReason() ?? '').not.toContain('JMAP');
   });
 });

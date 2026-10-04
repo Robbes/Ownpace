@@ -50,34 +50,3 @@ describe('ConfirmMapping — the green light has an address', () => {
     expect(screen.getByText('mappings-list')).toBeInTheDocument();
   });
 });
-
-describe('ConfirmMapping — a migration its person did not get (0153 T3)', () => {
-  const renderWithState = (state: unknown) =>
-    render(
-      <MemoryRouter initialEntries={[{ pathname: '/mappings/m-new/confirm', state }]}>
-        <Routes>
-          <Route path="/mappings/:mappingId/confirm" element={<ConfirmMapping />} />
-        </Routes>
-      </MemoryRouter>,
-    );
-
-  it("says the add was refused, in the server's words, above the green light", () => {
-    renderWithState({ notAddedToPerson: 'There is no such person in this organisation.' });
-
-    const alert = screen.getByRole('alert');
-    expect(alert.textContent).toContain('The migration was made, but not added to the person.');
-    expect(alert.textContent).toContain('There is no such person in this organisation.');
-    expect(alert.textContent).toContain('Migrations lists it under Not with a person yet, where one press adds it.');
-    expect(screen.getByText('confirm-screen-for:m-new')).toBeInTheDocument();
-  });
-
-  it('says nothing about a person when the wizard brought no refusal', () => {
-    renderAt('/mappings/m-new/confirm');
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-  });
-
-  it('says nothing about a person for a state that carries no words', () => {
-    renderWithState({ notAddedToPerson: 42 });
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-  });
-});

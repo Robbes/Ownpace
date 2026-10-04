@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { PROVIDER_ACCOUNT_DOMAINS } from '@openmig/shared';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter, Route, Routes, useLocation, useParams } from 'react-router';
+import { MemoryRouter, Route, Routes, useParams } from 'react-router';
 import { AxiosError, AxiosHeaders } from 'axios';
 import { credentialFieldsFor, wizardTypeForConnectionKind } from '@openmig/shared';
 import type { ConnectionSummary } from '../services/mapping-service.ts';
@@ -137,8 +137,7 @@ function renderPage() {
  */
 function Landed() {
   const { side, provider } = useParams();
-  const from = (useLocation().state as { from?: string } | null)?.from;
-  return <p>{`landed on ${side}/${provider} from ${from ?? 'nowhere'}`}</p>;
+  return <p>{`landed on ${side}/${provider}`}</p>;
 }
 
 function renderAt(path: string) {
@@ -261,15 +260,18 @@ describe('the connections screen', () => {
     expect(setupHrefs()).toEqual(['/setup/source/oauth2', '/setup/source/graph']);
 
     fireEvent.click(imap);
-    expect(await screen.findByText('landed on source/oauth2 from /connections')).toBeTruthy();
+    expect(await screen.findByText('landed on source/oauth2')).toBeTruthy();
   });
 
-  it('the Via the Graph API link says it came from Connections too', async () => {
+  it('the Via the Graph API link lands on its own checklist too', async () => {
+    // Its way back is Accounts wherever it is opened from, since the wizard
+    // it could also lead back to retired (0153 D5), so the link carries no
+    // origin of its own.
     list.mockResolvedValue([conn({ kind: 'o365', role: 'source' })]);
     renderAt('/connections');
 
     fireEvent.click(await screen.findByRole('link', { name: STRINGS.en['wizard.m365.viaGraph'] }));
-    expect(await screen.findByText('landed on source/graph from /connections')).toBeTruthy();
+    expect(await screen.findByText('landed on source/graph')).toBeTruthy();
   });
 
   it('a row of any other kind keeps its one checklist link', async () => {

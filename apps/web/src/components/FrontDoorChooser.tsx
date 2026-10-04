@@ -1,26 +1,14 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
- * The front door, as one component both doors render (workplan 0107; owner
- * remark 2026-09-01).
+ * The front door: grouped cards with an icon, a name, a hint, and a family
+ * heading, so Microsoft 365's two methods and Google's products read as one
+ * account each (workplan 0107; owner remark 2026-09-01).
  *
- * Until now the wizard drew this — grouped cards with an icon, a name, a hint,
- * and a family heading so Microsoft 365's two methods and Google's five
- * products read as one account each — as two functions inside
- * `CreateMapping.tsx`, and the connections add-form drew "the same authority"
- * as a drop-down. Same ids, same grouping, and to a person two different
- * products. The owner's words: *"the connections page is less clean and nice
- * than the migration page, while both show ways to register connections."*
- *
- * Extracted VERBATIM from the wizard — same markup, same classes, same text
- * nodes — so every test that picks a card by its button name keeps passing,
- * and so the wizard looks exactly as it did. The add-form then gets the same
- * thing by rendering the same component, which is the only way two screens
- * can stop drifting apart: not by matching, by sharing.
- *
- * `cardFor` is the one seam the wizard needs and the add-form does not: the
- * Google ACCOUNT card's hint follows what the deployment's application carries
- * (ADR-0041), and that is the wizard's knowledge, read from the API it already
- * asked. The component knows nothing about it.
+ * The wizard drew it first, and the Accounts page's add-form drew "the same
+ * authority" as a drop-down: same ids, same grouping, and to a person two
+ * different products. Extracted verbatim, so both rendered one component,
+ * which is the only way two screens stop drifting apart. The wizard has
+ * retired since (0153 D5), and the Accounts page draws it.
  */
 import React from 'react';
 import { partitionFrontDoor, sourceCardIsExperimental } from '@openmig/shared';
@@ -41,15 +29,8 @@ export interface FrontDoorChooserProps<C extends FrontDoorCard> {
   readonly role: 'source' | 'target';
   readonly selectedId: string;
   readonly onPick: (card: C) => void;
-  /** Tailwind columns for the card grid — the wizard uses 2 for sources, 3 for targets. */
+  /** Tailwind columns for the card grid. */
   readonly gridClass: string;
-  /**
-   * Substitute a card before it is DRAWN (the wizard's deployment-aware hint).
-   * Typed as a plain card on the way out: the substitute only has to be
-   * drawable, and `onPick` still receives the original — so a hint swap
-   * cannot change which id gets picked.
-   */
-  readonly cardFor?: (card: C) => FrontDoorCard;
 }
 
 export function FrontDoorChooser<C extends FrontDoorCard>({
@@ -58,7 +39,6 @@ export function FrontDoorChooser<C extends FrontDoorCard>({
   selectedId,
   onPick,
   gridClass,
-  cardFor,
 }: FrontDoorChooserProps<C>): React.ReactElement {
   const t = useT();
   const grouped = partitionFrontDoor(cards, (c) => c.id);
@@ -76,7 +56,7 @@ export function FrontDoorChooser<C extends FrontDoorCard>({
    * under it.
    */
   const renderCard = (raw: C): React.ReactElement => {
-    const card: FrontDoorCard = cardFor ? cardFor(raw) : raw;
+    const card: FrontDoorCard = raw;
     const selected = selectedId === card.id;
     const experimental = role === 'source' && sourceCardIsExperimental(raw.id);
     return (

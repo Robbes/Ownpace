@@ -36,7 +36,7 @@ in the managed edition only.
 | Domain ownership verified in Search Console | ⬜ Owner action | `ownpace.eu` |
 | Demo video showing the consent flow and each scope in use | ⬜ Owner action — **unblocked 2026-08-26** | 0089 T1 shipped: there is now a flow to film |
 | Scope justification, per scope | ✅ Drafted | §3 below |
-| In-product disclosure before the consent screen | 🟡 Built on the grant-link page (`apps/web/src/pages/Grant.tsx`); not yet beside the wizard's own *Connect with Google* | §5 below |
+| In-product disclosure before the consent screen | 🟡 Built on the grant-link page (`apps/web/src/pages/Grant.tsx`); not yet beside *Connect with Google* in the account form *Start a migration* and the Accounts page draw (`apps/web/src/components/AccountForm.tsx`) | §5 below |
 | Annual third-party security assessment, **restricted scopes only** | ⬜ Deferred deliberately | ADR-0041 — Drive is the only scope this would ever be bought for; the owner's stated intent (2026-08-26) is to buy it for Drive **later**. An intent is not a purchase — nothing is offered until it exists |
 
 **The two documents are drafts and must not be published as they stand.** Both carry

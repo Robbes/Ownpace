@@ -28,14 +28,14 @@ You do not type any of those hosts. They are Apple's published values, recorded 
 3. Generate one and label it something you will recognise later — `Ownpace`.
 4. Apple shows it **once**, in the form `abcd-efgh-ijkl-mnop`. Copy it now; there is no way to see it again, and the remedy for a lost one is to revoke it and make another.
 
-### 2. Add the connection {#apple}
+### 2. Add the account {#apple}
 
-Connections → **Add a connection** → **Apple account (iCloud)**. Two boxes:
+On **Which account are you leaving?**, tick **Apple iCloud**. On **Connect your accounts**, its form has two boxes:
 
 - **Username** — your iCloud address, `you@icloud.com`.
 - **App-specific password** — paste what Apple showed you.
 
-**Add and test.** The test asks each face at its own host — calendars at `caldav.icloud.com`, contacts at `contacts.icloud.com`, mail at `imap.mail.me.com` — and reports what it found, per face, with counts. A face it could not measure says **why**, on the card, rather than showing a bare `?`.
+Press **Check the sign-in**. On the **Accounts** page the same form is under **Add an account** → **Apple account (iCloud)**, with **Add and test**. The test asks each face at its own host — calendars at `caldav.icloud.com`, contacts at `contacts.icloud.com`, mail at `imap.mail.me.com` — and reports what it found, per face, with counts. A face it could not measure says **why**, on the card, rather than showing a bare `?`.
 
 ### Why there is no Connect with Apple button {#no-button}
 
@@ -53,7 +53,7 @@ Mail, calendars, contacts and reminders, whichever you tick. Not iCloud Drive.
 
 Apple's Reminders are `VTODO` objects living on the same CalDAV host as your calendars, so one credential reaches both — but they are **not** events, and this product does not pretend otherwise. Tasks are their own kind of data, kept apart from events. Filing a reminder as a calendar event would produce something that looks migrated and is wrong.
 
-That means the target must also carry tasks. A CalDAV target that advertises only `VEVENT` in its `supported-calendar-component-set` cannot take them, and the wizard says so when you pick what to migrate rather than failing halfway through a run.
+That means the target must also carry tasks. A CalDAV target that advertises only `VEVENT` in its `supported-calendar-component-set` cannot take them, and nothing finds that out before the first pass: its test counts the task lists it has, and cannot tell whether it takes tasks. In the pass, each task is refused as it is written, and listed under **Failures** with a sentence that names what was written and what the target takes. For tasks, choose a target that keeps task lists, such as a Nextcloud.
 
 ### Files: iCloud Drive, and why it is a no rather than a ? {#files}
 

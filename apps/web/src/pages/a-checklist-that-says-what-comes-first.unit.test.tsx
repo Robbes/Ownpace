@@ -15,7 +15,7 @@
  *
  *  - every step's title, how-to and yield resolve in both languages;
  *  - each new step names what the card's guide section names, in the same
- *    language: the provider's own screen words, the wizard's labels, and the
+ *    language: the provider's own screen words, the account form's labels, and the
  *    values the code pre-fills (Soverin's mail server is read from the
  *    provider directory, not written out here);
  *  - *Via the Graph API* and *Via IMAP* no longer share one text. The shared
@@ -206,10 +206,10 @@ const NAMED: ReadonlyArray<{
         'Mailpoort',
         'imap.soverin.net',
         '993',
-        // The guide leaves the app password to the reader, and names what a
-        // connection saved without is missing.
+        // The guide leaves the app password to the reader, and names what an
+        // account saved without is missing.
         'Biedt Soverin u een app-wachtwoord, dan kan dat in hetzelfde vak',
-        'verbinding die zonder Mailserver is bewaard, draagt geen mail',
+        'account dat zonder Mailserver is bewaard, draagt geen mail',
       ],
     },
   },

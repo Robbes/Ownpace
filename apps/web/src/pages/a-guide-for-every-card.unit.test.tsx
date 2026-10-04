@@ -23,10 +23,11 @@
  *  - both languages of a guide carry the same section ids, in the same order,
  *    so a link to `dav#webdav` lands in either;
  *  - the `/docs` index lists every guide a card names, in both languages;
- *  - the checklist links the card's own section, and so does the wizard, on
- *    the source step and on the target step. The wizard's link opens a new
- *    tab (2026-09-26): the wizard keeps neither its step nor a typed password
- *    across a navigation, and a guide is read with the form open beside it.
+ *  - the checklist links the card's own section, and so does the account form
+ *    the Accounts page and *Start a migration* share, for every card on both
+ *    sides. Its link opens a new tab (2026-09-26, the wizard's rule, which
+ *    linked it until it retired: 0153 D5): a guide is read with the form open
+ *    beside it, and nothing typed is lost to a navigation.
  *
  * Before this, the IMAP source was listed as pending in `Docs.unit.test.tsx`'s
  * card table (`CARD_GUIDE_PENDING`), and that table covered source cards only.
@@ -36,7 +37,7 @@
 
 import type { ReactElement } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LocaleProvider } from '../i18n/index.tsx';
@@ -44,7 +45,6 @@ import { STRINGS, LOCALES, type Locale } from '../i18n/strings.ts';
 import {
   SOURCE_CARDS,
   TARGET_CARDS,
-  migratableSourceCards,
   type FrontDoorCard,
 } from '../components/front-door-cards.ts';
 
@@ -63,7 +63,7 @@ vi.mock('../services/mapping-service.ts', async (importOriginal) => ({
 
 import Docs, { GUIDE_SLUGS } from './Docs.tsx';
 import Setup from './Setup.tsx';
-import CreateMapping from './CreateMapping.tsx';
+import Connections from './Connections.tsx';
 
 /** Every served guide, `<locale>/<slug>`, through the page's own build-time import. */
 const SOURCES: Record<string, string> = Object.fromEntries(
@@ -235,8 +235,10 @@ describe('the checklist links the card’s own section (0148 T4)', () => {
   });
 });
 
-describe('the wizard links the picked card’s section (0148 T4)', () => {
-  const wizard = () => renderAt('/mappings/new', <CreateMapping />, '/mappings/new');
+describe('the account form links the picked card’s section, at both doors (0148 T4)', () => {
+  // The form the Accounts page and Start a migration share. The wizard linked
+  // it too, until it retired (0153 D5); the link is on the form now, so it is
+  // offered wherever an account is added.
   const guideLink = () => screen.getByText(STRINGS.en['setup.fullGuide']);
   const nameOf = (card: FrontDoorCard) => card.name ?? STRINGS.en[card.nameKey!];
   const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -246,32 +248,27 @@ describe('the wizard links the picked card’s section (0148 T4)', () => {
     const guide = guideOf(card);
     return `/docs/${guide?.slug}#${guide?.section}`;
   };
-  /** Beside the form, not instead of it: the step and a typed password survive. */
+  /** Beside the form, not instead of it: what was typed survives. */
   const expectNewTab = (link: HTMLElement, id: string) => {
     expect(link.getAttribute('target'), `${id}: the guide opens in a new tab`).toBe('_blank');
     expect(link.getAttribute('rel') ?? '', id).toMatch(/\bnoopener\b/);
   };
+  /** The Accounts page's add form, opened on a side. */
+  const openForm = async (role: Role) => {
+    renderAt('/connections', <Connections />, '/connections');
+    fireEvent.click(await screen.findByText(STRINGS.en['connections.add']));
+    if (role === 'target') fireEvent.click(screen.getByRole('radio', { name: STRINGS.en['connections.targets'] }));
+  };
 
-  it.each(migratableSourceCards().map((card) => ({ id: card.id, card })))('source $id', ({ card }) => {
-    wizard();
+  it.each(SOURCE_CARDS.map((card) => ({ id: card.id, card })))('source $id', async ({ card }) => {
+    await openForm('source');
     pick(card);
     expect(guideLink().getAttribute('href')).toBe(hrefFor(card));
     expectNewTab(guideLink(), card.id);
   });
 
-  it('target: every card, on the target step', async () => {
-    wizard();
-    // The IMAP source is the wizard's default; filling it opens the target step.
-    const fieldFor = (label: RegExp) =>
-      screen.getByText(label, { selector: 'label' }).parentElement!.querySelector('input')!;
-    fireEvent.change(fieldFor(/^Username/), { target: { value: 'anna@example.org' } });
-    fireEvent.change(fieldFor(/^Host$/), { target: { value: 'mail.example.org' } });
-    fireEvent.change(fieldFor(/^Password/), { target: { value: 'not-a-real-password' } });
-    const next = screen.getByRole('button', { name: /^Next$/ });
-    await waitFor(() => expect(next).toBeEnabled());
-    fireEvent.click(next);
-    await screen.findByText(STRINGS.en['wizard.selectTarget']);
-
+  it('target: every card', async () => {
+    await openForm('target');
     for (const card of TARGET_CARDS) {
       pick(card);
       const link = within(document.body).getByText(STRINGS.en['setup.fullGuide']);

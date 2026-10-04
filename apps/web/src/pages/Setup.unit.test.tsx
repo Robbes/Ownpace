@@ -115,7 +115,7 @@ describe('the setup checklist screen', () => {
       expect(setStep).toHaveBeenCalledWith('source', 'box', 'create_app', 'done'),
     );
     // ...and the refreshed answer is what gets rendered.
-    expect(await screen.findByText(/complete the wizard/)).toBeTruthy();
+    expect(await screen.findByText(/you can connect the account now/)).toBeTruthy();
   });
 
   it('skipping is a first-class answer, recorded rather than hidden', async () => {
@@ -188,22 +188,15 @@ describe('Setup — names the provider, and goes back where you came from (0074)
     expect(screen.queryByText(/— oauth2/)).toBeNull();
   });
 
-  it('returns to CONNECTIONS when that is where the link came from', async () => {
-    get.mockResolvedValue(checklist());
-    renderPage({ pathname: '/setup/source/box', state: { from: '/connections' } });
-
-    const back = await screen.findByText(/Back to accounts/);
-    expect(back.getAttribute('href')).toBe('/connections');
-  });
-
-  it('still defaults to the wizard for a direct URL', async () => {
-    // Most people arrive from the wizard, and a bookmarked checklist has no
-    // origin to honour — so the default stays what it always was.
+  it('returns to Accounts, wherever it was opened from, since the wizard it led back to retired', async () => {
+    // Start a migration opens it in a tab of its own, so its screens stay
+    // where they were (0153 D5).
     get.mockResolvedValue(checklist());
     renderPage();
 
-    const back = await screen.findByText(/Back to the wizard/);
-    expect(back.getAttribute('href')).toBe('/mappings/new');
+    const back = await screen.findByText(/Back to accounts/);
+    expect(back.getAttribute('href')).toBe('/connections');
+    expect(screen.queryByText(/Back to the wizard/)).toBeNull();
   });
 });
 

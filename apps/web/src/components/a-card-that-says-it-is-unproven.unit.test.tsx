@@ -16,16 +16,18 @@
  * The owner chose to label them, not to hide them and not to prove them first.
  * So one table in shared (`SOURCE_PROOFS`, beside `FRONT_DOOR_FAMILIES`) holds a
  * verdict for each source kind and, for the account kinds, one for each face:
- * *proven*, naming where its run is recorded, or *experimental*. Both doors and
- * the wizard's data-type step read it.
+ * *proven*, naming where its run is recorded, or *experimental*. The Accounts
+ * page's cards, the tiles of *Start a migration* and its *What moves?* read it.
+ * The wizard read it too, until it retired (0153 D5); the flow's tiles and
+ * data types are pinned in `StartMigration.unit.test.tsx`.
  *
  * What is pinned here:
  *
  * - every `SOURCE_CARDS` id has a verdict, on both editions, and every proven
  *   verdict names where its run is recorded (the other half, that the place
  *   exists, is `scripts/a-proof-that-was-written-down.unit.test.ts`);
- * - both doors tag exactly the experimental cards, and no proven one, in
- *   English and in Dutch, and no target card (0131 open question 5 is open);
+ * - the Accounts page tags exactly the experimental cards, and no proven one,
+ *   in English and in Dutch, and no target card (0131 open question 5 is open);
  * - the words are *Experimental* and *Experimenteel*, as 0131 T2 and the
  *   glossary fix them;
  * - the tag is text inside the card's `<button>` and part of the card's
@@ -34,14 +36,11 @@
  *   the fold with its why sits beside the card, not inside it;
  * - the appliance shows it too: a fact about a connector is not a fact about
  *   an edition;
- * - nothing is hidden on managed: the export archive card is offered there at
- *   both doors and carries the tag (0148 D10), and so does *Via IMAP* (0148
- *   D5), looked up by name on the screen so a card dropped from a list cannot
- *   pass unseen;
- * - the data-type step tags an experimental face of the chosen account and
- *   not a proven one;
+ * - nothing is hidden on managed: the export archive card is offered there
+ *   and carries the tag (0148 D10), and so does *Via IMAP* (0148 D5), looked
+ *   up by name on the screen so a card dropped from a list cannot pass unseen;
  * - the whole-domain option on the Google cards carries the tag in the box's
- *   name, and its why in a fold, at both doors.
+ *   name, and its why in a fold.
  *
  * The expected sets are read from the table rather than typed out here, so a
  * face that is proven later changes one table and one matrix row (0141 T1),
@@ -53,7 +52,7 @@
 
 import type { ReactElement } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import {
@@ -61,7 +60,6 @@ import {
   SOURCE_PROOFS,
   isProviderAccountKind,
   sourceCardIsExperimental,
-  sourceFaceIsExperimental,
   type SourceProof,
 } from '@openmig/shared';
 
@@ -88,8 +86,7 @@ vi.mock('../services/mapping-service', () => ({
   setupApi: { get: vi.fn(), setStep: vi.fn() },
 }));
 
-import { SOURCE_CARDS, frontDoorCards, migratableSourceCards, type FrontDoorCard } from './front-door-cards.ts';
-import CreateMapping from '../pages/CreateMapping.tsx';
+import { SOURCE_CARDS, frontDoorCards, type FrontDoorCard } from './front-door-cards.ts';
 import Connections from '../pages/Connections.tsx';
 import { LocaleProvider } from '../i18n/index.tsx';
 import { STRINGS, type Locale } from '../i18n/strings.ts';
@@ -109,8 +106,6 @@ function renderAt(path: string, element: ReactElement, locale: Locale = 'en') {
     </LocaleProvider>,
   );
 }
-
-const renderWizard = (locale: Locale = 'en') => renderAt('/mappings/new', <CreateMapping />, locale);
 
 /** The Connections page's add-form, opened, on the side asked for. */
 async function renderAddForm(locale: Locale = 'en', side: 'source' | 'target' = 'source') {
@@ -206,31 +201,11 @@ describe('one table says which sources have met a real account', () => {
   });
 });
 
-describe.each(['en', 'nl'] as const)('both doors tag exactly the experimental cards (%s)', (locale) => {
+describe.each(['en', 'nl'] as const)('the Accounts page tags exactly the experimental cards (%s)', (locale) => {
   const tag = STRINGS[locale]['frontDoor.experimental'];
 
   for (const selfhost of [false, true]) {
     const build = selfhost ? 'appliance' : 'managed';
-
-    it(`the wizard, on a ${build} build`, () => {
-      edition.selfhost = selfhost;
-      renderWizard(locale);
-      const cards = migratableSourceCards() as ReadonlyArray<FrontDoorCard>;
-      expect(cards.some((c) => sourceCardIsExperimental(c.id)), 'no experimental card is offered').toBe(true);
-      expect(cards.some((c) => !sourceCardIsExperimental(c.id)), 'no proven card is offered').toBe(true);
-      for (const card of cards) {
-        const button = cardButton(card, locale);
-        if (sourceCardIsExperimental(card.id)) {
-          // Text inside the button, so it is part of the card's accessible
-          // name (0145 T2), never an icon alone.
-          expect(button.textContent, `${card.id} is experimental and the wizard does not say so`).toContain(tag);
-          expect(button, `${card.id}: the tag is not part of the card's name`).toHaveAccessibleName(tagIn(tag));
-        } else {
-          expect(button.textContent, `${card.id} is proven and the wizard calls it experimental`).not.toContain(tag);
-          expect(button, `${card.id} is proven and its name says experimental`).not.toHaveAccessibleName(tagIn(tag));
-        }
-      }
-    });
 
     it(`the Connections page, on a ${build} build`, async () => {
       edition.selfhost = selfhost;
@@ -283,19 +258,6 @@ describe.each(['en', 'nl'] as const)('the cards the owner kept are offered and t
   for (const selfhost of [false, true]) {
     const build = selfhost ? 'appliance' : 'managed';
 
-    it(`in the wizard, on a ${build} build`, () => {
-      edition.selfhost = selfhost;
-      renderWizard(locale);
-      for (const card of kept) {
-        // By name on the screen, not through the card list: getByRole throws
-        // when the card is not offered here.
-        const button = cardButton(card, locale);
-        expect(button.textContent, `${card.id} is offered in the wizard and not tagged`).toContain(tag);
-        expect(button, `${card.id}: the tag is not part of the card's name`).toHaveAccessibleName(tagIn(tag));
-        expect(within(button.parentElement!).getByText(STRINGS[locale]['frontDoor.experimental.why'])).toBeTruthy();
-      }
-    });
-
     it(`on the Connections page, on a ${build} build`, async () => {
       edition.selfhost = selfhost;
       await renderAddForm(locale);
@@ -309,11 +271,9 @@ describe.each(['en', 'nl'] as const)('the cards the owner kept are offered and t
 });
 
 describe('the why folds beside the card, never inside it (0145 T2)', () => {
-  it('each experimental card has its fold as a sibling, closed, saying why', () => {
-    renderWizard();
-    const experimental = (migratableSourceCards() as ReadonlyArray<FrontDoorCard>).filter((c) =>
-      sourceCardIsExperimental(c.id),
-    );
+  it('each experimental card has its fold as a sibling, closed, saying why', async () => {
+    await renderAddForm();
+    const experimental = frontDoorCards('source').filter((c) => sourceCardIsExperimental(c.id));
     expect(experimental.length).toBeGreaterThan(0);
     for (const card of experimental) {
       const button = cardButton(card, 'en');
@@ -326,11 +286,9 @@ describe('the why folds beside the card, never inside it (0145 T2)', () => {
     }
   });
 
-  it('a proven card has no fold beside it', () => {
-    renderWizard();
-    const proven = (migratableSourceCards() as ReadonlyArray<FrontDoorCard>).filter(
-      (c) => !sourceCardIsExperimental(c.id),
-    );
+  it('a proven card has no fold beside it', async () => {
+    await renderAddForm();
+    const proven = frontDoorCards('source').filter((c) => !sourceCardIsExperimental(c.id));
     expect(proven.length).toBeGreaterThan(0);
     for (const card of proven) {
       const beside = cardButton(card, 'en').parentElement!;
@@ -339,95 +297,12 @@ describe('the why folds beside the card, never inside it (0145 T2)', () => {
   });
 });
 
-describe('the data-type step tags an experimental face of the chosen account', () => {
-  const nextButton = () => screen.getByRole('button', { name: /^(Next|Create Migration)$/ });
-  const storedTarget = {
-    id: 'c0000000-0000-4000-8000-0000000000e2',
-    role: 'target' as const,
-    kind: 'nextcloud',
-    displayName: 'The stored Nextcloud',
-    status: 'connected' as const,
-    createdAt: '2026-09-01T00:00:00.000Z',
-    usedByMigrations: 0,
-  };
-
-  /** The box beside a label, as the reachability walk finds it. */
-  const fill = (label: RegExp, value: string) => {
-    const control = screen.getByText(label, { selector: 'label' }).parentElement?.querySelector('input, textarea');
-    if (!control) throw new Error(`no control beside ${label}`);
-    fireEvent.change(control, { target: { value } });
-  };
-
-  /**
-   * Walk to the data-type step: the account card with its four boxes typed,
-   * then a stored Nextcloud, which takes every face but mail.
-   */
-  async function walkToDataTypes(sourceCard: RegExp): Promise<void> {
-    list.mockResolvedValue([storedTarget]);
-    renderWizard();
-    fireEvent.click(screen.getByRole('button', { name: sourceCard }));
-    fill(/^Username/, 'anna@acme.example');
-    fill(/^Client ID/, 'client-id');
-    fill(/^Client secret/, 'shh-secret');
-    fill(/^Refresh token/, 'refresh-token');
-    await waitFor(() => expect(nextButton()).toBeEnabled());
-    fireEvent.click(nextButton());
-    fireEvent.click(await screen.findByRole('button', { name: /^Nextcloud/ }));
-    await waitFor(() => expect(nextButton()).toBeEnabled());
-    fireEvent.click(nextButton());
-    await screen.findByText(STRINGS.en['wizard.selectDataTypes']);
-  }
-
-  const domainButton = (face: 'calendar' | 'contact' | 'file' | 'task') =>
-    screen.getByRole('button', { name: new RegExp(`^${STRINGS.en[`domain.${face}`]}`) });
-
-  it('the Microsoft 365 account: every face Nextcloud can take is tagged', async () => {
-    await walkToDataTypes(/^Microsoft 365 account/);
-    for (const face of ['calendar', 'contact', 'file', 'task'] as const) {
-      expect(sourceFaceIsExperimental('microsoft', face), face).toBe(true);
-      const button = domainButton(face);
-      expect(button.textContent, `the Microsoft 365 account's ${face}`).toContain(STRINGS.en['frontDoor.experimental']);
-      expect(button, `${face}: the tag is not part of the face's name`).toHaveAccessibleName(
-        tagIn(STRINGS.en['frontDoor.experimental']),
-      );
-      expect(button.querySelector('details'), `${face}: the fold is inside the button`).toBeNull();
-      expect(within(button.parentElement!).getByText(STRINGS.en['frontDoor.experimental.why'])).toBeTruthy();
-    }
-  });
-
-  it('the Google account: a proven face is plain, and Tasks is tagged', async () => {
-    await walkToDataTypes(/^Google account/);
-    expect(sourceFaceIsExperimental('google', 'calendar')).toBe(false);
-    expect(sourceFaceIsExperimental('google', 'task')).toBe(true);
-    expect(domainButton('calendar').textContent).not.toContain(STRINGS.en['frontDoor.experimental']);
-    expect(domainButton('contact').textContent).not.toContain(STRINGS.en['frontDoor.experimental']);
-    expect(domainButton('task').textContent).toContain(STRINGS.en['frontDoor.experimental']);
-    expect(domainButton('task')).toHaveAccessibleName(tagIn(STRINGS.en['frontDoor.experimental']));
-    expect(domainButton('calendar')).not.toHaveAccessibleName(tagIn(STRINGS.en['frontDoor.experimental']));
-  });
-});
-
 describe('the whole-domain option on the Google cards carries the tag', () => {
   /** The service-account key's box, found by the name a screen reader gives it. */
   const keyBox = (label: RegExp) => screen.getByRole('textbox', { name: label });
 
-  it('beside the service-account key, in the name of its box, with the why in its fold, in the wizard', () => {
+  it('is experimental in the table', () => {
     expect(SOURCE_PROOFS.wholeDomain.verdict).toBe('experimental');
-    renderWizard();
-    fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
-    const label = screen.getByText(/^Service account key/, { selector: 'label' });
-    expect(label.textContent).toContain(STRINGS.en['frontDoor.experimental']);
-    expect(keyBox(/^Service account key/)).toHaveAccessibleName(tagIn(STRINGS.en['frontDoor.experimental']));
-    const why = screen.getByText(new RegExp(STRINGS.en['frontDoor.experimental.wholeDomain.why']));
-    expect(why.closest('details'), 'the why is not behind a fold').not.toBeNull();
-  });
-
-  it('in Dutch too', () => {
-    renderWizard('nl');
-    fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
-    const label = screen.getByText(/^Serviceaccount-sleutel/, { selector: 'label' });
-    expect(label.textContent).toContain(STRINGS.nl['frontDoor.experimental']);
-    expect(keyBox(/^Serviceaccount-sleutel/)).toHaveAccessibleName(tagIn(STRINGS.nl['frontDoor.experimental']));
   });
 
   it('on the Connections page, with the same why in a fold beside the box', async () => {
@@ -437,8 +312,11 @@ describe('the whole-domain option on the Google cards carries the tag', () => {
     expect(label.textContent).toContain(STRINGS.en['frontDoor.experimental']);
     const box = keyBox(/^Service account key/);
     expect(box).toHaveAccessibleName(tagIn(STRINGS.en['frontDoor.experimental']));
-    // The two doors say the same thing about the same option.
-    const why = screen.getByText(STRINGS.en['frontDoor.experimental.wholeDomain.why']);
+    // The key's own line stays on screen, and its why folds with the tag's,
+    // as the wizard drew them until it retired (0153 D5).
+    expect(screen.getByText(STRINGS.en['wizard.serviceAccountKey.width'])).toBeVisible();
+    const why = screen.getByText((text) => text.includes(STRINGS.en['frontDoor.experimental.wholeDomain.why']));
+    expect(why.textContent).toContain(STRINGS.en['wizard.serviceAccountKey.why']);
     expect(why.closest('details'), 'the why is not behind a fold').not.toBeNull();
     // Beside the box, not inside its label: a fold inside the label would be
     // read as part of the box's name.

@@ -3,15 +3,16 @@
  * A CONSENT WINDOW OPENED BY THE PRESS (workplan 0145 T5).
  *
  * A browser lets a page open a window only as the direct result of a press,
- * and only for a short while after it. Both doors that run a consent (the
- * Connections page's panel and the wizard's source step) used to ask our own
+ * and only for a short while after it. Both doors that ran a consent (the
+ * consent panel, which the Accounts page and *Start a migration* share, and
+ * the wizard's source step, retired since: 0153 D5) used to ask our own
  * server for the provider's address first and open the window after that
  * answer arrived. Desktop Chrome still counted the press; Safari on an iPhone
  * is reported not to, and then blocks the window without a word. Nothing
  * checked whether a window opened, so a blocked one looked like a button that
  * did nothing.
  *
- * What is pinned, in both doors, in English and in Dutch:
+ * What is pinned, in the panel, in English and in Dutch:
  *
  * - **The window opens in the press.** `window.open` is called before the
  *   server has answered (`begin` held pending), with no address yet, and the
@@ -24,10 +25,9 @@
  *   (`rel="opener"`), so the ending can still hand the result back. It is a
  *   status, so a screen reader hears it. It goes when the consent lands, when
  *   the door asks again, and when the door is shown again without a new press
- *   (Cancel and *Add a connection*, the *Reconnect* fold closed and opened,
- *   the wizard's card switched away and back, Next and Back), as T4's note
- *   does. A link kept past a card switch would name one provider and open
- *   another's page.
+ *   (Cancel and *Add a connection*, the *Reconnect* fold closed and opened),
+ *   as T4's note does. A link kept past a card switch would name one provider
+ *   and open another's page.
  * - **A window closed before the address arrived** counts as not opened, and
  *   gets the same sentence and link (a departure from §3, recorded in 0145's
  *   Status).
@@ -93,7 +93,6 @@ vi.mock('../services/mapping-service', () => ({
   setupApi: { get: vi.fn(), setStep: vi.fn() },
 }));
 
-import CreateMapping from '../pages/CreateMapping.tsx';
 import Connections from '../pages/Connections.tsx';
 
 type Locale = 'en' | 'nl';
@@ -240,13 +239,6 @@ const DOORS: ReadonlyArray<{ readonly name: string; readonly open: (locale: Loca
     open: async (locale) => {
       wrap(locale, <Connections />, '/connections');
       fireEvent.click(await screen.findByRole('button', { name: words(locale, 'connections.add') }));
-      return pickGmail(locale);
-    },
-  },
-  {
-    name: 'the wizard’s source step',
-    open: async (locale) => {
-      wrap(locale, <CreateMapping />, '/mappings/new');
       return pickGmail(locale);
     },
   },
@@ -547,39 +539,6 @@ describe('a consent window opened by the press (0145 T5)', () => {
           expect(googleAuthorize).toHaveBeenCalledTimes(1);
         });
 
-        it('the wizard: switching the card away and back takes the old link away', async () => {
-          wrap(locale, <CreateMapping />, '/mappings/new');
-          await pressBlocked(locale, await pickGmail(locale));
-
-          // Away to another provider's consent first: Google's address under
-          // Dropbox's name is the harm, a link that opens the wrong company.
-          fireEvent.click(screen.getByRole('button', { name: /^Dropbox/ }));
-          await waitFor(() => expect(blockedLine(locale)).toBeUndefined());
-          noConsentLink();
-          fireEvent.click(screen.getByRole('button', { name: /^IMAP/ }));
-          fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
-          await liveConnect(locale);
-          expect(blockedLine(locale), 'the old link came back with nothing pressed').toBeUndefined();
-          noConsentLink();
-          expect(googleAuthorize).toHaveBeenCalledTimes(1);
-        });
-
-        it('the wizard: Next and Back take the old link away', async () => {
-          wrap(locale, <CreateMapping />, '/mappings/new');
-          await pressBlocked(locale, await pickGmail(locale));
-
-          // The token pasted by hand instead, as somebody holding one may.
-          fireEvent.change(screen.getByPlaceholderText('1//…'), { target: { value: '1//pasted' } });
-          const next = screen.getByRole('button', { name: words(locale, 'wizard.next') });
-          await waitFor(() => expect(next).toBeEnabled());
-          fireEvent.click(next);
-          await waitFor(() => expect(blockedLine(locale)).toBeUndefined());
-          fireEvent.click(screen.getByRole('button', { name: words(locale, 'wizard.back') }));
-          await liveConnect(locale);
-          expect(blockedLine(locale), 'the old link came back with nothing pressed').toBeUndefined();
-          noConsentLink();
-          expect(googleAuthorize).toHaveBeenCalledTimes(1);
-        });
       });
     });
   }

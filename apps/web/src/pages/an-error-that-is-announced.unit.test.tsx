@@ -11,12 +11,13 @@
  * screens already carry `role="alert"` (`Login.tsx`, `RequestAccess.tsx`,
  * `ReportProblem.tsx` and more); these did not.
  *
- * What is pinned, in English and in Dutch, on the real pages: the wizard, and
- * the Connections page with both of its doors (*Add a connection* and a row's
- * *Reconnect*).
+ * What is pinned, in English and in Dutch, on the real page: the Connections
+ * page with both of its doors (*Add a connection* and a row's *Reconnect*),
+ * whose consent panel *Start a migration* draws too. The wizard was pinned
+ * here until it retired (0153 D5); a refused set-up on *Start a migration* is
+ * an alert in `StartMigration.unit.test.tsx`.
  *
- * - **A refusal is an alert.** The wizard's refused create (the generic
- *   failure and the duplicate), and a refused consent in every door.
+ * - **A refusal is an alert.** A refused consent in every door.
  * - **A received consent is a status, not an alert.** It is good news, said
  *   politely (0145 §3 T4).
  * - **One alert per failure** (`Login.tsx`:73): `getByRole` finds exactly one.
@@ -32,15 +33,10 @@
  * - **An old note does not come back.** A line put on the page with its text
  *   already in it is announced as if it had just happened. So when a door is
  *   shown again without a new press (Cancel and *Add a connection*, the
- *   *Reconnect* fold closed and opened, the wizard's card switched away and
- *   back, Next and Back), the last answer is gone.
+ *   *Reconnect* fold closed and opened), the last answer is gone.
  *
  * The grant and view pages' refusals and waiting lines go in with T6, which
  * rewrites those pages; their cases join this file then.
- *
- * The wizard walk below is local. 0145 T3 (a) moves `walkToReview` out of
- * `CreateMapping.unit.test.tsx` into a shared file; once both have landed,
- * this one should use that.
  */
 
 import React from 'react';
@@ -83,7 +79,6 @@ vi.mock('../services/mapping-service', () => ({
   setupApi: { get: vi.fn(), setStep: vi.fn() },
 }));
 
-import CreateMapping from './CreateMapping.tsx';
 import Connections from './Connections.tsx';
 
 type Locale = 'en' | 'nl';
@@ -177,7 +172,6 @@ function wrap(locale: Locale, node: React.ReactNode, path: string, route: string
     </LocaleProvider>,
   );
 }
-const wizard = (locale: Locale) => wrap(locale, <CreateMapping />, '/mappings/new', '/mappings/new');
 const connectionsPage = (locale: Locale) => wrap(locale, <Connections />, '/connections', '/connections');
 
 /** The Connect button once it is live: the deployment carries Google's application. */
@@ -187,7 +181,7 @@ const liveConnect = async (locale: Locale): Promise<HTMLElement> => {
   return connect;
 };
 
-/** Pick Gmail and type the address, in either door that has cards. */
+/** Pick Gmail and type the address. */
 const pickGmail = async (locale: Locale): Promise<HTMLElement> => {
   fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
   fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
@@ -216,37 +210,6 @@ const reconnect = async (locale: Locale): Promise<void> => {
   fireEvent.click(await screen.findByRole('button', { name: words(locale, 'connections.reconnect') }));
 };
 
-/** Fill only what each wizard step renders, and arrive at the review step. */
-const walkToReview = (locale: Locale) => {
-  const next = () => screen.getByRole('button', { name: words(locale, 'wizard.next') });
-  // Source: an IMAP account, the wizard's first card.
-  fireEvent.change(screen.getByPlaceholderText('imap.example.com'), {
-    target: { value: 'mail.old-provider.example' },
-  });
-  fireEvent.change(screen.getAllByPlaceholderText('someone@example.com')[0]!, {
-    target: { value: 'source@acme.example' },
-  });
-  fireEvent.change(document.querySelectorAll('input[type="password"]')[0]!, {
-    target: { value: 'source-password' },
-  });
-  fireEvent.click(next());
-  // Target: JMAP, preselected.
-  fireEvent.change(screen.getByLabelText(new RegExp(`^${words(locale, 'wizard.host')}`)), {
-    target: { value: 'stalwart.acme.example' },
-  });
-  fireEvent.change(screen.getAllByPlaceholderText('someone@example.com')[0]!, {
-    target: { value: 'target@acme.example' },
-  });
-  fireEvent.change(document.querySelectorAll('input[type="password"]')[0]!, {
-    target: { value: 'target-password' },
-  });
-  fireEvent.click(next());
-  // The migration: a name; email is preselected.
-  fireEvent.change(screen.getByPlaceholderText(words(locale, 'wizard.migrationName.placeholder')), { target: { value: 'Acme mail' } });
-  fireEvent.click(next());
-  return screen.getByRole('button', { name: words(locale, 'wizard.create') });
-};
-
 beforeEach(() => {
   vi.clearAllMocks();
   globalThis.sessionStorage.clear();
@@ -263,166 +226,6 @@ afterEach(() => {
 describe('an error that is announced (0145 T4)', () => {
   for (const locale of LOCALES) {
     describe(locale, () => {
-      it('the wizard: a refused create is one alert, with the frame and the server’s words', async () => {
-        create.mockRejectedValue(
-          refusal(400, { error: 'Validation error', message: 'The server refused this in its own words.' }),
-        );
-        wizard(locale);
-        const createButton = walkToReview(locale);
-        fireEvent.click(createButton);
-        await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
-        await screen.findByText('The server refused this in its own words.');
-        const alert = theAlert('The server refused this in its own words.');
-        expect(alert).toHaveTextContent(words(locale, 'createMapping.createFailed'));
-
-        // Pressed again and refused again. The alert leaves the page while the
-        // second attempt is on its way (held here, as the network holds it),
-        // so the second refusal is a new alert and is heard again.
-        let refuseAgain: (err: unknown) => void = () => {};
-        create.mockReturnValueOnce(new Promise((_, reject) => (refuseAgain = reject)));
-        fireEvent.click(createButton);
-        await waitFor(() => expect(create).toHaveBeenCalledTimes(2));
-        await waitFor(() => expect(alert).not.toBeInTheDocument());
-        expect(screen.queryByRole('alert'), 'an alert while the second attempt is pending').toBeNull();
-        await act(async () => {
-          refuseAgain(
-            refusal(400, { error: 'Validation error', message: 'The server refused this in its own words.' }),
-          );
-        });
-        await screen.findByText('The server refused this in its own words.');
-        expect(theAlert('The server refused this in its own words.')).not.toBe(alert);
-      });
-
-      it('the wizard: a refused create that is a duplicate is one alert too', async () => {
-        create.mockRejectedValue(
-          refusal(409, {
-            error: 'duplicate_mapping',
-            existingMappingId: 'm-1',
-            existingMappingName: 'Acme mail',
-          }),
-        );
-        wizard(locale);
-        fireEvent.click(walkToReview(locale));
-        await screen.findByText(words(locale, 'createMapping.duplicate.lead'));
-        const alert = theAlert(words(locale, 'createMapping.duplicate.lead'));
-        expect(alert).toHaveTextContent('Acme mail');
-      });
-
-      it('the wizard: a refused consent is one alert; a consent that lands is a status, in a new element', async () => {
-        googleAuthorize.mockRejectedValue(consentRefused());
-        // A landed consent saves and tests the connection at once, and a saved
-        // connection takes the consent block (and this line) off the step. The
-        // line says it is saving and testing, so it is read while that runs:
-        // held pending here.
-        add.mockReturnValue(new Promise(() => {}));
-        wizard(locale);
-        const connect = await pickGmail(locale);
-        expect(screen.queryByRole('alert'), 'an alert before anything was pressed').toBeNull();
-
-        fireEvent.click(connect);
-        await screen.findByText(REFUSED);
-        const refused = theAlert(REFUSED);
-
-        await consentLands();
-        const received = words(locale, 'wizard.consent.received');
-        await screen.findByText(received);
-        const status = theStatus(received);
-        expect(screen.queryByRole('alert'), 'good news announced as an alert').toBeNull();
-        expect(refused, 'the refusal’s element changed its role in place').not.toBeInTheDocument();
-        expect(status).not.toBe(refused);
-      });
-
-      it('the wizard: a second refusal after a first is announced again, as a new alert', async () => {
-        // The wizard has its own state and its own ask, apart from the
-        // Connections page's. Pressed twice and refused twice: the line leaves
-        // the page while the second ask is on its way.
-        googleAuthorize.mockRejectedValue(consentRefused());
-        wizard(locale);
-        const connect = await pickGmail(locale);
-        fireEvent.click(connect);
-        await screen.findByText(REFUSED);
-        const first = theAlert(REFUSED);
-
-        let refuseAgain: (err: unknown) => void = () => {};
-        googleAuthorize.mockReturnValueOnce(new Promise((_, reject) => (refuseAgain = reject)));
-        fireEvent.click(connect);
-        await waitFor(() => expect(googleAuthorize).toHaveBeenCalledTimes(2));
-        await waitFor(() => expect(first).not.toBeInTheDocument());
-        expect(screen.queryByRole('alert'), 'an alert while the second ask is pending').toBeNull();
-        await act(async () => {
-          refuseAgain(consentRefused());
-        });
-        await screen.findByText(REFUSED);
-        expect(theAlert(REFUSED)).not.toBe(first);
-      });
-
-      it('the wizard: switching the card away and back brings back neither an old refusal nor an old received line', async () => {
-        googleAuthorize.mockRejectedValue(consentRefused());
-        add.mockReturnValue(new Promise(() => {}));
-        wizard(locale);
-        fireEvent.click(await pickGmail(locale));
-        await screen.findByText(REFUSED);
-        theAlert(REFUSED);
-
-        fireEvent.click(screen.getByRole('button', { name: /^IMAP/ }));
-        await waitFor(() => expect(screen.queryByText(REFUSED)).toBeNull());
-        fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
-        await liveConnect(locale);
-        expect(screen.queryByRole('alert'), 'the old refusal came back as a new alert, with nothing pressed').toBeNull();
-        expect(googleAuthorize).toHaveBeenCalledTimes(1);
-
-        const received = words(locale, 'wizard.consent.received');
-        await consentLands();
-        await screen.findByText(received);
-        theStatus(received);
-        fireEvent.click(screen.getByRole('button', { name: /^IMAP/ }));
-        await waitFor(() => expect(screen.queryByText(received)).toBeNull());
-        fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
-        await liveConnect(locale);
-        expect(aStatus(received), 'the old received line came back as a new status').toBeUndefined();
-      });
-
-      it('the wizard: a consent that landed and was saved, then “a new connection” picked, does not bring back the received line', async () => {
-        // A landed consent saves the connection, and the saved row is picked,
-        // which takes the consent block off the step. Picking "a new
-        // connection" draws the block again, with nothing pressed.
-        const saved: ConnectionSummary = { ...gmailRow, id: 'conn-google', status: 'connected' };
-        add.mockImplementation(async () => {
-          list.mockResolvedValue([saved]);
-          return { ok: true, id: saved.id, detail: 'reachable' };
-        });
-        wizard(locale);
-        await pickGmail(locale);
-        const received = words(locale, 'wizard.consent.received');
-        await consentLands();
-        await waitFor(() => expect(add).toHaveBeenCalledTimes(1));
-        const picker = await screen.findByLabelText(words(locale, 'wizard.reuseSource'));
-        await waitFor(() => expect(picker).toHaveValue(saved.id));
-        expect(screen.queryByText(received), 'the consent block is still on the step').toBeNull();
-
-        fireEvent.change(picker, { target: { value: '' } });
-        await liveConnect(locale);
-        expect(aStatus(received), 'the old received line came back as a new status').toBeUndefined();
-      });
-
-      it('the wizard: Next and Back do not bring back an old refusal', async () => {
-        googleAuthorize.mockRejectedValue(consentRefused());
-        wizard(locale);
-        fireEvent.click(await pickGmail(locale));
-        await screen.findByText(REFUSED);
-        theAlert(REFUSED);
-
-        // The token pasted by hand instead, as somebody holding one may.
-        fireEvent.change(screen.getByPlaceholderText('1//…'), { target: { value: '1//pasted' } });
-        const next = screen.getByRole('button', { name: words(locale, 'wizard.next') });
-        await waitFor(() => expect(next).toBeEnabled());
-        fireEvent.click(next);
-        await waitFor(() => expect(screen.queryByText(REFUSED)).toBeNull());
-        fireEvent.click(screen.getByRole('button', { name: words(locale, 'wizard.back') }));
-        await liveConnect(locale);
-        expect(screen.queryByRole('alert'), 'the old refusal came back as a new alert, with nothing pressed').toBeNull();
-      });
-
       it('Add a connection: a refused consent is one alert; a consent that lands is a status, in a new element', async () => {
         googleAuthorize.mockRejectedValue(consentRefused());
         connectionsPage(locale);

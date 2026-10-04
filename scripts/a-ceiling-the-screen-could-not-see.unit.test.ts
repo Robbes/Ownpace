@@ -48,6 +48,13 @@
  * meant reading a route's source. Computed, returned, never rendered: the same
  * shape as the ceiling above, one field instead of one env var.
  *
+ * WHERE IT IS PINNED NOW. The wizard held both halves until it retired
+ * (0153 D5). *Start a migration* reads the deployment's answer for what
+ * each Google card carries (`StartMigration.tsx`, `start-plan.ts`), and the
+ * consent both doors draw (`components/ProviderConsent.tsx`) reads it for
+ * what it asks Google for, and keeps and shows the redirect address. The
+ * properties below are the wizard's, asked of the files that hold them now.
+ *
  * ROOT-LEVEL, SO VITEST AND NODE BUILTINS ONLY. A test in `scripts/` cannot
  * import `@openmig/shared` — the workspace aliases are not a substitute for a
  * declared dependency (AGENTS.md). The BEHAVIOUR halves live beside their code:
@@ -65,7 +72,9 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string): string => readFileSync(join(REPO_ROOT, rel), 'utf8');
 
 const ROUTE = 'apps/api/src/routes/provider-accounts.ts';
-const WIZARD = 'apps/web/src/pages/CreateMapping.tsx';
+const FLOW = 'apps/web/src/pages/StartMigration.tsx';
+const PLAN = 'apps/web/src/services/start-plan.ts';
+const CONSENT = 'apps/web/src/components/ProviderConsent.tsx';
 
 describe('the deployment answers once, and the screen asks', () => {
   it('the API mounts a route that says what an account may serve here', () => {
@@ -84,30 +93,28 @@ describe('the deployment answers once, and the screen asks', () => {
     ).toMatch(/providerAccountFacts[\s\S]*providerAccountDomains\(kind, env\)/);
   });
 
-  it('the wizard asks it rather than compiling the answer in', () => {
-    const wizard = read(WIZARD);
-    expect(wizard, 'the wizard does not fetch the deployment’s answer').toContain(
-      'providerAccountsApi',
+  it('Start a migration asks it rather than compiling the answer in', () => {
+    const flow = read(FLOW);
+    expect(flow, 'the flow does not fetch the deployment’s answer').toContain('providerAccountsApi');
+    expect(flow, 'the flow fetches the answer and then does not use it').toContain(
+      'facts.google = providerAccounts.google.domains',
     );
-    // The three places that decide what a person may tick, all reading the
-    // fetched list. A missed one is not a crash — it is a screen that offers
-    // what the next screen refuses.
-    expect(wizard, 'the domain step still uses the compiled-in ceiling').toContain(
-      'sourceTypeDomains(formData.sourceType, googleAccountDomains)',
+    // The two places that decide what a sign-in carries, both reading the
+    // fetched list: which Google card carries a ticked type, and which faces
+    // the consent asks Google for. A missed one is not a crash — it is a
+    // screen that offers what the next screen refuses.
+    expect(read(PLAN), 'which card carries a type is decided by the compiled-in ceiling').toContain(
+      '(served.google ?? PROVIDER_ACCOUNT_DOMAINS.google).includes(type)',
     );
-    expect(wizard, 'the account card still ticks the compiled-in faces').toContain(
-      'domains: [...googleAccountDomains]',
+    expect(read(CONSENT), 'the consent asks for the compiled-in faces').toContain(
+      'providerAccounts?.[type]?.domains ?? PROVIDER_ACCOUNT_DOMAINS[type as ProviderAccountKind]',
     );
-    expect(
-      (wizard.match(/sourceDomainRefusal\([^)]*googleAccountDomains/g) ?? []).length,
-      'a sourceDomainRefusal call is deciding without the deployment’s answer',
-    ).toBe(2);
   });
 
   it('has no VITE_ twin of the declaration', () => {
     // The fix that would have compiled, and the reason it was not taken. One
     // fact, one place: the variable is the API's, and the client asks.
-    for (const rel of [WIZARD, 'apps/web/src/services/mapping-service.ts']) {
+    for (const rel of [FLOW, PLAN, CONSENT, 'apps/web/src/services/mapping-service.ts']) {
       expect(
         read(rel),
         `${rel} reads a VITE_ mirror of the scope class — two settable copies of one fact`,
@@ -120,7 +127,7 @@ describe('the deployment answers once, and the screen asks', () => {
   });
 
   it('the create door refuses against the same answer the screen offered', () => {
-    // The other half of one contract (ADR-0026): the wizard constrains the
+    // The other half of one contract (ADR-0026): the screen constrains the
     // choice as it is made and the API refuses it verbatim for any other
     // client. A create door still reading the constant would refuse exactly
     // the ticks the screen had just offered.
@@ -132,11 +139,12 @@ describe('the deployment answers once, and the screen asks', () => {
     // Every failure falls back to the answer that cannot over-ask: an
     // unreachable route, an unrecognised shape, a request in flight. Written
     // out here because it is the property that makes the fetch safe to add at
-    // all — a wizard that offered four ticks while the request was pending
-    // would refuse them at the create door a minute later.
-    expect(read(WIZARD)).toContain(
-      'providerAccounts?.google?.domains ?? PROVIDER_ACCOUNT_DOMAINS.google',
-    );
+    // all — a screen that offered four faces while the request was pending
+    // would be refused them at the create door a minute later. The flow's
+    // facts stay empty until the answer is in, so the plan reads the default.
+    expect(read(FLOW)).toContain('if (providerAccounts?.google) facts.google =');
+    expect(read(PLAN)).toContain('served.google ?? PROVIDER_ACCOUNT_DOMAINS.google');
+    expect(read(CONSENT)).toContain('?? PROVIDER_ACCOUNT_DOMAINS[type as ProviderAccountKind]');
   });
 });
 
@@ -146,7 +154,7 @@ describe('the second fact the screen could not see (ADR-0041, owner decision 202
   // the wizard went on demanding both. Same rule; since Connect with Dropbox
   // (2026-09-02) the fact has a route of its own, one answer per provider,
   // because Dropbox has no account kind for its answer to ride on.
-  it('the answer carries where each application comes from, and the wizard reads it', () => {
+  it('the answer carries where each application comes from, and the consent reads it', () => {
     // The facts were two inline ternaries until workplan 0114 made them a
     // probe table over `GRANT_PROVIDERS` — a hand-written object per provider
     // is the fan-out family in its quietest form, and Microsoft's absence
@@ -176,16 +184,16 @@ describe('the second fact the screen could not see (ADR-0041, owner decision 202
     // shared module instead of a third copy — so the file to grep for the
     // page's half is `components/ProviderConsent.tsx`, which the add form and
     // Replace credentials both import. The PROPERTY is unchanged and is what
-    // this asserts; only the file holding it moved.
-    for (const rel of [WIZARD, 'apps/web/src/components/ProviderConsent.tsx']) {
+    // this asserts; only the file holding it moved. ONE READER since the
+    // wizard's copy retired with it (0153 D5): both doors draw this module.
+    for (const rel of [CONSENT]) {
       expect(read(rel), `${rel} does not ask which applications the deployment carries`).toContain(
         'providerClientsApi',
       );
       // The SHAPE, not a local variable's name: indexed by whatever the file
       // calls the provider its descriptor named, and compared against
-      // 'deployment'. The wizard says `grantProvider` and the shared module
-      // says `provider`; pinning either spelling here would fail the next
-      // rename while the property held.
+      // 'deployment'. The module says `provider`; pinning that spelling here
+      // would fail the next rename while the property held.
       expect(
         read(rel),
         `${rel} no longer indexes the answer by provider, or no longer compares against ` +
@@ -203,51 +211,49 @@ describe('the second fact the screen could not see (ADR-0041, owner decision 202
 
   it('the pair travels whole or not at all — never as empty strings', () => {
     // The authorize routes' schemas are `.min(1).optional()`: an empty string
-    // is refused, an absent key means "the deployment's". A wizard that sent
+    // is refused, an absent key means "the deployment's". A door that sent
     // `clientId: ''` would be refused by the very route that no longer needs
-    // the value. One pair for both providers' consents.
-    const wizard = read(WIZARD);
-    const consent = wizard.slice(wizard.indexOf('const startConsent'));
+    // the value. One pair for every provider's consent.
+    const module = read(CONSENT);
+    const consent = module.slice(module.indexOf('const beginConsent'));
     // The page's language rides beside the pair since workplan 0145 T6, so
     // the ending after the provider is in it; the pair itself is still
     // spread whole, never rebuilt field by field.
-    expect(consent).toContain('mappingApi.dropboxAuthorize({ ...ownClientPair, locale })');
-    expect(consent).toContain('...ownClientPair');
-    expect(consent.slice(0, consent.indexOf('mappingApi.googleAuthorize('))).not.toContain(
-      'clientId: formData.sourceClientId,',
-    );
+    expect(consent).toContain('mappingApi.dropboxAuthorize({ ...ownPair, locale })');
+    expect(consent).toContain('...ownPair');
+    expect(consent.slice(0, consent.indexOf('const begin ='))).not.toMatch(/clientId:/);
   });
 });
 
 describe('a fact the server computed and the screen must show', () => {
-  it('the wizard KEEPS the redirect address, instead of destructuring past it', () => {
+  it('the consent KEEPS the redirect address, instead of destructuring past it', () => {
     // `const { url } = await mappingApi.googleAuthorize(…)` is what was there,
     // and it is what a later edit would most naturally write back — the URL is
     // the thing you obviously need, and the other field is the one you need
     // only when it has already gone wrong.
-    const wizard = read(WIZARD);
+    const consent = read(CONSENT);
     // EVERY provider's answer lands in the same destructuring. This pinned the
     // `dropbox ? … : google…` chain verbatim until workplan 0114 turned it
     // into a per-provider table — a two-way condition meeting a third provider
     // takes its else branch and asks the wrong company. So what is pinned now
     // is the PROPERTY rather than the shape: one destructuring, naming both
     // fields, over whatever the table returned.
-    expect(wizard, 'the authorize answer is being destructured without its redirect').toMatch(
+    expect(consent, 'the authorize answer is being destructured without its redirect').toMatch(
       /const \{ url, redirectUri \} = await begin\(\)/,
     );
-    expect(wizard, 'kept but never stored').toContain('setConsentRedirect(');
+    expect(consent, 'kept but never stored').toContain('setRedirect(');
     // And every row of that table must be able to answer with one: a provider
     // whose ask drops `redirectUri` re-creates the original defect for itself
     // alone, which is harder to notice than the version that broke for
     // everybody.
-    expect(wizard).toMatch(/beginConsent: Record<string, \(\) => Promise<\{ url: string; redirectUri\?: string \}>>/);
+    expect(consent).toMatch(/beginConsent: Record<string, \(\) => Promise<\{ url: string; redirectUri\?: string \}>>/);
   });
 
   it('and RENDERS it, because a value in state nobody can read is the same defect', () => {
-    const wizard = read(WIZARD);
-    // In the provider's own words: `ps` reads `wizard.<provider>.redirectUri`.
-    expect(wizard).toContain("ps('redirectUri')");
-    expect(wizard, 'the address itself, not only the label').toContain('{consentRedirect}');
+    const consent = read(CONSENT);
+    // In the provider's own words: `words` reads `wizard.<provider>.redirectUri`.
+    expect(consent).toContain("words('redirectUri')");
+    expect(consent, 'the address itself, not only the label').toContain('{consent.redirect}');
   });
 
   it('the sentence beside it tells somebody what to DO with the address', () => {

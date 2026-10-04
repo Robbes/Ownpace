@@ -12,8 +12,9 @@
  *  2. it offers no save until something changed, and sends only the schedule;
  *  3. a refusal is shown as a refusal and a failure as a failure, never as
  *     "Saved" (hard rule 9);
- *  4. it offers what the wizard offers, through the wizard's own control, and
- *     every cadence offered is one the route accepts;
+ *  4. it offers what the wizard offered, through the control the wizard
+ *     drew (it retired since: 0153 D5), and every cadence offered is one the
+ *     route accepts;
  *  5. each cadence's words say how often it runs, in both languages;
  *  6. it is a fold, closed, in a family's words (0153 T6 (b)), that says the
  *     cadence in force without being opened.
@@ -132,14 +133,14 @@ describe('the press', () => {
 });
 
 describe('what is offered', () => {
-  it('is the wizard’s four, through the wizard’s own control', () => {
+  it('is the four the wizard offered, through the one control', () => {
     expect(SCHEDULE_PRESETS.map((p) => p.value)).toEqual(['0 * * * *', '0 2 * * *', '0 */6 * * *', '*/15 * * * *']);
-    const wizard = readFileSync(join(import.meta.dirname, '../pages/CreateMapping.tsx'), 'utf-8');
-    expect(wizard).toContain('<ScheduleChooser');
-    // A second list of labelled cadences in the wizard is the drift this
-    // control ends. (Its `'0 2 * * *'` fallback, sent when none is picked, is
-    // not an offer, and stays.)
-    expect(wizard).not.toMatch(/labelKey: 'wizard\.schedule\./);
+    // The panel draws the shared control, and no list of cadences of its own:
+    // a second list is the drift the control ended. The wizard drew it too,
+    // until it retired (0153 D5).
+    const panel = readFileSync(join(import.meta.dirname, 'SchedulePanel.tsx'), 'utf-8');
+    expect(panel).toContain('<ScheduleChooser');
+    expect(panel).not.toMatch(/labelKey: 'wizard\.schedule\./);
   });
 
   it('is every one a cadence the route accepts', () => {
@@ -167,9 +168,6 @@ describe('what is offered', () => {
       expect(why, locale).not.toMatch(/50 minutes a day|50 minuten per dag/);
       expect(why, locale).toMatch(/15 minut/);
     }
-    // The wizard, where the schedule is first chosen, says the same.
-    expect(EN['wizard.scheduleHint']).toContain('does not wait for this schedule');
-    expect(NL['wizard.scheduleHint']).toContain('niet op dit schema wacht');
   });
 });
 

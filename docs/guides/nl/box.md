@@ -36,11 +36,11 @@ De derde waarde is het **numerieke** gebruikers-ID van het account dat u migreer
 
 ### 4. Vul het in {#box}
 
-Kies Box in de wizard. Alles komt in de stap Bron: het adres van het account onder **Gebruikersnaam**, het getal uit stap 3 onder **Box-gebruikers-ID (numeriek)**, en de twee waarden uit stap 1 onder **Client-ID (applicatie-ID)** en **Clientgeheim**; het geheim wordt versleuteld bewaard. De knop **Verbindingen testen en bewaren** haalt één keer een lijst op, alleen lezend, via precies wat een ronde zou opbouwen.
+Vink bij **Welk account verlaat u?** **Box** aan. Bij **Uw accounts verbinden** vraagt het formulier alles: het adres van het account onder **Gebruikersnaam**, het getal uit stap 3 onder **Box-gebruikers-ID (numeriek)**, en de twee waarden uit stap 1 onder **Client-ID (applicatie-ID)** en **Clientgeheim**; het geheim wordt versleuteld bewaard. **Aanmelding controleren** haalt één keer een lijst op, alleen lezend, via precies wat een ronde zou opbouwen.
 
-Laat u het veld **ID van de hoofdmap** leeg, dan betekent dat `0`: de hoofdmap van het account ("All Files"); een map-ID beperkt de migratie tot die map.
+Wilt u één map verhuizen in plaats van het hele account, kies dan **Alleen één map**, onder **Bestanden** bij **Wat wilt u migreren?**. Is het account verbonden, plak dan het adres van de map uit Box: het getal aan het eind is de map-ID. De mappen van Box worden daar niet opgesomd.
 
-**Bij Migratie starten** kiest u **Alleen één map**, onder **Bestanden** bij *Wat wilt u migreren?*. Is het account verbonden, plak dan het adres van de map uit Box: het getal aan het eind is de map-ID. De mappen van Box worden daar niet opgesomd.
+Op de pagina **Accounts** heeft het formulier van Box ook een veld **ID van de hoofdmap**. Laat u het leeg, dan betekent dat `0`: de hoofdmap van het account ("All Files"); een map-ID beperkt elke migratie van dat account tot die map.
 
 Een map waarvoor het account is uitgenodigd (een **gedeelde samenwerkingsmap**) staat in de eigen boom van het account en verhuist als gewone inhoud; laat een aparte migratie bij de map-ID beginnen om alleen die map te migreren.
 

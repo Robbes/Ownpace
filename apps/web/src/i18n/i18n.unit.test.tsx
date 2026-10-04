@@ -52,6 +52,18 @@ describe('the dictionary', () => {
     expect(saying, 'Dutch strings that still say a form of verhuizen').toEqual([]);
   });
 
+  it('sends nobody to the wizard, in either language: it retired (0153 D5)', () => {
+    // The setup checklist still said "complete the wizard" the day the wizard
+    // went. Its keys keep the `wizard.` prefix the descriptor named them by;
+    // what a person reads names *Start a migration*, the form or Accounts.
+    const saying = LOCALES.flatMap((locale) =>
+      Object.entries(STRINGS[locale])
+        .filter(([, value]) => /wizard/i.test(value))
+        .map(([key]) => `${locale}:${key}`),
+    );
+    expect(saying, 'strings that still name the wizard').toEqual([]);
+  });
+
   it('the shared destructive-path warning exists in both languages and they differ', () => {
     expect(APPLY_FLAG_WARNING_NL.trim()).not.toBe('');
     expect(APPLY_FLAG_WARNING_NL).not.toBe(APPLY_FLAG_WARNING);
