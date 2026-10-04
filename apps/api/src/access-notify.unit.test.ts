@@ -203,6 +203,9 @@ describe('the grant mail says alpha when the deployment does', () => {
       kind: 'access_granted',
       ...GRANTED,
       alpha: true,
+      // Where the conditions are, per language (0139 T4): what the mail
+      // links is `a-grant-mail-that-links-the-conditions.unit.test.ts`.
+      alphaConditions: { en: 'https://www.ownpace.eu/alpha.html', nl: 'https://www.ownpace.eu/nl/alpha.html' },
     });
     // Unmarked, not `alpha: false`: outside the alpha the event is exactly what
     // it was before there was an alpha.

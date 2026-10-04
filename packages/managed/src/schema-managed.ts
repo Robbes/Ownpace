@@ -463,6 +463,8 @@ export const dataAllowance = pgTable(
     priceEur: integer('price_eur').notNull(),
     consentedBy: text('consented_by').notNull(),
     consentedAt: timestamp('consented_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Which limit asked for the yes (managed 0039): the data ceiling, or a start past the agreed tier's paths. */
+    axis: text('axis').notNull().default('data').$type<'data' | 'paths'>(),
   },
   (t) => [index('data_allowance_tenant_idx').on(t.tenantId, t.consentedAt)],
 );

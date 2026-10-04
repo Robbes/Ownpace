@@ -49,6 +49,12 @@
  * in the fold among the service's lines, or, when those cannot be had, in the
  * reader's language. The server takes only its own keys, in their shapes
  * (`a-report-that-carries-what-the-browser-knows.unit.test.tsx`).
+ *
+ * Under what policy (workplan 0139 T4): in the same box, beside where the
+ * report goes and what goes with it, a line that the privacy policy says why
+ * a report is kept and for how long (privacy §4.5 and §9), and the policy
+ * itself, linked in the reader's language. It opens in a new tab, so a
+ * description and a screenshot already given are still here (`LegalLinks`).
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -62,6 +68,7 @@ import { useAuthStore } from '../stores/auth-store.ts';
 import { serverMessage } from '../services/api.ts';
 import { describeBuild } from '../services/build-identity.ts';
 import { RECENT_ERROR_MS } from '../services/recent-errors.ts';
+import LegalLinks from '../components/LegalLinks.tsx';
 import {
   browserFacts,
   fetchReportingAvailable,
@@ -421,6 +428,9 @@ const ReportProblem: React.FC = () => {
         <div className="rounded-md bg-gray-50 border border-gray-200 p-4 text-sm text-gray-700 space-y-2">
           <p>{goesTo}</p>
           {email && <p>{t('report.replyTo', { email })}</p>}
+          <p>
+            {t('report.privacy')} <LegalLinks pages={['privacy']} />
+          </p>
           <details>
             <summary className="cursor-pointer select-none font-medium text-gray-900">{t('report.facts')}</summary>
             {preview.data ? (
