@@ -38,7 +38,12 @@ export const COPY = {
       calculator: 'Estimate',
       privacy: 'Privacy',
       terms: 'Terms',
+      signIn: 'Sign in',
     },
+    // The header's name for screen readers, and the button that opens it on a
+    // phone (workplan 0152 T2).
+    navName: 'Main',
+    menu: 'Menu',
     files: { home: 'index.html', how: 'how-it-works.html', pricing: 'pricing.html', calculator: 'estimate.html', privacy: 'privacy.html', terms: 'terms.html', alpha: 'alpha.html', guide: 'alpha-guide.html' },
     skip: 'Skip to content',
     footerTag: 'move your own data, at your own pace.',
@@ -64,7 +69,9 @@ export const COPY = {
     ctaOrder: 'Request access',
     ctaPricing: 'See what it costs',
     ctaAllTiers: 'All five tiers, in full',
-    ctaHow: 'How a migration works',
+    // The calculator's button, under the tier cards and in the home page's
+    // What it costs (workplan 0152 T6 (c)): the header no longer lists it.
+    ctaEstimate: 'Work out what yours costs',
     // The first tier is free (ADR-0014, 2026-09-24): "From €0" would read as a
     // price that could be billed, so the line says what free covers instead.
     heroFree: (name, data) =>
@@ -209,7 +216,11 @@ export const COPY = {
       calculator: 'Schatting',
       privacy: 'Privacy',
       terms: 'Voorwaarden',
+      // The app's own word on its sign-in page.
+      signIn: 'Aanmelden',
     },
+    navName: 'Hoofdmenu',
+    menu: 'Menu',
     files: { home: 'index.html', how: 'hoe-het-werkt.html', pricing: 'prijzen.html', calculator: 'schatting.html', privacy: 'privacy.html', terms: 'voorwaarden.html', alpha: 'alpha.html', guide: 'alpha-handleiding.html' },
     skip: 'Naar de inhoud',
     footerTag: 'neem uw gegevens mee, in uw eigen tempo.',
@@ -230,7 +241,7 @@ export const COPY = {
     ctaOrder: 'Toegang aanvragen',
     ctaPricing: 'Bekijk wat het kost',
     ctaAllTiers: 'Alle vijf de pakketten, volledig',
-    ctaHow: 'Hoe een migratie verloopt',
+    ctaEstimate: 'Reken uit wat het u kost',
     heroFree: (name, data) =>
       `${name}: één migratie tegelijk, tot ${data}. Alle prijzen staan er volledig op — geen offerte, geen verkoopgesprek.`,
     whereTitle: 'Waar naartoe',
