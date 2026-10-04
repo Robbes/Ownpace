@@ -730,6 +730,8 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
         doesNotMigrate: [],
       },
       [`POST /api/migrations/${NEW}/start`]: { id: NEW, status: 'active' },
+      // Start asks whether this start passes the tier's data ceiling (0109 T6); this one fits.
+      'POST /api/billing/start-forecast': { forecast: null },
     };
     Object.assign(FIXTURES, added);
     const missesBefore = apiMisses.length;
