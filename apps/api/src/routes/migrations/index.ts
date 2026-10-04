@@ -13,7 +13,25 @@ import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth.ts'
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { recordMappingStatusChange } from './mapping-status-audit.ts';
 import { readsAPersonsGrant } from './whose-data.ts';
-import { activateAddedPath, endOrKeepDataType, movePathsWithMapping, stopOrResumeDataType } from './path-lifecycle-wiring.ts';
+import {
+  PathsNeedAYes,
+  activateAddedPath,
+  endOrKeepDataType,
+  movePathsWithMapping,
+  pathsNeedAYesBody,
+  stopOrResumeDataType,
+} from './path-lifecycle-wiring.ts';
+
+/**
+ * A start past the agreed tier's paths, answered as the refusal it is (workplan
+ * 0109 T6): 409 with the numbers and the tier that runs them, never a 500.
+ * Every door that takes slots asks this first in its catch.
+ */
+function refusedPastTheTier(res: Response, error: unknown): boolean {
+  if (!(error instanceof PathsNeedAYes)) return false;
+  res.status(409).json(pathsNeedAYesBody(error));
+  return true;
+}
 import { eq, and, desc, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import {
@@ -2684,6 +2702,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       updatedAt: created.updatedAt.toISOString(),
     });
   } catch (error) {
+    if (refusedPastTheTier(res, error)) return;
     if (error instanceof z.ZodError) {
       res.status(400).json({
         error: 'Validation error',
@@ -3378,6 +3397,7 @@ router.put(
         updatedAt: updated.updatedAt,
       });
     } catch (error) {
+      if (refusedPastTheTier(res, error)) return;
       if (error instanceof z.ZodError) {
         res.status(400).json({
           error: 'Validation error',
@@ -4135,6 +4155,7 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
 
     res.json({ id: mappingId, status: 'active', activated, ...(firstRun ? { firstRun } : {}) });
   } catch (error) {
+    if (refusedPastTheTier(res, error)) return;
     serverFault(res, 'start_failed', 'starting this migration', error);
   }
 });
@@ -4265,6 +4286,7 @@ router.post('/:mappingId/domains', authenticate, async (req: AuthenticatedReques
     }
     res.json({ id: mappingId, added: domain, domains: outcome.domains });
   } catch (error) {
+    if (refusedPastTheTier(res, error)) return;
     serverFault(res, 'add_kind_failed', 'adding a kind to this migration', error);
   }
 });
@@ -4314,6 +4336,7 @@ function stopOrResumeRoute(stop: boolean) {
       }
       res.json({ id: mappingId, domain, stopped: stop, changed: outcome.changed });
     } catch (error) {
+      if (refusedPastTheTier(res, error)) return;
       serverFault(res, `${action}_domain_failed`, `${stop ? 'stopping' : 'resuming'} a data type`, error);
     }
   };
@@ -4381,6 +4404,7 @@ function endOrKeepRoute(ending: PathEnding) {
       }
       res.json({ id: mappingId, domain, ending, ...outcome });
     } catch (error) {
+      if (refusedPastTheTier(res, error)) return;
       serverFault(res, `${ending}_domain_failed`, `${ending === 'end' ? 'ending' : 'keeping'} a data type`, error);
     }
   };
