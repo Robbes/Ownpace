@@ -29,6 +29,7 @@ import {
   PgBytesMovedStore,
   PgDataAllowanceStore,
   allowanceOf,
+  breakEvenOf,
   ceilingOf,
   decideYes,
   holdsAtCeiling,
@@ -282,7 +283,12 @@ router.get('/usage', authenticate, requireBillingRead, async (req: Authenticated
  */
 function ceilingBody(c: Ceiling, holds: boolean) {
   return {
-    tier: { id: c.allowance.tier.id, name: c.allowance.tier.name, monthly: c.allowance.tier.monthly },
+    tier: {
+      id: c.allowance.tier.id,
+      name: c.allowance.tier.name,
+      paths: c.allowance.tier.paths,
+      monthly: c.allowance.tier.monthly,
+    },
     ceilingGb: c.allowance.ceilingGb,
     topUps: c.allowance.topUps,
     gbMoved: c.gbMoved,
@@ -300,6 +306,8 @@ function ceilingBody(c: Ceiling, holds: boolean) {
         }
       : null,
     topUp: c.topUp,
+    // ADR-0014: "at 80%, offer both and show the break-even".
+    breakEven: breakEvenOf(c),
   };
 }
 

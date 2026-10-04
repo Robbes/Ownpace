@@ -976,10 +976,11 @@ export const runDeltaSync = schemaTask({
             log.error('Failed to mark domain status failed:', statusErr);
           }
           await recordAppEvent(failed);
-          await sayTheFirstCopy();
           // Re-throw so Trigger.dev records the failure (hard rule 9 — no masking),
           // under the event's reference and category, and without its words: the
           // lines above keep those (0134, open question 3 (a); what-a-run-leaves.ts).
+          // A first copy this pass finished is said first (0154 T7).
+          await sayTheFirstCopy();
           throw await planeErrorFor(
             error,
             { task: 'run-delta-sync', tenantId, mappingId },

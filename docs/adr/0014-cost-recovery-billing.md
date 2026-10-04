@@ -422,8 +422,10 @@ not pay. The hold and the yes go live when the alpha ends.
 (managed migration 0037) holds one append-only row per yes, with the price shown; the ceiling is
 the highest tier moved up to plus every band bought (`data-ceiling.ts`); `GET
 /api/billing/ceiling` says where the data stands and the two ways on, and `POST
-/api/billing/ceiling/yes` takes a yes only to the offer shown, and none during the alpha. The hold
-in the copy loop, the warning at *Start* and the Billing page follow.
+/api/billing/ceiling/yes` takes a yes only to the offer shown, and none during the alpha. The
+Billing page shows where the data stands and, from 80%, both ways on with the break-even, and
+sends a yes only after the money is said once more. The hold in the copy loop and the warning at
+*Start* follow.
 
 This replaces two passages of the Decision above: in *Downgrade is automatic; upgrade is
 consented*, the sentence beginning *"On the **data** axis the tier moves automatically"*; and in
@@ -625,7 +627,7 @@ rules above are the prices the site quotes, and nothing is charged during the Al
   text: *Pending*.
 - **2026-10-03, last** — Not during the alpha (owner: *"A"*): the ceiling warns and nothing holds
   while the stage is `alpha`, and no yes is taken. The yes is built (managed 0037, 0109 T6's first
-  slice). Record: *Amendment 2026-10-03*.
+  slice), and the Billing page that asks for it, with the break-even. Record: *Amendment 2026-10-03*.
 
 The full record, word for word as it read before this consolidation:
 [history/0014-cost-recovery-billing.md](./history/0014-cost-recovery-billing.md).

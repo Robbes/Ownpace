@@ -36,7 +36,7 @@ describe('the managed pass asks only when it finished a first copy', () => {
 
   it('asks after a closed run and on the way out of a failed one, and never fails the pass', () => {
     expect(pass).toMatch(/await closeRun\('succeeded', 0\);\s*await sayTheFirstCopy\(\);/);
-    expect(pass).toMatch(/await recordAppEvent\(failed\);\s*await sayTheFirstCopy\(\);\s*\/\/ Re-throw/);
+    expect(pass).toMatch(/await recordAppEvent\(failed\);\s*\/\/ Re-throw[^\n]*\n(?:\s*\/\/[^\n]*\n)*\s*await sayTheFirstCopy\(\);\s*throw await planeErrorFor\(/);
     const asking = pass.slice(pass.indexOf('const sayTheFirstCopy'), pass.indexOf('for (const domain of domains) {'));
     expect(asking).toMatch(/if \(!finishedAFirstCopy\) return;/);
     expect(asking).toMatch(/try \{[\s\S]*announceFirstCopy\(pool, tenantId, mappingId\)[\s\S]*\} catch \(err\) \{/);
