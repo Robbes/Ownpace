@@ -34,10 +34,10 @@
   the last owner"* is still reached when the one active owner demotes themselves.
   `docs/managed-bring-up.md` §8 and the comments in `operator.ts` say an admin removing a sole
   owner now gets *"Only an owner can remove an owner"*.
-- **For the owner to confirm: an admin may no longer withdraw an invitation as owner.** It
-  answers 403; on `main` it answers 204. The owner's answer says an owner can still withdraw
-  one, and not whether an admin may. Treating the invitation as a grant an owner made is the
-  builder's reading of (c). Open question 5.
+- **Confirmed by the owner: an admin may no longer withdraw an invitation as owner.** It
+  answers 403; on `main` it answers 204. The owner's first answer said an owner can still
+  withdraw one, and not whether an admin may, so it was asked as open question 5. The owner
+  answered the same day: *"0137, open question 5: no"*, which is (a), as built.
 - **A member id in capitals.** The lock finds the target by Postgres's uuid comparison, as GET
   does, not by comparing strings in JavaScript. An id in capitals answered 404 on PATCH and
   DELETE in the first build on this branch.
@@ -66,8 +66,8 @@
   and Dutch. They are T3's, not T7's, so they stay when T2's PR undoes T7. On the page before this change 6 failed and 17 passed of 23; after, 23 of 23. Each
   change below was made for one run and then undone. Leaving the role select, or leaving the
   Remove, fails 6. Hiding both from an owner too fails 3. Hiding them only on an active owner's
-  row fails 4. If the owner answers (b) to open question 5, an invitation as owner gets both
-  controls back for an admin.
+  row fails 4. The owner answered open question 5 with (a), so an invitation as owner keeps
+  neither control for an admin.
 - **Left for T5: other refusals read in English.** Every refusal but `owner_or_admin_only` (T7)
   still shows the server's sentence as it is, in the Dutch interface too, such as *"Cannot
   demote the last owner"*.
@@ -533,8 +533,8 @@ Who is an owner, for (c) and for granting owner, is read from the same locked ro
 role `authenticate` read before the lock (review of 2026-10-04). So an owner demoted or removed
 while their request waited is refused as an admin is, and two demotions at once cannot both pass
 with three owners either. DELETE's last-owner refusal is then reached by no request: it stays as
-defence in depth. An admin withdrawing an invitation as owner gets 403 (on `main`, 204); that is
-the builder's reading of (c), for the owner to confirm (open question 5).
+defence in depth. An admin withdrawing an invitation as owner gets 403 (on `main`, 204). The
+owner confirmed that reading of (c) on 2026-10-04 (open question 5: *"no"*).
 
 Guards, in `members.integration.test.ts`. These fail on today's tree: demoting the only active
 owner while an owner invitation is pending answers 400 (today 200); the same with a declined owner
@@ -732,8 +732,9 @@ last, because it mirrors T2's table.
    with T3 (c).
 4. **Membership changes in the audit log (T4)?** Invitations, role changes and removals are not
    recorded today. *Recommended:* yes, in the same PR as T4.
-5. **May an admin withdraw an invitation as owner (T3 (c))?** Asked 2026-10-04, after the
-   build. The owner's answer says an owner can still withdraw one, and not whether an admin may.
+5. **May an admin withdraw an invitation as owner (T3 (c))?** ✅ **Answered 2026-10-04: (a).**
+   The owner: *"0137, open question 5: no"*. Asked after the build, because the owner's answer
+   on T3 said an owner can still withdraw one, and not whether an admin may.
    - **(a)** No: 403. The invitation is a grant an owner made, so only an owner undoes it.
      *Built* on T3's branch.
    - **(b)** Yes: 204, as on `main`. An invitation is not an owner yet, and withdrawing it takes
