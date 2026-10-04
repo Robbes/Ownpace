@@ -17,11 +17,12 @@
  * - a removal writes one `audit_log` row, `member.removed`, naming the removed
  *   subject in `detail.userId`, with the member row's id, role and status and
  *   the door it came through, and no address;
- * - the record names the row as the delete found it: an invitee who first
- *   signs in between the route's read and its delete turns the row from a
- *   `pending:` placeholder into their subject, and a record of the
- *   placeholder would leave their account to the strays duty (review of
- *   2026-09-29);
+ * - the record names the row as the delete found it, and the route's read and
+ *   its delete are one transaction (0137 T3), so an invitee's first sign-in,
+ *   which turns the row from a `pending:` placeholder into their subject,
+ *   cannot land between them (review of 2026-09-29: a record of the
+ *   placeholder for a person let in would leave their account to the strays
+ *   duty);
  * - the action is spelled as `operator.sh leave` spells it, and the statement
  *   the strays duty sends finds the subject on the owner's connection, as the
  *   script reads it; as `app_user`, row security shows one organisation's
@@ -268,40 +269,54 @@ describe('a member removed on the Team page is recorded', () => {
     }
   });
 
-  it('names the row it deleted, when the invitee signs in between the read and the delete', async () => {
+  it('names the row it deleted: the read and the delete are one transaction, so a sign-in cannot land between them', async () => {
     // An invitation the owner withdraws while the invitee first signs in:
     // claimRequestedMembership (auth.ts) turns the same row from a `pending:`
-    // placeholder, invited, into the person's subject, active. The row deleted
-    // is then the member's, and a record that named what the route read first
-    // would say `pending:…`, so the strays duty would weigh their account as
-    // one nobody let in.
-    const INVITEE = 'sub-invitee-0135';
+    // placeholder, invited, into the person's subject, active. Until 0137 T3
+    // the route read the row in one transaction and deleted it in the next,
+    // so the sign-in could land between them. Since 0137 T3 the read, the
+    // guards, the delete and the record are one transaction with the row
+    // locked: the sign-in waits, and then finds no invitation. The hook below
+    // runs where the second transaction used to begin. A route split in two
+    // again lets it land in between, and this fails.
+    const PLACEHOLDER = 'pending:5f620000-e29b-41d4-a716-446655441803';
     const [row] = await rows(
       `INSERT INTO tenant_member (tenant_id, user_id, email, role, status, origin, invited_at)
        VALUES ($1, $2, 'invitee@acme.test', 'member', 'invited', 'requested', now()) RETURNING id`,
-      [TENANT, 'pending:5f620000-e29b-41d4-a716-446655441803'],
+      [TENANT, PLACEHOLDER],
     );
     const invitationId = row!.id as string;
-    afterTheRead = () =>
-      rows(`UPDATE tenant_member SET user_id = $1, status = 'active', joined_at = now() WHERE id = $2`, [
-        INVITEE,
-        invitationId,
-      ]);
+    let claimed = -1;
+    afterTheRead = async () => {
+      claimed = (
+        await rows(
+          `UPDATE tenant_member SET user_id = $1, status = 'active', joined_at = now() WHERE id = $2 RETURNING id`,
+          ['sub-invitee-0135', invitationId],
+        )
+      ).length;
+    };
 
     const res = await request(app).delete(`/api/tenants/${TENANT}/members/${invitationId}`);
     expect(res.status).toBe(204);
-    expect(afterTheRead, 'the invitee never signed in between the two').toBeNull();
+    expect(afterTheRead, 'the route opened no transaction').toBeNull();
+    expect(claimed, 'the sign-in landed between the read and the delete').toBe(0);
     expect(await rows('SELECT 1 FROM tenant_member WHERE id = $1', [invitationId])).toEqual([]);
     const recorded = await removals();
     expect(recorded.map((r) => r.detail)).toEqual([
-      { memberId: invitationId, userId: INVITEE, role: 'member', status: 'active', via: 'the Team page' },
+      { memberId: invitationId, userId: PLACEHOLDER, role: 'member', status: 'invited', via: 'the Team page' },
     ]);
   });
 
   it('records nothing for a removal it refuses', async () => {
+    // An admin removing the owner: refused as the last owner until 0137 T3,
+    // and since T3 (c) because only an owner removes an owner.
     caller = ADMIN;
-    const res = await request(app).delete(`/api/tenants/${TENANT}/members/${ownerId}`);
-    expect(res.status).toBe(400);
+    const byTheAdmin = await request(app).delete(`/api/tenants/${TENANT}/members/${ownerId}`);
+    expect(byTheAdmin.status).toBe(403);
+    // The owner removing themselves.
+    caller = OWNER;
+    const byTheOwner = await request(app).delete(`/api/tenants/${TENANT}/members/${ownerId}`);
+    expect(byTheOwner.status).toBe(400);
     expect(await removals()).toEqual([]);
   });
 

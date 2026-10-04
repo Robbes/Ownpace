@@ -44,6 +44,11 @@ difference is whether you are told.
 You say when. At that point the migration finishes, and your old account is still sitting
 there, untouched, for as long as you keep it.
 
+Switching means pointing your apps at the new provider instead of the old one: your mail
+app, the calendars and contacts on your phone, and the app that syncs your files. If your
+address is on a domain of your own, you also change where that domain's mail is delivered,
+in its DNS settings, so new mail goes straight to your new home.
+
 ---
 
 ## What we would tell a friend

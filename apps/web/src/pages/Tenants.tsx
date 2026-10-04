@@ -10,9 +10,11 @@
  * broken admin surface was deleted, this one was kept and built).
  *
  * The guards live on the SERVER (last-owner demotion/removal, owner grants
- * being owner-only, self-removal) and their refusals render VERBATIM — the
- * client only pre-empts what it can know for certain: an admin's role select
- * offers no owner option, your own row offers no remove button, and a
+ * being owner-only, changing or removing an owner being owner-only (0137 T3),
+ * self-removal) and their refusals render VERBATIM — the client only
+ * pre-empts what it can know for certain: an admin's role select
+ * offers no owner option, an admin gets no role select and no remove button on
+ * an owner's row (0137 T3 (c)), your own row offers no remove button, and a
  * member/viewer sees a read-only list. Everything else is the server's call.
  *
  * Owner and admin are the only roles on offer (workplan 0137 T7). Until every
@@ -498,6 +500,12 @@ const Tenants: React.FC = () => {
               <tbody>
                 {members.map((member) => {
                   const isSelf = member.userId === user?.id;
+                  // Only an owner can change or remove an owner (0137 T3 (c)):
+                  // the server answers an admin's role change or removal on
+                  // any owner row, invited or declined too, with 403. So an
+                  // admin sees that row's role as text and gets no Remove,
+                  // rather than two controls that always fail.
+                  const canChangeRow = canManage && (isOwner || member.role !== 'owner');
                   return (
                     <React.Fragment key={member.id}>
                       <tr className="border-b border-gray-100">
@@ -510,7 +518,7 @@ const Tenants: React.FC = () => {
                           )}
                         </td>
                         <td className="py-3 pr-4">
-                          {canManage ? (
+                          {canChangeRow ? (
                             <select
                               value={member.role}
                               aria-label={`${t('tenants.members.roleHeader')} ${member.email}`}
@@ -567,7 +575,7 @@ const Tenants: React.FC = () => {
                                 {t('tenants.members.resend')}
                               </button>
                             )}
-                            {!isSelf && (
+                            {!isSelf && canChangeRow && (
                               <button
                                 onClick={() => remove(member)}
                                 disabled={busyRow === member.id}
