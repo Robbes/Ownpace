@@ -47,12 +47,13 @@ import {
   size,
   total,
 } from './prices.mjs';
-import { freeTier as free } from './calculator.mjs';
+import { freeTier as free, deriveTier, GMAIL_IMAP_GB_PER_DAY } from './calculator.mjs';
 import { securityTxt } from './security-txt.mjs';
 import { LOCALES, DEFAULT_LOCALE, localeRoot, COPY } from './copy.mjs';
 import { CUSTOMER_TYPES, INDICATIVE_PROFILES, OBJECT_TYPES, PROFILES_VERSION } from './profiles.mjs';
 import { DATA_TYPES, DESTINATIONS, PROTOCOL_NAMES } from './destinations.mjs';
 import { SPRITE, icon } from './icons.mjs';
+import { LEAVING, DOMAIN_OF, EXPORT_TARGETS } from './sources.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, 'dist');
@@ -374,7 +375,42 @@ nav.menu {
 }
 nav.menu a { padding: 0.75rem 0; border-top: 1px solid var(--line); font-size: 1rem; }
 nav.menu a:first-child { border-top: 0; }
-@media (max-width: 40rem) {
+/* Leaving… (0152 T5 (b)): the six pages, a list that opens without a script. */
+details.leaving { position: relative; }
+details.leaving > summary {
+  list-style: none; cursor: pointer; color: var(--muted); font-size: 0.95rem; white-space: nowrap;
+}
+details.leaving > summary::-webkit-details-marker { display: none; }
+details.leaving > summary::after {
+  content: ""; display: inline-block; width: 0.35em; height: 0.35em; margin-left: 0.45em;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: translateY(-0.2em) rotate(45deg);
+}
+details.leaving[open] > summary::after { transform: translateY(0.05em) rotate(-135deg); }
+details.leaving > summary:hover, details.leaving[open] > summary,
+details.leaving:has(a[aria-current]) > summary { color: var(--ink); }
+.leaving-list {
+  position: absolute; top: calc(100% + 1.1rem); right: -0.75rem; min-width: 16rem; z-index: 6;
+  display: flex; flex-direction: column; padding: 0.4rem; background: var(--bg);
+  border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.1);
+}
+nav.site .leaving-list a { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0.6rem; border-radius: 6px; }
+nav.site .leaving-list a:hover { background: var(--panel); }
+nav.menu details.leaving > summary { padding: 0.75rem 0; border-top: 1px solid var(--line); font-size: 1rem; }
+nav.menu .leaving-list {
+  position: static; min-width: 0; padding: 0 0 0.5rem 0.25rem; border: 0; border-radius: 0; box-shadow: none;
+}
+nav.menu .leaving-list a { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0; border-top: 0; }
+/* A provider's tile (0152 D4, tiles.svg): its initial on the teal, hidden from a
+   screen reader, the name always written beside it. 20 px in text, 28 in a row,
+   48 beside a heading; the corner is 22% of the size and the letter 45%. */
+.tile {
+  display: inline-grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 4.4px;
+  background: var(--teal); color: #fff; font-size: 9px; font-weight: 700; line-height: 1; letter-spacing: 0;
+}
+.tile.t28 { width: 28px; height: 28px; border-radius: 6.16px; font-size: 12.6px; }
+.tile.t48 { width: 48px; height: 48px; border-radius: 10.56px; font-size: 21.6px; }
+@media (max-width: 48rem) {
   header.site .wrap { height: 3.5rem; gap: 0.75rem; }
   nav.site { display: none; }
   header.site a.lang { margin-left: auto; }
@@ -416,6 +452,45 @@ nav.menu a:first-child { border-top: 0; }
 .types { list-style: none; padding: 0; margin: 0; }
 .types li { display: flex; align-items: center; gap: 0.6rem; padding: 0.3rem 0; }
 .types .via { color: var(--muted); font-size: 0.85rem; margin-left: auto; }
+/* The hero's six Leaving… names (0152 T5 (b)). */
+.leaving-label { font-weight: 700; margin: 2rem 0 0.6rem; }
+/* Three by two beside the hero's words, as wf-site-home.svg draws it; two by three on a phone. */
+.leaving-row {
+  list-style: none; padding: 0; margin: 0; display: grid; gap: 0.6rem 1.5rem; max-width: 42rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr));
+}
+.leaving-row a { display: flex; align-items: center; gap: 0.6rem; font-weight: 600; text-decoration: none; }
+.leaving-row a:hover span:last-child { text-decoration: underline; }
+/* A Leaving… page (0152 T5 (a)). */
+.leaving-h1 { display: flex; align-items: center; gap: 0.9rem; }
+.moves { list-style: none; padding: 0; margin: 1rem 0; border-top: 1px solid var(--line); }
+.move { display: flex; gap: 0.85rem; align-items: flex-start; padding: 0.85rem 0; border-bottom: 1px solid var(--line); }
+.move .icon { margin-top: 0.2rem; }
+.move p { margin: 0; }
+.move .head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.6rem; }
+.move .to { color: var(--muted); font-size: 0.93rem; margin-top: 0.2rem; }
+.verdict { font-size: 0.85rem; font-weight: 600; padding: 0.05rem 0.55rem; border-radius: 999px; white-space: nowrap; }
+.verdict[data-verdict="moves"] { background: #def3ee; color: #0b3f3a; }
+.verdict[data-verdict="limit"] { background: #fdf0cc; color: #5b4600; }
+.verdict[data-verdict="no"] { background: #eceff0; color: #3b4a47; }
+@media (prefers-color-scheme: dark) {
+  .verdict[data-verdict="moves"] { background: #143b36; color: #bfeee2; }
+  .verdict[data-verdict="limit"] { background: #3d3315; color: #f5dc94; }
+  .verdict[data-verdict="no"] { background: #26302e; color: #c9d3d0; }
+}
+a.verdict { text-decoration: underline; text-decoration-thickness: 1px; }
+.tag {
+  font-size: 0.75rem; font-weight: 600; letter-spacing: 0.03em; padding: 0.05rem 0.5rem;
+  border: 1px solid var(--muted); border-radius: 999px; color: var(--muted); white-space: nowrap;
+}
+.limits { padding-left: 1.2rem; }
+.limits li { margin: 0 0 1rem; scroll-margin-top: 5rem; }
+.limits li p { margin: 0; }
+.limits .guide { font-size: 0.9rem; margin-top: 0.25rem; }
+.steps { list-style: none; padding: 0; margin: 1rem 0; }
+.steps li { padding: 0.75rem 0; border-top: 1px solid var(--line); }
+.steps li:first-child { border-top: 0; }
+.steps .kind { display: block; color: var(--muted); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
 .card { border: 1px solid var(--line); border-radius: 12px; padding: 1.25rem; background: var(--panel); }
 .card h3 { margin-top: 0; }
 .card p:last-child { margin-bottom: 0; }
@@ -450,15 +525,22 @@ nav.menu a:first-child { border-top: 0; }
 .calc label.opt { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.2rem 0; cursor: pointer; }
 .calc .hint { color: var(--muted); font-size: 0.9rem; margin: 0.5rem 0 0; }
 .calc .amounts { display: grid; gap: 0.5rem 1rem; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); margin-top: 0.75rem; }
-.calc .amount { display: flex; align-items: baseline; gap: 0.5rem; }
+.calc .amount { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.5rem; min-width: 0; }
+/* The label on its own line, and the item count wrapping under the box rather
+   than running into the next field (0152 T7 (c): at 1280 pixels Calendar's
+   "2,000 items" ran into Files). */
+.calc .amount label { flex-basis: 100%; }
 .calc .amount input { width: 6.5rem; padding: 0.35rem 0.5rem; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; }
 .calc .amount .items { color: var(--muted); font-size: 0.8rem; }
 .calc .amount[data-off] { opacity: 0.45; }
 #paths-line { font-weight: 600; margin: 1.5rem 0 0.5rem; }
 .axes { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); margin: 1rem 0; }
-.axis { border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.25rem; position: relative; }
+.axis { border: 1px solid var(--line); border-radius: 12px; padding: 2.4rem 1.25rem 1rem; position: relative; }
 .axis .val { font-size: 1.6rem; font-weight: 700; }
-.axis .decides { display: none; position: absolute; top: 0.75rem; right: 1rem;
+/* Above the heading, in room both cards reserve, so it never covers the heading
+   (at 390 pixels it covered "Migrations at the same time") and both cards keep
+   their headings on one line whichever one decides. */
+.axis .decides { display: none; position: absolute; top: 0.75rem; left: 1.25rem;
   background: var(--mint); color: #06201c; font-size: 0.68rem; font-weight: 700;
   letter-spacing: 0.05em; text-transform: uppercase; padding: 0.15rem 0.5rem; border-radius: 999px; }
 .axis[data-decides] .decides { display: inline-block; }
@@ -492,6 +574,15 @@ const PAGE_KEYS = ['home', 'how', 'pricing', 'calculator', 'privacy', 'terms'];
  * language switch and hreflang still reach them.
  */
 const NAV_KEYS = ['home', 'how', 'pricing'];
+
+/**
+ * The *Leaving…* pages (workplan 0152 T5), one per provider a person leaves,
+ * in `sources.mjs`'s order. The header lists them after Pricing, in a
+ * `<details>` of their own, and the home page's hero names them under its
+ * buttons. Each has a file of its own in each language (`files` in
+ * `copy.mjs`), so the language switch and hreflang reach them.
+ */
+const LEAVING_KEYS = LEAVING.map((p) => `leaving-${p.id}`);
 
 /**
  * Pages rendered in every locale like the ones above, with a file of their own
@@ -555,12 +646,15 @@ function buildStamp() {
 
 function layout({ title, description, body, locale, key, draft }) {
   const c = COPY[locale];
+  const leaving = LEAVING.map((p) => leavingLink(locale, p, 20, `leaving-${p.id}` === key)).join('');
   const nav =
     NAV_KEYS.map((k) => {
       const href = urlFor(locale, k);
       const current = k === key ? ' aria-current="page"' : '';
       return `<a href="${href}"${current}>${c.nav[k]}</a>`;
-    }).join('') + `<a href="${esc(SIGN_IN_URL)}">${c.nav.signIn}</a>`;
+    }).join('') +
+    `<details class="leaving"><summary>${c.leaving.menu}</summary><div class="leaving-list">${leaving}</div></details>` +
+    `<a href="${esc(SIGN_IN_URL)}">${c.nav.signIn}</a>`;
 
   const other = LOCALES.find((l) => l !== locale);
   const alternates = LOCALES.map(
@@ -721,6 +815,155 @@ ${SPRITE}
 `;
 }
 
+// ----------------------------------------------------------------- leaving --
+
+/** A provider's tile (0152 D4): the initial, hidden from a screen reader, which reads the name beside it. */
+const tile = (letter, size) => `<span class="tile${size === 20 ? '' : ` t${size}`}" aria-hidden="true">${esc(letter)}</span>`;
+
+/** A Leaving… page's title: *Leaving Google*, or the page's own where its name will not take the frame. */
+const leavingTitle = (locale, page) => {
+  const L = COPY[locale].leaving;
+  return L.title[page.id] ?? L.titleOf(L.names[page.id]);
+};
+
+/**
+ * A link to a Leaving… page, with its tile and its name. Read out of context,
+ * as a screen reader's list of links reads it, a bare *Google* says nowhere it
+ * goes, so the link is named by the page's title, which holds the name.
+ */
+function leavingLink(locale, page, size, current) {
+  const L = COPY[locale].leaving;
+  return (
+    `<a href="${urlFor(locale, `leaving-${page.id}`)}" aria-label="${esc(leavingTitle(locale, page))}"` +
+    `${current ? ' aria-current="page"' : ''}>${tile(page.tile, size)}<span>${L.names[page.id]}</span></a>`
+  );
+}
+
+/** Names as a sentence lists them: `A`, `A or B`, `A, B or C`. */
+const listed = (names, word) =>
+  names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} ${word} ${names[names.length - 1]}`;
+
+/** The data-type icon each of the app's data types is drawn with, and photos (icons.mjs). */
+const LEAVING_ICON = { email: 'mail', calendar: 'calendar', contact: 'contacts', file: 'files', task: 'tasks', photos: 'photos' };
+
+/** The calculator's own name for each data type a page can price (`OBJECT_TYPES`). Tasks have none. */
+const PROFILE_OF = { email: 'mail', calendar: 'calendar', contact: 'contacts', file: 'files', photos: 'photos' };
+
+/**
+ * A page's typical case, priced as the calculator prices it (0152 T5 (a) 4):
+ * one person, the indicative profile's sizes for the data types the provider
+ * typically holds, a migration per data type, through `deriveTier`.
+ * `scripts/leaving-pages-say-what-the-app-says` works it out again, from the
+ * calculator's own modules, and holds the page's sentence to it.
+ */
+function typicalCase(page) {
+  const accounts = CUSTOMER_TYPES.find((w) => w.id === 'individual').accounts;
+  const objects = page.typical.map((t) => PROFILE_OF[t]);
+  const sizes = INDICATIVE_PROFILES.individual;
+  // Summed and rounded as the calculator's own recompute() does.
+  const gb = Math.round(objects.reduce((sum, o) => sum + sizes[o].gb, 0) * 10) / 10;
+  const atOnce = deriveTier(TIERS, accounts * objects.length, gb).tier;
+  const oneByOne = deriveTier(TIERS, accounts, gb).tier;
+  if (!atOnce || !oneByOne) throw new Error(`${page.id}: its typical case is past the published tiers`);
+  return { objects, gb, atOnce, oneByOne };
+}
+
+/**
+ * Where a row's data type can go, named as *Where to* names the destinations
+ * (D7): every destination that takes it, and for photos from an export only
+ * the ones an export is read from.
+ */
+function goesTo(locale, row) {
+  const L = COPY[locale].leaving;
+  const domain = DOMAIN_OF[row.type];
+  const names = DESTINATIONS.filter((d) => {
+    const by = d.takes[domain];
+    return by !== undefined && (row.by !== 'archive' || EXPORT_TARGETS.includes(by));
+  }).map((d) => (d.id === 'protocols' ? L.anyProvider(PROTOCOL_NAMES[d.takes[domain]]) : L.destShort[d.id]));
+  return listed(names, L.or);
+}
+
+/**
+ * A Leaving… page (workplan 0152 T5 (a)): what moves, the limits, what the
+ * person does, a typical cost, and the next step. Everything it says is
+ * `sources.mjs`'s, which `scripts/leaving-pages-say-what-the-app-says` holds to
+ * the app, in `copy.mjs`'s words.
+ */
+function leavingPage(locale, page) {
+  const c = COPY[locale];
+  const L = c.leaving;
+  const typeName = (t) => (t === 'photos' ? L.photos : c.dataTypes[t]);
+
+  const rows = page.rows
+    .map((r) => {
+      const verdict =
+        r.verdict === 'moves'
+          ? `<span class="verdict" data-verdict="moves">${L.verdict.moves}</span>`
+          : `<a class="verdict" data-verdict="${r.verdict}" href="#limit-${r.limit}">${L.verdict[r.verdict]}</a>`;
+      const tag = r.experimental ? `<span class="tag">${L.experimental}</span>` : '';
+      const to = r.verdict === 'no' ? '' : `<p class="to">${L.goesTo}: ${goesTo(locale, r)}</p>`;
+      return (
+        `<li class="move" data-type="${r.type}" data-verdict="${r.verdict}"${r.experimental ? ' data-experimental' : ''}>` +
+        `${icon(LEAVING_ICON[r.type])}<div><p class="head"><strong>${typeName(r.type)}</strong>${verdict}${tag}</p>${to}</div></li>`
+      );
+    })
+    .join('');
+  const experimental = page.rows.some((r) => r.experimental)
+    ? `<p class="fineprint"><span class="tag">${L.experimental}</span> ${L.experimentalWhy}</p>`
+    : '';
+  const behind = page.staysBehind
+    ? `<p class="fineprint"><strong>${L.staysBehind}</strong> ${page.staysBehind.items.map((i) => L.staysBehindItems[i]).join('; ')}.</p>`
+    : '';
+
+  const limits = page.limits
+    .map((l) => {
+      const [slug, section] = l.guide.split('#');
+      const text = l.id === 'gmailDaily' ? L.limits.gmailDaily(GMAIL_IMAP_GB_PER_DAY.toLocaleString(c.htmlLang)) : L.limits[l.id];
+      return (
+        `<li id="limit-${l.id}"><p>${text}</p>` +
+        `<p class="guide"><a href="${esc(`${APP_URL}/docs/${slug}#${section}`)}">${L.guideLink}</a></p></li>`
+      );
+    })
+    .join('');
+
+  const steps = page.steps
+    .map((s) => `<li><span class="kind">${L.stepKind[s.kind]}</span>${L.steps[s.card]}</li>`)
+    .join('');
+
+  const { objects, atOnce, oneByOne } = typicalCase(page);
+  const what = listed(
+    page.typical.map((t) => typeName(t).toLowerCase()),
+    L.and,
+  );
+  const cost = free(atOnce)
+    ? L.costFree(what, atOnce.name)
+    : `${L.costPaid(what, atOnce.name, money(atOnce.monthly))}${
+        free(oneByOne) ? ` ${L.costOneAtATime(oneByOne.name)}` : ''
+      }`;
+  // The calculator opens on this page's case: the source chosen, its data types ticked.
+  const estimate = `${urlFor(locale, 'calculator')}?from=${encodeURIComponent(page.from)}&what=${objects.join(',')}`;
+
+  return `
+<h1 class="leaving-h1">${tile(page.tile, 48)}<span>${leavingTitle(locale, page)}</span></h1>
+<p class="lede">${L.lede[page.id] ?? L.ledeOf(L.names[page.id])}</p>
+${SPRITE}
+<h2>${L.whatMoves}</h2>
+<ul class="moves">${rows}</ul>
+${experimental}
+${behind}
+<h2>${L.limitsTitle}</h2>
+<ul class="limits">${limits}</ul>
+<h2>${L.stepsTitle}</h2>
+<ul class="steps">${steps}</ul>
+<h2>${L.costTitle}</h2>
+<p>${cost}</p>
+<p class="fineprint">${esc(c.vatIncluded)}</p>
+<div class="cta"><a class="btn btn-ghost" href="${esc(estimate)}">${c.ctaEstimate}</a></div>
+<h2>${L.nextTitle}</h2>
+<div class="cta"><a class="btn btn-primary" href="${esc(orderHref(locale, null))}">${c.ctaOrder}</a></div>
+`;
+}
+
 function landing(locale) {
   const c = COPY[locale];
   const small = TIERS.find((t) => t.id === 'small');
@@ -733,6 +976,8 @@ function landing(locale) {
     <a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${c.ctaPricing}</a>
   </div>
   <p class="fineprint">${c.heroFree(TIERS[0].name, size(TIERS[0].dataGb))} ${esc(c.vatIncluded)}</p>
+  <p class="leaving-label" id="leaving-label">${c.leaving.menu}</p>
+  <ul class="leaving-row" aria-labelledby="leaving-label">${LEAVING.map((p) => `<li>${leavingLink(locale, p, 28, false)}</li>`).join('')}</ul>
 </section>
 ${whereTo(locale)}
 <h2>${c.diffTitle}</h2>
@@ -783,7 +1028,6 @@ const CALC_GLUE = `
   var cfg = JSON.parse(document.getElementById('calc-config').textContent);
   var S = cfg.strings;
   function $(id) { return document.getElementById(id); }
-  function sizeOf(gb) { return gb >= 1000 ? (gb / 1000) + ' TB' : gb + ' GB'; }
   function radio(name) {
     var el = document.querySelector('input[name="' + name + '"]:checked');
     return el ? el.value : null;
@@ -877,6 +1121,15 @@ const CALC_GLUE = `
     el.addEventListener('input', recompute);
     el.addEventListener('change', recompute);
   });
+  // Arriving from a Leaving… page (0152 T5): ?from= chooses the source and
+  // ?what= ticks what moves. Each is matched against the page's own options,
+  // so a value it does not offer changes nothing.
+  var asked = new URLSearchParams(location.search);
+  document.querySelectorAll('input[name="from"]').forEach(function (el) {
+    if (el.value === asked.get('from')) el.checked = true;
+  });
+  var what = (asked.get('what') || '').split(',').filter(function (t) { return cfg.objectTypes.indexOf(t) !== -1; });
+  if (what.length > 0) cfg.objectTypes.forEach(function (t) { $('what-' + t).checked = what.indexOf(t) !== -1; });
   prefill();
   recompute();
 })();
@@ -943,6 +1196,7 @@ function calculatorPage(locale) {
   </fieldset>
 </div>
 
+<div id="result" aria-live="polite">
 <p id="paths-line"></p>
 
 <div class="axes">
@@ -965,6 +1219,7 @@ function calculatorPage(locale) {
   <p class="fine">${esc(COPY[locale].vatIncluded)}</p>
 </div>
 <p id="beyond-line" hidden>${esc(c.beyondLine)} <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
+</div>
 
 <p id="gmail-line" class="fine" hidden></p>
 <p id="topup-line" class="fine"></p>
@@ -1033,13 +1288,19 @@ export function build({ alpha = ALPHA } = {}) {
   const rendered = [];
   for (const locale of LOCALES) {
     const c = COPY[locale];
-    for (const key of [...PAGE_KEYS, ...OUTSIDE_NAV, ...(alpha ? ALPHA_ONLY : [])]) {
-      const [title, description] = META[locale][key];
+    for (const key of [...PAGE_KEYS, ...LEAVING_KEYS, ...OUTSIDE_NAV, ...(alpha ? ALPHA_ONLY : [])]) {
+      const page = LEAVING.find((p) => `leaving-${p.id}` === key);
+      // A Leaving… page's title and description are its heading and its lede.
+      const [title, description] = page
+        ? [`${leavingTitle(locale, page)} — Ownpace`, c.leaving.lede[page.id] ?? c.leaving.ledeOf(c.leaving.names[page.id])]
+        : META[locale][key];
       let body;
       if (key === 'home') {
         body = landing(locale);
       } else if (key === 'calculator') {
         body = calculatorPage(locale);
+      } else if (page) {
+        body = leavingPage(locale, page);
       } else {
         let md = readFileSync(join(HERE, SOURCE[locale][key]), 'utf8');
         // The app's request page, which differs per environment (a test site

@@ -35,6 +35,7 @@ import {
   money,
   topUpAgainstStepUp,
   freeTier,
+  sizeOf,
 } from './calculator.mjs';
 import { GMAIL_IMAP_DOWNLOAD_BYTES_PER_DAY } from '../packages/shared/src/rate-budget.ts';
 
@@ -247,6 +248,20 @@ describe('the words the page must and must not say (T5, grep-guarded)', () => {
       expect(p.html).not.toMatch(/name="tier"/);
       expect(p.html).toMatch(/never picked|nooit gekozen/);
     }
+  });
+});
+
+describe('sizeOf (0152 T7 (c))', () => {
+  it('writes GB below 1 TB, as the fields summed it', () => {
+    expect(sizeOf(38.3)).toBe('38.3 GB');
+    expect(sizeOf(999.9)).toBe('999.9 GB');
+  });
+
+  it('writes TB to one decimal from 1 TB up, where it used to print every digit', () => {
+    expect(sizeOf(1000)).toBe('1 TB');
+    expect(sizeOf(1234.5)).toBe('1.2 TB');
+    expect(sizeOf(7500)).toBe('7.5 TB');
+    expect(sizeOf(15050)).toBe('15.1 TB');
   });
 });
 

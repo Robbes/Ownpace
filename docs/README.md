@@ -56,7 +56,9 @@ client), `apple-setup.md`, `dropbox-setup.md`, `box-setup.md` and `archive-setup
 archives such as Google Takeout); `non-eu-platform-gaps.md` lists the large platforms not yet
 covered. **Live runs:** `owner-test-runbook.md`, `first-live-run.md`, `soverin-supervised-run.md`,
 `apple-supervised-run.md`. **Operating:** `status-page.md`, `incident-runbook.md` (what to do when
-an alert arrives or a tester says something is wrong) and `selfhost-ending-the-service.md`.
+an alert arrives or a tester says something is wrong), `ending-the-alpha.md` (what emptying
+`OWNPACE_STAGE` on live switches, what must be true first, and how to tell it reached every
+process) and `selfhost-ending-the-service.md`.
 
 A dedicated `guides/` / `runbooks/` split can come later if
 the root grows unwieldy; don't add empty placeholder directories.
