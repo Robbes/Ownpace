@@ -788,6 +788,7 @@ reading a file drops off its entry by itself.
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
+- [a-retention-the-bring-up-states](../scripts/a-retention-the-bring-up-states.unit.test.ts) — A RETENTION THE BRING-UP STATES (workplan 0134 T1).
 - [a-way-back-before-every-upgrade](../scripts/a-way-back-before-every-upgrade.unit.test.ts) — A WAY BACK BEFORE EVERY UPGRADE: the dump an identity provider upgrade needs was four commands pasted from a chat (workplan 0135 T7, *Before an upgrade*).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
@@ -846,6 +847,7 @@ reading a file drops off its entry by itself.
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-gate-that-leaves-the-alpha-alone](../scripts/a-gate-that-leaves-the-alpha-alone.unit.test.ts) — A GATE THAT LEAVES THE ALPHA ALONE: the nightly managed gate wrote into whichever persisted `.env` a repository variable named, and would have written into live's (workplan 0132 T1g, D7).
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
+- [a-retention-the-bring-up-states](../scripts/a-retention-the-bring-up-states.unit.test.ts) — A RETENTION THE BRING-UP STATES (workplan 0134 T1).
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
@@ -949,6 +951,7 @@ reading a file drops off its entry by itself.
 - [a-provider-skipped-in-silence](../scripts/a-provider-skipped-in-silence.unit.test.ts) — A PROVIDER SKIPPED IN SILENCE IS A BUTTON SOMEBODY LOOKS FOR.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
+- [a-retention-the-bring-up-states](../scripts/a-retention-the-bring-up-states.unit.test.ts) — A RETENTION THE BRING-UP STATES (workplan 0134 T1).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
@@ -1000,6 +1003,7 @@ reading a file drops off its entry by itself.
 - [a-publish-that-moved-and-a-caller-that-did-not](../scripts/a-publish-that-moved-and-a-caller-that-did-not.unit.test.ts) — A PUBLISH THAT MOVED AND A CALLER THAT STAYED AT LOCALHOST.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
+- [a-retention-the-bring-up-states](../scripts/a-retention-the-bring-up-states.unit.test.ts) — A RETENTION THE BRING-UP STATES (workplan 0134 T1).
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
@@ -1252,8 +1256,10 @@ reading a file drops off its entry by itself.
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-way-back-before-every-upgrade](../scripts/a-way-back-before-every-upgrade.unit.test.ts) — A WAY BACK BEFORE EVERY UPGRADE: the dump an identity provider upgrade needs was four commands pasted from a chat (workplan 0135 T7, *Before an upgrade*).
 - [an-account-nobody-let-in](../scripts/an-account-nobody-let-in.unit.test.ts) — AN ACCOUNT NOBODY LET IN (workplan 0135 T8).
+- [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
+- [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
 - [seed-managed](../scripts/seed-managed.unit.test.ts) — The seed, and the password the volume never heard of.
 - [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
@@ -3920,6 +3926,17 @@ Reads:
 
 - `deploy/compose/smoke-managed.sh`
 
+### [a-retention-the-bring-up-states](../scripts/a-retention-the-bring-up-states.unit.test.ts)
+
+A RETENTION THE BRING-UP STATES (workplan 0134 T1).
+
+Reads:
+
+- `deploy/compose/copy-before-update.sh`
+- `deploy/compose/ensure-env-secrets.sh`
+- `deploy/compose/managed.env.example`
+- `deploy/compose/managed.yml`
+
 ### [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts)
 
 A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
@@ -4743,6 +4760,7 @@ Reads:
 - `deploy/compose/managed.yml`
 - `deploy/compose/setup-zitadel.sh`
 - `deploy/compose/shipped-passwords.sh`
+- `deploy/compose/stack-kind.sh`
 - `scripts/bootstrap-managed.unit.test.ts`
 
 ### [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts)
@@ -4913,6 +4931,7 @@ Reads:
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `deploy/compose/shipped-passwords.sh`
+- `deploy/compose/stack-kind.sh`
 - `deploy/compose/trigger-version.sh`
 
 ### [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts)
