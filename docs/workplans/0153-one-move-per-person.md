@@ -10,8 +10,9 @@ E-mail · Agenda*, the English *Carries:* word for word, and says *Omvat:* now. 
 said an account, a card, a token or an API *draagt* what it holds says *omvat* too: two setup
 steps and seven Dutch guides. Billing's reverse-charge line keeps *draagt de btw … af*, which is
 another verb (*afdragen*). Recorded in the glossary, and guarded in `a-word-the-owner-retired`
-beside *verhuizen*. The Dutch privacy statement says *draagt* once in the same sense; a legal text
-changes with its version and the lawyer's pass, so it waits for that.
+beside *verhuizen*. Two uses the owner settled when asked: the Dutch privacy statement keeps its
+*draagt deze verklaring de toezeggingen* (*"'draagt' is correct in that legal context"*), and a
+token's rights and scopes say *omvat* like the rest (*"that also fits over there"*).
 
 **2026-10-05, later: provider names the Dutch way in the Dutch app** (the owner: *"Write provider
 names the Dutch way in the Dutch app"*). The Dutch app named the account a person leaves *Google
