@@ -955,6 +955,12 @@ export type NotificationEvent =
       readonly person?: string;
       /** The data types that arrived, in the product's order. */
       readonly domains: readonly DiscoveryDomain[];
+      /**
+       * The organisation runs at Free's pace, one pass a day (workplan 0157
+       * T5): the mail says what keeping in step means then, and the way to
+       * more. Absent on a paid tier, during the alpha, and on the appliance.
+       */
+      readonly onePassADay?: boolean;
     };
 
 /**
@@ -1076,6 +1082,7 @@ interface EventLines {
   readonly person: string;
   readonly arrived: string;
   readonly arrivedKept: string;
+  readonly arrivedOnFree: string;
   readonly and: string;
   readonly domain: Readonly<Record<DiscoveryDomain, string>>;
 }
@@ -1173,6 +1180,9 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     person: 'Person',
     arrived: 'Everything has arrived:',
     arrivedKept: 'It is kept in step until you switch. Nothing is needed from you.',
+    // Free's pace (workplan 0157 T5): what keeping in step means on Free.
+    arrivedOnFree:
+      'On Free that is one pass a day. A higher tier looks for changes as often as every 15 minutes: see Billing in the app.',
     and: 'and',
     domain: { email: 'email', calendar: 'calendar', contact: 'contacts', file: 'files', task: 'tasks' },
   },
@@ -1238,6 +1248,8 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     person: 'Persoon',
     arrived: 'Alles is aangekomen:',
     arrivedKept: 'Het wordt bijgehouden tot u overstapt. U hoeft niets te doen.',
+    arrivedOnFree:
+      'Op Free is dat één ronde per dag. Een hoger pakket kijkt zo vaak als elke 15 minuten naar wijzigingen: zie Facturering in de app.',
     and: 'en',
     domain: { email: 'e-mail', calendar: 'agenda', contact: 'contacten', file: 'bestanden', task: 'taken' },
   },
@@ -1329,6 +1341,7 @@ export function renderEvent(
       if (event.person) lines.push(`${b.person}: ${event.person}`, '');
       lines.push(`${b.arrived} ${said}.`, '');
       lines.push(b.arrivedKept);
+      if (event.onePassADay) lines.push(b.arrivedOnFree);
       break;
     }
     case 'rollback_finished':

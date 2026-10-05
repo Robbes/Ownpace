@@ -272,6 +272,15 @@ describe('everything has arrived — the first copy, once per person (0154 T7)',
   });
 
   it('says one data type on its own, and names nobody for the appliance’s one person', () => {
+    // On Free, outside the alpha (workplan 0157 T5): what keeping in step means.
+    const free = { ...anna, onePassADay: true } as const;
+    expect(renderEvent(free, 'en').body).toContain(
+      'On Free that is one pass a day. A higher tier looks for changes as often as every 15 minutes: see Billing in the app.',
+    );
+    expect(renderEvent(free, 'nl').body).toContain(
+      'Op Free is dat één ronde per dag. Een hoger pakket kijkt zo vaak als elke 15 minuten naar wijzigingen: zie Facturering in de app.',
+    );
+    expect(renderEvent(anna, 'en').body).not.toContain('On Free');
     const msg = renderEvent({ kind: 'first_copy_complete', domains: ['file'] }, 'en');
     expect(msg.body).toContain('Everything has arrived: files.');
     expect(msg.body).not.toContain('Person:');

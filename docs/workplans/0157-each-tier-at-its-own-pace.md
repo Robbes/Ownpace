@@ -4,6 +4,14 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-10-05, T5 built: the app says the pace.** On Free, outside the alpha, the migration's
+page says *"Free: one pass a day, up to 50 minutes. Next pass: …"*, and the person's page says
+*"Free: one pass a day for each migration, up to 50 minutes."*. Each line ends with *"A higher
+tier copies pass after pass."*, a link to the Billing page (`PaceLine`). The person's page reads
+the organisation's pace from `GET /api/migrations/pace`. The first-copy email adds, on Free:
+*"On Free that is one pass a day. A higher tier looks for changes as often as every 15 minutes:
+see Billing in the app."* T5 is whole.
+
 **2026-10-05, later still: T4 built: the doors know the pace.** Outside the alpha, on Free:
 - a schedule faster than a day is refused at create and on the migration page
   (`409 free_pace_schedule`), while *Automatic* and *Daily* are not;
@@ -49,7 +57,7 @@ and it waits for the owner.
 | T2 Free at one pass a day | ✅ **Built 2026-10-05** | §2. The managed tick makes a Free migration due 24 hours after its last pass started, its first copy included, outside the alpha; a paid one keeps 0156 T5's first copy back to back. *Sync now* on Free waits for the day too, except the final pass. |
 | T3 Small kinds first, files last, across a Free organisation's migrations | ✅ **Built 2026-10-05** | §3. Within a pass `PASS_ORDER` already does it; between one Free organisation's migrations due at once, one that copies only files (a Takeout's photos included) takes its later turns (`inOrganisationOrder`). |
 | T4 The doors know the pace, and paid looks every hour | ✅ **Built: the hourly default 2026-10-04 (since T7, *Automatic*), the doors 2026-10-05** | §4. The API refuses a schedule faster than the tier allows (`free_pace_schedule`), the chooser offers what the tier allows and says why, *Start* on a paused migration waits for the pace, and a fallen tier's faster schedule is shown as running once a day. |
-| T5 The app says the pace | 📋 **Proposed** | §5. *"One pass a day, up to 50 minutes. Next pass at 07:12."*, with how many days the first copy needs, on the migration's and the person's pages. |
+| T5 The app says the pace | ✅ **Built 2026-10-05** | §5. *"Free: one pass a day, up to 50 minutes. Next pass: …"* on the migration's page, one line for all of a person's migrations on theirs, each with the way to a higher tier, and a sentence in the first-copy email. The time left already counts in days at Free's pace. |
 | T6 Picking a tier | 📋 **Proposed** | §6. The Billing page offers every tier above the derived one; a pick is the person's yes, the month bills at least the picked tier, and the downgrade stops there. |
 | T7 The default slows once everything is in step | 🟡 **Decided 2026-10-05; the cadence built 2026-10-05, the notices to build** | §7. Hourly for 14 days after the first copy, then every 6 hours, then daily after 30 days; a schedule the person chose is never changed. The owner: *"yes"*. Built: *Automatic*, the tick's cadence for no schedule, with a visit bringing back the hour. To build: each step said in the app and by email. |
 
@@ -178,6 +186,24 @@ it works out the least tier the answers need.
 - **On a paid tier**, while the first copy runs: *"Copying pass after pass until everything is
   here; then every hour."*
 - **The first-copy email** (0154 T7) says the same on Free.
+
+**Built (2026-10-05).**
+- **`PaceLine`**, drawn on Free outside the alpha and nowhere else. On the migration's page:
+  *"Free: one pass a day, up to 50 minutes. Next pass: 6 Oct 2026, 07:12."*, the time from the
+  detail's `pace` (T4). On the person's page: *"Free: one pass a day for each migration, up to 50
+  minutes."*, with no single time for several migrations, from `GET /api/migrations/pace`. Both
+  end with *"A higher tier copies pass after pass."*, a link to the Billing page, where T6 lets a
+  person pick one.
+- **How many days the first copy needs** needed nothing new. The time-left line measures from
+  how far apart the passes started (`timeWhileCopying`, 0154 T3 (b)), so at one pass a day it
+  already says days.
+- **On a paid tier** nothing is added: the stage and the time left say how the copy goes, and
+  *Automatic* (T7) says how often it looks after.
+- **The first-copy email** (`the-first-copy-email.ts`, `first_copy_complete`'s `onePassADay`)
+  adds on Free, outside the alpha: *"On Free that is one pass a day. A higher tier looks for
+  changes as often as every 15 minutes: see Billing in the app."* (*"Op Free is dat één ronde per
+  dag. …"*). The tier is read in the claim's own transaction, and the runbook for ending the
+  alpha names the file, since it reads the stage.
 
 ## 6. T6 — picking a tier
 
