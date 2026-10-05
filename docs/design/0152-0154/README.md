@@ -108,8 +108,9 @@ request.
 - **Every arrow points from the old account to the new home.** Ownpace never copies back
   (*"It does not sync backwards"*, `copy.mjs`). A redraw that adds a loop keeps that direction.
 - **Its words come from `copy.mjs`** in both languages: the `<title>`, the `aria-label`, the two
-  card headings, *copies*, *then keeps in step, until you switch*, and the five data types. The
-  key-parity case in `site/site.unit.test.ts` covers them.
+  card headings, *copies*, *then keeps in step, until you switch*, and six data types. Those are
+  the app's five, tasks among them since 2026-10-05, and the Takeout's photos. The key-parity
+  case in `site/site.unit.test.ts` covers them.
 - **On a phone** it sits below the buttons and scales to the column. The `viewBox` is kept, with
   width 100% and height auto.
 
