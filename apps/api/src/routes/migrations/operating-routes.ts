@@ -123,6 +123,7 @@ import { recordMappingStatusChange } from './mapping-status-audit.ts';
 import { movePathsWithMapping } from './path-lifecycle-wiring.ts';
 import { readsAPersonsGrant } from './whose-data.ts';
 import { serverFault } from '../../server-fault.ts';
+import { readFailureAnswers, receiptInOurWords, verificationInOurWords } from '../../failure-answer.ts';
 import { refusedAsClosed } from '../../closed-organisation.ts';
 
 const router = Router({ mergeParams: true });
@@ -321,7 +322,10 @@ router.get(
 
       const gathered = await withTenantDb(s.tenantId, pool(), async (db) => {
         const ledger = new PgLedger(db);
-        const statuses = await new PgMigrationStatusStore(db).getStatus(tenantId, mappingId);
+        // Each data type's failure line in our words (0136 T3, second step):
+        // the report's JSON reaches the browser as the migration page does.
+        const said = await readFailureAnswers(db, tenantId, mappingId);
+        const statuses = (await new PgMigrationStatusStore(db).getStatus(tenantId, mappingId)).map(said.status);
         const failures = await ledger.listFailures(tenantId, mappingId);
         // What was left as it already was (0124 T2): the completion report is the
         // ONE document version of every number on the screens, so a count the
@@ -426,7 +430,7 @@ router.get('/:mappingId/failures', authenticate, async (req: AuthenticatedReques
   try {
     const s = await scope(req, res);
     if (!s) return;
-    const { all, sourceKind } = await withTenantDb(s.tenantId, pool(), async (db) => {
+    const { all, sourceKind, said } = await withTenantDb(s.tenantId, pool(), async (db) => {
       const failures = await new PgLedger(db).listFailures(
         s.tenantId as TenantId,
         s.mappingId as MappingId,
@@ -441,13 +445,23 @@ router.get('/:mappingId/failures', authenticate, async (req: AuthenticatedReques
         .innerJoin(schema.mailbox, eq(schema.mailbox.id, schema.mailboxMapping.sourceMailboxId))
         .innerJoin(schema.connection, eq(schema.connection.id, schema.mailbox.connectionId))
         .where(eq(schema.mailboxMapping.id, s.mappingId));
-      return { all: failures, sourceKind: source?.kind };
+      return {
+        all: failures,
+        sourceKind: source?.kind,
+        said: await readFailureAnswers(db, s.tenantId, s.mappingId),
+      };
     });
     // WHOSE DATA (ADR-0035 decision 5, option C): for an account a person
     // granted, each row keeps its category, domain and attempts, and loses the
     // provider's text and the item's names, which can name that person's
     // files. Withheld HERE, on the server, so no browser ever receives them.
-    const shown = s.personGranted ? all.map(withheldFailure) : all;
+    //
+    // IN OUR WORDS otherwise (0136 T3, second step): a refusal from a host a
+    // tester typed keeps our prose and its status, and loses the server's
+    // bytes but an error document's words (`failure-answer.ts`). The ledger
+    // row keeps every byte; no route serves it, and the operator reads it on
+    // the database by the item's `naturalKeyHash`.
+    const shown = s.personGranted ? all.map(withheldFailure) : all.map(said.item);
     const body: FailuresResponse = {
       [s.mappingId]: {
         migrationStatus: s.lifecycle,
@@ -1059,9 +1073,39 @@ router.post('/:mappingId/failures', authenticate, async (req: AuthenticatedReque
       ...(category !== undefined ? { category } : {}),
       ...(errorContains !== undefined ? { errorContains } : {}),
     };
-    const matched = await withLedger(s.tenantId, (l) =>
-      l.resolveFailureGroup(s.tenantId as TenantId, s.mappingId as MappingId, action, match),
-    );
+    // A SUBSTRING IS MATCHED AGAINST WHAT THE PAGE SHOWS (0136 T3, second
+    // step). The queue answers in our words, and a match on the stored text
+    // would read the bytes it left out one guess at a time, the hole the
+    // refusal above closes for a person's grant. It is also the count the page
+    // previews (`matchingFailures`): the same rows, the same literal
+    // `includes`. Without a substring the ledger matches by domain and
+    // category alone, as before.
+    const matched =
+      errorContains !== undefined && errorContains !== ''
+        ? await withTenantDb(s.tenantId, pool(), async (db) => {
+            const ledger = new PgLedger(db);
+            const said = await readFailureAnswers(db, s.tenantId, s.mappingId);
+            const shown = (
+              await ledger.listFailures(
+                s.tenantId as TenantId,
+                s.mappingId as MappingId,
+                domain as DiscoveryDomain | undefined,
+              )
+            ).map(said.item);
+            const reached = shown.filter(
+              (f) => (category === undefined || f.category === category) && f.lastError.includes(errorContains),
+            );
+            let changed = 0;
+            for (const f of reached) {
+              if (await ledger.resolveFailure(s.tenantId as TenantId, s.mappingId as MappingId, f.naturalKeyHash, action)) {
+                changed += 1;
+              }
+            }
+            return changed;
+          })
+        : await withLedger(s.tenantId, (l) =>
+            l.resolveFailureGroup(s.tenantId as TenantId, s.mappingId as MappingId, action, match),
+          );
 
     // Cleared ONCE for the whole group rather than per item — same reasoning as
     // the single-item route (ADR-0020: cursors are non-authoritative, so a full
@@ -1261,7 +1305,12 @@ router.post('/:mappingId/finish', authenticate, async (req: AuthenticatedRequest
  * `VerifyStartResponse`), so the one UI polls both editions identically.
  */
 
-/** The latest run row for a mapping, as the contract's report. */
+/**
+ * The latest run row for a mapping, as the contract's report, in our words: an
+ * issue that quotes the target, a recommendation and a failed scan's error
+ * lose the target's bytes but an error document's words (0136 T3, second
+ * step; `failure-answer.ts`). The row keeps them.
+ */
 async function latestRunReport(s: Scoped): Promise<VerificationRunReport> {
   const rows = await withTenantDb(s.tenantId, pool(), (db) =>
     db
@@ -1276,7 +1325,7 @@ async function latestRunReport(s: Scoped): Promise<VerificationRunReport> {
       .orderBy(desc(schema.verificationRun.startedAt))
       .limit(1),
   );
-  return runReportOf(rows[0]);
+  return verificationInOurWords(runReportOf(rows[0]));
 }
 
 /**
@@ -1439,7 +1488,9 @@ async function latestReceipt(
       .orderBy(desc(schema.applyReceipt.requestedAt))
       .limit(1),
   );
-  return rows[0] ? receiptFromRow(rows[0]) : { state: 'none' };
+  // A failed removal's error in our words (0136 T3, second step): it is the
+  // target's message. The row keeps it.
+  return rows[0] ? receiptInOurWords(receiptFromRow(rows[0])) : { state: 'none' };
 }
 
 /**

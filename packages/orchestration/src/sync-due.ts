@@ -23,7 +23,14 @@
 
 import { Cron } from 'croner';
 
-/** Matches the old poller's default for mappings that omit a schedule. */
+/**
+ * The old poller's default for mappings that omit a schedule: what `isSyncDue`
+ * reads for a null schedule, and, offset per mapping (`defaultScheduleFor`),
+ * what the tick runs a stored schedule it cannot read on until somebody fixes
+ * it. A migration with no schedule of its own no longer runs on it in the
+ * managed tick: since workplan 0157 T7 that is the automatic cadence
+ * (`automaticScheduleFor`).
+ */
 export const DEFAULT_SYNC_SCHEDULE = '*/15 * * * *';
 
 /** How many minutes the default cadence spans, and so how far offsets spread. */
@@ -64,12 +71,94 @@ export function defaultScheduleFor(mappingId: string): string {
  * UUID that appears in the URL bar.
  */
 function offsetFor(mappingId: string): number {
+  return fnv1a(mappingId) % DEFAULT_PERIOD_MINUTES;
+}
+
+function fnv1a(mappingId: string): number {
   let hash = 0x811c9dc5;
   for (let i = 0; i < mappingId.length; i++) {
     hash ^= mappingId.charCodeAt(i);
     hash = Math.imul(hash, 0x01000193) >>> 0;
   }
-  return hash % DEFAULT_PERIOD_MINUTES;
+  return hash;
+}
+
+/**
+ * THE AUTOMATIC CADENCE (workplan 0157 T7; the owner, 2026-10-05: *"sync slow
+ * down once a migration is in step: yes"*).
+ *
+ * A migration with no schedule of its own, which is what *Start a migration*
+ * makes, looks for changes every hour for 14 days, then every 6 hours, and once
+ * a day from 30 days on. The days count from when the first copy finished, or
+ * from the last time somebody opened the migration or pressed *Sync now*,
+ * whichever is later: freshness matters while somebody is checking that new
+ * mail arrives, and much less to somebody who keeps the sync for weeks without
+ * looking (0157 §7, which reasons it out against the load: a thousand
+ * migrations in step at hourly are 24,000 passes a day, most finding nothing).
+ * While the first copy runs, `isSyncDue` runs it pass after pass anyway.
+ *
+ * A schedule somebody chose is never changed: this is only ever the cadence of
+ * a migration that holds none. Each step is offset per migration, as the
+ * 15-minute default is, so the hour's first minute does not start them all.
+ * Stable for the same reason: the offset comes from the id, never the clock.
+ */
+export const AUTOMATIC_HOURLY_DAYS = 14;
+
+/** From this many days in step, the automatic cadence looks once a day. */
+export const AUTOMATIC_DAILY_AFTER_DAYS = 30;
+
+/** How often the automatic cadence looks, at one moment. */
+export type AutomaticStep = 'hourly' | 'six-hourly' | 'daily';
+
+const DAY_MS = 24 * 60 * 60_000;
+
+/**
+ * Which step the automatic cadence is on: `since` is when the first copy
+ * finished or somebody last looked, whichever is later (`automaticSince`), and
+ * null while there is neither, which looks every hour.
+ */
+export function automaticStep(since: Date | null, now: Date): AutomaticStep {
+  if (since === null) return 'hourly';
+  const days = (now.getTime() - since.getTime()) / DAY_MS;
+  if (days < AUTOMATIC_HOURLY_DAYS) return 'hourly';
+  if (days < AUTOMATIC_DAILY_AFTER_DAYS) return 'six-hourly';
+  return 'daily';
+}
+
+/**
+ * What the automatic cadence counts from: the later of when the first copy
+ * finished and when somebody last opened the migration or pressed *Sync now*.
+ * Null while the first copy is unfinished, or when neither has happened.
+ */
+export function automaticSince(
+  firstCopyUnfinished: boolean,
+  firstCopyDoneAt: Date | null,
+  lookedAt: Date | null,
+): Date | null {
+  if (firstCopyUnfinished) return null;
+  if (firstCopyDoneAt === null) return lookedAt;
+  if (lookedAt === null) return firstCopyDoneAt;
+  return lookedAt.getTime() > firstCopyDoneAt.getTime() ? lookedAt : firstCopyDoneAt;
+}
+
+/**
+ * The automatic cadence as the cron the tick reads, for one migration now:
+ * hourly at the migration's own minute, every 6 hours from its own hour, or
+ * once a day at its own hour.
+ */
+export function automaticScheduleFor(mappingId: string, since: Date | null, now: Date): string {
+  const hash = fnv1a(mappingId);
+  const minute = hash % 60;
+  switch (automaticStep(since, now)) {
+    case 'hourly':
+      return `${minute} * * * *`;
+    case 'six-hourly': {
+      const first = Math.floor(hash / 60) % 6;
+      return `${minute} ${[0, 6, 12, 18].map((h) => h + first).join(',')} * * *`;
+    }
+    case 'daily':
+      return `${minute} ${Math.floor(hash / 360) % 24} * * *`;
+  }
 }
 
 /**

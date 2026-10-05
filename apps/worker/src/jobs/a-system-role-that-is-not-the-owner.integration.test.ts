@@ -190,7 +190,9 @@ const asPsqlPrints = (row: unknown[]): string =>
  *     ledger, audit trail, members or budgets.
  *   - Read by the tick beside the purge's column: the three tables the tier
  *     each month bills is read from (workplan 0157 T2, managed 0041), so
- *     Free runs at its pace. Never who said yes, nor a price.
+ *     Free runs at its pace. Never who said yes, nor a price. And when each
+ *     migration was last visited (0157 T7, managed 0042), for the automatic
+ *     cadence.
  *   - The rest, each for its one job: the hold and the beat (the tick),
  *     invoices up to their period and their status (retention) and detached
  *     with the buyer's name (the purge), declined requests by their decision
@@ -263,6 +265,9 @@ const EXPECTED: Record<string, readonly string[]> = {
   // granted in managed 0035, not 0033, which runs before the table exists on a fresh database.
   // Never the secret's hash, the person or the expiry: the purge picks the rows by tenant.
   person_link: PURGED_ONLY(),
+  // When each migration was last visited (workplan 0157 T7, managed 0042): the
+  // tick reads it for the automatic cadence, and the purge deletes it.
+  migration_visit: PURGED_ONLY('mapping_id,tenant_id,visited_at'),
 };
 
 /** What the role holds beyond tables: its schema's USAGE, and nothing else anywhere. */
@@ -758,6 +763,10 @@ describe('the purge of a closed organisation runs as the system role', () => {
       INSERT INTO person_link (id, tenant_id, person_id, purpose, secret_hash, created_by, expires_at) VALUES
         (${C_LINK}, ${C}, ${C_PERSON}, 'grant', 'h-0138f-c-link', 'user-0138f-c-owner', now() + interval '7 days')
       ON CONFLICT (id) DO NOTHING`);
+    // When C's migration was last visited (workplan 0157 T7, managed migration 0042): erased with it.
+    await owner.execute(sql`
+      INSERT INTO migration_visit (mapping_id, tenant_id) VALUES (${C_MAPPING}, ${C})
+      ON CONFLICT (mapping_id) DO NOTHING`);
     await owner.execute(sql`
       INSERT INTO tenant_member (tenant_id, user_id, email, role, status) VALUES
         (${C}, 'user-0138f-c-owner', 'owner@c.system-role.example.invalid', 'owner', 'active')
@@ -805,6 +814,7 @@ describe('the purge of a closed organisation runs as the system role', () => {
     expect(receipt!.counts.person).toBe(1);
     expect(receipt!.counts.person_migration).toBe(1);
     expect(receipt!.counts.person_link).toBe(1);
+    expect(receipt!.counts.migration_visit).toBe(1);
   });
 
   it('and A and B are as they were', async () => {

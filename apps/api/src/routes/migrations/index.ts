@@ -77,6 +77,7 @@ import type { TokenRevoker } from '@openmig/shared';
 import { cutoverBeginRefusal, prepareTransition } from '@openmig/core/cutover-state';
 import { enqueueUnlessHeld } from '../../enqueue-unless-held.ts';
 import { freePaceRefusal } from './free-pace.ts';
+import { recordVisit } from './visits.ts';
 import { refusedAsClosed } from '../../closed-organisation.ts';
 import { refusedUntilAccepted } from '../../conditions-not-accepted.ts';
 import type {
@@ -159,6 +160,7 @@ import {
 } from '@openmig/shared';
 import { serverFault } from '../../server-fault.ts';
 import { probeAnswers } from '../../probe-answer.ts';
+import { readFailureAnswers } from '../../failure-answer.ts';
 import { refusedOverTestLimit } from '../../probe-limit.ts';
 import { archiveOnServerRefusal } from '../archive-on-the-server.ts';
 import { hasCopiedAnything, prefixClash, revisedRoot, rootRevision } from './revise-root.ts';
@@ -1887,11 +1889,14 @@ export const UpdateMappingSchema = CreateMappingBase.partial()
   .extend({
     sourceConfig: CreateMappingBase.shape.sourceConfig.partial().optional(),
     targetConfig: CreateMappingBase.shape.targetConfig.partial().optional(),
-    syncConfig: z.object({ schedule: z.string().optional() }).optional(),
+    // A cron, or null for the automatic cadence (workplan 0157 T7): every hour
+    // for 14 days, then every 6 hours, then daily, as the tick reads a
+    // migration with no schedule of its own.
+    syncConfig: z.object({ schedule: z.string().nullable().optional() }).optional(),
   })
   .superRefine((body, ctx) => {
     if (body.sourceConfig) refuseUnreadableExportFormat(ctx, body.sourceConfig);
-    if (body.syncConfig?.schedule !== undefined) refuseUnreadableSchedule(ctx, body.syncConfig.schedule);
+    if (typeof body.syncConfig?.schedule === 'string') refuseUnreadableSchedule(ctx, body.syncConfig.schedule);
     refuseTestersThrottle(ctx, body.throttleConfig);
     // The folder the copies land in, by the parser create and the appliance
     // read it with (0153 open question 5, item 4).
@@ -2825,7 +2830,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
             .where(and(eq(schema.mailbox.id, mailboxId), eq(schema.mailbox.tenantId, tenantId)));
           return rows[0]?.connection ?? null;
         };
-        const [sourceConn, targetConn, scopeRows, domainStatus, failures, adopted, discovery, stopFacts, graceEnds] =
+        const [sourceConn, targetConn, scopeRows, storedStatus, failures, adopted, discovery, stopFacts, graceEnds, said] =
           await Promise.all([
           connectionOf(mapping.sourceMailboxId),
           connectionOf(mapping.targetMailboxId),
@@ -2858,6 +2863,8 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
           // When each grace period ended, for the Finish page (0128 D7, T5
           // slice 7c).
           readGraceEnds(db, tenantId, mappingId),
+          // How this migration's failures are said (0136 T3, second step).
+          readFailureAnswers(db, tenantId, mappingId),
         ]);
 
         return {
@@ -2865,7 +2872,11 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
           sourceConn,
           targetConn,
           scopeRows,
-          domainStatus,
+          // Each data type's failure line in our words: a refusal from a host
+          // a tester typed loses the server's bytes but an error document's
+          // words (`failure-answer.ts`). The row keeps them, and the reference
+          // beside the line finds the log line with the full text.
+          domainStatus: storedStatus.map(said.status),
           failures,
           adopted,
           discovery,
@@ -3634,6 +3645,16 @@ router.post(
         tags: [`tenant:${tenantId}`, `mapping:${mappingId}`],
       });
 
+      // A press is a visit (workplan 0157 T7, `visits.ts`): somebody checking
+      // gets the hour back. After the pass is enqueued and never in its way: a
+      // visit that cannot be recorded is said in the log, and the press is
+      // still the 202 it was.
+      try {
+        await recordVisit(tenantId, mappingId, pool);
+      } catch (err) {
+        log.error(`[sync] mapping ${mappingId}: the pass is enqueued, but the visit could not be recorded:`, err);
+      }
+
       res.status(202).json({
         success: true,
         runId: run.id,
@@ -3652,6 +3673,44 @@ router.post(
     }
   }
 );
+
+/**
+ * POST /api/migrations/:mappingId/visit
+ *
+ * The migration's page was opened (workplan 0157 T7, `visits.ts`): one with no
+ * schedule of its own looks every hour again, for 14 days. The page sends it as
+ * it opens. 204, whether it moved the visit or one within the hour already
+ * stood; 404 for a migration this organisation does not have.
+ */
+router.post('/:mappingId/visit', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { mappingId } = req.params;
+    if (!mappingId || Array.isArray(mappingId)) {
+      res.status(400).json({ error: 'mappingId is required' });
+      return;
+    }
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found in authentication context' });
+      return;
+    }
+    const pool = getSharedPool();
+    const found = await withTenantDb(tenantId, pool, (db) =>
+      db
+        .select({ id: schema.mailboxMapping.id })
+        .from(schema.mailboxMapping)
+        .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId))),
+    );
+    if (found.length === 0) {
+      res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
+      return;
+    }
+    await recordVisit(tenantId, mappingId, pool);
+    res.status(204).end();
+  } catch (error) {
+    serverFault(res, 'visit_failed', 'recording this visit', error);
+  }
+});
 
 /**
  * POST /api/mappings/:mappingId/cutover
@@ -3844,9 +3903,16 @@ router.get(
       }
 
       const pool = getSharedPool();
-      const { runs, truncated } = await withTenantDb(tenantId, pool, async (db) =>
-        new RunStore(db).listRunsWithEvents(tenantId as TenantId, mappingId as MappingId),
-      );
+      const { runs, truncated } = await withTenantDb(tenantId, pool, async (db) => {
+        const [listed, said] = await Promise.all([
+          new RunStore(db).listRunsWithEvents(tenantId as TenantId, mappingId as MappingId),
+          readFailureAnswers(db, tenantId, mappingId),
+        ]);
+        // A failed data type is logged here as the pass threw it, so its
+        // events are said in our words too (0136 T3, second step). The
+        // run_event rows keep the full text.
+        return { ...listed, runs: listed.runs.map(said.run) };
+      });
 
       res.json({ runs, truncated });
     } catch (error) {
@@ -3998,7 +4064,7 @@ router.get('/:mappingId/discovery', authenticate, async (req: AuthenticatedReque
     if (!mapping) return void res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
 
     const domains = await withTenantDb(tenantId, getSharedPool(), async (db) => {
-      const [stored, scopeRows] = await Promise.all([
+      const [stored, scopeRows, said] = await Promise.all([
         new schema.PgDiscoveryStore(db).getDiscovery(tenantId as TenantId, mappingId as MappingId),
         db
           .select({ domain: schema.scopeSelection.domain })
@@ -4010,8 +4076,11 @@ router.get('/:mappingId/discovery', authenticate, async (req: AuthenticatedReque
               eq(schema.scopeSelection.included, true),
             ),
           ),
+        readFailureAnswers(db, tenantId, mappingId),
       ]);
-      return discoveryForSelection(stored, scopeRows.map((r) => r.domain));
+      // A count that stopped is said in our words when the source's host was
+      // typed (0136 T3, second step); the row keeps the full text.
+      return discoveryForSelection(stored, scopeRows.map((r) => r.domain)).map(said.discovery);
     });
     // The provider's text of a count that stopped stays off the owner's
     // confirm screen for an account a person granted (ADR-0035 decision 5),
