@@ -56,7 +56,8 @@ the owner's job.
    (0139 T5), the run-row retention rule (0143 T6), and the Google test-user entries kept.
 2. **The invoice.** After the switch a yes is taken and recorded with its price, and the Billing
    page names what the month bills. Nothing turns that into an invoice yet. The invoice line
-   (workplan 0109 T5) and the bookkeeping (workplan 0111, Moneybird) wait on the Moneybird trial.
+   (workplan 0109 T5) and the bookkeeping (workplan 0111, Moneybird) wait on their build, and on
+   nothing of the owner's: the bookkeeping's test passed on 2026-10-05, in a Moneybird sandbox.
    Switching before them takes consent to prices that nobody invoices.
 3. **Tell the testers, with their numbers.** No yes could be taken during the alpha, so every
    organisation is on Free at the switch: one migration at a time (each kind of data counts as

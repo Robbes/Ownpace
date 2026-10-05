@@ -78,7 +78,7 @@ export const COPY = {
     },
     heroTitle: 'Move off Google or Microsoft. At your own pace.',
     heroLede:
-      'Ownpace copies your mail, contacts, calendar, tasks and files to a European provider you choose — and keeps the copy in step until <em>you</em> decide to switch over. No weekend deadline. No big-bang cutover. Your old account stays exactly where it is until you say otherwise.',
+      'Ownpace copies your mail, contacts, calendar, tasks and files to a European provider you choose — and keeps the copy in step until <em>you</em> decide to switch over. No weekend deadline. No big-bang cutover. Your old account stays exactly where it is, for as long as you keep it.',
     ctaOrder: 'Request access',
     ctaPricing: 'See what it costs',
     ctaAllTiers: 'All five tiers, in full',
@@ -110,7 +110,7 @@ export const COPY = {
     // How it works, in three steps (T3 (b)): its five folded, linking the whole page.
     strip: {
       steps: [
-        ['Connect the account you are leaving', 'Your old account stays as it is.'],
+        ['Connect the account you are leaving', 'Ownpace changes nothing there.'],
         ['We copy, then keep copying', 'Every change arrives in your new home.'],
         ['Switch when you are ready', 'Check what arrived first. No deadline.'],
       ],
@@ -215,9 +215,10 @@ export const COPY = {
         export: 'An export you ask for',
       },
       steps: {
-        google: 'Sign in with Google and allow Ownpace to read your calendars, contacts and tasks.',
+        google:
+          'Sign in with Google and allow Ownpace to read your calendars, contacts and tasks. For calendars and contacts, Google describes a broader permission than Ownpace uses; Ownpace only reads.',
         gmail:
-          'Sign in with Google again for your mail, which Google asks about on its own. On a personal account an app password can stand in, though Google advises against it.',
+          'Sign in with Google again for your mail, which Google asks about on its own. For mail too, Google describes a broader permission than Ownpace uses. On a personal account an app password can stand in, though Google advises against it.',
         'google-drive': 'And once more for your Drive, which Google lets Ownpace read and never change.',
         archive:
           'For photos, ask Google for a Takeout export of Google Photos, and put it in a folder called Takeout at the top of your new home’s files.',
@@ -242,7 +243,7 @@ export const COPY = {
       ['It is a move, not a copy',
        'Most migration tools run a copy job and hand you the result. Ownpace keeps running: every change on your old account arrives on the new one, for as long as you want, until you cut over.'],
       ['Nothing is deleted at the source',
-       (p) => `Ever. Your old account is your fallback, and it stays intact whatever happens. That is not a promise about our intentions — <a href="${p.readsOnly}">the software has no way to delete from a source</a>.`],
+       (p) => `Ever. Your old account is your fallback, and Ownpace leaves it as it is: <a href="${p.readsOnly}">the software has no code that changes or deletes anything at a source</a>. Some permissions allow more than Ownpace uses; How it works says which.`],
       ['European, all the way down',
        (p) => `Migrating off US cloud through a US service defeats the point. Ownpace runs in the EU, and the software is <a href="${p.repository}">open source</a>, so you can check that rather than trust it.`],
       ['Or run it yourself',
@@ -252,7 +253,7 @@ export const COPY = {
     wontLede: 'The honest list, in front of the price rather than behind it.',
     wont: [
       ['It does not sync backwards',
-       'Data flows old → new. Your old account never changes, which is what keeps it a safe place to fall back to.'],
+       'Data flows old → new. Ownpace never writes to your old account, which is what keeps it a safe place to fall back to.'],
       ['It cannot move everything perfectly',
        (p) => `Providers differ, and some things do not survive the crossing. <a href="${p.cannotMove}">Whatever cannot be moved</a> is reported to you item by item, with the reason — never dropped quietly.`],
       ['It is not a backup service',
@@ -465,7 +466,7 @@ export const COPY = {
     },
     heroTitle: 'Weg bij Google of Microsoft. In uw eigen tempo.',
     heroLede:
-      'Ownpace kopieert uw e-mail, contacten, agenda, taken en bestanden naar een Europese aanbieder die u zelf kiest — en houdt die kopie bij tot <em>u</em> besluit over te stappen. Geen deadline in het weekend. Geen big bang. Uw oude account blijft precies waar het is, tot u iets anders zegt.',
+      'Ownpace kopieert uw e-mail, contacten, agenda, taken en bestanden naar een Europese aanbieder die u zelf kiest — en houdt die kopie bij tot <em>u</em> besluit over te stappen. Geen deadline in het weekend. Geen big bang. Uw oude account blijft precies waar het is, zolang u het aanhoudt.',
     ctaOrder: 'Toegang aanvragen',
     ctaPricing: 'Bekijk wat het kost',
     ctaAllTiers: 'Alle vijf de pakketten, volledig',
@@ -487,7 +488,7 @@ export const COPY = {
     ],
     strip: {
       steps: [
-        ['Koppel het account dat u verlaat', 'Uw oude account blijft zoals het is.'],
+        ['Koppel het account dat u verlaat', 'Ownpace wijzigt daar niets.'],
         ['Wij kopiëren, en blijven kopiëren', 'Elke wijziging komt aan in uw nieuwe thuis.'],
         ['Stap over wanneer u klaar bent', 'Controleer eerst wat er aankwam. Geen deadline.'],
       ],
@@ -578,9 +579,10 @@ export const COPY = {
         export: 'Een export die u aanvraagt',
       },
       steps: {
-        google: 'Meld u aan bij Google en geef Ownpace toegang om uw agenda’s, contacten en taken te lezen.',
+        google:
+          'Meld u aan bij Google en geef Ownpace toegang om uw agenda’s, contacten en taken te lezen. Voor agenda’s en contacten beschrijft Google een ruimere toestemming dan Ownpace gebruikt; Ownpace leest alleen.',
         gmail:
-          'Meld u opnieuw aan bij Google voor uw e-mail, waar Google apart om vraagt. Bij een persoonlijk account kan een app-wachtwoord dat vervangen, al raadt Google het af.',
+          'Meld u opnieuw aan bij Google voor uw e-mail, waar Google apart om vraagt. Ook voor e-mail beschrijft Google een ruimere toestemming dan Ownpace gebruikt. Bij een persoonlijk account kan een app-wachtwoord dat vervangen, al raadt Google het af.',
         'google-drive': 'En nog één keer voor uw Drive, die Ownpace van Google mag lezen en nooit mag wijzigen.',
         archive:
           'Vraag voor foto’s bij Google een Takeout-export van Google Foto’s aan, en zet die in een map Takeout bovenaan in de bestanden van uw nieuwe thuis.',
@@ -605,7 +607,7 @@ export const COPY = {
       ['Het is een migratie, geen kopie',
        'De meeste migratietools draaien één kopieerklus en geven u het resultaat. Ownpace blijft draaien: elke wijziging in uw oude account komt aan in het nieuwe, zolang u wilt, tot u overstapt.'],
       ['Aan de bron wordt nooit iets verwijderd',
-       (p) => `Nooit. Uw oude account is uw vangnet en blijft intact, wat er ook gebeurt. Dat is geen belofte over onze bedoelingen — <a href="${p.readsOnly}">de software heeft simpelweg geen manier om iets bij een bron te verwijderen</a>.`],
+       (p) => `Nooit. Uw oude account is uw vangnet, en Ownpace laat het zoals het is: <a href="${p.readsOnly}">de software heeft geen code die bij een bron iets wijzigt of verwijdert</a>. Sommige toestemmingen staan meer toe dan Ownpace gebruikt; Hoe het werkt zegt welke.`],
       ['Europees, tot op de bodem',
        (p) => `Weggaan bij Amerikaanse cloud via een Amerikaanse dienst mist het punt. Ownpace draait in de EU, en de software is <a href="${p.repository}">open source</a>, dus u kunt het nakijken in plaats van ons te geloven.`],
       ['Of draai het zelf',
@@ -615,7 +617,7 @@ export const COPY = {
     wontLede: 'De eerlijke lijst, vóór de prijs in plaats van erachter.',
     wont: [
       ['Het synchroniseert niet terug',
-       'Gegevens gaan van oud naar nieuw. Uw oude account verandert nooit, en juist daarom blijft het een veilige plek om op terug te vallen.'],
+       'Gegevens gaan van oud naar nieuw. Ownpace schrijft nooit naar uw oude account, en juist daarom blijft het een veilige plek om op terug te vallen.'],
       ['Het kan niet alles perfect migreren',
        (p) => `Aanbieders verschillen, en sommige dingen overleven de oversteek niet. <a href="${p.cannotMove}">Wat niet mee kan</a>, krijgt u stuk voor stuk te horen, met de reden — het verdwijnt nooit stilletjes.`],
       ['Het is geen back-updienst',

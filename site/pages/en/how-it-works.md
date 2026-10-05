@@ -8,11 +8,16 @@ Tell us roughly what you are moving and we show you what it would cost. No accou
 email address, no sales call. If the number is wrong for you, that is the end of it and
 you have lost nothing.
 
-## 2. Connect the account you are leaving — read-only
+## 2. Connect the account you are leaving — Ownpace only reads
 
-You grant access to the account you want to move. The connection is **read-only**: the
-software has no path that writes to a source, so the account you are leaving cannot be
-changed by us even by accident.
+You give Ownpace access to the account you want to move. Ownpace only reads from it: the
+software has no code that changes, moves or deletes anything at a source, and a test in the
+public code checks that for every source. The permission you give can allow more than
+Ownpace uses. For Google Drive, Google Tasks and *Connect with Microsoft*, the permission
+itself is read-only as well. For Gmail, the calendars and contacts of a Google account,
+Microsoft 365 over IMAP, and any account you connect with a password, the permission also
+allows changes; there the guarantee is the software's. For Google, the app says so beside
+the button, before you connect.
 
 You can withdraw that access at your provider at any time, without asking us, and the
 migration stops.

@@ -32,14 +32,16 @@
  *
  * ## What is not yet under the rule, and whose it is
  *
- * The site's how-it-works page is the owner's copy to approve (0144 T0, T3 (b)),
- * and the setup step's title is T3's *after the first invitation*. They are
- * named in `PENDING` below with whose they are, and the list only shrinks: an
- * entry whose text no longer breaks the rule fails here until it is removed,
- * so an excuse cannot outlive what it excused. The grant page's own box is
- * chosen by the grant's scopes at run time, which a text scan cannot see; its
- * guard is `apps/web/src/a-permission-described-as-it-is.unit.test.tsx`, and
- * the decision's is `grant-link-readiness.unit.test.ts`.
+ * Nothing, since 2026-10-05. The site's how-it-works page was the owner's copy
+ * to approve (0144 T0, T3 (b)), and the setup step's title was T3's *after the
+ * first invitation*; the owner chose the words for both that day (0144 open
+ * question 2), so both are under the rule now. `PENDING` stays, empty, for a
+ * surface that is ever added before its words are settled, and the list only
+ * shrinks: an entry whose text no longer breaks the rule fails here until it
+ * is removed, so an excuse cannot outlive what it excused. The grant page's
+ * own box is chosen by the grant's scopes at run time, which a text scan cannot
+ * see; its guard is `apps/web/src/a-permission-described-as-it-is.unit.test.tsx`,
+ * and the decision's is `grant-link-readiness.unit.test.ts`.
  *
  * ROOT-LEVEL, SO VITEST AND NODE BUILTINS ONLY (AGENTS.md): the dictionary is
  * read as text, the way `a-ceiling-the-screen-could-not-see` reads its files.
@@ -95,17 +97,12 @@ const SURFACES: ReadonlyArray<Surface> = [
   { kind: 'string', key: 'setup.google.consent_scope.title', locale: 'nl' },
 ];
 
-/** Surface → whose it is to change, and when. Only shrinks. */
-const PENDING: Readonly<Record<string, string>> = {
-  'site/pages/en/how-it-works.md':
-    "0144 T3 (b): the site copy is the owner's to approve or rewrite (T0), in group R5.",
-  'site/pages/nl/hoe-het-werkt.md':
-    "0144 T3 (b): the site copy is the owner's to approve or rewrite (T0), in group R5.",
-  [`${STRINGS} setup.google.consent_scope.title (en)`]:
-    "0144 T3's setup title, planned for after the first invitation.",
-  [`${STRINGS} setup.google.consent_scope.title (nl)`]:
-    "0144 T3's setup title, planned for after the first invitation.",
-};
+/**
+ * Surface → whose it is to change, and when. Only shrinks. Empty since
+ * 2026-10-05: the how-it-works pages and the setup title took the owner's
+ * words (0144 T3 (b) and the setup title, open question 2).
+ */
+const PENDING: Readonly<Record<string, string>> = {};
 
 /**
  * A Markdown file as the sentences a reader meets: a heading, a list item or a

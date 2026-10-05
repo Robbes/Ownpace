@@ -1,8 +1,49 @@
 # Workplan 0140 — Consent screens a tester can pass
 
-> **In one line:** Provider consent for testers on `ownpace-live`: its own Google OAuth client, test users, Testing or Production, a Microsoft registration ADR and publisher verification, read-only Dropbox scope, Box and Apple as experimental, the sign-in buttons.
+> **In one line:** Provider consent for testers on `ownpace-live`: its Google OAuth client, test users, Testing or Production, a Microsoft registration ADR and publisher verification, read-only Dropbox scope, Box and Apple as experimental, the sign-in buttons.
 
-## Status — 2026-09-26 (update this block at the end of every session)
+## Status — 2026-10-05 (update this block at the end of every session)
+
+**2026-10-05: open questions 7 and 8 answered: live reuses the OTA stack's Google client for the
+Alpha, and tries the OTA stack's Microsoft and Dropbox registrations first.** Plans only; nothing is built or
+registered yet. On live's Google client (T11, D5), the owner: *"We reuse the current Google
+OTA-client for the apha."* ("apha" is read as "Alpha".) Asked whether live reuses the OTA stack's
+Microsoft and Dropbox registrations, the owner first chose *"Separate registrations for live"*,
+then corrected it the same evening: *"correction: we will first try to reuser the Microsoft and
+Dropbox oauth client. If that cannot work, i'll register a new client."* ("reuser" is read as
+"reuse".)
+
+- **Google: one client for both stacks, for the Alpha.** Live's consent address,
+  `https://app.ownpace.eu/api/migrations/google/callback`, is added to the client the OTA stack
+  uses, beside the two it holds (D5). Live's `.env` carries that client's pair
+  (`GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`). Live's sign-in address goes on it only
+  if T10 keeps a Google sign-in, as before. This is not what T11 advised. The advice rested on
+  `docs/google-oauth-verification.md` §4b (*"Test and production get separate clients"*) and on
+  ADR-0041's status line (*"production getting its own client before real customers exist"*);
+  the owner chose one client for the Alpha. What follows from it:
+  - a leaked secret from either stack is the other stack's secret too (§4b's reason);
+  - one Google Cloud project, so one publishing status (Testing, D1), one test-user list and one
+    cap for both stacks (T0, T1); publishing to Production publishes both;
+  - open question 7's second half, which project, needs no answer of its own: it is the test
+    client's;
+  - if live later moves to a client of its own, every Google account connected on live
+    reconnects once (T11, *Changing client later*).
+- **Microsoft and Dropbox: the OTA stack's registrations first**, T11's option (b); a
+  registration of live's own, option (a), only if that cannot work. Live's callbacks,
+  `https://app.ownpace.eu/api/migrations/microsoft/callback` and
+  `https://app.ownpace.eu/api/migrations/dropbox/callback`, are added to the registrations the
+  OTA stack names, and live's `.env` carries their pairs (`MICROSOFT_OAUTH_*`,
+  `DROPBOX_OAUTH_*`). As with Google, a leaked secret from either stack is then the other's too.
+  T5's publisher verification and T7 (a)'s console read are done on the registrations testers
+  meet, whichever those turn out to be.
+- **What T11 now asks of the owner**, before T0: live's consent address added to the existing
+  Google client, copied from live's Redirect URIs page; that client's pair in live's `.env`; live's
+  callbacks added to the OTA stack's Microsoft registration and Dropbox app, and their pairs in
+  live's `.env` (a registration of live's own only if that cannot work);
+  T11's check, each consent screen reached on live with the owner's own account; and §4b's dated
+  line saying what the client holds now and that both stacks use it. Values never go in this plan.
+- T11's row, a dated note at §3 T11 and at §5, D5, and open questions 5, 7 and 8 say so, and so
+  does 0131 T5's row for this plan. No code and no ADR changes.
 
 **2026-09-26, build: T2 (b), T3 (a), T6 (b) and T7 (b), the consent screens' own lines,
 decided by the owner on 2026-09-25 and built on branch
@@ -216,7 +257,7 @@ tester does not wait on them), T3's optional in-app detection, and T8's rewordin
 | T8 Box: experimental, and for organisations with a Box administrator | ✅ **(a), the label, done** in #1171, merged 2026-09-25. 📋 **Decided 2026-09-24** (D3) | §3. The label is 0131 T2 and is decided. Rewording the guide's "read-only by construction" is **Proposed**. |
 | T9 Apple: experimental, with the password's own steps | ✅ **(a), the label, done** in #1171, merged 2026-09-25. 📋 **Decided 2026-09-24** (D3) | §3. The label is 0131 T2. Never measured against a live account. |
 | T10 Which sign-in buttons the alpha offers | 📋 **Proposed** | §3. Email and password only on live's identity provider, unless the owner's own sign-in needs one. 0133 waits on this. The OTA stack's Google client already carries that stack's sign-in address (D5); live's gets live's only if a Google sign-in stays, recorded in ADR-0041 (T11). |
-| T11 Live's own Google client, and live's addresses at Microsoft and Dropbox | ⏳ **Owner** (0132 D7, D5), before T0 | §3. A new Google client for live, with its own secret and live's consent address, `https://app.ownpace.eu/api/migrations/google/callback`. Live's sign-in address, `https://id.ownpace.eu/ui/login/login/externalidp/callback`, is added only if T10 keeps a Google sign-in, and then recorded in ADR-0041, whose decision gives production exactly one redirect URI (T10). The test client holds the OTA stack's two and no production address (D5; corrected 2026-09-24, §1). Its project: the test client's is enough while live stays in Testing; a project of its own if live leaves Testing (T1, open question 7). Microsoft and Dropbox get live's two callbacks. Whether they get registrations of their own is open question 8. |
+| T11 Live's own Google client, and live's addresses at Microsoft and Dropbox | ⏳ **Owner** (0132 D7, D5), before T0; 📋 **Decided 2026-10-05** (open questions 7 and 8): the OTA stack's Google client reused for the Alpha (*"We reuse the current Google OTA-client for the apha."*), with live's consent address added to it; Microsoft and Dropbox: the OTA stack's registrations tried first, live's own only if that cannot work (the owner's correction, 2026-10-05: *"correction: we will first try to reuser the Microsoft and Dropbox oauth client. If that cannot work, i'll register a new client."*) | §3. *Since 2026-10-05: live's consent address goes on the OTA stack's client, whose pair live's `.env` carries, in that client's project, so the two stacks share one publishing status, test-user list and cap; Microsoft and Dropbox first try the OTA stack's registrations, with live's callbacks added, and get registrations of live's own only if that cannot work (Status, 2026-10-05). Before that, T11 advised:* A new Google client for live, with its own secret and live's consent address, `https://app.ownpace.eu/api/migrations/google/callback`. Live's sign-in address, `https://id.ownpace.eu/ui/login/login/externalidp/callback`, is added only if T10 keeps a Google sign-in, and then recorded in ADR-0041, whose decision gives production exactly one redirect URI (T10). The test client holds the OTA stack's two and no production address (D5; corrected 2026-09-24, §1). Its project: the test client's is enough while live stays in Testing; a project of its own if live leaves Testing (T1, open question 7). Microsoft and Dropbox get live's two callbacks. Whether they get registrations of their own is open question 8. |
 
 ## 1. What there is today
 
@@ -491,6 +532,11 @@ This is a fact from the console, and it corrects what §1 and T11 said about a `
 (the dated note in §1). The choice at the end is open. T11 gives the advice: a new client for
 live, with live's consent address, and its sign-in address only if T10 keeps a Google sign-in, in
 a Google Cloud project that follows from T1's choice.
+
+**Answered 2026-10-05: the client there is, for the Alpha.** *"We reuse the current Google
+OTA-client for the apha."* So live's consent address is added to this client, and live's `.env`
+carries its pair. That is the first of the owner's two options, not T11's advice. What it means
+for T0, T1 and a later move is in the Status block (2026-10-05).
 
 ## 3. What each task does
 
@@ -822,6 +868,15 @@ No code, so there is no guard.
 
 ### T11 — live's own Google client, and live's addresses at Microsoft and Dropbox (owner)
 
+*Decided 2026-10-05 (open questions 7 and 8; Status, 2026-10-05): for the Alpha, live's consent
+address is added to the OTA stack's Google client, and live's `.env` carries that client's pair;
+Microsoft and Dropbox first try the OTA stack's registrations, option (b) below, and get
+registrations of live's own, option (a), only if that cannot work (the owner's correction of the
+same evening). So step 1 below adds the
+address to the existing client instead of creating one, step 2 enters that client's pair, step 3
+no longer leaves the test client as it is, and the project is the test client's. The advice
+below is kept as it was written.*
+
 0132 D7 makes `ownpace-live` production, so it is the stack ADR-0041 meant when it said production
 gets its own client *"before real customers exist"*. Every console below is the owner's; the exact
 strings come from live itself, not from this plan.
@@ -1080,7 +1135,9 @@ they can accept. This is the default and must be checked (T6).
 2. **T11**, once live runs with its own `API_URL` (0132 T1b): live's Google client created with
    T1's publishing status, in the project T1's choice points to, and live's addresses at Microsoft
    and Dropbox. Before any tester connects, and before T0, because the test users are listed for
-   that client's project.
+   that client's project. *(2026-10-05: for the Alpha, live's consent address is added to the OTA
+   stack's client instead, and Microsoft and Dropbox first try the OTA stack's registrations;
+   Status, 2026-10-05.)*
 3. **T0 for the first testers**, and **T2 and T3**, before the first Google tester.
 4. **T4 now**, as its own documentation PR. **T5 started now** by the owner, on the registration
    T11 settles.
@@ -1137,7 +1194,8 @@ and in the Status block.
 1. **Google (T1): (a) or (b), for the production client?** The recommendation is (a), with its
    three conditions and the switch trigger. Whether alpha testers are the "real customers" before
    whom ADR-0041 says production gets its own client no longer needs an answer: 0132 D7 makes
-   `ownpace-live` production, and it gets its own client (T11).
+   `ownpace-live` production, and it gets its own client (T11). *(2026-10-05: not for the Alpha:
+   live reuses the OTA stack's client, open question 7.)*
 2. **Grant links in the alpha under (a):** may testers send them to family members, who must then
    grant again each week, or do testers migrate only their own Google account during the alpha?
 3. **Microsoft (T4, T5):** write the ADR and start publisher verification now, as advised?
@@ -1147,6 +1205,10 @@ and in the Status block.
    card to testers' own apps? And should the consent also ask for
    `sharing.read`, so the shared-folder browse works? That means enabling it on the deployment's
    app, and it keeps the browse for a tester's own app that already has it.
+   *(2026-10-05: open question 8's answer, as the owner corrected it the same evening, tries the
+   OTA stack's Dropbox app first and registers one for live only if that cannot work. That is read
+   as answering the first half: if there is no real app to reuse, register one for live, not the
+   testers' own apps. Whether the consent also asks for `sharing.read` is still open.)*
 6. **Sign-in buttons (T10):** email and password only? And does the owner's own sign-in use a
    provider that must therefore stay? The OTA client carries a sign-in address (D5), which
    suggests a Google sign-in was set up or tried on the OTA stack. The repository cannot say
@@ -1157,5 +1219,12 @@ and in the Status block.
    test client? And its Google Cloud project: the test client's while live stays in Testing, and a
    new one if live is to leave Testing, as recommended? Or a new project from the start, which
    costs setting the consent screen up again but spares a reconnect if T1's switch trigger fires?
+   **Answered 2026-10-05: the test client, reused for the Alpha**, *"We reuse the current Google
+   OTA-client for the apha."* Live's consent address is added to it, so the project is the test
+   client's, and the second half needs no answer of its own. Not the advice; Status, 2026-10-05.
 8. **Microsoft and Dropbox for live (T11):** registrations of live's own, as recommended, or live's
    address added to the registrations the OTA stack names?
+   **Answered 2026-10-05: the OTA stack's registrations first.** The owner first chose
+   *"Separate registrations for live"*, then corrected it the same evening: *"correction: we will first try to reuser the Microsoft and Dropbox oauth client. If that cannot work, i'll register a new client."* So live's
+   callbacks are added to the registrations the OTA stack names; registrations of live's own only
+   if that cannot work.

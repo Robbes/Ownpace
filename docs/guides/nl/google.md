@@ -71,7 +71,7 @@ Het dagelijkse downloadplafond is **precies hetzelfde**: Google legt het op aan 
 
 Google spreekt nog steeds de protocollen die dit product al kent, dus deze bron is de gewone CalDAV-koppeling, gericht op de agendaserver van Google, met één verschil: **de DAV-servers van Google accepteren alleen OAuth**, dus de verzoeken dragen een token dat uit uw refresh-token wordt gemaakt, geen wachtwoord.
 
-Het token moet toestemming hebben voor de agendascope, `https://www.googleapis.com/auth/calendar`. Een token met toestemming voor Drive, mail of contacten antwoordt hier `invalid_scope`. Google Taken staan niet op de CalDAV van Google: de kaart **Google-account** leest ze, met `https://www.googleapis.com/auth/tasks.readonly`.
+Het token moet toestemming hebben voor de agendascope, `https://www.googleapis.com/auth/calendar`. Een token met toestemming voor Drive, mail of contacten antwoordt hier `invalid_scope`. Google Tasks staan niet op de CalDAV van Google: de kaart **Google-account** leest ze, met `https://www.googleapis.com/auth/tasks.readonly`.
 
 ### Google Contacten {#google-contacts}
 
