@@ -766,6 +766,14 @@ const en = {
   'pace.free.eachMigration': 'one pass a day for each migration, up to 50 minutes.',
   'pace.free.next': 'Next pass: {time}.',
   'pace.free.higher': 'A higher tier copies pass after pass.',
+  // A slower step a visit ended (workplan 0157 T7): the morning mail said
+  // *"Everything is in step, so we now look for changes less often"*, and
+  // opening the migration brought back the hour. Said once, on that visit.
+  'cadence.broughtBack.sixHourly':
+    'Everything was in step, so we looked every 6 hours. Opening this migration brought back every hour, for 14 days.',
+  'cadence.broughtBack.daily':
+    'Everything was in step, so we looked once a day. Opening this migration brought back every hour, for 14 days.',
+  'cadence.broughtBack.keep': 'To keep it hourly, choose Hourly under How often to look for changes.',
   // Free's pace (workplan 0157 T4): one pass a day outside the alpha, whatever
   // the schedule; the faster cadences are not offered, and this says why, with
   // the link after it as the way to a higher tier. Also what a schedule the
@@ -3760,6 +3768,11 @@ const nl: Record<keyof typeof en, string> = {
   'pace.free.eachMigration': 'één ronde per dag voor elke migratie, van hoogstens 50 minuten.',
   'pace.free.next': 'Volgende ronde: {time}.',
   'pace.free.higher': 'Een hoger pakket kopieert ronde na ronde.',
+  'cadence.broughtBack.sixHourly':
+    'Alles was bijgewerkt, dus we keken elke 6 uur. Nu u deze migratie hebt geopend, kijken we 14 dagen lang weer elk uur.',
+  'cadence.broughtBack.daily':
+    'Alles was bijgewerkt, dus we keken eens per dag. Nu u deze migratie hebt geopend, kijken we 14 dagen lang weer elk uur.',
+  'cadence.broughtBack.keep': 'Wilt u dat het elk uur blijft, kies dan Elk uur onder Hoe vaak naar wijzigingen kijken.',
   'settings.schedule.freePace':
     'Op Free kijkt een migratie eens per dag naar wijzigingen, welk schema er ook staat. Een hoger pakket kijkt zo vaak als elke 15 minuten.',
   'settings.schedule.freePace.link': 'Bekijk de pakketten op de pagina Facturering.',

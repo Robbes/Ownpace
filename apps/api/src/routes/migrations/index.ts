@@ -3721,8 +3721,10 @@ router.post(
  *
  * The migration's page was opened (workplan 0157 T7, `visits.ts`): one with no
  * schedule of its own looks every hour again, for 14 days. The page sends it as
- * it opens. 204, whether it moved the visit or one within the hour already
- * stood; 404 for a migration this organisation does not have.
+ * it opens. 200 with `broughtBackFrom`, the slower step the visit ended when the
+ * morning mail had said one (managed 0043), else null, whether it moved the
+ * visit or one within the hour already stood; 404 for a migration this
+ * organisation does not have.
  */
 router.post('/:mappingId/visit', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -3747,8 +3749,7 @@ router.post('/:mappingId/visit', authenticate, async (req: AuthenticatedRequest,
       res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
       return;
     }
-    await recordVisit(tenantId, mappingId, pool);
-    res.status(204).end();
+    res.json(await recordVisit(tenantId, mappingId, pool));
   } catch (error) {
     serverFault(res, 'visit_failed', 'recording this visit', error);
   }

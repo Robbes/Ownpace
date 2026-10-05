@@ -46,8 +46,9 @@
  *      every guard green (0138 T1 step 2's re-review). An end in another
  *      file's function that the pool is handed to is out of sight; none has
  *      one.
- *   6. Three jobs are SPLIT (0138 T2, open question 3 answered 2026-09-28):
- *      the digest, the drift detector and group discovery ask ONE question
+ *   6. Four jobs are SPLIT (0138 T2, open question 3 answered 2026-09-28):
+ *      the digest, the drift detector, group discovery and, split from the
+ *      start, 0157 T7's slower-cadence mail. They ask ONE question
  *      across organisations, which organisations are active, and everything
  *      else they read or write is one organisation's. A SPLIT file reads no
  *      database URL and builds no pool (rules 1 and 2); takes its pools from
@@ -58,7 +59,7 @@
  *      whatever function, only as the first argument of `withTenant` or
  *      `tenantScopedDb`, or hands it to a function of its own file whose
  *      parameter is a `Pool` and which this rule reads in turn.
- *      `activeOrganisations` is named by the three and by the module alone.
+ *      `activeOrganisations` is named by the four and by the module alone.
  *      Rule 7 is what keeps the owner's side of a split job to ids. Neither
  *      rule sees a per-organisation read in the WRONG organisation's scope:
  *      that is the integration guard's
@@ -274,6 +275,12 @@ const SPLIT: Record<string, string> = {
     'its own scope: its source connections, the groups it records and the decisions it raises. ' +
     'Until 0138 T2 the list was every source connection across organisations, with its config ' +
     '(0138 T2)',
+  'apps/worker/src/jobs/managed-cadence-email.ts':
+    'which organisations are active, to tell each which of its migrations on Automatic now look ' +
+    'less often (workplan 0157 T7). Per organisation, in its own scope: the tier its month bills, ' +
+    'its migrations on the automatic cadence with their data types, last visit and person, the ' +
+    'steps already said, which it claims and clears, and its active owners and admins and ' +
+    'notification settings. Split from the start, as 0138 split the three before it (0138 T2)',
 };
 
 /** What a SPLIT job reads across organisations, and all it reads there: the ids of the active ones. */
@@ -1430,10 +1437,10 @@ describe('a per-tenant job builds no pool of its own', () => {
 describe('a per-tenant task takes its pools from the one module that builds them', () => {
   const taskFiles = files.filter((f) => f.startsWith(`${JOBS_DIR}/`) && definesATask(f, texts.get(f)!));
 
-  it('found the fourteen task files, and knows each shape a task is registered in', () => {
+  it('found the fifteen task files, and knows each shape a task is registered in', () => {
     expect(taskFiles).toContain('apps/worker/src/jobs/run-delta-sync.ts');
     expect(taskFiles).toContain('apps/worker/src/jobs/managed-sync-tick.ts');
-    expect(taskFiles.length).toBeGreaterThanOrEqual(14);
+    expect(taskFiles.length).toBeGreaterThanOrEqual(15);
     expect(definesATask('shape.ts', "export const t = schemaTask({ id: 'x' });")).toBe(true);
     expect(definesATask('shape.ts', "export const t = schedules.task({ id: 'x' });")).toBe(true);
     expect(definesATask('shape.ts', "export const t = task({ id: 'x' });")).toBe(true);
@@ -1608,8 +1615,9 @@ describe('a split job asks across organisations for the list alone, and reads ea
   const splitFiles = Object.keys(SPLIT);
   const taskFiles = files.filter((f) => f.startsWith(`${JOBS_DIR}/`) && definesATask(f, texts.get(f)!));
 
-  it('found the three, each a task file, and each entry says both halves', () => {
+  it('found the four, each a task file, and each entry says both halves', () => {
     expect(splitFiles.sort()).toEqual([
+      'apps/worker/src/jobs/managed-cadence-email.ts',
       'apps/worker/src/jobs/managed-digest.ts',
       'apps/worker/src/jobs/managed-drift-detect.ts',
       'apps/worker/src/jobs/managed-group-discovery.ts',
@@ -1662,7 +1670,7 @@ describe('a split job asks across organisations for the list alone, and reads ea
     expect(scoped, `${file} opens no scope on its tenant pool`).toBeGreaterThanOrEqual(2);
   });
 
-  it('no file but the three and task-pools.ts names activeOrganisations', () => {
+  it('no file but the four and task-pools.ts names activeOrganisations', () => {
     // A per-tenant job that could list every organisation would ask across
     // them with nothing on SPLIT saying so.
     expect(activeOrganisationsUse(TASK_POOLS, texts.get(TASK_POOLS)!).names, `${TASK_POOLS} no longer defines it`).toBe(true);

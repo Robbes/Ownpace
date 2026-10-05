@@ -961,6 +961,30 @@ export type NotificationEvent =
        * more. Absent on a paid tier, during the alpha, and on the appliance.
        */
       readonly onePassADay?: boolean;
+    }
+  | {
+      /**
+       * Migrations on *Automatic* now look for changes less often, everything
+       * in them in step (workplan 0157 T7; the owner, 2026-10-05: *"sync slow
+       * down once a migration is in step: yes"*, each step said in the app and
+       * by email).
+       *
+       * Sent by the morning job (`managed-cadence-email.ts`), at most once a
+       * day for an organisation, naming each migration that stepped down since
+       * it was last told: to every 6 hours after 14 days in step, to once a day
+       * after 30. Each step is said once (managed 0043's claim). It passes this
+       * channel's two rules: it is never empty, and it says only something
+       * that happened. Addressed to whoever runs the migrations, so it names
+       * each one, and whose it is.
+       */
+      readonly kind: 'looking_less_often';
+      readonly migrations: readonly {
+        readonly mapping: MappingRef;
+        /** Whose migration it is, by the name the owner gave them; absent when it is nobody's. */
+        readonly person?: string;
+        /** How often it looks now: the automatic cadence's two slower steps. */
+        readonly step: 'six-hourly' | 'daily';
+      }[];
     };
 
 /**
@@ -1031,6 +1055,7 @@ const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string
     access_declined: 'Ownpace — about your request',
     member_invited: 'Ownpace — you are invited to join an organisation',
     first_copy_complete: 'Ownpace — everything has arrived',
+    looking_less_often: 'Ownpace — everything is in step, so we look less often',
   },
   nl: {
     decision_raised: 'Ownpace — een wijziging vraagt uw beslissing',
@@ -1043,6 +1068,7 @@ const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string
     access_declined: 'Ownpace — over uw aanvraag',
     member_invited: 'Ownpace — u bent uitgenodigd voor een organisatie',
     first_copy_complete: 'Ownpace — alles is aangekomen',
+    looking_less_often: 'Ownpace — alles is bijgewerkt, dus we kijken minder vaak',
   },
 };
 
@@ -1083,6 +1109,10 @@ interface EventLines {
   readonly arrived: string;
   readonly arrivedKept: string;
   readonly arrivedOnFree: string;
+  readonly lessOften: string;
+  readonly nowSixHourly: string;
+  readonly nowDaily: string;
+  readonly moreOften: string;
   readonly and: string;
   readonly domain: Readonly<Record<DiscoveryDomain, string>>;
 }
@@ -1183,6 +1213,15 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     // Free's pace (workplan 0157 T5): what keeping in step means on Free.
     arrivedOnFree:
       'On Free that is one pass a day. A higher tier looks for changes as often as every 15 minutes: see Billing in the app.',
+    // The automatic cadence's slower steps (workplan 0157 T7), in the owner's
+    // words of 2026-10-05: *"Everything is in step. We now look every 6 hours;
+    // choose more often any time."* Then what a visit does (`visits.ts`).
+    lessOften: 'Everything is in step, so we now look for changes less often:',
+    nowSixHourly: 'Now every 6 hours',
+    nowDaily: 'Now once a day',
+    moreOften:
+      'Choose more often any time, under How often to look for changes on each migration in the app. ' +
+      'Open a migration and we look every hour again, for 14 days.',
     and: 'and',
     domain: { email: 'email', calendar: 'calendar', contact: 'contacts', file: 'files', task: 'tasks' },
   },
@@ -1250,6 +1289,12 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     arrivedKept: 'Het wordt bijgehouden tot u overstapt. U hoeft niets te doen.',
     arrivedOnFree:
       'Op Free is dat één ronde per dag. Een hoger pakket kijkt zo vaak als elke 15 minuten naar wijzigingen: zie Facturering in de app.',
+    lessOften: 'Alles is bijgewerkt, dus we kijken nu minder vaak naar wijzigingen:',
+    nowSixHourly: 'Nu elke 6 uur',
+    nowDaily: 'Nu eens per dag',
+    moreOften:
+      'Kies op elk moment vaker, onder Hoe vaak naar wijzigingen kijken bij elke migratie in de app. ' +
+      'Opent u een migratie, dan kijken we weer 14 dagen elk uur.',
     and: 'en',
     domain: { email: 'e-mail', calendar: 'agenda', contact: 'contacten', file: 'bestanden', task: 'taken' },
   },
@@ -1344,6 +1389,17 @@ export function renderEvent(
       if (event.onePassADay) lines.push(b.arrivedOnFree);
       break;
     }
+    case 'looking_less_often':
+      // As the digest lists migrations: each by its name, what it is now
+      // under it (0157 T7).
+      lines.push(b.lessOften, '');
+      for (const m of event.migrations) {
+        lines.push(`${b.migration}: ${mappingLabel(m.mapping)}`);
+        if (m.person) lines.push(`  - ${b.person}: ${m.person}`);
+        lines.push(`  - ${m.step === 'daily' ? b.nowDaily : b.nowSixHourly}`, '');
+      }
+      lines.push(b.moreOften);
+      break;
     case 'rollback_finished':
       lines.push(`${b.migration}: ${mappingLabel(event.mapping)}`, '');
       lines.push(b.rolledBack, '');
@@ -1363,7 +1419,10 @@ export function renderEvent(
     event.kind !== 'access_declined' &&
     event.kind !== 'member_invited';
   // Nor after the first copy, which has just said that nothing is needed:
-  // "act on this" under it would contradict it (0154 T7).
-  if (readerHasAnApp && event.kind !== 'first_copy_complete') lines.push('', b.act);
+  // "act on this" under it would contradict it (0154 T7). Nor after a slower
+  // cadence, which has just said how to choose more often (0157 T7).
+  if (readerHasAnApp && event.kind !== 'first_copy_complete' && event.kind !== 'looking_less_often') {
+    lines.push('', b.act);
+  }
   return { subject, body: lines.join('\n') };
 }

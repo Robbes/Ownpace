@@ -141,11 +141,24 @@ const MappingDetail: React.FC = () => {
   // schedule of its own looks every hour again for 14 days once somebody opens
   // it. Sent as the page opens; the server moves it at most once an hour.
   // Managed only, as the schedule is. A visit that is not recorded changes
-  // nothing on this page, and the server logs its own faults, so its answer
-  // is not waited for and a failure is not shown.
+  // nothing on this page, and the server logs its own faults, so the page
+  // never waits for it and a failure is not shown. Its answer names the
+  // slower step it ended, once said by the morning mail, and the page says so
+  // under the pace (`broughtBackFrom`), on this visit alone.
+  const [broughtBackFrom, setBroughtBackFrom] = React.useState<'six-hourly' | 'daily' | null>(null);
   React.useEffect(() => {
+    setBroughtBackFrom(null);
     if (!id || isSelfHost()) return;
-    mappingApi.recordVisit(id).catch(() => undefined);
+    let current = true;
+    mappingApi
+      .recordVisit(id)
+      .then((answer) => {
+        if (current) setBroughtBackFrom(answer?.broughtBackFrom ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      current = false;
+    };
   }, [id]);
 
   // Best-effort context; managed-only (the appliance has no mapping API and
@@ -442,6 +455,14 @@ const MappingDetail: React.FC = () => {
         leastMinutesBetweenPasses={detail.data?.pace?.leastMinutesBetweenPasses}
         nextPassAt={detail.data?.pace?.nextPassAt}
       />
+      {/* The slower step this visit ended (0157 T7), said once, as the
+          morning mail said the step itself. */}
+      {broughtBackFrom && (
+        <p className="mt-2 text-sm text-gray-700" data-cadence="brought-back">
+          {t(broughtBackFrom === 'daily' ? 'cadence.broughtBack.daily' : 'cadence.broughtBack.sixHourly')}{' '}
+          {t('cadence.broughtBack.keep')}
+        </p>
+      )}
 
       {/* The list IS a sequence (0034 T4), and since 0154 T4 one list with a
           person's page: each step with its count, its state in words, and

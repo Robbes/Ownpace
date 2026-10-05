@@ -131,6 +131,9 @@ export const PURGED_TABLES = [
   // a time keyed to a migration, which goes with it. Before `mailbox_mapping`,
   // which it references; the key would cascade, and naming it counts it.
   'migration_visit',
+  // A slower step, once said (0157 T7, managed migration 0043): keyed to a
+  // migration, and gone with it, as the visit is.
+  'migration_cadence_said',
   // Before `mailbox_mapping`: a link references the mapping it opens.
   'mapping_link',
   'mailbox_mapping',
