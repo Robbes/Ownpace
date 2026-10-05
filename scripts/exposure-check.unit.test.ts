@@ -291,6 +291,154 @@ describe('the exposure check on the machine', () => {
   });
 });
 
+describe("a container that is not Ownpace's, accepted by its name (EXPOSURE_NOT_OURS)", () => {
+  // The owner's decision, 2026-10-05: the machine also runs services of the
+  // owner's own, unrelated to Ownpace, that publish on every interface; leave
+  // them alone and let live stand up. These names are made up, shaped like
+  // what Docker prints with the Compose project as a fourth field.
+  const FOREIGN = [
+    `someones-app\t0.0.0.0:5555->5555/tcp, [::]:5555->5555/tcp\tbridge\tsomeones`,
+    `notes-db\t0.0.0.0:5432->5432/tcp\tnotes_default\tnotes`,
+    `search\t${ELSEWHERE}:8080->8080/tcp\tsearch_default\t`,
+  ];
+  const NOT_OURS = 'EXPOSURE_NOT_OURS=someones-app,notes-db,search';
+
+  it('(1) passes a listed foreign container on every interface, with a note naming it and the port, and no address', () => {
+    const lines = [...HOST, ...FOREIGN];
+    const r = check(lines, [...ALLOW, NOT_OURS]);
+    expect(r.stderr).toBe('');
+    expect(r.status, r.stdout).toBe(0);
+    expect(r.stdout).toContain("note: someones-app publishes 5555/tcp on every interface; not Ownpace's, accepted in EXPOSURE_NOT_OURS");
+    expect(r.stdout).toContain("note: notes-db publishes 5432/tcp on every interface; not Ownpace's, accepted in EXPOSURE_NOT_OURS");
+    expect(r.stdout).toContain("note: search publishes 8080/tcp on an address EXPOSURE_ALLOW does not list; not Ownpace's, accepted in EXPOSURE_NOT_OURS");
+    expect(r.stdout).toMatch(/ok: 10 running container\(s\), \d+ publish\(es\), each on loopback or an address EXPOSURE_ALLOW lists; 3 accepted as not Ownpace's \(EXPOSURE_NOT_OURS\)/);
+    expect(r.stdout).not.toMatch(/FAIL/);
+    expectNoAddress(r, `${lines.join('\n')}\n${ALLOW.join('\n')}`);
+  });
+
+  it('(2) still fails the same container when the list does not name it', () => {
+    const r = check([...HOST, ...FOREIGN], [...ALLOW, 'EXPOSURE_NOT_OURS=notes-db,search']);
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    const lines = r.stdout.split('\n');
+    expect(lines).toContain('exposure-check: someones-app publishes 5555/tcp on every interface');
+    expect(lines.filter((l) => l.includes('someones-app') && l.includes('note:'))).toEqual([]);
+    expect(r.stdout).toMatch(/FAIL: 1 publish\(es\)/);
+    // With no list at all, all three fail.
+    expect(check([...HOST, ...FOREIGN], ALLOW).stdout).toMatch(/FAIL: 3 publish\(es\)/);
+  });
+
+  it.each([
+    ['live', 'ownpace-live-web'],
+    ['the OTA stack', 'ownpace-managed-db'],
+    ["live's site", 'ownpace-live-www'],
+    ['the demo Stalwart', 'ownpace-stalwart'],
+    ['the upgrade drill', 'ownpace-upgrade-drill-app'],
+    ['upper case', 'Ownpace-Live-Web'],
+  ])("(3) refuses a name that is Ownpace's own (%s), running or not, as a usage error", (_what, name) => {
+    for (const listing of [[...HOST, ...FOREIGN], [...HOST, ...FOREIGN, `${name}\t0.0.0.0:43123->80/tcp\tx_net\townpace-live`]]) {
+      const r = check(listing, [...ALLOW, `EXPOSURE_NOT_OURS=someones-app,${name}`]);
+      expect(r.status, r.stdout + r.stderr).toBe(2);
+      expect(r.stderr).toContain('EXPOSURE_NOT_OURS');
+      expect(r.stderr).toContain('entry 2');
+      expect(r.stderr).toMatch(/Ownpace's own/);
+      expect(r.stderr).toMatch(/never be accepted/);
+    }
+  });
+
+  it.each([
+    ['live', 'ownpace-live'],
+    ["live's site", 'ownpace-live-www'],
+    ['the OTA stack', 'ownpace-managed'],
+    ['the site', 'ownpace-www'],
+    ['the self-hosted appliance', 'ownpace-selfhost'],
+    ['the upgrade drill', 'ownpace-upgrade-drill'],
+    ["the appliance nightly's dev stack (dev.yml, no name: of its own)", 'compose'],
+  ])("(3) refuses a running container of an Ownpace Compose project (%s), whatever its name", (_what, project) => {
+    const line = `db-1\t0.0.0.0:5433->5432/tcp\t${project}_default\t${project}`;
+    const r = check([...HOST, ...FOREIGN, line], [...ALLOW, `${NOT_OURS},db-1`]);
+    expect(r.status, r.stdout + r.stderr).toBe(2);
+    expect(r.stderr).toContain('EXPOSURE_NOT_OURS');
+    expect(r.stderr).toContain('db-1');
+    expect(r.stderr).toMatch(/Ownpace's own/);
+    expectNoAddress(r, line);
+  });
+
+  it('(3) refuses an entry that is not a container name, without repeating it', () => {
+    for (const bad of ['-leading-dash', 'x', 'has/slash', 'name:tag', `${OTHER}`, `host-${OTHER}`]) {
+      const r = check(HOST, [...ALLOW, `EXPOSURE_NOT_OURS=notes-db,${bad}`]);
+      expect(r.status, bad).toBe(2);
+      expect(r.stderr).toContain('EXPOSURE_NOT_OURS');
+      expect(r.stderr).toContain('entry 2');
+      // A one-letter entry is in every message; the others are not repeated.
+      if (bad.length > 1) expect(r.stderr).not.toContain(bad);
+      expect(`${r.stdout}${r.stderr}`).not.toContain(OTHER);
+    }
+  });
+
+  it('(4) reads the list as the .env holds it: quoted, comma-separated, the last line in force', () => {
+    const lines = [...HOST, ...FOREIGN];
+    expect(check(lines, [...ALLOW, 'EXPOSURE_NOT_OURS="someones-app,notes-db,search"']).status).toBe(0);
+    expect(check(lines, [...ALLOW, "EXPOSURE_NOT_OURS='someones-app,notes-db,search'"]).status).toBe(0);
+    expect(check(lines, [...ALLOW, 'EXPOSURE_NOT_OURS="someones-app, notes-db, search"']).status).toBe(0);
+    expect(check(lines, [...ALLOW, `${NOT_OURS}   # the owner's own, 2026-10-05`]).status).toBe(0);
+    expect(check(lines, [...ALLOW, NOT_OURS, 'EXPOSURE_NOT_OURS=someones-app']).status).toBe(1);
+    expect(check(lines, [...ALLOW, 'EXPOSURE_NOT_OURS=someones-app', NOT_OURS]).status).toBe(0);
+    // Never from the shell: a shell that sourced another .env must not widen this one's.
+    expect(check(lines, ALLOW, { EXPOSURE_NOT_OURS: 'someones-app,notes-db,search' }).status).toBe(1);
+  });
+
+  it('(4) a bare space is refused before sourcing, as for EXPOSURE_ALLOW, and the documented form is not', () => {
+    const bootstrap = readFileSync(join(COMPOSE_DIR, 'bootstrap-managed.sh'), 'utf8');
+    const preSource = bootstrap.split('\n').find((l) => /^\s*bad="\$\(grep -nE /.test(l) && l.includes('"$ENV_FILE"'));
+    expect(preSource).toBeDefined();
+    const refusedBeforeSourcing = (value: string): boolean => {
+      writeFileSync(envFile, `${value}\n`);
+      return spawnSync('bash', ['-c', `ENV_FILE="$1"\n${preSource!.trim()}\n[ -n "$bad" ]`, 'pre-source', envFile], { encoding: 'utf8' }).status === 0;
+    };
+    const agreement = (value: string): number | null => {
+      writeFileSync(envFile, `${value}\n`);
+      return spawnSync('bash', [join(COMPOSE_DIR, 'check-env-agreement.sh'), envFile], { encoding: 'utf8' }).status;
+    };
+    expect(refusedBeforeSourcing(NOT_OURS)).toBe(false);
+    expect(agreement(NOT_OURS)).toBe(0);
+    expect(refusedBeforeSourcing('EXPOSURE_NOT_OURS=someones-app notes-db')).toBe(true);
+    expect(refusedBeforeSourcing('EXPOSURE_NOT_OURS=someones-app, notes-db')).toBe(true);
+    // The example carries the key, empty, and says it is separated by commas.
+    const example = readFileSync(join(COMPOSE_DIR, 'managed.env.example'), 'utf8');
+    expect(example.split('\n')).toContain('EXPOSURE_NOT_OURS=');
+  });
+
+  it('(5) notes a listed name that is not running, and passes', () => {
+    const r = check([...HOST, ...FOREIGN], [...ALLOW, `${NOT_OURS},gone-svc`]);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/note: gone-svc, in EXPOSURE_NOT_OURS, is not running/);
+    expect(r.stdout).toMatch(/3 accepted as not Ownpace's/);
+  });
+
+  it('(6) still reads the three-field and two-field formats, and the fourth field when it is there', () => {
+    const three = [`someones-app\t0.0.0.0:5555->5555/tcp\tbridge`, `ota-web\t127.0.0.1:3123->80/tcp\tx_net`];
+    expect(check(three, [...ALLOW, 'EXPOSURE_NOT_OURS=someones-app']).status).toBe(0);
+    expect(check(three, ALLOW).status).toBe(1);
+    const two = [`someones-app\t0.0.0.0:5555->5555/tcp`, `mesh-client\t\thost`];
+    const r2 = check(two, [...ALLOW, 'EXPOSURE_NOT_OURS=someones-app']);
+    expect(r2.status, r2.stdout + r2.stderr).toBe(0);
+    expect(r2.stdout).toMatch(/mesh-client .*host's network/);
+    // The fourth field does not end up in the networks: host is still seen.
+    const four = check([`mesh-client\t\thost\tmesh`], ALLOW);
+    expect(four.status).toBe(0);
+    expect(four.stdout).toMatch(/mesh-client .*host's network/);
+  });
+
+  it("(7) still fails an Ownpace container on every interface while the list names other containers", () => {
+    const own = `ownpace-live-web\t0.0.0.0:43123->80/tcp\townpace-live_ownpace-network\townpace-live`;
+    const r = check([...HOST, ...FOREIGN, own], [...ALLOW, NOT_OURS]);
+    expect(r.status, r.stdout + r.stderr).toBe(1);
+    expect(r.stdout.split('\n')).toContain('exposure-check: ownpace-live-web publishes 43123/tcp on every interface');
+    expect(r.stdout).toMatch(/FAIL: 1 publish\(es\)/);
+    expectNoAddress(r, own);
+  });
+});
+
 describe('asking Docker itself', () => {
   function withDocker(script: string): Run & { calls: string } {
     const bin = join(dir, 'bin');
@@ -323,6 +471,9 @@ describe('asking Docker itself', () => {
     expect(call).toContain('{{.Names}}');
     expect(call).toContain('{{.Ports}}');
     expect(call).toContain('{{.Networks}}');
+    // The Compose project, so a container of an Ownpace project can never be
+    // accepted as not Ownpace's (EXPOSURE_NOT_OURS).
+    expect(call).toContain('{{.Label "com.docker.compose.project"}}');
     expectNoAddress(r, `0.0.0.0\n${FRONT}`);
   });
 

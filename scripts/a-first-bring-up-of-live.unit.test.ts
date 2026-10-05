@@ -1363,6 +1363,44 @@ describe('EXPOSURE_ALLOW is read by exposure-check.sh itself, so the list it tak
   );
 });
 
+describe("EXPOSURE_NOT_OURS, the owner's containers that are not Ownpace's, is read by exposure-check.sh too (the owner, 2026-10-05)", () => {
+  it(
+    'taken: two names of containers that are not Ownpace\'s',
+    () => {
+      const s = stage({ env: { EXPOSURE_NOT_OURS: 'someones-app,notes-db' } });
+      const r = run(s, [], { STUB_TRIGGER_STOP: 'account' });
+      expectPassed(r, /- EXPOSURE_(ALLOW|NOT_OURS)/);
+      expectNothingLeaked(s, r.out);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "refused, before anything changes, and named by its own key: a name that is Ownpace's own",
+    () => {
+      const s = stage({ env: { EXPOSURE_NOT_OURS: 'someones-app,ownpace-live-web' } });
+      const r = run(s);
+      expectRefused(s, r, '- EXPOSURE_NOT_OURS: exposure-check.sh refuses it', 'reads', envNow(s));
+      expect(r.out).toMatch(/entry 2/);
+      expect(r.out).toMatch(/Ownpace's own/);
+      expectNothingLeaked(s, r.out);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "never widens EXPOSURE_ALLOW for a bind: the address is asked about as a container the list can never name",
+    () => {
+      // `bind` was the name the stand-up gave the one recorded line it hands
+      // the check. Listed, it would have passed every bind address.
+      const s = stage({ env: { EXPOSURE_ALLOW: OTA_FRONT, EXPOSURE_NOT_OURS: 'bind' } });
+      const r = run(s);
+      expectRefused(s, r, "- EXPOSURE_ALLOW: does not list the address in live's WEB_BIND", 'reads', envNow(s));
+    },
+    CASE_MS,
+  );
+});
+
 describe("a port live publishes in the kernel's ephemeral range is refused until it is reserved", () => {
   /** The eight of live's nine but WEB_PORT, reserved, after a port of something else. */
   const ALL_BUT_WEB = '8080,43001,43090,43124-43127,43443,45000,45432';
