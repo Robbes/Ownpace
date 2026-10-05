@@ -31,7 +31,7 @@ Er is geen vak voor een host of een poort. Nextcloud biedt agenda's, contacten e
 
 De bestanden komen in uw eigen bestanden, onder de gebruikersnaam die u invult: deze dienst schrijft ze naar `/remote.php/dav/files/` met die naam erachter. Gebruik dus de gebruikersnaam die Nextcloud in dat adres zet. Nextcloud toont het WebDAV-adres onderaan de pagina met bestandsinstellingen.
 
-De test schrijft niets. Hij meldt zich aan en toont wat het account draagt (**Draagt:**) en wat hij vond (**Gevonden:**).
+De test schrijft niets. Hij meldt zich aan en toont wat het account omvat (**Omvat:**) en wat hij vond (**Gevonden:**).
 
 U kunt het account ook vooraf toevoegen, onder **Accounts** → **Account toevoegen**: kies bij **Bron of doel?** **Doelen**, dan de kaart **Nextcloud**, vul zelf de **DAV-basis-URL** in, zoals `https://cloud.example.com/remote.php/dav`, en druk op **Toevoegen en testen**.
 

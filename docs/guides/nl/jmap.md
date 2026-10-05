@@ -18,7 +18,7 @@ JMAP is een nieuwer protocol voor mail en contacten, dat een mailserver via het 
 4. Vul bij **Gebruikersnaam** en **Wachtwoord** de gegevens van het postvak in.
 5. Druk op **Aanmelding controleren**.
 
-De test vraagt het sessiedocument op dat elke JMAP-server aanbiedt, op `/.well-known/jmap` achter het adres uit Host en Poort. Hij schrijft niets. Antwoordt de server, dan staat er **Verbonden. Het JMAP-sessiedocument antwoordde.**, met daaronder wat het account draagt (**Draagt:**): e-mail en contacten wanneer de server die aankondigt.
+De test vraagt het sessiedocument op dat elke JMAP-server aanbiedt, op `/.well-known/jmap` achter het adres uit Host en Poort. Hij schrijft niets. Antwoordt de server, dan staat er **Verbonden. Het JMAP-sessiedocument antwoordde.**, met daaronder wat het account omvat (**Omvat:**): e-mail en contacten wanneer de server die aankondigt.
 
 **Waar de kopieën komen**, onder de rijen, zegt waar de mail in dat account terechtkomt. Laat u het zoals het is, dan voegt het samen in het account. Open **In een eigen map zetten** en typ een naam bij **Map**, en alles komt onder die map terecht.
 

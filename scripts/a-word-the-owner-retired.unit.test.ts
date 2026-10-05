@@ -2,7 +2,8 @@
 
 /**
  * A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS
- * DUTCH (workplan 0152 D6, 0153 T6 (b)).
+ * DUTCH (workplan 0152 D6, 0153 T6 (b)), AND NO *DRAAGT* FOR WHAT AN ACCOUNT
+ * HOLDS (the owner, 2026-10-05).
  *
  * The owner, 2026-09-28: *"Yes, but dutch know 'één migratie en 4 migraties'.
  * So we use 'migratie' in instead of 'verhuizing'."* The site follows it
@@ -27,6 +28,13 @@
  * TEST FILES ARE NOT READ: a fixture may name a town *Verhuisd*
  * (`billing-party.unit.test.ts` does), and a guard's own pattern would find
  * itself. Nothing else is excused.
+ *
+ * AND *DRAAGT* FOR WHAT AN ACCOUNT HOLDS. The owner, 2026-10-05: *"Change the
+ * Dutch "draagt" into "Omvat""*. The sign-in test's line said *Draagt: E-mail
+ * · Agenda*, English *Carries:* word for word, and the guides and the setup
+ * steps said an account, a card, a token or an API *draagt* what it holds.
+ * It is *omvat* now, in the same files. *Afdragen*, paying a tax over, is
+ * another verb that says *draagt … af*, and is the one use left.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -74,12 +82,24 @@ function dutchGuides(): string[] {
     .map((name) => join(dir, name));
 }
 
+/** Every file the product's Dutch lives in. */
+function dutchFiles(): string[] {
+  return [...productSources(), join(ROOT, 'docs', 'cutover-communication-templates.md'), ...dutchGuides()];
+}
+
+/** Each line of the files that matches, as `path:line  text`. */
+function linesSaying(files: string[], pattern: RegExp): string[] {
+  return files.flatMap((f) =>
+    readFileSync(f, 'utf8')
+      .split('\n')
+      .map((line, i) => ({ line, at: `${relative(ROOT, f)}:${i + 1}` }))
+      .filter(({ line }) => pattern.test(line))
+      .map(({ at, line }) => `${at}  ${line.trim()}`),
+  );
+}
+
 describe('no form of verhuizen where the product speaks Dutch (0152 D6)', () => {
-  const files = [
-    ...productSources(),
-    join(ROOT, 'docs', 'cutover-communication-templates.md'),
-    ...dutchGuides(),
-  ];
+  const files = dutchFiles();
 
   it('reads the files the Dutch lives in, so an empty walk cannot pass', () => {
     const read = files.map((f) => relative(ROOT, f));
@@ -97,18 +117,35 @@ describe('no form of verhuizen where the product speaks Dutch (0152 D6)', () => 
   });
 
   it('finds none', () => {
-    const saying = files.flatMap((f) =>
-      readFileSync(f, 'utf8')
-        .split('\n')
-        .map((line, i) => ({ line, at: `${relative(ROOT, f)}:${i + 1}` }))
-        .filter(({ line }) => RETIRED.test(line))
-        .map(({ at, line }) => `${at}  ${line.trim()}`),
-    );
     expect(
-      saying,
+      linesSaying(files, RETIRED),
       'A form of verhuizen is back. The owner chose migratie (0152 D6): write\n' +
         'migratie, migreren or gemigreerd for the product and what it moved, and\n' +
         '"gaat niet mee" for what does not come along (GLOSSARY.md).',
+    ).toEqual([]);
+  });
+});
+
+describe('no draagt for what an account holds: the owner chose omvat (2026-10-05)', () => {
+  const files = dutchFiles();
+  // `draagt … af` in one clause is *afdragen*, which pays a tax over.
+  const saying = (lines: string[]) => lines.filter((line) => !/\bdraagt\b[^.;:!?]*\baf\b/i.test(line));
+
+  it('reads the line and the guides it was in, and lets afdragen be', () => {
+    const read = files.map((f) => relative(ROOT, f));
+    for (const known of ['apps/web/src/i18n/strings.ts', 'docs/guides/nl/soverin.md', 'docs/guides/nl/dav.md']) {
+      expect(read, `the walk missed ${known}`).toContain(known);
+    }
+    expect(saying(['uw bedrijf draagt de btw in eigen land af.'])).toEqual([]);
+    expect(saying(['Draagt: E-mail · Agenda'])).toHaveLength(1);
+  });
+
+  it('finds none', () => {
+    expect(
+      saying(linesSaying(files, /\bdraagt\b/i)),
+      'Draagt is back for what an account, a card, a token or an API holds.\n' +
+        'The owner chose omvat (2026-10-05): the sign-in test\'s line is "Omvat:",\n' +
+        'and a sentence says what an account omvat (GLOSSARY.md).',
     ).toEqual([]);
   });
 });

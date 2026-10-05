@@ -35,7 +35,7 @@ Vink bij **Welk account verlaat u?** **Apple iCloud** aan. Bij **Uw accounts ver
 - **Gebruikersnaam**: uw iCloud-adres, `you@icloud.com`.
 - **App-specifiek wachtwoord**: plak wat Apple u toonde.
 
-Druk op **Aanmelding controleren**. Op de pagina **Accounts** staat hetzelfde formulier onder **Account toevoegen** → **Apple account (iCloud)**, met **Toevoegen en testen**. De test vraagt elk onderdeel op zijn eigen server: agenda's op `caldav.icloud.com`, contacten op `contacts.icloud.com`, mail op `imap.mail.me.com`. Hij meldt per onderdeel wat hij vond, met aantallen. Een onderdeel dat hij niet kon meten, zegt op de kaart **waarom**, in plaats van een kaal `?` te tonen.
+Druk op **Aanmelding controleren**. Op de pagina **Accounts** staat hetzelfde formulier onder **Account toevoegen** → **Apple-account (iCloud)**, met **Toevoegen en testen**. De test vraagt elk onderdeel op zijn eigen server: agenda's op `caldav.icloud.com`, contacten op `contacts.icloud.com`, mail op `imap.mail.me.com`. Hij meldt per onderdeel wat hij vond, met aantallen. Een onderdeel dat hij niet kon meten, zegt op de kaart **waarom**, in plaats van een kaal `?` te tonen.
 
 ### Waarom er geen knop Verbinden met Apple is {#no-button}
 
@@ -109,7 +109,7 @@ Migreert u **e-mail, agenda's, contacten of herinneringen**, gebruik dan de verb
 
 Zegt iemand u dat iCloud Drive automatisch te migreren is, vraag dan welke API diegene gebruikte.
 
-**Eén ding dat makkelijk verkeerd wordt gelezen.** Apple publiceert wel een API voor het meenemen van gegevens, voor mensen in de Europese Unie, gemaakt voor de Digital Markets Act en open voor diensten die u toestemming geeft. Het ligt voor de hand om aan te nemen dat dat hier het antwoord is. Dat is het niet: op 4 september 2026 draagt die API **gegevens uit de App Store**, uw aankoopgeschiedenis en app-downloads, en helemaal geen inhoud uit iCloud. Apple bouwde het mechanisme en richtte het ergens anders op. Of het ooit naar iCloud wordt uitgebreid, is een vraag voor regelgevers en niet voor techniek, en niets hier wacht erop.
+**Eén ding dat makkelijk verkeerd wordt gelezen.** Apple publiceert wel een API voor het meenemen van gegevens, voor mensen in de Europese Unie, gemaakt voor de Digital Markets Act en open voor diensten die u toestemming geeft. Het ligt voor de hand om aan te nemen dat dat hier het antwoord is. Dat is het niet: op 4 september 2026 omvat die API **gegevens uit de App Store**, uw aankoopgeschiedenis en app-downloads, en helemaal geen inhoud uit iCloud. Apple bouwde het mechanisme en richtte het ergens anders op. Of het ooit naar iCloud wordt uitgebreid, is een vraag voor regelgevers en niet voor techniek, en niets hier wacht erop.
 
 ### Wat gemeten is, en wat beredeneerd {#measured}
 

@@ -26,7 +26,7 @@ Laat ze staan, tenzij Soverin u andere waarden opgeeft. Gaat er mail mee, laat d
 
 Er is geen vakje voor SSL/TLS: deze dienst gebruikt het altijd, voor agenda's en contacten en voor mail. Laat **DAV-basis-URL** leeg: Soverin biedt agenda's en contacten aan op de hoofdmap van die host. Mislukt de test op een server, dan opent **Serverinstellingen** vanzelf.
 
-De test schrijft niets. Hij meldt zich aan bij de agenda's en meet daarnaast elk deel van het account apart: wat het account draagt staat achter **Draagt:**, en wat hij vond achter **Gevonden:**. Of één app-wachtwoord voor mail én voor agenda's en contacten werkt, staat niet vast: de test zegt het per deel. Wordt het ene deel geweigerd en het andere niet, dan dekt dat wachtwoord niet het hele account.
+De test schrijft niets. Hij meldt zich aan bij de agenda's en meet daarnaast elk deel van het account apart: wat het account omvat staat achter **Omvat:**, en wat hij vond achter **Gevonden:**. Of één app-wachtwoord voor mail én voor agenda's en contacten werkt, staat niet vast: de test zegt het per deel. Wordt het ene deel geweigerd en het andere niet, dan dekt dat wachtwoord niet het hele account.
 
 U kunt het account ook vooraf toevoegen, onder **Accounts** → **Account toevoegen**: kies bij **Bron of doel?** **Doelen**, dan de kaart **Soverin**, en druk op **Toevoegen en testen**. De vakken zijn daar op dezelfde manier vooraf ingevuld, open in beeld.
 
@@ -45,7 +45,7 @@ Wat Soverin zelf antwoordt, toont deze dienst woordelijk, in de taal van de serv
 - **`PROPFIND failed with status 401`** bij agenda's of contacten: Soverin weigert het e-mailadres of het wachtwoord voor dat deel. Controleer beide.
 - Een weigering van de mailserver, bijvoorbeeld met `AUTHENTICATIONFAILED`: het wachtwoord werkt niet voor mail. Werkt het wel voor agenda's en contacten, dan dekt dat wachtwoord de mail niet.
 - **E-mail** met daarachter **This account stores no mail server address, so mail was not measured**: het account is bewaard zonder **Mailserver**. Gaat er mail mee, zie dan het volgende punt.
-- Een account dat zonder **Mailserver** is bewaard, draagt geen mail. Een migratie met **E-mail** aangevinkt wordt er toch op gemaakt; zodra die loopt, mislukt de mail met **This soverin connection stores no mail server, so its mail face cannot be built**. Verwijder die migratie onder **Migraties**, daarna het account onder **Accounts**, en begin opnieuw met de **Mailserver** ingevuld. Agenda's en contacten hebben geen mailserver nodig, dus een migratie zonder **E-mail** kan op dat account blijven.
+- Een account dat zonder **Mailserver** is bewaard, omvat geen mail. Een migratie met **E-mail** aangevinkt wordt er toch op gemaakt; zodra die loopt, mislukt de mail met **This soverin connection stores no mail server, so its mail face cannot be built**. Verwijder die migratie onder **Migraties**, daarna het account onder **Accounts**, en begin opnieuw met de **Mailserver** ingevuld. Agenda's en contacten hebben geen mailserver nodig, dus een migratie zonder **E-mail** kan op dat account blijven.
 - **Geen antwoord binnen 20 seconden.** De test zegt dat.
 - **Een mislukte test begint opnieuw.** **Opnieuw proberen** haalt het account weg dat de mislukte test bewaarde en opent het formulier weer met wat u typte, zodat verbeterde servers en poorten getest worden zoals getypt. Verwijder op de pagina **Accounts** het account dat mislukte, en voeg het opnieuw toe.
 

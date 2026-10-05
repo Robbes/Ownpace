@@ -20,6 +20,9 @@
  *    way: a sentence saying *Google account* under a tile saying
  *    *Google-account* is the same fault the other way round. An API's own name
  *    (*Google Contacts CardDAV API*) is a name, and is left as it is.
+ * 3. **So does a Dutch guide.** `docs/guides/nl` sends a reader to *de kaart
+ *    **Google account*** on a page whose card says *Google-account*: the
+ *    guides name the cards by what they say, so they say it the same way.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -87,19 +90,38 @@ describe('a provider named in the reader\'s language (2026-10-05)', () => {
   });
 
   it('no Dutch sentence writes the English form of a name Dutch writes its own way', () => {
-    const english = providerTypesWithDutchNames().map((type) =>
-      // `Apple account (iCloud)` is written *Apple account* in a sentence.
-      providerDisplayName(type, 'en').replace(/ \(.*\)$/, ''),
-    );
-    expect(english).toContain('Google account');
     const found: string[] = [];
     for (const [key, sentence] of Object.entries(STRINGS.nl)) {
-      for (const name of english) {
-        // An API's own name is a name: *Google Contacts CardDAV API*.
-        const pattern = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b(?! (?:CardDAV )?API)`, 'i');
-        if (pattern.test(sentence)) found.push(`${key}: ${name}`);
-      }
+      for (const name of englishNamesSaying(sentence)) found.push(`${key}: ${name}`);
     }
     expect(found, 'these Dutch strings write a name the English way').toEqual([]);
   });
+
+  it('no Dutch guide writes the English form of a name Dutch writes its own way', () => {
+    const dir = join(ROOT, 'docs', 'guides', 'nl');
+    const guides = readdirSync(dir).filter((name) => name.endsWith('.md'));
+    expect(guides, 'the Dutch guides were not found').toContain('google.md');
+    const found: string[] = [];
+    for (const guide of guides) {
+      readFileSync(join(dir, guide), 'utf8')
+        .split('\n')
+        .forEach((line, i) => {
+          for (const name of englishNamesSaying(line)) found.push(`docs/guides/nl/${guide}:${i + 1}: ${name}`);
+        });
+    }
+    expect(found, 'these lines of a Dutch guide write a name the English way').toEqual([]);
+  });
 });
+
+/** The English names, of those Dutch writes its own way, that a Dutch text writes. */
+function englishNamesSaying(text: string): string[] {
+  const english = providerTypesWithDutchNames().map((type) =>
+    // `Apple account (iCloud)` is written *Apple account* in a sentence.
+    providerDisplayName(type, 'en').replace(/ \(.*\)$/, ''),
+  );
+  if (!english.includes('Google account')) throw new Error('the English names were not read');
+  return english.filter((name) =>
+    // An API's own name is a name: *Google Contacts CardDAV API*.
+    new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b(?! (?:CardDAV )?API)`, 'i').test(text),
+  );
+}

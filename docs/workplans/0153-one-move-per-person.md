@@ -4,6 +4,15 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-10-05, later: *Omvat:* where the Dutch said *Draagt:*.** The owner: *"Change the Dutch
+"draagt" into "Omvat""*. The line *Aanmelding controleren* writes under a card said *Draagt:
+E-mail · Agenda*, the English *Carries:* word for word, and says *Omvat:* now. Every sentence that
+said an account, a card, a token or an API *draagt* what it holds says *omvat* too: two setup
+steps and seven Dutch guides. Billing's reverse-charge line keeps *draagt de btw … af*, which is
+another verb (*afdragen*). Recorded in the glossary, and guarded in `a-word-the-owner-retired`
+beside *verhuizen*. The Dutch privacy statement says *draagt* once in the same sense; a legal text
+changes with its version and the lawyer's pass, so it waits for that.
+
 **2026-10-05, later: provider names the Dutch way in the Dutch app** (the owner: *"Write provider
 names the Dutch way in the Dutch app"*). The Dutch app named the account a person leaves *Google
 account*, on a person's page, on Accounts and on the card that adds one. Its own Dutch sentences
@@ -21,10 +30,13 @@ already said *Google-account*.
   `providerName` and `connectionKindName` require it, so the type checker found each caller.
 - **The home page's app screen** was taken again, as its smoke asked: the Dutch picture said
   *Google account*. Only the Dutch pictures and words changed.
+- **The Dutch guides** name the cards the same way, in a follow-up with *Omvat:* above: they sent
+  a reader to *de kaart **Google account*** on a page whose card says *Google-account*. Apple,
+  the archive, Google and Microsoft; the anchors stay, so every link to a section still lands.
 - **Guarded:**
   - `a-provider-named-in-the-readers-language`: every call in the web app says which language,
-    and no Dutch string writes such a name the English way. An API's own name, *Google Contacts
-    CardDAV API*, is left as it is;
+    and no Dutch string, nor a line of a Dutch guide, writes such a name the English way. An
+    API's own name, *Google Contacts CardDAV API*, is left as it is;
   - `provider-display-names`: the Dutch names, only for types the English table names, and a
     brand the same in both;
   - `a-provider-named-in-dutch`: a tile and the cards, rendered in both languages.
