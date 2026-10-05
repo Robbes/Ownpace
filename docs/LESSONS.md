@@ -2368,6 +2368,10 @@ reading a file drops off its entry by itself.
 
 - [a-fixture-with-ten-seconds](../scripts/a-fixture-with-ten-seconds.unit.test.ts) — A hook that builds a database gets more than ten seconds to do it.
 
+### `scripts/shoot-the-app-screen.mjs`
+
+- [the-home-page-shows-the-app](../scripts/the-home-page-shows-the-app.unit.test.ts) — THE HOME PAGE SHOWS THE APP (workplan 0152 T3: "drawing now, app screen later").
+
 ### `scripts/smoke-managed-verdict.unit.test.ts`
 
 - [a-verdict-that-does-not-say-what-failed](../scripts/a-verdict-that-does-not-say-what-failed.unit.test.ts) — A gate that knows what broke and will not say it.
@@ -2397,6 +2401,10 @@ reading a file drops off its entry by itself.
 
 - [a-count-every-merge-made-stale](../scripts/a-count-every-merge-made-stale.unit.test.ts) — A COUNT EVERY MERGE MADE STALE: both generated indexes opened with a total across every plan or guard, so every merge changed a line that every other open pull request carried too (workplan 0147, 2026-09-28).
 
+### `site/app-screen/screen.json`
+
+- [the-home-page-shows-the-app](../scripts/the-home-page-shows-the-app.unit.test.ts) — THE HOME PAGE SHOWS THE APP (workplan 0152 T3: "drawing now, app screen later").
+
 ### `site/build.mjs`
 
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
@@ -2414,6 +2422,7 @@ reading a file drops off its entry by itself.
 - [the-alpha-said-to-a-visitor](../scripts/the-alpha-said-to-a-visitor.unit.test.ts) — THE ALPHA, SAID TO A VISITOR WHO WAS NOT INVITED (workplan 0152 T1 (a), open question 5; the owner, 2026-10-05: *"Do suggestions for non alpha viewers"*).
 - [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
 - [the-hero-is-the-drawing](../scripts/the-hero-is-the-drawing.unit.test.ts) — THE HERO IS THE DRAWING (workplan 0152 T3).
+- [the-home-page-shows-the-app](../scripts/the-home-page-shows-the-app.unit.test.ts) — THE HOME PAGE SHOWS THE APP (workplan 0152 T3: "drawing now, app screen later").
 - [the-test-site-sent-people-to-production](../scripts/the-test-site-sent-people-to-production.unit.test.ts) — THE TEST SITE HANDED VISITORS TO PRODUCTION.
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
 - [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
@@ -2430,6 +2439,7 @@ reading a file drops off its entry by itself.
 - [the-alpha-said-to-a-visitor](../scripts/the-alpha-said-to-a-visitor.unit.test.ts) — THE ALPHA, SAID TO A VISITOR WHO WAS NOT INVITED (workplan 0152 T1 (a), open question 5; the owner, 2026-10-05: *"Do suggestions for non alpha viewers"*).
 - [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
 - [the-hero-is-the-drawing](../scripts/the-hero-is-the-drawing.unit.test.ts) — THE HERO IS THE DRAWING (workplan 0152 T3).
+- [the-home-page-shows-the-app](../scripts/the-home-page-shows-the-app.unit.test.ts) — THE HOME PAGE SHOWS THE APP (workplan 0152 T3: "drawing now, app screen later").
 - [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
 
 ### `site/destinations.mjs`
@@ -2581,6 +2591,7 @@ reading a file drops off its entry by itself.
 
 ### `test/ui/managed-ui.ui.test.ts`
 
+- [the-home-page-shows-the-app](../scripts/the-home-page-shows-the-app.unit.test.ts) — THE HOME PAGE SHOWS THE APP (workplan 0152 T3: "drawing now, app screen later").
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
 
 ### `test/ui/site.ui.test.ts`
@@ -5177,6 +5188,18 @@ Reads:
 - `site/hero.mjs`
 - `site/icons.mjs`
 - `site/proof.mjs`
+
+### [the-home-page-shows-the-app](../scripts/the-home-page-shows-the-app.unit.test.ts)
+
+THE HOME PAGE SHOWS THE APP (workplan 0152 T3: "drawing now, app screen later").
+
+Reads:
+
+- `scripts/shoot-the-app-screen.mjs`
+- `site/app-screen/screen.json`
+- `site/build.mjs`
+- `site/copy.mjs`
+- `test/ui/managed-ui.ui.test.ts`
 
 ### [the-idp-refusal-that-said-nothing](../scripts/the-idp-refusal-that-said-nothing.unit.test.ts)
 
