@@ -172,8 +172,11 @@ services:
       # stay: the OTA stack's trigger_db_data was initialised with it, and any
       # other value would lock its trigger-api out at the next gate run. So
       # ensure-env-secrets.sh never writes this key; stand-up-live.sh sets it
-      # on live, before live's volume exists. Hex, or another value safe in a
-      # URL: it is part of trigger-api's DATABASE_URL below.
+      # on live, before live's volume exists. On a volume that exists,
+      # rotate-db-passwords.sh --rotate --with-trigger-stores sets the role and
+      # .env together, and the gate's next run recreates trigger-api with it.
+      # Hex, or another value safe in a URL: it is part of trigger-api's
+      # DATABASE_URL below.
       POSTGRES_PASSWORD: ${TRIGGER_DB_PASSWORD:-trigger_password}
       POSTGRES_DB: triggerdb
     volumes:

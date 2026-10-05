@@ -22,11 +22,13 @@
  * `trigger-api` with a password its own database refuses. For the same
  * reason `ensure-env-secrets.sh`, which the gate runs every night, never
  * writes it; `stand-up-live.sh` sets it on live's new volume. It is NOT
- * refused yet, on purpose (the session's scope decision of 2026-10-05):
- * `rotate-db-passwords.sh` does not rotate it, so the OTA stack's volume still
- * holds the literal, and a refusal would stop the nightly gate. 0132's Status
- * names the next step: rotate it there once, then make it required and
- * refused like the four below.
+ * refused yet, on purpose (the session's scope decision of 2026-10-05): the
+ * OTA stack's volume still holds the literal, and a refusal would stop the
+ * nightly gate. Step A (0132 T2, 2026-10-05) taught
+ * `rotate-db-passwords.sh --rotate --with-trigger-stores` to change it, held
+ * by `rotate-db-passwords.unit.test.ts`. Step B follows the owner's run of
+ * that on the OTA stack: then it is required and refused like the four below,
+ * and the cases here that hold it apart change with it.
  *
  * THE REST OF T2 (built 2026-10-05). For `POSTGRES_PASSWORD`,
  * `APP_DB_PASSWORD`, `CLICKHOUSE_PASSWORD` and `MINIO_ROOT_PASSWORD`:

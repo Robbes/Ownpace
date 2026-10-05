@@ -394,9 +394,10 @@ web_url_is_real() { # web_url_is_real <WEB_URL>
 # or holds a published value.
 #
 # NOT TRIGGER_DB_PASSWORD, YET (split off on 2026-10-05). The OTA stack's
-# trigger_db_data volume still holds the literal managed.yml falls back to,
-# and rotate-db-passwords.sh does not rotate it. Refusing it now would stop the
-# nightly gate. Workplan 0132's Status names the step that adds it.
+# trigger_db_data volume still holds the literal managed.yml falls back to.
+# rotate-db-passwords.sh --rotate --with-trigger-stores changes it (0132 T2,
+# step A), and the owner has not run that there yet: refusing it now would
+# stop the nightly gate. Step B adds it here, after the owner's run.
 SHIPPED_PASSWORDS_NOTED=0
 refuse_shipped_passwords() {
   # shellcheck source=deploy/compose/shipped-passwords.sh

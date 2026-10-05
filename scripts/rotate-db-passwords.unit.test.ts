@@ -53,6 +53,18 @@
  *   the roles back to it, and says which step failed. A second interrupt, or
  *   TERM or HUP, while that runs does not stop it. When it cannot complete,
  *   the kept copy stays, mode 0600, and the output says what to run.
+ *   Trigger.dev's own database, left on its published value (0132 T2, step
+ *   A). `trigger-db`'s role `trigger` was made with managed.yml's fallback for
+ *   an empty `TRIGGER_DB_PASSWORD`, and `--check` used to ask it and not
+ *   count it. It counts it now, after a control of its own (`.env`'s value as
+ *   Compose reads it), and points to `--rotate --with-trigger-stores`, which
+ *   changes it with ClickHouse's and MinIO's: Trigger.dev's three stores,
+ *   whose one client is `trigger-api`. The role is set over trigger-db's own
+ *   socket as that superuser, the value by name and the statement kept out of
+ *   the log and the statistics, proven over the network, and put back with
+ *   the rest when anything after it fails. Plain `--rotate` never touches it,
+ *   and `--sync --with-trigger-stores` sets it to `.env`'s value, which is
+ *   the step printed when putting it back does not complete.
  *
  * HOW IT RUNS. Each case builds a checkout of its own: every script in
  * `deploy/compose`, the real `managed.yml`, a `.env` linked to
@@ -124,7 +136,16 @@ interface Role {
 interface State {
   project: string;
   roles: Record<string, Role>;
+  /** trigger-db's role `trigger`: the password it holds. */
   trigger: string;
+  /** trigger-db is not on the network at all: its name does not resolve. */
+  triggerDown: boolean;
+  /** trigger-db refuses, over the network, every value that starts with this. */
+  triggerRefusesPrefix: string;
+  /** trigger-db's ALTERs that fail, by attempt (1 is the first). */
+  triggerAlterFailAt: number[];
+  triggerAlters: number;
+  triggerAlterAttempts: number;
   clickhouse: { user: string; pw: string };
   minio: { user: string; pw: string; controlOpens: boolean };
   health: Record<string, string>;
@@ -139,8 +160,9 @@ interface State {
   poolerRefusesPrefix: string;
   /**
    * Where the docker stub stops and waits for the case: `prove-new`, the first
-   * question asked with a generated value; `alter-<n>`, the n-th ALTER. It
-   * writes `paused-<point>` beside the state file and goes on at `resume-<point>`.
+   * question asked with a generated value; `alter-<n>`, the n-th ALTER;
+   * `trigger-alter-<n>`, the n-th ALTER in trigger-db. It writes
+   * `paused-<point>` beside the state file and goes on at `resume-<point>`.
    */
   pause: string[];
   generated: string[];
@@ -204,7 +226,9 @@ function refused(host, user) {
 }
 function ask(channel, host, user, pw) {
   if (host === 'trigger-db') {
-    if (user === 'trigger' && pw === state.trigger) { out('1\\n'); return 0; }
+    if (state.triggerDown) { err('psql: error: could not translate host name "trigger-db" to address: Name does not resolve\\n'); return 2; }
+    if (state.triggerRefusesPrefix && String(pw || '').startsWith(state.triggerRefusesPrefix)) return refused(host, user);
+    if (user === 'trigger' && pw && pw === state.trigger) { out('1\\n'); return 0; }
     return refused(host, user);
   }
   if (host !== 'postgres' && host !== '127.0.0.1') { err('psql: error: could not translate host name "' + host + '"\\n'); return 2; }
@@ -333,6 +357,44 @@ if (svc === 'postgres' && cmd[0] === 'psql') {
   done(0);
 }
 
+// trigger-db, over its own socket as its bootstrap superuser: the only thing
+// asked of it there is its role's password, set the way the two above are.
+if (svc === 'trigger-db' && cmd[0] === 'psql') {
+  const p = psqlArgs(cmd.slice(1));
+  const sql = fs.readFileSync(0, 'utf8');
+  log('docker', { kind: 'socket', what: 'alter', service: 'trigger-db', container: env, psql: p, sql });
+  if (p.U !== 'trigger' || p.d !== 'triggerdb') {
+    err('psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:  role "' + p.U + '" does not exist\\n');
+    done(2);
+  }
+  for (const line of ["SET log_statement = 'none';", 'SET log_min_duration_statement = -1;', 'SET log_min_error_statement = panic;',
+    'SET pg_stat_statements.track_utility = off;', 'BEGIN;', 'COMMIT;']) {
+    if (!sql.split('\\n').includes(line)) { err('docker stub: the ALTER in trigger-db is not one transaction kept out of the log and the statistics\\n'); done(95); }
+  }
+  state.triggerAlterAttempts += 1; save();
+  pauseAt('trigger-alter-' + state.triggerAlterAttempts);
+  if (state.triggerAlterFailAt.includes(state.triggerAlterAttempts)) {
+    err('psql:<stdin>:7: ERROR:  could not write to the catalog (the failure this case asked for)\\n');
+    done(3);
+  }
+  const vars = {}; let pw;
+  for (const raw of sql.split('\\n')) {
+    const line = raw.trim();
+    let m = /^\\\\set (\\w+) \`printf '%s' "\\$(\\w+)"\`$/.exec(line);
+    if (m) { vars[m[1]] = env[m[2]] || ''; continue; }
+    m = /^ALTER ROLE :"(\\w+)" PASSWORD :'(\\w+)';$/.exec(line);
+    if (m) {
+      if (p.v[m[1]] !== 'trigger') { err('ERROR:  role "' + p.v[m[1]] + '" does not exist\\n'); done(3); }
+      pw = vars[m[2]];
+    }
+  }
+  if (!pw) { err('ERROR:  no password, or an empty one\\n'); done(3); }
+  state.trigger = pw;
+  state.triggerAlters += 1;
+  save();
+  done(0);
+}
+
 if (svc === 'pgbouncer' && cmd[0] === 'psql') {
   const p = psqlArgs(cmd.slice(1));
   log('docker', { kind: 'pooler', container: env, psql: p });
@@ -443,6 +505,10 @@ const OWNER_PW = 'owner-secret-4d1f';
 const APP_PW = 'app-secret-9b2e';
 const CH_PW = 'clickhouse-secret-77aa';
 const MINIO_PW = 'minio-secret-31cc';
+/** trigger-db's, as stand-up-live.sh generates it on live, or as the rotation leaves it on the OTA stack. */
+const TRIGGER_PW = 'trigger-secret-3c3c';
+/** managed.yml's fallback for an empty TRIGGER_DB_PASSWORD, which the OTA stack's trigger_db_data still holds. */
+const TRIGGER_LITERAL = 'trigger_password';
 
 interface Fixture {
   root: string;
@@ -462,6 +528,8 @@ interface FixtureOpts {
   state?: Partial<State>;
   /** false: the checkout's .env is a file of its own, not a link. */
   linked?: boolean;
+  /** Keys left out of .env altogether: the OTA stack's has no TRIGGER_DB_PASSWORD line. */
+  unset?: string[];
 }
 
 function baseEnv(): Record<string, string> {
@@ -475,6 +543,7 @@ function baseEnv(): Record<string, string> {
     CLICKHOUSE_PASSWORD: CH_PW,
     MINIO_ROOT_USER: 'admin',
     MINIO_ROOT_PASSWORD: MINIO_PW,
+    TRIGGER_DB_PASSWORD: TRIGGER_PW,
     JWT_SECRET: 'jwt-secret-5e5e',
     SECRET_ENCRYPTION_KEY: 'key-secret-6f6f',
     WEB_BIND: MESH,
@@ -490,10 +559,15 @@ function baseState(project: string): State {
       pgowner: { super: true, login: true, pw: OWNER_PW },
       zitadel: { super: false, login: true, pw: 'zitadel-secret-2b2b' },
     },
-    trigger: 'trigger-secret-3c3c',
+    trigger: TRIGGER_PW,
+    triggerDown: false,
+    triggerRefusesPrefix: '',
+    triggerAlterFailAt: [],
+    triggerAlters: 0,
+    triggerAlterAttempts: 0,
     clickhouse: { user: 'default', pw: CH_PW },
     minio: { user: 'admin', pw: MINIO_PW, controlOpens: true },
-    health: { postgres: 'healthy', clickhouse: 'healthy' },
+    health: { postgres: 'healthy', clickhouse: 'healthy', 'trigger-db': 'healthy' },
     runner: false,
     gh: { authed: false, runs: [] },
     alterFail: 0,
@@ -529,7 +603,8 @@ function fixture(opts: FixtureOpts = {}): Fixture {
   writeFileSync(join(compose, 'env-upsert.sh'), UPSERT_WRAPPER);
   chmodSync(join(compose, 'env-upsert.sh'), 0o755);
 
-  const env = { ...baseEnv(), ...(opts.env ?? {}) };
+  const env: Record<string, string> = { ...baseEnv(), ...(opts.env ?? {}) };
+  for (const key of opts.unset ?? []) delete env[key];
   const persistDir = join(home, '.persistent', project);
   mkdirSync(persistDir, { recursive: true });
   const persisted = join(persistDir, '.env');
@@ -639,6 +714,7 @@ interface Call {
   env: Record<string, string>;
   kind?: string;
   what?: string;
+  service?: string;
   network?: string;
   image?: string;
   container?: Record<string, string>;
@@ -654,7 +730,7 @@ const stateOf = (fx: Fixture): State => JSON.parse(readFileSync(fx.statePath, 'u
 
 /** Every value that must never be seen: the .env's own, the generated ones, and two addresses. */
 function secrets(fx: Fixture): string[] {
-  return [OWNER_PW, APP_PW, CH_PW, MINIO_PW, 'jwt-secret-5e5e', 'key-secret-6f6f', ...stateOf(fx).generated];
+  return [OWNER_PW, APP_PW, CH_PW, MINIO_PW, TRIGGER_PW, 'jwt-secret-5e5e', 'key-secret-6f6f', ...stateOf(fx).generated];
 }
 
 /** A value on any argv, in any SQL text, or in the output: each hit named, never the value. */
@@ -737,7 +813,7 @@ describe('--check: which shipped value still opens a role', () => {
   );
 
   it(
-    'exits 0 when both controls open and no shipped value opens anything',
+    'exits 0 when every control opens and no shipped value opens anything',
     () => {
       const fx = fixture();
       const r = run(fx, ['--check']);
@@ -751,12 +827,65 @@ describe('--check: which shipped value still opens a role', () => {
   );
 
   it(
-    "says Trigger.dev's own database waits for T2's code, and does not count it",
+    "counts trigger-db's published value like the others, and points to --rotate --with-trigger-stores (the OTA stack before the owner's run)",
     () => {
-      const fx = fixture({ state: { trigger: 'trigger_password' } });
+      // The OTA stack as it stands: no TRIGGER_DB_PASSWORD line, and a
+      // trigger_db_data volume that still holds managed.yml's fallback.
+      const fx = fixture({ unset: ['TRIGGER_DB_PASSWORD'], state: { trigger: TRIGGER_LITERAL } });
+      const before = readFileSync(fx.persisted, 'utf8');
+      const r = run(fx, ['--check']);
+      expect(r.status, r.output).toBe(1);
+      // The control is .env's value as Compose reads it: the fallback, since the key is empty.
+      expect(r.stdout).toMatch(/trigger-db trigger: control, compose's default \(TRIGGER_DB_PASSWORD is empty in \.env\), over the network: opens/);
+      expect(r.stdout).toMatch(/trigger-db trigger, compose's default: OPENS/);
+      expect(r.stdout).toContain('RESULT: 1 shipped value(s) open');
+      expect(r.stdout).toContain('--rotate --with-trigger-stores');
+      expect(r.output, 'the old wording, from before the rotation could change it').not.toMatch(/not counted|waits for T2/);
+      // Asked over the stack's network, as trigger-api asks it, and nothing changed.
+      const asked = calls(fx).filter((c) => c.kind === 'network' && c.psql?.h === 'trigger-db');
+      expect(asked.map((c) => [c.psql?.U, c.psql?.d])).toContainEqual(['trigger', 'triggerdb']);
+      expect(asked.some((c) => c.container?.PGPASSWORD === TRIGGER_LITERAL)).toBe(true);
+      expect(calls(fx).filter((c) => c.what === 'alter'), '--check altered a role').toEqual([]);
+      expect(readFileSync(fx.persisted, 'utf8')).toBe(before);
+      expect(leaks(fx, r.output)).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'a trigger-db that holds a value nobody published is left alone: its control opens, the fallback is refused, exit 0',
+    () => {
+      // Live, stood up by stand-up-live.sh, and the OTA stack after the owner's run.
+      const fx = fixture();
+      const before = readFileSync(fx.persisted, 'utf8');
       const r = run(fx, ['--check']);
       expect(r.status, r.output).toBe(0);
-      expect(r.stdout).toMatch(/trigger-db.*OPENS.*waits for T2's code/);
+      expect(r.stdout).toMatch(/trigger-db trigger: control, TRIGGER_DB_PASSWORD from \.env, over the network: opens/);
+      expect(r.stdout).toMatch(/trigger-db trigger, compose's default: refused/);
+      expect(calls(fx).filter((c) => c.what === 'alter')).toEqual([]);
+      expect(stateOf(fx).trigger).toBe(TRIGGER_PW);
+      expect(readFileSync(fx.persisted, 'utf8')).toBe(before);
+      expect(leaks(fx, r.output)).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "trigger-db's control refused is \"cannot tell\", 2, and points to --sync --with-trigger-stores; one that cannot be asked is 2 too",
+    () => {
+      const disagree = fixture({ env: { TRIGGER_DB_PASSWORD: 'not-what-trigger-db-has' } });
+      const r = run(disagree, ['--check']);
+      expect(r.status, r.output).toBe(2);
+      expect(r.stdout).toMatch(/trigger-db trigger: control, TRIGGER_DB_PASSWORD from \.env, over the network: REFUSED/);
+      expect(r.output).toContain('rotate-db-passwords.sh --sync --with-trigger-stores');
+      expect(r.output).not.toContain('not-what-trigger-db-has');
+      expect(leaks(disagree, r.output)).toEqual([]);
+
+      const down = fixture({ state: { triggerDown: true } });
+      const r2 = run(down, ['--check']);
+      expect(r2.status, r2.output).toBe(2);
+      expect(r2.stdout).toMatch(/trigger-db trigger: control, .*could not be asked/);
+      expect(leaks(down, r2.output)).toEqual([]);
     },
     CASE_MS,
   );
@@ -856,10 +985,14 @@ describe('which stack: --check on any, --sync and --rotate never on live', () =>
   it(
     "--rotate refuses live's marker, and anything that could be a slip of it",
     () => {
-      for (const kind of ['production', ' Prod ']) {
+      for (const [kind, args] of [
+        ['production', ['--rotate']],
+        [' Prod ', ['--rotate']],
+        ['production', ['--rotate', '--with-trigger-stores']],
+      ] as const) {
         const fx = fixture({ project: LIVE, env: { COMPOSE_PROJECT_NAME: LIVE, STACK_KIND: kind } });
         const before = readFileSync(fx.persisted, 'utf8');
-        const r = run(fx, ['--rotate'], { input: `${LIVE}\n` });
+        const r = run(fx, [...args], { input: `${LIVE}\n` });
         unchanged(fx, before, r);
         expect(r.stderr).toContain('STACK_KIND');
         expect(r.stderr).not.toContain(kind.trim());
@@ -892,7 +1025,10 @@ describe('which stack: --check on any, --sync and --rotate never on live', () =>
       const check = run(fx, ['--check']);
       expect(check.status, check.output).toBe(0);
       expect(check.stdout).toContain(`stack ${LIVE}`);
-      expect(check.stdout).toContain('RESULT: both controls open');
+      expect(check.stdout).toContain('RESULT: every control opens');
+      // Live's trigger-db was made with the value stand-up-live.sh generated
+      // (D8), so managed.yml's fallback is refused there and the check stays 0.
+      expect(check.stdout).toMatch(/trigger-db trigger, compose's default: refused/);
       const asked = calls(fx).filter((c) => c.kind === 'network');
       expect(asked.length, 'nothing was asked on live').toBeGreaterThan(0);
       expect(new Set(asked.map((c) => c.network))).toEqual(new Set([`${LIVE}_ownpace-network`]));
@@ -1051,6 +1187,32 @@ describe('--rotate refuses, before anything changes', () => {
   );
 
   it(
+    'with --with-trigger-stores: a trigger-db that is not healthy, or that refuses .env\'s value, points to --sync --with-trigger-stores',
+    () => {
+      // Its role is set and proven like the two above, so it must be up, and
+      // hold what .env says: a new value set over one nobody knows could not
+      // be put back.
+      for (const health of ['starting', '']) {
+        const fx = fixture({ state: { health: { postgres: 'healthy', clickhouse: 'healthy', 'trigger-db': health } } });
+        const before = readFileSync(fx.persisted, 'utf8');
+        const r = run(fx, ['--rotate', '--with-trigger-stores'], { input: `${OTA}\n` });
+        unchanged(fx, before, r);
+        expect(r.stderr).toContain('trigger-db is not healthy');
+        expect(calls(fx).filter((c) => ['network', 'pooler', 'socket'].includes(c.kind ?? '')), 'it asked a database before refusing').toEqual([]);
+      }
+      const fx = fixture({ env: { TRIGGER_DB_PASSWORD: 'not-what-trigger-db-has' } });
+      const before = readFileSync(fx.persisted, 'utf8');
+      const r = run(fx, ['--rotate', '--with-trigger-stores'], { input: `${OTA}\n` });
+      unchanged(fx, before, r);
+      expect(r.stderr).toMatch(/\.env and trigger-db already disagree/);
+      expect(r.stderr).toContain('rotate-db-passwords.sh --sync --with-trigger-stores');
+      expect(r.output).not.toContain('not-what-trigger-db-has');
+      expect(stateOf(fx).trigger).toBe(TRIGGER_PW);
+    },
+    CASE_MS,
+  );
+
+  it(
     'a login role it does not change that a shipped value still opens: named, with 0132 T2 step 5, before anything changes',
     () => {
       // Its own check at the end tries this role too. Without this refusal it
@@ -1129,20 +1291,21 @@ describe('--rotate', () => {
       const r = run(fx, ['--rotate', '--with-trigger-stores'], { input: `${OTA}\n` });
       expect(r.status, r.output).toBe(0);
       const s = stateOf(fx);
-      expect(s.generated, 'four values generated').toHaveLength(4);
+      expect(s.generated, 'five values generated').toHaveLength(5);
       for (const v of s.generated) expect(v).toMatch(/^[0-9a-f]{48}$/);
 
-      // .env, through its link, holds the four.
+      // .env, through its link, holds the five.
       expect(lstatSync(fx.checkoutEnv).isSymbolicLink(), 'the write replaced the link').toBe(true);
       const env = readFileSync(fx.persisted, 'utf8');
       const value = (k: string) => new RegExp(`^${k}=(.*)$`, 'm').exec(env)?.[1] ?? '';
-      for (const k of ['APP_DB_PASSWORD', 'POSTGRES_PASSWORD', 'CLICKHOUSE_PASSWORD', 'MINIO_ROOT_PASSWORD']) {
+      for (const k of ['APP_DB_PASSWORD', 'POSTGRES_PASSWORD', 'CLICKHOUSE_PASSWORD', 'MINIO_ROOT_PASSWORD', 'TRIGGER_DB_PASSWORD']) {
         expect(s.generated, `${k} is not one of the generated values`).toContain(value(k));
       }
-      expect(new Set(s.generated.map((v) => v)).size).toBe(4);
-      // The roles hold what .env holds.
+      expect(new Set(s.generated.map((v) => v)).size).toBe(5);
+      // The roles hold what .env holds, trigger-db's too.
       expect(s.roles.app_user?.pw).toBe(value('APP_DB_PASSWORD'));
       expect(s.roles.pgowner?.pw).toBe(value('POSTGRES_PASSWORD'));
+      expect(s.trigger).toBe(value('TRIGGER_DB_PASSWORD'));
       // The backup was taken and, on success, removed.
       expect(readdirSync(dirname(fx.persisted)).filter((f) => f.startsWith('.env.before-rotation-'))).toEqual([]);
 
@@ -1163,6 +1326,62 @@ describe('--rotate', () => {
       expect(r.stdout).toContain('0132 T0');
       expect(r.stdout).toContain('--check');
       expect(calls(fx).filter((c) => c.tool === 'gh' && c.argv[0] === 'workflow')).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "the owner's run on the OTA stack: --with-trigger-stores replaces trigger-db's published value, by name, and trigger-api is told to take it",
+    () => {
+      // The OTA stack before the run: no TRIGGER_DB_PASSWORD line, and
+      // trigger-db on managed.yml's fallback.
+      const fx = fixture({ unset: ['TRIGGER_DB_PASSWORD'], state: { trigger: TRIGGER_LITERAL } });
+      const before = readFileSync(fx.persisted, 'utf8');
+      expect(before).not.toMatch(/^TRIGGER_DB_PASSWORD=/m);
+      const r = run(fx, ['--rotate', '--with-trigger-stores'], { input: `${OTA}\n` });
+      expect(r.status, r.output).toBe(0);
+      const s = stateOf(fx);
+      const env = readFileSync(fx.persisted, 'utf8');
+      const written = /^TRIGGER_DB_PASSWORD=(.*)$/m.exec(env)?.[1] ?? '';
+      expect(s.generated, 'TRIGGER_DB_PASSWORD is not one of the generated values').toContain(written);
+      expect(s.trigger, "trigger-db's role does not hold what .env holds").toBe(written);
+      expect(s.triggerAlters).toBe(1);
+
+      // Written by the one writer of .env, the key on its argv and the value in its environment.
+      const upsert = calls(fx).filter((c) => c.tool === 'env-upsert');
+      expect(upsert).toHaveLength(1);
+      expect(upsert[0]?.argv).toContain('TRIGGER_DB_PASSWORD');
+      expect(upsert[0]?.env.TRIGGER_DB_PASSWORD).toBe(written);
+
+      // Set over trigger-db's own socket, as its superuser, the value passed by name.
+      const alter = calls(fx).filter((c) => c.what === 'alter' && c.service === 'trigger-db');
+      expect(alter).toHaveLength(1);
+      expect(alter[0]?.psql?.U).toBe('trigger');
+      expect(alter[0]?.psql?.d).toBe('triggerdb');
+      expect(alter[0]?.argv).toContain('DB_ROLES_NEW_TRIGGER_PASSWORD');
+      expect(alter[0]?.container?.DB_ROLES_NEW_TRIGGER_PASSWORD).toBe(written);
+      expect(alter[0]?.container && 'PGPASSWORD' in alter[0].container, 'a password question over the socket').toBe(false);
+      expect(alter[0]?.sql).toContain(`\\set trigger_pw \`printf '%s' "$DB_ROLES_NEW_TRIGGER_PASSWORD"\``);
+      expect(alter[0]?.sql).not.toContain(written);
+
+      // Proven over the network with the new value, and the fallback refused after.
+      const asked = calls(fx).filter((c) => c.kind === 'network' && c.psql?.h === 'trigger-db');
+      const proven = asked.findIndex((c) => c.container?.PGPASSWORD === written);
+      expect(proven, 'the new value was not asked over the network').toBeGreaterThan(-1);
+      expect(asked.slice(proven).some((c) => c.container?.PGPASSWORD === TRIGGER_LITERAL), 'the fallback was not asked after').toBe(true);
+      expect(leaks(fx, r.output)).toEqual([]);
+
+      // What it says: trigger-db changed, trigger-api has to be recreated, and the record.
+      expect(r.stdout).toContain('TRIGGER_DB_PASSWORD');
+      expect(r.stdout).toMatch(/trigger-db's trigger accepts its new value/);
+      expect(r.stdout).toMatch(/trigger-api/);
+      expect(r.stdout).toContain("trigger-db's with them");
+
+      // And the check, run after the gate has recreated the containers, exits 0.
+      const check = run(fx, ['--check']);
+      expect(check.status, check.output).toBe(0);
+      expect(check.stdout).toMatch(/trigger-db trigger, compose's default: refused/);
+      expect(leaks(fx, check.output)).toEqual([]);
     },
     CASE_MS,
   );
@@ -1197,15 +1416,21 @@ describe('--rotate', () => {
   );
 
   it(
-    'without --with-trigger-stores it leaves ClickHouse and MinIO alone',
+    'without --with-trigger-stores it leaves ClickHouse, MinIO and trigger-db alone, and does not need trigger-db up',
     () => {
-      const fx = fixture();
+      const fx = fixture({
+        unset: ['TRIGGER_DB_PASSWORD'],
+        state: { trigger: TRIGGER_LITERAL, health: { postgres: 'healthy', clickhouse: 'healthy', 'trigger-db': '' } },
+      });
       const r = run(fx, ['--rotate'], { input: `${OTA}\n` });
       expect(r.status, r.output).toBe(0);
       expect(stateOf(fx).generated).toHaveLength(2);
       const env = readFileSync(fx.persisted, 'utf8');
       expect(env).toContain(`CLICKHOUSE_PASSWORD=${CH_PW}`);
       expect(env).toContain(`MINIO_ROOT_PASSWORD=${MINIO_PW}`);
+      expect(env).not.toMatch(/^TRIGGER_DB_PASSWORD=/m);
+      expect(stateOf(fx).trigger).toBe(TRIGGER_LITERAL);
+      expect(calls(fx).filter((c) => c.service === 'trigger-db' || c.psql?.h === 'trigger-db'), 'trigger-db was asked').toEqual([]);
     },
     CASE_MS,
   );
@@ -1319,6 +1544,96 @@ describe('--rotate', () => {
   );
 
   it(
+    "a failed ALTER in trigger-db puts .env and both roles back, and trigger-db keeps the value it had",
+    () => {
+      const fx = fixture({ unset: ['TRIGGER_DB_PASSWORD'], state: { trigger: TRIGGER_LITERAL, triggerAlterFailAt: [1] } });
+      const before = readFileSync(fx.persisted, 'utf8');
+      const r = run(fx, ['--rotate', '--with-trigger-stores'], { input: `${OTA}\n` });
+      expect(r.status, r.output).toBe(1);
+      expect(r.stderr).toMatch(/FAILED while setting trigger-db's role/);
+      expect(r.stderr).toMatch(/restored/);
+      expect(readFileSync(fx.persisted, 'utf8')).toBe(before);
+      expect(lstatSync(fx.checkoutEnv).isSymbolicLink()).toBe(true);
+      const s = stateOf(fx);
+      expect(s.roles.app_user?.pw).toBe(APP_PW);
+      expect(s.roles.pgowner?.pw).toBe(OWNER_PW);
+      expect(s.trigger).toBe(TRIGGER_LITERAL);
+      expect(readdirSync(dirname(fx.persisted)).filter((f) => f.startsWith('.env.before-rotation-'))).toEqual([]);
+      expect(leaks(fx, r.output)).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "trigger-db refusing its new value after the ALTER: its role is set back to the old .env's value too, the published fallback on the OTA stack",
+    () => {
+      const fx = fixture({ unset: ['TRIGGER_DB_PASSWORD'], state: { trigger: TRIGGER_LITERAL, triggerRefusesPrefix: GEN } });
+      const before = readFileSync(fx.persisted, 'utf8');
+      const r = run(fx, ['--rotate', '--with-trigger-stores'], { input: `${OTA}\n` });
+      expect(r.status, r.output).toBe(1);
+      expect(r.stderr).toMatch(/FAILED while proving trigger-db's new value/);
+      expect(r.stderr).toMatch(/restored/);
+      const s = stateOf(fx);
+      expect(s.triggerAlters, 'the new value was set, then the old one').toBe(2);
+      expect(s.trigger).toBe(TRIGGER_LITERAL);
+      expect(s.roles.app_user?.pw).toBe(APP_PW);
+      expect(s.roles.pgowner?.pw).toBe(OWNER_PW);
+      expect(readFileSync(fx.persisted, 'utf8')).toBe(before);
+      expect(leaks(fx, r.output)).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "an interrupt while trigger-db's ALTER runs puts trigger-db back too",
+    async () => {
+      const fx = fixture({ state: { pause: ['trigger-alter-1'] } });
+      const before = readFileSync(fx.persisted, 'utf8');
+      const { child, finished } = start(fx, ['--rotate', '--with-trigger-stores'], { input: `${OTA}\n` });
+      // Ctrl-C while the ALTER is on its way: whether it took is not known.
+      await pausedAt(fx, 'trigger-alter-1');
+      child.kill('SIGINT');
+      resume(fx, 'trigger-alter-1');
+      const r = await finished;
+      expect(r.signal, r.output).toBeNull();
+      expect(r.status, r.output).toBe(1);
+      expect(r.stderr).toMatch(/FAILED while setting trigger-db's role[^\n]*: interrupted/);
+      expect(r.stderr).toMatch(/restored/);
+      const s = stateOf(fx);
+      expect(s.triggerAlters, 'the ALTER the interrupt arrived during, and the one that set it back').toBe(2);
+      expect(s.trigger).toBe(TRIGGER_PW);
+      expect(s.roles.pgowner?.pw).toBe(OWNER_PW);
+      expect(readFileSync(fx.persisted, 'utf8')).toBe(before);
+      expect(leaks(fx, r.output)).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'a putting back of trigger-db that cannot complete keeps the old .env, and step 2 is --sync --with-trigger-stores',
+    () => {
+      // trigger-db refuses every generated value, so its proof fails after the
+      // ALTER took; the ALTER that would set the old value back fails too.
+      const fx = fixture({ state: { triggerRefusesPrefix: GEN, triggerAlterFailAt: [2] } });
+      const before = readFileSync(fx.persisted, 'utf8');
+      const r = run(fx, ['--rotate', '--with-trigger-stores'], { input: `${OTA}\n` });
+      expect(r.status, r.output).toBe(1);
+      expect(r.stderr).toContain('THE PUTTING BACK DID NOT COMPLETE');
+      expect(r.stderr).toMatch(/trigger-db's trigger does not accept its old value again/);
+      const kept = readdirSync(dirname(fx.persisted)).filter((f) => f.startsWith('.env.before-rotation-'));
+      expect(kept, 'the old .env was not kept').toHaveLength(1);
+      const keptPath = join(dirname(fx.persisted), kept[0] ?? '');
+      expect((statSync(keptPath).mode & 0o777).toString(8)).toBe('600');
+      expect(readFileSync(keptPath, 'utf8')).toBe(before);
+      expect(r.stderr).toContain('rotate-db-passwords.sh --sync --with-trigger-stores');
+      // The two roles went back: only trigger-db is left to do.
+      expect(stateOf(fx).roles.pgowner?.pw).toBe(OWNER_PW);
+      expect(leaks(fx, r.output)).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
     'a leftover role that no shipped value opens, or that cannot log in, does not stop it',
     () => {
       for (const openmigrate of [
@@ -1361,6 +1676,58 @@ describe('--sync', () => {
       expect(again.status, again.output).toBe(0);
       expect(stateOf(fx).roles.pgowner?.pw).toBe(OWNER_PW);
       expect(leaks(fx, `${r.output}\n${again.output}`)).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "with --with-trigger-stores it sets trigger-db's role to .env's value too, and plain --sync leaves trigger-db alone",
+    () => {
+      // A putting back that did not complete leaves trigger-db on a value .env
+      // no longer holds: this is the step the script prints for it.
+      const fx = fixture({ state: { trigger: `${GEN}stale` } });
+      const plain = run(fx, ['--sync']);
+      expect(plain.status, plain.output).toBe(0);
+      expect(stateOf(fx).trigger).toBe(`${GEN}stale`);
+      expect(calls(fx).filter((c) => c.service === 'trigger-db' || c.psql?.h === 'trigger-db')).toEqual([]);
+
+      const r = run(fx, ['--sync', '--with-trigger-stores']);
+      expect(r.status, r.output).toBe(0);
+      expect(stateOf(fx).trigger).toBe(TRIGGER_PW);
+      const alter = calls(fx).filter((c) => c.what === 'alter' && c.service === 'trigger-db');
+      expect(alter).toHaveLength(1);
+      expect(alter[0]?.container?.DB_ROLES_NEW_TRIGGER_PASSWORD).toBe(TRIGGER_PW);
+      expect(r.stdout).toMatch(/trigger-db trigger, over the network: opens/);
+      expect(leaks(fx, `${plain.output}\n${r.output}`)).toEqual([]);
+
+      // It names no mode it does not belong to.
+      expect(run(fx, ['--check', '--with-trigger-stores']).status).toBe(2);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "the helper refuses an empty value for trigger-db's role, which Postgres would take as no password, and asks docker nothing",
+    () => {
+      // --sync, --rotate and the putting back all set trigger-db through it.
+      const fx = fixture();
+      writeFileSync(
+        join(fx.compose, 'trigger-set-empty.sh'),
+        [
+          'set -euo pipefail',
+          'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
+          '. "${SCRIPT_DIR}/db-roles.sh"',
+          'COMPOSE=(docker compose)',
+          'rc=0',
+          'db_roles_trigger_set "" || rc=$?',
+          'printf "rc=%s why=%s\\n" "$rc" "$DB_ROLES_WHY"',
+        ].join('\n'),
+      );
+      const r = run(fx, [], { script: 'trigger-set-empty.sh' });
+      expect(r.status, r.output).toBe(0);
+      expect(r.stdout).toContain('rc=1 why=an empty password was given; nothing was set');
+      expect(calls(fx).filter((c) => c.tool === 'docker'), 'docker was asked').toEqual([]);
+      expect(stateOf(fx).trigger).toBe(TRIGGER_PW);
     },
     CASE_MS,
   );
@@ -1432,6 +1799,49 @@ describe("the script's own text", () => {
     expect(script).toMatch(/\. "\$\{SCRIPT_DIR\}\/shipped-passwords\.sh"/);
     expect(read('packages/ledger/migrations/0001_baseline.sql')).toContain("PASSWORD 'app_password'");
   });
+
+  it("trigger-db's role and database in the helper are managed.yml's, which .env cannot change", () => {
+    const yml = read('deploy/compose/managed.yml');
+    const service = /^ {2}trigger-db:\n([\s\S]*?)(?=^ {2}[a-z][\w-]*:\s*$)/m.exec(yml)?.[1] ?? '';
+    expect(service, 'no trigger-db service in managed.yml').not.toBe('');
+    expect(service).toMatch(/^ {6}POSTGRES_USER: trigger$/m);
+    expect(service).toMatch(/^ {6}POSTGRES_DB: triggerdb$/m);
+    expect(code(helper)).toMatch(/^DB_ROLES_TRIGGER_ROLE='trigger'$/m);
+    expect(code(helper)).toMatch(/^DB_ROLES_TRIGGER_DB='triggerdb'$/m);
+  });
+
+  it('every service that logs in to trigger-db reads TRIGGER_DB_PASSWORD, and the gate\'s bring-up recreates it', () => {
+    // The rotation changes trigger-db's role and .env; the containers take
+    // the new value only when they are recreated from that .env, which the
+    // E2E (managed) run it dispatches does: its bring-up runs from `data`,
+    // and the trigger phase brings trigger-db and trigger-api up again.
+    const yml = read('deploy/compose/managed.yml');
+    const services = [...yml.matchAll(/^ {2}([a-z][\w-]*):\s*$/gm)];
+    const clients: string[] = [];
+    for (const [k, m] of services.entries()) {
+      const end = services[k + 1]?.index ?? yml.indexOf('\nvolumes:', m.index);
+      const block = yml.slice(m.index, end < 0 ? undefined : end);
+      const lines = block.split('\n').filter((l) => /@trigger-db\b|-h trigger-db\b|PGHOST: trigger-db/.test(l) && !/^\s*#/.test(l));
+      if (lines.length === 0) continue;
+      clients.push(m[1]!);
+      for (const line of lines) expect(line, `${m[1]} logs in to trigger-db without TRIGGER_DB_PASSWORD`).toContain('${TRIGGER_DB_PASSWORD:-');
+    }
+    expect(clients, 'the services that log in to trigger-db with a password').toEqual(['trigger-api']);
+    const gate = read('.github/workflows/e2e-managed.yml');
+    expect(gate).toMatch(/bootstrap-managed\.sh --from data\b/);
+    const bringUp = read('deploy/compose/bootstrap-managed.sh');
+    const phase = bringUp.slice(bringUp.indexOf('phase_trigger() {'), bringUp.indexOf('\n}\n', bringUp.indexOf('phase_trigger() {')));
+    const upWait = /up_wait trigger-db(?:[^\n\\]|\\\n)*/.exec(phase)?.[0] ?? '';
+    expect(upWait, "the trigger phase does not bring trigger-db up").not.toBe('');
+    expect(upWait).toMatch(/\btrigger-api\b/);
+  });
+
+  it("live stays as it is: stand-up-live.sh generates TRIGGER_DB_PASSWORD for live's new trigger_db_data", () => {
+    // So live's trigger-db never holds the fallback, --check stays 0 there,
+    // and --rotate and --sync refuse live (above).
+    const standUp = code(read('deploy/compose/stand-up-live.sh'));
+    expect(standUp).toContain("'TRIGGER_DB_PASSWORD trigger_db_data'");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1496,9 +1906,17 @@ describe('the small fixes beside it', () => {
     expect(rotating.slice(0, 1500)).toContain('rotate-db-passwords.sh');
     const procedure = bringUp.slice(bringUp.indexOf('### Changing the database passwords'));
     expect(procedure.length, 'no section "Changing the database passwords"').toBeGreaterThan(200);
-    const steps = procedure.slice(0, 5000);
+    // The section, to the next heading.
+    const steps = procedure.slice(0, procedure.indexOf('\n### ', 1) > 0 ? procedure.indexOf('\n### ', 1) : 8000);
     for (const step of ['--check', '--rotate', 'E2E (managed)', '0132 T0']) expect(steps).toContain(step);
     expect(steps.indexOf('--rotate')).toBeGreaterThan(steps.indexOf('--check'));
+    // trigger-db is one of the stores the flag changes, and nothing says it waits any more.
+    const row = (mode: string) => steps.split('\n').find((l) => l.startsWith(`| \`${mode}`)) ?? '';
+    expect(row('--rotate'), 'the --rotate row').toContain('`TRIGGER_DB_PASSWORD`');
+    expect(row('--check'), 'the --check row').toMatch(/`trigger-db`[^|]*counted like the others/);
+    expect(row('--sync'), 'the --sync row').toMatch(/--with-trigger-stores[^|]*`trigger-db`/);
+    expect(steps).toContain('--sync --with-trigger-stores');
+    expect(steps, 'the old wording').not.toMatch(/uncounted|waiting for the code that rotates it|T2's next step/);
     expect(read('docs/rls-guide.md')).toContain('deploy/compose/rotate-db-passwords.sh');
   });
 });

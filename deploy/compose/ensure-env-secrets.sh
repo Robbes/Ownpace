@@ -364,7 +364,11 @@ fi
 # whose volume keeps the old one, and trigger-api, recreated with it, would be
 # refused by its own database. stand-up-live.sh sets it for live, before live's
 # volume exists; `scripts/a-password-the-repository-knows.unit.test.ts` fails
-# if this script ever writes it.
+# if this script ever writes it. On a volume that exists,
+# rotate-db-passwords.sh --rotate --with-trigger-stores changes the role and
+# .env together (0132 T2, step A). Once the owner has run that on the OTA
+# stack, step B puts the key in SHIPPED_PASSWORD_KEYS, and the loop above
+# generates it while trigger_db_data is new, as it does the four.
 
 # AND REPAIR ONE THE OLD GENERATOR ALREADY WROTE, which `ensure` above will not:
 # it fills a MISSING key and never touches a present one, which is right for a
