@@ -2,7 +2,84 @@
 
 > **In one line:** Grant links: the `mapping_link` bearer table and middleware, the public `/grant/:link` page where a migrated person gives Google consent for their own migration, with account binding, withdrawal, audit rows and a per-tier live-link limit.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-10-05 (update this block at the end of every session)
+
+**2026-10-05: the logs drop the link in any case.** The owner asked for it: *"Redact link
+credentials in logs regardless of case."* The review of #1495 found it. Every pattern that drops
+a link knew `grant`, `view` and `api` in lower case only. The API's access log wrote the link of
+every request those patterns missed, so `POST /API/GRANT/<link>/x` was written in full. Express
+routes without regard to case, its default: `GET /API/GRANT/<link>` reaches the grant route's
+link check. The web app's router matches without regard to case too (React Router's default;
+`AppRoutes.tsx` sets no `caseSensitive`), so `/GRANT/<link>` opens the grant page. The web
+image's nginx serves that page and logged its path in full. Each call the page makes carries that
+address as its Referer, and both logs wrote it in full.
+- **Fixed:** the route words now match in any case, in every place that drops a link:
+  `LINK_SEGMENT` and `REFERRER_LINK_SEGMENT` in `apps/api/src/access-log.ts` (the `i` flag), the
+  two link `map` rules in `apps/web/nginx.conf.template` (`~*`), and `reportablePage` in
+  `apps/web/src/services/problem-report-service.ts`. The route keeps the case it came in; only
+  the link becomes `:link`. A lower-case path is logged byte for byte as before.
+- **And in any spelling (the review of this change).** React Router 8.4 decodes the path before
+  it matches, so `/%67rant/<link>` opens the grant page too, and its calls carry that Referer.
+  nginx wrote the page's path in full, and both logs wrote the Referer in full. We chose to
+  redact these forms, not to refuse them: a refusal on the page would come after nginx had
+  logged the request. Each letter of a route word may now be its percent escape, in every
+  pattern above (`/%67rant/:link`). The pattern reads the escape as written and decodes nothing,
+  so the route is kept as it came. An escape encoded twice opens no page and is left as it was.
+  Express does not route an escape (a 404), but its line drops the link too.
+- **The report page drops a link in any case and spelling too.** No grant or view page links to
+  it: the report route is behind sign-in, and a link holder has no account.
+- **The scheme is read as before.** A Referer whose scheme is not in lower case was never taken
+  for a URL, and is still written "-". The API checks that first (`ABSOLUTE_URL`, unchanged). In
+  nginx that rule now comes before the link rule, so the caseless rule sees only what the API's
+  would. The host was always read in any case.
+- **Two more lines kept a link (the review of this change).** A link with a malformed escape
+  (`/api/grant/<link>%ZZ`) made Express's router throw "Failed to decode param '<link>%ZZ'". The
+  last handler answered 500 and logged that message whole. Now `apps/api/src/undecodable-path.ts`
+  answers it as the caller's 400, `path_unreadable`, and logs the method and the path with
+  `:link`. And a request with an absolute target (`GET http://host/api/grant/<link>`) reaches
+  the route by its path, but its line kept the link. `loggableUrl` now reads a scheme and a host
+  before the route. Only a direct connection to the API can send that form; nginx passes the path
+  alone.
+- **Covered without a change:** the server's own report page (`problem-report.ts`) and #1495's
+  unreadable-body line (`unreadable-body.ts`, on main since #1495) both write the path through
+  `loggableUrl`. That line is now guarded through the real app: a bad JSON body to
+  `POST /API/GRANT/<marker>/x` is written `POST /API/GRANT/:link/x`. `pageForLog` (a page's
+  unreadable-answer report) keeps lower-case words only and writes `:id` for anything else, so a
+  capital was already dropped. The public site's nginx has no link route.
+- **Known gaps, for the owner.** The web image's nginx **error log** writes the raw request line,
+  the upstream URL and the Referer, link and all, in any case. nginx cannot redact it. It writes
+  such a line when the API is down or restarting, on an upstream timeout, on a premature close,
+  and on a body above 8 MB. The image keeps the stock level, `notice`, sent to the container
+  log. This was there before, and has nothing to do with case. The fix is a decision about that
+  log's level or where it goes: `error_log /dev/stderr crit;` in this server would drop the
+  upstream lines (the access log still shows the 502, 504 or 413), at the cost of their detail.
+  Follow-up: the owner decides. NetBird's proxy also keeps the full path in its own log (0139);
+  that is outside this repository.
+
+**Evidence:** guards first, red on the unchanged patterns. The API's and the scripts'
+`a-log-that-kept-the-link`: 12 failed, 51 passed (63). The web's `a-report-that-reaches-a-person`:
+1 failed, 16 passed (17). Green after: 63 of 63, 17 of 17. One test goes through the real API
+app: `POST /API/GRANT/<marker>/x`, `GET /API/GRANT/<marker>` (it reaches the grant route's link
+check, not a 404) and `GET /Api/View/<marker>`, with mixed-case Referers. No line from the access
+log, `log` or the console holds the marker. The scripts guard now reads each map's operator and
+fails a link rule written with `~`. Two mutations were caught: the link rule moved back before
+the scheme rule (1 failed), and the URI map back to `~` (9 failed). On a real nginx 1.24, the
+rendered template passes `nginx -t`. Live requests through the old and the new template:
+mixed-case paths and Referers kept the marker before and `:link` after, and every lower-case
+line is the same.
+
+**Evidence for the review's findings:** guards first again, on main at d6d5f5a1 (#1495 merged).
+The API's `a-log-that-kept-the-link`: 14 failed, 24 passed (38). The scripts guard: 3 failed, 52
+passed (55). The web test: 1 failed, 17 passed (18). Green after: 38, 55 and 18. Through the real
+app: a page Referer `https://host/%67rant/<marker>`, `GET /api/%67rant/<marker>` (404), the bad
+JSON body, `GET /api/grant/<marker>%ZZ` and `/api/view/<marker>%E0%A4%A` (400, no reference), and
+two absolute targets on a raw socket. No line holds the marker. Five mutations were caught: no
+escapes in `access-log.ts` (23 failed), no origin before the route (2), the decode handler
+unmounted (1), the nginx URI rule back to the plain words (11), and no escapes in
+`reportablePage` (1 in the scripts guard, 1 in the web test). On nginx 1.24 the rendered
+template passes `nginx -t`, and the access log wrote `/%67rant/:link`, `/gr%61nt/:link?...`,
+`/%56IEW/:link` and the Referer `https://app.example.test/%67rant/:link`. Its error log wrote
+each of those requests in full.
 
 **2026-09-24, night: a link can be reported without a reply address.** The owner, asked whether
 it should: *"should link reports be allowed without a reply address? Yes"*.

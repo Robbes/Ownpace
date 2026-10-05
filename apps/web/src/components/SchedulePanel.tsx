@@ -26,26 +26,44 @@
  * press and says why. A refusal from the route is shown as the refusal it is
  * (hard rule 9), never as a save that worked.
  *
+ * AT THE TIER'S PACE (workplan 0157 T4): on Free, outside the alpha, a
+ * migration runs one pass a day whatever its schedule, so the chooser offers
+ * Automatic and Daily and says why the faster ones are not offered, with the
+ * way to them: a higher tier, on the Billing page. A schedule faster than that,
+ * kept from when the organisation was on a higher tier, stays selected, and
+ * the same line says it runs once a day: nothing is rewritten. The route
+ * refuses a faster one too (`free_pace_schedule`), said here in the reader's
+ * words.
+ *
  * FOLDED, IN A FAMILY'S WORDS (workplan 0153 T6 (b), approved by the owner on
  * 2026-09-28): *How often to look for changes*, where it said *Sync schedule*.
  * Closed, the fold still says the cadence in force, in the chooser's own words,
  * so nobody opens it to find out how often a migration runs.
  */
 import React from 'react';
+import { Link } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Clock } from 'lucide-react';
 import { mayRevise } from '@openmig/shared';
 import { mappingApi } from '../services/mapping-service.ts';
-import { revisionRefusals, serverMessage } from '../services/api.ts';
+import { revisionRefusals, scheduleAtPaceRefusal, serverMessage } from '../services/api.ts';
 import { useT } from '../i18n/index.tsx';
 import { Hint } from './Hint.tsx';
 import { SCHEDULE_PRESETS, ScheduleChooser, isSchedulePreset } from './ScheduleChooser.tsx';
+
+/** Free's pace, one pass a day (`FREE_PASS_EVERY_MINUTES` in `@openmig/managed`). */
+const ONE_DAY_MINUTES = 24 * 60;
 
 const SchedulePanel: React.FC<{
   mappingId: string;
   /** The detail payload's `syncConfig.schedule`: absent when the migration holds none. */
   current: string | undefined;
-}> = ({ mappingId, current }) => {
+  /**
+   * The detail payload's `pace` (workplan 0157 T4): the least minutes between
+   * two passes. Absent from an API that predates it, which held no pace.
+   */
+  leastMinutesBetweenPasses?: number;
+}> = ({ mappingId, current, leastMinutesBetweenPasses = 0 }) => {
   const t = useT();
   const queryClient = useQueryClient();
   // What the migration holds: a cron, or null for Automatic (no schedule).
@@ -91,6 +109,8 @@ const SchedulePanel: React.FC<{
     } catch (err) {
       const refusal = revisionRefusals(err);
       if (refusal !== null && refusal.length > 0) setRefused(refusal);
+      // Free's pace, in the reader's words (0157 T4); any other in the server's.
+      else if (scheduleAtPaceRefusal(err)) setFailed(t('settings.schedule.freePace'));
       else setFailed(serverMessage(err));
     } finally {
       setSaving(false);
@@ -111,8 +131,21 @@ const SchedulePanel: React.FC<{
           {stored !== null && !isSchedulePreset(stored) && (
             <p className="mt-2 text-sm text-gray-700">{t('settings.schedule.own', { schedule: stored })}</p>
           )}
+          {leastMinutesBetweenPasses >= ONE_DAY_MINUTES && (
+            <p className="mt-2 text-sm text-gray-700">
+              {t('settings.schedule.freePace')}{' '}
+              <Link to="/billing" className="text-blue-700 hover:underline">
+                {t('settings.schedule.freePace.link')}
+              </Link>
+            </p>
+          )}
           <div className="mt-3">
-            <ScheduleChooser value={chosen} onChange={setChosen} disabled={saving} />
+            <ScheduleChooser
+              value={chosen}
+              onChange={setChosen}
+              disabled={saving}
+              leastMinutesBetweenPasses={leastMinutesBetweenPasses}
+            />
           </div>
           <Hint className="mt-3" text={t('settings.schedule.hint')} why={t('settings.schedule.hint.why')} />
           <div className="mt-3 flex flex-wrap items-center gap-3">

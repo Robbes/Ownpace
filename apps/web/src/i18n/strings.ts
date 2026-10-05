@@ -758,6 +758,13 @@ const en = {
   'settings.schedule.hint': 'Passes run back to back until the first copy is done.',
   'settings.schedule.hint.why':
     'A pass runs at most 50 minutes. Until every data type has been copied once in full, the next pass starts as soon as the last one ends, and no sooner than 15 minutes after it started, whatever this schedule says. A daily download limit at the source is waited out first. After that, passes follow this schedule and copy only what is new or changed. Items that could not be copied do not keep passes coming: they wait on the Failures screen. On Automatic the days count from when everything was copied, or from the last time somebody opened this migration or pressed Trigger sync, whichever is later.',
+  // Free's pace (workplan 0157 T4): one pass a day outside the alpha, whatever
+  // the schedule; the faster cadences are not offered, and this says why, with
+  // the link after it as the way to a higher tier. Also what a schedule the
+  // route refused at the pace says (`free_pace_schedule`).
+  'settings.schedule.freePace':
+    'On Free a migration looks for changes once a day, whatever the schedule. A higher tier looks as often as every 15 minutes.',
+  'settings.schedule.freePace.link': 'See the tiers on the Billing page.',
   'settings.schedule.save': 'Save this schedule',
   'settings.schedule.saving': 'Saving…',
   'settings.schedule.saved': 'Saved. The next pass follows it.',
@@ -3740,6 +3747,9 @@ const nl: Record<keyof typeof en, string> = {
   'settings.schedule.hint': 'Rondes lopen direct na elkaar tot de eerste kopie klaar is.',
   'settings.schedule.hint.why':
     'Een ronde duurt hoogstens 50 minuten. Tot elk gegevenstype één keer volledig is gekopieerd, start de volgende ronde zodra de vorige klaar is, en niet eerder dan 15 minuten na de start ervan, wat dit schema ook zegt. Een daglimiet voor downloaden bij de bron wordt eerst afgewacht. Daarna volgen de rondes dit schema en kopiëren ze alleen wat nieuw of gewijzigd is. Items die niet gekopieerd konden worden, houden de rondes niet aan de gang: ze wachten bij Mislukkingen. Bij Automatisch tellen de dagen vanaf het moment dat alles is gekopieerd, of vanaf de laatste keer dat iemand deze migratie opende of op Synchroniseer nu drukte, wat het laatst was.',
+  'settings.schedule.freePace':
+    'Op Free kijkt een migratie eens per dag naar wijzigingen, welk schema er ook staat. Een hoger pakket kijkt zo vaak als elke 15 minuten.',
+  'settings.schedule.freePace.link': 'Bekijk de pakketten op de pagina Facturering.',
   'settings.schedule.save': 'Dit schema opslaan',
   'settings.schedule.saving': 'Opslaan…',
   'settings.schedule.saved': 'Opgeslagen. De volgende ronde volgt het.',

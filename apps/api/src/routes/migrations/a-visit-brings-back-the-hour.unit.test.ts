@@ -118,6 +118,7 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   enqueued.length = 0;
   signedIn = ORG;
   await sql('DELETE FROM migration_visit');
@@ -174,6 +175,9 @@ describe('Automatic, saved on the migration page', () => {
   });
 
   it('a cron is still stored as written, and one faster than the floor still refused', async () => {
+    // In the alpha, where Free keeps every cadence: outside it, a cron faster
+    // than a day is refused on Free (0157 T4, doors-that-know-the-pace).
+    vi.stubEnv('OWNPACE_STAGE', 'alpha');
     await request(app)
       .put(`/api/migrations/${MAPPING}`)
       .send({ syncConfig: { schedule: '0 */6 * * *' } })

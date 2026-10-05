@@ -20,7 +20,10 @@
  *     cadence in force without being opened;
  *  7. *Automatic* comes first, and is what a migration with no schedule of its
  *     own runs (workplan 0157 T7): selected for one, and saved as no schedule
- *     at all.
+ *     at all;
+ *  8. at Free's pace (workplan 0157 T4), only what Free runs is offered, a
+ *     line says why with the way to a higher tier, and a faster schedule kept
+ *     from a higher tier stays shown, not rewritten.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -28,6 +31,7 @@ import { join } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
 import { AxiosError, AxiosHeaders } from 'axios';
 import { describeCronScheduleProblem } from '@openmig/shared';
 import { STRINGS } from '../i18n/strings.ts';
@@ -49,11 +53,13 @@ const axiosError = (status: number, data: unknown): AxiosError => {
   return err;
 };
 
-function renderPanel(current: string | undefined) {
+function renderPanel(current: string | undefined, leastMinutesBetweenPasses?: number) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <SchedulePanel mappingId="m-1" current={current} />
+      <MemoryRouter>
+        <SchedulePanel mappingId="m-1" current={current} leastMinutesBetweenPasses={leastMinutesBetweenPasses} />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -268,5 +274,73 @@ describe('the fold, in a family’s words (0153 T6 (b))', () => {
     } finally {
       window.localStorage.removeItem('ownpace.locale');
     }
+  });
+});
+
+/**
+ * AT FREE'S PACE (workplan 0157 T4): on Free, outside the alpha, a migration
+ * runs one pass a day whatever its schedule, so the panel offers what Free
+ * runs and says why the rest is not offered, with the way to a higher tier.
+ */
+describe("at Free's pace (0157 T4)", () => {
+  const DAY = 1440;
+
+  it('offers Automatic and Daily, and not the cadences faster than a day', () => {
+    renderPanel('0 2 * * *', DAY);
+    expect(cadence('wizard.schedule.automatic')).toBeEnabled();
+    expect(cadence('wizard.schedule.daily')).toBeEnabled();
+    for (const faster of ['wizard.schedule.hourly', 'wizard.schedule.sixHourly', 'wizard.schedule.quarterHourly'] as const) {
+      expect(cadence(faster), faster).toBeDisabled();
+    }
+  });
+
+  it('says why, with the way to a higher tier: the Billing page', () => {
+    renderPanel('0 2 * * *', DAY);
+    expect(screen.getByText(EN['settings.schedule.freePace'], { exact: false })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: EN['settings.schedule.freePace.link'] })).toHaveAttribute('href', '/billing');
+  });
+
+  it('keeps a faster schedule from a higher tier shown, and says it runs once a day: nothing is rewritten', () => {
+    renderPanel('0 * * * *', DAY);
+    expect(cadence('wizard.schedule.hourly')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText(EN['settings.schedule.freePace'], { exact: false })).toBeInTheDocument();
+    expect(setSchedule).not.toHaveBeenCalled();
+  });
+
+  it('offers every cadence, and says nothing of a pace, on a paid tier or in the alpha', () => {
+    renderPanel('0 2 * * *', 0);
+    for (const preset of SCHEDULE_PRESETS) expect(cadence(preset.labelKey)).toBeEnabled();
+    expect(screen.queryByText(EN['settings.schedule.freePace'], { exact: false })).toBeNull();
+  });
+
+  it("says a schedule the route refused at the pace in the reader's words, never as saved", async () => {
+    setSchedule.mockRejectedValue(
+      axiosError(409, { error: 'free_pace_schedule', message: 'On Free a migration looks for changes once a day…' }),
+    );
+    renderPanel('0 2 * * *', 0);
+    await userEvent.click(cadence('wizard.schedule.hourly'));
+    await userEvent.click(save());
+    expect(await screen.findByText(`${EN['settings.schedule.failed']} ${EN['settings.schedule.freePace']}`)).toBeInTheDocument();
+    expect(screen.queryByText(EN['settings.schedule.saved'])).toBeNull();
+  });
+
+  it('knows how far apart each cadence runs its passes, as the tick reads its cron', () => {
+    // `shortestGapMinutes` in packages/orchestration/src/sync-due.ts, which
+    // this package does not import: the four are pinned here instead.
+    expect(Object.fromEntries(SCHEDULE_PRESETS.map((p) => [p.value, p.everyMinutes]))).toEqual({
+      '0 * * * *': 60,
+      '0 2 * * *': 1440,
+      '0 */6 * * *': 360,
+      '*/15 * * * *': 15,
+    });
+  });
+
+  it('in both languages', () => {
+    expect(NL['settings.schedule.freePace']).toBe(
+      'Op Free kijkt een migratie eens per dag naar wijzigingen, welk schema er ook staat. Een hoger pakket kijkt zo vaak als elke 15 minuten.',
+    );
+    expect(NL['settings.schedule.freePace.link']).toBe('Bekijk de pakketten op de pagina Facturering.');
+    expect(NL['settings.schedule.freePace.link']).toContain(NL['nav.billing']);
+    expect(EN['settings.schedule.freePace.link']).toContain(EN['nav.billing']);
   });
 });

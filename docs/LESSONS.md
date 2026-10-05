@@ -583,6 +583,10 @@ reading a file drops off its entry by itself.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
 
+### `apps/web/src/services/problem-report-service.ts`
+
+- [a-log-that-kept-the-link](../scripts/a-log-that-kept-the-link.unit.test.ts) — A LOG THAT KEPT THE LINK, on the web image's nginx.
+
 ### `apps/web/src/services/stage.ts`
 
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
@@ -3385,6 +3389,7 @@ Reads:
 
 - `apps/api/src/access-log.ts`
 - `apps/web/nginx.conf.template`
+- `apps/web/src/services/problem-report-service.ts`
 
 ### [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts)
 
