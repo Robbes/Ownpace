@@ -2,7 +2,25 @@
 
 > **In one line:** Hardening Zitadel sign-in at `id.ownpace.eu` and the OTA instance via `setup-zitadel.sh`: public organisation registration off, `hasProjectCheck`, organisation counts, MFA and lockout, legal links, Dutch and English copy, release watch, orphan accounts.
 
-## Status — 2026-10-03 (update this block at the end of every session)
+## Status — 2026-10-05 (update this block at the end of every session)
+
+**2026-10-05: the pin moves to v4.19.4, from the watch's issue #1523**, on branch
+`claude/ownpace-public-readiness-y7orc6-the-identity-provider-at-4-19-4`, not merged. The owner
+dumped the OTA instance's `zitadel` database first, with `deploy/compose/dump-idp.sh`, as the
+issue's step 1 asks. Read commit by commit (`git log v4.19.2..v4.19.4`, five commits), none is a
+security fix, so T7's seven days do not apply; it is taken now, while only the OTA instance holds
+data, so live starts on it instead of upgrading a running live later:
+- the invite-code notification handler's ID order (#12846), the instance ID in the actions
+  worker's context (#12730), a migration that skips a finished unique-constraint backfill and
+  exclusive owner deletes (#12833), and two query changes for listing users (#12826, #12830);
+- **one setup step, 80**: an index on `users14` by instance and organisation, and two older
+  indexes dropped. One-way, like 76 to 79.
+- `cmd/defaults.yaml`, the login v1 UI and every API handler are unchanged since v4.19.2
+  (`git diff --stat v4.19.2 v4.19.4`), so `LoginV2.Required`, the service ping's default and the
+  privacy policy's fields hold as `managed.yml` and `setup-zitadel.sh` describe them.
+- The pin's guards pass (eight files, 246 cases); `a-service-that-phones-home` names v4.19.4.
+  E2E (managed) on the branch applies it to the OTA instance before the merge; the issue closes
+  at the next weekly watch run once main carries the pin. Live takes it from a release tag.
 
 **2026-10-03: T5 built, with 0139 T4**, on branch
 `claude/ownpace-public-readiness-y7orc6-a-notice-where-data-is-collected`, not merged. Asked

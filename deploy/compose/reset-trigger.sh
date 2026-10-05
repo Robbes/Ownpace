@@ -94,9 +94,15 @@ cat <<'EOF'
 
 [reset-trigger] done. Next:
 
+  ./deploy/compose/ensure-env-secrets.sh
   ./deploy/compose/bootstrap-managed.sh --from trigger
 
-It will bring the plane up empty and STOP at the `account` phase with the
+The first generates TRIGGER_DB_PASSWORD when .env leaves it empty or holds a
+value this repository publishes: the new database takes it at its first start,
+and on a real address the bring-up refuses an empty one (workplan 0132 T2).
+A value of your own is kept, and the new database takes that.
+
+The bring-up will bring the plane up empty and STOP at the `account` phase with the
 browser steps. After you have named an organisation and a project:
 
   ./deploy/compose/bootstrap-managed.sh --from account

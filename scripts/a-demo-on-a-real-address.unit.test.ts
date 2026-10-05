@@ -151,9 +151,10 @@ function callersOf(script: string, name: string): string[] {
 }
 
 const LIVE = 'COMPOSE_PROJECT_NAME=ownpace-live\nSTACK_KIND=production\nWEB_URL=https://app.example.test\n';
-// The OTA stack's database passwords are its own since 2026-10-05: on a real
-// address the bring-up refuses the ones this repository publishes (0132 T2).
-const OTA_PASSWORDS = ['POSTGRES_PASSWORD', 'APP_DB_PASSWORD', 'CLICKHOUSE_PASSWORD', 'MINIO_ROOT_PASSWORD']
+// The OTA stack's database passwords are its own since 2026-10-05, trigger-db's
+// among them: on a real address the bring-up refuses the ones this repository
+// publishes (0132 T2, and since step B TRIGGER_DB_PASSWORD too).
+const OTA_PASSWORDS = ['POSTGRES_PASSWORD', 'APP_DB_PASSWORD', 'CLICKHOUSE_PASSWORD', 'MINIO_ROOT_PASSWORD', 'TRIGGER_DB_PASSWORD']
   .map((k, i) => `${k}=${`0f${i}e0f`.repeat(8)}\n`)
   .join('');
 const OTA = `WEB_URL=https://app.example.test\n${OTA_PASSWORDS}`;

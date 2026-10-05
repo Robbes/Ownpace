@@ -36,8 +36,8 @@ afterAll(() => {
   for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
 });
 
-/** The four database passwords, set to values nobody publishes, so docker is never asked. */
-const DB_PASSWORDS = ['POSTGRES_PASSWORD', 'APP_DB_PASSWORD', 'CLICKHOUSE_PASSWORD', 'MINIO_ROOT_PASSWORD']
+/** The five database passwords, set to values nobody publishes, so docker is never asked. */
+const DB_PASSWORDS = ['POSTGRES_PASSWORD', 'APP_DB_PASSWORD', 'CLICKHOUSE_PASSWORD', 'MINIO_ROOT_PASSWORD', 'TRIGGER_DB_PASSWORD']
   .map((k, i) => `${k}=${String(i + 1).repeat(48)}`)
   .join('\n');
 
