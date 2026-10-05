@@ -43,6 +43,7 @@
 #   ./deploy/compose/operator.sh check [kind]
 #   ./deploy/compose/operator.sh clean <kind> [--confirm]
 #   ./deploy/compose/operator.sh secrets
+#   ./deploy/compose/operator.sh moneybird check
 #
 # `<subject>` is the OIDC `sub`, never an email: sign in once, call
 # `GET /api/me`, and read `userId` back. operator.ts's header says why.
@@ -80,6 +81,15 @@
 # migrations at the same time, workplan 0108 T8 (d)) and sets another number
 # for a burst, through a day or until cleared: see operator-links.ts. Each
 # change writes an audit row.
+#
+# `moneybird check` asks the books, not the database (workplan 0111): it reads
+# the sales tax rates and the workflows of the administration this checkout's
+# `.env` names in MONEYBIRD_*, and says what each VAT treatment resolves to and
+# which workflow invoices would go through. Two reads, no invoice, no e-mail.
+# With only the token and the administration id set, it lists the ids to pick
+# the rest from. See moneybird-check.ts. It queries no table; Postgres must be
+# up only because this wrapper composes the owner connection before any verb.
+# It exits 1 while its report names something to do.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -100,6 +110,7 @@ if [ "$#" -eq 0 ]; then
   echo "  ./deploy/compose/operator.sh secrets" >&2
   echo "  ./deploy/compose/operator.sh links <tenant-id> [<n> [--until YYYY-MM-DD] [note] | --tier]" >&2
   echo "  ./deploy/compose/operator.sh close <tenant-id> <window-days> --by <your-subject> --reference <the tester's request>" >&2
+  echo "  ./deploy/compose/operator.sh moneybird check" >&2
   exit 1
 fi
 

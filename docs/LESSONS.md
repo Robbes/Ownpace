@@ -1902,6 +1902,10 @@ reading a file drops off its entry by itself.
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
 
+### `packages/managed/src/moneybird-workflows.ts`
+
+- [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+
 ### `packages/managed/src/occupancy-peak.ts`
 
 - [a-month-that-moved-with-the-servers-timezone](../scripts/a-month-that-moved-with-the-servers-timezone.unit.test.ts) — FOUR PLACES DECIDED WHICH MONTH A MOMENT BELONGED TO, AND THREE OF THEM ASKED THE SERVER WHERE IT WAS STANDING (found 2026-09-09).
@@ -2772,6 +2776,7 @@ Reads:
 - `packages/engines/src/webdav-target-writer.ts`
 - `packages/managed/src/moneybird-sales-invoices.ts`
 - `packages/managed/src/moneybird-tax-rates.ts`
+- `packages/managed/src/moneybird-workflows.ts`
 - `packages/managed/src/vies.ts`
 - `packages/orchestration/src/account-qualification.ts`
 - `packages/orchestration/src/microsoft-account-test.ts`

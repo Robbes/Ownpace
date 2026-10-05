@@ -1389,6 +1389,24 @@ why it is a question worth asking; `operator-housekeeping.integration.test.ts`
 runs all of them against a real database, because SQL nobody has executed is SQL
 nobody has checked.
 
+**The books** (workplan 0111). Invoices are numbered in a Moneybird
+administration that the `MONEYBIRD_*` keys in `.env` name (`managed.env.example`
+lists them: all five of the first group, or none). With none set, Moneybird is
+off and nothing is asked of it. To see what a set resolves to:
+
+```bash
+./deploy/compose/operator.sh moneybird check
+```
+
+It makes two reads, the administration's sales tax rates and its workflows, and
+prints each with its id, what each VAT treatment resolves to, and the workflow
+invoices would go through, with whether its prices include VAT. It makes no
+contact, no invoice and no e-mail. With only `MONEYBIRD_API_TOKEN` and
+`MONEYBIRD_ADMINISTRATION_ID` set it lists the ids to pick the rest from. It
+exits 1 while its report names something to do; the outside-EU rate is
+optional, so its refusal is printed and does not count. The token is in no line
+it prints. Half a set also gets a warning when the API starts.
+
 **Verify** — the queue answers, and answers only for them:
 
 ```bash

@@ -56,7 +56,11 @@ import { problemReportRoutes } from './routes/problem-reports.ts';
 import { linkReportRoutes } from './routes/link-reports.ts';
 import { unreadableAnswerRoutes } from './routes/unreadable-answers.ts';
 import { assertManagedAudience, assertProductionAuthConfig, getDbPool, selectAuthMode } from './middleware/auth.ts';
-import { assertBackupRetentionConfig, assertProductionUrlConfig } from './config-guards.ts';
+import {
+  assertBackupRetentionConfig,
+  assertMoneybirdConfig,
+  assertProductionUrlConfig,
+} from './config-guards.ts';
 import { maxMigrationsPerOrganisationFromEnv } from './routes/migrations/migration-cap.ts';
 import { refuseInternalAddressesFromEnv } from '@openmig/shared/reachable-host';
 import { serverFault } from './server-fault.ts';
@@ -348,6 +352,9 @@ if (process.env.NODE_ENV !== 'test') {
   // the erasure sentence name 7 days of backups whether or not any exist. A
   // warning in production; with OWNPACE_STAGE=alpha, a refusal to start.
   assertBackupRetentionConfig((m) => log.warn(m));
+  // Half a set of MONEYBIRD_* keys (0111): a warning that names them. Off and
+  // a whole set say nothing here; `operator.sh moneybird check` says the rest.
+  assertMoneybirdConfig((m) => log.warn(m));
   // The cap on unfinished migrations per organisation (0143 T2a). A number the
   // create route could not read stops the start here, naming the value, rather
   // than failing every create afterwards.

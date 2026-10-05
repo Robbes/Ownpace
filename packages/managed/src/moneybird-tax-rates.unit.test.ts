@@ -66,6 +66,37 @@ describe('fetchSalesTaxRates', () => {
       expect((await fetchSalesTaxRates(CONFIG, impl)).kind).toBe('unavailable');
     }
   });
+
+  it("reads the sandbox's reverse-charge rate, which has no percentage, and skips a numeric id", async () => {
+    // As Moneybird answered for "Dienst binnen EU (btw verlegd)" on 2026-10-05 (id made up).
+    const reverseCharge = {
+      id: '555',
+      name: 'Dienst binnen EU (btw verlegd)',
+      percentage: null,
+      tax_rate_type: 'sales_invoice',
+      active: true,
+      country: null,
+      show_tax: false,
+    };
+    const numericId = { id: 666, name: 'Een id als getal', percentage: '21.0', tax_rate_type: 'sales_invoice', active: true };
+    const outcome = await fetchSalesTaxRates(CONFIG, fakeFetch(() => json([reverseCharge, numericId])).impl);
+
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind !== 'ok') return;
+    expect(outcome.rates).toEqual([
+      { id: '555', name: 'Dienst binnen EU (btw verlegd)', percentage: null, taxRateType: 'sales_invoice', active: true, country: null },
+    ]);
+    expect(resolveTaxRateId('reverse_charge', { domesticStandard: '666', reverseCharge: '555' }, outcome.rates)).toEqual({
+      kind: 'resolved',
+      taxRateId: '555',
+      name: 'Dienst binnen EU (btw verlegd)',
+      percentage: null,
+    });
+    // The skipped one is refused by name, not matched by a number that happens to equal it.
+    const skipped = resolveTaxRateId('domestic_standard', { domesticStandard: '666', reverseCharge: '555' }, outcome.rates);
+    expect(skipped.kind).toBe('unresolved');
+    if (skipped.kind === 'unresolved') expect(skipped.reason).toContain('does not exist');
+  });
 });
 
 const RATES: readonly MoneybirdTaxRate[] = [
