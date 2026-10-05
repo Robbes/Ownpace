@@ -32,7 +32,7 @@
  * and a placeholder mapping today would be a wrong number tomorrow.
  */
 
-import { moneybirdRead, type MoneybirdAccess } from './moneybird-http.ts';
+import { moneybirdRead, type MoneybirdAccess, type SlowDown } from './moneybird-http.ts';
 import type { VatTreatment } from './vat-treatment.ts';
 
 export interface MoneybirdTaxRate {
@@ -47,7 +47,8 @@ export interface MoneybirdTaxRate {
 
 export type FetchTaxRatesOutcome =
   | { readonly kind: 'ok'; readonly rates: readonly MoneybirdTaxRate[] }
-  | { readonly kind: 'unavailable'; readonly reason: string };
+  | { readonly kind: 'unavailable'; readonly reason: string }
+  | SlowDown;
 
 /**
  * The administration's sales tax rates, from Moneybird's own API.
@@ -63,7 +64,7 @@ export async function fetchSalesTaxRates(
     `tax_rates.json?filter=${encodeURIComponent('tax_rate_type:sales_invoice')}`,
     fetchImpl,
   );
-  if (read.kind === 'unavailable') return { kind: 'unavailable', reason: read.reason };
+  if (read.kind !== 'ok') return read;
   const body = read.body;
   if (!Array.isArray(body)) {
     return { kind: 'unavailable', reason: 'Moneybird answered a shape this client does not recognise.' };
