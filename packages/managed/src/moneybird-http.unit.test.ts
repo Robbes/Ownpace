@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { moneybirdRead } from './moneybird-http.ts';
+import { moneybirdRead, moneybirdRequest } from './moneybird-http.ts';
 
 const TOKEN = 'not-a-real-token-and-never-printed';
 const ACCESS = { administrationId: '123456789012345678', apiToken: TOKEN };
@@ -50,26 +50,35 @@ describe('moneybirdRead', () => {
     if (missing.kind === 'unavailable') expect(missing.reason).toContain('MONEYBIRD_ADMINISTRATION_ID');
   });
 
-  it('a 429 says to slow down and carries Retry-After in seconds, given as seconds or as a date', async () => {
+  it('a 429 is its own outcome, slow_down, carrying Retry-After in seconds, given as seconds or as a date', async () => {
     const seconds = await moneybirdRead(
       ACCESS,
       'workflows.json',
       fakeFetch(() => json({}, 429, { 'Retry-After': '30' })).impl,
     );
-    expect(seconds).toMatchObject({ kind: 'unavailable', retryAfterSeconds: 30 });
-    if (seconds.kind === 'unavailable') expect(seconds.reason).toContain('slow down');
+    expect(seconds).toMatchObject({ kind: 'slow_down', retryAfterSeconds: 30 });
+    if (seconds.kind === 'slow_down') expect(seconds.reason).toContain('slow down');
 
     const at = new Date(Date.now() + 90_000).toUTCString();
     const dated = await moneybirdRead(ACCESS, 'workflows.json', fakeFetch(() => json({}, 429, { 'Retry-After': at })).impl);
-    expect(dated.kind).toBe('unavailable');
-    if (dated.kind === 'unavailable') {
+    expect(dated.kind).toBe('slow_down');
+    if (dated.kind === 'slow_down') {
       expect(dated.retryAfterSeconds).toBeGreaterThanOrEqual(85);
       expect(dated.retryAfterSeconds).toBeLessThanOrEqual(91);
     }
 
     const bare = await moneybirdRead(ACCESS, 'workflows.json', fakeFetch(() => json({}, 429)).impl);
-    expect(bare.kind).toBe('unavailable');
-    if (bare.kind === 'unavailable') expect(bare.retryAfterSeconds).toBeUndefined();
+    expect(bare.kind).toBe('slow_down');
+    if (bare.kind === 'slow_down') expect(bare.retryAfterSeconds).toBeUndefined();
+  });
+
+  it('moneybirdRequest sends a body as JSON with its method, and reports a status without JSON as unparsed', async () => {
+    const { impl, calls } = fakeFetch(() => new Response(null, { status: 204 }));
+    const answer = await moneybirdRequest(ACCESS, 'PATCH', '/contacts/2.json', { contact: { city: 'Ons Dorp' } }, impl);
+    expect(answer).toEqual({ kind: 'response', status: 204, body: null, parsed: false });
+    expect(calls[0]!.init.method).toBe('PATCH');
+    expect(calls[0]!.init.body).toBe('{"contact":{"city":"Ons Dorp"}}');
+    expect((calls[0]!.init.headers as Record<string, string>)['Content-Type']).toBe('application/json');
   });
 
   it('anything else is unavailable, never an empty answer, and no sentence carries the token', async () => {

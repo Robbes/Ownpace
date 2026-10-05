@@ -95,7 +95,7 @@ export async function checkMoneybird(
 
   const rates = await fetchSalesTaxRates(administration, fetchImpl);
   lines.push('');
-  if (rates.kind === 'unavailable') {
+  if (rates.kind !== 'ok') {
     lines.push(`Sales tax rates: not read. ${rates.reason}`);
     ok = false;
   } else {
@@ -117,7 +117,7 @@ export async function checkMoneybird(
 
   const workflows = await fetchWorkflows(administration, fetchImpl);
   lines.push('');
-  if (workflows.kind === 'unavailable') {
+  if (workflows.kind !== 'ok') {
     lines.push(`Workflows: not read. ${workflows.reason}`);
     ok = false;
   } else {
