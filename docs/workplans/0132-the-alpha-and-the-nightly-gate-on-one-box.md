@@ -10,7 +10,7 @@ the owner's*:
 
 - **The log driver (ops-log-driver (a)).** The owner ran `docker info --format
   '{{.LoggingDriver}}'` on the machine, in the OTA stack's directory, and it printed `json-file`.
-  The driver is the daemon's, and both stacks share one daemon (D-new), so live's containers
+  The driver is the daemon's, and both stacks share one daemon (D7), so live's containers
   write with it too. `stand-up-live.sh` takes `json-file` or `local`, so its check passes, and
   privacy §9's server logs, kept until the part that wrote them is replaced, hold. There is no
   journald setting to undo. Done.

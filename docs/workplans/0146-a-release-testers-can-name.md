@@ -8,10 +8,11 @@
 the final texts before the first invitation.** Plans only; no tag is cut. Asked what
 `v0.2.0-alpha.1` waits for, the owner chose *"Two tags"*:
 
-- **`v0.2.0-alpha.1`** is cut as soon as the pull requests in flight merge: 0132 T2 step B,
+- **`v0.2.0-alpha.1`** is cut as soon as these are on `main`: 0132 T2 step B,
   `trigger-db`'s key (#1527, merged 2026-10-05); the identity provider at Zitadel v4.19.4
-  (#1528); item 9's copy, on its own branch; and this tag's `CHANGELOG.md` entry. Live is stood up
-  from it (0132 T0 step 3, T1b), and the rehearsal runs on it. No tester is invited on it.
+  (#1528, merged 2026-10-05); 0144 T3 (b), the site copy in the owner's option B of 2026-10-05
+  (#1529, open); and this tag's `CHANGELOG.md` entry. Live is stood up from it (0132 T0 step 3,
+  T1b), and the rehearsal runs on it. No tester is invited on it.
 - **`v0.2.0-alpha.2`** carries the final legal texts (0139: the owner's approval, D1's amendment
   of the same day). It has its own freeze, its own two green scheduled nights (0141 T14, T2 step
   5) and its own deploy to live (T5), all before the first invitation.

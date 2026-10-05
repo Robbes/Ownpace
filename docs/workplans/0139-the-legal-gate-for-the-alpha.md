@@ -3779,7 +3779,8 @@ the lawyer's pass.
 
 *2026-10-05: D1 amended. For the Alpha, the owner's own approval of the final texts stands where
 this section names the lawyer's pass, and the final-text pull request is the PR the legal files
-change in. The lawyer's pass, and T11 after it, come before the first paid tier.*
+change in. The lawyer's pass comes before the first paid tier; T11 still follows the lawyer's
+answer.*
 
 ## Cross-references
 
