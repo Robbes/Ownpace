@@ -27,7 +27,8 @@
  * 7. **Each limit links a guide section that exists**, in both languages, and
  *    opens it in the language of the page that links it.
  * 8. **The typical cost is the calculator's own answer**, and the estimate it
- *    links opens on the same case; Gmail's ceiling is the calculator's number.
+ *    links opens on the same case, which Request access carries to the form;
+ *    Gmail's ceiling is the calculator's number.
  * 9. **Every page is built in both languages and reachable:** the header's
  *    list, the phone's menu and the home page's hero link all six, each link
  *    named by its page's title, each tile hidden from a screen reader.
@@ -276,7 +277,7 @@ describe('the Leaving… pages say what the app says (0152 T5)', () => {
       money: (cents: number) => string;
       GMAIL_IMAP_GB_PER_DAY: number;
     }>('calculator.mjs');
-    const { TIERS } = await site<{ TIERS: unknown[] }>('prices.mjs');
+    const { TIERS, REQUEST_ACCESS_URL } = await site<{ TIERS: unknown[]; REQUEST_ACCESS_URL: string }>('prices.mjs');
     const { INDICATIVE_PROFILES, OBJECT_TYPES } = await site<{
       INDICATIVE_PROFILES: { individual: Record<string, { gb: number }> };
       OBJECT_TYPES: string[];
@@ -303,6 +304,9 @@ describe('the Leaving… pages say what the app says (0152 T5)', () => {
         expect(html, `${locale}/${page.id}: the typical cost is not the calculator's`).toContain(`<p>${expected}</p>`);
         const estimate = `?from=${page.from}&amp;what=${objects.join(',')}"`;
         expect(html, `${locale}/${page.id}: the estimate does not open on this page's case`).toContain(estimate);
+        // Request access carries the same case to the form (0152 T7 (a)).
+        const order = `${REQUEST_ACCESS_URL}?locale=${locale}&amp;from=${page.from}&amp;what=${objects.join(',')}"`;
+        expect(html, `${locale}/${page.id}: Request access does not carry this page's case`).toContain(order);
         if (page.limits.some((l) => l.id === 'gmailDaily')) {
           const said = (L.limits.gmailDaily as (gb: string) => string)(GMAIL_IMAP_GB_PER_DAY.toLocaleString(COPY[locale].htmlLang));
           expect(html, `${locale}: Gmail's ceiling is not the calculator's`).toContain(said);

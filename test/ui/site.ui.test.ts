@@ -224,7 +224,7 @@ describe('the public site renders', () => {
           name: text('tier-name'),
           monthly: text('tier-monthly'),
           year: text('tier-year'),
-          three: shown('tier-three'),
+          suits: shown('tier-suits') ? text('tier-suits') : null,
           pace: shown('tier-pace') ? text('tier-pace') : null,
           topUp: text('topup-line'),
         };
@@ -234,7 +234,7 @@ describe('the public site renders', () => {
     expect(free.name).toContain('Free');
     expect(free.monthly).toBe('Free: nothing a month, and no invoice.');
     expect(free.year).toContain('moves you to Small');
-    expect(free.three, 'a free tier has no three-month total to show').toBe(false);
+    expect(free.suits, 'a free tier has no payment to suit').toBeNull();
     expect(free.topUp, 'a free tier offers no top-up').toBe('');
     expect(free.pace, 'Free does not say its pace').toContain('One pass a day');
     expect(JSON.stringify(free)).not.toMatch(/€0(?![\d.,])/);
@@ -246,10 +246,54 @@ describe('the public site renders', () => {
     expect(small.name).toContain('Small');
     expect(small.monthly).toBe('€5 a month');
     expect(small.year).toContain('€30 for a year');
-    expect(small.three).toBe(true);
     expect(small.pace, 'a paid tier says Free’s pace').toBeNull();
     expect(small.topUp).not.toBe('');
+    // Which payment suits the answer to Until when? (0152 T7 (b)): the year by
+    // default, which is "When I am ready"; a month or three paid monthly.
+    expect(small.suits).toBe('Until you are ready, a year suits this: €30 for twelve months, the price of six.');
+    await page.check('input[name="until"][value="m3"]');
+    expect((await read()).suits).toBe('For 3 months, paying monthly suits this: €15 in all.');
+    await page.check('input[name="until"][value="m1"]');
+    expect((await read()).suits).toBe('For 1 month, paying monthly suits this: €5 in all.');
+    await page.check('input[name="until"][value="m6"]');
+    expect((await read()).suits).toBe('For 6 months, a year suits this: €30 for twelve months, the price of six.');
     await page.close();
+  }, 60_000);
+
+  it('ends in Request access that carries the answers on screen, and a Leaving page’s carries its case (0152 T7 (a))', async () => {
+    const { page } = await open('/estimate.html');
+    const order = async () => new URL((await page.getAttribute('#order', 'href'))!);
+    // The page opens on one person leaving Google with mail, contacts,
+    // calendar and files: that is four migrations, which Free runs.
+    let href = await order();
+    expect(href.origin + href.pathname).toBe('https://app.ota.ownpace.eu/request-access');
+    expect(Object.fromEntries(href.searchParams)).toEqual({
+      locale: 'en',
+      tier: 'Free',
+      from: 'google',
+      what: 'mail,contacts,calendar,files',
+      who: 'individual',
+    });
+    // Another source, a family and more data: the link follows what is on screen.
+    await page.check('input[name="from"][value="dropbox"]');
+    await page.check('input[name="who"][value="family"]');
+    href = await order();
+    expect(href.searchParams.get('from')).toBe('google,dropbox');
+    expect(href.searchParams.get('who')).toBe('family');
+    expect(href.searchParams.get('tier'), 'the link does not carry the tier the card shows').toBe(
+      ((await page.textContent('#tier-name')) ?? '').replace(/^That lands on (.+)\.$/, '$1'),
+    );
+    // A type no ticked source brings is not carried: the form would say it moves.
+    await page.uncheck('input[name="from"][value="google"]');
+    await page.check('#what-mail');
+    expect((await order()).searchParams.get('what')?.split(',')).not.toContain('mail');
+    await page.close();
+
+    const leaving = await open('/nl/weg-bij-dropbox.html');
+    const plain = new URL((await leaving.page.getAttribute('.cta a.btn-primary', 'href'))!);
+    expect(Object.fromEntries(plain.searchParams)).toMatchObject({ locale: 'nl', from: 'dropbox' });
+    expect(plain.searchParams.get('what')).toBe('files');
+    await leaving.page.close();
   }, 60_000);
 
   it('fits a phone: one row under 64 pixels, and its menu opens from the keyboard (0152 T2)', async () => {

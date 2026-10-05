@@ -788,14 +788,29 @@ ${body}
  * with Medium" does not have to answer that question again. Indicative only —
  * the tier is DERIVED from what actually runs (ADR-0014), or the higher one a
  * person picks (the owner, 2026-10-04).
+ *
+ * So do the answers the visitor already gave (workplan 0152 T7 (a)): where
+ * they are leaving, what moves and who, as `?from=`, `?what=` and `?who=`, each
+ * a list the request form matches against its own (`request-answers.ts` in
+ * the app) before it builds its note from them. A *Leaving…* page knows the
+ * first two; the estimate builds the same link in its script, from the
+ * answers on screen.
+ *
+ * @param {string} locale
+ * @param {{ name: string } | null} tier
+ * @param {{ from?: string[], what?: string[], who?: string }} [answers]
  */
-const orderHref = (locale, tier) => {
+const orderHref = (locale, tier, answers = {}) => {
   // Hand-built with `encodeURIComponent`, which this file already uses
   // everywhere, rather than `URLSearchParams`: the lint config's globals for
-  // `.mjs` are a curated allowlist and do not include it. Two parameters do not
-  // justify widening that list.
+  // `.mjs` are a curated allowlist and do not include it. A few parameters do
+  // not justify widening that list.
   const params = [`locale=${encodeURIComponent(locale)}`];
   if (tier) params.push(`tier=${encodeURIComponent(tier.name)}`);
+  const list = (values) => values.map(encodeURIComponent).join(',');
+  if (answers.from?.length) params.push(`from=${list(answers.from)}`);
+  if (answers.what?.length) params.push(`what=${list(answers.what)}`);
+  if (answers.who) params.push(`who=${encodeURIComponent(answers.who)}`);
   return `${REQUEST_ACCESS_URL}?${params.join('&')}`;
 };
 
@@ -1043,7 +1058,7 @@ ${behind}
 <p class="fineprint">${esc(c.vatIncluded)}</p>
 <div class="cta"><a class="btn btn-ghost" href="${esc(estimate)}">${c.ctaEstimate}</a></div>
 <h2>${L.nextTitle}</h2>
-<div class="cta"><a class="btn btn-primary" href="${esc(orderHref(locale, null))}">${c.ctaOrder}</a></div>
+<div class="cta"><a class="btn btn-primary" href="${esc(orderHref(locale, null, { from: [page.from], what: objects }))}">${c.ctaOrder}</a></div>
 `;
 }
 
@@ -1187,6 +1202,17 @@ const CALC_GLUE = `
       $('items-' + t).textContent = fill(S.itemsAssumed, cell.items.toLocaleString(cfg.locale));
     });
   }
+  // Request access carries the answers on screen (0152 T7 (a)): the form
+  // matches each against its own list and builds its note from them. Without
+  // the script, the link is the plain one the page was built with.
+  function order(tier, from, counted, who) {
+    var q = [];
+    if (tier) q.push('tier=' + encodeURIComponent(tier.name));
+    if (from.length > 0) q.push('from=' + from.map(encodeURIComponent).join(','));
+    if (counted.length > 0) q.push('what=' + counted.map(encodeURIComponent).join(','));
+    q.push('who=' + encodeURIComponent(who));
+    $('order').href = cfg.order + '&' + q.join('&');
+  }
   function recompute() {
     var who = radio('who');
     var from = sources();
@@ -1239,6 +1265,7 @@ const CALC_GLUE = `
       beyond.hidden = paths === 0;
       $('topup-line').textContent = '';
       $('gmail-line').hidden = true;
+      order(null, from, counted, who);
       return;
     }
     beyond.hidden = true;
@@ -1253,8 +1280,13 @@ const CALC_GLUE = `
       ? fill(S.tierFreeEdge, sizeOf(t.dataGb), next.name, t.paths, wider.name)
       : fill(S.tierYear, money(t.annual));
     $('tier-pace').hidden = !isFree;
-    $('tier-three').hidden = isFree;
-    $('tier-three').textContent = fill(S.tierThree, money(t.monthly * 3));
+    // Which payment suits the answer to Until when? (0152 T7 (b)): a sentence,
+    // not a choice, so the tier stays derived. A month or three paid monthly,
+    // in all; six months or until ready, the year, which costs six.
+    var months = { m1: 1, m3: 3 }[until];
+    $('tier-suits').hidden = isFree;
+    $('tier-suits').textContent = fill(S.suits[until], money(months ? t.monthly * months : t.annual));
+    order(t, from, counted, who);
 
     var vs = topUpAgainstStepUp(t, next);
     $('topup-line').textContent = !vs ? '' :
@@ -1332,6 +1364,8 @@ function calculatorPage(locale) {
     accounts: Object.fromEntries(CUSTOMER_TYPES.map((w) => [w.id, w.accounts])),
     profiles: INDICATIVE_PROFILES,
     tiers: TIERS.map(({ id, name, paths, dataGb, monthly, annual }) => ({ id, name, paths, dataGb, monthly, annual })),
+    // The plain Request access link, which the script extends with the answers.
+    order: orderHref(locale, null),
     strings: c,
   };
   const radios = (name, options, checkedId) =>
@@ -1410,7 +1444,7 @@ function calculatorPage(locale) {
   <ul>
     <li id="tier-monthly"></li>
     <li id="tier-year"></li>
-    <li id="tier-three"></li>
+    <li id="tier-suits"></li>
     <li id="tier-pace" hidden>${esc(c.tierFreePace)}</li>
   </ul>
   <p class="fine">${esc(c.stepUpRule)}</p>
@@ -1418,6 +1452,7 @@ function calculatorPage(locale) {
 </div>
 <p id="beyond-line" hidden>${esc(c.beyondLine)} <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
 </div>
+<div class="cta"><a class="btn btn-primary" id="order" href="${esc(orderHref(locale, null))}">${COPY[locale].ctaOrder}</a></div>
 
 <p id="gmail-line" class="fine" hidden></p>
 <p id="topup-line" class="fine"></p>

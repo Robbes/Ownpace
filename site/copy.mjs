@@ -376,7 +376,14 @@ export const COPY = {
       tierFreeEdge: 'More than {0} moves you to {1}, and more than {2} migrations at the same time to {3} — and we ask you first.',
       // Free's pace (ADR-0014, 2026-10-04), said where the estimate lands on it.
       tierFreePace: 'One pass a day: the first right after the free preflight, the small things first and the files last.',
-      tierThree: '{0} for a three-month move in total, paying monthly',
+      // Which payment suits the answer to Until when? (0152 T7 (b), D9, D10): a
+      // sentence under the result, not a choice, so the tier stays derived.
+      suits: {
+        m1: 'For 1 month, paying monthly suits this: {0} in all.',
+        m3: 'For 3 months, paying monthly suits this: {0} in all.',
+        m6: 'For 6 months, a year suits this: {0} for twelve months, the price of six.',
+        ready: 'Until you are ready, a year suits this: {0} for twelve months, the price of six.',
+      },
       stepUpRule: 'There is no setup fee: moving up later costs only the higher monthly, from then on.',
       beyondLine:
         'Past the published scale. Here we look at your actual case before quoting — talk to us.',
@@ -698,7 +705,12 @@ export const COPY = {
       tierFreePace: 'Eén ronde per dag: de eerste direct na de gratis voorcontrole, de kleine dingen eerst en de bestanden als laatste.',
       tierMonthly: '{0} per maand',
       tierYear: '{0} voor een jaar, vooruitbetaald: de helft van de maandprijs',
-      tierThree: '{0} voor een migratie van drie maanden in totaal, per maand betaald',
+      suits: {
+        m1: 'Voor 1 maand past per maand betalen hierbij: {0} in totaal.',
+        m3: 'Voor 3 maanden past per maand betalen hierbij: {0} in totaal.',
+        m6: 'Voor 6 maanden past een jaar hierbij: {0} voor twaalf maanden, de prijs van zes.',
+        ready: 'Tot u er klaar voor bent, past een jaar hierbij: {0} voor twaalf maanden, de prijs van zes.',
+      },
       stepUpRule: 'Er zijn geen inrichtingskosten: later een pakket omhoog kost alleen het hogere maandbedrag, vanaf dat moment.',
       beyondLine:
         'Voorbij de gepubliceerde schaal. Hier kijken we eerst naar uw werkelijke situatie — neem contact op.',
