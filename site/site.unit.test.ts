@@ -716,6 +716,62 @@ describe('the site is drawn in the logo’s colours', () => {
 });
 
 /**
+ * WARM PAPER, ALWAYS LIGHT (the owner, 2026-10-05, option C of four). The site
+ * followed a device set to dark into a dark green, which the owner read as the
+ * site having turned greenish. It has no dark version now, and tells the
+ * browser so, so a browser in dark mode draws its controls light as well. And
+ * the paper still reads: each colour the page sets text in clears WCAG's
+ * contrast for normal text (4.5:1) on the paper and on its panels, the body
+ * text AAA (7:1), and the buttons' white on the teal too.
+ */
+describe('the site is warm paper, always light (the owner, 2026-10-05)', () => {
+  it('has no dark version, and tells the browser it is light, on every page', async () => {
+    expect(read('site/build.mjs')).not.toMatch(/prefers-color-scheme/);
+    expect(read('site/hero.mjs')).not.toMatch(/prefers-color-scheme/);
+    const pages = await renderedPages();
+    expect(pages.length).toBeGreaterThan(0);
+    for (const page of pages) {
+      expect(page.html, page.file).toContain('<meta name="color-scheme" content="light" />');
+      expect(page.html, page.file).toContain('<meta name="theme-color" content="#FAF9F5" />');
+      expect(page.html, page.file).toMatch(/:root \{\s*color-scheme: light;/);
+      expect(page.html, page.file).toContain('--bg: #FAF9F5;');
+    }
+  });
+
+  it('sets its text in colours that read on the paper and on its panels', async () => {
+    const css = (await renderedPages())[0]!.html;
+    const token = (name: string): string => {
+      const m = new RegExp(`--${name}: (#[0-9A-Fa-f]{6});`).exec(css);
+      expect(m, `the page's :root no longer sets --${name}`).not.toBeNull();
+      return m![1]!;
+    };
+    const luminance = (hex: string): number => {
+      const [r, g, b] = [1, 3, 5]
+        .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+        .map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+    };
+    const contrast = (a: string, b: string): number => {
+      const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+      return (hi! + 0.05) / (lo! + 0.05);
+    };
+    const [ink, muted, teal, bg, panel, field] = ['ink', 'muted', 'teal', 'bg', 'panel', 'field'].map(token);
+    for (const [fg, on, least, what] of [
+      [ink, bg, 7, 'the text on the paper'],
+      [ink, panel, 7, 'the text on a panel'],
+      [muted, bg, 4.5, 'the muted text on the paper'],
+      [muted, panel, 4.5, 'the muted text on a panel'],
+      [muted, field, 4.5, 'the muted text in a field'],
+      [teal, bg, 4.5, 'a link on the paper'],
+      [teal, panel, 4.5, 'a link on a panel'],
+      ['#ffffff', teal, 4.5, "a button's white on the teal"],
+    ] as const) {
+      expect(contrast(fg!, on!), `${what}: ${fg} on ${on}`).toBeGreaterThanOrEqual(least);
+    }
+  });
+});
+
+/**
  * A LEGAL PAGE THAT SAYS IT IS A DRAFT IS NOT PUBLISHED (workplan 0139 T2).
  *
  * `--public` already refuses a page with an unfilled placeholder. It did not
