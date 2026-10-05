@@ -82,6 +82,8 @@ vi.mock('../services/billing-service.ts', async (importOriginal) => ({
     checkVat: vi.fn(),
     getCeiling: vi.fn(),
     sayYesToCeiling: vi.fn(),
+    getPick: vi.fn(),
+    pickTier: vi.fn(),
   },
 }));
 
@@ -248,6 +250,15 @@ beforeEach(() => {
     moveUp: { tierId: 'small', name: 'Small', paths: 4, monthlyEur: 5, ceilingGb: 750 },
     topUp: null,
     breakEven: null,
+  });
+  // Nothing above to pick, so the pick card names no tier beside the ones these
+  // tests look for; the card has its own tests (TierPick.unit.test.tsx).
+  vi.mocked(billingApi.getPick).mockResolvedValue({
+    holds: true,
+    billed: { id: 'xl', name: 'Extra large', paths: 50, dataGb: 15000, monthlyEur: 80, annualEur: 480 },
+    picked: { now: null, next: null, nextFrom: '2026-11-01T00:00:00.000Z' },
+    raise: [],
+    lower: [],
   });
 });
 

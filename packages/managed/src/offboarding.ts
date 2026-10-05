@@ -168,6 +168,10 @@ export const PURGED_TABLES = [
   // retained invoice carries what it charged on its own document. The key
   // would cascade; named so the receipt counts it.
   'data_allowance',
+  // Each tier a person picked (0157 T6, managed 0044): the same reasoning as a
+  // yes above, whose pick it may carry. The key would cascade; named so the
+  // receipt counts it.
+  'tier_pick',
   // The operator's number of live grant links for this organisation (0108
   // T8 (d), managed 0028): a setting about the customer, with nobody left to
   // apply it to. The key would cascade; named so the receipt counts it.

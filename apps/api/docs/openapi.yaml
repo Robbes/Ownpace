@@ -5957,6 +5957,78 @@ paths:
             application/json:
               schema: { type: object }
 
+  /api/billing/pick:
+    get:
+      tags: [Billing]
+      summary: The tiers a person may pick, and the pick that stands
+      description: |
+        Workplan 0157 T6: a person may pick a tier higher than their use needs,
+        for its pace or its room; each month then bills at least it. `raise` is
+        every tier above the one this month bills, which counts at once, and
+        the tier picked now while a lower pick waits for the next month (to keep
+        it). `lower` is every tier below the pick standing for the next month,
+        Free for none; a lower pick counts from `picked.nextFrom`. Each tier
+        carries its room and its prices in whole euros. `holds` is false during
+        the alpha, where every tier is a tester's already and no pick is taken.
+        Read-only.
+      responses:
+        '200':
+          description: What may be picked.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  holds: { type: boolean }
+                  billed: { $ref: '#/components/schemas/PickTier' }
+                  picked:
+                    type: object
+                    properties:
+                      now: { oneOf: [{ $ref: '#/components/schemas/PickTier' }, { type: 'null' }] }
+                      next: { oneOf: [{ $ref: '#/components/schemas/PickTier' }, { type: 'null' }] }
+                      nextFrom: { type: string, format: date-time }
+                  raise: { type: array, items: { $ref: '#/components/schemas/PickTier' } }
+                  lower: { type: array, items: { $ref: '#/components/schemas/PickTier' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Billing]
+      summary: Pick a tier, at the monthly price shown
+      description: |
+        One append-only `tier_pick` row (managed migration 0044) and, for a tier
+        above the agreed one, a yes in `data_allowance` with `axis` `pick`, in
+        the same transaction: picking is the person's own yes (ADR-0014). A tier
+        from `raise` counts at once; one from `lower` from the next month
+        (`from`: `now` or `next_month`). Refused with what is offered now when
+        the tier or the price is not what is offered (`offer_changed`, with
+        `pick`), and during the alpha (`nothing_charged_during_the_alpha`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tierId, priceEur]
+              properties:
+                tierId: { type: string }
+                priceEur: { type: integer, minimum: 0 }
+      responses:
+        '200':
+          description: When the pick counts, and what may be picked now, as GET answers.
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: |
+            Not taken: `offer_changed` (with what is offered now, as `pick`), or
+            `nothing_charged_during_the_alpha`.
+          content:
+            application/json:
+              schema: { type: object }
+
   /api/billing/estimate:
     post:
       tags: [Billing]
@@ -8348,6 +8420,21 @@ components:
         tax: { type: integer }
         total: { type: integer }
       required: [baseFee, subtotal, taxRate, tax, total]
+
+    PickTier:
+      type: object
+      description: |
+        A tier as a pick names it (workplan 0157 T6): its room (migrations at
+        the same time, and data in decimal GB) and its prices in whole euros,
+        the unit a pick is recorded in.
+      properties:
+        id: { type: string, enum: [free, small, medium, large, xl] }
+        name: { type: string }
+        paths: { type: integer }
+        dataGb: { type: integer }
+        monthlyEur: { type: integer }
+        annualEur: { type: integer }
+      required: [id, name, paths, dataGb, monthlyEur, annualEur]
 
     BillingParty:
       type: object

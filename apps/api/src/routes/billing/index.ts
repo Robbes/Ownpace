@@ -32,11 +32,17 @@ import {
   billedTierOf,
   breakEvenOf,
   decidePathsYes,
+  decidePick,
   decideYes,
   holdsAtCeiling,
   monthlyEur,
   pathsPastTheTierReason,
+  pickedFloorOf,
+  pickOffers,
+  PgTierPickStore,
+  readBilledNow,
   readCeiling,
+  type BilledNow,
   type Ceiling,
   type ManagedTier,
   type PathsForecast,
@@ -205,7 +211,7 @@ router.get('/usage', authenticate, requireBillingRead, async (req: Authenticated
     // screen prices nothing, so this assembles the same three numbers and
     // hands them to `observedTier`, which derives the identical answer with
     // nothing written (0109 T4's rule, applied to the tenant's own screen).
-    const { metrics, peak, pathsNow, meter, grants } = await withTenantDb(
+    const { metrics, peak, pathsNow, meter, grants, picks } = await withTenantDb(
       tenantId,
       getSharedPool(),
       async (db) => ({
@@ -215,6 +221,8 @@ router.get('/usage', authenticate, requireBillingRead, async (req: Authenticated
         // What counts, and what the alpha moved, which does not (managed 0040).
         meter: await new PgBytesMovedStore(db).read(asTenantId(tenantId)),
         grants: await new PgDataAllowanceStore(db).grants(asTenantId(tenantId)),
+        // The tiers picked (0157 T6): the least the month bills.
+        picks: await new PgTierPickStore(db).picks(asTenantId(tenantId)),
       }),
     );
 
@@ -244,10 +252,12 @@ router.get('/usage', authenticate, requireBillingRead, async (req: Authenticated
       Number(meter.counted) / BYTES_PER_GB,
     );
     // What the month bills: what it used, never above the agreed tier
-    // (ADR-0014; the owner, 2026-10-04). The page names it once the alpha
-    // ends; during the alpha nothing is billed, and it names what was used.
+    // (ADR-0014; the owner, 2026-10-04), and never below a tier picked (0157
+    // T6). The page names it once the alpha ends; during the alpha nothing is
+    // billed, and it names what was used.
     const allowance = allowanceOf(grants);
-    const billed = billedTierOf(tier, allowance, evidence.peakPaths, evidence.gbMoved);
+    const picked = pickedFloorOf(picks, new Date()).now;
+    const billed = billedTierOf(tier, allowance, evidence.peakPaths, evidence.gbMoved, picked);
     const tierBody = (t: NonNullable<typeof tier>) => ({
       id: t.id,
       name: t.name,
@@ -280,8 +290,9 @@ router.get('/usage', authenticate, requireBillingRead, async (req: Authenticated
         // As it counts: the alpha's data does not.
         gbMoved: evidence.gbMoved,
       },
-      // What the month bills, and why, when what was used is past it.
-      billed: { tier: tierBody(billed.tier), beyond: billed.beyond },
+      // What the month bills, and why, when what was used is past it, or the
+      // pick is above what was used.
+      billed: { tier: tierBody(billed.tier), beyond: billed.beyond, picked: billed.picked },
       // The data ceiling the data counts against, and the bands bought.
       ceilingGb: allowance.ceilingGb,
       topUps: allowance.topUps,
@@ -522,6 +533,120 @@ router.post('/paths/yes', authenticate, requireBillingWrite, async (req: Authent
     res.json({ tier: pathsTier(outcome.tier) });
   } catch (error) {
     serverFault(res, 'paths_yes_failed', 'recording your yes', error);
+  }
+});
+
+/** A tier as a pick names it: its room, and its prices in whole euros, the unit a pick is recorded in. */
+function pickTier(t: ManagedTier) {
+  return {
+    id: t.id,
+    name: t.name,
+    paths: t.paths,
+    dataGb: t.dataGb,
+    monthlyEur: monthlyEur(t),
+    annualEur: t.annualCents / 100,
+  };
+}
+
+/** What may be picked, as the page shows it (workplan 0157 T6). */
+function pickBody(state: BilledNow, holds: boolean) {
+  const offers = pickOffers(state.billed.tier, state.floor);
+  return {
+    holds,
+    // What this month bills now, a pick included.
+    billed: pickTier(state.billed.tier),
+    // The pick standing now and for the next month; null is none.
+    picked: {
+      now: state.floor.now ? pickTier(state.floor.now) : null,
+      next: state.floor.next ? pickTier(state.floor.next) : null,
+      nextFrom: state.floor.nextFrom.toISOString(),
+    },
+    // At once: every tier above what this month bills, and the one picked now
+    // while a lower pick waits for the next month.
+    raise: offers.raise.map(pickTier),
+    // From the next month: every tier below the pick standing for it.
+    lower: offers.lower.map(pickTier),
+  };
+}
+
+/**
+ * GET /api/billing/pick
+ *
+ * The tiers a person may pick (workplan 0157 T6; ADR-0014, *Amendment
+ * 2026-10-04, evening*): every tier above the one this month bills, with its
+ * room and its prices; the pick standing now and for the next month; and the
+ * tiers a pick may be lowered to, from the next month. `holds` is false during
+ * the alpha, where every tier is a tester's already and no pick is taken.
+ * Read-only.
+ */
+router.get('/pick', authenticate, requireBillingRead, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
+    const state = await withTenantDb(tenantId, getSharedPool(), (db) =>
+      readBilledNow(db, asTenantId(tenantId), new Date()),
+    );
+    res.json(pickBody(state, holdsAtCeiling(process.env.OWNPACE_STAGE)));
+  } catch (error) {
+    serverFault(res, 'pick_failed', 'reading the tiers you may pick', error);
+  }
+});
+
+const PickSchema = z.object({
+  tierId: z.string().min(1),
+  priceEur: z.number().int().min(0),
+});
+
+/**
+ * POST /api/billing/pick
+ *
+ * The person's pick, at the monthly they were shown (workplan 0157 T6). A
+ * higher tier counts at once, and each month bills at least it until it is
+ * lowered; a lower one counts from the next month. One append-only `tier_pick`
+ * row (managed 0044) and, for a tier above the agreed one, a yes in
+ * `data_allowance` with `axis` `pick`, in the same transaction: picking is the
+ * person's own yes (ADR-0014). Refused, with what is offered now, when the tier
+ * or the price sent is not what is offered; and during the alpha, where
+ * nothing is charged. `from` says when the pick counts.
+ */
+router.post('/pick', authenticate, requireBillingWrite, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
+    const parsed = PickSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const reason = 'Say the tier you pick and the monthly price you were shown.';
+      return void res.status(400).json({ error: 'invalid_pick', message: reason, reason });
+    }
+    if (!holdsAtCeiling(process.env.OWNPACE_STAGE)) {
+      const reason = 'Nothing is charged during the Alpha, so there is nothing to agree to yet.';
+      return void res.status(409).json({ error: 'nothing_charged_during_the_alpha', message: reason, reason });
+    }
+    const outcome = await withTenantDb(tenantId, getSharedPool(), async (db) => {
+      // The yeses' lock: one pick or yes at a time per organisation, so two
+      // presses pick once, and a pick and a yes at the ceiling do not cross.
+      await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'data_allowance:' + tenantId}))`);
+      // One moment for the decision and the row, so the month the pick counts
+      // in is the one the decision read.
+      const now = new Date();
+      const before = await readBilledNow(db, asTenantId(tenantId), now);
+      const decision = decidePick(pickOffers(before.billed.tier, before.floor), before.allowance, parsed.data);
+      if (!decision.ok) return { refused: decision.reason, state: before } as const;
+      const by = req.userId ?? 'unknown';
+      await new PgTierPickStore(db).record(asTenantId(tenantId), decision.pick, by, now);
+      if (decision.yes) await new PgDataAllowanceStore(db).record(asTenantId(tenantId), decision.yes, by, 'pick');
+      return { from: decision.from, state: await readBilledNow(db, asTenantId(tenantId), now) } as const;
+    });
+    const holds = holdsAtCeiling(process.env.OWNPACE_STAGE);
+    if ('refused' in outcome) {
+      const reason = 'What may be picked has changed since the page was shown. Look at the tiers again before picking.';
+      return void res
+        .status(409)
+        .json({ error: outcome.refused, message: reason, reason, pick: pickBody(outcome.state, holds) });
+    }
+    res.json({ from: outcome.from, ...pickBody(outcome.state, holds) });
+  } catch (error) {
+    serverFault(res, 'pick_save_failed', 'recording your pick', error);
   }
 });
 
