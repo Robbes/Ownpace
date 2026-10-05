@@ -317,6 +317,7 @@ describe('a renamed Google document', () => {
         },
         allowApplyDeletions: true,
         autoApplyRelocations: true,
+        stillTheAuthority: async () => true,
       },
       '9999-01-01T00:00:00.000Z',
     );
@@ -507,6 +508,7 @@ describe('unattended apply (ADR-0031)', () => {
         target,
         allowApplyDeletions: true,
         autoApplyRelocations: true,
+        stillTheAuthority: async () => true,
       },
       '9999-01-01T00:00:00.000Z',
     );

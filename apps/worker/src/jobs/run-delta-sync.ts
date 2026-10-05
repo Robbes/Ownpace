@@ -64,7 +64,9 @@ import { openTaskPools } from './task-pools.ts';
  * completed file pass, on mappings that opted in.
  *
  * The flags are read FRESH from the mapping row at execution time — the pass
- * is a window, and the mapping being switched off during it must win. All of
+ * is a window, and the mapping being switched off during it must win — and so
+ * is the file data type's phase (2026-10-05): after cutover core applies
+ * nothing, and this says so in the run log. All of
  * the deciding happens in core's `autoApplyRelocations` (the four ADR gates in
  * front of the same `applyRelocation` a human's button presses); this function
  * is the managed edition's attribution half: every removal lands an
@@ -76,7 +78,7 @@ async function autoApplyOpenRelocations(
   tenantId: string,
   mappingId: string,
   runId: string,
-  deps: Pick<FileSyncDeps, 'ledger' | 'target'>,
+  deps: Pick<FileSyncDeps, 'ledger' | 'target' | 'stillTheAuthority'>,
   passStartedAt: string,
 ): Promise<void> {
   const rows = await withTenant(pool, tenantId, (db) =>
@@ -100,6 +102,12 @@ async function autoApplyOpenRelocations(
       target: deps.target,
       allowApplyDeletions: rows[0]?.allow === true,
       autoApplyRelocations: true,
+      // The file data type's phase, asked fresh at the apply through the
+      // question the deps builder made from `readPathPhases` (2026-10-05):
+      // after cutover the apply removes nothing. Read like the flags above,
+      // at execution time, because the pass is a window and an execute
+      // during it must win.
+      stillTheAuthority: deps.stillTheAuthority,
       ...(rows[0]?.prefix ? { targetFolderPrefix: rows[0].prefix } : {}),
       onApplied: async ({ naturalKeyHash, kind }) => {
         await withTenant(pool, tenantId, async (db) => {
@@ -122,11 +130,16 @@ async function autoApplyOpenRelocations(
   );
 
   // The run log is where an owner reads what a pass did; silence here would
-  // be exactly the silent tidying ADR-0031 forbids.
-  const line = report.stopped
-    ? `relocation auto-apply: ${report.considered} open, 0 applied — stopped: ${report.stopped}`
-    : `relocation auto-apply: ${report.applied.length} old copies removed automatically ` +
-      `(system:auto-apply), ${report.leftForReview.length} left for review`;
+  // be exactly the silent tidying ADR-0031 forbids. After cutover the queue
+  // was not read, so no count of it is given (2026-10-05).
+  const line =
+    report.stoppedCode === 'after_cutover'
+      ? 'relocation auto-apply not run: after cutover the old system no longer decides what exists ' +
+        '— nothing was removed, and the target keeps both copies of anything moved there'
+      : report.stopped
+        ? `relocation auto-apply: ${report.considered} open, 0 applied — stopped: ${report.stopped}`
+        : `relocation auto-apply: ${report.applied.length} old copies removed automatically ` +
+          `(system:auto-apply), ${report.leftForReview.length} left for review`;
   await withTenant(pool, tenantId, async (db) => {
     await new RunStore(db).logEvent(tenantId as TenantId, runId, 'info', line, {
       domain: 'file',

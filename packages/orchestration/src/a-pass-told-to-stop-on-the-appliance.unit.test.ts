@@ -45,6 +45,14 @@ const recorder = vi.hoisted(() => ({
   haltIn: undefined as { domain: string; reason: string } | undefined,
   /** How often the relocation auto-apply was run after a file pass. */
   applied: 0,
+  /**
+   * When set, the auto-apply that was handed in runs for real, over a moves
+   * queue that counts its readings and holds nothing (2026-10-05): what is
+   * asserted is whether it read the queue at all.
+   */
+  realApply: false,
+  movesRead: 0,
+  report: undefined as unknown,
 }));
 
 vi.mock('@openmig/core', async (importOriginal) => {
@@ -76,10 +84,22 @@ vi.mock('@openmig/core', async (importOriginal) => {
     runCalendarSync: recorded('calendar'),
     runContactSync: recorded('contact'),
     runFileSync: recorded('file'),
-    // It removes old copies on the target; counted, never run.
-    autoApplyRelocations: async () => {
+    // It removes old copies on the target; counted, and run only over a
+    // queue that holds nothing.
+    autoApplyRelocations: async (
+      deps: Parameters<typeof actual.autoApplyRelocations>[0],
+      passStartedAt: string,
+    ) => {
       recorder.applied += 1;
-      return { considered: 0, applied: [], leftForReview: [] };
+      if (!recorder.realApply) return { considered: 0, applied: [], leftForReview: [] };
+      const queue = {
+        listMoves: async () => {
+          recorder.movesRead += 1;
+          return [];
+        },
+      } as unknown as typeof deps.ledger;
+      recorder.report = await actual.autoApplyRelocations({ ...deps, ledger: queue }, passStartedAt);
+      return recorder.report;
     },
   };
 });
@@ -172,6 +192,9 @@ afterEach(() => {
   recorder.handed.length = 0;
   recorder.haltIn = undefined;
   recorder.applied = 0;
+  recorder.realApply = false;
+  recorder.movesRead = 0;
+  recorder.report = undefined;
   vi.restoreAllMocks();
 });
 
@@ -343,5 +366,77 @@ describe('relocation auto-apply after a file pass on the appliance', () => {
     await runAllDomains(fileMapping(true), store, phasesOfTheMigration('active'), ACTIVE_NOW, { ledgerDb });
 
     expect(recorder.applied).toBe(1);
+  });
+});
+
+/**
+ * AFTER CUTOVER, AUTO-APPLY REMOVES NOTHING (2026-10-05): the appliance's half.
+ *
+ * A move recorded before the cutover stayed open, and the first file pass
+ * after it applied it unattended, removing the old copy on the new system.
+ * The refusal is in core (`autoApplyRelocations`, stop code `after_cutover`),
+ * so both editions get it; what is asserted here is that the appliance hands
+ * it the file data type's phase read fresh at the apply, from the reader it
+ * was given, and that the apply then reads no moves at all.
+ */
+describe('relocation auto-apply after cutover on the appliance', () => {
+  const phasesAre = (status: string, stillCopies = false) => async () => ({
+    anyRuns: true,
+    grantWithdrawnAt: null,
+    phaseOf: phasesOfTheMigration(status, stillCopies),
+  });
+
+  for (const [status, stillCopies] of [
+    ['continuous', false],
+    ['cutover', true],
+  ] as const) {
+    it(`reads no move and removes nothing when the file data type is ${status}`, async () => {
+      vi.spyOn(log, 'info').mockImplementation(() => {});
+      recorder.realApply = true;
+      const { store } = recordingStore();
+      await runAllDomains(
+        fileMapping(true),
+        store,
+        phasesOfTheMigration(status, stillCopies),
+        phasesAre(status, stillCopies),
+        { ledgerDb },
+        () => true,
+        async () => null,
+      );
+
+      expect(recorder.applied, 'the auto-apply was not reached at all').toBe(1);
+      expect(recorder.movesRead, 'the moves queue was read after cutover').toBe(0);
+      expect((recorder.report as { stoppedCode?: string } | undefined)?.stoppedCode).toBe('after_cutover');
+    });
+  }
+
+  it('asks at the apply, so a cutover executed during the file pass is heard', async () => {
+    vi.spyOn(log, 'info').mockImplementation(() => {});
+    recorder.realApply = true;
+    const { store } = recordingStore();
+    let status = 'active';
+    const phasesNow = async () => ({ anyRuns: true, grantWithdrawnAt: null, phaseOf: phasesOfTheMigration(status, true) });
+    // Execute is pressed while the file pass copies. The question is asked
+    // before the data type (1), from inside its pass by the recorder (2), and
+    // after it (3); the test moves the phase at the second.
+    let asked = 0;
+    await runAllDomains(fileMapping(true), store, phasesOfTheMigration('active'), phasesNow, { ledgerDb }, () => true, async () => {
+      asked += 1;
+      if (asked === 2) status = 'cutover';
+      return null;
+    });
+
+    expect(asked).toBe(3);
+    expect(recorder.movesRead).toBe(0);
+    expect((recorder.report as { stoppedCode?: string } | undefined)?.stoppedCode).toBe('after_cutover');
+  });
+
+  it('before cutover it reads the moves queue, so the cases above are not vacuous', async () => {
+    recorder.realApply = true;
+    const { store } = recordingStore();
+    await runAllDomains(fileMapping(true), store, phasesOfTheMigration('active'), ACTIVE_NOW, { ledgerDb }, () => true, async () => null);
+
+    expect(recorder.movesRead).toBe(1);
+    expect((recorder.report as { stoppedCode?: string } | undefined)?.stoppedCode).toBeUndefined();
   });
 });

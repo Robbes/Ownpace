@@ -1088,9 +1088,21 @@ export interface AutoApplyRelocationsReport {
     code: string;
     reason: string;
   }>;
-  /** Set when the mass breaker stopped the WHOLE pass before any item. */
+  /** Set when the mass breaker, or the cutover, stopped the WHOLE pass before any item. */
   readonly stopped?: string;
+  /**
+   * Which of them, as a stable code for the caller's run log: `after_cutover`
+   * (2026-10-05), or the breaker's own refusal code.
+   */
+  readonly stoppedCode?: 'after_cutover' | ApplyRefusal;
 }
+
+/**
+ * Why nothing is applied unattended after cutover, in the words the run logs
+ * of both editions use.
+ */
+export const AUTO_APPLY_AFTER_CUTOVER =
+  'relocation auto-apply not run: after cutover the old system no longer decides what exists';
 
 /**
  * Apply open relocations unattended — ADR-0031's four gates in front of the
@@ -1120,11 +1132,33 @@ export interface AutoApplyRelocationsReport {
  *     audit rows where that edition has them) via `onApplied`.
  *
  * DELETIONS NEVER AUTO-APPLY. This function reads the moves queue only.
+ *
+ * AND AFTER CUTOVER NOTHING IS APPLIED UNATTENDED (2026-10-05). A pass after
+ * cutover correlates no moves (0117 D4), but a move recorded before it stayed
+ * open: nothing closes open moves at cutover, and the last pass before it
+ * always leaves its own for one more pass (gate 2). The first file pass after
+ * cutover then removed the old copy on the new system, signed
+ * `system:auto-apply`, with nobody pressing anything — the operation D4
+ * forbids, under another name. The owner, 2026-10-05: *"after cross over the
+ * bin reading and deleting on target should stop, because perhaps
+ * source-leavers clean up ALL after the cross over."* So the data type's phase
+ * is asked HERE, fresh, through the question its deps builder made
+ * (`stillTheAuthority`), before the queue is read; both editions call this
+ * function, so neither can apply what the other refuses. Turning the switch on
+ * after cutover applies none of the old moves either.
  */
 export async function autoApplyRelocations(
   deps: ApplyDeletionDeps & {
     /** ADR-0031's per-mapping opt-in. Defaults to FALSE, like every destructive capability. */
     readonly autoApplyRelocations?: boolean;
+    /**
+     * Whether this data type's old system still decides what exists, asked at
+     * the moment of the apply (`SourceAuthority.stillTheAuthority`): the file
+     * deps' own question, read fresh from `readPathPhases`. REQUIRED, with no
+     * default: an apply that cannot ask must not compile. A question that
+     * cannot be answered rejects, and nothing is removed (hard rule 9).
+     */
+    readonly stillTheAuthority: () => Promise<boolean>;
     /** Durable attribution, where the edition has somewhere to put it. */
     readonly onApplied?: (applied: {
       naturalKeyHash: string;
@@ -1138,6 +1172,24 @@ export async function autoApplyRelocations(
 
   if (deps.autoApplyRelocations !== true) {
     return { enabled: false, considered: 0, applied: [], leftForReview: [] };
+  }
+
+  // After cutover: refused before the queue is even read. Not a gate per item
+  // that could be wrong once, and not the pass's answer from its start, which
+  // a cutover executed during it has made stale.
+  if (!(await deps.stillTheAuthority())) {
+    log.info(
+      `[auto-apply] ${domain}: ${AUTO_APPLY_AFTER_CUTOVER}. Nothing was removed; a move recorded ` +
+        'before the cutover stays in the Moves queue, and the target keeps both copies.',
+    );
+    return {
+      enabled: true,
+      considered: 0,
+      applied: [],
+      leftForReview: [],
+      stopped: AUTO_APPLY_AFTER_CUTOVER,
+      stoppedCode: 'after_cutover',
+    };
   }
 
   const open = (await ledger.listMoves(tenantId, mappingId, domain)).filter(
@@ -1160,6 +1212,7 @@ export async function autoApplyRelocations(
       applied: [],
       leftForReview: [],
       stopped: breaker.reason,
+      stoppedCode: breaker.code,
     };
   }
 

@@ -756,6 +756,10 @@ export async function runAllDomains(
                   target: deps.target,
                   allowApplyDeletions: config.allowApplyDeletions,
                   autoApplyRelocations: true,
+                  // The file data type's phase, asked fresh at the apply from
+                  // the reader this firing was handed: after cutover the apply
+                  // removes nothing, and says so itself (2026-10-05).
+                  stillTheAuthority: deps.stillTheAuthority,
                   ...(config.targetFolderPrefix !== undefined
                     ? { targetFolderPrefix: config.targetFolderPrefix }
                     : {}),

@@ -16,6 +16,7 @@
 - `autoApplyRelocations` per mapping, **default false**, and it **extends** `allowApplyDeletions` — never substitutes (auto ON with the base flag OFF refuses everything).
 - Four unattended gates atop every manual gate: pairing **unique corpus-wide** (empty files never eligible); the relocation **survived a completed pass** (`moved_recorded_at < passStartedAt`); the breaker decides **for the whole pass** (the cap must not nibble a mass event); cap **50 per mapping per pass**.
 - Attribution is `system:auto-apply` everywhere (audit log, managed apply receipts), counts narrated in the run summary. **Deletions never auto-apply**, either evidence class.
+- **After cutover nothing is auto-applied** (2026-10-05): before reading the moves queue, `autoApplyRelocations` asks the data type's phase afresh (`stillTheAuthority`) and refuses with `after_cutover`, in both editions, however old the move or late the switch. Guard: `a-move-applied-after-cutover.unit.test.ts`.
 
 ## Context
 
@@ -115,3 +116,23 @@ four gates above are the measured difference between those two sentences.
 | both editions, one evaluator | appliance: `runAllDomains`' file branch calls it after a completed pass; managed: `run-delta-sync`'s file branch, flags read FRESH from the mapping row at execution time |
 | attribution | every removal logs `system:auto-apply`; the managed edition additionally lands an `apply_receipt` row (`action='relocation'`, so the Moves screen answers from it) and an `audit_log` row per item — the first writer that table has ever had — and a run-log summary line. The appliance's durable record is its run log; receipts are a managed construct and stay one |
 | the composition proof | `auto-apply-relocations.unit.test.ts` — 9 tests, including: auto ON with `allowApplyDeletions` OFF refuses every item (`not_enabled` — the flag extends the opt-in, never substitutes), the breaker stops the WHOLE pass, and only open relocations are ever candidates |
+
+## Amendment, 2026-10-05: after cutover nothing is auto-applied
+
+A pass after cutover correlates no moves (workplan 0117 D4: the detector does not run), but a
+move recorded before the cutover stayed open: nothing closed open moves at cutover, and the last
+pass before it always leaves its own moves for one more pass (gate 2). The first file pass after
+cutover then removed the old copy on the new system, signed `system:auto-apply`, on a mapping
+with both switches on, in both editions: neither dispatcher nor `autoApplyRelocations` asked the
+phase. That is the operation D4 forbids under another name. The owner, 2026-10-05: *"after cross
+over the bin reading and deleting on target should stop, because perhaps source-leavers clean up
+ALL after the cross over."*
+
+So `autoApplyRelocations` takes a REQUIRED `stillTheAuthority`, the file deps' own question
+(`readPathPhases` through `sourceStillDecides`, read afresh each time it is asked), asks it after
+the opt-in and before the queue, and after cutover returns `stoppedCode: 'after_cutover'` having
+read and removed nothing. Each edition's run log says *"relocation auto-apply not run: after
+cutover the old system no longer decides what exists"*. Turning the switch on after cutover applies
+none of the old moves. A move recorded before cutover stays in the Moves queue; whether a person's
+own Apply on it is refused after cutover is a separate decision (manual apply, ADR-0024).
+

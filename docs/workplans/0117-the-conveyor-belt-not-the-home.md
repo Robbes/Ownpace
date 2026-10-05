@@ -33,6 +33,22 @@ before-cutover half; the halted file pass; mail's Trash and its scan cursor) and
 `packages/orchestration/src/a-cutover-between-two-data-types.unit.test.ts`. ADR-0048's
 grace-period sentence and the cutover runbook now say it.
 
+**Built (fix 1): after cutover, unattended relocation apply removes nothing.** The one
+deletion that still happened after cutover. §7b below accepted that after cutover a rename
+leaves two copies, because a move is not correlated; but a move recorded BEFORE the cutover
+stayed open (nothing closes open moves at cutover, and the last pass before it always leaves
+its own for one more pass), and the first file pass after cutover applied it unattended,
+removing the old copy on the new system as `system:auto-apply` — "the operation D4 forbids
+wearing a different name", in this plan's own words of 2026-09-10. Now
+`autoApplyRelocations` (core, so both editions) takes the same REQUIRED question, asks it
+after the opt-in and before it reads the moves queue, and after cutover returns
+`stoppedCode: 'after_cutover'` having removed nothing; both run logs say *"relocation
+auto-apply not run: after cutover the old system no longer decides what exists"*. Turning
+the switch on after cutover applies none of the old moves. Guards:
+`packages/core/src/a-move-applied-after-cutover.unit.test.ts`, the appliance's half in
+`packages/orchestration/src/a-pass-told-to-stop-on-the-appliance.unit.test.ts`, the managed
+half in `apps/worker/src/jobs/a-move-applied-after-cutover.unit.test.ts`. ADR-0031 amended.
+
 **2026-09-10, later still again: THE TWO HALVES DID NOT FIT, and finding that out
 found a shipped bug.** Building slice 4 began by connecting the pass to the store, and
 they would not connect — which is how both of these surfaced.

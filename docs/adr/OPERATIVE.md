@@ -246,6 +246,7 @@ live in [README.md](./README.md), the register.
 - `autoApplyRelocations` per mapping, **default false**, and it **extends** `allowApplyDeletions` — never substitutes (auto ON with the base flag OFF refuses everything).
 - Four unattended gates atop every manual gate: pairing **unique corpus-wide** (empty files never eligible); the relocation **survived a completed pass** (`moved_recorded_at < passStartedAt`); the breaker decides **for the whole pass** (the cap must not nibble a mass event); cap **50 per mapping per pass**.
 - Attribution is `system:auto-apply` everywhere (audit log, managed apply receipts), counts narrated in the run summary. **Deletions never auto-apply**, either evidence class.
+- **After cutover nothing is auto-applied** (2026-10-05): before reading the moves queue, `autoApplyRelocations` asks the data type's phase afresh (`stillTheAuthority`) and refuses with `after_cutover`, in both editions, however old the move or late the switch. Guard: `a-move-applied-after-cutover.unit.test.ts`.
 
 ## [ADR-0032: The sharing queue — re-sharing on the target as an owner decision, invites through the target's own messaging](./0032-sharing-queue-target-native-invites.md)
 
