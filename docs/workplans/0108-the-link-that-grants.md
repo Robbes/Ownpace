@@ -4,6 +4,52 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-10-05, later: the web image's error log writes critical errors only.** The owner, on the
+known gap below: *"critical errors only"*, the recommended choice.
+- **What changed.** The server in `apps/web/nginx.conf.template` now says
+  `error_log stderr crit;`. nginx ends every error line with the raw request line, the upstream's
+  address with the path, and the Referer, and cannot redact them. At the image's level, `notice`,
+  a grant or view link was written whole: when the API's name did not resolve (the api container
+  gone), when the API refused the connection (restarting), on a timeout, on a premature close, on
+  a body above 8 MB, on a body nginx kept on disk (a warning), for a directory asked with a query,
+  and when the page was missing from the image. None of those is critical, so none is written now.
+- **The trade: no upstream detail in that log.** A 502, 504 or 413 still shows in the access log,
+  with its status and `:link`. Why, only the API's own log says, for a request that reached the
+  API. When the API is down, the web container's log no longer says so: `docker compose ps api`
+  and the API's log do.
+- **What crit still writes, it writes whole.** A file nginx cannot read for a reason other than
+  its absence (permission denied, no file descriptors left), a full disk under a request body, no
+  memory. Each such line names its request, link and all. No request asks for one; each is the
+  machine failing, and somebody must see it.
+- **`stderr`, not `/dev/stderr`.** The same place: Docker's pipe, where the image already sends
+  its error log. nginx writes to `stderr` without opening it. Opening `/dev/stderr` fails where it
+  is a socket: under the test runner, `nginx -t` refused it with *"open() "/dev/stderr" failed (6:
+  No such device or address)"*.
+- **The image's main level stays at `notice`.** A connection logs through its listening socket's
+  log, which is the default server's, and a request through its server's. This server is the only
+  one. So the main level keeps nginx's own lines: start, stop, signals, a worker's exit, a config
+  it refuses, and the resolver's own errors (*"recv() failed (111: Connection refused) while
+  resolving, resolver: …"*), which name the resolver and no request. Checked on nginx 1.24 with
+  the resolver unreachable: that line went to the main level, and the request's own *"api could
+  not be resolved"* line did not.
+- **The public site's nginx is unchanged** (`deploy/compose/www-nginx.conf`). It has no link
+  route, its access log writes the request line whole by design, and the app's pages send it no
+  Referer (`no-referrer`, 0158; across hosts a browser sends at most the origin anyway).
+
+**Evidence:** the guard first, red on main at f2de156c:
+`scripts/an-error-log-that-kept-the-link.unit.test.ts` 5 failed, 13 passed (18). It runs the
+rendered template on a real nginx (1.24 here) behind the image's own main level and http block,
+with the API by its name through a resolver, and makes nginx write each line above for a request
+whose path and Referer carry a link. On main, the main-level log held 8 lines with the link, one
+per case that writes one, and the two critical lines went there too. Green after: 18 of 18. After the run the main level holds 13
+notices (start, stop, signals), nginx's stderr holds the two critical lines of a request without
+a link, and the access log holds every status with `:link`. Mutations, each caught: the level
+`notice`, `error` or `warn` (3 failed each), the directive removed (5), moved into
+`location /api/` only (4) or `location /` only (3), `/dev/stderr` (1, and `nginx -t` refused it),
+a location setting its own (1). The harness that runs the template on a real nginx moved to
+`scripts/nginx-on-this-machine.ts`, shared with `what-a-browser-may-do-with-the-app` (60 of 60
+before and after).
+
 **2026-10-05: the logs drop the link in any case.** The owner asked for it: *"Redact link
 credentials in logs regardless of case."* The review of #1495 found it. Every pattern that drops
 a link knew `grant`, `view` and `api` in lower case only. The API's access log wrote the link of
@@ -53,14 +99,15 @@ address as its Referer, and both logs wrote it in full.
   log. This was there before, and has nothing to do with case. The fix is a decision about that
   log's level or where it goes: `error_log /dev/stderr crit;` in this server would drop the
   upstream lines (the access log still shows the 502, 504 or 413), at the cost of their detail.
-  Follow-up: the owner decides. NetBird's proxy also keeps the full path in its own log (0139);
+  Follow-up: the owner decides. *(Decided later the same day, "critical errors only", and built:
+  see the entry at the top.)* NetBird's proxy also keeps the full path in its own log (0139);
   that is outside this repository.
 
 > **2026-10-05 (workplan 0158 T1):** the app's pages now send `Referrer-Policy: no-referrer`, so
 > a call a grant or view page makes to `/api/` carries no Referer, and the error log's Referer
 > field no longer holds the link. Its request line and its upstream URL still do, for every
 > `/api/grant/<link>` and `/api/view/<link>` call, so the owner's decision on that log is still
-> open.
+> open. *(Decided later the same day: critical errors only. See the entry at the top.)*
 
 **Evidence:** guards first, red on the unchanged patterns. The API's and the scripts'
 `a-log-that-kept-the-link`: 12 failed, 51 passed (63). The web's `a-report-that-reaches-a-person`:

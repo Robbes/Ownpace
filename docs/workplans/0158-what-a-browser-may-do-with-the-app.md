@@ -127,8 +127,8 @@ grant and view pages' address carries the link, a credential, and every call the
 `/api/` sent that address as its Referer. Checked in Chromium: a page at
 `/grant/<link>?from=mail` without the header sent that whole address as the Referer of its
 `GET /api/version` and of its POST; with the header, neither did, and the POST still sent
-`Origin`. The two access logs redact the Referer (0108); the web image's nginx error log does not
-(0108's known gap), and for `GET /api/version` the Referer was the only copy of the link. On every page, because a single-page app keeps the
+`Origin`. The two access logs redact the Referer (0108); the web image's nginx error log did not
+(0108's known gap; since later that day it writes critical errors only, 0108), and for `GET /api/version` the Referer was the only copy of the link. On every page, because a single-page app keeps the
 policy its first page loaded with, and because a header on `/grant` alone needed a location of
 its own whose fallback to `index.html` loses it (checked on nginx 1.24), for an address the
 router opens in any case and with escapes. helmet already sends `no-referrer` on `/api/`.

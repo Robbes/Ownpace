@@ -413,6 +413,7 @@ reading a file drops off its entry by itself.
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-screenshot-the-front-door-lets-through](../scripts/a-screenshot-the-front-door-lets-through.unit.test.ts) — A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
+- [an-error-log-that-kept-the-link](../scripts/an-error-log-that-kept-the-link.unit.test.ts) — AN ERROR LOG THAT KEPT THE LINK, on the web image's nginx (workplan 0108).
 - [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
 - [what-a-browser-may-do-with-the-app](../scripts/what-a-browser-may-do-with-the-app.unit.test.ts) — WHAT A BROWSER MAY DO WITH THE APP (workplan 0158).
@@ -423,6 +424,7 @@ reading a file drops off its entry by itself.
 - [a-log-that-kept-the-link](../scripts/a-log-that-kept-the-link.unit.test.ts) — A LOG THAT KEPT THE LINK, on the web image's nginx.
 - [a-screenshot-the-front-door-lets-through](../scripts/a-screenshot-the-front-door-lets-through.unit.test.ts) — A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
 - [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
+- [an-error-log-that-kept-the-link](../scripts/an-error-log-that-kept-the-link.unit.test.ts) — AN ERROR LOG THAT KEPT THE LINK, on the web image's nginx (workplan 0108).
 - [what-a-browser-may-do-with-the-app](../scripts/what-a-browser-may-do-with-the-app.unit.test.ts) — WHAT A BROWSER MAY DO WITH THE APP (workplan 0158).
 
 ### `apps/web/src/AppRoutes.tsx`
@@ -4594,6 +4596,15 @@ Reads:
 - `deploy/compose/bootstrap-managed.sh`
 - `deploy/compose/managed.env.example`
 - `docs/managed-bring-up.md`
+
+### [an-error-log-that-kept-the-link](../scripts/an-error-log-that-kept-the-link.unit.test.ts)
+
+AN ERROR LOG THAT KEPT THE LINK, on the web image's nginx (workplan 0108).
+
+Reads:
+
+- `apps/web/Dockerfile`
+- `apps/web/nginx.conf.template`
 
 ### [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts)
 
