@@ -101,7 +101,7 @@ import RequestAccess from './RequestAccess.tsx';
 import { billingApi } from '../services/billing-service.ts';
 import { fetchProgress } from '../services/progress-service.ts';
 import { DataTypeIcon, ICON_OF_DOMAIN } from '../components/icons/data-type-icons.tsx';
-import type { DiscoveryDomain, ProgressReport } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, type DiscoveryDomain, type ProgressReport } from '@openmig/shared';
 import { LocaleProvider } from '../i18n/index.tsx';
 import { STRINGS } from '../i18n/strings.ts';
 import { renderEvent } from '@openmig/shared';
@@ -116,10 +116,10 @@ const SAID = {
     // Today's words, for the control.
     subtitle: 'Manage your subscription, usage, and payments',
     tierHint: 'A guess is fine. The package follows what actually runs, so this is not binding.',
-    // The kinds `PROGRESS` below moved, as Current usage names them, and
-    // their counts over every migration.
-    moved: ['Email', 'Calendar', 'Contacts', 'Files'],
-    figures: ['23,354', '1,514', '612', '900'],
+    // Every kind the app moves, in its order, as Current usage names them,
+    // and their counts over every migration: tasks moved none, and say 0.
+    moved: ['Email', 'Calendar', 'Contacts', 'Files', 'Tasks'],
+    figures: ['23,354', '1,514', '612', '900', '0'],
     // All the data, first: `usage()`'s 12 GB, and no alpha share. A whole number says no decimal.
     data: ['All data', '12 GB'],
     // The four cards Current usage no longer shows (the owner, 2026-10-05).
@@ -139,8 +139,8 @@ const SAID = {
     subtitle: 'Beheer uw abonnement, verbruik en betalingen',
     tierHint:
       'Een inschatting volstaat; het pakket volgt wat werkelijk draait, dus dit is niet bindend.',
-    moved: ['E-mail', 'Agenda', 'Contacten', 'Bestanden'],
-    figures: ['23.354', '1.514', '612', '900'],
+    moved: ['E-mail', 'Agenda', 'Contacten', 'Bestanden', 'Taken'],
+    figures: ['23.354', '1.514', '612', '900', '0'],
     data: ['Alle gegevens', '12 GB'],
     gone: ['Opslag', 'Dataverkeer', 'Rekentijd', 'API-aanroepen'],
     currentUsage: 'Huidig verbruik',
@@ -209,8 +209,8 @@ const PROGRESS: ProgressReport = {
     { mappingId: 'm3', check: { state: 'not_run' }, domains: [line('file', 900)] },
   ],
 };
-/** The order `moved` names the kinds in. */
-const KINDS: DiscoveryDomain[] = ['email', 'calendar', 'contact', 'file'];
+/** The order `moved` names the kinds in: the app's own. */
+const KINDS = DISCOVERY_DOMAINS;
 
 const client = () =>
   new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -524,7 +524,7 @@ describe.each(DEPLOYMENTS)(
       vi.mocked(billingApi.getPaymentMethods).mockResolvedValue({ paymentMethods: [VISA] });
     });
 
-    it.each(LOCALES)('all the data comes first, then each kind with its count over every migration, and no other, in %s', async (locale) => {
+    it.each(LOCALES)('all the data comes first, then every kind with its count over every migration, tasks included, in %s', async (locale) => {
       await billingPage(locale);
       await screen.findByText('Medium');
       await screen.findByText(SAID[locale].moved[0]!);
@@ -541,8 +541,8 @@ describe.each(DEPLOYMENTS)(
       expect(all.getAttribute('data-moved')).toBe('data');
       expect(within(all as HTMLElement).getByText(dataLabel)).toBeInTheDocument();
       expect(within(all as HTMLElement).getByText(dataFigure)).toBeInTheDocument();
-      // Tasks moved none, so they have no card.
-      expect(section.querySelectorAll('[data-moved]:not([data-moved="data"])')).toHaveLength(SAID[locale].moved.length);
+      // Every kind has its card, tasks included, though they moved none.
+      expect(section.querySelectorAll('[data-moved]:not([data-moved="data"])')).toHaveLength(DISCOVERY_DOMAINS.length);
       // What Ownpace spends is not what a customer moved: the four are gone.
       for (const label of SAID[locale].gone) expect(screen.queryByText(label)).toBeNull();
     });

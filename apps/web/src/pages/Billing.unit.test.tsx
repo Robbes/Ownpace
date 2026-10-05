@@ -549,19 +549,22 @@ describe('the price on the screen is the published price (0121 T4)', () => {
     // Over every migration: 18,234 in one, 5,120 in another.
     expect(email).toHaveTextContent('23,354');
     expect(screen.getByText('Calendar').closest('[data-moved]')).toHaveTextContent('1,514');
-    // A kind that moved nothing has no card.
-    expect(document.querySelector('[data-moved="task"]')).toBeNull();
+    // A kind that moved none still has its card, and says 0 (the owner: "and
+    // how about tasks? We still dont show tasks").
+    expect(document.querySelector('[data-moved="task"]')).toHaveTextContent('Tasks0');
     for (const gone of ['Storage', 'Data Transfer', 'Compute Time', 'API calls', 'Syncs']) {
       expect(screen.queryByText(gone)).not.toBeInTheDocument();
     }
   });
 
-  it('says nothing has moved yet when nothing has, rather than a row of zeros', async () => {
+  it('says nothing has moved yet when nothing has, beside each kind at 0', async () => {
     vi.mocked(fetchProgress).mockResolvedValue({ mappings: [] });
     renderBilling();
 
     expect(await screen.findByText('Nothing has moved yet.')).toBeInTheDocument();
-    expect(document.querySelector('[data-moved]:not([data-moved="data"])')).toBeNull();
+    const kinds = [...document.querySelectorAll('[data-moved]:not([data-moved="data"])')];
+    expect(kinds).toHaveLength(5);
+    for (const kind of kinds) expect(kind.textContent).toMatch(/0$/);
   });
 
   it('says the size in MB below a GB, and counts what the alpha moved in all the data', async () => {
@@ -590,12 +593,13 @@ describe('the price on the screen is the published price (0121 T4)', () => {
 });
 
 describe('itemsMovedByKind', () => {
-  it('adds each kind up over every migration, in the app\'s order, and leaves out what moved none', () => {
+  it('adds each kind up over every migration, in the app\'s order, tasks included at 0', () => {
     expect(itemsMovedByKind(PROGRESS)).toEqual([
       { domain: 'email', items: 23_354 },
       { domain: 'calendar', items: 1_514 },
       { domain: 'contact', items: 612 },
       { domain: 'file', items: 900 },
+      { domain: 'task', items: 0 },
     ]);
   });
 });

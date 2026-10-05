@@ -18,7 +18,9 @@ answer below (*"Keep, no money icons"*).
   - *All data* first, from the meter the tier reads, the alpha's share included, in MB below a GB
     (the owner, on the first version, which left the size to the tier block: *"it now does not
     show moved MB or GB? It should also show that"*);
-  - then one card per data type that moved any, each with its data type's own icon and its count;
+  - then one card per data type the app moves, tasks included, each with its data type's own icon
+    and its count, 0 for one that moved none (the owner: *"and how about tasks? We still dont show
+    tasks"*; the first version left out a kind that had moved nothing);
   - under them, as before, the tier block, with *Data moved, in total*, the figure the tier counts.
 - **Items per kind, not a sum** (the owner's question). An email, a contact and a 4 GB film are not
   one unit, so a sum of items is a number nobody can check, and it decides nothing. A kind is what
@@ -32,8 +34,8 @@ answer below (*"Keep, no money icons"*).
 - **Guarded** in `a-bill-nobody-will-send` and `Billing.unit.test.tsx`, run against main's page
   first, where all fourteen new cases fail:
   - all the data first, as a size from the meter, in MB below a GB;
-  - the kinds with their counts summed over every migration, in the app's order, and none that
-    moved nothing;
+  - every kind with its count summed over every migration, in the app's order, tasks included at
+    0, the list walked from `DISCOVERY_DOMAINS`;
   - each card wears its data type's own icon, and none reads as money;
   - the four labels are gone in both languages;
   - *"Nothing has moved yet."* when nothing has, and a failed read is said, never shown as zero.

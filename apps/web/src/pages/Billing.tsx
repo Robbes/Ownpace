@@ -496,7 +496,9 @@ function sizeOf(gb: number, number: (n: number) => string): string {
 /**
  * Items moved, per data type, over every migration: the counts each
  * migration's page shows (0154 T2), read from the same answer, so the two
- * cannot disagree. Only the kinds that moved anything, in the app's order.
+ * cannot disagree. Every data type the app moves, in its order, tasks
+ * included, and 0 for one that moved none: a counted zero is an answer (the
+ * owner, 2026-10-05: *"and how about tasks? We still dont show tasks"*).
  */
 export function itemsMovedByKind(
   progress: ProgressReport,
@@ -505,10 +507,7 @@ export function itemsMovedByKind(
   for (const m of progress.mappings) {
     for (const d of m.domains) sums.set(d.domain, (sums.get(d.domain) ?? 0) + d.itemsSynced);
   }
-  return DISCOVERY_DOMAINS.filter((d) => (sums.get(d) ?? 0) > 0).map((domain) => ({
-    domain,
-    items: sums.get(domain)!,
-  }));
+  return DISCOVERY_DOMAINS.map((domain) => ({ domain, items: sums.get(domain) ?? 0 }));
 }
 
 /**
@@ -527,10 +526,12 @@ export function itemsMovedByKind(
  * - **All data**, first: what the meter counted, the alpha's share included.
  *   It is the meter the tier reads (`/api/billing/usage`), so it and the tier
  *   block's *Data moved, in total* are one figure, the alpha's share aside.
- * - **Each kind's items**, after it: an email, a contact and a 4 GB film are
- *   not one unit, so their sum is a number nobody can check, and a kind is
- *   what a person can hold against their old account. They are counted as
- *   each migration's page counts them, from the same read.
+ * - **Each kind's items**, after it, every kind the app moves, tasks included:
+ *   an email, a contact and a 4 GB film are not one unit, so their sum is a
+ *   number nobody can check, and a kind is what a person can hold against
+ *   their old account. They are counted as each migration's page counts them,
+ *   from the same read, and a kind that moved none says 0 rather than leaving
+ *   the row a different shape.
  */
 const WhatMoved: React.FC<{ usage: UsageResponse }> = ({ usage }) => {
   const t = useT();
@@ -542,7 +543,7 @@ const WhatMoved: React.FC<{ usage: UsageResponse }> = ({ usage }) => {
     <div>
       <h3 className="font-medium text-gray-900">{t('billing.moved')}</h3>
       <p className="mt-1 text-sm text-gray-600">{t('billing.moved.where')}</p>
-      <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <li data-moved="data" className={tile}>
           <ArrowRight className="w-5 h-5 shrink-0 text-blue-700" aria-hidden="true" />
           <div>
@@ -568,7 +569,7 @@ const WhatMoved: React.FC<{ usage: UsageResponse }> = ({ usage }) => {
         </div>
       ) : progress.isPending ? (
         <Loader2 className="mt-3 w-5 h-5 animate-spin text-gray-400" />
-      ) : kinds.length === 0 ? (
+      ) : kinds.every(({ items }) => items === 0) ? (
         <p className="mt-3 text-sm text-gray-700">{t('billing.moved.none')}</p>
       ) : null}
     </div>
