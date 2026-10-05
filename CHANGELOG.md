@@ -4,24 +4,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
-### Fixed
+## [0.2.0-alpha.1] - 2026-10-07
 
-- **A pause is heard inside a running pass** (workplan 0022 T2, 2026-09-29). On the managed
-  service, pressing Pause, taking a grant back, closing the organisation or stopping one data
-  type now reaches a pass that is already copying: within about fifteen seconds it stops
-  starting new items, and it finishes the ones it has begun (a very large file can take
-  longer). It used to wait for the pass's own deadline, up to fifty minutes. The appliance has
-  no Pause button, grant withdrawal or organisation close; there the same holds for a Finish,
-  a data type its owner stopped, and a status changed by hand, which used to wait for the end
-  of the firing. Neither edition auto-applies a relocation after a pass that was told to stop,
-  and both ask once more right before that apply.
-
-## [0.2.0-alpha.1] - 2026-09-29
-
-This section lists changes only up to mid-August 2026: the newest date it
-names is 2026-08-11, and what changed after that is not in it. What this
-release can migrate, source by source and target by target, is in the
-[feature matrix](docs/feature-matrix.md).
+This section lists changes only up to mid-August 2026: apart from the pause
+fix of 2026-09-29 (under *Fixed*), the newest date it names is 2026-08-11, and
+what changed after that is not in it. What this release can migrate, source by
+source and target by target, is in the [feature matrix](docs/feature-matrix.md).
 
 Grouped by what an operator would notice, not by workplan; the workplan status
 blocks in `docs/workplans/` remain the detailed record.
@@ -78,6 +66,16 @@ blocks in `docs/workplans/` remain the detailed record.
   for). The old client and its advisories are gone from all four manifests.
 
 ### Fixed
+
+- **A pause is heard inside a running pass** (workplan 0022 T2, 2026-09-29). On the managed
+  service, pressing Pause, taking a grant back, closing the organisation or stopping one data
+  type now reaches a pass that is already copying: within about fifteen seconds it stops
+  starting new items, and it finishes the ones it has begun (a very large file can take
+  longer). It used to wait for the pass's own deadline, up to fifty minutes. The appliance has
+  no Pause button, grant withdrawal or organisation close; there the same holds for a Finish,
+  a data type its owner stopped, and a status changed by hand, which used to wait for the end
+  of the firing. Neither edition auto-applies a relocation after a pass that was told to stop,
+  and both ask once more right before that apply.
 
 - **IMAP certificate verification was hardcoded OFF for every connection** —
   on, with a named `tlsVerify` opt-out per mapping and the knob named in the
