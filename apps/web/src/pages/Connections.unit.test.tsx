@@ -187,14 +187,36 @@ describe('the connections screen', () => {
   it('says how many migrations depend on a connection — whether it matters', async () => {
     // Migrations, not mailboxes (owner remark 2026-09-02): a Dropbox
     // connection carries files and a Google account four faces. And none
-    // yet is a sentence, never "0 … use this".
-    list.mockResolvedValue([conn(), conn({ id: 'c2', displayName: 'Spare', usedByMigrations: 0 })]);
+    // yet is a sentence, never "0 … use this". One is one: the row said
+    // "1 migration(s) use this" until 2026-10-05.
+    list.mockResolvedValue([
+      conn(),
+      conn({ id: 'c2', displayName: 'Spare', usedByMigrations: 0 }),
+      conn({ id: 'c3', displayName: 'Single', usedByMigrations: 1 }),
+    ]);
     renderPage();
 
     expect(await screen.findByText('Acme migration (source)')).toBeTruthy();
-    expect(screen.getByText(/3 migration\(s\) use this/)).toBeTruthy();
+    expect(screen.getByText('Used by 3 migrations')).toBeTruthy();
+    expect(screen.getByText('Used by 1 migration')).toBeTruthy();
     expect(screen.getByText('Not used by any migration yet')).toBeTruthy();
+    expect(screen.queryByText(/\(s\)/)).toBeNull();
     expect(screen.queryByText(/mailbox/)).toBeNull();
+  });
+
+  it('draws each group as a white card on the paper, and its title over it (2026-10-05)', async () => {
+    // The owner, on the paper the app took that day: the rows sat on the page
+    // with nothing to lift them, unlike Migrations, Needs you and Team.
+    list.mockResolvedValue([conn(), conn({ id: 't1', role: 'target', kind: 'soverin', displayName: 'Acme target' })]);
+    renderPage();
+
+    const source = (await screen.findByText('Acme migration (source)')).closest('section');
+    const target = screen.getByText('Acme target').closest('section');
+    expect(source?.className).toContain('bg-white');
+    expect(target?.className).toContain('bg-white');
+    expect(source).not.toBe(target);
+    expect(source?.querySelector('h2')?.textContent).toBe('Sources');
+    expect(target?.querySelector('h2')?.textContent).toBe('Targets');
   });
 
   it('says when the door answered before the measuring finished (2026-09-02)', async () => {

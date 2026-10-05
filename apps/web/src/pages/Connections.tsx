@@ -17,7 +17,7 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { CheckCircle2, XCircle, HelpCircle, Loader2 } from 'lucide-react';
+import { CheckCircle2, XCircle, HelpCircle, Loader2, Plus } from 'lucide-react';
 import {
   credentialFieldsFor,
   isFailureCategory,
@@ -247,139 +247,159 @@ const Row: React.FC<{
   };
 
   return (
-    <li className="border border-gray-200 rounded-lg p-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <StatusIcon status={connection.status} />
-        <span className="font-medium text-gray-900">{connection.displayName}</span>
-        {connectionKindName(connection.kind) && (
-          <span className="text-xs text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">
-            {connectionKindName(connection.kind)}
-          </span>
-        )}
-        <span className="text-sm text-gray-500">
-          {connection.usedByMigrations === 0
-            ? t('connections.usedBy.none')
-            : `${connection.usedByMigrations} ${t('connections.usedBy')}`}
-        </span>
-        <span className="text-xs text-gray-400">{relativeToNow(connection.createdAt)}</span>
-        {connection.qualification && (
-          /* What the LAST test measured this account can carry (0106 T2) —
-             the stored record, visible without pressing Test. The title
-             carries each domain's evidence line for whoever hovers. */
-          <span
-            className="text-xs text-gray-500"
-            /* Every face the record actually carries — walked from the one
-               list, and skipping a face an older record never had rather
-               than reading `undefined.detail` off it (0113 T5). */
-            title={QUALIFICATION_KEYS.map((d) => connection.qualification?.domains[d]?.detail)
-              .filter((line): line is string => Boolean(line))
-              .join('\n')}
-          >
-            {qualificationText(t, connection.qualification)}
-          </span>
-        )}
-        {/* NO `Found:` LINE HERE, deliberately (owner, 2026-09-07).
-            
-            Three surfaces measure the same account and this is the worst of
-            them: the card's figures are from whenever Test was last pressed —
-            days, weeks — while Test re-measures on the spot and the preflight
-            counts every collection properly for the decision that actually
-            needs a number. Showing the stalest and least precise one
-            permanently, with no age beside it, invited people to size a
-            migration off it. *"If one wants to know a bit more, they press
-            Test or look at the preflight."*
-            
-            So the card answers WHICH connection this is and WHETHER it is
-            healthy — the two questions a list item is scanned for — and the
-            quantities live where they are fresh. `measuredText` is unchanged
-            and still renders in the three places below that show a result
-            somebody just asked for. */}
-        {/* WHY a face is missing, on screen (2026-09-02): the hover above is
-            not on a phone, and the sentence is the remedy. `measures: false`
-            drops the failed-MEASURE footnote with the line it footnotes — a
-            note explaining a missing number, under a card that shows no
-            numbers, explains nothing. It still speaks in the Test panel. */}
-        {qualificationEvidence(t, connection.qualification ?? undefined, { measures: false }).map(
-          (line) => (
-            <span key={line} className="block w-full text-xs text-amber-800 break-words">
-              {line}
+    /* ONE ROW OF A WHITE CARD (2026-10-05). The owner, on the paper the app
+       took that day: the rows sat on the page with nothing to lift them, and
+       each wrapped wherever its words ran out. Now the name leads, what it is
+       used by and what it carries are the lines under it, and the actions
+       keep one place, at the right, on every row. */
+    <li className="py-4 first:pt-3 last:pb-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusIcon status={connection.status} />
+            <span className="font-medium text-gray-900">{connection.displayName}</span>
+            {connectionKindName(connection.kind) && (
+              <span className="text-xs text-gray-600 bg-gray-100 rounded px-1.5 py-0.5">
+                {connectionKindName(connection.kind)}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-sm text-gray-600">
+            <span>
+              {connection.usedByMigrations === 0
+                ? t('connections.usedBy.none')
+                : connection.usedByMigrations === 1
+                  ? t('connections.usedBy.one')
+                  : t('connections.usedBy.other', { count: connection.usedByMigrations })}
             </span>
-          ),
-        )}
-        {/* What is STANDING against this connection (workplan 0094 T5): a
-            pass that failed since the last Test, by category, with the
-            category's own remedy — and the button it names (Reconnect or
-            Replace credentials, whichever this row shows) is beside it.
-            The line sits on the side the pass named, or on both cards when
-            it could not tell; where the connection is the thing to act on,
-            the tail says which case this is. The guard is against a category
-            this build has no sentence for. */}
-        {(connection.standingFailures ?? [])
-          .filter((f) => isFailureCategory(f.category))
-          .map((f) => (
-            <span
-              key={`${f.mappingId}:${f.category}`}
-              className="block w-full text-xs text-red-900 break-words"
+            <span aria-hidden="true"> · </span>
+            <span>{t('connections.addedWhen', { when: relativeToNow(connection.createdAt) })}</span>
+            <span aria-hidden="true"> · </span>
+            {/* The prerequisites for this provider, in case the answer is
+                "somebody has to re-authorise the app". On this line rather
+                than among the buttons, which keep the same width on every
+                row (2026-10-05). */}
+            {cardsOfThisKind ? (
+              // A kind two cards store as, whose checklists differ: one link per
+              // card, by the card's name, rather than one of them picked for the
+              // person (0148 T5 (a)).
+              <span>
+                <span className="whitespace-nowrap">{t('connections.setupSteps')}:</span>{' '}
+                {cardsOfThisKind.map((card, i) => (
+                  <React.Fragment key={card.type}>
+                    {i > 0 && <span aria-hidden="true"> · </span>}
+                    <Link
+                      to={`/setup/${connection.role}/${card.type}`}
+                      className="whitespace-nowrap text-blue-700 hover:underline"
+                    >
+                      {t(card.nameKey)}
+                    </Link>
+                  </React.Fragment>
+                ))}
+              </span>
+            ) : (
+              <Link
+                // BY WIZARD TYPE, not by kind: the profiles are keyed the wizard's
+                // way, and looking one up by kind answers an empty checklist that
+                // reads as "nothing to set up" (workplan 0065).
+                to={`/setup/${connection.role}/${wizardTypeForConnectionKind(connection.kind)}`}
+                className="whitespace-nowrap text-blue-700 hover:underline"
+              >
+                {t('connections.setupSteps')}
+              </Link>
+            )}
+          </p>
+          {connection.qualification && (
+            /* What the LAST test measured this account can carry (0106 T2) —
+               the stored record, visible without pressing Test. The title
+               carries each domain's evidence line for whoever hovers. */
+            <p
+              className="mt-0.5 text-sm text-gray-500"
+              /* Every face the record actually carries — walked from the one
+                 list, and skipping a face an older record never had rather
+                 than reading `undefined.detail` off it (0113 T5). */
+              title={QUALIFICATION_KEYS.map((d) => connection.qualification?.domains[d]?.detail)
+                .filter((line): line is string => Boolean(line))
+                .join('\n')}
             >
-              {t('connections.standing.migration')}{' '}
-              <Link to={`/mappings/${f.mappingId}`} className="underline">
-                {f.mappingName ?? f.mappingId.slice(0, 8)}
-              </Link>{' '}
-              {t('connections.standing.stopped', {
-                when: relativeToNow(f.asOf),
-                domains: f.domains.map((d) => t(DOMAIN_STRING_KEY[d])).join(', '),
-              })}{' '}
-              {t(FAILURE_KEY[f.category])}{' '}
-              <SendItToUs
-                category={f.category}
-                migrationId={f.mappingId}
-                {...(f.side ? { side: f.side } : {})}
-                {...(f.domains.length === 1 ? { dataType: f.domains[0] } : {})}
-              />
-              {ASK_TEST.has(f.category) && (
-                <> {t(f.side ? 'connections.standing.thisSide' : 'connections.standing.whichSide')}</>
-              )}
-            </span>
-          ))}
+              {qualificationText(t, connection.qualification)}
+            </p>
+          )}
+          {/* NO `Found:` LINE HERE, deliberately (owner, 2026-09-07).
+            
+              Three surfaces measure the same account and this is the worst of
+              them: the card's figures are from whenever Test was last pressed —
+              days, weeks — while Test re-measures on the spot and the preflight
+              counts every collection properly for the decision that actually
+              needs a number. Showing the stalest and least precise one
+              permanently, with no age beside it, invited people to size a
+              migration off it. *"If one wants to know a bit more, they press
+              Test or look at the preflight."*
+            
+              So the card answers WHICH connection this is and WHETHER it is
+              healthy — the two questions a list item is scanned for — and the
+              quantities live where they are fresh. `measuredText` is unchanged
+              and still renders in the three places below that show a result
+              somebody just asked for. */}
+          {/* WHY a face is missing, on screen (2026-09-02): the hover above is
+              not on a phone, and the sentence is the remedy. `measures: false`
+              drops the failed-MEASURE footnote with the line it footnotes — a
+              note explaining a missing number, under a card that shows no
+              numbers, explains nothing. It still speaks in the Test panel. */}
+          {qualificationEvidence(t, connection.qualification ?? undefined, { measures: false }).map(
+            (line) => (
+              <span key={line} className="mt-1 block text-xs text-amber-800 break-words">
+                {line}
+              </span>
+            ),
+          )}
+          {/* What is STANDING against this connection (workplan 0094 T5): a
+              pass that failed since the last Test, by category, with the
+              category's own remedy — and the button it names (Reconnect or
+              Replace credentials, whichever this row shows) is beside it.
+              The line sits on the side the pass named, or on both cards when
+              it could not tell; where the connection is the thing to act on,
+              the tail says which case this is. The guard is against a category
+              this build has no sentence for. */}
+          {(connection.standingFailures ?? [])
+            .filter((f) => isFailureCategory(f.category))
+            .map((f) => (
+              <span
+                key={`${f.mappingId}:${f.category}`}
+                className="mt-1 block text-xs text-red-900 break-words"
+              >
+                {t('connections.standing.migration')}{' '}
+                <Link to={`/mappings/${f.mappingId}`} className="underline">
+                  {f.mappingName ?? f.mappingId.slice(0, 8)}
+                </Link>{' '}
+                {t('connections.standing.stopped', {
+                  when: relativeToNow(f.asOf),
+                  domains: f.domains.map((d) => t(DOMAIN_STRING_KEY[d])).join(', '),
+                })}{' '}
+                {t(FAILURE_KEY[f.category])}{' '}
+                <SendItToUs
+                  category={f.category}
+                  migrationId={f.mappingId}
+                  {...(f.side ? { side: f.side } : {})}
+                  {...(f.domains.length === 1 ? { dataType: f.domains[0] } : {})}
+                />
+                {ASK_TEST.has(f.category) && (
+                  <> {t(f.side ? 'connections.standing.thisSide' : 'connections.standing.whichSide')}</>
+                )}
+              </span>
+            ))}
+        </div>
 
         {/* wrap, and only push right once there is room to (workplan 0068):
             on a phone these four actions overflowed the card horizontally and
-            the last one sat off-screen. */}
-        <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center gap-2 sm:gap-3">
-          {/* The prerequisites for this provider, in case the answer is
-              "somebody has to re-authorise the app". */}
-          {cardsOfThisKind ? (
-            // A kind two cards store as, whose checklists differ: one link per
-            // card, by the card's name, rather than one of them picked for the
-            // person (0148 T5 (a)).
-            <span className="text-sm text-gray-700 inline-flex flex-wrap items-center gap-x-2">
-              <span>{t('connections.setupSteps')}:</span>
-              {cardsOfThisKind.map((card) => (
-                <Link
-                  key={card.type}
-                  to={`/setup/${connection.role}/${card.type}`}
-                  className="text-blue-700 hover:underline"
-                >
-                  {t(card.nameKey)}
-                </Link>
-              ))}
-            </span>
-          ) : (
-            <Link
-              // BY WIZARD TYPE, not by kind: the profiles are keyed the wizard's
-              // way, and looking one up by kind answers an empty checklist that
-              // reads as "nothing to set up" (workplan 0065).
-              to={`/setup/${connection.role}/${wizardTypeForConnectionKind(connection.kind)}`}
-              className="text-sm text-blue-700 hover:underline"
-            >
-              {t('connections.setupSteps')}
-            </Link>
-          )}
+            the last one sat off-screen. Beside the details from `sm` up,
+            under them on a phone. */}
+        <div className="flex flex-wrap items-center gap-2 sm:max-w-[55%] sm:shrink-0 sm:justify-end">
           <button
             type="button"
             onClick={test}
             disabled={testing}
-            className="text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 inline-flex items-center gap-1"
+            className="text-sm px-3 py-1.5 border border-gray-300 rounded-md bg-white hover:bg-gray-50 disabled:opacity-50 inline-flex items-center gap-1"
           >
             {testing && <Loader2 className="w-3 h-3 animate-spin" />}
             {testing ? t('connections.testing') : t('connections.test')}
@@ -403,7 +423,7 @@ const Row: React.FC<{
                 return !open;
               });
             }}
-            className="text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
+            className="text-sm px-3 py-1.5 border border-gray-300 rounded-md bg-white hover:bg-gray-50"
           >
             {/* NAMED FOR WHAT IT DOES HERE (workplan 0140 T2 (b)). On a row
                 whose kind has a consent button, what this panel mints is a new
@@ -422,7 +442,7 @@ const Row: React.FC<{
             type="button"
             onClick={remove}
             disabled={testing}
-            className="text-sm px-3 py-1 border border-gray-300 rounded text-red-700 hover:bg-red-50 disabled:opacity-50"
+            className="text-sm px-3 py-1.5 border border-gray-300 rounded-md bg-white text-red-700 hover:bg-red-50 disabled:opacity-50"
           >
             {t('connections.delete')}
           </button>
@@ -524,9 +544,12 @@ function accountCards(role: 'source' | 'target'): ReadonlyArray<FrontDoorCard> {
   return isSelfHost() ? cards : cards.filter((card) => card.id !== EXPORT_CARD);
 }
 
-const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
+const AddConnection: React.FC<{ open: boolean; onClose: () => void; onAdded: () => void }> = ({
+  open,
+  onClose,
+  onAdded,
+}) => {
   const t = useT();
-  const [open, setOpen] = React.useState(false);
   const [role, setRole] = React.useState<'source' | 'target'>('source');
   // The first card of the side, the same one the role switch below lands on —
   // so opening the form and switching the role read as the same door.
@@ -538,21 +561,13 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   // The start a pick of the same card gives: its usual port, where it has one.
   const [values, setValues] = React.useState<Record<string, string>>(() => ({ ...formDefaultsFor('source', type) }));
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="mt-4 text-sm px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50"
-      >
-        {t('connections.add')}
-      </button>
-    );
-  }
+  // Mounted while closed, so what was typed is still here at the next opening.
+  // Its button is the page's, beside the title (`Connections`).
+  if (!open) return null;
 
   return (
-    <div className="mt-4 border border-gray-200 rounded-lg p-4">
-      <h3 className="font-medium text-gray-900">{t('connections.add')}</h3>
+    <section aria-labelledby="accounts-add" className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+      <h2 id="accounts-add" className="text-lg font-semibold text-gray-900">{t('connections.add')}</h2>
 
       {/* THE SAME DOOR THE WIZARD DRAWS (workplan 0107; owner remark
           2026-09-01). This used to be two drop-downs — role, then a
@@ -617,9 +632,9 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
         displayName={displayName}
         onDisplayName={setDisplayName}
         onAdded={() => onAdded()}
-        onCancel={() => setOpen(false)}
+        onCancel={onClose}
       />
-    </div>
+    </section>
   );
 };
 
@@ -654,58 +669,74 @@ const Connections: React.FC = () => {
     queryFn: connectionsApi.list,
   });
   const [removed, setRemoved] = React.useState<{ name: string; answer: ConnectionDeleted | null } | null>(null);
+  const [adding, setAdding] = React.useState(false);
 
-  if (isLoading) return <div className="p-6 text-gray-500">{t('common.loading')}</div>;
-  if (error) return <div className="p-6 text-red-700">{serverMessage(error)}</div>;
+  if (isLoading) return <div className="text-gray-500">{t('common.loading')}</div>;
+  if (error) return <div className="text-red-700">{serverMessage(error)}</div>;
 
-  const sources = (data ?? []).filter((c) => c.role === 'source');
-  const targets = (data ?? []).filter((c) => c.role === 'target');
+  const groups = [
+    { id: 'accounts-sources', titleKey: 'connections.sources', rows: (data ?? []).filter((c) => c.role === 'source') },
+    { id: 'accounts-targets', titleKey: 'connections.targets', rows: (data ?? []).filter((c) => c.role === 'target') },
+  ] as const;
 
+  /* THE PAGE THE OTHERS ARE (2026-10-05): its title and the sentence under it
+     on the paper, its one action beside them, and each group a white card,
+     as Migrations, Needs you and Team are. It had been a narrower column of
+     its own, the rows drawn straight on the page. */
   return (
-    <div className="p-6 max-w-4xl">
-      <h2 className="text-xl font-semibold text-gray-900">{t('connections.title')}</h2>
-      <p className="mt-1 text-sm text-gray-600">{t('connections.intro')}</p>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{t('connections.title')}</h1>
+          <p className="mt-1 text-gray-600">{t('connections.intro')}</p>
+        </div>
+        {!adding && (
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="flex min-h-[44px] items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-5 h-5 mr-2" aria-hidden="true" />
+            {t('connections.add')}
+          </button>
+        )}
+      </div>
 
-      <AddConnection onAdded={() => void refetch()} />
+      <AddConnection open={adding} onClose={() => setAdding(false)} onAdded={() => void refetch()} />
 
       {removed && (
-        <div
-          role="status"
-          className={`mt-4 text-sm border rounded p-2 ${removalText(t, removed.answer).tone}`}
-        >
+        <div role="status" className={`text-sm border rounded-lg p-3 ${removalText(t, removed.answer).tone}`}>
           <strong>{removed.name}</strong> {t('connections.removed.done')}{' '}
           <span>{removalText(t, removed.answer).text}</span>
         </div>
       )}
 
       {(data ?? []).length === 0 ? (
-        <p className="mt-6 text-gray-600">{t('connections.none')}</p>
+        <p className="bg-white rounded-lg border border-gray-200 p-6 text-gray-600">{t('connections.none')}</p>
       ) : (
-        <>
-          <h3 className="mt-6 font-medium text-gray-900">{t('connections.sources')}</h3>
-          <ul className="mt-2 space-y-3">
-            {sources.map((c) => (
-              <Row
-                key={c.id}
-                connection={c}
-                onChanged={() => void refetch()}
-                onRemoved={(answer) => setRemoved({ name: c.displayName, answer })}
-              />
-            ))}
-          </ul>
-
-          <h3 className="mt-6 font-medium text-gray-900">{t('connections.targets')}</h3>
-          <ul className="mt-2 space-y-3">
-            {targets.map((c) => (
-              <Row
-                key={c.id}
-                connection={c}
-                onChanged={() => void refetch()}
-                onRemoved={(answer) => setRemoved({ name: c.displayName, answer })}
-              />
-            ))}
-          </ul>
-        </>
+        groups
+          .filter((group) => group.rows.length > 0)
+          .map((group) => (
+            <section
+              key={group.id}
+              aria-labelledby={group.id}
+              className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6"
+            >
+              <h2 id={group.id} className="text-lg font-semibold text-gray-900">
+                {t(group.titleKey)}
+              </h2>
+              <ul className="divide-y divide-gray-200">
+                {group.rows.map((c) => (
+                  <Row
+                    key={c.id}
+                    connection={c}
+                    onChanged={() => void refetch()}
+                    onRemoved={(answer) => setRemoved({ name: c.displayName, answer })}
+                  />
+                ))}
+              </ul>
+            </section>
+          ))
       )}
     </div>
   );

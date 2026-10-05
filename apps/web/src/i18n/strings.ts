@@ -2787,8 +2787,10 @@ const en = {
   // A connection serves migrations, not mailboxes (owner remark 2026-09-02:
   // Dropbox is files, a Google account is four faces) — and none yet is a
   // sentence, not a zero.
-  'connections.usedBy': 'migration(s) use this',
+  'connections.usedBy.one': 'Used by 1 migration',
+  'connections.usedBy.other': 'Used by {count} migrations',
   'connections.usedBy.none': 'Not used by any migration yet',
+  'connections.addedWhen': 'Added {when}',
   'connections.setupSteps': 'Setup steps',
   // What is STANDING against a connection (workplan 0094 T5): a pass that
   // failed since the last Test. "Migration <name> stopped 2 hours ago
@@ -5282,8 +5284,10 @@ const nl: Record<keyof typeof en, string> = {
   'connections.targets': 'Doelen',
   'connections.test': 'Testen',
   'connections.testing': 'Bezig met testen…',
-  'connections.usedBy': 'migratie(s) gebruiken dit',
+  'connections.usedBy.one': 'Gebruikt door 1 migratie',
+  'connections.usedBy.other': 'Gebruikt door {count} migraties',
   'connections.usedBy.none': 'Nog door geen enkele migratie gebruikt',
+  'connections.addedWhen': 'Toegevoegd {when}',
   'connections.setupSteps': 'Instelstappen',
   'connections.standing.migration': 'Migratie',
   'connections.standing.stopped': 'is {when} gestopt ({domains}):',
