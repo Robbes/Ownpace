@@ -55,8 +55,10 @@ four pending ones because each still broke the rule. With the new words and the 
 those four failed (*"no longer calls anything read-only without its scope"*), so `PENDING` is
 empty now and every surface is under the rule. Restored on a scratch copy, each failed: the old
 how-it-works sentence, the old Dutch heading and the old setup title (`a-read-only-claim`), and
-the card's old link text (`claims-you-can-check`). Nothing guards P4, P5, P6, P7 and
-P11's words beyond the tests that already read those pages.
+the card's old link text (`claims-you-can-check`). Nothing else is guarded: P3's sentences
+outside its link (*"That is not a promise about our intentions"* among them), P4, P5, P6, P7
+and P11. Their old words, put back together on a scratch copy in both languages, failed no
+unit test that reads the site's copy, its pages or the Alpha guide.
 
 Still open: the password hint (after), P10 (b) (later), and T0's read of T1's Dutch. Readers see
 the site's words when the OTA site is rebuilt from `main` (`deploy/compose/www.yml`), and the
