@@ -63,6 +63,20 @@ any of them: the API records an acceptance only when no text is a draft (`accept
 `LEGAL_DRAFTS` had privacy and terms as drafts from the commit that made the table and the route
 (#1360) until this one.
 
+**Visits to this website, counted from its server logs** (the same pull request, under 1.2, for
+the same reason). The owner, 2026-10-05, verbatim: *"go with GoAccess on the logs and the
+sentence. id and status we skip for now, no netbird api tokens..."* Privacy §4.5 now says, after
+the server-logs paragraph, *"From these logs we also count visits to this website (pages, the
+site you came from, the kind of browser), as totals only, which identify nobody."* / *"Uit deze
+logs tellen we ook bezoeken aan deze website (pagina's, de site waar u vandaan kwam, het soort
+browser), alleen als totalen, die niemand identificeren."*; §5's server-logs purpose adds
+*"and counting visits in totals"* / *"en bezoeken in totalen tellen"*, and its *"There is no
+analytics tracker on the application or on this website"* stays, with where the counting comes
+from; §9 has a row for the totals, *"As long as we run this website"*, the period for the
+owner's reading. Nothing counts yet: the run that does is not part of this pull request, and
+what it must and must not keep is in *What must stay true in them*, below, and beside privacy
+§4.5. The privacy pins moved with it.
+
 The record of 2026-09-28, as it stood then:
 
 On 2026-09-28 the owner asked for the privacy policy and the terms to be revisited: *"Can you
@@ -599,6 +613,23 @@ commit.
 
 - **Self-host sends us nothing.** No telemetry, no usage counts, no error reports. The privacy
   policy opens with it because it is the strongest thing there is to say and it is checkable.
+  Counting visits to this website (below) does not touch it: the appliance serves no website
+  (`deploy/selfhost` has no website service) and counts nothing.
+- **Visits to this website are counted from its server logs, as totals that identify nobody**
+  (privacy §4.5, §5 and §9; the owner, 2026-10-05: *"go with GoAccess on the logs and the
+  sentence. id and status we skip for now, no netbird api tokens..."*). Only
+  `www.ownpace.eu`, from the access log its nginx writes (`deploy/compose/www-nginx.conf`,
+  format `ownpace_site`), on our machine; nothing on `app.`, `id.` or `status.ownpace.eu`, no
+  script, cookie or banner on the page, nothing sent anywhere, and NetBird's own log not read.
+  The sentence is true only of a GoAccess run that keeps its report of totals and **no database
+  of its own**: `--persist` keeps, per day, a fingerprint of each visitor (a hash of the full IP
+  address and the browser) and which pages each one asked for, and `--anonymize-ip` masks the
+  address only in the report. So no `--persist` or `--restore`; `--ignore-panel` for `HOSTS`,
+  `GEO_LOCATION`, `ASN`, `REFERRERS` and `REMOTE_USER`; and no copy of the log left behind,
+  so §9's *Server logs* row holds. The comment beside privacy §4.5 cites GoAccess's source for
+  each. Unlike the claims around it, this one has no code behind it yet: until the run exists,
+  nothing is counted, which is less than the text says, never more; the run must meet this
+  bullet when it is built.
 - **We are controller for the account; for migration content it depends on the customer**
   (privacy §3): processor for an organisation (ADR-0035 §17), and — draft position, lawyer to
   confirm — controller for a household migration, because Art. 2(2)(c) leaves the migrating

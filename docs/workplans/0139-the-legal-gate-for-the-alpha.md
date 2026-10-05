@@ -13,6 +13,78 @@ words and keeps 1.3's. Proved: `scripts/a-version-the-tester-accepted.unit.test.
 new pins. Alpha conditions 1.0 and privacy 1.2 are unchanged. Still owed before the first paid
 tier: the *Withdraw from contract* button §7 names (0111 T7, 0152 T6 (f)).
 
+**2026-10-05, later: privacy 1.2 says that visits to the website are counted from its server
+logs, as totals.** Same branch and draft pull request as the entry below, not merged; privacy
+stays 1.2, because nobody can have accepted it: on `main` privacy is a draft in `LEGAL_DRAFTS`
+(`packages/managed/src/legal-versions.ts`) until this pull request merges, and while any text is
+a draft the API asks nobody.
+
+- **The owner's decision, 2026-10-05, verbatim:** *"go with GoAccess on the logs and the
+  sentence. id and status we skip for now, no netbird api tokens..."* It answers the
+  recommendation to count visits to `www.ownpace.eu` with GoAccess, reading the access log the
+  website's nginx already writes (`deploy/compose/www-nginx.conf`, format `ownpace_site`), on
+  live's copy of the site (`deploy/compose/deploy-live.sh`, compose project `ownpace-live-www`,
+  once `WWW_LIVE=true` at step I5): no script, no cookie and no banner on the page, nothing
+  leaving the machine, nothing counted on `app.`, `id.` or `status.ownpace.eu`, and no NetBird
+  API token, so NetBird's own log is not read.
+- **The words, in both languages.**
+  - §4.5, a paragraph of its own after the server-logs paragraph, the recommended sentence word
+    for word: *"From these logs we also count visits to this website (pages, the site you came
+    from, the kind of browser), as totals only, which identify nobody."* / *"Uit deze logs
+    tellen we ook bezoeken aan deze website (pagina's, de site waar u vandaan kwam, het soort
+    browser), alleen als totalen, die niemand identificeren."*
+  - §5, the purpose of *Server logs, for the app and this website*: *"Keeping the service
+    secure and working"* became *"Keeping the service secure and working, and counting visits
+    in totals"*; NL *"De dienst veilig en werkend houden"* became *"De dienst veilig en werkend
+    houden, en bezoeken in totalen tellen"*.
+  - §5, *"There is no analytics tracker on the application or on this website."* stays, because
+    it stays true (nothing is added to the pages; the counting reads our own log on our own
+    machine), and says where the counting comes from: *"…; we count visits to this website only
+    from our server logs (§4.5)."* / *"…; bezoeken aan deze website tellen we alleen uit onze
+    serverlogs (§4.5)."*
+  - §9, a row after *Server logs*: *"The visit totals counted from this website's server logs
+    (§4.5) | As long as we run this website. They are totals only, and identify nobody."* /
+    *"De bezoektotalen die uit de serverlogs van deze website worden geteld (§4.5) | Zolang we
+    deze website draaien. Het zijn alleen totalen, die niemand identificeren."* The period is
+    this pull request's, **for the owner's reading**; the briefing asks the lawyer (question 21).
+  - Unchanged, and still true: the *Applies to* line (this website was already covered); the
+    self-host box (the appliance serves no website and counts nothing: `deploy/selfhost` has no
+    website service, and the site runs from `deploy/compose/www.yml` on our machine only); §7
+    and §8 (no new party, nothing leaves the machine); §9's *Server logs* row; §10's right to
+    object, which already names our logs.
+- **What the sentence needs of the run, read in GoAccess's source** (github.com/allinurl/goaccess
+  at `c4fadb8e`, 1.12). The recommended sentence holds, so it is unchanged, but only for a run
+  that keeps GoAccess's report of totals and **no database of its own**:
+  - `--persist` writes, per day, one fingerprint per visitor, a 64-bit FNV hash of the full IP
+    address and the User-Agent (`U6432_UNIQUE_KEYS.db`; `visitor_fingerprint` in `src/util.c`;
+    before 1.11 the key string itself, date|IP|agent), and per panel which visitor asked for
+    which page, came from which site and used which browser (`U648_<panel>_MTRC_UNIQMAP.db`).
+    Those are rows per visitor, and an unsalted hash of an IPv4 address and a known browser
+    string is undone by trying every address. So no `--persist` or `--restore` (or a `--db-path` emptied after each run);
+    `--keep-last` bounds the days, not what each day keeps.
+  - `--anonymize-ip` and `--anonymize-level` mask the address only when the HOSTS panel is drawn
+    (`src/gholder.c`); the fingerprint and a persisted HOSTS panel keep the full address.
+  - `--ignore-panel` for `HOSTS`, `GEO_LOCATION`, `ASN`, `REFERRERS` (the whole address of the
+    page you came from; the sentence's *"the site you came from"* is `REFERRING_SITES`, the host
+    only; GoAccess's sample configuration turns `REFERRERS` off, a run without that file does
+    not) and `REMOTE_USER`. `--no-query-string` keeps parameters out of the pages, and the UTM
+    panel still counts campaigns (`src/parser.c` takes them before the query is cut).
+  - The log is read where Docker keeps it, and a working copy is deleted when the run ends, so
+    §9's *Server logs* row holds.
+  The comment beside §4.5 in both files, the briefing at the top of `privacy.md` and the legal
+  README's *What must stay true in them* say the same.
+- **Proved, guard first.** On the edited texts, before the pins moved,
+  `a-version-the-tester-accepted` failed 2 of 23 (`privacy.md` and `privacy.nl.md` changed under
+  1.2); `privacy.md@1.2` and `privacy.nl.md@1.2` re-pinned, then 23 of 23. With
+  `scripts/legal-docs.unit.test.ts` and `site/site.unit.test.ts`, 80 of 80; the 16 unit files
+  that read the legal texts, 630 of 630. `OWNPACE_APP_URL=https://app.ownpace.eu node
+  site/build.mjs --public --check`: 0 marked draft, 28 pages, 0 placeholders, exit 0; with
+  `OWNPACE_STAGE=alpha`, 30 pages, exit 0. The built `privacy.html` and `nl/privacy.html` carry
+  the four changes and none of the comments. *Last updated* stays 2026-10-05 in all six files.
+- **Still to do.** The run that counts, which is not part of this pull request and must meet
+  the list above; until it runs nothing is counted, which is less than the text says, never
+  more. The owner's reading of §9's period. Nothing here blocks the first invitation.
+
 **2026-10-05: the final texts testers accept (the owner's checklist of 2026-10-05, L2 to L4).
 A DRAFT pull request.** On branch
 `claude/ownpace-public-readiness-y7orc6-the-texts-testers-accept`, from `main` at `c25534b4`, not
