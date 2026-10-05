@@ -7,7 +7,7 @@
  * no Content-Security-Policy, no Strict-Transport-Security, nothing against
  * framing, no `nosniff` and no Referrer-Policy. The API sent all of them on
  * its own answers (helmet, `apps/api/src/index.ts`), and the public site has
- * had a strict policy since 2026-08-26 (`deploy/compose/www-nginx.conf`). The
+ * had a strict policy since 2026-08-20 (`deploy/compose/www-nginx.conf`). The
  * app, which keeps the sign-in in the browser's storage, had none. Found by
  * the public-readiness audit (finding sec-spa-no-csp-token-in-localstorage).
  *
@@ -18,19 +18,28 @@
  * every kind of address the app is opened at:
  *
  * - **the app's pages, its assets and `version.json`** carry exactly the five
- *   headers below, each with `always`, so an error page carries them too;
+ *   headers below and no other (`version.json` its `Cache-Control` too), each
+ *   with `always`, so an error page carries them too;
  * - **`/api/` carries none of them.** helmet already sends each one there, and
  *   the consent callback pages replace helmet's policy with one that allows
  *   their own inline script by hash (`callbackPageHeaders`). A second policy
  *   from nginx would be enforced beside it and block that script, which is
- *   the 2026-09-02 defect again;
+ *   the 2026-09-02 defect again. Nor does nginx hide one of the API's;
+ * - **nothing the reading cannot see.** An `if` block or an `error_page`
+ *   changes which headers an answer gets, and `./nginx-config.ts` reads
+ *   neither. So the template has none, and this fails the day it gains one,
+ *   on a machine without nginx too;
  * - **the policy is the one written here, word for word.** Loosening it means
  *   changing this file too, where the reason has to be said;
  * - **the two headers both halves send say the same thing** as helmet does,
  *   so a browser is not told two things about one host;
  * - **every `${NAME}` in the template is defined in the image**, where the
  *   template is rendered: an undefined one reaches nginx as written, and nginx
- *   refuses to start.
+ *   refuses to start;
+ * - **the image refuses what the policy cannot serve**: an issuer with a path,
+ *   and an API anywhere but this origin (`VITE_API_URL` that is not a path).
+ *   Either built, the page could not reach it, and nothing said so until a
+ *   person tried to sign in.
  *
  * AND IT IS RUN, where the machine has nginx. The template is rendered as the
  * image renders it, served by the real nginx in front of an upstream that
@@ -69,8 +78,8 @@ const ISSUER = 'VITE_OIDC_ISSUER';
  * THE POLICY, as the template must write it. What each part allows, and the
  * evidence that the built app needs it (workplan 0158 D1):
  *
- * - `default-src 'none'`: nothing that is not named below. The app loads no
- *   font, frame, worker, media, object or manifest.
+ * - `default-src 'none'`: no font, frame, media, object or manifest. The app
+ *   loads none.
  * - `script-src 'self'`: its own module scripts only. No inline script, no
  *   eval: zod's eval probe is switched off at the entry
  *   (`apps/web/src/zod-without-eval.ts`).
@@ -79,13 +88,16 @@ const ISSUER = 'VITE_OIDC_ISSUER';
  * - `img-src data:`: the favicon, inline in `index.html`. No other image.
  * - `connect-src 'self' <issuer>`: the API at the same origin, and the sign-in
  *   host's discovery document and token endpoint (`services/oidc.ts`).
+ * - `worker-src 'none'`: no worker. Said here because a worker does not fall
+ *   back to `default-src`: it falls back to `script-src`, so without this line
+ *   any script of the app's own origin could run as one. The app starts none.
  * - `base-uri 'none'`, `form-action 'none'`: no `<base>`, and every form the
  *   app has is sent by script, never submitted.
  * - `frame-ancestors 'none'`: no page may frame the app.
  */
 const POLICY = (issuer: string): string =>
   "default-src 'none'; script-src 'self'; style-src 'self'; img-src data:; " +
-  `connect-src 'self' ${issuer}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`;
+  `connect-src 'self' ${issuer}; worker-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`;
 
 /** Every header the app's answers carry, by name, for the issuer the template is rendered with. */
 const APP_HEADERS = (issuer: string): Readonly<Record<string, string>> => ({
@@ -157,6 +169,11 @@ function locations(nodes: readonly NginxNode[]): NginxNode[] {
   return nodes.flatMap((n) => (n.name === 'location' ? [n, ...locations(n.children ?? [])] : locations(n.children ?? [])));
 }
 
+/** Every directive and block at every depth. */
+function everywhere(nodes: readonly NginxNode[]): NginxNode[] {
+  return nodes.flatMap((n) => [n, ...everywhere(n.children ?? [])]);
+}
+
 /** Whether the location nginx chooses for a URI hands it to the API. */
 function proxied(uri: string): boolean {
   const chosen = chooseLocation(SERVER, uri)?.path.at(-1);
@@ -203,7 +220,7 @@ describe('the app is served with what a browser may do with it', () => {
     expect(sets[0]!.args[1]).toBe(POLICY(`\${${ISSUER}}`));
   });
 
-  it.each(APP_URIS)('%s carries the five headers, each with always', (uri) => {
+  it.each(APP_URIS)('%s carries the five headers and no other, each with always', (uri) => {
     const sent = sentFor(uri);
     for (const [name, value] of Object.entries(APP_HEADERS(TEST_ISSUER))) {
       const h = sent.get(name.toLowerCase());
@@ -211,6 +228,11 @@ describe('the app is served with what a browser may do with it', () => {
       expect(h!.value, `${uri}: ${name}`).toBe(value);
       expect(h!.always, `${uri}: ${name} without always, so an error page goes without it`).toBe(true);
     }
+    // No sixth: a second, looser policy in report-only mode, or a header that
+    // opens the page to another origin, would pass every line above.
+    const expected = Object.keys(APP_HEADERS('')).map((n) => n.toLowerCase());
+    if (uri === '/version.json') expected.push('cache-control');
+    expect([...sent.keys()].sort(), `${uri} is sent with a header this file does not name`).toEqual(expected.sort());
   });
 
   it('keeps version.json from a cache, beside the five', () => {
@@ -249,8 +271,12 @@ describe('the policy says what it must', () => {
     expect(directives.get('form-action')).toEqual(["'none'"]);
   });
 
-  it('does not upgrade requests: a loopback app on plain http would stop loading its own scripts', () => {
+  it('does not upgrade requests: on plain http at an address that is not loopback, the app would stop loading its own scripts', () => {
     expect(directives.has('upgrade-insecure-requests')).toBe(false);
+  });
+
+  it('starts no worker: a worker falls back to script-src, not to default-src', () => {
+    expect(directives.get('worker-src')).toEqual(["'none'"]);
   });
 
   it('sends to no host but its own and the sign-in host', () => {
@@ -269,6 +295,18 @@ describe('the API keeps its own headers, and only its own', () => {
     expect(TOP.filter((n) => n.name === 'add_header')).toEqual([]);
   });
 
+  it("hides none of the API's own headers", () => {
+    // `proxy_hide_header Content-Security-Policy` in /api/ would strip
+    // helmet's policy, and the consent callback's with it, and nothing above
+    // would notice: nginx adds nothing there either way.
+    const helmets = [...helmetHeaders().keys()];
+    expect(helmets).toContain('content-security-policy');
+    const hidden = everywhere(TOP)
+      .filter((n) => n.name === 'proxy_hide_header')
+      .map((n) => (n.args[0] ?? '').toLowerCase());
+    for (const name of helmets) expect(hidden, `${TEMPLATE_PATH} hides ${name} from the API's answers`).not.toContain(name);
+  });
+
   it("gives HSTS and the Referrer-Policy the values helmet gives the API's answers on the same host", () => {
     // A browser keeps the last HSTS it was sent for a host. The page and its
     // own API calls must not reset each other's.
@@ -280,8 +318,38 @@ describe('the API keeps its own headers, and only its own', () => {
   });
 });
 
+describe('the template holds nothing the reading cannot see', () => {
+  // `./nginx-config.ts` reads locations and `add_header`. An `if` block with
+  // its own `add_header` replaces the location's for the requests it matches,
+  // and an `error_page` answers from another location with that location's
+  // headers. The run on a real nginx below would catch either, but it skips
+  // on a machine without nginx. So the template has neither until the reading
+  // learns them.
+  it.each(['if', 'error_page'])('has no %s', (name) => {
+    expect(
+      everywhere(TOP).filter((n) => n.name === name),
+      `${TEMPLATE_PATH} uses ${name}, which ./nginx-config.ts does not read: teach headersFor first`,
+    ).toEqual([]);
+  });
+});
+
 describe('the image defines what the template names', () => {
   const runtime = DOCKERFILE.slice(DOCKERFILE.search(/^FROM \S+ AS runtime$/m));
+  const build = DOCKERFILE.slice(0, DOCKERFILE.search(/^FROM \S+ AS runtime$/m));
+
+  /**
+   * The one RUN line of a stage that reads `$name`, run as Docker runs it:
+   * `sh -c`, with the argument in the environment. Its exit status for a value.
+   */
+  function theCheckOf(stage: string, name: string): (value: string) => number | null {
+    const checks = stage.split('\n').filter((l) => l.startsWith('RUN ') && l.includes(`$${name}`));
+    expect(checks, `the stage has no RUN line of its own that reads ${name}`).toHaveLength(1);
+    return (value) =>
+      spawnSync('sh', ['-c', checks[0]!.slice('RUN '.length)], {
+        env: { PATH: process.env.PATH, [name]: value },
+        encoding: 'utf8',
+      }).status;
+  }
 
   it('has a runtime stage to read', () => {
     expect(runtime.startsWith('FROM ')).toBe(true);
@@ -307,18 +375,30 @@ describe('the image defines what the template names', () => {
     // A policy source with a path matches that one path, so the policy would
     // let sign-in fetch nothing at all. The line is run here as Docker runs a
     // RUN line, with the argument in the environment.
-    const checks = runtime.split('\n').filter((l) => l.startsWith('RUN ') && l.includes(`$${ISSUER}`));
-    expect(checks, `the runtime stage has no RUN line that reads ${ISSUER}`).toHaveLength(1);
-    const run = (issuer: string): number | null =>
-      spawnSync('sh', ['-c', checks[0]!.slice('RUN '.length)], {
-        env: { PATH: process.env.PATH, [ISSUER]: issuer },
-        encoding: 'utf8',
-      }).status;
+    const run = theCheckOf(runtime, ISSUER);
     for (const fine of ['', TEST_ISSUER, 'https://id.example.test:8443', 'https://id.example.test/']) {
       expect(run(fine), `"${fine}" refused`).toBe(0);
     }
     for (const withAPath of ['https://id.example.test/oidc', 'http://localhost:8080/realms/ownpace/']) {
       expect(run(withAPath), `"${withAPath}" let through`).not.toBe(0);
+    }
+  });
+
+  it('refuses an API anywhere but this origin when the bundle is built', () => {
+    // connect-src is this origin and the sign-in host. A bundle built to call
+    // its API at another address could reach nothing: the sign-in page offered
+    // no way in, and nothing said why until a person tried.
+    const run = theCheckOf(build, 'VITE_API_URL');
+    for (const fine of ['', '/api', '/', '/ownpace/api']) {
+      expect(run(fine), `"${fine}" refused`).toBe(0);
+    }
+    for (const elsewhere of [
+      'http://localhost:3001/api',
+      'https://api.example.test/api',
+      '//api.example.test/api',
+      'api',
+    ]) {
+      expect(run(elsewhere), `"${elsewhere}" let through`).not.toBe(0);
     }
   });
 

@@ -78,8 +78,8 @@ server {
   # it sets none of its own (`deploy/compose/www-nginx.conf` says the same). Not
   # at this level, where /api/ would inherit them: see that location.
   #
-  # - default-src 'none': nothing the policy does not name. The app loads no
-  #   font, frame, worker, media or object.
+  # - default-src 'none': no font, frame, media, object or manifest. The app
+  #   loads none.
   # - script-src 'self': the app's own module scripts, and nothing inline,
   #   evaluated or from another host. Zod's probe for eval is switched off at
   #   the entry (`apps/web/src/zod-without-eval.ts`); without that, every page
@@ -91,15 +91,19 @@ server {
   #   issuer's discovery document and token endpoint (`services/oidc.ts`). The
   #   image takes the issuer from the build argument the bundle was built
   #   with, so the two name one host. Empty, on a stack without sign-in, it is
-  #   'self' alone.
+  #   'self' alone. The issuer's token endpoint must be on the issuer's own
+  #   origin, as Zitadel's is (ADR-0042, amended 2026-10-05).
+  # - worker-src 'none': no worker. A worker falls back to script-src, not to
+  #   default-src, so without it any script of this origin could run as one.
+  #   The app starts none.
   # - base-uri, form-action and frame-ancestors 'none': no <base>, no form the
   #   browser submits (each form the app has is sent by script), and no page
   #   may frame this one.
   #
   # No upgrade-insecure-requests: behind NetBird's TLS it changes nothing, and
-  # on an address served over plain http it sends the app's own scripts to
-  # https, where they never load.
-  set $ownpace_csp "default-src 'none'; script-src 'self'; style-src 'self'; img-src data:; connect-src 'self' ${VITE_OIDC_ISSUER}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+  # on an address served over plain http that is not loopback it sends the
+  # app's own scripts to https, where they never load.
+  set $ownpace_csp "default-src 'none'; script-src 'self'; style-src 'self'; img-src data:; connect-src 'self' ${VITE_OIDC_ISSUER}; worker-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
   # The four beside it, in the same locations:
   #

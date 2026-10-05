@@ -33,6 +33,12 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile --filter @openmig/web...
 
 ARG VITE_API_URL=/api
+# A PATH AT THIS ORIGIN, NEVER AN ADDRESS (workplan 0158). The app's policy
+# (nginx.conf.template) lets the page connect to its own origin and the sign-in
+# host only. A bundle built to call its API at another address could reach
+# nothing there: the sign-in page offered no way in, and nothing said why.
+# The image's nginx proxies /api/ to the API, so the API is always at a path.
+RUN case "$VITE_API_URL" in ''|/|/[!/]*) ;; *) echo "VITE_API_URL is not a path at the app's origin ($VITE_API_URL): the app's policy connects to its own origin and the sign-in host only" >&2; exit 1;; esac
 ENV VITE_API_URL=$VITE_API_URL
 # Surfaced by the sidebar's build stamp, and by GET /version on the api and
 # selfhost images which already take this same argument. A static bundle cannot
@@ -85,7 +91,9 @@ ENV API_UPSTREAM=api:3001
 # the bundle above was built with, declared again because a stage sees only
 # the arguments it declares, and handed to the template step as ENV. A policy
 # source with a path matches that one path, so sign-in could not fetch its
-# discovery document: an issuer with a path is refused here instead.
+# discovery document: an issuer with a path is refused here instead. That
+# includes Keycloak's /realms/<name>; switching to such an issuer means the
+# policy names its origin instead (ADR-0042, amended 2026-10-05).
 ARG VITE_OIDC_ISSUER=
 RUN case "$VITE_OIDC_ISSUER" in *://*/?*) echo "VITE_OIDC_ISSUER has a path ($VITE_OIDC_ISSUER): the app's policy needs scheme://host[:port]" >&2; exit 1;; esac
 ENV VITE_OIDC_ISSUER=$VITE_OIDC_ISSUER

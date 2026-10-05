@@ -56,7 +56,10 @@ set in `vite.config.ts`).
 
 ```bash
 # Optional — where the API lives. Defaults to '/api' (same-origin), which is
-# correct behind the compose stack and the appliance alike.
+# correct behind the compose stack and the appliance alike. An absolute address
+# is for `pnpm dev` alone: the managed image refuses one when it is built,
+# because the app's policy connects to its own origin and the sign-in host only
+# (workplan 0158 D10).
 VITE_API_URL=http://localhost:3001/api
 
 # Set BY the build, not by you: `--mode selfhost` (the build:selfhost script)
@@ -252,7 +255,9 @@ more headers: HSTS, `nosniff`, `X-Frame-Options: DENY` and
 own scripts and styles only, no inline code and no `eval`, and lets the page
 connect to its own origin and the sign-in host, which the image takes from the
 `VITE_OIDC_ISSUER` build argument. So code that needs anything more (an inline
-script or style element, another host, a frame, `eval`) fails in the browser.
+script or style element, another host, a frame, a worker, `eval`) fails in the
+browser. The image also refuses a `VITE_API_URL` that is not a path, and an
+issuer with a path.
 `test/ui/managed-ui.ui.test.ts` serves the build with the template's headers
 and fails on a violation. Zod's own probe for `eval` is switched off at the
 entry (`src/zod-without-eval.ts`). The appliance sends no policy yet (0158 T3).
