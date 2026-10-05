@@ -54,12 +54,16 @@ is airgapd behind netbird, so no issue there."*
   the release checklist and the duties table say what the check recognises and what it does not,
   and that live's `.env` needs the key and the tag a script that reads it. Guards first: 6 new or
   changed cases in `exposure-check.unit.test.ts` failed before, 48/48 after; each fix's mutation
-  turns its case red.
+  turns its case red. This review half merged after v0.2.0-alpha.1; the tag carries #1534 alone,
+  whose check refuses a listed container in a project named `compose` whatever its files. The
+  owner's three services run in projects of their own names (2026-10-05), so alpha.1's check
+  accepts them.
 - **Still the owner's.** Copy `EXPOSURE_NOT_OURS` into the OTA stack's `.env` and live's (the
   bring-up guide, *Containers on the machine that are not Ownpace's*), with the names `docker ps`
-  prints, then run `exposure-check.sh` from the OTA stack's checkout: it must end `ok:`. Cut the
-  alpha tag from a commit that has this change: the tag's own `exposure-check.sh` is the one step 7,
-  `deploy-live.sh` and the daily duty run.
+  prints, then run `exposure-check.sh` from a checkout that has #1534 (the OTA stack's, or the
+  release clone at the tag): it must end `ok:`. The tag must carry #1534: the tag's own
+  `exposure-check.sh` is the one step 7, `deploy-live.sh` and the daily duty run. v0.2.0-alpha.1
+  does (C, `6ec1c528`).
 
 **2026-10-05, the owner's checks: Docker's log driver is `json-file`, and NetBird shows no
 sign-in.** Plans only. Two of the items the entries of 2026-09-28 and 2026-09-29 left as *Still
