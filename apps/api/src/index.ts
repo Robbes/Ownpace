@@ -61,6 +61,7 @@ import { maxMigrationsPerOrganisationFromEnv } from './routes/migrations/migrati
 import { refuseInternalAddressesFromEnv } from '@openmig/shared/reachable-host';
 import { serverFault } from './server-fault.ts';
 import { readingTheBody, unreadableBody } from './unreadable-body.ts';
+import { undecodablePath } from './undecodable-path.ts';
 import { buildIdentity } from '@openmig/core';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 import { runManagedMigrations } from '@openmig/managed';
@@ -318,6 +319,10 @@ app.use('/api/platform-pause', platformPauseRoutes);
 // encoding it does not read) is the caller's 400, 413 or 415, and nothing of
 // it reaches the log (#1490's review, workplan 0093): `unreadable-body.ts`.
 app.use(unreadableBody);
+// A path parameter the router could not decode (`/api/grant/<link>%ZZ`) is the
+// caller's 400, and the link in it stays out of the log (workplan 0108):
+// `undecodable-path.ts`.
+app.use(undecodablePath);
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {

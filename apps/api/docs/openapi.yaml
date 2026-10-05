@@ -69,6 +69,10 @@ info:
     `POST /api/problem-reports` answers these in its own words, as
     `{ error, reason }`. A `500` is a fault on our side, and its reference
     finds it in the server log.
+
+    A path the API cannot decode is the caller's refusal too (workplan
+    0108): a parameter with a malformed escape, such as `%ZZ`, is answered
+    `400` with `path_unreadable`, and no reference.
   license:
     name: Apache-2.0
     url: https://www.apache.org/licenses/LICENSE-2.0
