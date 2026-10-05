@@ -956,6 +956,44 @@ const en = {
     'What is offered changed since this page was shown, so nothing was agreed. This is the offer now.',
   'billing.ceiling.loadFailed': 'Your data ceiling could not be read',
   'billing.ceiling.yesFailed': 'Your yes was not recorded:',
+  // A tier the person picks (workplan 0157 T6; ADR-0014, Amendment 2026-10-04,
+  // evening): each month bills at least it; a raise counts at once and a lower
+  // pick from the next month. A paid pick is ordered with the button terms §6
+  // promises, which says plainly that it carries an obligation to pay.
+  'billing.tierPicked': 'Picked by you: each month bills at least {tier}.',
+  'billing.pick.title': 'Pick a tier',
+  'billing.pick.lead':
+    'Your tier follows what you use. You may pick a higher one, for its pace or its room: each month then bills at least that tier, until you lower it.',
+  'billing.pick.standing': 'You picked {tier}. Each month bills at least {tier}, until you lower it.',
+  'billing.pick.lowered': 'From {date}, each month bills at least {tier}.',
+  'billing.pick.loweredToNone': 'From {date}, what you use decides your tier again.',
+  'billing.pick.alpha':
+    'During the Alpha every tier is free, its pace and its room included, so there is nothing to pick. Picking opens when the Alpha ends.',
+  'billing.pick.monthly': '{monthly} a month',
+  'billing.pick.room': '{paths} migrations at the same time, up to {data}.',
+  'billing.pick.pace':
+    'Pass after pass until the first copy is done, then every hour, or as often as every 15 minutes if you choose.',
+  'billing.pick.button': 'Pick {tier}',
+  'billing.pick.keep': 'Keep {tier}',
+  'billing.pick.top': '{tier} is the highest tier. For more, talk to us.',
+  'billing.pick.confirm':
+    'From today each month bills at least {tier}, {monthly} a month, until you lower it. Lowering counts from the next month.',
+  'billing.pick.confirm.keep': 'Each month keeps billing at least {tier}, {monthly} a month, until you lower it.',
+  // The words of article 8(2) of the Consumer Rights Directive.
+  'billing.pick.order': 'Order with obligation to pay',
+  'billing.pick.notNow': 'Not now',
+  'billing.pick.done': "Done: {tier}'s pace and room are yours now, and each month bills at least {tier}.",
+  'billing.pick.lowerTo': 'Lower to {tier}',
+  'billing.pick.drop': 'Drop the pick',
+  'billing.pick.lower.confirm': 'From {date}, each month bills at least {tier}. Until then, at least {now}.',
+  'billing.pick.lower.confirmNone':
+    'From {date}, what you use decides your tier again. Until then, each month bills at least {now}.',
+  'billing.pick.lower.yes': 'Lower the pick',
+  'billing.pick.lowerDone': 'Done: your pick changes on {date}.',
+  'billing.pick.offerChanged':
+    'What may be picked has changed since this page was shown. Look at the tiers again before picking.',
+  'billing.pick.failed': 'Your pick was not recorded:',
+  'billing.pick.loadFailed': 'The tiers you may pick could not be read',
   'billing.invoices': 'Invoices',
   'billing.noInvoices': 'No invoices yet',
   'billing.invoice': 'Invoice',
@@ -3889,7 +3927,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.tenantId': 'Tenant-ID',
   'wizard.clientId': 'Client-ID (applicatie-ID)',
   'wizard.sourceClientSecret': 'Clientgeheim',
-  'billing.title': 'Facturatie',
+  'billing.title': 'Facturering',
   'billing.subtitle': 'Beheer uw abonnement, verbruik en betalingen',
   'billing.currentUsage': 'Huidig verbruik',
   'billing.storage': 'Opslag',
@@ -3953,6 +3991,40 @@ const nl: Record<keyof typeof en, string> = {
     'Het aanbod is veranderd sinds deze pagina werd getoond, dus er is nergens mee ingestemd. Dit is het aanbod nu.',
   'billing.ceiling.loadFailed': 'Uw datalimiet kon niet worden gelezen',
   'billing.ceiling.yesFailed': 'Uw akkoord is niet vastgelegd:',
+  'billing.tierPicked': 'Door u gekozen: u betaalt elke maand minstens {tier}.',
+  'billing.pick.title': 'Kies een pakket',
+  'billing.pick.lead':
+    'Uw pakket volgt wat u gebruikt. U mag een hoger pakket kiezen, voor het tempo of de ruimte: u betaalt dan elke maand minstens dat pakket, tot u het verlaagt.',
+  'billing.pick.standing': 'U koos {tier}. U betaalt elke maand minstens {tier}, tot u het verlaagt.',
+  'billing.pick.lowered': 'Vanaf {date} betaalt u elke maand minstens {tier}.',
+  'billing.pick.loweredToNone': 'Vanaf {date} bepaalt wat u gebruikt weer uw pakket.',
+  'billing.pick.alpha':
+    'Tijdens de Alpha is elk pakket gratis, tempo en ruimte inbegrepen, dus er valt niets te kiezen. Kiezen kan zodra de Alpha voorbij is.',
+  'billing.pick.monthly': '{monthly} per maand',
+  'billing.pick.room': '{paths} migraties tegelijk, tot {data}.',
+  'billing.pick.pace':
+    'Ronde na ronde tot de eerste kopie klaar is, daarna elk uur, of zo vaak als elke 15 minuten als u dat kiest.',
+  'billing.pick.button': 'Kies {tier}',
+  'billing.pick.keep': '{tier} houden',
+  'billing.pick.top': '{tier} is het hoogste pakket. Wilt u meer, neem dan contact op.',
+  'billing.pick.confirm':
+    'Vanaf vandaag betaalt u elke maand minstens {tier}, {monthly} per maand, tot u het verlaagt. Verlagen telt vanaf de volgende maand.',
+  'billing.pick.confirm.keep': 'U blijft elke maand minstens {tier} betalen, {monthly} per maand, tot u het verlaagt.',
+  // De woorden van artikel 6:230v lid 3 BW.
+  'billing.pick.order': 'Bestelling met betalingsverplichting',
+  'billing.pick.notNow': 'Nu niet',
+  'billing.pick.done': 'Klaar: u heeft nu het tempo en de ruimte van {tier}, en betaalt elke maand minstens {tier}.',
+  'billing.pick.lowerTo': 'Verlagen naar {tier}',
+  'billing.pick.drop': 'Keuze laten vervallen',
+  'billing.pick.lower.confirm': 'Vanaf {date} betaalt u elke maand minstens {tier}. Tot dan minstens {now}.',
+  'billing.pick.lower.confirmNone':
+    'Vanaf {date} bepaalt wat u gebruikt weer uw pakket. Tot dan betaalt u elke maand minstens {now}.',
+  'billing.pick.lower.yes': 'Keuze verlagen',
+  'billing.pick.lowerDone': 'Klaar: uw keuze verandert op {date}.',
+  'billing.pick.offerChanged':
+    'Wat u kunt kiezen is veranderd sinds deze pagina werd getoond. Bekijk de pakketten opnieuw voordat u kiest.',
+  'billing.pick.failed': 'Uw keuze is niet vastgelegd:',
+  'billing.pick.loadFailed': 'De pakketten die u kunt kiezen konden niet worden gelezen',
   'billing.invoices': 'Facturen',
   'billing.noInvoices': 'Nog geen facturen',
   'billing.invoice': 'Factuur',
@@ -4671,7 +4743,7 @@ const nl: Record<keyof typeof en, string> = {
   'billing.paymentMethodsLoadFailed': 'De betaalmethoden konden niet worden geladen.',
   'billing.default': 'Standaard',
   'billing.adminOnly':
-    'Facturatie is alleen voor eigenaren en beheerders; vraag een van hen naar gebruiks- of factuurgegevens.',
+    'Facturering is alleen voor eigenaren en beheerders; vraag een van hen naar gebruiks- of factuurgegevens.',
   'billing.invoicesLoadFailed': 'De facturen konden niet worden geladen.',
   'billing.party.title': 'Factuurgegevens',
   'billing.party.intro': 'Aan wie facturen worden gericht.',

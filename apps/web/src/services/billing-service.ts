@@ -73,6 +73,8 @@ export const UsageResponseSchema = z.object({
   billed: z.object({
     tier: TierSchema,
     beyond: z.array(z.enum(['bands', 'paths', 'data'])),
+    /** True when a tier the person picked decides it, above what was used (0157 T6). */
+    picked: z.boolean().optional(),
   }),
   /** The data ceiling the data counts against, and the bands bought for it. */
   ceilingGb: z.number(),
@@ -226,6 +228,41 @@ export const PathsAtStartSchema = z.object({
 
 export type PathsAtStart = z.infer<typeof PathsAtStartSchema>;
 
+/** A tier as a pick names it: its room, and its prices in whole euros. */
+const PickTierSchema = z.object({
+  id: TierSchema.shape.id,
+  name: z.string(),
+  paths: z.number(),
+  dataGb: z.number(),
+  monthlyEur: z.number(),
+  annualEur: z.number(),
+});
+
+/**
+ * GET /billing/pick (workplan 0157 T6): the tiers a person may pick, at once
+ * (`raise`) or from the next month (`lower`), and the pick standing now and
+ * for the next month. `holds` is false during the alpha: no pick is taken.
+ */
+export const PickSchema = z.object({
+  holds: z.boolean(),
+  billed: PickTierSchema,
+  picked: z.object({
+    now: PickTierSchema.nullable(),
+    next: PickTierSchema.nullable(),
+    /** When the next month begins, UTC: when a lower pick counts. */
+    nextFrom: z.string(),
+  }),
+  raise: z.array(PickTierSchema),
+  lower: z.array(PickTierSchema),
+});
+
+/** What POST /billing/pick answers: when the pick counts, and what may be picked now. */
+export const PickedSchema = PickSchema.extend({ from: z.enum(['now', 'next_month']) });
+
+export type PickTier = z.infer<typeof PickTierSchema>;
+export type PickOffer = z.infer<typeof PickSchema>;
+export type Picked = z.infer<typeof PickedSchema>;
+
 /** The yes the page sends back: the offer it showed, tier and price. */
 export interface CeilingYes {
   choice: 'move_up' | 'top_up';
@@ -345,6 +382,18 @@ export const billingApi = {
   /** Say yes, at *Start*, to the tier shown at the monthly shown. A 409 carries a `reason`. Owner/admin. */
   sayYesToPaths: async (yes: { tierId: string; priceEur: number }): Promise<void> => {
     await apiClient.post('/billing/paths/yes', yes);
+  },
+
+  /** The tiers a person may pick, and the pick that stands (0157 T6). */
+  getPick: async (): Promise<PickOffer> => {
+    const response = await apiClient.get('/billing/pick');
+    return PickSchema.parse(response.data);
+  },
+
+  /** Pick a tier, at the monthly price the page showed. Owner/admin only server-side. */
+  pickTier: async (pick: { tierId: string; priceEur: number }): Promise<Picked> => {
+    const response = await apiClient.post('/billing/pick', pick);
+    return PickedSchema.parse(response.data);
   },
 
   // List payment methods

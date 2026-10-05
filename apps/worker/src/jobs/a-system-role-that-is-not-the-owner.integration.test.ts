@@ -246,6 +246,9 @@ const EXPECTED: Record<string, readonly string[]> = {
   bytes_moved: PURGED_ONLY('alpha_bytes,bytes,tenant_id'),
   // Each yes at the data ceiling (0109 T6), granted in managed 0037.
   data_allowance: PURGED_ONLY('band_gb,consented_at,kind,tenant_id,tier_id'),
+  // Each tier a person picked (workplan 0157 T6, managed 0044): the tick reads
+  // which tier and when, for what the month bills; never who picked or the price.
+  tier_pick: PURGED_ONLY('picked_at,tenant_id,tier_id'),
   grant_link_allowance: PURGED_ONLY(),
   payment_method: PURGED_ONLY(),
   usage_metric: PURGED_ONLY(),

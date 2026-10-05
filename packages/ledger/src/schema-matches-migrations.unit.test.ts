@@ -195,6 +195,16 @@ const NARROWER_ON_PURPOSE: Record<string, { privileges: string[]; why: string }>
       'grants. A top-up is a new row that raises the ceiling; nothing is rewound. The one ' +
       'deleter is the erasure purge, through the system role (PURGED_TABLES).',
   },
+  tier_pick: {
+    privileges: ['INSERT', 'SELECT'],
+    why:
+      'Each tier a person picked (workplan 0157 T6, managed migration 0044): the least a month ' +
+      'bills, chosen by the customer, with the price they were shown. A pick that could be ' +
+      'edited afterwards agrees to nothing, so the request path appends and reads, and UPDATE ' +
+      'and DELETE are REVOKED from the default the baseline grants. A lower pick is a new row ' +
+      'that counts from the next month; nothing is rewound. The one deleter is the erasure ' +
+      'purge, through the system role (PURGED_TABLES).',
+  },
   platform_operator: {
     privileges: ['SELECT'],
     why:

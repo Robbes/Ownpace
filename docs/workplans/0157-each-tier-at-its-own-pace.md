@@ -4,6 +4,27 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-10-05, T6 built: a person picks a tier.** The Billing page has a card, *Pick a tier*.
+It lists every tier above the one this month bills, each with its monthly price, its room and
+its pace. A pick asks once more with the money said: *"From today each month bills at least
+Small, €5.00 a month, until you lower it. Lowering counts from the next month."* Only the order
+button sends it: *Order with obligation to pay* (*Bestelling met betalingsverplichting*), the
+button terms §6 promises.
+- **The bill and the pace.** A month bills at least the pick standing when it began, and every
+  pick made during it (`pickedFloorOf`, `tier-pick.ts`). So a raise counts at once, the pace
+  following it, and a lower pick counts from the next month. Free is no floor.
+- **The records.** A pick is a row in managed 0044's append-only `tier_pick`. A pick above the
+  agreed tier also records a yes in `data_allowance`, with `axis` `pick`, so its room comes
+  with it.
+- **What the page says.** The tier panel says *"Picked by you: each month bills at least
+  Small."*. A pending lower pick is said with its day, and the tier picked now is offered again,
+  to keep it.
+- **During the alpha** the card lists the tiers and takes no pick, as no yes is taken. Every
+  tier's pace and room are a tester's already, and a pick would bind them past the alpha to a
+  price they never ordered.
+
+T2 to T7 are built. What is left is outside this plan: billing a tier, which is 0109 T5.
+
 **2026-10-05, T7 whole: each step is said.** A migration on *Automatic* that steps down is said
 by a morning mail, to the organisation's active owners and admins, in its language:
 *"Everything is in step, so we now look for changes less often"*. The mail names each migration
@@ -69,7 +90,7 @@ and it waits for the owner.
 | T3 Small kinds first, files last, across a Free organisation's migrations | ✅ **Built 2026-10-05** | §3. Within a pass `PASS_ORDER` already does it; between one Free organisation's migrations due at once, one that copies only files (a Takeout's photos included) takes its later turns (`inOrganisationOrder`). |
 | T4 The doors know the pace, and paid looks every hour | ✅ **Built: the hourly default 2026-10-04 (since T7, *Automatic*), the doors 2026-10-05** | §4. The API refuses a schedule faster than the tier allows (`free_pace_schedule`), the chooser offers what the tier allows and says why, *Start* on a paused migration waits for the pace, and a fallen tier's faster schedule is shown as running once a day. |
 | T5 The app says the pace | ✅ **Built 2026-10-05** | §5. *"Free: one pass a day, up to 50 minutes. Next pass: …"* on the migration's page, one line for all of a person's migrations on theirs, each with the way to a higher tier, and a sentence in the first-copy email. The time left already counts in days at Free's pace. |
-| T6 Picking a tier | 📋 **Proposed** | §6. The Billing page offers every tier above the derived one; a pick is the person's yes, the month bills at least the picked tier, and the downgrade stops there. |
+| T6 Picking a tier | ✅ **Built 2026-10-05** | §6. The Billing page offers every tier above the one this month bills, each with its price, room and pace, behind the order button. A pick is the person's yes, the month bills at least the picked tier, and the downgrade stops there; a lower pick counts from the next month. None is taken during the alpha. |
 | T7 The default slows once everything is in step | ✅ **Built 2026-10-05: the cadence, then the notices** | §7. Hourly for 14 days after the first copy, then every 6 hours, then daily after 30 days; a schedule the person chose is never changed. The owner: *"yes"*. *Automatic*, the tick's cadence for no schedule, with a visit bringing back the hour; each step said by a morning mail, once, and on the migration's page by the visit that ends it. |
 
 ## The facts this plan stands on
@@ -227,6 +248,34 @@ it works out the least tier the answers need.
 - **Outside the alpha** a pick of a paid tier passes the order button that says it carries an
   obligation to pay (terms precondition C, question 28). During the alpha every tier is free
   (the owner, 2026-10-04), so a pick costs nothing and needs no order button.
+
+**As built (2026-10-05).**
+- **When a pick counts.** A month bills at least the pick standing when it began, and every pick
+  made during it. That one rule makes a raise count at once and a lower pick from the next month,
+  and a month that saw a higher pick bills it even if it was lowered since. Free is the pick of no
+  floor. Months are UTC, as the peak's are.
+- **The records.**
+  - Managed 0044's `tier_pick`: one append-only row per pick, with the monthly price shown, who
+    picked and when. The tick reads which tier was picked and when, as the system role.
+  - A pick above the agreed tier is also a yes in `data_allowance`, with `axis` `pick`, in the
+    same transaction, so the agreed tier and its room rise with it.
+  - A lower pick takes no yes back: what was agreed stays agreed.
+- **What is offered** (`pickOffers`):
+  - every tier above the one this month bills;
+  - while a lower pick waits, the tier picked now, to keep it;
+  - lower: every tier below the pick standing for the next month, down to Free (*Drop the pick*).
+  - The page sends back the tier and price it showed, and is refused with what is offered now
+    when either changed (`offer_changed`).
+- **The words.** The order button says *Order with obligation to pay* (*Bestelling met
+  betalingsverplichting*), from article 8(2) of the Consumer Rights Directive and 6:230v BW. The
+  question above it says the tier, its monthly price, and that lowering counts from the next
+  month. Lowering orders nothing, so its button is *Lower the pick*.
+- **During the alpha no pick is taken**, which refines the line above. Every tier's pace and room
+  are a tester's already, so a pick would change nothing a tester sees, and would bind them,
+  once the alpha ended, to a price they never ordered. The card lists the tiers with their prices
+  and says so, as the data ceiling's card does. Picking opens with the stage (`docs/ending-the-alpha.md`).
+- **Not built here:** the invoice that bills the floor (0109 T5), and the order's confirming email
+  (terms precondition C), both before the first paid tier.
 
 ## 7. T7 — the default slows once everything is in step (decided 2026-10-05)
 
