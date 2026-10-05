@@ -25,8 +25,12 @@
  *    fixed host, and leads to the site's home page in the reader's language,
  *    which the site build writes under `/nl/` for Dutch.
  *
- * NOT held: the rest of the app's colours. They stay until 0153 reviews the
- * palette with its layout (0152 T9 (b)).
+ * 5. **The whole app on the site's paper and teal** (the owner, 2026-10-05:
+ *    *"Yes, paper + teal"*). Tailwind's greys in `index.css` are the site's
+ *    paper, panel, line and ink, and its blue runs from the site's mint to its
+ *    teal, so every screen takes the look without being rewritten. The app is
+ *    light, always, as the site is, and a copying phase is sky, never the
+ *    teal of a button.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -90,6 +94,68 @@ describe('the app’s front door takes the site’s look (0152 T9)', () => {
     expect(code, `${page} does not draw the site’s mark`).toMatch(/<SiteMark\b/);
     expect(code, `${page} has no way back to the site`).toMatch(/<BackToSite\s*\/>/);
     expect(code.match(/\b[a-z:-]*blue-\d{2,3}\b/g) ?? [], `${page} still draws in the app’s blue`).toEqual([]);
+  });
+});
+
+/** A colour the site's stylesheet sets, `--name: #…;` in `site/build.mjs`'s CSS. */
+function siteToken(name: string): string {
+  const m = new RegExp(`--${name}: (#[0-9A-Fa-f]{6});`).exec(read('site/build.mjs'));
+  expect(m, `site/build.mjs no longer sets --${name}`).not.toBeNull();
+  return m![1]!.toUpperCase();
+}
+
+describe('the whole app takes the site’s paper and teal (the owner, 2026-10-05)', () => {
+  it('its greys are the site’s paper, panel, line and ink', () => {
+    expect(webColour('--color-gray-50'), 'the page is not the site’s paper').toBe(siteColour('PAPER'));
+    expect(webColour('--color-gray-100'), 'a panel is not the site’s').toBe(siteToken('panel'));
+    expect(webColour('--color-gray-200'), 'a line is not the site’s').toBe(siteToken('line'));
+    expect(webColour('--color-gray-900'), 'the text is not the site’s ink').toBe(siteToken('ink'));
+  });
+
+  it('its blue runs from the site’s mint to its teal', () => {
+    expect(webColour('--color-blue-300'), 'blue-300 is not the site’s mint').toBe(siteColour('MINT'));
+    expect(webColour('--color-blue-700'), 'blue-700 is not the site’s teal').toBe(siteColour('TEAL'));
+  });
+
+  it('is light, always, as the site is', () => {
+    const css = read('apps/web/src/index.css');
+    expect(css).toMatch(/:root \{\s*color-scheme: light;/);
+    expect(css).not.toMatch(/prefers-color-scheme/);
+  });
+
+  it('sets its muted text, its buttons and its links at WCAG AA, on white, the paper and a panel', () => {
+    const luminance = (hex: string): number => {
+      const [r, g, b] = [1, 3, 5]
+        .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+        .map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+    };
+    const contrast = (a: string, b: string): number => {
+      const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+      return (hi! + 0.05) / (lo! + 0.05);
+    };
+    const [paper, panel, muted, button, link] = [
+      '--color-gray-50',
+      '--color-gray-100',
+      '--color-gray-500',
+      '--color-blue-600',
+      '--color-blue-700',
+    ].map(webColour);
+    for (const [fg, on, what] of [
+      [muted, '#FFFFFF', 'muted text on a card'],
+      [muted, paper, 'muted text on the paper'],
+      [muted, panel, 'muted text on a panel'],
+      ['#FFFFFF', button, "a button's white on its teal"],
+      [link, paper, 'a link on the paper'],
+      [link, '#FFFFFF', 'a link on a card'],
+    ] as const) {
+      expect(contrast(fg!, on!), `${what}: ${fg} on ${on}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('draws a copying phase in sky, never in the teal of a button', () => {
+    const chip = read('apps/web/src/components/StateChip.tsx');
+    expect(chip).toMatch(/blue: 'bg-sky-100 text-sky-800'/);
   });
 });
 

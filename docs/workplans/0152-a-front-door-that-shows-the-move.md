@@ -19,8 +19,8 @@ green (`#0b1716`).
   browser in dark mode draws its controls light too. `theme-color` is the paper.
 - **The app follows** in its own pull request: the owner, asked whether the app would look calmer
   in C too, answered *"Yes, paper + teal"*. That means a paper page, white cards, warm greys,
-  the site's teal for buttons and links, and stage labels that keep their own colours (0153
-  reviews the app's palette with its layout, 0152 T9 (b)).
+  the site's teal for buttons and links, and stage labels that keep their own colours (0153's
+  Status, 0152 T9 (b)).
 
 **2026-10-05, later: the withdrawal button's words are decided** (T6 (f); the owner, 2026-10-05,
 asked which label to use: *"Ok. As you would suggest."*). The suggestion is the words of article
@@ -1162,8 +1162,10 @@ them. A `--public` build already refuses the placeholders, so this is wording on
 back to the site, *"← ownpace.eu"*, built from the deployment's own site address. It is never a
 fixed host.
 
-(b) **The rest of the app** keeps its colours until 0153, which reviews the palette with its
-layout. The identity provider's pages stay 0135 T6.
+(b) **The rest of the app** kept its colours until 0153 reviewed the palette with its layout. On
+2026-10-05 the owner chose for it: the site's warm paper, and teal for the app's blue (*"Yes,
+paper + teal"*). It is built centrally in `apps/web/src/index.css` (0153's Status). The identity
+provider's pages stay 0135 T6.
 
 ## 4. Order
 
