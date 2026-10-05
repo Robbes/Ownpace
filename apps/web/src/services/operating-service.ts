@@ -956,7 +956,9 @@ export async function requestFinalPass(mappingId: string): Promise<'finished' | 
     await runPass(mappingId);
     return 'finished';
   }
-  await client.post(`${mappingPath(mappingId)}/sync`, { type: 'delta' });
+  // `final`: the pass before the switch, which Free's pace never holds back
+  // (`free-pace.ts` in the API, workplan 0157 T2).
+  await client.post(`${mappingPath(mappingId)}/sync`, { type: 'delta', final: true });
   return 'queued';
 }
 

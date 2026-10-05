@@ -20,6 +20,8 @@ reading the stage fails that guard until it has a line here.
 |---|---|---|---|
 | The API's billing routes: `apps/api/src/routes/billing/index.ts` | `holdsAtCeiling(process.env.OWNPACE_STAGE)` | No yes is taken (409 `nothing_charged_during_the_alpha`). `holds: false`. The Billing panel is titled *What this puts you on* and names what was used. | A yes is taken at the data ceiling and at *Start*, and recorded with its price (`data_allowance`). The panel is titled *What this month bills* and names what the month bills: what it used, never above the agreed tier. |
 | The API's start doors: `apps/api/src/routes/migrations/path-lifecycle-wiring.ts` | the same `holdsAtCeiling` | Nothing is refused for running too many at the same time. | A start that takes slots past the agreed tier's paths is refused, 409 `paths_need_a_yes`, and *Start* asks first with both ways on (ADR-0014, 2026-10-04). |
+| The API's *Sync now*: `apps/api/src/routes/migrations/free-pace.ts` | the same `holdsAtCeiling` | *Sync now* is held to no pace, on any tier. | On Free, a press within a day of the migration's last pass is refused, 409 `free_pace`, with when the next pass starts. The final pass *Finish* asks for is never refused (workplan 0157 T2). |
+| The sync tick: `apps/worker/src/jobs/managed-sync-tick.ts` | `holdsAtCeiling(process.env.OWNPACE_STAGE)`, in the **task environment**, as the sync tasks read it | Every tier runs at a paid tier's pace: the first copy back to back, then the migration's schedule. | A migration on Free runs one pass a day, 24 hours after its last pass started, its first copy included, and a Free organisation's files-only migrations take its later turns (workplan 0157 T2, T3). |
 | The API's alpha rule: `apps/api/src/access-notify.ts` | `alphaFrom(env)`, read by `conditions-not-accepted.ts`, `config-guards.ts` and the access-granted mail | Every member is asked to accept the Alpha conditions, the privacy policy and the terms before any access is stored, once no text is a draft (0139 T3). The access-granted mail says it is the alpha. A blank `BACKUP_RETENTION_DAYS` stops the API from starting. | Nobody is asked to accept anything. The mail does not mention the alpha. A blank `BACKUP_RETENTION_DAYS` is a warning in production (`stand-up-live.sh` still refuses one on live). |
 | The sync tasks: `apps/worker/src/jobs/run-delta-sync.ts` | `process.env.OWNPACE_STAGE`, in the **task environment**, never compose's | Nothing waits at the data ceiling. Every first copy is marked as the alpha's (`bytes_moved.alpha_bytes`, managed 0040) and never counts. | New first copies wait at the ceiling until a yes (0109 T6). First copies count from here. |
 | The web bundle: `apps/web/src/components/AlphaNote.tsx` | `import.meta.env.VITE_OWNPACE_STAGE`, **baked in at build** through the build arg in `apps/web/Dockerfile` | The Alpha note on every page, the sign-in page and the request page. The acceptance screen on load. The tester-guide link. The Billing page's alpha line, and its invoice-details card saying none are needed. | None of these. The invoice-details card asks for the details unless the tier is Free. |
@@ -169,7 +171,11 @@ Support should know before the day:
   - A start that would run more at the same time than the tier runs asks first, with the price,
     side by side with starting what fits now.
 - **Every organisation is on Free until it says yes.** See *Before*, step 3.
+- **Free runs one pass a day.** Each migration on Free copies once a day, 24 hours after its
+  last pass started, its first copy included, and *Sync now* waits for the day; the final pass
+  before the switch never waits. A paid tier keeps its schedule (workplan 0157 T2).
 
 Decisions behind this page: ADR-0014 (*Amendment 2026-10-03*, "Not during the alpha", the path
 axis and "The data, in total, and the alpha's"), workplan 0109 (T6), workplan 0131 (the alpha and
-who is let in), workplan 0139 (the texts), workplan 0086 (whether the paid service asks).
+who is let in), workplan 0139 (the texts), workplan 0086 (whether the paid service asks),
+workplan 0157 (each tier's pace).

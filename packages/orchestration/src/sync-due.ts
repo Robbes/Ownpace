@@ -73,11 +73,14 @@ function offsetFor(mappingId: string): number {
 }
 
 /**
- * WHAT THE TICK KNOWS BESIDE THE SCHEDULE (workplan 0156 T5).
+ * WHAT THE TICK KNOWS BESIDE THE SCHEDULE (workplan 0156 T5, 0157 T2).
  *
- * One fact today, read by the tick's own statement (`ACTIVE_MAPPINGS_SQL`'s
- * `first_copy_unfinished`, `apps/worker/src/jobs/managed-sync-tick.ts`), which
- * is where the rule for it is written down and tested against real rows.
+ * Read by the tick (`apps/worker/src/jobs/managed-sync-tick.ts`): the first from
+ * its own statement (`ACTIVE_MAPPINGS_SQL`'s `first_copy_unfinished`), which is
+ * where the rule for it is written down and tested against real rows; the
+ * second from the organisation's tier (`leastMinutesBetweenPasses` in
+ * `@openmig/managed`'s `pace.ts`). Plain facts, so this module never learns
+ * what a tier is (AGENTS.md hard rule 5).
  */
 export interface DueFacts {
   /**
@@ -87,6 +90,13 @@ export interface DueFacts {
    * (`completedOnce`, `stage.ts`: *copying* until it is set).
    */
   readonly firstCopyUnfinished: boolean;
+  /**
+   * The least minutes between two passes, from the last one's start, whatever
+   * the schedule and also while the first copy is unfinished (workplan 0157 T2:
+   * 1,440 on Free, one pass a day). Absent or 0: no floor beyond the
+   * schedule's and `SCHEDULE_FLOOR_MINUTES`.
+   */
+  readonly leastMinutesBetweenPasses?: number;
 }
 
 /** A migration whose every data type has completed a pass: the schedule decides. */
@@ -114,6 +124,12 @@ const STEADY: DueFacts = { firstCopyUnfinished: false };
  * every data type has completed a pass the schedule applies exactly as before:
  * daily at 02:00 then means one pass a day for what is new or changed.
  *
+ * A TIER'S PACE COMES FIRST (workplan 0157 T2). `leastMinutesBetweenPasses`
+ * holds every pass back until that many minutes after the last one started,
+ * the first copy's too: 1,440 on Free, so one pass a day. It can only make a
+ * migration later, never sooner, and a migration that never ran is still due
+ * at once.
+ *
  * What this does NOT decide, and so still holds: a pass already running skips
  * the migration in the tick (its `running` column), so two passes never run at
  * once; a migration failing for a cause nobody but a person can clear is held
@@ -135,12 +151,19 @@ export function isSyncDue(
 ): boolean {
   if (lastStartedAt === null) return true;
   const expression = schedule ?? DEFAULT_SYNC_SCHEDULE;
+  // Read first, so a schedule croner cannot read throws whatever the facts say.
+  const shortest = shortestGapMinutes(expression);
+  const sinceLast = now.getTime() - lastStartedAt.getTime();
+  // A tier's own pace (0157 T2): nothing runs sooner than its floor after the
+  // last pass started, the first copy's passes included. Only ever later than
+  // the rules below would run it, never sooner.
+  if (sinceLast < (facts.leastMinutesBetweenPasses ?? 0) * MINUTE_MS) return false;
   // A stored schedule faster than the floor (one written before the doors
   // refused it, 0143 T2b) runs at the floor: the next pass waits the floor
   // after the last one started. So does every schedule while the first copy
   // is unfinished (0156 T5). Any other schedule is read as it was written.
-  if (shortestGapMinutes(expression) < SCHEDULE_FLOOR_MINUTES || facts.firstCopyUnfinished) {
-    return now.getTime() - lastStartedAt.getTime() >= SCHEDULE_FLOOR_MINUTES * MINUTE_MS;
+  if (shortest < SCHEDULE_FLOOR_MINUTES || facts.firstCopyUnfinished) {
+    return sinceLast >= SCHEDULE_FLOOR_MINUTES * MINUTE_MS;
   }
   const next = new Cron(expression).nextRun(lastStartedAt);
   return next !== null && next.getTime() <= now.getTime();

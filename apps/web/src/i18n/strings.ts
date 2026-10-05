@@ -953,6 +953,10 @@ const en = {
   'mappings.th.lastSync': 'Last Sync',
   'mappings.th.actions': 'Actions',
   'mappings.action.triggerSync': 'Trigger sync',
+  // Free's pace held a press (workplan 0157 T2, `free_pace`): one pass a day,
+  // and when the next one starts. The server's `message` is the English.
+  'mappings.sync.freePace':
+    'On Free a migration runs one pass a day. Its next pass starts at {time}. A higher tier looks for changes as often as every 15 minutes.',
   'mappings.action.pause': 'Pause',
   'hub.connections': 'From {source} to {target}',
   // Where the copies land (0153 open question 5, item 4).
@@ -3918,6 +3922,8 @@ const nl: Record<keyof typeof en, string> = {
   'mappings.th.lastSync': 'Laatste synchronisatie',
   'mappings.th.actions': 'Acties',
   'mappings.action.triggerSync': 'Synchroniseer nu',
+  'mappings.sync.freePace':
+    'Op Free loopt een migratie één ronde per dag. De volgende ronde begint op {time}. Een hoger pakket kijkt zo vaak als elke 15 minuten naar wijzigingen.',
   'mappings.action.pause': 'Pauzeren',
   'hub.connections': 'Van {source} naar {target}',
   'hub.lands.folder': 'De kopieën komen in de map {folder} van de bestemming.',

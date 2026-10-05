@@ -2,7 +2,17 @@
 
 > **In one line:** Free runs each migration at one pass a day, the first right after the preflight, small kinds first and files last; paid tiers look hourly by default, at most every 15 minutes; and a person may pick a higher tier, which the month then bills at least.
 
-## Status — 2026-10-04 (update this block at the end of every session)
+## Status — 2026-10-05 (update this block at the end of every session)
+
+**2026-10-05: T2 and T3 built; the owner says go, and yes to T7.** The owner answered *"Go"*
+to building T2 to T6, and to T7: *"sync slow down once a migration is in step: yes"* (§7 as
+proposed). Built in one pull request: the tick reads the tier each organisation's month bills
+(`billedTierNow`, `packages/managed/src/pace.ts`, through managed 0041's column grants to the
+system role) and hands `isSyncDue` the least minutes between passes, 1,440 on Free outside the
+alpha; *Sync now* inside the day on Free is refused with when the next pass starts, in the
+reader's language and clock, never the final pass *Finish* asks for; and on Free an
+organisation's files-only migrations take its later turns. Until T6 the billed tier is what was
+used, never above the agreed tier. Next: T4, T5, T6, T7, one pull request each.
 
 **2026-10-04, evening: opened** from the owner's three messages of that day, which ADR-0014's
 *Amendment 2026-10-04, evening* quotes. T1 is built in the pull request that opens this plan,
@@ -14,12 +24,12 @@ and it waits for the owner.
 | Task | Status | Notes |
 |---|---|---|
 | T1 The tier table | ✅ **Built 2026-10-04** | §1. Free 6 and 150 GB, Small 6 and 500 GB, Medium 12 and 1.5 TB, Large 24 and 6 TB, Extra large 50 and 15 TB: ADR-0014's table, `site/prices.mjs`, `MANAGED_TIERS`, the site's tier texts in both languages, and terms §6. |
-| T2 Free at one pass a day | 📋 **Proposed** | §2. The managed tick makes a Free migration due 24 hours after its last pass started, its first copy included; a paid one keeps 0156 T5's first copy back to back. |
-| T3 Small kinds first, files last, across a Free organisation's migrations | 📋 **Proposed** | §3. Within a pass `PASS_ORDER` already does it; between migrations due the same day, one that carries only files, or an export, goes last. |
+| T2 Free at one pass a day | ✅ **Built 2026-10-05** | §2. The managed tick makes a Free migration due 24 hours after its last pass started, its first copy included, outside the alpha; a paid one keeps 0156 T5's first copy back to back. *Sync now* on Free waits for the day too, except the final pass. |
+| T3 Small kinds first, files last, across a Free organisation's migrations | ✅ **Built 2026-10-05** | §3. Within a pass `PASS_ORDER` already does it; between one Free organisation's migrations due at once, one that copies only files (a Takeout's photos included) takes its later turns (`inOrganisationOrder`). |
 | T4 The doors know the pace, and paid looks every hour | 🟡 **Hourly default built 2026-10-04; the doors proposed** | §4. A migration *Start* makes looks every hour (`StartMigration.tsx`'s `HOURLY`, *How often to look for changes*'s first preset). The API refusing a schedule faster than a tier allows, and the chooser offering what the tier allows, wait for T2's tier fact. |
 | T5 The app says the pace | 📋 **Proposed** | §5. *"One pass a day, up to 50 minutes. Next pass at 07:12."*, with how many days the first copy needs, on the migration's and the person's pages. |
 | T6 Picking a tier | 📋 **Proposed** | §6. The Billing page offers every tier above the derived one; a pick is the person's yes, the month bills at least the picked tier, and the downgrade stops there. |
-| T7 The default slows once everything is in step | ⏳ **Waits for the owner** (proposed, not decided) | §7. Hourly for 14 days after the first copy, then every 6 hours, then daily after 30 days; a schedule the person chose is never changed. |
+| T7 The default slows once everything is in step | 📋 **Decided 2026-10-05; to build** | §7. Hourly for 14 days after the first copy, then every 6 hours, then daily after 30 days; a schedule the person chose is never changed. The owner: *"yes"*. |
 
 ## The facts this plan stands on
 
@@ -70,8 +80,17 @@ it works out the least tier the answers need.
 - **The tier it reads:** the tier the month bills (T6), so a pick takes effect at once. The
   tick runs as `ownpace_system`, which reads only `tenant_id` from `data_allowance` (managed
   0037): its tier needs a grant, in a managed migration.
+  **Built:** `billedTierNow` reads it as the Billing page does, what was used never above the
+  agreed tier, the alpha's data left out (T6 adds the pick); managed 0041 grants the system role
+  the columns it needs of `data_allowance`, `bytes_moved` and `occupancy_peak`, and nothing else.
+  The tick reads it only outside the alpha, only for an organisation with a pass started inside
+  the day or more than one migration due (T3), and a read that fails runs that organisation at a paid tier's pace for the tick, said
+  in the log. The summary counts the migrations held by the pace alone (`heldByPace`).
 - ***Sync now* on Free:** it starts a pass without the tick, as now. Proposed: on Free it is
   refused while a pass ran in the last 24 hours, with the time of the next one, so the pace holds.
+  **Built:** refused with `409 free_pace` and `nextPassAt`, said in the reader's language and
+  clock on the Migrations page (`free-pace.ts` in the API). Never the final pass before the
+  switch, which *Finish* asks for with `final`: that is the moment the newest copy matters.
 - **Not during the alpha** (the owner, 2026-10-04: *"No, alpha is free for everything that
   testers want to do. So also the higher tiers are free for them."*): while the stage is `alpha`,
   a Free migration runs at a paid tier's pace, as the data ceiling is not held then either
@@ -88,6 +107,10 @@ it works out the least tier the answers need.
   matters when more than two of one organisation's migrations are due at once.
 - **On the first day** *Start* runs every migration at once; the order holds from the second
   pass on.
+- **Built:** `inOrganisationOrder` in the tick, on Free outside the alpha. The places the
+  longest-waiting order gives an organisation stay its own; which of its migrations takes them
+  changes, files-only last, so no other organisation waits longer. An export of photos copies
+  files and goes last; an export of mail is mail, and goes with the mail.
 - **The appliance** is not tiered and keeps its own lanes (`planDomainLanes`).
 
 ## 4. T4 — the doors know the pace, and paid looks every hour
@@ -103,6 +126,9 @@ it works out the least tier the answers need.
   `defaultScheduleFor` gives the 15-minute default.
 - **A tier that falls** (a paid organisation back on Free): a chosen schedule faster than daily
   runs daily, and the page says so. Nothing is rewritten.
+- ***Start* on a paused migration that ran inside the day** (found building T2): *Start*
+  activates it and runs a pass at once, so on Free pause and *Start* would pass the day.
+  Proposed: it activates, and the pass waits for the pace, with the time it starts.
 
 ## 5. T5 — the app says the pace
 
@@ -126,7 +152,7 @@ it works out the least tier the answers need.
   obligation to pay (terms precondition C, question 28). During the alpha every tier is free
   (the owner, 2026-10-04), so a pick costs nothing and needs no order button.
 
-## 7. T7 — the default slows once everything is in step (proposed, not decided)
+## 7. T7 — the default slows once everything is in step (decided 2026-10-05)
 
 The owner: *"Perhaps we need to later think of lowering the default given frequency when all was
 moved, but someone want to keep the snyc. Reason on that, also in terms of load for our service
@@ -155,3 +181,6 @@ from then on instead of 720, about 96% fewer.
 
 **What it needs:** the time the first copy finished (`migration_status.completed_at`, already
 kept) and the person's last visit, which the app does not record yet.
+
+**The owner, 2026-10-05:** *"sync slow down once a migration is in step: yes"*: the proposal
+above, as written.
