@@ -1,6 +1,6 @@
 # CalDAV, CardDAV en WebDAV — agenda's, contacten en bestanden op een server
 
-Drie kaarten voor drie soorten gegevens, met dezelfde velden: **CalDAV** voor agenda's en takenlijsten, **CardDAV** voor contacten en **WebDAV** voor bestanden. Veel servers bieden alle drie aan onder één account. Elke kaart draagt alleen haar eigen soort, dus elke soort gaat naar haar eigen kaart, en **Migratie starten** maakt voor elk een migratie. Is uw server een Nextcloud, dan combineert de kaart **Nextcloud** de drie in één account: zie [de Nextcloud-handleiding](nextcloud.md). Deze dienst meldt zich aan met een gebruikersnaam en een wachtwoord; er is geen knop om toestemming te geven.
+Drie kaarten voor drie soorten gegevens, met dezelfde velden: **CalDAV** voor agenda's en takenlijsten, **CardDAV** voor contacten en **WebDAV** voor bestanden. Veel servers bieden alle drie aan onder één account. Elke kaart omvat alleen haar eigen soort, dus elke soort gaat naar haar eigen kaart, en **Migratie starten** maakt voor elk een migratie. Is uw server een Nextcloud, dan combineert de kaart **Nextcloud** de drie in één account: zie [de Nextcloud-handleiding](nextcloud.md). Deze dienst meldt zich aan met een gebruikersnaam en een wachtwoord; er is geen knop om toestemming te geven.
 
 ## Wat u nodig hebt {#before}
 
@@ -10,7 +10,7 @@ Drie kaarten voor drie soorten gegevens, met dezelfde velden: **CalDAV** voor ag
 
 ## Koppelen {#connect}
 
-Bij **Waar gaat het naartoe?** heeft elke soort gegevens een eigen rij. Kies in de lijst van de rij, onder **Een nieuw account**, **CalDAV toevoegen** voor agenda's en taken, **CardDAV toevoegen** voor contacten of **WebDAV toevoegen** voor bestanden; het formulier van de kaart opent onder de rijen. De drie kaarten vragen dezelfde velden; [De velden](#fields) hieronder zegt wat in elk vak hoort. Druk daarna op **Aanmelding controleren**; daarmee wordt het account getest. De test schrijft niets: hij meldt zich aan en toont wat het account draagt (**Draagt:**) en wat hij vond (**Gevonden:**).
+Bij **Waar gaat het naartoe?** heeft elke soort gegevens een eigen rij. Kies in de lijst van de rij, onder **Een nieuw account**, **CalDAV toevoegen** voor agenda's en taken, **CardDAV toevoegen** voor contacten of **WebDAV toevoegen** voor bestanden; het formulier van de kaart opent onder de rijen. De drie kaarten vragen dezelfde velden; [De velden](#fields) hieronder zegt wat in elk vak hoort. Druk daarna op **Aanmelding controleren**; daarmee wordt het account getest. De test schrijft niets: hij meldt zich aan en toont wat het account omvat (**Omvat:**) en wat hij vond (**Gevonden:**).
 
 ### CalDAV {#caldav}
 

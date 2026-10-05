@@ -209,7 +209,7 @@ const NAMED: ReadonlyArray<{
         // The guide leaves the app password to the reader, and names what an
         // account saved without is missing.
         'Biedt Soverin u een app-wachtwoord, dan kan dat in hetzelfde vak',
-        'account dat zonder Mailserver is bewaard, draagt geen mail',
+        'account dat zonder Mailserver is bewaard, omvat geen mail',
       ],
     },
   },

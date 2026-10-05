@@ -206,7 +206,7 @@ describe('qualificationText — the card lists what it CARRIES (2026-09-07)', ()
       'Carries: Calendar · Contacts · Tasks',
     );
     expect(qualificationText(nl, q('yes', 'yes', 'yes', 'yes', 'yes'))).toBe(
-      'Draagt: E-mail · Agenda · Contacten · Bestanden · Taken',
+      'Omvat: E-mail · Agenda · Contacten · Bestanden · Taken',
     );
   });
 

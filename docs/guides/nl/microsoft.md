@@ -61,7 +61,7 @@ Verder niets: de kaart leest mail, en dit ene recht dekt dat. Druk daarna op **G
 
 #### Via IMAP: het recht in Exchange Online {#application-imap}
 
-Deze kaart meldt zich als de toepassing aan bij de IMAP-server van Exchange Online. Zo'n token draagt alleen rechten die bij **Office 365 Exchange Online** zijn gegeven; een Microsoft Graph-recht helpt hier dus niet, hoe het ook heet.
+Deze kaart meldt zich als de toepassing aan bij de IMAP-server van Exchange Online. Zo'n token omvat alleen rechten die bij **Office 365 Exchange Online** zijn gegeven; een Microsoft Graph-recht helpt hier dus niet, hoe het ook heet.
 
 1. **API permissions** → **Add a permission** → **APIs my organization uses** → zoek **Office 365 Exchange Online** → **Application permissions**. Voeg toe:
 

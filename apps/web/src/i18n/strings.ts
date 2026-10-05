@@ -5339,7 +5339,7 @@ const nl: Record<keyof typeof en, string> = {
   'probe.unit.taskList.many': 'takenlijsten',
   'probe.unit.collection.one': 'verzameling',
   'probe.unit.collection.many': 'verzamelingen',
-  'probe.qualify.lead': 'Draagt:',
+  'probe.qualify.lead': 'Omvat:',
   'probe.qualify.unknownHint': "'?' is niet gemeten — geen van beide aannemen is veilig",
   'probe.measured.lead': 'Gevonden:',
   'probe.found.none': 'geen',
@@ -5459,7 +5459,7 @@ const nl: Record<keyof typeof en, string> = {
   'setup.graph.client_secret.yields': 'een Client-geheim.',
   'setup.exchange.permission.title': 'Voeg IMAP.AccessAsApp toe en laat een beheerder toestemmen',
   'setup.exchange.permission.detail':
-    'API permissions → Add a permission → APIs my organization uses → Office 365 Exchange Online → Application permissions → IMAP.AccessAsApp. Geen Microsoft Graph-recht: deze kaart meldt zich aan bij de IMAP-server van Exchange Online, en zo’n token draagt alleen rechten die Exchange Online geeft. Daarna drukt een beheerder op Grant admin consent for uw organisatie.',
+    'API permissions → Add a permission → APIs my organization uses → Office 365 Exchange Online → Application permissions → IMAP.AccessAsApp. Geen Microsoft Graph-recht: deze kaart meldt zich aan bij de IMAP-server van Exchange Online, en zo’n token omvat alleen rechten die Exchange Online geeft. Daarna drukt een beheerder op Grant admin consent for uw organisatie.',
   'setup.exchange.service_principal.title': 'Registreer de toepassing in Exchange Online',
   'setup.exchange.service_principal.detail':
     'Een Exchange-beheerder voert New-ServicePrincipal uit in Exchange Online PowerShell, met de Application (client) ID en de Object ID die onder Enterprise applications staat. Niet de Object ID onder App registrations: daarmee mislukt de aanmelding van de kaart. De handleiding geeft de opdrachten.',
@@ -5523,7 +5523,7 @@ const nl: Record<keyof typeof en, string> = {
   'setup.soverin.password.yields': 'het e-mailadres, en het wachtwoord of een app-wachtwoord.',
   'setup.soverin.mail_server.title': 'Gaat er mail mee? Laat de mailserver staan',
   'setup.soverin.mail_server.detail':
-    'Het formulier vult Mailserver, imap.soverin.net, en Mailpoort, 993, in met de gepubliceerde instellingen van Soverin. Gaat er mail mee, laat Mailserver dan ingevuld: een account dat zonder Mailserver is bewaard, draagt geen mail. Agenda’s en contacten hebben geen mailserver nodig.',
+    'Het formulier vult Mailserver, imap.soverin.net, en Mailpoort, 993, in met de gepubliceerde instellingen van Soverin. Gaat er mail mee, laat Mailserver dan ingevuld: een account dat zonder Mailserver is bewaard, omvat geen mail. Agenda’s en contacten hebben geen mailserver nodig.',
   // ---- Asking for access (workplan 0093) ----
   'access.title': 'Toegang aanvragen',
   'access.intro':
