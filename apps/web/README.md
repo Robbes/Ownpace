@@ -134,11 +134,16 @@ View and manage all migrations:
 
 ## Authentication
 
-Bearer-JWT only — **there is no email/password login endpoint** (SSO is a
-later slice). The Login screen takes a pasted token (the managed demo seed
-prints demo owner tokens), stores it, and the Axios client sends it on every
-request. Authorization is decided server-side by the tenant-membership gate
-(role from the `tenant_member` row, never the token — 0020 T1).
+A bearer JWT. **There is no email/password login endpoint.** On a managed
+stack with an issuer (`VITE_OIDC_ISSUER`, `VITE_OIDC_CLIENT_ID`), *Sign in*
+runs the authorization-code flow with PKCE against it (ADR-0042,
+`src/services/oidc.ts`), and the app keeps the issuer's ID token. On a stack
+without one, the Login screen takes a pasted token (the managed demo seed
+prints demo owner tokens). Either way the token is kept in `localStorage`
+(`src/stores/auth-store.ts`) and the Axios client sends it on every request.
+Moving it into a cookie no script can read is workplan 0158 T2. Authorization
+is decided server-side by the tenant-membership gate (role from the
+`tenant_member` row, never the token — 0020 T1).
 
 ## State Management
 
@@ -239,6 +244,18 @@ pnpm preview
 
 The managed compose stack builds and serves it (`deploy/compose/managed.yml`);
 the appliance image runs `build:selfhost` and serves the bundle at `/ui`.
+
+On managed, the image's nginx (`nginx.conf.template`) proxies `/api/` to the
+API and serves every other address with a Content-Security-Policy and four
+more headers: HSTS, `nosniff`, `X-Frame-Options: DENY` and
+`Referrer-Policy: no-referrer` (workplan 0158). The policy runs the bundle's
+own scripts and styles only, no inline code and no `eval`, and lets the page
+connect to its own origin and the sign-in host, which the image takes from the
+`VITE_OIDC_ISSUER` build argument. So code that needs anything more (an inline
+script or style element, another host, a frame, `eval`) fails in the browser.
+`test/ui/managed-ui.ui.test.ts` serves the build with the template's headers
+and fails on a violation. Zod's own probe for `eval` is switched off at the
+entry (`src/zod-without-eval.ts`). The appliance sends no policy yet (0158 T3).
 
 ## Browser Support
 

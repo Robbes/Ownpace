@@ -315,6 +315,12 @@ CSP is already `default-src 'none'`, so no subresource can carry a referrer anyw
 here rather than added, because a header with no leak behind it is a change nobody can later
 tell was load-bearing.
 
+> **2026-10-05 (workplan 0158 D3):** the callback already sent `Referrer-Policy: no-referrer`,
+> through helmet's defaults (`apps/api/src/index.ts`); `callbackPageHeaders` replaces only the
+> policy and the opener policy. The app's own grant and view pages had a leak behind the header:
+> each call they made to `/api/` sent the page's address, link included, as its Referer. 0158
+> puts `no-referrer` on every page of the app.
+
 ### T8 — their own start and pause (slice 3)
 
  ADR-0035 asks for it and the owner has deferred
