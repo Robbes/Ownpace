@@ -38,5 +38,6 @@ release.
 
 A lightweight threat model lives in the architecture document
 (`docs/architecture/solution-architecture.md`, §17.1). A full threat-model
-artifact does not exist yet — whether one is written is an open owner
-decision (workplan 0026 T3 row 11).
+artifact does not exist. The owner deferred it on 2026-08-05 (workplan 0026
+T3 row 11). It is written when a customer's security review asks for one, or
+for the first release that is not a release candidate, whichever comes first.

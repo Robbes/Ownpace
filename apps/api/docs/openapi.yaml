@@ -3859,6 +3859,10 @@ paths:
     get:
       tags: [Operating]
       summary: What happened to an applied deletion
+      description: |
+        A failed receipt's `error` is the target's message in our words, as
+        the failures queue says a failure (workplan 0136 T3, second step). A
+        refusal's `reason` is a gate's, and reads as written.
       responses:
         '200':
           description: The receipt.
@@ -4356,6 +4360,10 @@ paths:
     get:
       tags: [Operating]
       summary: What happened to an applied relocation
+      description: |
+        A failed receipt's `error` is the target's message in our words, as
+        the failures queue says a failure (workplan 0136 T3, second step). A
+        refusal's `reason` is a gate's, and reads as written.
       responses:
         '200':
           description: The receipt.
@@ -4372,7 +4380,19 @@ paths:
       tags: [Operating]
       summary: Items that would not migrate
       description: |
-        Each carries the reason verbatim from the server that refused it.
+        Each carries the reason a pass recorded, in our words where it came
+        from a host a tester typed (workplan 0136 T3, second step): our prose
+        and the status stay, and what the server sent stays only when it is
+        an error document of a kind we know (a WebDAV `error`, Google's GData
+        or JSON error, Sabre's, a JMAP problem document, an IMAP `NO`).
+        Anything else reads *"the server answered with something that is not
+        a DAV, JMAP or IMAP error"*. A socket error is said without the name
+        it tried. A source refusal from a provider's fixed host, and a refusal
+        of ours, read as recorded. The ledger keeps the full text. No route
+        serves it: the operator reads it on the database, by the item's
+        `naturalKeyHash`. The migration page's failure line, the completion
+        report, the discovery counts, the run events, the Check page's report
+        (`verify/report`) and an apply receipt's error answer the same way.
         The queue also names the migration's source (`sourceKind`, the source
         connection's kind: `dropbox`, `google`, …), because a remedy is chosen
         by source as well as by category: a Dropbox Paper doc is
@@ -4741,7 +4761,12 @@ paths:
     get:
       tags: [Operating]
       summary: The latest verification report
-      description: Reads the latest run row and triggers nothing — polling this is free.
+      description: |
+        Reads the latest run row and triggers nothing — polling this is free.
+        An issue that quotes what the target answered, a recommendation, and a
+        failed scan's `error` are said in our words, as the failures queue
+        says a failure (workplan 0136 T3, second step). The row keeps the full
+        text.
       responses:
         '200':
           description: The report.
@@ -8141,11 +8166,14 @@ components:
         errorContains:
           type: string
           description: |
-            A LITERAL substring of the stored error, never a pattern: `%` and
-            `_` match themselves. `(50%).pdf` came out of a real filename, and
-            unescaped that needle would match "50" followed by anything —
-            on a bulk retry, the difference between the group somebody chose
-            and most of the queue.
+            A LITERAL substring of the error as the queue shows it, never a
+            pattern: `%` and `_` match themselves. `(50%).pdf` came out of a
+            real filename, and unescaped that needle would match "50" followed
+            by anything — on a bulk retry, the difference between the group
+            somebody chose and most of the queue. Matched against what the
+            queue answers, not the stored text (workplan 0136 T3, second
+            step): a match on the stored text would read what the answer left
+            out one guess at a time.
           examples: ['MKCOL', '404']
       required: [action]
 
