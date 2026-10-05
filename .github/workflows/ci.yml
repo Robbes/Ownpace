@@ -1,5 +1,5 @@
 # Unified CI — TypeScript/Node (pnpm). Mirrors the team convention:
-#   detect-changes -> docs-hygiene (parallel) -> lint -> unit-tests -> integration-tests
+#   detect-changes -> docs-hygiene, lint, unit-tests (parallel) -> integration-tests
 # E2E is a SEPARATE, manual workflow (e2e.yml). Runs on the self-hosted (Spark) runner.
 #
 # ── Which machine runs untrusted code ────────────────────────────────────────
@@ -538,10 +538,16 @@ jobs:
           pnpm lint
           pnpm typecheck   # tsc (TypeScript 7) --noEmit across the workspace
 
+  # ALONGSIDE lint, not after it (the owner, 2026-10-05). The unit suite is
+  # the longest job on the path to integration-tests, and waiting for lint
+  # first added lint's minute to every run for nothing: a lint failure fails
+  # ci-complete either way. Gated on detect-changes itself, which is what lint
+  # was passing on, so a docs-only change still skips it.
   unit-tests:
     name: unit-tests
     runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
-    needs: lint
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.any_changed == 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -594,6 +600,60 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-report
+          path: '**/coverage/'
+          retention-days: 7
+
+  # THE SAME UNIT SUITE, SPLIT OVER FOUR HOSTED RUNNERS, beside `unit-tests`
+  # rather than instead of it, so the two can be compared on the same pull
+  # requests before one replaces the other (the owner, 2026-10-05).
+  #
+  # Measured 2026-10-05: `unit-tests` spends about 16 minutes in vitest on a
+  # 4-vCPU hosted runner, 1,125 files with three workers. Most of that is
+  # per-file start-up (import, transform, PGlite) spread evenly across the
+  # files, so it divides by the shard count; the slowest single file
+  # (scripts/a-first-bring-up-of-live.unit.test.ts, about 160s) is the floor.
+  #
+  # PULL REQUESTS ONLY. On a push the suite runs once on the Spark, capped at
+  # four workers (see unit-tests), and four more copies of it there are exactly
+  # what that cap exists to prevent. On a push this job is skipped, and
+  # ci-complete lists it as not run.
+  #
+  # Coverage stays on, per shard: each shard's report covers only its own
+  # files, uploaded under its own name.
+  unit-tests-sharded:
+    name: unit-tests-sharded (${{ matrix.shard }}/4)
+    runs-on: ubuntu-24.04
+    needs: detect-changes
+    if: ${{ github.event_name == 'pull_request' && needs.detect-changes.outputs.any_changed == 'true' }}
+    strategy:
+      # Every shard reports, so a failure names all the files that broke.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Tags, for the same reason as unit-tests: the N-1 -> N upgrade gate
+          # reads the previous release's migrations out of the tag.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Run unit tests, shard ${{ matrix.shard }} of 4
+        env:
+          SKIP_STALWART: 'true'
+          SKIP_NEXTCLOUD: 'true'
+        # No `--`, as in unit-tests: pnpm would forward it and vitest would
+        # drop every flag after it.
+        run: pnpm test --coverage --shard=${{ matrix.shard }}/4
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-report-shard-${{ matrix.shard }}
           path: '**/coverage/'
           retention-days: 7
 
@@ -837,6 +897,7 @@ jobs:
       - migration-lint
       - lint
       - unit-tests
+      - unit-tests-sharded
       - ui-tests
       - integration-tests
     steps:
