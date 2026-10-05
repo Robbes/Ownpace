@@ -62,8 +62,9 @@
 #       an outgoing connection can take it first), on a resume too;
 #       TRIGGER_API_ORIGIN not on TRIGGER_PORT; TRIGGER_APP_ORIGIN or
 #       TRIGGER_LOGIN_ORIGIN not on TRIGGER_TLS_PORT; TRIGGER_CLI_PROFILE
-#       empty, the default, or the OTA stack's; an EXPOSURE_ALLOW that
-#       exposure-check.sh refuses, or with which it would fail an address
+#       empty, the default, or the OTA stack's; an EXPOSURE_ALLOW or
+#       EXPOSURE_NOT_OURS that exposure-check.sh refuses (an Ownpace container
+#       in the second), or with which it would fail an address
 #       either stack binds on (asked of exposure-check.sh itself, so loopback
 #       needs no entry); WEB_URL
 #       or CORS_ORIGIN not https://app.ownpace.eu; the identity provider not
@@ -576,7 +577,10 @@ check_settings() {
     0) ;;
     2)
       allow_read=''
-      _p+=("EXPOSURE_ALLOW: exposure-check.sh refuses it: ${EXPOSURE_REFUSED} Step 7 runs that check, and would stop there, after the bring-up (workplan 0132 T3).")
+      # The same check reads EXPOSURE_NOT_OURS, and refuses a bad one too.
+      key=EXPOSURE_ALLOW
+      case "$EXPOSURE_REFUSED" in EXPOSURE_NOT_OURS*) key=EXPOSURE_NOT_OURS ;; esac
+      _p+=("${key}: exposure-check.sh refuses it: ${EXPOSURE_REFUSED} Step 7 runs that check, and would stop there, after the bring-up (workplan 0132 T3).")
       ;;
     *)
       allow_read=''
@@ -757,13 +761,16 @@ in_dot_invalid() {
 # it refuses (a name, every interface), which would stop the bring-up at its
 # last step. So the address goes to exposure-check.sh as one line of recorded
 # `docker ps` output on its stdin (--from -): a container publishing port 1
-# there. Only its exit is kept; what it prints names no address anyway.
+# there. Only its exit is kept; what it prints names no address anyway. That
+# container is named ownpace-bind, a name EXPOSURE_NOT_OURS can never list
+# (exposure-check.sh refuses any ownpace… in it), so that list never passes a
+# bind EXPOSURE_ALLOW does not name.
 EXPOSURE_REFUSED=''
 exposure_passes() {
   local listing out rc=0
   case "$1" in
-    *:*) listing="bind"$'\t'"[$1]:1->1/tcp" ;;
-    *) listing="bind"$'\t'"$1:1->1/tcp" ;;
+    *:*) listing="ownpace-bind"$'\t'"[$1]:1->1/tcp" ;;
+    *) listing="ownpace-bind"$'\t'"$1:1->1/tcp" ;;
   esac
   out="$("${SCRIPT_DIR}/exposure-check.sh" --env-file "$ENV_FILE" --from - <<<"$listing" 2>&1)" || rc=$?
   if [ "$rc" -eq 2 ]; then

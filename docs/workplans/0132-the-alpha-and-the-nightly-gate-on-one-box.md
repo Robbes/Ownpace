@@ -4,6 +4,46 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-10-05, T3 (b): the exposure check accepts, by name, the owner's containers that are not
+Ownpace's (`EXPOSURE_NOT_OURS`)**, on branch
+`claude/ownpace-public-readiness-y7orc6-the-owners-other-containers-on-the-box`, not merged. The
+owner ran `exposure-check.sh` against the OTA stack's `.env`: three containers of the owner's own,
+unrelated to Ownpace, publish on every interface, so the check fails, and with it
+`stand-up-live.sh`'s step 7, every `deploy-live.sh` and the daily duty. The owner, verbatim:
+*"leave the host services alone and continue. I just want to be able to bring the live up. The box
+is airgapd behind netbird, so no issue there."*
+
+- **The change.** `EXPOSURE_NOT_OURS`, read from the stack's `.env` as `EXPOSURE_ALLOW` is
+  (`env_value`, never the shell; quotes read; commas; the last line in force), lists container
+  names, matched exactly. For a container named there, a publish on every interface or on an
+  address `EXPOSURE_ALLOW` does not list is a note naming the container, the port and the rule,
+  never an address; it does not fail the run, and the `ok:` line counts it. A publish it cannot
+  read still fails; a listed name that is not running is a note. Empty, the example's value, means
+  the check is what it was. So the check no longer holds every publish on the machine to loopback
+  and `EXPOSURE_ALLOW`: the listed containers' are the owner's to judge.
+- **An Ownpace container is never accepted.** Exit 2 for a name beginning with `ownpace` (any
+  case, running or not: `managed.yml` and `www.yml` build every `container_name` from the project,
+  every Ownpace project on the machine is `ownpace…` (`ownpace-managed`, `ownpace-live`,
+  `ownpace-live-www`, `ownpace-www`, `ownpace-selfhost`, `ownpace-upgrade-drill`), and the fixed
+  names, the dev and demo Stalwarts, the dev Nextcloud and the appliance's, are `ownpace…` too),
+  and for a running container whose Compose project, the label Docker's listing now carries as a
+  fourth field, is `ownpace…` or `compose` (`dev.yml` has no `name:`, so the appliance nightly's
+  dev stack runs as `compose`). Names are the signal that holds whether the container runs; the
+  project covers a container named otherwise. The three-field `--from` format still reads. An entry
+  that is not a container name, an address among them, is refused without being repeated.
+- **`stand-up-live.sh`.** Its preflight asks `exposure-check.sh` about each bind, so a bad
+  `EXPOSURE_NOT_OURS` is refused before anything changes, under its own key. The one recorded line
+  it hands the check is now a container named `ownpace-bind`, a name the list can never carry: as
+  `bind` it would have passed every bind address had the owner listed `bind`.
+- **Guards first.** `exposure-check.unit.test.ts` 21 new cases and one extended (Docker is asked
+  for the project label); all 22 failed before the change, the other 20 passed.
+  `a-first-bring-up-of-live` 3 new cases; the refusal under its own key failed before. Mutations:
+  without the Ownpace refusal 13 cases fail, every (3); with the note path open to unlisted names
+  14 fail, (2) among them; the stand-up's line named `bind` again fails *never widens*.
+- **Still the owner's.** Copy `EXPOSURE_NOT_OURS` into the OTA stack's `.env` and live's (the
+  bring-up guide, *Containers on the machine that are not Ownpace's*), with the names `docker ps`
+  prints, then run `exposure-check.sh` from the OTA stack's checkout: it must end `ok:`.
+
 **2026-10-05, the owner's checks: Docker's log driver is `json-file`, and NetBird shows no
 sign-in.** Plans only. Two of the items the entries of 2026-09-28 and 2026-09-29 left as *Still
 the owner's*:
