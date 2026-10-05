@@ -57,6 +57,14 @@ import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, type Browser, type Page, type Request } from 'playwright-core';
+import {
+  APP_SCREEN_NOW,
+  APP_SCREEN_PERSON,
+  APP_SCREEN_READY,
+  appScreenAnswers,
+  appScreenText,
+  type AppScreenLocale,
+} from './app-screen.ts';
 
 const REPO = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const DIST = join(REPO, 'apps/web/dist');
@@ -391,11 +399,15 @@ interface Loaded {
 /** Load a route as a signed-in operator, recording what a user cannot see. */
 async function open(
   path: string,
-  opts: { locale?: 'en' | 'nl'; signedIn?: boolean } = {},
+  opts: { locale?: 'en' | 'nl'; signedIn?: boolean; clock?: Date } = {},
 ): Promise<Loaded> {
   const page = await browser.newPage({
     locale: opts.locale === 'nl' ? 'nl-NL' : 'en-GB',
+    // A page held to a moment reads it in the servers' zone, as the pictures
+    // taken at that moment did (`scripts/shoot-the-app-screen.mjs`).
+    ...(opts.clock ? { timezoneId: 'UTC' } : {}),
   });
+  if (opts.clock) await page.clock.setFixedTime(opts.clock);
   const errors: string[] = [];
   const badResponses: string[] = [];
   const origins = new Set<string>();
@@ -935,6 +947,55 @@ describe('bilingual rendering', () => {
     expect(nlText).toContain('Aanmelden bij Ownpace'); // login.title, nl
     expect(nlText).not.toBe(enText);
   });
+});
+
+describe("the home page's app screen (0152 T3)", () => {
+  // The site's home page shows a person's page of this app, photographed by
+  // `scripts/shoot-the-app-screen.mjs`, which recorded the words in it. The
+  // owner, 2026-10-05: the screen "will have to move along with changes in
+  // text in the future". This opens the same page with the same answers at the
+  // same moment, and fails while its words are not the pictures' words: a
+  // string changed in the app is a picture to take again, in the same pull
+  // request.
+  const screen = JSON.parse(readFileSync(join(REPO, 'site/app-screen/screen.json'), 'utf8')) as {
+    moment: string;
+    words: Record<AppScreenLocale, string>;
+  };
+
+  it('was photographed at the moment its answers hold', () => {
+    expect(screen.moment).toBe(APP_SCREEN_NOW.toISOString());
+  });
+
+  for (const locale of ['en', 'nl'] as const) {
+    it(`says, in ${locale === 'en' ? 'English' : 'Dutch'}, the words its pictures show`, async () => {
+      const answers = appScreenAnswers(locale);
+      const saved = Object.fromEntries(Object.keys(answers).map((k) => [k, FIXTURES[k]]));
+      Object.assign(FIXTURES, answers);
+      try {
+        const l = await open(`/people/${APP_SCREEN_PERSON}`, { locale, clock: APP_SCREEN_NOW });
+        await l.page.waitForSelector(APP_SCREEN_READY, { timeout: 15_000 });
+        expect(
+          await appScreenText(l.page),
+          'The person\'s page no longer says what the home page\'s pictures of it show. Take them again ' +
+            'with `node scripts/shoot-the-app-screen.mjs`, look at them, and commit site/app-screen/.',
+        ).toBe(screen.words[locale]);
+        // The picture starts above the name, below the way back to Migrations,
+        // and needs room between the two to do so.
+        const gap = await l.page.evaluate(() => {
+          const head = document.querySelector('[data-app-screen="head"]')!;
+          return head.getBoundingClientRect().top - head.previousElementSibling!.getBoundingClientRect().bottom;
+        });
+        expect(gap, 'the way back to Migrations sits on the person\'s name').toBeGreaterThanOrEqual(16);
+        expectClean(l, `the app screen (${locale})`);
+        await l.page.close();
+      } finally {
+        for (const [k, v] of Object.entries(saved)) {
+          if (v === undefined) delete FIXTURES[k];
+          else FIXTURES[k] = v;
+        }
+      }
+    });
+  }
 });
 
 describe("a sign-in's example (the owner, 2026-09-29)", () => {

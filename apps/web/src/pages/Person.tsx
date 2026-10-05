@@ -165,8 +165,11 @@ const Person: React.FC = () => {
   }
 
   // The appliance has no Migrations page to go back to: its menu leads here.
+  // `inline-block`, or the page's `space-y-6` does not reach it: Tailwind 4
+  // spaces children with a bottom margin, which an inline link ignores, and
+  // the name sat 5 pixels under it.
   const back = selfHost ? null : (
-    <Link to="/mappings" className="text-sm text-blue-700 hover:underline">
+    <Link to="/mappings" className="inline-block text-sm text-blue-700 hover:underline">
       {t('person.back')}
     </Link>
   );
@@ -226,7 +229,11 @@ const Person: React.FC = () => {
   return (
     <div className="space-y-6">
       {back}
-      <div>
+      {/* `data-app-screen`: the head and the card below are what the public
+          site's home page shows of the app (workplan 0152 T3), photographed by
+          `scripts/shoot-the-app-screen.mjs`, and read again by the UI smoke so
+          a word changed here fails until the photograph is taken again. */}
+      <div data-app-screen="head">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold text-gray-900">{person.displayName ?? t('people.implicit')}</h1>
           {stage && <StateChip entity="stage" state={stage} />}
@@ -248,7 +255,7 @@ const Person: React.FC = () => {
         ) : null}
       </div>
 
-      <section className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+      <section data-app-screen="migrations" className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
         {migrations.length === 0 ? (
           <p className="text-sm text-gray-500">{t('people.noneYet')}</p>
         ) : (
