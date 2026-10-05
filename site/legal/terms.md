@@ -385,10 +385,11 @@
       Free runs six migrations at the same time, up to 150 GB, at one pass
       a day; and a customer may choose a higher tier than their use needs,
       which is then the least they pay. Was: one migration at a time, up to
-      250 GB; and the tier "not chosen from a menu". Left for the lawyer,
-      before the first paid tier (terms-paid-tier-lawyer-checks (a)): does a
-      chosen tier need its own order button (precondition C), and may a
-      month that used less still bill the chosen tier?
+      250 GB; and the tier "not chosen from a menu". ANSWERED, 2026-10-05:
+      the owner, "Question 28: ok": §6 stands as written. Left for the
+      lawyer, before the first paid tier (terms-paid-tier-lawyer-checks (a)):
+      does a chosen tier need its own order button (precondition C), and may
+      a month that used less still bill the chosen tier?
 
   The questions of v1.1 and v1.2, with where each stands now:
 

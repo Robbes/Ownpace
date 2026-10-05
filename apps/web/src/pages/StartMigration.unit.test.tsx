@@ -702,7 +702,7 @@ describe('Check, then start (screen 6)', () => {
       targetConnectionId: 'c-soverin',
       sourceConfig: { username: 'anna@example.nl' },
       targetConfig: { username: 'anna@soverin.net', password: '' },
-      syncConfig: { domains: ['email'], schedule: '0 * * * *' },
+      syncConfig: { domains: ['email'] },
     });
     // Dropbox's Paper docs in the format chosen on *What moves?*.
     expect(createMock).toHaveBeenCalledWith(
@@ -710,7 +710,7 @@ describe('Check, then start (screen 6)', () => {
         name: 'Anna Jansen — Dropbox to Nextcloud',
         sourceType: 'dropbox',
         sourceConfig: { username: 'anna@example.nl', nativeFilePolicies: { paper: 'markdown' } },
-        syncConfig: { domains: ['file'], schedule: '0 * * * *' },
+        syncConfig: { domains: ['file'] },
       }),
     );
     expect(addToPersonMock).toHaveBeenCalledWith('p-new', 'm-mail');
@@ -1089,7 +1089,7 @@ describe('mail through a company’s own Microsoft app (0153 open question 5)', 
         sourceConnectionId: 'c-org',
         targetConnectionId: 'c-soverin',
         sourceConfig: { username: 'info@contoso.example' },
-        syncConfig: { domains: ['email'], schedule: '0 * * * *' },
+        syncConfig: { domains: ['email'] },
       }),
     );
   });
@@ -1187,7 +1187,7 @@ describe('Google’s photos from a Takeout export (0153 open question 5, item 2)
       targetConnectionId: 'c-cloud',
       sourceConfig: { username: '', provider: 'google-takeout', path: 'Takeout', where: 'target' },
       targetConfig: { username: 'anna', password: '' },
-      syncConfig: { domains: ['file'], schedule: '0 * * * *' },
+      syncConfig: { domains: ['file'] },
       // The Dropbox files go to the same Nextcloud, so each gets a folder of
       // its own (0153 open question 5, item 4).
       targetFolderPrefix: 'Google Takeout',
@@ -1275,7 +1275,7 @@ describe('a saved Google Calendar or Contacts account, on the Google tile (0153 
         sourceType: 'google-calendar',
         sourceConnectionId: 'c-gcal',
         targetConnectionId: 'c-soverin',
-        syncConfig: { domains: ['calendar'], schedule: '0 * * * *' },
+        syncConfig: { domains: ['calendar'] },
       }),
     );
   });

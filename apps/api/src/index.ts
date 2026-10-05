@@ -60,6 +60,7 @@ import { assertBackupRetentionConfig, assertProductionUrlConfig } from './config
 import { maxMigrationsPerOrganisationFromEnv } from './routes/migrations/migration-cap.ts';
 import { refuseInternalAddressesFromEnv } from '@openmig/shared/reachable-host';
 import { serverFault } from './server-fault.ts';
+import { readingTheBody, unreadableBody } from './unreadable-body.ts';
 import { buildIdentity } from '@openmig/core';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 import { runManagedMigrations } from '@openmig/managed';
@@ -108,9 +109,11 @@ app.use(accessLog());
 // "Report a problem" (workplan 0130), BEFORE the global JSON parser: its body
 // carries a screenshot, and it parses with a larger limit of its own.
 app.use('/api/problem-reports', problemReportRoutes());
-app.use(express.json());
+// Through `readingTheBody`, so a body the parser could not read is known as
+// the caller's even when its error names no type (`unreadable-body.ts`).
+app.use(readingTheBody(express.json()));
 // Mollie posts webhooks as application/x-www-form-urlencoded (id=<paymentId>).
-app.use(express.urlencoded({ extended: false }));
+app.use(readingTheBody(express.urlencoded({ extended: false })));
 
 // Health check — also under /api so the web image's same-origin proxy (which
 // forwards only /api/*) can reach it; the smoke script asserts that path.
@@ -310,6 +313,11 @@ app.use('/api/support', supportRoutes);
  * satisfy a naming instinct is how two halves of a thing drift apart.
  */
 app.use('/api/platform-pause', platformPauseRoutes);
+
+// A body the parser could not read (not JSON, too large, a charset or an
+// encoding it does not read) is the caller's 400, 413 or 415, and nothing of
+// it reaches the log (#1490's review, workplan 0093): `unreadable-body.ts`.
+app.use(unreadableBody);
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {

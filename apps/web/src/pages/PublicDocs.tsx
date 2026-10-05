@@ -31,8 +31,14 @@
  *   (`scripts/a-version-you-can-see-before-you-sign-in.unit.test.ts`);
  * - a new page starts at the top, as it does in `Layout` (0145 T3 (a)).
  *
- * NOT the alpha note: which line a visitor who was not invited reads during
- * the Alpha is the owner's open question 5 (0152).
+ * THE ALPHA, AS A VISITOR READS IT (0152 T1 (a); the owner, 2026-10-05: *"Do
+ * suggestions for non alpha viewers"*). Not the note: its welcome is written
+ * for the people invited, and a visitor here has no session. So under the
+ * title, while the deployment runs the alpha, the fact the public site says
+ * under its header: *"Ownpace is in its Alpha, by invitation. Nothing is
+ * charged during the Alpha."*, and *Request access* (`AlphaVisitorLine`). A
+ * member who opens a guide signed in reads it inside `Layout`, under the
+ * welcome, as before.
  *
  * The appliance never comes here: it has nobody to sign in, so `useSignedIn`
  * is always true there and its guides stay in its layout.
@@ -46,6 +52,7 @@ import SiteMark from '../components/SiteMark.tsx';
 import LanguageSwitch from '../components/LanguageSwitch.tsx';
 import SupportLine from '../components/SupportLine.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
+import { AlphaVisitorLine } from '../components/AlphaNote.tsx';
 import { useNewPageAtTheTop } from '../components/NewPageAtTheTop.tsx';
 
 const PublicDocs: React.FC = () => {
@@ -82,6 +89,7 @@ const PublicDocs: React.FC = () => {
                 whose menu names the guides; a guide's own `#` is an `<h2>`. */}
             <h1 className="text-2xl font-extrabold text-gray-900">{t('nav.docs')}</h1>
           </div>
+          <AlphaVisitorLine className="mt-4" />
         </header>
 
         <main>

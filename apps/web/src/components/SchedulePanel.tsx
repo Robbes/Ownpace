@@ -13,12 +13,13 @@
  * control (`ScheduleChooser`), so the two screens cannot offer different
  * ones.
  *
- * WHAT IT SHOWS FIRST is the schedule in force. One of the four is selected.
- * A migration without a schedule runs every 15 minutes (the tick's default,
- * `defaultScheduleFor`), and one made through the API may hold any cadence the
- * tick can read; for those none of the four is selected, and a line says what
- * runs instead. A chooser with nothing selected, and nothing said, would read
- * as a migration with no schedule at all.
+ * WHAT IT SHOWS FIRST is the schedule in force. A migration without a schedule
+ * of its own runs the automatic cadence (workplan 0157 T7), and *Automatic* is
+ * selected; one with a cron the chooser offers has that one selected. One made
+ * through the API may hold any cadence the tick can read; for that none is
+ * selected, and a line says what runs instead. A chooser with nothing
+ * selected, and nothing said, would read as a migration with no schedule at
+ * all.
  *
  * `mayRevise('schedule')` is asked, not assumed, as the export-format panel
  * asks for its field: refuse it in the table and this panel stops offering the
@@ -40,9 +41,6 @@ import { useT } from '../i18n/index.tsx';
 import { Hint } from './Hint.tsx';
 import { SCHEDULE_PRESETS, ScheduleChooser, isSchedulePreset } from './ScheduleChooser.tsx';
 
-/** The tick's default for a migration with no schedule (`DEFAULT_SYNC_SCHEDULE`). */
-const QUARTER_HOURLY = '*/15 * * * *';
-
 const SchedulePanel: React.FC<{
   mappingId: string;
   /** The detail payload's `syncConfig.schedule`: absent when the migration holds none. */
@@ -50,7 +48,9 @@ const SchedulePanel: React.FC<{
 }> = ({ mappingId, current }) => {
   const t = useT();
   const queryClient = useQueryClient();
-  const [chosen, setChosen] = React.useState<string | undefined>(current);
+  // What the migration holds: a cron, or null for Automatic (no schedule).
+  const stored = current ?? null;
+  const [chosen, setChosen] = React.useState<string | null>(stored);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
   const [refused, setRefused] = React.useState<ReadonlyArray<{ field: string; reason: string }>>([]);
@@ -59,18 +59,23 @@ const SchedulePanel: React.FC<{
   // What the migration holds is the source of truth, and it changes under
   // this panel when a save lands and the detail query is read again.
   React.useEffect(() => {
-    setChosen(current);
-  }, [current]);
-  const changed = chosen !== undefined && chosen !== current;
+    setChosen(stored);
+  }, [stored]);
+  const changed = chosen !== stored;
 
   const verdict = mayRevise('schedule');
-  // What runs now, in the chooser's words: every 15 minutes for a migration
-  // with no schedule of its own (the tick's default), and nothing for one that
-  // holds a cadence the chooser does not offer, which the line inside says.
-  const inForce = SCHEDULE_PRESETS.find((preset) => preset.value === (current ?? QUARTER_HOURLY));
+  // What runs now, in the chooser's words: Automatic for a migration with no
+  // schedule of its own, and nothing for one that holds a cadence the chooser
+  // does not offer, which the line inside says.
+  const inForce =
+    stored === null
+      ? t('wizard.schedule.automatic')
+      : (() => {
+          const preset = SCHEDULE_PRESETS.find((p) => p.value === stored);
+          return preset ? t(preset.labelKey) : undefined;
+        })();
 
   const save = async () => {
-    if (chosen === undefined) return;
     setSaving(true);
     // What the last press said is cleared before this one speaks, so "Saved"
     // and a refusal are never on screen together.
@@ -99,16 +104,12 @@ const SchedulePanel: React.FC<{
       <summary className="cursor-pointer select-none text-sm font-semibold text-gray-900">
         <Clock className="inline w-4 h-4 mr-1.5 align-text-bottom text-gray-500" />
         {t('settings.schedule')}
-        {inForce && <span className="font-normal text-gray-600"> · {t(inForce.labelKey)}</span>}
+        {inForce && <span className="font-normal text-gray-600"> · {inForce}</span>}
       </summary>
       {verdict.allowed ? (
         <>
-          {!isSchedulePreset(current) && (
-            <p className="mt-2 text-sm text-gray-700">
-              {current === undefined
-                ? t('settings.schedule.default')
-                : t('settings.schedule.own', { schedule: current })}
-            </p>
+          {stored !== null && !isSchedulePreset(stored) && (
+            <p className="mt-2 text-sm text-gray-700">{t('settings.schedule.own', { schedule: stored })}</p>
           )}
           <div className="mt-3">
             <ScheduleChooser value={chosen} onChange={setChosen} disabled={saving} />

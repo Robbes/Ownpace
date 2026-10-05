@@ -1560,6 +1560,8 @@ HASH="$(pick_disposable)"
 #   a mapping with no schedule is DEFAULT_SYNC_SCHEDULE = */15, which is far
 #   longer than a gate should sit waiting. So: seed the source, then enqueue the
 #   sync directly.
+#   (Since workplan 0157 T7 a mapping with no schedule runs the automatic
+#   cadence instead, every hour at most: longer still.)
 #
 # THE SEEDING IS NOW A FALLBACK, not the only path. `setup-managed-demo.sh`
 # seeds the DAV source at bring-up, beside the accounts it fills (0084) — so on

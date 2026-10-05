@@ -12,6 +12,13 @@
  * cadence the tick can read, so a migration made through it may hold one that
  * is none of these. The panel that shows such a migration says so beside this
  * control, rather than this control pretending one of the four is selected.
+ *
+ * AND AUTOMATIC, FIRST (workplan 0157 T7; the owner, 2026-10-05: *"sync slow
+ * down once a migration is in step: yes"*): no schedule of its own, which the
+ * tick reads as every hour for 14 days once everything is copied, then every
+ * 6 hours, then once a day from day 30, with the 14 days starting again when
+ * somebody opens the migration or presses *Sync now* (`automaticScheduleFor`).
+ * It is what *Start a migration* makes, and `null` here, as the API stores it.
  */
 import React from 'react';
 import { useT } from '../i18n/index.tsx';
@@ -37,18 +44,25 @@ export function isSchedulePreset(value: string | undefined): boolean {
   return SCHEDULE_PRESETS.some((preset) => preset.value === value);
 }
 
+/** The automatic cadence: no schedule of its own (workplan 0157 T7). */
+const AUTOMATIC: Omit<SchedulePreset, 'value'> & { readonly value: null } = {
+  value: null,
+  labelKey: 'wizard.schedule.automatic',
+  hintKey: 'wizard.schedule.automatic.hint',
+};
+
 export const ScheduleChooser: React.FC<{
-  /** The selected cron, or one this control does not offer, which selects none. */
-  value: string | undefined;
-  onChange: (next: string) => void;
+  /** The selected cron; null for Automatic; a cron this control does not offer selects none. */
+  value: string | null;
+  onChange: (next: string | null) => void;
   disabled?: boolean;
 }> = ({ value, onChange, disabled }) => {
   const t = useT();
   return (
     <div className="space-y-3">
-      {SCHEDULE_PRESETS.map((preset) => (
+      {[AUTOMATIC, ...SCHEDULE_PRESETS].map((preset) => (
         <button
-          key={preset.value}
+          key={preset.value ?? 'automatic'}
           type="button"
           onClick={() => onChange(preset.value)}
           disabled={disabled}

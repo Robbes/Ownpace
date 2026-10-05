@@ -46,6 +46,17 @@ export const COPY = {
     menu: 'Menu',
     files: { home: 'index.html', how: 'how-it-works.html', pricing: 'pricing.html', calculator: 'estimate.html', privacy: 'privacy.html', terms: 'terms.html', alpha: 'alpha.html', guide: 'alpha-guide.html', 'leaving-google': 'leaving-google.html', 'leaving-microsoft': 'leaving-microsoft-365.html', 'leaving-apple': 'leaving-icloud.html', 'leaving-dropbox': 'leaving-dropbox.html', 'leaving-box': 'leaving-box.html', 'leaving-mail': 'leaving-another-mail-provider.html' },
     skip: 'Skip to content',
+    // The Alpha, said to a visitor who was not invited (workplan 0152 T1 (a);
+    // the owner, 2026-10-05: "Do suggestions for non alpha viewers"): one line
+    // under the header of every page while the build is for the Alpha, then
+    // `ctaOrder` as its link. The app's own words, `alpha.visitor.line` and
+    // `alpha.nothingCharged`, copied because the site imports nothing;
+    // `scripts/the-alpha-said-to-a-visitor.unit.test.ts` holds them equal.
+    // The app's welcome is not said here: it is written for the people invited.
+    alphaVisitor: {
+      line: 'Ownpace is in its Alpha, by invitation.',
+      nothingCharged: 'Nothing is charged during the Alpha.',
+    },
     footerTag: 'move your own data, at your own pace.',
     // Each claim links what holds it (workplan 0152 T8): proof.mjs names the files.
     footerOss: (p) =>
@@ -425,6 +436,10 @@ export const COPY = {
     menu: 'Menu',
     files: { home: 'index.html', how: 'hoe-het-werkt.html', pricing: 'prijzen.html', calculator: 'schatting.html', privacy: 'privacy.html', terms: 'voorwaarden.html', alpha: 'alpha.html', guide: 'alpha-handleiding.html', 'leaving-google': 'weg-bij-google.html', 'leaving-microsoft': 'weg-bij-microsoft-365.html', 'leaving-apple': 'weg-bij-icloud.html', 'leaving-dropbox': 'weg-bij-dropbox.html', 'leaving-box': 'weg-bij-box.html', 'leaving-mail': 'weg-bij-een-andere-mailaanbieder.html' },
     skip: 'Naar de inhoud',
+    alphaVisitor: {
+      line: 'Ownpace is in de Alpha, op uitnodiging.',
+      nothingCharged: 'Tijdens de Alpha wordt niets in rekening gebracht.',
+    },
     footerTag: 'neem uw gegevens mee, in uw eigen tempo.',
     footerOss:
       (p) =>

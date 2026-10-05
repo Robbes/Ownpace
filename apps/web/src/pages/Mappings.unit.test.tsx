@@ -11,7 +11,8 @@
  *  - a migration with nobody can be added to a person in one press, and a
  *    person can be added;
  *  - every migration keeps its controls: a refused sync says so at the
- *    migration (0033 T3), a draft leads to its green light (0037 T2), Delete
+ *    migration (0033 T3), and Free's pace in the reader's own words and
+ *    clock (0157 T2), a draft leads to its green light (0037 T2), Delete
  *    takes two presses (0037 T5), a pause tells the migration's own page
  *    (2026-09-17);
  *  - `?status=` filters, and says so (0074).
@@ -31,6 +32,7 @@ import {
   fetchPeople,
 } from '../services/operating-service.ts';
 import { fetchProgress } from '../services/progress-service.ts';
+import { formatDateTime } from '../i18n/datetime.ts';
 
 vi.mock('../services/mapping-service', () => ({
   mappingApi: { list: vi.fn(), triggerSync: vi.fn(), delete: vi.fn(), pause: vi.fn() },
@@ -395,6 +397,29 @@ describe('Migrations — every migration keeps its controls', () => {
     expect(await screen.findByText(/Mapping is in cutover — the final sync/)).toBeInTheDocument();
     expect(screen.getByText('The sync request did not complete.')).toBeInTheDocument();
     expect(screen.queryByText('Request failed with status code 409')).not.toBeInTheDocument();
+  });
+
+  it("says Free's pace in the reader's words and clock when it holds a sync back (0157 T2)", async () => {
+    listMock.mockResolvedValue([sampleMapping({ id: 'f1', status: 'active', name: 'On Free' })]);
+    syncMock.mockRejectedValue(
+      axiosError(409, {
+        error: 'free_pace',
+        message: "On Free a migration runs one pass a day, and this one's next pass starts at 2026-10-06T07:12:00.000Z.",
+        nextPassAt: '2026-10-06T07:12:00.000Z',
+      }),
+    );
+
+    renderMappings();
+
+    fireEvent.click(await screen.findByTitle('Trigger sync'));
+
+    const when = formatDateTime('2026-10-06T07:12:00.000Z', 'en');
+    expect(
+      await screen.findByText(
+        `On Free a migration runs one pass a day. Its next pass starts at ${when}. A higher tier looks for changes as often as every 15 minutes.`,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/2026-10-06T07:12:00\.000Z/)).not.toBeInTheDocument();
   });
 
   it('leads a draft to Review and start, and offers no sync that would be refused (0037 T2)', async () => {

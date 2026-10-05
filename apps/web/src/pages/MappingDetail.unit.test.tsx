@@ -18,6 +18,7 @@ import { STRINGS } from '../i18n/strings.ts';
 const {
   mappingApiGet,
   mappingRenameMock,
+  mappingVisitMock,
   mappingDiscoveryMock,
   fetchAllDiscoveryMock,
   fetchRunsMock,
@@ -28,6 +29,7 @@ const {
 } = vi.hoisted(() => ({
   mappingApiGet: vi.fn(),
   mappingRenameMock: vi.fn(),
+  mappingVisitMock: vi.fn(),
   mappingDiscoveryMock: vi.fn(),
   fetchAllDiscoveryMock: vi.fn(),
   fetchRunsMock: vi.fn(),
@@ -38,7 +40,12 @@ const {
 }));
 
 vi.mock('../services/mapping-service', () => ({
-  mappingApi: { get: mappingApiGet, getDiscovery: mappingDiscoveryMock, rename: mappingRenameMock },
+  mappingApi: {
+    get: mappingApiGet,
+    getDiscovery: mappingDiscoveryMock,
+    rename: mappingRenameMock,
+    recordVisit: mappingVisitMock,
+  },
 }));
 
 // VITE_EDITION is baked in by vite `define` (edition.unit.test.ts explains why
@@ -115,6 +122,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   editionFlag.selfhost = false;
   mappingApiGet.mockResolvedValue(aMapping());
+  mappingVisitMock.mockResolvedValue(undefined);
   fetchStatusMock.mockResolvedValue({ status: 'ok', mappings: [] });
   fetchAttentionMock.mockResolvedValue({ mappings: [] });
   fetchProgressMock.mockResolvedValue({ mappings: [{ mappingId: 'acme-mail', domains: [], check: { state: 'not_run' } }] });
@@ -458,6 +466,26 @@ describe('the schedule panel (the owner, 2026-09-28)', () => {
     expect(await screen.findByRole('heading', { name: 'Before you switch' })).toBeInTheDocument();
     expect(screen.queryByText(STRINGS.en['settings.schedule'])).toBeNull();
     expect(mappingApiGet).not.toHaveBeenCalled();
+    expect(mappingVisitMock).not.toHaveBeenCalled();
+  });
+
+  it('records a visit as the page opens, which brings a migration on Automatic back to every hour (0157 T7)', async () => {
+    renderHub();
+    await vi.waitFor(() => expect(mappingVisitMock).toHaveBeenCalledWith('acme-mail'));
+    expect(mappingVisitMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the page as it would without the visit, when the visit is not recorded', async () => {
+    mappingVisitMock.mockRejectedValue(new Error('network down'));
+    renderHub();
+    expect(await screen.findByRole('heading', { name: 'Before you switch' })).toBeInTheDocument();
+  });
+
+  it('selects Automatic for a migration with no schedule of its own (0157 T7)', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ syncConfig: { domains: ['email'] } }));
+    renderHub();
+    const automatic = await screen.findByRole('button', { name: /^Automatic/ });
+    expect(automatic).toHaveAttribute('aria-pressed', 'true');
   });
 });
 
