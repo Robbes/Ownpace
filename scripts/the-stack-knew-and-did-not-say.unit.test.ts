@@ -407,6 +407,9 @@ describe('a catcher serving what looks like a real deployment', () => {
         // that lifts only half the helpers makes the note print an empty port
         // — which is exactly the production defect, reproduced in the test rig.
         fn('env_or'),
+        // The test of a real address, shared with the refusal of a published
+        // database password (workplan 0132 T2).
+        fn('web_url_is_real'),
         fn('note_mail_goes_nowhere_real'),
         'note_mail_goes_nowhere_real',
       ].join('\n');

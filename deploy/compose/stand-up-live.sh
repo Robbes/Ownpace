@@ -99,9 +99,11 @@
 #   2. bootstrap-managed.sh --only preflight, --only env (the other secrets;
 #      it never rotates one), then DOCKER_RUNNER_NETWORKS as Compose renders
 #      it must be <project>_ownpace-network (D9), then --only data.
-#   3. app_user, created from APP_DB_PASSWORD before anything migrates, the
-#      statement on psql's stdin: the baseline migration creates it with the
-#      password this repository publishes only when it does not exist.
+#   3. app_user is there before anything migrates. Since 0132 T2's code the
+#      data phase of step 2 creates it from APP_DB_PASSWORD (the baseline
+#      migration creates it with the password this repository publishes only
+#      when it does not exist), so this step finds it; it creates it, the
+#      statement on psql's stdin, only if it is missing.
 #   4. T2 step 2's check, over live's own network, the way every container
 #      reaches Postgres: the two controls (the owner and app_user with .env's
 #      values) must open, and the three published values must not, for the
@@ -179,6 +181,9 @@ done
 # Live's marker, named once.
 # shellcheck source=deploy/compose/stack-kind.sh
 . "${SCRIPT_DIR}/stack-kind.sh"
+# The values this repository publishes for a database password, named once.
+# shellcheck source=deploy/compose/shipped-passwords.sh
+. "${SCRIPT_DIR}/shipped-passwords.sh"
 # What a release tag is, the rule deploy-live.sh applies.
 # shellcheck source=deploy/compose/release-tag.sh
 . "${SCRIPT_DIR}/release-tag.sh"
@@ -219,8 +224,6 @@ PASSWORDS=(
 )
 # managed.yml puts these in a URL, so only characters a URL carries as they are.
 URL_PASSWORDS=' POSTGRES_PASSWORD APP_DB_PASSWORD CLICKHOUSE_PASSWORD TRIGGER_DB_PASSWORD '
-# Values this repository publishes for one password or another.
-PUBLISHED_PASSWORDS=' app_password openmigrate_password trigger_password password very-safe-password '
 # The .env named to Compose, so that it reads the file checked below.
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml" --env-file "${ENV_FILE}")
 CHECK_TRIES="${STAND_UP_LIVE_CHECK_TRIES:-5}"
@@ -937,14 +940,9 @@ check_names() {
 }
 
 # is_published <key> <value> — empty, a change-me…, or a value this repository
-# publishes (managed.yml's default for it among them).
+# publishes (shipped-passwords.sh), or managed.yml's default for the key.
 is_published() {
-  case "$2" in
-    '' | change-me* | changeme*) return 0 ;;
-  esac
-  case "$PUBLISHED_PASSWORDS" in
-    *" $2 "*) return 0 ;;
-  esac
+  shipped_password "$(shipped_password_bare "$2")" && return 0
   [ "$2" = "$(compose_default "$1")" ]
 }
 
@@ -1012,8 +1010,11 @@ db_psql() {
 
 # app_user with APP_DB_PASSWORD, before the API's first start migrates. The
 # baseline creates the role with the password this repository publishes, and
-# only when it does not exist. The statement reaches psql on stdin, and a
-# failing statement is kept out of the database's log.
+# only when it does not exist. Since 0132 T2's code the bring-up's data phase
+# (step 2) creates it and sets its password on every run, so this finds it and
+# leaves its password to step 4's check. Kept as a check that it is there. The
+# statement reaches psql on stdin, and a failing statement is kept out of the
+# database's log.
 create_app_user() {
   local exists pw
   exists="$(printf "SELECT 1 FROM pg_roles WHERE rolname = 'app_user';\n" | db_psql)" ||
@@ -1044,7 +1045,7 @@ db_opens() {
 # values this repository publishes must not, for the owner, openmigrate and
 # app_user. Every pair is asked, then the verdict.
 check_db_passwords() {
-  local owner owner_pw app_pw u label pw entry control_failed='' opened=''
+  local owner owner_pw app_pw u label k control_failed='' opened=''
   local -a lines=() users=()
   PG_CHECK_IMAGE="$(sed -n '/^[[:space:]]*image:[[:space:]]*postgres:/{s/^[[:space:]]*image:[[:space:]]*//p;q}' "${SCRIPT_DIR}/managed.yml")"
   [ -n "$PG_CHECK_IMAGE" ] || stopped "managed.yml names no postgres image to ask the database with."
@@ -1073,10 +1074,9 @@ check_db_passwords() {
   for u in "${users[@]}"; do
     label="$u"
     [ "$u" != "$owner" ] || [ "$u" = openmigrate ] || label='the owner role (POSTGRES_USER)'
-    for entry in "app_password:the migration's password" "openmigrate_password:compose's default" "change-me-openmigrate:the example's value"; do
-      pw="${entry%%:*}"
-      if db_opens "$u" "$pw"; then
-        lines+=("OPENS: ${label}, with ${entry#*:}")
+    for k in "${!SHIPPED_PG[@]}"; do
+      if db_opens "$u" "${SHIPPED_PG[$k]}"; then
+        lines+=("OPENS: ${label}, with ${SHIPPED_PG_FROM[$k]}")
         opened=1
       fi
     done

@@ -81,7 +81,7 @@ function checkout(dotEnv: string): { root: string; compose: string; log: string;
   mkdirSync(compose, { recursive: true });
   // What the script sources at its top, and the file its reader reads, and
   // what the demo phase writes the .env with.
-  for (const f of ['bootstrap-managed.sh', 'env-read.sh', 'stack-kind.sh', 'own-addresses.sh', 'trigger-cli-lib.sh', 'env-upsert.sh']) {
+  for (const f of ['bootstrap-managed.sh', 'env-read.sh', 'stack-kind.sh', 'own-addresses.sh', 'trigger-cli-lib.sh', 'env-upsert.sh', 'shipped-passwords.sh']) {
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
     chmodSync(join(compose, f), 0o755);
   }
@@ -151,7 +151,12 @@ function callersOf(script: string, name: string): string[] {
 }
 
 const LIVE = 'COMPOSE_PROJECT_NAME=ownpace-live\nSTACK_KIND=production\nWEB_URL=https://app.example.test\n';
-const OTA = 'WEB_URL=https://app.example.test\n';
+// The OTA stack's database passwords are its own since 2026-10-05: on a real
+// address the bring-up refuses the ones this repository publishes (0132 T2).
+const OTA_PASSWORDS = ['POSTGRES_PASSWORD', 'APP_DB_PASSWORD', 'CLICKHOUSE_PASSWORD', 'MINIO_ROOT_PASSWORD']
+  .map((k, i) => `${k}=${`0f${i}e0f`.repeat(8)}\n`)
+  .join('');
+const OTA = `WEB_URL=https://app.example.test\n${OTA_PASSWORDS}`;
 
 describe('--with-demo on a .env that is, or could be, live\'s is refused before anything runs', () => {
   const LIVE_LIKE: Array<[string, string]> = [

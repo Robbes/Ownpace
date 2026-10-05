@@ -48,9 +48,10 @@ This is a core promise of the architecture (SAD §17, §17.1), not just a policy
   ```
   cd deploy/compose
   cp managed.env.example .env
-  # edit .env — set POSTGRES_PASSWORD, APP_DB_PASSWORD, NEXTCLOUD_ADMIN_PASSWORD, ports…
-  ./ensure-env-secrets.sh   # generates every still-blank required secret (idempotent —
-                            # it NEVER touches a value you already set)
+  # edit .env — set NEXTCLOUD_ADMIN_PASSWORD, ports…
+  ./ensure-env-secrets.sh   # generates every still-blank required secret, the four database
+                            # passwords among them while their volumes are new (idempotent —
+                            # it never touches a value you set that this repository does not publish)
   ```
   Compose auto-loads `.env` from the compose file's directory. To keep it elsewhere, pass
   `--env-file <path>`. The API also refuses to **boot** in production with a
@@ -125,10 +126,18 @@ the **system role, `ownpace_system`** (workplan 0138 T3 step 2). RLS is enforced
   names from the store on every run now and fails when the list it reads back still holds either;
   `docs/managed-bring-up.md`, "The owner's names in the task environment", says what to do then.
 
-Change `APP_DB_PASSWORD` from the migration default (`app_password`) before any real deployment, and
-rotate it in the DB to match: `./deploy/compose/rotate-db-passwords.sh --sync` sets `app_user` and
-the owner to `.env`'s values, and `--rotate` makes new ones for both and changes `.env` and the roles
-together (`docs/managed-bring-up.md`, "Changing the database passwords").
+**The two passwords are `.env`'s, on every run** (workplan 0132 T2). A role keeps the password it
+was made with, so the bring-up's `data` phase tells both: before anything migrates it creates
+`app_user` from `APP_DB_PASSWORD` when it does not exist (`0001_baseline` then leaves it alone, and
+makes it with its published `app_password` only when it is absent), sets its password when it does,
+and sets the owner's, then asks both over the stack's network and through PgBouncer. On a stack
+whose volume is new, `ensure-env-secrets.sh` generates `POSTGRES_PASSWORD` and `APP_DB_PASSWORD`
+(and `CLICKHOUSE_PASSWORD` and `MINIO_ROOT_PASSWORD`). On a real address (`WEB_URL` https, not
+localhost) every phase from `data` on refuses one that is empty or a value this repository publishes,
+naming the key and never the value. To change them on a stack that has its volumes,
+`./deploy/compose/rotate-db-passwords.sh --rotate` makes new ones and changes `.env` and the roles
+together, and `--sync` sets the roles to `.env`'s values (`docs/managed-bring-up.md`, "Changing the
+database passwords").
 
 ## Start / stop
 
