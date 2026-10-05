@@ -40,6 +40,18 @@
 # The prose companion, with every dashboard screen written out and a failure
 # table: docs/managed-bring-up.md. This script is the executable half of that
 # document; neither is meant to be read without the other existing.
+#
+# NO XTRACE (workplan 0132 T2). This reads every value in .env, and its data
+# phase sets the database roles' passwords with db-roles.sh, which nothing
+# that sources it may run under `set -x`. Tracing prints every value a command
+# is given, so it is refused before anything is read, as
+# rotate-db-passwords.sh refuses it.
+case "$-" in *x*) BOOTSTRAP_TRACED=1 ;; *) BOOTSTRAP_TRACED='' ;; esac; set +x
+if [ -n "$BOOTSTRAP_TRACED" ] || [ -n "${BASH_XTRACEFD+set}" ]; then
+  echo "!!! refused: this was started with xtrace (set -x, bash -x, SHELLOPTS or BASH_XTRACEFD). Tracing prints every value a command is given, and this handles passwords." >&2
+  echo "!!! Nothing has run. Run it again without tracing." >&2
+  exit 1
+fi
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -215,6 +227,11 @@ load_env() {
   . "$ENV_FILE"
   set +a
 
+  # Before anything else reads the stack: a database password this repository
+  # publishes is a refusal on a real address, and a note on localhost
+  # (workplan 0132 T2; refuse_shipped_passwords, below).
+  refuse_shipped_passwords
+
   # Compose interpolates the WHOLE file before running any command, so ONE
   # `${VAR:?…}` with no value in .env breaks every compose call against
   # managed.yml — including ones that never touch the service that is missing
@@ -341,6 +358,95 @@ refuse_a_bind_that_is_not_an_address() { # refuse_a_bind_that_is_not_an_address 
   exit 1
 }
 
+# A REAL ADDRESS: WEB_URL is https and not localhost. One test, for the two
+# things that depend on it: the note that mail goes to the catcher, and the
+# refusal of a published database password (both below).
+web_url_is_real() { # web_url_is_real <WEB_URL>
+  case "${1:-}" in
+    https://localhost*|https://127.0.0.1*|http://*) return 1 ;;
+    https://*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# A DATABASE PASSWORD THIS REPOSITORY PUBLISHES, ON A REAL ADDRESS (workplan
+# 0132 T2).
+#
+# POSTGRES_PASSWORD (the owner, who passes every row-security policy),
+# APP_DB_PASSWORD (every organisation's rows, through the API), and
+# CLICKHOUSE_PASSWORD and MINIO_ROOT_PASSWORD (Trigger.dev's event store and
+# its large payloads). Each is a value anybody can read in this repository
+# when it is empty (compose's default then applies), a change-me… value, or
+# one of compose's or the migration's defaults: shipped-passwords.sh lists
+# them, once, for this, ensure-env-secrets.sh and rotate-db-passwords.sh.
+#
+# A REFUSAL ON A REAL ADDRESS, here, where every phase from `data` on passes
+# (the gate's `--from data` and deploy-live.sh's included), before any docker
+# call. On localhost a NOTE, once a run: a developer's own stack is where the
+# shipped values are right (workplan 0132 D4, --accept-defaults).
+#
+# The application role's NAME too. The first migration makes app_user, with
+# the password it publishes, whenever no role of that name exists, whatever
+# APP_DB_USER says. An APP_DB_USER that is not app_user leaves app_user on
+# that password beside it (0132 T2 step 5).
+#
+# BY KEY, NEVER BY VALUE: each line says which key, and whether it is empty
+# or holds a published value.
+#
+# NOT TRIGGER_DB_PASSWORD, YET (split off on 2026-10-05). The OTA stack's
+# trigger_db_data volume still holds the literal managed.yml falls back to,
+# and rotate-db-passwords.sh does not rotate it. Refusing it now would stop the
+# nightly gate. Workplan 0132's Status names the step that adds it.
+SHIPPED_PASSWORDS_NOTED=0
+refuse_shipped_passwords() {
+  # shellcheck source=deploy/compose/shipped-passwords.sh
+  . "${SCRIPT_DIR}/shipped-passwords.sh"
+  local entry key volume value app_role
+  local -a found=()
+  for entry in "${SHIPPED_PASSWORD_KEYS[@]}"; do
+    read -r key volume <<<"$entry"
+    value="$(shipped_password_bare "$(env_get "$key")")"
+    shipped_password "$value" || continue
+    if [ -z "$value" ]; then
+      found+=("${key}: empty, so compose's default applies, and this repository publishes it")
+    else
+      found+=("${key}: a value this repository publishes")
+    fi
+  done
+  app_role="$(shipped_password_bare "$(env_get APP_DB_USER)")"
+  if [ -n "$app_role" ] && [ "$app_role" != app_user ]; then
+    found+=("APP_DB_USER: names another role than app_user. The first migration makes app_user with a password this repository publishes whenever it does not exist. Set it back to app_user (workplan 0132 T2, step 5)")
+  fi
+  [ "${#found[@]}" -gt 0 ] || return 0
+
+  if web_url_is_real "$(shipped_password_bare "$(env_get WEB_URL)")"; then
+    echo "!!! REFUSED: WEB_URL is a real address, and deploy/compose/.env has a database password this repository publishes:" >&2
+    printf '!!!   %s\n' "${found[@]}" >&2
+    echo "!!! No value is printed. Nothing has run in this phase." >&2
+    if stack_may_be_live "$ENV_FILE"; then
+      # Live's values are its own (D8), and rotate-db-passwords.sh changes
+      # nothing there: its --sync and --rotate refuse live.
+      echo "!!! This .env has a ${STACK_KIND_KEY} line: live's. Live's values are its own (workplan 0132 D8), and rotate-db-passwords.sh only checks them there." >&2
+      echo "!!!   ./deploy/compose/rotate-db-passwords.sh --check says what opens, and changes nothing." >&2
+      echo "!!!   Workplan 0132 T2 steps 3 and 4 change a role's password, and its paragraph on ClickHouse and MinIO says how those change:" >&2
+      echo "!!!   by hand, within live's hold (T6). Before live's volumes exist, stand-up-live.sh generates them." >&2
+    else
+      echo "!!! Postgres keeps the password its volume was made with, and ClickHouse and MinIO take a new one only with their containers. On a stack that has them, change them together:" >&2
+      echo "!!!   ./deploy/compose/rotate-db-passwords.sh --check, then --rotate --with-trigger-stores at a quiet time." >&2
+      echo "!!!   docs/managed-bring-up.md, \"Changing the database passwords\", is the procedure." >&2
+      echo "!!! A new stack, before its volumes exist: ./deploy/compose/ensure-env-secrets.sh generates them." >&2
+      echo "!!! A developer's own stack runs on localhost, where this is a note (workplan 0132 T2, D4)." >&2
+    fi
+    exit 1
+  fi
+  [ "$SHIPPED_PASSWORDS_NOTED" = 1 ] && return 0
+  SHIPPED_PASSWORDS_NOTED=1
+  note "DATABASE PASSWORDS THIS REPOSITORY PUBLISHES, fine on localhost (a developer's own stack):"
+  printf '    %s\n' "${found[@]/#/  }"
+  note "  On a real address (WEB_URL https, not localhost) every phase from data on refuses them"
+  note "  (workplan 0132 T2). docs/managed-bring-up.md, \"Changing the database passwords\"."
+}
+
 # Bring services up, and on failure show WHY rather than the one line compose
 # prints. `up --wait` reports `container X is unhealthy` and stops — which
 # names the service and not the reason, and the reason is always in that
@@ -450,11 +556,7 @@ note_mail_goes_nowhere_real() {
   smtp="$(env_get SMTP_HOST)"
   web="$(env_get WEB_URL)"
   [ "$smtp" = "mailpit" ] || return 0
-  case "$web" in
-    https://localhost*|https://127.0.0.1*|http://*) return 0 ;;
-    https://*) : ;;
-    *) return 0 ;;
-  esac
+  web_url_is_real "$web" || return 0
 
   note "MAIL ON THIS STACK GOES TO THE CATCHER, and WEB_URL looks like a real"
   note "  deployment (${web}). Every notification will report as sent and no"
@@ -1037,20 +1139,29 @@ phase_env() {
     fi
   fi
 
-  # The values a human must decide. Left as shipped they are not broken —
-  # a localhost-only demo box works — so this reports rather than refuses.
+  # The values a human must decide. Left as shipped they are not broken on a
+  # developer's own stack on localhost, so this reports rather than refuses.
+  # The four database passwords are ensure-env-secrets.sh's to generate while
+  # their volumes do not exist; one still shipped here has a volume already,
+  # and on a real address every phase from data on refuses it (load_env,
+  # refuse_shipped_passwords). The demo Nextcloud's admin is the demo's.
+  # shellcheck source=deploy/compose/shipped-passwords.sh
+  . "${SCRIPT_DIR}/shipped-passwords.sh"
   local placeholders=()
-  local k
-  for k in POSTGRES_PASSWORD APP_DB_PASSWORD CLICKHOUSE_PASSWORD MINIO_ROOT_PASSWORD NEXTCLOUD_ADMIN_PASSWORD; do
-    case "$(env_get "$k")" in
-      change-me* | app_password) placeholders+=("$k") ;;
-    esac
+  local entry k volume
+  for entry in "${SHIPPED_PASSWORD_KEYS[@]}"; do
+    read -r k volume <<<"$entry"
+    shipped_password "$(shipped_password_bare "$(env_get "$k")")" && placeholders+=("$k")
   done
+  case "$(env_get NEXTCLOUD_ADMIN_PASSWORD)" in
+    change-me*) placeholders+=(NEXTCLOUD_ADMIN_PASSWORD) ;;
+  esac
   if [ "${#placeholders[@]}" -gt 0 ]; then
     note "STILL AT THEIR SHIPPED DEFAULTS: ${placeholders[*]}"
-    note "  Fine for a demo box on localhost. Not fine for anything a customer reaches."
-    note "  Change them BEFORE the 'data' phase — changing POSTGRES_PASSWORD after"
-    note "  the volume exists does not change the password inside it."
+    note "  Fine for a developer's own stack on localhost. On a real address (WEB_URL"
+    note "  https, not localhost) every phase from 'data' on refuses the database ones."
+    note "  On a stack whose volumes exist, docs/managed-bring-up.md, \"Changing the"
+    note "  database passwords\", changes them with the database and the stores."
   fi
 
   local host
@@ -1091,12 +1202,81 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
+# THE TWO ROLES MATCH .env, ON EVERY RUN (workplan 0132 T2).
+#
+# A ROLE KEEPS THE PASSWORD IT WAS MADE WITH. Postgres reads POSTGRES_PASSWORD
+# once, when initdb makes the volume, and migration 0001 makes app_user with
+# app_password whenever no such role exists. After that, .env changes what the
+# containers are told and never what the database holds, and a changed value
+# reached a role only by hand.
+#
+# So the data phase sets both, every run, before anything migrates: it makes
+# APP_DB_USER's role from APP_DB_PASSWORD when the role does not exist (0001
+# then finds it and leaves it alone), sets its password when it does, and sets
+# the owner's. One transaction, over the socket as the owner, which the image
+# trusts there, with db-roles.sh's db_roles_set: the function
+# rotate-db-passwords.sh --sync uses, so the two cannot drift apart. Each value
+# reaches the container by name from this process's environment and is read
+# there by psql, so it is on no command line and in no SQL text a container is
+# given (db-roles.sh, "HOW A VALUE TRAVELS"). An empty key gives compose's
+# default, as it gives the containers; on a real address load_env has refused
+# that already. On the OTA stack, whose roles hold .env's values since the
+# owner's rotation, this sets each to the value it already has.
+#
+# Then, once the pooler is up, both are proven where the stack's containers
+# connect: over the stack's network and through PgBouncer. A role that does
+# not open there stops the bring-up before anything uses it.
+#
+# scripts/a-password-the-repository-knows.unit.test.ts runs the phase against
+# a docker stub that keeps each role's password, and holds the order: postgres,
+# the roles, setup-auth.sql, the pooler, the proof.
+database_roles_match_env() {
+  local key value
+  # shellcheck source=deploy/compose/db-roles.sh
+  . "${SCRIPT_DIR}/db-roles.sh"
+  db_roles_init "$ENV_FILE" || die "the checkout's compose project could not be read (above)."
+  # Only characters a URL carries as they are: managed.yml puts both values in
+  # a database URL, as stand-up-live.sh and the tasks phase hold their
+  # passwords to. Checked before either role changes. A value Compose reads
+  # otherwise than this script (a dollar, a space) would set a role to what
+  # no container presents.
+  for key in POSTGRES_PASSWORD APP_DB_PASSWORD; do
+    value="$DB_ROLES_APP_PASSWORD"
+    [ "$key" = APP_DB_PASSWORD ] || value="$DB_ROLES_OWNER_PASSWORD"
+    [[ "$value" =~ ^[A-Za-z0-9._~-]+$ ]] ||
+      die "${key} holds a character a URL does not carry as it is, and managed.yml puts it in a database URL. Neither role was changed. Use hex (openssl rand -hex 24), as ensure-env-secrets.sh and rotate-db-passwords.sh make. Its value is not printed."
+  done
+  value=''
+  db_roles_set "$DB_ROLES_OWNER_PASSWORD" "$DB_ROLES_APP_PASSWORD" ||
+    die "could not set ${DB_ROLES_APP}'s and ${DB_ROLES_OWNER}'s passwords to .env's values: ${DB_ROLES_WHY}. It is one transaction, so neither changed. No value is printed."
+  note "${DB_ROLES_APP} and ${DB_ROLES_OWNER} hold .env's values (one transaction over the socket, as ${DB_ROLES_OWNER}; ${DB_ROLES_APP} made first when it did not exist)"
+}
+
+database_roles_proven() {
+  local rc=0 role channel asked why verdict
+  db_roles_prove "$DB_ROLES_OWNER_PASSWORD" "$DB_ROLES_APP_PASSWORD" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    while IFS='|' read -r role channel asked why; do
+      [ -n "$role" ] || continue
+      case "$asked" in 0) verdict='opens' ;; 1) verdict='REFUSED' ;; *) verdict='could not be asked' ;; esac
+      echo "!!!   ${role} over the ${channel}: ${verdict}${why:+ (${why})}" >&2
+    done <<<"$DB_ROLES_PROOF"
+    die "${DB_ROLES_APP} and ${DB_ROLES_OWNER} were set to .env's values, and one does not open with it where the stack connects (above). No value is printed."
+  fi
+  note "${DB_ROLES_APP} and ${DB_ROLES_OWNER} open with .env's values over the stack's network and through the pooler"
+}
+
+# ---------------------------------------------------------------------------
 phase_data() {
-  say data "postgres, the pooler's lookup role, pgbouncer"
+  say data "postgres, the two roles set to .env, the pooler's lookup role, pgbouncer"
   load_env
 
   up_wait postgres
   note "postgres healthy"
+
+  # Before anything migrates: the API's first start applies 0001, which makes
+  # app_user with its published password unless the role exists by then.
+  database_roles_match_env
 
   # ORDER. pgbouncer's healthcheck authenticates as `pgbouncer_auth`, and that
   # role is created by setup-auth.sql — which needs postgres up. So on a fresh
@@ -1109,7 +1289,10 @@ phase_data() {
   # The password reaches the script as the GUC it actually reads. setup-auth.sql
   # takes it from `current_setting('my.pw')`, so PGOPTIONS sets it for the
   # session at connect — one mechanism, no ordering between a -c and a -f.
-  "${COMPOSE[@]}" exec -T -e PGOPTIONS="-c my.pw=${pw}" postgres psql \
+  # PGOPTIONS goes to the container BY NAME, from this one command's
+  # environment: `-e PGOPTIONS=…` would put the value on docker's command line,
+  # which `ps` shows every account on the machine (workplan 0132 T2).
+  PGOPTIONS="-c my.pw=${pw}" "${COMPOSE[@]}" exec -T -e PGOPTIONS postgres psql \
     -v ON_ERROR_STOP=1 \
     -U "${POSTGRES_USER:-openmigrate}" -d "${POSTGRES_DB:-openmigrate}" \
     -f - <"${SCRIPT_DIR}/pgbouncer/setup-auth.sql" >/dev/null
@@ -1170,6 +1353,9 @@ phase_data() {
 
   up_wait pgbouncer
   note "pgbouncer healthy, in transaction mode (auth_query in ${configured_db})"
+
+  # The two roles, asked the way the stack's containers ask.
+  database_roles_proven
 
   if [ "$WITH_DEMO" -eq 1 ]; then
     nextcloud_database_ready

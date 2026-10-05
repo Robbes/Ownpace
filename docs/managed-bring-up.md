@@ -27,7 +27,7 @@ What the script does instead is make it the *only* human step:
 | Step | Who |
 | --- | --- |
 | Generate every secret, pin the image architecture | script |
-| Bring up Postgres, create the pooler's lookup role, bring up PgBouncer | script |
+| Bring up Postgres, set `app_user` and the owner to `.env`, create the pooler's lookup role, bring up PgBouncer | script |
 | Bring up the whole Trigger.dev plane and wait for health | script |
 | **Find the magic link in the logs** | script (`trigger-magic-link.sh`) |
 | **Open it, name an organisation, name a project** | **you** |
@@ -503,21 +503,36 @@ five Trigger.dev secrets, `PGBOUNCER_AUTH_PASSWORD` — and writes
 `pgbouncer/userlist.txt`. It is idempotent: a value you already set is never
 rotated. Then it pins `DEPLOY_IMAGE_PLATFORM` to this host's architecture.
 
+**The four database passwords** (workplan 0132 T2): `POSTGRES_PASSWORD`,
+`APP_DB_PASSWORD`, `CLICKHOUSE_PASSWORD` and `MINIO_ROOT_PASSWORD`. The example
+ships them empty, and `ensure-env-secrets.sh` generates each one while its
+volume does not exist yet (`postgres_data`, `clickhouse_data_v2`,
+`minio_data`). While that volume does not exist, it also replaces a value this
+repository publishes. Once the volume exists it writes nothing for that key, and
+says so. Postgres keeps the password its volume was made with, so a new value
+here would not reach the roles. ClickHouse and MinIO read theirs when their
+containers are recreated, and a new value has to reach each store and
+`trigger-api` together. On a stack whose volumes exist, both go through
+`rotate-db-passwords.sh --rotate --with-trigger-stores`. A value you set
+yourself is never touched.
+
+Empty, a `change-me…` value, or one of compose's or the migration's defaults is
+a value anybody can read in this repository
+([`shipped-passwords.sh`](../deploy/compose/shipped-passwords.sh) lists them).
+On a **real address** (`WEB_URL` is https and not localhost) every phase from
+`data` on refuses them, naming each key and never a value. On localhost it is a
+note: a developer's own stack is where they are fine (`--accept-defaults`).
+On a stack whose volumes exist, change them together with the database:
+[Changing the database passwords](#changing-the-database-passwords) below.
+`trigger-db`'s `TRIGGER_DB_PASSWORD` is not refused yet: the OTA stack's volume
+still holds the literal `managed.yml` falls back to, and the rotation does not
+change it yet (0132's Status names that step).
+
 **What it will not decide for you.** It *reports* these and moves on:
 
-- `POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `CLICKHOUSE_PASSWORD`,
-  `MINIO_ROOT_PASSWORD`, `NEXTCLOUD_ADMIN_PASSWORD` still at their shipped
-  defaults. Fine for a demo box on localhost; not fine for anything a customer
-  reaches. **Change them before the `data` phase** — changing
-  `POSTGRES_PASSWORD` after the volume exists does not change the password
-  inside it. `APP_DB_PASSWORD` has the same trap from the other side:
-  migration `0001_baseline.sql` creates `app_user` with the password
-  `app_password` whatever `.env` says, so a new value must also be applied to
-  the role once the migrations have run — `./deploy/compose/rotate-db-passwords.sh --sync`
-  sets both roles to `.env`'s values without printing either
-  (see [operator-runbook.md, "The database roles"](./operator-runbook.md#the-database-roles-why-there-are-three-db-urls),
-  and [Changing the database passwords](#changing-the-database-passwords) below)
-  — or the API cannot connect through `APP_DATABASE_URL`.
+- `NEXTCLOUD_ADMIN_PASSWORD` still at its shipped default, and any of the four
+  above still shipped because its volume exists. Fine for a demo box on
+  localhost; not fine for anything a customer reaches.
 - `CORS_ORIGIN` / `WEB_URL` / `API_URL`. On a real deployment these are the
   public https addresses. `API_URL` is where **Mollie's servers** deliver
   payment webhooks: with `MOLLIE_API_KEY` set, the API refuses to boot in
@@ -551,8 +566,12 @@ Edit `.env` by hand, or use
 it already sits instead of appending a second copy of it:
 
 ```bash
-./deploy/compose/env-upsert.sh deploy/compose/.env POSTGRES_PASSWORD=…
+./deploy/compose/env-upsert.sh deploy/compose/.env WEB_URL=https://…
 ```
+
+A secret goes on its standard input instead (`printf 'KEY=%s\n' "$v" |
+./deploy/compose/env-upsert.sh --stdin deploy/compose/.env`): an argument is on
+the command line, which `ps` shows every account on the machine.
 
 It refuses a value containing whitespace, a quote, `$`, a backtick or a
 backslash. That is not fussiness: every consumer of this file reads it with
@@ -560,26 +579,46 @@ backslash. That is not fussiness: every consumer of this file reads it with
 own parser would disagree about what happened.
 
 **It stops here the first time.** The file has just been created, so none of
-those decisions has been made — and the next phase creates the Postgres volume,
-after which changing `POSTGRES_PASSWORD` in this file changes nothing at all
-while the stack looks configured and fails to authenticate. Read the file,
-then resume with `--from data`. On a throwaway demo box where the shipped
-values are the right answer, `--accept-defaults` removes the pause.
+those decisions has been made. Read the file, then resume with `--from data`.
+On a throwaway demo box where the shipped values are the right answer,
+`--accept-defaults` removes the pause.
 
 **Verify:** `grep -c '=.' deploy/compose/.env`, and that
 `deploy/compose/pgbouncer/userlist.txt` exists.
 
 **Never commit `.env`.**
 
-### 3. `data` — Postgres, the pooler's lookup role, PgBouncer
+### 3. `data` — Postgres, the two roles, the pooler's lookup role, PgBouncer
 
 ```bash
 docker compose -f deploy/compose/managed.yml up -d --wait postgres
+#   … app_user and the owner set to .env's values (below) …
 PGOPTIONS="-c my.pw=$PGBOUNCER_AUTH_PASSWORD" \
-  docker compose -f deploy/compose/managed.yml exec -T postgres \
+  docker compose -f deploy/compose/managed.yml exec -T -e PGOPTIONS postgres \
   psql -U openmigrate -d openmigrate -f - < deploy/compose/pgbouncer/setup-auth.sql
 docker compose -f deploy/compose/managed.yml up -d --wait pgbouncer
+#   … both roles asked over the stack's network and through the pooler …
 ```
+
+**The two roles match `.env` on every run** (workplan 0132 T2). A role keeps
+the password it was made with: Postgres reads `POSTGRES_PASSWORD` once, when the
+volume is made, and migration `0001_baseline.sql` creates `app_user` with a
+published password whenever no such role exists. So once Postgres is healthy,
+and before anything migrates, the phase creates `app_user` from
+`APP_DB_PASSWORD` when it does not exist, sets its password when it does, and
+sets the owner's. It is one transaction over the database's socket, as the
+owner, with the same function `rotate-db-passwords.sh --sync` uses
+(`db-roles.sh`). Once the pooler is up it asks both roles, the way the stack's
+containers do: over the stack's network and through PgBouncer. A role that does
+not open stops the phase. On a stack whose roles already hold `.env`'s values,
+like the OTA stack since its rotation, each is set to the value it has.
+
+**No value on a command line.** Each password reaches its container by name,
+from the environment of the one `docker` call that needs it (`-e PGOPTIONS`,
+never `-e PGOPTIONS=…`), and the SQL a container is given names a variable,
+not a value. `ps` shows every account on the machine a command line.
+`setup-auth.sql` takes `pgbouncer_auth`'s password as the session setting
+`my.pw`.
 
 **The order is the whole point.** PgBouncer's healthcheck authenticates as
 `pgbouncer_auth`, and that role is created by `setup-auth.sql`, which needs
@@ -590,9 +629,12 @@ not exist yet.
 **Verify:**
 
 ```bash
-docker compose -f deploy/compose/managed.yml exec -T pgbouncer \
-  psql "postgresql://pgbouncer_auth:${PGBOUNCER_AUTH_PASSWORD}@127.0.0.1:6432/pgbouncer" -tAc "SHOW POOLS"
+PGPASSWORD="$PGBOUNCER_AUTH_PASSWORD" \
+  docker compose -f deploy/compose/managed.yml exec -T -e PGPASSWORD pgbouncer \
+  psql -h 127.0.0.1 -p 6432 -U pgbouncer_auth -d pgbouncer -tAc "SHOW POOLS"
 ```
+
+The password goes to the container by name, as the phase passes its own.
 
 Anything back, containing `transaction`, is the pooler serving in the right
 mode.
@@ -3316,9 +3358,10 @@ port, because its fix lists it), and a production name that does not resolve.
 2. `bootstrap-managed.sh --only preflight`, `--only env`, a check that the
    rendered `DOCKER_RUNNER_NETWORKS` is `ownpace-live_ownpace-network` (D9), and
    `--only data`.
-3. Creates `app_user` from `APP_DB_PASSWORD` before anything migrates, the
-   statement on psql's stdin: the baseline migration creates it with a
-   published password only when it does not exist.
+3. Makes sure `app_user` exists with `APP_DB_PASSWORD` before anything
+   migrates: the baseline migration creates it with a published password only
+   when it does not exist. Since 0132 T2's code the `data` phase of step 2
+   creates it, and this step finds it there.
 4. Asks live's database over live's own network, as every container does
    (0132 T2 step 2): the two controls must open, and the three published values
    must not.
@@ -4262,8 +4305,11 @@ CLI**, whose stored token then fails with `Unable to validate existing personal
 access token — 500`; a `login` fixes it. **A database password is not enough
 changed in `.env`**: `POSTGRES_PASSWORD` and `APP_DB_PASSWORD` belong to roles
 that keep the password they were created with, so the role has to be told
-too. `./deploy/compose/rotate-db-passwords.sh` does both, and never prints a
-value; the next section is the procedure.
+too. The bring-up's `data` phase tells both on every run (phase 3 above), and
+`./deploy/compose/rotate-db-passwords.sh --rotate` makes new values and tells
+the roles at once, and never prints a value; the next section is the
+procedure. ClickHouse and MinIO take theirs when their containers are
+recreated.
 
 ### Changing the database passwords
 
@@ -4276,7 +4322,7 @@ modes:
 
 | mode | what it does | exit |
 |---|---|---|
-| `--check` (the default) | Changes nothing, and runs on any stack, live included. Lists the login roles (names and flags). Asks the controls, `.env`'s own values, over the stack's network and through PgBouncer. Tries the three shipped Postgres values against the owner **by its real name**, `app_user`, `openmigrate` and `APP_DB_USER`, where each is a login role. Tries ClickHouse's two and MinIO's two in their own containers. Reports `trigger-db`'s value, written into `managed.yml`, as waiting for T2's code, uncounted. One line per pair, never a value. A role that opens and is neither the owner nor `APP_DB_USER` (the owner's old name, left with `LOGIN`) is not one `--rotate` changes, so for it the advice is workplan 0132 T2 step 5 by hand: `ALTER ROLE <name> NOLOGIN`, never `DROP`. | 0 nothing shipped opens; 1 something does; 2 not established |
+| `--check` (the default) | Changes nothing, and runs on any stack, live included. Lists the login roles (names and flags). Asks the controls, `.env`'s own values, over the stack's network and through PgBouncer. Tries the three shipped Postgres values against the owner **by its real name**, `app_user`, `openmigrate` and `APP_DB_USER`, where each is a login role. Tries ClickHouse's two and MinIO's two in their own containers. Reports `trigger-db`'s value as waiting for the code that rotates it, uncounted. One line per pair, never a value. A role that opens and is neither the owner nor `APP_DB_USER` (the owner's old name, left with `LOGIN`) is not one `--rotate` changes, so for it the advice is workplan 0132 T2 step 5 by hand: `ALTER ROLE <name> NOLOGIN`, never `DROP`. | 0 nothing shipped opens; 1 something does; 2 not established |
 | `--sync` | Sets `app_user`'s and the owner's passwords to what `.env` holds, in one transaction over the socket, then proves both over the network and through the pooler. Idempotent. The remedy when `.env` and the roles disagree. Refuses a stack that may be live (`stack_may_be_live`), before it asks the stack anything. | 0 / 1 / 2 |
 | `--rotate [--with-trigger-stores]` | Makes new values on the machine and changes `.env` and the roles together. With `--with-trigger-stores`, `CLICKHOUSE_PASSWORD` and `MINIO_ROOT_PASSWORD` too. Refuses on live, in CI, under `set -x`, when `.env` is not the persisted file, while a CI job runs on the machine or E2E (managed) is queued or in progress (asked before it prompts, and again once the project name is typed, before anything is written), when postgres is not healthy, when `.env` and the roles already disagree, and while a shipped value opens a login role it does not change (it names the role and 0132 T2 step 5). It asks you to type the project name. On any failure, or an interrupt, it puts the old `.env` and the old role passwords back, and says which step failed; a second Ctrl-C does not stop that. If it cannot complete, it keeps the old `.env` beside the persisted one (mode 0600) and says what to run. | 0 / 1 |
 
@@ -4322,9 +4368,11 @@ process that needs it, by name.
 `--sync` and `--rotate` refuse live: its values are made fresh when it is
 stood up and are its own (0132 T1b, D8). `--check` runs on any stack, live
 included; 0132 T0 step 5 runs it there. The gate never runs `--rotate`;
-it may one day run `--check`, and T2 (b)'s bring-up is to run the `--sync`
-functions (`deploy/compose/db-roles.sh`) on every run. `trigger-db`'s password
-waits for T2's code, which makes it `TRIGGER_DB_PASSWORD`.
+it may one day run `--check`. The bring-up's `data` phase runs the `--sync`
+function (`deploy/compose/db-roles.sh`) on every run, and refuses a published
+value on a real address. `trigger-db`'s password is `TRIGGER_DB_PASSWORD`, and
+it reaches the database only when its volume is new: rotating it on the OTA
+stack's volume is T2's next step (0132's Status).
 
 ### `whoami` says nothing about whether you are logged in
 

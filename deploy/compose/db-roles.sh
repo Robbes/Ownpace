@@ -12,8 +12,9 @@
 # the role with ALTER ROLE, and then proven the way the stack presents it.
 #
 # Sourced, never run. The functions here are the ones rotate-db-passwords.sh
-# uses, and the ones T2 (b)'s bring-up is to call in its `data` phase, so the
-# two cannot drift apart. The caller sets SCRIPT_DIR (this directory, as every
+# uses, and the ones the bring-up's `data` phase calls on every run
+# (bootstrap-managed.sh, database_roles_match_env), so the two cannot drift
+# apart. The caller sets SCRIPT_DIR (this directory, as every
 # script here does) and COMPOSE (its Compose command as an array, for this
 # checkout's managed.yml). This file sources env-read.sh and own-addresses.sh
 # from SCRIPT_DIR itself, and db_roles_init asks the project reader before any
@@ -21,20 +22,27 @@
 #
 #   db_roles_init <env-file>
 #       reads the owner, the application role, the database and the two
-#       passwords from .env, with compose's own defaults for an empty key
+#       passwords from .env as Compose reads them: one pair of surrounding
+#       double quotes removed (env_value keeps them, Compose and bash do not),
+#       then compose's own default for a key that is empty
 #       (managed.yml: ${POSTGRES_USER:-openmigrate},
 #       ${POSTGRES_PASSWORD:-openmigrate_password}, ${POSTGRES_DB:-openmigrate},
 #       ${APP_DB_USER:-app_user}, ${APP_DB_PASSWORD:-app_password}), and
 #       COMPOSE_PROJECT from compose_project. Returns 2 when the project
-#       cannot be read.
+#       cannot be read. Otherwise a role would be set to `"value"`, quotes and
+#       all, which no container presents.
 #   db_roles_list
 #       the login roles, one `name|super|login` line each in DB_ROLES_LIST,
 #       over the socket as the owner: names and flags, never a password.
 #   db_roles_ask <network|pooler> <role> <password>
 #       0 opens, 1 refused, 2 cannot tell (DB_ROLES_WHY says why).
 #   db_roles_set <owner-password> <app-password>
-#       ALTER ROLE on both roles in one transaction, over the socket as the
-#       owner.
+#       both roles set in one transaction, over the socket as the owner. The
+#       application role is CREATED with LOGIN when it does not exist yet, as
+#       the bring-up's data phase needs before the first migration runs: 0001
+#       creates app_user only when it is absent, and with a password this
+#       repository publishes. --sync and --rotate refuse before this when the
+#       role is missing, so for them it is always an ALTER.
 #   db_roles_prove <owner-password> <app-password>
 #       each role opens with its value over the network AND through the
 #       pooler: 0, 1 (one refuses) or 2 (one could not be asked).
@@ -85,11 +93,21 @@
 # which `ps` shows every user on the machine. Each value is set in the
 # environment of the one `docker` process that needs it and passed on BY NAME
 # (`-e PGPASSWORD`, no `=`), and the ALTER reads it inside the container with
-# psql's `\set name `printf …``, so the SQL text carries a variable, not the
-# value. The ALTER runs with log_statement off and log_min_error_statement at
-# panic, so a failing statement is not written to the database's log with the
-# value in it. Nothing here prints a value, and nothing that sources this may
-# use `set -x`.
+# psql's `\set name `printf …``, so the SQL text a container is given carries
+# a variable, not the value. The statement runs with log_statement off,
+# log_min_error_statement at panic and pg_stat_statements.track_utility off,
+# so a statement is not written to the database's log, failed or not, and not
+# kept in the query statistics, even on a server configured otherwise
+# (managed.yml turns track_utility off for the whole server too). Nothing here
+# prints a value, and nothing that sources this may use `set -x`.
+#
+# WHY NOT A SESSION SETTING. Workplan 0132 §3 T2 proposed passing each value
+# as a session setting, the way setup-auth.sql takes pgbouncer_auth's from
+# PGOPTIONS. This file was built after that, and does what the setting was for
+# with a psql variable read from the environment: the value is on no command
+# line and in no SQL text a container is given. The rotation runs on it, and
+# the owner ran that on the OTA stack on 2026-10-05; the bring-up calls the
+# same function rather than a second mechanism.
 
 # The client for a network question: the image the stack's postgres runs, so
 # asking pulls nothing. scripts/rotate-db-passwords.unit.test.ts holds it to
@@ -106,15 +124,26 @@ DB_ROLES_CLIENT_IMAGE='postgres:18-alpine'
 # The statements db_roles_set sends. They name each value by a psql variable,
 # and psql reads the value inside the container from the environment Compose
 # was told to pass on by name. log_statement off and log_min_error_statement at
-# panic keep a statement out of the database's log, failed or not.
+# panic keep a statement out of the database's log, failed or not, and
+# track_utility off keeps it out of pg_stat_statements. The application role
+# is made, with LOGIN and nothing else (0001's own form), when the catalog has
+# no role of that name; otherwise its password is set.
+# scripts/a-password-the-repository-knows.unit.test.ts runs it against a stub
+# that applies it; it was run against a real Postgres when it was written.
 read -r -d '' DB_ROLES_SET_SQL <<'SQL' || true
 SET log_statement = 'none';
 SET log_min_duration_statement = -1;
 SET log_min_error_statement = panic;
+SET pg_stat_statements.track_utility = off;
 BEGIN;
 \set owner_pw `printf '%s' "$DB_ROLES_NEW_OWNER_PASSWORD"`
 \set app_pw `printf '%s' "$DB_ROLES_NEW_APP_PASSWORD"`
+SELECT NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'app_role') AS app_role_missing \gset
+\if :app_role_missing
+CREATE ROLE :"app_role" LOGIN PASSWORD :'app_pw';
+\else
 ALTER ROLE :"app_role" PASSWORD :'app_pw';
+\endif
 ALTER ROLE :"owner_role" PASSWORD :'owner_pw';
 COMMIT;
 SQL
@@ -148,6 +177,7 @@ read -r -d '' DB_ROLES_SYSTEM_SET_SQL <<'SQL' || true
 SET log_statement = 'none';
 SET log_min_duration_statement = -1;
 SET log_min_error_statement = panic;
+SET pg_stat_statements.track_utility = off;
 BEGIN;
 \set system_pw `printf '%s' "$DB_ROLES_NEW_SYSTEM_PASSWORD"`
 ALTER ROLE :"system_role" PASSWORD :'system_pw';
@@ -156,14 +186,29 @@ ALTER ROLE :"system_role" IN DATABASE :"DBNAME" RESET ALL;
 COMMIT;
 SQL
 
+# db_roles_env <key> <default> — a value of .env as Compose reads it: without
+# one pair of surrounding double quotes, and the default when that leaves
+# nothing, as `${KEY:-default}` gives the containers. The same reading as
+# shipped-passwords.sh's shipped_password_bare, with which the bring-up judges
+# the same lines; this file does not source that one, so that the scripts
+# and tests that copy this one need nothing more.
+db_roles_env() {
+  local value
+  value="$(env_value "$DB_ROLES_ENV_FILE" "$1")"
+  if [ "${#value}" -ge 2 ] && [ "${value:0:1}" = '"' ] && [ "${value: -1}" = '"' ]; then
+    value="${value:1:${#value}-2}"
+  fi
+  printf '%s' "${value:-$2}"
+}
+
 db_roles_init() { # db_roles_init <env-file>
   DB_ROLES_ENV_FILE="${1:-}"
   COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")" || return 2
-  DB_ROLES_OWNER="$(env_value "$DB_ROLES_ENV_FILE" POSTGRES_USER openmigrate)"
-  DB_ROLES_OWNER_PASSWORD="$(env_value "$DB_ROLES_ENV_FILE" POSTGRES_PASSWORD openmigrate_password)"
-  DB_ROLES_DB="$(env_value "$DB_ROLES_ENV_FILE" POSTGRES_DB openmigrate)"
-  DB_ROLES_APP="$(env_value "$DB_ROLES_ENV_FILE" APP_DB_USER app_user)"
-  DB_ROLES_APP_PASSWORD="$(env_value "$DB_ROLES_ENV_FILE" APP_DB_PASSWORD app_password)"
+  DB_ROLES_OWNER="$(db_roles_env POSTGRES_USER openmigrate)"
+  DB_ROLES_OWNER_PASSWORD="$(db_roles_env POSTGRES_PASSWORD openmigrate_password)"
+  DB_ROLES_DB="$(db_roles_env POSTGRES_DB openmigrate)"
+  DB_ROLES_APP="$(db_roles_env APP_DB_USER app_user)"
+  DB_ROLES_APP_PASSWORD="$(db_roles_env APP_DB_PASSWORD app_password)"
   DB_ROLES_NETWORK="${COMPOSE_PROJECT}_ownpace-network"
   DB_ROLES_LIST=''
   DB_ROLES_WHY=''
@@ -241,7 +286,8 @@ db_roles_ask() { # db_roles_ask <network|pooler> <role> <password>
 
 # Both roles in one transaction: either both take their new value or neither
 # does. Over the socket, as the owner, which the image trusts there: that is
-# what lets this repair a role whose password nobody has any more.
+# what lets this repair a role whose password nobody has any more, and make
+# the application role before anything has migrated.
 db_roles_set() { # db_roles_set <owner-password> <app-password>
   local out rc
   DB_ROLES_WHY=''
