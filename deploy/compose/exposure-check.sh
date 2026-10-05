@@ -36,6 +36,37 @@
 # demo's STALWART_BIND. An entry that is not an address, or that is every
 # interface, stops the check (exit 2).
 #
+# THE OWNER'S OWN CONTAINERS THAT ARE NOT OWNPACE'S (EXPOSURE_NOT_OURS). The
+# machine also runs services of the owner's that have nothing to do with
+# Ownpace, and some publish on every interface. The owner, 2026-10-05: "leave
+# the host services alone and continue. I just want to be able to bring the
+# live up. The box is airgapd behind netbird, so no issue there." So
+# EXPOSURE_NOT_OURS, read from the same `.env` the same way as EXPOSURE_ALLOW
+# (commas, no space; quotes read; the last line in force), lists CONTAINER
+# NAMES, matched exactly. For a container named there, a publish this would
+# fail (every interface, or an address EXPOSURE_ALLOW does not list) is printed
+# as a note instead, and does not fail the run; one it cannot read still
+# fails. A listed name that is not running is a note too. An Ownpace container
+# can never be accepted this way, and naming one stops the check (exit 2):
+#
+#   by its name         every container Ownpace starts on this machine is
+#                       named ownpace…: managed.yml and www.yml build each
+#                       `container_name` from the project, every Ownpace
+#                       project is named ownpace… (the OTA stack's, live's,
+#                       both sites', the appliance's and the upgrade
+#                       drill's), and the fixed
+#                       names (the dev and demo Stalwarts, the dev Nextcloud,
+#                       the appliance's) are ownpace… too. Refused whether it
+#                       runs or not, in any case.
+#   by its project      Docker's own label, com.docker.compose.project, the
+#                       fourth field of the listing: ownpace…, or `compose`,
+#                       the project dev.yml gets without a `name:` of its own
+#                       (the appliance nightly's dev stack, and the dev
+#                       Postgres by hand). Refused when such a container runs.
+#
+# An entry that is not a container name (an address among them) is refused
+# without being repeated.
+#
 # IT NAMES THE CONTAINER AND THE PORT, NEVER THE ADDRESS. T6 runs it after
 # every deploy of live and T7 daily, and what they print may reach a public
 # job log; the address it would name is this machine's front or mesh address.
@@ -50,11 +81,12 @@
 #                       only loopback passes)
 #   --from <file>|-     read recorded lines instead of asking Docker, in the
 #                       format this asks for:
-#                       docker ps --format '{{.Names}}\t{{.Ports}}\t{{.Networks}}'
-#                       (the third field may be left out)
+#                       docker ps --format '{{.Names}}\t{{.Ports}}\t{{.Networks}}\t{{.Label "com.docker.compose.project"}}'
+#                       (the third and fourth fields may be left out)
 #
-# Exit: 0 every publish on loopback or an allowed address; 1 findings; 2 usage,
-# a bad EXPOSURE_ALLOW, or Docker not answering.
+# Exit: 0 every publish on loopback, an allowed address, or of a container
+# EXPOSURE_NOT_OURS accepts; 1 findings; 2 usage, a bad EXPOSURE_ALLOW or
+# EXPOSURE_NOT_OURS, or Docker not answering.
 # scripts/exposure-check.unit.test.ts feeds it recorded lines.
 
 set -euo pipefail
@@ -117,7 +149,7 @@ without_addresses() {
 
 # The whole daemon on purpose: no --filter, no compose project
 # (two-stacks-on-one-box exempts this one listing).
-PS_FORMAT='{{.Names}}\t{{.Ports}}\t{{.Networks}}'
+PS_FORMAT='{{.Names}}\t{{.Ports}}\t{{.Networks}}\t{{.Label "com.docker.compose.project"}}'
 if [ -z "$FROM" ]; then
   err_file="$(mktemp)"
   trap 'rm -f "$err_file"' EXIT
@@ -191,10 +223,46 @@ for entry in ${allow_entries[@]+"${allow_entries[@]}"}; do
   ALLOWED["${entry,,}"]=1
 done
 
+# ---- Containers that are not Ownpace's ------------------------------------------
+
+# Every Ownpace container's name, and every Ownpace Compose project but dev.yml's
+# default one, begins with ownpace (above).
+is_ownpace_name() { [[ "${1,,}" == ownpace* ]]; }
+is_ownpace_project() {
+  case "${1,,}" in
+    ownpace* | compose) return 0 ;;
+  esac
+  return 1
+}
+
+CONTAINER_NAME='^[A-Za-z0-9][A-Za-z0-9_.-]+$'
+HAS_IPV4='[0-9]{1,3}(\.[0-9]{1,3}){3}'
+declare -A NOT_OURS=()
+NOT_OURS_LISTED=()
+not_ours_raw="$(env_value "$ENV_FILE" EXPOSURE_NOT_OURS)"
+case "$not_ours_raw" in '"'*'"') not_ours_raw="${not_ours_raw#\"}"; not_ours_raw="${not_ours_raw%\"}" ;; esac
+IFS=$', \t' read -r -a not_ours_entries <<<"$not_ours_raw"
+n=0
+for entry in ${not_ours_entries[@]+"${not_ours_entries[@]}"}; do
+  [ -n "$entry" ] || continue
+  n=$((n + 1))
+  if ! [[ "$entry" =~ $CONTAINER_NAME ]] || [[ "$entry" =~ $HAS_IPV4 ]]; then
+    usage_error "EXPOSURE_NOT_OURS in ${ENV_FILE}, entry ${n}, is not a container name. List the names docker ps prints, separated by commas, never an address (docs/managed-bring-up.md, \"Which address a port answers on\")."
+  fi
+  if is_ownpace_name "$entry"; then
+    usage_error "EXPOSURE_NOT_OURS in ${ENV_FILE}, entry ${n}, is named like Ownpace's own containers (ownpace…), and an Ownpace container can never be accepted as not Ownpace's. Publish it on loopback or an address EXPOSURE_ALLOW lists, and take it out of the list."
+  fi
+  if [ -z "${NOT_OURS[$entry]+set}" ]; then
+    NOT_OURS[$entry]=''
+    NOT_OURS_LISTED+=("$entry")
+  fi
+done
+
 # ---- Each container, each publish -----------------------------------------------
 
 declare -A SEEN=()
 FINDINGS=()
+ACCEPTED=()
 containers=0
 publishes=0
 
@@ -205,20 +273,48 @@ finding() {
   fi
 }
 
+# beyond <words>: a publish reachable beyond loopback and EXPOSURE_ALLOW. A
+# finding, unless EXPOSURE_NOT_OURS names the container ($not_ours).
+beyond() {
+  if [ -z "$not_ours" ]; then
+    finding "$1"
+  elif [ -z "${SEEN[$1]+set}" ]; then
+    SEEN[$1]=1
+    ACCEPTED+=("$1")
+  fi
+}
+
 line_no=0
 while IFS= read -r line || [ -n "$line" ]; do
   line_no=$((line_no + 1))
   [ -n "$line" ] || continue
   case "$line" in
     *$'\t'*) ;;
-    *) usage_error "line ${line_no} of the listing has no tab, so it is not '{{.Names}}<TAB>{{.Ports}}[<TAB>{{.Networks}}]'" ;;
+    *) usage_error "line ${line_no} of the listing has no tab, so it is not '{{.Names}}<TAB>{{.Ports}}[<TAB>{{.Networks}}[<TAB>{{.Label \"com.docker.compose.project\"}}]]'" ;;
   esac
   name="${line%%$'\t'*}"
   rest="${line#*$'\t'}"
   ports="${rest%%$'\t'*}"
   networks=""
+  project=""
   [ "$rest" = "$ports" ] || networks="${rest#*$'\t'}"
+  case "$networks" in
+    *$'\t'*)
+      project="${networks#*$'\t'}"
+      project="${project%%$'\t'*}"
+      networks="${networks%%$'\t'*}"
+      ;;
+  esac
   containers=$((containers + 1))
+
+  not_ours=''
+  if [ -n "${NOT_OURS[$name]+set}" ]; then
+    if is_ownpace_project "$project"; then
+      usage_error "EXPOSURE_NOT_OURS in ${ENV_FILE} names ${name}, a container of the Compose project ${project}, which is Ownpace's own: an Ownpace container can never be accepted as not Ownpace's. Take it out of the list."
+    fi
+    NOT_OURS[$name]=running
+    not_ours=1
+  fi
 
   case ",${networks// /}," in
     *,host,*)
@@ -264,19 +360,25 @@ while IFS= read -r line || [ -n "$line" ]; do
     fi
 
     if is_every_interface "$addr"; then
-      finding "${name} publishes ${port}/${proto} on every interface"
+      beyond "${name} publishes ${port}/${proto} on every interface"
     elif is_loopback "$addr"; then
       :
     elif [ -n "${ALLOWED[${addr,,}]+set}" ]; then
       :
     elif is_ipv4 "$addr" || is_ipv6 "$addr"; then
-      finding "${name} publishes ${port}/${proto} on an address EXPOSURE_ALLOW does not list"
+      beyond "${name} publishes ${port}/${proto} on an address EXPOSURE_ALLOW does not list"
     else
       finding "${name} publishes something this check cannot read (to ${right} in the container)"
     fi
   done
 done <<<"$listing"
 
+for a in ${ACCEPTED[@]+"${ACCEPTED[@]}"}; do
+  say "note: ${a}; not Ownpace's, accepted in EXPOSURE_NOT_OURS"
+done
+for entry in ${NOT_OURS_LISTED[@]+"${NOT_OURS_LISTED[@]}"}; do
+  [ -n "${NOT_OURS[$entry]}" ] || say "note: ${entry}, in EXPOSURE_NOT_OURS, is not running"
+done
 for f in ${FINDINGS[@]+"${FINDINGS[@]}"}; do
   say "$f"
 done
@@ -285,4 +387,6 @@ if [ "${#FINDINGS[@]}" -gt 0 ]; then
   say "FAIL: ${#FINDINGS[@]} publish(es) reachable beyond loopback and EXPOSURE_ALLOW, among ${containers} running container(s). Publish each on loopback, or set its *_BIND to an address EXPOSURE_ALLOW lists (docs/managed-bring-up.md, \"Which address a port answers on\")."
   exit 1
 fi
-say "ok: ${containers} running container(s), ${publishes} publish(es), each on loopback or an address EXPOSURE_ALLOW lists"
+accepted=''
+[ "${#ACCEPTED[@]}" -eq 0 ] || accepted="; ${#ACCEPTED[@]} accepted as not Ownpace's (EXPOSURE_NOT_OURS)"
+say "ok: ${containers} running container(s), ${publishes} publish(es), each on loopback or an address EXPOSURE_ALLOW lists${accepted}"

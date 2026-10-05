@@ -4,18 +4,19 @@
  * CLAIMS YOU CAN CHECK (workplan 0152 T8 (a), (b)).
  *
  * The site asks a stranger to believe three things: the software is open
- * source, it has no way to delete from a source, and whatever cannot be moved
- * is reported. The repository is public, and each claim is held by something
- * in it, so each claim links what holds it (`site/proof.mjs`). This keeps the
- * links honest:
+ * source, it has no code that changes or deletes anything at a source, and
+ * whatever cannot be moved is reported. The repository is public, and each
+ * claim is held by something in it, so each claim links what holds it
+ * (`site/proof.mjs`). This keeps the links honest:
  *
  * 1. **A link into the repository names a file that is in this tree.** A guard
  *    renamed or deleted is a claim that outlived its proof, and this fails on it.
  * 2. **Each claim links its own proof, in both languages:** the footer's *Open
  *    source* the repository and *Run it yourself* the self-host quickstart;
  *    the hero's fact *Nothing is deleted at the source* and *the software has
- *    no way to delete from a source* the guard that counts
- *    every source connector's methods; *Whatever cannot be moved* the scope
+ *    no code that changes or deletes anything at a source* (the card's words
+ *    since 2026-10-05, workplan 0144 T3 (b)) the guard that counts every
+ *    source connector's methods; *Whatever cannot be moved* the scope
  *    manifest; the open-source sentence the repository.
  * 3. **The repository is the one the README clones,** so the site cannot point
  *    at a fork or an old name.
@@ -78,13 +79,13 @@ describe('the site links each claim to what holds it (0152 T8)', () => {
     const expectations: Record<'en' | 'nl', Array<[string, string]>> = {
       en: [
         ['Nothing is deleted at the source.', PROOF_LINKS.readsOnly!],
-        ['the software has no way to delete from a source', PROOF_LINKS.readsOnly!],
+        ['the software has no code that changes or deletes anything at a source', PROOF_LINKS.readsOnly!],
         ['Whatever cannot be moved', PROOF_LINKS.cannotMove!],
         ['open source', PROOF_LINKS.repository!],
       ],
       nl: [
         ['Bij de bron wordt niets verwijderd.', PROOF_LINKS.readsOnly!],
-        ['de software heeft simpelweg geen manier om iets bij een bron te verwijderen', PROOF_LINKS.readsOnly!],
+        ['de software heeft geen code die bij een bron iets wijzigt of verwijdert', PROOF_LINKS.readsOnly!],
         ['Wat niet mee kan', PROOF_LINKS.cannotMove!],
         ['open source', PROOF_LINKS.repository!],
       ],

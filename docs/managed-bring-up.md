@@ -321,7 +321,27 @@ site's `WWW_BIND` and the demo's `STALWART_BIND`, separated by commas with no
 space (`EXPOSURE_ALLOW=192.0.2.10,100.64.0.1`; a bare space is a line bash
 cannot source, and the bring-up refuses it). Each stack's `.env` carries the
 same list. It names the container and the port, never the address, so what it
-prints can go into a public log. `deploy-live.sh` (workplan 0132 T6) runs it
+prints can go into a public log.
+
+**Containers on the machine that are not Ownpace's.** The machine also runs
+services of the owner's that have nothing to do with Ownpace, and some of them
+publish on every interface. The owner, 2026-10-05: *"leave the host services
+alone and continue. I just want to be able to bring the live up. The box is
+airgapd behind netbird, so no issue there."* So `EXPOSURE_NOT_OURS` in the same
+`.env` lists those containers by the names `docker ps` prints, matched exactly,
+separated by commas with no space (`EXPOSURE_NOT_OURS=someones-app,notes-db`),
+and each stack's `.env` carries the same list. For a container named there, a
+port on every interface or on an address `EXPOSURE_ALLOW` does not list is a
+note (*"note: someones-app publishes 5555/tcp on every interface; not Ownpace's,
+accepted in EXPOSURE_NOT_OURS"*), not a failure, and the closing `ok:` line
+counts them. So the check no longer holds every publish on the machine to
+loopback and `EXPOSURE_ALLOW`: those containers' are the owner's to judge. **An
+Ownpace container can never be accepted this way:** a name beginning with
+`ownpace` (every container Ownpace starts here is named so), or a running
+container whose Compose project is Ownpace's (`ownpace…`, or `compose`, which
+`dev.yml` gets without a name of its own), stops the check (exit 2), and so
+does an entry that is not a container name. A listed name that is not running
+is a note. `deploy-live.sh` (workplan 0132 T6) runs it
 after each deploy of live, and a deploy it fails did not take; T7 will run it
 daily. Until live stands it is run by hand (T0 step 5). The same question from
 outside is the dispatch-only workflow *Exposure probe*
@@ -3245,7 +3265,7 @@ No script can do these. The script checks each one before it changes anything.
      TRIGGER_LOGIN_ORIGIN=https://localhost:<TRIGGER_TLS_PORT> \
      TRIGGER_CLI_PROFILE=ownpace-live \
      WEB_BIND=<front-address> ZITADEL_BIND=<front-address> STATUS_BIND=<front-address> \
-     EXPOSURE_ALLOW=<address,address> \
+     EXPOSURE_ALLOW=<address,address> EXPOSURE_NOT_OURS=<name,name> \
      WEB_URL=https://app.ownpace.eu CORS_ORIGIN=https://app.ownpace.eu \
      ZITADEL_EXTERNALDOMAIN=id.ownpace.eu ZITADEL_EXTERNALPORT=443 \
      ZITADEL_EXTERNALSECURE=true ZITADEL_TLS_MODE=external \
@@ -3264,7 +3284,10 @@ No script can do these. The script checks each one before it changes anything.
    and no loopback address, which never needs listing. The script hands the
    list to `exposure-check.sh` itself, the check its last step and the daily
    duties run, so it takes the lists that check takes and refuses the ones it
-   refuses. Leave `POSTGRES_BIND`, `API_BIND`, `TRIGGER_BIND`, `TRIGGER_ACCESS_TOKEN` and
+   refuses. `EXPOSURE_NOT_OURS` is the OTA stack's, copied: the containers on
+   the machine that are not Ownpace's, by name (*Containers on the machine that
+   are not Ownpace's*, under *Which address a port answers on*); leave it empty
+   when there are none. The same check refuses an Ownpace container in it. Leave `POSTGRES_BIND`, `API_BIND`, `TRIGGER_BIND`, `TRIGGER_ACCESS_TOKEN` and
    `OWNPACE_REACHABLE_HOSTS` empty, and keep `APP_DB_USER=app_user`. Write
    every line `KEY=value` at its start: Compose also reads a key indented, with
    a space before `=`, or with `:`, the script's checks do not, and it refuses

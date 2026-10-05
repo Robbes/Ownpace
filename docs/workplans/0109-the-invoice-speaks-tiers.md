@@ -2,7 +2,11 @@
 
 > **In one line:** Moves managed billing from the retired metered `pricing.ts` to ADR-0014's tiers: a 409 on the invoice route, per-path `path_lifecycle`, `occupancy_peak`, the `bytes_moved` meter, `tier-calculator.ts`, a tier invoice line, top-ups and a possible free band.
 
-## Status — 2026-10-04 (update this block at the end of every session)
+## Status — 2026-10-05 (update this block at the end of every session)
+
+**2026-10-05: T5 no longer waits on the owner.** It waited on the Moneybird trial. The owner ran the
+bookkeeping's test in a Moneybird sandbox administration, and it passed (0111's Status), so T5 waits
+only on 0111 T4's wiring, which is no longer gated either.
 
 **2026-10-04: what the end of the alpha turns on is written down.** The hold, the yes, the path
 check and whether a first copy counts all switch on `OWNPACE_STAGE`, which reaches the tasks only
