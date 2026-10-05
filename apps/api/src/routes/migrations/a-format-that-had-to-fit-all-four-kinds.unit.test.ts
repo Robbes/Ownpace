@@ -26,6 +26,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import express from 'express';
 import request from 'supertest';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
+import { runManagedMigrations } from '@openmig/managed';
 import type { LedgerDriver } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import {
@@ -246,6 +247,9 @@ describe('the update route, against a real row', () => {
   beforeAll(async () => {
     driver = pgliteDriver({ role: 'app_user' });
     await runMigrations({ driver, logger: () => {} });
+    // The managed chain too: the detail route reads the pace from the tier the
+    // month bills (workplan 0157 T4), which lives in managed tables.
+    await runManagedMigrations({ driver, logger: () => {} });
     const conn = await driver.acquire();
     try {
       const q = (sql: string, p: unknown[] = []) => conn.query(sql, p);

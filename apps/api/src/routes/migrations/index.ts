@@ -76,7 +76,7 @@ import { revokeCredentialRow } from '@openmig/orchestration/revoke-stored-creden
 import type { TokenRevoker } from '@openmig/shared';
 import { cutoverBeginRefusal, prepareTransition } from '@openmig/core/cutover-state';
 import { enqueueUnlessHeld } from '../../enqueue-unless-held.ts';
-import { freePaceRefusal } from './free-pace.ts';
+import { freePaceRefusal, paceFor, scheduleRefusalAtPace } from './free-pace.ts';
 import { recordVisit } from './visits.ts';
 import { refusedAsClosed } from '../../closed-organisation.ts';
 import { refusedUntilAccepted } from '../../conditions-not-accepted.ts';
@@ -2418,6 +2418,12 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
     // A closed organisation takes no new migration, and stores no new
     // credential (0085 T2): refused before anything is written.
     if (await refusedAsClosed(res, tenantId, getSharedPool())) return;
+
+    // A schedule faster than the tier's pace (workplan 0157 T4): on Free, one
+    // pass a day, outside the alpha. Refused before anything is written,
+    // saying why and what changes it. No schedule (Automatic) is never refused.
+    const atPace = await scheduleRefusalAtPace(tenantId, body.syncConfig.schedule, getSharedPool());
+    if (atPace) return void res.status(409).json(atPace);
     // Nor does anybody who has not accepted the current texts, while the
     // deployment asks (0139 T3): this door stores the source's and the
     // destination's access.
@@ -2963,6 +2969,10 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
         domains: scopeRows.map((r) => r.domain),
         schedule: mapping.schedule ?? undefined,
       },
+      // The pace it runs at (workplan 0157 T4, T5): the least minutes between
+      // two passes, 1,440 on Free outside the alpha, and when that lets the
+      // next pass run. The page's chooser offers what this allows.
+      pace: await paceFor(tenantId, mappingId, pool),
       // Each kind this migration has, or could gain, and why not where it
       // cannot (workplan 0125 T6). The page offers exactly what this lists as
       // addable, and `POST …/domains` accepts exactly that, because both ask
@@ -3153,6 +3163,16 @@ router.put(
             'Some of what was asked for cannot change on a migration that already exists.',
           refused: refused.map((r) => ({ field: r.field, reason: r.reason })),
         });
+        return;
+      }
+
+      // A schedule faster than the tier's pace (workplan 0157 T4): on Free,
+      // one pass a day, outside the alpha, so a faster cron would promise what
+      // the tick will not do. Refused with the code the page words it by.
+      // Automatic (null) is never refused.
+      const atPace = await scheduleRefusalAtPace(tenantId, body.syncConfig?.schedule, pool);
+      if (atPace) {
+        res.status(409).json(atPace);
         return;
       }
 
@@ -4199,9 +4219,20 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
     // cadence. It is NOT swallowed either (hard rule 9): it is logged and it
     // rides back on the answer to the request that caused it, which is the
     // same shape every other enqueue call site here uses.
-    let firstRun: { queued: true; runId: string } | { queued: false; reason: string } | undefined;
+    let firstRun:
+      | { queued: true; runId: string }
+      | { queued: false; reason: string }
+      | { queued: false; reason: string; nextPassAt: string }
+      | undefined;
+    // FREE'S PACE (workplan 0157 T4): a paused migration that ran inside the
+    // day is activated, and its pass waits for the pace instead of starting
+    // at once, or pause and Start would be the way round one pass a day. The
+    // tick starts it when the day is over; the answer says when. Read after
+    // the activation, so the answer is about the migration as it now stands.
+    const pace = enqueue ? await freePaceRefusal(tenantId, mappingId, getSharedPool()) : undefined;
+    if (pace) firstRun = { queued: false, reason: pace.message, nextPassAt: pace.nextPassAt };
     // `enqueue` is there exactly when `activated` is.
-    if (enqueue) {
+    if (enqueue && !pace) {
       // No `domains`: `run-delta-sync` resolves the mapping's own
       // scope_selection when the payload omits them, which is the one place
       // that decision belongs. Naming them here would let a stale copy of the
