@@ -453,6 +453,7 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/components/StateChip.tsx`
 
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
+- [one-look-from-the-site-to-the-app](../scripts/one-look-from-the-site-to-the-app.unit.test.ts) — ONE LOOK FROM THE SITE TO THE APP (workplan 0152 T9).
 
 ### `apps/web/src/components/StatusLink.tsx`
 
@@ -4846,6 +4847,7 @@ ONE LOOK FROM THE SITE TO THE APP (workplan 0152 T9).
 Reads:
 
 - `apps/web/src/components/SiteMark.tsx`
+- `apps/web/src/components/StateChip.tsx`
 - `apps/web/src/pages/Login.tsx`
 - `apps/web/src/pages/RequestAccess.tsx`
 - `site/build.mjs`

@@ -529,8 +529,10 @@ describe('the invoice contract is the server contract (0039 T3)', () => {
     // StateChip's canonical words (0035 T1), not the raw enum.
     const overdueChip = screen.getByText('Overdue');
     expect(overdueChip.className).toContain('bg-red-100');
+    // The calm state is StateChip's blue tone, which is sky since the app took
+    // the site's paper and teal (2026-10-05): blue is now a button's teal.
     const sentChip = screen.getByText('Sent');
-    expect(sentChip.className).toContain('bg-blue-100');
+    expect(sentChip.className).toContain('bg-sky-100');
   });
 });
 

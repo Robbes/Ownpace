@@ -54,8 +54,8 @@
   /* The site's palette (TEAL and MINT in `site/build.mjs`), for the pages a
    * person meets before they are inside the app: /login and /request-access
    * (workplan 0152 T9). `scripts/one-look-from-the-site-to-the-app.unit.test.ts`
-   * holds both to the site's. The rest of the app keeps its colours until 0153
-   * reviews the palette with its layout. */
+   * holds both to the site's. Since 2026-10-05 the rest of the app is the
+   * site's paper and teal too (the `@theme` block below). */
   --color-site-teal: #0E4F4A;
   --color-site-mint: #7FD4C1;
 
@@ -64,27 +64,70 @@
   --radius-sm: calc(var(--radius) - 4px);
 }
 
+/* WARM PAPER AND TEAL (the owner, 2026-10-05: "Yes, paper + teal", after
+ * choosing warm paper, always light, for the public site). The app takes the
+ * site's look, centrally, so no screen is rewritten:
+ *
+ *  - Tailwind's greys are warm: `gray-50` is the site's paper, the page every
+ *    screen sits on (`Layout`), `gray-100` its panel, `gray-200` its line, and
+ *    `gray-900` its ink. Cards stay `bg-white`, white on the paper.
+ *    `gray-500`, the muted text, is a shade darker than the steps beside it:
+ *    it reads at 4.7:1 even on a panel, where Tailwind's own grey read 4.4:1.
+ *  - Tailwind's blue is the site's teal, from mint (`blue-300`) to the logo's
+ *    teal (`blue-700`): every button, link, focus ring and lit menu entry the
+ *    app drew in blue is Ownpace's teal. A button's white on `blue-600`
+ *    reads at 6.4:1, a link's `blue-700` at 8.9:1 on the paper.
+ *  - Where blue meant a phase rather than an action, the stage and lifecycle
+ *    labels (`StateChip`'s copying phases), it is a calm sky blue instead, so
+ *    *Copying* never looks like *Kept in step*'s green.
+ *
+ * Green, emerald, amber, yellow and red keep their meanings and their
+ * colours. `scripts/one-look-from-the-site-to-the-app.unit.test.ts` holds
+ * the paper, the panel and the teal to the site's. */
+@theme {
+  --color-gray-50: #faf9f5;
+  --color-gray-100: #f2f0e8;
+  --color-gray-200: #e5e1d6;
+  --color-gray-300: #d3cdbf;
+  --color-gray-400: #a8a294;
+  --color-gray-500: #706a62;
+  --color-gray-600: #5d5850;
+  --color-gray-700: #45413b;
+  --color-gray-800: #2c2925;
+  --color-gray-900: #1d2421;
+  --color-blue-50: #eef8f5;
+  --color-blue-100: #d5efe7;
+  --color-blue-200: #acdfd0;
+  --color-blue-300: #7fd4c1;
+  --color-blue-400: #3fae98;
+  --color-blue-500: #1f8a78;
+  --color-blue-600: #146b60;
+  --color-blue-700: #0e4f4a;
+  --color-blue-800: #0b3f3b;
+  --color-blue-900: #08302d;
+}
+
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 48 33% 97%;
+    --foreground: 154 11% 13%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 154 11% 13%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --popover-foreground: 154 11% 13%;
+    --primary: 175 70% 18%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 48 28% 93%;
+    --secondary-foreground: 154 11% 13%;
+    --muted: 48 28% 93%;
+    --muted-foreground: 156 5% 38%;
+    --accent: 48 28% 93%;
+    --accent-foreground: 154 11% 13%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    --border: 44 22% 87%;
+    --input: 44 22% 87%;
+    --ring: 175 70% 18%;
     --radius: 0.5rem;
   }
 
@@ -115,8 +158,21 @@
   * {
     @apply border-border;
   }
+  /* Light, always, as the site is: the browser draws its own controls light,
+   * and its tick boxes and radio buttons in the teal, not its blue. */
+  :root {
+    color-scheme: light;
+    accent-color: var(--color-site-teal);
+  }
   body {
     @apply bg-background text-foreground;
+  }
+  /* A field is white on the paper, as on the site, so it looks like somewhere
+   * to type. A class on the field still says otherwise where one does. */
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+  textarea,
+  select {
+    background-color: hsl(var(--card));
   }
 }
 
