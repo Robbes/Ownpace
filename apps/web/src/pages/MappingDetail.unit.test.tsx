@@ -523,6 +523,23 @@ describe('the schedule panel (the owner, 2026-09-28)', () => {
     expect(screen.queryByText(STRINGS.en['pace.free.oneMigration'], { exact: false })).toBeNull();
   });
 
+  it("says Free's pace and this migration's next pass by it, with the way to more (0157 T5)", async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({ pace: { leastMinutesBetweenPasses: 1440, nextPassAt: '2026-10-06T07:12:00.000Z' } }),
+    );
+    renderHub();
+    const line = await screen.findByText(STRINGS.en['pace.free.oneMigration'], { exact: false });
+    expect(line.closest('p')!.textContent).toContain('Next pass:');
+    expect(screen.getByRole('link', { name: STRINGS.en['pace.free.higher'] })).toHaveAttribute('href', '/billing');
+  });
+
+  it('says no pace on a paid tier', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ pace: { leastMinutesBetweenPasses: 0, nextPassAt: null } }));
+    renderHub();
+    expect(await screen.findByRole('heading', { name: 'Before you switch' })).toBeInTheDocument();
+    expect(screen.queryByText(STRINGS.en['pace.free.oneMigration'], { exact: false })).toBeNull();
+  });
+
   it('selects Automatic for a migration with no schedule of its own (0157 T7)', async () => {
     mappingApiGet.mockResolvedValue(aMapping({ syncConfig: { domains: ['email'] } }));
     renderHub();

@@ -19,7 +19,9 @@
  *   description under ids of their own.
  *
  * The palette is the site's, through the page's own custom properties, so the
- * drawing follows the page into dark mode.
+ * drawing is drawn in the page's warm paper and teal. The site has no dark
+ * version since the owner chose warm paper, always light (2026-10-05), and
+ * neither has the drawing.
  */
 
 /**
@@ -35,7 +37,7 @@ export function heroMove(w) {
 <path class="hm-head" d="M0 0L10 5L0 10z"/>
 </marker>
 </defs>
-<style>.hm-ink{fill:var(--ink,#12211F)} .hm-muted{fill:var(--muted,#556B66)}.hm-card{fill:var(--panel,#F5F9F8);stroke:var(--line,#DFE7E5)}.hm-accent{color:var(--teal,#0E4F4A);fill:var(--teal,#0E4F4A)} .hm-arrow{stroke:var(--teal,#0E4F4A)}.hm-head{fill:var(--teal,#0E4F4A)} .hm-ring{fill:var(--bg,#FFFFFF);stroke:var(--teal,#0E4F4A)}.hm-ok{fill:var(--mint,#7FD4C1)} .hm-tick{stroke:#0E4F4A}@media (prefers-color-scheme: dark){.hm-ink{fill:var(--ink,#E8F1EF)} .hm-muted{fill:var(--muted,#9FB3AE)}.hm-card{fill:var(--panel,#10201E);stroke:var(--line,#23423E)}.hm-accent{color:var(--mint,#7FD4C1);fill:var(--mint,#7FD4C1)} .hm-arrow{stroke:var(--mint,#7FD4C1)}.hm-head{fill:var(--mint,#7FD4C1)} .hm-ring{fill:var(--bg,#0B1716);stroke:var(--mint,#7FD4C1)}}</style>
+<style>.hm-ink{fill:var(--ink,#1D2421)} .hm-muted{fill:var(--muted,#5D6763)}.hm-card{fill:var(--panel,#F2F0E8);stroke:var(--line,#E5E1D6)}.hm-accent{color:var(--teal,#0E4F4A);fill:var(--teal,#0E4F4A)} .hm-arrow{stroke:var(--teal,#0E4F4A)}.hm-head{fill:var(--teal,#0E4F4A)} .hm-ring{fill:var(--bg,#FAF9F5);stroke:var(--teal,#0E4F4A)}.hm-ok{fill:var(--mint,#7FD4C1)} .hm-tick{stroke:#0E4F4A}</style>
 <rect class="hm-card" x="8" y="40" width="190" height="260" rx="16" stroke-width="1.5"/>
 <text class="hm-muted" x="103" y="30" font-size="13" font-weight="600" text-anchor="middle">${w.old}</text>
 <use href="#i-mail" x="28" y="62" width="22" height="22" class="hm-accent"/>

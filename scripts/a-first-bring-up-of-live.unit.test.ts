@@ -527,6 +527,7 @@ function stage(opts: StageOptions = {}): Stage {
     'release-tag.sh',
     'env-read.sh',
     'stack-kind.sh',
+    'shipped-passwords.sh',
     'trigger-cli-lib.sh',
     'deploy-live.sh',
     'box-duties.sh',

@@ -8,6 +8,22 @@
 # `docker compose -f managed.yml up`, and every missing secret is generated
 # per-install. Idempotent — values already set in .env are never touched, so
 # re-running it never rotates anything.
+#
+# The four database passwords (POSTGRES_PASSWORD, APP_DB_PASSWORD,
+# CLICKHOUSE_PASSWORD, MINIO_ROOT_PASSWORD; workplan 0132 T2) only while each
+# one's volume does not exist yet: see ensure_db_password below.
+#
+# Every value goes to env-upsert.sh on its standard input, never as an
+# argument: an argument is on the process's command line, which `ps` shows
+# every account on the machine while it runs. For the same reason it refuses
+# xtrace, which prints every value a command is given, before it reads
+# anything, as rotate-db-passwords.sh does.
+case "$-" in *x*) ENSURE_TRACED=1 ;; *) ENSURE_TRACED='' ;; esac; set +x
+if [ -n "$ENSURE_TRACED" ] || [ -n "${BASH_XTRACEFD+set}" ]; then
+  echo "[ensure-env-secrets] refused: this was started with xtrace (set -x, bash -x, SHELLOPTS or BASH_XTRACEFD). Tracing prints every value a command is given, and this generates secrets." >&2
+  echo "[ensure-env-secrets] Nothing was written. Run it again without tracing." >&2
+  exit 1
+fi
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,6 +32,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # way Compose and `source` would. See deploy/compose/env-read.sh.
 # shellcheck source=deploy/compose/env-read.sh
 . "${SCRIPT_DIR}/env-read.sh"
+# The database passwords this repository publishes, and the keys this script
+# generates while their volumes do not exist (workplan 0132 T2).
+# shellcheck source=deploy/compose/shipped-passwords.sh
+. "${SCRIPT_DIR}/shipped-passwords.sh"
 
 ENV_FILE="${SCRIPT_DIR}/.env"
 UPSERT="${SCRIPT_DIR}/env-upsert.sh"
@@ -180,7 +200,7 @@ ensure() { # ensure <name> <bytes>
   # rather than moving it to the end, and is driven against a real symlink by
   # scripts/one-stack-one-env.unit.test.ts. Both generators here produce
   # `[0-9a-f]` plus `Aa1_`, so nothing trips its value rules.
-  "$UPSERT" "$ENV_FILE" "${name}=$(generate "$name" "$bytes")" >/dev/null
+  printf '%s=%s\n' "$name" "$(generate "$name" "$bytes")" | "$UPSERT" --stdin "$ENV_FILE" >/dev/null
   if [ "$was_placeholder" -eq 1 ]; then
     echo "[ensure-env-secrets] REPLACED ${name} — it held a shipped placeholder, which is not a secret"
     PLACEHOLDERS_REPLACED=1
@@ -236,6 +256,106 @@ ensure SYSTEM_DB_PASSWORD 24
 # Generated on live too, where nothing reads it: live runs no demo.
 ensure NEXTCLOUD_DB_PASSWORD 24
 
+# THE FOUR DATABASE PASSWORDS (workplan 0132 T2): POSTGRES_PASSWORD,
+# APP_DB_PASSWORD, CLICKHOUSE_PASSWORD and MINIO_ROOT_PASSWORD.
+#
+# managed.env.example ships them empty, so a new stack gets its own, as it
+# does every secret above. An empty key is not harmless here: compose then
+# gives the container its own default, and this repository publishes it
+# (shipped-passwords.sh lists those, the change-me… values older examples
+# carried, and the migration's for app_user).
+#
+# A STACK THAT EXISTS CHANGES THEM WITH ITS DATABASE. Postgres reads its
+# password when its volume is first initialised, and keeps it: a value written
+# here after that changes what the containers are told, never what the roles
+# hold. ClickHouse and MinIO read theirs when their containers are recreated,
+# and a new value has to reach each store and trigger-api together (MinIO's
+# old volume may refuse a new pair). rotate-db-passwords.sh --rotate
+# --with-trigger-stores writes the new values and sets the roles, and the E2E
+# (managed) run it starts recreates the containers. So a key that is empty or
+# holds a published value is generated only while its volume does not exist
+# yet. Once it exists, nothing is written for that key, and the note says how
+# to change it, the way TRIGGER_ENCRYPTION_KEY is refused above. A value that
+# is not published is never touched, and then docker is not even asked: the
+# nightly gate runs this on the OTA stack every night, whose values the owner
+# rotated on 2026-10-05. A daemon that does not answer is not a stack without
+# volumes: nothing is written for the four then either.
+#
+# scripts/a-password-the-repository-knows.unit.test.ts runs this with a docker
+# stub, and runs the gate's Fill step on an .env like the OTA stack's.
+DB_VOLUMES=''
+DB_VOLUMES_ASKED=0
+DB_VOLUMES_WHY=''
+DB_PROJECT=''
+DB_LEFT=()
+db_volume_exists() { # db_volume_exists <volume> — 0 yes, 1 no, 2 cannot tell
+  if [ "$DB_VOLUMES_ASKED" -eq 0 ]; then
+    DB_VOLUMES_ASKED=1
+    if ! DB_PROJECT="$(compose_project "${SCRIPT_DIR}")"; then
+      DB_VOLUMES_WHY="the compose project could not be read (above)"
+    elif ! command -v docker >/dev/null 2>&1; then
+      DB_VOLUMES_WHY="docker is not installed here"
+    elif ! DB_VOLUMES="$(docker volume ls -q --filter "name=${DB_PROJECT}_" 2>/dev/null)"; then
+      DB_VOLUMES_WHY="docker could not list the volumes, and a daemon that does not answer is not one without volumes"
+    fi
+  fi
+  [ -z "$DB_VOLUMES_WHY" ] || return 2
+  grep -qx -- "${DB_PROJECT}_$1" <<<"$DB_VOLUMES" && return 0
+  return 1
+}
+
+ensure_db_password() { # ensure_db_password <name> <volume>
+  local name="$1" volume="$2" current secret rc=0
+  current="$(shipped_password_bare "$(env_value "$ENV_FILE" "$name")")"
+  shipped_password "$current" || return 0
+  db_volume_exists "$volume" || rc=$?
+  case "$rc" in
+    1)
+      # Hex, because managed.yml puts these in URLs. Checked before it is
+      # written: an empty value would be compose's published default again.
+      secret="$(openssl rand -hex 24)" || secret=''
+      if ! [[ "$secret" =~ ^[0-9a-f]{48}$ ]]; then
+        echo "[ensure-env-secrets] FATAL: openssl rand -hex 24 gave no 48 hex digits for ${name}; nothing was written for it." >&2
+        exit 1
+      fi
+      printf '%s=%s\n' "$name" "$secret" | "$UPSERT" --stdin "$ENV_FILE" >/dev/null
+      secret=''
+      if [ -n "$current" ]; then
+        echo "[ensure-env-secrets] REPLACED ${name}: it held a value this repository publishes, and ${DB_PROJECT}_${volume} does not exist yet, so nothing keeps the old one"
+      else
+        echo "[ensure-env-secrets] generated ${name}"
+      fi
+      ;;
+    0)
+      if [ "$volume" = postgres_data ]; then
+        echo "[ensure-env-secrets] LEFT AS IT IS: ${name} is empty or holds a value this repository publishes, and ${DB_PROJECT}_${volume} exists, which keeps the password its role was made with." >&2
+      else
+        echo "[ensure-env-secrets] LEFT AS IT IS: ${name} is empty or holds a value this repository publishes, and ${DB_PROJECT}_${volume} exists: a new value has to reach the store and trigger-api together, when they are recreated." >&2
+      fi
+      DB_LEFT+=("$name")
+      ;;
+    *)
+      echo "[ensure-env-secrets] LEFT AS IT IS: ${name} is empty or holds a value this repository publishes, and whether its volume ${volume} exists cannot be told: ${DB_VOLUMES_WHY}." >&2
+      DB_LEFT+=("$name")
+      ;;
+  esac
+}
+
+for db_entry in "${SHIPPED_PASSWORD_KEYS[@]}"; do
+  read -r db_key db_volume <<<"$db_entry"
+  ensure_db_password "$db_key" "$db_volume"
+done
+if [ "${#DB_LEFT[@]}" -gt 0 ]; then
+  REFUSED_ROTATION=1
+  cat >&2 <<'EOF'
+[ensure-env-secrets] A database password whose volume exists is changed together with the database, not here:
+[ensure-env-secrets]   ./deploy/compose/rotate-db-passwords.sh --check, then --rotate --with-trigger-stores at a
+[ensure-env-secrets]   quiet time (docs/managed-bring-up.md, "Changing the database passwords").
+[ensure-env-secrets] On a developer's own stack on localhost the published values are fine. On a real address
+[ensure-env-secrets] (WEB_URL https, not localhost) the bring-up refuses them from the data phase on.
+EOF
+fi
+
 # NOT TRIGGER_DB_PASSWORD, on purpose (workplan 0132 T2). It is trigger-db's
 # password, and Postgres takes it only when the trigger_db_data volume is first
 # initialised. The OTA stack's volume was initialised with the literal that is
@@ -265,7 +385,7 @@ if grep -qE '^[0-9a-f]{32}$' <<<"$current_admin"; then
   # Through env-upsert.sh for the reason set out at the other write above:
   # `sed -i` would replace a symlinked .env with a regular file and leave the
   # canonical copy stale.
-  "$UPSERT" "$ENV_FILE" "ZITADEL_ADMIN_PASSWORD=$(zitadel_password)" >/dev/null
+  printf 'ZITADEL_ADMIN_PASSWORD=%s\n' "$(zitadel_password)" | "$UPSERT" --stdin "$ENV_FILE" >/dev/null
   echo "[ensure-env-secrets] REPLACED ZITADEL_ADMIN_PASSWORD — it was plain hex, which"
   echo "[ensure-env-secrets] Zitadel's password policy rejects (no uppercase, no symbol), so the"
   echo "[ensure-env-secrets] instance it was written for could never have finished starting."
@@ -330,7 +450,7 @@ EOF
 fi
 
 if [ "${REFUSED_ROTATION:-0}" -eq 1 ]; then
-  echo "[ensure-env-secrets] done, EXCEPT the key named above — decide that one deliberately."
+  echo "[ensure-env-secrets] done, EXCEPT the key(s) named above — decide each deliberately."
 else
   echo "[ensure-env-secrets] done — secrets present in ${ENV_FILE}"
 fi

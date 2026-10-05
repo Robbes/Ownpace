@@ -13,7 +13,7 @@
  * shipped value while it opened with one of them.
  *
  * `deploy/compose/rotate-db-passwords.sh` does it, with `db-roles.sh`, the
- * helper T2 (b)'s bring-up will call. What can go wrong, and what each case
+ * helper the bring-up's data phase calls on every run. What can go wrong, and what each case
  * below holds it to:
  *
  *   A value is seen. The new values are generated on the machine and written
@@ -1373,6 +1373,7 @@ describe('--sync', () => {
 describe("the script's own text", () => {
   const script = readIf(`deploy/compose/${SCRIPT}`);
   const helper = readIf(`deploy/compose/${HELPER}`);
+  const list = readIf('deploy/compose/shipped-passwords.sh');
   const code = (text: string) =>
     text
       .split('\n')
@@ -1418,13 +1419,17 @@ describe("the script's own text", () => {
       ['MINIO_ROOT_PASSWORD', 'very-safe-password'],
     ]) {
       expect(yml, `managed.yml's default for ${key}`).toContain(`\${${key}:-${value}}`);
-      expect(`${helper}\n${script}`, `the default for ${key}`).toMatch(new RegExp(`${key}\\b[^\\n]*\\b${value}\\b`));
+      expect(`${helper}\n${script}\n${list}`, `the default for ${key}`).toMatch(new RegExp(`${key}\\b[^\\n]*\\b${value}\\b`));
     }
+    // What managed.env.example shipped until 2026-10-05, when it began to ship
+    // the four empty (0132 T2): a .env copied from it may hold them still, so
+    // the list the check tries keeps them (shipped-passwords.sh).
     const example = read('deploy/compose/managed.env.example');
     for (const value of ['change-me-openmigrate', 'change-me-clickhouse', 'change-me-minio']) {
-      expect(example).toContain(value);
-      expect(`${helper}\n${script}`).toContain(value);
+      expect(example).not.toMatch(new RegExp(`^[A-Z_]+=${value}$`, 'm'));
+      expect(list).toContain(value);
     }
+    expect(script).toMatch(/\. "\$\{SCRIPT_DIR\}\/shipped-passwords\.sh"/);
     expect(read('packages/ledger/migrations/0001_baseline.sql')).toContain("PASSWORD 'app_password'");
   });
 });

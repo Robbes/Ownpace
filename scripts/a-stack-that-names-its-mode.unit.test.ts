@@ -185,14 +185,21 @@ function runFill(dotEnv: string): { status: number | null; out: string; env: str
     'env-upsert.sh',
     'env-read.sh',
     'stack-kind.sh',
+    'shipped-passwords.sh',
     'ensure-env-secrets.sh',
   ]) {
     copyFileSync(join(COMPOSE_DIR, f), join(checkout, 'deploy/compose', f));
   }
   writeFileSync(join(checkout, 'deploy/compose/.env'), dotEnv);
+  // ensure-env-secrets.sh asks docker which volumes the stack has before it
+  // generates a database password (workplan 0132 T2): a daemon with none, so
+  // the step never asks the machine's own.
+  const bin = join(home, 'bin');
+  mkdirSync(bin);
+  writeFileSync(join(bin, 'docker'), '#!/usr/bin/env bash\nexit 0\n', { mode: 0o755 });
   const r = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', fill?.run ?? 'exit 99'], {
     cwd: checkout,
-    env: { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: home, MANAGED_ENV_PERSIST_DIR: persist },
+    env: { PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: home, MANAGED_ENV_PERSIST_DIR: persist },
     encoding: 'utf8',
     timeout: 60_000,
   });
@@ -295,6 +302,7 @@ describe('the bring-up names the fix for a .env without NODE_ENV, not the secret
       'note_site_row_half_configured',
       'note_dashboard_on_this_machine_only',
       'refuse_a_bind_that_is_not_an_address',
+      'refuse_shipped_passwords',
     ].map((f) => `${f}() { :; }`);
     const script = [
       'die() { echo "!!! $*" >&2; exit 1; }',

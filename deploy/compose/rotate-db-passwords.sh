@@ -36,9 +36,10 @@
 #      MinIO's two with mc, inside their own containers, after a control each
 #      (ClickHouse healthy, since its health check logs in with its own
 #      password; MinIO answering its own pair);
-#   5. asks trigger-db's value, written into managed.yml itself, and does not
-#      count it: no .env reaches it until T2's code makes it
-#      TRIGGER_DB_PASSWORD, and that is another change.
+#   5. asks trigger-db's value, managed.yml's fallback for an empty
+#      TRIGGER_DB_PASSWORD, and does not count it: that key reaches the
+#      database only when its volume is new, and rotating it on a volume that
+#      exists is T2's next step (0132's Status), which this does not do yet.
 #   One line per pair: the account, where the value comes from, opens or
 #   refused. Never the value. A role that opens and is neither the owner nor
 #   APP_DB_USER (the owner's old name, left with LOGIN after a rename) is one
@@ -48,8 +49,8 @@
 # --sync sets the owner's and app_user's passwords to what .env holds, in one
 # transaction, over the socket as the owner (which the image trusts there, so
 # it repairs a role whose password nobody has any more), then proves both over
-# the network and through the pooler. It is idempotent. This is also what T2
-# (b)'s bring-up is to do on every run, with the same functions (db-roles.sh).
+# the network and through the pooler. It is idempotent. The bring-up's data
+# phase does the same on every run, with the same functions (db-roles.sh).
 #
 # --rotate refuses, before anything changes:
 #   xtrace (set -x, bash -x, SHELLOPTS, BASH_XTRACEFD): tracing prints values;
@@ -192,7 +193,7 @@ fi
 # command: it refuses a shell that names the other stack.
 COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")" || refuse "the checkout's project could not be read (above)."
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml" --env-file "${ENV_FILE}")
-# The two roles' functions, shared with T2 (b)'s bring-up.
+# The two roles' functions, shared with the bring-up's data phase.
 # shellcheck source=deploy/compose/db-roles.sh
 . "${SCRIPT_DIR}/db-roles.sh"
 db_roles_init "$ENV_FILE" || refuse "the checkout's project could not be read (above)."
@@ -201,22 +202,16 @@ db_roles_init "$ENV_FILE" || refuse "the checkout's project could not be read (a
 # What was shipped, and what the output calls it
 # ---------------------------------------------------------------------------
 
-# Postgres. app_password: the first migration creates app_user with it
-# (0001_baseline.sql), and APP_DB_PASSWORD's default is the same.
-# openmigrate_password: POSTGRES_PASSWORD's default in managed.yml.
-# change-me-openmigrate: POSTGRES_PASSWORD in managed.env.example.
-PG_SHIPPED=(app_password openmigrate_password change-me-openmigrate)
-PG_SHIPPED_FROM=("the migration's default" "compose's default" "the example's value")
-# ClickHouse. CLICKHOUSE_PASSWORD's default in managed.yml, password, and the
-# example's, change-me-clickhouse.
-CH_SHIPPED=(password change-me-clickhouse)
-CH_SHIPPED_FROM=("compose's default" "the example's value")
-# MinIO. MINIO_ROOT_PASSWORD's default in managed.yml, very-safe-password, and
-# the example's, change-me-minio.
-MINIO_SHIPPED=(very-safe-password change-me-minio)
-MINIO_SHIPPED_FROM=("compose's default" "the example's value")
-# Trigger.dev's own database: written into managed.yml, for the role trigger.
-TRIGGER_DB_SHIPPED='trigger_password'
+# Named once, in shipped-passwords.sh, beside the bring-up's refusal and
+# ensure-env-secrets.sh, so the three cannot disagree about what was shipped:
+# SHIPPED_PG (app_password, the first migration's for app_user and
+# APP_DB_PASSWORD's default; openmigrate_password, POSTGRES_PASSWORD's default;
+# change-me-openmigrate, the example's), SHIPPED_CLICKHOUSE
+# (CLICKHOUSE_PASSWORD's default, password; change-me-clickhouse),
+# SHIPPED_MINIO (MINIO_ROOT_PASSWORD's default, very-safe-password;
+# change-me-minio) and SHIPPED_TRIGGER_DB, each with its _FROM labels.
+# shellcheck source=deploy/compose/shipped-passwords.sh
+. "${SCRIPT_DIR}/shipped-passwords.sh"
 
 # A shipped value is public, so it may be an argument (clickhouse-client takes
 # its password no other way); the values in .env and the generated ones never
@@ -317,21 +312,21 @@ check_pg_shipped() { # check_pg_shipped <role>...
       item "${role}: not a login role in this database, not asked"
       continue
     fi
-    for k in "${!PG_SHIPPED[@]}"; do
+    for k in "${!SHIPPED_PG[@]}"; do
       rc=0
-      db_roles_ask network "$role" "${PG_SHIPPED[$k]}" || rc=$?
+      db_roles_ask network "$role" "${SHIPPED_PG[$k]}" || rc=$?
       case "$rc" in
         0)
-          item "${role}, ${PG_SHIPPED_FROM[$k]}: OPENS"
+          item "${role}, ${SHIPPED_PG_FROM[$k]}: OPENS"
           OPENED=$((OPENED + 1))
           if [ "$role" != "$DB_ROLES_OWNER" ] && [ "$role" != "$DB_ROLES_APP" ]; then
             OPENED_OTHER=$((OPENED_OTHER + 1))
             [[ " ${OTHER_ROLES} " == *" ${role} "* ]] || OTHER_ROLES="${OTHER_ROLES:+${OTHER_ROLES} }${role}"
           fi
           ;;
-        1) item "${role}, ${PG_SHIPPED_FROM[$k]}: refused" ;;
+        1) item "${role}, ${SHIPPED_PG_FROM[$k]}: refused" ;;
         *)
-          item "${role}, ${PG_SHIPPED_FROM[$k]}: could not be asked (${DB_ROLES_WHY})"
+          item "${role}, ${SHIPPED_PG_FROM[$k]}: could not be asked (${DB_ROLES_WHY})"
           UNASKED=1
           ;;
       esac
@@ -352,16 +347,16 @@ check_stores() {
     UNASKED=1
   else
     item "ClickHouse ${user}: control: the container is healthy, and its health check logs in with its own password"
-    for k in "${!CH_SHIPPED[@]}"; do
-      out=$("${COMPOSE[@]}" exec -T clickhouse clickhouse-client --user "$user" --password "${CH_SHIPPED[$k]}" \
+    for k in "${!SHIPPED_CLICKHOUSE[@]}"; do
+      out=$("${COMPOSE[@]}" exec -T clickhouse clickhouse-client --user "$user" --password "${SHIPPED_CLICKHOUSE[$k]}" \
         --query 'SELECT 1' 2>&1) && rc=0 || rc=$?
       if [ "$rc" -eq 0 ]; then
-        item "ClickHouse ${user}, ${CH_SHIPPED_FROM[$k]}: OPENS"
+        item "ClickHouse ${user}, ${SHIPPED_CLICKHOUSE_FROM[$k]}: OPENS"
         OPENED=$((OPENED + 1))
       elif [[ "$out" == *AUTHENTICATION_FAILED* || "$out" == *"Authentication failed"* ]]; then
-        item "ClickHouse ${user}, ${CH_SHIPPED_FROM[$k]}: refused"
+        item "ClickHouse ${user}, ${SHIPPED_CLICKHOUSE_FROM[$k]}: refused"
       else
-        item "ClickHouse ${user}, ${CH_SHIPPED_FROM[$k]}: could not be asked ($(db_roles_masked "$out"))"
+        item "ClickHouse ${user}, ${SHIPPED_CLICKHOUSE_FROM[$k]}: could not be asked ($(db_roles_masked "$out"))"
         UNASKED=1
       fi
     done
@@ -383,16 +378,16 @@ check_stores() {
     UNASKED=1
   else
     item "MinIO ${user}: control: its own pair opens"
-    for k in "${!MINIO_SHIPPED[@]}"; do
-      out=$(MC_HOST_probe="http://${user}:${MINIO_SHIPPED[$k]}@127.0.0.1:9000" \
+    for k in "${!SHIPPED_MINIO[@]}"; do
+      out=$(MC_HOST_probe="http://${user}:${SHIPPED_MINIO[$k]}@127.0.0.1:9000" \
         "${COMPOSE[@]}" exec -T -e MC_HOST_probe minio mc --config-dir /tmp/rotate-db-passwords-mc ls probe 2>&1) && rc=0 || rc=$?
       if [ "$rc" -eq 0 ]; then
-        item "MinIO ${user}, ${MINIO_SHIPPED_FROM[$k]}: OPENS"
+        item "MinIO ${user}, ${SHIPPED_MINIO_FROM[$k]}: OPENS"
         OPENED=$((OPENED + 1))
       elif [[ "$out" == *"signature we calculated does not match"* || "$out" == *"Access Key Id you provided does not exist"* || "$out" == *SignatureDoesNotMatch* || "$out" == *InvalidAccessKeyId* ]]; then
-        item "MinIO ${user}, ${MINIO_SHIPPED_FROM[$k]}: refused"
+        item "MinIO ${user}, ${SHIPPED_MINIO_FROM[$k]}: refused"
       else
-        item "MinIO ${user}, ${MINIO_SHIPPED_FROM[$k]}: could not be asked ($(db_roles_masked "$out"))"
+        item "MinIO ${user}, ${SHIPPED_MINIO_FROM[$k]}: could not be asked ($(db_roles_masked "$out"))"
         UNASKED=1
       fi
     done
@@ -400,15 +395,15 @@ check_stores() {
 
   # trigger-db: over the stack's network, like every other password question.
   local label="the value written into managed.yml"
-  grep -q "$TRIGGER_DB_SHIPPED" "${SCRIPT_DIR}/managed.yml" || label="the value managed.yml carried"
-  out=$(PGPASSWORD="$TRIGGER_DB_SHIPPED" docker run --rm -e PGPASSWORD --network "$DB_ROLES_NETWORK" \
+  grep -q "$SHIPPED_TRIGGER_DB" "${SCRIPT_DIR}/managed.yml" || label="the value managed.yml carried"
+  out=$(PGPASSWORD="$SHIPPED_TRIGGER_DB" docker run --rm -e PGPASSWORD --network "$DB_ROLES_NETWORK" \
     "$DB_ROLES_CLIENT_IMAGE" psql -h trigger-db -p 5432 -U trigger -d triggerdb -tAc 'SELECT 1' 2>&1) && rc=0 || rc=$?
   if [ "$rc" -eq 0 ]; then
-    item "trigger-db trigger, ${label}: OPENS (not counted: waits for T2's code, which makes it TRIGGER_DB_PASSWORD)"
+    item "trigger-db trigger, ${label}: OPENS (not counted: waits for T2's code that rotates it, the next step in workplan 0132)"
   elif [[ "$out" == *"password authentication failed"* ]]; then
-    item "trigger-db trigger, ${label}: refused (not counted: waits for T2's code)"
+    item "trigger-db trigger, ${label}: refused (not counted: waits for T2's code that rotates it)"
   else
-    item "trigger-db trigger, ${label}: could not be asked ($(db_roles_masked "$out")) (not counted: waits for T2's code)"
+    item "trigger-db trigger, ${label}: could not be asked ($(db_roles_masked "$out")) (not counted: waits for T2's code that rotates it)"
   fi
 }
 
