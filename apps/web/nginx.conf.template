@@ -74,13 +74,21 @@ server {
   # resolve or the API refused the connection (stopped or restarting), on a
   # timeout or a premature close, on a body above 8 MB or one nginx kept on
   # disk, and when a page could not be served. Each still shows in the access
-  # log above, with its status and `:link`. Why, nginx no longer says; the
-  # API's own log says it for every request that reached the API.
+  # log above, with its status and `:link`. Why, nginx no longer says. The
+  # API's own log says why only when the API itself failed. A 413 is nginx's
+  # own refusal, made before the API saw the request. When nginx refuses the
+  # API's answer (a 502) or the answer is cut short (logged as a 200), the API's
+  # log shows the 200 it sent. And when this container cannot reach a healthy
+  # API, no log says why (docs/incident-runbook.md, the API row).
   #
   # What crit still writes is written whole: a file nginx cannot read for a
   # reason other than its absence, a full disk, no memory, no file
-  # descriptors. No request asks for one of those; each is the machine
-  # failing, and somebody must see it.
+  # descriptors or connections left (an alert). Each is the machine failing,
+  # and somebody must see it. But a visitor without a credential can bring
+  # some of them about, by overloading nginx or by filling its disk with
+  # request bodies. The line then names whichever request met the failure,
+  # possibly another visitor's, with its link. Only `emerg` would keep those
+  # out, and it would hide the failures with them (0108, Known gaps).
   #
   # In the server, not at the image's main level, which stays at notice: a
   # connection logs through its listening socket's log, which is this server's

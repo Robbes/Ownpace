@@ -21,9 +21,12 @@
  * log still shows every one of those answers, with its status and `:link`.
  *
  * What crit still writes is written whole: a file nginx cannot read for a
- * reason other than its absence, a full disk, no memory, no descriptors. None
- * comes from what a request asks; the run below makes one, without a link,
- * so that the log is shown to be alive and not merely quiet.
+ * reason other than its absence, a full disk, no memory, no descriptors or
+ * connections left. Each is the machine failing, though a visitor can bring
+ * some about (overload, a disk filled by request bodies), and the line then
+ * names whichever request met it, link included: 0108's known gap, left to
+ * the owner. The run below makes one, without a link, so that the log is
+ * shown to be alive and not merely quiet.
  *
  * And the main level, where a request never arrives: a connection logs
  * through its listening socket's log, which is the default server's, and a

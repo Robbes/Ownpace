@@ -14,13 +14,26 @@ known gap below: *"critical errors only"*, the recommended choice.
   a body above 8 MB, on a body nginx kept on disk (a warning), for a directory asked with a query,
   and when the page was missing from the image. None of those is critical, so none is written now.
 - **The trade: no upstream detail in that log.** A 502, 504 or 413 still shows in the access log,
-  with its status and `:link`. Why, only the API's own log says, for a request that reached the
-  API. When the API is down, the web container's log no longer says so: `docker compose ps api`
-  and the API's log do.
+  with its status and `:link`. The API's own log says why only when the API itself failed. A 413
+  is nginx's own refusal of a body above 8 MB, made before the API saw it, and its size is no
+  longer logged anywhere. When nginx refuses the API's answer (a header too large or malformed: a
+  502) or the answer is cut short (logged as a 200), the API's log shows the 200 it sent, and no
+  log says why. When the API is down, the web container's log no longer says so:
+  `docker compose ps api` and the API's log do. When the API is up and the web container cannot
+  reach it, no log says why: the runbook's API row now asks the web container itself
+  (`docs/incident-runbook.md`).
 - **What crit still writes, it writes whole.** A file nginx cannot read for a reason other than
   its absence (permission denied, no file descriptors left), a full disk under a request body, no
-  memory. Each such line names its request, link and all. No request asks for one; each is the
-  machine failing, and somebody must see it.
+  memory, no connections left (an `alert`). Each such line names the request that met the
+  failure, link and all. Each is the machine failing, and somebody must see it.
+- **Known gap, for the owner (the review of this change).** A visitor without a credential can
+  bring some of those failures about: overload, when nginx runs out of connections or
+  descriptors, and a disk filled by request bodies nginx buffers to it (up to 8 MB per `/api/`
+  request). The line nginx then writes may name another visitor's request, with its link. Checked
+  on nginx 1.24 with this template: both kinds were written to stderr with the link, and nothing
+  reached the main level. On main the same lines were written at `notice` too, so this is not a
+  regression. Only `emerg` would keep them out, and it would hide those failures with them. Left
+  at `crit`, the owner's choice; the owner may revisit it.
 - **`stderr`, not `/dev/stderr`.** The same place: Docker's pipe, where the image already sends
   its error log. nginx writes to `stderr` without opening it. Opening `/dev/stderr` fails where it
   is a socket: under the test runner, `nginx -t` refused it with *"open() "/dev/stderr" failed (6:
