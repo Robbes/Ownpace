@@ -92,6 +92,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FAILURE_CATEGORIES } from '@openmig/shared';
+import { chooseLocation, parseNginx, type NginxNode } from './nginx-config.ts';
 import {
   MAX_DESCRIPTION,
   MAX_SCREENSHOT_BYTES,
@@ -258,136 +259,8 @@ function apiSources(): Map<string, string> {
 // The front's side: nginx, parsed
 // ---------------------------------------------------------------------------
 
-interface NginxNode {
-  readonly name: string;
-  readonly args: readonly string[];
-  readonly children?: NginxNode[];
-}
-
-/**
- * An nginx config as its directives and blocks. Comments are `#` to the end of
- * the line at the start of a word; a quoted word keeps its braces; and
- * `${name}`, which the image's template step substitutes and nginx reads as a
- * variable, is part of the word around it rather than a block. Anything this
- * cannot parse throws: a config that does not parse is one nothing checked.
- */
-function parseNginx(conf: string, file: string): NginxNode[] {
-  const top: NginxNode[] = [];
-  const stack: NginxNode[][] = [top];
-  let words: string[] = [];
-  const fail = (why: string): never => {
-    throw new Error(`${file}: ${why}. It does not parse, so nothing in it was checked: fix the config, not this test.`);
-  };
-  let i = 0;
-  while (i < conf.length) {
-    const c = conf[i]!;
-    if (c === '#') {
-      while (i < conf.length && conf[i] !== '\n') i++;
-    } else if (/\s/.test(c)) {
-      i++;
-    } else if (c === ';') {
-      if (words.length === 0) fail('an empty directive');
-      stack.at(-1)!.push({ name: words[0]!, args: words.slice(1) });
-      words = [];
-      i++;
-    } else if (c === '{') {
-      if (words.length === 0) fail('a block with no name');
-      const node: NginxNode = { name: words[0]!, args: words.slice(1), children: [] };
-      stack.at(-1)!.push(node);
-      stack.push(node.children!);
-      words = [];
-      i++;
-    } else if (c === '}') {
-      if (words.length > 0) fail(`\`${words.join(' ')}\` has no semicolon`);
-      if (stack.length === 1) fail('a closing brace with no block open');
-      stack.pop();
-      i++;
-    } else if (c === '"' || c === "'") {
-      let word = '';
-      let j = i + 1;
-      while (j < conf.length && conf[j] !== c) {
-        if (conf[j] === '\\' && j + 1 < conf.length) {
-          word += conf[j + 1];
-          j += 2;
-        } else {
-          word += conf[j++];
-        }
-      }
-      if (j >= conf.length) fail('a quote that never closes');
-      words.push(word);
-      i = j + 1;
-    } else {
-      let word = '';
-      while (i < conf.length && !/[\s;{}]/.test(conf[i]!)) {
-        if (conf[i] === '$' && conf[i + 1] === '{') {
-          const end = conf.indexOf('}', i);
-          if (end < 0) fail('a `${` that never closes');
-          word += conf.slice(i, end + 1);
-          i = end + 1;
-        } else {
-          word += conf[i++];
-        }
-      }
-      words.push(word);
-    }
-  }
-  if (stack.length !== 1) fail('a block that never closes');
-  if (words.length > 0) fail(`\`${words.join(' ')}\` has no semicolon`);
-  return top;
-}
-
-interface Location {
-  readonly node: NginxNode;
-  readonly modifier: '=' | '^~' | '~' | '~*' | '';
-  readonly pattern: string;
-}
-
-/** A location block's modifier and pattern, written apart or together (`= /x`, `=/x`). A named one is none. */
-function locationOf(node: NginxNode): Location | undefined {
-  if (node.name !== 'location' || node.children === undefined) return undefined;
-  const [first, second] = node.args;
-  if (first === undefined || first.startsWith('@')) return undefined;
-  for (const modifier of ['=', '^~', '~*', '~'] as const) {
-    if (first === modifier) return second === undefined ? undefined : { node, modifier, pattern: second };
-    if (first.startsWith(modifier)) return { node, modifier, pattern: first.slice(modifier.length) };
-  }
-  return { node, modifier: '', pattern: first };
-}
-
-/**
- * The location nginx chooses for a URI among one level's blocks, as the path
- * of locations from that level down to the one chosen
- * (`ngx_http_core_find_location`): an exact `=` match ends the search; else
- * the longest prefix is remembered and its nested locations searched the same
- * way; unless that prefix is `^~`, the level's regexes are then tried in
- * order, and the first that matches wins over it. `final` is whether an exact
- * or a regex match ended the search, which a level above must not override.
- */
-function chooseLocation(level: readonly NginxNode[], uri: string): { path: NginxNode[]; final: boolean } | undefined {
-  const locations = level.map(locationOf).filter((l): l is Location => l !== undefined);
-  const exact = locations.find((l) => l.modifier === '=' && l.pattern === uri);
-  if (exact) return { path: [exact.node], final: true };
-  let prefix: Location | undefined;
-  for (const l of locations) {
-    if ((l.modifier === '' || l.modifier === '^~') && uri.startsWith(l.pattern)) {
-      if (prefix === undefined || l.pattern.length > prefix.pattern.length) prefix = l;
-    }
-  }
-  let found: { path: NginxNode[]; final: boolean } | undefined;
-  if (prefix) {
-    const inner = chooseLocation(prefix.node.children!, uri);
-    if (inner?.final) return { path: [prefix.node, ...inner.path], final: true };
-    found = { path: [prefix.node, ...(inner?.path ?? [])], final: false };
-    if (prefix.modifier === '^~') return found;
-  }
-  for (const l of locations) {
-    if (l.modifier !== '~' && l.modifier !== '~*') continue;
-    if (new RegExp(l.pattern, l.modifier === '~*' ? 'i' : '').test(uri)) {
-      return { path: [l.node, ...(chooseLocation(l.node.children!, uri)?.path ?? [])], final: true };
-    }
-  }
-  return found;
-}
+// The parser and the location choice live in `./nginx-config.ts`, shared with
+// workplan 0158's guard on the headers the app is served with.
 
 /** Whether this location itself proxies: its own `proxy_pass`, or one in an `if` inside it, never a nested location's. */
 function proxies(node: NginxNode): boolean {

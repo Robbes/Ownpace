@@ -269,3 +269,31 @@ describe("the migration's detail says the pace", () => {
     });
   });
 });
+
+describe("the organisation's pace, for the pages that list its migrations (0157 T5)", () => {
+  it('on Free: a day between passes, and the next pass of each migration that ran inside the day', async () => {
+    vi.stubEnv('OWNPACE_STAGE', '');
+    const res = await request(app).get('/api/migrations/pace');
+    expect(res.status).toBe(200);
+    expect(res.body.leastMinutesBetweenPasses).toBe(1440);
+    expect(res.body.nextPassAt[RAN[FREE]]).toBe(new Date(TWO_HOURS_AGO.getTime() + 86_400_000).toISOString());
+    // Never another organisation's migrations, and none that never ran.
+    expect(res.body.nextPassAt[RAN[PAID]]).toBeUndefined();
+    expect(res.body.nextPassAt[PAUSED_NEVER]).toBeUndefined();
+  });
+
+  it('on a paid tier, and during the alpha: no pace, and no next pass to say', async () => {
+    vi.stubEnv('OWNPACE_STAGE', '');
+    signedIn = PAID;
+    expect((await request(app).get('/api/migrations/pace')).body).toEqual({
+      leastMinutesBetweenPasses: 0,
+      nextPassAt: {},
+    });
+    vi.stubEnv('OWNPACE_STAGE', 'alpha');
+    signedIn = FREE;
+    expect((await request(app).get('/api/migrations/pace')).body).toEqual({
+      leastMinutesBetweenPasses: 0,
+      nextPassAt: {},
+    });
+  });
+});

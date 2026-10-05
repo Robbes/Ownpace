@@ -459,6 +459,14 @@ nav.menu .leaving-list a { display: flex; align-items: center; gap: 0.6rem; padd
 .strip .step { font-size: 1.6rem; line-height: 1; min-width: 1.2ch; color: var(--teal); }
 .strip h3 { margin: 0 0 0.3rem; font-size: 1.05rem; }
 .strip p { margin: 0; color: var(--muted); }
+/* The app itself, after How it works (0152 T3): its screen in a frame, so the
+   frame says where the app ends and the page goes on. */
+.app-screen { margin: 1.5rem 0 0; }
+.app-screen img {
+  display: block; max-width: 100%; height: auto;
+  border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
+}
+.app-screen figcaption { margin-top: 0.75rem; color: var(--muted); font-size: 0.9rem; }
 .lede { font-size: clamp(1.05rem, 2.2vw, 1.3rem); color: var(--muted); max-width: 58ch; }
 .cta { display: flex; gap: 0.75rem; flex-wrap: wrap; margin: 2rem 0 0; }
 .btn {
@@ -885,6 +893,40 @@ function tierCards(locale) {
 const ICON_OF = { email: 'mail', calendar: 'calendar', contact: 'contacts', file: 'files', task: 'tasks' };
 
 /**
+ * THE APP ITSELF ON THE HOME PAGE (workplan 0152 T3: "drawing now, app screen
+ * later"). A person's page in the app, as `scripts/shoot-the-app-screen.mjs`
+ * photographed it: the wide picture, and the phone's below 48rem, where the
+ * wide one would shrink its words past reading. Each `<img>` and `<source>`
+ * carries its size in CSS pixels from `screen.json`, so the page keeps the
+ * picture's room before it arrives; the files hold twice those pixels.
+ *
+ * The UI smoke opens the same page and fails while its words are not the
+ * words in `screen.json`, so a change to the app's text cannot leave an old
+ * picture here (the owner, 2026-10-05: *"it will have to move along with
+ * changes in text in the future"*). The build copies the folder into `dist/`.
+ */
+const APP_SCREEN = JSON.parse(readFileSync(join(HERE, 'app-screen', 'screen.json'), 'utf8'));
+
+function appScreen(locale) {
+  const c = COPY[locale].appScreen;
+  const sized = (file) => {
+    const p = APP_SCREEN.pictures[file];
+    if (!p) throw new Error(`site/app-screen/screen.json has no ${file}: run node scripts/shoot-the-app-screen.mjs`);
+    return `src="/app-screen/${file}" width="${p.width}" height="${p.height}"`;
+  };
+  const phone = sized(`person-phone.${locale}.webp`).replace('src=', 'srcset=');
+  return `<h2>${c.title}</h2>
+<p>${c.lede}</p>
+<figure class="app-screen">
+  <picture>
+    <source media="(max-width: 48rem)" ${phone}>
+    <img ${sized(`person.${locale}.webp`)} alt="${esc(c.alt)}" loading="lazy" decoding="async">
+  </picture>
+  <figcaption>${c.caption}</figcaption>
+</figure>`;
+}
+
+/**
  * *Where to* (workplan 0152 T4): the destinations the app moves data into, from
  * the guarded copy in `destinations.mjs`, each with the data types it takes,
  * named as the app names them. The card that is four protocols says which
@@ -1094,6 +1136,7 @@ ${SPRITE}
     .map(([h, p], i) => `<li><span class="step" aria-hidden="true">${i + 1}</span><div><h3>${h}</h3><p>${p}</p></div></li>`)
     .join('')}</ol>
 <p><a href="${urlFor(locale, 'how')}">${c.strip.more} <span aria-hidden="true">→</span></a></p>
+${appScreen(locale)}
 ${whereTo(locale)}
 <h2>${c.diffTitle}</h2>
 ${cards(c.diff)}
@@ -1769,6 +1812,11 @@ if (runDirectly && process.argv.includes('--check')) {
     writeFileSync(dest, p.html);
   }
   if (existsSync(join(HERE, 'brand'))) cpSync(join(HERE, 'brand'), join(DIST, 'brand'), { recursive: true });
+  // The app screen's pictures (`appScreen`), without the words the smoke reads.
+  cpSync(join(HERE, 'app-screen'), join(DIST, 'app-screen'), {
+    recursive: true,
+    filter: (src) => !src.endsWith('.json'),
+  });
   writeFileSync(
     join(DIST, 'robots.txt'),
     PUBLIC ? 'User-agent: *\nAllow: /\n' : 'User-agent: *\nDisallow: /\n',

@@ -4,6 +4,53 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-10-05, the managed gate at a paid tier's pace.** E2E (managed) #238 was the first nightly
+run with T2 and T4. The gate's stack ran outside the alpha, and its demo organisations are billed
+Free, so its *Sync now* answered `409 free_pace` and nothing was copied. The task lane, the large
+file and the canary failed. The prepare phase now picks Small for each demo organisation through
+T6's door, once per stack (`at_a_paid_pace` in `smoke-managed.sh`, guarded by
+`a-sync-the-gate-pressed-on-free`).
+
+**2026-10-05, T6 built: a person picks a tier.** The Billing page has a card, *Pick a tier*.
+It lists every tier above the one this month bills, each with its monthly price, its room and
+its pace. A pick asks once more with the money said: *"From today each month bills at least
+Small, €5.00 a month, until you lower it. Lowering counts from the next month."* Only the order
+button sends it: *Order with obligation to pay* (*Bestelling met betalingsverplichting*), the
+button terms §6 promises.
+- **The bill and the pace.** A month bills at least the pick standing when it began, and every
+  pick made during it (`pickedFloorOf`, `tier-pick.ts`). So a raise counts at once, the pace
+  following it, and a lower pick counts from the next month. Free is no floor.
+- **The records.** A pick is a row in managed 0044's append-only `tier_pick`. A pick above the
+  agreed tier also records a yes in `data_allowance`, with `axis` `pick`, so its room comes
+  with it.
+- **What the page says.** The tier panel says *"Picked by you: each month bills at least
+  Small."*. A pending lower pick is said with its day, and the tier picked now is offered again,
+  to keep it.
+- **During the alpha** the card lists the tiers and takes no pick, as no yes is taken. Every
+  tier's pace and room are a tester's already, and a pick would bind them past the alpha to a
+  price they never ordered.
+
+T2 to T7 are built. What is left is outside this plan: billing a tier, which is 0109 T5.
+
+**2026-10-05, T7 whole: each step is said.** A migration on *Automatic* that steps down is said
+by a morning mail, to the organisation's active owners and admins, in its language:
+*"Everything is in step, so we now look for changes less often"*. The mail names each migration
+and its person, says *now every 6 hours* or *now once a day*, and says how to choose more often.
+It goes at most once a day for an organisation (`managed-cadence-email`, 07:30 UTC). Each step is
+said once, claimed in managed 0043's `migration_cadence_said`. A visit brings back the hour and
+deletes the row. The migration's page then says, that once: *"Everything was in step, so we
+looked every 6 hours. Opening this migration brought back every hour, for 14 days. To keep it
+hourly, choose Hourly under How often to look for changes."* Nothing is said on Free, outside the
+alpha, where the day's pace holds whatever the cadence. Next: T6.
+
+**2026-10-05, T5 built: the app says the pace.** On Free, outside the alpha, the migration's
+page says *"Free: one pass a day, up to 50 minutes. Next pass: …"*, and the person's page says
+*"Free: one pass a day for each migration, up to 50 minutes."*. Each line ends with *"A higher
+tier copies pass after pass."*, a link to the Billing page (`PaceLine`). The person's page reads
+the organisation's pace from `GET /api/migrations/pace`. The first-copy email adds, on Free:
+*"On Free that is one pass a day. A higher tier looks for changes as often as every 15 minutes:
+see Billing in the app."* T5 is whole.
+
 **2026-10-05, later still: T4 built: the doors know the pace.** Outside the alpha, on Free:
 - a schedule faster than a day is refused at create and on the migration page
   (`409 free_pace_schedule`), while *Automatic* and *Daily* are not;
@@ -49,9 +96,9 @@ and it waits for the owner.
 | T2 Free at one pass a day | ✅ **Built 2026-10-05** | §2. The managed tick makes a Free migration due 24 hours after its last pass started, its first copy included, outside the alpha; a paid one keeps 0156 T5's first copy back to back. *Sync now* on Free waits for the day too, except the final pass. |
 | T3 Small kinds first, files last, across a Free organisation's migrations | ✅ **Built 2026-10-05** | §3. Within a pass `PASS_ORDER` already does it; between one Free organisation's migrations due at once, one that copies only files (a Takeout's photos included) takes its later turns (`inOrganisationOrder`). |
 | T4 The doors know the pace, and paid looks every hour | ✅ **Built: the hourly default 2026-10-04 (since T7, *Automatic*), the doors 2026-10-05** | §4. The API refuses a schedule faster than the tier allows (`free_pace_schedule`), the chooser offers what the tier allows and says why, *Start* on a paused migration waits for the pace, and a fallen tier's faster schedule is shown as running once a day. |
-| T5 The app says the pace | 📋 **Proposed** | §5. *"One pass a day, up to 50 minutes. Next pass at 07:12."*, with how many days the first copy needs, on the migration's and the person's pages. |
-| T6 Picking a tier | 📋 **Proposed** | §6. The Billing page offers every tier above the derived one; a pick is the person's yes, the month bills at least the picked tier, and the downgrade stops there. |
-| T7 The default slows once everything is in step | 🟡 **Decided 2026-10-05; the cadence built 2026-10-05, the notices to build** | §7. Hourly for 14 days after the first copy, then every 6 hours, then daily after 30 days; a schedule the person chose is never changed. The owner: *"yes"*. Built: *Automatic*, the tick's cadence for no schedule, with a visit bringing back the hour. To build: each step said in the app and by email. |
+| T5 The app says the pace | ✅ **Built 2026-10-05** | §5. *"Free: one pass a day, up to 50 minutes. Next pass: …"* on the migration's page, one line for all of a person's migrations on theirs, each with the way to a higher tier, and a sentence in the first-copy email. The time left already counts in days at Free's pace. |
+| T6 Picking a tier | ✅ **Built 2026-10-05** | §6. The Billing page offers every tier above the one this month bills, each with its price, room and pace, behind the order button. A pick is the person's yes, the month bills at least the picked tier, and the downgrade stops there; a lower pick counts from the next month. None is taken during the alpha. |
+| T7 The default slows once everything is in step | ✅ **Built 2026-10-05: the cadence, then the notices** | §7. Hourly for 14 days after the first copy, then every 6 hours, then daily after 30 days; a schedule the person chose is never changed. The owner: *"yes"*. *Automatic*, the tick's cadence for no schedule, with a visit bringing back the hour; each step said by a morning mail, once, and on the migration's page by the visit that ends it. |
 
 ## The facts this plan stands on
 
@@ -179,6 +226,24 @@ it works out the least tier the answers need.
   here; then every hour."*
 - **The first-copy email** (0154 T7) says the same on Free.
 
+**Built (2026-10-05).**
+- **`PaceLine`**, drawn on Free outside the alpha and nowhere else. On the migration's page:
+  *"Free: one pass a day, up to 50 minutes. Next pass: 6 Oct 2026, 07:12."*, the time from the
+  detail's `pace` (T4). On the person's page: *"Free: one pass a day for each migration, up to 50
+  minutes."*, with no single time for several migrations, from `GET /api/migrations/pace`. Both
+  end with *"A higher tier copies pass after pass."*, a link to the Billing page, where T6 lets a
+  person pick one.
+- **How many days the first copy needs** needed nothing new. The time-left line measures from
+  how far apart the passes started (`timeWhileCopying`, 0154 T3 (b)), so at one pass a day it
+  already says days.
+- **On a paid tier** nothing is added: the stage and the time left say how the copy goes, and
+  *Automatic* (T7) says how often it looks after.
+- **The first-copy email** (`the-first-copy-email.ts`, `first_copy_complete`'s `onePassADay`)
+  adds on Free, outside the alpha: *"On Free that is one pass a day. A higher tier looks for
+  changes as often as every 15 minutes: see Billing in the app."* (*"Op Free is dat één ronde per
+  dag. …"*). The tier is read in the claim's own transaction, and the runbook for ending the
+  alpha names the file, since it reads the stage.
+
 ## 6. T6 — picking a tier
 
 - **The Billing page** offers every tier above the derived one, each with its price and pace. A
@@ -190,6 +255,34 @@ it works out the least tier the answers need.
 - **Outside the alpha** a pick of a paid tier passes the order button that says it carries an
   obligation to pay (terms precondition C, question 28). During the alpha every tier is free
   (the owner, 2026-10-04), so a pick costs nothing and needs no order button.
+
+**As built (2026-10-05).**
+- **When a pick counts.** A month bills at least the pick standing when it began, and every pick
+  made during it. That one rule makes a raise count at once and a lower pick from the next month,
+  and a month that saw a higher pick bills it even if it was lowered since. Free is the pick of no
+  floor. Months are UTC, as the peak's are.
+- **The records.**
+  - Managed 0044's `tier_pick`: one append-only row per pick, with the monthly price shown, who
+    picked and when. The tick reads which tier was picked and when, as the system role.
+  - A pick above the agreed tier is also a yes in `data_allowance`, with `axis` `pick`, in the
+    same transaction, so the agreed tier and its room rise with it.
+  - A lower pick takes no yes back: what was agreed stays agreed.
+- **What is offered** (`pickOffers`):
+  - every tier above the one this month bills;
+  - while a lower pick waits, the tier picked now, to keep it;
+  - lower: every tier below the pick standing for the next month, down to Free (*Drop the pick*).
+  - The page sends back the tier and price it showed, and is refused with what is offered now
+    when either changed (`offer_changed`).
+- **The words.** The order button says *Order with obligation to pay* (*Bestelling met
+  betalingsverplichting*), from article 8(2) of the Consumer Rights Directive and 6:230v BW. The
+  question above it says the tier, its monthly price, and that lowering counts from the next
+  month. Lowering orders nothing, so its button is *Lower the pick*.
+- **During the alpha no pick is taken**, which refines the line above. Every tier's pace and room
+  are a tester's already, so a pick would change nothing a tester sees, and would bind them,
+  once the alpha ended, to a price they never ordered. The card lists the tiers with their prices
+  and says so, as the data ceiling's card does. Picking opens with the stage (`docs/ending-the-alpha.md`).
+- **Not built here:** the invoice that bills the floor (0109 T5), and the order's confirming email
+  (terms precondition C), both before the first paid tier.
 
 ## 7. T7 — the default slows once everything is in step (decided 2026-10-05)
 
@@ -252,5 +345,31 @@ above, as written.
   left as chosen ones.
 - **On Free outside the alpha** the day's pace (T2) holds whatever the cadence.
 
-**To build: the notices.** Each step said in the app and by email: *"Everything is in step. We
-now look every 6 hours; choose more often any time."*
+**Built (2026-10-05): the notices.** Each step said by email and in the app, in the owner's
+sentence: *"Everything is in step. We now look every 6 hours; choose more often any time."*
+- **By email, each morning** (`managed-cadence-email.ts`, 07:30 UTC, split as 0138 T2 split the
+  digest: the list of active organisations, then each one in its own scope). One mail for an
+  organisation, at most, to its active owners and admins, in its language, naming each migration
+  that stepped down since it was last told, with its person: *"Everything is in step, so we now
+  look for changes less often"*, then *Now every 6 hours* or *Now once a day*, then *"Choose more
+  often any time, under How often to look for changes on each migration in the app. Open a
+  migration and we look every hour again, for 14 days."*
+- **Whose step** (`claimSlowerSteps`, `the-slower-cadence-email.ts`): a migration with no
+  schedule, running, its grant not taken back, every data type that runs passes through its first
+  copy. The step is the tick's, from the same two moments. *Everything is in step* is said only
+  when it is: a data type still waiting for its first copy says nothing, even where the tick
+  already looks less often.
+- **Once:** managed 0043's `migration_cadence_said`, one row per migration: the step, and what
+  its days counted from. The claim is an insert, or an update when either changed, so a later step,
+  or the same step counted from a later visit, is news again. A row whose step is no longer in
+  force is deleted. Claimed with or without SMTP, as the first-copy email's is. Purged with the
+  organisation.
+- **In the app:** opening the migration's page is a visit (T7's cadence), so the page cannot show
+  the slower step: it ends it. The visit deletes the row and answers which step it ended
+  (`POST /:mappingId/visit` → `broughtBackFrom`). The page says it under the pace, that once:
+  *"Everything was in step, so we looked every 6 hours. Opening this migration brought back every
+  hour, for 14 days. To keep it hourly, choose Hourly under How often to look for changes."*
+  *Sync now* ends it too.
+- **Not on Free, outside the alpha:** a migration there runs one pass a day whatever its cadence
+  (T2), and the app and the first-copy email say so (T5). A step said before, on a higher tier, is
+  no longer in force: its row goes, and nothing is said.

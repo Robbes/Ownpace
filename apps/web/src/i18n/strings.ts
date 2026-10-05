@@ -758,6 +758,22 @@ const en = {
   'settings.schedule.hint': 'Passes run back to back until the first copy is done.',
   'settings.schedule.hint.why':
     'A pass runs at most 50 minutes. Until every data type has been copied once in full, the next pass starts as soon as the last one ends, and no sooner than 15 minutes after it started, whatever this schedule says. A daily download limit at the source is waited out first. After that, passes follow this schedule and copy only what is new or changed. Items that could not be copied do not keep passes coming: they wait on the Failures screen. On Automatic the days count from when everything was copied, or from the last time somebody opened this migration or pressed Trigger sync, whichever is later.',
+  // The pace, said where a migration is read (workplan 0157 T5): on Free,
+  // outside the alpha, one pass a day of at most 50 minutes, the next pass's
+  // time on the migration's own page, and the way to more.
+  'pace.free.label': 'Free:',
+  'pace.free.oneMigration': 'one pass a day, up to 50 minutes.',
+  'pace.free.eachMigration': 'one pass a day for each migration, up to 50 minutes.',
+  'pace.free.next': 'Next pass: {time}.',
+  'pace.free.higher': 'A higher tier copies pass after pass.',
+  // A slower step a visit ended (workplan 0157 T7): the morning mail said
+  // *"Everything is in step, so we now look for changes less often"*, and
+  // opening the migration brought back the hour. Said once, on that visit.
+  'cadence.broughtBack.sixHourly':
+    'Everything was in step, so we looked every 6 hours. Opening this migration brought back every hour, for 14 days.',
+  'cadence.broughtBack.daily':
+    'Everything was in step, so we looked once a day. Opening this migration brought back every hour, for 14 days.',
+  'cadence.broughtBack.keep': 'To keep it hourly, choose Hourly under How often to look for changes.',
   // Free's pace (workplan 0157 T4): one pass a day outside the alpha, whatever
   // the schedule; the faster cadences are not offered, and this says why, with
   // the link after it as the way to a higher tier. Also what a schedule the
@@ -875,12 +891,14 @@ const en = {
   'wizard.sourceClientSecret': 'Client secret',
   'billing.title': 'Billing',
   'billing.subtitle': 'Manage your subscription, usage, and payments',
-  'billing.currentUsage': 'Current Usage',
-  'billing.storage': 'Storage',
-  'billing.dataTransfer': 'Data Transfer',
-  'billing.computeTime': 'Compute Time',
-  'billing.hours': 'hours',
-  'billing.apiCalls': 'API calls',
+  'billing.currentUsage': 'Current usage',
+  // What has moved (the owner, 2026-10-05: "show the usages that counts"),
+  // in place of Storage, Data Transfer, Compute Time and API calls.
+  'billing.moved': 'What has moved',
+  'billing.moved.where': 'In total, across all your migrations.',
+  'billing.moved.data': 'All data',
+  'billing.moved.none': 'Nothing has moved yet.',
+  'billing.moved.failed': 'Could not count the items moved.',
   // ADR-0014's tier, on the customer's own usage screen (0121 T4).
   'billing.yourTier': 'What this puts you on',
   // Once the alpha is over (the owner, 2026-10-04): the tier the month bills,
@@ -940,6 +958,45 @@ const en = {
     'What is offered changed since this page was shown, so nothing was agreed. This is the offer now.',
   'billing.ceiling.loadFailed': 'Your data ceiling could not be read',
   'billing.ceiling.yesFailed': 'Your yes was not recorded:',
+  // A tier the person picks (workplan 0157 T6; ADR-0014, Amendment 2026-10-04,
+  // evening): each month bills at least it; a raise counts at once and a lower
+  // pick from the next month. A paid pick is ordered with the button terms §6
+  // promises, which says plainly that it carries an obligation to pay.
+  'billing.tierPicked': 'Picked by you: each month bills at least {tier}.',
+  'billing.pick.title': 'Pick a tier',
+  'billing.pick.lead':
+    'Your tier follows what you use. You may pick a higher one, for its pace or its room: each month then bills at least that tier, until you lower it.',
+  'billing.pick.standing': 'You picked {tier}. Each month bills at least {tier}, until you lower it.',
+  'billing.pick.standingThisMonth': 'You picked {tier}: this month bills at least {tier}.',
+  'billing.pick.lowered': 'From {date}, each month bills at least {tier}.',
+  'billing.pick.loweredToNone': 'From {date}, what you use decides your tier again.',
+  'billing.pick.alpha':
+    'During the Alpha every tier is free, its pace and its room included, so there is nothing to pick. Picking opens when the Alpha ends.',
+  'billing.pick.monthly': '{monthly} a month',
+  'billing.pick.room': '{paths} migrations at the same time, up to {data}.',
+  'billing.pick.pace':
+    'Every tier here copies pass after pass until the first copy is done, then looks for changes every hour, or as often as every 15 minutes if you choose.',
+  'billing.pick.button': 'Pick {tier}',
+  'billing.pick.keep': 'Keep {tier}',
+  'billing.pick.top': '{tier} is the highest tier. For more, talk to us.',
+  'billing.pick.confirm':
+    'From today each month bills at least {tier}, {monthly} a month, until you lower it. Lowering counts from the next month.',
+  'billing.pick.confirm.keep': 'Each month keeps billing at least {tier}, {monthly} a month, until you lower it.',
+  // The words of article 8(2) of the Consumer Rights Directive.
+  'billing.pick.order': 'Order with obligation to pay',
+  'billing.pick.notNow': 'Not now',
+  'billing.pick.done': "Done: {tier}'s pace and room are yours now, and each month bills at least {tier}.",
+  'billing.pick.lowerTo': 'Lower to {tier}',
+  'billing.pick.drop': 'Drop the pick',
+  'billing.pick.lower.confirm': 'From {date}, each month bills at least {tier}. Until then, at least {now}.',
+  'billing.pick.lower.confirmNone':
+    'From {date}, what you use decides your tier again. Until then, each month bills at least {now}.',
+  'billing.pick.lower.yes': 'Lower the pick',
+  'billing.pick.lowerDone': 'Done: your pick changes on {date}.',
+  'billing.pick.offerChanged':
+    'What may be picked has changed since this page was shown. Look at the tiers again before picking.',
+  'billing.pick.failed': 'Your pick was not recorded:',
+  'billing.pick.loadFailed': 'The tiers you may pick could not be read',
   'billing.invoices': 'Invoices',
   'billing.noInvoices': 'No invoices yet',
   'billing.invoice': 'Invoice',
@@ -2732,8 +2789,10 @@ const en = {
   // A connection serves migrations, not mailboxes (owner remark 2026-09-02:
   // Dropbox is files, a Google account is four faces) — and none yet is a
   // sentence, not a zero.
-  'connections.usedBy': 'migration(s) use this',
+  'connections.usedBy.one': 'Used by 1 migration',
+  'connections.usedBy.other': 'Used by {count} migrations',
   'connections.usedBy.none': 'Not used by any migration yet',
+  'connections.addedWhen': 'Added {when}',
   'connections.setupSteps': 'Setup steps',
   // What is STANDING against a connection (workplan 0094 T5): a pass that
   // failed since the last Test. "Migration <name> stopped 2 hours ago
@@ -3747,6 +3806,16 @@ const nl: Record<keyof typeof en, string> = {
   'settings.schedule.hint': 'Rondes lopen direct na elkaar tot de eerste kopie klaar is.',
   'settings.schedule.hint.why':
     'Een ronde duurt hoogstens 50 minuten. Tot elk gegevenstype één keer volledig is gekopieerd, start de volgende ronde zodra de vorige klaar is, en niet eerder dan 15 minuten na de start ervan, wat dit schema ook zegt. Een daglimiet voor downloaden bij de bron wordt eerst afgewacht. Daarna volgen de rondes dit schema en kopiëren ze alleen wat nieuw of gewijzigd is. Items die niet gekopieerd konden worden, houden de rondes niet aan de gang: ze wachten bij Mislukkingen. Bij Automatisch tellen de dagen vanaf het moment dat alles is gekopieerd, of vanaf de laatste keer dat iemand deze migratie opende of op Synchroniseer nu drukte, wat het laatst was.',
+  'pace.free.label': 'Free:',
+  'pace.free.oneMigration': 'één ronde per dag, van hoogstens 50 minuten.',
+  'pace.free.eachMigration': 'één ronde per dag voor elke migratie, van hoogstens 50 minuten.',
+  'pace.free.next': 'Volgende ronde: {time}.',
+  'pace.free.higher': 'Een hoger pakket kopieert ronde na ronde.',
+  'cadence.broughtBack.sixHourly':
+    'Alles was bijgewerkt, dus we keken elke 6 uur. Nu u deze migratie hebt geopend, kijken we 14 dagen lang weer elk uur.',
+  'cadence.broughtBack.daily':
+    'Alles was bijgewerkt, dus we keken eens per dag. Nu u deze migratie hebt geopend, kijken we 14 dagen lang weer elk uur.',
+  'cadence.broughtBack.keep': 'Wilt u dat het elk uur blijft, kies dan Elk uur onder Hoe vaak naar wijzigingen kijken.',
   'settings.schedule.freePace':
     'Op Free kijkt een migratie eens per dag naar wijzigingen, welk schema er ook staat. Een hoger pakket kijkt zo vaak als elke 15 minuten.',
   'settings.schedule.freePace.link': 'Bekijk de pakketten op de pagina Facturering.',
@@ -3863,14 +3932,14 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.tenantId': 'Tenant-ID',
   'wizard.clientId': 'Client-ID (applicatie-ID)',
   'wizard.sourceClientSecret': 'Clientgeheim',
-  'billing.title': 'Facturatie',
+  'billing.title': 'Facturering',
   'billing.subtitle': 'Beheer uw abonnement, verbruik en betalingen',
   'billing.currentUsage': 'Huidig verbruik',
-  'billing.storage': 'Opslag',
-  'billing.dataTransfer': 'Dataverkeer',
-  'billing.computeTime': 'Rekentijd',
-  'billing.hours': 'uur',
-  'billing.apiCalls': 'API-aanroepen',
+  'billing.moved': 'Wat er is gemigreerd',
+  'billing.moved.where': 'In totaal, over al uw migraties.',
+  'billing.moved.data': 'Alle gegevens',
+  'billing.moved.none': 'Er is nog niets gemigreerd.',
+  'billing.moved.failed': 'De gemigreerde items konden niet worden geteld.',
   // ADR-0014's tier, on the customer's own usage screen (0121 T4).
   'billing.yourTier': 'Waar u hiermee op uitkomt',
   'billing.monthBills': 'Wat deze maand kost',
@@ -3927,6 +3996,41 @@ const nl: Record<keyof typeof en, string> = {
     'Het aanbod is veranderd sinds deze pagina werd getoond, dus er is nergens mee ingestemd. Dit is het aanbod nu.',
   'billing.ceiling.loadFailed': 'Uw datalimiet kon niet worden gelezen',
   'billing.ceiling.yesFailed': 'Uw akkoord is niet vastgelegd:',
+  'billing.tierPicked': 'Door u gekozen: u betaalt elke maand minstens {tier}.',
+  'billing.pick.title': 'Kies een pakket',
+  'billing.pick.lead':
+    'Uw pakket volgt wat u gebruikt. U mag een hoger pakket kiezen, voor het tempo of de ruimte: u betaalt dan elke maand minstens dat pakket, tot u het verlaagt.',
+  'billing.pick.standing': 'U koos {tier}. U betaalt elke maand minstens {tier}, tot u het verlaagt.',
+  'billing.pick.standingThisMonth': 'U koos {tier}: deze maand betaalt u minstens {tier}.',
+  'billing.pick.lowered': 'Vanaf {date} betaalt u elke maand minstens {tier}.',
+  'billing.pick.loweredToNone': 'Vanaf {date} bepaalt wat u gebruikt weer uw pakket.',
+  'billing.pick.alpha':
+    'Tijdens de Alpha is elk pakket gratis, tempo en ruimte inbegrepen, dus er valt niets te kiezen. Kiezen kan zodra de Alpha voorbij is.',
+  'billing.pick.monthly': '{monthly} per maand',
+  'billing.pick.room': '{paths} migraties tegelijk, tot {data}.',
+  'billing.pick.pace':
+    'Elk pakket hier kopieert ronde na ronde tot de eerste kopie klaar is, en kijkt daarna elk uur naar wijzigingen, of zo vaak als elke 15 minuten als u dat kiest.',
+  'billing.pick.button': 'Kies {tier}',
+  'billing.pick.keep': '{tier} houden',
+  'billing.pick.top': '{tier} is het hoogste pakket. Wilt u meer, neem dan contact op.',
+  'billing.pick.confirm':
+    'Vanaf vandaag betaalt u elke maand minstens {tier}, {monthly} per maand, tot u het verlaagt. Verlagen telt vanaf de volgende maand.',
+  'billing.pick.confirm.keep': 'U blijft elke maand minstens {tier} betalen, {monthly} per maand, tot u het verlaagt.',
+  // De woorden van artikel 6:230v lid 3 BW.
+  'billing.pick.order': 'Bestelling met betalingsverplichting',
+  'billing.pick.notNow': 'Nu niet',
+  'billing.pick.done': 'Klaar: u heeft nu het tempo en de ruimte van {tier}, en betaalt elke maand minstens {tier}.',
+  'billing.pick.lowerTo': 'Verlagen naar {tier}',
+  'billing.pick.drop': 'Keuze laten vervallen',
+  'billing.pick.lower.confirm': 'Vanaf {date} betaalt u elke maand minstens {tier}. Tot dan minstens {now}.',
+  'billing.pick.lower.confirmNone':
+    'Vanaf {date} bepaalt wat u gebruikt weer uw pakket. Tot dan betaalt u elke maand minstens {now}.',
+  'billing.pick.lower.yes': 'Keuze verlagen',
+  'billing.pick.lowerDone': 'Klaar: uw keuze verandert op {date}.',
+  'billing.pick.offerChanged':
+    'Wat u kunt kiezen is veranderd sinds deze pagina werd getoond. Bekijk de pakketten opnieuw voordat u kiest.',
+  'billing.pick.failed': 'Uw keuze is niet vastgelegd:',
+  'billing.pick.loadFailed': 'De pakketten die u kunt kiezen konden niet worden gelezen',
   'billing.invoices': 'Facturen',
   'billing.noInvoices': 'Nog geen facturen',
   'billing.invoice': 'Factuur',
@@ -4645,7 +4749,7 @@ const nl: Record<keyof typeof en, string> = {
   'billing.paymentMethodsLoadFailed': 'De betaalmethoden konden niet worden geladen.',
   'billing.default': 'Standaard',
   'billing.adminOnly':
-    'Facturatie is alleen voor eigenaren en beheerders; vraag een van hen naar gebruiks- of factuurgegevens.',
+    'Facturering is alleen voor eigenaren en beheerders; vraag een van hen naar gebruiks- of factuurgegevens.',
   'billing.invoicesLoadFailed': 'De facturen konden niet worden geladen.',
   'billing.party.title': 'Factuurgegevens',
   'billing.party.intro': 'Aan wie facturen worden gericht.',
@@ -5182,8 +5286,10 @@ const nl: Record<keyof typeof en, string> = {
   'connections.targets': 'Doelen',
   'connections.test': 'Testen',
   'connections.testing': 'Bezig met testen…',
-  'connections.usedBy': 'migratie(s) gebruiken dit',
+  'connections.usedBy.one': 'Gebruikt door 1 migratie',
+  'connections.usedBy.other': 'Gebruikt door {count} migraties',
   'connections.usedBy.none': 'Nog door geen enkele migratie gebruikt',
+  'connections.addedWhen': 'Toegevoegd {when}',
   'connections.setupSteps': 'Instelstappen',
   'connections.standing.migration': 'Migratie',
   'connections.standing.stopped': 'is {when} gestopt ({domains}):',

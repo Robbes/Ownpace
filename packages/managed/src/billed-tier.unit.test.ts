@@ -22,26 +22,26 @@ function billed(grants: AllowanceGrant[], peakPaths: number, gb: number) {
 
 describe('the tier a month bills', () => {
   it('is what it used, when that is within the agreed tier', () => {
-    expect(billed([onSmall], 3, 500)).toEqual({ tier: small, beyond: [] });
+    expect(billed([onSmall], 3, 500)).toEqual({ tier: small, beyond: [], picked: false });
   });
 
-  it('falls with what was used: a quiet month on an agreed Medium bills what it used', () => {
+  it('falls with what was used: a quiet month on an agreed Medium bills what it used, with no pick', () => {
     expect(billed([{ kind: 'tier', tierId: 'medium', bandGb: tier('medium').dataGb }], 1, 100).tier.id).toBe('free');
   });
 
   it('keeps Small when bands bought cover the data: top-ups buy room, never a tier', () => {
     // Small and one band: a ceiling of 1,500 GB. 1,000 GB measures as Medium.
     expect(deriveTier(2, 1000).tier?.id).toBe('medium');
-    expect(billed([onSmall, band], 2, 1000)).toEqual({ tier: small, beyond: ['bands'] });
+    expect(billed([onSmall, band], 2, 1000)).toEqual({ tier: small, beyond: ['bands'], picked: false });
   });
 
   it('never climbs past the agreed tier when more ran at the same time than it runs', () => {
     // Eight at once, on Free: what an organisation still running from the alpha may show.
-    expect(billed([], 8, 10)).toEqual({ tier: tier('free'), beyond: ['paths'] });
+    expect(billed([], 8, 10)).toEqual({ tier: tier('free'), beyond: ['paths'], picked: false });
   });
 
   it('never climbs past the agreed tier when more was moved than its ceiling', () => {
-    expect(billed([onSmall], 1, 800)).toEqual({ tier: small, beyond: ['data'] });
+    expect(billed([onSmall], 1, 800)).toEqual({ tier: small, beyond: ['data'], picked: false });
   });
 
   it('bills the agreed tier past the end of the table, and says why', () => {
@@ -49,6 +49,7 @@ describe('the tier a month bills', () => {
     expect(billed([{ kind: 'tier', tierId: 'xl', bandGb: xl.dataGb }], xl.paths + 1, 10)).toEqual({
       tier: xl,
       beyond: ['paths'],
+      picked: false,
     });
   });
 });

@@ -5,10 +5,14 @@ is the owner's.** This page lists what the decision switches and what must be tr
 and how to tell afterwards that the switch reached every part (*Checks*).
 
 The alpha is one setting in live's `.env`: `OWNPACE_STAGE=alpha`. Ending it means emptying that
-setting and deploying a release, so that every process reads the new value. Only live has the
-setting. Every other stack (the OTA stack, a developer's, CI, every appliance) already runs
-without it, so **the OTA stack shows today what live will do after the switch**. Rehearse there,
-not on live.
+setting and deploying a release, so that every process reads the new value.
+
+**The OTA stack takes live's stage.** The owner checks a deploy there before it reaches live
+(the owner, 2026-10-05), so OTA runs the alpha as live does. With the stage set, OTA's `.env`
+also needs `BACKUP_RETENTION_DAYS`: 0 when nothing backs up its database. Left blank, the API
+refuses to start during the alpha. Every other stack (a developer's, CI, every appliance) runs
+without the stage. **Rehearse the switch on the OTA stack:** empty the stage there first, check
+it, and only then on live.
 
 ## What the stage switches
 
@@ -18,9 +22,11 @@ reading the stage fails that guard until it has a line here.
 
 | Where | How it reads the stage | During the alpha | After it |
 |---|---|---|---|
-| The API's billing routes: `apps/api/src/routes/billing/index.ts` | `holdsAtCeiling(process.env.OWNPACE_STAGE)` | No yes is taken (409 `nothing_charged_during_the_alpha`). `holds: false`. The Billing panel is titled *What this puts you on* and names what was used. | A yes is taken at the data ceiling and at *Start*, and recorded with its price (`data_allowance`). The panel is titled *What this month bills* and names what the month bills: what it used, never above the agreed tier. |
+| The API's billing routes: `apps/api/src/routes/billing/index.ts` | `holdsAtCeiling(process.env.OWNPACE_STAGE)` | No yes is taken (409 `nothing_charged_during_the_alpha`), and no tier is picked (the same 409 from `POST /api/billing/pick`). `holds: false`. The Billing panel is titled *What this puts you on* and names what was used. *Pick a tier* lists the tiers above it with their prices and no button, and says every tier is free during the Alpha. | A yes is taken at the data ceiling and at *Start*, and recorded with its price (`data_allowance`). A tier may be picked, by the order button (workplan 0157 T6): a raise counts at once, a lower pick from the next month (`tier_pick`, managed 0044), and a pick above the agreed tier is a yes as well. The panel is titled *What this month bills* and names what the month bills: what it used, never above the agreed tier, and never below the tier picked. |
 | The API's start doors: `apps/api/src/routes/migrations/path-lifecycle-wiring.ts` | the same `holdsAtCeiling` | Nothing is refused for running too many at the same time. | A start that takes slots past the agreed tier's paths is refused, 409 `paths_need_a_yes`, and *Start* asks first with both ways on (ADR-0014, 2026-10-04). |
 | The API's pace: `apps/api/src/routes/migrations/free-pace.ts` | the same `holdsAtCeiling` | No door is held to a pace, on any tier, and *How often to look for changes* offers every cadence. | On Free: *Sync now* within a day of the migration's last pass is refused, 409 `free_pace`, with when the next pass starts, and the final pass *Finish* asks for never is (workplan 0157 T2). A schedule faster than a day is refused, 409 `free_pace_schedule`. *Start* on a paused migration that ran inside the day waits for the pace. The page offers *Automatic* and *Daily*, and says why (T4). |
+| The first-copy email: `apps/worker/src/jobs/the-first-copy-email.ts` | `holdsAtCeiling(process.env.OWNPACE_STAGE)`, in the **task environment**, as the sync tasks read it | Says that everything has arrived and is kept in step, and nothing of a pace. | On Free it adds that keeping in step is one pass a day, and that a higher tier looks as often as every 15 minutes (workplan 0157 T5). |
+| The slower-cadence email: `apps/worker/src/jobs/the-slower-cadence-email.ts` | `holdsAtCeiling(process.env.OWNPACE_STAGE)`, in the **task environment**, as the sync tasks read it | Each slower step of a migration on *Automatic* is said by the morning mail, on every tier: every 6 hours after 14 days in step, once a day after 30 (workplan 0157 T7). | On Free nothing is said, and a step said before is no longer in force: a migration there runs one pass a day whatever its cadence. A paid tier as during the alpha. |
 | The sync tick: `apps/worker/src/jobs/managed-sync-tick.ts` | `holdsAtCeiling(process.env.OWNPACE_STAGE)`, in the **task environment**, as the sync tasks read it | Every tier runs at a paid tier's pace: the first copy back to back, then the migration's schedule. | A migration on Free runs one pass a day, 24 hours after its last pass started, its first copy included, and a Free organisation's files-only migrations take its later turns (workplan 0157 T2, T3). |
 | The API's alpha rule: `apps/api/src/access-notify.ts` | `alphaFrom(env)`, read by `conditions-not-accepted.ts`, `config-guards.ts` and the access-granted mail | Every member is asked to accept the Alpha conditions, the privacy policy and the terms before any access is stored, once no text is a draft (0139 T3). The access-granted mail says it is the alpha. A blank `BACKUP_RETENTION_DAYS` stops the API from starting. | Nobody is asked to accept anything. The mail does not mention the alpha. A blank `BACKUP_RETENTION_DAYS` is a warning in production (`stand-up-live.sh` still refuses one on live). |
 | The sync tasks: `apps/worker/src/jobs/run-delta-sync.ts` | `process.env.OWNPACE_STAGE`, in the **task environment**, never compose's | Nothing waits at the data ceiling. Every first copy is marked as the alpha's (`bytes_moved.alpha_bytes`, managed 0040) and never counts. | New first copies wait at the ceiling until a yes (0109 T6). First copies count from here. |
@@ -28,8 +34,9 @@ reading the stage fails that guard until it has a line here.
 | The public site: `site/build.mjs` | `process.env.OWNPACE_STAGE` **at build** | The tester guide is built (`/alpha-guide.html`, `/nl/alpha-handleiding.html`). Every page says the Alpha to its visitor in one line under the header (workplan 0152 T1 (a)). | The guide and the line are left out. The Alpha conditions page stays. |
 | Compose: `deploy/compose/managed.yml` | `${OWNPACE_STAGE:-}` from live's `.env` | Handed to the api's environment and, as `VITE_OWNPACE_STAGE`, to the web image's build. | The same, empty. The api takes it when its container is recreated; the web only when its image is rebuilt. |
 | The task environment: `deploy/compose/set-task-env.sh` | the value in live's `.env` | Uploaded to the tasks. | **Deleted** from the tasks; it prints `deleted OWNPACE_STAGE: no stage is set, so the hold at the data ceiling is on`. A task container inherits nothing from compose, so nothing else reaches it. |
+| The env check: `deploy/compose/ensure-env-secrets.sh` | `env_value` from the stack's `.env`, as the bring-up's env phase and the gate's Fill step run it | A blank `BACKUP_RETENTION_DAYS` is written as `0` off live, where no copy is kept, so the API can start; on live it writes nothing and names 7 (workplan 0134). | Nothing: the API only warns about a blank line, and a value written during the alpha stays. |
 | The live deploy: `deploy/compose/deploy-live.sh` | `env_value` from live's `.env` (`SITE_STAGE`) | Hands `alpha` to the site build. | Hands it an empty stage. |
-| The OTA site: `deploy/compose/www.yml` | the OTA stack's `.env` | (the OTA stack has no stage) | Unchanged. |
+| The OTA site: `deploy/compose/www.yml` | the OTA stack's `.env` | `alpha`, as live's: the tester guide and the line, as on live's site. | Emptied on the OTA stack first, as the rehearsal. |
 
 ## Before: what must be true first
 

@@ -2,7 +2,16 @@
 
 > **In one line:** `usage_metric` compute metering that recorded a month as its last pass, replaced by `run`-ledger derivation with quantities frozen on invoices, per-tenant `pruneRuns` retention, invoice-backed usage history and `/api/billing/usage` showing the tier.
 
-## Status — 2026-10-04 (update this block at the end of every session)
+## Status — 2026-10-05 (update this block at the end of every session)
+
+**2026-10-05: the customer's screen shows what moved, not what Ownpace spends (0131's Status).**
+The owner asked why Billing showed Storage, API calls and compute hours, and settled what T4's
+*"insight"* means: *"show the usages that counts: data moved and number of objects moved"*. Current
+usage now shows *All data*, the meter's total with the alpha's share, then the items moved per
+data type; the data moved that counts stays in the tier block.
+The metering this plan built is unchanged: `/api/billing/usage` still serves its four quantities,
+the invoice still freezes them, and `/usage/history` still reads them. Only the screen stopped
+showing them.
 
 **2026-10-04: the measurements stay shown, with neutral icons (0131 T3).** 0131 T3 proposed
 hiding the four measurement cards on the Billing page during the Alpha. The owner kept T4's

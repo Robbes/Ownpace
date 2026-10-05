@@ -101,8 +101,8 @@ live in [README.md](./README.md), the register.
 - **`holdsASlot` (`@openmig/ledger`) is the slot rule**: `active`, `paused` and `continuous`
   hold a slot; `ready`, `cutover` and `done` hold none; a stop releases one only in the lane,
   whose customer is first told the bill does not stop at cutover.
-- **The month bills its peak, or a higher tier picked.** Downgrade: automatic down to it,
-  announced, never blocking. No setup fee. Not built (0109, 0157).
+- **The month bills its peak, or a higher tier picked** (`tier-pick.ts`; invoice unbuilt,
+  0109). Downgrade: automatic down to it, announced, never blocking. No setup fee.
 - **Every step up is consented and paid for.** A path waits for the yes at activation; at the
   data ceiling, outside the alpha, new first copies wait for a move up or a one-off top-up
   (another band for the tier's monthly, once). Without that yes, a month bills the tier it
@@ -440,8 +440,7 @@ live in [README.md](./README.md), the register.
 
 - **The managed edition authenticates against an external OIDC issuer; Ownpace stores no
   passwords** (no password column in either migration chain). **The appliance never gains an
-  issuer dependency** (one owner, no accounts; hard rule 5):
-  `apps/selfhost/src/no-managed-leakage.unit.test.ts`.
+  issuer dependency**: `apps/selfhost/src/no-managed-leakage.unit.test.ts`.
 - **The issuer owns identity; `tenant_member` owns tenancy.** A token carries `sub` and `email`
   and nothing Ownpace-specific; tenant and role are read from `tenant_member` per request, never
   trusted from a claim: `apps/api/src/middleware/tenant-resolution.unit.test.ts`.
@@ -459,10 +458,11 @@ live in [README.md](./README.md), the register.
   whose PKCE verifier (S256) never leaves its tab. A document naming another `issuer` is
   refused; `JWT_JWKS_URI` is the escape hatch:
   `issuer-is-replaceable.unit.test.ts`, `oidc.unit.test.ts`.
-- **Zitadel is the accepted issuer**, self-hosted on the managed Postgres. Pinned by version;
-  upgrades are deliberate, never automatic (`scripts/a-pin-that-knows-it-is-behind.unit.test.ts`).
-  Switching is four variables and a rebuild: `JWT_ISSUER`, `JWT_AUDIENCE`, `VITE_OIDC_ISSUER`,
-  `VITE_OIDC_CLIENT_ID` (`scripts/idp-wiring.unit.test.ts`).
+- **Zitadel is the accepted issuer**, self-hosted, pinned, upgraded deliberately
+  (`scripts/a-pin-that-knows-it-is-behind.unit.test.ts`). Switching is four variables and a
+  rebuild: `JWT_ISSUER`, `JWT_AUDIENCE`, `VITE_OIDC_ISSUER`, `VITE_OIDC_CLIENT_ID`
+  (`scripts/idp-wiring.unit.test.ts`); on managed, for an issuer at `scheme://host[:port]` with
+  its token endpoint on that origin (workplan 0158 D8).
 - **Signing out ends the ISSUER'S session, not only this tab's**: RP-Initiated Logout through the
   discovered `end_session_endpoint`, with `id_token_hint` and the registered
   `post_logout_redirect_uri`. The local half happens before the browser leaves for the issuer:

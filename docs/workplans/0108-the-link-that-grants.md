@@ -56,6 +56,12 @@ address as its Referer, and both logs wrote it in full.
   Follow-up: the owner decides. NetBird's proxy also keeps the full path in its own log (0139);
   that is outside this repository.
 
+> **2026-10-05 (workplan 0158 T1):** the app's pages now send `Referrer-Policy: no-referrer`, so
+> a call a grant or view page makes to `/api/` carries no Referer, and the error log's Referer
+> field no longer holds the link. Its request line and its upstream URL still do, for every
+> `/api/grant/<link>` and `/api/view/<link>` call, so the owner's decision on that log is still
+> open.
+
 **Evidence:** guards first, red on the unchanged patterns. The API's and the scripts'
 `a-log-that-kept-the-link`: 12 failed, 51 passed (63). The web's `a-report-that-reaches-a-person`:
 1 failed, 16 passed (17). Green after: 63 of 63, 17 of 17. One test goes through the real API

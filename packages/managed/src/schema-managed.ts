@@ -471,10 +471,37 @@ export const dataAllowance = pgTable(
     priceEur: integer('price_eur').notNull(),
     consentedBy: text('consented_by').notNull(),
     consentedAt: timestamp('consented_at', { withTimezone: true }).notNull().defaultNow(),
-    /** Which limit asked for the yes (managed 0039): the data ceiling, or a start past the agreed tier's paths. */
-    axis: text('axis').notNull().default('data').$type<'data' | 'paths'>(),
+    /**
+     * Which limit asked for the yes (managed 0039): the data ceiling, or a start
+     * past the agreed tier's paths; or `pick`, a tier the person picked above
+     * the agreed one (managed 0044).
+     */
+    axis: text('axis').notNull().default('data').$type<'data' | 'paths' | 'pick'>(),
   },
   (t) => [index('data_allowance_tenant_idx').on(t.tenantId, t.consentedAt)],
+);
+
+/**
+ * Each tier a person picked (workplan 0157 T6, managed migration 0044): a
+ * month bills at least the pick standing when it began and every pick made
+ * during it, so a raise counts at once and a lower pick from the next month.
+ * Free is the pick of no floor. Append-only, as a yes is; a pick above the
+ * agreed tier is recorded as a yes as well (`data_allowance`, axis `pick`).
+ * `price_eur` is the monthly price shown, in whole euros.
+ */
+export const tierPick = pgTable(
+  'tier_pick',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    tierId: text('tier_id').notNull().$type<'free' | 'small' | 'medium' | 'large' | 'xl'>(),
+    priceEur: integer('price_eur').notNull(),
+    pickedBy: text('picked_by').notNull(),
+    pickedAt: timestamp('picked_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('tier_pick_tenant_idx').on(t.tenantId, t.pickedAt)],
 );
 
 export const occupancyPeak = pgTable(
@@ -646,6 +673,30 @@ export const migrationVisit = pgTable(
     visitedAt: timestamp('visited_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('migration_visit_tenant_idx').on(t.tenantId)],
+);
+
+/**
+ * The slower step of a migration's automatic cadence, once said by email
+ * (workplan 0157 T7, managed migration 0043): every 6 hours, or daily, and what
+ * its days counted from. The morning job claims it before the mail, so each
+ * step is said once; a visit deletes it, as the visit brings back the hour,
+ * and the job deletes one no longer in force.
+ */
+export const migrationCadenceSaid = pgTable(
+  'migration_cadence_said',
+  {
+    mappingId: uuid('mapping_id')
+      .primaryKey()
+      .references(() => mailboxMapping.id, { onDelete: 'cascade' }),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    /** `AutomaticStep` in sync-due.ts, never the hourly one. */
+    step: text('step', { enum: ['six-hourly', 'daily'] }).notNull(),
+    countedFrom: timestamp('counted_from', { withTimezone: true }).notNull(),
+    saidAt: timestamp('said_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('migration_cadence_said_tenant_idx').on(t.tenantId)],
 );
 
 // ========================= What a person accepted =========================

@@ -61,6 +61,9 @@
 #                            fixed demo keys because this script tombstones one
 #                            item per pass and a tombstone is never re-copied —
 #                            see the prepare phase for what that cost (run #20).
+#                            Outside the alpha it first picks Small for a demo
+#                            organisation billed Free, so Sync now is not held
+#                            to Free's one pass a day (0157; run #238).
 #   SMOKE_PREPARE_POLLS (60) how long that preparation may wait, in POLL_SLEEPs.
 #   SMOKE_TARGET_DAV_USER/PASSWORD (tenant-b-target) the other end of the apply
 #                            mapping, so the balance section can take the copies
@@ -769,6 +772,49 @@ JW="$(docker exec "$API_CONTAINER" printenv JWT_SECRET)" || {
   exit 1
 }
 echo "preflights OK (API up, db reachable, jsonwebtoken present, secret read)"
+
+# WHAT A BROWSER MAY DO WITH THE APP, AS THE IMAGE SENDS IT (workplan 0158).
+# `scripts/what-a-browser-may-do-with-the-app.unit.test.ts` reads the template
+# and runs it on whatever nginx the test machine has. This is the one place the
+# image's own nginx answers: each page carries one policy, the app's, naming
+# the stack's issuer, and the four headers beside it; /api/ carries one policy,
+# the API's, and not a second from nginx.
+note "what a browser may do with the app (0158)"
+app_headers_ok=1
+for path in / /grant/not-a-link /version.json; do
+  h="$(curl -sS -o /dev/null -D - --max-time 15 "${WEB}${path}" 2>/dev/null || true)"
+  h="${h//$'\r'/}"
+  policies="$(grep -ci '^content-security-policy:' <<<"$h" || true)"
+  policy="$(grep -i '^content-security-policy:' <<<"$h" || true)"
+  missing=""
+  [ "$policies" = "1" ] || missing="${missing} one-policy(${policies})"
+  grep -qiF "content-security-policy: default-src 'none'; script-src 'self'; style-src 'self';" <<<"$policy" \
+    || missing="${missing} the-app's-policy"
+  if [ -n "${STACK_ISSUER:-}" ]; then
+    grep -qF "connect-src 'self' ${STACK_ISSUER%/}" <<<"$policy" || missing="${missing} the-issuer-in-connect-src"
+  fi
+  for line in 'strict-transport-security: max-age=31536000; includeSubDomains' \
+    'x-content-type-options: nosniff' 'x-frame-options: DENY' 'referrer-policy: no-referrer'; do
+    [ "$(grep -ci "^${line%%:*}:" <<<"$h" || true)" = "1" ] && grep -qixF "$line" <<<"$h" \
+      || missing="${missing} ${line%%:*}"
+  done
+  if [ -n "$missing" ]; then
+    echo "the app at ${WEB}${path} is served without:${missing}"
+    echo "    $(grep -i '^HTTP/\|^content-security-policy\|^strict-transport\|^x-frame\|^x-content\|^referrer' <<<"$h" | paste -sd '|' -)"
+    app_headers_ok=0
+  fi
+done
+api_policies="$(curl -sS -o /dev/null -D - --max-time 15 "${WEB}/api/health" 2>/dev/null || true)"
+api_policies="$(grep -ci '^content-security-policy:' <<<"${api_policies//$'\r'/}" || true)"
+if [ "$api_policies" != "1" ]; then
+  echo "${WEB}/api/health carries ${api_policies} policies; the API's alone is one, and nginx adds none to /api/"
+  app_headers_ok=0
+fi
+if [ "$app_headers_ok" = "1" ]; then
+  echo "the app's pages carry its policy and the four headers, and /api/ the API's policy alone"
+else
+  fail_at "the app's headers"
+fi
 
 # ---------- the two services nothing else speaks for (0084) ----------
 #
@@ -1547,6 +1593,66 @@ pick_fixture() {
   q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND $ELIGIBLE ORDER BY natural_key_hash LIMIT 1"
 }
 
+# A PAID TIER'S PACE FOR THE DEMO ORGANISATIONS (workplan 0157 T2, T4, T6).
+#
+# On Free a migration runs one pass a day outside the alpha, and *Sync now*
+# inside that day answers 409 `free_pace` (0157 T2, T4). The demo organisations
+# are billed Free by what they hold. So on a stack outside the alpha, every
+# press below is refused once the day's first pass has run. E2E (managed) #238,
+# on a stack outside the alpha, seeded a fresh set and pressed. It read
+# `free_pace`, then found the task lane, the large file and the canary copied
+# NOTHING, because no pass ran. The verify then measured a target this run
+# never wrote.
+#
+# So prepare picks Small for each demo organisation through the Billing page's
+# own door (`POST /api/billing/pick`, 0157 T6), at the price that door offers.
+# That is what a person who wants *Sync now* at any hour does. A pick stands
+# month after month until someone lowers it, so this picks once per stack.
+# Every later run reads Small and moves on, so a re-run converges.
+#
+# The balance section does not take the pick back. Like the demo accounts, it is
+# the stack's standing state, and `tier_pick` is append-only for the app
+# (managed 0044). Nothing is charged: no invoice is built from it (0109).
+#
+# During the alpha (`holds` false) every tier already runs at a paid tier's
+# pace, and the door refuses a pick. So nothing is asked.
+at_a_paid_pace() { # at_a_paid_pace <token> <label>
+  local tok="$1" label="$2" r code body holds billed small
+  r="$(http GET "$API/api/billing/pick" "$tok")"
+  code="${r%% *}"; body="${r#* }"
+  holds="$(jq -r '.holds' <<<"$body" 2>/dev/null || true)"
+  billed="$(jq -r '.billed.id // empty' <<<"$body" 2>/dev/null || true)"
+  # Every answer but these two is a failure: a 200 that cannot be read must not
+  # pass as the alpha, nor as a paid tier (hard rule 9).
+  if [ "$code" = "200" ] && [ "$holds" = "false" ]; then
+    echo "pace ($label): the alpha — every tier runs at a paid tier's pace, so nothing is picked"
+    return 0
+  fi
+  if [ "$code" != "200" ] || [ "$holds" != "true" ] || [ -z "$billed" ]; then
+    echo "pace ($label): GET /api/billing/pick -> HTTP $code — ${body:0:200}"
+    fail_at "pace ($label): what this organisation is billed, and may pick, could not be read (HTTP $code)"
+    return 0
+  fi
+  if [ "$billed" != "free" ]; then
+    echo "pace ($label): billed ${billed} — a paid tier's pace already"
+    return 0
+  fi
+  small="$(jq -r '[.raise[] | select(.id == "small")][0].monthlyEur // empty' <<<"$body" 2>/dev/null)"
+  if [ -z "$small" ]; then
+    echo "pace ($label): billed Free, and Small is not offered — ${body:0:300}"
+    fail_at "pace ($label): billed Free, and the door offers no Small to pick"
+    return 0
+  fi
+  r="$(http POST "$API/api/billing/pick" "$tok" "$(jq -nc --argjson p "$small" '{tierId: "small", priceEur: $p}')")"
+  code="${r%% *}"; body="${r#* }"
+  if [ "$code" = "200" ] && [ "$(jq -r '.billed.id' <<<"$body" 2>/dev/null)" = "small" ]; then
+    echo "pace ($label): picked Small at EUR ${small} a month, counting $(jq -r '.from' <<<"$body") — Sync now is not held to Free's day"
+  else
+    echo "pace ($label): POST /api/billing/pick -> HTTP $code — ${body:0:300}"
+    fail_at "pace ($label): the pick of Small was not taken (HTTP $code), so Sync now stays at Free's one pass a day"
+  fi
+}
+
 HASH="$(pick_disposable)"
 # ---------- optional: make the precondition exist, rather than wait for it ----------
 # OFF by default. Run by hand, this script is an ACCEPTANCE test: it reports what
@@ -1587,6 +1693,10 @@ HASH="$(pick_disposable)"
 # tombstone cannot already own, and it is still an honest fixture: it goes into
 # the SOURCE, and a real sync has to copy it before anything here is eligible.
 if [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
+  note "prepare (SMOKE_PREPARE_APPLY=1) — the demo organisations at a paid tier's pace"
+  at_a_paid_pace "$VERIFY_TOKEN" mail
+  at_a_paid_pace "$APPLY_TOKEN" dav
+
   note "prepare (SMOKE_PREPARE_APPLY=1) — give the apply half something real to act on"
 
   # AND IT IS NO LONGER SKIPPED BECAUSE SOMETHING ELIGIBLE HAPPENED TO BE LYING

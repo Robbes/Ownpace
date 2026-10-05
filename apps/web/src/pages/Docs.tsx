@@ -56,6 +56,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useLocation, Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
+import { ChevronRight } from 'lucide-react';
 import { GRANT_PROVIDERS, type GrantProvider } from '@openmig/shared';
 import { useLocale } from '../i18n/index.tsx';
 import { STRINGS, LOCALES, type Locale } from '../i18n/strings.ts';
@@ -522,8 +523,13 @@ const GuideList: React.FC<{ className: string; locale: Locale }> = ({ className,
       const picked = pickGuide(LIBRARY, s, locale)!;
       return (
         <li key={s}>
-          <Link to={`/docs/${s}`} lang={picked.lang} className="text-blue-700 hover:underline">
-            {guideTitle(picked.body, s)}
+          <Link
+            to={`/docs/${s}`}
+            lang={picked.lang}
+            className="group flex items-center justify-between gap-3 py-3 text-blue-700"
+          >
+            <span className="group-hover:underline">{guideTitle(picked.body, s)}</span>
+            <ChevronRight className="w-4 h-4 shrink-0 text-gray-400 group-hover:text-blue-700" aria-hidden="true" />
           </Link>
         </li>
       );
@@ -558,21 +564,29 @@ const Docs: React.FC = () => {
   });
   const ownAppFolded = provider !== undefined && providerClients?.[provider] === 'deployment';
 
+  // EACH VIEW IS ONE WHITE CARD (2026-10-05), as the app's other pages put
+  // their content: the owner found Help drawn straight on the paper. The
+  // card's `p-6` is what the public guides' header lines up with
+  // (`PublicDocs`).
   if (!slug) {
     return (
-      <div className="p-6 max-w-3xl">
+      <div className="max-w-3xl">
         <HelpTabs />
-        <h2 className="text-xl font-semibold text-gray-900">{t('docs.title')}</h2>
-        <GuideList className="mt-4 space-y-2" locale={locale} />
-        {isSelfHost() && (
-          // Only the appliance: its owner also runs it, and what this page
-          // stopped serving in 0148 T1 is theirs (D9).
-          <p className="mt-6 text-sm text-gray-600">
-            <a href={OPERATOR_DOCS_URL} target="_blank" rel="noreferrer noopener" className="text-blue-700 hover:underline">
-              {t('docs.operatorDocs')}
-            </a>
-          </p>
-        )}
+        <section aria-labelledby="docs-title" className="bg-white rounded-lg border border-gray-200 p-6">
+          <h2 id="docs-title" className="text-lg font-semibold text-gray-900">
+            {t('docs.title')}
+          </h2>
+          <GuideList className="mt-2 divide-y divide-gray-200" locale={locale} />
+          {isSelfHost() && (
+            // Only the appliance: its owner also runs it, and what this page
+            // stopped serving in 0148 T1 is theirs (D9).
+            <p className="mt-4 text-sm text-gray-600">
+              <a href={OPERATOR_DOCS_URL} target="_blank" rel="noreferrer noopener" className="text-blue-700 hover:underline">
+                {t('docs.operatorDocs')}
+              </a>
+            </p>
+          )}
+        </section>
       </div>
     );
   }
@@ -581,25 +595,29 @@ const Docs: React.FC = () => {
     // Naming what DOES exist beats a bare 404 when somebody followed a stale
     // reference from a refusal message.
     return (
-      <div className="p-6 max-w-3xl">
-        <p className="text-gray-700">{t('docs.notFound')}</p>
-        <GuideList className="mt-3 space-y-2" locale={locale} />
+      <div className="max-w-3xl">
+        <section className="bg-white rounded-lg border border-gray-200 p-6">
+          <p className="text-gray-700">{t('docs.notFound')}</p>
+          <GuideList className="mt-2 divide-y divide-gray-200" locale={locale} />
+        </section>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-3xl">
-      <Link to="/docs" className="text-sm text-blue-700 hover:underline">
-        {t('docs.all')}
-      </Link>
-      {picked.otherLanguage && (
-        // In the reader's language, about the guide below, which is not.
-        <p lang={locale} className="mt-3 p-3 rounded bg-amber-50 text-sm text-amber-900">
-          {t('docs.otherLanguage')}
-        </p>
-      )}
-      <GuideArticle body={picked.body} lang={picked.lang} ownAppFolded={ownAppFolded} />
+    <div className="max-w-3xl">
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <Link to="/docs" className="text-sm text-blue-700 hover:underline">
+          {t('docs.all')}
+        </Link>
+        {picked.otherLanguage && (
+          // In the reader's language, about the guide below, which is not.
+          <p lang={locale} className="mt-3 p-3 rounded bg-amber-50 text-sm text-amber-900">
+            {t('docs.otherLanguage')}
+          </p>
+        )}
+        <GuideArticle body={picked.body} lang={picked.lang} ownAppFolded={ownAppFolded} />
+      </div>
     </div>
   );
 };

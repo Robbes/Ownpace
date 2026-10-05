@@ -1,8 +1,8 @@
 # ADR-0042: Who holds the passwords — an issuer we can replace
 
-- **Status:** Accepted 2026-08-22, on the owner's condition; amended six times (latest
-  2026-10-03: a provider may be an account's only way in, a verified email links without a
-  prompt, and Microsoft creates no account by itself); consolidated 2026-10-03 (ADR-0051)
+- **Status:** Accepted 2026-08-22, on the owner's condition; consolidated 2026-10-03
+  (ADR-0051); amended seven times (latest 2026-10-05: on managed, the app's policy names the
+  issuer, so the issuer has no path and its token endpoint is on its own origin)
 - **Date:** 2026-08-22; consolidated 2026-10-03
 - **Deciders:** Owner, 2026-08-22 — accepted with a condition: *confirm* the issuer is
   replaceable rather than assert it (*Decision* 4)
@@ -20,8 +20,7 @@
 
 - **The managed edition authenticates against an external OIDC issuer; Ownpace stores no
   passwords** (no password column in either migration chain). **The appliance never gains an
-  issuer dependency** (one owner, no accounts; hard rule 5):
-  `apps/selfhost/src/no-managed-leakage.unit.test.ts`.
+  issuer dependency**: `apps/selfhost/src/no-managed-leakage.unit.test.ts`.
 - **The issuer owns identity; `tenant_member` owns tenancy.** A token carries `sub` and `email`
   and nothing Ownpace-specific; tenant and role are read from `tenant_member` per request, never
   trusted from a claim: `apps/api/src/middleware/tenant-resolution.unit.test.ts`.
@@ -39,10 +38,11 @@
   whose PKCE verifier (S256) never leaves its tab. A document naming another `issuer` is
   refused; `JWT_JWKS_URI` is the escape hatch:
   `issuer-is-replaceable.unit.test.ts`, `oidc.unit.test.ts`.
-- **Zitadel is the accepted issuer**, self-hosted on the managed Postgres. Pinned by version;
-  upgrades are deliberate, never automatic (`scripts/a-pin-that-knows-it-is-behind.unit.test.ts`).
-  Switching is four variables and a rebuild: `JWT_ISSUER`, `JWT_AUDIENCE`, `VITE_OIDC_ISSUER`,
-  `VITE_OIDC_CLIENT_ID` (`scripts/idp-wiring.unit.test.ts`).
+- **Zitadel is the accepted issuer**, self-hosted, pinned, upgraded deliberately
+  (`scripts/a-pin-that-knows-it-is-behind.unit.test.ts`). Switching is four variables and a
+  rebuild: `JWT_ISSUER`, `JWT_AUDIENCE`, `VITE_OIDC_ISSUER`, `VITE_OIDC_CLIENT_ID`
+  (`scripts/idp-wiring.unit.test.ts`); on managed, for an issuer at `scheme://host[:port]` with
+  its token endpoint on that origin (workplan 0158 D8).
 - **Signing out ends the ISSUER'S session, not only this tab's**: RP-Initiated Logout through the
   discovered `end_session_endpoint`, with `id_token_hint` and the registered
   `post_logout_redirect_uri`. The local half happens before the browser leaves for the issuer:
@@ -150,6 +150,18 @@ Discovery §4.3), or a hijacked DNS record or a misconfigured proxy could point 
 key set it controls. The API answers that with a 500, not a 401: our configuration is wrong or
 attacked, and no caller's token can fix it. `JWT_JWKS_URI` skips discovery as an escape hatch, not
 the normal path, since it pins a URL that key rotation or an upgrade can move.
+
+**On managed, within the app's policy** (amended 2026-10-05; workplan 0158 D8). The web image
+serves the app with a Content-Security-Policy whose `connect-src` names the app's own origin and
+`VITE_OIDC_ISSUER`, nothing else. Two things the browser fetches from the issuer must be there:
+the discovery document, and the discovered `token_endpoint`, which the page posts the code to. The
+authorization and end-session endpoints are navigations, which the policy does not govern. A
+policy source with a path matches that one path, so the image refuses an issuer with a path when
+it is built. An issuer whose token endpoint is on another host builds, and then every sign-in
+fails at the callback. So switching is four variables and a rebuild for an issuer at
+`scheme://host[:port]` whose token endpoint is on that origin, as Zitadel's is. Keycloak, the
+named fallback below, has a path (`/realms/<name>`): switching to it also changes the policy to
+name the issuer's origin, in `apps/web/nginx.conf.template` and the image.
 
 ### 5. A public browser client, proven by PKCE
 
@@ -322,6 +334,12 @@ they meant to link.
 - **2026-10-03, last** — A verified email links without a prompt, and a Microsoft sign-in creates
   no account by itself (owner: *"recommended"*); `setup-zitadel.sh` gives Microsoft its own
   options. Record: *Decision* 3, and *Alternatives considered*.
+- **2026-10-05** — On managed, the app's Content-Security-Policy names the issuer (workplan 0158
+  T1, D8), so switching is four variables and a rebuild only for an issuer at
+  `scheme://host[:port]` whose discovered token endpoint is on that origin. Keycloak's path needs
+  the policy changed too. Found by the review of 0158 T1. To make room in the operative section,
+  the appliance bullet drops its reason, which *Decision* 1 gives. Record: *Operative rules*, the
+  bullet "Zitadel is the accepted issuer", and *Decision* 4.
 
 The full record, word for word as it read before this consolidation:
 [history/0042-who-holds-the-passwords.md](./history/0042-who-holds-the-passwords.md).

@@ -55,6 +55,7 @@ import { serverMessage } from '../services/api.ts';
 import { waitingOn } from '../services/needs-you.ts';
 import { checksOf } from '../services/cutover-steps.ts';
 import StateChip from '../components/StateChip.tsx';
+import { PaceLine } from '../components/PaceLine.tsx';
 import { MigrationLines, lineStages } from '../components/MigrationLines.tsx';
 import { CutoverSteps } from '../components/CutoverSteps.tsx';
 import { fetchProgress } from '../services/progress-service.ts';
@@ -128,6 +129,8 @@ const Person: React.FC = () => {
   const rowsQuery = selfHost ? statusQuery : listQuery;
   const rows: readonly PersonRow[] | undefined = selfHost ? statusQuery.data : listQuery.data;
   const peopleQuery = useQuery({ queryKey: ['people'], queryFn: fetchPeople });
+  // The pace their migrations run at (0157 T5): managed only, as tiers are.
+  const paceQuery = useQuery({ queryKey: ['pace'], queryFn: mappingApi.pace, enabled: !selfHost });
   const attentionQuery = useQuery({ queryKey: ['attention'], queryFn: fetchAttention });
   // Where each data type is (0154 T1 (b)), for each line's own stage and the
   // sentence under it: the progress route on managed, the status and the last
@@ -162,8 +165,11 @@ const Person: React.FC = () => {
   }
 
   // The appliance has no Migrations page to go back to: its menu leads here.
+  // `inline-block`, or the page's `space-y-6` does not reach it: Tailwind 4
+  // spaces children with a bottom margin, which an inline link ignores, and
+  // the name sat 5 pixels under it.
   const back = selfHost ? null : (
-    <Link to="/mappings" className="text-sm text-blue-700 hover:underline">
+    <Link to="/mappings" className="inline-block text-sm text-blue-700 hover:underline">
       {t('person.back')}
     </Link>
   );
@@ -223,7 +229,11 @@ const Person: React.FC = () => {
   return (
     <div className="space-y-6">
       {back}
-      <div>
+      {/* `data-app-screen`: the head and the card below are what the public
+          site's home page shows of the app (workplan 0152 T3), photographed by
+          `scripts/shoot-the-app-screen.mjs`, and read again by the UI smoke so
+          a word changed here fails until the photograph is taken again. */}
+      <div data-app-screen="head">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold text-gray-900">{person.displayName ?? t('people.implicit')}</h1>
           {stage && <StateChip entity="stage" state={stage} />}
@@ -231,6 +241,11 @@ const Person: React.FC = () => {
         {from.length > 0 && to.length > 0 && (
           <p className="mt-1 text-gray-600">{t('people.fromTo', { from: list(from), to: list(to) })}</p>
         )}
+        <PaceLine
+          className="mt-1 text-sm text-gray-700"
+          eachMigration
+          leastMinutesBetweenPasses={paceQuery.data?.leastMinutesBetweenPasses}
+        />
         {needs === undefined ? (
           attentionQuery.isLoading ? null : <p className="mt-1 text-sm text-gray-600">{t('people.needsUnknown')}</p>
         ) : needs > 0 ? (
@@ -240,7 +255,7 @@ const Person: React.FC = () => {
         ) : null}
       </div>
 
-      <section className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+      <section data-app-screen="migrations" className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
         {migrations.length === 0 ? (
           <p className="text-sm text-gray-500">{t('people.noneYet')}</p>
         ) : (

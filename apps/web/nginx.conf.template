@@ -1,6 +1,7 @@
-# Rendered by the nginx image's envsubst entrypoint: ${API_UPSTREAM} is
-# substituted from the container environment (only defined env vars are
-# substituted, so nginx's own $host/$uri variables survive untouched).
+# Rendered by the nginx image's envsubst entrypoint: ${API_UPSTREAM} and
+# ${VITE_OIDC_ISSUER} are substituted from the container environment (only
+# defined env vars are substituted, so nginx's own $host/$uri variables
+# survive untouched). Both are ENV lines of the Dockerfile's runtime stage.
 
 # THE ACCESS LOG, WITHOUT THE SECRETS IN IT. nginx's default log writes each
 # request line and its Referer in full, and a grant or view link is a
@@ -69,11 +70,71 @@ server {
   # leave this process holding a stale IP.
   resolver 127.0.0.11 valid=10s ipv6=off;
 
+  # WHAT A BROWSER MAY DO WITH THE APP (workplan 0158). Until 2026-10-05 this
+  # file sent no policy at all, for an app that keeps its sign-in in the
+  # browser's storage. The policy is named once, here, and each location that
+  # serves the app states it with four more headers, below. They are repeated
+  # per location on purpose: nginx's `add_header` reaches a location only when
+  # it sets none of its own (`deploy/compose/www-nginx.conf` says the same). Not
+  # at this level, where /api/ would inherit them: see that location.
+  #
+  # - default-src 'none': no font, frame, media, object or manifest. The app
+  #   loads none.
+  # - script-src 'self': the app's own module scripts, and nothing inline,
+  #   evaluated or from another host. Zod's probe for eval is switched off at
+  #   the entry (`apps/web/src/zod-without-eval.ts`); without that, every page
+  #   load reported a violation.
+  # - style-src 'self': the one stylesheet. React's `style` props go through
+  #   the CSSOM, which the policy does not govern.
+  # - img-src data: the favicon, which `index.html` carries inline.
+  # - connect-src 'self' and the sign-in host: the API at this origin, and the
+  #   issuer's discovery document and token endpoint (`services/oidc.ts`). The
+  #   image takes the issuer from the build argument the bundle was built
+  #   with, so the two name one host. Empty, on a stack without sign-in, it is
+  #   'self' alone. The issuer's token endpoint must be on the issuer's own
+  #   origin, as Zitadel's is (ADR-0042, amended 2026-10-05).
+  # - worker-src 'none': no worker. A worker falls back to script-src, not to
+  #   default-src, so without it any script of this origin could run as one.
+  #   The app starts none.
+  # - base-uri, form-action and frame-ancestors 'none': no <base>, no form the
+  #   browser submits (each form the app has is sent by script), and no page
+  #   may frame this one.
+  #
+  # No upgrade-insecure-requests: behind NetBird's TLS it changes nothing, and
+  # on an address served over plain http that is not loopback it sends the
+  # app's own scripts to https, where they never load.
+  set $ownpace_csp "default-src 'none'; script-src 'self'; style-src 'self'; img-src data:; connect-src 'self' ${VITE_OIDC_ISSUER}; worker-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+
+  # The four beside it, in the same locations:
+  #
+  # - Strict-Transport-Security: one year, with includeSubDomains, without
+  #   preload. It is helmet's value on /api/ on the same host, which every
+  #   page already called, so a browser hears one thing about the host. A
+  #   browser ignores it over plain http, so a loopback address stays usable.
+  # - X-Content-Type-Options nosniff: a file is the type it is served as.
+  # - X-Frame-Options DENY: frame-ancestors, for a browser older than it.
+  # - Referrer-Policy no-referrer: the grant and view pages' address carries
+  #   the link, and every call they made to /api/ sent it as the Referer (0108,
+  #   0122). On every page, because a page keeps the policy it loaded with, and
+  #   the router opens the grant page at /GRANT/<link> too.
+  #
+  # No Cross-Origin-Opener-Policy: the consent window hands its result back to
+  # the page that opened it (`services/consent-window.ts`).
+  # scripts/what-a-browser-may-do-with-the-app.unit.test.ts reads all of this,
+  # and runs it on a real nginx where the machine has one.
+
   # The SPA is built with VITE_API_URL=/api (same origin), so the browser's
   # API calls arrive HERE and must be proxied to the api service — without
   # this block they fell through to the SPA fallback and got index.html back
   # as JSON (the 0011 T7 DRAFT gotcha, resolved 2026-08-10).
   location /api/ {
+    # NO add_header HERE, ON PURPOSE (workplan 0158). The API sends its own:
+    # helmet's policy, HSTS, nosniff, X-Frame-Options and Referrer-Policy
+    # (`apps/api/src/index.ts`). The consent callback pages replace helmet's
+    # policy with one that allows their inline script by hash, and keep their
+    # opener (`callbackPageHeaders`). A policy added here would be a second
+    # one, both enforced, and the callback's script would not run.
+    #
     # THE LARGEST REPORT THE API TAKES, and not a byte less. A problem report
     # carries its screenshot (up to 5 MB) as base64 inside JSON, and the API
     # parses that route with PROBLEM_REPORT_BODY_LIMIT, '8mb', in
@@ -109,8 +170,21 @@ server {
   # missing, never the page in its place.
   location = /version.json {
     add_header Cache-Control "no-cache" always;
+    add_header Content-Security-Policy $ownpace_csp always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "no-referrer" always;
     try_files $uri =404;
   }
 
-  location / { try_files $uri $uri/ /index.html; }
+  # The page at every address the app has, and its assets.
+  location / {
+    try_files $uri $uri/ /index.html;
+    add_header Content-Security-Policy $ownpace_csp always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "no-referrer" always;
+  }
 }

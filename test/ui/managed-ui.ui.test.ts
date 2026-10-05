@@ -42,6 +42,17 @@
 // A machine that happens to export it — the exact accident that caused the
 // live outage — must not be able to make this suite pass.
 //
+// ## And under the policy the app is served with (workplan 0158)
+//
+// The fixture server sends each file with the headers the web image's nginx
+// sends it with, read from `apps/web/nginx.conf.template` as nginx reads it
+// (`scripts/nginx-config.ts`), the Content-Security-Policy among them. Every
+// page this file opens listens for `securitypolicyviolation`, and a violation
+// fails the test that opened the page. The listener is needed: Chromium logs
+// nothing to the console for an `eval` a script tried inside a try/catch, and
+// that is exactly what zod's probe did on every load until the entry turned it
+// off (`apps/web/src/zod-without-eval.ts`).
+//
 // ## What this suite cannot see
 //
 // Server-side truth. The same afternoon turned up a mapping list reporting
@@ -57,9 +68,43 @@ import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, type Browser, type Page, type Request } from 'playwright-core';
+import { envsubst, headersFor, parseNginx } from '../../scripts/nginx-config.ts';
+import {
+  APP_SCREEN_NOW,
+  APP_SCREEN_PERSON,
+  APP_SCREEN_READY,
+  appScreenAnswers,
+  appScreenText,
+  type AppScreenLocale,
+} from './app-screen.ts';
 
 const REPO = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const DIST = join(REPO, 'apps/web/dist');
+
+/**
+ * THE WEB IMAGE'S NGINX, as the image renders it: `API_UPSTREAM` as the image
+ * defines it, and no sign-in host, because this suite builds the bundle
+ * without one (it signs in by pasting a token). What the template adds to a
+ * file's answer is what this server adds to it.
+ */
+const TEMPLATE_PATH = 'apps/web/nginx.conf.template';
+const NGINX = parseNginx(
+  envsubst(readFileSync(join(REPO, TEMPLATE_PATH), 'utf8'), { API_UPSTREAM: 'api:3001', VITE_OIDC_ISSUER: '' }),
+  TEMPLATE_PATH,
+);
+
+/** The headers nginx adds to the answer for this path; none when it chooses no location. */
+function nginxHeaders(path: string): Record<string, string> {
+  return Object.fromEntries((headersFor(NGINX, path) ?? []).map((h) => [h.name, h.value]));
+}
+
+/**
+ * Every policy violation any page of this file met, as `csp: <directive>
+ * <blocked> at <file>:<line>`. A page `open` loads also logs each one as a
+ * console error, which `expectClean` refuses; this list holds the pages that
+ * are opened otherwise, and is asked at the end.
+ */
+const violations: string[] = [];
 const EXPLICIT_CHROMIUM = process.env.E2E_CHROMIUM ?? '/opt/pw-browsers/chromium';
 
 const TENANT = 'a0000000-0000-4000-8000-000000000001';
@@ -260,6 +305,9 @@ const FIXTURES: Record<string, unknown> = {
     sourceConfig: { type: 'imap-oauth2', host: 'stalwart', port: 993, username: 'source@dev.local', password: '********' },
     targetConfig: { type: 'jmap', baseUrl: 'http://stalwart:8080', username: 'target@dev.local', password: '********' },
   },
+  // The pace the organisation's migrations run at (0157 T5): a paid tier's, so
+  // the person's page draws no Free line. Its own tests hold the line.
+  'GET /api/migrations/pace': { leastMinutesBetweenPasses: 0, nextPassAt: {} },
   // Where each data type is (0154 T1 (b)): the lines on a person's card and page.
   'GET /api/migrations/progress': {
     mappings: [
@@ -360,7 +408,10 @@ function startServer(): Promise<{ server: Server; base: string }> {
     if (!file.startsWith(DIST) || !existsSync(file) || !statSync(file).isFile()) {
       file = join(DIST, 'index.html');
     }
-    res.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'application/octet-stream' });
+    res.writeHead(200, {
+      ...nginxHeaders(`/${file.slice(DIST.length + 1)}`),
+      'content-type': MIME[extname(file)] ?? 'application/octet-stream',
+    });
     createReadStream(file).pipe(res);
   });
 
@@ -385,14 +436,40 @@ interface Loaded {
   text(): Promise<string>;
 }
 
+/**
+ * A new page that reports every policy violation it meets: as a console error
+ * the page's own listeners see, and into `violations`. Before any script of
+ * the app runs, so a violation while the bundle loads is caught too.
+ */
+async function newPage(
+  locale: 'en-GB' | 'nl-NL' = 'en-GB',
+  options: { timezoneId?: string } = {},
+): Promise<Page> {
+  const page = await browser.newPage({ ...options, locale });
+  page.on('console', (m) => {
+    if (m.type() === 'error' && m.text().startsWith('csp: ')) violations.push(`${page.url()} ${m.text()}`);
+  });
+  await page.addInitScript(() => {
+    document.addEventListener(
+      'securitypolicyviolation',
+      (e) => console.error(`csp: ${e.effectiveDirective} ${e.blockedURI || '(inline)'} at ${e.sourceFile}:${e.lineNumber}`),
+      true,
+    );
+  });
+  return page;
+}
+
 /** Load a route as a signed-in operator, recording what a user cannot see. */
 async function open(
   path: string,
-  opts: { locale?: 'en' | 'nl'; signedIn?: boolean } = {},
+  opts: { locale?: 'en' | 'nl'; signedIn?: boolean; clock?: Date } = {},
 ): Promise<Loaded> {
-  const page = await browser.newPage({
-    locale: opts.locale === 'nl' ? 'nl-NL' : 'en-GB',
+  const page = await newPage(opts.locale === 'nl' ? 'nl-NL' : 'en-GB', {
+    // A page held to a moment reads it in the servers' zone, as the pictures
+    // taken at that moment did (`scripts/shoot-the-app-screen.mjs`).
+    ...(opts.clock ? { timezoneId: 'UTC' } : {}),
   });
+  if (opts.clock) await page.clock.setFixedTime(opts.clock);
   const errors: string[] = [];
   const badResponses: string[] = [];
   const origins = new Set<string>();
@@ -663,7 +740,7 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
   it('signs a member in to Migrations, with the menu the drawing shows', async () => {
     // Through the front door, as `open` does, but without its second goto:
     // where the sign-in itself lands is the thing under test.
-    const page = await browser.newPage({ locale: 'en-GB' });
+    const page = await newPage();
     await page.addInitScript(() => window.localStorage.setItem('openmig.locale', 'en'));
     await page.goto(`${BASE}/login`, { waitUntil: 'networkidle', timeout: 30_000 });
     await page.fill('#token', TOKEN);
@@ -934,6 +1011,55 @@ describe('bilingual rendering', () => {
   });
 });
 
+describe("the home page's app screen (0152 T3)", () => {
+  // The site's home page shows a person's page of this app, photographed by
+  // `scripts/shoot-the-app-screen.mjs`, which recorded the words in it. The
+  // owner, 2026-10-05: the screen "will have to move along with changes in
+  // text in the future". This opens the same page with the same answers at the
+  // same moment, and fails while its words are not the pictures' words: a
+  // string changed in the app is a picture to take again, in the same pull
+  // request.
+  const screen = JSON.parse(readFileSync(join(REPO, 'site/app-screen/screen.json'), 'utf8')) as {
+    moment: string;
+    words: Record<AppScreenLocale, string>;
+  };
+
+  it('was photographed at the moment its answers hold', () => {
+    expect(screen.moment).toBe(APP_SCREEN_NOW.toISOString());
+  });
+
+  for (const locale of ['en', 'nl'] as const) {
+    it(`says, in ${locale === 'en' ? 'English' : 'Dutch'}, the words its pictures show`, async () => {
+      const answers = appScreenAnswers(locale);
+      const saved = Object.fromEntries(Object.keys(answers).map((k) => [k, FIXTURES[k]]));
+      Object.assign(FIXTURES, answers);
+      try {
+        const l = await open(`/people/${APP_SCREEN_PERSON}`, { locale, clock: APP_SCREEN_NOW });
+        await l.page.waitForSelector(APP_SCREEN_READY, { timeout: 15_000 });
+        expect(
+          await appScreenText(l.page),
+          'The person\'s page no longer says what the home page\'s pictures of it show. Take them again ' +
+            'with `node scripts/shoot-the-app-screen.mjs`, look at them, and commit site/app-screen/.',
+        ).toBe(screen.words[locale]);
+        // The picture starts above the name, below the way back to Migrations,
+        // and needs room between the two to do so.
+        const gap = await l.page.evaluate(() => {
+          const head = document.querySelector('[data-app-screen="head"]')!;
+          return head.getBoundingClientRect().top - head.previousElementSibling!.getBoundingClientRect().bottom;
+        });
+        expect(gap, 'the way back to Migrations sits on the person\'s name').toBeGreaterThanOrEqual(16);
+        expectClean(l, `the app screen (${locale})`);
+        await l.page.close();
+      } finally {
+        for (const [k, v] of Object.entries(saved)) {
+          if (v === undefined) delete FIXTURES[k];
+          else FIXTURES[k] = v;
+        }
+      }
+    });
+  }
+});
+
 describe("a sign-in's example (the owner, 2026-09-29)", () => {
   // The owner: stick with "Username" / "Gebruikersnaam" and fill in "a grey
   // example hint of the formatting/syntax that goes away when clicked, like
@@ -1170,5 +1296,38 @@ describe('signed in by somebody who has not accepted the texts yet', () => {
       FIXTURES['GET /api/me'] = ME;
       delete FIXTURES['POST /api/me/acceptance'];
     }
+  });
+});
+
+describe('the app runs under the policy nginx serves it with (workplan 0158)', () => {
+  it('is served with the policy the template names', async () => {
+    // The fixture server reads its headers from the template; this holds that
+    // it found a policy there, so nothing below passes because none was sent.
+    const res = await fetch(`${BASE}/grant/a-link`);
+    const policy = res.headers.get('content-security-policy') ?? '';
+    expect(policy).toMatch(/^default-src 'none'; script-src 'self';/);
+    expect(res.headers.get('referrer-policy')).toBe('no-referrer');
+  });
+
+  it.each(['/login', '/request-access', '/grant/a-link', '/view/a-link', '/docs'])(
+    'opens %s, a page a stranger can reach, with no violation',
+    async (path) => {
+      // The grant and view pages ask the API about a link no fixture knows,
+      // and show their refusal: the browser logs that 404, so only the
+      // policy is asked here, and that the page mounted.
+      const page = await newPage();
+      const own: string[] = [];
+      page.on('console', (m) => {
+        if (m.type() === 'error' && m.text().startsWith('csp: ')) own.push(m.text());
+      });
+      await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle', timeout: 30_000 });
+      expect(await page.locator('#root > *').count(), `${path} never mounted`).toBeGreaterThan(0);
+      expect(own, `${path} broke the policy`).toEqual([]);
+      await page.close();
+    },
+  );
+
+  it('broke it on no page this file opened', () => {
+    expect(violations).toEqual([]);
   });
 });

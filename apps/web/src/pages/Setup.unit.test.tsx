@@ -282,3 +282,31 @@ describe('Setup — links the card\'s own guide section', () => {
     expect(screen.queryByText('Read the full setup guide')).toBeNull();
   });
 });
+
+describe('Help draws its content in white cards, as the other pages do (2026-10-05)', () => {
+  it('the chooser: each side a white card, its tiles inside it', () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/setup']}>
+          <Routes>
+            <Route path="/setup" element={<Setup />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const tile = screen.getByRole('link', { name: 'Dropbox' });
+    expect(tile.closest('section')?.className).toContain('bg-white');
+  });
+
+  it('the checklist: each step a row of one white card, and no list item inside a list item', async () => {
+    get.mockResolvedValue(checklist());
+    const { container } = renderPage();
+
+    const step = await screen.findByText('Create a Box platform app');
+    expect(step.closest('section')?.className).toContain('bg-white');
+    // Each step was a `<li>` drawn inside the list's own `<li>`.
+    expect(container.querySelectorAll('li li')).toHaveLength(0);
+  });
+});

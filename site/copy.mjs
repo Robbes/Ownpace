@@ -78,7 +78,7 @@ export const COPY = {
     },
     heroTitle: 'Move off Google or Microsoft. At your own pace.',
     heroLede:
-      'Ownpace copies your mail, contacts, calendar and files to a European provider you choose — and keeps the copy in step until <em>you</em> decide to switch over. No weekend deadline. No big-bang cutover. Your old account stays exactly where it is until you say otherwise.',
+      'Ownpace copies your mail, contacts, calendar, tasks and files to a European provider you choose — and keeps the copy in step until <em>you</em> decide to switch over. No weekend deadline. No big-bang cutover. Your old account stays exactly where it is until you say otherwise.',
     ctaOrder: 'Request access',
     ctaPricing: 'See what it costs',
     ctaAllTiers: 'All five tiers, in full',
@@ -93,7 +93,7 @@ export const COPY = {
     // are its words; the data types in it are dataTypes', as the app names them.
     hero: {
       title: 'Your data moves from your old account to your new home',
-      desc: 'Email, calendar, contacts, files and photos go from the old account through Ownpace to the new home. Ownpace copies them, then keeps them in step until you switch.',
+      desc: 'Email, calendar, contacts, tasks, files and photos go from the old account through Ownpace to the new home. Ownpace copies them, then keeps them in step until you switch.',
       old: 'Your old account',
       new: 'Your new home',
       copies: 'copies',
@@ -115,6 +115,16 @@ export const COPY = {
         ['Switch when you are ready', 'Check what arrived first. No deadline.'],
       ],
       more: 'The whole of How it works',
+    },
+    // The app itself, after How it works (workplan 0152 T3, "app screen
+    // later"): a person's page, photographed by
+    // scripts/shoot-the-app-screen.mjs. The names in `alt` are the picture's
+    // own, and scripts/the-home-page-shows-the-app.unit.test.ts holds them so.
+    appScreen: {
+      title: 'What you see in the app',
+      lede: 'One page for each person you migrate for: every account they are leaving, each kind of data, how far it has come and when Ownpace last copied it.',
+      alt: 'The app’s page for Anna Jansen: three migrations, from Gmail, Google and Dropbox to Soverin and Nextcloud. Email and contacts are kept in step; the calendar and the files are being copied.',
+      caption: 'A real screen of the app, with an example person.',
     },
     // Where to (workplan 0152 T4): what the app moves data into, from the
     // guarded copy in destinations.mjs. The data types are named as the app
@@ -455,7 +465,7 @@ export const COPY = {
     },
     heroTitle: 'Weg bij Google of Microsoft. In uw eigen tempo.',
     heroLede:
-      'Ownpace kopieert uw e-mail, contacten, agenda en bestanden naar een Europese aanbieder die u zelf kiest — en houdt die kopie bij tot <em>u</em> besluit over te stappen. Geen deadline in het weekend. Geen big bang. Uw oude account blijft precies waar het is, tot u iets anders zegt.',
+      'Ownpace kopieert uw e-mail, contacten, agenda, taken en bestanden naar een Europese aanbieder die u zelf kiest — en houdt die kopie bij tot <em>u</em> besluit over te stappen. Geen deadline in het weekend. Geen big bang. Uw oude account blijft precies waar het is, tot u iets anders zegt.',
     ctaOrder: 'Toegang aanvragen',
     ctaPricing: 'Bekijk wat het kost',
     ctaAllTiers: 'Alle vijf de pakketten, volledig',
@@ -464,7 +474,7 @@ export const COPY = {
       `${name}: ${paths} migraties tegelijk en tot ${data}, met één ronde per dag. Alle prijzen staan er volledig op — geen offerte, geen verkoopgesprek.`,
     hero: {
       title: 'Uw gegevens gaan van uw oude account naar uw nieuwe thuis',
-      desc: 'E-mail, agenda, contacten, bestanden en foto’s gaan van het oude account via Ownpace naar het nieuwe thuis. Ownpace kopieert ze, en houdt ze daarna bij tot u overstapt.',
+      desc: 'E-mail, agenda, contacten, taken, bestanden en foto’s gaan van het oude account via Ownpace naar het nieuwe thuis. Ownpace kopieert ze, en houdt ze daarna bij tot u overstapt.',
       old: 'Uw oude account',
       new: 'Uw nieuwe thuis',
       copies: 'kopieert',
@@ -482,6 +492,12 @@ export const COPY = {
         ['Stap over wanneer u klaar bent', 'Controleer eerst wat er aankwam. Geen deadline.'],
       ],
       more: 'Alles over hoe het werkt',
+    },
+    appScreen: {
+      title: 'Wat u in de app ziet',
+      lede: 'Eén pagina voor elke persoon voor wie u migreert: elk account dat die persoon verlaat, elk soort gegevens, hoe ver het is en wanneer Ownpace het laatst kopieerde.',
+      alt: 'De pagina van Anna Jansen in de app: drie migraties, van Gmail, Google en Dropbox naar Soverin en Nextcloud. E-mail en contacten worden bijgehouden; de agenda en de bestanden worden gekopieerd.',
+      caption: 'Een echt scherm van de app, met een voorbeeldpersoon.',
     },
     whereTitle: 'Waar naartoe',
     whereLede:

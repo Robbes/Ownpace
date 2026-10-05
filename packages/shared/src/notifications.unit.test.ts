@@ -226,6 +226,7 @@ describe('immediate events', () => {
       { kind: 'migration_finished', mapping: { id: 'm' } },
       { kind: 'rollback_finished', mapping: { id: 'm' }, reason: 'r' },
       { kind: 'first_copy_complete', person: 'Anna Jansen', domains: ['email'] },
+      { kind: 'looking_less_often', migrations: [{ mapping: { id: 'm' }, step: 'six-hourly' }] },
     ] as const;
     for (const event of events) {
       for (const locale of ['en', 'nl'] as const) {
@@ -272,6 +273,15 @@ describe('everything has arrived — the first copy, once per person (0154 T7)',
   });
 
   it('says one data type on its own, and names nobody for the appliance’s one person', () => {
+    // On Free, outside the alpha (workplan 0157 T5): what keeping in step means.
+    const free = { ...anna, onePassADay: true } as const;
+    expect(renderEvent(free, 'en').body).toContain(
+      'On Free that is one pass a day. A higher tier looks for changes as often as every 15 minutes: see Billing in the app.',
+    );
+    expect(renderEvent(free, 'nl').body).toContain(
+      'Op Free is dat één ronde per dag. Een hoger pakket kijkt zo vaak als elke 15 minuten naar wijzigingen: zie Facturering in de app.',
+    );
+    expect(renderEvent(anna, 'en').body).not.toContain('On Free');
     const msg = renderEvent({ kind: 'first_copy_complete', domains: ['file'] }, 'en');
     expect(msg.body).toContain('Everything has arrived: files.');
     expect(msg.body).not.toContain('Person:');
@@ -280,6 +290,64 @@ describe('everything has arrived — the first copy, once per person (0154 T7)',
   it('does not ask the reader to act, having just said nothing is needed', () => {
     for (const locale of ['en', 'nl'] as const) {
       const body = renderEvent(anna, locale).body;
+      expect(body).not.toContain('Open the app to act on this.');
+      expect(body).not.toContain('Open de app om actie te ondernemen.');
+    }
+  });
+});
+
+/**
+ * A SLOWER CADENCE, SAID ONCE (workplan 0157 T7; the owner, 2026-10-05: "sync
+ * slow down once a migration is in step: yes", each step said in the app and
+ * by email). One mail for an organisation's morning, each migration by its
+ * name and its person, how often it looks now, and how to choose more often.
+ */
+describe('everything is in step, so we look less often (0157 T7)', () => {
+  const two = {
+    kind: 'looking_less_often',
+    migrations: [
+      { mapping: { id: 'm1', name: 'Anna mail' }, person: 'Anna Jansen', step: 'six-hourly' },
+      { mapping: { id: 'm2', name: 'Shared files' }, step: 'daily' },
+    ],
+  } as const;
+
+  it('names each migration, its person and how often it looks now, in both languages', () => {
+    const en = renderEvent(two, 'en');
+    expect(en.subject).toBe('Ownpace — everything is in step, so we look less often');
+    expect(en.body).toBe(
+      [
+        'Everything is in step, so we now look for changes less often:',
+        '',
+        'Migration: Anna mail',
+        '  - Person: Anna Jansen',
+        '  - Now every 6 hours',
+        '',
+        'Migration: Shared files',
+        '  - Now once a day',
+        '',
+        'Choose more often any time, under How often to look for changes on each migration in the app. ' +
+          'Open a migration and we look every hour again, for 14 days.',
+      ].join('\n'),
+    );
+    const nl = renderEvent(two, 'nl');
+    expect(nl.subject).toBe('Ownpace — alles is bijgewerkt, dus we kijken minder vaak');
+    expect(nl.body).toContain('Alles is bijgewerkt, dus we kijken nu minder vaak naar wijzigingen:');
+    expect(nl.body).toContain('Migratie: Anna mail\n  - Persoon: Anna Jansen\n  - Nu elke 6 uur');
+    expect(nl.body).toContain('Migratie: Shared files\n  - Nu eens per dag');
+    expect(nl.body).toContain('Opent u een migratie, dan kijken we weer 14 dagen elk uur.');
+  });
+
+  it('names a migration with no name by its id, as every event does', () => {
+    const body = renderEvent(
+      { kind: 'looking_less_often', migrations: [{ mapping: { id: 'm3', name: ' ' }, step: 'daily' }] },
+      'en',
+    ).body;
+    expect(body).toContain('Migration: m3\n  - Now once a day');
+  });
+
+  it('does not ask the reader to act: it has just said how to choose more often', () => {
+    for (const locale of ['en', 'nl'] as const) {
+      const body = renderEvent(two, locale).body;
       expect(body).not.toContain('Open the app to act on this.');
       expect(body).not.toContain('Open de app om actie te ondernemen.');
     }

@@ -254,7 +254,10 @@ export function isSyncDue(
   if (shortest < SCHEDULE_FLOOR_MINUTES || facts.firstCopyUnfinished) {
     return sinceLast >= SCHEDULE_FLOOR_MINUTES * MINUTE_MS;
   }
-  const next = new Cron(expression).nextRun(lastStartedAt);
+  // In UTC, as `shortestGapMinutes` reads it and as the servers run: a cron
+  // read in the machine's own zone put the automatic cadence's six-hourly steps
+  // hours off wherever that zone was not UTC (the self-hosted CI runner).
+  const next = new Cron(expression, { timezone: 'UTC' }).nextRun(lastStartedAt);
   return next !== null && next.getTime() <= now.getTime();
 }
 

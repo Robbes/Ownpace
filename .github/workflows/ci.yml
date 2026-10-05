@@ -1,5 +1,5 @@
 # Unified CI — TypeScript/Node (pnpm). Mirrors the team convention:
-#   detect-changes -> docs-hygiene (parallel) -> lint -> unit-tests -> integration-tests
+#   detect-changes -> docs-hygiene, lint, unit-tests (parallel) -> integration-tests
 # E2E is a SEPARATE, manual workflow (e2e.yml). Runs on the self-hosted (Spark) runner.
 #
 # ── Which machine runs untrusted code ────────────────────────────────────────
@@ -538,10 +538,36 @@ jobs:
           pnpm lint
           pnpm typecheck   # tsc (TypeScript 7) --noEmit across the workspace
 
+  # ALONGSIDE lint, not after it (the owner, 2026-10-05). The unit suite is
+  # the longest job on the path to integration-tests, and waiting for lint
+  # first added lint's minute to every run for nothing: a lint failure fails
+  # ci-complete either way. Gated on detect-changes itself, which is what lint
+  # was passing on, so a docs-only change still skips it.
+  #
+  # SPLIT OVER FOUR HOSTED RUNNERS ON A PULL REQUEST (the owner, 2026-10-05),
+  # with `vitest --shard=N/4`. Measured on #1508, the same commit both ways:
+  # one runner took 11m21s, the slowest of four shards 6m08s. Most of the
+  # suite's time is per-file start-up (import, transform, PGlite), spread
+  # evenly across the files, so it divides by the shard count; the slowest
+  # single file (scripts/a-first-bring-up-of-live.unit.test.ts, about 160s)
+  # is the floor.
+  #
+  # ONE RUN ON A PUSH. The Spark is one box that also serves production, and
+  # four copies of the suite there are what the worker cap below exists to
+  # prevent, so the matrix is a single `all` leg on a push.
+  #
+  # Coverage stays on in every leg; a shard's report covers only its own
+  # files, uploaded under its own name.
   unit-tests:
-    name: unit-tests
+    name: unit-tests (${{ matrix.shard }})
     runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
-    needs: lint
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.any_changed == 'true' }}
+    strategy:
+      # Every shard reports, so a failure names all the files that broke.
+      fail-fast: false
+      matrix:
+        shard: ${{ github.event_name == 'push' && fromJSON('["all"]') || fromJSON('["1","2","3","4"]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -588,12 +614,15 @@ jobs:
         # which never enabled coverage — so the upload step below has been
         # publishing an empty artifact. Same defect as the e2e filters in
         # e2e.yml.
-        run: pnpm test --coverage
+        #
+        # `--shard=N/4` only on a pull request's legs; the `all` leg runs
+        # every file.
+        run: pnpm test --coverage ${{ matrix.shard != 'all' && format('--shard={0}/4', matrix.shard) || '' }}
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: coverage-report
+          name: ${{ matrix.shard == 'all' && 'coverage-report' || format('coverage-report-shard-{0}', matrix.shard) }}
           path: '**/coverage/'
           retention-days: 7
 

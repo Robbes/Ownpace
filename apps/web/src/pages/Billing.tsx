@@ -16,15 +16,8 @@
  */
 import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Activity,
-  AlertCircle,
-  ArrowLeftRight,
-  CreditCard,
-  HardDrive,
-  Loader2,
-  Timer,
-} from 'lucide-react';
+import { AlertCircle, ArrowRight, CreditCard, Loader2 } from 'lucide-react';
+import { DISCOVERY_DOMAINS, type DiscoveryDomain, type ProgressReport } from '@openmig/shared';
 import {
   billingApi,
   type Invoice,
@@ -38,6 +31,10 @@ import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import StateChip from '../components/StateChip.tsx';
 import { isAlpha } from '../components/AlphaNote.tsx';
 import DataCeiling from '../components/DataCeiling.tsx';
+import TierPick from '../components/TierPick.tsx';
+import { DataTypeIcon, ICON_OF_DOMAIN } from '../components/icons/data-type-icons.tsx';
+import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
+import { fetchProgress } from '../services/progress-service.ts';
 
 /** A failed read said as such (hard rule 9 / 0033 T2) — before this, a failed
  *  usage read rendered "No usage data available yet" and a failed invoices
@@ -485,10 +482,99 @@ const Subtitle: React.FC<{ figuresShown: boolean }> = ({ figuresShown }) => {
  */
 const shownTier = (usage: UsageResponse) => (usage.holds ? usage.billed.tier : usage.tier);
 
-/** Decimal, like the published table: 1 TB = 1000 GB. */
+/**
+ * Decimal, like the published table: 1 TB = 1000 GB, and 1 GB = 1000 MB. Below
+ * a GB it says MB, so a migration that has begun does not read *0.0 GB*.
+ */
 function sizeOf(gb: number, number: (n: number) => string): string {
-  return gb >= 1000 ? `${number(Math.round(gb / 100) / 10)} TB` : `${number(Math.round(gb * 10) / 10)} GB`;
+  if (gb >= 1000) return `${number(Math.round(gb / 100) / 10)} TB`;
+  const mb = Math.round(gb * 1000);
+  if (gb > 0 && mb < 1000) return `${number(Math.max(1, mb))} MB`;
+  return `${number(Math.round(gb * 10) / 10)} GB`;
 }
+
+/**
+ * Items moved, per data type, over every migration: the counts each
+ * migration's page shows (0154 T2), read from the same answer, so the two
+ * cannot disagree. Every data type the app moves, in its order, tasks
+ * included, and 0 for one that moved none: a counted zero is an answer (the
+ * owner, 2026-10-05: *"and how about tasks? We still dont show tasks"*).
+ */
+export function itemsMovedByKind(
+  progress: ProgressReport,
+): ReadonlyArray<{ readonly domain: DiscoveryDomain; readonly items: number }> {
+  const sums = new Map<DiscoveryDomain, number>();
+  for (const m of progress.mappings) {
+    for (const d of m.domains) sums.set(d.domain, (sums.get(d.domain) ?? 0) + d.itemsSynced);
+  }
+  return DISCOVERY_DOMAINS.map((domain) => ({ domain, items: sums.get(domain) ?? 0 }));
+}
+
+/**
+ * WHAT HAS MOVED (the owner, 2026-10-05).
+ *
+ * Four cards stood here: Storage, Data Transfer, Compute Time and API calls.
+ * None was something a customer moved or pays for. *Storage* was the bytes
+ * written to the new home this month, though Ownpace keeps none of the data;
+ * *Data Transfer* was the same bytes again; *Compute Time* the hours its
+ * passes ran; *API calls* the number of passes. The owner: *"Perhaps we just
+ * need to show the usages that counts: data moved and number of objects
+ * moved"*, and, when the first version left the size to the tier block below:
+ * *"it now does not show moved MB or GB? It should also show that"*.
+ *
+ * So, in total, across every migration:
+ * - **All data**, first: what the meter counted, the alpha's share included.
+ *   It is the meter the tier reads (`/api/billing/usage`), so it and the tier
+ *   block's *Data moved, in total* are one figure, the alpha's share aside.
+ * - **Each kind's items**, after it, every kind the app moves, tasks included:
+ *   an email, a contact and a 4 GB film are not one unit, so their sum is a
+ *   number nobody can check, and a kind is what a person can hold against
+ *   their old account. They are counted as each migration's page counts them,
+ *   from the same read, and a kind that moved none says 0 rather than leaving
+ *   the row a different shape.
+ */
+const WhatMoved: React.FC<{ usage: UsageResponse }> = ({ usage }) => {
+  const t = useT();
+  const { number } = useFormatters();
+  const progress = useQuery({ queryKey: ['progress'], queryFn: fetchProgress });
+  const kinds = progress.data ? itemsMovedByKind(progress.data) : [];
+  const tile = 'flex items-center gap-3 rounded-lg bg-gray-50 p-4';
+  return (
+    <div>
+      <h3 className="font-medium text-gray-900">{t('billing.moved')}</h3>
+      <p className="mt-1 text-sm text-gray-600">{t('billing.moved.where')}</p>
+      <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <li data-moved="data" className={tile}>
+          <ArrowRight className="w-5 h-5 shrink-0 text-blue-700" aria-hidden="true" />
+          <div>
+            <p className="text-sm text-gray-600">{t('billing.moved.data')}</p>
+            <p className="text-lg font-semibold text-gray-900">
+              {sizeOf(usage.evidence.gbMoved + usage.gbMovedInTheAlpha, number)}
+            </p>
+          </div>
+        </li>
+        {kinds.map(({ domain, items }) => (
+          <li key={domain} data-moved={domain} className={tile}>
+            <DataTypeIcon name={ICON_OF_DOMAIN[domain]} className="shrink-0 text-blue-700" />
+            <div>
+              <p className="text-sm text-gray-600">{t(DOMAIN_STRING_KEY[domain])}</p>
+              <p className="text-lg font-semibold text-gray-900">{number(items)}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {progress.error != null ? (
+        <div className="mt-3">
+          <ReadFailed heading={t('billing.moved.failed')} error={progress.error} />
+        </div>
+      ) : progress.isPending ? (
+        <Loader2 className="mt-3 w-5 h-5 animate-spin text-gray-400" />
+      ) : kinds.every(({ items }) => items === 0) ? (
+        <p className="mt-3 text-sm text-gray-700">{t('billing.moved.none')}</p>
+      ) : null}
+    </div>
+  );
+};
 
 /**
  * WHAT THIS MONTH BILLS (workplan 0109 T6; the owner, 2026-10-04).
@@ -515,7 +601,8 @@ const TierPanel: React.FC<{ usage: UsageResponse }> = ({ usage }) => {
       <h3 className="font-medium text-gray-900 mb-3">{t(usage.holds ? 'billing.monthBills' : 'billing.yourTier')}</h3>
       {tier ? (
         <div className="space-y-2">
-          <div className="flex justify-between text-sm">
+          {/* Wraps on a phone, where the tier's sentence would squeeze its name. */}
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-sm">
             <span className="text-lg font-semibold text-gray-900">{tier.name}</span>
             {isFreeTier(tier) ? (
               <span className="font-medium">{t('billing.tierFree')}</span>
@@ -527,7 +614,10 @@ const TierPanel: React.FC<{ usage: UsageResponse }> = ({ usage }) => {
               </span>
             )}
           </div>
-          {capped ? (
+          {usage.holds && usage.billed.picked ? (
+            // A tier the person picked is above what was used (0157 T6).
+            <p className="text-sm text-gray-600">{t('billing.tierPicked', { tier: tier.name })}</p>
+          ) : capped ? (
             usage.billed.beyond.map((why) => (
               <p key={why} className="text-sm text-gray-600">
                 {why === 'bands'
@@ -675,70 +765,9 @@ const Billing: React.FC = () => {
           />
         ) : usage ? (
           <div className="space-y-4">
-            {/* THE FOUR MEASUREMENTS, AS MEASUREMENTS. They stay on every
-                deployment, during the Alpha too: they are the insight the
-                owner wants customers to have (0121 T4, 2026-09-09: "i want to
-                offer customers the insight"). 0131 T3 proposed hiding them
-                while nothing is charged. The owner chose instead, 2026-10-04:
-                "Keep, no money icons". The icons were a rising trend, a
-                dollar sign, a credit card and a document, so beside a line
-                that says nothing is charged they read as a running meter. Each
-                icon now says what is measured: a disk, data moving both ways,
-                a stopwatch, a pulse of calls. The tints stay: one hue per
-                card, and the green one read as money only beside the dollar
-                sign. Guarded by a-bill-nobody-will-send.unit.test.tsx. */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="p-4 bg-blue-50 rounded-lg">
-                <div className="flex items-center">
-                  <HardDrive className="w-5 h-5 text-blue-600 mr-2" />
-                  <div>
-                    <p className="text-sm text-gray-600">{t('billing.storage')}</p>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {usage.usage.storageUsedGB.toFixed(1)} GB
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 bg-green-50 rounded-lg">
-                <div className="flex items-center">
-                  <ArrowLeftRight className="w-5 h-5 text-green-600 mr-2" />
-                  <div>
-                    <p className="text-sm text-gray-600">{t('billing.dataTransfer')}</p>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {usage.usage.egressGB.toFixed(1)} GB
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 bg-purple-50 rounded-lg">
-                <div className="flex items-center">
-                  <Timer className="w-5 h-5 text-purple-600 mr-2" />
-                  <div>
-                    <p className="text-sm text-gray-600">{t('billing.computeTime')}</p>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {usage.usage.computeHours.toFixed(1)} {t('billing.hours')}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 bg-yellow-50 rounded-lg">
-                <div className="flex items-center">
-                  <Activity className="w-5 h-5 text-yellow-600 mr-2" />
-                  <div>
-                    {/* Labeled what the metering actually writes here
-                        (apiCallCount) — "Syncs" promised a count nothing
-                        records (0039 T2). */}
-                    <p className="text-sm text-gray-600">{t('billing.apiCalls')}</p>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {usage.usage.syncCount}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
+            {/* WHAT HAS MOVED (`WhatMoved`; the owner, 2026-10-05): all the
+                data, then each kind's items; below it, what the tier counts. */}
+            <WhatMoved usage={usage} />
 
             {/* WHAT THIS MONTH BILLS — not a sum of metered lines.
                 Until 2026-09-09 this block itemised a base fee, per-GB
@@ -767,6 +796,10 @@ const Billing: React.FC = () => {
           <p className="text-gray-500">{t('billing.noUsage')}</p>
         )}
       </div>
+
+      {/* A tier the person picks, for its pace or its room (0157 T6): each
+          month then bills at least it, until they lower it. */}
+      <TierPick />
 
       {/* The data ceiling and the yes that moves it (0109 T6): where the data
           stands against what was agreed to, and from 80% both ways on. */}

@@ -264,8 +264,9 @@ function taskFiles(): Array<{ file: string; code: string }> {
 describe('every task', () => {
   const tasks = taskFiles();
 
-  it('is found, all fourteen of them', () => {
-    expect(tasks.map((t) => t.file).sort()).toHaveLength(14);
+  it('is found, all fifteen of them', () => {
+    // The fifteenth, managed-cadence-email.ts: the morning's slower cadences (0157 T7).
+    expect(tasks.map((t) => t.file).sort()).toHaveLength(15);
   });
 
   it.each(tasks.map((t) => [t.file, t.code] as const))('%s runs inside leavesAReference, under its own id', (_file, code) => {
@@ -300,6 +301,7 @@ describe('every task', () => {
     // between runs, and its first act, the list of organisations, can fail.
     const perRun = tasks.filter(({ code }) => /\n {2}run: [\s\S]*\bopenTaskPools\(\)/.test(code));
     expect(perRun.map((t) => t.file).sort()).toEqual([
+      'managed-cadence-email.ts',
       'managed-digest.ts',
       'managed-drift-detect.ts',
       'managed-group-discovery.ts',
