@@ -52,6 +52,23 @@ info:
     Long-running work (sync, cutover, verification, applying a deletion) is
     enqueued, not performed in the request: those endpoints answer `202` with
     an identifier, and a matching read endpoint polls the outcome.
+
+    **A body the API cannot read is the caller's refusal, not a fault of
+    ours** (workplan 0093 T2e). It is answered with a `4xx` and no
+    reference, and nothing of the body is in the answer or in the log. The
+    answer is an `Error`, and its `error` says which:
+
+    - `body_not_json` (`400`): the body is not JSON.
+    - `body_too_large` (`413`): the body is too large.
+    - `body_encoding_unsupported` (`415`): the body is in a charset or a
+      content encoding the API does not read.
+    - `body_unreadable`: any other body the parser could not read, with the
+      parser's own `4xx` status. A gzip, deflate or br body that does not
+      decompress is one of these, answered `400`.
+
+    `POST /api/problem-reports` answers these in its own words, as
+    `{ error, reason }`. A `500` is a fault on our side, and its reference
+    finds it in the server log.
   license:
     name: Apache-2.0
     url: https://www.apache.org/licenses/LICENSE-2.0
