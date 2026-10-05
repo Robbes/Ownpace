@@ -543,6 +543,8 @@ describe('the price on the screen is the published price (0121 T4)', () => {
     renderBilling();
 
     expect(await screen.findByText(/Usage for 2026-08/)).toBeInTheDocument();
+    // All the data first, from the meter the tier reads.
+    expect(screen.getByText('All data').closest('[data-moved]')).toHaveTextContent('900 GB');
     const email = (await screen.findByText('Email')).closest('[data-moved]')!;
     // Over every migration: 18,234 in one, 5,120 in another.
     expect(email).toHaveTextContent('23,354');
@@ -559,7 +561,19 @@ describe('the price on the screen is the published price (0121 T4)', () => {
     renderBilling();
 
     expect(await screen.findByText('Nothing has moved yet.')).toBeInTheDocument();
-    expect(document.querySelector('[data-moved]')).toBeNull();
+    expect(document.querySelector('[data-moved]:not([data-moved="data"])')).toBeNull();
+  });
+
+  it('says the size in MB below a GB, and counts what the alpha moved in all the data', async () => {
+    usageMock.mockResolvedValue({
+      ...usageFixture,
+      evidence: { ...usageFixture.evidence, gbMoved: 0.0004 },
+      gbMovedInTheAlpha: 0.012,
+    });
+    renderBilling();
+
+    // 0.4 MB that counts and 12 MB the alpha moved: 12.4 MB, said as 12 MB, not 0.0 GB.
+    expect((await screen.findByText('All data')).closest('[data-moved]')).toHaveTextContent('12 MB');
   });
 
   it('says the count could not be had when its read fails, and shows no number (hard rule 9)', async () => {
@@ -567,9 +581,11 @@ describe('the price on the screen is the published price (0121 T4)', () => {
     renderBilling();
 
     expect(await screen.findByText('Could not count the items moved.')).toBeInTheDocument();
-    expect(document.querySelector('[data-moved]')).toBeNull();
-    // The rest of the card still stands: the usage read did not fail.
+    expect(document.querySelector('[data-moved]:not([data-moved="data"])')).toBeNull();
+    // The rest of the card still stands: the usage read did not fail, and the
+    // data comes from it.
     expect(screen.getByText(/Usage for 2026-08/)).toBeInTheDocument();
+    expect(screen.getByText('All data').closest('[data-moved]')).toHaveTextContent('900 GB');
   });
 });
 

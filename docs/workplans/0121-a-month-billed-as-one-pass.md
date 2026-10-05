@@ -7,7 +7,8 @@
 **2026-10-05: the customer's screen shows what moved, not what Ownpace spends (0131's Status).**
 The owner asked why Billing showed Storage, API calls and compute hours, and settled what T4's
 *"insight"* means: *"show the usages that counts: data moved and number of objects moved"*. Current
-usage now shows the items moved per data type, and the data moved in total stays in the tier block.
+usage now shows *All data*, the meter's total with the alpha's share, then the items moved per
+data type; the data moved that counts stays in the tier block.
 The metering this plan built is unchanged: `/api/billing/usage` still serves its four quantities,
 the invoice still freezes them, and `/usage/history` still reads them. Only the screen stopped
 showing them.

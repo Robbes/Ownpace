@@ -36,9 +36,10 @@
  * asked what they told a customer at all (Ownpace stores none of the data, and
  * an API call or a compute hour is its cost, not the customer's), and settled
  * it: *"show the usages that counts: data moved and number of objects
- * moved"*. So Current usage says the items moved per kind, as each migration's
- * page counts them, each with the data type's own icon, and the data moved in
- * total in the tier block, during the Alpha and outside it. The four labels
+ * moved"*, and the size too (*"It should also show that"*). So Current usage
+ * says all the data moved, from the meter the tier reads, then the items
+ * moved per kind, as each migration's page counts them, each with the data
+ * type's own icon, during the Alpha and outside it. The four labels
  * are gone in both languages, no figure carries a currency sign, and no icon
  * in the section has a name on the money or meter list below. The Payment
  * Methods card keeps its credit card: it is about payment methods. Its icon is
@@ -119,6 +120,8 @@ const SAID = {
     // their counts over every migration.
     moved: ['Email', 'Calendar', 'Contacts', 'Files'],
     figures: ['23,354', '1,514', '612', '900'],
+    // All the data, first: `usage()`'s 12 GB, and no alpha share. A whole number says no decimal.
+    data: ['All data', '12 GB'],
     // The four cards Current usage no longer shows (the owner, 2026-10-05).
     gone: ['Storage', 'Data Transfer', 'Compute Time', 'API calls'],
     currentUsage: 'Current usage',
@@ -138,6 +141,7 @@ const SAID = {
       'Een inschatting volstaat; het pakket volgt wat werkelijk draait, dus dit is niet bindend.',
     moved: ['E-mail', 'Agenda', 'Contacten', 'Bestanden'],
     figures: ['23.354', '1.514', '612', '900'],
+    data: ['Alle gegevens', '12 GB'],
     gone: ['Opslag', 'Dataverkeer', 'Rekentijd', 'API-aanroepen'],
     currentUsage: 'Huidig verbruik',
     paymentMethods: 'Betaalmethoden',
@@ -520,7 +524,7 @@ describe.each(DEPLOYMENTS)(
       vi.mocked(billingApi.getPaymentMethods).mockResolvedValue({ paymentMethods: [VISA] });
     });
 
-    it.each(LOCALES)('each kind moved is shown with its count over every migration, and no other, in %s', async (locale) => {
+    it.each(LOCALES)('all the data comes first, then each kind with its count over every migration, and no other, in %s', async (locale) => {
       await billingPage(locale);
       await screen.findByText('Medium');
       await screen.findByText(SAID[locale].moved[0]!);
@@ -531,8 +535,14 @@ describe.each(DEPLOYMENTS)(
         // A count, not a price: no currency sign on the card.
         expect(card.textContent ?? '').not.toMatch(/[€$£¥]/);
       });
+      // All the data first, as a size.
+      const [dataLabel, dataFigure] = SAID[locale].data;
+      const all = section.querySelector('[data-moved]')!;
+      expect(all.getAttribute('data-moved')).toBe('data');
+      expect(within(all as HTMLElement).getByText(dataLabel)).toBeInTheDocument();
+      expect(within(all as HTMLElement).getByText(dataFigure)).toBeInTheDocument();
       // Tasks moved none, so they have no card.
-      expect(section.querySelectorAll('[data-moved]')).toHaveLength(SAID[locale].moved.length);
+      expect(section.querySelectorAll('[data-moved]:not([data-moved="data"])')).toHaveLength(SAID[locale].moved.length);
       // What Ownpace spends is not what a customer moved: the four are gone.
       for (const label of SAID[locale].gone) expect(screen.queryByText(label)).toBeNull();
     });

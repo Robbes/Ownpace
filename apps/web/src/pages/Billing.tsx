@@ -16,7 +16,7 @@
  */
 import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, CreditCard, Loader2 } from 'lucide-react';
+import { AlertCircle, ArrowRight, CreditCard, Loader2 } from 'lucide-react';
 import { DISCOVERY_DOMAINS, type DiscoveryDomain, type ProgressReport } from '@openmig/shared';
 import {
   billingApi,
@@ -482,9 +482,15 @@ const Subtitle: React.FC<{ figuresShown: boolean }> = ({ figuresShown }) => {
  */
 const shownTier = (usage: UsageResponse) => (usage.holds ? usage.billed.tier : usage.tier);
 
-/** Decimal, like the published table: 1 TB = 1000 GB. */
+/**
+ * Decimal, like the published table: 1 TB = 1000 GB, and 1 GB = 1000 MB. Below
+ * a GB it says MB, so a migration that has begun does not read *0.0 GB*.
+ */
 function sizeOf(gb: number, number: (n: number) => string): string {
-  return gb >= 1000 ? `${number(Math.round(gb / 100) / 10)} TB` : `${number(Math.round(gb * 10) / 10)} GB`;
+  if (gb >= 1000) return `${number(Math.round(gb / 100) / 10)} TB`;
+  const mb = Math.round(gb * 1000);
+  if (gb > 0 && mb < 1000) return `${number(Math.max(1, mb))} MB`;
+  return `${number(Math.round(gb * 10) / 10)} GB`;
 }
 
 /**
@@ -506,7 +512,7 @@ export function itemsMovedByKind(
 }
 
 /**
- * WHAT HAS MOVED, BY KIND (the owner, 2026-10-05).
+ * WHAT HAS MOVED (the owner, 2026-10-05).
  *
  * Four cards stood here: Storage, Data Transfer, Compute Time and API calls.
  * None was something a customer moved or pays for. *Storage* was the bytes
@@ -514,44 +520,57 @@ export function itemsMovedByKind(
  * *Data Transfer* was the same bytes again; *Compute Time* the hours its
  * passes ran; *API calls* the number of passes. The owner: *"Perhaps we just
  * need to show the usages that counts: data moved and number of objects
- * moved"*.
+ * moved"*, and, when the first version left the size to the tier block below:
+ * *"it now does not show moved MB or GB? It should also show that"*.
  *
- * Data moved is the tier panel's, below, in total, as the tier counts it. The
- * items are said per kind, not summed: an email, a contact and a 4 GB film
- * are not one unit, so a sum is a number nobody can check, and a kind is
- * what a person can hold against their old account. They are counted as
- * each migration's page counts them, from the same read.
+ * So, in total, across every migration:
+ * - **All data**, first: what the meter counted, the alpha's share included.
+ *   It is the meter the tier reads (`/api/billing/usage`), so it and the tier
+ *   block's *Data moved, in total* are one figure, the alpha's share aside.
+ * - **Each kind's items**, after it: an email, a contact and a 4 GB film are
+ *   not one unit, so their sum is a number nobody can check, and a kind is
+ *   what a person can hold against their old account. They are counted as
+ *   each migration's page counts them, from the same read.
  */
-const ItemsMoved: React.FC = () => {
+const WhatMoved: React.FC<{ usage: UsageResponse }> = ({ usage }) => {
   const t = useT();
   const { number } = useFormatters();
   const progress = useQuery({ queryKey: ['progress'], queryFn: fetchProgress });
   const kinds = progress.data ? itemsMovedByKind(progress.data) : [];
+  const tile = 'flex items-center gap-3 rounded-lg bg-gray-50 p-4';
   return (
     <div>
-      <h3 className="font-medium text-gray-900">{t('billing.itemsMoved')}</h3>
-      <p className="mt-1 text-sm text-gray-600">{t('billing.itemsMoved.where')}</p>
+      <h3 className="font-medium text-gray-900">{t('billing.moved')}</h3>
+      <p className="mt-1 text-sm text-gray-600">{t('billing.moved.where')}</p>
+      <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <li data-moved="data" className={tile}>
+          <ArrowRight className="w-5 h-5 shrink-0 text-blue-700" aria-hidden="true" />
+          <div>
+            <p className="text-sm text-gray-600">{t('billing.moved.data')}</p>
+            <p className="text-lg font-semibold text-gray-900">
+              {sizeOf(usage.evidence.gbMoved + usage.gbMovedInTheAlpha, number)}
+            </p>
+          </div>
+        </li>
+        {kinds.map(({ domain, items }) => (
+          <li key={domain} data-moved={domain} className={tile}>
+            <DataTypeIcon name={ICON_OF_DOMAIN[domain]} className="shrink-0 text-blue-700" />
+            <div>
+              <p className="text-sm text-gray-600">{t(DOMAIN_STRING_KEY[domain])}</p>
+              <p className="text-lg font-semibold text-gray-900">{number(items)}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
       {progress.error != null ? (
         <div className="mt-3">
-          <ReadFailed heading={t('billing.itemsMoved.failed')} error={progress.error} />
+          <ReadFailed heading={t('billing.moved.failed')} error={progress.error} />
         </div>
       ) : progress.isPending ? (
         <Loader2 className="mt-3 w-5 h-5 animate-spin text-gray-400" />
       ) : kinds.length === 0 ? (
-        <p className="mt-3 text-sm text-gray-700">{t('billing.itemsMoved.none')}</p>
-      ) : (
-        <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {kinds.map(({ domain, items }) => (
-            <li key={domain} data-moved={domain} className="flex items-center gap-3 rounded-lg bg-gray-50 p-4">
-              <DataTypeIcon name={ICON_OF_DOMAIN[domain]} className="shrink-0 text-blue-700" />
-              <div>
-                <p className="text-sm text-gray-600">{t(DOMAIN_STRING_KEY[domain])}</p>
-                <p className="text-lg font-semibold text-gray-900">{number(items)}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+        <p className="mt-3 text-sm text-gray-700">{t('billing.moved.none')}</p>
+      ) : null}
     </div>
   );
 };
@@ -745,9 +764,9 @@ const Billing: React.FC = () => {
           />
         ) : usage ? (
           <div className="space-y-4">
-            {/* WHAT HAS MOVED, per kind (`ItemsMoved`; the owner, 2026-10-05),
-                and below it the data moved, in total, as the tier counts it. */}
-            <ItemsMoved />
+            {/* WHAT HAS MOVED (`WhatMoved`; the owner, 2026-10-05): all the
+                data, then each kind's items; below it, what the tier counts. */}
+            <WhatMoved usage={usage} />
 
             {/* WHAT THIS MONTH BILLS — not a sum of metered lines.
                 Until 2026-09-09 this block itemised a base fee, per-GB
