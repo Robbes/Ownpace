@@ -2607,6 +2607,7 @@ reading a file drops off its entry by itself.
 ### `test/ui/managed-ui.ui.test.ts`
 
 - [the-home-page-shows-the-app](../scripts/the-home-page-shows-the-app.unit.test.ts) — THE HOME PAGE SHOWS THE APP (workplan 0152 T3: "drawing now, app screen later").
+- [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
 - [what-a-browser-may-do-with-the-app](../scripts/what-a-browser-may-do-with-the-app.unit.test.ts) — WHAT A BROWSER MAY DO WITH THE APP (workplan 0158).
 
 ### `test/ui/site.ui.test.ts`
@@ -5253,6 +5254,7 @@ Reads:
 - `deploy/compose/managed.yml`
 - `deploy/compose/setup-zitadel.sh`
 - `deploy/compose/smoke-managed.sh`
+- `test/ui/managed-ui.ui.test.ts`
 
 ### [the-login-page-nobody-chose](../scripts/the-login-page-nobody-chose.unit.test.ts)
 
