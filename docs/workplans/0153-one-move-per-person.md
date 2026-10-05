@@ -4,6 +4,14 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-10-05, later: Report a problem in a white card too.** The owner: it *"also seems to have
+only the off-white background and not the correct blocks"*. Its title and sentence now sit on the
+paper, and the form sits on a white card, kept to a column a form reads well in. The two answers it
+can give instead of the form (sent, and no report can be sent here) are cards too. Its Send button
+takes the app's button: rounded, at least 44 pixels high. Guarded in
+`a-report-that-reaches-a-person`: the form, the sent answer and the unavailable answer each sit on
+a white card, and the title does not. All three fail on main's page.
+
 **2026-10-05, later: Accounts and Help in white cards, as the other pages are.** The owner, on
 OTA with the paper in place: Accounts and Help *"have the off-white background, but the content
 is not in a box that elevates"*, and *"they also don't look very nice"*. Both drew their content
