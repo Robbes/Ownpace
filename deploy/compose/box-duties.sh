@@ -17,7 +17,7 @@
 # update is proven, never past day 7 (the privacy policy's §9). That copy's
 # backstop is the second duty instead.
 #
-# This runs seven duties, from live's checkout (`~/ownpace-live`), once a day on
+# This runs eight duties, from live's checkout (`~/ownpace-live`), once a day on
 # a systemd timer (the units are in deploy/compose/systemd/, the install steps
 # in docs/managed-bring-up.md, "Live's daily duties"):
 #
@@ -71,12 +71,20 @@
 #                  organisation, never by age. It stops, deleting nothing, if
 #                  that connection does not pass row security. It prints a
 #                  count, never a query.
+#   visits         site-visits.sh (privacy §4.5; the owner, 2026-10-05: "go with
+#                  GoAccess on the logs and the sentence"): the visits in the log
+#                  of live's copy of the site, counted by GoAccess as totals, into
+#                  a report under ~/.persistent/<project>/site-visits, one per
+#                  container of the site. Daily, because a deploy replaces the
+#                  container and its log, and what nobody counted before then is
+#                  never counted. GoAccess is given no address and keeps no
+#                  database. With WWW_LIVE not true it reads nothing and passes.
 #
 # EACH DUTY RUNS WHATEVER THE ONE BEFORE IT DID. The token goes first, so the
 # count asks with a token that is alive. A duty that fails, is missing from the
 # checkout, or runs past BOX_DUTY_TIMEOUT seconds (default 1200) is recorded,
 # and the next one starts. At the end the script names every duty that failed
-# and exits 1; all seven passing is exit 0. Nobody is told when it fails
+# and exits 1; all eight passing is exit 0. Nobody is told when it fails
 # (0142 is where that changes); the journal has it.
 #
 # STOPPED IS STOPPED. `timeout` puts the duty in a process group of its own,
@@ -258,7 +266,7 @@ run_duty() {
   return 0
 }
 
-say "${COMPOSE_PROJECT}: seven duties, each one run whatever the one before it did"
+say "${COMPOSE_PROJECT}: eight duties, each one run whatever the one before it did"
 
 run_duty token "live's provisioning token, its clock only" \
   "${SCRIPT_DIR}/setup-zitadel.sh" --token-only
@@ -274,10 +282,12 @@ run_duty strays "sign-in accounts nobody let in, older than 30 days, and those o
   "${SCRIPT_DIR}/idp-strays.sh" --remove --at-most 20
 run_duty searches "support-screen reads with no organisation, older than 12 months, deleted over the owner's connection" \
   "${SCRIPT_DIR}/support-read-prune.sh" --delete
+run_duty visits "the visits in the log of live's copy of the site, counted as totals by GoAccess, given no address (~/.persistent/${COMPOSE_PROJECT}/site-visits)" \
+  "${SCRIPT_DIR}/site-visits.sh"
 
 if [ "${#FAILED[@]}" -gt 0 ]; then
   names="${FAILED[*]}"
-  fail_line "FAILED: ${names// /, } (${#FAILED[@]} of 7 duties). Each one's own words are above."
+  fail_line "FAILED: ${names// /, } (${#FAILED[@]} of 8 duties). Each one's own words are above."
   exit 1
 fi
-say "all 7 duties passed"
+say "all 8 duties passed"
