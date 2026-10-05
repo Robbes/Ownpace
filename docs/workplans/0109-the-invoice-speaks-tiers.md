@@ -4,6 +4,12 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-10-05, evening: T5's invoice comes at the start of the month** (the owner, 0111 decision
+6: *"no, please invoice in advance of the month"*). What a month bills is unchanged: its peak, or
+a higher tier picked, never past a yes. A month is invoiced on its first day, at the tier it
+starts on, and a move up during it within a day, for the difference. So T5's scheduled job opens
+a month instead of closing one, and reads the peak so far (0111 §"The build, sliced", slice 4).
+
 **2026-10-05: T5 no longer waits on the owner.** It waited on the Moneybird trial. The owner ran the
 bookkeeping's test in a Moneybird sandbox administration, and it passed (0111's Status), so T5 waits
 only on 0111 T4's wiring, which is no longer gated either.
@@ -547,6 +553,9 @@ One line: the tier, the peak that set it, and the date the peak happened. `invoi
 (`schema-managed.ts:73-110`) has nowhere to put any of the three; `metadata` could carry them,
 and today it carries `costByDriver` (`invoice-generation.ts:126`) — **the per-driver breakdown
 the amendment forbids from appearing on an invoice at all**. That field goes.
+
+**Invoiced in advance** (2026-10-05, 0111 decision 6): the line's peak and date are those of the
+month's first day, or of the move up a difference invoice is for.
 
 ## T6 — top-ups, step-ups and the floor
 

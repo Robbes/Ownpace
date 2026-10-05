@@ -4,6 +4,49 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-10-05, evening: the owner answered decisions 6 to 15.** Eight are taken as recommended
+(*"ok"*), two of them with a question answered below, and so are the four defaults (*"Yes,
+good."*). One is changed and one widened:
+
+- **6, in advance** (*"no, please invoice in advance of the month"*). What a month bills does
+  not change: its peak, or a higher tier picked, never past a yes (ADR-0014). When it is
+  invoiced does. A month is invoiced on its first day (UTC), at the tier it starts on. If it
+  moves up during the month (a yes, a pick, or more at the same time within a tier already
+  agreed), the difference is invoiced within a day. So a month's invoices always add up to what
+  it bills, and nothing is settled after it. Free makes none, and leaving Free is a move up.
+  The terms said *monthly in arrears* (§8) and relied on it in §7; both now say in advance, in
+  both languages, for the owner's reading (question 29 of their briefing). Three things follow
+  for the build: references gain the tier (`ownpace-{organisation}-m-{YYYY-MM}-{tier}`, one per
+  step); managed retention, which reads the newest issued invoice's `period_end`, must read only
+  months that are over; and the alert is for a month whose invoices are two days behind what it
+  bills, no longer for one unsent on the 10th.
+- **7** (*"ok, so first we leave this empty, and no one gat an invoice?"*): yes. While
+  `OWNPACE_BILLING_FROM` is empty, nobody is invoiced, whatever runs. Set at the switch, the first
+  invoices are made on the first day of that month.
+- **11** (*"will it send invoice from ownpace.eu address or something from moneybird?"*):
+  Moneybird sends it, from its own servers. By default the sender is an address Moneybird makes
+  from the administration's verified sender address, at `deliver.moneybird.com`. With Moneybird's
+  own-domain setting, one NS record that hands a subdomain of ownpace.eu to Moneybird, which
+  serves the SPF and DKIM records there, the customer sees only the ownpace.eu address. This is a
+  step for live's administration before charging starts. (Moneybird's help center, articles
+  207868 and 620556, and an NS-record article, as search results showed them on 2026-10-05;
+  the help center itself cannot be reached from here, so check the steps in Moneybird's settings
+  when doing them.)
+- **12, widened** (*"can we do some kind of smoke test in the nightly, like adding an invoice,
+  paying it, but not sending out the invoice (skipping the limit of 10?)"*): yes. The nightly
+  managed run makes one invoice in the sandbox. Its contact has no e-mail address, it is sent with
+  delivery `Manual` (it gets its number and no e-mail goes out, so the limit of 10 stays
+  untouched), a payment is registered for its total, and it is read back as `paid`. One a night
+  is about 31 of the sandbox's 50 a month, so the lane counts the month's invoices first and,
+  past 40, skips and says so. No per-PR check makes an invoice. Built with slice 5.
+- **8, 9, 10, 13, 14, 15**: as recommended. With 6, decision 13 reads: the closing month was
+  invoiced at its start, a move up before the close is invoiced like any other, and nothing
+  after the close. Decision 15's credit note takes the unused days off the month's invoice,
+  which, invoiced in advance, always exists.
+
+So no slice waits on a decision any more. Slice 1 (the configuration and the check) is in
+progress.
+
 **2026-10-05, later: the build, sliced.** Read against the code: the adapter's core seam
 (`moneybird-sales-invoices.ts`), the tax-rate resolver, the VAT treatment, the VIES log, the tier
 evidence (`currentTier`, `billedTierOf`, `pickedFloorOf`, `readBilledNow`) and migration 0014's
@@ -87,7 +130,7 @@ alone** — see §"Who is the controller" and the cross-reference to 0086 T5.
 | T6 Delivery: the email and the download | 📋 Planned (needs T5) | `GET /sales_invoices/{id}/download_pdf`. Serves **their** PDF, never one we render. Two documents for one sale is the failure this task exists to prevent. |
 | T7 Credit notes | 📋 Planned (needs T5) — **database refusal BUILT 2026-08-30** | `PATCH /sales_invoices/{id}/duplicate_creditinvoice`. The database half is done ahead of schedule: migration 0014 installs the state-machine trigger + narrowed grants (§"The refusal, designed"), the generation upsert regenerates drafts only, the webhook path passes by construction, and a failed payment no longer voids the document. What remains here is the credit note itself — the Moneybird call and the product surface that issues it. |
 | T8 The price page stops promising 21% | ✅ **First slice built 2026-08-29** — per-country display waits on OSS | The row's own premise corrected by the build: the site never computed VAT — it showed bare `€n` with **no statement at all**, and toward consumers a displayed price legally IS the final, VAT-inclusive price. The slice says it out loud ("All prices include VAT." / "Alle prijzen zijn inclusief btw.") on the landing, pricing and calculator pages, with a structural guard: any page rendering tier prices without the label goes red. Deliberately **no rate in the copy** — which country's VAT sits inside the price is T3's per-invoice decision, so nothing drifts when OSS activates or a rate changes. Remaining for full T8: per-country inclusive display once `VAT_OSS_ACTIVE` flips, and reconciling the retired server model's ex-VAT arithmetic in 0109's tier rebuild. |
-| T9 Billing frequency, decided rather than defaulted | ✅ **Decided 2026-08-29: monthly AND annual, annual discounted** | The owner's framing decides it: the service is not a one-shot move but *"an operational exit strategy waiting for the cutover"*, sometimes used serially to move a family one person at a time — so a subscription is honest, and the discounted annual is the fee-efficient path (one charge ≈0.3% vs ≈3.4% monthly, §below) offered rather than imposed. T4's invoice shape: recurring, both cadences. |
+| T9 Billing frequency, decided rather than defaulted | ✅ **Decided 2026-08-29: monthly AND annual, annual discounted** | The owner's framing decides it: the service is not a one-shot move but *"an operational exit strategy waiting for the cutover"*, sometimes used serially to move a family one person at a time — so a subscription is honest, and the discounted annual is the fee-efficient path (one charge ≈0.3% vs ≈3.4% monthly, §below) offered rather than imposed. T4's invoice shape: recurring, both cadences. **Invoiced in advance (2026-10-05, decision 6):** a month on its first day, at the tier it starts on, and a move up within a day, for the difference. |
 | T10 Retention, revisited now that we are not the record | ✅ **Decided 2026-08-29: purge the mirror on erasure, keep the pointer** — build remains (needs T4) | On erasure the mirror rows go; `erasure_record` keeps only the Moneybird invoice numbers, and the operator's answer becomes "these numbers, held in Moneybird". Retires most of #652's screen — the honest outcome §"What this changes about erasure" predicted. |
 
 ## Why this exists
@@ -468,7 +511,7 @@ administrative answer stays answerable. T10 reshapes #652's screen accordingly.
 
 In order: 1, then 2 and 3 side by side, then 4, 5, and 6 with 7. Migrations take the next managed
 numbers (0045 to 0047 when this was written; re-check at merge). T10's purge-with-pointer follows
-slice 5. The annual credit is not in this chain (open decision 6).
+slice 5. The annual credit is not in this chain (decision 6).
 
 1. **The configuration, and a check that reads.** `moneybird-config.ts`: all or none of
    `MONEYBIRD_API_TOKEN`, `_ADMINISTRATION_ID`, `_TAX_RATE_ID_DOMESTIC`,
@@ -484,7 +527,7 @@ slice 5. The annual credit is not in this chain (open decision 6).
    line entered without it would gain 21% on top. A send only from `draft`, so a retry never mails
    twice; no default delivery method. An existing invoice under our reference but another contact
    is refused. Totals parsed to integer cents. The push in one function: rate, contact, invoice by
-   reference, send, read back. Domestic needs no decision; reverse charge waits on 9 and 10.
+   reference, send, read back. Reverse charge as decided in 9 and 10.
 3. **The mirror and its refusal** (T5, the database half). The invoice row gains Moneybird's id
    and administration, the legal number and date (written once, at issue), our reference (the
    unique key, replacing `(tenant_id, period_start)`), the kind and the credited invoice, the
@@ -493,29 +536,34 @@ slice 5. The annual credit is not in this chain (open decision 6).
    a draft with no number. A pin classifies every column, so a new one can never stay editable
    after issue unnoticed. The pay route stops moving a draft to `sent` without a number and stops
    replacing `metadata` whole. No owner decision.
-4. **The month closes on a tier line** (0109 T5). One rule for the month's bill, from the recorded
-   peak, the data counted, the yeses before month end and the pick, shared with the Billing page's
-   *What this month bills*, so the page and the invoice cannot disagree. A daily task freezes each
-   closed month as a draft; Free makes no row; a second run makes no second row. The metered
-   generator, its route and its trip-wire go. Merges without a decision; it is switched on by 7,
-   and its words wait on 8.
+4. **The month opens on a tier line** (0109 T5; in advance, decision 6). One rule for what a
+   month bills so far, from the peak so far, the data counted, the yeses and the pick, shared with
+   the Billing page's *What this month bills*, so the page and the invoices cannot disagree. A
+   daily task keeps each month's invoices equal to it: on the first day a draft for the tier the
+   month starts on, after a move up a draft for the difference, each under its own reference;
+   Free makes no row; a second run makes no second row. Retention's clamp reads only months that
+   are over. The metered generator, its route and its trip-wire go. Switched on by 7, in the words
+   of 8.
 5. **Moneybird numbers it.** A daily task pushes each draft, one writer by construction, a lease
    on the row, paced under the 150-requests-per-5-minutes limit, then reads the state back
    (`paid`, `late`). The Billing page shows the legal number and date; Pay shows only where an
    invoice can be paid. `operator.sh moneybird proof` makes one invoice in the sandbox, by hand,
-   never by e-mail, and running it again answers that it exists. Waits on 11, 12 and 14.
+   never by e-mail, and running it again answers that it exists; the nightly managed run makes one
+   with a payment registered (12). Invoice details first (14).
 6. **Moneybird's PDF in the app** (T6). The app streams Moneybird's own document and keeps no
-   copy; a draft has none. Waits on 11.
+   copy; a draft has none. Delivery as decided in 11.
 7. **Credit notes, and the withdrawal button** (T7, 0152 T6 (f)). A credit note is our row first,
    then Moneybird's draft under its own reference, so a retry adopts the draft instead of making a
-   second. The withdrawal is recorded append-only and read where the tier is read. Waits on 15.
+   second. The withdrawal is recorded append-only and read where the tier is read, as decided
+   in 15.
 
 **What the build holds to.** A retried push never mints a second invoice: only a 404 creates, one
 writer, a lease, and the reference fixed once used. Nothing after issue is editable, the new
 columns included. A closed organisation's months after its close bill nothing, and the purge
-pushes an unbilled month first. The sandbox's caps hold: the gate makes no invoice, nothing in a
-test or a proof has a contact e-mail, delivery is `Manual` off live. The token is in no log line,
-no refusal and no artifact.
+pushes an unbilled month first. The sandbox's caps hold: no per-PR check makes an invoice, the
+nightly counts the month's invoices before it makes its one, nothing in a test, a proof or the
+nightly has a contact e-mail, and delivery is `Manual` off live. The token is in no log line, no
+refusal and no artifact.
 
 ## Where the cost is
 
@@ -555,38 +603,49 @@ no refusal and no artifact.
    controller question and the consumer terms. Both cheaper before T1 than after the first
    invoice.
 
-Raised by §"The build, sliced" (2026-10-05), each with the recommendation:
+Raised by §"The build, sliced" (2026-10-05), each with the recommendation, and all ten answered
+by the owner the same evening (Status):
 
-6. **Cadence.** Monthly, invoiced after the UTC month ends (a month's bill depends on its peak);
-   an alert when a closed month is still unsent on the 10th, since the invoice is due by the 15th.
-   A year bought upfront (0152 T6 (e)) needs its own purchase and a credit balance: a follow-up, not
-   this chain. Shapes slices 4 and 5.
-7. **The first billable month.** An explicit `OWNPACE_BILLING_FROM=YYYY-MM`, empty means nothing
-   is invoiced, set at the switch (`docs/ending-the-alpha.md`); the tasks also refuse during the
-   Alpha. End the Alpha on the 1st of a month. Switches slices 4 and 5 on.
-8. **The line's words**, in the organisation's language: *Ownpace Medium, oktober 2026: 12
-   migraties tegelijk op 3 oktober* / *…: 1,6 TB gemigreerd in totaal* / *…: het pakket dat u koos*;
-   a top-up *Extra ruimte: 500 GB bij Small, eenmalig*. Blocks slice 4's text.
-9. **The reverse-charge price.** The published price without the Dutch VAT in it (Small €4,13,
-   Medium €9,92, Large €33,06, Extra large €66,12), as the drafted terms sentence says, computed from
-   the administration's own domestic rate at run time and never from a constant here. Blocks
-   reverse charge in slices 2 and 5.
-10. **The VIES evidence on the document.** *Btw verlegd / VAT reverse charged. VIES {number},
-    {date}* in the line text: the latest valid answer for the stored number. The accountant reads
-    the words. Shapes slice 2.
-11. **Delivery.** Moneybird e-mails the invoice to an invoice address the Invoice details card
-    asks for; `Manual` on the sandbox and the OTA stack; the app offers Moneybird's PDF. Blocks
-    slices 5 and 6.
-12. **The gate.** No invoice per run; a read-only check when the keys are set; an operator's proof
-    command for the real thing. Blocks slice 5's proof.
-13. **Closing an account.** The closing month bills its peak up to the close, nothing after.
-14. **Invoice details before leaving Free.** A yes or a pick that leaves Free asks for them first.
-    Shapes slice 5.
-15. **The withdrawal.** Back to Free from that moment, account and migrations kept; the days used
-    billed in proportion, the excess credited with a credit note; a confirmation e-mail in the
-    organisation's language; the money back through the payment provider, or a transfer until there
-    is one. Legal text: the owner's to read closely. Blocks slice 7.
+6. ~~Cadence~~ **Decided 2026-10-05: in advance** (*"no, please invoice in advance of the
+   month"*; recommended was after the month). A month is invoiced on its first day (UTC), at the
+   tier it starts on, and a move up during it is invoiced for the difference within a day, so its
+   invoices always add up to what it bills: its peak, or a higher tier picked, never past a yes.
+   An alert when a month's invoices are two days behind what it bills. A year bought upfront
+   (0152 T6 (e)) needs its own purchase and a credit balance: a follow-up, not this chain. Shapes
+   slices 4 and 5.
+7. ~~The first billable month~~ **Decided 2026-10-05: as recommended.** An explicit
+   `OWNPACE_BILLING_FROM=YYYY-MM`; empty means nobody is invoiced, whatever runs (the owner asked,
+   and that is the answer). Set at the switch (`docs/ending-the-alpha.md`); the tasks also refuse
+   during the Alpha. End the Alpha on the 1st of a month. Switches slices 4 and 5 on.
+8. ~~The line's words~~ **Decided 2026-10-05: as recommended**, in the organisation's language:
+   *Ownpace Medium, oktober 2026: 12 migraties tegelijk op 3 oktober* / *…: 1,6 TB gemigreerd in
+   totaal* / *…: het pakket dat u koos*; a top-up *Extra ruimte: 500 GB bij Small, eenmalig*.
+   Invoiced in advance, the date is the month's first day or the day of the move up.
+9. ~~The reverse-charge price~~ **Decided 2026-10-05: as recommended.** The published price
+   without the Dutch VAT in it (Small €4,13, Medium €9,92, Large €33,06, Extra large €66,12), as
+   the drafted terms sentence says, computed from the administration's own domestic rate at run
+   time and never from a constant here.
+10. ~~The VIES evidence on the document~~ **Decided 2026-10-05: as recommended.** *Btw verlegd /
+    VAT reverse charged. VIES {number}, {date}* in the line text: the latest valid answer for the
+    stored number. The accountant reads the words.
+11. ~~Delivery~~ **Decided 2026-10-05: as recommended.** Moneybird e-mails the invoice to an
+    invoice address the Invoice details card asks for; `Manual` on the sandbox and the OTA stack;
+    the app offers Moneybird's PDF. The sender: Status.
+12. ~~The gate~~ **Decided 2026-10-05, widened by the owner:** no invoice in a per-PR check; a
+    read-only check when the keys are set; an operator's proof command; and the nightly managed
+    run makes one sandbox invoice, sent `Manual`, paid by a registered payment and read back as
+    `paid`, counting the month's invoices first. Slice 5.
+13. ~~Closing an account~~ **Decided 2026-10-05: as recommended.** The closing month bills its
+    peak up to the close, nothing after; invoiced in advance, it was invoiced at its start and a
+    move up before the close like any other.
+14. ~~Invoice details before leaving Free~~ **Decided 2026-10-05: as recommended.** A yes or a
+    pick that leaves Free asks for them first.
+15. ~~The withdrawal~~ **Decided 2026-10-05: as recommended.** Back to Free from that moment,
+    account and migrations kept; the days used billed in proportion, the excess credited with a
+    credit note; a confirmation e-mail in the organisation's language; the money back through the
+    payment provider, or a transfer until there is one. Legal text: the owner's to read closely.
 
-Taken unless the owner objects: the agreed `price_eur` when a month bills a tier said yes to;
-references `ownpace-{organisation}-m-{YYYY-MM}` (`-t-` a top-up, `-c-` a credit note); no buyer
-address in the mirror, Moneybird's contact holds it; the retired generate route removed.
+Taken, the owner said yes (2026-10-05): the agreed `price_eur` when a month bills a tier said yes
+to; references `ownpace-{organisation}-m-{YYYY-MM}-{tier}`, one per step in a month (`-t-` a
+top-up, `-c-` a credit note); no buyer address in the mirror, Moneybird's contact holds it; the
+retired generate route removed.
