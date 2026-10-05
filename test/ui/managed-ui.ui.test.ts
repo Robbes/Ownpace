@@ -260,6 +260,9 @@ const FIXTURES: Record<string, unknown> = {
     sourceConfig: { type: 'imap-oauth2', host: 'stalwart', port: 993, username: 'source@dev.local', password: '********' },
     targetConfig: { type: 'jmap', baseUrl: 'http://stalwart:8080', username: 'target@dev.local', password: '********' },
   },
+  // The pace the organisation's migrations run at (0157 T5): a paid tier's, so
+  // the person's page draws no Free line. Its own tests hold the line.
+  'GET /api/migrations/pace': { leastMinutesBetweenPasses: 0, nextPassAt: {} },
   // Where each data type is (0154 T1 (b)): the lines on a person's card and page.
   'GET /api/migrations/progress': {
     mappings: [
