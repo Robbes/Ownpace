@@ -4,6 +4,17 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-10-05, T7 whole: each step is said.** A migration on *Automatic* that steps down is said
+by a morning mail, to the organisation's active owners and admins, in its language:
+*"Everything is in step, so we now look for changes less often"*. The mail names each migration
+and its person, says *now every 6 hours* or *now once a day*, and says how to choose more often.
+It goes at most once a day for an organisation (`managed-cadence-email`, 07:30 UTC). Each step is
+said once, claimed in managed 0043's `migration_cadence_said`. A visit brings back the hour and
+deletes the row. The migration's page then says, that once: *"Everything was in step, so we
+looked every 6 hours. Opening this migration brought back every hour, for 14 days. To keep it
+hourly, choose Hourly under How often to look for changes."* Nothing is said on Free, outside the
+alpha, where the day's pace holds whatever the cadence. Next: T6.
+
 **2026-10-05, T5 built: the app says the pace.** On Free, outside the alpha, the migration's
 page says *"Free: one pass a day, up to 50 minutes. Next pass: …"*, and the person's page says
 *"Free: one pass a day for each migration, up to 50 minutes."*. Each line ends with *"A higher
@@ -59,7 +70,7 @@ and it waits for the owner.
 | T4 The doors know the pace, and paid looks every hour | ✅ **Built: the hourly default 2026-10-04 (since T7, *Automatic*), the doors 2026-10-05** | §4. The API refuses a schedule faster than the tier allows (`free_pace_schedule`), the chooser offers what the tier allows and says why, *Start* on a paused migration waits for the pace, and a fallen tier's faster schedule is shown as running once a day. |
 | T5 The app says the pace | ✅ **Built 2026-10-05** | §5. *"Free: one pass a day, up to 50 minutes. Next pass: …"* on the migration's page, one line for all of a person's migrations on theirs, each with the way to a higher tier, and a sentence in the first-copy email. The time left already counts in days at Free's pace. |
 | T6 Picking a tier | 📋 **Proposed** | §6. The Billing page offers every tier above the derived one; a pick is the person's yes, the month bills at least the picked tier, and the downgrade stops there. |
-| T7 The default slows once everything is in step | 🟡 **Decided 2026-10-05; the cadence built 2026-10-05, the notices to build** | §7. Hourly for 14 days after the first copy, then every 6 hours, then daily after 30 days; a schedule the person chose is never changed. The owner: *"yes"*. Built: *Automatic*, the tick's cadence for no schedule, with a visit bringing back the hour. To build: each step said in the app and by email. |
+| T7 The default slows once everything is in step | ✅ **Built 2026-10-05: the cadence, then the notices** | §7. Hourly for 14 days after the first copy, then every 6 hours, then daily after 30 days; a schedule the person chose is never changed. The owner: *"yes"*. *Automatic*, the tick's cadence for no schedule, with a visit bringing back the hour; each step said by a morning mail, once, and on the migration's page by the visit that ends it. |
 
 ## The facts this plan stands on
 
@@ -278,5 +289,31 @@ above, as written.
   left as chosen ones.
 - **On Free outside the alpha** the day's pace (T2) holds whatever the cadence.
 
-**To build: the notices.** Each step said in the app and by email: *"Everything is in step. We
-now look every 6 hours; choose more often any time."*
+**Built (2026-10-05): the notices.** Each step said by email and in the app, in the owner's
+sentence: *"Everything is in step. We now look every 6 hours; choose more often any time."*
+- **By email, each morning** (`managed-cadence-email.ts`, 07:30 UTC, split as 0138 T2 split the
+  digest: the list of active organisations, then each one in its own scope). One mail for an
+  organisation, at most, to its active owners and admins, in its language, naming each migration
+  that stepped down since it was last told, with its person: *"Everything is in step, so we now
+  look for changes less often"*, then *Now every 6 hours* or *Now once a day*, then *"Choose more
+  often any time, under How often to look for changes on each migration in the app. Open a
+  migration and we look every hour again, for 14 days."*
+- **Whose step** (`claimSlowerSteps`, `the-slower-cadence-email.ts`): a migration with no
+  schedule, running, its grant not taken back, every data type that runs passes through its first
+  copy. The step is the tick's, from the same two moments. *Everything is in step* is said only
+  when it is: a data type still waiting for its first copy says nothing, even where the tick
+  already looks less often.
+- **Once:** managed 0043's `migration_cadence_said`, one row per migration: the step, and what
+  its days counted from. The claim is an insert, or an update when either changed, so a later step,
+  or the same step counted from a later visit, is news again. A row whose step is no longer in
+  force is deleted. Claimed with or without SMTP, as the first-copy email's is. Purged with the
+  organisation.
+- **In the app:** opening the migration's page is a visit (T7's cadence), so the page cannot show
+  the slower step: it ends it. The visit deletes the row and answers which step it ended
+  (`POST /:mappingId/visit` → `broughtBackFrom`). The page says it under the pace, that once:
+  *"Everything was in step, so we looked every 6 hours. Opening this migration brought back every
+  hour, for 14 days. To keep it hourly, choose Hourly under How often to look for changes."*
+  *Sync now* ends it too.
+- **Not on Free, outside the alpha:** a migration there runs one pass a day whatever its cadence
+  (T2), and the app and the first-copy email say so (T5). A step said before, on a higher tier, is
+  no longer in force: its row goes, and nothing is said.

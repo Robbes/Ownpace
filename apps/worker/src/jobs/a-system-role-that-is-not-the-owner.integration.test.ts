@@ -268,6 +268,8 @@ const EXPECTED: Record<string, readonly string[]> = {
   // When each migration was last visited (workplan 0157 T7, managed 0042): the
   // tick reads it for the automatic cadence, and the purge deletes it.
   migration_visit: PURGED_ONLY('mapping_id,tenant_id,visited_at'),
+  // A slower step, once said (workplan 0157 T7, managed 0043): the purge deletes it.
+  migration_cadence_said: PURGED_ONLY(),
 };
 
 /** What the role holds beyond tables: its schema's USAGE, and nothing else anywhere. */
@@ -767,6 +769,11 @@ describe('the purge of a closed organisation runs as the system role', () => {
     await owner.execute(sql`
       INSERT INTO migration_visit (mapping_id, tenant_id) VALUES (${C_MAPPING}, ${C})
       ON CONFLICT (mapping_id) DO NOTHING`);
+    // The slower step said of C's migration (workplan 0157 T7, managed migration 0043): erased with it.
+    await owner.execute(sql`
+      INSERT INTO migration_cadence_said (mapping_id, tenant_id, step, counted_from)
+      VALUES (${C_MAPPING}, ${C}, 'six-hourly', now() - interval '20 days')
+      ON CONFLICT (mapping_id) DO NOTHING`);
     await owner.execute(sql`
       INSERT INTO tenant_member (tenant_id, user_id, email, role, status) VALUES
         (${C}, 'user-0138f-c-owner', 'owner@c.system-role.example.invalid', 'owner', 'active')
@@ -815,6 +822,7 @@ describe('the purge of a closed organisation runs as the system role', () => {
     expect(receipt!.counts.person_migration).toBe(1);
     expect(receipt!.counts.person_link).toBe(1);
     expect(receipt!.counts.migration_visit).toBe(1);
+    expect(receipt!.counts.migration_cadence_said).toBe(1);
   });
 
   it('and A and B are as they were', async () => {

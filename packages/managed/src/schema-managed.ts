@@ -648,6 +648,30 @@ export const migrationVisit = pgTable(
   (t) => [index('migration_visit_tenant_idx').on(t.tenantId)],
 );
 
+/**
+ * The slower step of a migration's automatic cadence, once said by email
+ * (workplan 0157 T7, managed migration 0043): every 6 hours, or daily, and what
+ * its days counted from. The morning job claims it before the mail, so each
+ * step is said once; a visit deletes it, as the visit brings back the hour,
+ * and the job deletes one no longer in force.
+ */
+export const migrationCadenceSaid = pgTable(
+  'migration_cadence_said',
+  {
+    mappingId: uuid('mapping_id')
+      .primaryKey()
+      .references(() => mailboxMapping.id, { onDelete: 'cascade' }),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    /** `AutomaticStep` in sync-due.ts, never the hourly one. */
+    step: text('step', { enum: ['six-hourly', 'daily'] }).notNull(),
+    countedFrom: timestamp('counted_from', { withTimezone: true }).notNull(),
+    saidAt: timestamp('said_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('migration_cadence_said_tenant_idx').on(t.tenantId)],
+);
+
 // ========================= What a person accepted =========================
 
 /**

@@ -2793,6 +2793,7 @@ mailbox.
 | Password changed | The identity provider, after a reset or any other change of password | No | Nothing to pass on. |
 | Email-change confirmation | The identity provider, to the new address | **Yes** | The same, to the new address. |
 | The digest, *what needs your attention* | The tasks, at 08:00 UTC, daily or weekly as the organisation chooses, to its active owners and admins, and only when something waits | No | Nothing. The tester sees the same on screen. |
+| *Ownpace — everything is in step, so we look less often* (`looking_less_often`; Dutch *alles is bijgewerkt, dus we kijken minder vaak*) | The tasks, at 07:30 UTC, to the organisation's active owners and admins, when a migration on *Automatic* stepped down to every 6 hours or once a day since they were last told (workplan 0157 T7) | No | Nothing. Opening the migration brings back the hour, and its page says so. |
 
 Each of the three codes lives one hour. In Zitadel v4.17.3's defaults,
 `EmailVerificationCode` and `PasswordVerificationCode` expire after `1h`, and an

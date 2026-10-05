@@ -2887,9 +2887,23 @@ paths:
         the later of its first copy and its last visit, then every 6 hours,
         then once a day from day 30; a visit starts the 14 days again. Kept
         once an hour at most, and never who visited. Managed only.
+
+        A slower step the morning mail said of the migration (managed 0043)
+        ends with the visit, and the answer names it once, for the page to
+        say: `broughtBackFrom` is `six-hourly` or `daily`, else null.
       responses:
-        '204':
+        '200':
           description: Recorded, or one within the hour already stood.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [broughtBackFrom]
+                properties:
+                  broughtBackFrom:
+                    type: [string, 'null']
+                    enum: [six-hourly, daily, null]
+                    description: The slower step this visit ended, once said by email; null when none was.
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
