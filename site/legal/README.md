@@ -26,7 +26,44 @@ they cannot become different drawings.
 
 ---
 
-## Where each text stands (2026-09-28)
+## Where each text stands (2026-10-05)
+
+**Final since the owner's final-text pull request (2026-10-05).** The privacy policy is 1.2 and
+the terms 1.3, with no draft words on their *Version* lines, and `LEGAL_DRAFTS` in
+`packages/managed/src/legal-versions.ts` says so; their words are pinned in `ACCEPTED_WORDS`
+(`scripts/a-version-the-tester-accepted.unit.test.ts`), as the Alpha conditions' were. From the
+release that carries them, a deployment that runs the Alpha asks every member to accept the three
+texts. **From now on every change gets a new number**, in both languages and in `LEGAL_VERSIONS`,
+and every tester accepts again (*What a final Version line looks like*, below). The *Last
+updated* lines say 2026-10-05; they move to the day the pull request merges, and the four pins
+move with them, in that pull request, before it merges. The owner's words of 2026-10-05 that
+settle the texts, verbatim:
+
+- The lawyer, asked whether the lawyer reads the texts before the first invitation, or whether
+  the Alpha goes on the owner's own approval with the lawyer before the first paid tier:
+  *"Lawyer is fine, we move forward. Finalize what is left."* Read as the second: the Alpha on
+  the owner's approval, the lawyer's pass before the first paid tier. The owner may correct that
+  reading in the pull request.
+- The closing sentence (terms §11, privacy §9, Alpha conditions §10): *"Reword to match the
+  code"*. The three now say what the code does after a close (*To build or to do*, below).
+- The language: *"English governs, with the exception"*. Terms §13 is unchanged, and the note
+  above the Dutch privacy and terms pages now carries its exception.
+- *"Two tags"*: v0.2.0-alpha.1 as soon as the pull requests in flight merge, to stand up live and
+  rehearse, with these texts still drafts; the final texts come in alpha.2, with its own freeze,
+  two nights and a deploy, before the first invitation. So this pull request merges only after
+  alpha.1 is tagged, and after the owner has read it.
+
+Changed in the same pull request, under the numbers above: the closing sentence in all three, in
+both languages, and the Alpha conditions §8, which now say that an admin cannot *"change or
+remove an owner"* / *"een eigenaar een andere rol geven of verwijderen"* either, as the code
+refuses since #1484. Kept as drafted, by the owner's leave: privacy §4.4's *"in which language"*
+and §9's row for a member who leaves. Under the same numbers because nobody can have accepted
+any of them: the API records an acceptance only when no text is a draft (`acceptanceAsked` in
+`apps/api/src/conditions-not-accepted.ts`, the one writer `POST /api/me/acceptance`), and
+`LEGAL_DRAFTS` had privacy and terms as drafts from the commit that made the table and the route
+(#1360) until this one.
+
+The record of 2026-09-28, as it stood then:
 
 On 2026-09-28 the owner asked for the privacy policy and the terms to be revisited: *"Can you
 revisite the privacy policy and terms? Make changes if needed, and i'll review them."* The
@@ -49,15 +86,17 @@ placeholder is left in a text the site renders.
 
 | File | *Version* line | Where it stands |
 |---|---|---|
-| `privacy.md`, `privacy.nl.md` | `1.2 (draft — not yet published)`, `1.2 (concept — nog niet gepubliceerd)`; 2026-09-28 | For the owner's review, with the owner's answers applied. No placeholder |
-| `terms.md`, `terms.nl.md` | `1.3 (draft — not yet published)`, `1.3 (concept — nog niet gepubliceerd)`; 2026-09-28 | For the owner's review, with the owner's answers applied. No placeholder |
-| `alpha.md`, `alpha.nl.md` | `1.0`; 2026-09-28 | The owner's text for the Alpha, taken as final without the lawyer's pass. Edited in place with the owner's answers, because nobody has accepted it yet: it stays 1.0 (alpha-version-number (a)), and every change after the first acceptance gets a new number. No placeholder. Rendered since 0139 T3, outside the site's nav, at `/alpha.html` and `/nl/alpha.html` (below) |
+| `privacy.md`, `privacy.nl.md` | `1.2`; 2026-10-05 (the merge day, once merged) | Final, on the owner's approval (2026-10-05), without the lawyer's pass. Pinned in `ACCEPTED_WORDS`; a change gets a new number. No placeholder. Until 2026-10-05: `1.2 (draft — not yet published)`, `1.2 (concept — nog niet gepubliceerd)` |
+| `terms.md`, `terms.nl.md` | `1.3`; 2026-10-05 (the merge day, once merged) | Final, on the owner's approval (2026-10-05), without the lawyer's pass. Pinned in `ACCEPTED_WORDS`; a change gets a new number. No placeholder. Until 2026-10-05: `1.3 (draft — not yet published)`, `1.3 (concept — nog niet gepubliceerd)` |
+| `alpha.md`, `alpha.nl.md` | `1.0`; 2026-10-05 (the merge day, once merged) | The owner's text for the Alpha, taken as final without the lawyer's pass. Edited in place with the owner's answers, and on 2026-10-05 in §8 and §10, because nobody had accepted it: it stays 1.0 (alpha-version-number (a)), and every change from the first acceptance on gets a new number. No placeholder. Rendered since 0139 T3, outside the site's nav, at `/alpha.html` and `/nl/alpha.html` (below) |
 | `subprocessors.md` | `0.2 (draft — not yet published)`; 2026-09-28 | English only. Unpublished until the first business customer: during the Alpha, privacy §7's table is the complete list (rec-subprocessors-url (a)). Not rendered (below) |
 | `dpa.md` | No *Version* line: its *Status* line says `draft v0.2`; 2026-09-28 | English only, on purpose. Unpublished until the first business customer, and corrected in one pass before then (dpa-unpublished-until-business (a)). Not part of the Alpha, which admits households only (0139 open question 6) |
 
-**Do not publish the drafts.** The site build refuses them in any case: on 2026-09-28, after
-the owner's 71 answers, `node site/build.mjs --check` reports `4 legal page(s) marked draft` and
-`0 unfilled placeholder(s)`, and `--public` refuses the drafts.
+**The three rendered texts are final.** On 2026-10-05,
+`OWNPACE_APP_URL=https://app.ownpace.eu node site/build.mjs --public --check` reports
+`0 legal page(s) marked draft` and `0 unfilled placeholder(s)` and exits 0. Until then it
+reported `4 legal page(s) marked draft` and refused. `subprocessors.md` and `dpa.md` stay drafts,
+and the site does not render them.
 
 ## The placeholders
 
@@ -303,7 +342,9 @@ change under the same number. This is the owner's rule for the Alpha conditions
 (alpha-version-number (a)), applied to all three.
 
 **Before the draft markers come off**, some sentences need code, machine or owner steps that are
-not done yet. The owner decided each on 2026-09-28 (the answer's id is in brackets). Each is also
+not done yet. The markers came off on 2026-10-05, in the owner's final-text pull request, on the
+owner's approval; what is still open below is owed before the first invitation, or later where
+it says so. The owner decided each on 2026-09-28 (the answer's id is in brackets). Each is also
 a comment beside the sentence, in both languages, where the text rests on it. **Done:**
 
 - *Problem reports by mail* (privacy §4.5): merged as #1318 (`0c019ab8`, 0130 T5), and on this
@@ -329,46 +370,46 @@ a comment beside the sentence, in both languages, where the text rests on it. **
 **To build or to do**, before the first invitation unless it says otherwise:
 
 - *Acceptance starts with the final texts* (terms §1, Alpha conditions §2, privacy §4.4; 0139
-  T3): the owner's final-text pull request drops the draft words from privacy 1.2 and terms 1.3,
-  sets `LEGAL_DRAFTS` to match, and pins their words in `ACCEPTED_WORDS` (*What a final Version
-  line looks like*, above). Until that release is on live, live asks nobody, so the first
-  invitation waits for it. The API's start log says which.
+  T3): **built 2026-10-05** in the owner's final-text pull request, which drops the draft words
+  from privacy 1.2 and terms 1.3, sets `LEGAL_DRAFTS` to match, and pins their words in
+  `ACCEPTED_WORDS` (*What a final Version line looks like*, above). **Still to do:** merged after
+  v0.2.0-alpha.1 is tagged and the owner has read it, then alpha.2, with its own freeze, two
+  nights and a deploy (the owner, 2026-10-05: *"Two tags"*). Until that release is on live, live
+  asks nobody, so the first invitation waits for it. The API's start log says which.
 - *The language on the record* (privacy §4.4; review of 2026-09-29): the record keeps the
   language each text was accepted in, and the draft of §4.4 now says so in both languages
-  (*"in which language"* / *"in welke taal"*), as does the screen. For the owner's review with
-  the rest of the draft; if the owner prefers the sentence without it, the column goes instead
-  (`legal_acceptance.language`, managed 0032).
+  (*"in which language"* / *"in welke taal"*), as does the screen. **Kept** in the final text
+  (2026-10-05), with the column (`legal_acceptance.language`, managed 0032).
 - *A member who leaves* (privacy §9's new row; built with 0139 T3's review, and not covered by
   open question 4's answer, which is about the record after an erasure): the acceptance record of
-  a member who is removed stays with the organisation until its data is erased. For the owner's
-  review with the rest of the draft.
+  a member who is removed stays with the organisation until its data is erased. **Kept** in the
+  final text (2026-10-05).
 
-- *Nothing uses your access after closing* (privacy §9, terms §11, Alpha conditions §10, the
-  DPA's Annex A; terms briefing, precondition B): partly done. Since #1320 (`d7868276`, merged
-  2026-09-28), nothing new starts for a closed organisation: the sync tick starts no pass, a
-  pass already queued halts before its credentials are built, the credential builders refuse,
-  and every door that would start work or use the access answers 409 `account_closed`. Its
-  members can still sign in, read and export until the purge. **Work already running when the
-  account closes: built 2026-09-29, reviewed and fixed the same day** (0139 T7) on branch
-  `claude/ownpace-public-readiness-y7orc6-the-close-stops-what-is-running`, **not merged**. A
-  verification, a confirmation and a discovery already running check the close between their
-  steps and stop: a verification before each listing of a target and before each sample it
-  downloads (it records no verdict, and its run says the organisation was closed), a
-  confirmation before each item it reads on the target (its run closes `cancelled`, the close
-  named, what it confirmed before stays, and the confirmed list says the close stopped it), a
-  discovery before each collection it lists (the close is that data type's error, and no
-  partial count stands). The step in flight when the close lands finishes, whether a listing
-  with all its pages, one download or one item; no other begins after it. **Still not true:**
-  the close asks the orchestrator to cancel only the runs whose row names the orchestrator's
-  run, which only a sync pass records, and a request that fails is only logged
-  (`apps/api/src/close-account.ts`); a sync pass the cancel did not stop hears the close from
-  inside the data type it is on, begins no new item within about fifteen seconds and finishes
-  the ones it has begun (2026-09-29). A discovery of a file source first walks the whole folder
-  tree, a request per folder on Google Drive, Box and Dropbox, and asks only after it, so a
-  close during that walk lets the walk finish. The daily shared-address discovery and drift
-  check read the list of open organisations once, when they start, so an organisation closed
-  while one runs is still read in that run. Until those stop too, or the owner rewords the
-  sentence to what the code does, precondition B is not fully done.
+- *After closing, what the code does* (privacy §9, terms §11, Alpha conditions §10; terms briefing,
+  precondition B): **done by rewording, 2026-10-05** (the owner, asked to reword the sentence or
+  build the rest first: *"Reword to match the code"*). The three texts said *"nothing uses the
+  access you gave us"*; they now say, in both languages, that no new work starts with it, that work
+  already running finishes what it is doing and then stops, that a pass can carry on for about
+  fifteen seconds and then finishes what it began, and that a daily check already under way can read
+  a whole Microsoft 365 organisation's list of mailboxes and distribution lists once. What the code
+  does, read on main `c25534b4` (the comment beside terms §11 has it in full): nothing new starts
+  (the sync tick, `managed-sync-tick.ts:415`; a queued pass or a retry, `stopping-a-pass.ts:96`,
+  `:114`; the credential builders, `build-deps-from-mapping.ts:300`, `:574`; every door,
+  `closed-organisation.ts`). The close cancels the runs whose row names one, best effort
+  (`close-account.ts:147-162`). A verification, a confirmation and a discovery ask before each
+  listing, sample, item or collection (#1377); what is in flight finishes, with all its pages, and a
+  file source's folder walk at the start of a discovery runs to its end (`discovery.ts:68-73`). A
+  pass the cancel did not stop asks at most every 15 seconds at its gates (#1405;
+  `pass-deadline.ts:138`, `domain-sync.ts:1505`, `:1517`, `:1688`) and finishes what is in flight.
+  The daily shared-address discovery (06:30 UTC) and drift check (07:00 UTC) read the list of open
+  organisations once, at their start (`task-pools.ts:212`), and read only an `o365` source's
+  directory (`directory-availability.ts:72-75`). No background task runs longer than an hour
+  (`apps/worker/trigger.config.ts:65`); the texts promise no period. The DPA's Annex A, unpublished,
+  still has the old sentence, and is corrected in the DPA's one pass before the first business
+  customer. The app's own sentence for a closed organisation still says *"nothing uses the access it
+  gave"* (`packages/shared/src/organisation-closed.ts:51`, and the API's answer to `DELETE
+  /api/tenants/:id`, `apps/api/src/routes/tenants/index.ts:444`): not changed here, and owed the
+  same rewording.
 - *The copy made right before an update, never longer than 7 days* (privacy §9, Alpha
   conditions §6; rec-copies (a)): built (0139 T6, 2026-09-28, review fixes 2026-09-29).
   `deploy/compose/copy-before-update.sh`, one directory,
@@ -425,8 +466,10 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   `docs/managed-bring-up.md`. **Built** on branch `claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird` (0132's and 0139's
   Status, 2026-09-28 and 2026-09-29), not merged: the journald step is out of the managed guides,
   the breach procedure and the audit section read container output from Docker, not the journal,
-  and `stand-up-live.sh` refuses a machine whose driver is not `json-file` or `local`. **Still the
-  owner's:** the check on the machine now, and undoing a journald setting there.
+  and `stand-up-live.sh` refuses a machine whose driver is not `json-file` or `local`. **Checked
+  on the machine, 2026-10-05:** `docker info --format '{{.LoggingDriver}}'` printed
+  `json-file`, so `stand-up-live.sh`'s check and privacy §9's row hold, and there is no journald
+  setting to undo.
 - *Visitors' IP addresses in our own logs* (privacy §4.5; ops-trust-proxy (b)): `TRUST_PROXY` in
   live's `.env`, and both nginx configurations (`apps/web/nginx.conf.template`,
   `deploy/compose/www-nginx.conf`) recording the address NetBird passes on. **Built** on the same
@@ -485,6 +528,8 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   *"still needs to be checked."*): remove a test account on the test stack and look at what
   stays. §9 now says the entries are kept as long as we run this sign-in service, because it
   cannot remove them; if the check shows they go, the comment beside §9 has the other wording.
+  **The owner's one check before the final-text pull request merges** (2026-10-05): if it shows
+  the entries go, §4.4 and §9 change in that pull request, under 1.2, before anybody can accept.
 - *No NetBird sign-in in front of the service* (privacy §7's row and the comment beside it;
   privacy's to-do on NetBird, (d)): the owner, 2026-09-28, *"No pin, but SSO on"*, so NetBird's
   sign-in (SSO) is on for the hosts NetBird serves; then the owner's choice, *"Off everywhere at
@@ -495,8 +540,9 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   service, the status page or the website itself, not by NetBird's sign-in page. **The check is
   built** on the same branch: the exposure probe (0132 T3 (c)), dispatched on a GitHub-hosted
   runner, asks each of the four and fails a redirect to NetBird's identity provider, NetBird's own
-  page, anything else that is not the service, and no answer. **Still the owner's:** the sign-in
-  switched off in NetBird on all four, then a dispatch of the probe that passes.
+  page, anything else that is not the service, and no answer. **The dashboard half, 2026-10-05:**
+  *"Netbird: no SSO or password, i checked."* (the owner). **Still to do:** the proof from outside
+  the NetBird network, a dispatch of the probe that passes, which comes with live.
 - *VIES on live* (fact-vat (a)): `VIES_REQUESTER_MEMBER_STATE` and `VIES_REQUESTER_VAT_NUMBER` in
   live's `.env`.
 
@@ -515,26 +561,25 @@ paid tier at the latest). The lawyer's pass reads NetBird's agreement for its su
 a new one is announced, the right to object and the 7 days ((b)).
 
 The full list is in the terms briefing (A to F), the privacy briefing (*Still to do before the
-draft marker comes off*), the Alpha conditions' briefing and 0139's Status block of 2026-09-28.
+first invitation*), the Alpha conditions' briefing and 0139's Status block of 2026-09-28.
 
-**Which language counts is not settled.** `privacy.nl.md` and `terms.nl.md` follow the English
+**Which language counts: the English, with §13's exception** (the owner, 2026-10-05:
+*"English governs, with the exception"*). `privacy.nl.md` and `terms.nl.md` follow the English
 section for section. Terms 1.3 §13 keeps v1.2's rule: the English governs, except where
 mandatory consumer law provides otherwise. The note the site prints above the Dutch privacy and
 terms pages (`translationNote` in `site/copy.mjs`, which `site/build.mjs` prints for those two
-pages only) says that the English governs where the two differ, without §13's exception for
-mandatory consumer law (terms briefing, question 15, has the words that would add it). The
-privacy policy and the Alpha conditions have no language clause of their own. Asked on
-2026-09-28 whether the English governs or both languages count, and whether the terms keep no
-cap towards consumers, the owner answered *"yes"*; 0139 reads that as keeping both as drafted,
-a reading the owner may correct in the pull request. The first draft of terms 1.3 made both texts count, which contradicted the note;
-that rule is now a proposal in the terms briefing (question 15), and taking it changes the note
-in the same change. Whether Dutch consumer law permits a translation to be purely "for
-convenience", for a Dutch-first Alpha, is a question that cannot be answered from inside this
-repository, and it is the one thing about the bilingual publication that is not merely
-editorial.
+pages only) says the same since 2026-10-05: *"Deze vertaling is er voor uw gemak. Bij verschillen
+is de Engelse versie de tekst die geldt, behalve waar dwingend consumentenrecht anders
+bepaalt."* Until then it left the exception out. The privacy policy and the Alpha conditions have
+no language clause of their own. Whether Dutch consumer law permits a translation to be purely
+"for convenience", for a Dutch-first Alpha, is a question that cannot be answered from inside
+this repository, and stays the lawyer's (terms briefing, question 15).
 
-**A lawyer should read them before they are published.** The owner deferred that pass on
-2026-09-27 and reviews the texts first; the questions for it are in the briefing comments at the
+**A lawyer reads them before the first paid tier.** The owner deferred that pass on
+2026-09-27, and on 2026-10-05, asked whether the lawyer reads the texts before the first
+invitation, answered *"Lawyer is fine, we move forward. Finalize what is left."*, read as the
+Alpha on the owner's own approval and the lawyer's pass before the first paid tier. The owner
+reviews the texts first; the questions for it are in the briefing comments at the
 top of `privacy.md`, `terms.md`, `alpha.md` and `dpa.md`. The texts are written to be accurate
 about what the software does — which is the half that is hard to get right from outside and easy
 to get wrong from inside — not to be a substitute for advice about Dutch and EU law.
@@ -600,7 +645,8 @@ commit.
   were drafted on 2026-09-28 as version 0.1, at the owner's request, for the owner's reading and
   the lawyer's pass. The owner reviewed them the same day and set their *Version* line to 1.0,
   with no draft marker. The owner's answers of the same day changed §2, §4, §5, §6, §9, §10 and
-  §11, and the text stays 1.0 until the first tester accepts it (alpha-version-number (a)). The
+  §11, and on 2026-10-05 §8 and §10, and the text stays 1.0 until the first tester accepts it
+  (alpha-version-number (a)). The
   site build renders them since 0139 T3, outside the site's nav, and the app's acceptance screen
   links them (`LEGAL_PAGES` in `apps/web/src/services/legal-links.ts`); a `--public` build refuses
   them while their *Version* line says draft. They are published once live serves the site
@@ -617,7 +663,7 @@ commit.
   `subprocessors.md`, it needs a Dutch text with the same version, because
   `scripts/legal-docs.unit.test.ts` holds every rendered document to one. A business customer
   cannot lawfully be onboarded without the DPA; the Alpha admits none.
-- **A cookie statement of its own.** Privacy §5 (1.2, a draft) now says what there is: the app
+- **A cookie statement of its own.** Privacy §5 (1.2) now says what there is: the app
   keeps its sign-in in the browser's own storage and sets no cookie of its own, this website
   sets none and loads nothing from other servers, and the sign-in page sets the cookies that
   signing in needs. Checked 2026-09-28: nothing in `apps/web/src` or `apps/api/src` sets a

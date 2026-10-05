@@ -690,8 +690,10 @@ export const COPY = {
       `Boven ${paths} migraties tegelijk of ${data} geldt: <a href="{MAILTO}">${what.toLowerCase()}</a> — dat is het enige dat niet gepubliceerd staat, omdat we voorbij het einde van de schaal echt naar uw situatie moeten kijken.`,
     draftBanner:
       'Dit is een concept. Stukken die er zo «UITZIEN» zijn nog niet ingevuld.',
+    // The terms' §13 rule, with its exception (the owner, 2026-10-05: "English governs, with the
+    // exception"; terms briefing, question 15). Printed above the Dutch privacy and terms pages.
     translationNote:
-      'Deze vertaling is er voor uw gemak. Bij verschillen is de Engelse versie de tekst die geldt.',
+      'Deze vertaling is er voor uw gemak. Bij verschillen is de Engelse versie de tekst die geldt, behalve waar dwingend consumentenrecht anders bepaalt.',
     calc: {
       title: 'Wat zou het bij u kosten?',
       lede:

@@ -6,11 +6,9 @@
      2026-09-28 are applied here as in terms.md; its briefing names each one.
      §13's language rule is v1.2's, unchanged in v1.3: the English governs,
      except where mandatory consumer law provides otherwise. The note the site
-     prints above this page (translationNote in site/copy.mjs) says only that
-     the English governs: it leaves out §13's exception for mandatory consumer
-     law, so the rendered page states the rule twice, once without it. The
-     briefing's question 15 has the words that would add it to the note, and
-     asks whether both texts should count instead.
+     prints above this page (translationNote in site/copy.mjs) says the same
+     since 2026-10-05, the exception included (the owner: "English governs,
+     with the exception"; the briefing's question 15).
      The briefing for the reviewing lawyer (open questions, what changed in
      each version, and what must be true before the draft marker comes off) is
      the comment at the top of terms.md — it applies to both files. -->
@@ -18,8 +16,8 @@
 # Servicevoorwaarden
 
 **Gelden voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`.
-**Versie:** 1.3 (concept — nog niet gepubliceerd)
-**Laatst bijgewerkt:** 2026-09-29
+**Versie:** 1.3
+**Laatst bijgewerkt:** 2026-10-05
 
 > **Deze voorwaarden gelden niet voor de software.** Ownpace is open source onder de Apache
 > License 2.0, en het zelf draaien valt onder die licentie en niet onder deze voorwaarden. Deze
@@ -240,29 +238,24 @@ ervoor te zorgen dat u dit hoofdstuk nooit nodig hebt.
 
 ## 11. Beëindigen
 
-<!-- "Vanaf het moment dat uw account gesloten is, gebruikt niets de toegang die u ons gaf nog."
-     NOT YET FULLY TRUE (terms.md briefing, precondition B, not fully done). Since #1320
-     (d7868276, 0085 T2, 2026-09-28), merged into this branch in c1413b53, nothing new starts:
-     the sync tick (ACTIVE_MAPPINGS_SQL in apps/worker/src/jobs/managed-sync-tick.ts,
-     AN_OPEN_ORGANISATION_WHERE) starts no pass for a closed organisation, a pass already queued
-     halts before it builds any credentials (organisation_closed, stopping-a-pass.ts), the
-     credential builders refuse (refuseAClosedOrganisation), and every door that would start work
-     or use the access answers 409 account_closed (apps/api/src/closed-organisation.ts). Work
-     already running is not all stopped: the close cancels only the runs whose row names the
-     orchestrator's run (a sync pass), best effort (apps/api/src/close-account.ts); a sync pass
-     the cancel did not stop stops starting new items within about fifteen seconds and finishes
-     the ones it has begun (whyThisDataTypeStops, 2026-09-29); a discovery reads to the end of
-     the data type it is on; a verification or a confirmation already running reads to its end
-     with the stored access.
-     True once the close stops those too, or once the sentence says what the code does. -->
+<!-- "Vanaf het moment dat uw account gesloten is, begint er geen nieuw werk meer met de toegang
+     die u ons gaf." and the three sentences after it: SAID AS THE CODE DOES IT (the owner,
+     2026-10-05: "Reword to match the code"; terms.md briefing, precondition B). What the code
+     does after a close, with file and line, is the comment beside §11 in terms.md; it applies
+     here word for word. Changed under 1.3 in the owner's final-text pull request
+     (2026-10-05), before anybody could accept 1.3 (LEGAL_DRAFTS). -->
 
 **U** kunt uw account op elk moment sluiten: mail naar support@ownpace.eu. U kiest wanneer uw
 gegevens worden gewist: meteen, of na 7, 30 of 90 dagen. Wij bevestigen de sluiting, en de datum
-waarop uw gegevens worden gewist. Vanaf het moment dat uw account gesloten is, gebruikt niets de
-toegang die u ons gaf nog. Worden uw gegevens gewist, dan vernietigen we uw toegangsgegevens,
-trekken we de toegang in waar de aanbieder dat toelaat, en verwijderen we uw migratieregister,
-zoals §9 van de privacyverklaring beschrijft. Facturen bewaren we zolang de belastingwet dat
-vereist.
+waarop uw gegevens worden gewist. Vanaf het moment dat uw account gesloten is, begint er geen
+nieuw werk meer met de toegang die u ons gaf. Werk dat al loopt, maakt af waar het op dat moment
+mee bezig is, en stopt dan. Een ronde van een migratie kan na de sluiting nog ongeveer vijftien
+seconden doorgaan, en maakt daarna af wat ze begon. Hebt u een hele Microsoft 365-organisatie
+gekoppeld, dan kan een dagelijkse controle die al was begonnen, de lijst van haar mailboxen en
+distributielijsten nog één keer lezen. Worden uw gegevens gewist, dan vernietigen we uw
+toegangsgegevens, trekken we de toegang in waar de aanbieder dat toelaat, en verwijderen we uw
+migratieregister, zoals §9 van de privacyverklaring beschrijft. Facturen bewaren we zolang de
+belastingwet dat vereist.
 
 **Wij** kunnen deze voorwaarden beëindigen met 30 dagen opzegtermijn, of onmiddellijk bij een
 ernstige schending van §5, nadat we u hebben gezegd waarom, zoals §5 beschrijft. Beëindigen wij

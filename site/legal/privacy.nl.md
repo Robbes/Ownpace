@@ -2,11 +2,11 @@
 <!-- Dutch translation of privacy.md. Keep the SECTION NUMBERING identical, so
      the two can be diffed against each other when either changes. The site
      prints a note above this page, and above the Dutch terms, that the English
-     governs where the two differ (translationNote in site/copy.mjs). Terms 1.3
-     §13 says the same of the terms, except where mandatory consumer law
-     provides otherwise; this policy has no language clause of its own. Whether
-     that may stand for a Dutch-first Alpha is the briefing's question 17 and
-     the terms briefing's question 15. The briefing for the reviewing lawyer
+     governs where the two differ, except where mandatory consumer law provides
+     otherwise (translationNote in site/copy.mjs), as terms 1.3 §13 says of the
+     terms; this policy has no language clause of its own. The owner,
+     2026-10-05: "English governs, with the exception" (the briefing's
+     question 17, the terms briefing's question 15). The briefing for the reviewing lawyer
      (what changed in each version, the owner's answers of 2026-09-28 by
      question id, and the open questions) is the comment at the top of
      privacy.md — it applies to both files. The comments beside §1, §4.4,
@@ -15,8 +15,8 @@
 # Privacyverklaring
 
 **Geldt voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`, en deze website.
-**Versie:** 1.2 (concept — nog niet gepubliceerd)
-**Laatst bijgewerkt:** 2026-09-29
+**Versie:** 1.2
+**Laatst bijgewerkt:** 2026-10-05
 
 > **Draait u Ownpace zelf**, dan geldt deze verklaring niet voor u en valt er voor ons niets
 > te verklaren: de software draait op uw eigen infrastructuur, uw gegevens bereiken ons nooit,
@@ -425,6 +425,9 @@ machine die we zelf beheren, in Nederland.
        log also holds the signed-in user's ID, which the row does not name. The owner then chose
        "Off everywhere at launch": SSO off on every ownpace.eu host (app., id., status. and www.)
        before the first invitation, so the log keeps no user ID for testers and the row names none.
+       The owner, 2026-10-05: "Netbird: no SSO or password, i checked." That is NetBird's
+       dashboard; the proof from outside the NetBird network, the exposure probe on the four
+       names, comes with live.
      - Where: NOT STATED for the proxy or its log, in any source read. The docs: "`eu` is the
        proxy cluster region", and "NetBird operates multiple proxy clusters in different regions"
        (manage/reverse-proxy/custom-domains); NetBird's own clusters run "Wherever the platform
@@ -504,22 +507,15 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
 
 ## 9. Hoe lang we het bewaren
 
-<!-- NOT YET TRUE, so the draft marker stays until each holds (README, "Before the draft
-     markers come off"). The owner's choices of 2026-09-28 are named by their question id.
-     - Toegangsgegevens, "gebruikt niets die toegang meer" (terms.md briefing, precondition B):
-       since #1320 (d7868276, 0085 T2), merged into this branch in c1413b53, nothing new starts
-       for a closed organisation. The sync tick starts no pass for it
-       (AN_OPEN_ORGANISATION_WHERE in managed-sync-tick.ts), a pass already queued halts before
-       its credentials are built (organisation_closed, stopping-a-pass.ts), the credential
-       builders refuse (refuseAClosedOrganisation), and every door that would start work or use
-       the access answers 409 account_closed (apps/api/src/closed-organisation.ts). Work already
-       running is not all stopped: the close cancels only the runs whose row names the
-       orchestrator's run (a sync pass), best effort (apps/api/src/close-account.ts); a sync
-       pass the cancel did not stop stops starting new items within about fifteen seconds and
-       finishes the ones it has begun (whyThisDataTypeStops, 2026-09-29); a discovery reads to
-       the end of the data type it is on; a verification or a confirmation already running reads
-       to its end with the stored access.
-       True once the close stops those too, or once the row says what the code does.
+<!-- WHAT EACH ROW RESTS ON (README, "Before the draft markers come off"). The draft marker came
+     off in the owner's final-text pull request (2026-10-05); what is still to be done on live
+     before the first invitation is said beside each row below. The owner's choices of
+     2026-09-28 are named by their question id.
+     - Toegangsgegevens, "begint er geen nieuw werk meer met die toegang" and the
+       three sentences after it: SAID AS THE CODE DOES IT (the owner, 2026-10-05: "Reword to
+       match the code"; terms.md briefing, precondition B). What the code does after a close,
+       with file and line, is the comment beside §11 in terms.md. Changed under 1.2, before
+       anybody could accept 1.2 (LEGAL_DRAFTS).
      - De kopie vlak voor een update (rec-copies (a)): one copy per update, deleted once
        the update is proven (deploy-live.sh logged it as "took", one pass completed, the hold is
        lifted), and never past day 7; not proven by day 6 means rolling back from the copy.
@@ -540,8 +536,8 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
        "Uiterlijk tot het einde van de Alpha" (privacy-task-records (a)) is one step in the
        end-of-Alpha routine, not written yet.
      - De lijst van wat er gedeeld was, "verdwijnt wanneer u de migratie verwijdert" (§4.2,
-       §4.6; the owner's privacy-sharing-list (b)): deleting a migration does not yet delete its
-       share_grant rows. A small code change; until it lands, the list stays until erasure.
+       §4.6; the owner's privacy-sharing-list (b)): built and merged as #1376 (4a5ecc27, 0139
+       T6). True on live once live runs a tag that carries it.
      - Een zoekopdracht op adres en een download van het logboek, "12 maanden na het
        vastleggen verwijderd" (privacy-search-records (a)): built, not yet run:
        deploy/compose/support-read-prune.sh (0139 T6), the duty `searches` in box-duties.sh,
@@ -574,13 +570,14 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
        folder at Proton; it is done by hand. A mail that answers no question has no clear end
        date under this rule (a question for the lawyer, briefing question 20).
      - Serverlogs: the row holds with Docker's default log driver (ops-log-driver (a), the
-       owner: "needs checking"). Check the machine (docker info --format
-       '{{.LoggingDriver}}'), undo a journald setting if it is there, and take the journald step
-       out of docs/managed-bring-up.md. -->
+       owner: "needs checking"). Checked on the machine on 2026-10-05: docker info --format
+       '{{.LoggingDriver}}' printed "json-file". The journald step is out of
+       docs/managed-bring-up.md, and stand-up-live.sh refuses any other driver than json-file
+       or local (#1362). -->
 
 | Wat | Bewaard |
 |---|---|
-| Toegangsgegevens | Tot u ze verwijdert. De toegang van een koppeling verdwijnt wanneer u die koppeling verwijdert; de app staat dat toe zodra geen migratie haar meer gebruikt. Toegang die een gezinslid via een toegangslink gaf, verdwijnt wanneer u die migratie verwijdert, of wanneer die persoon haar op de eigen voortgangspagina intrekt. Een afgeronde migratie houdt de toegang die u ons gaf, zodat u hem kunt hervatten. Sluit u uw account, dan gebruikt niets die toegang meer, en wordt alles vernietigd wanneer uw gegevens worden gewist. Telkens trekken we de toegang ook in bij de aanbieder, waar die dat toestaat. |
+| Toegangsgegevens | Tot u ze verwijdert. De toegang van een koppeling verdwijnt wanneer u die koppeling verwijdert; de app staat dat toe zodra geen migratie haar meer gebruikt. Toegang die een gezinslid via een toegangslink gaf, verdwijnt wanneer u die migratie verwijdert, of wanneer die persoon haar op de eigen voortgangspagina intrekt. Een afgeronde migratie houdt de toegang die u ons gaf, zodat u hem kunt hervatten. Sluit u uw account, dan begint er geen nieuw werk meer met die toegang. Werk dat al loopt, maakt af waar het op dat moment mee bezig is, en stopt dan. Een ronde van een migratie kan na de sluiting nog ongeveer vijftien seconden doorgaan, en maakt daarna af wat ze begon. Hebt u een hele Microsoft 365-organisatie gekoppeld, dan kan een dagelijkse controle die al was begonnen, de lijst van haar mailboxen en distributielijsten nog één keer lezen (§11 van de servicevoorwaarden). Alles wordt vernietigd wanneer uw gegevens worden gewist. Telkens trekken we de toegang ook in bij de aanbieder, waar die dat toestaat. |
 | Het migratieregister (§4.2), en wat elke migratie daarnaast bewaart, zoals de lijst van wat er gedeeld was (§4.6) | Tot u de migratie verwijdert; dan mee verwijderd. Anders tot uw gegevens worden gewist. |
 | Preflight-tellingen | Bij de migratie waarvoor ze zijn geteld: tot u die verwijdert, of tot uw gegevens worden gewist. |
 | Wat bij uw organisatie hoort en niet bij één migratie: de leden en uitnodigingen, de distributielijsten die een migratie vond, en het auditlog van wie wat deed en wanneer | Tot uw gegevens worden gewist, ook nadat u de migratie verwijdert die ze vond. |

@@ -2,7 +2,156 @@
 
 > **In one line:** Legal gate for the alpha: `site/legal` placeholders filled and published, a lawyer's pass, alpha conditions, acceptance recorded at first sign-in, notices where data is collected, sub-processors, retention, account closure, breach procedure, `SECURITY.md`.
 
-## Status — 2026-10-04 (update this block at the end of every session)
+## Status — 2026-10-05 (update this block at the end of every session)
+
+**2026-10-05: the final texts testers accept (the owner's checklist of 2026-10-05, L2 to L4).
+A DRAFT pull request.** On branch
+`claude/ownpace-public-readiness-y7orc6-the-texts-testers-accept`, from `main` at `c25534b4`, not
+merged. **It merges only after v0.2.0-alpha.1 is tagged and the owner has read it.** Privacy
+1.2 and terms 1.3 lose their draft words, `LEGAL_DRAFTS` says so, and the words of all six files
+are pinned. Once a release carries it, the Alpha asks every member to accept the three texts.
+
+- **The owner's words, 2026-10-05, verbatim.**
+  - Asked whether the lawyer reads the texts before the first invitation (T1; the checklist's
+    L1), or the Alpha goes on the owner's own approval with the lawyer before the first paid
+    tier: *"Lawyer is fine, we move forward. Finalize what is left."* Read as the second: the
+    Alpha on the owner's approval, T1's pass before the first paid tier. The owner may correct
+    that reading here. 0131 D4 and T5, and the business repository's `decisions/0010`, still
+    say the lawyer comes first, and are not changed here.
+  - Asked about the closing sentence (terms §11, privacy §9, Alpha conditions §10 said nothing
+    uses the access once an account is closed): *"Reword to match the code"*.
+  - Asked about the language (terms §13: the English governs except where mandatory consumer
+    law says otherwise; the note above the Dutch pages left the exception out): *"English
+    governs, with the exception"*.
+  - Asked what v0.2.0-alpha.1 waits for: *"Two tags"*. alpha.1 as soon as the pull requests in
+    flight merge, to stand up live and rehearse; these final texts come in alpha.2, with its own
+    freeze, two nights and a deploy, before the first invitation.
+  - Docker's log driver on the machine: `docker info --format '{{.LoggingDriver}}'` printed
+    `json-file`. `stand-up-live.sh`'s check and privacy §9's *Server logs* row hold.
+  - NetBird: *"Netbird: no SSO or password, i checked."* That is the dashboard; the proof from
+    outside the NetBird network (the exposure probe on the four names) comes with live. And:
+    *"netbird did not yet reply, but we move forward. I think the ment within the terms only to
+    prevent resellers of reselling there proxy; that is not what we do, so that does not count
+    as commercial use."* Recorded as the owner's reading of NetBird's terms §3.1; NetBird's
+    written answer is still owed (privacy briefing, NetBird (e)).
+  - The same day's answers on the Google client, live's own Microsoft and Dropbox
+    registrations, and audit item 9's copy (option B, built on its own branch) belong to 0140
+    and 0144, not to these texts.
+- **L2.1, the closing sentence, said as the code does it.** Read in the code on `c25534b4`,
+  after #1320, #1377 and #1405. Nothing new starts: the sync tick
+  (`apps/worker/src/jobs/managed-sync-tick.ts:415`), a queued pass or a retry
+  (`stopping-a-pass.ts:96`, `:114`), the credential builders
+  (`packages/orchestration/src/build-deps-from-mapping.ts:300`, `:574`) and every door
+  (`apps/api/src/closed-organisation.ts`). The close cancels the runs whose row names one, best
+  effort (`apps/api/src/close-account.ts:147-162`). A verification
+  (`packages/core/src/verification.ts:190-215`), a confirmation
+  (`packages/core/src/confirmation-run.ts:302`) and a discovery
+  (`packages/core/src/discovery.ts:157`) ask before each listing, sample, item or collection:
+  what is in flight finishes, with all its pages, and no other begins. A discovery of a file
+  source walks its whole folder tree first, a request per folder
+  (`packages/connectors/src/google-drive-source.ts:405-416`), and asks only after it
+  (`discovery.ts:68-73`). A request a member made just before the close (a sharing rescan, the
+  permission report, a connection test) asked once when it began and is answered in full
+  (`apps/api/src/routes/migrations/operating-routes.ts:613-614`). A pass the cancel did not
+  stop asks at most once every 15 seconds (`packages/shared/src/pass-deadline.ts:138`) at its
+  gates before the folder list, each folder and each item
+  (`packages/core/src/domain-sync.ts:1505`, `:1517`, `:1688`), so for about fifteen seconds it
+  can begin further items or a further folder's listing, and then finishes what it began: the
+  items in flight, and a listing or a folder walk with all its pages. The daily shared-address discovery
+  (06:30 UTC) and drift check (07:00 UTC) read the list of open organisations once, at their
+  start (`apps/worker/src/jobs/task-pools.ts:212`, `:249`; `managed-group-discovery.ts:230`;
+  `managed-drift-detect.ts:246`), so an organisation closed during a run is still visited, and
+  they read only an `o365` source, a whole Microsoft 365 organisation, its mailboxes and its
+  mail-enabled groups (`packages/connectors/src/directory-availability.ts:72-75`). No
+  background task runs longer than an hour (`apps/worker/trigger.config.ts:65`); the texts
+  promise no period. The comment beside terms §11 has all of it.
+  - Terms §11, before: *"From the moment your account is closed, nothing uses the access you gave
+    us."* After: *"From the moment your account is closed, no new work starts with the access you
+    gave us. Work that is already running finishes what it is doing at that moment, and then stops.
+    A pass of a migration can carry on for about fifteen seconds after the close, and then finishes
+    what it began. If you connected a whole Microsoft 365 organisation, a daily check that had
+    already started can still read the list of its mailboxes and distribution lists once."*
+  - Terms §11 NL, before: *"Vanaf het moment dat uw account gesloten is, gebruikt niets de toegang
+    die u ons gaf nog."* After: *"Vanaf het moment dat uw account gesloten is, begint er geen nieuw
+    werk meer met de toegang die u ons gaf. Werk dat al loopt, maakt af waar het op dat moment mee
+    bezig is, en stopt dan. Een ronde van een migratie kan na de sluiting nog ongeveer vijftien
+    seconden doorgaan, en maakt daarna af wat ze begon. Hebt u een hele Microsoft 365-organisatie
+    gekoppeld, dan kan een dagelijkse controle die al was begonnen, de lijst van haar mailboxen en
+    distributielijsten nog één keer lezen."*
+  - Privacy §9, *Credentials*, before: *"If you close your account, nothing uses any of it from
+    then on, and all of it is destroyed when your data is erased."* After: *"If you close your
+    account, no new work starts with any of it from then on."*, the same three sentences as
+    terms §11 with *"(§11 of the terms)"* after the last, then *"All of it is destroyed when
+    your data is erased."* NL, before: *"Sluit u uw account, dan gebruikt niets die toegang
+    meer, en wordt alles vernietigd wanneer uw gegevens worden gewist."* After: *"Sluit u uw
+    account, dan begint er geen nieuw werk meer met die toegang."*, the same three sentences as
+    the Dutch terms with *"(§11 van de servicevoorwaarden)"*, then *"Alles wordt vernietigd
+    wanneer uw gegevens worden gewist."*
+  - Alpha conditions §10, before: *"If you close your account, nothing uses any of it from then
+    on, and all of it is destroyed when your data is erased, at the end of the period you
+    chose."* After: as privacy §9, without the cross-reference, ending *"All of it is destroyed
+    when your data is erased, at the end of the period you chose."* NL likewise, ending
+    *"Alles wordt vernietigd wanneer uw gegevens worden gewist, aan het eind van de termijn die
+    u koos."*
+- **L2.2, the Dutch note.** `translationNote` in `site/copy.mjs`, the one place the Dutch
+  privacy and terms pages state it, now says what §13 says: *"Deze vertaling is er voor uw
+  gemak. Bij verschillen is de Engelse versie de tekst die geldt, behalve waar dwingend
+  consumentenrecht anders bepaalt."* Before, it ended at *"de tekst die geldt."* Terms §13 is
+  unchanged in both languages. Seen in the rendered `nl/privacy.html` and `nl/voorwaarden.html`.
+- **L2.3, kept as drafted, no change:** privacy §4.4's *"in which language"* / *"in welke
+  taal"* (and the column `legal_acceptance.language`), and privacy §9's row for a member who
+  leaves.
+- **L3, Alpha conditions §8, under 1.0.** EN: *"…, turn applying deletions or auto-applying
+  relocations on or off, and make somebody an owner."* became *"…, make somebody an owner, and
+  change or remove an owner."* NL: *"…, en iemand eigenaar maken."* became *"…, iemand eigenaar
+  maken, en een eigenaar een andere rol geven of verwijderen."* The code refuses it since #1484
+  (`apps/api/src/routes/tenants/member-guards.ts`). **Why under 1.0, and §10's change with it:**
+  nobody can have accepted 1.0. The only writer of `legal_acceptance` is `POST /api/me/acceptance`
+  (`apps/api/src/routes/me.ts`), which answers 409 `acceptance_not_asked` unless
+  `acceptanceAsked()` (`apps/api/src/conditions-not-accepted.ts:82-86`), which needs no text in
+  `LEGAL_DRAFTS` to be a draft. `git log` on `packages/managed/src/legal-versions.ts` shows one
+  commit before this one, #1360 (`2d3e113a`), the one that made the table and the route, and it
+  set privacy and terms to drafts.
+- **L4, the versions.** *Version* lines: privacy `1.2`, terms `1.3`, Alpha conditions `1.0`, in
+  both languages, no draft words. *Last updated* / *Laatst bijgewerkt*: 2026-10-05 in all six
+  (the Dutch files said 2026-09-29, the English 2026-09-28). **The date moves to the merge day**,
+  and since it is part of the pinned words, the six pins move with it, in this pull request,
+  before it merges. `LEGAL_DRAFTS`: privacy and terms `false`. `ACCEPTED_WORDS` in
+  `scripts/a-version-the-tester-accepted.unit.test.ts`: `alpha.md@1.0` and `alpha.nl.md@1.0`
+  re-pinned, and `privacy.md@1.2`, `privacy.nl.md@1.2`, `terms.md@1.3` and `terms.nl.md@1.3`
+  pinned for the first time. `site/site.unit.test.ts`'s case for the real texts flipped: it held
+  them as drafts (`--public` refused, 4 marked draft) and now holds them as final (`--public`
+  builds, 0 marked draft). The legal README's table and state, `docs/managed-bring-up.md` and
+  `docs/operator-runbook.md` say the same. The briefings and the comments beside §11 and §9 say
+  what changed and why.
+- **Proved, guard first.** On the edited texts, before any pin moved,
+  `a-version-the-tester-accepted` failed 6 of 23 (both Alpha files changed under 1.0; four
+  final texts with no pin), and `site.unit`'s real-texts case failed (the build wrote the site).
+  After the pins and the flip: 23 of 23, and with `scripts/legal-docs.unit.test.ts` and
+  `site/site.unit.test.ts`, 80 of 80. The guard caught a second change too: the pass sentence
+  was reworded after the first pins (it said *"can still begin copying further items"*, which
+  left out a folder listing begun in those fifteen seconds), and a run of the 48 unit files that
+  read these texts, `site/copy.mjs`, `legal-versions.ts` or the two docs had the same 6 red
+  until the six were pinned again; then 48 of 48 files, 1,470 of 1,470 tests. `OWNPACE_APP_URL=
+  https://app.ownpace.eu node site/build.mjs --public --check` printed `[site] 0 legal page(s)
+  marked draft on their version line, or with none` and `[site] 28 pages across 2 locales, 0
+  unfilled placeholder(s)`, exit 0. The rendered `nl/privacy.html` and `nl/voorwaarden.html`
+  carry the new note. `pnpm -s typecheck` clean; ESLint clean on the four changed code files;
+  the workplan, lessons and ADR indexes and the conflict-marker check current. The visible
+  words of each text were compared with `main`'s, outside comments: only the sentences above,
+  the version lines and the dates differ. Not run here: `an-acceptance-with-its-version`, an
+  integration test whose global setup needs a container runtime this machine lacks; it sets
+  `LEGAL_DRAFTS` itself, so this change does not reach it.
+- **Still to do.** **The owner's one check before merge:** the sign-in history on the OTA stack.
+  Remove a test account in Zitadel and see what stays. If the earlier entries go, privacy §4.4
+  and §9 change in this pull request, under 1.2, with the pins. Then the merge after alpha.1 is
+  tagged, and alpha.2 (freeze, two nights, deploy). After the merge the OTA stack runs the Alpha
+  stage and asks for acceptance at sign-in; the next E2E (managed) run is expected to stay
+  green, unverified until it runs. Not changed here and owed the same rewording: the app's own
+  sentence for a closed organisation, *"Nothing is started, and nothing uses the access it
+  gave."* (`packages/shared/src/organisation-closed.ts:51`), the API's answer to
+  `DELETE /api/tenants/:id` (`apps/api/src/routes/tenants/index.ts:444`), and the unpublished
+  DPA's Annex A.
 
 **2026-10-04, latest: §8's admin clause now says less than the code does (0137 T3 (c)).** On
 branch `claude/ownpace-public-readiness-y7orc6-the-owner-guarded-on-every-door`, not merged, only
