@@ -77,6 +77,7 @@ import type { TokenRevoker } from '@openmig/shared';
 import { cutoverBeginRefusal, prepareTransition } from '@openmig/core/cutover-state';
 import { enqueueUnlessHeld } from '../../enqueue-unless-held.ts';
 import { freePaceRefusal } from './free-pace.ts';
+import { recordVisit } from './visits.ts';
 import { refusedAsClosed } from '../../closed-organisation.ts';
 import { refusedUntilAccepted } from '../../conditions-not-accepted.ts';
 import type {
@@ -1887,11 +1888,14 @@ export const UpdateMappingSchema = CreateMappingBase.partial()
   .extend({
     sourceConfig: CreateMappingBase.shape.sourceConfig.partial().optional(),
     targetConfig: CreateMappingBase.shape.targetConfig.partial().optional(),
-    syncConfig: z.object({ schedule: z.string().optional() }).optional(),
+    // A cron, or null for the automatic cadence (workplan 0157 T7): every hour
+    // for 14 days, then every 6 hours, then daily, as the tick reads a
+    // migration with no schedule of its own.
+    syncConfig: z.object({ schedule: z.string().nullable().optional() }).optional(),
   })
   .superRefine((body, ctx) => {
     if (body.sourceConfig) refuseUnreadableExportFormat(ctx, body.sourceConfig);
-    if (body.syncConfig?.schedule !== undefined) refuseUnreadableSchedule(ctx, body.syncConfig.schedule);
+    if (typeof body.syncConfig?.schedule === 'string') refuseUnreadableSchedule(ctx, body.syncConfig.schedule);
     refuseTestersThrottle(ctx, body.throttleConfig);
     // The folder the copies land in, by the parser create and the appliance
     // read it with (0153 open question 5, item 4).
@@ -3634,6 +3638,16 @@ router.post(
         tags: [`tenant:${tenantId}`, `mapping:${mappingId}`],
       });
 
+      // A press is a visit (workplan 0157 T7, `visits.ts`): somebody checking
+      // gets the hour back. After the pass is enqueued and never in its way: a
+      // visit that cannot be recorded is said in the log, and the press is
+      // still the 202 it was.
+      try {
+        await recordVisit(tenantId, mappingId, pool);
+      } catch (err) {
+        log.error(`[sync] mapping ${mappingId}: the pass is enqueued, but the visit could not be recorded:`, err);
+      }
+
       res.status(202).json({
         success: true,
         runId: run.id,
@@ -3652,6 +3666,44 @@ router.post(
     }
   }
 );
+
+/**
+ * POST /api/migrations/:mappingId/visit
+ *
+ * The migration's page was opened (workplan 0157 T7, `visits.ts`): one with no
+ * schedule of its own looks every hour again, for 14 days. The page sends it as
+ * it opens. 204, whether it moved the visit or one within the hour already
+ * stood; 404 for a migration this organisation does not have.
+ */
+router.post('/:mappingId/visit', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { mappingId } = req.params;
+    if (!mappingId || Array.isArray(mappingId)) {
+      res.status(400).json({ error: 'mappingId is required' });
+      return;
+    }
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found in authentication context' });
+      return;
+    }
+    const pool = getSharedPool();
+    const found = await withTenantDb(tenantId, pool, (db) =>
+      db
+        .select({ id: schema.mailboxMapping.id })
+        .from(schema.mailboxMapping)
+        .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId))),
+    );
+    if (found.length === 0) {
+      res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
+      return;
+    }
+    await recordVisit(tenantId, mappingId, pool);
+    res.status(204).end();
+  } catch (error) {
+    serverFault(res, 'visit_failed', 'recording this visit', error);
+  }
+});
 
 /**
  * POST /api/mappings/:mappingId/cutover

@@ -17,7 +17,10 @@
  *     route accepts;
  *  5. each cadence's words say how often it runs, in both languages;
  *  6. it is a fold, closed, in a family's words (0153 T6 (b)), that says the
- *     cadence in force without being opened.
+ *     cadence in force without being opened;
+ *  7. *Automatic* comes first, and is what a migration with no schedule of its
+ *     own runs (workplan 0157 T7): selected for one, and saved as no schedule
+ *     at all.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -75,10 +78,11 @@ describe('what the panel shows first', () => {
     expect(screen.queryByText(/^Now:/)).toBeNull();
   });
 
-  it('says a migration without a schedule runs every 15 minutes, and selects nothing', () => {
+  it('selects Automatic for a migration with no schedule of its own, and none of the others (0157 T7)', () => {
     renderPanel(undefined);
-    expect(screen.getByText(EN['settings.schedule.default'])).toBeInTheDocument();
-    expect(screen.queryAllByRole('button', { pressed: true })).toHaveLength(0);
+    expect(cadence('wizard.schedule.automatic')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryAllByRole('button', { pressed: true })).toHaveLength(1);
+    expect(screen.queryByText(/^Now:/)).toBeNull();
   });
 
   it('names a cadence set outside this page, rather than selecting a guess', () => {
@@ -96,6 +100,20 @@ describe('the press', () => {
     expect(save()).toBeDisabled();
     await userEvent.click(cadence('wizard.schedule.quarterHourly'));
     expect(save()).toBeEnabled();
+  });
+
+  it('is not offered for Automatic on a migration that runs it already', async () => {
+    renderPanel(undefined);
+    await userEvent.click(cadence('wizard.schedule.automatic'));
+    expect(save()).toBeDisabled();
+  });
+
+  it('sends Automatic as no schedule at all, which the tick reads as the automatic cadence (0157 T7)', async () => {
+    renderPanel('0 * * * *');
+    await userEvent.click(cadence('wizard.schedule.automatic'));
+    await userEvent.click(save());
+    expect(setSchedule).toHaveBeenCalledWith('m-1', null);
+    expect(await screen.findByText(EN['settings.schedule.saved'])).toBeInTheDocument();
   });
 
   it('sends the schedule chosen, and says the next pass follows it', async () => {
@@ -143,6 +161,18 @@ describe('what is offered', () => {
     expect(panel).not.toMatch(/labelKey: 'wizard\.schedule\./);
   });
 
+  it('offers Automatic first, before the four (0157 T7)', () => {
+    renderPanel('0 2 * * *');
+    const names = screen
+      .getAllByRole('button', { pressed: false })
+      .concat(screen.getAllByRole('button', { pressed: true }))
+      .filter((b) => b.hasAttribute('aria-pressed'))
+      .map((b) => b.textContent);
+    expect(names).toHaveLength(5);
+    const first = screen.getAllByRole('button').find((b) => b.hasAttribute('aria-pressed'));
+    expect(first!.textContent).toBe(`${EN['wizard.schedule.automatic']}${EN['wizard.schedule.automatic.hint']}`);
+  });
+
   it('is every one a cadence the route accepts', () => {
     for (const preset of SCHEDULE_PRESETS) expect(describeCronScheduleProblem(preset.value), preset.value).toBeNull();
   });
@@ -151,6 +181,19 @@ describe('what is offered', () => {
     // `0 */6 * * *` runs at 00:00, 06:00, 12:00 and 18:00. Its words said six.
     expect(EN['wizard.schedule.sixHourly.hint']).toBe('Four times a day');
     expect(NL['wizard.schedule.sixHourly.hint']).toBe('Vier keer per dag');
+    // Automatic's three steps (0157 T7), and, folded under the panel's hint,
+    // what the days count from and what starts them again, naming the button
+    // as the Migrations page names it.
+    expect(EN['wizard.schedule.automatic.hint']).toBe('Hourly for 14 days, then every 6 hours, daily from day 30.');
+    expect(NL['wizard.schedule.automatic.hint']).toBe('14 dagen elk uur, daarna elke 6 uur, vanaf dag 30 dagelijks.');
+    expect(EN['settings.schedule.hint.why']).toContain(
+      'On Automatic the days count from when everything was copied, or from the last time somebody opened this migration or pressed Trigger sync, whichever is later.',
+    );
+    expect(NL['settings.schedule.hint.why']).toContain(
+      'Bij Automatisch tellen de dagen vanaf het moment dat alles is gekopieerd, of vanaf de laatste keer dat iemand deze migratie opende of op Synchroniseer nu drukte, wat het laatst was.',
+    );
+    expect(EN['settings.schedule.hint.why']).toContain(EN['mappings.action.triggerSync']);
+    expect(NL['settings.schedule.hint.why']).toContain(NL['mappings.action.triggerSync']);
   });
 
   it('says a first copy does not wait for the schedule, in both languages (0156 T5)', () => {
@@ -197,9 +240,9 @@ describe('the fold, in a family’s words (0153 T6 (b))', () => {
     expect(summary()).toBe(`${EN['settings.schedule']} · ${EN['wizard.schedule.hourly']}`);
     unmount();
 
-    // No schedule of its own: the tick's every 15 minutes.
+    // No schedule of its own: the automatic cadence (0157 T7).
     const second = renderPanel(undefined);
-    expect(summary()).toContain(EN['wizard.schedule.quarterHourly']);
+    expect(summary()).toBe(`${EN['settings.schedule']} · ${EN['wizard.schedule.automatic']}`);
     second.unmount();
 
     // A cadence the chooser does not offer: nothing guessed on the fold, and

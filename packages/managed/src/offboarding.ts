@@ -127,6 +127,10 @@ export const PURGED_TABLES = [
   // them on the receipt.
   'person_link',
   'person',
+  // When each migration was last visited (0157 T7, managed migration 0042):
+  // a time keyed to a migration, which goes with it. Before `mailbox_mapping`,
+  // which it references; the key would cascade, and naming it counts it.
+  'migration_visit',
   // Before `mailbox_mapping`: a link references the mapping it opens.
   'mapping_link',
   'mailbox_mapping',

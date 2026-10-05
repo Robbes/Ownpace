@@ -8,8 +8,9 @@
  * a target the reindexer could not see is not a verified target. What it read,
  * though, was not the reindexer. Bring-up seeds the demo DAV source; the
  * smoke's verify half ran thirty-eight seconds later; nothing in between asked
- * for a sync, and a mapping with no schedule of its own runs on the fifteen-
- * minute `DEFAULT_SYNC_SCHEDULE`. So the gate filled a source, waited half a
+ * for a sync, and a mapping with no schedule of its own ran on the fifteen-
+ * minute `DEFAULT_SYNC_SCHEDULE` (since workplan 0157 T7, on the automatic
+ * cadence, every hour at most). So the gate filled a source, waited half a
  * minute, and then held the target to account for not having caught up. Every
  * lane's pass in that run showed `itemsProcessed: 0-1`; `files` passed only
  * because its rows are `adopted`, which is content that predates the run.
