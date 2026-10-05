@@ -372,9 +372,8 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
 ## CI mapping (.github/workflows)
 - `ci.yml` — `detect-changes -> docs-hygiene + fixture-uuid-check + migration-lint + lint +
   unit-tests (parallel) -> integration-tests` (unit-tests stopped waiting for lint on 2026-10-05);
-  on a pull request **`unit-tests-sharded`** also runs the same unit suite split over four hosted
-  runners (`vitest --shard=N/4`), beside `unit-tests` so the two can be compared before one
-  replaces the other; docs-hygiene enforces the root `.md` allowlist and
+  on a pull request `unit-tests` is split over four hosted runners (`vitest --shard=N/4`, about
+  6 minutes instead of 11), and on a push it is one run on the Spark; docs-hygiene enforces the root `.md` allowlist and
   that the canonical docs exist; **`fixture-uuid-check`** enforces unique test-fixture UUIDs
   across the tree (the remediation from `docs/test-fixture-uuid-collision-audit.md` — a colliding
   tenant or mapping UUID pasted into a new test fails CI by name rather than causing cross-test
