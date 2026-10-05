@@ -53,16 +53,15 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { readFileSync, rmSync } from 'node:fs';
 import { createServer, get, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { createRequire } from 'node:module';
-import { createServer as createNetServer } from 'node:net';
-import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { callbackPageHeaders } from '../apps/api/src/routes/migrations/google-consent.ts';
 import { chooseLocation, envsubst, headersFor, parseNginx, type NginxNode } from './nginx-config.ts';
+import { nginxBinary, serveTheTemplate, type AppNginx } from './nginx-on-this-machine.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (path: string): string => readFileSync(join(ROOT, path), 'utf8');
@@ -412,26 +411,6 @@ describe('the image defines what the template names', () => {
 // And the real nginx, where the machine has one
 // ---------------------------------------------------------------------------
 
-/** The nginx binary, on the PATH or where Debian and Ubuntu put it. */
-function nginxBinary(): string | undefined {
-  const onPath = spawnSync('sh', ['-c', 'command -v nginx'], { encoding: 'utf8' });
-  if (onPath.status === 0 && onPath.stdout.trim() !== '') return onPath.stdout.trim();
-  return existsSync('/usr/sbin/nginx') ? '/usr/sbin/nginx' : undefined;
-}
-
-/** A port the OS hands out, so two runs at once do not meet. */
-function aFreePort(): Promise<number> {
-  return new Promise((ok, fail) => {
-    const s = createNetServer();
-    s.once('error', fail);
-    s.listen(0, '127.0.0.1', () => {
-      const a = s.address();
-      const port = typeof a === 'object' && a ? a.port : 0;
-      s.close(() => ok(port));
-    });
-  });
-}
-
 /** One answer: its status and every header line as sent, duplicates kept. */
 interface Answer {
   readonly status: number;
@@ -461,22 +440,11 @@ const NGINX = nginxBinary();
 const CALLBACK_HTML = '<!doctype html><html><body><script>window.close()</script></body></html>';
 
 describe.skipIf(NGINX === undefined)('and the real nginx sends them', () => {
-  let dir = '';
-  let nginx: ChildProcess | undefined;
+  let served: AppNginx | undefined;
   let upstream: Server | undefined;
   let port = 0;
-  let nginxLog = '';
 
   beforeAll(async () => {
-    dir = mkdtempSync(join(tmpdir(), 'ownpace-web-nginx-'));
-    // Readable by nginx's workers, which drop to `nobody` when the test runs as root.
-    chmodSync(dir, 0o755);
-    const html = join(dir, 'html');
-    mkdirSync(join(html, 'assets'), { recursive: true });
-    writeFileSync(join(html, 'index.html'), '<!doctype html><title>app</title><div id="root"></div>\n');
-    writeFileSync(join(html, 'assets', 'index-abc123.js'), 'export {};\n');
-    writeFileSync(join(html, 'version.json'), '{"version":"0.0.0","commit":""}\n');
-
     // The API's place: helmet as the API mounts it, and the consent callback
     // page under the headers the API gives it.
     upstream = createServer((req, res) => {
@@ -494,59 +462,25 @@ describe.skipIf(NGINX === undefined)('and the real nginx sends them', () => {
     await new Promise<void>((done) => upstream!.listen(0, '127.0.0.1', done));
     const a = upstream.address();
     const upstreamPort = typeof a === 'object' && a ? a.port : 0;
-    port = await aFreePort();
 
-    // The template as the image renders it, then pointed at this machine: the
-    // three lines that name the container's own places, each found exactly once.
-    let conf = envsubst(TEMPLATE, { API_UPSTREAM: `127.0.0.1:${upstreamPort}`, [ISSUER]: TEST_ISSUER });
-    for (const [from, to] of [
-      ['listen 80;', `listen 127.0.0.1:${port};`],
-      ['root /usr/share/nginx/html;', `root ${html};`],
-      ['access_log /var/log/nginx/access.log ownpace_combined;', `access_log ${join(dir, 'access.log')} ownpace_combined;`],
-    ] as const) {
-      expect(conf.split(from).length, `the template no longer says \`${from}\` once`).toBe(2);
-      conf = conf.replace(from, to);
-    }
-    nginxLog = join(dir, 'error.log');
-    writeFileSync(
-      join(dir, 'nginx.conf'),
-      [
-        `pid ${join(dir, 'nginx.pid')};`,
-        `error_log ${nginxLog};`,
-        'daemon off;',
-        'events { worker_connections 64; }',
-        'http {',
-        '  types { text/html html; text/javascript js; application/json json; text/css css; }',
-        '  default_type application/octet-stream;',
-        ...['client_body', 'proxy', 'fastcgi', 'uwsgi', 'scgi'].map((t) => `  ${t}_temp_path ${join(dir, t)};`),
-        conf,
-        '}',
-        '',
-      ].join('\n'),
-    );
-    const args = ['-p', dir, '-c', join(dir, 'nginx.conf'), '-e', nginxLog];
-    const check = spawnSync(NGINX!, ['-t', ...args], { encoding: 'utf8' });
-    expect(check.status, `nginx -t refused the rendered template:\n${check.stderr}`).toBe(0);
-    nginx = spawn(NGINX!, args, { stdio: 'ignore' });
-    const until = Date.now() + 10_000;
-    for (;;) {
-      try {
-        await ask(port, '/version.json');
-        break;
-      } catch (err) {
-        if (Date.now() > until) {
-          throw new Error(`nginx did not answer:\n${readFileSync(nginxLog, 'utf8')}`, { cause: err });
-        }
-        await new Promise((r) => setTimeout(r, 50));
-      }
-    }
+    // The template as the image renders it, then pointed at this machine
+    // (`./nginx-on-this-machine.ts`).
+    served = await serveTheTemplate({
+      nginx: NGINX!,
+      template: TEMPLATE,
+      defined: { API_UPSTREAM: `127.0.0.1:${upstreamPort}`, [ISSUER]: TEST_ISSUER },
+      files: {
+        'index.html': '<!doctype html><title>app</title><div id="root"></div>\n',
+        'assets/index-abc123.js': 'export {};\n',
+        'version.json': '{"version":"0.0.0","commit":""}\n',
+      },
+    });
+    port = served.port;
   }, 30_000);
 
   afterAll(async () => {
-    nginx?.kill('SIGQUIT');
-    if (nginx && nginx.exitCode === null) await new Promise((done) => nginx!.once('exit', done));
+    await served?.remove();
     await new Promise<void>((done) => (upstream ? upstream.close(() => done()) : done()));
-    if (dir) rmSync(dir, { recursive: true, force: true });
   });
 
   /** The five, each exactly once and as the template says, on one answer. */
@@ -571,7 +505,7 @@ describe.skipIf(NGINX === undefined)('and the real nginx sends them', () => {
     expect(found.status).toBe(200);
     expectTheFive(found, '/version.json');
     expect(found.all('cache-control')).toEqual(['no-cache']);
-    rmSync(join(dir, 'html', 'version.json'));
+    rmSync(join(served!.html, 'version.json'));
     const missing = await ask(port, '/version.json');
     expect(missing.status).toBe(404);
     expectTheFive(missing, '/version.json missing');

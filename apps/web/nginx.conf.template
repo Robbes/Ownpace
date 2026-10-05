@@ -66,6 +66,43 @@ server {
   root /usr/share/nginx/html;
   access_log /var/log/nginx/access.log ownpace_combined;
 
+  # THE ERROR LOG, CRITICAL ERRORS ONLY (the owner, 2026-10-05: "critical
+  # errors only"; workplan 0108). Each line nginx writes there ends with the
+  # raw request line, the upstream's address with the path, and the Referer,
+  # and nothing here can rewrite them. At the image's own level, notice, a
+  # grant or view link was written whole whenever the API's name did not
+  # resolve or the API refused the connection (stopped or restarting), on a
+  # timeout or a premature close, on a body above 8 MB or one nginx kept on
+  # disk, and when a page could not be served. Each still shows in the access
+  # log above, with its status and `:link`. Why, nginx no longer says. The
+  # API's own log says why only when the API itself failed. A 413 is nginx's
+  # own refusal, made before the API saw the request. When nginx refuses the
+  # API's answer (a 502) or the answer is cut short (logged as a 200), the API's
+  # log shows the 200 it sent. And when this container cannot reach a healthy
+  # API, no log says why (docs/incident-runbook.md, the API row).
+  #
+  # What crit still writes is written whole: a file nginx cannot read for a
+  # reason other than its absence, a full disk, no memory, no file
+  # descriptors or connections left (an alert). Each is the machine failing,
+  # and somebody must see it. But a visitor without a credential can bring
+  # some of them about, by overloading nginx or by filling its disk with
+  # request bodies. The line then names whichever request met the failure,
+  # possibly another visitor's, with its link. Only `emerg` would keep those
+  # out, and it would hide the failures with them (0108, Known gaps).
+  #
+  # In the server, not at the image's main level, which stays at notice: a
+  # connection logs through its listening socket's log, which is this server's
+  # (the default one), and a request through this server's. What reaches the
+  # main level is nginx's own: starting, stopping, signals, a worker's exit, a
+  # config it refuses, and the resolver's own errors, which name the resolver
+  # and no request. `stderr`, not `/dev/stderr`: nginx writes to its standard
+  # error without opening it, and opening it fails where it is a socket, as
+  # under a test runner. In the container both are Docker's pipe, where the
+  # image already sends its error log.
+  # scripts/an-error-log-that-kept-the-link.unit.test.ts runs this on a real
+  # nginx.
+  error_log stderr crit;
+
   # Docker's embedded DNS, re-resolved so an api-container restart cannot
   # leave this process holding a stale IP.
   resolver 127.0.0.11 valid=10s ipv6=off;
