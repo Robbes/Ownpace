@@ -773,6 +773,49 @@ JW="$(docker exec "$API_CONTAINER" printenv JWT_SECRET)" || {
 }
 echo "preflights OK (API up, db reachable, jsonwebtoken present, secret read)"
 
+# WHAT A BROWSER MAY DO WITH THE APP, AS THE IMAGE SENDS IT (workplan 0158).
+# `scripts/what-a-browser-may-do-with-the-app.unit.test.ts` reads the template
+# and runs it on whatever nginx the test machine has. This is the one place the
+# image's own nginx answers: each page carries one policy, the app's, naming
+# the stack's issuer, and the four headers beside it; /api/ carries one policy,
+# the API's, and not a second from nginx.
+note "what a browser may do with the app (0158)"
+app_headers_ok=1
+for path in / /grant/not-a-link /version.json; do
+  h="$(curl -sS -o /dev/null -D - --max-time 15 "${WEB}${path}" 2>/dev/null || true)"
+  h="${h//$'\r'/}"
+  policies="$(grep -ci '^content-security-policy:' <<<"$h" || true)"
+  policy="$(grep -i '^content-security-policy:' <<<"$h" || true)"
+  missing=""
+  [ "$policies" = "1" ] || missing="${missing} one-policy(${policies})"
+  grep -qiF "content-security-policy: default-src 'none'; script-src 'self'; style-src 'self';" <<<"$policy" \
+    || missing="${missing} the-app's-policy"
+  if [ -n "${STACK_ISSUER:-}" ]; then
+    grep -qF "connect-src 'self' ${STACK_ISSUER%/}" <<<"$policy" || missing="${missing} the-issuer-in-connect-src"
+  fi
+  for line in 'strict-transport-security: max-age=31536000; includeSubDomains' \
+    'x-content-type-options: nosniff' 'x-frame-options: DENY' 'referrer-policy: no-referrer'; do
+    [ "$(grep -ci "^${line%%:*}:" <<<"$h" || true)" = "1" ] && grep -qixF "$line" <<<"$h" \
+      || missing="${missing} ${line%%:*}"
+  done
+  if [ -n "$missing" ]; then
+    echo "the app at ${WEB}${path} is served without:${missing}"
+    echo "    $(grep -i '^HTTP/\|^content-security-policy\|^strict-transport\|^x-frame\|^x-content\|^referrer' <<<"$h" | paste -sd '|' -)"
+    app_headers_ok=0
+  fi
+done
+api_policies="$(curl -sS -o /dev/null -D - --max-time 15 "${WEB}/api/health" 2>/dev/null || true)"
+api_policies="$(grep -ci '^content-security-policy:' <<<"${api_policies//$'\r'/}" || true)"
+if [ "$api_policies" != "1" ]; then
+  echo "${WEB}/api/health carries ${api_policies} policies; the API's alone is one, and nginx adds none to /api/"
+  app_headers_ok=0
+fi
+if [ "$app_headers_ok" = "1" ]; then
+  echo "the app's pages carry its policy and the four headers, and /api/ the API's policy alone"
+else
+  fail_at "the app's headers"
+fi
+
 # ---------- the two services nothing else speaks for (0084) ----------
 #
 # `minio` and `trigger-tls` are the last two of the original seven that are
