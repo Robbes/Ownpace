@@ -1442,7 +1442,10 @@ describe('--rotate', () => {
       // What it says: trigger-db changed, trigger-api has to be recreated, and the record.
       expect(r.stdout).toContain('TRIGGER_DB_PASSWORD');
       expect(r.stdout).toMatch(/trigger-db's trigger accepts its new value/);
-      expect(r.stdout).toMatch(/trigger-api/);
+      // Both warnings about trigger-api's window: the one the owner agrees to by
+      // typing the name, and the one the run ends on.
+      expect(r.stdout).toContain(', nor trigger-api to its own.');
+      expect(r.stdout).toMatch(/a trigger-api that restarts before then fails at its migration/);
       expect(r.stdout).toContain("trigger-db's with them");
 
       // And the check, run after the gate has recreated the containers, exits 0.
@@ -2133,7 +2136,7 @@ describe('the small fixes beside it', () => {
     const row = (mode: string) => steps.split('\n').find((l) => l.startsWith(`| \`${mode}`)) ?? '';
     expect(row('--rotate'), 'the --rotate row').toContain('`TRIGGER_DB_PASSWORD`');
     expect(row('--check'), 'the --check row').toMatch(/`trigger-db`[^|]*counted like the others/);
-    expect(row('--sync'), 'the --sync row').toMatch(/--with-trigger-stores[^|]*`trigger-db`/);
+    expect(row('--sync'), 'the --sync row').toMatch(/^\| `--sync \[--with-trigger-stores\]` \|[^|]*--with-trigger-stores[^|]*`trigger-db`/);
     expect(steps).toContain('--sync --with-trigger-stores');
     expect(steps, 'the old wording').not.toMatch(/uncounted|waiting for the code that rotates it|T2's next step|Both controls/);
     // The owner's checkout is pulled by hand, and an older script changes the
