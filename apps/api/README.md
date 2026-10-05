@@ -113,7 +113,7 @@ GET|PATCH /api/migrations/:id/apply-deletions        # the destructive-path flag
 POST     /api/migrations/:id/finish
 
 # Billing
-POST /api/billing/invoices/generate
+POST /api/billing/invoices/:id/pay  # an issued invoice only (0111 slice 3)
 POST /api/billing/webhooks/mollie    # the only webhook the API serves
 ```
 

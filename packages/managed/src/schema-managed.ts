@@ -128,7 +128,8 @@ export const invoice = pgTable(
   (t) => [
     index('ix_invoice_tenant').on(t.tenantId, t.periodStart),
     index('ix_invoice_status').on(t.status, t.periodStart),
-    uniqueIndex('uk_invoice_tenant_period').on(t.tenantId, t.periodStart),
+    // No (tenant_id, period_start) key since managed 0046: invoiced in
+    // advance, a month has one invoice per step up. The reference is the key.
   ],
 );
 

@@ -66,9 +66,9 @@ beforeEach(async () => {
     await conn.query(`INSERT INTO tenant (id, name, status) VALUES ($1,'A','active')`, [
       TENANT_A,
     ]);
-    // One invoice per status the cases need; distinct periods for the
-    // (tenant, period_start) unique index. INSERT is untouched by 0014 —
-    // only UPDATE carries the machine.
+    // One invoice per status the cases need. INSERT is untouched by 0014's
+    // status machine — only UPDATE carries it; 0045 refuses only a number at
+    // birth.
     // The draft carries our reference, as every row the month task makes
     // will (0045); the sent and paid rows are the retired generator's kind,
     // issued without a number or a reference, which 0045 leaves standing.
@@ -288,6 +288,24 @@ describe('the refusals', () => {
           [TENANT_A],
         ),
       ).rejects.toThrow(/born without Moneybird's number/);
+    } finally {
+      conn.release();
+    }
+  });
+
+  it('a month may have more than one invoice, one per reference (0046: invoiced in advance)', async () => {
+    const conn = await driver.acquire();
+    try {
+      await conn.query(
+        `INSERT INTO invoice (tenant_id, period_start, period_end, reference)
+         VALUES ($1, '2026-01-01', '2026-01-31', 'ownpace-a-m-2026-01-medium')`,
+        [TENANT_A],
+      );
+      const { rows } = await conn.query<{ n: number }>(
+        `SELECT COUNT(*)::int AS n FROM invoice WHERE tenant_id = $1 AND period_start = '2026-01-01'`,
+        [TENANT_A],
+      );
+      expect(rows[0]!.n).toBe(2);
     } finally {
       conn.release();
     }
