@@ -863,9 +863,12 @@ jobs:
   # assigning GitHub-hosted runners", a job no runner picked up was given up
   # after fifteen minutes, and `needs` reported it as `abandoned`: a value
   # GitHub's documentation for `needs.<job_id>.result` does not list. The step
-  # was skipped and this job reported SUCCESS over runs in which lint and the
-  # unit tests never ran (37364709044, 37371577511, 37373154965, and the re-run
-  # 37366193208/2) — and this is the check `main` requires.
+  # was skipped and this job reported SUCCESS over four runs, on three pull
+  # requests, in which gates that should have run never did: lint and some or
+  # all of the unit-test shards in 37364709044/1, 37371577511/1 and the re-run
+  # 37366193208/2; and in 37373154965/1, `detect-changes` and
+  # `commit-convention`, with everything `detect-changes` gates then skipped
+  # as if the change were docs-only — and this is the check `main` requires.
   #
   # So the rule is turned around. SHOULD_RUN below says, for each job in
   # `needs`, whether it should have run — written as that job's OWN condition,
@@ -874,8 +877,11 @@ jobs:
   # a job that had no reason to run ended in anything but `skipped` or
   # `success`. Whatever GitHub calls a job that never ran, it is not `success`.
   # `detect-changes` is always expected: when it does not succeed its outputs
-  # are empty, everything it gates is skipped for the wrong reason, and that is
-  # caught by `detect-changes` itself.
+  # cannot be trusted (they are missing when it never ran), everything it
+  # gates is skipped for the wrong reason, and that is caught by
+  # `detect-changes` itself. When it DOES succeed, its outputs must say "true"
+  # or "false" — anything else would skip the same gates for the same wrong
+  # reason, with every result agreeing.
   #
   # Held by scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts,
   # which RUNS these steps against the recorded runs of that evening (must
@@ -945,7 +951,16 @@ jobs:
 
       # No `if:`. A step that decides must not be one GitHub can skip: it runs
       # every time, and anything that is not `success` where `success` was
-      # owed fails it — whatever GitHub calls it.
+      # owed fails it — whatever GitHub calls it. And no `continue-on-error`,
+      # in any form: it would turn this step's `exit 1` into the job's success.
+      #
+      # When `detect-changes` succeeded, each of its outputs must say exactly
+      # "true" or "false". SHOULD_RUN's `== 'true'` reads anything else —
+      # missing, empty — as "nothing changed", and so does every gated job's
+      # own `if:`: an output whose `steps.<id>` stopped naming its step would
+      # skip lint and every test for ever, and both sides would agree. Add an
+      # output to `detect-changes` and it goes in the list below, or the guard
+      # is red.
       - name: Fail unless every gate that should have run passed
         run: |
           set -euo pipefail
@@ -958,6 +973,11 @@ jobs:
                 | "\(.): SHOULD_RUN names a job ci-complete does not need" ),
               ( $should | to_entries[] | select(.value | type != "boolean")
                 | "\(.key): SHOULD_RUN says \(.value | tojson), which is neither true nor false" ),
+              ( $results["detect-changes"] | select(.result == "success") | .outputs as $said
+                | ("any_changed", "migrations_changed") as $output
+                | ($said[$output]) as $value
+                | select($value != "true" and $value != "false")
+                | "detect-changes: succeeded, and said \(if $value == null then "nothing" else ($value | tojson) end) for \($output) — SHOULD_RUN reads only \"true\" or \"false\", so every gate it decides was judged on nothing" ),
               ( $results | to_entries[]
                 | .key as $job | (.value.result | tojson) as $got
                 | if $should[$job] == true then

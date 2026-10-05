@@ -443,15 +443,21 @@ its `needs`, `SHOULD_RUN` in `ci.yml` states whether that job should have run fo
 this change — the job's own `if:`, and for a job with none, the line of what it needs. A job that
 should have run must end in `success`; a job that had no reason to run must end in `skipped` (or
 `success`); anything else fails the run, whatever GitHub calls it. `detect-changes` is always
-expected, because when it does not succeed everything it gates is skipped for the wrong reason.
-So a docs-only change, where `detect-changes` succeeded and said nothing gated changed, passes
-with the test jobs skipped and named in the summary, and so does a push, where
-`commit-convention` does not run. Until 2026-10-05 the rule was a list of failure words —
-`failure` or `cancelled` — and during GitHub's incident "delays in assigning GitHub-hosted
-runners" that evening a job no runner picked up reached `ci-complete` as **`abandoned`**, a value
-GitHub's documentation for `needs.<job_id>.result` does not list; the failing step was skipped and
-four pull requests showed green with lint and the unit tests never run. Changing a job's `if:` or
-`needs:`, or adding a job, means changing its line in `SHOULD_RUN` in the same commit:
+expected, because when it does not succeed everything it gates is skipped for the wrong reason;
+and when it does succeed, each of its outputs (`any_changed`, `migrations_changed`) must say
+exactly `true` or `false`, because a missing or empty one reads as "nothing changed" to
+`SHOULD_RUN` and to every gated job's own `if:` alike. So a docs-only change, where
+`detect-changes` succeeded and said `false`, passes with the test jobs skipped and named in the
+summary, and so does a push, where `commit-convention` does not run. Until 2026-10-05 the rule
+was a list of failure words — `failure` or `cancelled` — and during GitHub's incident "delays in
+assigning GitHub-hosted runners" that evening a job no runner picked up reached `ci-complete` as
+**`abandoned`**, a value GitHub's documentation for `needs.<job_id>.result` does not list; the
+failing step was skipped and four runs, on three pull requests, showed green with gates that
+should have run never run — lint and some or all of the unit-test shards in three of them,
+`detect-changes` and `commit-convention` in the fourth. `ci-complete` carries no
+`continue-on-error` and its deciding step no `if:`, and a guard refuses either. Changing a job's
+`if:` or `needs:`, adding a job, or adding an output to `detect-changes` means changing
+`ci-complete` in the same commit:
 `scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts` runs `ci-complete`'s steps
 against the runs recorded that evening, recorded green runs, and every event and change, and goes
 red when the two disagree.

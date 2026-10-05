@@ -88,10 +88,13 @@
  *                    everything below it SKIPPED, as a docs-only change would
  *     37366193208/2  a re-run of failed jobs; lint, unit-tests abandoned
  *
- * `ci-complete` is the required check on `main`, so each of those pull
- * requests showed as mergeable with lint and the unit tests never run. Run
- * 37373278333/1, cancelled by a newer push to its branch, was red as it
- * should have been — `cancelled` was a value the step knew.
+ * `ci-complete` is the required check on `main`, so those four runs, on
+ * three pull requests, showed as mergeable with gates that should have run
+ * never run: lint and some or all of the unit-test shards in three of them,
+ * `detect-changes` and `commit-convention` in the fourth (a docs-only change,
+ * so nothing below `detect-changes` was owed). Run 37373278333/1, cancelled
+ * by a newer push to its branch, was red as it should have been —
+ * `cancelled` was a value the step knew.
  *
  * The rule was written as a list of the ways to fail, and GitHub found
  * another. AGENTS.md hard rule 9's "skipped is not passed" was honoured in the
@@ -115,7 +118,15 @@
  *  - every combination of event and `detect-changes` output, with every job
  *    doing exactly what its own `if:` asks, which must PASS; and with any one
  *    job that should have run reporting anything but `success`, or one that
- *    had no reason to run reporting anything but `skipped`, which must FAIL.
+ *    had no reason to run reporting anything but `skipped`, which must FAIL;
+ *  - a `detect-changes` that succeeded and said neither `'true'` nor `'false'`
+ *    for an output — missing, empty, or another word — which must FAIL
+ *    however the other jobs ended: every gated `if:` reads it as "nothing
+ *    changed", so the results alone would all agree (review, 2026-10-05).
+ *
+ * It honours `continue-on-error` the way GitHub does, an expression
+ * included, rather than reading only a literal `true`; ci-complete-covers-
+ * every-job.unit.test.ts refuses the key on that job altogether.
  *
  * So adding a job, or changing a job's condition, without telling
  * `ci-complete` goes red here: the model says what the job now does, and
@@ -136,6 +147,7 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const WORKFLOWS = join(REPO_ROOT, '.github/workflows');
 
 interface Step {
+  readonly id?: string;
   readonly name?: string;
   readonly if?: unknown;
   readonly run?: string;
@@ -151,6 +163,7 @@ interface Job {
   readonly outputs?: Readonly<Record<string, unknown>>;
   readonly env?: Readonly<Record<string, unknown>>;
   readonly steps?: ReadonlyArray<Step>;
+  readonly 'continue-on-error'?: unknown;
 }
 
 interface Workflow {
@@ -523,8 +536,10 @@ interface Scenario {
  * The events are the workflow's own `on:` keys. The outputs are every output
  * a gate declares, each `'true'` or `'false'`: today that is
  * `detect-changes`' two `any_changed` flags, which tj-actions/changed-files
- * sets to exactly those two strings. An output that could carry anything else
- * would need its values named here.
+ * sets to exactly those two strings. These are the runs that can legitimately
+ * pass; a successful gate saying anything else is NOT_A_FLAG below, and must
+ * fail whatever the jobs it decides did — which is why a job's `if:` and its
+ * SHOULD_RUN line are compared only on these two values.
  */
 function scenarios(): ReadonlyArray<Scenario> {
   let all: Scenario[] = Object.keys(workflow.on ?? {}).map((event) => ({ event, outputs: {} }));
@@ -607,6 +622,13 @@ interface Verdict {
  * non-zero. A `uses:` step cannot be run here and is refused.
  */
 function runCiComplete(event: string, needs: Readonly<Record<string, NeedResult>>): Verdict {
+  if (aggregator!['continue-on-error'] !== undefined) {
+    throw new Error(
+      `${AGGREGATOR} sets continue-on-error on the JOB. What GitHub then reports for the check ` +
+        'branch protection reads is not something this guard models, and nothing legitimate ' +
+        'needs it on the job that decides; remove it.',
+    );
+  }
   let failed = false;
   let ran = 0;
   const log: string[] = [];
@@ -649,9 +671,35 @@ function runCiComplete(event: string, needs: Readonly<Record<string, NeedResult>
     });
     ran += 1;
     log.push(`[${label}] exit ${r.status ?? r.signal}\n${r.stdout}${r.stderr}`);
-    if (r.status !== 0 && step['continue-on-error'] !== true) failed = true;
+    // `continue-on-error` turns a step's failure into the job's success, so it
+    // is read the way GitHub reads it — an expression included — and anything
+    // else is refused. Reading only a literal `true` let `${{ ... }}` through
+    // as "not set" while GitHub swallowed the exit (review of 2026-10-05).
+    if (r.status !== 0 && !continuesOnError(step, label, ctx)) failed = true;
   }
   return { failed, ran, log: log.join('\n') };
+}
+
+/** Whether GitHub would carry on past this step's failure. Fails closed on a value it cannot read. */
+function continuesOnError(step: Step, label: string, ctx: ExpressionContext): boolean {
+  const flag = step['continue-on-error'];
+  if (flag === undefined) return false;
+  if (typeof flag === 'boolean') return flag;
+  if (typeof flag === 'string') {
+    try {
+      return truthy(evaluate(flag, ctx));
+    } catch (e) {
+      throw new Error(
+        `cannot read the continue-on-error of ${AGGREGATOR}'s step "${label}" (\`${flag}\`): ` +
+          `${(e as Error).message}`,
+        { cause: e },
+      );
+    }
+  }
+  throw new Error(
+    `${AGGREGATOR}'s step "${label}" has continue-on-error ${JSON.stringify(flag)}, which is ` +
+      'neither a boolean nor an expression',
+  );
 }
 
 /** A gate's result as a run's `ci-complete` log printed it; outputs only where there were any. */
@@ -793,6 +841,24 @@ const MUST_PASS: ReadonlyArray<Recorded> = [
     },
   },
   {
+    run: '37371577511/2',
+    event: 'pull_request',
+    what:
+      'a re-run of failed jobs, every gate green; detect-changes and its outputs were carried ' +
+      'over from attempt 1 (it started 20:44:24, the attempt at 21:23), and judged as if fresh',
+    needs: {
+      'detect-changes': ['success', changed('true', 'false')],
+      'commit-convention': 'success',
+      'docs-hygiene': 'success',
+      'fixture-uuid-check': 'success',
+      'migration-lint': 'skipped',
+      lint: 'success',
+      'unit-tests': 'success',
+      'ui-tests': 'success',
+      'integration-tests': 'success',
+    },
+  },
+  {
     run: '37306264122/1',
     event: 'pull_request',
     what: 'a pull request that changed ci.yml, so migration-lint ran too',
@@ -877,6 +943,15 @@ function asToday(r: Recorded): Record<string, NeedResult> {
  * does not matter.
  */
 const NOT_SUCCESS = ['skipped', 'cancelled', 'failure', 'abandoned', '', 'a-result-github-has-not-invented-yet'];
+
+/**
+ * What a gate that SUCCEEDED might hand over where an output should say
+ * `'true'` or `'false'`: nothing (`undefined` here: the output is missing from
+ * `needs` altogether), an empty string, and a word nobody wrote. An output
+ * whose step id was mistyped renders empty, and ci.yml cannot tell which of
+ * the first two GitHub then hands over, so both are tried.
+ */
+const NOT_A_FLAG: ReadonlyArray<string | undefined> = [undefined, '', 'yes'];
 
 describe('a gate that never ran is not passed', () => {
   const all = scenarios();
@@ -986,5 +1061,88 @@ describe('a gate that never ran is not passed', () => {
     );
     expect(tried.size, 'no gate is ever skipped by its own condition — the conditions were not read').toBeGreaterThan(0);
     expect(passed, `${AGGREGATOR} reports success over a result nothing explains`).toEqual([]);
+  });
+
+  /**
+   * The hole the review of 2026-10-05 found: every test above feeds a
+   * successful `detect-changes` only `'true'` or `'false'`. One that succeeds
+   * and says NEITHER — an output whose `steps.<id>` no longer names its step
+   * renders empty — reads as "nothing changed": lint, unit-tests, ui-tests,
+   * integration-tests and migration-lint are all skipped by their own `if:`,
+   * and a `ci-complete` that only compares results with its expectation
+   * agrees with them. The pull request that broke the mapping goes green with
+   * no gate run, and so does every one after it.
+   *
+   * So a gate whose outputs decide what runs must, when it succeeded, have
+   * said `'true'` or `'false'` for each of them. Two shapes are tried for
+   * every scenario, output and wrong value: every gate doing what its own
+   * `if:` makes of that value (what GitHub would actually do), and every gate
+   * having succeeded — the shape in which `ci-complete` can only fail by
+   * reading the outputs themselves.
+   */
+  it('FAILS when a gate that decides what runs succeeded without saying true or false', { timeout: 60_000 }, () => {
+    const deciding = GATES.flatMap((g) => Object.keys(jobs[g]?.outputs ?? {}).map((o) => [g, o] as const));
+    expect(
+      deciding.map(([g, o]) => `${g}.${o}`),
+      'no gate declares the outputs that decide which gates run — check the path',
+    ).toEqual(expect.arrayContaining(['detect-changes.any_changed', 'detect-changes.migrations_changed']));
+
+    const passed: string[] = [];
+    for (const s of all) {
+      for (const [gate, output] of deciding) {
+        for (const value of NOT_A_FLAG) {
+          const said: Record<string, string> = { ...s.outputs[gate] };
+          if (value === undefined) delete said[output];
+          else said[output] = value;
+          const bad: Scenario = { event: s.event, outputs: { ...s.outputs, [gate]: said } };
+          const shapes: ReadonlyArray<readonly [string, Record<string, NeedResult>]> = [
+            ['every gate as its own `if:` reads that', asDefined(bad)],
+            [
+              'every gate succeeded',
+              Object.fromEntries(GATES.map((g) => [g, { result: 'success', outputs: bad.outputs[g] ?? {} }])),
+            ],
+          ];
+          for (const [shape, needs] of shapes) {
+            if (needs[gate]!.result !== 'success') continue;
+            const v = runCiComplete(s.event, needs);
+            if (!v.failed) {
+              const what = value === undefined ? 'missing' : JSON.stringify(value);
+              passed.push(`${describeScenario(bad)}, ${gate}.${output} ${what}, ${shape}`);
+            }
+          }
+        }
+      }
+    }
+    expect(
+      passed,
+      `${AGGREGATOR} reports success although a gate that decides what runs succeeded without ` +
+        "saying 'true' or 'false' — every gate it decides was judged on nothing. When it " +
+        "succeeded, require each of its outputs to be exactly 'true' or 'false'.",
+    ).toEqual([]);
+  });
+
+  it('reads every output that decides what runs from a step its job has', () => {
+    // The same hole from the other end, for an earlier and plainer signal:
+    // `any_changed: ${{ steps.filtr.outputs.any_changed }}` is valid YAML and a
+    // valid expression, and it renders empty for ever. The test above makes
+    // `ci-complete` refuse that on GitHub; this one refuses it here.
+    const wrong = GATES.flatMap((g) =>
+      Object.entries(jobs[g]?.outputs ?? {}).flatMap(([name, expression]) => {
+        const m = /^\s*\$\{\{\s*steps\.([A-Za-z_][A-Za-z0-9_-]*)\.outputs\.[A-Za-z_][A-Za-z0-9_-]*\s*\}\}\s*$/.exec(
+          String(expression),
+        );
+        if (!m) {
+          return [
+            `${g}.outputs.${name} is \`${String(expression)}\`, which is not one step's output — ` +
+              'this guard reads only that shape',
+          ];
+        }
+        const ids = (jobs[g]?.steps ?? []).flatMap((st) => (st.id === undefined ? [] : [st.id]));
+        return ids.includes(m[1]!)
+          ? []
+          : [`${g}.outputs.${name} reads steps.${m[1]}, and ${g} has no step with that id (it has ${ids.join(', ')})`];
+      }),
+    );
+    expect(wrong, 'an output that names no step renders empty on every run').toEqual([]);
   });
 });
