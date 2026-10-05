@@ -26,7 +26,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AxiosError, AxiosHeaders } from 'axios';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, matchPath, matchRoutes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useAuthStore } from '../stores/auth-store.ts';
@@ -88,6 +88,32 @@ describe('the page a report records', () => {
     expect(reportablePage('/view/abc.secret')).toBe('/view/:link');
     expect(reportablePage('/mappings/1/failures?code=x')).toBe('/mappings/1/failures?...');
     expect(reportablePage('/mappings/1/failures')).toBe('/mappings/1/failures');
+  });
+
+  // The router opens `/GRANT/<link>` as the grant page: it matches without
+  // regard to case. So the page is recorded the same way in any case
+  // (2026-10-05). The route keeps its own case; only the link goes.
+  it('keeps no link secret whatever the case of the route', () => {
+    // The premise: the router's default, which `AppRoutes.tsx` keeps.
+    expect(matchPath('/grant/:link', '/GRANT/Zq9-CASE-MARK')?.params.link).toBe('Zq9-CASE-MARK');
+    expect(reportablePage('/GRANT/Zq9-CASE-MARK')).toBe('/GRANT/:link');
+    expect(reportablePage('/Grant/Zq9-CASE-MARK/google')).toBe('/Grant/:link/google');
+    expect(reportablePage('/View/Zq9-CASE-MARK?x=1')).toBe('/View/:link?...');
+    expect(reportablePage('/API/GRANT/Zq9-CASE-MARK/x')).toBe('/API/GRANT/:link/x');
+    expect(reportablePage('/Api/View/Zq9-CASE-MARK')).toBe('/Api/View/:link');
+    expect(reportablePage('/GRANTS/abc')).toBe('/GRANTS/abc');
+  });
+
+  // The router decodes a percent escape before it matches, so `/%67rant/<link>`
+  // opens the grant page too. The route is recorded as it was written.
+  it('keeps no link secret when a route word is written with escapes', () => {
+    // The premise: what the router opens for such a path.
+    const opened = matchRoutes([{ path: '/grant/:link' }, { path: '/view/:link' }], '/%67rant/Zq9-ENC-MARK');
+    expect(opened?.[0]?.params.link).toBe('Zq9-ENC-MARK');
+    expect(reportablePage('/%67rant/Zq9-ENC-MARK')).toBe('/%67rant/:link');
+    expect(reportablePage('/gr%61nt/Zq9-ENC-MARK/google')).toBe('/gr%61nt/:link/google');
+    expect(reportablePage('/%56IEW/Zq9-ENC-MARK?x=1')).toBe('/%56IEW/:link?...');
+    expect(reportablePage('/%2567rant/abc')).toBe('/%2567rant/abc');
   });
 });
 

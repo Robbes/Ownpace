@@ -17,6 +17,25 @@
  * input below. The template was also run on a real nginx (1.24, `nginx -t` and
  * live requests) when it was written; that is in the pull request, and this is
  * what keeps it true afterwards.
+ *
+ * AND IN ANY CASE (2026-10-05, found by the review of #1495). Every pattern
+ * knew `grant`, `view` and `api` in lower case only. But the API routes
+ * without regard to case (Express's default), the web app's router opens
+ * `/GRANT/<link>` as the grant page, and nginx serves that page for any path.
+ * So `/API/GRANT/<link>/x`, `/GRANT/<link>` and a Referer of
+ * `https://host/Grant/<link>` were written with the link in full, by both logs
+ * and by the problem report's page. The link maps are now `~*`, nginx's
+ * caseless match, and this reads that operator and evaluates them as nginx
+ * does. The scheme rule stays as it was: a Referer whose scheme is not in
+ * lower case was never taken for a URL, by either log, and is written "-".
+ * The problem report's page (`reportablePage`, in
+ * `apps/web/src/services/problem-report-service.ts`) is held to the API's
+ * answer here too.
+ *
+ * AND IN ANY SPELLING (found by the review of that change). The web app's
+ * router decodes a percent escape before it matches, so `/%67rant/<link>`
+ * opens the grant page as well. nginx writes `$request_uri` as it came, so
+ * each letter of a route word may be its escape, and every pattern reads it so.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -24,6 +43,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loggableReferrer, loggableUrl } from '../apps/api/src/access-log.ts';
+import { reportablePage } from '../apps/web/src/services/problem-report-service.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TEMPLATE = readFileSync(join(REPO_ROOT, 'apps/web/nginx.conf.template'), 'utf8');
@@ -32,7 +52,12 @@ interface NginxMap {
   readonly source: string;
   readonly target: string;
   readonly exact: ReadonlyMap<string, string>;
-  readonly regexes: ReadonlyArray<{ readonly pattern: RegExp; readonly value: string }>;
+  readonly regexes: ReadonlyArray<{
+    readonly pattern: RegExp;
+    readonly value: string;
+    /** `~*`: nginx matches it without regard to case. */
+    readonly caseless: boolean;
+  }>;
   readonly fallback: string;
 }
 
@@ -47,7 +72,7 @@ function mapsOf(conf: string): NginxMap[] {
   // holds braces too.
   for (const block of conf.matchAll(/^map\s+\$(\w+)\s+\$(\w+)\s*\{\n([\s\S]*?)\n\}/gm)) {
     const exact = new Map<string, string>();
-    const regexes: Array<{ pattern: RegExp; value: string }> = [];
+    const regexes: Array<{ pattern: RegExp; value: string; caseless: boolean }> = [];
     let fallback = '';
     const lines = block[3]!.split('\n').map((l) => l.trim());
     for (const line of lines.filter((l) => l !== '' && !l.startsWith('#'))) {
@@ -56,8 +81,8 @@ function mapsOf(conf: string): NginxMap[] {
       const key = unquote(entry![1]!);
       const value = unquote(entry![2]!);
       if (entry![1] === 'default') fallback = value;
-      else if (key.startsWith('~*')) regexes.push({ pattern: new RegExp(key.slice(2), 'i'), value });
-      else if (key.startsWith('~')) regexes.push({ pattern: new RegExp(key.slice(1)), value });
+      else if (key.startsWith('~*')) regexes.push({ pattern: new RegExp(key.slice(2), 'i'), value, caseless: true });
+      else if (key.startsWith('~')) regexes.push({ pattern: new RegExp(key.slice(1)), value, caseless: false });
       else exact.set(key, value);
     }
     out.push({ source: block[1]!, target: block[2]!, exact, regexes, fallback });
@@ -115,6 +140,29 @@ const REQUESTS = [
   '/grant/',
   '/',
   '/assets/index.js',
+  // The route words in any case: Express and the web app's router both match
+  // them so.
+  '/GRANT/q7Rk-link',
+  '/Grant/q7Rk-link?from=mail',
+  '/View/v13w-link',
+  '/API/GRANT/q7Rk-link/x',
+  '/Api/View/v13w-link',
+  '/api/Grant/q7Rk-link/google/authorize',
+  '/API/GRANTS/abc',
+  // A route word with escapes: the web app's router decodes them and opens
+  // the page. Every letter's escape, in lower and in upper case.
+  '/%67rant/q7Rk-link',
+  '/gr%61nt/q7Rk-link/x?y=1',
+  '/%47RANT/q7Rk-link',
+  '/%76iew/v13w-link',
+  '/api/%67rant/q7Rk-link/google/authorize',
+  '/%61%70%69/%67%72%61%6e%74/q7Rk-link',
+  '/%41%50%49/%47%52%41%4E%54/q7Rk-link',
+  '/%76%69%65%77/v13w-link',
+  '/%56%49%45%57/v13w-link',
+  // Encoded twice, or not a route word: no link page opens.
+  '/%2567rant/abc',
+  '/%67rants/abc',
 ];
 
 const REFERERS = [
@@ -127,6 +175,15 @@ const REFERERS = [
   'https://app.example.test/',
   'android-app://com.example.mail/',
   'not a url q7Rk-link',
+  'https://app.example.test/Grant/q7Rk-link',
+  'https://app.example.test/API/VIEW/v13w-link?y=1',
+  // The host in any case, as it always was; a scheme not in lower case is not
+  // a URL to either log, as it never was.
+  'https://APP.example.test/grant/q7Rk-link',
+  'HTTPS://app.example.test/Grant/q7Rk-link',
+  // The page at `/%67rant/<link>` makes its calls with this Referer.
+  'https://app.example.test/%67rant/q7Rk-link',
+  'https://app.example.test/%56IEW/v13w-link?y=1',
 ];
 
 describe("the web image's access log", () => {
@@ -157,6 +214,36 @@ describe("the web image's access log", () => {
           expect(field).not.toMatch(/q7Rk|v13w|code=|state=|from=|tab=|y=1|x=1/);
         }
       }
+    }
+  });
+
+  it('drops the link whatever the case of the route, and keeps the route as it came', () => {
+    expect(nginxLogs('/API/GRANT/q7Rk-link/x').ownpace_log_uri).toBe('/API/GRANT/:link/x');
+    expect(nginxLogs('/Api/View/v13w-link').ownpace_log_uri).toBe('/Api/View/:link');
+    expect(nginxLogs('/GRANT/q7Rk-link').ownpace_log_uri).toBe('/GRANT/:link');
+    expect(nginxLogs('/', 'https://app.example.test/Grant/q7Rk-link').ownpace_log_referer).toBe(
+      'https://app.example.test/Grant/:link',
+    );
+  });
+
+  it('drops the link of a route word written with escapes, and keeps the route as it came', () => {
+    expect(nginxLogs('/%67rant/q7Rk-link').ownpace_log_uri).toBe('/%67rant/:link');
+    expect(nginxLogs('/api/%47RANT/q7Rk-link/x').ownpace_log_uri).toBe('/api/%47RANT/:link/x');
+    expect(nginxLogs('/', 'https://app.example.test/%67rant/q7Rk-link').ownpace_log_referer).toBe(
+      'https://app.example.test/%67rant/:link',
+    );
+  });
+
+  it('matches a link route without regard to case (~*), as nginx reads the operator', () => {
+    const linkRules = MAPS.flatMap((m) => m.regexes).filter((r) => /<ownpace_(?:uri|referer)_route>/.test(r.pattern.source));
+    expect(linkRules).toHaveLength(2);
+    for (const rule of linkRules) expect(rule.caseless, `${rule.pattern.source} is ~, not ~*`).toBe(true);
+  });
+
+  it('records the page of a problem report as the API does, in any case', () => {
+    for (const uri of REQUESTS) {
+      expect(reportablePage(uri), uri).toBe(loggableUrl(uri));
+      expect(reportablePage(uri), uri).not.toMatch(/q7Rk|v13w|from=|x=1/);
     }
   });
 

@@ -10,12 +10,19 @@
 # So a link becomes `:link` and a query is kept only as `?...`, the same rule
 # the API's own log follows (`apps/api/src/access-log.ts`). The capture names
 # are prefixed so no environment variable can ever be substituted into them.
+# The link rules are `~*`, without regard to case, and each letter of a route
+# word may be its percent escape (2026-10-05). This server serves the page for
+# `/GRANT/<link>` and for `/%67rant/<link>`, and the app's router opens the
+# grant page for both: it matches without regard to case, and decodes first.
+# It logs `/API/GRANT/<link>` too, when it serves the page for it: only a
+# lower-case `/api/` is proxied. The route is written as it came; only the
+# link goes.
 map $request_uri $ownpace_log_uri_path {
   "~^(?<ownpace_uri_path>[^?]*)\?" "${ownpace_uri_path}?...";
   default $request_uri;
 }
 map $ownpace_log_uri_path $ownpace_log_uri {
-  "~^(?<ownpace_uri_route>/(?:api/)?(?:grant|view)/)[^/?]+(?<ownpace_uri_rest>.*)$" "${ownpace_uri_route}:link${ownpace_uri_rest}";
+  "~*^(?<ownpace_uri_route>/(?:(?:a|%[46]1)(?:p|%[57]0)(?:i|%[46]9)/)?(?:(?:g|%[46]7)(?:r|%[57]2)(?:a|%[46]1)(?:n|%[46]e)(?:t|%[57]4)|(?:v|%[57]6)(?:i|%[46]9)(?:e|%[46]5)(?:w|%[57]7))/)[^/?]+(?<ownpace_uri_rest>.*)$" "${ownpace_uri_route}:link${ownpace_uri_rest}";
   default $ownpace_log_uri_path;
 }
 map $http_referer $ownpace_log_referer_path {
@@ -26,9 +33,11 @@ map $http_referer $ownpace_log_referer_path {
   default $http_referer;
 }
 map $ownpace_log_referer_path $ownpace_log_referer {
-  "~^(?<ownpace_referer_route>[a-z][a-z0-9+.-]*://[^/]+/(?:api/)?(?:grant|view)/)[^/?]+(?<ownpace_referer_rest>.*)$" "${ownpace_referer_route}:link${ownpace_referer_rest}";
-  # Anything else that is not a URL is written "-", as the API's log does.
+  # Anything that is not a URL is written "-", as the API's log does. First,
+  # and with `~`: the scheme is read in lower case alone, as it always was,
+  # so the caseless link rule below sees only what the API's would.
   "~^(?![a-z][a-z0-9+.-]*://)" "-";
+  "~*^(?<ownpace_referer_route>[a-z][a-z0-9+.-]*://[^/]+/(?:(?:a|%[46]1)(?:p|%[57]0)(?:i|%[46]9)/)?(?:(?:g|%[46]7)(?:r|%[57]2)(?:a|%[46]1)(?:n|%[46]e)(?:t|%[57]4)|(?:v|%[57]6)(?:i|%[46]9)(?:e|%[46]5)(?:w|%[57]7))/)[^/?]+(?<ownpace_referer_rest>.*)$" "${ownpace_referer_route}:link${ownpace_referer_rest}";
   default $ownpace_log_referer_path;
 }
 # nginx's `combined`, with the request line and the Referer in their loggable

@@ -15,16 +15,44 @@
  *    and the state that binds it to the grant.
  *
  * So the log keeps what it is for (who asked, for which route, with what
- * outcome) and loses the rest: a link becomes `:link`, and a query string is
- * reduced to the fact that there was one, since its values can carry codes and,
- * on a search, whatever a person typed. The web image's nginx writes its own
- * access log by the same rule (`apps/web/nginx.conf.template`).
+ * outcome) and loses the rest: a link becomes `:link`, whatever the case or
+ * the spelling of its route (`/API/GRANT/<link>` and `/%67rant/<link>` too),
+ * and a query string is reduced to the fact that there was one, since its
+ * values can carry codes and, on a search, whatever a person typed. The web image's nginx writes its own access log by
+ * the same rule (`apps/web/nginx.conf.template`).
  */
 import morgan from 'morgan';
 import type { IncomingMessage } from 'node:http';
 
-/** A path segment that is a link credential, and the route it follows. */
-const LINK_SEGMENT = /^(\/(?:api\/)?(?:grant|view)\/)[^/]+/;
+/**
+ * A route word as a router reads it: each letter in either case, or as its
+ * percent escape. Express routes without regard to case, its default, so
+ * `/API/GRANT/<link>` reaches the grant route. The web app's router matches
+ * without regard to case too, and decodes the path before it matches, so
+ * `/GRANT/<link>` and `/%67rant/<link>` open the grant page (2026-10-05). The
+ * pattern reads the escape as written and decodes nothing, so the route is
+ * kept as it came in; only the link goes. Used with the `i` flag, which also
+ * reads the escape's hex digits in either case.
+ */
+function spelled(word: string): string {
+  return [...word]
+    .map((letter) => {
+      const lower = letter.charCodeAt(0).toString(16);
+      const upper = letter.toUpperCase().charCodeAt(0).toString(16);
+      return `(?:${letter}|%[${upper[0]}${lower[0]}]${lower[1]})`;
+    })
+    .join('');
+}
+
+/** The route a link follows: `/grant/`, `/view/`, `/api/grant/` or `/api/view/`. */
+const LINK_ROUTE = `/(?:${spelled('api')}/)?(?:${spelled('grant')}|${spelled('view')})/`;
+
+/**
+ * A path segment that is a link credential, and the route it follows. Behind
+ * a scheme and a host too: a request may name its target in absolute form
+ * (`GET http://host/api/grant/<link>`), and Express routes it by its path.
+ */
+const LINK_SEGMENT = new RegExp(`^((?:[a-z][a-z0-9+.-]*://[^/]+)?${LINK_ROUTE})[^/]+`, 'i');
 
 /** What a query string is reduced to: that there was one, and nothing it said. */
 export const QUERY_MARK = '?...';
@@ -41,8 +69,12 @@ export function loggableUrl(url: string | undefined): string {
 /** The start of an absolute URL: a scheme and `://`. */
 const ABSOLUTE_URL = /^[a-z][a-z0-9+.-]*:\/\//;
 
-/** The same link segment, behind a scheme and a host. */
-const REFERRER_LINK_SEGMENT = /^([a-z][a-z0-9+.-]*:\/\/[^/]+\/(?:api\/)?(?:grant|view)\/)[^/]+/;
+/**
+ * The same link segment, behind a scheme and a host. Only a value
+ * `ABSOLUTE_URL` has passed reaches it, so the scheme is still read in lower
+ * case alone, as before; the host was always read in any case.
+ */
+const REFERRER_LINK_SEGMENT = new RegExp(`^([a-z][a-z0-9+.-]*://[^/]+${LINK_ROUTE})[^/]+`, 'i');
 
 /**
  * A Referer as the log may keep it: the same rule, behind the origin. A value

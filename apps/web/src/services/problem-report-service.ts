@@ -231,12 +231,34 @@ export function timedOut(err: unknown): boolean {
 }
 
 /**
+ * A route word as the router reads it: each letter in either case, or as its
+ * percent escape, which the router decodes before it matches. The same as the
+ * API's `access-log.ts`.
+ */
+function spelled(word: string): string {
+  return [...word]
+    .map((letter) => {
+      const lower = letter.charCodeAt(0).toString(16);
+      const upper = letter.toUpperCase().charCodeAt(0).toString(16);
+      return `(?:${letter}|%[${upper[0]}${lower[0]}]${lower[1]})`;
+    })
+    .join('');
+}
+
+/** A grant or view link, and the route it follows. */
+const LINK_SEGMENT = new RegExp(`^(/(?:${spelled('api')}/)?(?:${spelled('grant')}|${spelled('view')})/)[^/]+`, 'i');
+
+/**
  * The page as a report records it: a grant or view link as `:link`, and no
  * query, exactly as the server records it (it redacts again). Shown to the
- * person before sending, so what they read is what is sent.
+ * person before sending, so what they read is what is sent. In any case and
+ * any spelling: the router opens `/GRANT/<link>` and `/%67rant/<link>` as the
+ * grant page (2026-10-05). The route is kept as it was written.
+ * `scripts/a-log-that-kept-the-link.unit.test.ts` holds this to the API's
+ * `loggableUrl`.
  */
 export function reportablePage(path: string): string {
   const withoutQuery = path.split('?')[0]!;
-  const redacted = withoutQuery.replace(/^(\/(?:api\/)?(?:grant|view)\/)[^/]+/, '$1:link');
+  const redacted = withoutQuery.replace(LINK_SEGMENT, '$1:link');
   return path.includes('?') ? `${redacted}?...` : redacted;
 }
