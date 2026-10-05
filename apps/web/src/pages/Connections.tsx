@@ -258,9 +258,9 @@ const Row: React.FC<{
           <div className="flex flex-wrap items-center gap-2">
             <StatusIcon status={connection.status} />
             <span className="font-medium text-gray-900">{connection.displayName}</span>
-            {connectionKindName(connection.kind) && (
+            {connectionKindName(connection.kind, locale) && (
               <span className="text-xs text-gray-600 bg-gray-100 rounded px-1.5 py-0.5">
-                {connectionKindName(connection.kind)}
+                {connectionKindName(connection.kind, locale)}
               </span>
             )}
           </div>

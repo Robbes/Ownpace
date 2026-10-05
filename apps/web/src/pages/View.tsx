@@ -350,6 +350,7 @@ const TheAccessTheyGave: React.FC<{
  * decided whether anything is said; this only says it.
  */
 const HowLong: React.FC<{ time: ViewTime | undefined; from: string | undefined }> = ({ time, from }) => {
+  const { locale } = useLocale();
   if (!time) return null;
   return time.kind === 'beforeStart' ? (
     <TimeBeforeStartLine className="mt-3 text-sm text-gray-700" time={time.estimate} />
@@ -357,7 +358,7 @@ const HowLong: React.FC<{ time: ViewTime | undefined; from: string | undefined }
     <TimeWhileCopyingLine
       className="mt-3 text-sm text-gray-700"
       time={time.estimate}
-      provider={providerName(from ?? '', 'source')}
+      provider={providerName(from ?? '', 'source', locale)}
     />
   );
 };
@@ -368,12 +369,13 @@ const PersonMigration: React.FC<{ migration: PersonViewPayload['migrations'][num
   grant,
 }) => {
   const t = useT();
+  const { locale } = useLocale();
   const { dateTime } = useFormatters();
-  const from = providerName(migration.from, 'source');
+  const from = providerName(migration.from, 'source', locale);
   return (
     <div className="mt-4">
       <h3 className="font-medium text-gray-900">
-        {migration.to ? t('view.person.route', { from, to: providerName(migration.to, 'target') }) : from}
+        {migration.to ? t('view.person.route', { from, to: providerName(migration.to, 'target', locale) }) : from}
       </h3>
       {/* A withdrawn grant is the whole story, as on a migration's page. */}
       <p className="mt-1 text-gray-900">

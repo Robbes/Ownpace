@@ -99,7 +99,7 @@ function wrap(locale: Locale, node: React.ReactNode, path: string) {
 
 /** The Google account card, with its address typed, in a door that has cards. */
 const pickGoogleAccount = () => {
-  fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
+  fireEvent.click(screen.getByRole('button', { name: /^Google[ -]account/ }));
   fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
     target: { value: 'owner@gmail.com' },
   });

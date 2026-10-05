@@ -856,12 +856,46 @@ const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
 };
 
 /**
- * The provider's name, or the type itself when nothing names it — shown as
- * itself rather than blanked, on the same principle as an unlabelled field
- * key: a gap you can see is a bug report, a gap you cannot is a mystery.
+ * THE NAMES DUTCH WRITES ITS OWN WAY (the owner, 2026-10-05: *"Write provider
+ * names the Dutch way in the Dutch app"*). A compound with a name takes a
+ * hyphen in Dutch, as the app's Dutch sentences already write it
+ * (*Google-account*, *Microsoft 365-account*, *Apple-account*), and Google
+ * names two of its products in Dutch itself (*Google Agenda*, *Google
+ * Contacten*). Every other name is a brand or a protocol, and the same in
+ * both languages.
  */
-export function providerDisplayName(type: string): string {
+const PROVIDER_DISPLAY_NAMES_NL: Readonly<Record<string, string>> = {
+  microsoft: 'Microsoft 365-account',
+  apple: 'Apple-account (iCloud)',
+  'google-calendar': 'Google Agenda',
+  'google-contacts': 'Google Contacten',
+  google: 'Google-account',
+  archive: 'Exportarchief',
+};
+
+/** The languages a provider's name is written in. */
+export type ProviderNameLocale = 'en' | 'nl';
+
+/**
+ * The provider's name, in the reader's language, or the type itself when
+ * nothing names it — shown as itself rather than blanked, on the same
+ * principle as an unlabelled field key: a gap you can see is a bug report, a
+ * gap you cannot is a mystery.
+ *
+ * English unless asked: a server's line and a log say the English name. A
+ * screen passes its reader's language, and `a-provider-named-in-the-readers-language`
+ * fails for a screen of the web app that does not.
+ */
+export function providerDisplayName(type: string, locale: ProviderNameLocale = 'en'): string {
+  if (locale === 'nl' && Object.prototype.hasOwnProperty.call(PROVIDER_DISPLAY_NAMES_NL, type)) {
+    return PROVIDER_DISPLAY_NAMES_NL[type]!;
+  }
   return PROVIDER_DISPLAY_NAMES[type] ?? type;
+}
+
+/** The types Dutch names its own way, for the test that holds them to the English table. */
+export function providerTypesWithDutchNames(): ReadonlyArray<string> {
+  return Object.keys(PROVIDER_DISPLAY_NAMES_NL);
 }
 
 /** Every type this product connects to, for the coverage lock. */

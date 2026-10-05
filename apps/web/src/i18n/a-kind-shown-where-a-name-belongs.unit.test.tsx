@@ -92,10 +92,12 @@ describe('a connection kind is shown by its name, never as itself (0153 T6 (c))'
   });
 
   it('names every kind a card saves, and never as the kind itself', () => {
-    const unnamed = storedKinds().filter((k) => !NAMELESS.includes(k) && connectionKindName(k) === undefined);
-    expect(unnamed, 'a kind the ledger allows has no name').toEqual([]);
-    for (const kind of storedKinds().filter((k) => !NAMELESS.includes(k))) {
-      expect(connectionKindName(kind), `${kind} is named as itself`).not.toBe(kind);
+    for (const locale of ['en', 'nl'] as const) {
+      const unnamed = storedKinds().filter((k) => !NAMELESS.includes(k) && connectionKindName(k, locale) === undefined);
+      expect(unnamed, `a kind the ledger allows has no name in ${locale}`).toEqual([]);
+      for (const kind of storedKinds().filter((k) => !NAMELESS.includes(k))) {
+        expect(connectionKindName(kind, locale), `${kind} is named as itself in ${locale}`).not.toBe(kind);
+      }
     }
   });
 
@@ -107,10 +109,28 @@ describe('a connection kind is shown by its name, never as itself (0153 T6 (c))'
     ['imap', 'IMAP'],
     ['soverin', 'Soverin'],
   ])('names %s "%s"', (kind, name) => {
-    expect(connectionKindName(kind)).toBe(name);
+    expect(connectionKindName(kind, 'en')).toBe(name);
+  });
+
+  // Dutch writes a compound with a name with a hyphen, as the app's Dutch
+  // sentences do, and Google names two of its products in Dutch itself (the
+  // owner, 2026-10-05: "Write provider names the Dutch way in the Dutch app").
+  it.each([
+    ['google', 'Google-account'],
+    ['microsoft', 'Microsoft 365-account'],
+    ['apple', 'Apple-account (iCloud)'],
+    ['google_calendar', 'Google Agenda'],
+    ['google_contacts', 'Google Contacten'],
+    ['archive', 'Exportarchief'],
+    ['gmail', 'Gmail'],
+    ['o365', 'Microsoft 365'],
+  ])('names %s "%s" in Dutch', (kind, name) => {
+    expect(connectionKindName(kind, 'nl')).toBe(name);
   });
 
   it('gives the kinds from before the cards no name, so their row shows its own', () => {
-    for (const kind of NAMELESS) expect(connectionKindName(kind)).toBeUndefined();
+    for (const locale of ['en', 'nl'] as const) {
+      for (const kind of NAMELESS) expect(connectionKindName(kind, locale)).toBeUndefined();
+    }
   });
 });

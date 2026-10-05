@@ -18,6 +18,7 @@ import { describe, it, expect } from 'vitest';
 import {
   providerDisplayName,
   providerDisplayNamesCoverEveryType,
+  providerTypesWithDutchNames,
   typesNeedingDisplayNames,
 } from './credential-fields.ts';
 
@@ -47,5 +48,43 @@ describe('provider display names', () => {
   it('show an unknown type as itself rather than blank', () => {
     // A gap you can see is a bug report; a gap you cannot see is a mystery.
     expect(providerDisplayName('something-new')).toBe('something-new');
+  });
+});
+
+/**
+ * THE NAMES DUTCH WRITES ITS OWN WAY (the owner, 2026-10-05: *"Write provider
+ * names the Dutch way in the Dutch app"*). The Dutch app said *Google
+ * account* beside its own sentences' *Google-account*.
+ */
+describe('provider display names in Dutch', () => {
+  it.each([
+    ['google', 'Google-account'],
+    ['microsoft', 'Microsoft 365-account'],
+    ['apple', 'Apple-account (iCloud)'],
+    ['google-calendar', 'Google Agenda'],
+    ['google-contacts', 'Google Contacten'],
+    ['archive', 'Exportarchief'],
+  ])('name %s "%s"', (type, name) => {
+    expect(providerDisplayName(type, 'nl')).toBe(name);
+  });
+
+  it('are written only for a type the English table names, and differ from its English', () => {
+    expect(providerTypesWithDutchNames().length).toBeGreaterThan(0);
+    for (const type of providerTypesWithDutchNames()) {
+      expect(typesNeedingDisplayNames(), `${type} is not a type the product connects to`).toContain(type);
+      expect(providerDisplayName(type, 'nl'), `${type} says the same in Dutch`).not.toBe(providerDisplayName(type, 'en'));
+    }
+  });
+
+  it('leave a brand and a protocol as they are in both languages', () => {
+    const own = new Set(providerTypesWithDutchNames());
+    for (const type of typesNeedingDisplayNames().filter((t) => !own.has(t))) {
+      expect(providerDisplayName(type, 'nl'), type).toBe(providerDisplayName(type, 'en'));
+    }
+  });
+
+  it('stay English unless a screen asks, so a server line and a log are as they were', () => {
+    expect(providerDisplayName('google')).toBe('Google account');
+    expect(providerDisplayName('something-new', 'nl')).toBe('something-new');
   });
 });

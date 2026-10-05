@@ -11,8 +11,8 @@
  * retired since (0153 D5), and the Accounts page draws it.
  */
 import React from 'react';
-import { partitionFrontDoor, sourceCardIsExperimental } from '@openmig/shared';
-import { useT } from '../i18n/index.tsx';
+import { partitionFrontDoor, providerDisplayName, sourceCardIsExperimental } from '@openmig/shared';
+import { useLocale } from '../i18n/index.tsx';
 import { ExperimentalTag, ExperimentalWhy } from './ExperimentalTag.tsx';
 import { FamilyIcon, FrontDoorIcon } from './FrontDoorIcon.tsx';
 import type { FrontDoorCard } from './front-door-cards.ts';
@@ -40,8 +40,16 @@ export function FrontDoorChooser<C extends FrontDoorCard>({
   onPick,
   gridClass,
 }: FrontDoorChooserProps<C>): React.ReactElement {
-  const t = useT();
+  const { t, locale } = useLocale();
   const grouped = partitionFrontDoor(cards, (c) => c.id);
+  // A card's name in the reader's language: Dutch writes a few its own way
+  // (`providerDisplayName`: *Google-account*), and every other card keeps the
+  // name it was given.
+  const nameOf = (card: FrontDoorCard): string | undefined => {
+    if (card.nameKey) return t(card.nameKey);
+    const named = providerDisplayName(card.id, locale);
+    return named !== providerDisplayName(card.id, 'en') ? named : card.name;
+  };
   const grid = `grid grid-cols-1 gap-4 ${gridClass}`;
 
   /**
@@ -72,7 +80,7 @@ export function FrontDoorChooser<C extends FrontDoorCard>({
             <FrontDoorIcon type={card.id} />
             <div>
               <p className="font-medium text-gray-900">
-                {card.nameKey ? t(card.nameKey) : card.name}
+                {nameOf(card)}
                 {experimental && <ExperimentalTag />}
               </p>
               <p className="text-sm text-gray-500 mt-1">{t(card.hintKey)}</p>

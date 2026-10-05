@@ -20,7 +20,8 @@
  * say "Google", where the card says "Google account".
  */
 import React from 'react';
-import { providerDisplayName, wizardTypeForConnectionKind } from '@openmig/shared';
+import { providerDisplayName, wizardTypeForConnectionKind, type ProviderNameLocale } from '@openmig/shared';
+import { useLocale } from '../i18n/index.tsx';
 
 /** The site's palette (`site/build.mjs`), which the drawing uses. */
 export const TILE_TEAL = '#0E4F4A';
@@ -89,18 +90,22 @@ const SOURCE_COMPANY: Readonly<Record<string, string>> = {
  * A kind no card saves any more (`proton` and `selfhosted_mail`, from before
  * the cards) has none, and its row shows the account's own name alone.
  */
-export function connectionKindName(kind: string): string | undefined {
+export function connectionKindName(kind: string, locale: ProviderNameLocale): string | undefined {
   if (kind === 'o365') return 'Microsoft 365';
   const type = wizardTypeForConnectionKind(kind);
-  const name = providerDisplayName(type);
+  const name = providerDisplayName(type, locale);
   return name === type ? undefined : name;
 }
 
-/** What a line of words calls a type or a connection kind on this side. */
-export function providerName(typeOrKind: string, role: TileRole): string {
+/**
+ * What a line of words calls a type or a connection kind on this side, in the
+ * reader's language: a company is the same in both, and the export archive is
+ * an *Exportarchief* in Dutch.
+ */
+export function providerName(typeOrKind: string, role: TileRole, locale: ProviderNameLocale): string {
   const type = wizardTypeForConnectionKind(typeOrKind);
   if (role === 'source' && Object.prototype.hasOwnProperty.call(SOURCE_COMPANY, type)) return SOURCE_COMPANY[type]!;
-  return providerDisplayName(type);
+  return providerDisplayName(type, locale);
 }
 
 /** Corner radius 22% of the size, the letter 45% of it, as the drawing says. */
@@ -128,6 +133,7 @@ export default function ProviderTile({
   /** What to call it, where `providerDisplayName` is not the word wanted. */
   name?: string;
 }): React.ReactElement {
+  const { locale } = useLocale();
   const letter = tileLetter(type, role);
   return (
     <span className="inline-flex items-center gap-2">
@@ -140,7 +146,7 @@ export default function ProviderTile({
           {letter}
         </span>
       )}
-      <span>{name ?? providerDisplayName(wizardTypeForConnectionKind(type))}</span>
+      <span>{name ?? providerDisplayName(wizardTypeForConnectionKind(type), locale)}</span>
     </span>
   );
 }

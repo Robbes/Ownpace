@@ -59,6 +59,7 @@ import {
   PROVIDER_ACCOUNT_KINDS,
   SOURCE_PROOFS,
   isProviderAccountKind,
+  providerDisplayName,
   sourceCardIsExperimental,
   type SourceProof,
 } from '@openmig/shared';
@@ -114,9 +115,9 @@ async function renderAddForm(locale: Locale = 'en', side: 'source' | 'target' = 
   if (side === 'target') fireEvent.click(screen.getByRole('radio', { name: STRINGS[locale]['connections.targets'] }));
 }
 
-/** The name a card shows, in a language. */
+/** The name a card shows, in a language: Dutch writes a few its own way (2026-10-05). */
 const shown = (card: FrontDoorCard, locale: Locale): string =>
-  card.name ?? STRINGS[locale][card.nameKey as keyof (typeof STRINGS)['en']];
+  card.nameKey ? STRINGS[locale][card.nameKey as keyof (typeof STRINGS)['en']] : providerDisplayName(card.id, locale);
 
 /** The card's button, found the way a person finds it: by the name it starts with. */
 const cardButton = (card: FrontDoorCard, locale: Locale): HTMLElement => {
@@ -266,7 +267,8 @@ describe.each(['en', 'nl'] as const)('the cards the owner kept are offered and t
       edition.selfhost = selfhost;
       await renderAddForm(locale);
       if (!selfhost) {
-        expect(screen.queryByRole('button', { name: /^Export archive/ }), 'the export archive on managed').toBeNull();
+        const archive = new RegExp(`^${providerDisplayName('archive', locale)}`);
+        expect(screen.queryByRole('button', { name: archive }), 'the export archive on managed').toBeNull();
       }
       for (const card of kept.filter((c) => selfhost || c.id !== 'archive')) {
         const button = cardButton(card, locale);

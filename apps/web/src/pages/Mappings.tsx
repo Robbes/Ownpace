@@ -50,19 +50,24 @@ import { MigrationLines, lineStages } from '../components/MigrationLines.tsx';
 import { fetchProgress } from '../services/progress-service.ts';
 import { progressRefetchInterval } from '../services/progress-poll.ts';
 import { linesProgressOf } from '../services/stage-line.ts';
-import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
+import { useT, useFormatters, useLocale, type StringKey } from '../i18n/index.tsx';
+import type { Locale } from '../i18n/strings.ts';
 import { Hint } from '../components/Hint.tsx';
 import { waitingOn } from '../services/needs-you.ts';
 
 
 /** The names on one side of a person's migrations, once each, in the order met. */
-function providerNames(migrations: readonly MappingListItem[], side: 'sourceType' | 'targetType'): string[] {
+function providerNames(
+  migrations: readonly MappingListItem[],
+  side: 'sourceType' | 'targetType',
+  locale: Locale,
+): string[] {
   const names: string[] = [];
   for (const m of migrations) {
     const kind = m[side];
     // The route's word for a connection it could not find: no name to say.
     if (kind === 'unknown') continue;
-    const name = providerName(kind, side === 'sourceType' ? 'source' : 'target');
+    const name = providerName(kind, side === 'sourceType' ? 'source' : 'target', locale);
     if (!names.includes(name)) names.push(name);
   }
   return names;
@@ -72,6 +77,7 @@ type SyncOutcome = { state: 'pending' } | { state: 'failed'; text: string };
 
 const Mappings: React.FC = () => {
   const t = useT();
+  const { locale } = useLocale();
   const { list, dateTime } = useFormatters();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -401,8 +407,8 @@ const Mappings: React.FC = () => {
             if (statusFilter && visible.length === 0) return null;
             const stage = leastAdvancedStage(migrations.flatMap((m) => lineStages(m, linesOf(m))));
             const needs = needsOf(migrations);
-            const from = providerNames(migrations, 'sourceType');
-            const to = providerNames(migrations, 'targetType');
+            const from = providerNames(migrations, 'sourceType', locale);
+            const to = providerNames(migrations, 'targetType', locale);
             const headingId = `person-${person.id}`;
             return (
               <section key={person.id} aria-labelledby={headingId} className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
