@@ -4,6 +4,29 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-10-05, night: slice 1 is built — the configuration, and a check that reads.**
+`moneybird-config.ts` reads `MONEYBIRD_*` as off, on, or refused by key name; ids stay strings of
+digits. `moneybird-http.ts` is the one read the two lists go through, and `moneybird-workflows.ts`
+reads the workflows and refuses a missing, estimate or archived one by name.
+`./deploy/compose/operator.sh moneybird check` makes two reads, one more than planned: the
+workflow id is required, and only the API lists it. It prints each rate and workflow with its id,
+what each treatment resolves to, and whether the workflow's prices include VAT, and exits 1 while
+something is named. With only the token and the administration set, it lists the ids to pick
+from, which is how the sandbox's workflow id is found. Compose passes the keys optional, the
+example lists them, and the API warns at start on half a set
+([managed-bring-up.md](../managed-bring-up.md), "The books").
+
+- **Guards:** `moneybird-config.unit.test.ts` (off with the example's empty keys; an 18-digit id
+  kept exact, where `Number` would make it another id; half a set named by keys, never values);
+  `moneybird-http.unit.test.ts`; `moneybird-workflows.unit.test.ts`; `moneybird-check.unit.test.ts`
+  (off asks nothing; on makes exactly the two reads; outside-EU refused by name without failing;
+  no line carries the token); the sandbox's reverse-charge row in
+  `moneybird-tax-rates.unit.test.ts`; `config-guards.unit.test.ts`; the fixed-host guard counts
+  `moneybird-workflows.ts`.
+- **Still to see:** the check on the OTA stack, once the owner has set the keys there: the
+  sandbox's rates, domestic and reverse charge resolved, outside-EU refused by name, and the
+  Ownpace sandbox workflow named with its prices including VAT.
+
 **2026-10-05, evening: the owner answered decisions 6 to 15.** Eight are taken as recommended
 (*"ok"*), two of them with a question answered below, and so are the four defaults (*"Yes,
 good."*). One is changed and one widened:
@@ -125,7 +148,7 @@ alone** — see §"Who is the controller" and the cross-reference to 0086 T5.
 | T1 The buyer, as data | ✅ **Built 2026-08-29** | Managed migration 0012: `billing_party`, one row per tenant, **`kind` defaults to `consumer` and the business case is the variant** — the database itself refuses a consumer carrying a VAT number (`billing_party_vat_number_check`), and a business without one stays legal. `GET/PUT /api/billing/party` (owner/admin; the PUT is an upsert a retry converges on), the billing page's "Invoice details" card in both languages, and erasure updated: the purge stamps the **buyer's** name onto detached invoices, then purges the row (`PURGED_TABLES` — a consumer's row is a person's name and home address). Deliberately absent, per the plan: VAT-number validation (T2) and the country *decision* (T3 — what is stored is the customer's statement). |
 | T2 A VAT number that was actually checked | ✅ **Built 2026-08-29** | Managed migration 0013: `vat_consultation`, an **append-only** evidence log — `app_user` holds INSERT and SELECT only (UPDATE/DELETE revoked; evidence that can be edited proves nothing). `POST /api/billing/party/check-vat` consults VIES's REST API and stores the answer; **a row is always an answer** — an unreachable VIES (MS_UNAVAILABLE and friends, tested against a fault that carries `valid:false` beside its error code) answers 503 and stores nothing. The check is **qualified** — consultation number issued — once `VIES_REQUESTER_MEMBER_STATE`/`VIES_REQUESTER_VAT_NUMBER` carry the seller's own number (entity decided 2026-08-30 — Archico B.V., so `MEMBER_STATE=NL`; blocked now only on its btw-id; until then checks run unqualified and the screen says so). VIES geography handled: EL not GR, XI exists, GB refused as never-checkable. The GET join speaks only for the number as currently stored; the billing card shows the verdict, auto-checks a newly saved business number, and renders VIES's own refusal sentences. Still open here: whether the consultation should also ride onto the Moneybird document — noted for T4. |
 | T3 VAT treatment: decided, recorded, never a constant | ✅ **Built 2026-08-29** | `vat-treatment.ts`: the decision as a pure, total function — domestic buyers domestic; EU B2B **reverse charge only with a valid VIES consultation** (without one, charged like a consumer *on purpose*: over-charging is the buyer's money and a credit note fixes it, under-charging is the seller's liability); EU consumers at the seller rate until `VAT_OSS_ACTIVE` flips (owner's threshold decision); non-EU an export — GB stays outside even with an XI number (services, not goods). `moneybird-tax-rates.ts`: treatment → the administration's own `tax_rate_id`, **operator-configured and validated against the real list** (a deleted/archived/purchase rate refuses by name) — no percentage is ever consulted for selection. `GET /api/billing/party` serves the decision; the billing card says it in both languages. The legacy constant survives ONLY for the usage-screen estimate, pinned by `scripts/a-rate-that-must-not-spread.unit.test.ts` (a new caller fails CI). Remaining for T4/T8: point the resolver at the real administration and rewire the estimate/price page. |
-| T4 The Moneybird adapter | ✅ **Core seam built 2026-08-29** — wiring + live proof against a sandbox administration, no longer gated on the owner (2026-10-05) | `moneybird-sales-invoices.ts`: `ensureContact` (found by OUR `customer_id` key, matched exactly against the fuzzy search), `ensureSalesInvoiceByReference` (look-then-create; an existing invoice is returned **as it stands, never patched** — the correction instrument is T7's credit note), and `sendSalesInvoice` (the moment Moneybird assigns the legal number). The sharpest pin: **an uncertain lookup never falls through to create** — a 500 on `find_by_reference` is `unavailable` with zero POSTs, because "could not look" read as "not found" is how a flaky afternoon double-invoices a customer. Lines carry `tax_rate_id` and nothing else (a test asserts the wire body never contains "percentage"). Injectable fetch throughout; config is parameters, no env reads. **The owner's gate cleared 2026-10-05**: a sandbox administration on the OTA stack with its rate ids, and the German-19% test passed (Status). **Remaining**: stamping the T2 consultation number onto the document, and the route/worker wiring against 0109's tiers. |
+| T4 The Moneybird adapter | ✅ **Core seam built 2026-08-29** — wiring + live proof against a sandbox administration, no longer gated on the owner (2026-10-05); **configuration and its check built 2026-10-05** (slice 1) | `moneybird-sales-invoices.ts`: `ensureContact` (found by OUR `customer_id` key, matched exactly against the fuzzy search), `ensureSalesInvoiceByReference` (look-then-create; an existing invoice is returned **as it stands, never patched** — the correction instrument is T7's credit note), and `sendSalesInvoice` (the moment Moneybird assigns the legal number). The sharpest pin: **an uncertain lookup never falls through to create** — a 500 on `find_by_reference` is `unavailable` with zero POSTs, because "could not look" read as "not found" is how a flaky afternoon double-invoices a customer. Lines carry `tax_rate_id` and nothing else (a test asserts the wire body never contains "percentage"). Injectable fetch throughout; config is parameters, no env reads. **The owner's gate cleared 2026-10-05**: a sandbox administration on the OTA stack with its rate ids, and the German-19% test passed (Status). **Remaining**: stamping the T2 consultation number onto the document, and the route/worker wiring against 0109's tiers. |
 | T5 The mirror, and the number that is not ours | 📋 Planned (needs T4) — **immutability BUILT 2026-08-30** (migration 0014, ahead of the reshape) | `invoice` becomes a MIRROR carrying the legal number. Moneybird owns `invoice_sequence_id`; the schema must make it impossible to drift into numbering a document we do not own. The refusal is already installed on the current table — T5's migration only extends 0014's column lists when the mirror columns arrive (§"The refusal, designed"). |
 | T6 Delivery: the email and the download | 📋 Planned (needs T5) | `GET /sales_invoices/{id}/download_pdf`. Serves **their** PDF, never one we render. Two documents for one sale is the failure this task exists to prevent. |
 | T7 Credit notes | 📋 Planned (needs T5) — **database refusal BUILT 2026-08-30** | `PATCH /sales_invoices/{id}/duplicate_creditinvoice`. The database half is done ahead of schedule: migration 0014 installs the state-machine trigger + narrowed grants (§"The refusal, designed"), the generation upsert regenerates drafts only, the webhook path passes by construction, and a failed payment no longer voids the document. What remains here is the credit note itself — the Moneybird call and the product surface that issues it. |
@@ -518,9 +541,10 @@ slice 5. The annual credit is not in this chain (decision 6).
    `_TAX_RATE_ID_REVERSE_CHARGE` and `_WORKFLOW_ID`; `_TAX_RATE_ID_OUTSIDE_EU` optional; `_DELIVERY`
    `manual` unless `email`. Ids are digits and stay strings (an 18-digit id must never pass through
    a number). A refusal names the key, never the value. Compose passes them optional (`:-`, never
-   `:?`), the example lists them, and `operator.sh moneybird check` makes one read and prints each
-   treatment's rate. Done when it prints the sandbox's two rates and refuses outside-EU by name:
-   one request, no invoice, no e-mail. No owner decision, no migration.
+   `:?`), the example lists them, and `operator.sh moneybird check` makes two reads, the rates and
+   the workflows, and prints each treatment's rate and the workflow's VAT setting. Done when it
+   prints the sandbox's two rates and refuses outside-EU by name: two requests, no invoice, no
+   e-mail. No owner decision, no migration. **Built 2026-10-05** (Status).
 2. **The adapter, complete, proved with stubs.** One request helper for both modules (bearer
    token, a timeout, a 429 as its own outcome with `Retry-After`). `workflowId` and
    `pricesAreInclTax` required on every invoice, never defaulted: under the sandbox's workflow a
