@@ -133,7 +133,6 @@ let answer: { status: number; type: string; body: string; location?: string } = 
 let reached = 0;
 let davServer: http.Server;
 let davBase = '';
-let closedPort = 0;
 let imapRefusing: net.Server;
 let imapOther: net.Server;
 /** Every socket the IMAP stubs were handed, so the end of the file can close them. */
@@ -174,6 +173,21 @@ async function listening(server: net.Server): Promise<number> {
   return (server.address() as AddressInfo).port;
 }
 
+/**
+ * A port nothing answers on: one the system just gave out, given back the
+ * moment before it is asked. Taken when the case runs, not when the file
+ * starts: a port freed at the start stayed free for the whole file, and the
+ * system could hand it to the next server that asked for one, this file's
+ * IMAP stubs or any other test's, so the probe reached a server that answered
+ * (`providerRefused`, as CI saw on #1505) instead of nothing.
+ */
+async function aPortNothingAnswers(): Promise<number> {
+  const gone = net.createServer();
+  const port = await listening(gone);
+  await new Promise<void>((done) => gone.close(() => done()));
+  return port;
+}
+
 beforeAll(async () => {
   davServer = http.createServer((req, res) => {
     reached += 1;
@@ -187,9 +201,6 @@ beforeAll(async () => {
     });
   });
   davBase = `http://127.0.0.1:${await listening(davServer)}/remote.php/dav/`;
-  const gone = net.createServer();
-  closedPort = await listening(gone);
-  await new Promise<void>((done) => gone.close(() => done()));
   imapRefusing = net.createServer(refusingImap);
   imapOther = net.createServer((socket) => {
     sockets.add(socket);
@@ -352,6 +363,7 @@ describe('an error document of a kind we know keeps its words', () => {
 
 describe('where nothing answers', () => {
   it("says so, with the outcome 'unreachable', and not the address", async () => {
+    const closedPort = await aPortNothingAnswers();
     const res = await request(app)
       .post('/api/migrations/test-connection')
       .send({
