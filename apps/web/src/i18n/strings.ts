@@ -965,6 +965,7 @@ const en = {
   'billing.pick.lead':
     'Your tier follows what you use. You may pick a higher one, for its pace or its room: each month then bills at least that tier, until you lower it.',
   'billing.pick.standing': 'You picked {tier}. Each month bills at least {tier}, until you lower it.',
+  'billing.pick.standingThisMonth': 'You picked {tier}: this month bills at least {tier}.',
   'billing.pick.lowered': 'From {date}, each month bills at least {tier}.',
   'billing.pick.loweredToNone': 'From {date}, what you use decides your tier again.',
   'billing.pick.alpha':
@@ -3996,6 +3997,7 @@ const nl: Record<keyof typeof en, string> = {
   'billing.pick.lead':
     'Uw pakket volgt wat u gebruikt. U mag een hoger pakket kiezen, voor het tempo of de ruimte: u betaalt dan elke maand minstens dat pakket, tot u het verlaagt.',
   'billing.pick.standing': 'U koos {tier}. U betaalt elke maand minstens {tier}, tot u het verlaagt.',
+  'billing.pick.standingThisMonth': 'U koos {tier}: deze maand betaalt u minstens {tier}.',
   'billing.pick.lowered': 'Vanaf {date} betaalt u elke maand minstens {tier}.',
   'billing.pick.loweredToNone': 'Vanaf {date} bepaalt wat u gebruikt weer uw pakket.',
   'billing.pick.alpha':

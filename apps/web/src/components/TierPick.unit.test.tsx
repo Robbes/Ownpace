@@ -188,7 +188,9 @@ describe('lowering the pick', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lower the pick' }));
     await waitFor(() => expect(pickTier).toHaveBeenCalledWith({ tierId: 'free', priceEur: 0 }));
     expect(await screen.findByRole('status')).toHaveTextContent('Done: your pick changes on November 1, 2026.');
+    expect(screen.getByText('You picked Small: this month bills at least Small.')).toBeVisible();
     expect(screen.getByText('From November 1, 2026, what you use decides your tier again.')).toBeVisible();
+    expect(screen.queryByText(/until you lower it/)).toBeNull();
   });
 
   it('offers the tier picked now again while a lower pick waits, to keep it, by the order button', async () => {

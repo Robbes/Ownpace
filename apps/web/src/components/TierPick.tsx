@@ -144,7 +144,12 @@ const PickBody: React.FC<{
   return (
     <div className="space-y-3 text-sm">
       {picked.now ? (
-        <p className="text-gray-900">{t('billing.pick.standing', { tier: picked.now.name })}</p>
+        <p className="text-gray-900">
+          {/* While a lower pick waits, the pick holds for this month only. */}
+          {lowering
+            ? t('billing.pick.standingThisMonth', { tier: picked.now.name })
+            : t('billing.pick.standing', { tier: picked.now.name })}
+        </p>
       ) : (
         <p className="text-gray-600">{t('billing.pick.lead')}</p>
       )}
