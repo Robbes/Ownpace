@@ -80,19 +80,20 @@ const FILES = {
  * some text is still a draft (the header says why).
  */
 const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
+  // The Last updated line is part of the words, in all six files: moving it to the merge day means
+  // pinning all six again, in the owner's final-text pull request (0139), before it merges.
+  //
   // Re-pinned under 1.0 on 2026-09-29 (the Dutch says migratie, 0152 D6) and again on 2026-10-05,
-  // in the owner's final-text pull request (0139): §8's "change or remove an owner" and §10's
+  // in that pull request: §8's "change or remove an owner or an invitation as owner" and §10's
   // closing said as the code does it. Both times privacy and terms were still drafts, so the API
   // asked nobody and nobody can have accepted 1.0.
-  'alpha.md@1.0': '99399eb2e834d7fd8bbd32f76bb4bc668c527ab6225fe1ea06cf765985dc3d7b',
-  'alpha.nl.md@1.0': '70d285e9bda8aa8ea1c75ef7eff1a859d967f013fe76988e64cb339df02df06a',
-  // Final on 2026-10-05, in the same pull request, which set LEGAL_DRAFTS to match. The Last
-  // updated line is part of the words: moving it to the merge day means pinning these again, in
-  // that pull request, before it merges.
-  'privacy.md@1.2': '76bd14037890d8458a8a9452cf84fae1e60df63a0c8a8a3e4f74f4c8ea80e4db',
-  'privacy.nl.md@1.2': '634eb3ef70611b00987d0293dc110da38646269ea65b7b376715c479aaabee2f',
-  'terms.md@1.3': '9a78e794a17eec479b4f058a6d2b0922c0be5b737ba34df15cc767b57d7e06c8',
-  'terms.nl.md@1.3': '7404a67115be4b6cf6db0e16f0b2616033f773ccf0b8f240967b8f068d69c577',
+  'alpha.md@1.0': '86287b8b4fe342b3a7fb58a93035c2065148f6aa12721f68b2f8e4511c74303e',
+  'alpha.nl.md@1.0': '9ce4bdb0b8e8ee6935a63d4da9fb8a22118b104bae181663d5fa0d536128c59f',
+  // Final on 2026-10-05, in the same pull request, which set LEGAL_DRAFTS to match.
+  'privacy.md@1.2': '2fc8a4223a0d912f21ff048383716324d0d1569ddc39193521d6bdb72dfd250b',
+  'privacy.nl.md@1.2': 'ec68179c9b2fa6e34a8fc6b8d5abbd1f07dec565ca8fe90af57fe508f3e57326',
+  'terms.md@1.3': 'df177c2fafbf7e9b962e21ca4a5a6d5fd9924b9164719b41a0286af80cf19787',
+  'terms.nl.md@1.3': '115a30f271d0b66bd99f117fd74131d78a7af629b2a5b3e4a2928570da650f6c',
 };
 
 /** The digest `ACCEPTED_WORDS` pins: the text outside HTML comments, white space collapsed. */

@@ -28,12 +28,12 @@ describe('the sentence a closed organisation is refused with', () => {
     const refusal = organisationClosedRefusal({ closedAt: CLOSED, purgeAfter: IN_30_DAYS }, NOW);
     expect(refusal.code).toBe(ACCOUNT_CLOSED);
     expect(refusal.en).toBe(
-      'This organisation was closed on 2026-09-28. Nothing is started, and nothing uses the access it gave. ' +
+      'This organisation was closed on 2026-09-28. No new work starts with the access it gave. ' +
         'Its data is removed from the service on 2026-10-28. ' +
         REOPEN_EN,
     );
     expect(refusal.nl).toBe(
-      'Deze organisatie is op 2026-09-28 gesloten. Er wordt niets gestart, en niets gebruikt de toegang die zij gaf. ' +
+      'Deze organisatie is op 2026-09-28 gesloten. Er begint geen nieuw werk meer met de toegang die zij gaf. ' +
         'De gegevens worden op 2026-10-28 uit de dienst verwijderd. ' +
         REOPEN_NL,
     );
@@ -61,8 +61,8 @@ describe('the sentence a closed organisation is refused with', () => {
 
   it('without its days, as a builder says it: the dateless sentence, and no reopen', () => {
     const refusal = organisationClosedRefusal({ closedAt: null, purgeAfter: null }, NOW);
-    expect(refusal.en).toBe('This organisation was closed. Nothing is started, and nothing uses the access it gave.');
-    expect(refusal.nl).toBe('Deze organisatie is gesloten. Er wordt niets gestart, en niets gebruikt de toegang die zij gaf.');
+    expect(refusal.en).toBe('This organisation was closed. No new work starts with the access it gave.');
+    expect(refusal.nl).toBe('Deze organisatie is gesloten. Er begint geen nieuw werk meer met de toegang die zij gaf.');
   });
 
   it('names each day by its UTC date, the same in both languages, whatever the machine’s zone', () => {

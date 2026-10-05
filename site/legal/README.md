@@ -35,8 +35,8 @@ the terms 1.3, with no draft words on their *Version* lines, and `LEGAL_DRAFTS` 
 release that carries them, a deployment that runs the Alpha asks every member to accept the three
 texts. **From now on every change gets a new number**, in both languages and in `LEGAL_VERSIONS`,
 and every tester accepts again (*What a final Version line looks like*, below). The *Last
-updated* lines say 2026-10-05; they move to the day the pull request merges, and the four pins
-move with them, in that pull request, before it merges. The owner's words of 2026-10-05 that
+updated* lines say 2026-10-05, in all six files; they move to the day the pull request merges,
+and the six pins move with them, in that pull request, before it merges. The owner's words of 2026-10-05 that
 settle the texts, verbatim:
 
 - The lawyer, asked whether the lawyer reads the texts before the first invitation, or whether
@@ -55,8 +55,8 @@ settle the texts, verbatim:
 
 Changed in the same pull request, under the numbers above: the closing sentence in all three, in
 both languages, and the Alpha conditions §8, which now say that an admin cannot *"change or
-remove an owner"* / *"een eigenaar een andere rol geven of verwijderen"* either, as the code
-refuses since #1484. Kept as drafted, by the owner's leave: privacy §4.4's *"in which language"*
+remove an owner or an invitation as owner"* / *"een eigenaar of een uitnodiging als eigenaar een
+andere rol geven of verwijderen"* either, as the code refuses since #1484. Kept as drafted, by the owner's leave: privacy §4.4's *"in which language"*
 and §9's row for a member who leaves. Under the same numbers because nobody can have accepted
 any of them: the API records an acceptance only when no text is a draft (`acceptanceAsked` in
 `apps/api/src/conditions-not-accepted.ts`, the one writer `POST /api/me/acceptance`), and
@@ -390,8 +390,10 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   build the rest first: *"Reword to match the code"*). The three texts said *"nothing uses the
   access you gave us"*; they now say, in both languages, that no new work starts with it, that work
   already running finishes what it is doing and then stops, that a pass can carry on for about
-  fifteen seconds and then finishes what it began, and that a daily check already under way can read
-  a whole Microsoft 365 organisation's list of mailboxes and distribution lists once. What the code
+  fifteen seconds and then finishes what it began, and that a daily check already under way can
+  read, once, a whole Microsoft 365 organisation's list of mailboxes, and the list of its
+  distribution lists and groups with their members' addresses (the members said so in review, the
+  same day). What the code
   does, read on main `c25534b4` (the comment beside terms §11 has it in full): nothing new starts
   (the sync tick, `managed-sync-tick.ts:415`; a queued pass or a retry, `stopping-a-pass.ts:96`,
   `:114`; the credential builders, `build-deps-from-mapping.ts:300`, `:574`; every door,
@@ -400,16 +402,21 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   listing, sample, item or collection (#1377); what is in flight finishes, with all its pages, and a
   file source's folder walk at the start of a discovery runs to its end (`discovery.ts:68-73`). A
   pass the cancel did not stop asks at most every 15 seconds at its gates (#1405;
-  `pass-deadline.ts:138`, `domain-sync.ts:1505`, `:1517`, `:1688`) and finishes what is in flight.
-  The daily shared-address discovery (06:30 UTC) and drift check (07:00 UTC) read the list of open
-  organisations once, at their start (`task-pools.ts:212`), and read only an `o365` source's
-  directory (`directory-availability.ts:72-75`). No background task runs longer than an hour
+  `pass-deadline.ts:138`, `domain-sync.ts:1505`, `:1517`, `:1688`) and finishes what is in flight;
+  before its one read after the last item's gate, the owner's bin, it asks again whatever the clock
+  says, and skips the read on a stop (review of 2026-10-05). The daily shared-address discovery
+  (06:30 UTC) and drift check (07:00 UTC) read the list of open organisations once, at their start
+  (`task-pools.ts:212`), and read only an `o365` source's directory
+  (`directory-availability.ts:72-75`): the discovery its mail-enabled groups with each one's
+  members' addresses (`graph-groups.ts`), the drift check its mailboxes (`graph-directory.ts`). No background task runs longer than an hour
   (`apps/worker/trigger.config.ts:65`); the texts promise no period. The DPA's Annex A, unpublished,
   still has the old sentence, and is corrected in the DPA's one pass before the first business
-  customer. The app's own sentence for a closed organisation still says *"nothing uses the access it
-  gave"* (`packages/shared/src/organisation-closed.ts:51`, and the API's answer to `DELETE
-  /api/tenants/:id`, `apps/api/src/routes/tenants/index.ts:444`): not changed here, and owed the
-  same rewording.
+  customer. The app's own sentence for a closed organisation said *"nothing uses the access it
+  gave"* too; since the review of 2026-10-05 it says *"No new work starts with the access it
+  gave."* / *"Er begint geen nieuw werk meer met de toegang die zij gaf."*
+  (`packages/shared/src/organisation-closed.ts`), and the API's answer to `DELETE
+  /api/tenants/:id` (`apps/api/src/routes/tenants/index.ts`) says the same, in the same pull
+  request.
 - *The copy made right before an update, never longer than 7 days* (privacy §9, Alpha
   conditions §6; rec-copies (a)): built (0139 T6, 2026-09-28, review fixes 2026-09-29).
   `deploy/compose/copy-before-update.sh`, one directory,

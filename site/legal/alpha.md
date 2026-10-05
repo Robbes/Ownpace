@@ -29,11 +29,16 @@
   - §8: an admin can do everything an owner can except, as before, close or
     reopen the organisation, turn applying deletions or auto-applying
     relocations on or off and make somebody an owner, and now also "change or
-    remove an owner" / "een eigenaar een andere rol geven of verwijderen".
-    The code refuses that to an admin since #1484 (7126b8e3, 0137 T3):
-    only an owner may demote or remove an owner, as only an owner may make
-    one (apps/api/src/routes/tenants/member-guards.ts). The clause said less
-    than the code did; it now says the same.
+    remove an owner or an invitation as owner" / "een eigenaar of een
+    uitnodiging als eigenaar een andere rol geven of verwijderen". The code
+    refuses that to an admin since #1484 (7126b8e3, 0137 T3): only an owner
+    may demote or remove an owner, as only an owner may make one, and an
+    invitation as owner counts as an owner row there whatever its status
+    (changesOwnerWithoutPermission, apps/api/src/routes/tenants/member-guards.ts).
+    The clause said less than the code did; it now says the same. "or an
+    invitation as owner" was added in review the same day: without it, read
+    beside the code's own rule that only an active owner is an owner, the
+    clause let an admin withdraw an invitation as owner.
   - §10: "If you close your account, nothing uses any of it from then on"
     is said as the code does it (the owner, 2026-10-05: "Reword to match the
     code"). The comment beside terms §11 has what the code does, with file
@@ -149,10 +154,10 @@
     same. After closing: said as the code does it since 2026-10-05 (the owner: "Reword to match the
     code"; terms briefing, precondition B): no new work starts, work already running finishes what
     it is doing and stops, a pass can carry on for about fifteen seconds and then finishes what it
-    began, and a daily check already under way can read a whole Microsoft 365 organisation's list of
-    mailboxes and distribution lists once. The comment beside terms §11 has the code, with file and
-    line. The access is destroyed at erasure, at the end of the window the tester chose, as terms
-    §11 says.
+    began, and a daily check already under way can read, once, a whole Microsoft 365 organisation's
+    list of mailboxes, and the list of its distribution lists and groups with their members'
+    addresses. The comment beside terms §11 has the code, with file and line. The access is
+    destroyed at erasure, at the end of the window the tester chose, as terms §11 says.
   - The end of the Alpha (§11). ANSWERED: alpha-s11-erasure-window (b),
     2026-09-28. A tester who has not accepted the new conditions by the day
     they take effect is closed that day, and their data does not move along.
@@ -302,9 +307,9 @@ During the Alpha, do not invite anyone else into your organisation. If somebody 
 a migration, send them that migration's progress link: it shows counts and states, never
 content. If you do invite someone, invite them as an admin, and know that an admin can do
 everything you can except close or reopen the organisation, turn applying deletions or
-auto-applying relocations on or off, make somebody an owner, and change or remove an owner.
-During the Alpha, a person can only be an owner or an admin. You are responsible for whom you
-invite.
+auto-applying relocations on or off, make somebody an owner, and change or remove an owner or an
+invitation as owner. During the Alpha, a person can only be an owner or an admin. You are
+responsible for whom you invite.
 
 ## 9. Google asks again
 
@@ -332,8 +337,9 @@ withdraw it on their progress page. If you close your account, no new work start
 from then on. Work that is already running finishes what it is doing at that moment, and then
 stops. A pass of a migration can carry on for about fifteen seconds after the close, and then
 finishes what it began. If you connected a whole Microsoft 365 organisation, a daily check that
-had already started can still read the list of its mailboxes and distribution lists once. All of
-it is destroyed when your data is erased, at the end of the period you chose.
+had already started can still read, once, the list of its mailboxes, and the list of its
+distribution lists and groups with their members' addresses. All of it is destroyed when your
+data is erased, at the end of the period you chose.
 
 When your data is erased, we also delete your Ownpace sign-in account, take your Google address
 and any family member's off the list of test users (§9), and erase your request for access. We

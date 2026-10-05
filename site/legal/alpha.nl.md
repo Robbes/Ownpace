@@ -122,8 +122,9 @@ stuur die persoon dan de voortgangslink van die migratie: die toont aantallen en
 nooit de inhoud. Nodigt u toch iemand uit, geef die persoon dan de rol beheerder, en weet dat
 een beheerder alles kan wat u kunt, behalve de organisatie sluiten of heropenen, het toepassen
 van verwijderingen of het automatisch toepassen van verplaatsingen aan- of uitzetten, iemand
-eigenaar maken, en een eigenaar een andere rol geven of verwijderen. Tijdens de Alpha kan iemand
-alleen eigenaar of beheerder zijn. U bent zelf verantwoordelijk voor wie u uitnodigt.
+eigenaar maken, en een eigenaar of een uitnodiging als eigenaar een andere rol geven of
+verwijderen. Tijdens de Alpha kan iemand alleen eigenaar of beheerder zijn. U bent zelf
+verantwoordelijk voor wie u uitnodigt.
 
 ## 9. Google vraagt opnieuw
 
@@ -153,9 +154,10 @@ verwijdert, of wanneer die persoon haar op de eigen voortgangspagina intrekt. Sl
 account, dan begint er geen nieuw werk meer met die toegang. Werk dat al loopt, maakt af waar
 het op dat moment mee bezig is, en stopt dan. Een ronde van een migratie kan na de sluiting nog
 ongeveer vijftien seconden doorgaan, en maakt daarna af wat ze begon. Hebt u een hele Microsoft
-365-organisatie gekoppeld, dan kan een dagelijkse controle die al was begonnen, de lijst van
-haar mailboxen en distributielijsten nog één keer lezen. Alles wordt vernietigd wanneer uw
-gegevens worden gewist, aan het eind van de termijn die u koos.
+365-organisatie gekoppeld, dan kan een dagelijkse controle die al was begonnen, nog één keer de
+lijst van haar mailboxen lezen, en die van haar distributielijsten en groepen met de adressen
+van hun leden. Alles wordt vernietigd wanneer uw gegevens worden gewist, aan het eind van de
+termijn die u koos.
 
 Worden uw gegevens gewist, dan verwijderen wij ook uw Ownpace-inlogaccount, halen wij uw
 Google-adres en dat van een gezinslid van de lijst van testgebruikers (§9), en wissen wij uw

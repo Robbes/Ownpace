@@ -251,11 +251,11 @@ waarop uw gegevens worden gewist. Vanaf het moment dat uw account gesloten is, b
 nieuw werk meer met de toegang die u ons gaf. Werk dat al loopt, maakt af waar het op dat moment
 mee bezig is, en stopt dan. Een ronde van een migratie kan na de sluiting nog ongeveer vijftien
 seconden doorgaan, en maakt daarna af wat ze begon. Hebt u een hele Microsoft 365-organisatie
-gekoppeld, dan kan een dagelijkse controle die al was begonnen, de lijst van haar mailboxen en
-distributielijsten nog één keer lezen. Worden uw gegevens gewist, dan vernietigen we uw
-toegangsgegevens, trekken we de toegang in waar de aanbieder dat toelaat, en verwijderen we uw
-migratieregister, zoals §9 van de privacyverklaring beschrijft. Facturen bewaren we zolang de
-belastingwet dat vereist.
+gekoppeld, dan kan een dagelijkse controle die al was begonnen, nog één keer de lijst van haar
+mailboxen lezen, en die van haar distributielijsten en groepen met de adressen van hun leden.
+Worden uw gegevens gewist, dan vernietigen we uw toegangsgegevens, trekken we de toegang in waar
+de aanbieder dat toelaat, en verwijderen we uw migratieregister, zoals §9 van de
+privacyverklaring beschrijft. Facturen bewaren we zolang de belastingwet dat vereist.
 
 **Wij** kunnen deze voorwaarden beëindigen met 30 dagen opzegtermijn, of onmiddellijk bij een
 ernstige schending van §5, nadat we u hebben gezegd waarom, zoals §5 beschrijft. Beëindigen wij

@@ -67,8 +67,12 @@
      to match the code"). §11, the Alpha conditions §10 and privacy §9 now say what the code does:
      no new work starts, work already running finishes what it is doing and stops, a pass can carry
      on for about fifteen seconds and then finishes what it began, and a daily check already under
-     way can read a whole Microsoft 365 organisation's list of mailboxes and distribution lists
-     once. The comment beside §11 has the code, with file and line. The DPA's Annex A, unpublished,
+     way can read, once, a whole Microsoft 365 organisation's list of mailboxes, and the list of its
+     distribution lists and groups with their members' addresses (said so in review the same day;
+     the first wording named only the lists, not the members). Since the same review the app's own
+     refusal for a closed organisation, and the API's answer to DELETE /api/tenants/:id, say that
+     no new work starts too, where they said that nothing uses the access. The comment beside §11
+     has the code, with file and line. The DPA's Annex A, unpublished,
      still says the old sentence and is corrected with the DPA's one pass before the first business
      customer. What it said before, kept for the record: Not fully done: §11's "From the moment your
      account is closed, nothing uses the access you gave us.", which the Alpha conditions §10,
@@ -721,15 +725,23 @@ sure you never need this section.
        folder and before each item (packages/core/src/domain-sync.ts:1505, :1517, :1688). So for
        about fifteen seconds after the close it can begin further items or a further folder's
        listing, and then it finishes what it began: the items in flight (up to its concurrency), and
-       a folder listing or a folder walk with all its pages.
+       a folder listing or a folder walk with all its pages. The one read of the account after the
+       last item's gate, the mail pass's listing of the owner's bin (Deleted Items), asks once more
+       right before it, whatever the clock says, and is skipped on a stop (toldToStopBeforeTheBin,
+       packages/core/src/domain-sync.ts; review of 2026-10-05: until then it asked nothing, and
+       could begin after the close, later than fifteen seconds when the last item took long).
      - The daily shared-address discovery (06:30 UTC) and drift check (07:00 UTC) read the
        list of open organisations once, when they start (activeOrganisations,
        apps/worker/src/jobs/task-pools.ts:212, :249; managed-group-discovery.ts:218, :230,
        managed-drift-detect.ts:234, :246), and do not ask again. An organisation closed while one
        runs is still visited in that run. Only an o365 source, a whole Microsoft 365
        organisation connected with application permissions, is read there
-       (packages/connectors/src/directory-availability.ts:72-75): its list of mailboxes
-       (/users) and of mail-enabled groups. Any other source is answered without a request.
+       (packages/connectors/src/directory-availability.ts:72-75). The discovery reads its
+       mail-enabled groups (distribution lists, Microsoft 365 groups and mail-enabled security
+       groups) and, for each, its members' addresses (listMailEnabledGroups and listGroupMembers,
+       packages/connectors/src/graph-groups.ts:89, :144, :174). The drift check reads its list
+       of mailboxes (/users, packages/connectors/src/graph-directory.ts:76). Any other source is
+       answered without a request.
      - No background task runs longer than an hour (maxDuration: 3600,
        apps/worker/trigger.config.ts:65). The text promises no period.
      Changed under 1.3 in the owner's final-text pull request (2026-10-05), before anybody
@@ -741,10 +753,11 @@ which your data will be erased. From the moment your account is closed, no new w
 the access you gave us. Work that is already running finishes what it is doing at that moment,
 and then stops. A pass of a migration can carry on for about fifteen seconds after the close,
 and then finishes what it began. If you connected a whole Microsoft 365 organisation, a daily
-check that had already started can still read the list of its mailboxes and distribution lists
-once. When your data is erased, we destroy your credentials, revoke the access where the
-provider allows it, and delete your migration ledger, as §9 of the privacy policy describes.
-Invoices are kept as long as tax law requires.
+check that had already started can still read, once, the list of its mailboxes, and the list of
+its distribution lists and groups with their members' addresses. When your data is erased, we
+destroy your credentials, revoke the access where the provider allows it, and delete your
+migration ledger, as §9 of the privacy policy describes. Invoices are kept as long as tax law
+requires.
 
 **We** may end these terms with 30 days' notice, or immediately for a serious breach of §5,
 after telling you why as §5 describes. If we end them during a period you have already paid
