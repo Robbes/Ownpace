@@ -972,7 +972,7 @@ const en = {
   'billing.pick.monthly': '{monthly} a month',
   'billing.pick.room': '{paths} migrations at the same time, up to {data}.',
   'billing.pick.pace':
-    'Pass after pass until the first copy is done, then every hour, or as often as every 15 minutes if you choose.',
+    'Every tier here copies pass after pass until the first copy is done, then looks for changes every hour, or as often as every 15 minutes if you choose.',
   'billing.pick.button': 'Pick {tier}',
   'billing.pick.keep': 'Keep {tier}',
   'billing.pick.top': '{tier} is the highest tier. For more, talk to us.',
@@ -4003,7 +4003,7 @@ const nl: Record<keyof typeof en, string> = {
   'billing.pick.monthly': '{monthly} per maand',
   'billing.pick.room': '{paths} migraties tegelijk, tot {data}.',
   'billing.pick.pace':
-    'Ronde na ronde tot de eerste kopie klaar is, daarna elk uur, of zo vaak als elke 15 minuten als u dat kiest.',
+    'Elk pakket hier kopieert ronde na ronde tot de eerste kopie klaar is, en kijkt daarna elk uur naar wijzigingen, of zo vaak als elke 15 minuten als u dat kiest.',
   'billing.pick.button': 'Kies {tier}',
   'billing.pick.keep': '{tier} houden',
   'billing.pick.top': '{tier} is het hoogste pakket. Wilt u meer, neem dan contact op.',

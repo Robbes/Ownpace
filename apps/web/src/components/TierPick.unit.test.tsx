@@ -92,7 +92,7 @@ beforeEach(() => {
 });
 
 describe('the tiers offered', () => {
-  it('lists every tier above the one this month bills, with its monthly, its room and its pace', async () => {
+  it('lists every tier above the one this month bills, with its monthly and its room, and the pace once', async () => {
     getPick.mockResolvedValue(ON_FREE);
     renderCard();
     expect(await screen.findByRole('heading', { name: 'Pick a tier' })).toBeVisible();
@@ -103,8 +103,9 @@ describe('the tiers offered', () => {
     expect(small.getByText('Small')).toBeVisible();
     expect(small.getByText(/€5\.00 a month/)).toBeVisible();
     expect(small.getByText('6 migrations at the same time, up to 500 GB.')).toBeVisible();
-    expect(small.getByText(/Pass after pass until the first copy is done, then every hour/)).toBeVisible();
     expect(within(items[3]!).getByText('50 migrations at the same time, up to 15 TB.')).toBeVisible();
+    // Every paid tier runs at the same pace: said once, above the list.
+    expect(screen.getAllByText(/Every tier here copies pass after pass until the first copy is done/)).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Pick Small' })).toBeVisible();
     expect(screen.queryByRole('button', { name: /Lower to|Drop the pick/ })).toBeNull();
   });
@@ -126,12 +127,15 @@ describe('the tiers offered', () => {
 });
 
 describe('a pick', () => {
-  it('asks once more with the money said, and sends it only by the order button', async () => {
+  it('asks once more with the money said, under the tier pressed, and sends it only by the order button', async () => {
     getPick.mockResolvedValue(ON_FREE);
     pickTier.mockResolvedValue({ ...PICKED_SMALL, from: 'now' });
     renderCard();
     fireEvent.click(await screen.findByRole('button', { name: 'Pick Small' }));
     const dialog = screen.getByRole('alertdialog');
+    // Where the press was, with the focus on the question, never on the order button.
+    expect(screen.getAllByRole('listitem')[0]).toContainElement(dialog);
+    expect(dialog).toHaveFocus();
     expect(
       within(dialog).getByText(
         'From today each month bills at least Small, €5.00 a month, until you lower it. Lowering counts from the next month.',

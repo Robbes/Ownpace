@@ -11,11 +11,15 @@
  * says the pick that stands.
  *
  * A pick costs money, so a press is not yet the pick: it asks once more with
- * the money said, and only the order button sends it, labelled with the words
- * the law gives it (terms §6: *"a button that says plainly that you are
- * ordering with an obligation to pay"*). What it sends is the tier and the
- * price the card showed; when what may be picked changed in between, the
- * server refuses and serves what is offered now, which the card then shows.
+ * the money said, under the tier pressed and with the focus on the question,
+ * and only the order button sends it, labelled with the words the law gives it
+ * (terms §6: *"a button that says plainly that you are ordering with an
+ * obligation to pay"*). What it sends is the tier and the price the card
+ * showed; when what may be picked changed in between, the server refuses and
+ * serves what is offered now, which the card then shows.
+ *
+ * Every paid tier runs at the same pace, so the pace is said once, above the
+ * list, and each tier says only its price and its room.
  *
  * Lowering is the person's own action and counts from the next month. It
  * orders nothing, so its confirmation is plain. While a lower pick waits, the
@@ -173,31 +177,48 @@ const PickBody: React.FC<{
       )}
 
       {raise.length > 0 ? (
-        <ul className="divide-y divide-gray-200 border-t border-gray-200">
-          {raise.map((tier) => (
-            <li key={tier.id} className="flex flex-wrap items-start justify-between gap-2 pt-3 pb-1">
-              <div className="flex-1 min-w-[16rem] space-y-1">
-                <p className="text-gray-900">
-                  <span className="font-semibold">{tier.name}</span>
-                  {' · '}
-                  {t('billing.pick.monthly', { monthly: eur(tier.monthlyEur) })}
-                </p>
-                <p className="text-gray-600">{t('billing.pick.room', { paths: tier.paths, data: size(tier.dataGb) })}</p>
-                <p className="text-gray-600">{t('billing.pick.pace')}</p>
-              </div>
-              {holds && (
-                <button
-                  type="button"
-                  onClick={() => setAsking({ tier, lower: false })}
-                  disabled={pending}
-                  className="px-3 py-1.5 border border-blue-600 text-blue-700 rounded-lg hover:bg-blue-50 disabled:opacity-50 font-medium"
-                >
-                  {keeps(tier) ? t('billing.pick.keep', { tier: tier.name }) : t('billing.pick.button', { tier: tier.name })}
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
+        <>
+          <p className="text-gray-600">{t('billing.pick.pace')}</p>
+          <ul className="divide-y divide-gray-200 border-t border-gray-200">
+            {raise.map((tier) => (
+              <li key={tier.id} className="flex flex-wrap items-start justify-between gap-2 py-3">
+                <div className="flex-1 min-w-[16rem] space-y-1">
+                  <p className="text-gray-900">
+                    <span className="font-semibold">{tier.name}</span>
+                    {' · '}
+                    {t('billing.pick.monthly', { monthly: eur(tier.monthlyEur) })}
+                  </p>
+                  <p className="text-gray-600">{t('billing.pick.room', { paths: tier.paths, data: size(tier.dataGb) })}</p>
+                </div>
+                {holds && (
+                  <button
+                    type="button"
+                    onClick={() => setAsking({ tier, lower: false })}
+                    disabled={pending}
+                    aria-expanded={asking?.tier.id === tier.id && !asking.lower}
+                    className="px-3 py-1.5 border border-blue-600 text-blue-700 rounded-lg hover:bg-blue-50 disabled:opacity-50 font-medium"
+                  >
+                    {keeps(tier) ? t('billing.pick.keep', { tier: tier.name }) : t('billing.pick.button', { tier: tier.name })}
+                  </button>
+                )}
+                {/* The question opens under the tier pressed, where the eye is. */}
+                {holds && asking && !asking.lower && asking.tier.id === tier.id && (
+                  <Question
+                    sentence={
+                      keeps(tier)
+                        ? t('billing.pick.confirm.keep', { tier: tier.name, monthly: eur(tier.monthlyEur) })
+                        : t('billing.pick.confirm', { tier: tier.name, monthly: eur(tier.monthlyEur) })
+                    }
+                    yes={t('billing.pick.order')}
+                    onYes={() => onPick(tier)}
+                    onNo={() => setAsking(null)}
+                    pending={pending}
+                  />
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
       ) : (
         <p className="text-gray-600">{t('billing.pick.top', { tier: offer.billed.name })}</p>
       )}
@@ -210,50 +231,76 @@ const PickBody: React.FC<{
               type="button"
               onClick={() => setAsking({ tier, lower: true })}
               disabled={pending}
+              aria-expanded={asking?.tier.id === tier.id && asking.lower}
               className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
             >
               {tier.id === 'free' ? t('billing.pick.drop') : t('billing.pick.lowerTo', { tier: tier.name })}
             </button>
           ))}
+          {asking?.lower && (
+            <Question
+              sentence={
+                asking.tier.id === 'free'
+                  ? t('billing.pick.lower.confirmNone', { date: nextFrom, now: picked.now?.name ?? '' })
+                  : t('billing.pick.lower.confirm', { date: nextFrom, tier: asking.tier.name, now: picked.now?.name ?? '' })
+              }
+              yes={t('billing.pick.lower.yes')}
+              onYes={() => onPick(asking.tier)}
+              onNo={() => setAsking(null)}
+              pending={pending}
+            />
+          )}
         </div>
       )}
+    </div>
+  );
+};
 
-      {holds && asking && (
-        <div className="p-4 rounded-lg bg-blue-50 space-y-3" role="alertdialog" aria-live="polite">
-          <p className="text-gray-900">
-            {asking.lower
-              ? asking.tier.id === 'free'
-                ? t('billing.pick.lower.confirmNone', { date: nextFrom, now: picked.now?.name ?? '' })
-                : t('billing.pick.lower.confirm', {
-                    date: nextFrom,
-                    tier: asking.tier.name,
-                    now: picked.now?.name ?? '',
-                  })
-              : keeps(asking.tier)
-                ? t('billing.pick.confirm.keep', { tier: asking.tier.name, monthly: eur(asking.tier.monthlyEur) })
-                : t('billing.pick.confirm', { tier: asking.tier.name, monthly: eur(asking.tier.monthlyEur) })}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => onPick(asking.tier)}
-              disabled={pending}
-              className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
-            >
-              {pending && <Loader2 className="w-4 h-4 animate-spin" />}
-              {asking.lower ? t('billing.pick.lower.yes') : t('billing.pick.order')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setAsking(null)}
-              disabled={pending}
-              className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-            >
-              {t('billing.pick.notNow')}
-            </button>
-          </div>
-        </div>
-      )}
+/**
+ * The question a press opens: the sentence that says what it costs or changes,
+ * and the two buttons. It takes the focus when it opens, so a keyboard or a
+ * screen reader is where the question is, and the answer is a deliberate
+ * second press: the focus is on the question, never on the order button.
+ */
+const Question: React.FC<{
+  sentence: string;
+  yes: string;
+  onYes: () => void;
+  onNo: () => void;
+  pending: boolean;
+}> = ({ sentence, yes, onYes, onNo, pending }) => {
+  const t = useT();
+  const box = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => box.current?.focus(), []);
+  return (
+    <div
+      ref={box}
+      tabIndex={-1}
+      className="basis-full p-4 rounded-lg bg-blue-50 space-y-3 outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+      role="alertdialog"
+      aria-live="polite"
+      aria-label={sentence}
+    >
+      <p className="text-gray-900">{sentence}</p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={onYes}
+          disabled={pending}
+          className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+        >
+          {pending && <Loader2 className="w-4 h-4 animate-spin" />}
+          {yes}
+        </button>
+        <button
+          type="button"
+          onClick={onNo}
+          disabled={pending}
+          className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+        >
+          {t('billing.pick.notNow')}
+        </button>
+      </div>
     </div>
   );
 };
