@@ -350,6 +350,15 @@ export const MappingSchema = z.object({
     domains: z.array(DomainEnum),
     schedule: z.string().optional(),
   }),
+  /**
+   * The pace it runs at (workplan 0157 T4, T5): the least minutes between two
+   * passes, 1,440 on Free outside the alpha, and when that lets the next pass
+   * run. Absent from an API that predates it, which held no pace.
+   */
+  pace: z
+    .object({ leastMinutesBetweenPasses: z.number(), nextPassAt: z.string().nullable() })
+    .optional()
+    .catch(undefined),
   status: MappingLifecycleSchema,
   mode: z.string(),
   pattern: z.string().nullish(),

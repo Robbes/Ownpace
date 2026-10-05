@@ -147,6 +147,10 @@ async function rowOf(): Promise<{ schedule: string | null; status: string; o: un
 
 describe('the update route, against real rows', () => {
   beforeAll(async () => {
+    // In the alpha, where every tier keeps every cadence: outside it, Free
+    // refuses one faster than a day (workplan 0157 T4,
+    // doors-that-know-the-pace), which is not this file's subject.
+    vi.stubEnv('OWNPACE_STAGE', 'alpha');
     driver = pgliteDriver({ role: 'app_user' });
     await runMigrations({ driver, logger: () => {} });
     const conn = await driver.acquire();
@@ -177,6 +181,7 @@ describe('the update route, against real rows', () => {
   }, 120_000);
 
   afterAll(async () => {
+    vi.unstubAllEnvs();
     await driver.end?.();
   });
 

@@ -310,6 +310,17 @@ export function freePaceRefusal(err: unknown): { nextPassAt: string } | null {
 }
 
 /**
+ * Whether a schedule was refused at the tier's pace (`free_pace_schedule`,
+ * workplan 0157 T4): on Free, one pass a day. Ours, so the panel says it in
+ * the reader's language; the server's `message` is the English.
+ */
+export function scheduleAtPaceRefusal(err: unknown): boolean {
+  if (!axios.isAxiosError(err)) return false;
+  const data = err.response?.data as { error?: unknown } | undefined;
+  return err.response?.status === 409 && data?.error === 'free_pace_schedule';
+}
+
+/**
  * Whether the members routes refused a role below admin
  * (`owner_or_admin_only`, workplan 0137 T7).
  *

@@ -4,6 +4,18 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-10-05, later still: T4 built: the doors know the pace.** Outside the alpha, on Free:
+- a schedule faster than a day is refused at create and on the migration page
+  (`409 free_pace_schedule`), while *Automatic* and *Daily* are not;
+- *Start* on a paused migration that ran inside the day activates it, and its pass waits for the
+  pace, the answer saying when;
+- the migration's detail carries its `pace`, and *How often to look for changes* offers only what
+  Free runs, with a line on why and a link to the Billing page.
+
+A faster schedule kept from a higher tier stays shown, the same line saying it runs once a day:
+nothing is rewritten. One reading of the pace (`paceFor` in `free-pace.ts`) serves every door,
+*Sync now*'s included.
+
 **2026-10-05, later: T7's cadence built; its notices are next.** A migration with no schedule
 of its own now runs the automatic cadence (`automaticScheduleFor` in
 `packages/orchestration/src/sync-due.ts`). It looks every hour for 14 days, then every 6 hours,
@@ -36,7 +48,7 @@ and it waits for the owner.
 | T1 The tier table | ✅ **Built 2026-10-04** | §1. Free 6 and 150 GB, Small 6 and 500 GB, Medium 12 and 1.5 TB, Large 24 and 6 TB, Extra large 50 and 15 TB: ADR-0014's table, `site/prices.mjs`, `MANAGED_TIERS`, the site's tier texts in both languages, and terms §6. |
 | T2 Free at one pass a day | ✅ **Built 2026-10-05** | §2. The managed tick makes a Free migration due 24 hours after its last pass started, its first copy included, outside the alpha; a paid one keeps 0156 T5's first copy back to back. *Sync now* on Free waits for the day too, except the final pass. |
 | T3 Small kinds first, files last, across a Free organisation's migrations | ✅ **Built 2026-10-05** | §3. Within a pass `PASS_ORDER` already does it; between one Free organisation's migrations due at once, one that copies only files (a Takeout's photos included) takes its later turns (`inOrganisationOrder`). |
-| T4 The doors know the pace, and paid looks every hour | 🟡 **Hourly default built 2026-10-04; the doors proposed** | §4. A migration *Start* makes looks every hour (`StartMigration.tsx`'s `HOURLY`, *How often to look for changes*'s first preset). The API refusing a schedule faster than a tier allows, and the chooser offering what the tier allows, wait for T2's tier fact. |
+| T4 The doors know the pace, and paid looks every hour | ✅ **Built: the hourly default 2026-10-04 (since T7, *Automatic*), the doors 2026-10-05** | §4. The API refuses a schedule faster than the tier allows (`free_pace_schedule`), the chooser offers what the tier allows and says why, *Start* on a paused migration waits for the pace, and a fallen tier's faster schedule is shown as running once a day. |
 | T5 The app says the pace | 📋 **Proposed** | §5. *"One pass a day, up to 50 minutes. Next pass at 07:12."*, with how many days the first copy needs, on the migration's and the person's pages. |
 | T6 Picking a tier | 📋 **Proposed** | §6. The Billing page offers every tier above the derived one; a pick is the person's yes, the month bills at least the picked tier, and the downgrade stops there. |
 | T7 The default slows once everything is in step | 🟡 **Decided 2026-10-05; the cadence built 2026-10-05, the notices to build** | §7. Hourly for 14 days after the first copy, then every 6 hours, then daily after 30 days; a schedule the person chose is never changed. The owner: *"yes"*. Built: *Automatic*, the tick's cadence for no schedule, with a visit bringing back the hour. To build: each step said in the app and by email. |
@@ -139,6 +151,23 @@ it works out the least tier the answers need.
 - ***Start* on a paused migration that ran inside the day** (found building T2): *Start*
   activates it and runs a pass at once, so on Free pause and *Start* would pass the day.
   Proposed: it activates, and the pass waits for the pace, with the time it starts.
+
+**Built (2026-10-05).** All of it outside the alpha, by the tier the month bills.
+- ***The pace, read once*** (`paceFor` in `apps/api/src/routes/migrations/free-pace.ts`): the
+  least minutes between two passes, and when that lets the next pass run. *Sync now*'s refusal
+  (T2), *Start*, the schedule doors and the migration's detail all read it.
+- **The schedule doors.** Create and the migration page refuse a cron whose passes come closer
+  than the pace, `409 free_pace_schedule`, with the English and the pace. *Automatic* (no
+  schedule) and *Daily* are never refused.
+- ***Start* on a paused migration** that ran inside the day activates it. `firstRun` answers
+  `queued: false` with `nextPassAt`, and the tick starts the pass when the day is over. One that
+  never ran starts at once, as before.
+- ***How often to look for changes*** reads the detail's `pace`. On Free it offers *Automatic*
+  and *Daily*, the faster three shown but not offered. A line says *"On Free a migration looks
+  for changes once a day, whatever the schedule. A higher tier looks as often as every 15
+  minutes."*, with *"See the tiers on the Billing page."* after it. A faster schedule kept from a
+  higher tier stays selected under that line, and nothing rewrites it. A refusal from the route
+  is said in the same words.
 
 ## 5. T5 — the app says the pace
 

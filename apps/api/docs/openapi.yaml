@@ -2226,6 +2226,10 @@ paths:
             (`ConditionsNotAccepted`): while the deployment asks, the caller
             has not yet accepted the current version of each text, and no
             credential is stored before that (workplan 0139 T3).
+            `free_pace_schedule`: on Free, outside the alpha, the schedule's
+            passes come closer than a day, the tier's pace, with
+            `leastMinutesBetweenPasses` (workplan 0157 T4). No schedule
+            (automatic) and a daily one are never refused.
           content:
             application/json:
               schema:
@@ -2300,7 +2304,11 @@ paths:
         when discovery could not count the data type.
       responses:
         '200':
-          description: The migration.
+          description: |
+            The migration. `pace` says the pace it runs at (workplan 0157 T4):
+            `leastMinutesBetweenPasses`, 1,440 on Free outside the alpha and 0
+            otherwise, and `nextPassAt`, when that lets the next pass run while
+            it is still to come, else null.
           content:
             application/json:
               schema: { type: object }
@@ -2384,6 +2392,11 @@ paths:
             migration that already exists. Every refused field is listed, each
             with a reason that names what to do instead.
 
+            `free_pace_schedule`: on Free, outside the alpha, the schedule's
+            passes come closer than a day, the tier's pace, with
+            `leastMinutesBetweenPasses` (workplan 0157 T4). Nothing was written.
+            `schedule: null` (automatic) and a daily one are never refused.
+
             `lifecycle_refused` (ADR-0049): the status move is one the
             lifecycle does not make through this door. `code` is the stable
             part: `own_door` (starting is POST …/start, finishing is POST
@@ -2460,6 +2473,11 @@ paths:
         active migration enqueues nothing and is answered `activated: false`.
         A closed organisation is refused on every press, an active migration's
         too, before the grant's own answers (`AccountClosed`, workplan 0085 T2).
+
+        On Free, outside the alpha, a paused migration whose last pass started
+        within the day is activated, and its pass waits for the pace:
+        `firstRun` is `queued: false` with `nextPassAt`, and the sync tick
+        starts the pass then (workplan 0157 T4).
       responses:
         '200':
           description: Started.
