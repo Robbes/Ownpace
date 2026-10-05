@@ -36,7 +36,8 @@ import { fetchAllDiscovery, fetchAttention, fetchRuns, fetchStatus } from '../se
 import { fetchProgress } from '../services/progress-service.ts';
 import { checksOf } from '../services/cutover-steps.ts';
 import { linesProgressOf } from '../services/stage-line.ts';
-import { useT, useFormatters } from '../i18n/index.tsx';
+import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
+import type { Locale } from '../i18n/strings.ts';
 import RunsPanel from '../components/RunsPanel.tsx';
 import MappingLinksPanel from '../components/MappingLinksPanel.tsx';
 import ExportPolicyPanel from '../components/ExportPolicyPanel.tsx';
@@ -74,14 +75,19 @@ import { serverMessage } from '../services/api.ts';
  * account is unknown — an empty `()` would read as a connection with no
  * account rather than as a page that could not say.
  */
-function sideLabel(name: string | null | undefined, kind: string, account: string | undefined): string {
+function sideLabel(
+  name: string | null | undefined,
+  kind: string,
+  account: string | undefined,
+  locale: Locale,
+): string {
   const known = account !== undefined && account !== '';
   // A NAME MADE FROM WHAT IT CONNECTS TO says nothing the provider and the
   // address do not (0154 T6): the wizard named an account it was not given a
   // name for `gmail · anna@gmail.com`, and the line read *From gmail ·
   // anna@gmail.com (anna@gmail.com)*. Such a name, or none, is the provider
   // card's own: *From Gmail (anna@gmail.com)*. A name somebody chose stays.
-  const provider = connectionKindName(kind) ?? kind;
+  const provider = connectionKindName(kind, locale) ?? kind;
   const made = name == null || name === kind || name === provider || (known && name.includes(account));
   const head = made ? provider : name;
   return known ? `${head} (${account})` : head;
@@ -109,13 +115,14 @@ export function filesFromLine(
     readonly sourceConfig: { readonly rootFolderId?: string | undefined; readonly rootPath?: string | undefined };
     readonly syncConfig: { readonly domains: ReadonlyArray<string> };
   },
+  locale: Locale,
 ): string | undefined {
   const kind = m.sourceConnection?.kind;
   const key = kind === undefined ? undefined : FOLDER_KEY_OF_KIND[kind];
   if (key === undefined || !m.syncConfig.domains.includes('file')) return undefined;
   const folder = m.sourceConfig[key];
   if (folder) return t(key === 'rootPath' ? 'hub.filesFrom.path' : 'hub.filesFrom.id', { folder });
-  const place = kind === 'google' || kind === 'google_drive' ? t('start.place.myDrive') : (connectionKindName(kind!) ?? kind!);
+  const place = kind === 'google' || kind === 'google_drive' ? t('start.place.myDrive') : (connectionKindName(kind!, locale) ?? kind!);
   return t('hub.filesFrom.all', { place });
 }
 
@@ -135,6 +142,7 @@ function latestPass(rows: readonly { readonly lastSyncedAt?: string }[] | undefi
 const MappingDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const t = useT();
+  const { locale } = useLocale();
   const { dateTime } = useFormatters();
 
   // A VISIT BRINGS BACK THE HOUR (workplan 0157 T7): a migration with no
@@ -377,11 +385,13 @@ const MappingDetail: React.FC = () => {
               detail.data.sourceConnection?.name,
               detail.data.sourceType,
               detail.data.sourceConfig.username,
+              locale,
             ),
             target: sideLabel(
               detail.data.targetConnection?.name,
               detail.data.targetType,
               detail.data.targetConfig.username,
+              locale,
             ),
           })}
         </p>
@@ -400,8 +410,8 @@ const MappingDetail: React.FC = () => {
       {/* WHERE ITS FILES START (0153 open question 5, item 4), said the same
           way: once anything is copied, another folder would be another
           migration. */}
-      {detail.data && filesFromLine(t, detail.data) !== undefined && (
-        <p className="mt-1 text-sm text-gray-600">{filesFromLine(t, detail.data)}</p>
+      {detail.data && filesFromLine(t, detail.data, locale) !== undefined && (
+        <p className="mt-1 text-sm text-gray-600">{filesFromLine(t, detail.data, locale)}</p>
       )}
       {/* A GRANT THE PERSON TOOK BACK (workplan 0108 T8 (c)), said before
           anything that reads as progress: the status can still say Active,
@@ -446,7 +456,7 @@ const MappingDetail: React.FC = () => {
         <TimeWhileCopyingLine
           className="mt-4 text-sm text-gray-700"
           time={timeWhile}
-          provider={providerName(sourceType ?? '', 'source')}
+          provider={providerName(sourceType ?? '', 'source', locale)}
         />
       )}
       {/* Free's pace, and this migration's next pass by it (0157 T5). */}

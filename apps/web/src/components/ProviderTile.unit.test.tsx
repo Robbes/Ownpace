@@ -93,12 +93,19 @@ describe('the provider tile', () => {
     ['soverin', 'target', 'Soverin'],
     ['nextcloud', 'target', 'Nextcloud'],
   ] as [string, TileRole, string][])('names %s as a %s "%s" in a line of words', (type, role, name) => {
-    expect(providerName(type, role)).toBe(name);
+    expect(providerName(type, role, 'en')).toBe(name);
   });
 
   it('names a company only where a person leaves it, and a type it does not know as itself', () => {
-    expect(providerName('gmail', 'target')).toBe('Gmail');
-    expect(providerName('no-such-type', 'source')).toBe('no-such-type');
+    expect(providerName('gmail', 'target', 'en')).toBe('Gmail');
+    expect(providerName('no-such-type', 'source', 'en')).toBe('no-such-type');
+  });
+
+  it('names in Dutch what Dutch writes its own way, and a company the same in both (2026-10-05)', () => {
+    expect(providerName('archive', 'source', 'nl')).toBe('Exportarchief');
+    expect(providerName('archive', 'source', 'en')).toBe('Export archive');
+    expect(providerName('gmail', 'source', 'nl')).toBe('Google');
+    expect(providerName('soverin', 'target', 'nl')).toBe('Soverin');
   });
 
   it('uses the same two colours as the site and the drawing', () => {

@@ -33,7 +33,7 @@ import {
   setupStepsFor,
   type GrantProvider,
 } from '@openmig/shared';
-import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
+import { useT, useFormatters, useLocale, type StringKey } from '../i18n/index.tsx';
 import { serverMessage } from '../services/api.ts';
 import { GUIDE_SLUGS } from './Docs.tsx';
 import { cardGuideHref } from '../components/front-door-cards.ts';
@@ -176,6 +176,7 @@ function emptiedByDeploymentApp(
  */
 const ProviderChooser: React.FC = () => {
   const t = useT();
+  const { locale } = useLocale();
   // As Accounts is (2026-10-05): the question on the paper, each side a white
   // card, and each tile saying it opens.
   return (
@@ -203,7 +204,7 @@ const ProviderChooser: React.FC = () => {
               >
                 {/* The provider's own name, not the wizard's key: nobody can
                     guess `oauth2` means Entra ID (workplan 0074). */}
-                <span>{providerDisplayName(p)}</span>
+                <span>{providerDisplayName(p, locale)}</span>
                 <ChevronRight className="w-4 h-4 shrink-0 text-gray-400 group-hover:text-blue-700" aria-hidden="true" />
               </Link>
             ))}
@@ -242,6 +243,7 @@ function useAdminAnswer(side: string, provider: string) {
 
 const Setup: React.FC = () => {
   const t = useT();
+  const { locale } = useLocale();
   const { side, provider } = useParams<{ side: string; provider: string }>();
   // Back to Accounts, wherever it was opened from: *Start a migration* opens
   // it in a tab of its own, so its screens are still where they were, and
@@ -316,7 +318,7 @@ const Setup: React.FC = () => {
 
       <div>
         <h1 className="text-2xl font-bold text-gray-900">
-          {t('setup.title')} — {providerDisplayName(data.provider)}
+          {t('setup.title')} — {providerDisplayName(data.provider, locale)}
         </h1>
         {data.steps.length > 0 && <p className="mt-1 text-gray-600">{t('setup.intro')}</p>}
       </div>
@@ -367,7 +369,7 @@ const Setup: React.FC = () => {
           {asksAdmin && (
             <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
               <p className="text-sm font-medium text-gray-900">
-                {t('setup.admin.question')} — {providerDisplayName(data.provider)}
+                {t('setup.admin.question')} — {providerDisplayName(data.provider, locale)}
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {(['yes', 'no', 'unknown'] as const).map((a) => (

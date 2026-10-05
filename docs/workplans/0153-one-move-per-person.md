@@ -4,6 +4,33 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-10-05, later: provider names the Dutch way in the Dutch app** (the owner: *"Write provider
+names the Dutch way in the Dutch app"*). The Dutch app named the account a person leaves *Google
+account*, on a person's page, on Accounts and on the card that adds one. Its own Dutch sentences
+already said *Google-account*.
+- **The names.** `providerDisplayName` takes the reader's language. In Dutch:
+  - *Google-account*, *Microsoft 365-account* and *Apple-account (iCloud)*, a compound with a name
+    taking its hyphen;
+  - *Google Agenda* and *Google Contacten*, Google's own Dutch names;
+  - *Exportarchief*.
+
+  Brands and protocols (Gmail, Dropbox, IMAP, Soverin) are the same in both languages. English is
+  the default, so a server's line and a log are as they were.
+- **Every screen passes it.** The tiles, Accounts' rows, the cards that add an account, Help, Start
+  a migration, a migration's page and a person's link page all pass the reader's language.
+  `providerName` and `connectionKindName` require it, so the type checker found each caller.
+- **The home page's app screen** was taken again, as its smoke asked: the Dutch picture said
+  *Google account*. Only the Dutch pictures and words changed.
+- **Guarded:**
+  - `a-provider-named-in-the-readers-language`: every call in the web app says which language,
+    and no Dutch string writes such a name the English way. An API's own name, *Google Contacts
+    CardDAV API*, is left as it is;
+  - `provider-display-names`: the Dutch names, only for types the English table names, and a
+    brand the same in both;
+  - `a-provider-named-in-dutch`: a tile and the cards, rendered in both languages.
+
+  Dropping the language from one call on Help fails the first.
+
 **2026-10-05, later: Report a problem in a white card too.** The owner: it *"also seems to have
 only the off-white background and not the correct blocks"*. Its title and sentence now sit on the
 paper, and the form sits on a white card, kept to a column a form reads well in. The two answers it

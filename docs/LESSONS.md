@@ -2023,6 +2023,7 @@ reading a file drops off its entry by itself.
 
 - [a-consent-nobody-can-answer](../scripts/a-consent-nobody-can-answer.unit.test.ts) — A BUTTON WHOSE FOLD NEVER HAPPENS ASKS FOR WHAT IT WAS THERE TO SUPPLY.
 - [a-kind-with-nowhere-to-live](../scripts/a-kind-with-nowhere-to-live.unit.test.ts) — A PROVIDER ACCOUNT KIND CAN BE DECLARED AND HAVE NOWHERE TO BE STORED.
+- [a-provider-named-in-the-readers-language](../scripts/a-provider-named-in-the-readers-language.unit.test.ts) — A PROVIDER NAMED IN THE READER'S LANGUAGE (the owner, 2026-10-05: *"Write provider names the Dutch way in the Dutch app"*).
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 
 ### `packages/shared/src/dav-canonical.ts`
@@ -3761,6 +3762,14 @@ Reads:
 
 - `docs/feature-matrix.md`
 - `packages/shared/src/front-door.ts`
+
+### [a-provider-named-in-the-readers-language](../scripts/a-provider-named-in-the-readers-language.unit.test.ts)
+
+A PROVIDER NAMED IN THE READER'S LANGUAGE (the owner, 2026-10-05: *"Write provider names the Dutch way in the Dutch app"*).
+
+Reads:
+
+- `packages/shared/src/credential-fields.ts`
 
 ### [a-provider-skipped-in-silence](../scripts/a-provider-skipped-in-silence.unit.test.ts)
 

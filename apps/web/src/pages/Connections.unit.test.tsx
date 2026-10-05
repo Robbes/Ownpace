@@ -759,7 +759,7 @@ describe('adding a connection through the front door', () => {
     // shapes the wizard's chooser draws, and a `<select>` has none of them.
     expect(screen.getByText('Your provider')).toBeTruthy();
     expect(screen.getByText('Any server, by protocol')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /^Google account/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Google[ -]account/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: /^IMAP/ })).toBeTruthy();
   });
 
@@ -785,7 +785,7 @@ describe('adding a connection through the front door', () => {
     // draws the card; managed no longer does (the owner, 2026-10-04: "6. A").
     editionFlag.selfhost = true;
     await open();
-    fireEvent.click(screen.getByRole('button', { name: /^Export archive/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^(?:Export archive|Exportarchief)/ }));
     const which = screen.getByLabelText(/^Which export/) as HTMLSelectElement;
     expect(which.tagName, 'which export is a box to spell an id into').toBe('SELECT');
     expect([...which.options].map((o) => o.value)).toEqual(['', 'google-takeout', 'apple-privacy']);
@@ -943,7 +943,7 @@ describe('adding a connection through the front door', () => {
     const opened = vi.spyOn(window, 'open').mockReturnValue(null);
     try {
       await open();
-      fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
+      fireEvent.click(screen.getByRole('button', { name: /^Google[ -]account/ }));
       fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
         target: { value: 'owner@gmail.com' },
       });
@@ -975,7 +975,7 @@ describe('adding a connection through the front door', () => {
     const opened = vi.spyOn(window, 'open').mockReturnValue(null);
     try {
       await open();
-      fireEvent.click(screen.getByRole('button', { name: /^Microsoft 365 account/ }));
+      fireEvent.click(screen.getByRole('button', { name: /^Microsoft 365[ -]account/ }));
       fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
         target: { value: 'someone@contoso.example' },
       });
@@ -1003,7 +1003,7 @@ describe('adding a connection through the front door', () => {
       microsoft: { domains: [...PROVIDER_ACCOUNT_DOMAINS.microsoft], client: 'connection' },
     });
     await open();
-    fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Google[ -]account/ }));
     await screen.findByText('What this account will serve');
     await screen.findByLabelText('Contacts');
     expect(screen.queryByLabelText('Tasks')).toBeNull();
@@ -1020,7 +1020,7 @@ describe('adding a connection through the front door', () => {
     const opened = vi.spyOn(window, 'open').mockReturnValue(null);
     try {
       await open();
-      fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
+      fireEvent.click(screen.getByRole('button', { name: /^Google[ -]account/ }));
       fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
         target: { value: 'owner@gmail.com' },
       });
@@ -1042,7 +1042,7 @@ describe('adding a connection through the front door', () => {
     providerClients.mockResolvedValue({ google: 'connection', dropbox: 'connection', microsoft: 'deployment' });
     providerAccounts.mockReturnValue(new Promise(() => {}));
     await open();
-    fireEvent.click(screen.getByRole('button', { name: /^Microsoft 365 account/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Microsoft 365[ -]account/ }));
     await screen.findByText('What this account will serve');
     expect(await screen.findByLabelText('Tasks')).toBeInTheDocument();
   });
@@ -1106,7 +1106,7 @@ describe('adding a connection through the front door', () => {
     const opened = vi.spyOn(window, 'open').mockReturnValue(null);
     try {
       await open();
-      fireEvent.click(screen.getByRole('button', { name: /^Microsoft 365 account/ }));
+      fireEvent.click(screen.getByRole('button', { name: /^Microsoft 365[ -]account/ }));
       fireEvent.change(screen.getByPlaceholderText('someone@example.com'), {
         target: { value: 'someone@contoso.example' },
       });
@@ -1756,7 +1756,7 @@ describe('the consent asks for its ending in the page’s language (0145 T6)', (
     { provider: 'Dropbox', card: /^Dropbox/, connect: 'wizard.dropbox.connect', authorize: dropboxAuthorize, faces: false },
     {
       provider: 'Microsoft',
-      card: /^Microsoft 365 account/,
+      card: /^Microsoft 365[ -]account/,
       connect: 'wizard.microsoft.connect',
       authorize: microsoftAuthorize,
       faces: true,

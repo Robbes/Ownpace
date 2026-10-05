@@ -256,10 +256,10 @@ const pairKey = (m: PlannedMigration): string => `${m.sourceConnectionId}→${m.
  * how it is reached.
  */
 function useProviderLabel(): (provider: StartProvider, inSentence?: boolean) => string {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   return (provider, inSentence = false) =>
     provider !== 'imap'
-      ? providerName(provider, 'source')
+      ? providerName(provider, 'source', locale)
       : inSentence
         ? t('start.from.otherMail.inSentence')
         : t('start.from.otherMail');
@@ -434,9 +434,9 @@ const StartMigration: React.FC = () => {
     if (archive !== undefined) return ARCHIVE_PROVIDER_NAMES[archive];
     return m.provider === 'imap'
       ? m.sourceUsername.split('@')[1] || t('start.from.otherMail')
-      : providerName(m.sourceCard, 'source');
+      : providerName(m.sourceCard, 'source', locale);
   };
-  const toWord = (m: PlannedMigration) => providerName(m.targetCard, 'target');
+  const toWord = (m: PlannedMigration) => providerName(m.targetCard, 'target', locale);
   const names: Readonly<Record<string, string>> = (() => {
     const base = planned.map((m) =>
       t('start.migrationName', { person: personName, provider: fromWord(m), destination: toWord(m) }),
@@ -1114,8 +1114,9 @@ export const WhatStep: React.FC<{
 
 /** Where a card's files are, as a person names the whole of them: My Drive, Dropbox, Box. */
 function usePlaceName(): (card: string) => string {
-  const { t } = useLocale();
-  return (card) => (card === 'google' || card === 'google-drive' ? t('start.place.myDrive') : providerDisplayName(card));
+  const { t, locale } = useLocale();
+  return (card) =>
+    card === 'google' || card === 'google-drive' ? t('start.place.myDrive') : providerDisplayName(card, locale);
 }
 
 /**
@@ -1603,7 +1604,7 @@ const NeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts; someoneElse?
   const saved = savedSources(accounts.saved, need.card, need.types);
   const choice = accounts.choice(key, saved, someoneElse);
   const signed = accounts.signed(choice);
-  const name = providerDisplayName(need.card);
+  const name = providerDisplayName(need.card, locale);
   // *Another mail provider* is the IMAP card, named as step 2 named it.
   const title = need.card === 'imap' ? t('start.from.otherMail') : name;
   const initial = formDefaultsFor('source', need.card);
@@ -1725,7 +1726,7 @@ const LinkedNeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts } & Fol
   const saved = savedSources(accounts.saved, need.card, need.types);
   const choice = accounts.choice(key, saved, true);
   const signed = accounts.signed(choice);
-  const name = providerDisplayName(need.card);
+  const name = providerDisplayName(need.card, locale);
   const [address, setAddress] = React.useState('');
   const [saving, setSaving] = React.useState(false);
   const [refused, setRefused] = React.useState<string | null>(null);
@@ -1800,7 +1801,7 @@ const LinkedNeedRow: React.FC<{ need: ConnectionNeed; accounts: Accounts } & Fol
       {choice === 'new' && (
         <div className="mt-3">
           <label htmlFor={addressId} className="block text-sm font-medium text-gray-700">
-            {t('start.connect.theirAddress', { provider: providerName(need.card, 'source') })}
+            {t('start.connect.theirAddress', { provider: providerName(need.card, 'source', locale) })}
           </label>
           <div className="mt-1 flex flex-wrap items-start gap-3">
             <input
@@ -2063,7 +2064,7 @@ export const ToStep: React.FC<{
                   <optgroup label={t('start.to.new')}>
                     {destinationsFor(type).map((card) => (
                       <option key={card} value={`new:${card}`}>
-                        {t('start.to.add', { provider: providerDisplayName(card) })}
+                        {t('start.to.add', { provider: providerDisplayName(card, locale) })}
                       </option>
                     ))}
                   </optgroup>
@@ -2071,7 +2072,7 @@ export const ToStep: React.FC<{
               </div>
               {blamed.map((card) => (
                 <p key={card} className="mt-1 text-sm text-gray-600 sm:ml-36">
-                  {t('start.to.doesNotTake', { provider: providerDisplayName(card), type: word(type) })}
+                  {t('start.to.doesNotTake', { provider: providerDisplayName(card, locale), type: word(type) })}
                 </p>
               ))}
               {refusing.length > 0 && (
@@ -2135,7 +2136,7 @@ export const ToStep: React.FC<{
                 <optgroup label={t('start.to.new')}>
                   {exportDestinations().map((card) => (
                     <option key={card} value={`new:${card}`}>
-                      {t('start.to.add', { provider: providerDisplayName(card) })}
+                      {t('start.to.add', { provider: providerDisplayName(card, locale) })}
                     </option>
                   ))}
                 </optgroup>
@@ -2217,10 +2218,10 @@ const NewDestination: React.FC<{
   accounts: Accounts;
   onAdded: (connectionId: string) => void;
 }> = ({ card, accounts, onAdded }) => {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const key = `target:${card}`;
   const initial = formDefaultsFor('target', card);
-  const name = providerDisplayName(card);
+  const name = providerDisplayName(card, locale);
   return (
     <section className="rounded-lg border border-gray-200 p-4">
       <h3 className="font-medium text-gray-900">
@@ -2278,7 +2279,7 @@ export const CheckStep: React.FC<{
   /** A migration whose account its person connects by a link, and has not yet. */
   awaitsGrant?: (m: PlannedMigration) => boolean;
 }> = ({ planned, made, titles, onStarted, personName = '', awaitsGrant = () => false }) => {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const queryClient = useQueryClient();
   const waitsId = React.useId();
   const [ready, setReady] = React.useState<Readonly<Record<string, boolean>>>({});
@@ -2311,7 +2312,7 @@ export const CheckStep: React.FC<{
             notAdded: one.notAdded,
             byLink: awaitsGrant(m),
             archive,
-            destination: providerName(m.targetCard, 'target'),
+            destination: providerName(m.targetCard, 'target', locale),
           },
         ];
   });

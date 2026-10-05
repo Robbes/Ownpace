@@ -65,7 +65,8 @@ import { providerName } from '../components/ProviderTile.tsx';
 import { PersonGrantLinkSection, PersonViewLinkSection } from '../components/MappingLinksPanel.tsx';
 import { personLinkApi, type AwaitingGrant } from '../services/grant-link-service.ts';
 import { isSelfHost } from '../services/edition.ts';
-import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
+import { useT, useFormatters, useLocale, type StringKey } from '../i18n/index.tsx';
+import type { Locale } from '../i18n/strings.ts';
 
 /** What a person's grant does to a migration that waits for it, in words. */
 const ONCE_GRANTED_WORDS: Readonly<Record<AwaitingGrant['then'], StringKey>> = {
@@ -107,11 +108,11 @@ function rowsFromStatus(report: StatusReport): PersonRow[] {
 }
 
 /** The names on one side of a person's migrations, once each, in the order met. */
-function names(migrations: readonly PersonRow[], side: 'sourceType' | 'targetType'): string[] {
+function names(migrations: readonly PersonRow[], side: 'sourceType' | 'targetType', locale: Locale): string[] {
   const out: string[] = [];
   for (const m of migrations) {
     if (m[side] === 'unknown') continue;
-    const name = providerName(m[side], side === 'sourceType' ? 'source' : 'target');
+    const name = providerName(m[side], side === 'sourceType' ? 'source' : 'target', locale);
     if (!out.includes(name)) out.push(name);
   }
   return out;
@@ -120,6 +121,7 @@ function names(migrations: readonly PersonRow[], side: 'sourceType' | 'targetTyp
 const Person: React.FC = () => {
   const { personId } = useParams<{ personId: string }>();
   const t = useT();
+  const { locale } = useLocale();
   const { list } = useFormatters();
 
   const selfHost = isSelfHost();
@@ -204,7 +206,7 @@ const Person: React.FC = () => {
   const migrations = person.migrations.map((pm) => byId.get(pm.id)).filter((m): m is PersonRow => Boolean(m));
   // A migration's name, or where it goes when its file gives none (the appliance).
   const label = (m: PersonRow): string =>
-    m.name ?? t('person.rowName', { from: providerName(m.sourceType, 'source'), to: providerName(m.targetType, 'target') });
+    m.name ?? t('person.rowName', { from: providerName(m.sourceType, 'source', locale), to: providerName(m.targetType, 'target', locale) });
   const attention = attentionQuery.isSuccess
     ? new Map(attentionQuery.data.mappings.map((a) => [a.mappingId, a]))
     : undefined;
@@ -213,8 +215,8 @@ const Person: React.FC = () => {
   const stage = leastAdvancedStage(migrations.flatMap((m) => lineStages(m, linesOf(m))));
   const awaiting = new Map((awaitingQuery.data ?? []).map((a) => [a.mappingId, a.then]));
   const theirName = person.displayName ?? '';
-  const from = names(migrations, 'sourceType');
-  const to = names(migrations, 'targetType');
+  const from = names(migrations, 'sourceType', locale);
+  const to = names(migrations, 'targetType', locale);
 
   let needs: number | undefined = 0;
   for (const m of migrations) {

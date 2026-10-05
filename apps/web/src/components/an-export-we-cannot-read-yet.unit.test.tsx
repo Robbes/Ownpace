@@ -127,7 +127,7 @@ const DOORS = {
 type Door = keyof typeof DOORS;
 const DOOR_NAMES = Object.keys(DOORS) as Door[];
 
-const archiveCard = (): HTMLElement => screen.getByRole('button', { name: /^Export archive/ });
+const archiveCard = (): HTMLElement => screen.getByRole('button', { name: /^(?:Export archive|Exportarchief)/ });
 
 /** The archive form's "Which export" choice, after picking the card. */
 const whichExport = (locale: Locale): HTMLSelectElement => {
