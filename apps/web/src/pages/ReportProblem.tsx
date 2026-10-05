@@ -313,20 +313,26 @@ const ReportProblem: React.FC = () => {
   const label = 'block text-sm font-medium text-gray-700 mb-1';
   const hint = 'mt-1 text-xs text-gray-500';
 
+  // THE APP'S CARD (2026-10-05, the owner: the page had "only the off-white
+  // background and not the correct blocks"). The title on the paper, as every
+  // page has it, and what is read or filled in on a white card, kept to a
+  // column a form reads well in.
+  const card = 'max-w-2xl bg-white rounded-lg border border-gray-200 p-4 sm:p-6';
+
   if (available.data === false) {
     return (
-      <div className="max-w-2xl">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">{t('report.title')}</h1>
-        <p className="text-gray-700">{t('report.unavailable')}</p>
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-gray-900">{t('report.title')}</h1>
+        <p className={`${card} text-gray-700`}>{t('report.unavailable')}</p>
       </div>
     );
   }
 
   if (send.isSuccess) {
     return (
-      <div className="max-w-2xl">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">{t('report.title')}</h1>
-        <p role="status" className="text-gray-900">
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-gray-900">{t('report.title')}</h1>
+        <p role="status" className={`${card} text-gray-900`}>
           {'ticket' in send.data
             ? t('report.sent', { ticket: send.data.ticket, email: email ?? '' })
             : t('report.sent.mail', { reference: send.data.reference, email: email ?? '' })}
@@ -336,11 +342,13 @@ const ReportProblem: React.FC = () => {
   }
 
   return (
-    <div className="max-w-2xl">
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">{t('report.title')}</h1>
-      <p className="text-gray-600 mb-6">{t('report.lead')}</p>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">{t('report.title')}</h1>
+        <p className="mt-1 text-gray-600">{t('report.lead')}</p>
+      </div>
       <form
-        className="space-y-6"
+        className={`${card} space-y-6`}
         onSubmit={(e) => {
           e.preventDefault();
           send.mutate();
@@ -497,7 +505,7 @@ const ReportProblem: React.FC = () => {
         <button
           type="submit"
           disabled={send.isPending || description.trim() === ''}
-          className="px-4 py-2 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          className="flex min-h-[44px] items-center px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
         >
           {send.isPending ? t('report.sending') : t('report.send')}
         </button>

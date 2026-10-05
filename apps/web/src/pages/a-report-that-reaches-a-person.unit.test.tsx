@@ -212,6 +212,34 @@ describe('Report a problem', () => {
   });
 });
 
+describe('the page, on the paper (2026-10-05)', () => {
+  // The owner: the page had "only the off-white background and not the
+  // correct blocks". Its title stays on the paper; the form, and what is said
+  // once it is sent or when no report can be, sit on the app's white card.
+  const onACard = (el: Element | null) => el?.closest('.bg-white.rounded-lg.border') ?? null;
+
+  it('draws the form on a white card, its title on the paper', async () => {
+    renderPage('/report?from=%2F');
+    const description = await screen.findByLabelText(EN['report.description']);
+    expect(onACard(description), 'the form is drawn on the paper').not.toBeNull();
+    expect(onACard(screen.getByRole('button', { name: EN['report.send'] }))).toBe(onACard(description));
+    expect(onACard(screen.getByRole('heading', { level: 1, name: EN['report.title'] }))).toBeNull();
+  });
+
+  it('says it was sent on a white card', async () => {
+    renderPage('/report?from=%2F');
+    await userEvent.type(await screen.findByLabelText(EN['report.description']), 'The Moves screen is empty');
+    await userEvent.click(screen.getByRole('button', { name: EN['report.send'] }));
+    expect(onACard(await screen.findByRole('status'))).not.toBeNull();
+  });
+
+  it('says no report can be sent on a white card', async () => {
+    getMock.mockResolvedValue({ data: { available: false } });
+    renderPage('/report?from=%2F');
+    expect(onACard(await screen.findByText(EN['report.unavailable']))).not.toBeNull();
+  });
+});
+
 describe('a report too large for a front on the way', () => {
   /** A PNG by its first bytes, so the form takes it. */
   const png = () =>
