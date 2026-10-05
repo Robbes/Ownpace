@@ -15,9 +15,10 @@
  * documented; `ownpace_system` has BYPASSRLS and the grants this job's
  * statements need, and is not a superuser, workplan 0138 T3 step 2: until
  * then this was the owner's `DATABASE_URL`, a superuser, in every run),
- * evaluate each mapping's own `schedule` cron via `isSyncDue` (or, while its
- * first copy is unfinished, the 15-minute floor whatever the cron says:
- * `FIRST_COPY_UNFINISHED`, workplan 0156 T5), and trigger
+ * evaluate each mapping's own `schedule` cron via `isSyncDue` (with none, the
+ * automatic cadence: every hour for 14 days, then every 6 hours, then daily,
+ * workplan 0157 T7; while its first copy is unfinished, the 15-minute floor
+ * whatever the cron says: `FIRST_COPY_UNFINISHED`, workplan 0156 T5), and trigger
  * `run-delta-sync` for the due ones with the mapping's ENABLED domains passed
  * explicitly (the scheduler's scope_selection query — a job must never touch
  * a domain the owner did not select, the #207 lesson).
@@ -79,7 +80,14 @@ import {
   holdsAtCeiling,
   leastMinutesBetweenPasses,
 } from '@openmig/managed';
-import { isSyncDue, DEFAULT_SYNC_SCHEDULE, defaultScheduleFor } from '@openmig/orchestration/sync-due';
+import {
+  isSyncDue,
+  DEFAULT_SYNC_SCHEDULE,
+  AUTOMATIC_HOURLY_DAYS,
+  automaticScheduleFor,
+  automaticSince,
+  defaultScheduleFor,
+} from '@openmig/orchestration/sync-due';
 import { enabledDomainsForMappings } from '@openmig/orchestration/enabled-domains';
 import {
   FAILURE_WINDOW_MINUTES,
@@ -135,6 +143,36 @@ interface TickRow {
   readonly stale_since: Date | null;
   /** Some data type it copies has not completed a pass (`FIRST_COPY_UNFINISHED`, 0156 T5). */
   readonly first_copy_unfinished: boolean;
+  /** The newest first pass of the data types it copies (0157 T7); null when none finished. */
+  readonly first_copy_done_at: Date | null;
+}
+
+/**
+ * WHEN EACH MIGRATION WAS LAST VISITED (workplan 0157 T7, managed 0042): its
+ * page opened, or *Sync now* pressed. The other half of what the automatic
+ * cadence counts from. By organisation and migration both, as every read here
+ * names the organisation itself: the system role bypasses row security.
+ */
+export const VISITS_SQL = `SELECT v.mapping_id, v.visited_at
+         FROM migration_visit v
+         JOIN unnest($1::uuid[], $2::uuid[]) AS asked(tenant_id, mapping_id)
+           ON asked.tenant_id = v.tenant_id AND asked.mapping_id = v.mapping_id`;
+
+/**
+ * Whose last visit can change their step this tick: a migration on the
+ * automatic cadence, not running, its first copy done, and in step at least
+ * 14 days, or never finished one. Inside the first 14 days it looks hourly
+ * whatever the visits, since they count from the later of the two.
+ */
+export function visitsThatCount(rows: readonly TickRow[], now: Date): TickRow[] {
+  const hourlyUntil = now.getTime() - AUTOMATIC_HOURLY_DAYS * 24 * 60 * 60_000;
+  return rows.filter(
+    (m) =>
+      m.schedule === null &&
+      !m.running &&
+      !m.first_copy_unfinished &&
+      (m.first_copy_done_at === null || m.first_copy_done_at.getTime() <= hourlyUntil),
+  );
 }
 
 /**
@@ -340,7 +378,16 @@ export const ACTIVE_MAPPINGS_SQL = `SELECT m.id, m.tenant_id, m.schedule,
               -- THE FIRST COPY IS NOT FINISHED (workplan 0156 T5; the owner,
               -- 2026-10-03): isSyncDue then runs this migration at the floor,
               -- whatever its schedule. See FIRST_COPY_UNFINISHED above.
-              ${FIRST_COPY_UNFINISHED} AS first_copy_unfinished
+              ${FIRST_COPY_UNFINISHED} AS first_copy_unfinished,
+              -- WHAT THE AUTOMATIC CADENCE COUNTS FROM (workplan 0157 T7), for
+              -- a migration with no schedule of its own: when its first copy
+              -- finished, the newest first pass of the data types it copies.
+              -- The last visit is the other half (automaticSince), read apart
+              -- (VISITS_SQL), so this statement keeps to the core tables.
+              (SELECT max(ms.completed_at) FROM scope_selection s
+                 JOIN migration_status ms
+                   ON ms.tenant_id = s.tenant_id AND ms.mapping_id = s.mapping_id AND ms.domain = s.domain
+                WHERE s.tenant_id = m.tenant_id AND s.mapping_id = m.id AND s.included) AS first_copy_done_at
          FROM mailbox_mapping m
         WHERE (m.status = ANY($5::text[])
                -- A cutover copies from execute until its grace period ends
@@ -690,6 +737,29 @@ export const managedSyncTick = schedules.task({
         .map((m) => m.tenant_id),
     );
 
+    // The last visits, where they can change a migration's step (0157 T7).
+    // A read that fails is said every tick, and those migrations look every
+    // hour meanwhile, as if just visited: none slows down over a read that
+    // failed. The cost is passes the automatic cadence would have saved.
+    const visitedAt = new Map<string, Date>();
+    const visitsToRead = visitsThatCount(rows, now);
+    if (visitsToRead.length > 0) {
+      try {
+        const { rows: visits } = await pool.query<{ mapping_id: string; visited_at: Date }>(VISITS_SQL, [
+          visitsToRead.map((m) => m.tenant_id),
+          visitsToRead.map((m) => m.id),
+        ]);
+        for (const v of visits) visitedAt.set(v.mapping_id, v.visited_at);
+      } catch (err) {
+        for (const m of visitsToRead) visitedAt.set(m.id, now);
+        log.error(
+          `[sync-tick] could not read when ${visitsToRead.length} migration(s) were last visited, ` +
+            'so they look for changes every hour this tick:',
+          err,
+        );
+      }
+    }
+
     // Phase 1 — decide, in memory. No I/O in here, so the set of due mappings
     // is evaluated against ONE `now` rather than drifting as the loop runs.
     const due: TickRow[] = [];
@@ -713,9 +783,17 @@ export const managedSyncTick = schedules.task({
       }
 
       // An explicit schedule is the owner's decision and is used as written.
-      // Only the absent one gets a per-mapping offset, so the mappings that
-      // never chose a cadence stop all firing in the same minute.
-      const schedule = m.schedule ?? defaultScheduleFor(m.id);
+      // The absent one is the automatic cadence (0157 T7): every hour for 14
+      // days from the first copy or the last visit, then every 6 hours, then
+      // daily from 30 days, offset per migration so the ones that never chose
+      // a cadence do not all fire in the same minute.
+      const schedule =
+        m.schedule ??
+        automaticScheduleFor(
+          m.id,
+          automaticSince(m.first_copy_unfinished, m.first_copy_done_at, visitedAt.get(m.id) ?? null),
+          now,
+        );
       // Until its first copy is finished, at the floor whatever the schedule
       // (0156 T5): after the `running` skip above, so never beside a pass
       // that still runs, and before the back-off and the caps below, so both

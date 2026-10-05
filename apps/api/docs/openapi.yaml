@@ -2796,9 +2796,17 @@ paths:
                   enum: [full, delta]
                   description: A full pass ignores cursors and rescans everything.
                 forceFullScan: { type: boolean }
+                final:
+                  type: boolean
+                  description: |
+                    The pass before the switch, which *Finish* asks for. Free's
+                    pace never holds it back (workplan 0157 T2).
       responses:
         '202':
-          description: Enqueued.
+          description: |
+            Enqueued. The press also counts as a visit, which brings a
+            migration on the automatic cadence back to every hour (workplan
+            0157 T7; see `POST /api/migrations/{mappingId}/visit`).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/EnqueuedRun' }
@@ -2811,6 +2819,11 @@ paths:
             operator hold is open (`platform_held`, `PlatformHeld`), or the
             organisation was closed (`account_closed`, `AccountClosed`, workplan
             0085 T2). `anyOf`, not `oneOf`: those two bodies are an `Error` too.
+
+            On Free, outside the alpha, a press within a day of the migration's
+            last pass is refused with `free_pace`, its `message` in English and
+            `nextPassAt`, when the pace lets the next pass run (workplan 0157
+            T2). Never a `final` pass.
           content:
             application/json:
               schema:
@@ -2818,6 +2831,24 @@ paths:
                   - { $ref: '#/components/schemas/Error' }
                   - { $ref: '#/components/schemas/PlatformHeld' }
                   - { $ref: '#/components/schemas/AccountClosed' }
+
+  /api/migrations/{mappingId}/visit:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    post:
+      tags: [Migrations]
+      summary: Record a visit to a migration
+      description: |
+        The migration's page was opened (workplan 0157 T7). A migration with
+        no schedule of its own looks for changes every hour for 14 days from
+        the later of its first copy and its last visit, then every 6 hours,
+        then once a day from day 30; a visit starts the 14 days again. Kept
+        once an hour at most, and never who visited. Managed only.
+      responses:
+        '204':
+          description: Recorded, or one within the hour already stood.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /api/migrations/{mappingId}/cutover:
     parameters:

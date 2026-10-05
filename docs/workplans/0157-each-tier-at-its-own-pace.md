@@ -4,6 +4,16 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-10-05, later: T7's cadence built; its notices are next.** A migration with no schedule
+of its own now runs the automatic cadence (`automaticScheduleFor` in
+`packages/orchestration/src/sync-due.ts`). It looks every hour for 14 days, then every 6 hours,
+and once a day from day 30. The days count from the later of two moments: when the first copy
+finished, or the last visit. A visit is the migration's page opened or *Sync now* pressed, kept
+one row per migration in managed 0042's `migration_visit`, and never who visited. *Start a
+migration* stores no schedule, so its migrations run it. *How often to look for changes*
+offers it first, as *Automatic*, and saves it as no schedule. A cron somebody chose is used as
+written. The notices are still to build: *"We now look every 6 hours"*, in the app and by email.
+
 **2026-10-05: T2 and T3 built; the owner says go, and yes to T7.** The owner answered *"Go"*
 to building T2 to T6, and to T7: *"sync slow down once a migration is in step: yes"* (§7 as
 proposed). Built in one pull request: the tick reads the tier each organisation's month bills
@@ -29,7 +39,7 @@ and it waits for the owner.
 | T4 The doors know the pace, and paid looks every hour | 🟡 **Hourly default built 2026-10-04; the doors proposed** | §4. A migration *Start* makes looks every hour (`StartMigration.tsx`'s `HOURLY`, *How often to look for changes*'s first preset). The API refusing a schedule faster than a tier allows, and the chooser offering what the tier allows, wait for T2's tier fact. |
 | T5 The app says the pace | 📋 **Proposed** | §5. *"One pass a day, up to 50 minutes. Next pass at 07:12."*, with how many days the first copy needs, on the migration's and the person's pages. |
 | T6 Picking a tier | 📋 **Proposed** | §6. The Billing page offers every tier above the derived one; a pick is the person's yes, the month bills at least the picked tier, and the downgrade stops there. |
-| T7 The default slows once everything is in step | 📋 **Decided 2026-10-05; to build** | §7. Hourly for 14 days after the first copy, then every 6 hours, then daily after 30 days; a schedule the person chose is never changed. The owner: *"yes"*. |
+| T7 The default slows once everything is in step | 🟡 **Decided 2026-10-05; the cadence built 2026-10-05, the notices to build** | §7. Hourly for 14 days after the first copy, then every 6 hours, then daily after 30 days; a schedule the person chose is never changed. The owner: *"yes"*. Built: *Automatic*, the tick's cadence for no schedule, with a visit bringing back the hour. To build: each step said in the app and by email. |
 
 ## The facts this plan stands on
 
@@ -184,3 +194,34 @@ kept) and the person's last visit, which the app does not record yet.
 
 **The owner, 2026-10-05:** *"sync slow down once a migration is in step: yes"*: the proposal
 above, as written.
+
+**Built (2026-10-05): the cadence.**
+- **No schedule is the automatic cadence.** `automaticScheduleFor` returns the cron the tick
+  reads: hourly at the migration's own minute, every 6 hours from its own hour, or daily at its
+  own hour. All three come from its id, so migrations spread over the hour and a migration
+  keeps its minute through every step.
+- **What the days count from** (`automaticSince`): the later of two moments. One is when the
+  first copy finished, which is the newest first pass among the data types the migration
+  copies. The other is the last visit. While the first copy runs, `isSyncDue` runs it pass
+  after pass anyway.
+- **A visit** is the migration's page opened, which sends `POST /:mappingId/visit` as it opens,
+  or *Sync now* that starts a pass. It is kept in managed 0042's `migration_visit`, one row per
+  migration, moved at most once an hour, and never who visited.
+  - The tick reads the visits apart from its own statement (`VISITS_SQL`). It reads them only
+    for migrations whose step a visit can change: no schedule, first copy done 14 days ago or
+    more.
+  - A read that fails runs those migrations hourly for the tick, said in the log.
+  - The purge erases the row with its organisation.
+- ***Start a migration*** stores no schedule.
+- ***How often to look for changes*** offers *Automatic* first: *"Hourly for 14 days, then every
+  6 hours, daily from day 30."* It saves it as no schedule, and selects it for a migration that
+  holds none. Folded under the panel's hint: *"On Automatic the days count from when everything
+  was copied, or from the last time somebody opened this migration or pressed Trigger sync,
+  whichever is later."*
+- **A schedule somebody chose** is used as written. Hourly schedules *Start* stored between
+  2026-10-04 and today stay hourly. Nothing tells them apart from a chosen hourly, so they are
+  left as chosen ones.
+- **On Free outside the alpha** the day's pace (T2) holds whatever the cadence.
+
+**To build: the notices.** Each step said in the app and by email: *"Everything is in step. We
+now look every 6 hours; choose more often any time."*
