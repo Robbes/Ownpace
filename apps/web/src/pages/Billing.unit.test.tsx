@@ -8,8 +8,10 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import Billing from './Billing.tsx';
+import Billing, { itemsMovedByKind } from './Billing.tsx';
 import { billingApi, type Invoice } from '../services/billing-service.ts';
+import { fetchProgress } from '../services/progress-service.ts';
+import type { DiscoveryDomain, ProgressReport } from '@openmig/shared';
 
 const { authState } = vi.hoisted(() => ({
   authState: {
@@ -36,6 +38,11 @@ vi.mock('../services/billing-service', async (importOriginal) => ({
   },
 }));
 
+vi.mock('../services/progress-service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/progress-service.ts')>()),
+  fetchProgress: vi.fn(),
+}));
+
 vi.mock('../stores/auth-store', () => ({
   useAuthStore: (selector?: (s: typeof authState) => unknown) =>
     selector ? selector(authState) : authState,
@@ -48,6 +55,20 @@ const payMock = vi.mocked(billingApi.createPayment);
 const partyMock = vi.mocked(billingApi.getBillingParty);
 const putPartyMock = vi.mocked(billingApi.putBillingParty);
 const checkVatMock = vi.mocked(billingApi.checkVat);
+
+/** Where each migration is: what Current usage adds up, per kind. Tasks moved none. */
+const line = (domain: DiscoveryDomain, itemsSynced: number) =>
+  ({ domain, state: 'completed', phase: 'active', itemsSynced, bytesTransferred: 0 }) as const;
+const PROGRESS: ProgressReport = {
+  mappings: [
+    { mappingId: 'm1', check: { state: 'not_run' }, domains: [line('file', 900), line('email', 18_234), line('calendar', 310)] },
+    {
+      mappingId: 'm2',
+      check: { state: 'not_run' },
+      domains: [line('email', 5_120), line('calendar', 1_204), line('contact', 612), line('task', 0)],
+    },
+  ],
+};
 
 /** A qualified VIES yes, as the service returns it (0111 T2). */
 const consultationFixture = {
@@ -180,6 +201,7 @@ beforeEach(() => {
   partyMock.mockResolvedValue({ party: null, vatConsultation: null, vatTreatment: null });
   // Well under the ceiling; the card has its own tests (DataCeiling.unit.test.tsx).
   vi.mocked(billingApi.getCeiling).mockResolvedValue(UNDER_THE_CEILING);
+  vi.mocked(fetchProgress).mockResolvedValue(PROGRESS);
   // Nothing above to pick, so the pick card names no tier beside the ones these
   // tests look for; the card has its own tests (TierPick.unit.test.tsx).
   vi.mocked(billingApi.getPick).mockResolvedValue(NOTHING_TO_PICK);
@@ -517,13 +539,48 @@ describe('the price on the screen is the published price (0121 T4)', () => {
     expect(screen.queryByText(/Could not load/)).not.toBeInTheDocument();
   });
 
-  it('the measured quantities are the insight, and keep their honest labels', async () => {
+  it('says what has moved, per kind, and not what Ownpace spends (the owner, 2026-10-05)', async () => {
     renderBilling();
 
     expect(await screen.findByText(/Usage for 2026-08/)).toBeInTheDocument();
-    // The tile is labeled what the metering writes (apiCallCount).
-    expect(screen.getByText('API calls')).toBeInTheDocument();
-    expect(screen.queryByText('Syncs')).not.toBeInTheDocument();
+    const email = (await screen.findByText('Email')).closest('[data-moved]')!;
+    // Over every migration: 18,234 in one, 5,120 in another.
+    expect(email).toHaveTextContent('23,354');
+    expect(screen.getByText('Calendar').closest('[data-moved]')).toHaveTextContent('1,514');
+    // A kind that moved nothing has no card.
+    expect(document.querySelector('[data-moved="task"]')).toBeNull();
+    for (const gone of ['Storage', 'Data Transfer', 'Compute Time', 'API calls', 'Syncs']) {
+      expect(screen.queryByText(gone)).not.toBeInTheDocument();
+    }
+  });
+
+  it('says nothing has moved yet when nothing has, rather than a row of zeros', async () => {
+    vi.mocked(fetchProgress).mockResolvedValue({ mappings: [] });
+    renderBilling();
+
+    expect(await screen.findByText('Nothing has moved yet.')).toBeInTheDocument();
+    expect(document.querySelector('[data-moved]')).toBeNull();
+  });
+
+  it('says the count could not be had when its read fails, and shows no number (hard rule 9)', async () => {
+    vi.mocked(fetchProgress).mockRejectedValue(new Error('the database is unreachable'));
+    renderBilling();
+
+    expect(await screen.findByText('Could not count the items moved.')).toBeInTheDocument();
+    expect(document.querySelector('[data-moved]')).toBeNull();
+    // The rest of the card still stands: the usage read did not fail.
+    expect(screen.getByText(/Usage for 2026-08/)).toBeInTheDocument();
+  });
+});
+
+describe('itemsMovedByKind', () => {
+  it('adds each kind up over every migration, in the app\'s order, and leaves out what moved none', () => {
+    expect(itemsMovedByKind(PROGRESS)).toEqual([
+      { domain: 'email', items: 23_354 },
+      { domain: 'calendar', items: 1_514 },
+      { domain: 'contact', items: 612 },
+      { domain: 'file', items: 900 },
+    ]);
   });
 });
 

@@ -26,21 +26,23 @@
  *   gains the line's first sentence.
  *
  * WITHOUT THE SETTING, THE PAGE AS IT IS TODAY. That half is the control: the
- * subtitle, the four metered cards and the hint, unchanged. An appliance never
- * says it, whatever its bundle was built with.
+ * subtitle, what has moved and the hint, unchanged. An appliance never says
+ * it, whatever its bundle was built with.
  *
- * THE FOUR MEASUREMENT CARDS STAY, AND NOTHING ON THEM LOOKS LIKE MONEY. 0131
- * T3 proposed hiding Storage, Data Transfer, Compute Time and API calls during
- * the alpha. The owner chose otherwise (2026-10-04): *"Keep, no money icons"*.
- * They are the insight the owner wants customers to have (0121 T4, 2026-09-09:
- * *"i want to offer customers the insight"*). But their icons were a dollar
- * sign, a credit card and a rising trend, so on a page that says nothing is
- * charged they read as a meter. So during the Alpha and outside it, the four
- * cards show their figures, each card carries the one neutral icon named for
- * it, and no icon in the Current usage section has a name on the money or
- * meter list below. The Payment Methods card keeps its credit card: it is
- * about payment methods. Its icon is also how this guard shows it can see an
- * icon by its name at all.
+ * WHAT HAS MOVED, BY KIND, AND NOTHING THAT LOOKS LIKE MONEY. Four cards stood
+ * in Current usage: Storage, Data Transfer, Compute Time and API calls. 0131
+ * T3 proposed hiding them during the alpha; the owner kept them on 2026-10-04,
+ * *"Keep, no money icons"*, as the insight of 0121 T4. On 2026-10-05 the owner
+ * asked what they told a customer at all (Ownpace stores none of the data, and
+ * an API call or a compute hour is its cost, not the customer's), and settled
+ * it: *"show the usages that counts: data moved and number of objects
+ * moved"*. So Current usage says the items moved per kind, as each migration's
+ * page counts them, each with the data type's own icon, and the data moved in
+ * total in the tier block, during the Alpha and outside it. The four labels
+ * are gone in both languages, no figure carries a currency sign, and no icon
+ * in the section has a name on the money or meter list below. The Payment
+ * Methods card keeps its credit card: it is about payment methods. Its icon is
+ * also how this guard shows it can see an icon by its name at all.
  *
  * The setting is stubbed the way Vite bakes it, as in
  * `components/an-alpha-said-out-loud.unit.test.tsx`; the edition is mocked
@@ -87,9 +89,18 @@ vi.mock('../services/billing-service.ts', async (importOriginal) => ({
   },
 }));
 
+vi.mock('../services/progress-service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/progress-service.ts')>()),
+  fetchProgress: vi.fn(),
+}));
+
+import { renderToStaticMarkup } from 'react-dom/server';
 import Billing from './Billing.tsx';
 import RequestAccess from './RequestAccess.tsx';
 import { billingApi } from '../services/billing-service.ts';
+import { fetchProgress } from '../services/progress-service.ts';
+import { DataTypeIcon, ICON_OF_DOMAIN } from '../components/icons/data-type-icons.tsx';
+import type { DiscoveryDomain, ProgressReport } from '@openmig/shared';
 import { LocaleProvider } from '../i18n/index.tsx';
 import { STRINGS } from '../i18n/strings.ts';
 import { renderEvent } from '@openmig/shared';
@@ -104,10 +115,13 @@ const SAID = {
     // Today's words, for the control.
     subtitle: 'Manage your subscription, usage, and payments',
     tierHint: 'A guess is fine. The package follows what actually runs, so this is not binding.',
-    metered: ['Storage', 'Data Transfer', 'Compute Time', 'API calls'],
-    // The figures `usage()` below serves, as the four cards print them.
-    figures: ['50.0 GB', '100.0 GB', '20.0 hours', '7'],
-    currentUsage: 'Current Usage',
+    // The kinds `PROGRESS` below moved, as Current usage names them, and
+    // their counts over every migration.
+    moved: ['Email', 'Calendar', 'Contacts', 'Files'],
+    figures: ['23,354', '1,514', '612', '900'],
+    // The four cards Current usage no longer shows (the owner, 2026-10-05).
+    gone: ['Storage', 'Data Transfer', 'Compute Time', 'API calls'],
+    currentUsage: 'Current usage',
     paymentMethods: 'Payment Methods',
     free: 'Free: nothing is invoiced on this tier',
     package: /which package looks right/i,
@@ -122,8 +136,9 @@ const SAID = {
     subtitle: 'Beheer uw abonnement, verbruik en betalingen',
     tierHint:
       'Een inschatting volstaat; het pakket volgt wat werkelijk draait, dus dit is niet bindend.',
-    metered: ['Opslag', 'Dataverkeer', 'Rekentijd', 'API-aanroepen'],
-    figures: ['50.0 GB', '100.0 GB', '20.0 uur', '7'],
+    moved: ['E-mail', 'Agenda', 'Contacten', 'Bestanden'],
+    figures: ['23.354', '1.514', '612', '900'],
+    gone: ['Opslag', 'Dataverkeer', 'Rekentijd', 'API-aanroepen'],
     currentUsage: 'Huidig verbruik',
     paymentMethods: 'Betaalmethoden',
     free: 'Gratis: op dit pakket wordt niets gefactureerd',
@@ -175,6 +190,23 @@ const usage = (tier: typeof MEDIUM | typeof FREE) => ({
   gbMovedInTheAlpha: 0,
   holds: true,
 });
+
+/** Where each migration is: what Current usage adds up, per kind. Tasks moved none. */
+const line = (domain: DiscoveryDomain, itemsSynced: number) =>
+  ({ domain, state: 'completed', phase: 'active', itemsSynced, bytesTransferred: 0 }) as const;
+const PROGRESS: ProgressReport = {
+  mappings: [
+    { mappingId: 'm1', check: { state: 'not_run' }, domains: [line('email', 18_234), line('calendar', 310)] },
+    {
+      mappingId: 'm2',
+      check: { state: 'not_run' },
+      domains: [line('email', 5_120), line('calendar', 1_204), line('contact', 612), line('task', 0)],
+    },
+    { mappingId: 'm3', check: { state: 'not_run' }, domains: [line('file', 900)] },
+  ],
+};
+/** The order `moved` names the kinds in. */
+const KINDS: DiscoveryDomain[] = ['email', 'calendar', 'contact', 'file'];
 
 const client = () =>
   new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -231,6 +263,7 @@ beforeEach(() => {
   window.localStorage.clear();
   authState.user = { name: 'Tester', email: 'tester@example.test', role: 'owner' };
   vi.mocked(billingApi.getCurrentUsage).mockResolvedValue(usage(MEDIUM));
+  vi.mocked(fetchProgress).mockResolvedValue(PROGRESS);
   vi.mocked(billingApi.listInvoices).mockResolvedValue({ invoices: [] });
   vi.mocked(billingApi.getPaymentMethods).mockResolvedValue({ paymentMethods: [] });
   vi.mocked(billingApi.getBillingParty).mockResolvedValue({
@@ -349,13 +382,13 @@ describe('with the alpha setting on', () => {
 });
 
 describe('without the setting: the page as it is today (the control)', () => {
-  it.each(LOCALES)('Billing keeps its subtitle, its four metered cards and its tier, in %s', async (locale) => {
+  it.each(LOCALES)('Billing keeps its subtitle, what has moved and its tier, in %s', async (locale) => {
     await billingPage(locale);
     await screen.findByText('Medium');
     // A paid tier still asks for the invoice details, in amber.
     expect(await screen.findByText(SAID[locale].missing)).toBeInTheDocument();
     expect(underTheTitle()).toBe(SAID[locale].subtitle);
-    for (const label of SAID[locale].metered) expect(screen.getByText(label)).toBeInTheDocument();
+    for (const label of SAID[locale].moved) expect(await screen.findByText(label)).toBeInTheDocument();
     expect(document.body.textContent).not.toContain(SAID[locale].charged);
     noAlphaAnywhere();
   });
@@ -393,14 +426,12 @@ describe('on an appliance, never', () => {
   });
 });
 
-/**
- * The icon each card carries, by its lucide name. Each says what is measured:
- * a disk, data moving both ways, a stopwatch, a pulse of calls. This is the
- * check that holds the owner's answer. A word list alone cannot: lucide-react
- * has rising bar charts, a stock chart and price tags whose names say none of
- * the words below.
- */
-const NEUTRAL_ICONS = ['hard-drive', 'arrow-left-right', 'timer', 'activity'];
+/** The inside of the icon a data type wears on its pages: what each kind's card must draw. */
+const drawnAs = (domain: DiscoveryDomain): string => {
+  const holder = document.createElement('div');
+  holder.innerHTML = renderToStaticMarkup(<DataTypeIcon name={ICON_OF_DOMAIN[domain]} />);
+  return holder.querySelector('svg')!.innerHTML;
+};
 
 /**
  * Words that make a glyph read as money or as a running meter. `lucide-react`
@@ -428,12 +459,12 @@ const iconNames = (svg: Element): string[] =>
 
 const readsAsMoney = (name: string): boolean => name.split('-').some((w) => MONEY_OR_METER.has(w));
 
-/** The Current usage section: the smallest block around its heading that holds all four cards. */
+/** The Current usage section: the smallest block around its heading that holds every kind's card. */
 function usageSection(locale: Locale): HTMLElement {
   const heading = screen.getByRole('heading', { level: 2, name: SAID[locale].currentUsage });
   let section: HTMLElement = heading;
-  while (!SAID[locale].metered.every((label) => (section.textContent ?? '').includes(label))) {
-    expect(section.parentElement, 'the four cards are not under the Current usage heading').not.toBeNull();
+  while (!SAID[locale].moved.every((label) => (section.textContent ?? '').includes(label))) {
+    expect(section.parentElement, 'the kinds moved are not under the Current usage heading').not.toBeNull();
     section = section.parentElement!;
   }
   return section;
@@ -441,7 +472,7 @@ function usageSection(locale: Locale): HTMLElement {
 
 /** One card: the largest block around its label that holds no other card's label. */
 function cardOf(section: HTMLElement, label: string, locale: Locale): HTMLElement {
-  const others = SAID[locale].metered.filter((l) => l !== label);
+  const others = SAID[locale].moved.filter((l) => l !== label);
   let card = within(section).getByText(label);
   while (
     card.parentElement &&
@@ -468,7 +499,7 @@ const VISA = {
 
 /**
  * During the Alpha and outside it. The owner's answer is the same for both:
- * the cards stay, without money icons, and nothing is hidden. The third case
+ * what has moved, by kind, without money icons, and nothing hidden. The third case
  * sets the edition flag to the appliance, with the setting on. The appliance
  * itself never routes to this page (`AppRoutes.tsx`: no Billing chunk, and
  * `ManagedOnly` sends it to /confirm). The case only shows that the cards do
@@ -481,7 +512,7 @@ const DEPLOYMENTS = [
 ] as const;
 
 describe.each(DEPLOYMENTS)(
-  'the four measurement cards: kept, and nothing on them looks like money (owner, 2026-10-04), $name',
+  'what has moved, by kind, in place of the four measurement cards (owner, 2026-10-05), $name',
   ({ stage, selfhost }) => {
     beforeEach(() => {
       if (stage) vi.stubEnv('VITE_OWNPACE_STAGE', stage);
@@ -489,42 +520,42 @@ describe.each(DEPLOYMENTS)(
       vi.mocked(billingApi.getPaymentMethods).mockResolvedValue({ paymentMethods: [VISA] });
     });
 
-    it.each(LOCALES)('each card is shown with its figure, in %s', async (locale) => {
+    it.each(LOCALES)('each kind moved is shown with its count over every migration, and no other, in %s', async (locale) => {
       await billingPage(locale);
       await screen.findByText('Medium');
+      await screen.findByText(SAID[locale].moved[0]!);
       const section = usageSection(locale);
-      SAID[locale].metered.forEach((label, i) => {
+      SAID[locale].moved.forEach((label, i) => {
         const card = cardOf(section, label, locale);
         expect(within(card).getByText(SAID[locale].figures[i]!)).toBeInTheDocument();
-        // A measurement, not a price: no currency sign on the card.
+        // A count, not a price: no currency sign on the card.
         expect(card.textContent ?? '').not.toMatch(/[€$£¥]/);
       });
+      // Tasks moved none, so they have no card.
+      expect(section.querySelectorAll('[data-moved]')).toHaveLength(SAID[locale].moved.length);
+      // What Ownpace spends is not what a customer moved: the four are gone.
+      for (const label of SAID[locale].gone) expect(screen.queryByText(label)).toBeNull();
     });
 
     it.each(LOCALES)(
-      'each card has its own neutral icon, none on the money list; Payment Methods keeps its card, in %s',
+      'each card wears its data type\'s own icon, none on the money list; Payment Methods keeps its card, in %s',
       async (locale) => {
         await billingPage(locale);
         await screen.findByText('Visa •••• 4242');
+        await screen.findByText(SAID[locale].moved[0]!);
         const section = usageSection(locale);
 
-        // Each card still carries one icon, so the cards keep their layout.
-        for (const label of SAID[locale].metered) {
+        // Each card carries one icon: the one its data type wears on its pages.
+        SAID[locale].moved.forEach((label, i) => {
           const icons = cardOf(section, label, locale).querySelectorAll('svg');
           expect(icons, `the ${label} card should carry one icon`).toHaveLength(1);
-          expect(iconNames(icons[0]!), `the ${label} card's icon has no lucide name`).not.toHaveLength(0);
-        }
+          expect(icons[0]!.innerHTML, `the ${label} card's icon`).toBe(drawnAs(KINDS[i]!));
+        });
 
         const money = [...section.querySelectorAll('svg')]
           .flatMap(iconNames)
           .filter(readsAsMoney);
         expect(money, 'these icons in Current usage read as money or a running meter').toEqual([]);
-
-        // Each card's icon is the neutral one named for it, and no other.
-        SAID[locale].metered.forEach((label, i) => {
-          const icon = cardOf(section, label, locale).querySelector('svg')!;
-          expect(iconNames(icon), `the ${label} card's icon`).toEqual([NEUTRAL_ICONS[i]]);
-        });
 
         // The Payment Methods card is about payment methods: its credit card
         // stays. And it shows this guard can see an icon's name at all.

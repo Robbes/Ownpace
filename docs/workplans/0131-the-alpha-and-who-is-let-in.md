@@ -2,7 +2,36 @@
 
 > **In one line:** Umbrella for the managed alpha: its decisions (free, invite-only, Dutch, no backups), an alpha note on pages and grant mail, experimental labels on `SOURCE_CARDS`, Billing wording, end-of-alpha fate, go/no-go list for 0132 to 0150 and 0152 to 0154.
 
-## Status — 2026-10-04 (update this block at the end of every session)
+## Status — 2026-10-05 (update this block at the end of every session)
+
+**2026-10-05: Current usage says what has moved, by kind, in place of the four measurement
+cards.** The owner asked what the cards told a customer: *"billing shows 'Storage', but why? we
+dont store much for real, right? and what would API calls tell customers, why show it? Also for
+Compure hours: why? Perhapse we just need to show the usages that counts: data moved and number of
+objects moved. Reason if we should show per kind or all sum up?"* That replaces the 2026-10-04
+answer below (*"Keep, no money icons"*).
+- **What the four were.** *Storage* was the bytes written to the new home that month, though
+  Ownpace keeps none of the data. *Data Transfer* was the same bytes again (the metering sets the
+  one to the other). *Compute Time* was the hours the passes ran, and *API calls* the number of
+  passes. All four are Ownpace's own costs. None is something the customer moved or pays for.
+- **What Current usage shows now:**
+  - *Items moved*, one card per data type that moved any, each with its data type's own icon and
+    its count over every migration;
+  - under it, as before, the tier block, with *Data moved, in total*, the figure the tier counts.
+- **Per kind, not a sum** (the owner's question). An email, a contact and a 4 GB film are not one
+  unit, so a sum is a number nobody can check, and it decides nothing. A kind is what a person can
+  hold against their old account. Data moved is the one total, because the tier counts it as one.
+- **One count, not a new one.** The items are the counts each migration's page shows (0154 T2),
+  read from the same answer (`GET /api/migrations/progress`), so the two cannot disagree. There is
+  no API change: `/api/billing/usage` still serves the four quantities, which `/usage/history` and
+  the invoice freeze (0121) read.
+- **Guarded** in `a-bill-nobody-will-send` and `Billing.unit.test.tsx`, run against main's page
+  first, where all fourteen new cases fail:
+  - the kinds with their counts summed over every migration, in the app's order, and none that
+    moved nothing;
+  - each card wears its data type's own icon, and none reads as money;
+  - the four labels are gone in both languages;
+  - *"Nothing has moved yet."* when nothing has, and a failed read is said, never shown as zero.
 
 **2026-10-04: the request form gets a spam trap.** The owner chose *"Honeypot now
 (Recommended)"*, not a time check and not parked. It is built as 0093 T2d on branch
@@ -530,7 +559,7 @@ of the gate answer.
 |---|---|---|
 | T1 The word "Alpha" wherever a tester meets the service | 📋 **Decided 2026-09-24** (D1, D4); spelt *Alpha* in both languages since 2026-10-04 (#1439). (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-alpha-said-out-loud`, merged (#1160, 2026-09-24).** (b) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged (2026-10-04)**: the note, the grant mail and the invitation link the conditions and the guide. The backup clause changed in 0139 T4 (2026-09-29, §3). The note's words are the owner's welcome (2026-10-04, D4's amendment), built on the same branch, not merged. The mails open with it and keep the facts | §3. A note on every signed-in page, on the sign-in and request pages, and one sentence in the grant mail, in Dutch and English. Managed only. Off unless the deployment sets it. (a) is the setting, the note and the mail's paragraph; (b) is their links to the conditions and the tester guide. |
 | T2 An "experimental" label on sources nobody has run against a real account | 🔨 **(a) Built on branch `claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven` (2026-09-24), merged (#1171, 2026-09-25)**: the table, the tag at both doors on both editions (the export archive card included, offered and tagged on managed: 0148 D10), in the data-type step and beside the whole-domain option, with 0141 T1. 📋 **Decided 2026-09-24** (D6); (b), the why's link to 0144 T2's page, not built | §3. One table in shared, read by both doors and by the wizard's data-type step. Both editions. |
-| T3 Billing says nothing is charged during the alpha | 📋 **Decided 2026-09-24** (D1); its last two items **decided 2026-10-04**. (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-bill-nobody-will-send`, merged (#1172, 2026-09-25)**: the Billing line and the request hint, and the invoice details card's *not needed* during the alpha (open question 7, answered). (b) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-measurements-not-money`, not merged (2026-10-04)**: the four measurement cards stay on every deployment, with icons that are not money (owner: *"Keep, no money icons"*). Run rows stay unpruned during the Alpha (owner: *"Accept"*); nothing to build | §3. One sentence on the Billing page and one on the request form. The four measurement cards stay, with neutral icons. Run rows are not pruned during the Alpha. |
+| T3 Billing says nothing is charged during the alpha | 📋 **Decided 2026-09-24** (D1); its last two items **decided 2026-10-04**. (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-bill-nobody-will-send`, merged (#1172, 2026-09-25)**: the Billing line and the request hint, and the invoice details card's *not needed* during the alpha (open question 7, answered). (b) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-measurements-not-money`, not merged (2026-10-04)**: the four measurement cards stay on every deployment, with icons that are not money (owner: *"Keep, no money icons"*). Run rows stay unpruned during the Alpha (owner: *"Accept"*); nothing to build | §3. One sentence on the Billing page and one on the request form. The four measurement cards stayed, with neutral icons, until the owner replaced them on 2026-10-05 with the items moved per kind (Status). Run rows are not pruned during the Alpha. |
 | T4 What the end of the alpha does to organisations, credentials and identities | 📋 **Decided 2026-09-28** (open question 1): (b), everything carries on under new conditions, perhaps on another host | §3 and open question 1. What exists today, and three options; the owner chose (b). |
 | T5 Go/no-go before the first invitation | 📋 **Proposed** | §3. For each of 0132–0150, 0152–0154 (rows added 2026-09-28), 0093 T2c and 0130, the minimum that must be true, plus the owner's own steps. |
 
