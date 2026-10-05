@@ -2238,6 +2238,31 @@ paths:
                   - { $ref: '#/components/schemas/AccountClosed' }
                   - { $ref: '#/components/schemas/ConditionsNotAccepted' }
 
+  /api/migrations/pace:
+    get:
+      tags: [Migrations]
+      summary: The pace the organisation's migrations run at
+      description: |
+        The least minutes between two passes, by the tier the month bills:
+        1,440 on Free outside the alpha, else 0. And each migration's next
+        pass by it, where that is still to come (workplan 0157 T5). The
+        person's page says it in one line.
+      responses:
+        '200':
+          description: The pace.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [leastMinutesBetweenPasses, nextPassAt]
+                properties:
+                  leastMinutesBetweenPasses: { type: integer }
+                  nextPassAt:
+                    type: object
+                    description: Per migration id, when its next pass may start, ISO 8601.
+                    additionalProperties: { type: string, format: date-time }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /api/migrations/progress:
     get:
       tags: [Migrations]

@@ -76,7 +76,7 @@ import { revokeCredentialRow } from '@openmig/orchestration/revoke-stored-creden
 import type { TokenRevoker } from '@openmig/shared';
 import { cutoverBeginRefusal, prepareTransition } from '@openmig/core/cutover-state';
 import { enqueueUnlessHeld } from '../../enqueue-unless-held.ts';
-import { freePaceRefusal, paceFor, scheduleRefusalAtPace } from './free-pace.ts';
+import { freePaceRefusal, paceFor, paceOfOrganisation, scheduleRefusalAtPace } from './free-pace.ts';
 import { recordVisit } from './visits.ts';
 import { refusedAsClosed } from '../../closed-organisation.ts';
 import { refusedUntilAccepted } from '../../conditions-not-accepted.ts';
@@ -2298,6 +2298,28 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
  * not copy (`skipped`) has no line, as on the migration's page. Registered
  * before `/:mappingId`, which would take *progress* for an id.
  */
+/**
+ * GET /api/migrations/pace (workplan 0157 T5)
+ *
+ * THE PACE THE ORGANISATION'S MIGRATIONS RUN AT, for the pages that list them:
+ * the least minutes between two passes, 1,440 on Free outside the alpha, and
+ * each migration's next pass by it, where that is still to come
+ * (`paceOfOrganisation`). The person's page says it in one line. Registered
+ * before `/:mappingId`, which would take *pace* for an id.
+ */
+router.get('/pace', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found in authentication context' });
+      return;
+    }
+    res.json(await paceOfOrganisation(tenantId, getSharedPool()));
+  } catch (error) {
+    serverFault(res, 'pace_failed', 'reading the pace your migrations run at', error);
+  }
+});
+
 router.get('/progress', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.tenantId;

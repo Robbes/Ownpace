@@ -55,6 +55,7 @@ import { serverMessage } from '../services/api.ts';
 import { waitingOn } from '../services/needs-you.ts';
 import { checksOf } from '../services/cutover-steps.ts';
 import StateChip from '../components/StateChip.tsx';
+import { PaceLine } from '../components/PaceLine.tsx';
 import { MigrationLines, lineStages } from '../components/MigrationLines.tsx';
 import { CutoverSteps } from '../components/CutoverSteps.tsx';
 import { fetchProgress } from '../services/progress-service.ts';
@@ -128,6 +129,8 @@ const Person: React.FC = () => {
   const rowsQuery = selfHost ? statusQuery : listQuery;
   const rows: readonly PersonRow[] | undefined = selfHost ? statusQuery.data : listQuery.data;
   const peopleQuery = useQuery({ queryKey: ['people'], queryFn: fetchPeople });
+  // The pace their migrations run at (0157 T5): managed only, as tiers are.
+  const paceQuery = useQuery({ queryKey: ['pace'], queryFn: mappingApi.pace, enabled: !selfHost });
   const attentionQuery = useQuery({ queryKey: ['attention'], queryFn: fetchAttention });
   // Where each data type is (0154 T1 (b)), for each line's own stage and the
   // sentence under it: the progress route on managed, the status and the last
@@ -231,6 +234,11 @@ const Person: React.FC = () => {
         {from.length > 0 && to.length > 0 && (
           <p className="mt-1 text-gray-600">{t('people.fromTo', { from: list(from), to: list(to) })}</p>
         )}
+        <PaceLine
+          className="mt-1 text-sm text-gray-700"
+          eachMigration
+          leastMinutesBetweenPasses={paceQuery.data?.leastMinutesBetweenPasses}
+        />
         {needs === undefined ? (
           attentionQuery.isLoading ? null : <p className="mt-1 text-sm text-gray-600">{t('people.needsUnknown')}</p>
         ) : needs > 0 ? (

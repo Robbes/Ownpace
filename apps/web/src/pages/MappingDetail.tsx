@@ -51,6 +51,7 @@ import { connectionKindName } from '../components/ProviderTile.tsx';
 import { CutoverSteps } from '../components/CutoverSteps.tsx';
 import { TimeBeforeStartLine } from '../components/TimeBeforeStartLine.tsx';
 import { TimeWhileCopyingLine } from '../components/TimeWhileCopyingLine.tsx';
+import { PaceLine } from '../components/PaceLine.tsx';
 import { leastAdvancedStage, remainingItemsOf, timeBeforeStart, timeWhileCopying } from '@openmig/shared';
 import { providerName } from '../components/ProviderTile.tsx';
 import { serverMessage } from '../services/api.ts';
@@ -435,6 +436,12 @@ const MappingDetail: React.FC = () => {
           provider={providerName(sourceType ?? '', 'source')}
         />
       )}
+      {/* Free's pace, and this migration's next pass by it (0157 T5). */}
+      <PaceLine
+        className="mt-2 text-sm text-gray-700"
+        leastMinutesBetweenPasses={detail.data?.pace?.leastMinutesBetweenPasses}
+        nextPassAt={detail.data?.pace?.nextPassAt}
+      />
 
       {/* The list IS a sequence (0034 T4), and since 0154 T4 one list with a
           person's page: each step with its count, its state in words, and

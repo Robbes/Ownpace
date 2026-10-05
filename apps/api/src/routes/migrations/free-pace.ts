@@ -16,7 +16,9 @@
  *    migration page, saying why (`scheduleRefusalAtPace`, T4). *Automatic*
  *    (no schedule) is never refused: on Free it runs once a day;
  *  - the migration's page reads the pace (`paceFor`), so its chooser offers
- *    what the tier allows and says when the next pass starts.
+ *    what the tier allows and says when the next pass starts; the person's
+ *    page and the Migrations page read the organisation's (`paceOfOrganisation`,
+ *    T5).
  *
  * WHAT IS NOT HELD:
  *
@@ -84,6 +86,39 @@ export async function paceFor(tenantId: string, mappingId: string, pool: Pool, n
     if (!row?.last) return { leastMinutesBetweenPasses: least, nextPassAt: null };
     const next = nextPassByPace(new Date(row.last), least);
     return { leastMinutesBetweenPasses: least, nextPassAt: next.getTime() > now.getTime() ? next.toISOString() : null };
+  });
+}
+
+/** The pace of every migration of the organisation now, for the pages that list them. */
+export interface OrganisationPace {
+  /** The least minutes between two passes: 1,440 on Free outside the alpha, else 0. */
+  readonly leastMinutesBetweenPasses: number;
+  /** Per migration, when the pace lets its next pass run, where that is still to come. */
+  readonly nextPassAt: Readonly<Record<string, string>>;
+}
+
+/** The organisation's pace now: its tier's floor, and each migration's next pass by it. */
+export async function paceOfOrganisation(
+  tenantId: string,
+  pool: Pool,
+  now: Date = new Date(),
+): Promise<OrganisationPace> {
+  if (!holdsAtCeiling(process.env.OWNPACE_STAGE)) return { leastMinutesBetweenPasses: 0, nextPassAt: {} };
+  return withTenantDb(tenantId, pool, async (db) => {
+    const least = await leastMinutesIn(db, tenantId, now);
+    if (least === 0) return { leastMinutesBetweenPasses: 0, nextPassAt: {} };
+    const rows = await db
+      .select({ mappingId: schema.run.mappingId, last: sql<string | Date | null>`max(${schema.run.startedAt})` })
+      .from(schema.run)
+      .where(eq(schema.run.tenantId, tenantId))
+      .groupBy(schema.run.mappingId);
+    const nextPassAt: Record<string, string> = {};
+    for (const row of rows) {
+      if (!row.last || !row.mappingId) continue;
+      const next = nextPassByPace(new Date(row.last), least);
+      if (next.getTime() > now.getTime()) nextPassAt[row.mappingId] = next.toISOString();
+    }
+    return { leastMinutesBetweenPasses: least, nextPassAt };
   });
 }
 
