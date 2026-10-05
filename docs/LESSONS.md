@@ -214,6 +214,7 @@ reading a file drops off its entry by itself.
 
 - [a-month-that-moved-with-the-servers-timezone](../scripts/a-month-that-moved-with-the-servers-timezone.unit.test.ts) — FOUR PLACES DECIDED WHICH MONTH A MOMENT BELONGED TO, AND THREE OF THEM ASKED THE SERVER WHERE IT WAS STANDING (found 2026-09-09).
 - [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
+- [a-sync-the-gate-pressed-on-free](../scripts/a-sync-the-gate-pressed-on-free.unit.test.ts) — A SYNC THE GATE PRESSED ON FREE (E2E (managed) #238, 2026-10-05).
 - [half-the-array-was-a-recomputation](../scripts/half-the-array-was-a-recomputation.unit.test.ts) — `GET /api/billing/usage/history` returned one array whose two halves meant different things by `cost` (workplan 0121 T4 follow-up; 0109 T5's neighbour).
 - [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
 
@@ -232,6 +233,10 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/routes/migrations/dropbox-consent.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+
+### `apps/api/src/routes/migrations/free-pace.ts`
+
+- [a-sync-the-gate-pressed-on-free](../scripts/a-sync-the-gate-pressed-on-free.unit.test.ts) — A SYNC THE GATE PRESSED ON FREE (E2E (managed) #238, 2026-10-05).
 
 ### `apps/api/src/routes/migrations/google-account-consent.ts`
 
@@ -1210,6 +1215,7 @@ reading a file drops off its entry by itself.
 - [a-publish-that-moved-and-a-caller-that-did-not](../scripts/a-publish-that-moved-and-a-caller-that-did-not.unit.test.ts) — A PUBLISH THAT MOVED AND A CALLER THAT STAYED AT LOCALHOST.
 - [a-restart-nobody-in-the-run-asked-for](../scripts/a-restart-nobody-in-the-run-asked-for.unit.test.ts) — A RESTART NOBODY IN THE RUN ASKED FOR, AND A VERDICT THAT BLAMED WHICHEVER CHECK WAS RUNNING (E2E (managed) #195, 2026-09-23).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
+- [a-sync-the-gate-pressed-on-free](../scripts/a-sync-the-gate-pressed-on-free.unit.test.ts) — A SYNC THE GATE PRESSED ON FREE (E2E (managed) #238, 2026-10-05).
 - [a-verdict-that-does-not-say-what-failed](../scripts/a-verdict-that-does-not-say-what-failed.unit.test.ts) — A gate that knows what broke and will not say it.
 - [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
 - [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts) — AN ORGANISATION A STRANGER COULD FOUND (workplan 0135 T1).
@@ -4241,6 +4247,16 @@ Reads:
 - `deploy/compose/stack-kind.sh`
 - `deploy/compose/stand-up-live.sh`
 - `packages/managed/migrations/0033_a_system_role_that_is_not_the_owner.sql`
+
+### [a-sync-the-gate-pressed-on-free](../scripts/a-sync-the-gate-pressed-on-free.unit.test.ts)
+
+A SYNC THE GATE PRESSED ON FREE (E2E (managed) #238, 2026-10-05).
+
+Reads:
+
+- `apps/api/src/routes/billing/index.ts`
+- `apps/api/src/routes/migrations/free-pace.ts`
+- `deploy/compose/smoke-managed.sh`
 
 ### [a-tag-the-publisher-can-move](../scripts/a-tag-the-publisher-can-move.unit.test.ts)
 
