@@ -255,6 +255,7 @@ if (!JMAP_URL) {
 
       const result1 = await runFileSync({
         sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
         tenantId: TENANT_ID,
         mappingId: MAPPING_ID,
         source: new StubFileSource(folder, files),
@@ -277,6 +278,7 @@ if (!JMAP_URL) {
       // which is the leg the connector's own tests cannot exercise.
       const result2 = await runFileSync({
         sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
         tenantId: TENANT_ID,
         mappingId: MAPPING_ID,
         source: new StubFileSource(folder, files),
@@ -299,6 +301,7 @@ if (!JMAP_URL) {
       const added = buildStubFiles(1, FILE_COUNT);
       const result3 = await runFileSync({
         sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
         tenantId: TENANT_ID,
         mappingId: MAPPING_ID,
         source: new StubFileSource(folder, [...files, ...added]),
@@ -320,6 +323,7 @@ if (!JMAP_URL) {
       const files = buildStubFiles(1);
       await runFileSync({
         sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
         tenantId: TENANT_ID,
         mappingId: MAPPING_ID,
         source: new StubFileSource(folder, files),
@@ -353,6 +357,7 @@ if (!JMAP_URL) {
       const files = buildStubFiles(1);
       await runFileSync({
         sourceIsAuthorityOnExistence: true,
+        stillTheAuthority: async () => true,
         tenantId: TENANT_ID,
         mappingId: MAPPING_ID,
         source: new StubFileSource(folder, files),

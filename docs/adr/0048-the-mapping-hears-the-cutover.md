@@ -27,7 +27,9 @@
   See *One transaction, and the paths*.
 - **A migration `active` at `execute` copies until its grace period ends**, mirroring no deletion
   and holding no slot; a `paused` one stays stopped. Gates ask `runsPassesNow` with each data
-  type's window. Guard: `a-grace-period-that-copies.unit.test.ts`; see *The window rule*.
+  type's window. A pass already running asks its phase again before concluding anything
+  (`stillTheAuthority`). Guards: `a-grace-period-that-copies.unit.test.ts`,
+  `a-cutover-during-a-pass.unit.test.ts`; see *The window rule*.
 - **A data type can be cut over on its own** (`--kind`): its own ledger and path, the
   migration's status their roll-up; only mail waits for DNS. A data type's own cutover never
   begins while the whole one is under way, nor the whole once a data type has its own
@@ -116,7 +118,12 @@ promises both systems active, and mail still reaches the old server while the MX
 propagates. So until it ends, a migration `active` at `execute` keeps being scheduled, and a running
 pass keeps going, under the after-cutover rules: no deletion detectors, nothing deleted on the
 target because it went at the source, no slot held; its copies join the data meter. Then passes
-stop; finishing, or the lane, stays the owner's. **A paused migration stays stopped**: `execute`
+stop; finishing, or the lane, stays the owner's. A pass that was already running when `execute`
+landed started under the rules from before it, so it asks its data type's phase again right before
+its end-of-pass conclusions (`stillTheAuthority`, from `readPathPhases`; 2026-10-05) and, after
+cutover, draws none of them: no reported removal is resolved, the old system's bin is not read,
+nothing is counted missing or moved. The appliance reads each data type's phase when that data type
+starts, not once per firing. Guard: `a-cutover-during-a-pass.unit.test.ts`. **A paused migration stays stopped**: `execute`
 records, while it still sees the status, whether it copies (`keepsCopyingThroughGrace`;
 `copies_through_grace`, ledger migration 0064). One already `cutover` at `execute` (declared
 earlier, or a re-run after a failed ledger write; nothing tells them apart) copies nothing through
@@ -271,6 +278,13 @@ both editions, so the decision is in `shared` and the write in `core` and the le
   still called them open (the end of the slice 7a amendment). Recorded in workplan 0128's Status
   block; no code changed. Folded in at consolidation.
 - **2026-10-03** — consolidated in place (ADR-0051).
+- **2026-10-05** — a pass already running at `execute` hears it before it concludes anything. The
+  sentence above said a running pass keeps going "with no deletion detectors"; the code decided
+  that once, at the pass's start, so one that straddled `execute` read the bin and counted absence
+  by the old rules. Now it asks again (`stillTheAuthority`), and the appliance reads each data
+  type's phase when it starts (the owner, 2026-10-05: *"after cross over the bin reading and
+  deleting on target should stop, because perhaps source-leavers clean up ALL after the cross
+  over."*). Recorded in workplan 0117's Status block. Now *The grace period copies*.
 
 The full record, word for word as it read before this consolidation:
 [history/0048-the-mapping-hears-the-cutover.md](./history/0048-the-mapping-hears-the-cutover.md).

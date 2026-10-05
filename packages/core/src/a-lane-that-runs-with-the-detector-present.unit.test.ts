@@ -122,6 +122,7 @@ function world() {
   const run = (ledger: MemoryLedger, sourceIsAuthorityOnExistence: boolean) =>
     runDomainSync<unknown, unknown, Doc, { path: string }>({
       sourceIsAuthorityOnExistence,
+      stillTheAuthority: async () => sourceIsAuthorityOnExistence,
       tenantId: TENANT,
       mappingId: MAPPING,
       domain: 'file',

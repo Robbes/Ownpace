@@ -65,7 +65,7 @@ import { discoverDomains, type DomainDiscoveryTask, type DomainDiscoveryOutcome 
 import { log, metrics as registry, MAX_ITEM_ATTEMPTS, type PassMetrics } from '@openmig/shared';
 import { domainFailedEvent, recordAppEvent } from '@openmig/shared';
 import { DISCOVERY_DOMAINS, DOMAIN_CONFIG_KEY } from '@openmig/shared';
-import { sourceAuthorityFor, type PathPhaseOf } from '@openmig/shared';
+import { sourceStillDecides, type PassPhases, type PathPhaseOf, type SourceAuthority } from '@openmig/shared';
 
 /**
  * Feed one completed pass into the Prometheus registry (§19 dashboards).
@@ -389,16 +389,22 @@ export async function recordSwitchedOff(
  * Run all enabled domains for one mapping config, with status tracking.
  *
  * `phaseOf` is each data type's phase (`readPathPhases`, ledger), read by the
- * caller immediately before the pass. It is REQUIRED and comes before
- * `ledger` on purpose: this is the appliance's half of 0117 D4, and a pass
- * that does not know which phase it is running in must not compile. `ledger`
- * is required too since workplan 0138 T1 part 2: a pass is handed its ledger
- * and opens none from `DATABASE_URL`.
- * From it, `sourceAuthorityFor` decides, per data type, whether that data
- * type carries deletion detectors at all — see `runDomainSync`'s
- * `sourceIsAuthorityOnExistence` (workplan 0128 T5). Until a data type can have
- * a phase of its own, every one has the migration's, so the answer is the one
- * the whole migration gave.
+ * caller immediately before the pass, and what it schedules by: which data
+ * types it moves past, and in which words. `phasesNow` is the same reader,
+ * handed in so it can be asked AGAIN (2026-10-05). Both are REQUIRED and come
+ * before `ledger` on purpose: this is the appliance's half of 0117 D4, and a
+ * pass that does not know which phase it is running in must not compile.
+ * `ledger` is required too since workplan 0138 T1 part 2: a pass is handed its
+ * ledger and opens none from `DATABASE_URL`.
+ *
+ * From `phasesNow`, read when each data type STARTS, `sourceStillDecides`
+ * decides whether that data type carries deletion detectors at all — see
+ * `runDomainSync`'s `sourceIsAuthorityOnExistence` (workplan 0128 T5) — and
+ * the same question is handed to its pass to ask again before it concludes
+ * anything (`stillTheAuthority`), and to the relocation auto-apply before it
+ * removes anything. Read once per firing, as it was until 2026-10-05, a data
+ * type that started hours after the owner pressed execute was handed the
+ * answer from before it, and read the old system's bin after cutover.
  *
  * `runsNow` is whether one data type's passes run now. The appliance hands it
  * `pathRunsNow` of the same phases, so its pass moves on past a data type that
@@ -424,6 +430,7 @@ export async function runAllDomains(
   config: MappingConfig,
   statusStore: MigrationStatusStore,
   phaseOf: PathPhaseOf,
+  phasesNow: () => Promise<PassPhases>,
   ledger: LedgerOptions,
   runsNow: (domain: DiscoveryDomain) => boolean = () => true,
   whyItStops?: (domain: DiscoveryDomain) => Promise<PassStopReason | null>,
@@ -435,8 +442,13 @@ export async function runAllDomains(
   const mappingId = config.mappingId as MappingId;
 
   // Each data type's own phase, from the database and never from the config,
-  // spread onto that data type's deps below (0117 D4, 0128 T5).
-  const authority = (domain: DiscoveryDomain) => sourceAuthorityFor(phaseOf(domain).phase);
+  // spread onto that data type's deps below (0117 D4, 0128 T5): read when the
+  // data type starts, and asked again by its pass before it concludes anything
+  // (2026-10-05). Not the firing's reading, which can be hours old by then.
+  const authority = async (domain: DiscoveryDomain): Promise<SourceAuthority> => ({
+    sourceIsAuthorityOnExistence: sourceStillDecides(await phasesNow(), domain),
+    stillTheAuthority: async () => sourceStillDecides(await phasesNow(), domain),
+  });
 
   // The question the loop asks from inside a data type's pass, about that data
   // type (2026-09-29), spread onto its deps beside `authority`. Nothing at all
@@ -546,10 +558,13 @@ export async function runAllDomains(
 
       await statusStore.markInProgress(tenantId, mappingId, domain);
 
+      // This data type's phase as it starts, and its question for later.
+      const startsAs = await authority(domain);
+
       // Each builder opens a Postgres pool; always release it after the pass
       // (finally) so a long-running scheduler never leaks a pool per domain.
       if (domain === 'email') {
-        const deps = { ...(await buildDeps(config, ledger)), ...authority(domain), ...askedWhy(domain) };
+        const deps = { ...(await buildDeps(config, ledger)), ...startsAs, ...askedWhy(domain) };
         try {
           const result = await runShadowPass(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
@@ -577,7 +592,7 @@ export async function runAllDomains(
           await deps.close();
         }
       } else if (domain === 'calendar') {
-        const deps = { ...buildDomainDeps(config, 'calendar', ledger), ...authority(domain), ...askedWhy(domain) };
+        const deps = { ...buildDomainDeps(config, 'calendar', ledger), ...startsAs, ...askedWhy(domain) };
         try {
           const result = await runCalendarSync(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
@@ -606,7 +621,7 @@ export async function runAllDomains(
           await deps.close();
         }
       } else if (domain === 'contact') {
-        const deps = { ...buildDomainDeps(config, 'contact', ledger), ...authority(domain), ...askedWhy(domain) };
+        const deps = { ...buildDomainDeps(config, 'contact', ledger), ...startsAs, ...askedWhy(domain) };
         try {
           const result = await runContactSync(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
@@ -651,7 +666,7 @@ export async function runAllDomains(
         // `else` is never a compile error either. It is the meaner of the two,
         // because an absent branch omits work while a catch-all does the wrong
         // work and says it went fine.
-        const deps = { ...buildDomainDeps(config, 'task', ledger), ...authority(domain), ...askedWhy(domain) };
+        const deps = { ...buildDomainDeps(config, 'task', ledger), ...startsAs, ...askedWhy(domain) };
         try {
           const result = await runTaskSync(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
@@ -679,7 +694,7 @@ export async function runAllDomains(
           await deps.close();
         }
       } else if (domain === 'file') {
-        const deps = { ...buildDomainDeps(config, 'file', ledger), ...authority(domain), ...askedWhy(domain) };
+        const deps = { ...buildDomainDeps(config, 'file', ledger), ...startsAs, ...askedWhy(domain) };
         // Captured BEFORE the pass: ADR-0031's survived-a-pass gate compares
         // each relocation's recording date against this, so a move this very
         // pass records is never auto-applied by the same pass that made it.

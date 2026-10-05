@@ -949,13 +949,17 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // type can have a phase of its own, every one has the migration's; a
       // migration deleted since the gate above keeps the status it read.
       //
-      // Read ONCE for the pass, and asked twice: whether each data type still
-      // runs, so the pass moves on past one that no longer does while the
-      // others do, as the managed pass does; and whether its source still
-      // decides what exists. One reading, so the two answers cannot disagree.
-      const phases = await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
-        readPathPhases(tdb, tenantId, mappingId),
-      );
+      // Read once for the pass's schedule: whether each data type still runs,
+      // so the pass moves on past one that no longer does while the others
+      // do, as the managed pass does. Whether its source still decides what
+      // exists is NOT taken from this reading (2026-10-05): a firing can run
+      // for days, and a data type that started after the owner pressed
+      // execute was handed the answer from before it. `runAllDomains` asks
+      // the same reader (`phasesNow`) when each data type starts, and its pass
+      // asks it again before concluding anything.
+      const phasesNow = () =>
+        withTenant(persistenceBackend.driver, tenantId, (tdb) => readPathPhases(tdb, tenantId, mappingId));
+      const phases = await phasesNow();
       const phaseOf = phases?.phaseOf ?? phasesOfTheMigration(currentStatus);
       // AND ASKED AGAIN WHILE THE PASS RUNS (2026-09-29), because a firing on
       // a first copy can run for days and the reading above is as old as it
@@ -982,12 +986,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         configWithCorrectMappingId,
         statusStore,
         phaseOf,
+        phasesNow,
         ledgerOptions,
         (domain) => pathRunsNow(phaseOf(domain)),
-        (domain) =>
-          withTenant(persistenceBackend.driver, tenantId, (tdb) => readPathPhases(tdb, tenantId, mappingId)).then(
-            (current) => stopReasonOf(stepFrom(current, domain)),
-          ),
+        (domain) => phasesNow().then((current) => stopReasonOf(stepFrom(current, domain))),
       );
       const created = results.reduce((n, r) => n + r.created, 0);
       // Disabled domains report placeholder zeros so status pollers see every

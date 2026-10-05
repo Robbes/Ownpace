@@ -76,6 +76,7 @@ const REFUSAL = 'HTTP 403: The caller does not have permission';
 function onePass(ledger: MemoryLedger, fails: 'source' | 'target') {
   return runDomainSync<unknown, unknown, Item, { path: string }>({
     sourceIsAuthorityOnExistence: true,
+    stillTheAuthority: async () => true,
     tenantId: TENANT,
     mappingId: MAPPING,
     domain: 'contact',
@@ -108,6 +109,7 @@ function onePass(ledger: MemoryLedger, fails: 'source' | 'target') {
 function passRefusing(ledger: MemoryLedger, thrown: unknown) {
   return runDomainSync<unknown, unknown, Item, { path: string }>({
     sourceIsAuthorityOnExistence: true,
+    stillTheAuthority: async () => true,
     tenantId: TENANT,
     mappingId: MAPPING,
     domain: 'contact',

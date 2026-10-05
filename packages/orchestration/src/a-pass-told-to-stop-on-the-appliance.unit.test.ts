@@ -86,6 +86,9 @@ vi.mock('@openmig/core', async (importOriginal) => {
 
 const { runAllDomains } = await import('./orchestration.ts');
 
+/** The reader the pass asks again (2026-10-05), answering what the firing's own reading answers. */
+const ACTIVE_NOW = async () => ({ anyRuns: true, grantWithdrawnAt: null, phaseOf: phasesOfTheMigration('active') });
+
 const TENANT = '00000000-0000-4000-8000-000000000929';
 const MAPPING = '11111111-1111-4111-8111-111111110929';
 const PASSWORD_ENV = 'A_PASSWORD_FOR_THE_PAUSE_INSIDE_A_PASS_TEST';
@@ -176,7 +179,7 @@ describe("the appliance's pass, handed the question", () => {
   it("hands it to every data type's pass, asking about that data type", async () => {
     const asked: string[] = [];
     const { store } = recordingStore();
-    await runAllDomains(mapping(), store, phasesOfTheMigration('active'), { ledgerDb }, () => true, async (d) => {
+    await runAllDomains(mapping(), store, phasesOfTheMigration('active'), ACTIVE_NOW, { ledgerDb }, () => true, async (d) => {
       asked.push(d);
       return null;
     });
@@ -194,7 +197,7 @@ describe("the appliance's pass, handed the question", () => {
     // between-types re-read. Nothing for contacts is built or run.
     const said = vi.spyOn(log, 'info').mockImplementation(() => {});
     const { store, calls } = recordingStore();
-    await runAllDomains(mapping(), store, phasesOfTheMigration('active'), { ledgerDb }, () => true, async (d) =>
+    await runAllDomains(mapping(), store, phasesOfTheMigration('active'), ACTIVE_NOW, { ledgerDb }, () => true, async (d) =>
       d === 'contact' ? 'no_longer_runs' : null,
     );
 
@@ -213,6 +216,7 @@ describe("the appliance's pass, handed the question", () => {
       mapping(),
       store,
       phasesOfTheMigration('active'),
+      ACTIVE_NOW,
       { ledgerDb },
       () => true,
       async () => null,
@@ -239,7 +243,7 @@ describe("the appliance's pass, handed the question", () => {
     // it down in silence either.
     const { store, calls } = recordingStore();
     vi.spyOn(log, 'error').mockImplementation(() => {});
-    const results = await runAllDomains(mapping(), store, phasesOfTheMigration('active'), { ledgerDb }, () => true, async (d) => {
+    const results = await runAllDomains(mapping(), store, phasesOfTheMigration('active'), ACTIVE_NOW, { ledgerDb }, () => true, async (d) => {
       if (d === 'calendar') throw new Error('the migration could not be read');
       return null;
     });
@@ -252,7 +256,7 @@ describe("the appliance's pass, handed the question", () => {
 
   it('runs every data type as before when nobody hands it a question, as the standalone worker does not', async () => {
     const { store, calls } = recordingStore();
-    await runAllDomains(mapping(), store, phasesOfTheMigration('active'), { ledgerDb });
+    await runAllDomains(mapping(), store, phasesOfTheMigration('active'), ACTIVE_NOW, { ledgerDb });
 
     expect(recorder.handed.map((h) => [h.domain, h.asked])).toEqual([
       ['calendar', false],
@@ -291,7 +295,7 @@ describe('relocation auto-apply after a file pass on the appliance', () => {
     // Asked before the data type (1), from inside the pass (2): both go on.
     // Asked after the pass (3): stop.
     const q = countingQuestion(3);
-    const results = await runAllDomains(fileMapping(true), store, phasesOfTheMigration('active'), { ledgerDb }, () => true, q.whyItStops);
+    const results = await runAllDomains(fileMapping(true), store, phasesOfTheMigration('active'), ACTIVE_NOW, { ledgerDb }, () => true, q.whyItStops);
 
     expect(recorder.applied).toBe(0);
     expect(q.asked).toEqual(['file', 'file', 'file']);
@@ -309,7 +313,7 @@ describe('relocation auto-apply after a file pass on the appliance', () => {
     const { store } = recordingStore();
     recorder.haltIn = { domain: 'file', reason: 'stopped_by_its_owner' };
     const q = countingQuestion(Number.POSITIVE_INFINITY);
-    await runAllDomains(fileMapping(true), store, phasesOfTheMigration('active'), { ledgerDb }, () => true, q.whyItStops);
+    await runAllDomains(fileMapping(true), store, phasesOfTheMigration('active'), ACTIVE_NOW, { ledgerDb }, () => true, q.whyItStops);
 
     expect(recorder.applied).toBe(0);
     expect(q.asked).toEqual(['file', 'file']);
@@ -318,7 +322,7 @@ describe('relocation auto-apply after a file pass on the appliance', () => {
   it('runs when nothing said stop, after asking once more', async () => {
     const { store, calls } = recordingStore();
     const q = countingQuestion(Number.POSITIVE_INFINITY);
-    await runAllDomains(fileMapping(true), store, phasesOfTheMigration('active'), { ledgerDb }, () => true, q.whyItStops);
+    await runAllDomains(fileMapping(true), store, phasesOfTheMigration('active'), ACTIVE_NOW, { ledgerDb }, () => true, q.whyItStops);
 
     expect(q.asked).toEqual(['file', 'file', 'file']);
     expect(recorder.applied).toBe(1);
@@ -328,7 +332,7 @@ describe('relocation auto-apply after a file pass on the appliance', () => {
   it('costs a mapping that never opted in nothing', async () => {
     const { store } = recordingStore();
     const q = countingQuestion(Number.POSITIVE_INFINITY);
-    await runAllDomains(fileMapping(false), store, phasesOfTheMigration('active'), { ledgerDb }, () => true, q.whyItStops);
+    await runAllDomains(fileMapping(false), store, phasesOfTheMigration('active'), ACTIVE_NOW, { ledgerDb }, () => true, q.whyItStops);
 
     expect(q.asked).toEqual(['file', 'file']);
     expect(recorder.applied).toBe(0);
@@ -336,7 +340,7 @@ describe('relocation auto-apply after a file pass on the appliance', () => {
 
   it('runs as before when nobody hands it a question, as the standalone worker does not', async () => {
     const { store } = recordingStore();
-    await runAllDomains(fileMapping(true), store, phasesOfTheMigration('active'), { ledgerDb });
+    await runAllDomains(fileMapping(true), store, phasesOfTheMigration('active'), ACTIVE_NOW, { ledgerDb });
 
     expect(recorder.applied).toBe(1);
   });

@@ -602,7 +602,9 @@ live in [README.md](./README.md), the register.
   See *One transaction, and the paths*.
 - **A migration `active` at `execute` copies until its grace period ends**, mirroring no deletion
   and holding no slot; a `paused` one stays stopped. Gates ask `runsPassesNow` with each data
-  type's window. Guard: `a-grace-period-that-copies.unit.test.ts`; see *The window rule*.
+  type's window. A pass already running asks its phase again before concluding anything
+  (`stillTheAuthority`). Guards: `a-grace-period-that-copies.unit.test.ts`,
+  `a-cutover-during-a-pass.unit.test.ts`; see *The window rule*.
 - **A data type can be cut over on its own** (`--kind`): its own ledger and path, the
   migration's status their roll-up; only mail waits for DNS. A data type's own cutover never
   begins while the whole one is under way, nor the whole once a data type has its own

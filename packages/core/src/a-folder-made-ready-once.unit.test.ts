@@ -54,6 +54,7 @@ function world() {
   function pass(folders: Folder[], holds: (folder: Folder) => Item[]) {
     return runDomainSync<unknown, unknown, Item, Folder>({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       domain: 'file',

@@ -141,6 +141,8 @@ export async function runCalendarSync(deps: CalendarSyncDeps): Promise<DomainSyn
     // (0117 D4). `runDomainSync` reads it to decide whether the deletion
     // detectors exist at all.
     sourceIsAuthorityOnExistence: deps.sourceIsAuthorityOnExistence,
+    // And how to ask it again before the pass concludes anything (2026-10-05).
+    stillTheAuthority: deps.stillTheAuthority,
     ...passClock(deps),
   });
 }
@@ -240,6 +242,8 @@ export async function runTaskSync(deps: TaskSyncDeps): Promise<DomainSyncResult>
     // (0117 D4). `runDomainSync` reads it to decide whether the deletion
     // detectors exist at all.
     sourceIsAuthorityOnExistence: deps.sourceIsAuthorityOnExistence,
+    // And how to ask it again before the pass concludes anything (2026-10-05).
+    stillTheAuthority: deps.stillTheAuthority,
     ...passClock(deps),
   });
 }
@@ -316,6 +320,8 @@ export async function runContactSync(deps: ContactSyncDeps): Promise<DomainSyncR
     // (0117 D4). `runDomainSync` reads it to decide whether the deletion
     // detectors exist at all.
     sourceIsAuthorityOnExistence: deps.sourceIsAuthorityOnExistence,
+    // And how to ask it again before the pass concludes anything (2026-10-05).
+    stillTheAuthority: deps.stillTheAuthority,
     ...passClock(deps),
   });
 }
@@ -527,6 +533,8 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
     // (0117 D4). `runDomainSync` reads it to decide whether the deletion
     // detectors exist at all.
     sourceIsAuthorityOnExistence: deps.sourceIsAuthorityOnExistence,
+    // And how to ask it again before the pass concludes anything (2026-10-05).
+    stillTheAuthority: deps.stillTheAuthority,
     ...passClock(deps),
     // A snapshot's absences are evidence of nothing (0116 §5) — the source
     // says so about itself, and the loop turns its absence-counting off.

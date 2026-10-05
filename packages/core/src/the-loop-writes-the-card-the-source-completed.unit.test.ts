@@ -79,7 +79,7 @@ function recordingTarget(): ContactTargetWriter & { written: string[] } {
 }
 
 const pass = (source: ContactSource, target: ContactTargetWriter, ledger: MemoryLedger) =>
-  runContactSync({ sourceIsAuthorityOnExistence: true, tenantId: TENANT, mappingId: MAPPING, source, target, ledger });
+  runContactSync({ sourceIsAuthorityOnExistence: true, stillTheAuthority: async () => true, tenantId: TENANT, mappingId: MAPPING, source, target, ledger });
 
 describe('a source that completes its cards', () => {
   it('has the completed card written, photo and all', async () => {

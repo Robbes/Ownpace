@@ -96,7 +96,10 @@ async function passWith(
   runsNow?: (domain: string) => boolean,
 ): Promise<Record<string, unknown>> {
   handed.length = 0;
-  await runAllDomains(mapping(), store, phaseOf, { ledgerDb }, runsNow);
+  // The reader the pass asks when each data type starts (2026-10-05),
+  // answering what the firing's reading answers: no cutover between the two.
+  const phasesNow = async () => ({ anyRuns: true, grantWithdrawnAt: null, phaseOf });
+  await runAllDomains(mapping(), store, phaseOf, phasesNow, { ledgerDb }, runsNow);
   return Object.fromEntries(handed.map((h) => [h.domain, h.sourceIsAuthorityOnExistence]));
 }
 

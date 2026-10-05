@@ -223,10 +223,40 @@ export const PASS_RUNNING_STATES: readonly string[] = ['active', 'continuous'];
  */
 export interface SourceAuthority {
   readonly sourceIsAuthorityOnExistence: boolean;
+  /**
+   * THE SAME QUESTION, ASKED AGAIN BEFORE THE PASS CONCLUDES ANYTHING
+   * (2026-10-05).
+   *
+   * `sourceIsAuthorityOnExistence` is the answer when the pass started. A
+   * cutover executed while it runs neither waits for it nor stops it (during
+   * the grace period the pass is told to carry on), and a managed pass can
+   * run for fifty minutes, an appliance firing for days. Its end-of-pass
+   * conclusions (the removals the old system reported, the old system's bin,
+   * what has gone missing or moved there) were then drawn by the rules from
+   * before the cutover. The owner, 2026-10-05: *"after cross over the bin
+   * reading and deleting on target should stop, because perhaps
+   * source-leavers clean up ALL after the cross over."*
+   *
+   * So whoever builds the deps also hands over how to ask again: the same
+   * reader (`readPathPhases`, ledger), read fresh, for the same data type
+   * (`sourceStillDecides`). `runDomainSync` asks it once, right before those
+   * conclusions, and `autoApplyRelocations` asks it before it removes
+   * anything. REQUIRED, like the answer it re-asks: a pass that cannot ask
+   * must not compile. A question that cannot be answered rejects, and the
+   * pass fails rather than reading the silence as "still the authority"
+   * (hard rule 9).
+   */
+  readonly stillTheAuthority: () => Promise<boolean>;
 }
 
+/**
+ * The half of `SourceAuthority` a phase alone can give: the answer at the
+ * start. The other half reads the database again, and is the deps builder's.
+ */
+export type SourceAuthorityAtStart = Pick<SourceAuthority, 'sourceIsAuthorityOnExistence'>;
+
 /** Read the pass's authority off a mapping's lifecycle. One expression, one place. */
-export function sourceAuthorityFor(status: string): SourceAuthority {
+export function sourceAuthorityFor(status: string): SourceAuthorityAtStart {
   return { sourceIsAuthorityOnExistence: !isAfterCutover(status) };
 }
 

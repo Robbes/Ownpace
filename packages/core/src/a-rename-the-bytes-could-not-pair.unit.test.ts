@@ -119,6 +119,7 @@ function world(initial: ReadonlyArray<Listed>) {
     target,
     ledger,
     sourceIsAuthorityOnExistence: true,
+    stillTheAuthority: async () => true,
   };
   return { state, ledger, stored, pass: () => runFileSync(deps) };
 }

@@ -27,6 +27,7 @@ import {
   PgLedger as _PgLedger,
   PgMigrationStatusStore,
   mailboxMapping,
+  readPathPhases,
   tenantScopedDb,
   withTenant,
 } from '@openmig/ledger';
@@ -155,10 +156,16 @@ async function main() {
     }
   })();
 
+  // The reader every gate asks, handed to the pass so that each data type
+  // reads its phase when it starts and asks again before it concludes
+  // anything (2026-10-05): a cutover executed while this tool runs is heard.
+  const phasesNow = () =>
+    withTenant(pools.tenant, config.tenantId, (tx) => readPathPhases(tx, config.tenantId, config.mappingId));
+
   if (once) {
     // Run once mode
     log.info('[Worker] Running all enabled domains...');
-    const results = await runAllDomains(config, statusStore, phasesOfTheMigration(lifecycle), ledgerOptions);
+    const results = await runAllDomains(config, statusStore, phasesOfTheMigration(lifecycle), phasesNow, ledgerOptions);
     
     const totalScanned = results.reduce((sum, r) => sum + r.scanned, 0);
     const totalCreated = results.reduce((sum, r) => sum + r.created, 0);
@@ -179,7 +186,7 @@ async function main() {
     scheduler.schedule(config.mappingId, config.schedule.cron, async () => {
       log.info('[Worker] Running scheduled sync...');
       try {
-        const results = await runAllDomains(config, statusStore, phasesOfTheMigration(lifecycle), ledgerOptions);
+        const results = await runAllDomains(config, statusStore, phasesOfTheMigration(lifecycle), phasesNow, ledgerOptions);
         
         const totalScanned = results.reduce((sum, r) => sum + r.scanned, 0);
         const totalCreated = results.reduce((sum, r) => sum + r.created, 0);

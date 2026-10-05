@@ -299,6 +299,11 @@ it sooner):
   source are not mirrored. `status` prints until when; after that no pass runs,
   and the migration's own ending (finish, or keep copying in the continuous
   lane) is the Finish page's.
+- A pass that was already running when `execute` landed finishes its copying,
+  but asks the data type's phase again before it concludes anything, and after
+  cutover concludes nothing: it does not read the old system's bin, resolve a
+  removal the old system reported, or count anything missing or moved there
+  (ADR-0048, *The grace period copies*).
 - Monitor mail flow and delivery failures
 - Watch for user complaints or support tickets
 - Keep the rollback procedure ready — `rollback --yes` is still accepted in

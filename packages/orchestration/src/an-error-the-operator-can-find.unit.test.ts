@@ -30,6 +30,9 @@ import {
 import { runAllDomains } from './orchestration.ts';
 import type { PgDatabase } from '@openmig/ledger';
 
+/** The reader the pass asks again (2026-10-05), answering what the firing's own reading answers. */
+const ACTIVE_NOW = async () => ({ anyRuns: true, grantWithdrawnAt: null, phaseOf: phasesOfTheMigration('active') });
+
 /** The pass is handed its ledger (0138 T1 part 2); nothing here reaches a query through it. */
 const NO_QUERIES = { ledgerDb: {} as unknown as PgDatabase };
 
@@ -80,7 +83,7 @@ describe('a data type that fails, in the appliance and the command-line worker',
     const said = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { store, calls } = fakeStore();
 
-    await runAllDomains(mapping(), store, phasesOfTheMigration('active'), NO_QUERIES);
+    await runAllDomains(mapping(), store, phasesOfTheMigration('active'), ACTIVE_NOW, NO_QUERIES);
 
     expect(calls).toContain('failed calendar');
     expect(events).toHaveLength(1);

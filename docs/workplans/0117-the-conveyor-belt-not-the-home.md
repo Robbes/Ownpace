@@ -2,7 +2,36 @@
 
 > **In one line:** A `continuous` lane keeping a mapping copying after cutover with deletion detectors off, a confirmed list (`Confirmed.tsx`) checking each target item by hash or fingerprint, and safety rules for draining the source with attributed tombstones.
 
-## Status — 2026-09-09 (update this block at the end of every session)
+## Status — 2026-10-05 (update this block at the end of every session)
+
+**2026-10-05: D4, ASKED AGAIN WHERE IT WAS ASKED ONCE — after cutover nothing is read
+from the old system's bin, and nothing is concluded from it.** The owner, 2026-10-05:
+
+> *"after cross over the bin reading and deleting on target should stop, because perhaps
+> source-leavers clean up ALL after the cross over."*
+
+That is D4 (below, 2026-09-09) said from the leaver's side, and an audit of both editions
+against it found the rule held for every pass that STARTED after cutover and for none that
+was already running. A pass decided `sourceIsAuthorityOnExistence` once, at its start;
+`execute` neither waits for a running pass nor stops it, and during the grace period it is
+told to carry on. So a managed pass of up to fifty minutes, or an appliance firing that read
+the phases once and can run for days, drew its end-of-pass conclusions by the rules from
+before the cutover: it resolved the removals the old system reported, read its bin, and
+counted what had gone missing or moved there. A file pass halted by a declared cutover
+(`no_longer_runs`) still counted absence in the folders it had finished.
+
+**Built (fix 2 of the after-cutover findings).** The pass is handed the question again,
+REQUIRED beside the answer it re-asks (`SourceAuthority.stillTheAuthority`, shared), built by
+each edition from the one reader every gate asks (`readPathPhases` → `sourceStillDecides`):
+the managed deps builder for every pass it builds, and the appliance's `runAllDomains` from
+the reader it is now handed (`phasesNow`), which it also asks when each data type starts
+rather than once per firing. `runDomainSync` asks it once, right before its conclusions; a
+"no" leaves out all three producers, not run rather than filtered. A question that cannot be
+answered fails the pass (hard rule 9). Guards:
+`packages/core/src/a-cutover-during-a-pass.unit.test.ts` (each producer, each with its
+before-cutover half; the halted file pass; mail's Trash and its scan cursor) and
+`packages/orchestration/src/a-cutover-between-two-data-types.unit.test.ts`. ADR-0048's
+grace-period sentence and the cutover runbook now say it.
 
 **2026-09-10, later still again: THE TWO HALVES DID NOT FIT, and finding that out
 found a shipped bug.** Building slice 4 began by connecting the pass to the store, and

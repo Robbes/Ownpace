@@ -193,6 +193,7 @@ function world(initial: Listing, setup: { cursors?: boolean } = {}) {
     cursorsSet.length = 0;
     return runDomainSync<unknown, unknown, Item, { path: string }>({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       domain: 'file',
@@ -652,6 +653,7 @@ describe('the mail pass carries the stop out', () => {
     const target = new MemoryTarget();
     const result = await runShadowPass({
       sourceIsAuthorityOnExistence: true,
+      stillTheAuthority: async () => true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source,

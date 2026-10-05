@@ -71,6 +71,8 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     // (0117 D4). `runDomainSync` reads it to decide whether the deletion
     // detectors exist at all.
     sourceIsAuthorityOnExistence: deps.sourceIsAuthorityOnExistence,
+    // And how to ask it again before the pass concludes anything (2026-10-05).
+    stillTheAuthority: deps.stillTheAuthority,
     ...passClock(deps),
     // FOLDERS THE OWNER ASKED US TO LEAVE BEHIND never reach the loop.
     //
