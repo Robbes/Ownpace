@@ -953,6 +953,10 @@ const en = {
   'mappings.th.lastSync': 'Last Sync',
   'mappings.th.actions': 'Actions',
   'mappings.action.triggerSync': 'Trigger sync',
+  // Free's pace held a press (workplan 0157 T2, `free_pace`): one pass a day,
+  // and when the next one starts. The server's `message` is the English.
+  'mappings.sync.freePace':
+    'On Free a migration runs one pass a day. Its next pass starts at {time}. A higher tier looks for changes as often as every 15 minutes.',
   'mappings.action.pause': 'Pause',
   'hub.connections': 'From {source} to {target}',
   // Where the copies land (0153 open question 5, item 4).
@@ -2235,11 +2239,22 @@ const en = {
   // by `acceptance.doc.alpha`, and the tester guide (0144 T1), by this, the
   // guide page's own title (site/build.mjs, without " — Ownpace").
   'alpha.note.guide': 'Guide to the Alpha',
+  // The Alpha, said to a visitor who was not invited (workplan 0152 T1 (a);
+  // the owner, 2026-10-05: "Do suggestions for non alpha viewers"). The
+  // welcome above is written for the people invited, and stays theirs. A
+  // visitor reads this fact instead, then `alpha.nothingCharged`, then a link
+  // to the request page by its own title, `access.title`: on every page of
+  // the public site while it is built for the Alpha, and in the guides for a
+  // visitor without a session (`AlphaVisitorLine` in AlphaNote.tsx). The site
+  // cannot import this file, so `site/copy.mjs` copies the three, and
+  // `scripts/the-alpha-said-to-a-visitor.unit.test.ts` holds them equal.
+  'alpha.visitor.line': 'Ownpace is in its Alpha, by invitation.',
   // Nothing charged (workplan 0131 T3): the first sentence of the Billing
-  // line that takes the subtitle's place, and the last sentence of the
-  // request form's package hint. One key, so the two cannot drift apart.
-  // "Charged", as both mails' Alpha paragraph says it, and not "invoiced",
-  // which is what a tier says (0109 T8). The note no longer says it.
+  // line that takes the subtitle's place, the last sentence of the request
+  // form's package hint, and the second of the visitor's line above. One key,
+  // so they cannot drift apart. "Charged", as both mails' Alpha paragraph
+  // says it, and not "invoiced", which is what a tier says (0109 T8). The
+  // note no longer says it.
   'alpha.nothingCharged': 'Nothing is charged during the Alpha.',
   // A person to write to (workplan 0144 T6 (a)), in §3's words. `{address}` is
   // the deployment's VITE_SUPPORT_EMAIL, drawn as a mailto: link where it
@@ -3918,6 +3933,8 @@ const nl: Record<keyof typeof en, string> = {
   'mappings.th.lastSync': 'Laatste synchronisatie',
   'mappings.th.actions': 'Acties',
   'mappings.action.triggerSync': 'Synchroniseer nu',
+  'mappings.sync.freePace':
+    'Op Free loopt een migratie één ronde per dag. De volgende ronde begint op {time}. Een hoger pakket kijkt zo vaak als elke 15 minuten naar wijzigingen.',
   'mappings.action.pause': 'Pauzeren',
   'hub.connections': 'Van {source} naar {target}',
   'hub.lands.folder': 'De kopieën komen in de map {folder} van de bestemming.',
@@ -4736,6 +4753,9 @@ const nl: Record<keyof typeof en, string> = {
   'alpha.note.welcome':
     'Probeer Ownpace rustig aan uit, en help anderen makkelijker over te stappen naar Europese alternatieven.',
   'alpha.note.guide': 'Handleiding voor de Alpha',
+  // Wat een bezoeker leest die niet is uitgenodigd (0152 T1 (a)); zie het
+  // Engelse blok.
+  'alpha.visitor.line': 'Ownpace is in de Alpha, op uitnodiging.',
   'alpha.nothingCharged': 'Tijdens de Alpha wordt niets in rekening gebracht.',
   // 0144 §3 T6's woorden; zie het Engelse blok.
   'help.line':

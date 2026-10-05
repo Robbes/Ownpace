@@ -28,6 +28,14 @@
  * that split: the note is exactly the welcome and its links, and both mails
  * open their Alpha paragraph with the note's own words and then give the facts.
  *
+ * THE WELCOME IS THE MEMBERS' (0152 T1 (a), open question 5; the owner,
+ * 2026-10-05: *"Do suggestions for non alpha viewers"*). A visitor who was not
+ * invited reads a fact instead, *"Ownpace is in its Alpha, by invitation.
+ * Nothing is charged during the Alpha."*: in the public guides and on the
+ * site (`AlphaVisitorLine`). These pages keep the welcome, `/login` and
+ * `/request-access` by the owner's earlier choice (0131 D4's amendment), and
+ * the first cases below hold that none of them says the visitor's line.
+ *
  * WITHOUT THE SETTING, NONE OF IT. The OTA stack and every other deployment
  * carry no note. And an APPLIANCE never does, whatever its bundle was built
  * with: an appliance lets nobody in, so there is no alpha for it to be in.
@@ -291,9 +299,12 @@ describe('with the alpha setting on', () => {
   });
 
   for (const page of PAGE_NAMES) {
-    it.each(LOCALES)(`${page} says the owner's welcome, and then only its two links, in %s`, async (locale) => {
+    it.each(LOCALES)(`${page} says the owner's welcome, then only its two links, and not the visitor's line, in %s`, async (locale) => {
       inLocale(locale);
       await PAGES[page]();
+      // The fact a visitor who was not invited reads (0152 T1 (a)) is not
+      // said here, in the note or beside it: these pages are the welcome's.
+      expect(document.body.textContent).not.toContain(STRINGS[locale]['alpha.visitor.line']);
       const note = theNote(locale);
       // Two paragraphs: the welcome, word for word, and the links by their
       // names, each with its new tab said. No text stands outside them, so

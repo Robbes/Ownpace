@@ -21,7 +21,11 @@
  *   what shows the client below is the one the guide's request goes through;
  * - every other page in the tree still sends a visitor without a session to
  *   sign in;
- * - the appliance, which has nobody to sign in, keeps its layout.
+ * - the appliance, which has nobody to sign in, keeps its layout;
+ * - during the Alpha (0152 T1 (a); the owner, 2026-10-05: *"Do suggestions
+ *   for non alpha viewers"*), a visitor reads the fact the site says under its
+ *   header, under the title, and never the welcome, which is written for the
+ *   people invited; signed in, the welcome stands in the layout as before.
  *
  * The edition through `services/edition`, the sanctioned seam; the session
  * through the store, as `AppRoutes.unit.test.tsx` mocks it.
@@ -29,7 +33,7 @@
 import type { FC } from 'react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -302,6 +306,96 @@ describe('every other page still asks a visitor without a session to sign in', (
 
     expect(screen.getByText('screen:login')).toBeInTheDocument();
     expect(where()).toBe('/login');
+  });
+});
+
+/**
+ * DURING THE ALPHA. The setting is stubbed the way Vite bakes it, as
+ * `an-alpha-said-out-loud.unit.test.tsx` does (`isAlpha` reads it directly).
+ */
+describe('during the Alpha, a visitor reads a fact, and a member the welcome (0152 T1 (a))', () => {
+  /** Text as a reader meets it: every run of white space one space. */
+  const flat = (text: string | null): string => (text ?? '').replace(/\s+/g, ' ').trim();
+
+  /** The visitor's line, found by its first sentence: the paragraph that carries it. */
+  const visitorLine = (locale: Locale): HTMLElement | null =>
+    screen.queryByText(
+      (_, el) => el?.tagName === 'P' && (el.textContent ?? '').startsWith(STRINGS[locale]['alpha.visitor.line']),
+    );
+
+  beforeEach(() => {
+    vi.stubEnv('VITE_OWNPACE_STAGE', 'alpha');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it.each(['en', 'nl'] as const)(
+    'without a session: the fact under the title, in %s, with the way to ask, and no welcome',
+    (locale) => {
+      renderAt('/docs/google#gmail', locale);
+
+      const line = visitorLine(locale);
+      expect(line, 'a visitor reads nothing about the Alpha in the guides').not.toBeNull();
+      expect(flat(line!.textContent)).toBe(
+        [STRINGS[locale]['alpha.visitor.line'], STRINGS[locale]['alpha.nothingCharged'], STRINGS[locale]['access.title']].join(' '),
+      );
+      // One link: the request page, by its own title.
+      const link = within(line!).getByRole('link');
+      expect(link).toHaveAccessibleName(STRINGS[locale]['access.title']);
+      expect(link).toHaveAttribute('href', '/request-access');
+      // Under the title, and above the guide.
+      const title = screen.getByRole('heading', { level: 1, name: STRINGS[locale]['nav.docs'] });
+      expect(title.compareDocumentPosition(line!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(line!.compareDocumentPosition(screen.getByRole('main')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      // Not the welcome, and nothing in the note's shape.
+      expect(screen.queryByText(STRINGS[locale]['alpha.note.lead'])).toBeNull();
+      expect(document.querySelector('[role="note"]')).toBeNull();
+    },
+  );
+
+  it('with a session: the welcome stands in the layout, as before, and the fact does not', async () => {
+    Object.assign(authState, {
+      isAuthenticated: true,
+      token: 'a-token',
+      tenantId: 't-1',
+      user: { name: 'Alex', email: 'owner@example.invalid', role: 'owner' },
+      tenantCount: 1,
+    });
+    // During the Alpha the acceptance gate reads `/me` once first: nothing is due.
+    const before = api.get.getMockImplementation()!;
+    api.get.mockImplementation((url: string) =>
+      url === '/me' ? (Promise.resolve({ data: { acceptance: null } }) as never) : new Promise<never>(() => {}),
+    );
+    try {
+      renderAt('/docs/google#gmail');
+
+      const welcome = await screen.findByText(STRINGS.en['alpha.note.lead']);
+      expect(welcome.closest('[role="note"]')).not.toBeNull();
+      expect(screen.getByRole('link', { name: STRINGS.en['nav.mappings'] })).toBeInTheDocument();
+      expect(visitorLine('en')).toBeNull();
+    } finally {
+      api.get.mockImplementation(before);
+    }
+  });
+
+  it('without the setting, neither', () => {
+    vi.unstubAllEnvs();
+    renderAt('/docs/google#gmail');
+
+    expect(screen.getByRole('link', { name: 'ownpace.eu' })).toBeInTheDocument();
+    expect(visitorLine('en')).toBeNull();
+    expect(screen.queryByText(STRINGS.en['alpha.note.lead'])).toBeNull();
+  });
+
+  it('on the appliance, neither, even built with the setting: it lets nobody in', () => {
+    editionFlag.selfhost = true;
+    renderAt('/docs/google');
+
+    expect(screen.getByRole('link', { name: STRINGS.en['nav.setup'] })).toBeInTheDocument();
+    expect(visitorLine('en')).toBeNull();
+    expect(screen.queryByText(STRINGS.en['alpha.note.lead'])).toBeNull();
   });
 });
 

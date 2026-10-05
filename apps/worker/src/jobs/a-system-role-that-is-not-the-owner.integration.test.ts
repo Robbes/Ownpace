@@ -188,6 +188,9 @@ const asPsqlPrints = (row: unknown[]): string =>
  *   - Deleted, read only by the column that picks the rows: every other table
  *     the purge empties (`PURGED_TABLES`), so the role reads nobody's mail
  *     ledger, audit trail, members or budgets.
+ *   - Read by the tick beside the purge's column: the three tables the tier
+ *     each month bills is read from (workplan 0157 T2, managed 0041), so
+ *     Free runs at its pace. Never who said yes, nor a price.
  *   - The rest, each for its one job: the hold and the beat (the tick),
  *     invoices up to their period and their status (retention) and detached
  *     with the buyer's name (the purge), declined requests by their decision
@@ -234,10 +237,13 @@ const EXPECTED: Record<string, readonly string[]> = {
   backup_target: PURGED_ONLY(),
   mapping_link: PURGED_ONLY(),
   vat_consultation: PURGED_ONLY(),
-  occupancy_peak: PURGED_ONLY(),
-  bytes_moved: PURGED_ONLY(),
+  // The three a tier is read from: the tick reads the tier each month bills,
+  // for Free's pace (workplan 0157 T2, managed 0041), and never writes them.
+  // Each yes without who said it or its price.
+  occupancy_peak: PURGED_ONLY('month,peak_at,peak_paths,tenant_id'),
+  bytes_moved: PURGED_ONLY('alpha_bytes,bytes,tenant_id'),
   // Each yes at the data ceiling (0109 T6), granted in managed 0037.
-  data_allowance: PURGED_ONLY(),
+  data_allowance: PURGED_ONLY('band_gb,consented_at,kind,tenant_id,tier_id'),
   grant_link_allowance: PURGED_ONLY(),
   payment_method: PURGED_ONLY(),
   usage_metric: PURGED_ONLY(),
