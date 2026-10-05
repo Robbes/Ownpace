@@ -304,8 +304,11 @@ jobs:
     # off within the week. It reads `base..head` and nothing else, so no branch
     # has to be rewritten to go green.
     #
-    # `ci-complete` fails on `failure` and `cancelled`, never on `skipped`, so
-    # skipping here on a push is green AND is named in its summary table.
+    # `ci-complete` requires this job only where this `if:` says it runs, so
+    # skipping here on a push is green AND is named in its summary table. On a
+    # pull request it must end in `success`; change this line and the matching
+    # line in ci-complete's SHOULD_RUN together (the guard in
+    # scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts holds them).
     if: github.event_name == 'pull_request'
     # Hosted unconditionally: it only ever runs on a pull request, which by the
     # policy in the header never touches the Spark.
@@ -848,9 +851,38 @@ jobs:
   # branch protection counts as satisfied.
   #
   # This job exists precisely to be the single required check: `if: always()`,
-  # it needs every other job, it fails if any of them failed or was cancelled,
-  # and it prints which gates did not run so a green tick never claims coverage
-  # it does not have.
+  # it needs every other job, it fails unless every one of them that SHOULD
+  # have run for this event and this change ended in `success`, and it prints
+  # which gates did not run so a green tick never claims coverage it does not
+  # have.
+  #
+  # A GATE THAT NEVER RAN IS NOT PASSED (2026-10-05). Until that evening the
+  # failing step here was conditional — `if: contains(needs.*.result,
+  # 'failure') || contains(needs.*.result, 'cancelled')` — which is a list of
+  # the ways to fail, and GitHub found another. During its incident "delays in
+  # assigning GitHub-hosted runners", a job no runner picked up was given up
+  # after fifteen minutes, and `needs` reported it as `abandoned`: a value
+  # GitHub's documentation for `needs.<job_id>.result` does not list. The step
+  # was skipped and this job reported SUCCESS over runs in which lint and the
+  # unit tests never ran (37364709044, 37371577511, 37373154965, and the re-run
+  # 37366193208/2) — and this is the check `main` requires.
+  #
+  # So the rule is turned around. SHOULD_RUN below says, for each job in
+  # `needs`, whether it should have run — written as that job's OWN condition,
+  # evaluated by GitHub with the same expression engine — and the last step
+  # fails the run when a job that should have run did not end in `success`, or
+  # a job that had no reason to run ended in anything but `skipped` or
+  # `success`. Whatever GitHub calls a job that never ran, it is not `success`.
+  # `detect-changes` is always expected: when it does not succeed its outputs
+  # are empty, everything it gates is skipped for the wrong reason, and that is
+  # caught by `detect-changes` itself.
+  #
+  # Held by scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts,
+  # which RUNS these steps against the recorded runs of that evening (must
+  # fail), recorded green runs (must pass), and every event and change with
+  # each job doing exactly what its own `if:` and `needs:` say (must pass) or
+  # any one of them not doing it (must fail). Add a job, or change a job's
+  # `if:` or `needs:`, without changing its line in SHOULD_RUN, and it is red.
   ci-complete:
     name: ci-complete
     # Reads the other jobs' results and runs no repository code, so it is
@@ -868,34 +900,83 @@ jobs:
       - unit-tests
       - ui-tests
       - integration-tests
+    env:
+      RESULTS: ${{ toJSON(needs) }}
+      # One line per job in `needs`: that job's own `if:`, and for a job with
+      # none, the line of what it needs (`ui-tests` runs when `lint` does,
+      # `integration-tests` when `unit-tests` does). Comments cannot go inside
+      # the block below; it is JSON once GitHub has filled it in.
+      SHOULD_RUN: |
+        {
+          "detect-changes": true,
+          "commit-convention": ${{ github.event_name == 'pull_request' }},
+          "docs-hygiene": true,
+          "fixture-uuid-check": true,
+          "migration-lint": ${{ needs.detect-changes.outputs.migrations_changed == 'true' }},
+          "lint": ${{ needs.detect-changes.outputs.any_changed == 'true' }},
+          "unit-tests": ${{ needs.detect-changes.outputs.any_changed == 'true' }},
+          "ui-tests": ${{ needs.detect-changes.outputs.any_changed == 'true' }},
+          "integration-tests": ${{ needs.detect-changes.outputs.any_changed == 'true' }}
+        }
     steps:
       # SKIPPED IS NOT PASSED (AGENTS.md hard rule 9). A docs-only pull request
       # legitimately skips the test jobs, and this job legitimately goes green
       # — but "green" must then say which gates did not run, or the check
       # reports full coverage for a run that verified almost nothing.
       - name: Say what ran, and what did not
-        env:
-          RESULTS: ${{ toJSON(needs) }}
         run: |
           set -euo pipefail
           {
             echo "### CI gates"
             echo
-            echo "| result | job |"
-            echo "| --- | --- |"
-            echo "$RESULTS" | jq -r 'to_entries[] | "| \(.value.result) | \(.key) |"' | sort -r
+            echo "| result | should have run | job |"
+            echo "| --- | --- | --- |"
+            jq -rn --argjson results "$RESULTS" --argjson should "$SHOULD_RUN" \
+              '$results | to_entries[] | "| \(.value.result) | \(if $should[.key] == true then "yes" else "no" end) | \(.key) |"' | sort -r
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
-          skipped=$(echo "$RESULTS" | jq -r 'to_entries[] | select(.value.result == "skipped") | .key')
+          skipped=$(jq -r 'to_entries[] | select(.value.result == "skipped") | .key' <<<"$RESULTS")
           if [ -n "$skipped" ]; then
             echo
             echo "NOT RUN, therefore NOT verified by this check:"
-            echo "$skipped" | sed 's/^/  - /'
-            echo "(expected on a docs-only change, where detect-changes gates lint and everything below it)"
+            sed 's/^/  - /' <<<"$skipped"
+            echo "(the next step fails the run if any of these should have run for this change)"
           fi
 
-      - name: Fail if any gate failed or was cancelled
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+      # No `if:`. A step that decides must not be one GitHub can skip: it runs
+      # every time, and anything that is not `success` where `success` was
+      # owed fails it — whatever GitHub calls it.
+      - name: Fail unless every gate that should have run passed
         run: |
-          echo "::error::a required gate did not pass — see the table above"
-          exit 1
+          set -euo pipefail
+          problems=$(jq -rn --argjson results "$RESULTS" --argjson should "$SHOULD_RUN" '
+              ($results | keys) as $needed
+            | ($should | keys) as $named
+            | ( ($needed - $named)[]
+                | "\(.): ci-complete needs this job, and SHOULD_RUN does not say when it should run" ),
+              ( ($named - $needed)[]
+                | "\(.): SHOULD_RUN names a job ci-complete does not need" ),
+              ( $should | to_entries[] | select(.value | type != "boolean")
+                | "\(.key): SHOULD_RUN says \(.value | tojson), which is neither true nor false" ),
+              ( $results | to_entries[]
+                | .key as $job | (.value.result | tojson) as $got
+                | if $should[$job] == true then
+                    select(.value.result != "success")
+                    | "\($job): should have run for this change, and its result is \($got)"
+                  else
+                    select(.value.result != "skipped" and .value.result != "success")
+                    | "\($job): had no reason to run, and its result is \($got)"
+                  end )')
+          if [ -n "$problems" ]; then
+            {
+              echo
+              echo "### Not passed"
+              echo
+              sed 's/^/- /' <<<"$problems"
+            } | tee -a "$GITHUB_STEP_SUMMARY"
+            while IFS= read -r line; do
+              echo "::error::$line"
+            done <<<"$problems"
+            exit 1
+          fi
+          echo "Every gate that should have run for this change ran and passed." | tee -a "$GITHUB_STEP_SUMMARY"
