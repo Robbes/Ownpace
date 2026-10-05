@@ -20,8 +20,9 @@ Option B: say what Ownpace does everywhere, name the providers once, on how-it-w
   Google Drive, Google Tasks and *Connect with Microsoft*; that for Gmail, a Google account's
   calendars and contacts, Microsoft 365 over IMAP and any password it also allows changes, and
   there the guarantee is the software's; and that the app says so beside Google's button. The
-  Dutch says *Google Taken*, as written. Whether Google's Dutch screens use that name is not
-  verified.
+  Dutch first said *Google Taken*, as written; the same evening the owner corrected it: *"Google
+  just names there service Google 'Tasks' as webapp name, also for dutch."* So the Dutch says
+  *Google Tasks*, here and in the in-app Google guide (`docs/guides/nl/google.md`).
 - **P3b, the home page's *Nothing is deleted at the source* card.** *"Ever. Your old account is
   your fallback, and Ownpace leaves it as it is: the software has no code that changes or
   deletes anything at a source. Some permissions allow more than Ownpace uses; How it works

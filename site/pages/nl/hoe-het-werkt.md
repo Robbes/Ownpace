@@ -14,7 +14,7 @@ bent u niets kwijt.
 U geeft Ownpace toegang tot het account dat u wilt migreren. Ownpace leest er alleen uit: de
 software heeft geen code die bij een bron iets wijzigt, verplaatst of verwijdert, en een test
 in de openbare code controleert dat voor elke bron. De toestemming die u geeft, kan meer
-toestaan dan Ownpace gebruikt. Bij Google Drive, Google Taken en *Verbinden met Microsoft* is
+toestaan dan Ownpace gebruikt. Bij Google Drive, Google Tasks en *Verbinden met Microsoft* is
 ook de toestemming zelf alleen-lezen. Bij Gmail, de agenda's en contacten van een
 Google-account, Microsoft 365 via IMAP en elk account dat u met een wachtwoord koppelt, staat
 de toestemming ook wijzigingen toe; daar ligt de garantie bij de software. Bij Google zegt de
