@@ -627,6 +627,27 @@ export const personLink = pgTable(
   (t) => [index('person_link_person_idx').on(t.personId, t.createdAt)],
 );
 
+/**
+ * When a migration was last visited: its page opened, or *Sync now* pressed
+ * (workplan 0157 T7, managed migration 0042). A migration with no schedule of
+ * its own looks every hour for 14 days from the later of this and its first
+ * copy, then every 6 hours, then once a day from 30 days
+ * (`automaticScheduleFor`). One row per migration; never who visited.
+ */
+export const migrationVisit = pgTable(
+  'migration_visit',
+  {
+    mappingId: uuid('mapping_id')
+      .primaryKey()
+      .references(() => mailboxMapping.id, { onDelete: 'cascade' }),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    visitedAt: timestamp('visited_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('migration_visit_tenant_idx').on(t.tenantId)],
+);
+
 // ========================= What a person accepted =========================
 
 /**

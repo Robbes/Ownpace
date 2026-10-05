@@ -13,17 +13,27 @@
  * control (`ScheduleChooser`), so the two screens cannot offer different
  * ones.
  *
- * WHAT IT SHOWS FIRST is the schedule in force. One of the four is selected.
- * A migration without a schedule runs every 15 minutes (the tick's default,
- * `defaultScheduleFor`), and one made through the API may hold any cadence the
- * tick can read; for those none of the four is selected, and a line says what
- * runs instead. A chooser with nothing selected, and nothing said, would read
- * as a migration with no schedule at all.
+ * WHAT IT SHOWS FIRST is the schedule in force. A migration without a schedule
+ * of its own runs the automatic cadence (workplan 0157 T7), and *Automatic* is
+ * selected; one with a cron the chooser offers has that one selected. One made
+ * through the API may hold any cadence the tick can read; for that none is
+ * selected, and a line says what runs instead. A chooser with nothing
+ * selected, and nothing said, would read as a migration with no schedule at
+ * all.
  *
  * `mayRevise('schedule')` is asked, not assumed, as the export-format panel
  * asks for its field: refuse it in the table and this panel stops offering the
  * press and says why. A refusal from the route is shown as the refusal it is
  * (hard rule 9), never as a save that worked.
+ *
+ * AT THE TIER'S PACE (workplan 0157 T4): on Free, outside the alpha, a
+ * migration runs one pass a day whatever its schedule, so the chooser offers
+ * Automatic and Daily and says why the faster ones are not offered, with the
+ * way to them: a higher tier, on the Billing page. A schedule faster than that,
+ * kept from when the organisation was on a higher tier, stays selected, and
+ * the same line says it runs once a day: nothing is rewritten. The route
+ * refuses a faster one too (`free_pace_schedule`), said here in the reader's
+ * words.
  *
  * FOLDED, IN A FAMILY'S WORDS (workplan 0153 T6 (b), approved by the owner on
  * 2026-09-28): *How often to look for changes*, where it said *Sync schedule*.
@@ -31,26 +41,34 @@
  * so nobody opens it to find out how often a migration runs.
  */
 import React from 'react';
+import { Link } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Clock } from 'lucide-react';
 import { mayRevise } from '@openmig/shared';
 import { mappingApi } from '../services/mapping-service.ts';
-import { revisionRefusals, serverMessage } from '../services/api.ts';
+import { revisionRefusals, scheduleAtPaceRefusal, serverMessage } from '../services/api.ts';
 import { useT } from '../i18n/index.tsx';
 import { Hint } from './Hint.tsx';
 import { SCHEDULE_PRESETS, ScheduleChooser, isSchedulePreset } from './ScheduleChooser.tsx';
 
-/** The tick's default for a migration with no schedule (`DEFAULT_SYNC_SCHEDULE`). */
-const QUARTER_HOURLY = '*/15 * * * *';
+/** Free's pace, one pass a day (`FREE_PASS_EVERY_MINUTES` in `@openmig/managed`). */
+const ONE_DAY_MINUTES = 24 * 60;
 
 const SchedulePanel: React.FC<{
   mappingId: string;
   /** The detail payload's `syncConfig.schedule`: absent when the migration holds none. */
   current: string | undefined;
-}> = ({ mappingId, current }) => {
+  /**
+   * The detail payload's `pace` (workplan 0157 T4): the least minutes between
+   * two passes. Absent from an API that predates it, which held no pace.
+   */
+  leastMinutesBetweenPasses?: number;
+}> = ({ mappingId, current, leastMinutesBetweenPasses = 0 }) => {
   const t = useT();
   const queryClient = useQueryClient();
-  const [chosen, setChosen] = React.useState<string | undefined>(current);
+  // What the migration holds: a cron, or null for Automatic (no schedule).
+  const stored = current ?? null;
+  const [chosen, setChosen] = React.useState<string | null>(stored);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
   const [refused, setRefused] = React.useState<ReadonlyArray<{ field: string; reason: string }>>([]);
@@ -59,18 +77,23 @@ const SchedulePanel: React.FC<{
   // What the migration holds is the source of truth, and it changes under
   // this panel when a save lands and the detail query is read again.
   React.useEffect(() => {
-    setChosen(current);
-  }, [current]);
-  const changed = chosen !== undefined && chosen !== current;
+    setChosen(stored);
+  }, [stored]);
+  const changed = chosen !== stored;
 
   const verdict = mayRevise('schedule');
-  // What runs now, in the chooser's words: every 15 minutes for a migration
-  // with no schedule of its own (the tick's default), and nothing for one that
-  // holds a cadence the chooser does not offer, which the line inside says.
-  const inForce = SCHEDULE_PRESETS.find((preset) => preset.value === (current ?? QUARTER_HOURLY));
+  // What runs now, in the chooser's words: Automatic for a migration with no
+  // schedule of its own, and nothing for one that holds a cadence the chooser
+  // does not offer, which the line inside says.
+  const inForce =
+    stored === null
+      ? t('wizard.schedule.automatic')
+      : (() => {
+          const preset = SCHEDULE_PRESETS.find((p) => p.value === stored);
+          return preset ? t(preset.labelKey) : undefined;
+        })();
 
   const save = async () => {
-    if (chosen === undefined) return;
     setSaving(true);
     // What the last press said is cleared before this one speaks, so "Saved"
     // and a refusal are never on screen together.
@@ -86,6 +109,8 @@ const SchedulePanel: React.FC<{
     } catch (err) {
       const refusal = revisionRefusals(err);
       if (refusal !== null && refusal.length > 0) setRefused(refusal);
+      // Free's pace, in the reader's words (0157 T4); any other in the server's.
+      else if (scheduleAtPaceRefusal(err)) setFailed(t('settings.schedule.freePace'));
       else setFailed(serverMessage(err));
     } finally {
       setSaving(false);
@@ -99,19 +124,28 @@ const SchedulePanel: React.FC<{
       <summary className="cursor-pointer select-none text-sm font-semibold text-gray-900">
         <Clock className="inline w-4 h-4 mr-1.5 align-text-bottom text-gray-500" />
         {t('settings.schedule')}
-        {inForce && <span className="font-normal text-gray-600"> · {t(inForce.labelKey)}</span>}
+        {inForce && <span className="font-normal text-gray-600"> · {inForce}</span>}
       </summary>
       {verdict.allowed ? (
         <>
-          {!isSchedulePreset(current) && (
+          {stored !== null && !isSchedulePreset(stored) && (
+            <p className="mt-2 text-sm text-gray-700">{t('settings.schedule.own', { schedule: stored })}</p>
+          )}
+          {leastMinutesBetweenPasses >= ONE_DAY_MINUTES && (
             <p className="mt-2 text-sm text-gray-700">
-              {current === undefined
-                ? t('settings.schedule.default')
-                : t('settings.schedule.own', { schedule: current })}
+              {t('settings.schedule.freePace')}{' '}
+              <Link to="/billing" className="text-blue-700 hover:underline">
+                {t('settings.schedule.freePace.link')}
+              </Link>
             </p>
           )}
           <div className="mt-3">
-            <ScheduleChooser value={chosen} onChange={setChosen} disabled={saving} />
+            <ScheduleChooser
+              value={chosen}
+              onChange={setChosen}
+              disabled={saving}
+              leastMinutesBetweenPasses={leastMinutesBetweenPasses}
+            />
           </div>
           <Hint className="mt-3" text={t('settings.schedule.hint')} why={t('settings.schedule.hint.why')} />
           <div className="mt-3 flex flex-wrap items-center gap-3">

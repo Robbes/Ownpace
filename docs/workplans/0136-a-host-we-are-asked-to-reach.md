@@ -2,7 +2,138 @@
 
 > **In one line:** SSRF defence on managed: connections refuse internal and Docker-network addresses after DNS and on redirects, a demo-host allowlist, probe answers without the remote's body, no archive disk path, the socket proxy off tenant networks.
 
-## Status — 2026-09-27 (update this block at the end of every session)
+## Status — 2026-10-05 (update this block at the end of every session)
+
+**2026-10-05: T3's second step and T7 built** (audit item 8), on branch
+`claude/ownpace-public-readiness-y7orc6-a-failure-said-in-our-words`, not merged. On managed, the
+failures a pass records are said in our words, as a Test is. The threat model says what is true.
+
+- **The rule, read off the text.** `failureInOurWords`, in `apps/api/src/failure-answer.ts`. By
+  the time a route answers, the error is gone and the ledger keeps its message. Every refusal of
+  ours writes our prose, a status, then `: ` or ` - `, then what the server sent. A status is any
+  three digits from 100: the server picks it, and fetch passes a 600 or a 999 through.
+  - Our prose and the status stay: the method, the item's path and the code are ours.
+  - What the server sent stays only when it is an error document of a kind §3 lists, in the form
+    the stored text carries it. A WebDAV `error`, Google's JSON error and a JMAP problem document
+    as they came; Google's GData and Sabre's refusal as `davRefusalBody` left them. A stored form
+    is matched whole, not by how it starts, and its words carry no markup and no JSON. A GData
+    code alone stays only when it is one Google documents. Capped at 300 characters.
+  - Anything else reads *"the server answered with something that is not a DAV, JMAP or IMAP
+    error."*
+  - A socket error, a certificate and the rule's refusal (T1) get the Test button's own
+    sentences, without a name or an address. A JSON parser's quote of a body goes.
+  - An IMAP `NO` or `BAD` line keeps its words, capped at 300 characters, as the first step
+    caps them. The rest is ours and reads as stored.
+- **Which failures.** A host a tester typed, as on the Test button. Every target's host was
+  typed. A source's was when its config names one (`url`, `baseUrl`, `host`, `mailHost`, or an
+  export read from the destination's files). A source refusal from a provider's fixed host keeps
+  its words (0080, 0115 T5). A failure whose side is not known may be the target's, so the rule
+  answers it. `policy_refused` and `too_large` are ours and read as written.
+- **Where.** These routes of the managed API, each for the migration it serves:
+  - the failure queue, `GET …/failures`, every item;
+  - the group decision, `POST …/failures`. A substring is matched against the text the queue
+    shows, not the stored text. A match on the stored text would read what the answer left out
+    one guess at a time, as the refusal for a person's grant already says. It is also the count
+    the page previews (`matchingFailures`). Without a substring the ledger matches by data type
+    and category, as before;
+  - the migration page's failure line, `GET …/:mappingId`;
+  - the completion report, its JSON;
+  - the confirm screen's counts, `GET …/discovery`, a source's answer alone;
+  - the runs panel, `GET …/runs`, where a failed data type is logged as the pass threw it. An
+    event carries no side, so the rule answers every event, a fixed host's too. The queue and the
+    page keep a fixed host's words;
+  - the Check page's report, `GET …/verify/report`, and the report `POST …/verify/start` joins:
+    an issue that quotes what the target answered (`verification.ts`), a recommendation, and a
+    failed scan's `error`. A check reads the target, so the rule answers all three. Added in
+    review;
+  - an apply receipt, `GET …/deletions/:hash/receipt` and `GET …/moves/:hash/receipt`: a failed
+    removal's or move's `error`, which is the target's message (`dav-remove.ts`). A refusal's
+    `reason` is a gate's and reads as written. Added in review.
+
+  A person's progress pages and `GET /progress` carry no failure text (`VIEW_ROW_FIELDS`), and
+  the operator's support views read only the category. Neither changes.
+
+  **Not yet: a share's refusal on apply** (`POST …/sharing/:grantId/decision`, `apply-all`,
+  `apply-folder`). It is answered on its own request as `target_refused`, with what the target's
+  OCS endpoint said, and the first 300 characters of the body when OCS sent no message
+  (`nextcloud-ocs.ts`). The rule read off that text would also take OCS's own message, the
+  sentence a person acts on ("User does not exist"). OCS is no document §3 lists, and in the
+  text its message no longer differs from a body. It needs the parts, as the Test has them.
+  Found in review; the §17.1 row says so.
+- **The ledger is not touched.** Every row keeps every byte. No route serves an item's text to
+  the operator: the operator reads it on the database, by the item's `naturalKeyHash`, and a
+  data type's failure in the log, under the `lastErrorReference` the pass logged it with. So
+  there is no operator route to guard; the guard checks the rows instead.
+- **The appliance keeps the full text,** as T3's first step left it. Its only user is its owner,
+  who is its operator, and the rule is never on there. Its `/failures` passes the ledger's rows
+  through.
+- **The web is unchanged.** `lastError` stays a string, and the page renders what it is served.
+  The group panel's preview and the server now match the same text. The Check page and the
+  receipts keep their shapes too.
+- **What goes with the body:** prose of ours written after the status, such as a CalDAV
+  writer's note that a collection does not hold tasks, or a check's *"Cutover is blocked"* after
+  the target's words. The category beside it gives the remedy in the reader's language; on the
+  Check page the status and the recommendation still say it. The operator keeps the text.
+- **The first step's last *not yet* is closed.** The JMAP file and contact targets' upload
+  refusals, which a pass writes and a Test never reaches, write `HTTP <status> - <body>`, and
+  the same rule answers them.
+- **T7.** `docs/architecture/solution-architecture.md` is v1.14.
+  - "Egress controls" goes from §16 and §17.1. T1 exists and T4 does not, so §16 names T1's rule
+    and says nothing filters outbound traffic at the network layer.
+  - §17.1 gains three rows, each checked against `main`:
+    - *A host a tenant types (SSRF):* built, T1 to T3 and T5 (#1216, #1223, #1224, #1227, #1228,
+      #1230, #1234, #1175), with this step. E2E (managed) first passed on `main` with the rule on
+      in run 206 (2026-09-28), and run 236 (2026-10-04) passed too. Its smoke reaches the demo
+      Nextcloud by its compose name. The ranges are named as `REFUSED_RANGES` lists them, no
+      more. Not built: T4, and a share's refusal on apply;
+    - *Published ports, the ingress, and two stacks on one daemon:* built, 0132 T1, T1f and
+      T3 (a) (#1233, #1236, #1253): every port on loopback unless a front or mesh address is
+      added, project-derived names, and T1's Docker ranges. The separation is by names, not a
+      boundary (D6). The exposure check and the outside probe (#1271) are built. The exposure
+      check has not run on the machine. The outside probe runs on a GitHub-hosted runner and has
+      no passing run: its one dispatch, 2026-09-29, failed;
+    - *The worker plane:* partly built, 0138 T1, T2 and T3 step 2 (#1302, #1323, #1330, #1358):
+      tasks as the application role, cross-organisation jobs as a system role, no run with the
+      owner's connection string. Not built: the runners still join the one application network
+      beside the socket proxy, which is T4. 0138 T3 step 3 is parked.
+  - The isolation row's *"Egress controls: not built"* now points at the worker plane's row.
+  - `SECURITY.md`'s *"open owner decision"* now says what row 11 decided: deferred on
+    2026-08-05, until a customer's security review asks or the first release that is not a
+    release candidate.
+- **Proved.**
+  - `apps/api/src/routes/migrations/a-failure-said-in-our-words.unit.test.ts`, 17 cases: the
+    real routes over a real in-process ledger. On `main`'s routes, 11 failed and 6 passed; the 6
+    are the controls (our refusal and an IMAP `NO` as stored, a fixed host's words on the queue
+    and on the page, the appliance twice, and the rows still holding every byte). After: 17 of
+    17.
+  - `apps/api/src/failure-answer.unit.test.ts`, 31 cases, one for each throw site's shape. It
+    could not load before the module existed. After: 31 of 31.
+  - On a throwaway local Postgres: the 17 API integration files that drive these routes, 137
+    tests, all passed. Among them the group decision's literal `%`, the other tenant's rows and
+    the cursors.
+  - **Mutations:** 24, all killed. One survived the first run, a group decision that ignored its
+    category with a substring; the guard gained a case and kills it.
+    - in the routes: the queue, the report, the page, the counts and the runs answering the stored
+      text, the group decision matching the stored text;
+    - in which failures: every source typed, none typed, our refusals answered, an item's or a
+      status's side ignored, a count not read as the source's, an export never typed, an unread
+      source taken as fixed;
+    - in the text: any body kept, the stored forms or the raw documents not read, words not
+      capped, only the first status tried, a socket error, a certificate, the rule's refusal or a
+      parser's quote said as stored.
+  - **Review round, the same day.** Guards first: 17 new cases. 13 in
+    `failure-answer.unit.test.ts`: a status of 600 and of 999; nine bodies that only start like a
+    stored form (a GData code, a Sabre class or a JMAP type, then a page or words; a word that is
+    no GData code); an IMAP line alone and after our prose, capped. 4 in the route guard: the
+    Check page's issue and recommendation, a failed scan, a failed removal's and move's receipt,
+    and a refusal of ours on a receipt as the control. Before the fix, 14 failed and 3 passed: the
+    control, and two cases that hold the whole match against a looser one. After: 44 of 44 and 21
+    of 21. The API's unit suite passed (147 files, 1,972 tests), and `tsc --noEmit` is clean.
+  - **Mutations in review:** 14, all killed. The status back to 1xx to 5xx; the markup check off;
+    a GData code alone of any word; a Sabre class or a GData code with any tail; a JMAP type by
+    how it starts; an IMAP line uncapped; the Check page's recommendations, issues or failed scan
+    kept; a failed receipt kept, and a refusal on a receipt said by the rule; the Check page's
+    route and the receipt route answering the stored text.
 
 **2026-09-27: T1 (a), third slice, and T2 built (0131 §6, group M2, steps 1 and 2)** on branch
 `claude/mailbox-sync-errors-c2xsw2-the-rule-switched-on`, not merged. The rule is on in the managed
@@ -445,11 +576,11 @@ confirmed only in part: the claim that the threat-model decision is open is stal
 |---|---|---|
 | T1 Refuse internal addresses after DNS, on every connection and every redirect | ✅ **done**, merged 2026-09-27: (a)'s three slices (the rule, #1216; every client of a tenant's host going through it, #1223; the rule switched on in the managed API and tasks, #1230) and (b) (the bring-up's network check, #1224); the refusal's Dutch came with T3's screens, merged as #1234; advised before the first invitation (D1) — *was:* 🔨 **Built 2026-09-27**, the third slice not merged | §3. Managed only, on in both stacks. Loopback, private, link-local, CGNAT, unique-local, compose names, and the Docker networks and their gateways (D6): the bring-up refuses to go on if a network on the machine lies outside the ranges. 0132 T3's 127.0.0.1 binds are the other half. One new dependency (`undici`) for the `fetch` half. |
 | T2 An operator allowlist for the demo targets | ✅ **done** in #1230, merged 2026-09-27 (`55ee81c8`), with T1 (a)'s third slice — *was:* 🔨 **Built 2026-09-27** with T1 (a)'s third slice, not merged; 📋 **Proposed**, with T1 | §3. Empty on live. The OTA stack, the gate's, names its demo hosts. |
-| T3 A probe answer that says what happened, not what the remote said | 🔨 **The answer built 2026-09-27, merged as #1227; the limit merged as #1228; the screens' half merged as #1234**; the failures route to come; *was:* 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
+| T3 A probe answer that says what happened, not what the remote said | 🔨 **The answer built 2026-09-27, merged as #1227; the limit merged as #1228; the screens' half merged as #1234; the second step, the failures a pass records in our words on the failures queue and the routes beside it, the Check page's report and the apply receipts among them, built 2026-10-05** on branch `claude/ownpace-public-readiness-y7orc6-a-failure-said-in-our-words`, not merged; a share's refusal on apply not yet (Status, 2026-10-05) — *was:* the failures route to come; 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
 | T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |
 | T5 No archive "disk" path on the managed edition | ✅ **done** in #1175, merged 2026-09-25; before the first invitation — *was:* 📋 Decided 2026-09-24 (0148 D10) | §3. Five doors refuse it before anything opens the path (add, test-connection, create including a reuse, the stored-row Test, rotation), with a sentence that names the folder in the destination's files (0148 D11). The gate's archive fixture step breaks with it and returns with 0148 T9, which is stacked on this task. The owner first chose to hide the managed archive card (0148 D3), then to label it (0148 D10). |
-| T6 Guard tests for each | 🔨 **(a) with each task, 2026-09-27** (0131 §6, M2 step 5): every pull request of T1, T2 and T3 carries its guard, and the Status block its mutation count; T1 (a)'s third slice with T2 merged as #1230, T3's screens merged as #1234; *was:* #1230 not merged; 📋 **Proposed**, with each task | §3. Each code task names the test that fails without it. |
-| T7 The threat model says what is true | 📋 **Proposed** | §3. §17.1 gets rows for SSRF, exposure (two stacks on one daemon included) and the worker plane. "Egress controls" goes until it exists. |
+| T6 Guard tests for each | 🔨 **(a) with each task, 2026-09-27** (0131 §6, M2 step 5): every pull request of T1, T2 and T3 carries its guard, and the Status block its mutation count; T1 (a)'s third slice with T2 merged as #1230, T3's screens merged as #1234; T3's second step carries its guard and 38 mutations, 24 and 14 in review (2026-10-05, not merged); *was:* #1230 not merged; 📋 **Proposed**, with each task | §3. Each code task names the test that fails without it. |
+| T7 The threat model says what is true | 🔨 **Built 2026-10-05** with T3's second step, on the same branch, not merged: `solution-architecture.md` v1.14 and `SECURITY.md` (Status block) — *was:* 📋 **Proposed** | §3. §17.1 gets rows for SSRF, exposure (two stacks on one daemon included) and the worker plane. "Egress controls" goes until it exists. |
 
 ## 1. What there is today
 

@@ -52,6 +52,23 @@ info:
     Long-running work (sync, cutover, verification, applying a deletion) is
     enqueued, not performed in the request: those endpoints answer `202` with
     an identifier, and a matching read endpoint polls the outcome.
+
+    **A body the API cannot read is the caller's refusal, not a fault of
+    ours** (workplan 0093 T2e). It is answered with a `4xx` and no
+    reference, and nothing of the body is in the answer or in the log. The
+    answer is an `Error`, and its `error` says which:
+
+    - `body_not_json` (`400`): the body is not JSON.
+    - `body_too_large` (`413`): the body is too large.
+    - `body_encoding_unsupported` (`415`): the body is in a charset or a
+      content encoding the API does not read.
+    - `body_unreadable`: any other body the parser could not read, with the
+      parser's own `4xx` status. A gzip, deflate or br body that does not
+      decompress is one of these, answered `400`.
+
+    `POST /api/problem-reports` answers these in its own words, as
+    `{ error, reason }`. A `500` is a fault on our side, and its reference
+    finds it in the server log.
   license:
     name: Apache-2.0
     url: https://www.apache.org/licenses/LICENSE-2.0
@@ -2209,6 +2226,10 @@ paths:
             (`ConditionsNotAccepted`): while the deployment asks, the caller
             has not yet accepted the current version of each text, and no
             credential is stored before that (workplan 0139 T3).
+            `free_pace_schedule`: on Free, outside the alpha, the schedule's
+            passes come closer than a day, the tier's pace, with
+            `leastMinutesBetweenPasses` (workplan 0157 T4). No schedule
+            (automatic) and a daily one are never refused.
           content:
             application/json:
               schema:
@@ -2283,7 +2304,11 @@ paths:
         when discovery could not count the data type.
       responses:
         '200':
-          description: The migration.
+          description: |
+            The migration. `pace` says the pace it runs at (workplan 0157 T4):
+            `leastMinutesBetweenPasses`, 1,440 on Free outside the alpha and 0
+            otherwise, and `nextPassAt`, when that lets the next pass run while
+            it is still to come, else null.
           content:
             application/json:
               schema: { type: object }
@@ -2367,6 +2392,11 @@ paths:
             migration that already exists. Every refused field is listed, each
             with a reason that names what to do instead.
 
+            `free_pace_schedule`: on Free, outside the alpha, the schedule's
+            passes come closer than a day, the tier's pace, with
+            `leastMinutesBetweenPasses` (workplan 0157 T4). Nothing was written.
+            `schedule: null` (automatic) and a daily one are never refused.
+
             `lifecycle_refused` (ADR-0049): the status move is one the
             lifecycle does not make through this door. `code` is the stable
             part: `own_door` (starting is POST …/start, finishing is POST
@@ -2443,6 +2473,11 @@ paths:
         active migration enqueues nothing and is answered `activated: false`.
         A closed organisation is refused on every press, an active migration's
         too, before the grant's own answers (`AccountClosed`, workplan 0085 T2).
+
+        On Free, outside the alpha, a paused migration whose last pass started
+        within the day is activated, and its pass waits for the pace:
+        `firstRun` is `queued: false` with `nextPassAt`, and the sync tick
+        starts the pass then (workplan 0157 T4).
       responses:
         '200':
           description: Started.
@@ -2779,9 +2814,17 @@ paths:
                   enum: [full, delta]
                   description: A full pass ignores cursors and rescans everything.
                 forceFullScan: { type: boolean }
+                final:
+                  type: boolean
+                  description: |
+                    The pass before the switch, which *Finish* asks for. Free's
+                    pace never holds it back (workplan 0157 T2).
       responses:
         '202':
-          description: Enqueued.
+          description: |
+            Enqueued. The press also counts as a visit, which brings a
+            migration on the automatic cadence back to every hour (workplan
+            0157 T7; see `POST /api/migrations/{mappingId}/visit`).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/EnqueuedRun' }
@@ -2794,6 +2837,11 @@ paths:
             operator hold is open (`platform_held`, `PlatformHeld`), or the
             organisation was closed (`account_closed`, `AccountClosed`, workplan
             0085 T2). `anyOf`, not `oneOf`: those two bodies are an `Error` too.
+
+            On Free, outside the alpha, a press within a day of the migration's
+            last pass is refused with `free_pace`, its `message` in English and
+            `nextPassAt`, when the pace lets the next pass run (workplan 0157
+            T2). Never a `final` pass.
           content:
             application/json:
               schema:
@@ -2801,6 +2849,24 @@ paths:
                   - { $ref: '#/components/schemas/Error' }
                   - { $ref: '#/components/schemas/PlatformHeld' }
                   - { $ref: '#/components/schemas/AccountClosed' }
+
+  /api/migrations/{mappingId}/visit:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    post:
+      tags: [Migrations]
+      summary: Record a visit to a migration
+      description: |
+        The migration's page was opened (workplan 0157 T7). A migration with
+        no schedule of its own looks for changes every hour for 14 days from
+        the later of its first copy and its last visit, then every 6 hours,
+        then once a day from day 30; a visit starts the 14 days again. Kept
+        once an hour at most, and never who visited. Managed only.
+      responses:
+        '204':
+          description: Recorded, or one within the hour already stood.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /api/migrations/{mappingId}/cutover:
     parameters:
@@ -3811,6 +3877,10 @@ paths:
     get:
       tags: [Operating]
       summary: What happened to an applied deletion
+      description: |
+        A failed receipt's `error` is the target's message in our words, as
+        the failures queue says a failure (workplan 0136 T3, second step). A
+        refusal's `reason` is a gate's, and reads as written.
       responses:
         '200':
           description: The receipt.
@@ -4308,6 +4378,10 @@ paths:
     get:
       tags: [Operating]
       summary: What happened to an applied relocation
+      description: |
+        A failed receipt's `error` is the target's message in our words, as
+        the failures queue says a failure (workplan 0136 T3, second step). A
+        refusal's `reason` is a gate's, and reads as written.
       responses:
         '200':
           description: The receipt.
@@ -4324,7 +4398,19 @@ paths:
       tags: [Operating]
       summary: Items that would not migrate
       description: |
-        Each carries the reason verbatim from the server that refused it.
+        Each carries the reason a pass recorded, in our words where it came
+        from a host a tester typed (workplan 0136 T3, second step): our prose
+        and the status stay, and what the server sent stays only when it is
+        an error document of a kind we know (a WebDAV `error`, Google's GData
+        or JSON error, Sabre's, a JMAP problem document, an IMAP `NO`).
+        Anything else reads *"the server answered with something that is not
+        a DAV, JMAP or IMAP error"*. A socket error is said without the name
+        it tried. A source refusal from a provider's fixed host, and a refusal
+        of ours, read as recorded. The ledger keeps the full text. No route
+        serves it: the operator reads it on the database, by the item's
+        `naturalKeyHash`. The migration page's failure line, the completion
+        report, the discovery counts, the run events, the Check page's report
+        (`verify/report`) and an apply receipt's error answer the same way.
         The queue also names the migration's source (`sourceKind`, the source
         connection's kind: `dropbox`, `google`, …), because a remedy is chosen
         by source as well as by category: a Dropbox Paper doc is
@@ -4693,7 +4779,12 @@ paths:
     get:
       tags: [Operating]
       summary: The latest verification report
-      description: Reads the latest run row and triggers nothing — polling this is free.
+      description: |
+        Reads the latest run row and triggers nothing — polling this is free.
+        An issue that quotes what the target answered, a recommendation, and a
+        failed scan's `error` are said in our words, as the failures queue
+        says a failure (workplan 0136 T3, second step). The row keeps the full
+        text.
       responses:
         '200':
           description: The report.
@@ -8093,11 +8184,14 @@ components:
         errorContains:
           type: string
           description: |
-            A LITERAL substring of the stored error, never a pattern: `%` and
-            `_` match themselves. `(50%).pdf` came out of a real filename, and
-            unescaped that needle would match "50" followed by anything —
-            on a bulk retry, the difference between the group somebody chose
-            and most of the queue.
+            A LITERAL substring of the error as the queue shows it, never a
+            pattern: `%` and `_` match themselves. `(50%).pdf` came out of a
+            real filename, and unescaped that needle would match "50" followed
+            by anything — on a bulk retry, the difference between the group
+            somebody chose and most of the queue. Matched against what the
+            queue answers, not the stored text (workplan 0136 T3, second
+            step): a match on the stored text would read what the answer left
+            out one guess at a time.
           examples: ['MKCOL', '404']
       required: [action]
 

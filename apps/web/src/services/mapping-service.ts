@@ -350,6 +350,15 @@ export const MappingSchema = z.object({
     domains: z.array(DomainEnum),
     schedule: z.string().optional(),
   }),
+  /**
+   * The pace it runs at (workplan 0157 T4, T5): the least minutes between two
+   * passes, 1,440 on Free outside the alpha, and when that lets the next pass
+   * run. Absent from an API that predates it, which held no pace.
+   */
+  pace: z
+    .object({ leastMinutesBetweenPasses: z.number(), nextPassAt: z.string().nullable() })
+    .optional()
+    .catch(undefined),
   status: MappingLifecycleSchema,
   mode: z.string(),
   pattern: z.string().nullish(),
@@ -1139,17 +1148,27 @@ export const mappingApi = {
    * schedule comes back because it was sent; the tick reads it from the row
    * on its next firing.
    */
-  setSchedule: async (mappingId: string, schedule: string) => {
+  setSchedule: async (mappingId: string, schedule: string | null) => {
+    // null: Automatic, no schedule of its own (workplan 0157 T7).
     const response = await apiClient.put(`/migrations/${mappingId}`, {
       syncConfig: { schedule },
     });
     return z
       .object({
         id: z.string(),
-        syncConfig: z.object({ schedule: z.string() }),
+        syncConfig: z.object({ schedule: z.string().nullable() }),
         updatedAt: z.string(),
       })
       .parse(response.data);
+  },
+
+  /**
+   * A VISIT (workplan 0157 T7): the migration's page was opened, so one with
+   * no schedule of its own looks every hour again, for 14 days. The server
+   * moves it at most once an hour, so the page sends it each time it opens.
+   */
+  recordVisit: async (mappingId: string): Promise<void> => {
+    await apiClient.post(`/migrations/${mappingId}/visit`);
   },
 
   /**

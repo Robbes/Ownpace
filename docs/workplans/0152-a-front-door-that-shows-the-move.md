@@ -2,7 +2,79 @@
 
 > **In one line:** The public site explains a move at a glance: old account and new home in one picture, the destinations named, the alpha said, a shorter menu, a calculator that ends in a button, monthly and yearly prices (a year costs six months), and a page per provider a person leaves.
 
-## Status — 2026-10-04 (update this block at the end of every session)
+## Status — 2026-10-05 (update this block at the end of every session)
+
+**2026-10-05, later: the withdrawal button's words are decided** (T6 (f); the owner, 2026-10-05,
+asked which label to use: *"Ok. As you would suggest."*). The suggestion is the words of article
+11a of the Consumer Rights Directive, as Directive (EU) 2023/2673 inserted it.
+- **English:** the button *Withdraw from contract here*, and the confirmation *Confirm withdrawal*.
+- **Dutch:** *Hier de overeenkomst herroepen* and *Herroeping bevestigen*.
+
+The Dutch wording was read from secondary sources quoting article 11 bis, because EUR-Lex itself
+could not be reached from here. The lawyer confirms it, as §3 T6 (f) already asks. The button is
+built with 0111's credit notes, since a withdrawal is refunded by one.
+
+**2026-10-05: T1 (a) is built: the Alpha, said to a visitor who was not invited** (open question
+5; the owner, 2026-10-05, choosing the plan's suggestion: *"Do suggestions for non alpha
+viewers"*). T1 is whole.
+- **Members keep the welcome.** *"Welcome to the Alpha! Try Ownpace at your own pace, and help
+  others move to European alternatives more easily."* stays where it was: the signed-in pages,
+  `/invitations`, the acceptance screen, `/login`, `/request-access` and the mails. Nothing
+  changed there. `/login` and `/request-access` keep it by the owner's earlier choice (0131 D4's
+  amendment).
+- **A visitor reads a fact instead:** *"Ownpace is in its Alpha, by invitation. Nothing is charged
+  during the Alpha."*, then *Request access*. In two places:
+  - **every page of the site** while it is built with `OWNPACE_STAGE=alpha`, the tester guide's
+    setting. One line under the header, first in `<main>`, muted, with the header's rule under
+    it: not a banner. The 404 pages and the tester guide carry it too. Its link is the site's
+    other *Request access* (`orderHref`). It sits outside the sticky header, so the header stays
+    one row on a phone. At 390 pixels the line takes two rows in English and three in Dutch, and
+    the hero's buttons still end in the first screen (643 and 666 of 844 pixels);
+  - **the app's guides, for a visitor without a session** (`PublicDocs`): under the title, while
+    the bundle runs the alpha, never on the appliance (`AlphaVisitorLine` in `AlphaNote.tsx`).
+    Its link opens `/request-access`. Signed in, a guide sits in the layout under the welcome, as
+    before.
+- **The words** are a new key, `alpha.visitor.line`, and the approved `alpha.nothingCharged`. The
+  link is named by the request page's own title, `access.title`. The site copies the three
+  (`alphaVisitor` and `ctaOrder` in `site/copy.mjs`).
+- **Search engines** (also left to the suggestion): `apps/web/index.html` carries
+  `<meta name="robots" content="noindex" />`. Every address of the app answers with that file,
+  in both editions. The app is a tool behind sign-in. A stranger can open only the request form,
+  the sign-in page and the guides, and the guides' home to be indexed is meant to be 0151's help
+  section on the site, so the same text is not indexed on two hosts. On the appliance it is
+  harmless.
+- **Guards:**
+  - `scripts/the-alpha-said-to-a-visitor.unit.test.ts`:
+    - the site's words are the app's, in both languages, the link's name too;
+    - an Alpha build says the line once on every page, first in `<main>`, with the request link
+      in the page's language, and `OWNPACE_STAGE=alpha` turns it on;
+    - a build without the setting says it nowhere, and no page of the site says the welcome;
+    - `PublicDocs` draws the line, not the note.
+  - `a-guide-you-can-read-before-you-sign-in.unit.test.tsx`: without a session, the line under the
+    title in both languages, with its one link, and no welcome. Signed in, the welcome and no
+    line. Neither without the setting, or on the appliance.
+  - `an-alpha-said-out-loud.unit.test.tsx`: no page that says the welcome says the line.
+  - `test/ui/site.ui.test.ts`, on an Alpha build, at 1200 and 390 pixels: the line under the
+    header in each language, in the footer's muted colour with no background, and no sideways
+    scroll. The header stays one row, the hero's buttons stay in a phone's first screen, and the
+    open menu falls over the line. The build without the setting has none.
+  - `the-app-is-not-a-search-result.unit.test.tsx`: `index.html` has one robots tag, in its head,
+    and it says noindex.
+
+  Mutations caught:
+  - the site's Dutch line changed and the app's not;
+  - the line on the home page only;
+  - the robots tag removed;
+  - the guides showing a visitor the welcome;
+  - the line added to `/login`;
+  - the line held on one row, which scrolls sideways at 390 pixels.
+- **The runbook** (`docs/ending-the-alpha.md`) lists the line among what the stage switches, with
+  a check that it has gone.
+- **T0:** one new sentence, for the owner's reading (the owner, 2026-10-05: *"Texts: ok (I'll read
+  later, you go ahead)"*): *"Ownpace is in its Alpha, by invitation."* / *"Ownpace is in de Alpha,
+  op uitnodiging."* The rest was approved before: *"Nothing is charged during the Alpha."* /
+  *"Tijdens de Alpha wordt niets in rekening gebracht."*, and *Request access* / *Toegang
+  aanvragen*.
 
 **2026-10-04, night: T7 (a)'s site half and T7 (b) are built**, so T7 is whole, with the form
 half (#1481) on main:
@@ -514,12 +586,12 @@ together, from one audit of the site and the app on `main` at `83eb73e` (§1).
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner reads the new copy | ⏳ **Owner; before the first invitation, before each task merges. D6's *migratie* is built on the site's own pages; the legal texts are 0139's** | §3. Site copy is the owner's to approve (0144 T0). Every new sentence here is a proposal, in both languages. It includes *migratie* for *verhuizing* (D6) and the new *Why it is priced this way* (T6 (g)). |
-| T1 The alpha, said on the site | 🟡 **(b) built 2026-10-04; (a)'s line waits for open question 5 (2026-10-04)** | §3. The app's alpha sentence on every site page while the alpha setting is on. The unbacked *"Most people"* and *"Meest gekozen"* become a fact about the tier. *(2026-10-04: the app's sentence is now the owner's welcome (0131 D4's amendment), so copied as it is, every visitor would read the welcome. Open question 5.)* |
+| T1 The alpha, said on the site | ✅ **Built: (b) 2026-10-04, (a) 2026-10-05 (open question 5); its new sentence waits for T0** | §3. A line about the Alpha on every site page while the alpha setting is on, and in the app's guides for a visitor without a session: a fact for a visitor, *"Ownpace is in its Alpha, by invitation. Nothing is charged during the Alpha."*, while the welcome stays the members' (open question 5, answered 2026-10-05). The unbacked *"Most people"* and *"Meest gekozen"* become a fact about the tier. |
 | T2 A shorter menu, and a header that fits a phone | ✅ **Built 2026-10-04, with T6 (c); *Leaving…* joined it with T5 (b); its words wait for T0** | §3. The header reads Home · How it works · Pricing · Sign in, plus the language switch. Privacy and Terms move to the footer. On a phone the menu folds into a `<details>`, which needs no script. |
 | T3 The hero shows the move | ✅ **Built 2026-10-04; its words wait for T0, and the app screen joins it later (D8)** | §3. The drawing `hero-move.svg`, inlined: the old account's data, then Ownpace, then the new home, with our own icons (D4). Three facts sit under it, and a three-step strip links to *How it works*. An app screen joins it once 0153 T5 exists. |
 | T4 The destinations, named | ✅ **Built 2026-10-04; its words wait for T0** | §3. A *Where to* section names what the app supports, from a site copy of the app's list with a guard that it matches. It says plainly that the new account is one the person opens and pays for themselves. |
 | T5 A page per provider a person leaves | 🟡 **(a) and (b) built 2026-10-04; (c) waits for the site's address; its words wait for T0** | §3. *Leaving Google*, *Leaving Microsoft 365*, *Leaving iCloud*, *Leaving Dropbox*, *Leaving Box*, *Leaving another mail provider*: what moves, the limits, what the person does, the destinations it can go to, a typical cost. Built from copies of the app's own verdicts, each guarded. |
-| T6 Pricing that reads in one pass | 🟡 **(a) done: the sentence by #1317, its guard beside D6's. (c) built 2026-10-04, with T2 (#1471). (d) built 2026-10-03, with (g)'s principle on the page. (b) and (e) built 2026-10-04. (f)'s words on the page and in the terms built 2026-10-04, its withdrawal button not. The rest proposed, before the first invitation (D5)** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) The withdrawal button, and the year's end (D11, amended 2026-10-04). (g) The principle, the price that pays for the work (D12). |
+| T6 Pricing that reads in one pass | 🟡 **(a) done: the sentence by #1317, its guard beside D6's. (c) built 2026-10-04, with T2 (#1471). (d) built 2026-10-03, with (g)'s principle on the page. (b) and (e) built 2026-10-04. (f)'s words on the page and in the terms built 2026-10-04, its withdrawal button not; the button's label decided 2026-10-05. The rest proposed, before the first invitation (D5)** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) The withdrawal button, and the year's end (D11, amended 2026-10-04). (g) The principle, the price that pays for the work (D12). |
 | T7 A calculator that ends in a button | ✅ **Built 2026-10-04: (a) in two halves, the form's and the site's, and (b) to (e); its words wait for T0** | §3. (a) *Request access* carries the answers along. (b) *Until when?* says which payment suits it. (c) The layout faults and a live region. (d) Box as a source. (e) Several sources at once, and Tasks. |
 | T8 Claims you can check | 🟡 **(a) and (b) built 2026-10-04; (c) waits for 0139's company details** | §3. "Open source" links the repository. Each proof point links the guard that holds it. The footer names the company once 0139 publishes it; until then that line is the one part that waits. |
 | T9 One look from the site to the app | ✅ **Built 2026-10-04** | §3. `/request-access` and `/login` take the site's palette and logo, and link back to the site. The identity provider's own branding stays 0135 T6. |
@@ -734,6 +806,11 @@ the site's muted style, not a yellow banner.
 the Alpha! Try Ownpace at your own pace, and help others move to European alternatives more
 easily."* Copied as proposed, every visitor of the public site would read it, invited or not.
 Which line the site shows is for the owner to decide before this is built: open question 5.)*
+*(2026-10-05: answered, *"Do suggestions for non alpha viewers"*. The welcome stays the members'.
+A visitor reads a fact, the app's new `alpha.visitor.line` and its `alpha.nothingCharged`, then
+*Request access*: *"Ownpace is in its Alpha, by invitation. Nothing is charged during the
+Alpha."* The copy and its guard are as proposed, and so is the placement. The app's guides say
+the same to a visitor without a session. Built: see the Status block.)*
 
 (b) **"Most people" becomes a fact about the tier.**
 
@@ -976,6 +1053,9 @@ links `estimate.html`. The home page's *What it costs* block gets the same butto
   - It takes two steps, and the confirmation arrives on a durable medium (an email).
   - It goes on the app's Billing page (`Billing.tsx`), with the label the Dutch law uses, which
     the lawyer confirms.
+  - **The words, decided 2026-10-05** (the owner: *"Ok. As you would suggest."*): the directive's
+    own. English: *Withdraw from contract here*, then *Confirm withdrawal*. Dutch: *Hier de
+    overeenkomst herroepen*, then *Herroeping bevestigen*.
   - Terms §7 says it is there, beside the email route (0139).
 - **A withdrawal is refunded by credit note.** 0111 builds them. A year has no other refund.
 
@@ -1113,7 +1193,7 @@ They are references for layout, order and wording, not specifications to the pix
 | `hero-move.svg` | T3 | It is inlined by `build.mjs`, never linked, so it needs no image request and nothing new in the CSP. A function returns it with its `<title>` and labels in the page's language. Its colours are the site's CSS custom properties (the palette `build.mjs` declares), so dark mode needs no second file. `role="img"` and an `aria-label` say what it shows in one sentence. On a phone it sits below the buttons. |
 | `icons.svg` | T3, T4, T5 | Six data-type icons (mail, calendar, contacts, files, photos, tasks), each a `<symbol>` in one inline sprite, used with `<use href="#…">`. The stroke is `currentColor`. They are the same drawings 0153 builds as React components, so the site and the app draw the same six. |
 | `tiles.svg` | T4, T5 | The neutral provider and destination tiles (D4): the initial on the site's teal, with the name written beside it. The same table of initials as 0153 §5. |
-| `wf-site-home.svg` | T1–T5, T6 (c) | The home page's order: the alpha line; the hero with its drawing, and the six *Leaving…* names under its buttons (T5 (b)); three facts; the three steps; *Where to*; the sections that stay; and one price line with its buttons. *(2026-10-04: the alpha line drew the app's note as it read before 2026-09-29, with *"nothing is backed up"*. It is now a placeholder until the owner answers open question 5.)* |
+| `wf-site-home.svg` | T1–T5, T6 (c) | The home page's order: the alpha line; the hero with its drawing, and the six *Leaving…* names under its buttons (T5 (b)); three facts; the three steps; *Where to*; the sections that stay; and one price line with its buttons. *(2026-10-04: the alpha line drew the app's note as it read before 2026-09-29, with *"nothing is backed up"*. It is now a placeholder until the owner answers open question 5.)* *(2026-10-05: it draws the visitor's line, the question's answer.)* |
 | `wf-pricing.svg` | T6 | The labelled switch opening on yearly; the five cards on yearly (per month, the year's total in bold under it, *half the monthly price*); the calculator's button; one card on monthly; the year's line (renewal until 2026-10-04); the questions and answers; and the principle. |
 
 ## Lessons that apply
@@ -1149,8 +1229,10 @@ They are references for layout, order and wording, not specifications to the pix
 4. ~~**The Dutch site at the root.**~~ **Answered 2026-09-29: English at the root** (*"English at
    root"*). `/` keeps serving English and Dutch stays under `/nl/`, so no URL moves; T2 makes the
    language switch more visible on phones.
-5. **Which line does the site show during the Alpha: the welcome, or another line?** (2026-10-04)
-   T1 (a) copies the app's alpha sentence. Since 0131 D4's amendment that is the owner's welcome,
-   *"Welcome to the Alpha! Try Ownpace at your own pace, and help others move to European
-   alternatives more easily."* On the site, every visitor would read it, invited or not. The
-   owner decides before T1 is built.
+5. ~~**Which line does the site show during the Alpha: the welcome, or another line?**~~
+   **Answered 2026-10-05:** *"Do suggestions for non alpha viewers"*. Asked on 2026-10-04 because
+   the app's sentence had become the owner's welcome, which every visitor of the site would read,
+   invited or not. The welcome stays the members'. A visitor who was not invited reads a fact, on
+   every page of the site and in the app's guides: *"Ownpace is in its Alpha, by invitation.
+   Nothing is charged during the Alpha."*, then *Request access* (T1 (a)). The owner left the
+   search engines to the same suggestion: the app carries `noindex`.

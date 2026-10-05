@@ -31,7 +31,7 @@ import { chromium, type Browser, type Page } from 'playwright-core';
 import { createServer, type Server } from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname, extname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -51,22 +51,22 @@ let browser: Browser;
 let server: Server;
 let base: string;
 
-beforeAll(async () => {
-  // Build first: a stale dist would let this suite pass against a site nobody
-  // is shipping, which is the same class of lie it exists to prevent.
-  // OWNPACE_APP_URL has no default and the build refuses without it, so that
-  // a site cannot be produced without saying which app its call to action
-  // points at. A test build says so explicitly rather than inheriting whatever
-  // the runner happens to have exported.
-  execFileSync('node', [join(REPO, 'site', 'build.mjs')], {
-    stdio: 'pipe',
-    env: { ...process.env, OWNPACE_APP_URL: 'https://app.ota.ownpace.eu' },
-  });
-  expect(existsSync(join(DIST, 'index.html')), 'site/build.mjs produced no index.html').toBe(true);
-
-  server = createServer((req, res) => {
+/**
+ * A throwaway server: a page `pages` holds, by its path, or else a file of
+ * `site/dist`. The site build serves from `dist` alone; the Alpha build below
+ * serves its pages from memory, with the assets the site build wrote.
+ */
+async function serve(pages: ReadonlyMap<string, string> = new Map()): Promise<{ server: Server; origin: string }> {
+  const server = createServer((req, res) => {
     const path = (req.url ?? '/').split('?')[0]!;
-    const file = join(DIST, path.endsWith('/') ? `${path}index.html` : path);
+    const wanted = path.endsWith('/') ? `${path}index.html` : path;
+    const page = pages.get(wanted);
+    if (page !== undefined) {
+      res.writeHead(200, { 'content-type': TYPES['.html']! });
+      res.end(page);
+      return;
+    }
+    const file = join(DIST, wanted);
     if (!file.startsWith(DIST) || !existsSync(file)) {
       res.writeHead(404).end('not found');
       return;
@@ -76,7 +76,25 @@ beforeAll(async () => {
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   const addr = server.address();
-  base = `http://127.0.0.1:${typeof addr === 'object' && addr ? addr.port : 0}`;
+  return { server, origin: `http://127.0.0.1:${typeof addr === 'object' && addr ? addr.port : 0}` };
+}
+
+beforeAll(async () => {
+  // Build first: a stale dist would let this suite pass against a site nobody
+  // is shipping, which is the same class of lie it exists to prevent.
+  // OWNPACE_APP_URL has no default and the build refuses without it, so that
+  // a site cannot be produced without saying which app its call to action
+  // points at. A test build says so explicitly rather than inheriting whatever
+  // the runner happens to have exported, and so does its stage: this is the
+  // build of every deployment that is not the Alpha, which has its own
+  // describe below (0152 T1 (a)).
+  execFileSync('node', [join(REPO, 'site', 'build.mjs')], {
+    stdio: 'pipe',
+    env: { ...process.env, OWNPACE_APP_URL: 'https://app.ota.ownpace.eu', OWNPACE_STAGE: '' },
+  });
+  expect(existsSync(join(DIST, 'index.html')), 'site/build.mjs produced no index.html').toBe(true);
+
+  ({ server, origin: base } = await serve());
 
   browser = await chromium.launch({
     ...(existsSync(EXPLICIT_CHROMIUM) ? { executablePath: EXPLICIT_CHROMIUM } : {}),
@@ -88,13 +106,13 @@ afterAll(async () => {
   await new Promise<void>((r) => server?.close(() => r()));
 });
 
-async function open(path: string, width = 1200): Promise<{ page: Page; failed: string[] }> {
+async function open(path: string, width = 1200, origin = base): Promise<{ page: Page; failed: string[] }> {
   const page = await browser.newPage({ viewport: { width, height: 900 } });
   const failed: string[] = [];
   page.on('response', (r) => {
     if (r.status() >= 400) failed.push(`${r.status()} ${r.url()}`);
   });
-  await page.goto(`${base}${path}`, { waitUntil: 'networkidle' });
+  await page.goto(`${origin}${path}`, { waitUntil: 'networkidle' });
   return { page, failed };
 }
 
@@ -614,5 +632,138 @@ describe('the public site renders', () => {
     const meta = await page.getAttribute('meta[name="robots"]', 'content');
     expect(meta, 'a non-public build must carry a noindex meta tag').toContain('noindex');
     await page.close();
+  }, 60_000);
+});
+
+/**
+ * DURING THE ALPHA (workplan 0152 T1 (a); the owner, 2026-10-05: *"Do
+ * suggestions for non alpha viewers"*). A build with `OWNPACE_STAGE=alpha`
+ * says one line under the header of every page: the fact a visitor who was
+ * not invited reads, in the site's muted style, not a banner. The app's
+ * welcome is its members'. `scripts/the-alpha-said-to-a-visitor.unit.test.ts`
+ * holds the words to the app's; this reads them as a person meets them, on a
+ * wide screen and a phone.
+ *
+ * Rendered in memory by a child process with the deployment's setting, so
+ * `site/dist` stays the build every case above reads, and served at an origin
+ * of its own, with the assets that build wrote.
+ */
+describe('during the Alpha, every page says it under the header (0152 T1 (a))', () => {
+  /** The line as a reader meets it, in each language: literals, so a slipped word shows. */
+  const SAID = {
+    en: 'Ownpace is in its Alpha, by invitation. Nothing is charged during the Alpha. Request access',
+    nl: 'Ownpace is in de Alpha, op uitnodiging. Tijdens de Alpha wordt niets in rekening gebracht. Toegang aanvragen',
+  } as const;
+
+  let alpha: { server: Server; origin: string } | undefined;
+
+  beforeAll(async () => {
+    const build = pathToFileURL(join(REPO, 'site', 'build.mjs')).href;
+    const out = execFileSync(
+      'node',
+      [
+        '-e',
+        `import(${JSON.stringify(build)})
+           .then((b) => process.stdout.write(JSON.stringify(b.rendered.map((p) => ['/' + p.file, p.html]))))
+           .catch((e) => { process.stderr.write(String(e && e.message)); process.exit(1); });`,
+      ],
+      {
+        env: { ...process.env, OWNPACE_APP_URL: 'https://app.ota.ownpace.eu', OWNPACE_STAGE: 'alpha' },
+        encoding: 'utf8',
+        maxBuffer: 64 * 1024 * 1024,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
+    alpha = await serve(new Map(JSON.parse(out) as Array<[string, string]>));
+  }, 120_000);
+
+  afterAll(async () => {
+    await new Promise<void>((r) => (alpha ? alpha.server.close(() => r()) : r()));
+  });
+
+  it.each([
+    ['/', 1200, 'en'],
+    ['/nl/', 390, 'nl'],
+    ['/pricing.html', 390, 'en'],
+    ['/nl/weg-bij-google.html', 390, 'nl'],
+  ] as const)('%s at %i pixels: the line under the header, in its language, muted, and nothing scrolls sideways', async (path, width, locale) => {
+    const { page, failed } = await open(path, width, alpha!.origin);
+    const seen = await page.evaluate(() => {
+      const header = document.querySelector('header.site')!.getBoundingClientRect();
+      const line = document.querySelector<HTMLElement>('.visitor-line');
+      const words = line?.querySelector('p');
+      const box = line?.getBoundingClientRect();
+      const heading = document.querySelector('main h1')?.getBoundingClientRect();
+      return {
+        count: document.querySelectorAll('.visitor-line').length,
+        text: (line?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+        shown: line?.checkVisibility({ visibilityProperty: true }) ?? false,
+        inHeader: line?.closest('header') !== null,
+        top: box?.top ?? -1,
+        bottom: box?.bottom ?? -1,
+        left: box?.left ?? -1,
+        right: box?.right ?? -1,
+        headingTop: heading?.top ?? -1,
+        headerBottom: header.bottom,
+        headerHeight: header.height,
+        href: line?.querySelector('a')?.getAttribute('href') ?? null,
+        // The site's muted style: the footer's colour, and no background of its own.
+        color: words ? getComputedStyle(words).color : null,
+        muted: getComputedStyle(document.querySelector('footer.site')!).color,
+        background: line ? getComputedStyle(line).backgroundColor : null,
+        overflows: document.documentElement.scrollWidth > window.innerWidth + 1,
+      };
+    });
+    expect(seen.count, `${path}: the line is not on the page once`).toBe(1);
+    expect(seen.text).toBe(SAID[locale]);
+    expect(seen.shown, `${path}: the line is not drawn`).toBe(true);
+    expect(seen.inHeader, `${path}: the line is inside the sticky header`).toBe(false);
+    expect(seen.top, `${path}: the line is not under the header`).toBeGreaterThanOrEqual(seen.headerBottom - 1);
+    expect(seen.headingTop, `${path}: the page's heading comes before the line`).toBeGreaterThan(seen.bottom);
+    expect(seen.left).toBeGreaterThanOrEqual(0);
+    expect(seen.right, `${path}: the line runs off the screen`).toBeLessThanOrEqual(width);
+    expect(seen.href).toBe(`https://app.ota.ownpace.eu/request-access?locale=${locale}`);
+    expect(seen.color, `${path}: the line is not in the muted style`).toBe(seen.muted);
+    expect(seen.background, `${path}: the line has a banner's background`).toBe('rgba(0, 0, 0, 0)');
+    expect(seen.overflows, `${path} scrolls sideways at ${width} pixels`).toBe(false);
+    expect(failed, `${path} requested something that 4xx'd`).toEqual([]);
+    if (width === 390) {
+      // The header stays one row (0152 T2), and on the home page the hero's
+      // buttons stay in a phone's first screen (0152 T3 (a)).
+      expect(seen.headerHeight, `${path}: the header is taller than one row`).toBeLessThan(64);
+      if (path === '/nl/') {
+        const ctaBottom = await page.evaluate(() => document.querySelector('.hero .cta')!.getBoundingClientRect().bottom);
+        expect(ctaBottom, 'with the line, the hero’s buttons leave a phone’s first screen').toBeLessThanOrEqual(844);
+      }
+    }
+    await page.close();
+  }, 60_000);
+
+  it('keeps the phone’s menu working above it, and the build without the setting says none', async () => {
+    const { page } = await open('/', 390, alpha!.origin);
+    await page.click('details.menu > summary');
+    const menu = await page.evaluate(() => {
+      const nav = document.querySelector('nav.menu')!;
+      const line = document.querySelector('.visitor-line')!.getBoundingClientRect();
+      const first = nav.querySelector('a')!.getBoundingClientRect();
+      // What a tap on the menu's first link would reach: the link, not the line.
+      const hit = document.elementFromPoint(first.left + first.width / 2, first.top + first.height / 2);
+      return {
+        shown: nav.checkVisibility({ visibilityProperty: true }),
+        onTop: hit === nav.querySelector('a') || nav.querySelector('a')!.contains(hit),
+        overlaps: first.top < line.bottom,
+        overflows: document.documentElement.scrollWidth > window.innerWidth + 1,
+      };
+    });
+    expect(menu.shown, 'the menu does not open with the line on the page').toBe(true);
+    // The open menu falls over the line, as over the rest of the page, and is what a tap reaches.
+    expect(menu.overlaps).toBe(true);
+    expect(menu.onTop, 'the line sits over the open menu').toBe(true);
+    expect(menu.overflows).toBe(false);
+    await page.close();
+
+    const plain = await open('/nl/', 390);
+    expect(await plain.page.$$eval('.visitor-line', (l) => l.length), 'a build without the setting says the line').toBe(0);
+    await plain.page.close();
   }, 60_000);
 });

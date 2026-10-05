@@ -15,9 +15,10 @@
  * documented; `ownpace_system` has BYPASSRLS and the grants this job's
  * statements need, and is not a superuser, workplan 0138 T3 step 2: until
  * then this was the owner's `DATABASE_URL`, a superuser, in every run),
- * evaluate each mapping's own `schedule` cron via `isSyncDue` (or, while its
- * first copy is unfinished, the 15-minute floor whatever the cron says:
- * `FIRST_COPY_UNFINISHED`, workplan 0156 T5), and trigger
+ * evaluate each mapping's own `schedule` cron via `isSyncDue` (with none, the
+ * automatic cadence: every hour for 14 days, then every 6 hours, then daily,
+ * workplan 0157 T7; while its first copy is unfinished, the 15-minute floor
+ * whatever the cron says: `FIRST_COPY_UNFINISHED`, workplan 0156 T5), and trigger
  * `run-delta-sync` for the due ones with the mapping's ENABLED domains passed
  * explicitly (the scheduler's scope_selection query — a job must never touch
  * a domain the owner did not select, the #207 lesson).
@@ -57,6 +58,7 @@ import {
   UNREAD_NOTE_PREFIX,
   setAppEventSink, setAuditExportSink,
   type DiscoveryDomain,
+  type TenantId,
 } from '@openmig/shared';
 import {
   AN_OPEN_ORGANISATION_WHERE,
@@ -65,10 +67,27 @@ import {
   appEventSinkOn,
   auditExportOn,
   pgDriver,
+  type PgDatabase,
 } from '@openmig/ledger';
+import * as schemaPg from '@openmig/ledger/schema-pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { readOpenPause, recordTickBeat, BILLABLE_RUN_KINDS } from '@openmig/managed';
-import { isSyncDue, DEFAULT_SYNC_SCHEDULE, defaultScheduleFor } from '@openmig/orchestration/sync-due';
+import {
+  readOpenPause,
+  recordTickBeat,
+  BILLABLE_RUN_KINDS,
+  billedTierNow,
+  FREE_PASS_EVERY_MINUTES,
+  holdsAtCeiling,
+  leastMinutesBetweenPasses,
+} from '@openmig/managed';
+import {
+  isSyncDue,
+  DEFAULT_SYNC_SCHEDULE,
+  AUTOMATIC_HOURLY_DAYS,
+  automaticScheduleFor,
+  automaticSince,
+  defaultScheduleFor,
+} from '@openmig/orchestration/sync-due';
 import { enabledDomainsForMappings } from '@openmig/orchestration/enabled-domains';
 import {
   FAILURE_WINDOW_MINUTES,
@@ -124,6 +143,36 @@ interface TickRow {
   readonly stale_since: Date | null;
   /** Some data type it copies has not completed a pass (`FIRST_COPY_UNFINISHED`, 0156 T5). */
   readonly first_copy_unfinished: boolean;
+  /** The newest first pass of the data types it copies (0157 T7); null when none finished. */
+  readonly first_copy_done_at: Date | null;
+}
+
+/**
+ * WHEN EACH MIGRATION WAS LAST VISITED (workplan 0157 T7, managed 0042): its
+ * page opened, or *Sync now* pressed. The other half of what the automatic
+ * cadence counts from. By organisation and migration both, as every read here
+ * names the organisation itself: the system role bypasses row security.
+ */
+export const VISITS_SQL = `SELECT v.mapping_id, v.visited_at
+         FROM migration_visit v
+         JOIN unnest($1::uuid[], $2::uuid[]) AS asked(tenant_id, mapping_id)
+           ON asked.tenant_id = v.tenant_id AND asked.mapping_id = v.mapping_id`;
+
+/**
+ * Whose last visit can change their step this tick: a migration on the
+ * automatic cadence, not running, its first copy done, and in step at least
+ * 14 days, or never finished one. Inside the first 14 days it looks hourly
+ * whatever the visits, since they count from the later of the two.
+ */
+export function visitsThatCount(rows: readonly TickRow[], now: Date): TickRow[] {
+  const hourlyUntil = now.getTime() - AUTOMATIC_HOURLY_DAYS * 24 * 60 * 60_000;
+  return rows.filter(
+    (m) =>
+      m.schedule === null &&
+      !m.running &&
+      !m.first_copy_unfinished &&
+      (m.first_copy_done_at === null || m.first_copy_done_at.getTime() <= hourlyUntil),
+  );
 }
 
 /**
@@ -329,7 +378,16 @@ export const ACTIVE_MAPPINGS_SQL = `SELECT m.id, m.tenant_id, m.schedule,
               -- THE FIRST COPY IS NOT FINISHED (workplan 0156 T5; the owner,
               -- 2026-10-03): isSyncDue then runs this migration at the floor,
               -- whatever its schedule. See FIRST_COPY_UNFINISHED above.
-              ${FIRST_COPY_UNFINISHED} AS first_copy_unfinished
+              ${FIRST_COPY_UNFINISHED} AS first_copy_unfinished,
+              -- WHAT THE AUTOMATIC CADENCE COUNTS FROM (workplan 0157 T7), for
+              -- a migration with no schedule of its own: when its first copy
+              -- finished, the newest first pass of the data types it copies.
+              -- The last visit is the other half (automaticSince), read apart
+              -- (VISITS_SQL), so this statement keeps to the core tables.
+              (SELECT max(ms.completed_at) FROM scope_selection s
+                 JOIN migration_status ms
+                   ON ms.tenant_id = s.tenant_id AND ms.mapping_id = s.mapping_id AND ms.domain = s.domain
+                WHERE s.tenant_id = m.tenant_id AND s.mapping_id = m.id AND s.included) AS first_copy_done_at
          FROM mailbox_mapping m
         WHERE (m.status = ANY($5::text[])
                -- A cutover copies from execute until its grace period ends
@@ -441,6 +499,11 @@ export interface Waiting {
   readonly tenant_id: string;
   /** When its newest run started; null when it never ran. */
   readonly last_started: Date | null;
+  /**
+   * Takes its organisation's later turns (workplan 0157 T3): it copies only
+   * files, and its organisation runs at Free's pace. Absent is false.
+   */
+  readonly last?: boolean;
 }
 
 /**
@@ -476,7 +539,7 @@ export function withinCapacity<T extends Waiting>(
   let total = running.total;
   const byOrganisation = new Map(running.byOrganisation);
   const chosen: T[] = [];
-  for (const m of [...due].sort(longestWaitingFirst)) {
+  for (const m of inOrganisationOrder([...due].sort(longestWaitingFirst))) {
     if (total >= caps.inFlight) break;
     const own = byOrganisation.get(m.tenant_id) ?? 0;
     if (own >= caps.perOrganisation) continue;
@@ -485,6 +548,39 @@ export function withinCapacity<T extends Waiting>(
     byOrganisation.set(m.tenant_id, own + 1);
   }
   return { chosen, heldForCapacity: due.length - chosen.length };
+}
+
+/**
+ * SMALL KINDS FIRST, FILES LAST, ON FREE (workplan 0157 T3; the owner,
+ * 2026-10-04: *"The free should first do all small sets, and stick to files
+ * last"*).
+ *
+ * Within a pass the kinds already run in `PASS_ORDER`, files last. Between one
+ * organisation's migrations due the same day, one that copies only files
+ * (an export's included: its photos are files) goes after the others: on Free
+ * each runs once a day, so the order is the day's. It matters when more of
+ * them are due than the organisation's passes at once.
+ *
+ * Within the organisation only. The places the longest-waiting order gives
+ * each organisation stay its own, and it decides which of its migrations takes
+ * them: the non-files ones first, each kind still longest-waiting first. So no
+ * other organisation waits longer for it, and none goes sooner.
+ */
+export function inOrganisationOrder<T extends Waiting>(sorted: readonly T[]): T[] {
+  const byOrganisation = new Map<string, T[]>();
+  for (const m of sorted) {
+    const own = byOrganisation.get(m.tenant_id);
+    if (own) own.push(m);
+    else byOrganisation.set(m.tenant_id, [m]);
+  }
+  // A stable sort: each group keeps the longest-waiting order it came in.
+  for (const own of byOrganisation.values()) own.sort((a, b) => Number(a.last ?? false) - Number(b.last ?? false));
+  const taken = new Map<string, number>();
+  return sorted.map((m) => {
+    const i = taken.get(m.tenant_id) ?? 0;
+    taken.set(m.tenant_id, i + 1);
+    return byOrganisation.get(m.tenant_id)![i]!;
+  });
 }
 
 function longestWaitingFirst(a: Waiting, b: Waiting): number {
@@ -599,9 +695,70 @@ export const managedSyncTick = schedules.task({
 
     let notDue = 0;
     let heldBack = 0;
+    let heldByPace = 0;
     let skippedRunning = 0;
     let staleRuns = 0;
     let skippedNoDomains = 0;
+
+    // EACH TIER AT ITS OWN PACE (workplan 0157 T2): the least minutes between
+    // two passes, by the tier each organisation's month bills (`pace.ts`).
+    // Read only where it can matter: outside the alpha, where every tier runs
+    // at a paid tier's pace (the owner, 2026-10-04), and for an organisation
+    // with a migration that started a pass within Free's day, since the floor
+    // holds nothing older back. The order below reads a few more (0157 T3).
+    const stage = process.env.OWNPACE_STAGE;
+    const paceByOrganisation = new Map<string, number>();
+    // The ledger's schema, as the stores read through it (`managed-retention.ts` does the same).
+    const db = drizzle(pool, { schema: schemaPg }) as unknown as PgDatabase;
+    const readPace = async (tenantIds: Iterable<string>): Promise<void> => {
+      if (!holdsAtCeiling(stage)) return;
+      const toRead = [...new Set(tenantIds)].filter((t) => !paceByOrganisation.has(t));
+      await mapWithConcurrency(toRead, ENQUEUE_CONCURRENCY, async (tenantId) => {
+        try {
+          const billed = await billedTierNow(db, tenantId as TenantId, now);
+          paceByOrganisation.set(tenantId, leastMinutesBetweenPasses(billed, stage));
+        } catch (err) {
+          // Open, and loud: a tier that cannot be read runs at a paid tier's
+          // pace this tick, so no migration stands still over a read that
+          // failed. The cost is passes Free would not have run.
+          paceByOrganisation.set(tenantId, 0);
+          log.error(
+            `[sync-tick] organisation ${tenantId}: could not read the tier its month bills, ` +
+              "so its migrations run at a paid tier's pace this tick:",
+            err,
+          );
+        }
+      });
+    };
+    const freeDayAgo = now.getTime() - FREE_PASS_EVERY_MINUTES * 60_000;
+    await readPace(
+      rows
+        .filter((m) => !m.running && m.last_started !== null && m.last_started.getTime() > freeDayAgo)
+        .map((m) => m.tenant_id),
+    );
+
+    // The last visits, where they can change a migration's step (0157 T7).
+    // A read that fails is said every tick, and those migrations look every
+    // hour meanwhile, as if just visited: none slows down over a read that
+    // failed. The cost is passes the automatic cadence would have saved.
+    const visitedAt = new Map<string, Date>();
+    const visitsToRead = visitsThatCount(rows, now);
+    if (visitsToRead.length > 0) {
+      try {
+        const { rows: visits } = await pool.query<{ mapping_id: string; visited_at: Date }>(VISITS_SQL, [
+          visitsToRead.map((m) => m.tenant_id),
+          visitsToRead.map((m) => m.id),
+        ]);
+        for (const v of visits) visitedAt.set(v.mapping_id, v.visited_at);
+      } catch (err) {
+        for (const m of visitsToRead) visitedAt.set(m.id, now);
+        log.error(
+          `[sync-tick] could not read when ${visitsToRead.length} migration(s) were last visited, ` +
+            'so they look for changes every hour this tick:',
+          err,
+        );
+      }
+    }
 
     // Phase 1 — decide, in memory. No I/O in here, so the set of due mappings
     // is evaluated against ONE `now` rather than drifting as the loop runs.
@@ -626,14 +783,25 @@ export const managedSyncTick = schedules.task({
       }
 
       // An explicit schedule is the owner's decision and is used as written.
-      // Only the absent one gets a per-mapping offset, so the mappings that
-      // never chose a cadence stop all firing in the same minute.
-      const schedule = m.schedule ?? defaultScheduleFor(m.id);
+      // The absent one is the automatic cadence (0157 T7): every hour for 14
+      // days from the first copy or the last visit, then every 6 hours, then
+      // daily from 30 days, offset per migration so the ones that never chose
+      // a cadence do not all fire in the same minute.
+      const schedule =
+        m.schedule ??
+        automaticScheduleFor(
+          m.id,
+          automaticSince(m.first_copy_unfinished, m.first_copy_done_at, visitedAt.get(m.id) ?? null),
+          now,
+        );
       // Until its first copy is finished, at the floor whatever the schedule
       // (0156 T5): after the `running` skip above, so never beside a pass
       // that still runs, and before the back-off and the caps below, so both
       // still hold.
-      const facts = { firstCopyUnfinished: m.first_copy_unfinished };
+      // And never sooner than its tier's pace allows (0157 T2).
+      const leastMinutes = paceByOrganisation.get(m.tenant_id) ?? 0;
+      const facts = { firstCopyUnfinished: m.first_copy_unfinished, leastMinutesBetweenPasses: leastMinutes };
+      let readable = schedule;
       let isDue: boolean;
       try {
         isDue = isSyncDue(schedule, m.last_started, now, facts);
@@ -645,10 +813,19 @@ export const managedSyncTick = schedules.task({
             `using the default (${DEFAULT_SYNC_SCHEDULE}) until it is fixed:`,
           err
         );
-        isDue = isSyncDue(defaultScheduleFor(m.id), m.last_started, now, facts);
+        readable = defaultScheduleFor(m.id);
+        isDue = isSyncDue(readable, m.last_started, now, facts);
       }
       if (!isDue) {
         notDue++;
+        // Waiting for its tier's pace alone, so due by every other rule:
+        // counted, so the summary says why a Free migration did not run.
+        if (
+          leastMinutes > 0 &&
+          isSyncDue(readable, m.last_started, now, { firstCopyUnfinished: m.first_copy_unfinished })
+        ) {
+          heldByPace++;
+        }
         continue;
       }
 
@@ -695,6 +872,17 @@ export const managedSyncTick = schedules.task({
       eligible.push({ ...m, domains });
     }
 
+    // On Free, an organisation's files-only migrations take its later turns
+    // (0157 T3). Only where more than one of its migrations is due, since the
+    // order of one is no order; their tier is read now if phase 1 did not.
+    const dueByOrganisation = new Map<string, number>();
+    for (const m of eligible) dueByOrganisation.set(m.tenant_id, (dueByOrganisation.get(m.tenant_id) ?? 0) + 1);
+    await readPace([...dueByOrganisation].filter(([, n]) => n > 1).map(([tenantId]) => tenantId));
+    const ordered = eligible.map((m) => ({
+      ...m,
+      last: (paceByOrganisation.get(m.tenant_id) ?? 0) > 0 && m.domains.every((d) => d === 'file'),
+    }));
+
     // Phase 3 — no more than the box was sized for (workplan 0143 T1 step 3):
     // count the copying passes in flight, and take the longest-waiting of the
     // eligible while the caps leave room. After phase 2, so a migration with
@@ -708,7 +896,7 @@ export const managedSyncTick = schedules.task({
       total: [...byOrganisation.values()].reduce((sum, n) => sum + n, 0),
       byOrganisation,
     };
-    const capacity = withinCapacity(eligible, inFlight, caps);
+    const capacity = withinCapacity(ordered, inFlight, caps);
     const toEnqueue = capacity.chosen;
     if (capacity.heldForCapacity > 0) {
       // The count, never the migrations: which ones wait changes every
@@ -752,6 +940,8 @@ export const managedSyncTick = schedules.task({
       firstCopies: rows.filter((m) => m.first_copy_unfinished).length,
       triggered,
       notDue,
+      // Of those, the ones due by every rule but their tier's pace (0157 T2).
+      heldByPace,
       heldBack,
       heldForCapacity: capacity.heldForCapacity,
       inFlight: inFlight.total,

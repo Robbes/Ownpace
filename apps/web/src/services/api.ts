@@ -296,6 +296,31 @@ export function tooManyTests(err: unknown): boolean {
 }
 
 /**
+ * When the next pass starts, if *Sync now* was refused at Free's pace
+ * (`free_pace`, workplan 0157 T2), or null.
+ *
+ * Ours, like `too_many_tests`, so the screen says it in the reader's language
+ * and clock. The server's `message` is the English for the same sentence.
+ */
+export function freePaceRefusal(err: unknown): { nextPassAt: string } | null {
+  if (!axios.isAxiosError(err)) return null;
+  const data = err.response?.data as { error?: unknown; nextPassAt?: unknown } | undefined;
+  if (err.response?.status !== 409 || data?.error !== 'free_pace' || typeof data.nextPassAt !== 'string') return null;
+  return { nextPassAt: data.nextPassAt };
+}
+
+/**
+ * Whether a schedule was refused at the tier's pace (`free_pace_schedule`,
+ * workplan 0157 T4): on Free, one pass a day. Ours, so the panel says it in
+ * the reader's language; the server's `message` is the English.
+ */
+export function scheduleAtPaceRefusal(err: unknown): boolean {
+  if (!axios.isAxiosError(err)) return false;
+  const data = err.response?.data as { error?: unknown } | undefined;
+  return err.response?.status === 409 && data?.error === 'free_pace_schedule';
+}
+
+/**
  * Whether the members routes refused a role below admin
  * (`owner_or_admin_only`, workplan 0137 T7).
  *

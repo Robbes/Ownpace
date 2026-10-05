@@ -18,6 +18,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Response } from 'express';
+import { inspect } from 'node:util';
 import { log } from '@openmig/shared';
 import { serverFault } from './server-fault.ts';
 
@@ -84,6 +85,55 @@ describe('serverFault', () => {
     // reads like a refusal sends somebody hunting through their own input.
     expect(body.reason).toContain('fault on our side');
     expect(body.reason).toContain('replacing these credentials');
+  });
+
+  it("never prints an error's body, and still prints its message and stack", () => {
+    // A parser's error carries the raw request text as `body` (#1490's
+    // review): a stranger's address and note, printed with the error. Any
+    // other error that carries a body could do the same, in its cause or
+    // among the errors it gathers.
+    const printed: string[] = [];
+    vi.spyOn(log, 'error').mockImplementation((...args: unknown[]) => {
+      printed.push(args.map((a) => (typeof a === 'string' ? a : inspect(a, { depth: Infinity }))).join(' '));
+    });
+    const inner = Object.assign(new Error('the inner one'), { body: 'BODY-IN-THE-CAUSE' });
+    const gathered = Object.assign(new Error('one of several'), { body: 'BODY-IN-THE-LIST' });
+    const err = Object.assign(new Error('the outer one', { cause: inner }), {
+      status: 400,
+      type: 'entity.parse.failed',
+      body: '{"email":"body-s1@example.test","note":"BODY-S1",',
+      errors: [gathered],
+    });
+    const { res } = fakeRes();
+
+    serverFault(res, 'unhandled', 'handling this request', err);
+
+    const line = printed.join('\n');
+    for (const value of ['body-s1', 'BODY-S1', 'BODY-IN-THE-CAUSE', 'BODY-IN-THE-LIST']) {
+      expect(line, `the log printed ${value}`).not.toContain(value);
+    }
+    // Everything else as it was: the message, the stack, the other fields.
+    expect(line).toContain('the outer one');
+    expect(line).toContain('server-fault.unit.test.ts');
+    expect(line).toContain('the inner one');
+    expect(line).toContain('one of several');
+    expect(line).toContain("type: 'entity.parse.failed'");
+    // And the caller's error is left as it was handed in.
+    expect(err.body).toContain('BODY-S1');
+    expect(inner.body).toBe('BODY-IN-THE-CAUSE');
+  });
+
+  it('prints an error with no body exactly as before', () => {
+    const printed: unknown[][] = [];
+    vi.spyOn(log, 'error').mockImplementation((...args: unknown[]) => {
+      printed.push(args);
+    });
+    const err = Object.assign(new Error('boom', { cause: new Error('under it') }), { code: 'ECONNREFUSED' });
+    const { res } = fakeRes();
+
+    serverFault(res, 'list_failed', 'listing your connections', err);
+
+    expect(inspect(printed[0]![1], { depth: Infinity })).toBe(inspect(err, { depth: Infinity }));
   });
 
   it('mints a different reference each time', () => {

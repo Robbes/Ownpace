@@ -750,7 +750,6 @@ const en = {
   // HOW OFTEN A MIGRATION SYNCS, changed on its own page (the owner,
   // 2026-09-28). The four cadences are the wizard's own words.
   'settings.schedule': 'How often to look for changes',
-  'settings.schedule.default': 'Now: every 15 minutes, because this migration has no schedule of its own.',
   'settings.schedule.own': 'Now: {schedule}, set outside this page.',
   // The first copy runs pass after pass whatever the schedule, and the
   // schedule applies once every data type has been copied once (workplan
@@ -758,7 +757,14 @@ const en = {
   // copied for 50 minutes a day, which was true and was the defect.
   'settings.schedule.hint': 'Passes run back to back until the first copy is done.',
   'settings.schedule.hint.why':
-    'A pass runs at most 50 minutes. Until every data type has been copied once in full, the next pass starts as soon as the last one ends, and no sooner than 15 minutes after it started, whatever this schedule says. A daily download limit at the source is waited out first. After that, passes follow this schedule and copy only what is new or changed. Items that could not be copied do not keep passes coming: they wait on the Failures screen.',
+    'A pass runs at most 50 minutes. Until every data type has been copied once in full, the next pass starts as soon as the last one ends, and no sooner than 15 minutes after it started, whatever this schedule says. A daily download limit at the source is waited out first. After that, passes follow this schedule and copy only what is new or changed. Items that could not be copied do not keep passes coming: they wait on the Failures screen. On Automatic the days count from when everything was copied, or from the last time somebody opened this migration or pressed Trigger sync, whichever is later.',
+  // Free's pace (workplan 0157 T4): one pass a day outside the alpha, whatever
+  // the schedule; the faster cadences are not offered, and this says why, with
+  // the link after it as the way to a higher tier. Also what a schedule the
+  // route refused at the pace says (`free_pace_schedule`).
+  'settings.schedule.freePace':
+    'On Free a migration looks for changes once a day, whatever the schedule. A higher tier looks as often as every 15 minutes.',
+  'settings.schedule.freePace.link': 'See the tiers on the Billing page.',
   'settings.schedule.save': 'Save this schedule',
   'settings.schedule.saving': 'Saving…',
   'settings.schedule.saved': 'Saved. The next pass follows it.',
@@ -844,6 +850,11 @@ const en = {
   'wizard.sourcePassword': 'Password',
   'wizard.targetUsername': 'Username',
   'wizard.targetPassword': 'Password',
+  // The automatic cadence (workplan 0157 T7; the owner, 2026-10-05: "sync
+  // slow down once a migration is in step: yes"): no schedule of its own,
+  // what Start a migration makes, first in the chooser.
+  'wizard.schedule.automatic': 'Automatic',
+  'wizard.schedule.automatic.hint': 'Hourly for 14 days, then every 6 hours, daily from day 30.',
   'wizard.schedule.hourly': 'Hourly',
   'wizard.schedule.hourly.hint': 'Every hour',
   'wizard.schedule.daily': 'Daily',
@@ -953,6 +964,10 @@ const en = {
   'mappings.th.lastSync': 'Last Sync',
   'mappings.th.actions': 'Actions',
   'mappings.action.triggerSync': 'Trigger sync',
+  // Free's pace held a press (workplan 0157 T2, `free_pace`): one pass a day,
+  // and when the next one starts. The server's `message` is the English.
+  'mappings.sync.freePace':
+    'On Free a migration runs one pass a day. Its next pass starts at {time}. A higher tier looks for changes as often as every 15 minutes.',
   'mappings.action.pause': 'Pause',
   'hub.connections': 'From {source} to {target}',
   // Where the copies land (0153 open question 5, item 4).
@@ -2235,11 +2250,22 @@ const en = {
   // by `acceptance.doc.alpha`, and the tester guide (0144 T1), by this, the
   // guide page's own title (site/build.mjs, without " — Ownpace").
   'alpha.note.guide': 'Guide to the Alpha',
+  // The Alpha, said to a visitor who was not invited (workplan 0152 T1 (a);
+  // the owner, 2026-10-05: "Do suggestions for non alpha viewers"). The
+  // welcome above is written for the people invited, and stays theirs. A
+  // visitor reads this fact instead, then `alpha.nothingCharged`, then a link
+  // to the request page by its own title, `access.title`: on every page of
+  // the public site while it is built for the Alpha, and in the guides for a
+  // visitor without a session (`AlphaVisitorLine` in AlphaNote.tsx). The site
+  // cannot import this file, so `site/copy.mjs` copies the three, and
+  // `scripts/the-alpha-said-to-a-visitor.unit.test.ts` holds them equal.
+  'alpha.visitor.line': 'Ownpace is in its Alpha, by invitation.',
   // Nothing charged (workplan 0131 T3): the first sentence of the Billing
-  // line that takes the subtitle's place, and the last sentence of the
-  // request form's package hint. One key, so the two cannot drift apart.
-  // "Charged", as both mails' Alpha paragraph says it, and not "invoiced",
-  // which is what a tier says (0109 T8). The note no longer says it.
+  // line that takes the subtitle's place, the last sentence of the request
+  // form's package hint, and the second of the visitor's line above. One key,
+  // so they cannot drift apart. "Charged", as both mails' Alpha paragraph
+  // says it, and not "invoiced", which is what a tier says (0109 T8). The
+  // note no longer says it.
   'alpha.nothingCharged': 'Nothing is charged during the Alpha.',
   // A person to write to (workplan 0144 T6 (a)), in §3's words. `{address}` is
   // the deployment's VITE_SUPPORT_EMAIL, drawn as a mailto: link where it
@@ -3717,11 +3743,13 @@ const nl: Record<keyof typeof en, string> = {
   'settings.exportPolicy.paper.refusedBefore.why':
     'Onder een formaat komt een Paper-document aan onder een nieuwe naam (Notities.paper.md), dus het is nieuw voor de migratie. De volgende ronde kopieert elk document, en de regel die onder de oude naam is vastgelegd, sluit vanzelf, omdat het document niet meer onder die naam voorkomt. Een document dat Dropbox niet in dit formaat aanbiedt, staat één keer bij Mislukkingen, met die reden. Opslaan verandert zelf niets: de ronde doet het. Andere documenten die Dropbox in een eigen formaat bewaart, blijven staan.',
   'settings.schedule': 'Hoe vaak naar wijzigingen kijken',
-  'settings.schedule.default': 'Nu: elk kwartier, omdat deze migratie geen eigen schema heeft.',
   'settings.schedule.own': 'Nu: {schedule}, buiten deze pagina ingesteld.',
   'settings.schedule.hint': 'Rondes lopen direct na elkaar tot de eerste kopie klaar is.',
   'settings.schedule.hint.why':
-    'Een ronde duurt hoogstens 50 minuten. Tot elk gegevenstype één keer volledig is gekopieerd, start de volgende ronde zodra de vorige klaar is, en niet eerder dan 15 minuten na de start ervan, wat dit schema ook zegt. Een daglimiet voor downloaden bij de bron wordt eerst afgewacht. Daarna volgen de rondes dit schema en kopiëren ze alleen wat nieuw of gewijzigd is. Items die niet gekopieerd konden worden, houden de rondes niet aan de gang: ze wachten bij Mislukkingen.',
+    'Een ronde duurt hoogstens 50 minuten. Tot elk gegevenstype één keer volledig is gekopieerd, start de volgende ronde zodra de vorige klaar is, en niet eerder dan 15 minuten na de start ervan, wat dit schema ook zegt. Een daglimiet voor downloaden bij de bron wordt eerst afgewacht. Daarna volgen de rondes dit schema en kopiëren ze alleen wat nieuw of gewijzigd is. Items die niet gekopieerd konden worden, houden de rondes niet aan de gang: ze wachten bij Mislukkingen. Bij Automatisch tellen de dagen vanaf het moment dat alles is gekopieerd, of vanaf de laatste keer dat iemand deze migratie opende of op Synchroniseer nu drukte, wat het laatst was.',
+  'settings.schedule.freePace':
+    'Op Free kijkt een migratie eens per dag naar wijzigingen, welk schema er ook staat. Een hoger pakket kijkt zo vaak als elke 15 minuten.',
+  'settings.schedule.freePace.link': 'Bekijk de pakketten op de pagina Facturering.',
   'settings.schedule.save': 'Dit schema opslaan',
   'settings.schedule.saving': 'Opslaan…',
   'settings.schedule.saved': 'Opgeslagen. De volgende ronde volgt het.',
@@ -3819,6 +3847,8 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.sourcePassword': 'Wachtwoord',
   'wizard.targetUsername': 'Gebruikersnaam',
   'wizard.targetPassword': 'Wachtwoord',
+  'wizard.schedule.automatic': 'Automatisch',
+  'wizard.schedule.automatic.hint': '14 dagen elk uur, daarna elke 6 uur, vanaf dag 30 dagelijks.',
   'wizard.schedule.hourly': 'Elk uur',
   'wizard.schedule.hourly.hint': 'Ieder uur',
   'wizard.schedule.daily': 'Dagelijks',
@@ -3918,6 +3948,8 @@ const nl: Record<keyof typeof en, string> = {
   'mappings.th.lastSync': 'Laatste synchronisatie',
   'mappings.th.actions': 'Acties',
   'mappings.action.triggerSync': 'Synchroniseer nu',
+  'mappings.sync.freePace':
+    'Op Free loopt een migratie één ronde per dag. De volgende ronde begint op {time}. Een hoger pakket kijkt zo vaak als elke 15 minuten naar wijzigingen.',
   'mappings.action.pause': 'Pauzeren',
   'hub.connections': 'Van {source} naar {target}',
   'hub.lands.folder': 'De kopieën komen in de map {folder} van de bestemming.',
@@ -4736,6 +4768,9 @@ const nl: Record<keyof typeof en, string> = {
   'alpha.note.welcome':
     'Probeer Ownpace rustig aan uit, en help anderen makkelijker over te stappen naar Europese alternatieven.',
   'alpha.note.guide': 'Handleiding voor de Alpha',
+  // Wat een bezoeker leest die niet is uitgenodigd (0152 T1 (a)); zie het
+  // Engelse blok.
+  'alpha.visitor.line': 'Ownpace is in de Alpha, op uitnodiging.',
   'alpha.nothingCharged': 'Tijdens de Alpha wordt niets in rekening gebracht.',
   // 0144 §3 T6's woorden; zie het Engelse blok.
   'help.line':

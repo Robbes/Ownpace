@@ -26,7 +26,10 @@
  *     Running it needs a database, a runner and a queue.
  *  5. A first copy run at the floor whatever its schedule (workplan 0156 T5)
  *     is decided in phase 1, after a running pass skips it and before the
- *     back-off and these caps, so it starts no pass the caps would not.
+ *     back-off and these caps, so it starts no pass the caps would not. So is
+ *     a tier's pace (0157 T2), in the same one answer.
+ *  6. On Free, an organisation's files-only migrations take its later turns
+ *     (workplan 0157 T3), and every other organisation keeps its places.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -168,6 +171,56 @@ describe('which due migrations the tick starts', () => {
   });
 });
 
+describe("on Free, an organisation's files-only migrations take its later turns (0157 T3)", () => {
+  // `last` is set by the tick only where the organisation runs at Free's pace
+  // and the migration copies only files (an export's photos are files).
+  const filesOnFree = (id: string, organisation: string, lastStarted: Date | null): Waiting => ({
+    ...due(id, organisation, lastStarted),
+    last: true,
+  });
+
+  it('starts the mail migration of a Free organisation before its files, although the files waited longer', () => {
+    const { chosen, heldForCapacity } = tick.withinCapacity(
+      [filesOnFree('a-files', ORG_A, startedMinutesAgo(25 * 60)), due('a-mail', ORG_A, startedMinutesAgo(24 * 60))],
+      NOTHING_RUNS,
+      caps(6, 1),
+    );
+    expect(ids(chosen)).toEqual(['a-mail']);
+    expect(heldForCapacity).toBe(1);
+  });
+
+  it('keeps every other organisation in its place: the Free organisation decides only which of its own takes its turns', () => {
+    const list = [
+      filesOnFree('a-files', ORG_A, startedMinutesAgo(90)),
+      due('b', ORG_B, startedMinutesAgo(60)),
+      due('a-mail', ORG_A, startedMinutesAgo(30)),
+    ];
+    // A holds the first and third places by waiting; it fills them mail first.
+    expect(ids(tick.inOrganisationOrder(list))).toEqual(['a-mail', 'b', 'a-files']);
+    expect(ids(tick.withinCapacity(list, NOTHING_RUNS, caps(2, 2)).chosen)).toEqual(['a-mail', 'b']);
+    // Without the mark the longest-waiting order is untouched.
+    const unmarked = list.map(({ last: _last, ...m }) => m);
+    expect(ids(tick.withinCapacity(unmarked, NOTHING_RUNS, caps(2, 2)).chosen)).toEqual(['a-files', 'b']);
+  });
+
+  it('keeps the longest-waiting order within each kind', () => {
+    const list = [
+      filesOnFree('f-old', ORG_A, startedMinutesAgo(50)),
+      due('m-old', ORG_A, startedMinutesAgo(40)),
+      filesOnFree('f-new', ORG_A, startedMinutesAgo(30)),
+      due('m-new', ORG_A, startedMinutesAgo(20)),
+    ];
+    expect(ids(tick.inOrganisationOrder(list))).toEqual(['m-old', 'm-new', 'f-old', 'f-new']);
+  });
+
+  it('marks a migration only for an organisation at Free\'s pace, and only when it copies files alone', () => {
+    const whole = code(readFileSync(join(HERE, 'managed-sync-tick.ts'), 'utf8'));
+    expect(whole).toContain(
+      "last: (paceByOrganisation.get(m.tenant_id) ?? 0) > 0 && m.domains.every((d) => d === 'file'),",
+    );
+  });
+});
+
 describe('the caps, from their variables', () => {
   it('are the owner’s numbers when unset: 3 on the stack, which is the OTA stack’s, and 2 per organisation', () => {
     expect(tick.DEFAULT_MAX_PASSES_IN_FLIGHT).toBe(3);
@@ -284,16 +337,23 @@ describe('the tick applies it', () => {
 
   it('chooses after phase 2, from every eligible migration, and enqueues only what it chose', () => {
     const scopes = at('enabledDomainsForMappings(');
-    const choose = at('const capacity = withinCapacity(eligible, inFlight, caps);');
+    // Every eligible migration, in its organisation's order (0157 T3): one
+    // entry each, with only `last` added.
+    const ordered = at('const ordered = eligible.map((m) => ({');
+    const choose = at('const capacity = withinCapacity(ordered, inFlight, caps);');
     const chosen = at('const toEnqueue = capacity.chosen;');
     const enqueue = at('await mapWithConcurrency(toEnqueue,');
-    expect(scopes).toBeLessThan(choose);
+    expect(scopes).toBeLessThan(ordered);
+    expect(ordered).toBeLessThan(choose);
     expect(choose).toBeLessThan(chosen);
     expect(chosen).toBeLessThan(enqueue);
-    // Nothing else becomes what is enqueued, and nothing else enqueues.
+    // Nothing else becomes what is enqueued, and nothing else enqueues. The
+    // tier read for the pace (0157 T2) runs bounded too, and starts nothing.
     expect(count('toEnqueue =')).toBe(1);
     expect(count('toEnqueue.push')).toBe(0);
-    expect(count('mapWithConcurrency(')).toBe(1);
+    expect(count('mapWithConcurrency(toEnqueue,')).toBe(1);
+    expect(count('mapWithConcurrency(toRead,')).toBe(1);
+    expect(count('mapWithConcurrency(')).toBe(2);
     expect(count('runDeltaSync.trigger(')).toBe(1);
     expect(at('runDeltaSync.trigger(')).toBeGreaterThan(enqueue);
   });
@@ -306,21 +366,32 @@ describe('the tick applies it', () => {
     // and the caps choose among the due ones last. Moved anywhere else, the
     // floor would start passes the box was never sized for.
     const running = at('if (m.running) {');
-    const facts = at('const facts = { firstCopyUnfinished: m.first_copy_unfinished };');
+    const facts = at(
+      'const facts = { firstCopyUnfinished: m.first_copy_unfinished, leastMinutesBetweenPasses: leastMinutes };',
+    );
     const asked = at('isDue = isSyncDue(schedule, m.last_started, now, facts);');
-    const fallback = at('isDue = isSyncDue(defaultScheduleFor(m.id), m.last_started, now, facts);');
+    const fallback = at('readable = defaultScheduleFor(m.id);');
     const heldBack = at('heldBackByFailures(');
     const pushed = at('due.push(m);');
-    const choose = at('const capacity = withinCapacity(eligible, inFlight, caps);');
+    const choose = at('const capacity = withinCapacity(ordered, inFlight, caps);');
     expect(running).toBeLessThan(facts);
     expect(facts).toBeLessThan(asked);
     expect(asked).toBeLessThan(fallback);
     expect(fallback).toBeLessThan(heldBack);
     expect(heldBack).toBeLessThan(pushed);
     expect(pushed).toBeLessThan(choose);
-    // Asked in one place only: a second call without the fact would be a
-    // migration due by its schedule on one path and by the floor on another.
-    expect(count('isSyncDue(')).toBe(2);
+    // Decided in one place only: a second deciding call without a fact would
+    // be a migration due by its schedule on one path and by the floor or the
+    // pace on another. The fallback asks the same question of the default
+    // schedule, and the third call only counts one the pace held back
+    // (0157 T2): its answer reaches `heldByPace` and nothing else.
+    expect(count('isDue = isSyncDue(')).toBe(2);
+    expect(count('isDue = isSyncDue(schedule, m.last_started, now, facts);')).toBe(1);
+    expect(count('isDue = isSyncDue(readable, m.last_started, now, facts);')).toBe(1);
+    expect(count('isSyncDue(')).toBe(3);
+    expect(TICK).toMatch(
+      /isSyncDue\(readable, m\.last_started, now, \{ firstCopyUnfinished: m\.first_copy_unfinished \}\)\s*\)\s*\{\s*heldByPace\+\+;\s*\}\s*continue;/,
+    );
     // And the tick says how many it ran that way.
     expect(TICK).toMatch(/^\s+firstCopies: rows\.filter\(\(m\) => m\.first_copy_unfinished\)\.length,$/m);
   });

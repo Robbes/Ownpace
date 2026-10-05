@@ -136,6 +136,17 @@ const MappingDetail: React.FC = () => {
   const t = useT();
   const { dateTime } = useFormatters();
 
+  // A VISIT BRINGS BACK THE HOUR (workplan 0157 T7): a migration with no
+  // schedule of its own looks every hour again for 14 days once somebody opens
+  // it. Sent as the page opens; the server moves it at most once an hour.
+  // Managed only, as the schedule is. A visit that is not recorded changes
+  // nothing on this page, and the server logs its own faults, so its answer
+  // is not waited for and a failure is not shown.
+  React.useEffect(() => {
+    if (!id || isSelfHost()) return;
+    mappingApi.recordVisit(id).catch(() => undefined);
+  }, [id]);
+
   // Best-effort context; managed-only (the appliance has no mapping API and
   // its operators reach the queues from the top-level nav anyway).
   const detail = useQuery({
@@ -473,7 +484,13 @@ const MappingDetail: React.FC = () => {
           made). Managed only, like the panel above: it renders on the detail
           read, which the appliance does not serve, and the appliance's
           schedule is its owner's mapping file. */}
-      {detail.data && <SchedulePanel mappingId={id} current={detail.data.syncConfig.schedule} />}
+      {detail.data && (
+        <SchedulePanel
+          mappingId={id}
+          current={detail.data.syncConfig.schedule}
+          leastMinutesBetweenPasses={detail.data.pace?.leastMinutesBetweenPasses}
+        />
+      )}
 
       {/* WHAT THIS MIGRATION COPIES, what it may still gain (0125 T6), and
           each data type's Stop and Resume (0128 T4, slice 3c). Beside the
