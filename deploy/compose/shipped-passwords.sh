@@ -29,9 +29,11 @@
 #
 # TRIGGER-DB IS LISTED, AND NOT YET IN SHIPPED_PASSWORD_KEYS. Its literal is
 # managed.yml's fallback for an empty TRIGGER_DB_PASSWORD, and the OTA stack's
-# trigger_db_data volume still holds it: rotate-db-passwords.sh does not rotate
-# it yet. Refusing it now would stop the nightly gate, and generating it would
-# lock trigger-api out of its own database. 0132's Status names the next step.
+# trigger_db_data volume still holds it. rotate-db-passwords.sh --check counts
+# it, and --rotate --with-trigger-stores changes it (0132 T2, step A), but the
+# owner has not run that on the OTA stack yet. Until then, refusing it would
+# stop the nightly gate: that stack's .env has no value of its own for it.
+# Step B, after the owner's run, adds it to the list below.
 
 # Postgres: tried against every login role among the owner, app_user,
 # openmigrate and APP_DB_USER (rotate-db-passwords.sh --check).
@@ -45,6 +47,7 @@ SHIPPED_MINIO=(very-safe-password change-me-minio)
 SHIPPED_MINIO_FROM=("compose's default" "the example's value")
 # Trigger.dev's own database: managed.yml's fallback for TRIGGER_DB_PASSWORD.
 SHIPPED_TRIGGER_DB='trigger_password'
+SHIPPED_TRIGGER_DB_FROM="compose's default"
 
 # The keys the bring-up refuses on a real address and ensure-env-secrets.sh
 # generates, each with the volume whose existence ends that: "KEY volume".

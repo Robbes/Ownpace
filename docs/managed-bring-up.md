@@ -524,9 +524,13 @@ On a **real address** (`WEB_URL` is https and not localhost) every phase from
 note: a developer's own stack is where they are fine (`--accept-defaults`).
 On a stack whose volumes exist, change them together with the database:
 [Changing the database passwords](#changing-the-database-passwords) below.
-`trigger-db`'s `TRIGGER_DB_PASSWORD` is not refused yet: the OTA stack's volume
-still holds the literal `managed.yml` falls back to, and the rotation does not
-change it yet (0132's Status names that step).
+`trigger-db`'s `TRIGGER_DB_PASSWORD` is not one of them yet:
+`ensure-env-secrets.sh` does not generate it and the bring-up does not refuse
+it, because the OTA stack's volume still holds the literal `managed.yml` falls
+back to. `stand-up-live.sh` generates it for live's new volume.
+`rotate-db-passwords.sh --rotate --with-trigger-stores` changes it (workplan
+0132 T2, step A). Once the owner has run that on the OTA stack, step B makes it
+one of the keys above.
 
 **What it will not decide for you.** It *reports* these and moves on:
 
@@ -697,6 +701,15 @@ Brings up `trigger-db`, `trigger-redis`, `clickhouse`, `minio`,
 `trigger-registry`, `trigger-docker-proxy`, `trigger-api`, `trigger-tls`,
 `trigger-supervisor` and waits for all of them to be **healthy**, not merely
 started.
+
+`trigger-db` comes up first, on its own. Then the phase sets its role
+`trigger` to `.env`'s `TRIGGER_DB_PASSWORD` (`managed.yml`'s fallback when the
+key is empty) over `trigger-db`'s own socket, and proves it over the stack's
+network, before `trigger-api` starts and presents that value. It is the
+function `rotate-db-passwords.sh --sync --with-trigger-stores` uses, and the
+value is never printed. So a `trigger-db` whose role and `.env` came apart (a
+rotation whose putting back could not reach it, or a gate run that copied an
+older `.env` back) is put right by the next run.
 
 **Verify:** `curl -fsS http://localhost:3090 -o /dev/null && echo up`
 
@@ -4310,7 +4323,10 @@ too. The bring-up's `data` phase tells both on every run (phase 3 above), and
 `./deploy/compose/rotate-db-passwords.sh --rotate` makes new values and tells
 the roles at once, and never prints a value; the next section is the
 procedure. ClickHouse and MinIO take theirs when their containers are
-recreated.
+recreated. `trigger-db`'s role keeps the password its volume was made with, as
+Postgres's do: `--rotate --with-trigger-stores` changes `TRIGGER_DB_PASSWORD`
+and tells the role, and the bring-up's `trigger` phase tells it `.env`'s value
+on every run (phase 5 above).
 
 ### Changing the database passwords
 
@@ -4323,9 +4339,9 @@ modes:
 
 | mode | what it does | exit |
 |---|---|---|
-| `--check` (the default) | Changes nothing, and runs on any stack, live included. Lists the login roles (names and flags). Asks the controls, `.env`'s own values, over the stack's network and through PgBouncer. Tries the three shipped Postgres values against the owner **by its real name**, `app_user`, `openmigrate` and `APP_DB_USER`, where each is a login role. Tries ClickHouse's two and MinIO's two in their own containers. Reports `trigger-db`'s value as waiting for the code that rotates it, uncounted. One line per pair, never a value. A role that opens and is neither the owner nor `APP_DB_USER` (the owner's old name, left with `LOGIN`) is not one `--rotate` changes, so for it the advice is workplan 0132 T2 step 5 by hand: `ALTER ROLE <name> NOLOGIN`, never `DROP`. | 0 nothing shipped opens; 1 something does; 2 not established |
-| `--sync` | Sets `app_user`'s and the owner's passwords to what `.env` holds, in one transaction over the socket, then proves both over the network and through the pooler. Idempotent. The remedy when `.env` and the roles disagree. Refuses a stack that may be live (`stack_may_be_live`), before it asks the stack anything. | 0 / 1 / 2 |
-| `--rotate [--with-trigger-stores]` | Makes new values on the machine and changes `.env` and the roles together. With `--with-trigger-stores`, `CLICKHOUSE_PASSWORD` and `MINIO_ROOT_PASSWORD` too. Refuses on live, in CI, under `set -x`, when `.env` is not the persisted file, while a CI job runs on the machine or E2E (managed) is queued or in progress (asked before it prompts, and again once the project name is typed, before anything is written), when postgres is not healthy, when `.env` and the roles already disagree, and while a shipped value opens a login role it does not change (it names the role and 0132 T2 step 5). It asks you to type the project name. On any failure, or an interrupt, it puts the old `.env` and the old role passwords back, and says which step failed; a second Ctrl-C does not stop that. If it cannot complete, it keeps the old `.env` beside the persisted one (mode 0600) and says what to run. | 0 / 1 |
+| `--check` (the default) | Changes nothing, and runs on any stack, live included. Lists the login roles (names and flags). Asks the controls, `.env`'s own values, over the stack's network and through PgBouncer. Tries the three shipped Postgres values against the owner **by its real name**, `app_user`, `openmigrate` and `APP_DB_USER`, where each is a login role. Tries ClickHouse's two and MinIO's two in their own containers. Asks `trigger-db`'s role `trigger` over the network: a control first (`.env`'s `TRIGGER_DB_PASSWORD`, or `managed.yml`'s fallback when it is empty), then that fallback, counted like the others. One line per pair, never a value. A role that opens and is neither the owner nor `APP_DB_USER` (the owner's old name, left with `LOGIN`) is not one `--rotate` changes, so for it the advice is workplan 0132 T2 step 5 by hand: `ALTER ROLE <name> NOLOGIN`, never `DROP`. | 0 nothing shipped opens; 1 something does; 2 not established |
+| `--sync [--with-trigger-stores]` | Sets `app_user`'s and the owner's passwords to what `.env` holds, in one transaction over the socket, then proves both over the network and through the pooler. Idempotent. The remedy when `.env` and the roles disagree. With `--with-trigger-stores`, `trigger-db`'s role too, over `trigger-db`'s own socket, proven over the network: the remedy when its control is refused. Refuses a stack that may be live (`stack_may_be_live`), before it asks the stack anything. | 0 / 1 / 2 |
+| `--rotate [--with-trigger-stores]` | Makes new values on the machine and changes `.env` and the roles together. With `--with-trigger-stores`, `CLICKHOUSE_PASSWORD`, `MINIO_ROOT_PASSWORD` and `TRIGGER_DB_PASSWORD` too: Trigger.dev's three stores, whose one client is `trigger-api`. ClickHouse and MinIO take theirs when they are recreated; `trigger-db`'s role is set over its own socket after the two roles are proven, proven over the network, and put back with them on a failure. Without the flag it asks `trigger-db` nothing. Refuses on live, in CI, under `set -x`, when `.env` is not the persisted file, while a CI job runs on the machine or E2E (managed) is queued or in progress (asked before it prompts, and again once the project name is typed, before anything is written), when postgres is not healthy (and with the flag, `trigger-db`), when `.env` and the roles already disagree (or `trigger-db` and `.env`), and while a shipped value opens a login role it does not change (it names the role and 0132 T2 step 5). It asks you to type the project name. On any failure, or an interrupt, it puts the old `.env` and the old role passwords back, and says which step failed; a second Ctrl-C does not stop that. If it cannot complete, it keeps the old `.env` beside the persisted one (mode 0600) and says what to run. | 0 / 1 |
 
 Every question about a password goes over the stack's network or to
 PgBouncer's port, never the database container's socket, which trusts every
@@ -4338,31 +4354,41 @@ process that needs it, by name.
 `deploy/compose/.env` a link to the persisted file
 ([One stack, one `.env`](#one-stack-one-env)):
 
-1. **Check.** `./deploy/compose/rotate-db-passwords.sh --check`. Both controls
-   must open. Each `OPENS` line is a shipped value still in force. If a control
+1. **Bring the checkout up to date, then check.** This checkout is pulled by
+   hand; the gate deploys from its own. So first `git pull`. Then
+   `./deploy/compose/rotate-db-passwords.sh --help` must list
+   `--sync [--with-trigger-stores]`, which no older script does: an older
+   script changes ClickHouse's and MinIO's values and leaves `trigger-db` on
+   its published value. Then
+   `./deploy/compose/rotate-db-passwords.sh --check`. Every control must open.
+   Each `OPENS` line is a shipped value still in force. If a control
    is `REFUSED`, `.env` and the database already disagree: run `--sync` first.
    If an `OPENS` line names a role that is neither the owner nor `app_user`
    (the owner's old name, `openmigrate`, left with `LOGIN` after a rename),
    take its login away first with the command the check prints (workplan 0132
    T2 step 5: `ALTER ROLE openmigrate NOLOGIN`, never `DROP`, because it owns
-   the schema); `--rotate` refuses until then.
+   the schema); `--rotate` refuses until then. `trigger-db` has a control of
+   its own; if that is `REFUSED`, run `--sync --with-trigger-stores` first.
 2. **Rotate, at a quiet time.** After that day's gate run has finished, and
    with nothing queued in Actions → E2E (managed):
    `./deploy/compose/rotate-db-passwords.sh --rotate --with-trigger-stores`,
    and type the project name when it asks. From here until the next step ends,
    the OTA app cannot open new database connections (the demo is down; no
-   tester uses this stack).
+   tester uses this stack), and neither can `trigger-api` to `trigger-db`:
+   its role takes the new value at once. Trigger.dev runs may stall, and a
+   `trigger-api` that restarts before step 3 fails at its migration until
+   that run recreates it.
 3. **Dispatch E2E (managed)** on `main` (the script does this itself when `gh`
    is signed in). That run restores the persisted `.env`, recreates every
    container whose settings changed (Postgres, the API, Zitadel, ClickHouse,
-   MinIO, trigger-api), uploads `SYSTEM_DATABASE_URL` and `APP_DATABASE_URL` to
-   Trigger.dev again (the system role's password is not rotated here: the
-   bring-up sets `.env`'s on every run), and its smoke proves a task still
-   connects.
-4. **Check again**, once that run is green: `--check` exits 0. ClickHouse must
-   be healthy (its health check logs in with the new password). If MinIO
-   refuses the new pair on its old volume, the cost is its packets store: old
-   large run payloads.
+   MinIO, `trigger-db`, `trigger-api`), uploads `SYSTEM_DATABASE_URL` and
+   `APP_DATABASE_URL` to Trigger.dev again (the system role's password is not
+   rotated here: the bring-up sets `.env`'s on every run), and its smoke
+   proves a task still connects.
+4. **Check again**, once that run is green: `--check` exits 0, and
+   `trigger-db`'s fallback is refused. ClickHouse must be healthy (its health
+   check logs in with the new password). If MinIO refuses the new pair on its
+   old volume, the cost is its packets store: old large run payloads.
 5. **Record the date in workplan 0132 T0** (step 2), with "refused". Never a
    value.
 
@@ -4371,9 +4397,13 @@ stood up and are its own (0132 T1b, D8). `--check` runs on any stack, live
 included; 0132 T0 step 5 runs it there. The gate never runs `--rotate`;
 it may one day run `--check`. The bring-up's `data` phase runs the `--sync`
 function (`deploy/compose/db-roles.sh`) on every run, and refuses a published
-value on a real address. `trigger-db`'s password is `TRIGGER_DB_PASSWORD`, and
-it reaches the database only when its volume is new: rotating it on the OTA
-stack's volume is T2's next step (0132's Status).
+value on a real address. `trigger-db`'s password is `TRIGGER_DB_PASSWORD`. A
+new volume takes it at its first initialisation, and on a volume that exists
+`--rotate --with-trigger-stores` sets the role; the bring-up's `trigger` phase
+sets the role to `.env`'s value on every run. Until the owner has run the
+rotation on the OTA stack, `ensure-env-secrets.sh` does not generate the key
+and the bring-up does not refuse it (`stand-up-live.sh` generates it for
+live's new volume); workplan 0132 T2 step B changes that after the run.
 
 ### `whoami` says nothing about whether you are logged in
 

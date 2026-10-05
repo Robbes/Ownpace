@@ -168,12 +168,16 @@ services:
       POSTGRES_USER: trigger
       # From .env (workplan 0132 T2), and only at this volume's first
       # initialisation: Postgres keeps the password a role was created with.
-      # The fallback is the literal every stack used before, and it has to
-      # stay: the OTA stack's trigger_db_data was initialised with it, and any
-      # other value would lock its trigger-api out at the next gate run. So
-      # ensure-env-secrets.sh never writes this key; stand-up-live.sh sets it
-      # on live, before live's volume exists. Hex, or another value safe in a
-      # URL: it is part of trigger-api's DATABASE_URL below.
+      # The fallback is the literal every stack used before: the OTA stack's
+      # trigger_db_data was initialised with it, and it stays until the owner
+      # has changed it there (0132 T2, step B drops it). ensure-env-secrets.sh
+      # never writes this key; stand-up-live.sh sets it on live, before live's
+      # volume exists. On a volume that exists, rotate-db-passwords.sh --rotate
+      # --with-trigger-stores sets the role and .env together, and the
+      # bring-up's trigger phase sets the role to .env's value on every run,
+      # before it brings trigger-api up with that value.
+      # Hex, or another value safe in a URL: it is part of trigger-api's
+      # DATABASE_URL below.
       POSTGRES_PASSWORD: ${TRIGGER_DB_PASSWORD:-trigger_password}
       POSTGRES_DB: triggerdb
     volumes:

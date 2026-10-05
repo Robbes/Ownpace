@@ -4,10 +4,133 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
-**2026-10-05, latest: the OTA stack's passwords changed by the owner, and T2's code built
-without `trigger-db`** (audit item 7, *default passwords*), on branch
-`claude/ownpace-public-readiness-y7orc6-a-password-the-repository-knows`, not merged. The E2E
-(managed) run the owner's rotation dispatched was green (#237, 2026-10-05); it merges on green CI.
+**2026-10-05, latest: T2 step A built: the rotation changes `trigger-db`'s password too, the
+check counts its published value, and the bring-up holds its role to `.env`**, on branch
+`claude/ownpace-public-readiness-y7orc6-the-tasks-database-rotates`, not merged. Step B follows
+the owner's run of it on the OTA stack.
+
+- **The choice: under `--with-trigger-stores`, not on every `--rotate`.** The flag is named for
+  Trigger.dev's stores, and `--check` already listed `trigger-db` among them with ClickHouse and
+  MinIO. The three have one client, `trigger-api`, and take a new value when it is recreated.
+  Every pointer the repository prints already names `--rotate --with-trigger-stores`: the check's
+  hint, `ensure-env-secrets.sh`, the bring-up's refusal and the procedure's step 2. So step B
+  needs no new advice. Plain `--rotate` keeps what it did: the app's two roles, and nothing asked
+  of `trigger-db`, so it does not start refusing a stack whose Trigger.dev plane is down. The
+  cost: the owner's run changes ClickHouse's and MinIO's values once more, and the E2E run it
+  dispatches takes them up, as #237 did.
+- **`--check`** asks `trigger-db`'s role `trigger` over the stack's network, as `trigger-api`
+  asks it. A control first: `.env`'s `TRIGGER_DB_PASSWORD` as Compose reads it, `managed.yml`'s
+  fallback when it is empty. Then the fallback, counted like the others. On the OTA stack it
+  should exit 1, with that line the only `OPENS` and the hint `--rotate --with-trigger-stores`;
+  nothing has run it there yet. A
+  `trigger-db` on a value nobody published is left alone: its control opens, the fallback is
+  refused, and the check exits 0. A refused control is "not established" (2) and points to
+  `--sync --with-trigger-stores`. Nothing automated runs `--check`: no workflow and no script
+  calls the rotation.
+- **`--rotate --with-trigger-stores`** also refuses, before the prompt, a `trigger-db` that is
+  not healthy or whose control is refused. It generates `TRIGGER_DB_PASSWORD` with the other
+  four and writes it in the same `env-upsert.sh --from-env` call; the OTA stack's `.env` has no
+  line for it, so the key is added. After the two roles are proven it sets `trigger` over
+  `trigger-db`'s own socket, as that superuser, the way `db_roles_set` sets the two
+  (`db-roles.sh`, `db_roles_trigger_set`): the value goes by name, and psql reads it inside the
+  container. Then it proves the new value over the network, and checks that the fallback is
+  refused. `trigger-api` is the one client (`DATABASE_URL`, `DIRECT_URL`); the supervisor, the
+  task runners and the tasks never connect to `trigger-db`. The E2E (managed) run the script
+  dispatches recreates `trigger-db` and `trigger-api` from the new `.env` in its trigger phase.
+- **Kept out of the log.** `trigger-db` runs the image's defaults: no `command:`, no
+  `pg_stat_statements`. The statement carries `db_roles_set`'s four session settings. It was run
+  against two throwaway Postgres 16 servers with `log_statement = all` and
+  `log_min_error_statement = error`, one of them with `pg_stat_statements` preloaded and
+  `track_utility` on. The role took the new value and opened with it over TCP. A failing ALTER
+  logged its error and not its statement. Neither the value nor the ALTER reached the log or the
+  statistics. Without the module, the `track_utility` line makes a placeholder and does not fail.
+- **Putting back.** Once `trigger-db`'s ALTER has been sent, a failure or an interrupt sets
+  `trigger` back to the old `.env`'s value (on the OTA stack, the fallback) and proves it, with
+  the two roles. If that does not complete, the kept copy stays and the second step it prints is
+  `--sync --with-trigger-stores`, which this adds: with the flag, `--sync` also sets `trigger` to
+  `.env`'s value. Plain `--sync`, `seed-managed.sh`'s remedy, is unchanged.
+- **Live stays as it is.** `stand-up-live.sh` generates `TRIGGER_DB_PASSWORD` for live's new
+  `trigger_db_data`, so live's `--check` will find the fallback refused once live stands.
+  `--sync` and `--rotate` refuse live, with the flag or without it.
+- **Docs.** `docs/managed-bring-up.md` (phase 2, *Rotating a secret*, the three modes, the
+  procedure's steps 1, 3 and 4, the closing note), `docs/operator-runbook.md`,
+  `docs/rls-guide.md`, the script's `--help`, and the comments in `shipped-passwords.sh`,
+  `bootstrap-managed.sh`, `ensure-env-secrets.sh`, `managed.yml` and `managed.env.example`.
+- **Proved, guards first.** `scripts/rotate-db-passwords.unit.test.ts` grew from 39 to 52 cases: 14
+  new, one gone (the `trigger-db` line that waited for this code), and six changed with it. Run
+  against `main` as it was (`5e2e32eb`), with `a-password-the-repository-knows` beside it, 15 of 119
+  failed, each for its own reason; the 104 that passed are the ones that must hold before and after.
+  After: 119 of 119. The `docker` stub now answers `compose exec trigger-db psql`: it wants the four
+  settings and one transaction, takes the value only from the variable it was given by name, keeps
+  `trigger`'s password, and records every argv and stdin. No value is in any of them or in the
+  output. 29 mutations, each undoing one part, each turned it red (1 to 8 cases): the fallback not
+  counted, no control, the control asking the fallback, the key left out of the flag, the value on
+  docker's argv or in the SQL, the settings dropped, no putting back, the mark set after the ALTER,
+  no ALTER, no proof, the fallback not asked after, plain `--rotate` changing it, no health check,
+  the putting back to the fallback instead of the old `.env`'s value, the wrong step printed,
+  `--sync` setting nothing, `stand-up-live.sh` not generating the key, `env-upsert.sh` not given the
+  value, an empty value set, `DIRECT_URL` on the literal, the trigger phase without `trigger-api`,
+  and the three table rows of the procedure. One survived the first guard: the `--rotate` row losing
+  `TRIGGER_DB_PASSWORD`, because the guard found the key anywhere after the flag in the section. It
+  now reads each mode's row. Docker is not on the machine that built this, so no real stack has run
+  it: the owner's run is the first.
+- **The owner's run, on the OTA stack**, from `~/ownpace-managed`, after that night's gate has
+  finished and with nothing queued in E2E (managed), once this is merged. First `git pull` there:
+  that checkout is pulled by hand, and an older script changes ClickHouse's and MinIO's values and
+  leaves `trigger-db` alone. `./deploy/compose/rotate-db-passwords.sh --help` must list
+  `--sync [--with-trigger-stores]`, which no older script does. Then
+  `./deploy/compose/rotate-db-passwords.sh --check` exits 1, with `trigger-db`'s fallback the only
+  `OPENS`. Then `./deploy/compose/rotate-db-passwords.sh --rotate --with-trigger-stores`, typing
+  `ownpace-managed` when asked. The E2E (managed) run it dispatches (or one dispatched on `main`
+  by hand, when `gh` is not signed in) must be green. Then `--check` again exits 0. The record
+  for T0: *"<date>: the OTA stack's database passwords changed, trigger-db's with them; the
+  shipped values refused."*
+- **Review fixes, the same day.** Every finding of the review that held is fixed here.
+  - **The gate did not hold `trigger-db`'s role to `.env`.** The data phase sets the two roles
+    on every run; nothing set `trigger-db`'s. A rotation whose putting back could not reach
+    `trigger-db`, or a gate run that started during a rotation and copied an older `.env` back,
+    left the role and `.env` apart, and every later gate run would fail at `trigger-api`'s
+    migration. Now the trigger phase brings `trigger-db` up on its own, sets `trigger` to `.env`'s
+    value with `db_roles_trigger_set` (the function `--sync --with-trigger-stores` uses), proves it
+    over the network, and only then brings `trigger-api` up. On the OTA stack before the owner's
+    run it sets the fallback, which the role holds already; on live, the value the stand-up
+    generated. A value a URL does not carry, a failed set and a refusal stop the phase before
+    `trigger-api` starts. It also means the gate runs that statement on the real stack every
+    night before the owner's run does.
+  - **Guards that let a defect through.** The stubs held the four settings and `BEGIN` present,
+    not before the statement, and did not ask for `-v ON_ERROR_STOP=1`; a run on throwaway
+    Postgres 16 showed the review that the wrong order logs the password on a failed ALTER. Both
+    `docker` stubs now refuse either. New cases: the fallback still opening after the ALTER, the
+    fallback or the new value that cannot be asked, a question at `--check` that cannot be asked,
+    `--sync --with-trigger-stores` refused, failing or facing an unhealthy `trigger-db`, a plain
+    `--rotate` that fails with `trigger-db` down, and a write of `.env` that stops halfway.
+  - **Docs.** The procedure begins with `git pull`, step 1 says every control must open, step 2
+    names `trigger-api`'s own window, and the closing note no longer says nothing generates the
+    key (`stand-up-live.sh` does, for live). The comments that said a new value in `.env` would
+    lock `trigger-api` out now say what the trigger phase does. `--help`'s synopsis has its
+    glosses back.
+  - **Proved, guards first.** `rotate-db-passwords.unit.test.ts` has 61 cases (9 new) and
+    `a-password-the-repository-knows` 72 (5 new). Run against the branch's code and docs as the
+    review found them (`0bc60614`), 7 of 133 failed: the trigger phase's five cases, the guard on
+    its order, and the procedure's steps 1 and 2. After: 133 of 133. 21 mutations, each undoing
+    one part, all turned them red (1 to 20 cases). 15 of those had passed all 52 cases of the
+    branch's guards: the settings after the ALTER and no `ON_ERROR_STOP`, for both databases; the
+    fallback's `OPENS` or its unasked question not counted after the ALTER; an unasked question
+    taken as proof; `--check`'s two unasked questions dropped; `--sync` ignoring `trigger-db`'s
+    proof, its failed set, or its health; `trigger-db` marked touched from the start or at the
+    write; and the write marked after the read-back. The other six undo the trigger phase: no
+    set, the set after `trigger-api`, no proof, no URL check, an empty fallback, a failed set
+    ignored. No real stack has run any of it.
+- **Step B, after that run, not in this change.** `TRIGGER_DB_PASSWORD trigger_db_data` joins
+  `SHIPPED_PASSWORD_KEYS`, so the bring-up refuses the fallback on a real address and
+  `ensure-env-secrets.sh` generates the key while the volume is new. `managed.yml`'s three
+  carriers lose the fallback. The cases in `a-password-the-repository-knows` that hold the key
+  apart change with it.
+
+**2026-10-05, earlier: the OTA stack's passwords changed by the owner, and T2's code without
+`trigger-db`** (audit item 7, *default passwords*): ✅ merged in #1504 on 2026-10-05
+(`5e2e32eb`), from branch `claude/ownpace-public-readiness-y7orc6-a-password-the-repository-knows`.
+The E2E (managed) run the owner's rotation dispatched was green (#237, 2026-10-05).
 
 - **T0 step 2, the owner's, 2026-10-05.** On the OTA stack: `rotate-db-passwords.sh --check`
   opened three shipped values (`app_user` on the migration's default, ClickHouse and MinIO on
@@ -15,7 +138,8 @@ without `trigger-db`** (audit item 7, *default passwords*), on branch
   `APP_DB_PASSWORD`, `POSTGRES_PASSWORD`, `CLICKHOUSE_PASSWORD` and `MINIO_ROOT_PASSWORD` to the
   persisted `.env`, set the roles `app_user` and `openmigrate`, and dispatched one E2E (managed)
   run to recreate the containers. `--check` again: *"both controls open, and no shipped value
-  opens anything asked"*. `trigger-db`'s literal still opens, and the check does not count it.
+  opens anything asked"*. `trigger-db`'s literal still opens, and the check did not count it then
+  (it does since step A, above).
   The record: *"2026-10-05: the OTA stack's database passwords changed; the shipped values
   refused."* That run, E2E (managed) #237, was green the same day.
 - **The scope: `trigger-db` is split off** (the session's call, to keep the nightly gate running).
@@ -24,8 +148,9 @@ without `trigger-db`** (audit item 7, *default passwords*), on branch
   would lock `trigger-api` out of its own database. So `TRIGGER_DB_PASSWORD` stays optional, with
   the literal as its fallback, as #1309 left it, and nothing here refuses or writes it. **Next
   step:** `rotate-db-passwords.sh` learns `trigger-db` (ALTER over its socket, `trigger-api`
-  recreated), the owner runs it once on the OTA stack, and then the key is required, generated by
-  `ensure-env-secrets.sh` and refused on a real address like the four.
+  recreated): step A, built (above). The owner runs it once on the OTA stack. Then step B: the
+  key is required, generated by `ensure-env-secrets.sh` and refused on a real address like the
+  four.
 - **One list.** `deploy/compose/shipped-passwords.sh` names the values once: the three Postgres
   values, ClickHouse's two and MinIO's two that `--check` tries, and `trigger-db`'s literal, with
   the four keys and the volume that keeps each. `rotate-db-passwords.sh`, `bootstrap-managed.sh`,
@@ -1820,19 +1945,19 @@ conflicted: both new entries kept. Nothing has run on the machine, and live does
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The steps on the reference machine, before the first invitation | ⏳ **Owner**; step 2 ✅ **done by the owner 2026-10-05**: *"2026-10-05: the OTA stack's database passwords changed; the shipped values refused."* | §3. In order: T1 in place, the OTA stack's passwords changed, live stood up without the demo (its database passwords set by the owner, D8), the production names routed, the checks run (live's networks among them, D9), the exposure probe from off the mesh. The outcome is written in this block. |
+| T0 The steps on the reference machine, before the first invitation | ⏳ **Owner**; step 2 ✅ **done by the owner 2026-10-05**: *"2026-10-05: the OTA stack's database passwords changed; the shipped values refused."*; step 2's `trigger-db` part ⏳ the owner's run of T2 step A once it is merged (`git pull`, then `rotate-db-passwords.sh --rotate --with-trigger-stores`), whose record is *"<date>: the OTA stack's database passwords changed, trigger-db's with them; the shipped values refused."* | §3. In order: T1 in place, the OTA stack's passwords changed, live stood up without the demo (its database passwords set by the owner, D8), the production names routed, the checks run (live's networks among them, D9), the exposure probe from off the mesh. The outcome is written in this block. |
 | T1 Container names, networks and scripts take the stack from the project name | ✅ **done** in #1233, merged 2026-09-27 (`8272c483`) — *was:* 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-stack-named-by-its-project`, not merged** (2026-09-27); 📋 Decided 2026-09-24 (D7, D9) | §3. **The first task; nothing below can start before it.** 17 fixed `container_name` values, one network literal in `managed.yml` (`DOCKER_RUNNER_NETWORKS`, the network task runs join), `ownpace-db` in 7 scripts, `trigger-api` in 8 and the project name in 9, and `ownpace-managed_` volume or network names on 13 lines in six files (that network literal and `reset-trigger.sh`'s volume among them). Compose's own two networks already follow the project (D9). A guard fails on a fixed stack name and on any hard-coded `ownpace-managed_` name. The old options A, B and C are ⛔ superseded and kept in §3. |
-| T1b `ownpace-live`: its own checkout, `.env` and ports, and no demo | 🔨 **The stand-up script built** on branch `claude/ownpace-public-readiness-y7orc6-a-first-bring-up-of-live`, not merged (2026-09-28): `deploy/compose/stand-up-live.sh`, T1b to T1e's first bring-up; the stand-up itself ⏳ the owner's, from 0146 T0's tag cut after the merge — *was:* 📋 **Decided 2026-09-24** (D7, D8) | §3. `~/.persistent/ownpace-live/.env`, fresh secrets from its first bring-up, its own `*_PORT` values (`MAILPIT_PORT` among them), never `--with-demo`. The four database passwords and `TRIGGER_DB_PASSWORD` are set before the first bring-up (D8): by the owner, or generated on the machine by the stand-up script, which keeps what the owner set. *2026-10-05: T2's code (this branch) makes `ensure-env-secrets.sh` generate the four while their volumes are new; it still never writes `TRIGGER_DB_PASSWORD`.* |
-| T1c Its own Trigger.dev plane | 🔨 **Its steps built into the stand-up script** on branch `claude/ownpace-public-readiness-y7orc6-a-first-bring-up-of-live`, not merged (2026-09-28): the refusals of a shared port, profile or API origin, and the two stops; the account, organisation and project are the owner's, at the stand-up — *was:* 📋 **Decided 2026-09-24** (D7) | §3. Its own account, organisation and project, CLI profile, access token and `REGISTRY_PORT`. Never the OTA plane, which the nightly gate restarts. |
-| T1d Its own identity provider at `id.ownpace.eu` | 🔨 **Checked by the stand-up script** on branch `claude/ownpace-public-readiness-y7orc6-a-first-bring-up-of-live`, not merged (2026-09-28): it refuses a provider not at `id.ownpace.eu` on 443, secure, TLS ended in front, and asks the issuer after the bring-up; the provider comes up at the stand-up — *was:* 📋 **Decided 2026-09-24** (D7) | §3. Its own masterkey and mail relay (0133). The web image is built with live's issuer, which is a build-time value. |
+| T1b `ownpace-live`: its own checkout, `.env` and ports, and no demo | ✅ **The stand-up script merged** in #1309 on 2026-09-28 (`4991094a`): `deploy/compose/stand-up-live.sh`, T1b to T1e's first bring-up; the stand-up itself ⏳ the owner's, from 0146 T0's tag — *was:* 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-first-bring-up-of-live`, not merged (2026-09-28); *earlier:* 📋 **Decided 2026-09-24** (D7, D8) | §3. `~/.persistent/ownpace-live/.env`, fresh secrets from its first bring-up, its own `*_PORT` values (`MAILPIT_PORT` among them), never `--with-demo`. The four database passwords and `TRIGGER_DB_PASSWORD` are set before the first bring-up (D8): by the owner, or generated on the machine by the stand-up script, which keeps what the owner set. *2026-10-05: T2's code (#1504, merged 2026-10-05) makes `ensure-env-secrets.sh` generate the four while their volumes are new; it still never writes `TRIGGER_DB_PASSWORD`.* |
+| T1c Its own Trigger.dev plane | ✅ **Its steps in the stand-up script**, merged in #1309 on 2026-09-28 (`4991094a`) — *was:* 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-first-bring-up-of-live`, not merged (2026-09-28): the refusals of a shared port, profile or API origin, and the two stops; the account, organisation and project are the owner's, at the stand-up; *earlier:* 📋 **Decided 2026-09-24** (D7) | §3. Its own account, organisation and project, CLI profile, access token and `REGISTRY_PORT`. Never the OTA plane, which the nightly gate restarts. |
+| T1d Its own identity provider at `id.ownpace.eu` | ✅ **Checked by the stand-up script**, merged in #1309 on 2026-09-28 (`4991094a`) — *was:* 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-first-bring-up-of-live`, not merged (2026-09-28): it refuses a provider not at `id.ownpace.eu` on 443, secure, TLS ended in front, and asks the issuer after the bring-up; the provider comes up at the stand-up; *earlier:* 📋 **Decided 2026-09-24** (D7) | §3. Its own masterkey and mail relay (0133). The web image is built with live's issuer, which is a build-time value. |
 | T1e The production names routed to live | ⏳ **Owner** (D7), and now **before** the bring-up (2026-09-28): it reaches `id.ownpace.eu` by its name, and the stand-up script refuses while the three names do not resolve from the machine — *was:* ⏳ **Owner** (D7), after live was stood up (T0 step 4) | §3. NetBird routes from `app.ownpace.eu`, `id.ownpace.eu` and `status.ownpace.eu` to live's ports, and from `www.ownpace.eu` to live's `WWW_PORT` once live serves the site (0139 T10). This answers 0091 T4. |
 | T1f Every port that need not be reachable bound to 127.0.0.1, in both stacks | ✅ **done** in #1236, merged 2026-09-27 (`528d1308`), with T3 (a); the task build's way to the API on loopback followed in #1253 (`5ee41045`) — *was:* 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27), with T3 (a); 📋 **Decided 2026-09-24** (D7) | §3, T3. Containers reach ports the host publishes through the Docker gateway, so each stack can reach the other's. **Merge precondition in the Status block: the OTA stack's binds are set first, and the site is recreated by hand after.** |
 | T1g Live is deployed by hand from a tag; CI never touches it | The code half ✅ **done** in #1265, merged 2026-09-28 (`c292fffb`); live's own deploys are T6 (a) — *was:* 🔨 the code half built on branch `claude/ownpace-public-readiness-y7orc6-a-gate-that-leaves-the-alpha-alone`, not merged (2026-09-27); 📋 **Decided 2026-09-24** (D7); the code 📋 **Proposed** | §3. The OTA stack keeps following `main` nightly. The procedure is T6; tags are 0146's. The marker's name, `STACK_KIND=production`, is defined once in `deploy/compose/stack-kind.sh` (2026-09-27, with 0143 T9's script), and this task's refusals source it. Built: the gate's refusal (`refuse-live-env.sh`, in the restore, before its first copy), the reader's refusal of live's marker on the OTA project, and the runbook's and release checklist's wording; the Status block says how. |
-| T2 Database passwords the repository does not contain | The bring-up's code, (b) and the refusals of shipped values, for the four keys, 🔨 **built** on branch `claude/ownpace-public-readiness-y7orc6-a-password-the-repository-knows`, not merged (2026-10-05); the E2E (managed) run the owner's rotation dispatched was green (#237). The OTA stack's change (T0 step 2) ✅ **done by the owner 2026-10-05**. The rotation script ✅ **done** in #1307, merged 2026-09-28 (`83eb73ed`). The `trigger-db` first half ✅ **done** in #1309, merged 2026-09-28 (`4991094a`): `TRIGGER_DB_PASSWORD`, falling back to today's literal. The `trigger-db` second half ⏳ **split off 2026-10-05** (the session's call, to keep the gate running): the rotation learns it, the owner runs it once, then it is required and refused like the four — *was:* the code 📋 **Proposed**; 🔨 the `trigger-db` part built on branch `claude/ownpace-public-readiness-y7orc6-a-first-bring-up-of-live` (2026-09-28); 📋 **Decided 2026-09-24** (D2, D3) on the machine | §3. The OTA stack's roles held the shipped values until the owner changed them on 2026-10-05 (T0 step 2), with `ALTER ROLE`, because `.env` does not reach a role that already exists. On live the owner sets them in its `.env` before its first bring-up (D8, T1b). The bring-up sets the roles from `.env`, and refuses shipped values on a real address. |
+| T2 Database passwords the repository does not contain | The `trigger-db` second half, step A (the rotation learns it, `--with-trigger-stores`, and the bring-up's trigger phase holds its role to `.env`), 🔨 **built** on branch `claude/ownpace-public-readiness-y7orc6-the-tasks-database-rotates`, not merged (2026-10-05); then the owner's run of it on the OTA stack ⏳; then step B ⏳ (the key required, generated while `trigger_db_data` is new, and refused on a real address like the four). The bring-up's code, (b) and the refusals of shipped values, for the four keys, ✅ **done** in #1504, merged 2026-10-05 (`5e2e32eb`); the E2E (managed) run the owner's rotation dispatched was green (#237). The OTA stack's change (T0 step 2) ✅ **done by the owner 2026-10-05**. The rotation script ✅ **done** in #1307, merged 2026-09-28 (`83eb73ed`). The `trigger-db` first half ✅ **done** in #1309, merged 2026-09-28 (`4991094a`): `TRIGGER_DB_PASSWORD`, falling back to today's literal — *was:* the bring-up's code 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-password-the-repository-knows`, not merged (2026-10-05); the `trigger-db` second half ⏳ split off 2026-10-05 (the session's call, to keep the gate running); the code 📋 **Proposed**; 🔨 the `trigger-db` part built on branch `claude/ownpace-public-readiness-y7orc6-a-first-bring-up-of-live` (2026-09-28); 📋 **Decided 2026-09-24** (D2, D3) on the machine | §3. The OTA stack's roles held the shipped values until the owner changed them on 2026-10-05 (T0 step 2), with `ALTER ROLE`, because `.env` does not reach a role that already exists. On live the owner sets them in its `.env` before its first bring-up (D8, T1b). The bring-up sets the roles from `.env`, and refuses shipped values on a real address. |
 | T3 "Not reachable from the internet", checked | (b) the exposure check and (c) the outside probe ✅ **done** in #1271, merged 2026-09-28 (`6088f469`), not yet run on the machine or dispatched; (a) the binds ✅ **done** in #1236, merged 2026-09-27, with #1253; (d) the path a tester's request takes 🔨 **its code half built** on branch `claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird`, not merged (2026-09-28, review fixes 2026-09-29): live's `TRUST_PROXY=2` (the stand-up takes 2 or 3 and nothing else), both nginx logs record the address NetBird passes on, the gate's public log filters it out, and the check *one log line of each on live* written, its lines read apart; the check itself waits for live to stand (T1b to T1e); (c) asks the four names for NetBird's sign-in on the same branch (0139, item 8) — *was:* (d) 📋 **Proposed**, waits for live to stand (T1b to T1e); *earlier:* (b) and (c) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-port-nobody-meant-to-open`, not merged (2026-09-28); 📋 **Proposed** (D2, D4, D7); (a) the binds 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. Before the first check and probe the owner sets `EXPOSURE_ALLOW` in each stack's `.env` to every address any container on the machine is published on (both stacks' `*_BIND` values, the site's `WWW_BIND`, the demo's `STALWART_BIND`; commas, no space), and the repository variable `EXPOSURE_PROBE_LIVE_PORTS`. |
 | T4 A stack that does not say it is production does not start | 🔨 **Built** on branch `claude/ownpace-public-readiness-y7orc6-a-stack-that-names-its-mode`, not merged (2026-10-04); 📋 **Decided 2026-10-04** by the owner: every stack names its mode, the OTA stack runs *"Development, said explicitly"*, and a live `.env` without `ALERT_ENABLED=true` is refused (*"Refuse to deploy"*, 0142 T0); rejected: *"Production on both"* (the first proposal), *"Warn only"*, *"Leave as is"* — *was:* 📋 **Proposed** (production on both) | §3. `managed.yml` takes `${NODE_ENV:?…}`, no default. The example keeps `production`. The gate writes `development` into the OTA stack's `.env` when it gives no value, before its backfill. `stand-up-live.sh` and `deploy-live.sh` refuse a live `.env` whose `NODE_ENV` is not `production` or whose `ALERT_ENABLED` is not `true`, and a line either does not read; `deploy-live.sh` also asks the api container. |
 | T4b An issuer without an audience does not start (added 2026-10-04; no workplan owned it) | 🔨 **Built** on branch `claude/ownpace-public-readiness-y7orc6-a-stack-that-names-its-mode`, not merged (2026-10-04); stated in the plan, no owner decision needed | §3. The API refuses to start when `JWT_ISSUER` is set and `JWT_AUDIENCE` is empty, on every stack and whatever `NODE_ENV` says, and its verifier never passes an empty audience. Both stacks get `JWT_AUDIENCE` from `setup-zitadel.sh`, so nothing changes there. |
-| T5 No demo in the alpha, and the values that left the machine replaced | ✅ **Closed for live 2026-09-24** (D7), and the refusal of `--with-demo` on live 🔨 **built** on branch `claude/ownpace-public-readiness-y7orc6-a-first-bring-up-of-live`, not merged (2026-09-28); 🅿️ **Parked for the OTA stack (trigger: 0026 row 24's own, the OTA stack stops being a demo)** — *was:* the refusal 📋 **Proposed** | §3 and §4. Live never had the demo or its values, so there is nothing to replace. `bootstrap-managed.sh` refuses `--with-demo` on a `.env` that is, or could be, live's (`stack_may_be_live`). Routes (a) and (b) are kept for the OTA stack. |
+| T5 No demo in the alpha, and the values that left the machine replaced | ✅ **Closed for live 2026-09-24** (D7), and the refusal of `--with-demo` on live ✅ **done** in #1309, merged 2026-09-28 (`4991094a`) (*was:* 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-first-bring-up-of-live`, not merged); 🅿️ **Parked for the OTA stack (trigger: 0026 row 24's own, the OTA stack stops being a demo)** — *was:* the refusal 📋 **Proposed** | §3 and §4. Live never had the demo or its values, so there is nothing to replace. `bootstrap-managed.sh` refuses `--with-demo` on a `.env` that is, or could be, live's (`stack_may_be_live`). Routes (a) and (b) are kept for the OTA stack. |
 | T6 One way to deploy live, from a tag | Step 4, the copy before the update, 🔨 **built 2026-09-28** into `deploy-live.sh` with `copy-before-update.sh` (0139, rec-copies (a)), review fixes 2026-09-29 (a tag without the scripts live is kept by refused, the rollback's `since`), on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, **not merged**; (a) `deploy-live.sh` ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), with 0146 T5 (a), not yet run on live; (b) ✅ **done** in #1232, merged 2026-09-27: every enqueue in the API goes through one function that answers 409 with the hold's sentence; the three web gaps (b) left ✅ **done** in #1284, merged 2026-09-28 (`f7a7a270`). The procedure's steps on the machine are the owner's, once live stands (T1b) and 0146 has cut a release tag — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); (b) ✅ **done** in #1232, merged 2026-09-27; the procedure and (a), `deploy-live.sh`, 📋 **Proposed** (D1, D5, D7) | §3. Hold, drain, a tag, bring-up without the demo, checks, lift. Replaces three procedures that disagree. With 0146. (a) is the deploy script, (b) the hold at every door. The Status block (2026-09-28) says how (a) was built. |
 | T7 What the gate does for the OTA stack, done for live | The drill off live, its duty replaced by the copy's backstop `copies`, 🔨 **built 2026-09-28** (0139, rec-drill (a)), review fixes 2026-09-29 (6 days less an hour, each file by its own age), on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, **not merged**; ✅ **done** in #1276, merged 2026-09-28 (`b2e63ab0`): `box-duties.sh`, `setup-zitadel.sh --token-only` and `--count-organisations`, and a user timer in the bring-up; waits for live to stand (T1b to T1e, from 0146 T0's tag) and for the owner to install the timer — *was:* 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-duty-the-gate-used-to-do`, not merged (2026-09-28); 📋 **Proposed**, with T1b | §3. The identity provider's provisioning token, the Trigger.dev database drill (until 2026-09-28; since then the copy's backstop, 0139), T3's check and 0135's organisation count, on a timer on the machine, for live. |
 | T8 The gate gets a stack of its own on the same machine | ⛔ **Superseded 2026-09-24** by D7 | §3. The second stack is live, not the gate's. Its parts moved to T1, T1b and 0143. |
@@ -1997,13 +2122,13 @@ sentence that every port not marked loopback is published on every interface, an
 - `ensure-env-secrets.sh` generates `JWT_SECRET`, `SECRET_ENCRYPTION_KEY`, the five Trigger.dev
   secrets, `PGBOUNCER_AUTH_PASSWORD` and the identity provider's three values. It does not
   generate `POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `CLICKHOUSE_PASSWORD` or
-  `MINIO_ROOT_PASSWORD`. *2026-10-05: T2's code (this branch) makes it generate the four while
-  their volumes are new.*
+  `MINIO_ROOT_PASSWORD`. *2026-10-05: T2's code (#1504, merged 2026-10-05) makes it generate
+  the four while their volumes are new.*
 - `bootstrap-managed.sh` notes shipped values but does not refuse them: *"Left as shipped they
   are not broken — a localhost-only demo box works — so this reports rather than refuses."* The
-  note is in the `env` phase, which the gate's `--from data` skips. *2026-10-05: T2's code (this
-  branch) refuses them on a real address in every phase from `data` on, and notes them on
-  localhost.*
+  note is in the `env` phase, which the gate's `--from data` skips. *2026-10-05: T2's code
+  (#1504, merged 2026-10-05) refuses them on a real address in every phase from `data` on, and
+  notes them on localhost.*
 - Row security keys on a setting the session sets itself (`current_setting('app.current_tenant')`).
   So anyone who logs in directly as `app_user` can read any tenant's rows by setting it. The owner
   role is a superuser and bypasses row security altogether.
@@ -2135,8 +2260,8 @@ now, through one function, T6 (b); see the Status block.)*
     compose's defaults when a key is empty. `trigger-db`'s password is a literal in `managed.yml`,
     `POSTGRES_PASSWORD: trigger_password`, so no `.env` reaches it until T2's code makes it
     `TRIGGER_DB_PASSWORD`. *2026-10-05: the example ships the four empty and `ensure-env-secrets.sh`
-    generates them while their volumes are new (T2's code, this branch); `TRIGGER_DB_PASSWORD`
-    exists since #1309.*
+    generates them while their volumes are new (T2's code, #1504, merged 2026-10-05);
+    `TRIGGER_DB_PASSWORD` exists since #1309.*
   - The first answer is about the Google client's redirect URIs, and ends *"I'll need to add one
     for app.ownpace.eu or create a new oauth-client"*. It is 0140's: its T11 answers it with a new
     client for live, carrying live's consent address, and live's sign-in address only if 0140 T10
@@ -2186,7 +2311,9 @@ switching the gate off. D7 drops it: the gate keeps running, on the OTA stack.)
    and `openmigrate`, and dispatched one E2E (managed) run to recreate the containers. `--check`
    again: "both controls open, and no shipped value opens anything asked". `trigger-db`'s literal
    still opens, uncounted: T2's split-off second half. That E2E run, #237, was green the same
-   day.*
+   day. Step A of that half (2026-10-05, not merged) counts the literal and changes it with
+   `--rotate --with-trigger-stores`; the owner's run of it here is the next step, and step B
+   follows.*
 3. **Stand live up (T1b to T1d)**: its checkout at a tag, its `.env`, its ports, its database
    passwords set in that `.env` before the first bring-up (D8), the bring-up without the demo, the
    one human step on its own Trigger.dev dashboard, its identity provider at `id.ownpace.eu`, and
@@ -2454,12 +2581,12 @@ question 2. D7 answers it again: the gate is not paused; it keeps the OTA stack.
      `APP_DB_PASSWORD`, `CLICKHOUSE_PASSWORD` or `MINIO_ROOT_PASSWORD` (§1). The owner sets those
      four, and `POSTGRES_USER`, in `~/.persistent/ownpace-live/.env` before the `data` phase. The
      owner's words: *"ill set them in .env for the ownpace-live before bringup"*.
-     *2026-10-05: T2's code (this branch) makes the `env` phase generate the four while their
-     volumes are new. A value the owner sets is kept.*
+     *2026-10-05: T2's code (#1504, merged 2026-10-05) makes the `env` phase generate the four
+     while their volumes are new. A value the owner sets is kept.*
    - **The step is not optional.** Seeded from the example (step 2), the file holds `change-me-…`
      values and `APP_DB_PASSWORD=app_password` until the owner replaces them. An empty key falls
      back to compose's default. *2026-10-05: the example ships the four empty, and the `env` phase
-     generates them (T2's code, this branch).*
+     generates them (T2's code, #1504, merged 2026-10-05).*
    - **How to set them.** The form T2's step 3 uses, `openssl rand -hex 24` written with
      `env-upsert.sh`, generates each value on the machine, so no value is typed, pasted or printed.
      It takes all four in one call.
@@ -2711,7 +2838,7 @@ code below (2026-09-28); on the OTA stack it is still the literal, which its vol
 Live's first bring-up gives it a new volume, and a new volume is where a new password costs
 nothing (T1b).
 
-**The code (built 2026-10-05 on branch `claude/ownpace-public-readiness-y7orc6-a-password-the-repository-knows`, not merged; trigger-db split off).** The Status
+**The code (✅ merged in #1504 on 2026-10-05, `5e2e32eb`; trigger-db split off, its step A built the same day, not merged).** The Status
 block's entry of that date says what proved it. Where it departs from the proposal below, the
 bullet says so.
 
@@ -2753,9 +2880,11 @@ bullet says so.
   script refuses and points to these steps, the way it handles `TRIGGER_ENCRYPTION_KEY`, because
   Postgres keeps the password it was initialised with.
 - **`trigger-db`'s password becomes `TRIGGER_DB_PASSWORD`**, and it is required. *The second
-  half is split off (2026-10-05) and is the next step: `rotate-db-passwords.sh` learns
-  `trigger-db`, the owner runs it once on the OTA stack, and then the key is required, generated
-  and refused like the four.* **Built
+  half is split off (2026-10-05). Step A, built the same day on branch
+  `claude/ownpace-public-readiness-y7orc6-the-tasks-database-rotates` (not merged):
+  `rotate-db-passwords.sh --rotate --with-trigger-stores` sets `trigger-db`'s role, and `--check`
+  counts its literal. The owner runs it once on the OTA stack. Step B follows that run: the key
+  is required, generated and refused like the four.* **Built
   2026-09-28, the first half** (#1309, merged 2026-09-28): `trigger-db`'s `POSTGRES_PASSWORD` and `trigger-api`'s `DATABASE_URL` and
   `DIRECT_URL` read it, with today's literal as the fallback, because the OTA stack's volume keeps
   that literal and anything else would lock its `trigger-api` out at the next gate run.
@@ -3315,7 +3444,8 @@ Live's own values, generated or set by the owner (D8), are in none of the first 
 they stay out of them as long as its `.env` never reaches a runner (T1g), its runner logs are never
 pasted, and its task environment is never printed into a public log. Only `trigger-db`'s literal
 was in the first kind: since #1309 the stand-up sets `TRIGGER_DB_PASSWORD` on live's new volume.
-The OTA stack keeps the literal until T2's split-off second half (2026-10-05). The third kind
+The OTA stack keeps the literal until the owner runs T2's step A there (`--rotate
+--with-trigger-stores`, built 2026-10-05). The third kind
 applies to live as much as to the OTA stack.
 
 **Who could use these values today?** Only something that can reach the service that checks them.
@@ -3345,7 +3475,7 @@ What each replacement buys, and what it costs:
 | Value | What it protects | On live | On the OTA stack | Cost |
 |---|---|---|---|---|
 | `APP_DB_PASSWORD`, and the owner role's password | Every tenant's rows. Row security keys on a setting the session sets itself, and the owner role bypasses it. | Set by the owner in live's `.env` before the first bring-up (D8); the role is created with it (T1b) | Changed before the first invitation (T2, D3) | On the OTA stack, one redeploy |
-| `CLICKHOUSE_PASSWORD`, `MINIO_ROOT_PASSWORD`, `trigger-db`'s password | Trigger.dev's event store, its large payloads and its database | Set by the owner in live's `.env` before the first bring-up (D8); `trigger-db`'s needs T2's code first | ClickHouse and MinIO with T2; `trigger-db`'s with row 24 | Nothing worth naming |
+| `CLICKHOUSE_PASSWORD`, `MINIO_ROOT_PASSWORD`, `trigger-db`'s password | Trigger.dev's event store, its large payloads and its database | Set by the owner in live's `.env` before the first bring-up, or generated by `stand-up-live.sh` (D8); `trigger-db`'s since #1309 — *was:* `trigger-db`'s needs T2's code first | ClickHouse and MinIO changed by the owner on 2026-10-05 (T0 step 2); `trigger-db`'s with T2 step A, the owner's run, then step B — *was:* ClickHouse and MinIO with T2; `trigger-db`'s with row 24 | Nothing worth naming |
 | `SECRET_ENCRYPTION_KEY` | Every stored mailbox and drive credential a person enters | Generated at the first bring-up. Replaced during the alpha only if it leaks | Parked with row 24; it guards the demo's and the owner's own credentials | On live after testers connect: every tester reconnects every source and target |
 | `TRIGGER_ENCRYPTION_KEY` | The task environment store, which holds both database URLs and `SECRET_ENCRYPTION_KEY` | Generated at the first bring-up | Parked with row 24 (T5's reset) | The one human step on the dashboard |
 | The other four Trigger.dev secrets, and the `tr_prod_` key | The dashboard's sessions and sign-in, the supervisor's link and task deploys | Generated, and minted on live's own plane (T1c) | Parked with row 24 | A new CLI login |

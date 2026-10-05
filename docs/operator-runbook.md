@@ -137,7 +137,11 @@ localhost) every phase from `data` on refuses one that is empty or a value this 
 naming the key and never the value. To change them on a stack that has its volumes,
 `./deploy/compose/rotate-db-passwords.sh --rotate` makes new ones and changes `.env` and the roles
 together, and `--sync` sets the roles to `.env`'s values (`docs/managed-bring-up.md`, "Changing the
-database passwords").
+database passwords"). With `--with-trigger-stores` both also take Trigger.dev's own database:
+`trigger-db`'s role `trigger` and its `TRIGGER_DB_PASSWORD`, set over `trigger-db`'s socket. The
+bring-up's `trigger` phase sets that role to `.env`'s value on every run, before `trigger-api`
+starts. The OTA stack's `trigger-db` still holds the value `managed.yml` falls back to until the
+owner runs that once (workplan 0132 T2, step A).
 
 ## Start / stop
 

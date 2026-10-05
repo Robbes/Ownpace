@@ -359,12 +359,15 @@ fi
 # NOT TRIGGER_DB_PASSWORD, on purpose (workplan 0132 T2). It is trigger-db's
 # password, and Postgres takes it only when the trigger_db_data volume is first
 # initialised. The OTA stack's volume was initialised with the literal that is
-# managed.yml's fallback for an empty key, and the nightly gate runs this
-# script on every pass: a value generated here would be written into a .env
-# whose volume keeps the old one, and trigger-api, recreated with it, would be
-# refused by its own database. stand-up-live.sh sets it for live, before live's
-# volume exists; `scripts/a-password-the-repository-knows.unit.test.ts` fails
-# if this script ever writes it.
+# managed.yml's fallback for an empty key. There it is changed once, by hand,
+# with rotate-db-passwords.sh --rotate --with-trigger-stores (0132 T2, step
+# A), which changes the role and .env together; the bring-up's trigger phase
+# then holds the role to .env's value on every run. stand-up-live.sh sets it
+# for live, before live's volume exists;
+# `scripts/a-password-the-repository-knows.unit.test.ts` fails if this script
+# ever writes it. Once the owner has run the rotation on the OTA stack, step B
+# puts the key in SHIPPED_PASSWORD_KEYS, and the loop above generates it while
+# trigger_db_data is new, as it does the four.
 
 # AND REPAIR ONE THE OLD GENERATOR ALREADY WROTE, which `ensure` above will not:
 # it fills a MISSING key and never touches a present one, which is right for a

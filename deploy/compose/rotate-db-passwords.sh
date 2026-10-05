@@ -4,8 +4,11 @@
 # this machine without ever being printed (workplan 0132 T0 step 2, T2).
 #
 #   ./deploy/compose/rotate-db-passwords.sh [--check]    ask; change nothing
-#   ./deploy/compose/rotate-db-passwords.sh --sync       set the roles to .env
+#   ./deploy/compose/rotate-db-passwords.sh --sync [--with-trigger-stores]
+#       set the roles to .env; with the flag, trigger-db's too
 #   ./deploy/compose/rotate-db-passwords.sh --rotate [--with-trigger-stores]
+#       new values in .env and the roles; with the flag, Trigger.dev's three
+#       stores too
 #
 # WHICH STACK. --check runs on any stack, live included: it changes nothing,
 # and 0132 T0 step 5 runs it on live. --sync and --rotate refuse a stack that
@@ -36,10 +39,11 @@
 #      MinIO's two with mc, inside their own containers, after a control each
 #      (ClickHouse healthy, since its health check logs in with its own
 #      password; MinIO answering its own pair);
-#   5. asks trigger-db's value, managed.yml's fallback for an empty
-#      TRIGGER_DB_PASSWORD, and does not count it: that key reaches the
-#      database only when its volume is new, and rotating it on a volume that
-#      exists is T2's next step (0132's Status), which this does not do yet.
+#   5. asks trigger-db's role `trigger` over the network, as trigger-api asks
+#      it (no pooler stands in front of it): a control first, .env's
+#      TRIGGER_DB_PASSWORD with managed.yml's fallback when it is empty, then
+#      that fallback, counted like the others. --rotate --with-trigger-stores
+#      changes it (0132 T2, step A).
 #   One line per pair: the account, where the value comes from, opens or
 #   refused. Never the value. A role that opens and is neither the owner nor
 #   APP_DB_USER (the owner's old name, left with LOGIN after a rename) is one
@@ -51,6 +55,12 @@
 # it repairs a role whose password nobody has any more), then proves both over
 # the network and through the pooler. It is idempotent. The bring-up's data
 # phase does the same on every run, with the same functions (db-roles.sh).
+# With --with-trigger-stores it also sets trigger-db's role to .env's
+# TRIGGER_DB_PASSWORD (managed.yml's fallback when it is empty), over
+# trigger-db's own socket as that role, and proves it over the network. The
+# bring-up's trigger phase does that on every run too, with the same
+# function, once trigger-db is up and before trigger-api starts. ClickHouse
+# and MinIO need nothing: they read .env when they are recreated.
 #
 # --rotate refuses, before anything changes:
 #   xtrace (set -x, bash -x, SHELLOPTS, BASH_XTRACEFD): tracing prints values;
@@ -68,9 +78,11 @@
 #   a CI job running on this machine (a Runner.Worker process), or an
 #       E2E (managed) run queued or in progress when gh is signed in: a run
 #       that overlaps copies its old .env back over the persisted one;
-#   no env-upsert.sh or no openssl; postgres not healthy;
+#   no env-upsert.sh or no openssl; postgres not healthy, and with
+#       --with-trigger-stores trigger-db not healthy;
 #   a control that does not open: .env and the database already disagree,
-#       and --sync is the step for that;
+#       and --sync is the step for that (--sync --with-trigger-stores when it
+#       is trigger-db's);
 #   a POSTGRES_USER that is not a login superuser in the database, and an
 #       APP_DB_USER other than app_user (renames stay by hand, 0132 T2 step 5);
 #   a login role it does not change that a shipped value still opens (the
@@ -84,18 +96,23 @@
 #       as long as nobody types.
 # Then it keeps a copy of .env (<persisted dir>/.env.before-rotation-<UTC>,
 # mode 0600), generates `openssl rand -hex 24` for APP_DB_PASSWORD and
-# POSTGRES_PASSWORD (and CLICKHOUSE_PASSWORD and MINIO_ROOT_PASSWORD with
-# --with-trigger-stores; those need no ALTER, the containers take them when
-# they are recreated), writes them with env-upsert.sh --from-env, sets the
+# POSTGRES_PASSWORD, writes them with env-upsert.sh --from-env, sets the
 # roles (--sync), proves them, and checks that no shipped value opens either.
+# --with-trigger-stores adds Trigger.dev's three stores, whose one client is
+# trigger-api: CLICKHOUSE_PASSWORD and MINIO_ROOT_PASSWORD, which need no
+# ALTER (their containers take them when they are recreated), and
+# TRIGGER_DB_PASSWORD, whose role is set over trigger-db's own socket after
+# the two above are proven, then proven over the network, and managed.yml's
+# fallback refused. Plain --rotate never asks trigger-db anything.
 # On any failure after the write, and on an interrupt, it copies the kept
 # .env's content back into the file (so a link stays a link), sets the roles
-# back to it, proves that, and exits 1 naming the step. While it puts things
-# back it ignores INT, TERM and HUP: a second Ctrl-C there would leave both
-# roles on values stored nowhere. If the putting back does not complete, it
-# keeps the copy and says what to run. On success it deletes
-# the copy, and says what changed, that this stack's app cannot open new
-# database connections until its containers are recreated, the one next step
+# back to it (trigger-db's too, once its ALTER has been sent), proves that,
+# and exits 1 naming the step. While it puts things back it ignores INT, TERM
+# and HUP: a second Ctrl-C there would leave the roles on values stored
+# nowhere. If the putting back does not complete, it keeps the copy and says
+# what to run. On success it deletes the copy, and says what changed, that
+# this stack's app (and with the stores, trigger-api) cannot open new database
+# connections until its containers are recreated, the one next step
 # (dispatch E2E (managed) on main; it does that itself when gh is signed in),
 # and the line for 0132 T0's record.
 #
@@ -106,7 +123,7 @@
 # prints no value and no address, and it refuses to run traced.
 #
 # Exit codes:
-#   --check   0 both controls open and no shipped value opens anything asked;
+#   --check   0 every control opens and no shipped value opens anything asked;
 #             1 a shipped value opens (the lines above say which);
 #             2 nothing established: a control did not open, or a question
 #               could not be asked (zitadel-db-password.sh's convention).
@@ -141,7 +158,7 @@ refuse() {
   exit "$REFUSE_EXIT"
 }
 usage() {
-  echo "usage: ./deploy/compose/rotate-db-passwords.sh [--check | --sync | --rotate [--with-trigger-stores]]   (--help for more)" >&2
+  echo "usage: ./deploy/compose/rotate-db-passwords.sh [--check | --sync [--with-trigger-stores] | --rotate [--with-trigger-stores]]   (--help for more)" >&2
   exit 2
 }
 
@@ -166,7 +183,7 @@ for arg in "$@"; do
   esac
 done
 MODE="${MODE:-check}"
-[ -z "$WITH_STORES" ] || [ "$MODE" = rotate ] || usage
+[ -z "$WITH_STORES" ] || [ "$MODE" != check ] || usage
 [ "$MODE" != check ] || REFUSE_EXIT=2
 
 # env_value and compose_project, the one reader of a compose .env.
@@ -209,7 +226,8 @@ db_roles_init "$ENV_FILE" || refuse "the checkout's project could not be read (a
 # change-me-openmigrate, the example's), SHIPPED_CLICKHOUSE
 # (CLICKHOUSE_PASSWORD's default, password; change-me-clickhouse),
 # SHIPPED_MINIO (MINIO_ROOT_PASSWORD's default, very-safe-password;
-# change-me-minio) and SHIPPED_TRIGGER_DB, each with its _FROM labels.
+# change-me-minio) and SHIPPED_TRIGGER_DB (trigger-db's fallback), each with
+# its _FROM labels.
 # shellcheck source=deploy/compose/shipped-passwords.sh
 . "${SCRIPT_DIR}/shipped-passwords.sh"
 
@@ -233,6 +251,9 @@ from_env() { # from_env <key> — ".env's KEY", or compose's default when it is 
 OPENED=0
 UNASKED=0
 CONTROLS_OPEN=1
+# trigger-db's control refused: .env and trigger-db disagree, and the remedy
+# is --sync --with-trigger-stores, not plain --sync.
+TRIGGER_DISAGREES=''
 # Of OPENED, those on a Postgres role --rotate does not change, and their names.
 OPENED_OTHER=0
 OTHER_ROLES=''
@@ -335,7 +356,7 @@ check_pg_shipped() { # check_pg_shipped <role>...
 }
 
 # ClickHouse and MinIO, inside their own containers, and trigger-db over the
-# network. Counts into OPENED (trigger-db excepted); returns nothing.
+# network. Counts into OPENED; returns nothing.
 check_stores() {
   local k out rc health user
   say "Trigger.dev's stores:"
@@ -393,18 +414,38 @@ check_stores() {
     done
   fi
 
-  # trigger-db: over the stack's network, like every other password question.
-  local label="the value written into managed.yml"
-  grep -q "$SHIPPED_TRIGGER_DB" "${SCRIPT_DIR}/managed.yml" || label="the value managed.yml carried"
-  out=$(PGPASSWORD="$SHIPPED_TRIGGER_DB" docker run --rm -e PGPASSWORD --network "$DB_ROLES_NETWORK" \
-    "$DB_ROLES_CLIENT_IMAGE" psql -h trigger-db -p 5432 -U trigger -d triggerdb -tAc 'SELECT 1' 2>&1) && rc=0 || rc=$?
-  if [ "$rc" -eq 0 ]; then
-    item "trigger-db trigger, ${label}: OPENS (not counted: waits for T2's code that rotates it, the next step in workplan 0132)"
-  elif [[ "$out" == *"password authentication failed"* ]]; then
-    item "trigger-db trigger, ${label}: refused (not counted: waits for T2's code that rotates it)"
-  else
-    item "trigger-db trigger, ${label}: could not be asked ($(db_roles_masked "$out")) (not counted: waits for T2's code that rotates it)"
-  fi
+  # trigger-db: over the stack's network, as trigger-api asks it. Its control
+  # is .env's value as Compose reads it, as the two roles' are; on a stack
+  # whose .env leaves the key empty that is the fallback itself, and the
+  # fallback then opens too.
+  local who="trigger-db ${DB_ROLES_TRIGGER_ROLE}"
+  rc=0
+  db_roles_trigger_ask "$(db_roles_env TRIGGER_DB_PASSWORD "$SHIPPED_TRIGGER_DB")" || rc=$?
+  case "$rc" in
+    0) item "${who}: control, $(from_env TRIGGER_DB_PASSWORD), over the network: opens" ;;
+    1)
+      item "${who}: control, $(from_env TRIGGER_DB_PASSWORD), over the network: REFUSED"
+      CONTROLS_OPEN=''
+      TRIGGER_DISAGREES=1
+      ;;
+    *)
+      item "${who}: control, $(from_env TRIGGER_DB_PASSWORD), over the network: could not be asked (${DB_ROLES_WHY})"
+      UNASKED=1
+      ;;
+  esac
+  rc=0
+  db_roles_trigger_ask "$SHIPPED_TRIGGER_DB" || rc=$?
+  case "$rc" in
+    0)
+      item "${who}, ${SHIPPED_TRIGGER_DB_FROM}: OPENS"
+      OPENED=$((OPENED + 1))
+      ;;
+    1) item "${who}, ${SHIPPED_TRIGGER_DB_FROM}: refused" ;;
+    *)
+      item "${who}, ${SHIPPED_TRIGGER_DB_FROM}: could not be asked (${DB_ROLES_WHY})"
+      UNASKED=1
+      ;;
+  esac
 }
 
 do_check() {
@@ -441,6 +482,8 @@ do_check() {
   if [ -z "$CONTROLS_OPEN" ]; then
     say "RESULT: NOT ESTABLISHED. A control did not open, so a refused shipped value proves nothing."
     say "  If .env and the database disagree, set the roles to .env's values: ./deploy/compose/rotate-db-passwords.sh --sync"
+    [ -z "$TRIGGER_DISAGREES" ] ||
+      say "  It is trigger-db's control that is refused: ./deploy/compose/rotate-db-passwords.sh --sync --with-trigger-stores sets its role too."
     say "  (read zitadel-db-password.sh's header first if a second .env exists on this machine)."
     exit 2
   fi
@@ -448,7 +491,7 @@ do_check() {
     say "RESULT: NOT ESTABLISHED. A question above could not be asked; nothing opened among those that were."
     exit 2
   fi
-  say "RESULT: both controls open, and no shipped value opens anything asked."
+  say "RESULT: every control opens, and no shipped value opens anything asked."
   exit 0
 }
 
@@ -481,8 +524,19 @@ require_roles() {
     refuse "${DB_ROLES_APP} (APP_DB_USER) is not a login role in this database yet. The first migration creates app_user; bring the stack up first."
 }
 
+# trigger-db must be up before its role is set or asked; asked of Compose, as
+# postgres's health is.
+require_trigger_db() {
+  local health
+  health="$("${COMPOSE[@]}" ps --format '{{.Health}}' trigger-db 2>/dev/null)" || health=''
+  [ "$health" = healthy ] ||
+    refuse "trigger-db is not healthy (${health:-not running}). With --with-trigger-stores its role is set and proven too." \
+      "Bring the Trigger.dev plane up first, or run this without --with-trigger-stores."
+}
+
 do_sync() {
-  local rc=0
+  local rc=0 trigger_rc=0 trigger_pw
+  [ -z "$WITH_STORES" ] || require_trigger_db
   require_roles
   say "setting ${DB_ROLES_APP} and ${DB_ROLES_OWNER} to the values in .env: one transaction, over the socket as ${DB_ROLES_OWNER}"
   if ! db_roles_set "$DB_ROLES_OWNER_PASSWORD" "$DB_ROLES_APP_PASSWORD"; then
@@ -492,9 +546,29 @@ do_sync() {
   db_roles_prove "$DB_ROLES_OWNER_PASSWORD" "$DB_ROLES_APP_PASSWORD" || rc=$?
   say "asked the way the stack's containers ask:"
   show_proof
+  if [ -n "$WITH_STORES" ]; then
+    trigger_pw="$(db_roles_env TRIGGER_DB_PASSWORD "$SHIPPED_TRIGGER_DB")"
+    say "setting trigger-db's ${DB_ROLES_TRIGGER_ROLE} to $(from_env TRIGGER_DB_PASSWORD), over trigger-db's socket as ${DB_ROLES_TRIGGER_ROLE}"
+    if ! db_roles_trigger_set "$trigger_pw"; then
+      say "FAILED: trigger-db's role was not changed: ${DB_ROLES_WHY}" >&2
+      exit 1
+    fi
+    db_roles_trigger_ask "$trigger_pw" || trigger_rc=$?
+    case "$trigger_rc" in
+      0) item "trigger-db ${DB_ROLES_TRIGGER_ROLE}, over the network: opens" ;;
+      1) item "trigger-db ${DB_ROLES_TRIGGER_ROLE}, over the network: REFUSED" ;;
+      *) item "trigger-db ${DB_ROLES_TRIGGER_ROLE}, over the network: could not be asked (${DB_ROLES_WHY})" ;;
+    esac
+    # A refusal anywhere is 1; otherwise a question not asked anywhere is 2.
+    if [ "$trigger_rc" -eq 1 ] || { [ "$trigger_rc" -ne 0 ] && [ "$rc" -eq 0 ]; }; then rc="$trigger_rc"; fi
+  fi
   case "$rc" in
     0)
-      say "done: both roles accept .env's values. A container created from this .env presents them already;"
+      if [ -n "$WITH_STORES" ]; then
+        say "done: both roles, and trigger-db's, accept .env's values. A container created from this .env presents them already;"
+      else
+        say "done: both roles accept .env's values. A container created from this .env presents them already;"
+      fi
       say "one created from another .env presents that one's, and has to be recreated from this."
       exit 0
       ;;
@@ -519,6 +593,9 @@ ROTATE_WHY=''
 ROTATE_BACKUP=''
 ROTATE_RESTORE_WHY=''
 ENV_RESOLVED=''
+# Set once trigger-db's ALTER is on its way: from then on it may have taken,
+# so putting things back sets trigger-db's role back too.
+ROTATE_TRIGGER_TOUCHED=''
 
 # The key names whose values differ between two .env files. Names only.
 differing_keys() { # differing_keys <file> <file>
@@ -582,9 +659,13 @@ fail() { # fail <why> — the EXIT trap puts things back
 }
 
 # The kept .env's content back into the file (a link stays a link), the roles
-# set back to it, and that proven. 0 when both roles accept the old values.
+# set back to it, and that proven; trigger-db's role too once its ALTER was
+# sent, to the old .env's value as Compose reads it (on the OTA stack before
+# the owner's run, managed.yml's fallback). 0 when every role accepts its old
+# value.
 rotate_restore() {
-  local rc=0
+  local rc=0 trigger_pw reason
+  local -a why=()
   ROTATE_RESTORE_WHY=''
   if ! cp -- "$ROTATE_BACKUP" "$ENV_RESOLVED" || ! cmp -s -- "$ROTATE_BACKUP" "$ENV_RESOLVED"; then
     ROTATE_RESTORE_WHY="the kept copy could not be written back into ${ENV_RESOLVED}"
@@ -601,10 +682,24 @@ rotate_restore() {
   fi
   db_roles_prove "$DB_ROLES_OWNER_PASSWORD" "$DB_ROLES_APP_PASSWORD" || rc=$?
   if [ "$rc" -ne 0 ]; then
-    ROTATE_RESTORE_WHY="a role does not accept its old value again: $(printf '%s' "$DB_ROLES_PROOF" | awk -F'|' '$3 != 0 { printf "%s %s (%s) ", $1, $2, ($3 == 1 ? "refused" : $4) }')"
-    return 1
+    why+=("a role does not accept its old value again: $(printf '%s' "$DB_ROLES_PROOF" | awk -F'|' '$3 != 0 { printf "%s %s (%s) ", $1, $2, ($3 == 1 ? "refused" : $4) }')")
   fi
-  return 0
+  if [ -n "$ROTATE_TRIGGER_TOUCHED" ]; then
+    trigger_pw="$(db_roles_env TRIGGER_DB_PASSWORD "$SHIPPED_TRIGGER_DB")"
+    if ! db_roles_trigger_set "$trigger_pw"; then
+      say "  setting trigger-db's role back did not run (${DB_ROLES_WHY}); asking whether it holds the old value anyway" >&2
+    fi
+    rc=0
+    db_roles_trigger_ask "$trigger_pw" || rc=$?
+    case "$rc" in
+      0) ;;
+      1) why+=("trigger-db's ${DB_ROLES_TRIGGER_ROLE} does not accept its old value again (refused)") ;;
+      *) why+=("trigger-db's ${DB_ROLES_TRIGGER_ROLE} does not accept its old value again (${DB_ROLES_WHY})") ;;
+    esac
+  fi
+  [ "${#why[@]}" -eq 0 ] && return 0
+  for reason in "${why[@]}"; do ROTATE_RESTORE_WHY+="${ROTATE_RESTORE_WHY:+; }${reason% }"; done
+  return 1
 }
 
 rotate_on_exit() {
@@ -622,12 +717,19 @@ rotate_on_exit() {
       printf '[rotate-db-passwords] Putting the old values back; interrupts are ignored until that is done. The old .env is kept at %s until then.\n' "$ROTATE_BACKUP" >&2
       if rotate_restore; then
         rm -f -- "$ROTATE_BACKUP"
-        printf '[rotate-db-passwords] restored: .env holds its old values again, and both roles accept them over the network and through the pooler. Nothing has changed.\n' >&2
+        local also=''
+        [ -z "$ROTATE_TRIGGER_TOUCHED" ] || also=", and trigger-db's over the network"
+        printf '[rotate-db-passwords] restored: .env holds its old values again, and both roles accept them over the network and through the pooler%s. Nothing has changed.\n' \
+          "$also" >&2
       else
         printf '[rotate-db-passwords] THE PUTTING BACK DID NOT COMPLETE: %s.\n' "$ROTATE_RESTORE_WHY" >&2
         printf '  The old .env is kept at %s (mode 0600). No value is printed.\n' "$ROTATE_BACKUP" >&2
         printf '  1. cp %s %s\n' "$ROTATE_BACKUP" "$ENV_RESOLVED" >&2
-        printf '  2. ./deploy/compose/rotate-db-passwords.sh --sync     (sets both roles to that .env)\n' >&2
+        if [ -n "$ROTATE_TRIGGER_TOUCHED" ]; then
+          printf '  2. ./deploy/compose/rotate-db-passwords.sh --sync --with-trigger-stores     (sets both roles, and trigger-db'"'"'s, to that .env)\n' >&2
+        else
+          printf '  2. ./deploy/compose/rotate-db-passwords.sh --sync     (sets both roles to that .env)\n' >&2
+        fi
         printf '  3. ./deploy/compose/rotate-db-passwords.sh --check    (then delete the kept copy)\n' >&2
       fi
       exit 1
@@ -680,6 +782,7 @@ do_rotate() {
   local health
   health="$("${COMPOSE[@]}" ps --format '{{.Health}}' postgres 2>/dev/null)" || health=''
   [ "$health" = healthy ] || refuse "postgres is not healthy (${health:-not running}). Nothing can be set or proven."
+  [ -z "$WITH_STORES" ] || require_trigger_db
   require_roles
   rc=0
   db_roles_prove "$DB_ROLES_OWNER_PASSWORD" "$DB_ROLES_APP_PASSWORD" || rc=$?
@@ -691,6 +794,18 @@ do_rotate() {
       "Set the roles to .env's values first: ./deploy/compose/rotate-db-passwords.sh --sync, then --check." ;;
     *) refuse "a control could not be asked (above), so nothing about the roles is established." ;;
   esac
+  # trigger-db's role is set the same way, so its control has to open too: a
+  # new value set over one nobody knows could not be put back.
+  if [ -n "$WITH_STORES" ]; then
+    rc=0
+    db_roles_trigger_ask "$(db_roles_env TRIGGER_DB_PASSWORD "$SHIPPED_TRIGGER_DB")" || rc=$?
+    case "$rc" in
+      0) item "trigger-db ${DB_ROLES_TRIGGER_ROLE}, $(from_env TRIGGER_DB_PASSWORD), over the network: opens" ;;
+      1) refuse ".env and trigger-db already disagree: ${DB_ROLES_TRIGGER_ROLE} refuses $(from_env TRIGGER_DB_PASSWORD) over the network, so a new value would be set over an unknown one." \
+        "Set it to .env's value first: ./deploy/compose/rotate-db-passwords.sh --sync --with-trigger-stores, then --check." ;;
+      *) refuse "trigger-db's control could not be asked (${DB_ROLES_WHY}), so nothing about its role is established." ;;
+    esac
+  fi
 
   # ---- A login role this does not change, on a shipped value --------------------
   # The check at the end tries every role that could hold a shipped value. One
@@ -720,10 +835,12 @@ do_rotate() {
 
   # ---- The owner says yes ------------------------------------------------------
   local -a keys=(APP_DB_PASSWORD POSTGRES_PASSWORD)
-  [ -z "$WITH_STORES" ] || keys+=(CLICKHOUSE_PASSWORD MINIO_ROOT_PASSWORD)
+  [ -z "$WITH_STORES" ] || keys+=(CLICKHOUSE_PASSWORD MINIO_ROOT_PASSWORD TRIGGER_DB_PASSWORD)
+  local roles="${DB_ROLES_APP} and ${DB_ROLES_OWNER}"
+  [ -z "$WITH_STORES" ] || roles="${DB_ROLES_APP} and ${DB_ROLES_OWNER}, and trigger-db's ${DB_ROLES_TRIGGER_ROLE},"
   say "This makes new values for ${keys[*]}, writes them to ${ENV_RESOLVED},"
-  say "and sets the roles ${DB_ROLES_APP} and ${DB_ROLES_OWNER} to them. No value is printed."
-  say "From then until the containers are recreated, this stack's app cannot open new database connections."
+  say "and sets the roles ${roles} to them. No value is printed."
+  say "From then until the containers are recreated, this stack's app cannot open new database connections${WITH_STORES:+, nor trigger-api to its own}."
   printf '[rotate-db-passwords] Type the project name (%s) to go on: ' "$COMPOSE_PROJECT"
   typed=''
   IFS= read -r typed || true
@@ -755,6 +872,7 @@ do_rotate() {
   ROTATE_STAGE=written
   APP_DB_PASSWORD="${new[APP_DB_PASSWORD]}" POSTGRES_PASSWORD="${new[POSTGRES_PASSWORD]}" \
     CLICKHOUSE_PASSWORD="${new[CLICKHOUSE_PASSWORD]:-}" MINIO_ROOT_PASSWORD="${new[MINIO_ROOT_PASSWORD]:-}" \
+    TRIGGER_DB_PASSWORD="${new[TRIGGER_DB_PASSWORD]:-}" \
     "${SCRIPT_DIR}/env-upsert.sh" --from-env "$ENV_FILE" "${keys[@]}" >/dev/null ||
     fail "env-upsert.sh refused (above)"
   for key in "${keys[@]}"; do
@@ -773,12 +891,39 @@ do_rotate() {
     fail "a role did not accept its new value, or could not be asked (above)"
   fi
 
+  # trigger-db after the two: a failure before this leaves it untouched.
+  if [ -n "$WITH_STORES" ]; then
+    ROTATE_STEP="setting trigger-db's role ${DB_ROLES_TRIGGER_ROLE} to its new value"
+    # Before the call: an interrupt while it runs leaves unknown whether it took.
+    ROTATE_TRIGGER_TOUCHED=1
+    db_roles_trigger_set "${new[TRIGGER_DB_PASSWORD]}" || fail "$DB_ROLES_WHY"
+    ROTATE_STEP="proving trigger-db's new value over the network"
+    rc=0
+    db_roles_trigger_ask "${new[TRIGGER_DB_PASSWORD]}" || rc=$?
+    [ "$rc" -eq 0 ] || fail "${DB_ROLES_TRIGGER_ROLE} did not accept its new value (${DB_ROLES_WHY})"
+  fi
+
   ROTATE_STEP='checking that no shipped value opens a role'
   OPENED=0
   UNASKED=0
   db_roles_list || fail "the login roles could not be listed: ${DB_ROLES_WHY}"
   pg_roles_to_try
   check_pg_shipped "${PG_TRY[@]}"
+  if [ -n "$WITH_STORES" ]; then
+    rc=0
+    db_roles_trigger_ask "$SHIPPED_TRIGGER_DB" || rc=$?
+    case "$rc" in
+      0)
+        item "trigger-db ${DB_ROLES_TRIGGER_ROLE}, ${SHIPPED_TRIGGER_DB_FROM}: OPENS"
+        OPENED=$((OPENED + 1))
+        ;;
+      1) item "trigger-db ${DB_ROLES_TRIGGER_ROLE}, ${SHIPPED_TRIGGER_DB_FROM}: refused" ;;
+      *)
+        item "trigger-db ${DB_ROLES_TRIGGER_ROLE}, ${SHIPPED_TRIGGER_DB_FROM}: could not be asked (${DB_ROLES_WHY})"
+        UNASKED=1
+        ;;
+    esac
+  fi
   [ "$OPENED" -eq 0 ] || fail "a shipped value still opens a role (above)"
   [ "$UNASKED" -eq 0 ] || fail "a shipped value could not be asked (above)"
 
@@ -793,6 +938,9 @@ do_rotate() {
   if [ -n "$WITH_STORES" ]; then
     say "ClickHouse and MinIO take their new values when their containers are recreated; nothing was asked of them here."
     say "  If MinIO refuses the new pair on its old volume, what is lost is its packets store: old large run payloads."
+    say "trigger-db's ${DB_ROLES_TRIGGER_ROLE} accepts its new value over the network, and ${SHIPPED_TRIGGER_DB_FROM} no longer opens it."
+    say "  Until trigger-api is recreated it cannot open new connections to its own database: runs may stall, and"
+    say "  a trigger-api that restarts before then fails at its migration, until the run below recreates it."
   fi
   say "NEXT, the one step: E2E (managed) on main. It restores this .env, recreates every container whose settings changed,"
   say "  uploads SYSTEM_DATABASE_URL and APP_DATABASE_URL to Trigger.dev again (the owner's URL no longer goes to the tasks,"
@@ -803,8 +951,10 @@ do_rotate() {
   else
     say "  Dispatch it: on GitHub, Actions, E2E (managed), Run workflow, on main."
   fi
-  say "Once that run is green: ./deploy/compose/rotate-db-passwords.sh --check. It exits 0 when both controls open and nothing shipped does."
-  say "For workplan 0132 T0's record (step 2), after that check: \"$(date -u +%Y-%m-%d): the OTA stack's database passwords changed; the shipped values refused.\" Never a value."
+  say "Once that run is green: ./deploy/compose/rotate-db-passwords.sh --check. It exits 0 when every control opens and nothing shipped does."
+  local record="the OTA stack's database passwords changed; the shipped values refused."
+  [ -z "$WITH_STORES" ] || record="the OTA stack's database passwords changed, trigger-db's with them; the shipped values refused."
+  say "For workplan 0132 T0's record (step 2), after that check: \"$(date -u +%Y-%m-%d): ${record}\" Never a value."
   exit 0
 }
 

@@ -12,9 +12,9 @@
 # the role with ALTER ROLE, and then proven the way the stack presents it.
 #
 # Sourced, never run. The functions here are the ones rotate-db-passwords.sh
-# uses, and the ones the bring-up's `data` phase calls on every run
-# (bootstrap-managed.sh, database_roles_match_env), so the two cannot drift
-# apart. The caller sets SCRIPT_DIR (this directory, as every
+# uses, and the ones the bring-up's `data` and `trigger` phases call on every
+# run (bootstrap-managed.sh, database_roles_match_env and
+# trigger_db_role_matches_env), so the two cannot drift apart. The caller sets SCRIPT_DIR (this directory, as every
 # script here does) and COMPOSE (its Compose command as an array, for this
 # checkout's managed.yml). This file sources env-read.sh and own-addresses.sh
 # from SCRIPT_DIR itself, and db_roles_init asks the project reader before any
@@ -79,6 +79,22 @@
 #   db_roles_system_prove <password>
 #       the role opens with it over the network AND through the pooler,
 #       where the tasks connect: 0, 1 (refused) or 2 (could not be asked).
+#
+# TRIGGER.DEV'S OWN DATABASE (workplan 0132 T2, step A). `trigger-db` is a
+# Postgres of its own, and its one role, `trigger`, is the image's bootstrap
+# superuser: managed.yml writes POSTGRES_USER and POSTGRES_DB there, not from
+# .env, and they are named once below. Its one client is trigger-api
+# (DATABASE_URL and DIRECT_URL), and no pooler stands in front of it.
+#
+#   db_roles_trigger_set <password>
+#       ALTER ROLE trigger, over trigger-db's own socket as trigger, which the
+#       image trusts there, the value passed by name and the statement kept
+#       out of the log and the statistics, as db_roles_set does for its two.
+#       rotate-db-passwords.sh --rotate and --sync --with-trigger-stores call
+#       it, and the bring-up's trigger phase on every run, with .env's value.
+#   db_roles_trigger_ask <password>
+#       over the stack's network to trigger-db, as trigger-api asks it:
+#       0 opens, 1 refused, 2 cannot tell (DB_ROLES_WHY says why).
 #
 # HOW A PASSWORD IS ASKED. Inside the database container the socket and
 # 127.0.0.1 are trusted (the image's pg_hba.conf), so a password asked there
@@ -186,6 +202,30 @@ ALTER ROLE :"system_role" IN DATABASE :"DBNAME" RESET ALL;
 COMMIT;
 SQL
 
+# trigger-db's role and database: managed.yml's, never .env's.
+# scripts/rotate-db-passwords.unit.test.ts holds them to managed.yml.
+DB_ROLES_TRIGGER_ROLE='trigger'
+DB_ROLES_TRIGGER_DB='triggerdb'
+
+# The statements db_roles_trigger_set sends, kept out of the log as the two
+# above are. trigger-db runs the image's defaults: log_statement none,
+# log_min_error_statement error (a failed statement is logged with its text),
+# and no pg_stat_statements. Its role is a superuser, so the four SETs are
+# allowed, and with no module loaded the last one only makes a placeholder;
+# it is there so that a trigger-db configured otherwise one day still keeps
+# the statement out. Run against a Postgres 16 with log_statement = all, both
+# with the module preloaded and without it, when it was written.
+read -r -d '' DB_ROLES_TRIGGER_SET_SQL <<'SQL' || true
+SET log_statement = 'none';
+SET log_min_duration_statement = -1;
+SET log_min_error_statement = panic;
+SET pg_stat_statements.track_utility = off;
+BEGIN;
+\set trigger_pw `printf '%s' "$DB_ROLES_NEW_TRIGGER_PASSWORD"`
+ALTER ROLE :"trigger_role" PASSWORD :'trigger_pw';
+COMMIT;
+SQL
+
 # db_roles_env <key> <default> — a value of .env as Compose reads it: without
 # one pair of surrounding double quotes, and the default when that leaves
 # nothing, as `${KEY:-default}` gives the containers. The same reading as
@@ -271,16 +311,24 @@ db_roles_ask() { # db_roles_ask <network|pooler> <role> <password>
       return 2
       ;;
   esac
-  if [ "$rc" -eq 0 ]; then
+  db_roles_answer "$rc" "$out"
+}
+
+# What a password question's psql answered: 0 opens, 1 refused, 2 cannot tell,
+# with DB_ROLES_WHY saying why. Postgres answers "password authentication
+# failed" for a role that does not exist too, so a caller asks only a role it
+# knows exists.
+db_roles_answer() { # db_roles_answer <psql's exit> <its output>
+  if [ "${1:-1}" -eq 0 ]; then
     return 0
   fi
-  case "$out" in
+  case "${2:-}" in
     *"password authentication failed"*)
       DB_ROLES_WHY='password authentication failed'
       return 1
       ;;
   esac
-  DB_ROLES_WHY="$(db_roles_masked "$out")"
+  DB_ROLES_WHY="$(db_roles_masked "${2:-}")"
   return 2
 }
 
@@ -393,4 +441,34 @@ db_roles_system_prove() { # db_roles_system_prove <password>
   [ "$refused" -eq 0 ] || return 1
   [ "$unasked" -eq 0 ] || return 2
   return 0
+}
+
+# trigger-db's role, set the way db_roles_set sets the other two, over
+# trigger-db's own socket as that role.
+db_roles_trigger_set() { # db_roles_trigger_set <password>
+  local out rc
+  DB_ROLES_WHY=''
+  if [ -z "${1:-}" ]; then
+    # An empty value would CLEAR the password: Postgres takes '' as none.
+    DB_ROLES_WHY='an empty password was given; nothing was set'
+    return 1
+  fi
+  out=$(DB_ROLES_NEW_TRIGGER_PASSWORD="$1" \
+    "${COMPOSE[@]}" exec -T -e DB_ROLES_NEW_TRIGGER_PASSWORD trigger-db \
+    psql -X -q -U "$DB_ROLES_TRIGGER_ROLE" -d "$DB_ROLES_TRIGGER_DB" -v ON_ERROR_STOP=1 \
+    -v trigger_role="$DB_ROLES_TRIGGER_ROLE" 2>&1 <<<"$DB_ROLES_TRIGGER_SET_SQL") && rc=0 || rc=$?
+  [ "$rc" -eq 0 ] && return 0
+  DB_ROLES_WHY="$(db_roles_masked "$out")"
+  return 1
+}
+
+# trigger-db's role with a value, over the stack's network: the one way
+# trigger-api connects.
+db_roles_trigger_ask() { # db_roles_trigger_ask <password>
+  local out rc
+  DB_ROLES_WHY=''
+  out=$(PGPASSWORD="${1:-}" docker run --rm -e PGPASSWORD --network "$DB_ROLES_NETWORK" \
+    "$DB_ROLES_CLIENT_IMAGE" psql -h trigger-db -p 5432 -U "$DB_ROLES_TRIGGER_ROLE" -d "$DB_ROLES_TRIGGER_DB" \
+    -tAc 'SELECT 1' 2>&1) && rc=0 || rc=$?
+  db_roles_answer "$rc" "$out"
 }
