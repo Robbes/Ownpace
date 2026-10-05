@@ -262,6 +262,21 @@ issuer with a path.
 and fails on a violation. Zod's own probe for `eval` is switched off at the
 entry (`src/zod-without-eval.ts`). The appliance sends no policy yet (0158 T3).
 
+Its logs keep a grant or view link out, except in a critical line (workplan
+0108). The access log writes the link as `:link` and a query as `?...`. The
+error log writes critical errors only (`error_log stderr crit;`): nginx ends
+every error line with the raw request line, the upstream's address and the
+Referer, and cannot redact them. A critical line (an unreadable file, a full
+disk, no memory, no connections or descriptors left) is still written whole,
+link included. So a 502, 504 or 413 shows in the access log with its status.
+The reason is in the API's own log when the API itself failed, and in
+`docker compose ps api` when the API is down. A 413 is nginx's own refusal of
+a body above 8 MB, before the API sees it, and its size is no longer logged.
+When nginx refuses the API's answer, or cannot reach a healthy API, no log says
+why (`docs/incident-runbook.md`, the API row). nginx's own lines (starting,
+stopping, a config it refuses) still reach the container log at the image's
+level.
+
 ## Browser Support
 
 - Chrome/Edge (latest 2 versions)
