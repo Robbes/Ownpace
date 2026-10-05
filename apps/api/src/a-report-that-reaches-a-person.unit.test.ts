@@ -480,7 +480,8 @@ describe('the API', () => {
   it('mounts the report route before its global JSON parser, whose limit a screenshot exceeds', () => {
     const index = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'index.ts'), 'utf8');
     const route = index.indexOf("app.use('/api/problem-reports'");
-    const parser = index.indexOf('app.use(express.json())');
+    // The global parser, mounted through `readingTheBody` (`unreadable-body.ts`).
+    const parser = index.search(/app\.use\((?:readingTheBody\()?express\.json\(\)/);
     expect(route).toBeGreaterThan(-1);
     expect(parser).toBeGreaterThan(-1);
     expect(route).toBeLessThan(parser);

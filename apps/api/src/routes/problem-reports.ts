@@ -63,6 +63,7 @@ import {
 } from '../problem-report.ts';
 import { migrationIdOnPage, reportFactsReader, type ReportFactsReader } from '../report-facts.ts';
 import { createZammadTicket, ZammadRefused } from '../services/zammad.ts';
+import { handedOnByABodyParser, readingTheBody } from '../unreadable-body.ts';
 import {
   reportChannel,
   sendReportMail,
@@ -259,7 +260,7 @@ export function problemReportRoutes(deps: ProblemReportDeps = {}): Router {
     '/',
     authenticate,
     mayReport,
-    express.json({ limit: PROBLEM_REPORT_BODY_LIMIT }),
+    readingTheBody(express.json({ limit: PROBLEM_REPORT_BODY_LIMIT })),
     async (req: AuthenticatedRequest, res: Response) => {
       const decided = accepted.get(req);
       // Unreachable: this handler runs only after `mayReport` said yes.
@@ -344,8 +345,11 @@ export function problemReportRoutes(deps: ProblemReportDeps = {}): Router {
    * does not read (415), a body that ended early or was not the length it
    * said (400). body-parser gives each a `type` and a 4xx status. Until
    * 2026-09-28 only "not JSON" was answered here, and a signed-in POST with
-   * `charset=latin1` was answered 500 and recorded as `api.unhandled`. A 5xx
-   * the parser raises is a fault of ours, and goes on with anything else.
+   * `charset=latin1` was answered 500 and recorded as `api.unhandled`. A
+   * compressed body that does not decompress is a 400 with no `type` (zlib's
+   * error); it is known by the parser that handed it on (`readingTheBody`).
+   * Until 2026-10-04 it was answered 500 too. A 5xx the parser raises is a
+   * fault of ours, and goes on with anything else.
    */
   router.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
     const { type, status } = (typeof err === 'object' && err !== null ? err : {}) as {
@@ -359,7 +363,7 @@ export function problemReportRoutes(deps: ProblemReportDeps = {}): Router {
       });
       return;
     }
-    if (typeof type === 'string' && typeof status === 'number' && status < 500) {
+    if ((typeof type === 'string' || handedOnByABodyParser(err)) && typeof status === 'number' && status < 500) {
       res.status(status).json({ error: 'invalid_report', reason: 'The report did not arrive as JSON this service reads.' });
       return;
     }
