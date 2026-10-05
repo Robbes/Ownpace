@@ -43,6 +43,7 @@ import express from 'express';
 import request from 'supertest';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
+import { runManagedMigrations } from '@openmig/managed';
 
 // UUID family 0136f300-…, unused elsewhere in the repo.
 const TENANT = '0136f300-e29b-41d4-a716-446655440001';
@@ -176,6 +177,9 @@ async function failed(mapping: string, hash: string, domain: string, category: s
 beforeAll(async () => {
   driver = pgliteDriver({ role: 'app_user' });
   await runMigrations({ driver, logger: () => {} });
+  // The migration's detail reads the pace it runs at, from the managed tables
+  // (`paceFor`, workplan 0157 T4), as a managed deployment always has them.
+  await runManagedMigrations({ driver, logger: () => {} });
   await sql('INSERT INTO tenant (id, name) VALUES ($1,$2)', [TENANT, 'our words']);
   // A source and a target whose hosts the tester typed, and a Gmail source,
   // whose host is Google's.
