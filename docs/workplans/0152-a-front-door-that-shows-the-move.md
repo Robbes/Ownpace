@@ -4,6 +4,18 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-10-05, later: the hero's drawing carries tasks** (the owner, asking why it did not).
+The drawing was planned on 2026-09-28 with five rows: mail, calendar, contacts, files and photos.
+Tasks became a data type of the site's own on 2026-10-04 (*Several sources, and Tasks*, below),
+and the drawing was not redrawn. Its guard had even been written around the gap: *"the app's
+data types but tasks, which it does not draw"*.
+- **The drawing** (`hero-move.svg`, and `site/hero.mjs` line for line) has six rows on each side:
+  mail, calendar, contacts, tasks, files and photos. The cards grow by one row, and Ownpace's
+  ring, its arrows and their words move down half a row, so the middle stays centred.
+- **Its description and the hero's sentence** name tasks in both languages.
+- **`the-hero-is-the-drawing`** now asks for every data type the app has, on both sides. Run
+  against the five-row drawing, it fails with *"task is not on both sides"*.
+
 **2026-10-05, the site is warm paper, always light** (the owner, 2026-10-05, asked why the site
 looked greenish where screenshots had shown it white, and picked option C of four, drawn for
 them side by side: *"C. Warm paper, always"*). It had followed a device set to dark into a dark

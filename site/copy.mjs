@@ -78,7 +78,7 @@ export const COPY = {
     },
     heroTitle: 'Move off Google or Microsoft. At your own pace.',
     heroLede:
-      'Ownpace copies your mail, contacts, calendar and files to a European provider you choose — and keeps the copy in step until <em>you</em> decide to switch over. No weekend deadline. No big-bang cutover. Your old account stays exactly where it is until you say otherwise.',
+      'Ownpace copies your mail, contacts, calendar, tasks and files to a European provider you choose — and keeps the copy in step until <em>you</em> decide to switch over. No weekend deadline. No big-bang cutover. Your old account stays exactly where it is until you say otherwise.',
     ctaOrder: 'Request access',
     ctaPricing: 'See what it costs',
     ctaAllTiers: 'All five tiers, in full',
@@ -93,7 +93,7 @@ export const COPY = {
     // are its words; the data types in it are dataTypes', as the app names them.
     hero: {
       title: 'Your data moves from your old account to your new home',
-      desc: 'Email, calendar, contacts, files and photos go from the old account through Ownpace to the new home. Ownpace copies them, then keeps them in step until you switch.',
+      desc: 'Email, calendar, contacts, tasks, files and photos go from the old account through Ownpace to the new home. Ownpace copies them, then keeps them in step until you switch.',
       old: 'Your old account',
       new: 'Your new home',
       copies: 'copies',
@@ -455,7 +455,7 @@ export const COPY = {
     },
     heroTitle: 'Weg bij Google of Microsoft. In uw eigen tempo.',
     heroLede:
-      'Ownpace kopieert uw e-mail, contacten, agenda en bestanden naar een Europese aanbieder die u zelf kiest — en houdt die kopie bij tot <em>u</em> besluit over te stappen. Geen deadline in het weekend. Geen big bang. Uw oude account blijft precies waar het is, tot u iets anders zegt.',
+      'Ownpace kopieert uw e-mail, contacten, agenda, taken en bestanden naar een Europese aanbieder die u zelf kiest — en houdt die kopie bij tot <em>u</em> besluit over te stappen. Geen deadline in het weekend. Geen big bang. Uw oude account blijft precies waar het is, tot u iets anders zegt.',
     ctaOrder: 'Toegang aanvragen',
     ctaPricing: 'Bekijk wat het kost',
     ctaAllTiers: 'Alle vijf de pakketten, volledig',
@@ -464,7 +464,7 @@ export const COPY = {
       `${name}: ${paths} migraties tegelijk en tot ${data}, met één ronde per dag. Alle prijzen staan er volledig op — geen offerte, geen verkoopgesprek.`,
     hero: {
       title: 'Uw gegevens gaan van uw oude account naar uw nieuwe thuis',
-      desc: 'E-mail, agenda, contacten, bestanden en foto’s gaan van het oude account via Ownpace naar het nieuwe thuis. Ownpace kopieert ze, en houdt ze daarna bij tot u overstapt.',
+      desc: 'E-mail, agenda, contacten, taken, bestanden en foto’s gaan van het oude account via Ownpace naar het nieuwe thuis. Ownpace kopieert ze, en houdt ze daarna bij tot u overstapt.',
       old: 'Uw oude account',
       new: 'Uw nieuwe thuis',
       copies: 'kopieert',
