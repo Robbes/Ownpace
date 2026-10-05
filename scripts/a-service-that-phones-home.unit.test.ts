@@ -483,7 +483,7 @@ interface Row {
 }
 
 const TRIGGER_WEBAPP = 'ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.7.2}';
-const ZITADEL = 'ghcr.io/zitadel/zitadel:v4.19.2';
+const ZITADEL = 'ghcr.io/zitadel/zitadel:v4.19.4';
 const CLICKHOUSE =
   'clickhouse/clickhouse-server:26.2.19.43@sha256:c2f2605585899d5103a0447daadbc0005f362200d5f0fcca7f40db3ca0dd36dd';
 const MINIO =
@@ -512,7 +512,7 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
   },
   'deploy/compose/managed.yml:zitadel': {
     readAt: ZITADEL,
-    why: 'a daily service ping with instance domains and resource counts, to zitadel.com (cmd/defaults.yaml at v4.19.2)',
+    why: 'a daily service ping with instance domains and resource counts, to zitadel.com (cmd/defaults.yaml at v4.19.2, unchanged at v4.19.4)',
     holds: (svc) => zitadelProblems(environmentOf(svc)),
   },
   'deploy/compose/managed.yml:clickhouse': {

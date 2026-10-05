@@ -712,7 +712,21 @@ services:
     # in any code setup-zitadel.sh calls, which never uses the events API it
     # reorders. The three facts above hold at v4.19.2. The OTA instance's
     # `zitadel` database was dumped first, with deploy/compose/dump-idp.sh.
-    image: ghcr.io/zitadel/zitadel:v4.19.2
+    #
+    # v4.19.4 (2026-10-05), from the weekly pin watch's issue #1523. Five
+    # commits after v4.19.2, none a security fix: the invite-code notification
+    # handler's ID order, the instance ID in the actions worker, a migration
+    # that skips a finished unique-constraint backfill and exclusive owner
+    # deletes, and two query changes for listing users. One setup step, 80,
+    # which adds an index on users14 by instance and organisation and drops
+    # two older ones: one-way, like 76 to 79. Taken now, while only the OTA
+    # instance holds data, so live starts on it rather than upgrading later.
+    # cmd/defaults.yaml, the login v1 UI and every API handler are unchanged
+    # since v4.19.2 (git diff --stat v4.19.2 v4.19.4), so the three facts
+    # above, the service ping's default and the privacy policy's fields hold
+    # at v4.19.4. The OTA instance's `zitadel` database was dumped first by the
+    # owner, with deploy/compose/dump-idp.sh.
+    image: ghcr.io/zitadel/zitadel:v4.19.4
     container_name: ${COMPOSE_PROJECT_NAME}-idp
     restart: unless-stopped
     # `start-from-init` is init-then-start in one command and is idempotent: on
