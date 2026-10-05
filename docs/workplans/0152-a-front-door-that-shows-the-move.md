@@ -4,6 +4,24 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-10-05, the site is warm paper, always light** (the owner, 2026-10-05, asked why the site
+looked greenish where screenshots had shown it white, and picked option C of four, drawn for
+them side by side: *"C. Warm paper, always"*). It had followed a device set to dark into a dark
+green (`#0b1716`).
+- **The four options:** (A) white, always; (B) white, with a neutral charcoal dark mode; (C) warm
+  paper, always; (D) as it was. The suggestion was A. The owner chose C.
+- **Now:** the page is paper (`#FAF9F5`), panels a shade darker (`#F2F0E8`), lines and text warm
+  (`#E5E1D6`, `#1D2421`, muted `#5D6763`), the teal and mint as before. Form fields stay white on
+  the paper, and the browser's own tick boxes and radio buttons take the teal (`accent-color`).
+- **It reads:** `site/site.unit.test.ts` holds every text colour to WCAG's 4.5:1 on the paper and
+  on a panel, the body text to 7:1 (15:1 measured), and a button's white on the teal (9.4:1).
+- **No dark version.** The page declares `color-scheme: light`, in its CSS and a `<meta>`, so a
+  browser in dark mode draws its controls light too. `theme-color` is the paper.
+- **The app follows** in its own pull request: the owner, asked whether the app would look calmer
+  in C too, answered *"Yes, paper + teal"*. That means a paper page, white cards, warm greys,
+  the site's teal for buttons and links, and stage labels that keep their own colours (0153
+  reviews the app's palette with its layout, 0152 T9 (b)).
+
 **2026-10-05, later: the withdrawal button's words are decided** (T6 (f); the owner, 2026-10-05,
 asked which label to use: *"Ok. As you would suggest."*). The suggestion is the words of article
 11a of the Consumer Rights Directive, as Directive (EU) 2023/2673 inserted it.

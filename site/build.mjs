@@ -293,26 +293,34 @@ function markdown(src) {
  * The palette is the one `scripts/make-logo.py` draws the mark in.
  * `site/site.unit.test.ts` asserts the two agree — a site whose green is not
  * the logo's green looks like somebody else's site.
+ *
+ * WARM PAPER, ALWAYS LIGHT (the owner, 2026-10-05, option C of four). The page
+ * is a soft off-white, its panels a shade darker, the teal on top. There is
+ * no dark version: a visitor whose device is set to dark reads the same page,
+ * dark text on light, which reads best for most people, and the app the
+ * buttons lead to is light as well. Form fields stay white on the paper, so
+ * they look like somewhere to type. The page says `color-scheme: light`, so a
+ * browser in dark mode draws its own controls and scrollbars light too.
  */
 const TEAL = '#0E4F4A';
 const MINT = '#7FD4C1';
+/** The page: warm paper (`--bg`), and the browser's bar in the same colour. */
+const PAPER = '#FAF9F5';
 
 const CSS = `
 :root {
+  color-scheme: light;
+  /* The browser's own tick boxes and radio buttons in the teal, not its blue. */
+  accent-color: ${TEAL};
   --teal: ${TEAL};
   --mint: ${MINT};
-  --ink: #12211f;
-  --muted: #556b66;
-  --line: #dfe7e5;
-  --bg: #ffffff;
-  --panel: #f5f9f8;
+  --ink: #1d2421;
+  --muted: #5d6763;
+  --line: #e5e1d6;
+  --bg: ${PAPER};
+  --panel: #f2f0e8;
+  --field: #ffffff;
   --max: 68rem;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ink: #e8f1ef; --muted: #9fb3ae; --line: #23423e;
-    --bg: #0b1716; --panel: #10201e;
-  }
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -323,7 +331,6 @@ body {
 }
 .wrap { max-width: var(--max); margin: 0 auto; padding: 0 1.25rem; }
 a { color: var(--teal); text-underline-offset: 2px; }
-@media (prefers-color-scheme: dark) { a { color: var(--mint); } }
 h1, h2, h3 { line-height: 1.2; letter-spacing: -0.015em; margin: 2.5rem 0 0.75rem; }
 h1 { font-size: clamp(2rem, 5vw, 3rem); }
 h2 { font-size: clamp(1.4rem, 3vw, 1.9rem); }
@@ -357,7 +364,6 @@ header.site a.lang {
   text-decoration: none; color: var(--muted); white-space: nowrap;
 }
 header.site a.lang:hover { border-color: var(--teal); color: var(--teal); }
-@media (prefers-color-scheme: dark) { header.site a.lang:hover { border-color: var(--mint); color: var(--mint); } }
 /* On a phone the pages fold into a menu that opens without a script (0152 T2). */
 details.menu { display: none; }
 details.menu > summary {
@@ -451,7 +457,6 @@ nav.menu .leaving-list a { display: flex; align-items: center; gap: 0.6rem; padd
 .strip { list-style: none; padding: 0; margin: 1.5rem 0 0.75rem; display: grid; gap: 1rem 2rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); }
 .strip li { display: flex; gap: 0.9rem; align-items: flex-start; }
 .strip .step { font-size: 1.6rem; line-height: 1; min-width: 1.2ch; color: var(--teal); }
-@media (prefers-color-scheme: dark) { .strip .step { color: var(--mint); } }
 .strip h3 { margin: 0 0 0.3rem; font-size: 1.05rem; }
 .strip p { margin: 0; color: var(--muted); }
 .lede { font-size: clamp(1.05rem, 2.2vw, 1.3rem); color: var(--muted); max-width: 58ch; }
@@ -463,11 +468,6 @@ nav.menu .leaving-list a { display: flex; align-items: center; gap: 0.6rem; padd
 .btn-primary { background: var(--teal); color: #fff; }
 .btn-primary:hover { filter: brightness(1.12); }
 .btn-ghost { color: var(--teal); }
-@media (prefers-color-scheme: dark) {
-  .btn { border-color: var(--mint); }
-  .btn-primary { background: var(--mint); color: #06201c; }
-  .btn-ghost { color: var(--mint); }
-}
 .fineprint { color: var(--muted); font-size: 0.9rem; margin-top: 0.75rem; }
 
 /* cards */
@@ -475,7 +475,6 @@ nav.menu .leaving-list a { display: flex; align-items: center; gap: 0.6rem; padd
 /* The data-type icons (icons.mjs): one sprite per page, each icon 24 px in the text's colour. */
 .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
 .icon { width: 1.25rem; height: 1.25rem; flex: none; color: var(--teal); }
-@media (prefers-color-scheme: dark) { .icon { color: var(--mint); } }
 /* Where to (0152 T4): each destination, and the data types it takes. */
 .dest .sub { color: var(--muted); margin: -0.5rem 0 0.75rem; font-size: 0.95rem; }
 .types { list-style: none; padding: 0; margin: 0; }
@@ -503,11 +502,6 @@ nav.menu .leaving-list a { display: flex; align-items: center; gap: 0.6rem; padd
 .verdict[data-verdict="moves"] { background: #def3ee; color: #0b3f3a; }
 .verdict[data-verdict="limit"] { background: #fdf0cc; color: #5b4600; }
 .verdict[data-verdict="no"] { background: #eceff0; color: #3b4a47; }
-@media (prefers-color-scheme: dark) {
-  .verdict[data-verdict="moves"] { background: #143b36; color: #bfeee2; }
-  .verdict[data-verdict="limit"] { background: #3d3315; color: #f5dc94; }
-  .verdict[data-verdict="no"] { background: #26302e; color: #c9d3d0; }
-}
 a.verdict { text-decoration: underline; text-decoration-thickness: 1px; }
 .tag {
   font-size: 0.75rem; font-weight: 600; letter-spacing: 0.03em; padding: 0.05rem 0.5rem;
@@ -533,7 +527,6 @@ a.verdict { text-decoration: underline; text-decoration-thickness: 1px; }
   display: flex; flex-direction: column; position: relative;
 }
 .tier.featured { border-color: var(--teal); box-shadow: 0 0 0 1px var(--teal); }
-@media (prefers-color-scheme: dark) { .tier.featured { border-color: var(--mint); box-shadow: 0 0 0 1px var(--mint); } }
 .tier h3 { margin: 0 0 0.15rem; }
 /* Two lines reserved, so a one-line subtitle does not lift its card's price
    out of line with the others. A price column that does not line up reads as
@@ -558,16 +551,11 @@ a.verdict { text-decoration: underline; text-decoration-thickness: 1px; }
 .pay-options label { padding: 0.3rem 1rem; border-radius: 999px; cursor: pointer; color: var(--muted); font-weight: 600; font-size: 0.95rem; }
 .pay-options input:checked + label { background: var(--teal); color: #fff; }
 .pay-options input:focus-visible + label { outline: 2px solid var(--teal); outline-offset: 2px; }
-@media (prefers-color-scheme: dark) {
-  .pay-options input:checked + label { background: var(--mint); color: #06201c; }
-  .pay-options input:focus-visible + label { outline-color: var(--mint); }
-}
 .pay-rule { color: var(--muted); margin: 0.6rem 0 0; }
 .pay:has(#pay-month:checked) .when-year, .pay:has(#pay-year:checked) .when-month { display: none; }
 .tier .price-year { font-size: 1.1rem; font-weight: 700; margin-top: 0.15rem; }
 .tier .price-how { color: var(--muted); font-size: 0.85rem; }
 .tier .half { display: block; margin-top: 0.35rem; color: var(--teal); font-size: 0.85rem; font-weight: 650; }
-@media (prefers-color-scheme: dark) { .tier .half { color: var(--mint); } }
 
 /* The pricing page's rules as questions (0152 T6 (b)): each opens without a script. */
 .qas { border-top: 1px solid var(--line); margin: 1.25rem 0 0; }
@@ -597,7 +585,7 @@ details.qa > p { margin: 0 0 1rem; }
    than running into the next field (0152 T7 (c): at 1280 pixels Calendar's
    "2,000 items" ran into Files). */
 .calc .amount label { flex-basis: 100%; }
-.calc .amount input { width: 6.5rem; padding: 0.35rem 0.5rem; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; }
+.calc .amount input { width: 6.5rem; padding: 0.35rem 0.5rem; border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--ink); font: inherit; }
 .calc .amount .items { color: var(--muted); font-size: 0.8rem; }
 .calc .amount[data-off] { opacity: 0.45; }
 #paths-line { font-weight: 600; margin: 1.5rem 0 0.5rem; }
@@ -612,9 +600,7 @@ details.qa > p { margin: 0 0 1rem; }
   letter-spacing: 0.05em; text-transform: uppercase; padding: 0.15rem 0.5rem; border-radius: 999px; }
 .axis[data-decides] .decides { display: inline-block; }
 .axis[data-decides] { border-color: var(--teal); box-shadow: 0 0 0 1px var(--teal); }
-@media (prefers-color-scheme: dark) { .axis[data-decides] { border-color: var(--mint); box-shadow: 0 0 0 1px var(--mint); } }
 #tier-card { border: 1px solid var(--teal); box-shadow: 0 0 0 1px var(--teal); border-radius: 12px; padding: 1.25rem; margin: 1rem 0; }
-@media (prefers-color-scheme: dark) { #tier-card { border-color: var(--mint); box-shadow: 0 0 0 1px var(--mint); } }
 #tier-card h3 { margin: 0 0 0.5rem; }
 #tier-card ul { list-style: none; padding: 0; margin: 0.75rem 0; }
 #tier-card ul li { padding: 0.3rem 0; border-top: 1px solid var(--line); }
@@ -746,6 +732,8 @@ function layout({ title, description, body, locale, key, draft, alpha }) {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light" />
+<meta name="theme-color" content="${PAPER}" />
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}" />
 <meta property="og:title" content="${esc(title)}" />
