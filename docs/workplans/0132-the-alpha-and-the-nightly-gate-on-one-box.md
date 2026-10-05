@@ -4,6 +4,22 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-10-05, the owner's checks: Docker's log driver is `json-file`, and NetBird shows no
+sign-in.** Plans only. Two of the items the entries of 2026-09-28 and 2026-09-29 left as *Still
+the owner's*:
+
+- **The log driver (ops-log-driver (a)).** The owner ran `docker info --format
+  '{{.LoggingDriver}}'` on the machine, in the OTA stack's directory, and it printed `json-file`.
+  The driver is the daemon's, and both stacks share one daemon (D7), so live's containers
+  write with it too. `stand-up-live.sh` takes `json-file` or `local`, so its check passes, and
+  privacy §9's server logs, kept until the part that wrote them is replaced, hold. There is no
+  journald setting to undo. Done.
+- **NetBird's sign-in, NetBird's side (T3 (c); 0139 item 8).** The owner: *"Netbird: no SSO or
+  password, i checked."* The proof from outside the NetBird network is still owed: a dispatch of
+  the exposure probe that passes for the four names, once `EXPOSURE_PROBE_LIVE_PORTS` is set. It
+  comes with live. 0139's Status has the record.
+- (d)'s check, one log line of each on live, still waits for live to stand.
+
 **2026-10-05, after the owner's run: T2 step B built: `TRIGGER_DB_PASSWORD` is judged as the
 four**, on branch `claude/ownpace-public-readiness-y7orc6-the-tasks-database-key-is-required`, not
 merged. Once it is merged, T2's code covers all five keys.
