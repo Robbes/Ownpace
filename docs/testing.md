@@ -370,8 +370,10 @@ Stalwart per file.
 Generally, **mailbox cleanup is preferred** unless you have a specific need for complete isolation.
 
 ## CI mapping (.github/workflows)
-- `ci.yml` — `detect-changes -> docs-hygiene + fixture-uuid-check + migration-lint (parallel) ->
-  lint -> unit-tests -> integration-tests`; docs-hygiene enforces the root `.md` allowlist and
+- `ci.yml` — `detect-changes -> docs-hygiene + fixture-uuid-check + migration-lint + lint +
+  unit-tests (parallel) -> integration-tests` (unit-tests stopped waiting for lint on 2026-10-05);
+  on a pull request `unit-tests` is split over four hosted runners (`vitest --shard=N/4`, about
+  6 minutes instead of 11), and on a push it is one run on the Spark; docs-hygiene enforces the root `.md` allowlist and
   that the canonical docs exist; **`fixture-uuid-check`** enforces unique test-fixture UUIDs
   across the tree (the remediation from `docs/test-fixture-uuid-collision-audit.md` — a colliding
   tenant or mapping UUID pasted into a new test fails CI by name rather than causing cross-test
@@ -388,7 +390,7 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   subjects stay as they are and no branch is rewritten to go green; merge commits are exempt by
   parent count, because merging the base branch in is how a conflict is resolved here.
 - `ui-tests` (ci.yml job; real Chromium over the built bundle; every code-changing pull request
-  and on main) — `pnpm test:ui`, after `lint` and alongside `unit-tests`.
+  and on main) — `pnpm test:ui`, after `lint`, running while `unit-tests` does.
 - `security-scan.yml` — pnpm audit + Trivy (SARIF) + CycloneDX SBOM; weekly + PR + push + manual;
   SBOM attached to release tags.
 - `e2e.yml` — nightly (23:30 UTC on the Postgres stack, 01:30 UTC on PGlite) and on dispatch, on
