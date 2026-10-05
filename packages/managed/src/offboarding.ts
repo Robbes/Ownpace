@@ -131,6 +131,9 @@ export const PURGED_TABLES = [
   // a time keyed to a migration, which goes with it. Before `mailbox_mapping`,
   // which it references; the key would cascade, and naming it counts it.
   'migration_visit',
+  // A slower step, once said (0157 T7, managed migration 0043): keyed to a
+  // migration, and gone with it, as the visit is.
+  'migration_cadence_said',
   // Before `mailbox_mapping`: a link references the mapping it opens.
   'mapping_link',
   'mailbox_mapping',
@@ -165,6 +168,10 @@ export const PURGED_TABLES = [
   // retained invoice carries what it charged on its own document. The key
   // would cascade; named so the receipt counts it.
   'data_allowance',
+  // Each tier a person picked (0157 T6, managed 0044): the same reasoning as a
+  // yes above, whose pick it may carry. The key would cascade; named so the
+  // receipt counts it.
+  'tier_pick',
   // The operator's number of live grant links for this organisation (0108
   // T8 (d), managed 0028): a setting about the customer, with nobody left to
   // apply it to. The key would cascade; named so the receipt counts it.

@@ -43,7 +43,7 @@ const PersonReport: React.FC = () => {
   });
 
   const back = personId ? (
-    <Link to={`/people/${encodeURIComponent(personId)}`} className="text-sm text-blue-700 hover:underline">
+    <Link to={`/people/${encodeURIComponent(personId)}`} className="inline-block text-sm text-blue-700 hover:underline">
       ← {person?.displayName ?? t('people.implicit')}
     </Link>
   ) : null;

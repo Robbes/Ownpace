@@ -27,6 +27,10 @@
 #   copy-before-update.sh       refuses a .env WITHOUT the marker: the copy
 #                               before an update is live's (0139:
 #                               stack_is_live)
+#   ensure-env-secrets.sh       writes BACKUP_RETENTION_DAYS=0 on a blank
+#                               alpha line off live only, where no copy is
+#                               kept; on live it says so and writes nothing
+#                               (0134 T1: stack_may_be_live)
 #   dump-idp.sh and             on live write only into that copy's
 #   trigger-version.sh          directory, and trigger-version.sh refuses its
 #                               drill there (0139: stack_may_be_live)

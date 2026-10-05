@@ -24,11 +24,12 @@ import {
 } from '@openmig/shared';
 import Person from './Person.tsx';
 import { mappingApi, type MappingListItem } from '../services/mapping-service.ts';
+import { STRINGS } from '../i18n/strings.ts';
 import { fetchAttention, fetchPeople, fetchStatus, fetchVerifyReport } from '../services/operating-service.ts';
 import { personLinkApi } from '../services/grant-link-service.ts';
 import userEvent from '@testing-library/user-event';
 
-vi.mock('../services/mapping-service', () => ({ mappingApi: { list: vi.fn() } }));
+vi.mock('../services/mapping-service', () => ({ mappingApi: { list: vi.fn(), pace: vi.fn() } }));
 vi.mock('../services/operating-service', () => ({
   fetchPeople: vi.fn(),
   fetchAttention: vi.fn(),
@@ -54,6 +55,7 @@ vi.mock('../services/grant-link-service', async (importOriginal) => ({
 }));
 
 const listMock = vi.mocked(mappingApi.list);
+const paceMock = vi.mocked(mappingApi.pace);
 const peopleMock = vi.mocked(fetchPeople);
 const attentionMock = vi.mocked(fetchAttention);
 
@@ -125,6 +127,8 @@ beforeEach(() => {
   vi.resetAllMocks();
   edition.selfhost = false;
   listMock.mockResolvedValue([MAIL, FILES]);
+  // A paid tier's pace unless a case says otherwise: nothing to say.
+  paceMock.mockResolvedValue({ leastMinutesBetweenPasses: 0, nextPassAt: {} });
   peopleMock.mockResolvedValue({ people: [ANNA], unassigned: [] });
   vi.mocked(personLinkApi.list).mockResolvedValue([]);
   vi.mocked(personLinkApi.awaiting).mockResolvedValue([]);
@@ -574,5 +578,28 @@ describe('a person’s lines say where each data type is (0154 T1 (b))', () => {
       await vi.waitFor(() => expect(line('mail', 'email').getAttribute('data-stage')).toBe('kept_in_step'));
       expect(within(line('mail', 'email')).getByText('412 of ~412 · last pass 1 hour ago')).toBeInTheDocument();
     });
+  });
+});
+
+/**
+ * THE PACE OF THEIR MIGRATIONS (workplan 0157 T5): on Free, outside the alpha,
+ * one pass a day for each, said once under their name, with the way to more.
+ */
+describe("the pace of their migrations (0157 T5)", () => {
+  it('on Free: one pass a day for each migration, and a link to the tiers', async () => {
+    paceMock.mockResolvedValue({ leastMinutesBetweenPasses: 1440, nextPassAt: { 'm-mail': '2026-10-06T07:12:00.000Z' } });
+    renderAt();
+    const line = await screen.findByText(STRINGS.en['pace.free.eachMigration'], { exact: false });
+    expect(line.closest('p')).toHaveAttribute('data-pace', 'free');
+    expect(screen.getByRole('link', { name: STRINGS.en['pace.free.higher'] })).toHaveAttribute('href', '/billing');
+    // One time is not said for several migrations.
+    expect(screen.queryByText(/Next pass:/)).toBeNull();
+  });
+
+  it('says nothing of a pace on a paid tier, or during the alpha', async () => {
+    renderAt();
+    expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument();
+    await vi.waitFor(() => expect(paceMock).toHaveBeenCalled());
+    expect(screen.queryByText(STRINGS.en['pace.free.eachMigration'], { exact: false })).toBeNull();
   });
 });

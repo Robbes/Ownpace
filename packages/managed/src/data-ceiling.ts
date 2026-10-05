@@ -355,13 +355,14 @@ export class PgDataAllowanceStore {
   /**
    * Record one yes. Append-only: the table refuses UPDATE and DELETE to the app.
    * `axis` says which limit asked (managed 0039): the data ceiling, or the
-   * paths at *Start*. The tier agreed is one for both.
+   * paths at *Start*; or `pick`, a tier the person picked above the agreed one
+   * (managed 0044, `tier-pick.ts`). The tier agreed is one for all three.
    */
   async record(
     tenantId: TenantId,
     grant: AllowanceGrant & { readonly priceEur: number },
     consentedBy: string,
-    axis: 'data' | 'paths' = 'data',
+    axis: 'data' | 'paths' | 'pick' = 'data',
   ): Promise<void> {
     await this.db.insert(dataAllowance).values({
       tenantId,

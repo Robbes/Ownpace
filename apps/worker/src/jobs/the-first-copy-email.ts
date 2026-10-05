@@ -19,6 +19,11 @@
  *    as the digest reads them (`managed-digest.ts`): the people who run the
  *    migrations, and the mail names the person.
  *
+ * 5. **At Free's pace** (workplan 0157 T5): on Free, outside the alpha, the mail
+ *    says that keeping in step is one pass a day, and where a higher tier is.
+ *    The tier is the one the month bills, read in the claim's transaction as
+ *    the Billing page reads it (`billedTierNow`).
+ *
  * The claim is made before the send and stands whatever the send does. An
  * announcement is for something that happened, and a channel switched on next
  * week must not tell anyone then about today. The send runs after the claim's
@@ -29,6 +34,7 @@ import type { Pool } from 'pg';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { readFirstCopyFacts, withTenant, type LedgerDriver } from '@openmig/ledger';
 import { person, personMigration } from '@openmig/managed/schema-managed';
+import { billedTierNow, holdsAtCeiling, leastMinutesBetweenPasses, FREE_PASS_EVERY_MINUTES } from '@openmig/managed';
 import {
   createNotifier,
   firstCopyOf,
@@ -37,6 +43,7 @@ import {
   renderEvent,
   type FirstCopyFacts,
   type NotificationLocale,
+  type TenantId,
   type NotificationMessage,
 } from '@openmig/shared';
 import { notifierFromEnv, smtpTransport } from '@openmig/connectors';
@@ -111,11 +118,18 @@ export async function announceFirstCopy(
     const [organisation] = rowsOf<{ settings: unknown }>(
       await db.execute(sql`SELECT settings FROM tenant WHERE id = ${tenantId}`),
     );
+    // Free's pace, outside the alpha (0157 T5), in this same transaction.
+    const stage = process.env.OWNPACE_STAGE;
+    const onePassADay =
+      holdsAtCeiling(stage) &&
+      leastMinutesBetweenPasses(await billedTierNow(db, tenantId as TenantId, new Date()), stage) >=
+        FREE_PASS_EVERY_MINUTES;
     return {
       to: recipients,
       locale: readTenantNotificationPrefs(organisation?.settings).locale,
       person: claimed.name,
       domains: first.domains,
+      onePassADay,
     };
   });
   if (typeof claim === 'string') return claim;
@@ -124,7 +138,15 @@ export async function announceFirstCopy(
   await deps.send(
     claim.to,
     claim.locale,
-    renderEvent({ kind: 'first_copy_complete', person: claim.person, domains: claim.domains }, claim.locale),
+    renderEvent(
+      {
+        kind: 'first_copy_complete',
+        person: claim.person,
+        domains: claim.domains,
+        ...(claim.onePassADay ? { onePassADay: true } : {}),
+      },
+      claim.locale,
+    ),
   );
   return 'sent';
 }

@@ -109,6 +109,25 @@ describe('the cron the tick reads', () => {
     expect(isSyncDue(sixHourly, lastStarted, new Date(lastStarted.getTime() + 360 * 60_000))).toBe(true);
   });
 
+  it('reads the schedule in UTC, whatever zone the machine runs in', () => {
+    // The self-hosted CI runner does not run in UTC; the servers do. A cron read
+    // in the machine's own zone put the six-hourly steps two hours off there
+    // and called a pass due four hours after the last one.
+    const was = process.env.TZ;
+    process.env.TZ = 'Europe/Amsterdam';
+    try {
+      const lastStarted = new Cron(sixHourly, { timezone: 'UTC' }).nextRun(daysAfter(since, 20))!;
+      expect(isSyncDue(sixHourly, lastStarted, new Date(lastStarted.getTime() + 359 * 60_000))).toBe(false);
+      expect(isSyncDue(sixHourly, lastStarted, new Date(lastStarted.getTime() + 360 * 60_000))).toBe(true);
+      // Daily at 02:00 is 02:00 UTC, not 02:00 in Amsterdam.
+      expect(isSyncDue('0 2 * * *', T('2026-10-05T02:00:00Z'), T('2026-10-06T01:59:00Z'))).toBe(false);
+      expect(isSyncDue('0 2 * * *', T('2026-10-05T02:00:00Z'), T('2026-10-06T02:00:00Z'))).toBe(true);
+    } finally {
+      if (was === undefined) delete process.env.TZ;
+      else process.env.TZ = was;
+    }
+  });
+
   it('still runs a first copy pass after pass, whatever the step', () => {
     const lastStarted = T('2026-10-05T07:00:00Z');
     const fifteenOn = T('2026-10-05T07:15:00Z');

@@ -104,7 +104,7 @@ describe('the alpha\'s data', () => {
     expect(res.body.gbMovedInTheAlpha).toBe(600);
     // 100 GB fits Free; the 700 GB in total would have needed Medium.
     expect(res.body.tier.id).toBe('free');
-    expect(res.body.billed).toEqual({ tier: expect.objectContaining({ id: 'free' }), beyond: [] });
+    expect(res.body.billed).toEqual({ tier: expect.objectContaining({ id: 'free' }), beyond: [], picked: false });
   });
 
   it('does not count against the data ceiling, and is said beside it', async () => {
@@ -123,7 +123,11 @@ describe('what this month bills', () => {
     await moved(1000);
     const res = await request(app).get('/api/billing/usage');
     expect(res.body.tier.id).toBe('medium');
-    expect(res.body.billed).toEqual({ tier: expect.objectContaining({ id: 'small', monthlyCents: small.monthlyCents }), beyond: ['bands'] });
+    expect(res.body.billed).toEqual({
+      tier: expect.objectContaining({ id: 'small', monthlyCents: small.monthlyCents }),
+      beyond: ['bands'],
+      picked: false,
+    });
     expect(res.body.ceilingGb).toBe(2 * small.dataGb);
     expect(res.body.topUps).toBe(1);
   });
@@ -140,7 +144,7 @@ describe('what this month bills', () => {
     const res = await request(app).get('/api/billing/usage');
     expect(res.body.evidence.peakPaths).toBe(peak);
     expect(res.body.tier.id).not.toBe('free');
-    expect(res.body.billed).toEqual({ tier: expect.objectContaining({ id: 'free' }), beyond: ['paths'] });
+    expect(res.body.billed).toEqual({ tier: expect.objectContaining({ id: 'free' }), beyond: ['paths'], picked: false });
   });
 
   it('says whether the alpha is over: nothing is billed during it', async () => {

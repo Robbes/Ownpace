@@ -101,8 +101,8 @@ live in [README.md](./README.md), the register.
 - **`holdsASlot` (`@openmig/ledger`) is the slot rule**: `active`, `paused` and `continuous`
   hold a slot; `ready`, `cutover` and `done` hold none; a stop releases one only in the lane,
   whose customer is first told the bill does not stop at cutover.
-- **The month bills its peak, or a higher tier picked.** Downgrade: automatic down to it,
-  announced, never blocking. No setup fee. Not built (0109, 0157).
+- **The month bills its peak, or a higher tier picked** (`tier-pick.ts`; invoice unbuilt,
+  0109). Downgrade: automatic down to it, announced, never blocking. No setup fee.
 - **Every step up is consented and paid for.** A path waits for the yes at activation; at the
   data ceiling, outside the alpha, new first copies wait for a move up or a one-off top-up
   (another band for the tier's monthly, once). Without that yes, a month bills the tier it

@@ -449,6 +449,41 @@ if [ "${PLACEHOLDERS_REPLACED:-0}" -eq 1 ]; then
 EOF
 fi
 
+# BACKUP_RETENTION_DAYS ON AN ALPHA STACK (workplan 0134 T1). Not a secret, but
+# the one value without which the api refuses to start once OWNPACE_STAGE is
+# `alpha` (assertBackupRetentionConfig, apps/api/src/config-guards.ts), and an
+# .env from before that refusal (#1435, 2026-10-04) carries it blank. Found on
+# the Spark's OTA stack, 2026-10-05: the api crash-looped after a pull, and the
+# site said "Your account could not be read".
+#
+# Off live the true answer is known: copy-before-update.sh, the only thing
+# that copies this deployment's databases, refuses any .env without live's
+# marker, so nothing here keeps a copy, and 0 is what the erasure sentence
+# should say. So it is written, and said. Live's number is the owner's (7,
+# 0134 open question 1 (b)); stand-up-live.sh refuses a blank there, and this
+# writes nothing for it, only says so. A value that is there is never touched.
+# scripts/a-retention-the-bring-up-states.unit.test.ts runs this.
+# shellcheck source=deploy/compose/stack-kind.sh
+. "${SCRIPT_DIR}/stack-kind.sh"
+retention_stage="$(env_value "$ENV_FILE" OWNPACE_STAGE)"
+retention_stage="${retention_stage//\"/}"
+retention_stage="$(printf '%s' "$retention_stage" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+retention_days="$(env_value "$ENV_FILE" BACKUP_RETENTION_DAYS)"
+retention_days="${retention_days//\"/}"
+if [ "$retention_stage" = alpha ] && [ -z "$retention_days" ]; then
+  if stack_may_be_live "$ENV_FILE"; then
+    echo "[ensure-env-secrets] LEFT AS IT IS: BACKUP_RETENTION_DAYS is blank on live's .env with OWNPACE_STAGE=alpha, and the api refuses to start so." >&2
+    echo "[ensure-env-secrets]   Set it to the most days the copy before an update is kept, 7 on live (workplan 0134):" >&2
+    echo "[ensure-env-secrets]   ./deploy/compose/env-upsert.sh ${ENV_FILE} BACKUP_RETENTION_DAYS=7" >&2
+    REFUSED_ROTATION=1
+  else
+    printf 'BACKUP_RETENTION_DAYS=0\n' | "$UPSERT" --stdin "$ENV_FILE" >/dev/null
+    echo "[ensure-env-secrets] wrote BACKUP_RETENTION_DAYS=0: OWNPACE_STAGE is alpha, the line was blank, and the api refuses to start so."
+    echo "[ensure-env-secrets]   0 says no copy of this stack's database is kept, which is true off live: copy-before-update.sh runs on live only."
+    echo "[ensure-env-secrets]   If you keep dumps of it yourself, set the most days one is kept instead (workplan 0134)."
+  fi
+fi
+
 if [ "${REFUSED_ROTATION:-0}" -eq 1 ]; then
   echo "[ensure-env-secrets] done, EXCEPT the key(s) named above — decide each deliberately."
 else

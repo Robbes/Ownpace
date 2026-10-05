@@ -354,7 +354,7 @@ smoke does. Its evidence file is **secret-bearing** (runner logs print the task 
 
 ## Email notifications (workplan 0030)
 
-Three things send email on managed, all through the operator's own SMTP relay configured in
+Four things send email on managed, all through the operator's own SMTP relay configured in
 `.env` and uploaded by `set-task-env.sh`:
 
 - **`managed-digest`** — a scheduled task, daily at **08:00 UTC**. It asks each active tenant
@@ -372,6 +372,16 @@ Three things send email on managed, all through the operator's own SMTP relay co
   without SMTP, so switching SMTP on later sends nothing about earlier copies. The pass logs
   `[first-copy] <mapping>: sent`, or `not_yet`, `already`, `nobody`, `no_channel`,
   `no_recipients`. A migration with no person sends none.
+- **`managed-cadence-email`** (workplan 0157 T7) — a scheduled task, daily at **07:30 UTC**.
+  A migration with no schedule of its own (*Automatic*) looks every hour for 14 days after
+  everything is in step, then every 6 hours, then once a day from day 30. Each morning this
+  tells each active organisation's **active owners and admins**, in its language, which of its
+  migrations stepped down since they were last told: *everything is in step, so we now look
+  for changes less often*. `migration_cadence_said` (managed migration 0043) makes each step
+  once, claimed with or without SMTP. A visit, the migration's page opened or *Sync now*,
+  brings back the hour and deletes the row, and the page says once what it ended. Nothing is
+  said on Free outside the alpha, where a migration runs one pass a day whatever its cadence.
+  The run logs `{ tenants, free_pace, none, sent, no_channel, no_recipients, failed }`.
 
 Two behaviours worth knowing before you go looking for a missing email:
 

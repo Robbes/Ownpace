@@ -10,6 +10,8 @@
  *
  *  1. opening the page records one, at most once an hour, and only for a
  *     migration of the organisation that opens it;
+ *  1a. it ends a slower step the morning mail said (managed 0043), and
+ *     answers which, once, for the page to say;
  *  2. a press of *Sync now* that starts a pass records one too;
  *  3. *Automatic* is saved as no schedule at all, which is what the tick reads
  *     as the automatic cadence; a cron is still read and refused as before.
@@ -122,13 +124,41 @@ afterEach(async () => {
   enqueued.length = 0;
   signedIn = ORG;
   await sql('DELETE FROM migration_visit');
+  await sql('DELETE FROM migration_cadence_said');
 });
 
+/** A slower step the morning mail said of a migration (managed 0043). */
+const said = (tenantId: string, mappingId: string, step: 'six-hourly' | 'daily') =>
+  sql(
+    `INSERT INTO migration_cadence_said (mapping_id, tenant_id, step, counted_from)
+     VALUES ($1, $2, $3, now() - interval '20 days')`,
+    [mappingId, tenantId, step],
+  );
+const saidOf = async (mappingId: string): Promise<string | null> =>
+  (await sql<{ step: string }>('SELECT step FROM migration_cadence_said WHERE mapping_id = $1', [mappingId]))[0]
+    ?.step ?? null;
+
 describe("opening the migration's page", () => {
-  it('records a visit', async () => {
+  it('records a visit, and answers that it ended no slower step', async () => {
     const res = await request(app).post(`/api/migrations/${MAPPING}/visit`);
-    expect(res.status).toBe(204);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ broughtBackFrom: null });
     expect(await visitOf(MAPPING)).not.toBeNull();
+  });
+
+  it('ends a slower step the morning mail said, and names it once (0157 T7)', async () => {
+    await said(ORG, MAPPING, 'six-hourly');
+    const first = await request(app).post(`/api/migrations/${MAPPING}/visit`).expect(200);
+    expect(first.body).toEqual({ broughtBackFrom: 'six-hourly' });
+    expect(await saidOf(MAPPING)).toBeNull();
+    // The hour is back: the next visit has nothing to say.
+    const again = await request(app).post(`/api/migrations/${MAPPING}/visit`).expect(200);
+    expect(again.body).toEqual({ broughtBackFrom: null });
+
+    await said(ORG, MAPPING, 'daily');
+    expect((await request(app).post(`/api/migrations/${MAPPING}/visit`).expect(200)).body).toEqual({
+      broughtBackFrom: 'daily',
+    });
   });
 
   it('moves it at most once an hour', async () => {
@@ -139,27 +169,31 @@ describe("opening the migration's page", () => {
       ORG,
       tenMinutesAgo,
     ]);
-    await request(app).post(`/api/migrations/${MAPPING}/visit`).expect(204);
+    await request(app).post(`/api/migrations/${MAPPING}/visit`).expect(200);
     expect((await visitOf(MAPPING))!.toISOString()).toBe(tenMinutesAgo.toISOString());
 
     await sql('UPDATE migration_visit SET visited_at = $2 WHERE mapping_id = $1', [MAPPING, twoHoursAgo]);
-    await request(app).post(`/api/migrations/${MAPPING}/visit`).expect(204);
+    await request(app).post(`/api/migrations/${MAPPING}/visit`).expect(200);
     expect((await visitOf(MAPPING))!.getTime()).toBeGreaterThan(twoHoursAgo.getTime() + 3_600_000);
   });
 
-  it("is 404 for another organisation's migration, and records nothing", async () => {
+  it("is 404 for another organisation's migration, and records and ends nothing", async () => {
+    await said(OTHER, OTHERS_MAPPING, 'daily');
     const res = await request(app).post(`/api/migrations/${OTHERS_MAPPING}/visit`);
     expect(res.status).toBe(404);
     expect(await visitOf(OTHERS_MAPPING)).toBeNull();
+    expect(await saidOf(OTHERS_MAPPING)).toBe('daily');
   });
 });
 
 describe('Sync now', () => {
-  it('records a visit when it starts a pass', async () => {
+  it('records a visit when it starts a pass, which ends a slower step too', async () => {
+    await said(ORG, MAPPING, 'six-hourly');
     const res = await request(app).post(`/api/migrations/${MAPPING}/sync`).send({});
     expect(res.status).toBe(202);
     expect(enqueued).toEqual(['run-delta-sync']);
     expect(await visitOf(MAPPING)).not.toBeNull();
+    expect(await saidOf(MAPPING)).toBeNull();
   });
 });
 

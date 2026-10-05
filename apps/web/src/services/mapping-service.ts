@@ -1163,12 +1163,32 @@ export const mappingApi = {
   },
 
   /**
+   * THE PACE THE ORGANISATION'S MIGRATIONS RUN AT (workplan 0157 T5): the
+   * least minutes between two passes, 1,440 on Free outside the alpha, and
+   * each migration's next pass by it where that is still to come.
+   */
+  pace: async () => {
+    const response = await apiClient.get('/migrations/pace');
+    return z
+      .object({
+        leastMinutesBetweenPasses: z.number(),
+        nextPassAt: z.record(z.string(), z.string()),
+      })
+      .parse(response.data);
+  },
+
+  /**
    * A VISIT (workplan 0157 T7): the migration's page was opened, so one with
    * no schedule of its own looks every hour again, for 14 days. The server
    * moves it at most once an hour, so the page sends it each time it opens.
+   * The answer names the slower step the visit ended, once said by the
+   * morning mail, or null: anything else reads as null, and the page says
+   * nothing.
    */
-  recordVisit: async (mappingId: string): Promise<void> => {
-    await apiClient.post(`/migrations/${mappingId}/visit`);
+  recordVisit: async (mappingId: string): Promise<{ broughtBackFrom: 'six-hourly' | 'daily' | null }> => {
+    const response = await apiClient.post(`/migrations/${mappingId}/visit`);
+    const from = (response.data as { broughtBackFrom?: unknown } | undefined)?.broughtBackFrom;
+    return { broughtBackFrom: from === 'six-hourly' || from === 'daily' ? from : null };
   },
 
   /**

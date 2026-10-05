@@ -77,7 +77,7 @@ const asThePageDrawsIt = (drawing: string) =>
     // its symbols come from the page's sprite
     .replace(/<defs>\n(?:<symbol[\s\S]*?<\/symbol>\n)+<\/defs>\n/, '')
     // it scales with its column, its title and description under ids of their own
-    .replace(' width="560" height="310"', '')
+    .replace(' width="560" height="356"', '')
     .replace('<svg xmlns=', '<svg class="hero-move" xmlns=')
     .replace('aria-labelledby="t d"', 'aria-labelledby="hero-move-t hero-move-d"')
     .replace('<title id="t">', '<title id="hero-move-t">')
@@ -95,8 +95,11 @@ describe('the hero is the drawing (0152 T3)', () => {
       expect(shapesOf(drawn), `${locale}: hero.mjs is not hero-move.svg`).toBe(shapesOf(asThePageDrawsIt(drawing)));
       // Every word is the page's own: none is left empty, none is the drawing's English in Dutch.
       expect(drawn).not.toMatch(/<text\b[^>]*><\/text>|undefined/);
-      // The drawing carries the app's data types but tasks, which it does not draw.
-      for (const t of DISCOVERY_DOMAINS.filter((d) => d !== 'task')) {
+      // The drawing carries every data type the app moves, on both sides. It
+      // drew five and no tasks until 2026-10-05, when the owner asked why: the
+      // drawing was planned before tasks were a data type of the site's own,
+      // and this line had been written around the gap instead of closing it.
+      for (const t of DISCOVERY_DOMAINS) {
         expect(drawn.split(`>${c.dataTypes[t]}</text>`).length - 1, `${locale}: ${t} is not on both sides`).toBe(2);
       }
       expect(drawn.split(`>${c.leaving.photos}</text>`).length - 1).toBe(2);

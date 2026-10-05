@@ -4,6 +4,48 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-10-05, later: the app screen joins the drawing** (T3, D8: *"drawing now, app screen
+later"*; the owner, 2026-10-05: *"yes! but it will have to move along with changes in text in the
+future"*). After How it works, the home page shows the app itself, under *What you see in the app*.
+- **The pictures** are `site/app-screen/`: a wide one, and a phone's below 48rem, where the wide
+  one would shrink its words past reading, in each language. They are WebP at twice the pixels,
+  load lazily and sit in a frame. They show a person's page: Anna Jansen, an example person, with
+  three migrations, at a fixed moment, with the numbers of the 0154 drawings. A caption says it is
+  a real screen with an example person, and the `alt` says what it shows.
+- **A script takes them:** `scripts/shoot-the-app-screen.mjs` builds the app as it ships, serves
+  it the answers in `test/ui/app-screen.ts`, and photographs the page's head and its card of
+  migrations (`data-app-screen` in `Person.tsx`). It records each picture's size, and the words in
+  it, in `screen.json`.
+- **They move along with the text:** the UI smoke opens the same page, with the same answers, at
+  the same moment, and fails while its words are not the pictures' words. Its message names the
+  script to run. With *Add a migration* changed in the app, it fails.
+- **A fault the pictures showed, in the app:** the way back to Migrations sat 5 pixels above the
+  person's name, on their page and on their report. Tailwind 4's `space-y` spaces children with
+  a bottom margin, which an inline link ignores. Both links are inline blocks now, and the smoke
+  holds the gap: with the old link, it fails at 4 pixels.
+- **Guard:** `scripts/the-home-page-shows-the-app.unit.test.ts`:
+  - every picture is twice the size `screen.json` records;
+  - each home page shows it once, after How it works and before Where to, at those sizes;
+  - every name in the `alt` is in the picture's words;
+  - the build ships the pictures, and not the words.
+
+  Mutations caught: a recorded height 2 pixels off, *Outlook* in the alt, the build's copy
+  removed, the section moved after Where to.
+- **T0:** the section's title, its sentence, the caption and the alt, in both languages, are new
+  words for the owner's reading.
+
+**2026-10-05, later: the hero's drawing carries tasks** (the owner, asking why it did not).
+The drawing was planned on 2026-09-28 with five rows: mail, calendar, contacts, files and photos.
+Tasks became a data type of the site's own on 2026-10-04 (*Several sources, and Tasks*, below),
+and the drawing was not redrawn. Its guard had even been written around the gap: *"the app's
+data types but tasks, which it does not draw"*.
+- **The drawing** (`hero-move.svg`, and `site/hero.mjs` line for line) has six rows on each side:
+  mail, calendar, contacts, tasks, files and photos. The cards grow by one row, and Ownpace's
+  ring, its arrows and their words move down half a row, so the middle stays centred.
+- **Its description and the hero's sentence** name tasks in both languages.
+- **`the-hero-is-the-drawing`** now asks for every data type the app has, on both sides. Run
+  against the five-row drawing, it fails with *"task is not on both sides"*.
+
 **2026-10-05, the site is warm paper, always light** (the owner, 2026-10-05, asked why the site
 looked greenish where screenshots had shown it white, and picked option C of four, drawn for
 them side by side: *"C. Warm paper, always"*). It had followed a device set to dark into a dark
@@ -19,8 +61,8 @@ green (`#0b1716`).
   browser in dark mode draws its controls light too. `theme-color` is the paper.
 - **The app follows** in its own pull request: the owner, asked whether the app would look calmer
   in C too, answered *"Yes, paper + teal"*. That means a paper page, white cards, warm greys,
-  the site's teal for buttons and links, and stage labels that keep their own colours (0153
-  reviews the app's palette with its layout, 0152 T9 (b)).
+  the site's teal for buttons and links, and stage labels that keep their own colours (0153's
+  Status, 0152 T9 (b)).
 
 **2026-10-05, later: the withdrawal button's words are decided** (T6 (f); the owner, 2026-10-05,
 asked which label to use: *"Ok. As you would suggest."*). The suggestion is the words of article
@@ -606,7 +648,7 @@ together, from one audit of the site and the app on `main` at `83eb73e` (§1).
 | T0 The owner reads the new copy | ⏳ **Owner; before the first invitation, before each task merges. D6's *migratie* is built on the site's own pages; the legal texts are 0139's** | §3. Site copy is the owner's to approve (0144 T0). Every new sentence here is a proposal, in both languages. It includes *migratie* for *verhuizing* (D6) and the new *Why it is priced this way* (T6 (g)). |
 | T1 The alpha, said on the site | ✅ **Built: (b) 2026-10-04, (a) 2026-10-05 (open question 5); its new sentence waits for T0** | §3. A line about the Alpha on every site page while the alpha setting is on, and in the app's guides for a visitor without a session: a fact for a visitor, *"Ownpace is in its Alpha, by invitation. Nothing is charged during the Alpha."*, while the welcome stays the members' (open question 5, answered 2026-10-05). The unbacked *"Most people"* and *"Meest gekozen"* become a fact about the tier. |
 | T2 A shorter menu, and a header that fits a phone | ✅ **Built 2026-10-04, with T6 (c); *Leaving…* joined it with T5 (b); its words wait for T0** | §3. The header reads Home · How it works · Pricing · Sign in, plus the language switch. Privacy and Terms move to the footer. On a phone the menu folds into a `<details>`, which needs no script. |
-| T3 The hero shows the move | ✅ **Built 2026-10-04; its words wait for T0, and the app screen joins it later (D8)** | §3. The drawing `hero-move.svg`, inlined: the old account's data, then Ownpace, then the new home, with our own icons (D4). Three facts sit under it, and a three-step strip links to *How it works*. An app screen joins it once 0153 T5 exists. |
+| T3 The hero shows the move | ✅ **Built 2026-10-04, and the app screen joined it 2026-10-05 (D8); its words wait for T0** | §3. The drawing `hero-move.svg`, inlined: the old account's data, then Ownpace, then the new home, with our own icons (D4). Three facts sit under it, and a three-step strip links to *How it works*. After the strip, the app itself: a person's page, photographed by `scripts/shoot-the-app-screen.mjs` and held to the app's words by the UI smoke. |
 | T4 The destinations, named | ✅ **Built 2026-10-04; its words wait for T0** | §3. A *Where to* section names what the app supports, from a site copy of the app's list with a guard that it matches. It says plainly that the new account is one the person opens and pays for themselves. |
 | T5 A page per provider a person leaves | 🟡 **(a) and (b) built 2026-10-04; (c) waits for the site's address; its words wait for T0** | §3. *Leaving Google*, *Leaving Microsoft 365*, *Leaving iCloud*, *Leaving Dropbox*, *Leaving Box*, *Leaving another mail provider*: what moves, the limits, what the person does, the destinations it can go to, a typical cost. Built from copies of the app's own verdicts, each guarded. |
 | T6 Pricing that reads in one pass | 🟡 **(a) done: the sentence by #1317, its guard beside D6's. (c) built 2026-10-04, with T2 (#1471). (d) built 2026-10-03, with (g)'s principle on the page. (b) and (e) built 2026-10-04. (f)'s words on the page and in the terms built 2026-10-04, its withdrawal button not; the button's label decided 2026-10-05. The rest proposed, before the first invitation (D5)** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) The withdrawal button, and the year's end (D11, amended 2026-10-04). (g) The principle, the price that pays for the work (D12). |
@@ -1162,8 +1204,10 @@ them. A `--public` build already refuses the placeholders, so this is wording on
 back to the site, *"← ownpace.eu"*, built from the deployment's own site address. It is never a
 fixed host.
 
-(b) **The rest of the app** keeps its colours until 0153, which reviews the palette with its
-layout. The identity provider's pages stay 0135 T6.
+(b) **The rest of the app** kept its colours until 0153 reviewed the palette with its layout. On
+2026-10-05 the owner chose for it: the site's warm paper, and teal for the app's blue (*"Yes,
+paper + teal"*). It is built centrally in `apps/web/src/index.css` (0153's Status). The identity
+provider's pages stay 0135 T6.
 
 ## 4. Order
 

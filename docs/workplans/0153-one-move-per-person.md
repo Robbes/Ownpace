@@ -2,7 +2,53 @@
 
 > **In one line:** The Migrations page lists people: one flow (who, from where, what, to where) takes a person from one or more old accounts to a new home and creates their migrations underneath, and protocols, kinds and ids stay off screen until needed. Four faults the audit found go first.
 
-## Status — 2026-10-04 (update this block at the end of every session)
+## Status — 2026-10-05 (update this block at the end of every session)
+
+**2026-10-05, later: Report a problem in a white card too.** The owner: it *"also seems to have
+only the off-white background and not the correct blocks"*. Its title and sentence now sit on the
+paper, and the form sits on a white card, kept to a column a form reads well in. The two answers it
+can give instead of the form (sent, and no report can be sent here) are cards too. Its Send button
+takes the app's button: rounded, at least 44 pixels high. Guarded in
+`a-report-that-reaches-a-person`: the form, the sent answer and the unavailable answer each sit on
+a white card, and the title does not. All three fail on main's page.
+
+**2026-10-05, later: Accounts and Help in white cards, as the other pages are.** The owner, on
+OTA with the paper in place: Accounts and Help *"have the off-white background, but the content
+is not in a box that elevates"*, and *"they also don't look very nice"*. Both drew their content
+straight on the page, in a narrower column of their own, where Migrations, Needs you and Team put
+theirs in white cards.
+- **Accounts:**
+  - the title and its sentence sit on the paper, with *Add an account* beside them as Migrations'
+    *Start a migration* is;
+  - Sources and Targets are each a white card, one account per row, divided by a line;
+  - a row names the account and its kind, then *Used by 2 migrations · Added last month · Setup
+    steps*, then what it carries, and its buttons keep one place at the right;
+  - one migration is said as one: the row said *"1 migration(s) use this"*.
+- **Help:**
+  - the chooser's two sides are white cards whose tiles say they open;
+  - a checklist's steps are rows of one white card, and the question before them is a card too;
+  - the guides are rows of a card, and a guide is one card, aligned as before with the public
+    guides' header.
+- **Guarded** in the pages' own tests (`Connections`, `Setup`, `Docs`): the cards are white, a
+  step is no longer a list item inside a list item, and no row says *(s)*.
+
+**2026-10-05: the app takes the site's warm paper and teal** (the palette this plan was to review
+with its layout, 0152 T9 (b)). The owner chose warm paper, always light, for the site (0152's
+Status). Asked whether the app would look calmer in it too, they answered *"Yes, paper + teal"*.
+Built centrally in `apps/web/src/index.css`, so no screen is rewritten:
+- **Tailwind's greys are warm.** `gray-50` is the site's paper, the page every screen sits on,
+  `gray-100` its panel, `gray-200` its line, `gray-900` its ink. Cards stay white on the paper.
+  The muted text (`gray-500`) reads at 4.7:1 even on a panel, where Tailwind's own grey read
+  4.4:1, under WCAG's 4.5.
+- **Tailwind's blue is the site's teal,** from mint (`blue-300`) to the logo's teal (`blue-700`).
+  Every button, link, focus ring and lit menu entry is Ownpace's teal: a button's white on it
+  reads at 6.4:1, a link at 8.9:1 on the paper.
+- **A copying phase is sky** (`StateChip`'s blue tone), so *Copying* never looks like *Kept in
+  step*'s green, nor like a button. Green, emerald, amber, yellow and red keep their meanings.
+- **Light, always:** `color-scheme: light`, tick boxes and radio buttons in the teal, and fields
+  white on the paper.
+- `scripts/one-look-from-the-site-to-the-app.unit.test.ts` holds the paper, panel, line, ink,
+  mint and teal to the site's, and the muted text, buttons and links to 4.5:1.
 
 **2026-10-04, later: the owner answers the four *not carried over* below** (*"3. B"*, *"4. C,
 without D"*, *"5. A"*, *"6. A"*).

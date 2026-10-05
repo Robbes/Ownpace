@@ -31,6 +31,8 @@ vi.mock('../services/billing-service', async (importOriginal) => ({
     checkVat: vi.fn(),
     getCeiling: vi.fn(),
     sayYesToCeiling: vi.fn(),
+    getPick: vi.fn(),
+    pickTier: vi.fn(),
   },
 }));
 
@@ -142,6 +144,15 @@ const UNDER_THE_CEILING = {
   breakEven: null,
 };
 
+/** The highest tier billed: nothing above it to pick (0157 T6). */
+const NOTHING_TO_PICK = {
+  holds: true,
+  billed: { id: 'xl' as const, name: 'Extra large', paths: 50, dataGb: 15000, monthlyEur: 80, annualEur: 480 },
+  picked: { now: null, next: null, nextFrom: '2026-11-01T00:00:00.000Z' },
+  raise: [],
+  lower: [],
+};
+
 const renderBilling = () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -169,6 +180,9 @@ beforeEach(() => {
   partyMock.mockResolvedValue({ party: null, vatConsultation: null, vatTreatment: null });
   // Well under the ceiling; the card has its own tests (DataCeiling.unit.test.tsx).
   vi.mocked(billingApi.getCeiling).mockResolvedValue(UNDER_THE_CEILING);
+  // Nothing above to pick, so the pick card names no tier beside the ones these
+  // tests look for; the card has its own tests (TierPick.unit.test.tsx).
+  vi.mocked(billingApi.getPick).mockResolvedValue(NOTHING_TO_PICK);
 });
 
 describe('Billing — failed reads say so (hard rule 9)', () => {
@@ -529,8 +543,10 @@ describe('the invoice contract is the server contract (0039 T3)', () => {
     // StateChip's canonical words (0035 T1), not the raw enum.
     const overdueChip = screen.getByText('Overdue');
     expect(overdueChip.className).toContain('bg-red-100');
+    // The calm state is StateChip's blue tone, which is sky since the app took
+    // the site's paper and teal (2026-10-05): blue is now a button's teal.
     const sentChip = screen.getByText('Sent');
-    expect(sentChip.className).toContain('bg-blue-100');
+    expect(sentChip.className).toContain('bg-sky-100');
   });
 });
 

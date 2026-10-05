@@ -51,6 +51,7 @@ import { connectionKindName } from '../components/ProviderTile.tsx';
 import { CutoverSteps } from '../components/CutoverSteps.tsx';
 import { TimeBeforeStartLine } from '../components/TimeBeforeStartLine.tsx';
 import { TimeWhileCopyingLine } from '../components/TimeWhileCopyingLine.tsx';
+import { PaceLine } from '../components/PaceLine.tsx';
 import { leastAdvancedStage, remainingItemsOf, timeBeforeStart, timeWhileCopying } from '@openmig/shared';
 import { providerName } from '../components/ProviderTile.tsx';
 import { serverMessage } from '../services/api.ts';
@@ -140,11 +141,24 @@ const MappingDetail: React.FC = () => {
   // schedule of its own looks every hour again for 14 days once somebody opens
   // it. Sent as the page opens; the server moves it at most once an hour.
   // Managed only, as the schedule is. A visit that is not recorded changes
-  // nothing on this page, and the server logs its own faults, so its answer
-  // is not waited for and a failure is not shown.
+  // nothing on this page, and the server logs its own faults, so the page
+  // never waits for it and a failure is not shown. Its answer names the
+  // slower step it ended, once said by the morning mail, and the page says so
+  // under the pace (`broughtBackFrom`), on this visit alone.
+  const [broughtBackFrom, setBroughtBackFrom] = React.useState<'six-hourly' | 'daily' | null>(null);
   React.useEffect(() => {
+    setBroughtBackFrom(null);
     if (!id || isSelfHost()) return;
-    mappingApi.recordVisit(id).catch(() => undefined);
+    let current = true;
+    mappingApi
+      .recordVisit(id)
+      .then((answer) => {
+        if (current) setBroughtBackFrom(answer?.broughtBackFrom ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      current = false;
+    };
   }, [id]);
 
   // Best-effort context; managed-only (the appliance has no mapping API and
@@ -434,6 +448,20 @@ const MappingDetail: React.FC = () => {
           time={timeWhile}
           provider={providerName(sourceType ?? '', 'source')}
         />
+      )}
+      {/* Free's pace, and this migration's next pass by it (0157 T5). */}
+      <PaceLine
+        className="mt-2 text-sm text-gray-700"
+        leastMinutesBetweenPasses={detail.data?.pace?.leastMinutesBetweenPasses}
+        nextPassAt={detail.data?.pace?.nextPassAt}
+      />
+      {/* The slower step this visit ended (0157 T7), said once, as the
+          morning mail said the step itself. */}
+      {broughtBackFrom && (
+        <p className="mt-2 text-sm text-gray-700" data-cadence="brought-back">
+          {t(broughtBackFrom === 'daily' ? 'cadence.broughtBack.daily' : 'cadence.broughtBack.sixHourly')}{' '}
+          {t('cadence.broughtBack.keep')}
+        </p>
       )}
 
       {/* The list IS a sequence (0034 T4), and since 0154 T4 one list with a

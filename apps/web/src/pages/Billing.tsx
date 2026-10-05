@@ -38,6 +38,7 @@ import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import StateChip from '../components/StateChip.tsx';
 import { isAlpha } from '../components/AlphaNote.tsx';
 import DataCeiling from '../components/DataCeiling.tsx';
+import TierPick from '../components/TierPick.tsx';
 
 /** A failed read said as such (hard rule 9 / 0033 T2) — before this, a failed
  *  usage read rendered "No usage data available yet" and a failed invoices
@@ -527,7 +528,10 @@ const TierPanel: React.FC<{ usage: UsageResponse }> = ({ usage }) => {
               </span>
             )}
           </div>
-          {capped ? (
+          {usage.holds && usage.billed.picked ? (
+            // A tier the person picked is above what was used (0157 T6).
+            <p className="text-sm text-gray-600">{t('billing.tierPicked', { tier: tier.name })}</p>
+          ) : capped ? (
             usage.billed.beyond.map((why) => (
               <p key={why} className="text-sm text-gray-600">
                 {why === 'bands'
@@ -767,6 +771,10 @@ const Billing: React.FC = () => {
           <p className="text-gray-500">{t('billing.noUsage')}</p>
         )}
       </div>
+
+      {/* A tier the person picks, for its pace or its room (0157 T6): each
+          month then bills at least it, until they lower it. */}
+      <TierPick />
 
       {/* The data ceiling and the yes that moves it (0109 T6): where the data
           stands against what was agreed to, and from 80% both ways on. */}

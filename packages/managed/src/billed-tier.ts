@@ -16,6 +16,13 @@
  * cover (*"tiers buy lanes; top-ups buy room"*, so a top-up keeps the tier);
  * more at the same time than the agreed tier runs; or more moved than its
  * ceiling, where new items wait for a yes.
+ *
+ * A tier the person picked is the least the month bills (workplan 0157 T6;
+ * ADR-0014, *Amendment 2026-10-04, evening*: *"The month bills the higher of
+ * the picked tier and the derived one, and the automatic downgrade stops at
+ * the picked tier"*). Which pick counts in which month is `pickedFloorOf`'s
+ * (tier-pick.ts). A pick is a yes, so it is never above the agreed tier; were
+ * one ever, the agreed tier would bill, as nothing climbs past a yes.
  */
 
 import type { Allowance } from './data-ceiling.ts';
@@ -25,28 +32,37 @@ import { MANAGED_TIERS, type ManagedTier } from './tier-calculator.ts';
 export type BeyondTheTier = 'bands' | 'paths' | 'data';
 
 export interface BilledTier {
-  /** The tier the month bills: what it used, never above the agreed tier. */
+  /** The tier the month bills: what it used, never above the agreed tier, never below the pick. */
   readonly tier: ManagedTier;
   /** Empty when the measurement is the tier billed. */
   readonly beyond: readonly BeyondTheTier[];
+  /** True when the pick decides it: what was used is below the tier picked. */
+  readonly picked: boolean;
 }
 
 /**
  * The tier the month bills, from the measured tier (null past Extra large),
- * the agreed allowance, and the measurement behind it.
+ * the agreed allowance, the measurement behind it, and the least the picks let
+ * the month bill (`pickedFloorOf(…).now`; null for none).
  */
 export function billedTierOf(
   measured: ManagedTier | null,
   allowance: Allowance,
   peakPaths: number,
   gbCounted: number,
+  picked: ManagedTier | null = null,
 ): BilledTier {
   const place = (t: ManagedTier | null) => (t ? MANAGED_TIERS.findIndex((m) => m.id === t.id) : MANAGED_TIERS.length);
-  if (measured && place(measured) <= place(allowance.tier)) return { tier: measured, beyond: [] };
   const agreed = allowance.tier;
+  // The pick, never above the agreed tier.
+  const floor = picked && place(picked) > place(agreed) ? agreed : picked;
+  if (measured && place(measured) <= place(agreed)) {
+    if (floor && place(floor) > place(measured)) return { tier: floor, beyond: [], picked: true };
+    return { tier: measured, beyond: [], picked: false };
+  }
   const beyond: BeyondTheTier[] = [];
   if (gbCounted > agreed.dataGb && gbCounted <= allowance.ceilingGb) beyond.push('bands');
   if (peakPaths > agreed.paths) beyond.push('paths');
   if (gbCounted > allowance.ceilingGb) beyond.push('data');
-  return { tier: agreed, beyond };
+  return { tier: agreed, beyond, picked: false };
 }

@@ -22,7 +22,7 @@
  * PGlite as `app_user`, under row security, with the managed tables.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import { pgliteDriver, runMigrations, type LedgerDriver } from '@openmig/ledger';
 import { runManagedMigrations } from '@openmig/managed';
 import type { NotificationLocale, NotificationMessage } from '@openmig/shared';
@@ -37,8 +37,10 @@ const ANNA_MAIL = U('31');
 const ANNA_CAL = U('32');
 const BRAM_MAIL = U('33');
 const LOOSE = U('34');
+const CARL_MAIL = U('35');
 const ANNA = U('41');
 const BRAM = U('42');
+const CARL = U('43');
 
 let driver: LedgerDriver;
 
@@ -103,6 +105,7 @@ beforeAll(async () => {
     [ANNA_CAL, 'calendar'],
     [BRAM_MAIL, 'email'],
     [LOOSE, 'email'],
+    [CARL_MAIL, 'email'],
   ] as const) {
     await q(
       `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, status, name) VALUES ($1,$2,$3,'active',$4)`,
@@ -129,15 +132,16 @@ beforeAll(async () => {
       [TENANT, mapping, domain, state, stopped ? new Date().toISOString() : null],
     );
   }
-  await q(`INSERT INTO person (id, tenant_id, display_name) VALUES ($1,$2,'Anna Jansen'), ($3,$2,'Bram de Vries')`, [
-    ANNA,
-    TENANT,
-    BRAM,
-  ]);
+  await q(
+    `INSERT INTO person (id, tenant_id, display_name)
+     VALUES ($1,$2,'Anna Jansen'), ($3,$2,'Bram de Vries'), ($4,$2,'Carl Smit')`,
+    [ANNA, TENANT, BRAM, CARL],
+  );
   for (const [mapping, who] of [
     [ANNA_MAIL, ANNA],
     [ANNA_CAL, ANNA],
     [BRAM_MAIL, BRAM],
+    [CARL_MAIL, CARL],
   ] as const) {
     await q('INSERT INTO person_migration (mapping_id, person_id, tenant_id) VALUES ($1,$2,$3)', [mapping, who, TENANT]);
   }
@@ -149,6 +153,10 @@ afterAll(async () => {
 
 beforeEach(() => {
   sent = [];
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe('the first-copy email, once per person (0154 T7)', () => {
@@ -169,6 +177,8 @@ describe('the first-copy email, once per person (0154 T7)', () => {
     expect(mail!.message.subject).toBe('Ownpace — alles is aangekomen');
     expect(mail!.message.body).toContain('Persoon: Anna Jansen');
     expect(mail!.message.body).toContain('Alles is aangekomen: e-mail en agenda.');
+    // On Free, outside the alpha, what keeping in step means (0157 T5).
+    expect(mail!.message.body).toContain('Op Free is dat één ronde per dag.');
     expect(await claimedAt(ANNA)).not.toBeNull();
   });
 
@@ -195,5 +205,15 @@ describe('the first-copy email, once per person (0154 T7)', () => {
     expect(await claimedAt(BRAM)).not.toBeNull();
     expect(await announceFirstCopy(driver, TENANT, BRAM_MAIL, channel)).toBe('already');
     expect(sent).toEqual([]);
+  });
+});
+
+describe("the first-copy email at Free's pace (0157 T5)", () => {
+  it('says nothing of a pace during the alpha, when every tier runs at a paid tier’s pace', async () => {
+    vi.stubEnv('OWNPACE_STAGE', 'alpha');
+    await arrived(CARL_MAIL, 'email');
+    expect(await announceFirstCopy(driver, TENANT, CARL_MAIL, channel)).toBe('sent');
+    expect(sent[0]!.message.body).toContain('Alles is aangekomen: e-mail.');
+    expect(sent[0]!.message.body).not.toContain('Op Free');
   });
 });

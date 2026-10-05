@@ -25,7 +25,7 @@
 import React from 'react';
 import { useParams, Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, CircleDashed, SkipForward, UserCog } from 'lucide-react';
+import { Check, ChevronRight, CircleDashed, SkipForward, UserCog } from 'lucide-react';
 import { setupApi, type SetupChecklist, type SetupStepStatusDto } from '../services/mapping-service.ts';
 import {
   providersWithSetup,
@@ -55,7 +55,8 @@ const StepRow: React.FC<{
   const settled = state !== 'open';
 
   return (
-    <li className="border border-gray-200 rounded-lg p-4 flex gap-4 items-start">
+    // A row of the steps' white card (`Setup`), the list item being the card's.
+    <div className="flex gap-4 items-start py-4">
       <button
         type="button"
         disabled={busy}
@@ -125,7 +126,7 @@ const StepRow: React.FC<{
         <SkipForward className="w-4 h-4" />
         {state === 'skipped' ? t('setup.unskip') : t('setup.skip')}
       </button>
-    </li>
+    </div>
   );
 };
 
@@ -175,30 +176,39 @@ function emptiedByDeploymentApp(
  */
 const ProviderChooser: React.FC = () => {
   const t = useT();
+  // As Accounts is (2026-10-05): the question on the paper, each side a white
+  // card, and each tile saying it opens.
   return (
-    <div className="p-6 max-w-3xl">
+    <div className="space-y-6">
       <HelpTabs />
-      <h2 className="text-xl font-semibold text-gray-900">{t('setup.choose.title')}</h2>
-      <p className="mt-1 text-sm text-gray-600">{t('setup.choose.intro')}</p>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">{t('setup.choose.title')}</h1>
+        <p className="mt-1 text-gray-600">{t('setup.choose.intro')}</p>
+      </div>
       {(['source', 'target'] as const).map((side) => (
-        <div key={side} className="mt-6">
-          <h3 className="text-sm font-medium text-gray-700">
+        <section
+          key={side}
+          aria-labelledby={`setup-${side}`}
+          className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6"
+        >
+          <h2 id={`setup-${side}`} className="text-lg font-semibold text-gray-900">
             {t(side === 'source' ? 'setup.choose.sources' : 'setup.choose.targets')}
-          </h3>
-          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          </h2>
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {providersWithSetup(side).map((p) => (
               <Link
                 key={`${side}:${p}`}
                 to={`/setup/${side}/${p}`}
-                className="border border-gray-200 rounded-lg px-4 py-3 hover:border-gray-300 hover:bg-gray-50 text-gray-900"
+                className="group flex items-center justify-between gap-2 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 hover:border-blue-300 hover:bg-blue-50"
               >
                 {/* The provider's own name, not the wizard's key: nobody can
                     guess `oauth2` means Entra ID (workplan 0074). */}
-                {providerDisplayName(p)}
+                <span>{providerDisplayName(p)}</span>
+                <ChevronRight className="w-4 h-4 shrink-0 text-gray-400 group-hover:text-blue-700" aria-hidden="true" />
               </Link>
             ))}
           </div>
-        </div>
+        </section>
       ))}
     </div>
   );
@@ -263,8 +273,8 @@ const Setup: React.FC = () => {
   // No provider in the URL: ask which one, rather than picking for them.
   if (!provider) return <ProviderChooser />;
 
-  if (isLoading) return <div className="p-6 text-gray-500">{t('common.loading')}</div>;
-  if (error) return <div className="p-6 text-red-700">{serverMessage(error)}</div>;
+  if (isLoading) return <div className="text-gray-500">{t('common.loading')}</div>;
+  if (error) return <div className="text-red-700">{serverMessage(error)}</div>;
   if (!data) return null;
 
   const { progress } = data;
@@ -275,8 +285,11 @@ const Setup: React.FC = () => {
   const asksAdmin = data.steps.some((s) => s.step.needsAnotherPerson);
   const answer: AdminAnswer = asksAdmin ? adminAnswer : 'unknown';
 
+  // The page the others are (2026-10-05): the title and where it is on the
+  // paper, the question and the steps in white cards. Narrower than a list,
+  // since the steps are sentences to read.
   return (
-    <div className="p-6 max-w-3xl">
+    <div className="space-y-6 max-w-4xl">
       <div className="flex flex-wrap gap-4">
         {/* Back to where you actually came FROM (workplan 0074). This was a
             hardcoded link to the wizard, so reaching the checklist from
@@ -301,9 +314,12 @@ const Setup: React.FC = () => {
         })()}
       </div>
 
-      <h2 className="mt-2 text-xl font-semibold text-gray-900">
-        {t('setup.title')} — {providerDisplayName(data.provider)}
-      </h2>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">
+          {t('setup.title')} — {providerDisplayName(data.provider)}
+        </h1>
+        {data.steps.length > 0 && <p className="mt-1 text-gray-600">{t('setup.intro')}</p>}
+      </div>
 
       {data.steps.length === 0 ? (
         // An empty list is a real answer, not a missing page — and where the
@@ -311,7 +327,7 @@ const Setup: React.FC = () => {
         (() => {
           const app = emptiedByDeploymentApp(data.side, data.provider, data.steps.length);
           return (
-            <p className="mt-4 text-gray-600">
+            <p className="bg-white rounded-lg border border-gray-200 p-6 text-gray-600">
               {app
                 ? t('setup.deploymentApp', { provider: GRANT_PROVIDER_NAMES[app] })
                 : t('setup.nothingToDo')}
@@ -320,9 +336,7 @@ const Setup: React.FC = () => {
         })()
       ) : (
         <>
-          <p className="mt-1 text-sm text-gray-600">{t('setup.intro')}</p>
-
-          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
             <span className={progress.complete ? 'text-green-700 font-medium' : 'text-gray-700'}>
               {progress.done + progress.skipped} / {progress.total} {t('setup.settled')}
             </span>
@@ -351,7 +365,7 @@ const Setup: React.FC = () => {
               answer showed the same list, and a person with a personal Apple
               account was asked whether they administer it for an organisation. */}
           {asksAdmin && (
-            <div className="mt-4 border border-gray-200 rounded-lg p-4">
+            <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
               <p className="text-sm font-medium text-gray-900">
                 {t('setup.admin.question')} — {providerDisplayName(data.provider)}
               </p>
@@ -388,38 +402,43 @@ const Setup: React.FC = () => {
             const mine =
               answer === 'no' ? data.steps.filter((s) => !s.step.needsAnotherPerson) : data.steps;
             const theirs = answer === 'no' ? data.steps.filter((s) => s.step.needsAnotherPerson) : [];
-            const list = (rows: typeof data.steps) => {
+            const list = (rows: typeof data.steps, heading?: React.ReactNode) => {
               const current = rows.find((s) => s.state === 'open')?.step.key;
               return (
-                <ul className="mt-4 space-y-3">
-                  {rows.map((s) => (
-                    <li key={s.step.key} className="list-none">
-                      <StepRow
-                        status={s}
-                        busy={busyKey === s.step.key}
-                        current={s.step.key === current}
-                        onSet={(state) => set(s.step.key, state)}
-                      />
-                    </li>
-                  ))}
-                </ul>
+                <section className="bg-white rounded-lg border border-gray-200 px-4 pt-2 sm:px-6">
+                  {heading}
+                  <ul className="divide-y divide-gray-200">
+                    {rows.map((s) => (
+                      <li key={s.step.key}>
+                        <StepRow
+                          status={s}
+                          busy={busyKey === s.step.key}
+                          current={s.step.key === current}
+                          onSet={(state) => set(s.step.key, state)}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </section>
               );
             };
             return (
               <>
-                {answer === 'no' && mine.length > 0 && (
-                  <h3 className="mt-6 text-sm font-medium text-gray-700">{t('setup.yours')}</h3>
-                )}
-                {list(mine)}
-                {theirs.length > 0 && (
-                  <>
-                    <h3 className="mt-8 text-sm font-medium text-amber-800">
-                      {t('setup.forYourAdmin')}
-                    </h3>
-                    <p className="mt-1 text-sm text-gray-600">{t('setup.forYourAdmin.hint')}</p>
-                    {list(theirs)}
-                  </>
-                )}
+                {mine.length > 0 &&
+                  list(
+                    mine,
+                    answer === 'no' ? (
+                      <h2 className="pt-2 text-sm font-medium text-gray-700">{t('setup.yours')}</h2>
+                    ) : undefined,
+                  )}
+                {theirs.length > 0 &&
+                  list(
+                    theirs,
+                    <div className="pt-2">
+                      <h2 className="text-sm font-medium text-amber-800">{t('setup.forYourAdmin')}</h2>
+                      <p className="mt-1 text-sm text-gray-600">{t('setup.forYourAdmin.hint')}</p>
+                    </div>,
+                  )}
               </>
             );
           })()}
