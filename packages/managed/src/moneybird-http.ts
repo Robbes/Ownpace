@@ -1,38 +1,60 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * One read from a Moneybird administration (workplan 0111, slice 1 of
- * §"The build, sliced"; slice 2 adds the writes).
+ * Every request to a Moneybird administration (workplan 0111, slices 1 and 2
+ * of §"The build, sliced").
  *
- * The tax-rate list and the workflow list are read the same way, and a read
- * that fails must fail the same way in both: never as an empty list, which
- * downstream would take for "the administration has none", and never with the
- * token in the sentence. So both go through this one function.
+ * The tax-rate list, the workflow list and the adapter's contacts and invoices
+ * all go through `moneybirdRequest`, so a request fails the same way
+ * everywhere: never as an empty answer, which downstream would take for "the
+ * administration has none", and never with the token in the sentence. The
+ * token travels in the `Authorization` header and nowhere else.
  *
- * Outcomes, as `vies.ts` and `moneybird-tax-rates.ts` already answer:
+ * What comes back is one of three things, before anybody decides what it
+ * means:
  *
- *  - **ok**: Moneybird answered 2xx with JSON. What the JSON means is the
- *    caller's to parse.
- *  - **unavailable**: anything else, with a reason a person can act on. A
- *    refused token (401, 403) names `MONEYBIRD_API_TOKEN`; an unknown
- *    administration (404) names `MONEYBIRD_ADMINISTRATION_ID`; a 429 says to
- *    slow down and carries Moneybird's `Retry-After` in seconds (its limit is
- *    150 requests per 5 minutes per administration).
+ *  - **response**: Moneybird answered, with its status and its JSON (`parsed`
+ *    says whether there was any; a 204 or an HTML error page has none). What a
+ *    status means for a contact or an invoice is the caller's to say.
+ *  - **slow_down**: Moneybird answered 429. Its limit is 150 requests per 5
+ *    minutes per administration; `retryAfterSeconds` is its `Retry-After`,
+ *    given as seconds or as a date. Its own outcome, so a task paces itself
+ *    instead of reading a full queue as an outage.
+ *  - **unreachable**: no answer at all, with the reason.
+ *
+ * `moneybirdRead` is the shape both lists need: a GET whose 2xx JSON is the
+ * answer, every other status a sentence that names what to fix (the token for
+ * 401 and 403, the administration for 404).
  *
  * `fetchImpl` has no default here, so the one use of Node's own `fetch` stays
  * in each public caller, where the fixed-host guard
  * (`scripts/a-client-that-reaches-a-tenant-host.unit.test.ts`) counts it.
  */
 
-/** Where a read goes: the administration, and the token that may read it. */
+/** Where a request goes: the administration, and the token that may use it. */
 export interface MoneybirdAccess {
   readonly administrationId: string;
   readonly apiToken: string;
 }
 
+export type MoneybirdMethod = 'GET' | 'POST' | 'PATCH';
+
+/** A 429: Moneybird's limit reached; ask again after `retryAfterSeconds`, when it said. */
+export interface SlowDown {
+  readonly kind: 'slow_down';
+  readonly reason: string;
+  readonly retryAfterSeconds?: number;
+}
+
+export type MoneybirdResponse =
+  | { readonly kind: 'response'; readonly status: number; readonly body: unknown; readonly parsed: boolean }
+  | SlowDown
+  | { readonly kind: 'unreachable'; readonly reason: string };
+
 export type MoneybirdReadOutcome =
   | { readonly kind: 'ok'; readonly body: unknown }
-  | { readonly kind: 'unavailable'; readonly reason: string; readonly retryAfterSeconds?: number };
+  | { readonly kind: 'unavailable'; readonly reason: string }
+  | SlowDown;
 
 const API = 'https://moneybird.com/api/v2';
 
@@ -45,35 +67,74 @@ function retryAfterSecondsOf(header: string | null, now: number): number | undef
   return Number.isNaN(at) ? undefined : Math.max(0, Math.ceil((at - now) / 1000));
 }
 
+/** The sentence for a refused token, the same wherever a request was refused. */
+export function tokenRefusal(status: number): string {
+  return `Moneybird refused the token (HTTP ${status}) — check MONEYBIRD_API_TOKEN and the administration id.`;
+}
+
 /**
- * GET `path` (after `/api/v2/{administration}/`, query included) and parse the
- * JSON. One request, a 10-second limit, the token only in its header.
+ * One request to `path` (after `/api/v2/{administration}`, starting with `/`,
+ * query included): a 10-second limit, the token only in its header, JSON in
+ * and out, no retry. Idempotency is what makes a caller's retry safe.
+ */
+export async function moneybirdRequest(
+  access: MoneybirdAccess,
+  method: MoneybirdMethod,
+  path: string,
+  body: unknown,
+  fetchImpl: typeof fetch,
+): Promise<MoneybirdResponse> {
+  let response: Response;
+  try {
+    response = await fetchImpl(`${API}/${encodeURIComponent(access.administrationId)}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${access.apiToken}`,
+        Accept: 'application/json',
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch (error) {
+    return {
+      kind: 'unreachable',
+      reason: `Moneybird could not be reached: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+  if (response.status === 429) {
+    const retryAfterSeconds = retryAfterSecondsOf(response.headers.get('Retry-After'), Date.now());
+    return {
+      kind: 'slow_down',
+      reason:
+        'Moneybird asks us to slow down (HTTP 429; at most 150 requests per 5 minutes per administration)' +
+        (retryAfterSeconds === undefined ? '.' : ` — ask again in ${retryAfterSeconds} s.`),
+      ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
+    };
+  }
+  try {
+    return { kind: 'response', status: response.status, body: await response.json(), parsed: true };
+  } catch {
+    return { kind: 'response', status: response.status, body: null, parsed: false };
+  }
+}
+
+/**
+ * GET `path` (after `/api/v2/{administration}/`, query included) and hand back
+ * the JSON, or a sentence that names what to fix, or a 429 as it came.
  */
 export async function moneybirdRead(
   access: MoneybirdAccess,
   path: string,
   fetchImpl: typeof fetch,
 ): Promise<MoneybirdReadOutcome> {
-  const url = `${API}/${encodeURIComponent(access.administrationId)}/${path}`;
-  let response: Response;
-  try {
-    response = await fetchImpl(url, {
-      headers: { Authorization: `Bearer ${access.apiToken}`, Accept: 'application/json' },
-      signal: AbortSignal.timeout(10_000),
-    });
-  } catch (error) {
-    return {
-      kind: 'unavailable',
-      reason: `Moneybird could not be reached: ${error instanceof Error ? error.message : String(error)}`,
-    };
+  const answer = await moneybirdRequest(access, 'GET', `/${path}`, undefined, fetchImpl);
+  if (answer.kind === 'unreachable') return { kind: 'unavailable', reason: answer.reason };
+  if (answer.kind === 'slow_down') return answer;
+  if (answer.status === 401 || answer.status === 403) {
+    return { kind: 'unavailable', reason: tokenRefusal(answer.status) };
   }
-  if (response.status === 401 || response.status === 403) {
-    return {
-      kind: 'unavailable',
-      reason: `Moneybird refused the token (HTTP ${response.status}) — check MONEYBIRD_API_TOKEN and the administration id.`,
-    };
-  }
-  if (response.status === 404) {
+  if (answer.status === 404) {
     return {
       kind: 'unavailable',
       reason:
@@ -81,22 +142,9 @@ export async function moneybirdRead(
         'MONEYBIRD_ADMINISTRATION_ID: the long number after moneybird.com/ when the administration is open.',
     };
   }
-  if (response.status === 429) {
-    const retryAfterSeconds = retryAfterSecondsOf(response.headers.get('Retry-After'), Date.now());
-    return {
-      kind: 'unavailable',
-      reason:
-        'Moneybird asks us to slow down (HTTP 429; at most 150 requests per 5 minutes per administration)' +
-        (retryAfterSeconds === undefined ? '.' : ` — ask again in ${retryAfterSeconds} s.`),
-      ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
-    };
+  if (answer.status < 200 || answer.status > 299) {
+    return { kind: 'unavailable', reason: `Moneybird answered HTTP ${answer.status}.` };
   }
-  if (!response.ok) {
-    return { kind: 'unavailable', reason: `Moneybird answered HTTP ${response.status}.` };
-  }
-  try {
-    return { kind: 'ok', body: await response.json() };
-  } catch {
-    return { kind: 'unavailable', reason: 'Moneybird answered something that is not JSON.' };
-  }
+  if (!answer.parsed) return { kind: 'unavailable', reason: 'Moneybird answered something that is not JSON.' };
+  return { kind: 'ok', body: answer.body };
 }

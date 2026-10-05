@@ -45,6 +45,8 @@ export * from './moneybird-tax-rates.ts';
 export * from './moneybird-workflows.ts';
 export * from './moneybird-check.ts';
 export * from './moneybird-sales-invoices.ts';
+export * from './line-price.ts';
+export * from './moneybird-push.ts';
 export * from './occupancy-peak.ts';
 export * from './bytes-moved.ts';
 export * from './tier-calculator.ts';
