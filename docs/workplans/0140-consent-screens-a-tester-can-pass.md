@@ -9,7 +9,9 @@ Alpha, and tries the OTA stack's Microsoft and Dropbox registrations first.** Pl
 registered yet. On live's Google client (T11, D5), the owner: *"We reuse the current Google
 OTA-client for the apha."* ("apha" is read as "Alpha".) Asked whether live reuses the OTA stack's
 Microsoft and Dropbox registrations, the owner first chose *"Separate registrations for live"*,
-then corrected it the same evening: *"correction: we will first try to reuser the Microsoft and Dropbox oauth client. If that cannot work, i'll register a new client."*
+then corrected it the same evening: *"correction: we will first try to reuser the Microsoft and
+Dropbox oauth client. If that cannot work, i'll register a new client."* ("reuser" is read as
+"reuse".)
 
 - **Google: one client for both stacks, for the Alpha.** Live's consent address,
   `https://app.ownpace.eu/api/migrations/google/callback`, is added to the client the OTA stack
@@ -1203,9 +1205,10 @@ and in the Status block.
    card to testers' own apps? And should the consent also ask for
    `sharing.read`, so the shared-folder browse works? That means enabling it on the deployment's
    app, and it keeps the browse for a tester's own app that already has it.
-   *(2026-10-05: open question 8's answer gives live a Dropbox app of its own, which is read as
-   answering the first half: register one for live. Whether its consent also asks for
-   `sharing.read` is still open.)*
+   *(2026-10-05: open question 8's answer, as the owner corrected it the same evening, tries the
+   OTA stack's Dropbox app first and registers one for live only if that cannot work. That is read
+   as answering the first half: if there is no real app to reuse, register one for live, not the
+   testers' own apps. Whether the consent also asks for `sharing.read` is still open.)*
 6. **Sign-in buttons (T10):** email and password only? And does the owner's own sign-in use a
    provider that must therefore stay? The OTA client carries a sign-in address (D5), which
    suggests a Google sign-in was set up or tried on the OTA stack. The repository cannot say
