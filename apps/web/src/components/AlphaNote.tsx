@@ -14,6 +14,16 @@
  * unless the deployment runs the alpha, and never on the appliance
  * (`services/stage.ts` holds the rule and says why).
  *
+ * WHO READS THE WELCOME, AND WHO A FACT (workplan 0152 T1 (a), open question
+ * 5; the owner, 2026-10-05: *"Do suggestions for non alpha viewers"*). The
+ * welcome is written for the people invited, so it stays where they stand:
+ * the pages above, the acceptance screen and the mails. `/login` and
+ * `/request-access` keep it by the owner's earlier choice (0131 D4's
+ * amendment). A visitor who was not invited reads `AlphaVisitorLine`, below,
+ * instead: the guides for a visitor without a session (`PublicDocs`), and
+ * every page of the public site while it is built for the Alpha, in the same
+ * words (`site/copy.mjs`).
+ *
  * The shape is the platform hold's, deliberately: an amber note, `role="note"`.
  * Two kinds of platform news in two shapes would look like two different kinds
  * of thing. A note and not an alert: it is a standing welcome, not a failure,
@@ -42,6 +52,7 @@
  */
 
 import React from 'react';
+import { Link } from 'react-router';
 import { useT } from '../i18n/index.tsx';
 import { isSelfHost } from '../services/edition.ts';
 import { alphaFrom } from '../services/stage.ts';
@@ -83,6 +94,37 @@ export const AlphaNote: React.FC<{
         <LegalLinks pages={['alpha']} guide />
       </p>
     </div>
+  );
+};
+
+/**
+ * The Alpha, said to a visitor who was not invited (workplan 0152 T1 (a)):
+ * *"Ownpace is in its Alpha, by invitation. Nothing is charged during the
+ * Alpha."*, then *Request access*, the request page by its own title. The
+ * site says the same under its header, from a guarded copy
+ * (`scripts/the-alpha-said-to-a-visitor.unit.test.ts`).
+ *
+ * A fact in the site's muted style, not the welcome's amber box: the box is
+ * the members' note, and a second one in its shape would read as the same
+ * kind of thing. A plain line, so a screen reader reads it where it stands.
+ * The same rule as the note: only while the deployment runs the alpha, and
+ * never on the appliance, which lets nobody in.
+ */
+export const AlphaVisitorLine: React.FC<{
+  /** Spacing from what surrounds it. */
+  className?: string;
+}> = ({ className }) => {
+  const t = useT();
+  if (!isAlpha()) return null;
+
+  const shape = 'text-sm text-gray-600';
+  return (
+    <p className={className ? `${className} ${shape}` : shape}>
+      {t('alpha.visitor.line')} {t('alpha.nothingCharged')}{' '}
+      <Link to="/request-access" className="text-site-teal hover:underline">
+        {t('access.title')}
+      </Link>
+    </p>
   );
 };
 

@@ -127,8 +127,10 @@ if (!PUBLIC && APP_URL === PUBLIC_APP_URL) {
  * rule is written out here rather than imported, because `site/` imports
  * nothing.
  *
- * It decides one thing: whether the pages in `ALPHA_ONLY` are rendered. A
- * build without it leaves them out, so they leave the site when the alpha ends.
+ * It decides two things, and a build without it does neither, so both leave
+ * the site when the alpha ends: whether the pages in `ALPHA_ONLY` are
+ * rendered, and whether every page says the Alpha to its visitor in one line
+ * under the header (workplan 0152 T1 (a), `visitorLine` in `layout`).
  * `deploy-live.sh` hands every site build live's own value, read from its
  * `.env`, and never the shell's. The OTA site's documented build
  * (`deploy/compose/www.yml`) hands its stack's own value the same way, because
@@ -423,6 +425,11 @@ nav.menu .leaving-list a { display: flex; align-items: center; gap: 0.6rem; padd
   background: #ffe9a8; color: #5b4600; border-radius: 8px; padding: 0.75rem 1rem;
   margin: 1.5rem 0 0; font-size: 0.92rem; font-weight: 600;
 }
+/* The Alpha, said to a visitor (0152 T1 (a)): one line under the header, muted,
+   not a banner. Outside the sticky header, so it scrolls away and the header
+   stays one row on a phone. */
+.visitor-line { border-bottom: 1px solid var(--line); }
+.visitor-line p { margin: 0 auto; padding-top: 0.55rem; padding-bottom: 0.55rem; color: var(--muted); font-size: 0.9rem; }
 
 /* hero */
 .hero { padding: clamp(3rem, 8vw, 6rem) 0 2rem; }
@@ -704,7 +711,7 @@ function buildStamp() {
   return BUILD.commit ? `v${BUILD.version} \u00b7 ${BUILD.commit}` : `v${BUILD.version}`;
 }
 
-function layout({ title, description, body, locale, key, draft }) {
+function layout({ title, description, body, locale, key, draft, alpha }) {
   const c = COPY[locale];
   const leaving = LEAVING.map((p) => leavingLink(locale, p, 20, `leaving-${p.id}` === key)).join('');
   const nav =
@@ -723,6 +730,15 @@ function layout({ title, description, body, locale, key, draft }) {
 
   const banner = draft
     ? `<p class="draft">${c.draftBanner}</p>`
+    : '';
+
+  // The Alpha, said to a visitor who was not invited (0152 T1 (a); the owner,
+  // 2026-10-05: "Do suggestions for non alpha viewers"): a fact, and the way to
+  // ask. Not the app's welcome, which is written for the people invited. The
+  // first thing in <main>, so the skip link lands on it too.
+  const visitorLine = alpha
+    ? `<div class="visitor-line"><p class="wrap">${c.alphaVisitor.line} ${c.alphaVisitor.nothingCharged} ` +
+      `<a href="${esc(orderHref(locale, null))}">${c.ctaOrder}</a></p></div>\n`
     : '';
 
   return `<!doctype html>
@@ -750,7 +766,7 @@ ${alternates}
   <a class="lang" href="${urlFor(other, key)}" lang="${COPY[other].htmlLang}">${c.otherLangName}</a>
   <details class="menu"><summary>${c.menu}</summary><nav class="menu" aria-label="${c.navName}">${nav}</nav></details>
 </div></header>
-<main id="main"><div class="wrap">
+<main id="main">${visitorLine}<div class="wrap">
 ${banner}
 ${body}
 </div></main>
@@ -1574,7 +1590,7 @@ export function build({ alpha = ALPHA } = {}) {
         locale,
         key,
         file: `${localeRoot(locale).replace(/^\//, '')}${localeRoot(locale) ? '/' : ''}${c.files[key]}`,
-        html: layout({ title, description, body, locale, key, draft }),
+        html: layout({ title, description, body, locale, key, draft, alpha }),
       });
     }
   }
@@ -1610,6 +1626,7 @@ export function build({ alpha = ALPHA } = {}) {
         locale,
         key: 'home',
         draft: false,
+        alpha,
       }),
     });
   }

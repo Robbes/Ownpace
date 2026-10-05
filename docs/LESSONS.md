@@ -427,6 +427,7 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/components/AlphaNote.tsx`
 
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
+- [the-alpha-said-to-a-visitor](../scripts/the-alpha-said-to-a-visitor.unit.test.ts) — THE ALPHA, SAID TO A VISITOR WHO WAS NOT INVITED (workplan 0152 T1 (a), open question 5; the owner, 2026-10-05: *"Do suggestions for non alpha viewers"*).
 
 ### `apps/web/src/components/Layout.tsx`
 
@@ -463,6 +464,7 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/components/an-alpha-said-out-loud.unit.test.tsx`
 
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
+- [the-alpha-said-to-a-visitor](../scripts/the-alpha-said-to-a-visitor.unit.test.ts) — THE ALPHA, SAID TO A VISITOR WHO WAS NOT INVITED (workplan 0152 T1 (a), open question 5; the owner, 2026-10-05: *"Do suggestions for non alpha viewers"*).
 
 ### `apps/web/src/components/finish/EachDataTypeEnds.tsx`
 
@@ -486,6 +488,7 @@ reading a file drops off its entry by itself.
 - [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)).
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 - [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
+- [the-alpha-said-to-a-visitor](../scripts/the-alpha-said-to-a-visitor.unit.test.ts) — THE ALPHA, SAID TO A VISITOR WHO WAS NOT INVITED (workplan 0152 T1 (a), open question 5; the owner, 2026-10-05: *"Do suggestions for non alpha viewers"*).
 - [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
 
 ### `apps/web/src/pages/Billing.tsx`
@@ -519,6 +522,10 @@ reading a file drops off its entry by itself.
 
 - [a-live-progress-that-needed-f5](../scripts/a-live-progress-that-needed-f5.unit.test.ts) — A LIVE PROGRESS THAT NEEDED F5.
 
+### `apps/web/src/pages/PublicDocs.tsx`
+
+- [the-alpha-said-to-a-visitor](../scripts/the-alpha-said-to-a-visitor.unit.test.ts) — THE ALPHA, SAID TO A VISITOR WHO WAS NOT INVITED (workplan 0152 T1 (a), open question 5; the owner, 2026-10-05: *"Do suggestions for non alpha viewers"*).
+
 ### `apps/web/src/pages/ReportProblem.tsx`
 
 - [a-screenshot-the-front-door-lets-through](../scripts/a-screenshot-the-front-door-lets-through.unit.test.ts) — A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
@@ -530,6 +537,10 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/pages/StartMigration.tsx`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+
+### `apps/web/src/pages/a-guide-you-can-read-before-you-sign-in.unit.test.tsx`
+
+- [the-alpha-said-to-a-visitor](../scripts/the-alpha-said-to-a-visitor.unit.test.ts) — THE ALPHA, SAID TO A VISITOR WHO WAS NOT INVITED (workplan 0152 T1 (a), open question 5; the owner, 2026-10-05: *"Do suggestions for non alpha viewers"*).
 
 ### `apps/web/src/pages/end-user-docs.unit.test.tsx`
 
@@ -2365,6 +2376,7 @@ reading a file drops off its entry by itself.
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 - [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
+- [the-alpha-said-to-a-visitor](../scripts/the-alpha-said-to-a-visitor.unit.test.ts) — THE ALPHA, SAID TO A VISITOR WHO WAS NOT INVITED (workplan 0152 T1 (a), open question 5; the owner, 2026-10-05: *"Do suggestions for non alpha viewers"*).
 - [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
 - [the-hero-is-the-drawing](../scripts/the-hero-is-the-drawing.unit.test.ts) — THE HERO IS THE DRAWING (workplan 0152 T3).
 - [the-test-site-sent-people-to-production](../scripts/the-test-site-sent-people-to-production.unit.test.ts) — THE TEST SITE HANDED VISITORS TO PRODUCTION.
@@ -2380,6 +2392,7 @@ reading a file drops off its entry by itself.
 - [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [one-look-from-the-site-to-the-app](../scripts/one-look-from-the-site-to-the-app.unit.test.ts) — ONE LOOK FROM THE SITE TO THE APP (workplan 0152 T9).
 - [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
+- [the-alpha-said-to-a-visitor](../scripts/the-alpha-said-to-a-visitor.unit.test.ts) — THE ALPHA, SAID TO A VISITOR WHO WAS NOT INVITED (workplan 0152 T1 (a), open question 5; the owner, 2026-10-05: *"Do suggestions for non alpha viewers"*).
 - [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
 - [the-hero-is-the-drawing](../scripts/the-hero-is-the-drawing.unit.test.ts) — THE HERO IS THE DRAWING (workplan 0152 T3).
 - [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
@@ -2469,6 +2482,7 @@ reading a file drops off its entry by itself.
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
+- [the-alpha-said-to-a-visitor](../scripts/the-alpha-said-to-a-visitor.unit.test.ts) — THE ALPHA, SAID TO A VISITOR WHO WAS NOT INVITED (workplan 0152 T1 (a), open question 5; the owner, 2026-10-05: *"Do suggestions for non alpha viewers"*).
 - [the-test-site-sent-people-to-production](../scripts/the-test-site-sent-people-to-production.unit.test.ts) — THE TEST SITE HANDED VISITORS TO PRODUCTION.
 
 ### `site/profiles.mjs`
@@ -2533,6 +2547,10 @@ reading a file drops off its entry by itself.
 ### `test/ui/managed-ui.ui.test.ts`
 
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
+
+### `test/ui/site.ui.test.ts`
+
+- [the-alpha-said-to-a-visitor](../scripts/the-alpha-said-to-a-visitor.unit.test.ts) — THE ALPHA, SAID TO A VISITOR WHO WAS NOT INVITED (workplan 0152 T1 (a), open question 5; the owner, 2026-10-05: *"Do suggestions for non alpha viewers"*).
 
 ### `tsconfig.base.json`
 
@@ -5019,6 +5037,22 @@ Reads:
 - `site/legal/alpha.md`
 - `site/legal/alpha.nl.md`
 - `site/pages/nl/alpha-handleiding.md`
+
+### [the-alpha-said-to-a-visitor](../scripts/the-alpha-said-to-a-visitor.unit.test.ts)
+
+THE ALPHA, SAID TO A VISITOR WHO WAS NOT INVITED (workplan 0152 T1 (a), open question 5; the owner, 2026-10-05: *"Do suggestions for non alpha viewers"*).
+
+Reads:
+
+- `apps/web/src/components/AlphaNote.tsx`
+- `apps/web/src/components/an-alpha-said-out-loud.unit.test.tsx`
+- `apps/web/src/i18n/strings.ts`
+- `apps/web/src/pages/PublicDocs.tsx`
+- `apps/web/src/pages/a-guide-you-can-read-before-you-sign-in.unit.test.tsx`
+- `site/build.mjs`
+- `site/copy.mjs`
+- `site/prices.mjs`
+- `test/ui/site.ui.test.ts`
 
 ### [the-catcher-only-where-it-catches](../scripts/the-catcher-only-where-it-catches.unit.test.ts)
 

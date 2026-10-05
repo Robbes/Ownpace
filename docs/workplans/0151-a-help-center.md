@@ -2,7 +2,13 @@
 
 > **In one line:** Self-service help beyond the in-app setup guides: a help section on `www.ownpace.eu` rendered by `site/build.mjs` from the same `docs/guides` markdown `Docs.tsx` serves, FAQ and troubleshooting pages fed by support reports, and later Zammad's Knowledge Base for broad articles.
 
-## Status — 2026-10-04 (update this block at the end of every session)
+## Status — 2026-10-05 (update this block at the end of every session)
+
+**2026-10-05: the app asks search engines not to list it** (0152's Status; the owner left it to
+the plan's suggestion, with open question 5). `apps/web/index.html` carries `noindex`, so the
+public guides are not indexed on the app's host. This plan's help section on the site is meant
+to be their home to be indexed, so the same text is not listed on two hosts. Until it exists,
+no host lists them. The rest of this plan stays parked.
 
 **2026-10-04: the guides answer everybody on managed** (0152; the owner: *"Guide links on the
 Leaving pages: yes, make public"*). Without a session, `/docs` and `/docs/<guide>` draw the guide
