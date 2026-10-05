@@ -57,6 +57,7 @@ import {
   UNREAD_NOTE_PREFIX,
   setAppEventSink, setAuditExportSink,
   type DiscoveryDomain,
+  type TenantId,
 } from '@openmig/shared';
 import {
   AN_OPEN_ORGANISATION_WHERE,
@@ -65,9 +66,19 @@ import {
   appEventSinkOn,
   auditExportOn,
   pgDriver,
+  type PgDatabase,
 } from '@openmig/ledger';
+import * as schemaPg from '@openmig/ledger/schema-pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { readOpenPause, recordTickBeat, BILLABLE_RUN_KINDS } from '@openmig/managed';
+import {
+  readOpenPause,
+  recordTickBeat,
+  BILLABLE_RUN_KINDS,
+  billedTierNow,
+  FREE_PASS_EVERY_MINUTES,
+  holdsAtCeiling,
+  leastMinutesBetweenPasses,
+} from '@openmig/managed';
 import { isSyncDue, DEFAULT_SYNC_SCHEDULE, defaultScheduleFor } from '@openmig/orchestration/sync-due';
 import { enabledDomainsForMappings } from '@openmig/orchestration/enabled-domains';
 import {
@@ -441,6 +452,11 @@ export interface Waiting {
   readonly tenant_id: string;
   /** When its newest run started; null when it never ran. */
   readonly last_started: Date | null;
+  /**
+   * Takes its organisation's later turns (workplan 0157 T3): it copies only
+   * files, and its organisation runs at Free's pace. Absent is false.
+   */
+  readonly last?: boolean;
 }
 
 /**
@@ -476,7 +492,7 @@ export function withinCapacity<T extends Waiting>(
   let total = running.total;
   const byOrganisation = new Map(running.byOrganisation);
   const chosen: T[] = [];
-  for (const m of [...due].sort(longestWaitingFirst)) {
+  for (const m of inOrganisationOrder([...due].sort(longestWaitingFirst))) {
     if (total >= caps.inFlight) break;
     const own = byOrganisation.get(m.tenant_id) ?? 0;
     if (own >= caps.perOrganisation) continue;
@@ -485,6 +501,39 @@ export function withinCapacity<T extends Waiting>(
     byOrganisation.set(m.tenant_id, own + 1);
   }
   return { chosen, heldForCapacity: due.length - chosen.length };
+}
+
+/**
+ * SMALL KINDS FIRST, FILES LAST, ON FREE (workplan 0157 T3; the owner,
+ * 2026-10-04: *"The free should first do all small sets, and stick to files
+ * last"*).
+ *
+ * Within a pass the kinds already run in `PASS_ORDER`, files last. Between one
+ * organisation's migrations due the same day, one that copies only files
+ * (an export's included: its photos are files) goes after the others: on Free
+ * each runs once a day, so the order is the day's. It matters when more of
+ * them are due than the organisation's passes at once.
+ *
+ * Within the organisation only. The places the longest-waiting order gives
+ * each organisation stay its own, and it decides which of its migrations takes
+ * them: the non-files ones first, each kind still longest-waiting first. So no
+ * other organisation waits longer for it, and none goes sooner.
+ */
+export function inOrganisationOrder<T extends Waiting>(sorted: readonly T[]): T[] {
+  const byOrganisation = new Map<string, T[]>();
+  for (const m of sorted) {
+    const own = byOrganisation.get(m.tenant_id);
+    if (own) own.push(m);
+    else byOrganisation.set(m.tenant_id, [m]);
+  }
+  // A stable sort: each group keeps the longest-waiting order it came in.
+  for (const own of byOrganisation.values()) own.sort((a, b) => Number(a.last ?? false) - Number(b.last ?? false));
+  const taken = new Map<string, number>();
+  return sorted.map((m) => {
+    const i = taken.get(m.tenant_id) ?? 0;
+    taken.set(m.tenant_id, i + 1);
+    return byOrganisation.get(m.tenant_id)![i]!;
+  });
 }
 
 function longestWaitingFirst(a: Waiting, b: Waiting): number {
@@ -599,9 +648,47 @@ export const managedSyncTick = schedules.task({
 
     let notDue = 0;
     let heldBack = 0;
+    let heldByPace = 0;
     let skippedRunning = 0;
     let staleRuns = 0;
     let skippedNoDomains = 0;
+
+    // EACH TIER AT ITS OWN PACE (workplan 0157 T2): the least minutes between
+    // two passes, by the tier each organisation's month bills (`pace.ts`).
+    // Read only where it can matter: outside the alpha, where every tier runs
+    // at a paid tier's pace (the owner, 2026-10-04), and for an organisation
+    // with a migration that started a pass within Free's day, since the floor
+    // holds nothing older back. The order below reads a few more (0157 T3).
+    const stage = process.env.OWNPACE_STAGE;
+    const paceByOrganisation = new Map<string, number>();
+    // The ledger's schema, as the stores read through it (`managed-retention.ts` does the same).
+    const db = drizzle(pool, { schema: schemaPg }) as unknown as PgDatabase;
+    const readPace = async (tenantIds: Iterable<string>): Promise<void> => {
+      if (!holdsAtCeiling(stage)) return;
+      const toRead = [...new Set(tenantIds)].filter((t) => !paceByOrganisation.has(t));
+      await mapWithConcurrency(toRead, ENQUEUE_CONCURRENCY, async (tenantId) => {
+        try {
+          const billed = await billedTierNow(db, tenantId as TenantId, now);
+          paceByOrganisation.set(tenantId, leastMinutesBetweenPasses(billed, stage));
+        } catch (err) {
+          // Open, and loud: a tier that cannot be read runs at a paid tier's
+          // pace this tick, so no migration stands still over a read that
+          // failed. The cost is passes Free would not have run.
+          paceByOrganisation.set(tenantId, 0);
+          log.error(
+            `[sync-tick] organisation ${tenantId}: could not read the tier its month bills, ` +
+              "so its migrations run at a paid tier's pace this tick:",
+            err,
+          );
+        }
+      });
+    };
+    const freeDayAgo = now.getTime() - FREE_PASS_EVERY_MINUTES * 60_000;
+    await readPace(
+      rows
+        .filter((m) => !m.running && m.last_started !== null && m.last_started.getTime() > freeDayAgo)
+        .map((m) => m.tenant_id),
+    );
 
     // Phase 1 — decide, in memory. No I/O in here, so the set of due mappings
     // is evaluated against ONE `now` rather than drifting as the loop runs.
@@ -633,7 +720,10 @@ export const managedSyncTick = schedules.task({
       // (0156 T5): after the `running` skip above, so never beside a pass
       // that still runs, and before the back-off and the caps below, so both
       // still hold.
-      const facts = { firstCopyUnfinished: m.first_copy_unfinished };
+      // And never sooner than its tier's pace allows (0157 T2).
+      const leastMinutes = paceByOrganisation.get(m.tenant_id) ?? 0;
+      const facts = { firstCopyUnfinished: m.first_copy_unfinished, leastMinutesBetweenPasses: leastMinutes };
+      let readable = schedule;
       let isDue: boolean;
       try {
         isDue = isSyncDue(schedule, m.last_started, now, facts);
@@ -645,10 +735,19 @@ export const managedSyncTick = schedules.task({
             `using the default (${DEFAULT_SYNC_SCHEDULE}) until it is fixed:`,
           err
         );
-        isDue = isSyncDue(defaultScheduleFor(m.id), m.last_started, now, facts);
+        readable = defaultScheduleFor(m.id);
+        isDue = isSyncDue(readable, m.last_started, now, facts);
       }
       if (!isDue) {
         notDue++;
+        // Waiting for its tier's pace alone, so due by every other rule:
+        // counted, so the summary says why a Free migration did not run.
+        if (
+          leastMinutes > 0 &&
+          isSyncDue(readable, m.last_started, now, { firstCopyUnfinished: m.first_copy_unfinished })
+        ) {
+          heldByPace++;
+        }
         continue;
       }
 
@@ -695,6 +794,17 @@ export const managedSyncTick = schedules.task({
       eligible.push({ ...m, domains });
     }
 
+    // On Free, an organisation's files-only migrations take its later turns
+    // (0157 T3). Only where more than one of its migrations is due, since the
+    // order of one is no order; their tier is read now if phase 1 did not.
+    const dueByOrganisation = new Map<string, number>();
+    for (const m of eligible) dueByOrganisation.set(m.tenant_id, (dueByOrganisation.get(m.tenant_id) ?? 0) + 1);
+    await readPace([...dueByOrganisation].filter(([, n]) => n > 1).map(([tenantId]) => tenantId));
+    const ordered = eligible.map((m) => ({
+      ...m,
+      last: (paceByOrganisation.get(m.tenant_id) ?? 0) > 0 && m.domains.every((d) => d === 'file'),
+    }));
+
     // Phase 3 — no more than the box was sized for (workplan 0143 T1 step 3):
     // count the copying passes in flight, and take the longest-waiting of the
     // eligible while the caps leave room. After phase 2, so a migration with
@@ -708,7 +818,7 @@ export const managedSyncTick = schedules.task({
       total: [...byOrganisation.values()].reduce((sum, n) => sum + n, 0),
       byOrganisation,
     };
-    const capacity = withinCapacity(eligible, inFlight, caps);
+    const capacity = withinCapacity(ordered, inFlight, caps);
     const toEnqueue = capacity.chosen;
     if (capacity.heldForCapacity > 0) {
       // The count, never the migrations: which ones wait changes every
@@ -752,6 +862,8 @@ export const managedSyncTick = schedules.task({
       firstCopies: rows.filter((m) => m.first_copy_unfinished).length,
       triggered,
       notDue,
+      // Of those, the ones due by every rule but their tier's pace (0157 T2).
+      heldByPace,
       heldBack,
       heldForCapacity: capacity.heldForCapacity,
       inFlight: inFlight.total,

@@ -39,6 +39,7 @@ import {
   decideFailureGroup,
   fetchGroupRunbook,
   fetchPermissionReport,
+  requestFinalPass,
 } from './operating-service.ts';
 
 /** An axios rejection as `responseType: 'text'` actually delivers it: the
@@ -135,5 +136,25 @@ describe('decideFailureGroup posts the whole match', () => {
       action: 'accept',
       category: 'source_refused',
     });
+  });
+});
+
+/**
+ * The pass before the switch says it is that pass (workplan 0157 T2).
+ *
+ * On Free, outside the alpha, *Sync now* inside the day is refused at the
+ * tier's pace; the final pass that Finish asks for never is. The server can
+ * only tell the two apart by `final`, and Finish's own tests mock this module,
+ * so this is the one place that sees the field leave the browser.
+ */
+describe('requestFinalPass on managed asks for the final pass', () => {
+  beforeEach(() => {
+    postMock.mockReset();
+    postMock.mockResolvedValue({ data: { status: 'queued' } });
+  });
+
+  it('posts a delta sync marked final, and says it was queued', async () => {
+    expect(await requestFinalPass('m-1')).toBe('queued');
+    expect(postMock).toHaveBeenCalledWith(expect.stringMatching(/m-1\/sync$/), { type: 'delta', final: true });
   });
 });

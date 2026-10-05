@@ -76,6 +76,7 @@ import { revokeCredentialRow } from '@openmig/orchestration/revoke-stored-creden
 import type { TokenRevoker } from '@openmig/shared';
 import { cutoverBeginRefusal, prepareTransition } from '@openmig/core/cutover-state';
 import { enqueueUnlessHeld } from '../../enqueue-unless-held.ts';
+import { freePaceRefusal } from './free-pace.ts';
 import { refusedAsClosed } from '../../closed-organisation.ts';
 import { refusedUntilAccepted } from '../../conditions-not-accepted.ts';
 import type {
@@ -2140,6 +2141,9 @@ router.post('/test-connection', authenticate, async (req: AuthenticatedRequest, 
 const TriggerSyncSchema = z.object({
   type: z.enum(['full', 'delta']).optional(),
   mode: z.string().optional(), // Accept legacy 'mode' field for tests
+  // The final pass before the switch, which Finish asks for: Free's pace does
+  // not hold it back (`free-pace.ts`, workplan 0157 T2).
+  final: z.boolean().optional(),
   // `true` for every domain the pass runs, or a list to pick which — "the
   // tasks came out wrong, do those again" without re-reading the mailbox.
   forceFullScan: z
@@ -3601,6 +3605,17 @@ router.post(
         const withdrawn = grantWithdrawnRefusal(withdrawnAt).en;
         res.status(409).json({ error: 'grant_withdrawn', message: withdrawn, reason: withdrawn });
         return;
+      }
+
+      // Free's pace holds for a press too (workplan 0157 T2): one pass a day,
+      // so a press inside the day is refused with the time of the next one.
+      // Never the final pass before the switch, nor in the alpha (`free-pace.ts`).
+      if (!body.final) {
+        const pace = await freePaceRefusal(tenantId, mappingId, pool);
+        if (pace) {
+          res.status(409).json(pace);
+          return;
+        }
       }
 
       // An operator hold stops this press as it stops the tick (0132 T6 (b)).

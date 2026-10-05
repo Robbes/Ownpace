@@ -43,7 +43,7 @@ import {
   fetchAttention,
   fetchPeople,
 } from '../services/operating-service.ts';
-import { serverMessage } from '../services/api.ts';
+import { freePaceRefusal, serverMessage } from '../services/api.ts';
 import StateChip from '../components/StateChip.tsx';
 import { providerName } from '../components/ProviderTile.tsx';
 import { MigrationLines, lineStages } from '../components/MigrationLines.tsx';
@@ -72,7 +72,7 @@ type SyncOutcome = { state: 'pending' } | { state: 'failed'; text: string };
 
 const Mappings: React.FC = () => {
   const t = useT();
-  const { list } = useFormatters();
+  const { list, dateTime } = useFormatters();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -157,7 +157,11 @@ const Mappings: React.FC = () => {
       });
       await refreshLists();
     } catch (error) {
-      setSyncOutcomes((o) => ({ ...o, [mappingId]: { state: 'failed', text: serverMessage(error) } }));
+      // Free's pace (0157 T2) in the reader's words and clock; any other
+      // refusal in the server's.
+      const pace = freePaceRefusal(error);
+      const text = pace ? t('mappings.sync.freePace', { time: dateTime(pace.nextPassAt) }) : serverMessage(error);
+      setSyncOutcomes((o) => ({ ...o, [mappingId]: { state: 'failed', text } }));
     }
   };
 
