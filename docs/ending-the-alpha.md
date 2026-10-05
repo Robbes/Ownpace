@@ -5,10 +5,14 @@ is the owner's.** This page lists what the decision switches and what must be tr
 and how to tell afterwards that the switch reached every part (*Checks*).
 
 The alpha is one setting in live's `.env`: `OWNPACE_STAGE=alpha`. Ending it means emptying that
-setting and deploying a release, so that every process reads the new value. Only live has the
-setting. Every other stack (the OTA stack, a developer's, CI, every appliance) already runs
-without it, so **the OTA stack shows today what live will do after the switch**. Rehearse there,
-not on live.
+setting and deploying a release, so that every process reads the new value.
+
+**The OTA stack takes live's stage.** The owner checks a deploy there before it reaches live
+(the owner, 2026-10-05), so OTA runs the alpha as live does. With the stage set, OTA's `.env`
+also needs `BACKUP_RETENTION_DAYS`: 0 when nothing backs up its database. Left blank, the API
+refuses to start during the alpha. Every other stack (a developer's, CI, every appliance) runs
+without the stage. **Rehearse the switch on the OTA stack:** empty the stage there first, check
+it, and only then on live.
 
 ## What the stage switches
 
@@ -31,7 +35,7 @@ reading the stage fails that guard until it has a line here.
 | Compose: `deploy/compose/managed.yml` | `${OWNPACE_STAGE:-}` from live's `.env` | Handed to the api's environment and, as `VITE_OWNPACE_STAGE`, to the web image's build. | The same, empty. The api takes it when its container is recreated; the web only when its image is rebuilt. |
 | The task environment: `deploy/compose/set-task-env.sh` | the value in live's `.env` | Uploaded to the tasks. | **Deleted** from the tasks; it prints `deleted OWNPACE_STAGE: no stage is set, so the hold at the data ceiling is on`. A task container inherits nothing from compose, so nothing else reaches it. |
 | The live deploy: `deploy/compose/deploy-live.sh` | `env_value` from live's `.env` (`SITE_STAGE`) | Hands `alpha` to the site build. | Hands it an empty stage. |
-| The OTA site: `deploy/compose/www.yml` | the OTA stack's `.env` | (the OTA stack has no stage) | Unchanged. |
+| The OTA site: `deploy/compose/www.yml` | the OTA stack's `.env` | `alpha`, as live's: the tester guide and the line, as on live's site. | Emptied on the OTA stack first, as the rehearsal. |
 
 ## Before: what must be true first
 
