@@ -1229,6 +1229,19 @@ router.post('/invoices/:invoiceId/pay', authenticate, requireBillingWrite, async
       });
       return;
     }
+    // Nor a draft (workplan 0111 T5, managed 0045). This route used to set a
+    // draft `sent` while asking Mollie for money, which issued an invoice
+    // Moneybird never numbered. An invoice is issued when Moneybird numbers
+    // it; until then there is nothing to pay, and the database now refuses
+    // draft -> sent without the number anyway, after Mollie would have been
+    // asked. So the refusal comes first.
+    if (invoice.status === 'draft') {
+      res.status(409).json({
+        error: 'Conflict',
+        message: 'This invoice has not been issued yet, so there is nothing to pay.',
+      });
+      return;
+    }
 
     // Get Mollie service
     const mollieService = getMollieService();
@@ -1249,13 +1262,14 @@ router.post('/invoices/:invoiceId/pay', authenticate, requireBillingWrite, async
       metadata: { invoiceId },
     });
 
-    // Update invoice status in database
+    // Record the payment on the invoice. Its status stays what it is (sent
+    // or overdue): the webhook moves it to paid. The metadata is added to,
+    // never replaced: whatever else it holds stays.
     await withTenantDb(tenantId, getSharedPool(), async (db) => {
       await db.update(schema.invoice)
         .set({
-          status: 'sent',
           paymentId: payment.id,
-          metadata: { mollieInvoiceId: payment.id },
+          metadata: sql`${schema.invoice.metadata} || ${JSON.stringify({ mollieInvoiceId: payment.id })}::jsonb`,
           updatedAt: new Date(),
         })
         .where(
