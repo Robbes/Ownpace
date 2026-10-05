@@ -42,9 +42,9 @@
 # document; neither is meant to be read without the other existing.
 #
 # NO XTRACE (workplan 0132 T2). This reads every value in .env, and its data
-# phase sets the database roles' passwords with db-roles.sh, which nothing
-# that sources it may run under `set -x`. Tracing prints every value a command
-# is given, so it is refused before anything is read, as
+# and trigger phases set the database roles' passwords with db-roles.sh, which
+# nothing that sources it may run under `set -x`. Tracing prints every value a
+# command is given, so it is refused before anything is read, as
 # rotate-db-passwords.sh refuses it.
 case "$-" in *x*) BOOTSTRAP_TRACED=1 ;; *) BOOTSTRAP_TRACED='' ;; esac; set +x
 if [ -n "$BOOTSTRAP_TRACED" ] || [ -n "${BASH_XTRACEFD+set}" ]; then
@@ -1268,6 +1268,53 @@ database_roles_proven() {
 }
 
 # ---------------------------------------------------------------------------
+# TRIGGER-DB'S ROLE MATCHES .env, ON EVERY RUN (workplan 0132 T2, step A).
+#
+# trigger-db keeps the password its volume was made with, as postgres does.
+# rotate-db-passwords.sh --rotate --with-trigger-stores changes the role and
+# .env together. Two things can leave them apart: a rotation whose putting
+# back could not reach trigger-db, and a gate run that started during a
+# rotation and copied an older .env back over the persisted one. trigger-api
+# presents .env's value, so it would then fail at its migration on every run,
+# while the data phase had put the two roles right.
+#
+# So the trigger phase sets the role to .env's value once trigger-db is
+# healthy and before trigger-api starts: over trigger-db's own socket as
+# `trigger`, which the image trusts there, with db-roles.sh's
+# db_roles_trigger_set, the function rotate-db-passwords.sh --sync
+# --with-trigger-stores uses. The value goes by name, as the two roles' do.
+# Then it proves the value over the stack's network, as trigger-api asks. An
+# empty key gives managed.yml's fallback, as it gives trigger-api: on the OTA
+# stack before the owner's run that is the value the role holds already. Step
+# B refuses the fallback on a real address.
+#
+# scripts/a-password-the-repository-knows.unit.test.ts, (e), runs the phase
+# against a docker stub that keeps the role's password, and holds the order:
+# trigger-db up, the role set, the proof, then trigger-api.
+trigger_db_role_matches_env() {
+  local value rc=0
+  # shellcheck source=deploy/compose/db-roles.sh
+  . "${SCRIPT_DIR}/db-roles.sh"
+  # shellcheck source=deploy/compose/shipped-passwords.sh
+  . "${SCRIPT_DIR}/shipped-passwords.sh"
+  db_roles_init "$ENV_FILE" || die "the checkout's compose project could not be read (above)."
+  value="$(db_roles_env TRIGGER_DB_PASSWORD "$SHIPPED_TRIGGER_DB")"
+  # managed.yml puts it in trigger-api's DATABASE_URL and DIRECT_URL.
+  [[ "$value" =~ ^[A-Za-z0-9._~-]+$ ]] ||
+    die "TRIGGER_DB_PASSWORD holds a character a URL does not carry as it is, and managed.yml puts it in trigger-api's database URL. trigger-db's role was not changed. Use hex (openssl rand -hex 24), as stand-up-live.sh and rotate-db-passwords.sh make. Its value is not printed."
+  if ! db_roles_trigger_set "$value"; then
+    die "could not set trigger-db's ${DB_ROLES_TRIGGER_ROLE} to .env's TRIGGER_DB_PASSWORD: ${DB_ROLES_WHY}. No value is printed."
+  fi
+  db_roles_trigger_ask "$value" || rc=$?
+  value=''
+  case "$rc" in
+    0) note "trigger-db's ${DB_ROLES_TRIGGER_ROLE} holds .env's TRIGGER_DB_PASSWORD (set over its socket) and opens with it over the stack's network" ;;
+    1) die "trigger-db's ${DB_ROLES_TRIGGER_ROLE} was set to .env's TRIGGER_DB_PASSWORD and refuses it over the stack's network. No value is printed." ;;
+    *) die "trigger-db's ${DB_ROLES_TRIGGER_ROLE} was set to .env's TRIGGER_DB_PASSWORD, and could not be asked over the stack's network (${DB_ROLES_WHY})." ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
 phase_data() {
   say data "postgres, the two roles set to .env, the pooler's lookup role, pgbouncer"
   load_env
@@ -1580,7 +1627,12 @@ phase_trigger() {
   # world-readable. Same failure shape as pgbouncer's userlist.txt — 0600 by one
   # uid, read by another — which is the second time this stack has been bitten
   # by a secret file whose writer and reader are different users.
-  up_wait trigger-db trigger-redis clickhouse minio trigger-registry \
+  #
+  # trigger-db first, on its own, and its role set to .env's value before
+  # trigger-api starts and presents that value (trigger_db_role_matches_env).
+  up_wait trigger-db
+  trigger_db_role_matches_env
+  up_wait trigger-redis clickhouse minio trigger-registry \
     trigger-docker-proxy trigger-api trigger-tls
 
   local waited=0

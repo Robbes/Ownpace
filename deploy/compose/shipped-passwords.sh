@@ -32,8 +32,8 @@
 # trigger_db_data volume still holds it. rotate-db-passwords.sh --check counts
 # it, and --rotate --with-trigger-stores changes it (0132 T2, step A), but the
 # owner has not run that on the OTA stack yet. Until then, refusing it would
-# stop the nightly gate, and generating it would lock trigger-api out of its
-# own database. Step B, after the owner's run, adds it to the list below.
+# stop the nightly gate: that stack's .env has no value of its own for it.
+# Step B, after the owner's run, adds it to the list below.
 
 # Postgres: tried against every login role among the owner, app_user,
 # openmigrate and APP_DB_USER (rotate-db-passwords.sh --check).

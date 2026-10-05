@@ -17,18 +17,19 @@
  * `TRIGGER_DB_PASSWORD` now, read by `trigger-db`'s `POSTGRES_PASSWORD` and
  * `trigger-api`'s `DATABASE_URL` and `DIRECT_URL`, with today's literal as the
  * fallback: the OTA stack's `trigger_db_data` volume was initialised with it,
- * and Postgres keeps the password a role was created with. Were the fallback
- * anything else, or the key required, the next gate run would recreate
- * `trigger-api` with a password its own database refuses. For the same
- * reason `ensure-env-secrets.sh`, which the gate runs every night, never
+ * and Postgres keeps the password a role was created with. Nothing set that
+ * role from `.env` then, so a fallback of anything else would have had the
+ * next gate run recreate `trigger-api` with a password its own database
+ * refused. `ensure-env-secrets.sh`, which the gate runs every night, never
  * writes it; `stand-up-live.sh` sets it on live's new volume. It is NOT
  * refused yet, on purpose (the session's scope decision of 2026-10-05): the
  * OTA stack's volume still holds the literal, and a refusal would stop the
  * nightly gate. Step A (0132 T2, 2026-10-05) taught
  * `rotate-db-passwords.sh --rotate --with-trigger-stores` to change it, held
- * by `rotate-db-passwords.unit.test.ts`. Step B follows the owner's run of
- * that on the OTA stack: then it is required and refused like the four below,
- * and the cases here that hold it apart change with it.
+ * by `rotate-db-passwords.unit.test.ts`, and the trigger phase to set the
+ * role to `.env`'s value on every run, (e) below. Step B follows the owner's
+ * run of the rotation on the OTA stack: then it is required and refused like
+ * the four below, and the cases here that hold it apart change with it.
  *
  * THE REST OF T2 (built 2026-10-05). For `POSTGRES_PASSWORD`,
  * `APP_DB_PASSWORD`, `CLICKHOUSE_PASSWORD` and `MINIO_ROOT_PASSWORD`:
@@ -75,6 +76,14 @@
  *   is not shipped is never overwritten, and docker is not even asked. The
  *   gate's Fill step, run here on an `.env` like the OTA stack's after the
  *   owner's rotation, changes none of the four.
+ *   (e) THE TRIGGER PHASE MAKES TRIGGER-DB'S ROLE MATCH .env, ON EVERY RUN.
+ *   It brings `trigger-db` up on its own, sets the role `trigger` to
+ *   `TRIGGER_DB_PASSWORD` (`managed.yml`'s fallback when it is empty) over
+ *   `trigger-db`'s socket, by name, proves it over the stack's network, and
+ *   only then brings `trigger-api` up. A rotation whose putting back could
+ *   not reach `trigger-db`, or a gate run that copied an older `.env` back,
+ *   is put right by the next run. A value a URL does not carry, a set that
+ *   fails and a role that refuses stop the phase before `trigger-api` starts.
  */
 
 import { describe, it, expect, afterAll } from 'vitest';
@@ -211,6 +220,12 @@ interface StubState {
   failRoles: boolean;
   /** Roles the pooler refuses whatever they present. */
   poolerRefuses: string[];
+  /** trigger-db's role `trigger`: the password it holds. */
+  trigger: string;
+  /** trigger-db refuses every value over the network, whatever its role holds. */
+  triggerRefuses: boolean;
+  /** The statement over trigger-db's socket fails, as a catalog write would. */
+  triggerFails: boolean;
 }
 interface Call {
   kind: string;
@@ -234,7 +249,11 @@ interface Call {
  * state file. A password question over the stack's network or the pooler is
  * answered from it. The roles statement is applied from the psql variables it
  * names, each read from the environment the container was given by name, and
- * only when it is one transaction kept out of the database's log.
+ * only when it is one transaction kept out of the database's log: the four
+ * settings and BEGIN before the first statement that carries a password,
+ * COMMIT after it, and psql told to stop at the first error. trigger-db's
+ * role is kept the same way, set over its own socket and asked over the
+ * network.
  */
 const DOCKER_STUB = `#!${process.execPath}
 'use strict';
@@ -274,6 +293,20 @@ function psqlArgs(a) {
   }
   return o;
 }
+const KEPT_OUT = ["SET log_statement = 'none';", 'SET log_min_duration_statement = -1;', 'SET log_min_error_statement = panic;',
+  'SET pg_stat_statements.track_utility = off;', 'BEGIN;'];
+function keptOut(lines, p) {
+  const at = lines.findIndex((l) => l.startsWith('ALTER ROLE :"') || l.startsWith('CREATE ROLE :"'));
+  if (at < 0) return 'no statement that sets a password';
+  for (const line of KEPT_OUT) {
+    const k = lines.indexOf(line);
+    if (k < 0) return 'no ' + line;
+    if (k > at) return line + ' comes after the statement it keeps out of the log';
+  }
+  if (lines.lastIndexOf('COMMIT;') < at) return 'no COMMIT after the statement';
+  if (p.v.ON_ERROR_STOP !== '1') return 'psql was not told to stop at the first error';
+  return '';
+}
 function refused(user) {
   err('psql: error: connection to server failed: FATAL:  password authentication failed for user "' + user + '"' + NL);
   return 2;
@@ -309,6 +342,10 @@ if (argv[0] === 'run') {
   }
   const image = argv[i]; const p = psqlArgs(argv.slice(i + 2)); const e = byName(names);
   log({ kind: 'network', network: network, image: image, user: p.U, host: p.h, env: e.env, inline: e.inline });
+  if (p.h === 'trigger-db') {
+    if (state.triggerRefuses || p.U !== 'trigger' || p.d !== 'triggerdb' || !e.env.PGPASSWORD || e.env.PGPASSWORD !== state.trigger) done(refused(p.U));
+    out('1' + NL); done(0);
+  }
   if (p.h !== 'postgres') { err('psql: error: could not translate host name' + NL); done(2); }
   done(ask(p.U, e.env.PGPASSWORD));
 }
@@ -332,6 +369,31 @@ if (svc === 'pgbouncer' && cmd[0] === 'psql') {
   if ((state.poolerRefuses || []).indexOf(p.U) >= 0) done(refused(p.U));
   done(ask(p.U, e.env.PGPASSWORD));
 }
+if (svc === 'trigger-db' && cmd[0] === 'psql') {
+  const sql = readIn();
+  log({ kind: 'trigger-role', stdin: sql, user: p.U, v: p.v, env: e.env, inline: e.inline });
+  if (p.U !== 'trigger' || p.d !== 'triggerdb') { err('psql: error: connection to server on socket failed: FATAL:  role "' + p.U + '" does not exist' + NL); done(2); }
+  const lines = sql.split(NL).map((l) => l.trim());
+  const why = keptOut(lines, p);
+  if (why) { err('docker stub: the statement in trigger-db is not one transaction kept out of the log: ' + why + NL); done(95); }
+  if (state.triggerFails) { err('psql:<stdin>:7: ERROR:  could not write to the catalog (the failure this case asked for)' + NL); done(3); }
+  const vars = Object.assign({}, p.v); let pw = '';
+  for (const line of lines) {
+    if (line.startsWith(BS + 'set ')) {
+      const name = line.split(' ')[1]; const a = line.indexOf('"$'); const b = line.lastIndexOf('"');
+      vars[name] = a >= 0 && b > a ? (e.env[line.slice(a + 2, b)] || '') : '';
+      continue;
+    }
+    if (line.startsWith('ALTER ROLE :"')) {
+      const a = line.indexOf(':"') + 2; const role = vars[line.slice(a, line.indexOf('"', a))];
+      if (role !== 'trigger') { err('ERROR:  role "' + role + '" does not exist' + NL); done(3); }
+      const q = line.indexOf(":'") + 2; pw = vars[line.slice(q, line.indexOf("'", q))] || '';
+    }
+  }
+  if (!pw) { err('ERROR:  an empty password' + NL); done(3); }
+  state.trigger = pw; save();
+  done(0);
+}
 if (svc !== 'postgres' || cmd[0] !== 'psql') { log({ kind: 'exec-other', env: e.env, inline: e.inline }); done(0); }
 
 if (p.c !== undefined) {
@@ -348,9 +410,7 @@ if (sql.indexOf('ROLE :"') < 0) { log({ kind: 'socket-other', stdin: sql, user: 
 log({ kind: 'roles', stdin: sql, user: p.U, v: p.v, env: e.env, inline: e.inline });
 if (!state.roles[p.U]) { err('psql: error: connection to server on socket failed: FATAL:  role "' + p.U + '" does not exist' + NL); done(2); }
 const lines = sql.split(NL).map((l) => l.trim());
-if (lines.indexOf('SET log_min_error_statement = panic;') < 0 || lines.indexOf('BEGIN;') < 0 || lines.indexOf('COMMIT;') < 0) {
-  err('docker stub: the roles statement is not one transaction kept out of the log' + NL); done(95);
-}
+{ const why = keptOut(lines, p); if (why) { err('docker stub: the roles statement is not one transaction kept out of the log: ' + why + NL); done(95); } }
 if (state.failRoles) { err('psql:<stdin>:9: ERROR:  could not write to the catalog (the failure this case asked for)' + NL); done(3); }
 const vars = Object.assign({}, p.v); const conds = []; const changes = [];
 for (const line of lines) {
@@ -448,6 +508,9 @@ function aStack(dotEnv: string, state: Partial<StubState> = {}): Stack {
     daemonDown: false,
     failRoles: false,
     poolerRefuses: [],
+    trigger: TODAYS_LITERAL,
+    triggerRefuses: false,
+    triggerFails: false,
     ...state,
   };
   writeFileSync(statePath, JSON.stringify(full));
@@ -946,6 +1009,112 @@ describe('(c) the data phase sets both roles to .env, before anything migrates, 
     expect(rotate).toMatch(/db_roles_set "\$DB_ROLES_OWNER_PASSWORD" "\$DB_ROLES_APP_PASSWORD"/);
     expect(codeOf(boot), 'the bring-up writes an ALTER ROLE of its own').not.toMatch(/ALTER ROLE/);
     expect(helper).toMatch(/CREATE ROLE :"app_role" LOGIN PASSWORD :'app_pw';/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// trigger-db's role, held to .env by the trigger phase (0132 T2, step A)
+// ---------------------------------------------------------------------------
+
+describe("(e) the trigger phase sets trigger-db's role to .env's value, once trigger-db is up and before trigger-api starts", () => {
+  /** A value nobody published, as stand-up-live.sh or the rotation leaves it. */
+  const TRIGGER_PW = '0f1f2f'.repeat(8);
+  /** One the role may hold that .env no longer does: a putting back that could not reach it, or an older .env copied back. */
+  const STALE = '0a0b0c'.repeat(8);
+  const VALUES = [OWNER_PW, APP_PW, CH_PW, MINIO_PW, PGB_PW, TRIGGER_PW, STALE];
+
+  /** The phase reads apps/worker's SDK version and compares it with managed.yml's image tag. */
+  function withWorker(s: Stack): Stack {
+    const tag = /\$\{TRIGGER_IMAGE_TAG:-v([^}]+)\}/.exec(MANAGED)?.[1];
+    expect(tag, "managed.yml carries no TRIGGER_IMAGE_TAG default").toBeTruthy();
+    mkdirSync(join(s.root, 'apps', 'worker'), { recursive: true });
+    writeFileSync(join(s.root, 'apps', 'worker', 'package.json'), JSON.stringify({ dependencies: { '@trigger.dev/sdk': tag } }));
+    return s;
+  }
+
+  function nothingShown(r: { out: string; calls: Call[] }) {
+    for (const v of VALUES) {
+      expect(showsAPiece(r.out, v), 'a value, or part of one, in the output').toBe(false);
+      for (const c of r.calls) {
+        expect(showsAPiece(c.argv.join(' '), v), `a value, or part of one, on docker's command line: ${c.kind}`).toBe(false);
+        expect(showsAPiece(c.stdin ?? '', v), `a value, or part of one, in the SQL text given to ${c.kind}`).toBe(false);
+      }
+    }
+    for (const c of r.calls) expect(c.inline ?? [], `-e NAME=value in ${c.kind}`).toEqual([]);
+  }
+
+  const upOf = (calls: Call[], service: string) => calls.findIndex((c) => c.kind === 'up' && (c.services ?? []).includes(service));
+
+  it('a role that holds a value .env no longer holds is set to .env\'s: trigger-db up, the role set, proven over the network, then trigger-api', () => {
+    const s = withWorker(aStack(envText(realEnv({ TRIGGER_DB_PASSWORD: TRIGGER_PW })), { trigger: STALE }));
+    const r = bootstrap(s, ['--only', 'trigger']);
+    expect(r.status, r.out).toBe(0);
+    expect(stateOf(s).trigger, "trigger-db's role does not hold .env's value").toBe(TRIGGER_PW);
+
+    const dbUp = upOf(r.calls, 'trigger-db');
+    const set = r.calls.findIndex((c) => c.kind === 'trigger-role');
+    const asked = r.calls.findIndex((c) => c.kind === 'network' && c.host === 'trigger-db');
+    const apiUp = upOf(r.calls, 'trigger-api');
+    expect(dbUp, 'trigger-db was not brought up').toBeGreaterThan(-1);
+    expect(r.calls[dbUp]?.services, 'trigger-api came up with trigger-db, before its role was set').not.toContain('trigger-api');
+    expect(set, 'the role was not set').toBeGreaterThan(dbUp);
+    expect(asked, 'the role was not asked over the network after it was set').toBeGreaterThan(set);
+    expect(apiUp, 'trigger-api came up before the role was proven').toBeGreaterThan(asked);
+
+    // By name, as trigger-api presents it, and asked the way trigger-api asks.
+    const call = r.calls[set];
+    expect(call?.user).toBe('trigger');
+    expect(call?.env?.DB_ROLES_NEW_TRIGGER_PASSWORD).toBe(TRIGGER_PW);
+    expect(r.calls[asked]?.user).toBe('trigger');
+    expect(r.calls[asked]?.network).toMatch(/_ownpace-network$/);
+    expect(r.out).toMatch(/trigger-db's trigger holds \.env's TRIGGER_DB_PASSWORD/);
+    nothingShown(r);
+  });
+
+  it("on the OTA stack before the owner's run (no TRIGGER_DB_PASSWORD line) it sets managed.yml's fallback, which the role holds already", () => {
+    const s = withWorker(aStack(envText(realEnv()), { trigger: TODAYS_LITERAL }));
+    const r = bootstrap(s, ['--only', 'trigger']);
+    expect(r.status, r.out).toBe(0);
+    expect(stateOf(s).trigger).toBe(TODAYS_LITERAL);
+    const call = r.calls.find((c) => c.kind === 'trigger-role');
+    expect(call?.env?.DB_ROLES_NEW_TRIGGER_PASSWORD, "the fallback trigger-api is given").toBe(TODAYS_LITERAL);
+    expect(upOf(r.calls, 'trigger-api')).toBeGreaterThan(-1);
+    nothingShown(r);
+  });
+
+  it('a value a URL does not carry stops the phase before the role is set or trigger-api starts, naming the key and no value', () => {
+    const odd = `${TRIGGER_PW}@x`;
+    const s = withWorker(aStack(envText(realEnv({ TRIGGER_DB_PASSWORD: odd })), { trigger: STALE }));
+    const r = bootstrap(s, ['--only', 'trigger']);
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toContain('TRIGGER_DB_PASSWORD');
+    expect(r.out).toMatch(/URL/);
+    expect(r.calls.some((c) => c.kind === 'trigger-role'), 'the role was set').toBe(false);
+    expect(upOf(r.calls, 'trigger-api'), 'trigger-api was brought up').toBe(-1);
+    expect(stateOf(s).trigger).toBe(STALE);
+    nothingShown(r);
+  });
+
+  it('a set that fails, or a role that refuses the value it was just given, stops the phase before trigger-api starts', () => {
+    for (const [state, says] of [
+      [{ trigger: TRIGGER_PW, triggerFails: true }, /could not set trigger-db's trigger/],
+      [{ trigger: STALE, triggerRefuses: true }, /refuses it over the stack's network/],
+    ] as const) {
+      const s = withWorker(aStack(envText(realEnv({ TRIGGER_DB_PASSWORD: TRIGGER_PW })), state));
+      const r = bootstrap(s, ['--only', 'trigger']);
+      expect(r.status, r.out).toBe(1);
+      expect(r.out).toMatch(says);
+      expect(upOf(r.calls, 'trigger-api'), 'trigger-api was brought up').toBe(-1);
+      nothingShown(r);
+    }
+  });
+
+  it('the bring-up and rotate-db-passwords.sh --sync --with-trigger-stores set it with the one function in db-roles.sh', () => {
+    const boot = read('deploy/compose/bootstrap-managed.sh');
+    const rotate = read('deploy/compose/rotate-db-passwords.sh');
+    expect(codeOf(boot)).toMatch(/db_roles_trigger_set "\$value"/);
+    expect(codeOf(rotate)).toMatch(/db_roles_trigger_set "\$trigger_pw"/);
+    expect(codeOf(boot), 'the bring-up writes an ALTER ROLE of its own').not.toMatch(/ALTER ROLE/);
   });
 });
 

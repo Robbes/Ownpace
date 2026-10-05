@@ -12,9 +12,9 @@
 # the role with ALTER ROLE, and then proven the way the stack presents it.
 #
 # Sourced, never run. The functions here are the ones rotate-db-passwords.sh
-# uses, and the ones the bring-up's `data` phase calls on every run
-# (bootstrap-managed.sh, database_roles_match_env), so the two cannot drift
-# apart. The caller sets SCRIPT_DIR (this directory, as every
+# uses, and the ones the bring-up's `data` and `trigger` phases call on every
+# run (bootstrap-managed.sh, database_roles_match_env and
+# trigger_db_role_matches_env), so the two cannot drift apart. The caller sets SCRIPT_DIR (this directory, as every
 # script here does) and COMPOSE (its Compose command as an array, for this
 # checkout's managed.yml). This file sources env-read.sh and own-addresses.sh
 # from SCRIPT_DIR itself, and db_roles_init asks the project reader before any
@@ -90,6 +90,8 @@
 #       ALTER ROLE trigger, over trigger-db's own socket as trigger, which the
 #       image trusts there, the value passed by name and the statement kept
 #       out of the log and the statistics, as db_roles_set does for its two.
+#       rotate-db-passwords.sh --rotate and --sync --with-trigger-stores call
+#       it, and the bring-up's trigger phase on every run, with .env's value.
 #   db_roles_trigger_ask <password>
 #       over the stack's network to trigger-db, as trigger-api asks it:
 #       0 opens, 1 refused, 2 cannot tell (DB_ROLES_WHY says why).

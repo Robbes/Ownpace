@@ -62,9 +62,11 @@
  *   whose one client is `trigger-api`. The role is set over trigger-db's own
  *   socket as that superuser, the value by name and the statement kept out of
  *   the log and the statistics, proven over the network, and put back with
- *   the rest when anything after it fails. Plain `--rotate` never touches it,
- *   and `--sync --with-trigger-stores` sets it to `.env`'s value, which is
- *   the step printed when putting it back does not complete.
+ *   the rest when anything after it fails: a refusal, a question that cannot
+ *   be asked, the fallback still opening, an interrupt. Plain `--rotate` never
+ *   touches it, not even when it fails, and `--sync --with-trigger-stores`
+ *   sets it to `.env`'s value, which is the step printed when putting it back
+ *   does not complete; that step says done only when trigger-db opens with it.
  *
  * HOW IT RUNS. Each case builds a checkout of its own: every script in
  * `deploy/compose`, the real `managed.yml`, a `.env` linked to
@@ -73,8 +75,11 @@
  * `env-upsert.sh` is wrapped so its argv is recorded too. The `docker` stub
  * keeps a small database in a state file: each role's password, super and
  * login flags. It answers a password over the network or the pooler only when
- * it matches, applies an `ALTER` only when it is one transaction with
- * `log_min_error_statement = panic`, and takes each value from the variable
+ * it matches, applies an `ALTER` only when the four settings that keep it out
+ * of the log and `BEGIN` come before it, `COMMIT` after it, and psql was told
+ * to stop at the first error (`-v ON_ERROR_STOP=1`): psql puts the value into
+ * the text it sends, and a failed statement is logged with that text unless
+ * the settings came first. It takes each value from the variable
  * the SQL names, from the environment Compose was told to pass by name. It
  * can also stop at a named point and wait, so a case can signal the script
  * while a step is running (`State.pause`).
@@ -142,6 +147,10 @@ interface State {
   triggerDown: boolean;
   /** trigger-db refuses, over the network, every value that starts with this. */
   triggerRefusesPrefix: string;
+  /** trigger-db opens, over the network, with these values too, whatever its role holds (trust on the network, say). */
+  triggerAlsoOpens: string[];
+  /** A question to trigger-db with a value that starts with one of these cannot be asked: it times out. */
+  triggerUnasked: string[];
   /** trigger-db's ALTERs that fail, by attempt (1 is the first). */
   triggerAlterFailAt: number[];
   triggerAlters: number;
@@ -158,6 +167,8 @@ interface State {
   /** The ALTERs that fail, by attempt (1 is the first). */
   alterFailAt: number[];
   poolerRefusesPrefix: string;
+  /** env-upsert.sh writes the first key it is given, then fails: a write that stops halfway. */
+  upsertWritesOnlyFirst: boolean;
   /**
    * Where the docker stub stops and waits for the case: `prove-new`, the first
    * question asked with a generated value; `alter-<n>`, the n-th ALTER;
@@ -220,6 +231,29 @@ function psqlArgs(args) {
   }
   return o;
 }
+/**
+ * The statement that carries a password is kept out of the log only when the
+ * four settings and BEGIN come before it, and psql stops at the first error:
+ * psql puts the value into the text before it sends it, and a failed statement
+ * is logged with its text at the image's log_min_error_statement. Every SET
+ * after it, or a psql that goes on, is refused.
+ */
+const KEPT_OUT = ["SET log_statement = 'none';", 'SET log_min_duration_statement = -1;', 'SET log_min_error_statement = panic;',
+  'SET pg_stat_statements.track_utility = off;', 'BEGIN;'];
+function keptOut(sql, p) {
+  const ls = sql.split('\\n').map((l) => l.trim());
+  const at = ls.findIndex((l) => /^(ALTER|CREATE) ROLE /.test(l));
+  if (at < 0) return 'no ALTER ROLE or CREATE ROLE';
+  for (const line of KEPT_OUT) {
+    const k = ls.indexOf(line);
+    if (k < 0) return 'no ' + line;
+    if (k > at) return line + ' comes after the statement it keeps out of the log';
+  }
+  const c = ls.lastIndexOf('COMMIT;');
+  if (c < at) return 'no COMMIT after the statement';
+  if (p.v.ON_ERROR_STOP !== '1') return 'psql was not given -v ON_ERROR_STOP=1, so it goes on after an error';
+  return '';
+}
 function refused(host, user) {
   err('psql: error: connection to server at "' + host + '" (' + ADDR + '), port 5432 failed: FATAL:  password authentication failed for user "' + user + '"\\n');
   return 2;
@@ -227,8 +261,12 @@ function refused(host, user) {
 function ask(channel, host, user, pw) {
   if (host === 'trigger-db') {
     if (state.triggerDown) { err('psql: error: could not translate host name "trigger-db" to address: Name does not resolve\\n'); return 2; }
+    if ((state.triggerUnasked || []).some((x) => String(pw || '').startsWith(x))) {
+      err('psql: error: connection to server at "trigger-db" (' + ADDR + '), port 5432 failed: timeout expired\\n');
+      return 2;
+    }
     if (state.triggerRefusesPrefix && String(pw || '').startsWith(state.triggerRefusesPrefix)) return refused(host, user);
-    if (user === 'trigger' && pw && pw === state.trigger) { out('1\\n'); return 0; }
+    if (user === 'trigger' && pw && (pw === state.trigger || (state.triggerAlsoOpens || []).includes(pw))) { out('1\\n'); return 0; }
     return refused(host, user);
   }
   if (host !== 'postgres' && host !== '127.0.0.1') { err('psql: error: could not translate host name "' + host + '"\\n'); return 2; }
@@ -327,10 +365,7 @@ if (svc === 'postgres' && cmd[0] === 'psql') {
   const sql = fs.readFileSync(0, 'utf8');
   log('docker', { kind: 'socket', what: 'alter', container: env, psql: p, sql });
   if (!state.roles[p.U]) { err('psql: error: FATAL:  role "' + p.U + '" does not exist\\n'); done(2); }
-  if (!/^SET log_min_error_statement = panic;$/m.test(sql) || !/^BEGIN;$/m.test(sql) || !/^COMMIT;$/m.test(sql)) {
-    err('docker stub: the ALTER is not one transaction kept out of the log\\n');
-    done(95);
-  }
+  { const why = keptOut(sql, p); if (why) { err('docker stub: the ALTER is not one transaction kept out of the log: ' + why + '\\n'); done(95); } }
   state.alterAttempts += 1; save();
   pauseAt('alter-' + state.alterAttempts);
   if (state.alterFail > 0 || state.alterFailAt.includes(state.alterAttempts)) {
@@ -367,10 +402,7 @@ if (svc === 'trigger-db' && cmd[0] === 'psql') {
     err('psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:  role "' + p.U + '" does not exist\\n');
     done(2);
   }
-  for (const line of ["SET log_statement = 'none';", 'SET log_min_duration_statement = -1;', 'SET log_min_error_statement = panic;',
-    'SET pg_stat_statements.track_utility = off;', 'BEGIN;', 'COMMIT;']) {
-    if (!sql.split('\\n').includes(line)) { err('docker stub: the ALTER in trigger-db is not one transaction kept out of the log and the statistics\\n'); done(95); }
-  }
+  { const why = keptOut(sql, p); if (why) { err('docker stub: the ALTER in trigger-db is not one transaction kept out of the log and the statistics: ' + why + '\\n'); done(95); } }
   state.triggerAlterAttempts += 1; save();
   pauseAt('trigger-alter-' + state.triggerAlterAttempts);
   if (state.triggerAlterFailAt.includes(state.triggerAlterAttempts)) {
@@ -492,7 +524,14 @@ done(1);
 /** env-upsert.sh, wrapped: its argv recorded, then the real one run. */
 const UPSERT_WRAPPER = `${STUB_HEAD}
 log('env-upsert', {});
-const r = require('child_process').spawnSync('bash', [require('path').join(__dirname, 'env-upsert.real.sh'), ...argv], { stdio: 'inherit' });
+const real = require('path').join(__dirname, 'env-upsert.real.sh');
+if (state.upsertWritesOnlyFirst) {
+  // --from-env <file> KEY1 ...: the first key written, then a failure, as a full disk would leave it.
+  require('child_process').spawnSync('bash', [real, ...argv.slice(0, 3)], { stdio: 'inherit' });
+  err('env-upsert.sh: could not write the rest (the failure this case asked for)\\n');
+  done(1);
+}
+const r = require('child_process').spawnSync('bash', [real, ...argv], { stdio: 'inherit' });
 done(r.status === null ? 1 : r.status);
 `;
 
@@ -562,6 +601,8 @@ function baseState(project: string): State {
     trigger: TRIGGER_PW,
     triggerDown: false,
     triggerRefusesPrefix: '',
+    triggerAlsoOpens: [],
+    triggerUnasked: [],
     triggerAlterFailAt: [],
     triggerAlters: 0,
     triggerAlterAttempts: 0,
@@ -573,6 +614,7 @@ function baseState(project: string): State {
     alterFail: 0,
     alterFailAt: [],
     poolerRefusesPrefix: '',
+    upsertWritesOnlyFirst: false,
     pause: [],
     generated: [],
     alters: 0,
@@ -886,6 +928,32 @@ describe('--check: which shipped value still opens a role', () => {
       expect(r2.status, r2.output).toBe(2);
       expect(r2.stdout).toMatch(/trigger-db trigger: control, .*could not be asked/);
       expect(leaks(down, r2.output)).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "a question to trigger-db that cannot be asked, its control's or the fallback's, is 2 on its own",
+    () => {
+      // Each is asked once; the other answers. A check that let either go
+      // would call the stack clean without having asked it.
+      for (const [unasked, which] of [
+        ['trigger-secret', 'control'],
+        [TRIGGER_LITERAL, 'fallback'],
+      ] as const) {
+        const fx = fixture({ state: { triggerUnasked: [unasked] } });
+        const r = run(fx, ['--check']);
+        expect(r.status, `${which}: ${r.output}`).toBe(2);
+        expect(r.stdout).toContain('RESULT: NOT ESTABLISHED. A question above could not be asked');
+        if (which === 'control') {
+          expect(r.stdout).toMatch(/trigger-db trigger: control, TRIGGER_DB_PASSWORD from \.env, over the network: could not be asked/);
+          expect(r.stdout).toMatch(/trigger-db trigger, compose's default: refused/);
+        } else {
+          expect(r.stdout).toMatch(/trigger-db trigger: control, TRIGGER_DB_PASSWORD from \.env, over the network: opens/);
+          expect(r.stdout).toMatch(/trigger-db trigger, compose's default: could not be asked/);
+        }
+        expect(leaks(fx, r.output)).toEqual([]);
+      }
     },
     CASE_MS,
   );
@@ -1634,6 +1702,109 @@ describe('--rotate', () => {
   );
 
   it(
+    "the fallback still opening trigger-db after its ALTER fails the rotation, and everything goes back",
+    () => {
+      // A trigger-db that opens with the published value whatever its role
+      // holds (trust on the network, say): the new value proves nothing.
+      const fx = fixture({ unset: ['TRIGGER_DB_PASSWORD'], state: { trigger: TRIGGER_LITERAL, triggerAlsoOpens: [TRIGGER_LITERAL] } });
+      const before = readFileSync(fx.persisted, 'utf8');
+      const r = run(fx, ['--rotate', '--with-trigger-stores'], { input: `${OTA}\n` });
+      expect(r.status, r.output).toBe(1);
+      expect(r.stdout).toMatch(/trigger-db trigger, compose's default: OPENS/);
+      expect(r.stderr).toMatch(/FAILED while checking that no shipped value opens a role: a shipped value still opens a role/);
+      expect(r.stderr).toMatch(/restored/);
+      expect(r.output, 'it said the fallback no longer opens').not.toMatch(/no longer opens it/);
+      const s = stateOf(fx);
+      expect(s.trigger).toBe(TRIGGER_LITERAL);
+      expect(s.roles.pgowner?.pw).toBe(OWNER_PW);
+      expect(s.roles.app_user?.pw).toBe(APP_PW);
+      expect(readFileSync(fx.persisted, 'utf8')).toBe(before);
+      expect(leaks(fx, r.output)).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "the fallback that cannot be asked of trigger-db after its ALTER fails the rotation too",
+    () => {
+      const fx = fixture({ state: { triggerUnasked: [TRIGGER_LITERAL] } });
+      const before = readFileSync(fx.persisted, 'utf8');
+      const r = run(fx, ['--rotate', '--with-trigger-stores'], { input: `${OTA}\n` });
+      expect(r.status, r.output).toBe(1);
+      expect(r.stdout).toMatch(/trigger-db trigger, compose's default: could not be asked/);
+      expect(r.stderr).toMatch(/FAILED while checking that no shipped value opens a role: a shipped value could not be asked/);
+      expect(r.stderr).toMatch(/restored/);
+      expect(stateOf(fx).trigger).toBe(TRIGGER_PW);
+      expect(readFileSync(fx.persisted, 'utf8')).toBe(before);
+      expect(leaks(fx, r.output)).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "trigger-db's new value that cannot be asked over the network is not a proof: the rotation fails and puts it back",
+    () => {
+      const fx = fixture({ state: { triggerUnasked: [GEN] } });
+      const before = readFileSync(fx.persisted, 'utf8');
+      const r = run(fx, ['--rotate', '--with-trigger-stores'], { input: `${OTA}\n` });
+      expect(r.status, r.output).toBe(1);
+      expect(r.stderr).toMatch(/FAILED while proving trigger-db's new value over the network: trigger did not accept its new value/);
+      expect(r.stderr).toMatch(/restored/);
+      const s = stateOf(fx);
+      expect(s.triggerAlters, 'the new value was set, then the old one').toBe(2);
+      expect(s.trigger).toBe(TRIGGER_PW);
+      expect(readFileSync(fx.persisted, 'utf8')).toBe(before);
+      expect(leaks(fx, r.output)).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'plain --rotate that fails puts the two roles back and asks trigger-db nothing, even with trigger-db down',
+    () => {
+      // Without the flag trigger-db was never touched, so the putting back has
+      // nothing to set there, and must not report it as left undone.
+      const fx = fixture({
+        state: { alterFail: 1, triggerDown: true, health: { postgres: 'healthy', clickhouse: 'healthy', 'trigger-db': '' } },
+      });
+      const before = readFileSync(fx.persisted, 'utf8');
+      const r = run(fx, ['--rotate'], { input: `${OTA}\n` });
+      expect(r.status, r.output).toBe(1);
+      expect(r.stderr).toMatch(/FAILED while setting the roles/);
+      expect(r.stderr).toMatch(/restored/);
+      expect(r.stderr).not.toContain('THE PUTTING BACK DID NOT COMPLETE');
+      expect(r.stderr).not.toContain("trigger-db's over the network");
+      expect(calls(fx).filter((c) => c.service === 'trigger-db' || c.psql?.h === 'trigger-db'), 'trigger-db was asked').toEqual([]);
+      expect(stateOf(fx).trigger).toBe(TRIGGER_PW);
+      expect(readFileSync(fx.persisted, 'utf8')).toBe(before);
+      expect(leaks(fx, r.output)).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'a write of .env that stops halfway is put back through the link, and no role, trigger-db\'s included, is changed',
+    () => {
+      const fx = fixture({ state: { upsertWritesOnlyFirst: true } });
+      const before = readFileSync(fx.persisted, 'utf8');
+      const r = run(fx, ['--rotate', '--with-trigger-stores'], { input: `${OTA}\n` });
+      expect(r.status, r.output).toBe(1);
+      expect(r.stderr).toMatch(/FAILED while writing \.env: env-upsert\.sh refused/);
+      expect(r.stderr).toMatch(/restored/);
+      expect(readFileSync(fx.persisted, 'utf8'), 'the half-written .env was left').toBe(before);
+      expect(lstatSync(fx.checkoutEnv).isSymbolicLink()).toBe(true);
+      const s = stateOf(fx);
+      expect(s.roles.pgowner?.pw).toBe(OWNER_PW);
+      expect(s.roles.app_user?.pw).toBe(APP_PW);
+      expect(s.triggerAlterAttempts, "trigger-db's ALTER was sent").toBe(0);
+      expect(s.trigger).toBe(TRIGGER_PW);
+      expect(readdirSync(dirname(fx.persisted)).filter((f) => f.startsWith('.env.before-rotation-'))).toEqual([]);
+      expect(leaks(fx, r.output)).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
     'a leftover role that no shipped value opens, or that cannot log in, does not stop it',
     () => {
       for (const openmigrate of [
@@ -1702,6 +1873,50 @@ describe('--sync', () => {
 
       // It names no mode it does not belong to.
       expect(run(fx, ['--check', '--with-trigger-stores']).status).toBe(2);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "--sync --with-trigger-stores is not done when trigger-db refuses .env's value after the set",
+    () => {
+      // The step printed when a putting back does not complete: it must not
+      // say done while trigger-api would still be refused.
+      const fx = fixture({ state: { triggerRefusesPrefix: 'trigger-secret' } });
+      const r = run(fx, ['--sync', '--with-trigger-stores']);
+      expect(r.status, r.output).toBe(1);
+      expect(r.stdout).toMatch(/trigger-db trigger, over the network: REFUSED/);
+      expect(r.stderr).toContain('FAILED: the ALTER took and a role still refuses');
+      expect(r.output).not.toMatch(/done: /);
+      expect(leaks(fx, r.output)).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "--sync --with-trigger-stores is not done when trigger-db's set fails",
+    () => {
+      const fx = fixture({ state: { triggerAlterFailAt: [1] } });
+      const r = run(fx, ['--sync', '--with-trigger-stores']);
+      expect(r.status, r.output).toBe(1);
+      expect(r.stderr).toContain("FAILED: trigger-db's role was not changed");
+      expect(r.output).not.toMatch(/done: /);
+      expect(leaks(fx, r.output)).toEqual([]);
+    },
+    CASE_MS,
+  );
+
+  it(
+    '--sync --with-trigger-stores refuses a trigger-db that is not healthy before it sets anything',
+    () => {
+      for (const health of ['starting', '']) {
+        const fx = fixture({ state: { health: { postgres: 'healthy', clickhouse: 'healthy', 'trigger-db': health } } });
+        const before = readFileSync(fx.persisted, 'utf8');
+        const r = run(fx, ['--sync', '--with-trigger-stores']);
+        unchanged(fx, before, r);
+        expect(r.stderr).toContain('trigger-db is not healthy');
+        expect(calls(fx).filter((c) => ['network', 'pooler', 'socket'].includes(c.kind ?? '')), 'it asked a database before refusing').toEqual([]);
+      }
     },
     CASE_MS,
   );
@@ -1814,7 +2029,8 @@ describe("the script's own text", () => {
     // The rotation changes trigger-db's role and .env; the containers take
     // the new value only when they are recreated from that .env, which the
     // E2E (managed) run it dispatches does: its bring-up runs from `data`,
-    // and the trigger phase brings trigger-db and trigger-api up again.
+    // and the trigger phase brings trigger-db up, sets its role to .env's
+    // value, and then brings trigger-api up again.
     const yml = read('deploy/compose/managed.yml');
     const services = [...yml.matchAll(/^ {2}([a-z][\w-]*):\s*$/gm)];
     const clients: string[] = [];
@@ -1831,9 +2047,12 @@ describe("the script's own text", () => {
     expect(gate).toMatch(/bootstrap-managed\.sh --from data\b/);
     const bringUp = read('deploy/compose/bootstrap-managed.sh');
     const phase = bringUp.slice(bringUp.indexOf('phase_trigger() {'), bringUp.indexOf('\n}\n', bringUp.indexOf('phase_trigger() {')));
-    const upWait = /up_wait trigger-db(?:[^\n\\]|\\\n)*/.exec(phase)?.[0] ?? '';
-    expect(upWait, "the trigger phase does not bring trigger-db up").not.toBe('');
-    expect(upWait).toMatch(/\btrigger-api\b/);
+    const dbUp = phase.search(/^\s*up_wait trigger-db\b/m);
+    const set = phase.search(/^\s*trigger_db_role_matches_env$/m);
+    const apiUp = phase.search(/^\s*up_wait (?:[^\n\\]|\\\n)*\btrigger-api\b/m);
+    expect(dbUp, 'the trigger phase does not bring trigger-db up').toBeGreaterThan(-1);
+    expect(set, "the trigger phase does not set trigger-db's role to .env's value after it is up").toBeGreaterThan(dbUp);
+    expect(apiUp, 'the trigger phase does not bring trigger-api up after the role is set').toBeGreaterThan(set);
   });
 
   it("live stays as it is: stand-up-live.sh generates TRIGGER_DB_PASSWORD for live's new trigger_db_data", () => {
@@ -1916,7 +2135,18 @@ describe('the small fixes beside it', () => {
     expect(row('--check'), 'the --check row').toMatch(/`trigger-db`[^|]*counted like the others/);
     expect(row('--sync'), 'the --sync row').toMatch(/--with-trigger-stores[^|]*`trigger-db`/);
     expect(steps).toContain('--sync --with-trigger-stores');
-    expect(steps, 'the old wording').not.toMatch(/uncounted|waiting for the code that rotates it|T2's next step/);
+    expect(steps, 'the old wording').not.toMatch(/uncounted|waiting for the code that rotates it|T2's next step|Both controls/);
+    // The owner's checkout is pulled by hand, and an older script changes the
+    // stores again and leaves trigger-db alone: step 1 pulls first, and names
+    // the line of --help only this script has.
+    const first = steps.slice(steps.indexOf('\n1. '), steps.indexOf('\n2. '));
+    expect(first).toContain('git pull');
+    expect(first).toContain('`--sync [--with-trigger-stores]`');
+    expect(first.indexOf('git pull')).toBeLessThan(first.indexOf('rotate-db-passwords.sh --check'));
+    expect(read(`deploy/compose/${SCRIPT}`).split('\n').slice(0, 12).join('\n')).toContain('rotate-db-passwords.sh --sync [--with-trigger-stores]');
+    // Step 2 says trigger-api loses its own database at the ALTER, not only the app.
+    const second = steps.slice(steps.indexOf('\n2. '), steps.indexOf('\n3. '));
+    expect(second).toMatch(/`trigger-api`[^]*fails at its migration/);
     expect(read('docs/rls-guide.md')).toContain('deploy/compose/rotate-db-passwords.sh');
   });
 });

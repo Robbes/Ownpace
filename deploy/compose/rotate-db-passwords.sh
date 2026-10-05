@@ -5,7 +5,10 @@
 #
 #   ./deploy/compose/rotate-db-passwords.sh [--check]    ask; change nothing
 #   ./deploy/compose/rotate-db-passwords.sh --sync [--with-trigger-stores]
+#       set the roles to .env; with the flag, trigger-db's too
 #   ./deploy/compose/rotate-db-passwords.sh --rotate [--with-trigger-stores]
+#       new values in .env and the roles; with the flag, Trigger.dev's three
+#       stores too
 #
 # WHICH STACK. --check runs on any stack, live included: it changes nothing,
 # and 0132 T0 step 5 runs it on live. --sync and --rotate refuse a stack that
@@ -54,8 +57,10 @@
 # phase does the same on every run, with the same functions (db-roles.sh).
 # With --with-trigger-stores it also sets trigger-db's role to .env's
 # TRIGGER_DB_PASSWORD (managed.yml's fallback when it is empty), over
-# trigger-db's own socket as that role, and proves it over the network.
-# ClickHouse and MinIO need nothing: they read .env when they are recreated.
+# trigger-db's own socket as that role, and proves it over the network. The
+# bring-up's trigger phase does that on every run too, with the same
+# function, once trigger-db is up and before trigger-api starts. ClickHouse
+# and MinIO need nothing: they read .env when they are recreated.
 #
 # --rotate refuses, before anything changes:
 #   xtrace (set -x, bash -x, SHELLOPTS, BASH_XTRACEFD): tracing prints values;
