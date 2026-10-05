@@ -1,6 +1,6 @@
 # Microsoft 365 — het account, de toestemming, de registratie
 
-De kaart **Microsoft 365 account** meldt zich aan met een **appregistratie in Microsoft Entra ID** en een refresh-token waarvoor het account dat u migreert toestemming geeft. Die kaart leest alleen, en dat zit in de opbouw zelf: de toestemming vraagt alleen de gedelegeerde `.Read`-rechten die onder [Met een eigen app](#own-app) staan, dus dit product kan niet in het postvak, de agenda's, de contacten of OneDrive schrijven, ook niet als het dat zou willen. Dat is een afgedwongen garantie, geen belofte op papier. De kaarten **Via de Graph-API** en **Via IMAP** werken anders, met de registratie van een beheerder: zie [de registratie die deze twee kaarten nodig hebben](#application).
+De kaart **Microsoft 365-account** meldt zich aan met een **appregistratie in Microsoft Entra ID** en een refresh-token waarvoor het account dat u migreert toestemming geeft. Die kaart leest alleen, en dat zit in de opbouw zelf: de toestemming vraagt alleen de gedelegeerde `.Read`-rechten die onder [Met een eigen app](#own-app) staan, dus dit product kan niet in het postvak, de agenda's, de contacten of OneDrive schrijven, ook niet als het dat zou willen. Dat is een afgedwongen garantie, geen belofte op papier. De kaarten **Via de Graph-API** en **Via IMAP** werken anders, met de registratie van een beheerder: zie [de registratie die deze twee kaarten nodig hebben](#application).
 
 **De meeste mensen hebben alleen de eerste kaart nodig.** Heeft deze dienst een eigen registratie, dan tonen **Migratie starten** en de pagina **Accounts** een knop **Verbinden met Microsoft**, en hoeft u niets onder [Met een eigen app](#own-app) te doen. Lees dat deel alleen als u liever uw eigen registratie gebruikt.
 
@@ -12,7 +12,7 @@ De kaart **Microsoft 365 account** meldt zich aan met een **appregistratie in Mi
 
 ## Koppelen {#connect}
 
-### Microsoft 365 account {#microsoft}
+### Microsoft 365-account {#microsoft}
 
 Eén Microsoft 365-account, één aanmelding: e-mail, agenda's, contacten en OneDrive, wat u aanvinkt.
 
@@ -28,9 +28,9 @@ U kunt ook uw eigen registratie gebruiken: open **Uw eigen appregistratie gebrui
 
 ### Via de Graph-API {#graph}
 
-**Via IMAP** en **Via de Graph-API** melden zich aan met uw eigen registratie, met **toepassingsrechten** die een beheerder in uw eigen tenant verleent. Dat is wat een beheerder nodig heeft die de postvakken van anderen migreert; de gedelegeerde toestemming van de kaart **Microsoft 365 account** kan dat nooit. Vink daarvoor bij **Wat wilt u migreren?** onder Microsoft 365 **E-mail** aan, beantwoord **Is dit een bedrijfsaccount met een beheerder?** met **Ja**, en kies **Via onze eigen app, met Microsoft Graph** of **Via onze eigen app, met IMAP**. **Uw accounts verbinden** vraagt dan het adres van het postvak, onder **Gebruikersnaam**, en de **Tenant-ID**, de **Client-ID (applicatie-ID)** en het **Clientgeheim** van die registratie.
+**Via IMAP** en **Via de Graph-API** melden zich aan met uw eigen registratie, met **toepassingsrechten** die een beheerder in uw eigen tenant verleent. Dat is wat een beheerder nodig heeft die de postvakken van anderen migreert; de gedelegeerde toestemming van de kaart **Microsoft 365-account** kan dat nooit. Vink daarvoor bij **Wat wilt u migreren?** onder Microsoft 365 **E-mail** aan, beantwoord **Is dit een bedrijfsaccount met een beheerder?** met **Ja**, en kies **Via onze eigen app, met Microsoft Graph** of **Via onze eigen app, met IMAP**. **Uw accounts verbinden** vraagt dan het adres van het postvak, onder **Gebruikersnaam**, en de **Tenant-ID**, de **Client-ID (applicatie-ID)** en het **Clientgeheim** van die registratie.
 
-Beide kaarten lezen de mail van één postvak. Agenda's, contacten, OneDrive en To Do lopen via de kaart **Microsoft 365 account**.
+Beide kaarten lezen de mail van één postvak. Agenda's, contacten, OneDrive en To Do lopen via de kaart **Microsoft 365-account**.
 
 Deze kaart leest het postvak via Microsoft Graph, met één Microsoft Graph-recht: [Via de Graph-API: het recht in Microsoft Graph](#application-graph).
 
@@ -87,7 +87,7 @@ Herhaal stap 4 voor elk postvak dat de kaart moet lezen. FullAccess is het recht
 
 ## Wat er meegaat {#what-moves}
 
-De kaart **Microsoft 365 account** is één verbinding met één gedelegeerde toestemming, voor **vier onderdelen**: e-mail, agenda's, contacten en OneDrive, wat u aanvinkt.
+De kaart **Microsoft 365-account** is één verbinding met één gedelegeerde toestemming, voor **vier onderdelen**: e-mail, agenda's, contacten en OneDrive, wat u aanvinkt.
 
 **Taken** zijn Microsoft To Do. Vinkt u ze aan, dan vraagt de toestemming ook `Tasks.Read`. Elke To Do-lijst wordt een takenlijst op het doel, en elke taak houdt haar titel, notities, status, belang, vervaldatum, checklist en herhaling.
 
@@ -114,7 +114,7 @@ Voor **Via IMAP** neemt een Exchange-beheerder daarnaast het postvak terug met `
 
 ## Met een eigen app {#own-app}
 
-### De kaart Microsoft 365 account, met uw eigen registratie {#own-app-account}
+### De kaart Microsoft 365-account, met uw eigen registratie {#own-app-account}
 
 [Entra-beheercentrum](https://entra.microsoft.com) → Identity → Applications → **App registrations** → New registration. De schermen staan hier met hun Engelse namen, zoals hierboven.
 

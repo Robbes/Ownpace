@@ -35,7 +35,7 @@ Vink bij **Welk account verlaat u?** **Apple iCloud** aan. Bij **Uw accounts ver
 - **Gebruikersnaam**: uw iCloud-adres, `you@icloud.com`.
 - **App-specifiek wachtwoord**: plak wat Apple u toonde.
 
-Druk op **Aanmelding controleren**. Op de pagina **Accounts** staat hetzelfde formulier onder **Account toevoegen** → **Apple account (iCloud)**, met **Toevoegen en testen**. De test vraagt elk onderdeel op zijn eigen server: agenda's op `caldav.icloud.com`, contacten op `contacts.icloud.com`, mail op `imap.mail.me.com`. Hij meldt per onderdeel wat hij vond, met aantallen. Een onderdeel dat hij niet kon meten, zegt op de kaart **waarom**, in plaats van een kaal `?` te tonen.
+Druk op **Aanmelding controleren**. Op de pagina **Accounts** staat hetzelfde formulier onder **Account toevoegen** → **Apple-account (iCloud)**, met **Toevoegen en testen**. De test vraagt elk onderdeel op zijn eigen server: agenda's op `caldav.icloud.com`, contacten op `contacts.icloud.com`, mail op `imap.mail.me.com`. Hij meldt per onderdeel wat hij vond, met aantallen. Een onderdeel dat hij niet kon meten, zegt op de kaart **waarom**, in plaats van een kaal `?` te tonen.
 
 ### Waarom er geen knop Verbinden met Apple is {#no-button}
 

@@ -92,7 +92,7 @@ De map mag de `.zip`-delen bevatten of wat ze uitgepakt opleveren: allebei werkt
 
 ### Op een eigen appliance: de pagina Accounts {#archive}
 
-Op een eigen appliance biedt de pagina **Accounts** het aan: druk op **Account toevoegen** en kies **Export archive**. Die vraagt drie dingen:
+Op een eigen appliance biedt de pagina **Accounts** het aan: druk op **Account toevoegen** en kies **Exportarchief**. Die vraagt drie dingen:
 
 - **Welke export**: Google Takeout, of Apple Data & Privacy (nog te testen: die kunnen we nog niet lezen).
 - **Waar de export staat**: **In een map in de bestanden van uw bestemming (Nextcloud of WebDAV)**, of **Op de schijf van deze appliance**.
