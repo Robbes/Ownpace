@@ -4,6 +4,16 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-10-05, later: the withdrawal button's words are decided** (T6 (f); the owner, 2026-10-05,
+asked which label to use: *"Ok. As you would suggest."*). The suggestion is the words of article
+11a of the Consumer Rights Directive, as Directive (EU) 2023/2673 inserted it.
+- **English:** the button *Withdraw from contract here*, and the confirmation *Confirm withdrawal*.
+- **Dutch:** *Hier de overeenkomst herroepen* and *Herroeping bevestigen*.
+
+The Dutch wording was read from secondary sources quoting article 11 bis, because EUR-Lex itself
+could not be reached from here. The lawyer confirms it, as §3 T6 (f) already asks. The button is
+built with 0111's credit notes, since a withdrawal is refunded by one.
+
 **2026-10-05: T1 (a) is built: the Alpha, said to a visitor who was not invited** (open question
 5; the owner, 2026-10-05, choosing the plan's suggestion: *"Do suggestions for non alpha
 viewers"*). T1 is whole.
@@ -581,7 +591,7 @@ together, from one audit of the site and the app on `main` at `83eb73e` (§1).
 | T3 The hero shows the move | ✅ **Built 2026-10-04; its words wait for T0, and the app screen joins it later (D8)** | §3. The drawing `hero-move.svg`, inlined: the old account's data, then Ownpace, then the new home, with our own icons (D4). Three facts sit under it, and a three-step strip links to *How it works*. An app screen joins it once 0153 T5 exists. |
 | T4 The destinations, named | ✅ **Built 2026-10-04; its words wait for T0** | §3. A *Where to* section names what the app supports, from a site copy of the app's list with a guard that it matches. It says plainly that the new account is one the person opens and pays for themselves. |
 | T5 A page per provider a person leaves | 🟡 **(a) and (b) built 2026-10-04; (c) waits for the site's address; its words wait for T0** | §3. *Leaving Google*, *Leaving Microsoft 365*, *Leaving iCloud*, *Leaving Dropbox*, *Leaving Box*, *Leaving another mail provider*: what moves, the limits, what the person does, the destinations it can go to, a typical cost. Built from copies of the app's own verdicts, each guarded. |
-| T6 Pricing that reads in one pass | 🟡 **(a) done: the sentence by #1317, its guard beside D6's. (c) built 2026-10-04, with T2 (#1471). (d) built 2026-10-03, with (g)'s principle on the page. (b) and (e) built 2026-10-04. (f)'s words on the page and in the terms built 2026-10-04, its withdrawal button not. The rest proposed, before the first invitation (D5)** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) The withdrawal button, and the year's end (D11, amended 2026-10-04). (g) The principle, the price that pays for the work (D12). |
+| T6 Pricing that reads in one pass | 🟡 **(a) done: the sentence by #1317, its guard beside D6's. (c) built 2026-10-04, with T2 (#1471). (d) built 2026-10-03, with (g)'s principle on the page. (b) and (e) built 2026-10-04. (f)'s words on the page and in the terms built 2026-10-04, its withdrawal button not; the button's label decided 2026-10-05. The rest proposed, before the first invitation (D5)** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) The withdrawal button, and the year's end (D11, amended 2026-10-04). (g) The principle, the price that pays for the work (D12). |
 | T7 A calculator that ends in a button | ✅ **Built 2026-10-04: (a) in two halves, the form's and the site's, and (b) to (e); its words wait for T0** | §3. (a) *Request access* carries the answers along. (b) *Until when?* says which payment suits it. (c) The layout faults and a live region. (d) Box as a source. (e) Several sources at once, and Tasks. |
 | T8 Claims you can check | 🟡 **(a) and (b) built 2026-10-04; (c) waits for 0139's company details** | §3. "Open source" links the repository. Each proof point links the guard that holds it. The footer names the company once 0139 publishes it; until then that line is the one part that waits. |
 | T9 One look from the site to the app | ✅ **Built 2026-10-04** | §3. `/request-access` and `/login` take the site's palette and logo, and link back to the site. The identity provider's own branding stays 0135 T6. |
@@ -1043,6 +1053,9 @@ links `estimate.html`. The home page's *What it costs* block gets the same butto
   - It takes two steps, and the confirmation arrives on a durable medium (an email).
   - It goes on the app's Billing page (`Billing.tsx`), with the label the Dutch law uses, which
     the lawyer confirms.
+  - **The words, decided 2026-10-05** (the owner: *"Ok. As you would suggest."*): the directive's
+    own. English: *Withdraw from contract here*, then *Confirm withdrawal*. Dutch: *Hier de
+    overeenkomst herroepen*, then *Herroeping bevestigen*.
   - Terms §7 says it is there, beside the email route (0139).
 - **A withdrawal is refunded by credit note.** 0111 builds them. A year has no other refund.
 
