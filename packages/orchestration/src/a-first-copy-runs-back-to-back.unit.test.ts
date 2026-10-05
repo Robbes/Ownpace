@@ -33,11 +33,12 @@ import { isSyncDue, SCHEDULE_FLOOR_MINUTES } from './sync-due.ts';
 import { heldBackByFailures } from './failing-backoff.ts';
 
 /**
- * A moment in October 2026, on the LOCAL clock: croner reads `0 2 * * *` in the
- * process's own time zone, as the tick does, so 02:00 here is 02:00 wherever
- * the tests run. No day used here moves its clocks.
+ * A moment in October 2026, in UTC: the tick reads `0 2 * * *` in UTC, the
+ * servers' zone, wherever it runs (`isSyncDue`), so 02:00 here is 02:00 UTC on
+ * every machine the tests run on, the self-hosted CI runner's included.
  */
-const at = (day: number, hour: number, minute = 0, second = 0): Date => new Date(2026, 9, day, hour, minute, second);
+const at = (day: number, hour: number, minute = 0, second = 0): Date =>
+  new Date(Date.UTC(2026, 9, day, hour, minute, second));
 const DAILY = '0 2 * * *';
 const CATCHING_UP = { firstCopyUnfinished: true } as const;
 const STEADY = { firstCopyUnfinished: false } as const;
