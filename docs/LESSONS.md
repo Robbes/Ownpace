@@ -1125,6 +1125,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/reset-trigger.sh`
 
+- [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
 - [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
 ### `deploy/compose/rotate-db-passwords.sh`
@@ -3638,6 +3639,7 @@ Reads:
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `deploy/compose/pgbouncer/setup-auth.sql`
+- `deploy/compose/reset-trigger.sh`
 - `deploy/compose/rotate-db-passwords.sh`
 - `deploy/compose/shipped-passwords.sh`
 - `deploy/compose/stand-up-live.sh`

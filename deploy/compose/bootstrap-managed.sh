@@ -373,9 +373,11 @@ web_url_is_real() { # web_url_is_real <WEB_URL>
 # 0132 T2).
 #
 # POSTGRES_PASSWORD (the owner, who passes every row-security policy),
-# APP_DB_PASSWORD (every organisation's rows, through the API), and
+# APP_DB_PASSWORD (every organisation's rows, through the API),
 # CLICKHOUSE_PASSWORD and MINIO_ROOT_PASSWORD (Trigger.dev's event store and
-# its large payloads). Each is a value anybody can read in this repository
+# its large payloads), and TRIGGER_DB_PASSWORD (Trigger.dev's own database:
+# its accounts, API keys, deployments and encrypted task environment). Each
+# is a value anybody can read in this repository
 # when it is empty (compose's default then applies), a change-me… value, or
 # one of compose's or the migration's defaults: shipped-passwords.sh lists
 # them, once, for this, ensure-env-secrets.sh and rotate-db-passwords.sh.
@@ -393,21 +395,22 @@ web_url_is_real() { # web_url_is_real <WEB_URL>
 # BY KEY, NEVER BY VALUE: each line says which key, and whether it is empty
 # or holds a published value.
 #
-# NOT TRIGGER_DB_PASSWORD, YET (split off on 2026-10-05). The OTA stack's
-# trigger_db_data volume still holds the literal managed.yml falls back to.
-# rotate-db-passwords.sh --rotate --with-trigger-stores changes it (0132 T2,
-# step A), and the owner has not run that there yet: refusing it now would
-# stop the nightly gate. Step B adds it here, after the owner's run.
+# TRIGGER_DB_PASSWORD since 2026-10-05 (0132 T2, step B). It was split off
+# while the OTA stack's trigger_db_data held managed.yml's fallback and its
+# .env had no value: refusing it then would have stopped the nightly gate.
+# The owner ran rotate-db-passwords.sh --rotate --with-trigger-stores there
+# (step A) on 2026-10-05, which wrote a generated value to that .env.
 SHIPPED_PASSWORDS_NOTED=0
 refuse_shipped_passwords() {
   # shellcheck source=deploy/compose/shipped-passwords.sh
   . "${SCRIPT_DIR}/shipped-passwords.sh"
-  local entry key volume value app_role
+  local entry key volume value app_role trigger_found=0
   local -a found=()
   for entry in "${SHIPPED_PASSWORD_KEYS[@]}"; do
     read -r key volume <<<"$entry"
     value="$(shipped_password_bare "$(env_get "$key")")"
     shipped_password "$value" || continue
+    [ "$volume" = trigger_db_data ] && trigger_found=1
     if [ -z "$value" ]; then
       found+=("${key}: empty, so compose's default applies, and this repository publishes it")
     else
@@ -431,8 +434,11 @@ refuse_shipped_passwords() {
       echo "!!!   ./deploy/compose/rotate-db-passwords.sh --check says what opens, and changes nothing." >&2
       echo "!!!   Workplan 0132 T2 steps 3 and 4 change a role's password, and its paragraph on ClickHouse and MinIO says how those change:" >&2
       echo "!!!   by hand, within live's hold (T6). Before live's volumes exist, stand-up-live.sh generates them." >&2
+      if [ "$trigger_found" = 1 ]; then
+        echo "!!!   TRIGGER_DB_PASSWORD: before live's Trigger.dev account exists, ./deploy/compose/reset-trigger.sh --yes removes that database, and stand-up-live.sh then sets a new password." >&2
+      fi
     else
-      echo "!!! Postgres keeps the password its volume was made with, and ClickHouse and MinIO take a new one only with their containers. On a stack that has them, change them together:" >&2
+      echo "!!! Postgres and trigger-db keep the password their volumes were made with, and ClickHouse and MinIO take a new one only with their containers. On a stack that has them, change them together:" >&2
       echo "!!!   ./deploy/compose/rotate-db-passwords.sh --check, then --rotate --with-trigger-stores at a quiet time." >&2
       echo "!!!   docs/managed-bring-up.md, \"Changing the database passwords\", is the procedure." >&2
       echo "!!! A new stack, before its volumes exist: ./deploy/compose/ensure-env-secrets.sh generates them." >&2
@@ -1142,8 +1148,9 @@ phase_env() {
 
   # The values a human must decide. Left as shipped they are not broken on a
   # developer's own stack on localhost, so this reports rather than refuses.
-  # The four database passwords are ensure-env-secrets.sh's to generate while
-  # their volumes do not exist; one still shipped here has a volume already,
+  # The five database passwords (SHIPPED_PASSWORD_KEYS, trigger-db's among
+  # them) are ensure-env-secrets.sh's to generate while their volumes do not
+  # exist; one still shipped here has a volume already,
   # and on a real address every phase from data on refuses it (load_env,
   # refuse_shipped_passwords). The demo Nextcloud's admin is the demo's.
   # shellcheck source=deploy/compose/shipped-passwords.sh
@@ -1284,9 +1291,10 @@ database_roles_proven() {
 # db_roles_trigger_set, the function rotate-db-passwords.sh --sync
 # --with-trigger-stores uses. The value goes by name, as the two roles' do.
 # Then it proves the value over the stack's network, as trigger-api asks. An
-# empty key gives managed.yml's fallback, as it gives trigger-api: on the OTA
-# stack before the owner's run that is the value the role holds already. Step
-# B refuses the fallback on a real address.
+# empty key gives managed.yml's fallback, as it gives trigger-api; on a real
+# address load_env has refused that already (step B), as for the two roles.
+# On the OTA stack, whose trigger-db holds .env's value since the owner's
+# rotation, this sets the role to the value it already has.
 #
 # scripts/a-password-the-repository-knows.unit.test.ts, (e), runs the phase
 # against a docker stub that keeps the role's password, and holds the order:

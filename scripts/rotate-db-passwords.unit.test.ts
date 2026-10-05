@@ -546,7 +546,7 @@ const CH_PW = 'clickhouse-secret-77aa';
 const MINIO_PW = 'minio-secret-31cc';
 /** trigger-db's, as stand-up-live.sh generates it on live, or as the rotation leaves it on the OTA stack. */
 const TRIGGER_PW = 'trigger-secret-3c3c';
-/** managed.yml's fallback for an empty TRIGGER_DB_PASSWORD, which the OTA stack's trigger_db_data still holds. */
+/** managed.yml's fallback for an empty TRIGGER_DB_PASSWORD, which the OTA stack's trigger_db_data held until the owner's rotation of 2026-10-05. */
 const TRIGGER_LITERAL = 'trigger_password';
 
 interface Fixture {
@@ -567,7 +567,7 @@ interface FixtureOpts {
   state?: Partial<State>;
   /** false: the checkout's .env is a file of its own, not a link. */
   linked?: boolean;
-  /** Keys left out of .env altogether: the OTA stack's has no TRIGGER_DB_PASSWORD line. */
+  /** Keys left out of .env altogether: the OTA stack's had no TRIGGER_DB_PASSWORD line before the owner's rotation. */
   unset?: string[];
 }
 
@@ -871,8 +871,9 @@ describe('--check: which shipped value still opens a role', () => {
   it(
     "counts trigger-db's published value like the others, and points to --rotate --with-trigger-stores (the OTA stack before the owner's run)",
     () => {
-      // The OTA stack as it stands: no TRIGGER_DB_PASSWORD line, and a
-      // trigger_db_data volume that still holds managed.yml's fallback.
+      // The OTA stack before the owner's rotation of 2026-10-05: no
+      // TRIGGER_DB_PASSWORD line, and a trigger_db_data volume that held
+      // managed.yml's fallback.
       const fx = fixture({ unset: ['TRIGGER_DB_PASSWORD'], state: { trigger: TRIGGER_LITERAL } });
       const before = readFileSync(fx.persisted, 'utf8');
       const r = run(fx, ['--check']);
