@@ -5,7 +5,7 @@
 ## Status — 2026-10-05 (update this block at the end of every session)
 
 **2026-10-05, the managed gate at a paid tier's pace.** E2E (managed) #238 was the first nightly
-run with T2 and T4. The gate's stack is not in the alpha, and its demo organisations are billed
+run with T2 and T4. The gate's stack ran outside the alpha, and its demo organisations are billed
 Free, so its *Sync now* answered `409 free_pace` and nothing was copied. The task lane, the large
 file and the canary failed. The prepare phase now picks Small for each demo organisation through
 T6's door, once per stack (`at_a_paid_pace` in `smoke-managed.sh`, guarded by

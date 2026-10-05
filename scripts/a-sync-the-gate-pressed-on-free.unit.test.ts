@@ -4,7 +4,7 @@
  * A SYNC THE GATE PRESSED ON FREE (E2E (managed) #238, 2026-10-05).
  *
  * 0157 T2 and T4 put Free at one pass a day outside the alpha. *Sync now*
- * inside that day answers `409 free_pace`. The managed gate's stack is not in
+ * inside that day answers `409 free_pace`. The managed gate's stack ran outside
  * the alpha, and its demo organisations are billed Free by what they hold. So
  * #238 pressed, read `free_pace`, and found the task lane, the large file and
  * the canary copied NOTHING, because no pass ran. No pull request runs the
@@ -12,7 +12,8 @@
  *
  * Before it presses, the prepare phase now picks Small for each demo
  * organisation, through the Billing page's own door (`POST /api/billing/pick`,
- * 0157 T6), at the price that door offers. These tests run `at_a_paid_pace`
+ * 0157 T6), at the price that door offers. On a stack in the alpha it picks
+ * nothing, since no pace holds there. These tests run `at_a_paid_pace`
  * exactly as the script has it, against a fake API. So what is proved is the
  * code that runs on the Spark, not a copy of it.
  */

@@ -1553,12 +1553,13 @@ pick_fixture() {
 # A PAID TIER'S PACE FOR THE DEMO ORGANISATIONS (workplan 0157 T2, T4, T6).
 #
 # On Free a migration runs one pass a day outside the alpha, and *Sync now*
-# inside that day answers 409 `free_pace` (0157 T2, T4). This stack is not in
-# the alpha, and the demo organisations are billed Free by what they hold. So
-# from 0157 on, every press below was refused once the day's first pass had
-# run. E2E (managed) #238 seeded a fresh set and pressed. It read `free_pace`,
-# then found the task lane, the large file and the canary copied NOTHING,
-# because no pass ran. The verify then measured a target this run never wrote.
+# inside that day answers 409 `free_pace` (0157 T2, T4). The demo organisations
+# are billed Free by what they hold. So on a stack outside the alpha, every
+# press below is refused once the day's first pass has run. E2E (managed) #238,
+# on a stack outside the alpha, seeded a fresh set and pressed. It read
+# `free_pace`, then found the task lane, the large file and the canary copied
+# NOTHING, because no pass ran. The verify then measured a target this run
+# never wrote.
 #
 # So prepare picks Small for each demo organisation through the Billing page's
 # own door (`POST /api/billing/pick`, 0157 T6), at the price that door offers.
