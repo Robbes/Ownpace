@@ -9,11 +9,16 @@ Vertel ons ongeveer wat u wilt migreren en we laten zien wat het zou kosten. Gee
 geen e-mailadres, geen verkoopgesprek. Als het bedrag u niet bevalt, houdt het daar op en
 bent u niets kwijt.
 
-## 2. Koppel het account dat u verlaat — alleen-lezen
+## 2. Koppel het account dat u verlaat — Ownpace leest alleen
 
-U geeft toegang tot het account dat u wilt migreren. Die koppeling is **alleen-lezen**: de
-software heeft geen enkele weg die naar een bron schrijft, dus het account dat u verlaat kan
-door ons niet worden gewijzigd, ook niet per ongeluk.
+U geeft Ownpace toegang tot het account dat u wilt migreren. Ownpace leest er alleen uit: de
+software heeft geen code die bij een bron iets wijzigt, verplaatst of verwijdert, en een test
+in de openbare code controleert dat voor elke bron. De toestemming die u geeft, kan meer
+toestaan dan Ownpace gebruikt. Bij Google Drive, Google Taken en *Verbinden met Microsoft* is
+ook de toestemming zelf alleen-lezen. Bij Gmail, de agenda's en contacten van een
+Google-account, Microsoft 365 via IMAP en elk account dat u met een wachtwoord koppelt, staat
+de toestemming ook wijzigingen toe; daar ligt de garantie bij de software. Bij Google zegt de
+app dat naast de knop, voordat u koppelt.
 
 U kunt die toegang op elk moment bij uw eigen aanbieder intrekken, zonder het ons te vragen,
 en dan stopt de migratie.

@@ -78,7 +78,9 @@ personally. The Alpha lasts a few weeks.
 ### When you connect Google {#google-connect}
 
 Google first shows a warning that Google has not checked the app. That is expected during the
-Alpha. Go on to Ownpace there. Make sure everything Ownpace asks for is ticked.
+Alpha. Go on to Ownpace there. Make sure everything Ownpace asks for is ticked. For mail,
+calendars and contacts, Google describes a broader permission than Ownpace uses. Ownpace only
+reads; it changes and deletes nothing in your account.
 
 ### When Google asks again {#google-again}
 

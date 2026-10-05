@@ -112,7 +112,8 @@ uitgenodigd. De Alpha duurt enkele weken.
 
 Google toont eerst een waarschuwing dat Google de app niet heeft gecontroleerd. Dat hoort zo
 tijdens de Alpha. Ga daar verder naar Ownpace. Zorg dat alles wat Ownpace vraagt een vinkje
-heeft.
+heeft. Voor e-mail, agenda's en contacten beschrijft Google een ruimere toestemming dan Ownpace
+gebruikt. Ownpace leest alleen; het wijzigt en verwijdert niets in uw account.
 
 ### Als Google opnieuw vraagt {#google-opnieuw}
 
