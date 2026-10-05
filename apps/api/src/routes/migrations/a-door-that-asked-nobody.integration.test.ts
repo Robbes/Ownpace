@@ -54,7 +54,10 @@ const createBody = {
   targetType: 'jmap' as const,
   sourceConfig: { host: 'imap.src.test', port: 993, username: 'src@doors.test', password: 'pw-1', useSsl: true },
   targetConfig: { host: 'jmap.tgt.test', port: 443, username: 'tgt@doors.test', password: 'pw-2', useSsl: true },
-  syncConfig: { domains: ['email'] as const, schedule: '*/15 * * * *' },
+  // Daily: on Free, outside the alpha, a schedule faster than a day is refused
+  // at create (workplan 0157 T4, 409 `free_pace_schedule`), and this organisation
+  // is on Free. A daily one is kept on every tier.
+  syncConfig: { domains: ['email'] as const, schedule: '0 2 * * *' },
 };
 
 describe('PUT /api/migrations/:id asks the lifecycle', () => {

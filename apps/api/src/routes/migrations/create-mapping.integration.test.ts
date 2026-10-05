@@ -62,7 +62,10 @@ const body = {
   // ['email', 'calendar'] — the exact incoherence 0037 T4 now refuses (there
   // is deliberately no JMAP calendar target, 0031 T1), and it sailed into
   // scope_selection unchallenged. The refusal has its own test below.
-  syncConfig: { domains: ['email', 'contact'] as const, schedule: '*/15 * * * *' },
+  // Daily: on Free, outside the alpha, a schedule faster than a day is refused
+  // at create (workplan 0157 T4, 409 `free_pace_schedule`), and this organisation
+  // is on Free. A daily one is kept on every tier.
+  syncConfig: { domains: ['email', 'contact'] as const, schedule: '0 2 * * *' },
 };
 
 describe('POST /api/migrations — real persistence', () => {
@@ -105,7 +108,7 @@ describe('POST /api/migrations — real persistence', () => {
     });
     expect(res.body.id).toBeTruthy();
     expect(res.body.syncConfig.domains).toEqual(['email', 'contact']);
-    expect(res.body.syncConfig.schedule).toBe('*/15 * * * *');
+    expect(res.body.syncConfig.schedule).toBe('0 2 * * *');
     createdMappingId = res.body.id;
   });
 
@@ -120,7 +123,7 @@ describe('POST /api/migrations — real persistence', () => {
     expect(mboxes.rows[0].n).toBe(2);
 
     const mapping = await pool.query(`SELECT name, schedule, status FROM mailbox_mapping WHERE id = $1`, [createdMappingId]);
-    expect(mapping.rows[0]).toMatchObject({ name: 'Acme mail migration', schedule: '*/15 * * * *', status: 'paused' });
+    expect(mapping.rows[0]).toMatchObject({ name: 'Acme mail migration', schedule: '0 2 * * *', status: 'paused' });
 
     const scopes = await pool.query(`SELECT domain FROM scope_selection WHERE mapping_id = $1 ORDER BY domain`, [createdMappingId]);
     expect(scopes.rows.map((r) => r.domain)).toEqual(['contact', 'email']);
@@ -154,7 +157,7 @@ describe('POST /api/migrations — real persistence', () => {
     expect(res.body.targetConfig.password).toBe('***');
     // Previously always ['email'] regardless of what was actually selected.
     expect(res.body.syncConfig.domains).toEqual(['contact', 'email']);
-    expect(res.body.syncConfig.schedule).toBe('*/15 * * * *');
+    expect(res.body.syncConfig.schedule).toBe('0 2 * * *');
     // Ledger-derived per-domain status — empty because no sync has run yet for this
     // mapping (previously this field didn't exist at all).
     expect(res.body.domainStatus).toEqual([]);
@@ -182,7 +185,7 @@ describe('POST /api/migrations — real persistence', () => {
     const res = await request
       .post('/api/migrations')
       .set('Authorization', `Bearer ${token(TENANT_A)}`)
-      .send({ ...body, syncConfig: { domains: ['email', 'calendar'], schedule: '*/15 * * * *' } });
+      .send({ ...body, syncConfig: { domains: ['email', 'calendar'], schedule: '0 2 * * *' } });
     expect(res.status).toBe(400);
     // The refusal sentence sits in `message`, where the wizard's
     // serverMessage() renders it — not only in the zod issue list.
