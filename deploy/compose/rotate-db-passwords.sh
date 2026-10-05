@@ -660,9 +660,8 @@ fail() { # fail <why> — the EXIT trap puts things back
 
 # The kept .env's content back into the file (a link stays a link), the roles
 # set back to it, and that proven; trigger-db's role too once its ALTER was
-# sent, to the old .env's value as Compose reads it (on the OTA stack before
-# the owner's run, managed.yml's fallback). 0 when every role accepts its old
-# value.
+# sent, to the old .env's value as Compose reads it (managed.yml's fallback
+# when that key was empty). 0 when every role accepts its old value.
 rotate_restore() {
   local rc=0 trigger_pw reason
   local -a why=()

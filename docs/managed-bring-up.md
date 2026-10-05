@@ -503,16 +503,18 @@ five Trigger.dev secrets, `PGBOUNCER_AUTH_PASSWORD` — and writes
 `pgbouncer/userlist.txt`. It is idempotent: a value you already set is never
 rotated. Then it pins `DEPLOY_IMAGE_PLATFORM` to this host's architecture.
 
-**The four database passwords** (workplan 0132 T2): `POSTGRES_PASSWORD`,
-`APP_DB_PASSWORD`, `CLICKHOUSE_PASSWORD` and `MINIO_ROOT_PASSWORD`. The example
+**The five database passwords** (workplan 0132 T2): `POSTGRES_PASSWORD`,
+`APP_DB_PASSWORD`, `CLICKHOUSE_PASSWORD`, `MINIO_ROOT_PASSWORD` and
+`TRIGGER_DB_PASSWORD` (Trigger.dev's own database, `trigger-db`). The example
 ships them empty, and `ensure-env-secrets.sh` generates each one while its
 volume does not exist yet (`postgres_data`, `clickhouse_data_v2`,
-`minio_data`). While that volume does not exist, it also replaces a value this
-repository publishes. Once the volume exists it writes nothing for that key, and
-says so. Postgres keeps the password its volume was made with, so a new value
-here would not reach the roles. ClickHouse and MinIO read theirs when their
-containers are recreated, and a new value has to reach each store and
-`trigger-api` together. On a stack whose volumes exist, both go through
+`minio_data`, `trigger_db_data`). While that volume does not exist, it also
+replaces a value this repository publishes. Once the volume exists it writes
+nothing for that key, and says so. Postgres, `trigger-db` among them, keeps the
+password its volume was made with, so a new value here would not reach the
+roles. ClickHouse and MinIO read theirs when their containers are recreated,
+and a new value has to reach each store and `trigger-api` together. On a stack
+whose volumes exist, all of them go through
 `rotate-db-passwords.sh --rotate --with-trigger-stores`. A value you set
 yourself is never touched.
 
@@ -524,17 +526,16 @@ On a **real address** (`WEB_URL` is https and not localhost) every phase from
 note: a developer's own stack is where they are fine (`--accept-defaults`).
 On a stack whose volumes exist, change them together with the database:
 [Changing the database passwords](#changing-the-database-passwords) below.
-`trigger-db`'s `TRIGGER_DB_PASSWORD` is not one of them yet:
-`ensure-env-secrets.sh` does not generate it and the bring-up does not refuse
-it, because the OTA stack's volume still holds the literal `managed.yml` falls
-back to. `stand-up-live.sh` generates it for live's new volume.
-`rotate-db-passwords.sh --rotate --with-trigger-stores` changes it (workplan
-0132 T2, step A). Once the owner has run that on the OTA stack, step B makes it
-one of the keys above.
+`managed.yml` keeps a compose default for each of the five (`${KEY:-…}`), so it
+renders without `.env`; the refusal is the bring-up's, not compose's.
+`TRIGGER_DB_PASSWORD` joined the four on 2026-10-05 (workplan 0132 T2, step B),
+once the owner had rotated the OTA stack's `trigger-db`, which until then held
+the literal `managed.yml` falls back to. `stand-up-live.sh` generates the five
+for live's new volumes with a list of its own, the same five.
 
 **What it will not decide for you.** It *reports* these and moves on:
 
-- `NEXTCLOUD_ADMIN_PASSWORD` still at its shipped default, and any of the four
+- `NEXTCLOUD_ADMIN_PASSWORD` still at its shipped default, and any of the five
   above still shipped because its volume exists. Fine for a demo box on
   localhost; not fine for anything a customer reaches.
 - `CORS_ORIGIN` / `WEB_URL` / `API_URL`. On a real deployment these are the
@@ -704,7 +705,8 @@ started.
 
 `trigger-db` comes up first, on its own. Then the phase sets its role
 `trigger` to `.env`'s `TRIGGER_DB_PASSWORD` (`managed.yml`'s fallback when the
-key is empty) over `trigger-db`'s own socket, and proves it over the stack's
+key is empty, which on a real address `load_env` has refused already) over
+`trigger-db`'s own socket, and proves it over the stack's
 network, before `trigger-api` starts and presents that value. It is the
 function `rotate-db-passwords.sh --sync --with-trigger-stores` uses, and the
 value is never printed. So a `trigger-db` whose role and `.env` came apart (a
@@ -4400,10 +4402,11 @@ function (`deploy/compose/db-roles.sh`) on every run, and refuses a published
 value on a real address. `trigger-db`'s password is `TRIGGER_DB_PASSWORD`. A
 new volume takes it at its first initialisation, and on a volume that exists
 `--rotate --with-trigger-stores` sets the role; the bring-up's `trigger` phase
-sets the role to `.env`'s value on every run. Until the owner has run the
-rotation on the OTA stack, `ensure-env-secrets.sh` does not generate the key
-and the bring-up does not refuse it (`stand-up-live.sh` generates it for
-live's new volume); workplan 0132 T2 step B changes that after the run.
+sets the role to `.env`'s value on every run. Like the other four, the bring-up
+refuses it on a real address when it is empty or published, and
+`ensure-env-secrets.sh` generates it only while `trigger_db_data` does not
+exist (`stand-up-live.sh` for live's new volume). The OTA stack's `.env` holds
+the value the owner's rotation wrote on 2026-10-05 (workplan 0132 T2, step B).
 
 ### `whoami` says nothing about whether you are logged in
 

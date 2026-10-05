@@ -49,7 +49,7 @@ This is a core promise of the architecture (SAD §17, §17.1), not just a policy
   cd deploy/compose
   cp managed.env.example .env
   # edit .env — set NEXTCLOUD_ADMIN_PASSWORD, ports…
-  ./ensure-env-secrets.sh   # generates every still-blank required secret, the four database
+  ./ensure-env-secrets.sh   # generates every still-blank required secret, the five database
                             # passwords among them while their volumes are new (idempotent —
                             # it never touches a value you set that this repository does not publish)
   ```
@@ -132,16 +132,18 @@ was made with, so the bring-up's `data` phase tells both: before anything migrat
 makes it with its published `app_password` only when it is absent), sets its password when it does,
 and sets the owner's, then asks both over the stack's network and through PgBouncer. On a stack
 whose volume is new, `ensure-env-secrets.sh` generates `POSTGRES_PASSWORD` and `APP_DB_PASSWORD`
-(and `CLICKHOUSE_PASSWORD` and `MINIO_ROOT_PASSWORD`). On a real address (`WEB_URL` https, not
-localhost) every phase from `data` on refuses one that is empty or a value this repository publishes,
-naming the key and never the value. To change them on a stack that has its volumes,
+(and `CLICKHOUSE_PASSWORD`, `MINIO_ROOT_PASSWORD` and `TRIGGER_DB_PASSWORD`, each while its own
+volume is new). On a real address (`WEB_URL` https, not localhost) every phase from `data` on
+refuses one of the five that is empty or a value this repository publishes, naming the key and never
+the value. To change them on a stack that has its volumes,
 `./deploy/compose/rotate-db-passwords.sh --rotate` makes new ones and changes `.env` and the roles
 together, and `--sync` sets the roles to `.env`'s values (`docs/managed-bring-up.md`, "Changing the
 database passwords"). With `--with-trigger-stores` both also take Trigger.dev's own database:
 `trigger-db`'s role `trigger` and its `TRIGGER_DB_PASSWORD`, set over `trigger-db`'s socket. The
 bring-up's `trigger` phase sets that role to `.env`'s value on every run, before `trigger-api`
-starts. The OTA stack's `trigger-db` still holds the value `managed.yml` falls back to until the
-owner runs that once (workplan 0132 T2, step A).
+starts. The owner ran `--rotate --with-trigger-stores` on the OTA stack on 2026-10-05, so its
+`trigger-db` holds a value of its own, and since then the bring-up refuses the fallback on a real
+address (workplan 0132 T2, steps A and B).
 
 ## Start / stop
 

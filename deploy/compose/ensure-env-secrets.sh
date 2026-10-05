@@ -9,9 +9,10 @@
 # per-install. Idempotent — values already set in .env are never touched, so
 # re-running it never rotates anything.
 #
-# The four database passwords (POSTGRES_PASSWORD, APP_DB_PASSWORD,
-# CLICKHOUSE_PASSWORD, MINIO_ROOT_PASSWORD; workplan 0132 T2) only while each
-# one's volume does not exist yet: see ensure_db_password below.
+# The five database passwords (POSTGRES_PASSWORD, APP_DB_PASSWORD,
+# CLICKHOUSE_PASSWORD, MINIO_ROOT_PASSWORD, TRIGGER_DB_PASSWORD; workplan 0132
+# T2) only while each one's volume does not exist yet: see ensure_db_password
+# below.
 #
 # Every value goes to env-upsert.sh on its standard input, never as an
 # argument: an argument is on the process's command line, which `ps` shows
@@ -240,11 +241,12 @@ ensure ZITADEL_ADMIN_PASSWORD 16
 # The system role's password (workplan 0138 T3 step 2): `ownpace_system`, the
 # role the Trigger.dev jobs that span organisations connect as, which is not a
 # superuser. Generated here on the OTA stack and on live alike, and SAFE to
-# generate on a stack whose volume exists, unlike TRIGGER_DB_PASSWORD below:
-# managed migration 0033 creates the role with no password, and the bring-up
-# (bootstrap-managed.sh, its `tasks` phase) sets this value on it with ALTER
-# ROLE on every run, so the volume never keeps an older one. The nightly gate
-# persists .env back after this script, so it is generated once per stack.
+# generate on a stack whose volume exists, unlike the five database passwords
+# below: managed migration 0033 creates the role with no password, and the
+# bring-up (bootstrap-managed.sh, its `tasks` phase) sets this value on it
+# with ALTER ROLE on every run, so the volume never keeps an older one. The
+# nightly gate persists .env back after this script, so it is generated once
+# per stack.
 ensure SYSTEM_DB_PASSWORD 24
 # The demo Nextcloud's database password (workplan 0150): the role `nextcloud`
 # in the stack's Postgres, which the bring-up's `data` phase makes with this
@@ -256,8 +258,10 @@ ensure SYSTEM_DB_PASSWORD 24
 # Generated on live too, where nothing reads it: live runs no demo.
 ensure NEXTCLOUD_DB_PASSWORD 24
 
-# THE FOUR DATABASE PASSWORDS (workplan 0132 T2): POSTGRES_PASSWORD,
-# APP_DB_PASSWORD, CLICKHOUSE_PASSWORD and MINIO_ROOT_PASSWORD.
+# THE FIVE DATABASE PASSWORDS (workplan 0132 T2): POSTGRES_PASSWORD,
+# APP_DB_PASSWORD, CLICKHOUSE_PASSWORD, MINIO_ROOT_PASSWORD and, since step B
+# (2026-10-05), TRIGGER_DB_PASSWORD: shipped-passwords.sh's
+# SHIPPED_PASSWORD_KEYS, each with its volume.
 #
 # managed.env.example ships them empty, so a new stack gets its own, as it
 # does every secret above. An empty key is not harmless here: compose then
@@ -265,21 +269,22 @@ ensure NEXTCLOUD_DB_PASSWORD 24
 # (shipped-passwords.sh lists those, the change-me… values older examples
 # carried, and the migration's for app_user).
 #
-# A STACK THAT EXISTS CHANGES THEM WITH ITS DATABASE. Postgres reads its
-# password when its volume is first initialised, and keeps it: a value written
-# here after that changes what the containers are told, never what the roles
-# hold. ClickHouse and MinIO read theirs when their containers are recreated,
-# and a new value has to reach each store and trigger-api together (MinIO's
-# old volume may refuse a new pair). rotate-db-passwords.sh --rotate
-# --with-trigger-stores writes the new values and sets the roles, and the E2E
-# (managed) run it starts recreates the containers. So a key that is empty or
+# A STACK THAT EXISTS CHANGES THEM WITH ITS DATABASE. Postgres, trigger-db
+# among them, reads its password when its volume is first initialised, and
+# keeps it: a value written here after that changes what the containers are
+# told, never what the roles hold. ClickHouse and MinIO read theirs when their
+# containers are recreated, and a new value has to reach each store and
+# trigger-api together (MinIO's old volume may refuse a new pair).
+# rotate-db-passwords.sh --rotate --with-trigger-stores writes the new values
+# and sets the roles, and the E2E (managed) run it starts recreates the
+# containers. So a key that is empty or
 # holds a published value is generated only while its volume does not exist
 # yet. Once it exists, nothing is written for that key, and the note says how
 # to change it, the way TRIGGER_ENCRYPTION_KEY is refused above. A value that
 # is not published is never touched, and then docker is not even asked: the
 # nightly gate runs this on the OTA stack every night, whose values the owner
-# rotated on 2026-10-05. A daemon that does not answer is not a stack without
-# volumes: nothing is written for the four then either.
+# rotated on 2026-10-05, trigger-db's with them. A daemon that does not answer
+# is not a stack without volumes: nothing is written for the five then either.
 #
 # scripts/a-password-the-repository-knows.unit.test.ts runs this with a docker
 # stub, and runs the gate's Fill step on an .env like the OTA stack's.
@@ -327,7 +332,7 @@ ensure_db_password() { # ensure_db_password <name> <volume>
       fi
       ;;
     0)
-      if [ "$volume" = postgres_data ]; then
+      if [ "$volume" = postgres_data ] || [ "$volume" = trigger_db_data ]; then
         echo "[ensure-env-secrets] LEFT AS IT IS: ${name} is empty or holds a value this repository publishes, and ${DB_PROJECT}_${volume} exists, which keeps the password its role was made with." >&2
       else
         echo "[ensure-env-secrets] LEFT AS IT IS: ${name} is empty or holds a value this repository publishes, and ${DB_PROJECT}_${volume} exists: a new value has to reach the store and trigger-api together, when they are recreated." >&2
@@ -356,18 +361,14 @@ if [ "${#DB_LEFT[@]}" -gt 0 ]; then
 EOF
 fi
 
-# NOT TRIGGER_DB_PASSWORD, on purpose (workplan 0132 T2). It is trigger-db's
-# password, and Postgres takes it only when the trigger_db_data volume is first
-# initialised. The OTA stack's volume was initialised with the literal that is
-# managed.yml's fallback for an empty key. There it is changed once, by hand,
-# with rotate-db-passwords.sh --rotate --with-trigger-stores (0132 T2, step
-# A), which changes the role and .env together; the bring-up's trigger phase
-# then holds the role to .env's value on every run. stand-up-live.sh sets it
-# for live, before live's volume exists;
-# `scripts/a-password-the-repository-knows.unit.test.ts` fails if this script
-# ever writes it. Once the owner has run the rotation on the OTA stack, step B
-# puts the key in SHIPPED_PASSWORD_KEYS, and the loop above generates it while
-# trigger_db_data is new, as it does the four.
+# TRIGGER_DB_PASSWORD IS IN THAT LOOP since 2026-10-05 (workplan 0132 T2, step
+# B). It was kept out until the owner had run rotate-db-passwords.sh --rotate
+# --with-trigger-stores on the OTA stack: that stack's trigger_db_data held
+# managed.yml's fallback and its .env had no value, so a generated one would
+# have locked trigger-api out of its own database. That run wrote a generated
+# value to the persisted .env, which this leaves alone (it is not published).
+# stand-up-live.sh generates it for live, before live's volume exists, with a
+# list of its own.
 
 # AND REPAIR ONE THE OLD GENERATOR ALREADY WROTE, which `ensure` above will not:
 # it fills a MISSING key and never touches a present one, which is right for a
