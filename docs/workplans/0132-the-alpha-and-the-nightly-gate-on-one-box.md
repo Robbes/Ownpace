@@ -79,6 +79,25 @@ merged. Once it is merged, T2's code covers all five keys.
   `lessons`, `adr-operative` and `conflict-markers` `--check`: clean. Docker is not on the machine
   that built this; no real stack has run it. The first E2E (managed) run on `main` after the merge
   is its first.
+- **After review, the same day.** A reason that was false is gone: `managed.yml`'s comment, the
+  guide's phase 2 and the guard's comments said the fallback is kept *"so it renders without
+  `.env`"*, and `managed.yml` has thirteen `${KEY:?…}` keys that stop any render without it; the
+  reasons that hold stay. The guide's reset procedure now runs `ensure-env-secrets.sh` between
+  `reset-trigger.sh --yes` and `--from trigger`, as the script's *Next* does, and says why. The
+  guide's and the runbook's notes on the OTA stack name step A (the owner's run) for its value and
+  step B for the refusal. `ensure-env-secrets.sh`'s history comment gives the real reason the key
+  was kept out (the bring-up's refusal would have stopped the gate; this script would only have
+  left a note, the volume existing), and §3 of this plan and the rotation guard's comments are in
+  the past tense where the owner's run changed what they describe. Four guard gaps closed, each
+  shown red first: live's remedy for the key absent, empty, the literal and a `change-me` value
+  (it held the empty one only; red when the remedy is given for an empty key only), no
+  `reset-trigger.sh` in the refusal off live (red when it is advised there), the `env` phase's
+  *"STILL AT THEIR SHIPPED DEFAULTS"* naming all five, empty, absent or published (no guard read
+  that line for any key; red with the fifth skipped), and the guide's reset block in the script's
+  order (red on the guide as committed). `a-password-the-repository-knows`: 83 cases, all pass;
+  with `a-demo-on-a-real-address`, `a-retention-the-bring-up-states` and
+  `rotate-db-passwords`: 169 of 169. Every guard under `scripts/`: 5065 of 5066, the one red
+  the stale install above.
 
 **2026-10-05, last: T0 step 2's `trigger-db` part done by the owner, and the OTA stack on
 Trigger.dev v4.7.2.** Step A merged in #1521 (`e8b01259`). On the OTA stack the owner ran
@@ -2940,11 +2959,12 @@ reads both pairs. The ClickHouse healthcheck logs in with the configured passwor
 that did not take the new one shows as unhealthy. MinIO keeps the packets store. If MinIO refuses
 the new pair on its old volume, the bring-up already says what the store costs to lose: historical
 large run payloads, not deployments. `trigger-db`'s password is `TRIGGER_DB_PASSWORD` since the
-code below (2026-09-28); on the OTA stack it is still the literal, which its volume keeps.
+code below (2026-09-28); on the OTA stack it was the literal, which its volume kept, until the
+owner's rotation of 2026-10-05 (step A, below).
 Live's first bring-up gives it a new volume, and a new volume is where a new password costs
 nothing (T1b).
 
-**The code (✅ merged in #1504 on 2026-10-05, `5e2e32eb`; trigger-db split off, its step A built the same day, not merged).** The Status
+**The code (✅ merged in #1504 on 2026-10-05, `5e2e32eb`; trigger-db split off: its step A merged in #1521, step B built 2026-10-05, not merged).** The Status
 block's entry of that date says what proved it. Where it departs from the proposal below, the
 bullet says so.
 
@@ -2965,8 +2985,8 @@ bullet says so.
   it is on no command line either. With this in place, T1b's `CREATE ROLE` by hand is no longer
   needed.
 - **`load_env` refuses shipped values on a real address.** *Built, for four keys, not
-  `TRIGGER_DB_PASSWORD` (split off: the OTA stack's `trigger_db_data` still holds the literal, and
-  a refusal would stop the gate). Step B (built 2026-10-05, after the owner's run) adds
+  `TRIGGER_DB_PASSWORD` (split off: the OTA stack's `trigger_db_data` held the literal then, and
+  a refusal would have stopped the gate). Step B (built 2026-10-05, after the owner's run) adds
   `TRIGGER_DB_PASSWORD`. The values are named once, in `shipped-passwords.sh`, with
   `--check`'s lists. It also refuses an `APP_DB_USER` that is not `app_user` there: 0001 would make
   `app_user` with its published password beside it.* Every phase from `data` on passes
@@ -2989,18 +3009,18 @@ bullet says so.
   Postgres keeps the password it was initialised with.
 - **`trigger-db`'s password becomes `TRIGGER_DB_PASSWORD`**, and it is required. *The second
   half is split off (2026-10-05). Step A, built the same day on branch
-  `claude/ownpace-public-readiness-y7orc6-the-tasks-database-rotates` (not merged):
+  `claude/ownpace-public-readiness-y7orc6-the-tasks-database-rotates`, merged in #1521 (`e8b01259`):
   `rotate-db-passwords.sh --rotate --with-trigger-stores` sets `trigger-db`'s role, and `--check`
   counts its literal. The owner runs it once on the OTA stack. Step B follows that run: the key
   is required, generated and refused like the four. The owner ran it on 2026-10-05, and step B
   was built the same day; "required" is the four's sense, refused by the bring-up, and
   `managed.yml` keeps its fallback as it keeps theirs.* **Built
   2026-09-28, the first half** (#1309, merged 2026-09-28): `trigger-db`'s `POSTGRES_PASSWORD` and `trigger-api`'s `DATABASE_URL` and
-  `DIRECT_URL` read it, with today's literal as the fallback, because the OTA stack's volume keeps
-  that literal and anything else would lock its `trigger-api` out at the next gate run.
-  `ensure-env-secrets.sh`, which the gate runs, never writes it; `stand-up-live.sh` sets it on
-  live's new volume. It becomes required, and is changed on the OTA stack, in the split-off step
-  above, not with the rest of this code. The guard is `scripts/a-password-the-repository-knows.unit.test.ts`, holding this part.
+  `DIRECT_URL` read it, with today's literal as the fallback, because the OTA stack's volume kept
+  that literal and anything else would have locked its `trigger-api` out at the next gate run.
+  `ensure-env-secrets.sh`, which the gate runs, did not write it then; `stand-up-live.sh` sets it
+  on live's new volume. It became required, and was changed on the OTA stack, in the split-off
+  steps above, not with the rest of this code. The guard is `scripts/a-password-the-repository-knows.unit.test.ts`, holding this part.
 - **The docs agree.** The bring-up's phase-2 advice and the runbook's section on the two roles
   say the same thing. The bring-up's sentence that a changed `APP_DB_PASSWORD` must also reach
   the role is on `main` since #1137 (merged 2026-09-24); the rest follows the code.

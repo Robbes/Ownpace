@@ -141,9 +141,9 @@ together, and `--sync` sets the roles to `.env`'s values (`docs/managed-bring-up
 database passwords"). With `--with-trigger-stores` both also take Trigger.dev's own database:
 `trigger-db`'s role `trigger` and its `TRIGGER_DB_PASSWORD`, set over `trigger-db`'s socket. The
 bring-up's `trigger` phase sets that role to `.env`'s value on every run, before `trigger-api`
-starts. The owner ran `--rotate --with-trigger-stores` on the OTA stack on 2026-10-05, so its
-`trigger-db` holds a value of its own, and since then the bring-up refuses the fallback on a real
-address (workplan 0132 T2, steps A and B).
+starts. The owner ran `--rotate --with-trigger-stores` on the OTA stack on 2026-10-05 (workplan
+0132 T2, step A), so its `trigger-db` holds a value of its own, and since step B the bring-up
+refuses the fallback on a real address.
 
 ## Start / stop
 

@@ -170,9 +170,10 @@ services:
       # initialisation: Postgres keeps the password a role was created with.
       # The fallback is the literal every stack used before this key existed,
       # kept as the four other database passwords keep compose's defaults, so
-      # that this file renders without .env and an empty key on localhost is
-      # a note, not a compose error. On a real address the bring-up refuses
-      # it, empty or published (load_env, shipped-passwords.sh; step B).
+      # that an empty key on localhost is a note, not a compose error. On a
+      # real address the bring-up refuses it, empty or published (load_env,
+      # shipped-passwords.sh; step B): the refusal is the bring-up's, not
+      # compose's.
       # ensure-env-secrets.sh generates the key while trigger_db_data does not
       # exist, and stand-up-live.sh for live. On a volume that exists,
       # rotate-db-passwords.sh --rotate --with-trigger-stores sets the role and

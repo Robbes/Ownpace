@@ -364,9 +364,11 @@ fi
 # TRIGGER_DB_PASSWORD IS IN THAT LOOP since 2026-10-05 (workplan 0132 T2, step
 # B). It was kept out until the owner had run rotate-db-passwords.sh --rotate
 # --with-trigger-stores on the OTA stack: that stack's trigger_db_data held
-# managed.yml's fallback and its .env had no value, so a generated one would
-# have locked trigger-api out of its own database. That run wrote a generated
-# value to the persisted .env, which this leaves alone (it is not published).
+# managed.yml's fallback and its .env had no value, and the bring-up, which
+# judges the same list, would have refused that on its real address and
+# stopped the nightly gate. This script would only have left a note there,
+# because the volume existed. That run wrote a generated value to the
+# persisted .env, which this leaves alone (it is not published).
 # stand-up-live.sh generates it for live, before live's volume exists, with a
 # list of its own.
 

@@ -16,11 +16,11 @@
  * password was a literal in `managed.yml` that no `.env` could reach. It is
  * `TRIGGER_DB_PASSWORD` now, read by `trigger-db`'s `POSTGRES_PASSWORD` and
  * `trigger-api`'s `DATABASE_URL` and `DIRECT_URL`, with today's literal as the
- * fallback, as the four keys below keep compose's defaults: `managed.yml`
- * renders without `.env`, and an empty key on localhost is a note, not a
- * compose error. Postgres keeps the password a role was created with, so the
- * OTA stack's `trigger_db_data` kept that literal until the owner ran
- * `rotate-db-passwords.sh --rotate --with-trigger-stores` there on 2026-10-05
+ * fallback, as the four keys below keep compose's defaults: an empty key on
+ * localhost is a note, not a compose error. Postgres keeps the password a
+ * role was created with, so the OTA stack's `trigger_db_data` kept that
+ * literal until the owner ran `rotate-db-passwords.sh --rotate
+ * --with-trigger-stores` there on 2026-10-05
  * (0132 T2 step A, held by `rotate-db-passwords.unit.test.ts`; E2E (managed)
  * #242 green, `--check` exits 0). The trigger phase sets the role to `.env`'s
  * value on every run, (e) below. STEP B (2026-10-05): it is the fifth key,
@@ -652,9 +652,9 @@ describe("managed.yml reads trigger-db's password from .env, and falls back to t
   it('managed.yml carries it as it carries the four: a compose default, never required by compose', () => {
     // #1504 left the four's `${KEY:-default}` in managed.yml: "required" means
     // the bring-up refuses an empty or published value on a real address, not
-    // `${KEY:?…}`. So managed.yml renders without .env, an empty key on
-    // localhost is a note rather than a compose error, and the gate's
-    // backfill (which loops over the `:?` keys) never meets it.
+    // `${KEY:?…}`. So an empty key on localhost is a note rather than a
+    // compose error, and the gate's backfill (which loops over the `:?` keys)
+    // never meets it.
     for (const key of FIVE_KEYS) {
       const uses = [...MANAGED.matchAll(new RegExp(`\\$\\{${key}(\\}|:[-?][^}]*\\})`, 'g'))].map((m) => m[0]);
       expect(uses.length, `managed.yml does not read ${key}`).toBeGreaterThan(0);
@@ -739,20 +739,26 @@ describe('TRIGGER_DB_PASSWORD is judged as the four (0132 T2 step B, after the o
         expect(r.out, what).toMatch(/REFUSED/);
         expect(r.out, what).toMatch(value ? /TRIGGER_DB_PASSWORD: a value this repository publishes/ : /TRIGGER_DB_PASSWORD: empty, so compose's default applies/);
         expect(r.out, what).toContain('--rotate --with-trigger-stores');
+        // Not live's remedy: off live a reset would remove the OTA stack's Trigger.dev account.
+        expect(r.out, `${what}: reset-trigger.sh advised off live`).not.toMatch(/reset-trigger\.sh/);
         expect(shows(r.out, TODAYS_LITERAL), `${what}: the literal printed`).toBe(false);
         expect(r.calls, `${what}: docker was called before the refusal`).toEqual([]);
       }
     }
   });
 
-  it("on live an empty one is refused with live's own remedy: reset-trigger.sh before live's Trigger.dev account exists, and --rotate never", () => {
-    const s = aStack(envText(realEnv({ COMPOSE_PROJECT_NAME: 'ownpace-live', STACK_KIND: 'production', [KEY]: '' })));
-    const r = bootstrap(s, ['--only', 'data']);
-    expect(r.status, r.out).toBe(1);
-    expect(r.out).toMatch(/TRIGGER_DB_PASSWORD: empty/);
-    expect(r.out).toMatch(/TRIGGER_DB_PASSWORD: before live's Trigger\.dev account exists, \.\/deploy\/compose\/reset-trigger\.sh --yes/);
-    expect(r.out, 'advice --rotate refuses on live').not.toMatch(/--rotate/);
-    expect(r.calls).toEqual([]);
+  it("on live an empty or published one is refused with live's own remedy: reset-trigger.sh before live's Trigger.dev account exists, and --rotate never", () => {
+    for (const value of [null, '', TODAYS_LITERAL, 'change-me-trigger']) {
+      const s = aStack(envText(realEnv({ COMPOSE_PROJECT_NAME: 'ownpace-live', STACK_KIND: 'production', [KEY]: value })));
+      const r = bootstrap(s, ['--only', 'data']);
+      const what = String(value);
+      expect(r.status, `${what}:\n${r.out}`).toBe(1);
+      expect(r.out, what).toMatch(value ? /TRIGGER_DB_PASSWORD: a value this repository publishes/ : /TRIGGER_DB_PASSWORD: empty/);
+      expect(r.out, what).toMatch(/TRIGGER_DB_PASSWORD: before live's Trigger\.dev account exists, \.\/deploy\/compose\/reset-trigger\.sh --yes/);
+      expect(r.out, `${what}: advice --rotate refuses on live`).not.toMatch(/--rotate/);
+      expect(shows(r.out, TODAYS_LITERAL), `${what}: the literal printed`).toBe(false);
+      expect(r.calls, what).toEqual([]);
+    }
     // Only when it is the key refused: another key's refusal on live does not name the reset.
     const other = aStack(envText(realEnv({ COMPOSE_PROJECT_NAME: 'ownpace-live', STACK_KIND: 'production', APP_DB_PASSWORD: '' })));
     expect(bootstrap(other, ['--only', 'data']).out).not.toMatch(/reset-trigger\.sh/);
@@ -765,6 +771,30 @@ describe('TRIGGER_DB_PASSWORD is judged as the four (0132 T2 step B, after the o
     expect(r.out).toMatch(/DATABASE PASSWORDS THIS REPOSITORY PUBLISHES, fine on localhost/);
     expect(r.out).toMatch(/TRIGGER_DB_PASSWORD: empty, so compose's default applies/);
     expect(r.out).not.toMatch(/REFUSED/);
+  });
+
+  it('the env phase names it among the keys still at their shipped defaults, as it names the four', () => {
+    // Every volume there, so ensure-env-secrets.sh leaves each key as it is
+    // and the phase reports what is left: empty, or a value published here.
+    const volumes = FIVE.map(([, v]) => `ownpace-managed_${v}`);
+    const published = Object.fromEntries(
+      FIVE_KEYS.map((k) => [k, k === 'APP_DB_PASSWORD' ? (MIGRATION_LITERAL ?? '') : composeDefault(k)]),
+    );
+    for (const [label, keys] of [
+      ['empty', Object.fromEntries(FIVE_KEYS.map((k) => [k, '']))],
+      ['absent', Object.fromEntries(FIVE_KEYS.map((k) => [k, null]))],
+      ['published', published],
+    ] as const) {
+      const s = aStack(envText(realEnv({ WEB_URL: 'http://localhost:3123', ...keys })), { volumes });
+      const r = bootstrap(s, ['--only', 'env']);
+      expect(r.status, `${label}:\n${r.out}`).toBe(0);
+      const line = /STILL AT THEIR SHIPPED DEFAULTS: ([^\n]*)/.exec(r.out)?.[1];
+      expect(line, `${label}: no STILL AT THEIR SHIPPED DEFAULTS line:\n${r.out}`).toBeDefined();
+      expect((line ?? '').trim().split(/\s+/).sort(), label).toEqual([...FIVE_KEYS].sort());
+      for (const value of Object.values(published)) {
+        if (value) expect(shows(r.out, value), `${label}: printed ${value}`).toBe(false);
+      }
+    }
   });
 
   it("stand-up-live.sh's list and SHIPPED_PASSWORD_KEYS name the same five keys, each with the same volume", () => {
@@ -792,6 +822,14 @@ describe('TRIGGER_DB_PASSWORD is judged as the four (0132 T2 step B, after the o
     expect(ensure, 'the reset does not name ensure-env-secrets.sh').toBeGreaterThan(-1);
     expect(ensure, 'ensure-env-secrets.sh after the bring-up').toBeLessThan(next.indexOf('bootstrap-managed.sh --from trigger'));
     expect(next).toContain('TRIGGER_DB_PASSWORD');
+    // The guide gives the same steps, in the same order.
+    const guide = read('docs/managed-bring-up.md');
+    const at = guide.indexOf('./deploy/compose/reset-trigger.sh --yes\n');
+    expect(at, 'the guide has no reset-trigger.sh --yes step').toBeGreaterThan(-1);
+    const block = guide.slice(at, guide.indexOf('```', at));
+    expect(block, "the guide's reset block").toMatch(
+      /reset-trigger\.sh --yes\n\.\/deploy\/compose\/ensure-env-secrets\.sh\n\.\/deploy\/compose\/bootstrap-managed\.sh --from trigger\n/,
+    );
   });
 
   it('no script, comment or guide still says trigger-db waits for step B', () => {

@@ -526,8 +526,9 @@ On a **real address** (`WEB_URL` is https and not localhost) every phase from
 note: a developer's own stack is where they are fine (`--accept-defaults`).
 On a stack whose volumes exist, change them together with the database:
 [Changing the database passwords](#changing-the-database-passwords) below.
-`managed.yml` keeps a compose default for each of the five (`${KEY:-…}`), so it
-renders without `.env`; the refusal is the bring-up's, not compose's.
+`managed.yml` keeps a compose default for each of the five (`${KEY:-…}`): the
+refusal is the bring-up's, not compose's, so an empty key on localhost is a
+note and not a compose error.
 `TRIGGER_DB_PASSWORD` joined the four on 2026-10-05 (workplan 0132 T2, step B),
 once the owner had rotated the OTA stack's `trigger-db`, which until then held
 the literal `managed.yml` falls back to. `stand-up-live.sh` generates the five
@@ -4405,8 +4406,9 @@ new volume takes it at its first initialisation, and on a volume that exists
 sets the role to `.env`'s value on every run. Like the other four, the bring-up
 refuses it on a real address when it is empty or published, and
 `ensure-env-secrets.sh` generates it only while `trigger_db_data` does not
-exist (`stand-up-live.sh` for live's new volume). The OTA stack's `.env` holds
-the value the owner's rotation wrote on 2026-10-05 (workplan 0132 T2, step B).
+exist (`stand-up-live.sh` for live's new volume); that is workplan 0132 T2,
+step B. The OTA stack's `.env` holds the value the owner's rotation wrote on
+2026-10-05 (step A, the owner's run).
 
 ### `whoami` says nothing about whether you are logged in
 
@@ -4510,8 +4512,14 @@ a script because the sequence has two traps:**
 
 ```bash
 ./deploy/compose/reset-trigger.sh --yes
+./deploy/compose/ensure-env-secrets.sh
 ./deploy/compose/bootstrap-managed.sh --from trigger
 ```
+
+The reset makes `trigger_db_data` new, so this is when `ensure-env-secrets.sh`
+generates `TRIGGER_DB_PASSWORD` if `.env` leaves it empty or published: the new
+database takes it at its first start, and on a real address the bring-up
+refuses an empty or published one. A value of your own is kept.
 
 The traps, in case you do it by hand anyway: the volume belongs to **`trigger-db`**,
 so stopping only `trigger-api` and `trigger-supervisor` leaves `docker volume rm`
