@@ -22,8 +22,8 @@ reading the stage fails that guard until it has a line here.
 | The API's start doors: `apps/api/src/routes/migrations/path-lifecycle-wiring.ts` | the same `holdsAtCeiling` | Nothing is refused for running too many at the same time. | A start that takes slots past the agreed tier's paths is refused, 409 `paths_need_a_yes`, and *Start* asks first with both ways on (ADR-0014, 2026-10-04). |
 | The API's alpha rule: `apps/api/src/access-notify.ts` | `alphaFrom(env)`, read by `conditions-not-accepted.ts`, `config-guards.ts` and the access-granted mail | Every member is asked to accept the Alpha conditions, the privacy policy and the terms before any access is stored, once no text is a draft (0139 T3). The access-granted mail says it is the alpha. A blank `BACKUP_RETENTION_DAYS` stops the API from starting. | Nobody is asked to accept anything. The mail does not mention the alpha. A blank `BACKUP_RETENTION_DAYS` is a warning in production (`stand-up-live.sh` still refuses one on live). |
 | The sync tasks: `apps/worker/src/jobs/run-delta-sync.ts` | `process.env.OWNPACE_STAGE`, in the **task environment**, never compose's | Nothing waits at the data ceiling. Every first copy is marked as the alpha's (`bytes_moved.alpha_bytes`, managed 0040) and never counts. | New first copies wait at the ceiling until a yes (0109 T6). First copies count from here. |
-| The web bundle: `apps/web/src/components/AlphaNote.tsx` | `import.meta.env.VITE_OWNPACE_STAGE`, **baked in at build** through the build arg in `apps/web/Dockerfile` | The Alpha note on every page, the sign-in page and the request page. The acceptance screen on load. The tester-guide link. The Billing page's alpha line, and its invoice-details card saying none are needed. | None of these. The invoice-details card asks for the details unless the tier is Free. |
-| The public site: `site/build.mjs` | `process.env.OWNPACE_STAGE` **at build** | The tester guide is built (`/alpha-guide.html`, `/nl/alpha-handleiding.html`). | The guide is left out. The Alpha conditions page stays. |
+| The web bundle: `apps/web/src/components/AlphaNote.tsx` | `import.meta.env.VITE_OWNPACE_STAGE`, **baked in at build** through the build arg in `apps/web/Dockerfile` | The Alpha note on every page, the sign-in page and the request page. A visitor without a session reads a line about the Alpha in the guides instead (workplan 0152 T1 (a)). The acceptance screen on load. The tester-guide link. The Billing page's alpha line, and its invoice-details card saying none are needed. | None of these. The invoice-details card asks for the details unless the tier is Free. |
+| The public site: `site/build.mjs` | `process.env.OWNPACE_STAGE` **at build** | The tester guide is built (`/alpha-guide.html`, `/nl/alpha-handleiding.html`). Every page says the Alpha to its visitor in one line under the header (workplan 0152 T1 (a)). | The guide and the line are left out. The Alpha conditions page stays. |
 | Compose: `deploy/compose/managed.yml` | `${OWNPACE_STAGE:-}` from live's `.env` | Handed to the api's environment and, as `VITE_OWNPACE_STAGE`, to the web image's build. | The same, empty. The api takes it when its container is recreated; the web only when its image is rebuilt. |
 | The task environment: `deploy/compose/set-task-env.sh` | the value in live's `.env` | Uploaded to the tasks. | **Deleted** from the tasks; it prints `deleted OWNPACE_STAGE: no stage is set, so the hold at the data ceiling is on`. A task container inherits nothing from compose, so nothing else reaches it. |
 | The live deploy: `deploy/compose/deploy-live.sh` | `env_value` from live's `.env` (`SITE_STAGE`) | Hands `alpha` to the site build. | Hands it an empty stage. |
@@ -116,12 +116,14 @@ Before lifting the hold:
    ```
 
 3. **The web bundle has no alpha.** `https://app.ownpace.eu/login` shows no Alpha note, and
-   neither does any signed-in page.
-4. **The site has no tester guide** (only with `WWW_LIVE=true`):
+   neither does any signed-in page. `https://app.ownpace.eu/docs`, opened in a private window,
+   shows no line about the Alpha under its title.
+4. **The site has no tester guide, and no line about the Alpha** (only with `WWW_LIVE=true`):
 
    ```bash
    curl -s -o /dev/null -w '%{http_code}\n' https://www.ownpace.eu/alpha-guide.html        # 404
    curl -s -o /dev/null -w '%{http_code}\n' https://www.ownpace.eu/nl/alpha-handleiding.html  # 404
+   curl -s https://www.ownpace.eu/ | grep -c 'class="visitor-line"'                          # 0
    ```
 
 5. **Billing, as the owner of your own organisation.** The Billing page's panel is titled *What
@@ -152,7 +154,7 @@ After lifting the hold, once passes have copied new items:
 - **The note is still on the pages.** The web image was built with the old value. The deploy's
   `/version.json` check proves a new image, not the stage it was built with. Run the deploy again
   with the same tag, after checking `.env` (step 3).
-- **The guide is still on the site.** The site step built with live's old stage, or
+- **The guide or the line is still on the site.** The site step built with live's old stage, or
   `WWW_LIVE` is not `true`. Check `.env` and run the deploy again.
 
 ## What changes for customers
@@ -160,7 +162,8 @@ After lifting the hold, once passes have copied new items:
 Support should know before the day:
 
 - **The alpha is no longer said anywhere:** no note on the pages, no paragraph in the
-  access-granted mail, no tester guide on the site, no acceptance screen.
+  access-granted mail, no tester guide on the site, no line about it on the site or in the
+  guides, no acceptance screen.
 - **Billing.**
   - The panel names what the month bills.
   - Data counts from the switch, and the alpha's is shown apart, never counted.
