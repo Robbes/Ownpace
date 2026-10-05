@@ -2,7 +2,68 @@
 
 > **In one line:** What a tester is told: a Dutch tester guide, a known-limitations page guarded by the feature matrix, corrected read-only wording on site and grant page, `APPLY_FLAG_WARNING`, a support contact, Request access on sign-in, organisation closure.
 
-## Status — 2026-10-04 (update this block at the end of every session)
+## Status — 2026-10-05 (update this block at the end of every session)
+
+**2026-10-05: the owner chose the site's words, and T3 (b) and the setup title are built. On
+`claude/ownpace-public-readiness-y7orc6-the-site-says-ownpace-only-reads`, not merged.** Open
+question 2 asked whether to approve T3's drafts, rewrite them or keep today's text. The owner
+was given eleven places, each with its choices in English and Dutch, and answered: *"Item 9: B.
+P1a, P2a, P3b, P4a, P5a, P6a, P7a, P8 keep, P9a now, P10b later, P11b. Dutch as written."*
+Option B: say what Ownpace does everywhere, name the providers once, on how-it-works, and keep
+*Nothing is deleted at the source*.
+
+- **P1a, how-it-works §2's heading.** *"Connect the account you are leaving — Ownpace only
+  reads"* / *"Koppel het account dat u verlaat — Ownpace leest alleen"*, for *— read-only* /
+  *— alleen-lezen*.
+- **P2a, its body.** *"The connection is **read-only**"* is gone. The body says Ownpace only
+  reads and a test in the public code checks it; that the permission is read-only itself for
+  Google Drive, Google Tasks and *Connect with Microsoft*; that for Gmail, a Google account's
+  calendars and contacts, Microsoft 365 over IMAP and any password it also allows changes, and
+  there the guarantee is the software's; and that the app says so beside Google's button. The
+  Dutch first said *Google Taken*, as written; the same evening the owner corrected it: *"Google
+  just names there service Google 'Tasks' as webapp name, also for dutch."* So the Dutch says
+  *Google Tasks*, here and in the in-app Google guide (`docs/guides/nl/google.md`).
+- **P3b, the home page's *Nothing is deleted at the source* card.** *"Ever. Your old account is
+  your fallback, and Ownpace leaves it as it is: the software has no code that changes or
+  deletes anything at a source. Some permissions allow more than Ownpace uses; How it works
+  says which."* The linked words are new, so `claims-you-can-check` pins them; the link still
+  goes to `a-source-that-only-reads`. *"That is not a promise about our intentions"* is gone.
+- **P4a, *It does not sync backwards*.** *"Ownpace never writes to your old account"* / *"Ownpace
+  schrijft nooit naar uw oude account"*, for *"Your old account never changes"*.
+- **P5a, the hero's first paragraph.** *"…, for as long as you keep it."* / *"…, zolang u het
+  aanhoudt."*, for *"until you say otherwise"* / *"tot u iets anders zegt"*.
+- **P6a, Leaving Google's steps.** The Google step adds *"For calendars and contacts, Google
+  describes a broader permission than Ownpace uses; Ownpace only reads."*, and the Gmail step,
+  after its first sentence, *"For mail too, Google describes a broader permission than Ownpace
+  uses."* In `copy.mjs` the Dutch apostrophe is *’*, as every other Dutch string in that file
+  writes it (*agenda’s*); the words are as written.
+- **P7a, the Alpha guide's *When you connect Google*.** It adds the app's own sentence: *"For
+  mail, calendars and contacts, Google describes a broader permission than Ownpace uses.
+  Ownpace only reads; it changes and deletes nothing in your account."*, and the Dutch.
+- **P8, how-it-works §5's *untouched*.** Kept.
+- **P9a, now: the setup step's title.** *"Consent a refresh token for that product"* / *"Laat
+  een refresh-token voor dat product toestemmen"*, for *"Consent a read-only refresh token"*.
+- **P10 (b), later.** The app's three other *read-only* strings (scanning, the check's two
+  sides, *Test*) become *"Reading your source…"*, *"…; it only reads, and writes to neither
+  side."* and *"… Test only reads."*, with their Dutch, after the first invitation. Not done
+  here.
+- **P11b, the home page's three-step strip, step 1.** *"Ownpace changes nothing there."* /
+  *"Ownpace wijzigt daar niets."*, for *"Your old account stays as it is."*
+
+The guard. `scripts/a-read-only-claim-with-its-scope` excused both how-it-works pages and the
+setup title in `PENDING`. On c25534b4 all 16 cases of it and `claims-you-can-check` passed, the
+four pending ones because each still broke the rule. With the new words and the old `PENDING`,
+those four failed (*"no longer calls anything read-only without its scope"*), so `PENDING` is
+empty now and every surface is under the rule. Restored on a scratch copy, each failed: the old
+how-it-works sentence, the old Dutch heading and the old setup title (`a-read-only-claim`), and
+the card's old link text (`claims-you-can-check`). Nothing else is guarded: P3's sentences
+outside its link (*"That is not a promise about our intentions"* among them), P4, P5, P6, P7
+and P11. Their old words, put back together on a scratch copy in both languages, failed no
+unit test that reads the site's copy, its pages or the Alpha guide.
+
+Still open: the password hint (after), P10 (b) (later), and T0's read of T1's Dutch. Readers see
+the site's words when the OTA site is rebuilt from `main` (`deploy/compose/www.yml`), and the
+setup title at the next build of the OTA app.
 
 **2026-10-04, later: the guide carries facts the note dropped.** The alpha note is now the
 owner's welcome and its two links (0131 D4's amendment). So the guide, with both Alpha mails and
@@ -525,10 +586,10 @@ Everything a tester reads is written in Dutch first and translated into English 
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner's words: the address, the site copy, the guide read in Dutch | ⏳ **Owner**: the site copy and the Dutch read. The address ✅ **answered** 2026-09-27, in 0133 (open questions 2 and 3): `support@ownpace.eu`; it goes in `ownpace-live`'s `.env` as `VITE_SUPPORT_EMAIL`; *was:* ⏳ **Owner**, all three | §3. The address testers write to (0133 open question 3). Approval or rewrite of T3's site copy. A read of T1's Dutch before it is published. **Before the first invitation.** |
+| T0 The owner's words: the address, the site copy, the guide read in Dutch | ⏳ **Owner**: the Dutch read. The site copy ✅ **answered** 2026-10-05 (open question 2): option B, *"P1a, P2a, P3b, P4a, P5a, P6a, P7a, P8 keep, P9a now, P10b later, P11b. Dutch as written."*, built as T3 (b); *was:* ⏳ **Owner**: the site copy and the Dutch read. The address ✅ **answered** 2026-09-27, in 0133 (open questions 2 and 3): `support@ownpace.eu`; it goes in `ownpace-live`'s `.env` as `VITE_SUPPORT_EMAIL`; *was:* ⏳ **Owner**, all three | §3. The address testers write to (0133 open question 3). Approval or rewrite of T3's site copy. A read of T1's Dutch before it is published. **Before the first invitation.** |
 | T1 A Dutch tester guide | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-guide-for-the-alpha-tester`, merged (#1439)** (2026-10-03), the short form; the Dutch read ⏳ **Owner**. 🔨 **2026-10-04, on `claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged:** spelt *Alpha*, served at `/nl/alpha-handleiding.html`, and linked by the alpha note (on every page it stands on, the request page included), the access-granted mail and the invitation — *was:* 📋 **Proposed** (D1, D3) | §3. One page on the site that carries the alpha's texts (0139 T10): what the alpha is, before you start, how to start, what is experimental, how to get help, how to leave. Built only when the site is built for the alpha. **Before the first invitation**, in its short form. |
 | T2 A known-limitations page the feature matrix keeps true | 📋 **Proposed** (D4) | §3. A copy on the site, in Dutch and English, and a guard that fails when it disagrees with the matrix's open gaps or 0131 T2's verdicts. **After.** |
-| T3 "Read-only" replaced by what is true | ✅ **(a) and (c) done** in #1188, merged 2026-09-26. 📋 **Decided 2026-09-25 (owner)**. (b), the site copy, ⏳ **Owner** (T0). The setup title and the password hint 📋 **Proposed** (after) | §3. The grant page says "read-only" only when Google enforces it. One line beside *Connect with Google*. Site copy, how-it-works, the grant-link guide and one setup title. **Before the first invitation**: the Connect line and the site copy, and the grant page if testers send grant links (0140 open question 2). |
+| T3 "Read-only" replaced by what is true | 🔨 **(b), the site copy, and the setup title built 2026-10-05 on branch `claude/ownpace-public-readiness-y7orc6-the-site-says-ownpace-only-reads`, not merged**, in the owner's words (open question 2); the guard's `PENDING` is empty. ✅ **(a) and (c) done** in #1188, merged 2026-09-26. 📋 **Decided 2026-09-25 (owner)**. The password hint 📋 **Proposed** (after). The app's other *read-only* strings, P10 (b), 📋 **Later** (the owner, 2026-10-05) — *was:* (b), the site copy, ⏳ **Owner** (T0); the setup title 📋 **Proposed** (after) | §3. The grant page says "read-only" only when Google enforces it. One line beside *Connect with Google*. Site copy, how-it-works, the grant-link guide and one setup title. **Before the first invitation**: the Connect line and the site copy, and the grant page if testers send grant links (0140 open question 2). |
 | T4 The warning in front of the delete switch says what the check does | 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` in both languages. Making removal fail closed is W18, now 0149, whose T1 to T3 land before the first invitation (0149 D1). **After**, written once 0149 T3 has landed, because T3 changes what the check does (0149 T6). |
 | T5 A destination that is not empty | 📋 **Proposed** | §3. The advice goes into T1 (**before**). The confirm screen names what adoption means later, and an IMAP target's exception (**after**). |
 | T6 A person to write to, before and after sign-in | (a) ✅ **done** in #1269, merged 2026-09-28 (`b2703c6f`); live shows it once `VITE_SUPPORT_EMAIL` is in its `.env` and its web image is rebuilt. (c), the GitHub chooser, 📋 **Deferred** until T1's *Hulp* section exists — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-person-to-write-to`, not merged (2026-09-28); 📋 **Proposed**; the address ⏳ **Owner** (T0) | §3. A support line on the pages outside the app, and in the sidebar when the report form is off. The GitHub chooser gets a route for the hosted service. The report form's settings reach the API since #1148 (2026-09-24) (§1). **Before the first invitation.** |
@@ -1308,6 +1369,11 @@ approves.
    here as this question's answer. It goes in `ownpace-live`'s `.env` as `VITE_SUPPORT_EMAIL` once live exists (T6 (a)).
 2. **The site copy (T3).** Approve the drafts, rewrite them, or keep today's text? The one
    sentence that must go in any case is how-it-works' *"The connection is **read-only**"*.
+   **Answered 2026-10-05:** *"Item 9: B. P1a, P2a, P3b, P4a, P5a, P6a, P7a, P8 keep, P9a now,
+   P10b later, P11b. Dutch as written."* Option B, place by place, with the setup title now and
+   P10 (b), the app's other *read-only* strings, later. Built on
+   `claude/ownpace-public-readiness-y7orc6-the-site-says-ownpace-only-reads`, not merged; the
+   Status entry of that day lists each place.
 3. **Apply deletions during the alpha.** (a) Testers leave it off until T4 lands, and the guide
    says so. *Recommended.* (b) T4 goes in before the first invitation, and testers may try it.
    *Answered 2026-09-24, by 0149 D1: testers may use it.* The owner: *"But we do offer 'apply

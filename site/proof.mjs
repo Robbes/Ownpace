@@ -20,8 +20,8 @@ export const REPOSITORY_URL = 'https://github.com/Robbes/Ownpace';
 
 /** What holds each claim, by its path in the repository. */
 export const PROOF = {
-  // "The software has no way to delete from a source": every source connector's
-  // methods, counted by a test (workplan 0149 T5).
+  // "The software has no code that changes or deletes anything at a source":
+  // every source connector's methods, counted by a test (workplan 0149 T5).
   readsOnly: 'scripts/a-source-that-only-reads.unit.test.ts',
   // "Whatever cannot be moved is reported": the scope manifest, the app's list
   // of what migrates, what partly does, and what does not.

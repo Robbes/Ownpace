@@ -3002,7 +3002,7 @@ const en = {
   'setup.google.enable_api.title': 'Enable the product’s API',
   'setup.google.enable_api.detail':
     'In the same project, enable the API that matches the source you picked — Google Drive API, Gmail API, CalDAV API, Google Contacts CardDAV API or Google Tasks API. A client without it fails on the first call.',
-  'setup.google.consent_scope.title': 'Consent a read-only refresh token',
+  'setup.google.consent_scope.title': 'Consent a refresh token for that product',
   'setup.google.consent_scope.detail':
     'Have the account owner consent with the scope for that product; a token consented for one Google product does not work for another. Or use a service account with domain-wide delegation, which an admin authorises once for the whole domain.',
   'setup.google.consent_scope.yields': 'a refresh token (or a service-account key file).',
@@ -5442,7 +5442,7 @@ const nl: Record<keyof typeof en, string> = {
   'setup.google.enable_api.title': 'Zet de API van het product aan',
   'setup.google.enable_api.detail':
     'Zet in hetzelfde project de API aan die past bij de gekozen bron — Google Drive API, Gmail API, CalDAV API, Google Contacts CardDAV API of Google Tasks API. Zonder dat mislukt de eerste aanroep.',
-  'setup.google.consent_scope.title': 'Laat een alleen-lezen refresh-token toestemmen',
+  'setup.google.consent_scope.title': 'Laat een refresh-token voor dat product toestemmen',
   'setup.google.consent_scope.detail':
     'Laat de accounthouder toestemmen met de scope van dat product; een token voor het ene Google-product werkt niet voor het andere. Of gebruik een service-account met domain-wide delegation, dat een beheerder eenmalig voor het hele domein autoriseert.',
   'setup.google.consent_scope.yields': 'een refresh-token (of een service-account-sleutelbestand).',
