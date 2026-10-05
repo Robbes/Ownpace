@@ -4,6 +4,26 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-10-05, later: Accounts and Help in white cards, as the other pages are.** The owner, on
+OTA with the paper in place: Accounts and Help *"have the off-white background, but the content
+is not in a box that elevates"*, and *"they also don't look very nice"*. Both drew their content
+straight on the page, in a narrower column of their own, where Migrations, Needs you and Team put
+theirs in white cards.
+- **Accounts:**
+  - the title and its sentence sit on the paper, with *Add an account* beside them as Migrations'
+    *Start a migration* is;
+  - Sources and Targets are each a white card, one account per row, divided by a line;
+  - a row names the account and its kind, then *Used by 2 migrations · Added last month · Setup
+    steps*, then what it carries, and its buttons keep one place at the right;
+  - one migration is said as one: the row said *"1 migration(s) use this"*.
+- **Help:**
+  - the chooser's two sides are white cards whose tiles say they open;
+  - a checklist's steps are rows of one white card, and the question before them is a card too;
+  - the guides are rows of a card, and a guide is one card, aligned as before with the public
+    guides' header.
+- **Guarded** in the pages' own tests (`Connections`, `Setup`, `Docs`): the cards are white, a
+  step is no longer a list item inside a list item, and no row says *(s)*.
+
 **2026-10-05: the app takes the site's warm paper and teal** (the palette this plan was to review
 with its layout, 0152 T9 (b)). The owner chose warm paper, always light, for the site (0152's
 Status). Asked whether the app would look calmer in it too, they answered *"Yes, paper + teal"*.

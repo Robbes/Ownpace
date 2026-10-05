@@ -228,6 +228,15 @@ describe('the in-app setup guides', () => {
     expect(screen.getByText(/no guide by that name/)).toBeTruthy();
   });
 
+  it('draws the guides, and a guide, in a white card (2026-10-05)', () => {
+    const { container, unmount } = renderAt('/docs');
+    expect(container.querySelector('a[href="/docs/box"]')?.closest('section')?.className).toContain('bg-white');
+    unmount();
+
+    const guide = renderAt('/docs/box');
+    expect(guide.container.querySelector('article')?.closest('.bg-white')).not.toBeNull();
+  });
+
   it('names what DOES exist when a reference is stale, rather than a bare 404', () => {
     const { container } = renderAt('/docs/no-such-guide');
 
