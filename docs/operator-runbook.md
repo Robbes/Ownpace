@@ -395,8 +395,17 @@ Four things send email on managed, all through the operator's own SMTP relay con
   organisation's language. Free makes none. While `OWNPACE_BILLING_FROM` is empty, during the
   alpha, and before that month, the run says `nobody is invoiced` and reads nothing about any
   organisation. Otherwise it logs `{ invoicing, month, tenants, made, made_elsewhere, in_step,
-  free, nothing_to_add, failed }`, and one line per draft it made. Nothing numbers or sends a
-  draft yet: that is slice 5.
+  free, nothing_to_add, failed }`, and one line per draft it made.
+- **`managed-invoice-push`** (workplan 0111, slice 5) — a scheduled task, hourly at **:41**.
+  Takes each draft to Moneybird, which numbers it, and writes the number, the dates and the
+  figures back. A draft is claimed for one attempt (managed 0047); one Moneybird could not take
+  is tried again the next hour, and one refused (no invoice details, say) is said as an error
+  with its reason. At most 60 a run, one every 25 seconds, under Moneybird's 150 requests in 5
+  minutes; a 429 stops the run. Off as the month task is, and while no `MONEYBIRD_*` key reaches
+  the tasks (`nothing is pushed: Moneybird is off`). It logs `{ pushing, tenants, issued, adopted,
+  refused, unavailable, slowed, failed, left }`, one line per invoice numbered, and an error for
+  every organisation with a draft still a draft two days after it was made, naming them
+  (decision 6's alert).
 
 Two behaviours worth knowing before you go looking for a missing email:
 

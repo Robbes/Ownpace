@@ -654,6 +654,10 @@ reading a file drops off its entry by itself.
 - [a-microsoft-source-found-by-its-faces](../scripts/a-microsoft-source-found-by-its-faces.unit.test.ts) — A MICROSOFT SOURCE FOUND BY ITS FACES (workplan 0141 T11).
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 
+### `apps/worker/src/jobs/managed-invoice-push.ts`
+
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
+
 ### `apps/worker/src/jobs/managed-month-invoices.ts`
 
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
@@ -3594,6 +3598,7 @@ Reads:
 - `apps/worker/src/jobs/managed-digest.ts`
 - `apps/worker/src/jobs/managed-drift-detect.ts`
 - `apps/worker/src/jobs/managed-group-discovery.ts`
+- `apps/worker/src/jobs/managed-invoice-push.ts`
 - `apps/worker/src/jobs/managed-month-invoices.ts`
 - `apps/worker/src/jobs/managed-purge-closed.ts`
 - `apps/worker/src/jobs/managed-retention.ts`

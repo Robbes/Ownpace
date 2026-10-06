@@ -46,10 +46,10 @@
  *      every guard green (0138 T1 step 2's re-review). An end in another
  *      file's function that the pool is handed to is out of sight; none has
  *      one.
- *   6. Five jobs are SPLIT (0138 T2, open question 3 answered 2026-09-28):
+ *   6. Six jobs are SPLIT (0138 T2, open question 3 answered 2026-09-28):
  *      the digest, the drift detector, group discovery and, split from the
- *      start, 0157 T7's slower-cadence mail and 0111's month invoices. They
- *      ask ONE question
+ *      start, 0157 T7's slower-cadence mail and 0111's month invoices and
+ *      their push. They ask ONE question
  *      across organisations, which organisations are active, and everything
  *      else they read or write is one organisation's. A SPLIT file reads no
  *      database URL and builds no pool (rules 1 and 2); takes its pools from
@@ -60,7 +60,7 @@
  *      whatever function, only as the first argument of `withTenant` or
  *      `tenantScopedDb`, or hands it to a function of its own file whose
  *      parameter is a `Pool` and which this rule reads in turn.
- *      `activeOrganisations` is named by the five and by the module alone.
+ *      `activeOrganisations` is named by the six and by the module alone.
  *      Rule 7 is what keeps the owner's side of a split job to ids. Neither
  *      rule sees a per-organisation read in the WRONG organisation's scope:
  *      that is the integration guard's
@@ -288,6 +288,11 @@ const SPLIT: Record<string, string> = {
     'paths it holds (the true-up writes its month\'s peak), what its month bills (its peak, the data ' +
     'counted, its yeses and picks), the prices it agreed to, its month\'s invoices, and the draft the ' +
     'run makes. Split from the start, as 0138 split the three before it (0138 T2)',
+  'apps/worker/src/jobs/managed-invoice-push.ts':
+    "which organisations are active, to have each one's drafts numbered by Moneybird (workplan 0111, " +
+    'slice 5). Per organisation, in its own scope: its drafts, claimed one at a time, its invoice ' +
+    'details and the latest VIES answer for its number, and each draft written back, numbered. ' +
+    'Split from the start, as 0138 split the three before it (0138 T2)',
 };
 
 /** What a SPLIT job reads across organisations, and all it reads there: the ids of the active ones. */
@@ -1622,12 +1627,13 @@ describe('a split job asks across organisations for the list alone, and reads ea
   const splitFiles = Object.keys(SPLIT);
   const taskFiles = files.filter((f) => f.startsWith(`${JOBS_DIR}/`) && definesATask(f, texts.get(f)!));
 
-  it('found the five, each a task file, and each entry says both halves', () => {
+  it('found the six, each a task file, and each entry says both halves', () => {
     expect(splitFiles.sort()).toEqual([
       'apps/worker/src/jobs/managed-cadence-email.ts',
       'apps/worker/src/jobs/managed-digest.ts',
       'apps/worker/src/jobs/managed-drift-detect.ts',
       'apps/worker/src/jobs/managed-group-discovery.ts',
+      'apps/worker/src/jobs/managed-invoice-push.ts',
       'apps/worker/src/jobs/managed-month-invoices.ts',
     ]);
     for (const file of splitFiles) {
@@ -1677,11 +1683,11 @@ describe('a split job asks across organisations for the list alone, and reads ea
     // And it does open a scope on it, so the rule is not passing over nothing.
     // One is enough: the month invoices open one per organisation on purpose,
     // since the lock, the true-up, the decision and the draft are one
-    // transaction (0111 slice 4); the four before them open two or more.
+    // transaction (0111 slice 4); the others open two or more.
     expect(scoped, `${file} opens no scope on its tenant pool`).toBeGreaterThanOrEqual(1);
   });
 
-  it('no file but the five and task-pools.ts names activeOrganisations', () => {
+  it('no file but the six and task-pools.ts names activeOrganisations', () => {
     // A per-tenant job that could list every organisation would ask across
     // them with nothing on SPLIT saying so.
     expect(activeOrganisationsUse(TASK_POOLS, texts.get(TASK_POOLS)!).names, `${TASK_POOLS} no longer defines it`).toBe(true);

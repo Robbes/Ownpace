@@ -264,10 +264,11 @@ function taskFiles(): Array<{ file: string; code: string }> {
 describe('every task', () => {
   const tasks = taskFiles();
 
-  it('is found, all sixteen of them', () => {
+  it('is found, all seventeen of them', () => {
     // The fifteenth, managed-cadence-email.ts: the morning's slower cadences (0157 T7).
     // The sixteenth, managed-month-invoices.ts: each month invoiced in advance (0111, slice 4).
-    expect(tasks.map((t) => t.file).sort()).toHaveLength(16);
+    // The seventeenth, managed-invoice-push.ts: each draft numbered by Moneybird (0111, slice 5).
+    expect(tasks.map((t) => t.file).sort()).toHaveLength(17);
   });
 
   it.each(tasks.map((t) => [t.file, t.code] as const))('%s runs inside leavesAReference, under its own id', (_file, code) => {
@@ -306,6 +307,7 @@ describe('every task', () => {
       'managed-digest.ts',
       'managed-drift-detect.ts',
       'managed-group-discovery.ts',
+      'managed-invoice-push.ts',
       'managed-month-invoices.ts',
       'run-cutover.ts',
       'run-rollback.ts',

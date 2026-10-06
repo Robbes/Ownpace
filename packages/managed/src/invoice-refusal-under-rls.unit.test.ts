@@ -368,6 +368,8 @@ describe('the catalog pin', () => {
     // lands in neither list and goes red here — the point is that the
     // decision cannot be skipped, not any particular answer.
     const GRANTED = [
+      // At issue, with the number (0047).
+      'due_date',
       'invoice_date',
       'invoice_number',
       'lines',
@@ -377,6 +379,8 @@ describe('the catalog pin', () => {
       'paid_at',
       'payment_id',
       'payment_method',
+      // The push's claim on a draft (0047).
+      'push_lease_until',
       'sent_at',
       'status',
       'subtotal',
@@ -439,6 +443,7 @@ describe('the column pin (0045)', () => {
     sent_at: 'lifecycle',
     metadata: 'lifecycle',
     updated_at: 'lifecycle',
+    push_lease_until: 'lifecycle',
     tenant_id: 'detach',
     billed_to_name: 'detach',
   };
