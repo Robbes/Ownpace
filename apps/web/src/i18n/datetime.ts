@@ -65,6 +65,16 @@ export function formatDateTime(
 }
 
 /** Grouped integer/decimal in the active language: en "1,234" — nl "1.234". */
+/**
+ * A calendar day, `YYYY-MM-DD` as a document dates it: "October 1, 2026" /
+ * "1 oktober 2026". Read in UTC, so the day is the day written, wherever the
+ * browser is: parsed as local midnight, west of Greenwich it would be the
+ * day before.
+ */
+export function formatDay(day: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${day}T00:00:00Z`));
+}
+
 export function formatNumber(n: number, locale: Locale): string {
   return new Intl.NumberFormat(locale).format(n);
 }
