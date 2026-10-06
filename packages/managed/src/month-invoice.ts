@@ -52,7 +52,9 @@
  * ## What the row carries, and what it leaves to the push
  *
  * A draft, born unnumbered (0045): the month as its period, the step's price
- * as published (VAT included, as the price list) as its total, our reference,
+ * as published (VAT included, as the price list) as its total, in cents as
+ * the money columns have always held it (the pay route asks Mollie for
+ * `total` in cents, and the Billing page formats it as cents), our reference,
  * the evidence its line quotes, and the line in the organisation's language
  * (month-invoice-words.ts). The VAT treatment, the tax rate, the price without
  * Dutch VAT for a reverse-charge buyer and the VIES words are the push's
@@ -220,11 +222,6 @@ async function readAgreedPrices(db: PgDatabase, tenantId: TenantId, at: Date): P
   return [...yeses, ...picks];
 }
 
-/** Cents as the numeric columns hold euros: `1200` → `12.00`. */
-function euros(cents: number): string {
-  return `${Math.trunc(cents / 100)}.${String(cents % 100).padStart(2, '0')}`;
-}
-
 function resultRows<T>(result: unknown): T[] {
   if (Array.isArray(result)) return result as T[];
   const rows = (result as { rows?: unknown } | null)?.rows;
@@ -280,7 +277,9 @@ export async function openTheMonth(
   );
   const reference = monthReference(tenantId, now, decision.tier.id);
   const lastDay = new Date(nextMonthStartOf(now).getTime() - 86_400_000);
-  const amount = euros(decision.cents);
+  // In cents, as the money columns have always held it: the pay route asks
+  // Mollie for `total` as cents, and the Billing page formats it as cents.
+  const amount = String(decision.cents);
   const inserted = resultRows<{ id: string }>(
     await db.execute(sql`
       INSERT INTO invoice (tenant_id, period_start, period_end, status, subtotal, tax_rate, tax_amount, total,

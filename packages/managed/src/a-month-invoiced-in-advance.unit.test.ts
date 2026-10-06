@@ -192,7 +192,7 @@ describe('a month invoiced on a real database, as the task runs it', () => {
     expect(row).toMatchObject({
       reference,
       status: 'draft',
-      total: '5.00',
+      total: '500',
       period_start: '2026-10-01',
       period_end: '2026-10-31',
       invoice_number: null,
@@ -230,7 +230,7 @@ describe('a month invoiced on a real database, as the task runs it', () => {
     const outcome = await withTenant(driver, MOVES_UP, (db) => openTheMonth(db, MOVES_UP, OCT_4, 'en'));
     expect(outcome).toEqual({ kind: 'made', reference: `ownpace-${MOVES_UP}-m-2026-10-medium`, tier: 'medium', cents: 700 });
     const rows = await invoicesOf(MOVES_UP);
-    expect(rows.map((r) => r.total)).toEqual(['5.00', '7.00']);
+    expect(rows.map((r) => r.total)).toEqual(['500', '700']);
     expect(rows[1]!.lines).toEqual([
       { description: 'Ownpace Medium, October 2026: 640 GB migrated in total, less Small already invoiced', publishedCents: 700 },
     ]);
