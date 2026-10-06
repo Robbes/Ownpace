@@ -32,63 +32,107 @@
  *     bytes kept, to recognise the file next time (`set_initial_persisted_data`,
  *     `IGLP_LAST_PARSE.db`): the first lines of the log, addresses and all.
  *
- * So `deploy/compose/site-visits.sh` keeps GoAccess's REPORT of totals and no
- * database, and does not rely on GoAccess to hide anybody: GoAccess is never
- * given an address at all. A filter reads the container's output from Docker
- * and hands on only the requests that came through the public name (those with
- * an `X-Forwarded-For`; the healthcheck and the deploy's own checks have none),
- * each with its address replaced by a number that exists only while the run
- * lasts (`v1`, `v2`: the same visitor, the same number, so GoAccess still
- * counts visitors), its first field (NetBird's address on the mesh) dropped,
- * and its referrer cut to the site it names. GoAccess runs with no network, no
- * port and no disk, and its HTML comes back on its output.
+ * AND THE ADDRESS WAS NOT THE ONLY THING A REPORT COULD NAME (review,
+ * 2026-10-06). GoAccess copies text a visitor or a link chose into its report
+ * word for word, and the first version of this script handed it that text:
+ *
+ *   - the UTM_CAMPAIGNS panel keeps the decoded value of nine `utm_`
+ *     parameters (`src/utm.c`), read from the request before
+ *     `--no-query-string` cuts it (`src/parser.c`): an email address in a
+ *     newsletter's `utm_content`, a name in `utm_term`;
+ *   - NOT_FOUND keeps the path of every 404 and REQUESTS the path of any other
+ *     status, and nginx answers any path (`try_files ... =404`): a mistyped
+ *     personal link, `/invite/<somebody's address>`; and a page of ours asked
+ *     for through `/<a name>/../prices.html` is answered 200;
+ *   - BROWSERS and OS keep a browser's or a system's version up to `;`, `)`, a
+ *     space or a backslash (`parse_browser` in `src/browsers.c`, `src/opesys.c`):
+ *     `Firefox/128.0-` and an email address;
+ *   - REFERRING_SITES keeps the host of the Referer, which can be an address:
+ *     a home server, a NAS, a machine on a mesh.
+ *
+ * Run through the first version and GoAccess 1.12, each of those stood in the
+ * report. So the script hands GoAccess none of them: no query string at all
+ * (and UTM_CAMPAIGNS ignored besides), the path only of a request answered
+ * 2xx or 3xx and only when it is a plain path of the site, `/(not shown)` for
+ * every other; a User-Agent with every version cut to its digits and dots and
+ * every word holding a character no browser's own string holds (an `@`, a
+ * `%`) left out whole; and `(an address)` for a referring site that is one. Privacy §4.5's comment on
+ * the branch of 0139's privacy 1.2 lists the same, as the run's contract.
+ *
+ * AND IT COUNTS ONLY WHAT THE POLICY SAYS. The script reads the checkout's
+ * own `site/legal/privacy.md` and `privacy.nl.md`, the texts the site
+ * publishes, and refuses (exit 2, nothing read) while either lacks §4.5's
+ * sentence or §5's purpose, outside a comment: this branch and privacy 1.2
+ * merge apart, and live's duty runs from the tag it serves, so the counting
+ * never starts before the text that discloses it.
  *
  * WHAT IS ASSERTED, by running the real script with `docker` replaced by a
  * stub whose GoAccess is the worst one possible: it puts everything it is
- * given into its report, and on failure says all of it on stderr.
+ * given into its report, and on failure quotes every line of it.
  *
  *   - GoAccess is given exactly the requests that came through the public
  *     name, each in the combined format with a number for a host; the same
- *     visitor gets the same number; no address, no first field, and a referrer
- *     cut to its site. Not the status page's Website row, which asks through
- *     the public name every 60 seconds as `Gatus/1.0` (`gatus.yaml`; Gatus's
- *     own User-Agent at v5.36.0): it is ours, not a visit.
- *   - No address from the recorded log, the visitors', NetBird's, the
- *     healthcheck's or the one in nginx's error line, appears in anything the
- *     script prints or writes, or in what GoAccess was given: on success, on
- *     GoAccess's failure, and on `docker logs`' failure.
- *   - The flags: HOSTS, GEO_LOCATION, ASN, REFERRERS and REMOTE_USER ignored;
- *     `--anonymize-ip --anonymize-level=3`, which change nothing while HOSTS is
- *     ignored and its hosts are numbers, and say so if a later edit drops the
- *     panel's ignore; `--no-query-string`, `--ignore-crawlers`,
- *     `--log-format=COMBINED`, `--no-ip-validation`, `-o html`. Never
- *     `--persist`, `--restore`, `--db-path`, `--keep-last`, an agent list, a
- *     real-time server, a resolver or a GeoIP database.
- *   - The image is pinned by digest, and runs with `--network none`, read-only,
- *     with no port and no mount (`a-service-that-phones-home` names it too).
+ *     visitor gets the same number; no address, no first field, no query
+ *     string, no path of a request that found no page of ours, a referrer
+ *     cut to its site (or `(an address)`), a User-Agent cut to its versions.
+ *     Not the status page's Website row, which asks through the public name
+ *     every 60 seconds as `Gatus/1.0` (`gatus.yaml`; Gatus's own User-Agent at
+ *     v5.36.0): it is ours, not a visit.
+ *   - No address from the recorded log (the visitors', NetBird's, the
+ *     healthcheck's, the one in nginx's error line, a Referer's) and nothing a
+ *     link, a path or a browser string said about a person appears in anything
+ *     the script prints or writes, or in what GoAccess was given: on success,
+ *     on GoAccess's failure, and on `docker logs`' failure. Of GoAccess's own
+ *     words, only those that quote nothing are shown.
+ *   - No copy of the log exists while GoAccess reads it: the filter streams
+ *     into it, so a run killed outright leaves none behind.
+ *   - The flags: HOSTS, GEO_LOCATION, ASN, REFERRERS, REMOTE_USER and
+ *     UTM_CAMPAIGNS ignored; `--anonymize-ip --anonymize-level=3`, which change
+ *     nothing while HOSTS is ignored and its hosts are numbers, and say so if a
+ *     later edit drops the panel's ignore; `--no-query-string`,
+ *     `--ignore-crawlers`, `--log-format=COMBINED`, `--no-ip-validation`,
+ *     `--no-global-config`, `--no-progress`. Never `-o`: GoAccess 1.12 checks
+ *     that the directory of an `-o` path is writable (`is_writable_path`,
+ *     `src/util.c`), even `-o html`'s `.`, and refuses as the image's user on
+ *     a read-only disk; with no `-o` and its output not a terminal it writes
+ *     its HTML there. Never `--persist`, `--restore`, `--db-path`,
+ *     `--keep-last`, an agent list, a real-time server, a resolver or a GeoIP
+ *     database.
+ *   - The image is pinned by digest, and runs with `--network none`,
+ *     read-only, as `65534:65534` with every capability dropped and no new
+ *     privileges, with no port and nothing mounted but the image's own empty
+ *     volume (`a-service-that-phones-home` names it too).
  *   - One report per container of the site, under live's persistent
  *     directory (`~/.persistent/<project>/site-visits/`), and nothing else
  *     left there: a deploy recreates the container and its log, and the
  *     earlier report stays beside the new one.
  *   - It refuses the OTA stack's `.env`, a project the reader refuses, a
- *     switch that is neither true nor false, and an argument, before asking
- *     Docker anything; and while `WWW_LIVE` is not true it reads nothing and
- *     says so.
- *   - A failure is one: no container, `docker logs` or GoAccess failing, or a
- *     report that is not HTML, each exits 1, and an earlier report is kept.
+ *     switch that is neither true nor false, an argument, and a privacy text
+ *     without the sentence, before asking Docker anything; and while
+ *     `WWW_LIVE` is not true it reads nothing and says so.
+ *   - A failure is one: no container, `docker logs`, `docker run` or GoAccess
+ *     failing, or a report that is not HTML, each exits 1, and an earlier
+ *     report is kept.
+ *   - The site's take-down in `docs/managed-bring-up.md` deletes the reports
+ *     (privacy §9 on 0139's branch: the totals are kept "as long as we run
+ *     this website").
  *
- * WHAT THIS CANNOT SEE. GoAccess itself, and its image. No daemon runs here,
- * so the image's digest was read from Docker Hub's listing of the tag, not
- * pulled. GoAccess 1.12 was built from the tag `v1.12` on 2026-10-05 and run
- * by hand on this file's log, through this script: it took every flag, wrote
- * HTML with no hosts, referrers or place in it and nothing loaded from another
- * host, counted 2 visitors and 5 requests (the crawler's in no panel, the
- * campaign as `linkedin`), and printed nothing. That build has no GeoIP, the
- * image has, and neither is in a test. The first run on the machine is the check
- * (`docs/managed-bring-up.md`, *Counting its visits*).
+ * WHAT THIS CANNOT SEE. Docker, and GoAccess's reading of the lines. On
+ * 2026-10-06 the pinned digest was read back from Docker Hub (a HEAD of the
+ * tag `1.12` returns it: the index of the amd64 and arm64 images), and the
+ * amd64 image's own `/usr/bin/goaccess`, from its layers, was run through
+ * this script in place of `docker run`: as 65534:65534, under `setpriv
+ * --no-new-privs`, on its own root file system mounted read-only, in a network
+ * namespace with no interface. That run found the `-o` refusal above. With
+ * the fix it took every flag, accepted every line this file's log becomes,
+ * and wrote HTML in which none of this file's addresses or personal words
+ * appears. Docker's own `--read-only`, `--network none` and `--cap-drop ALL`,
+ * and the arm64 image, were not run. The first run on the machine is that
+ * check (`docs/managed-bring-up.md`, *Counting its visits*).
  *
- * Addresses here are documentation shapes: `100.64.0.7` for NetBird's on the
- * mesh, RFC 5737's and RFC 3849's for visitors.
+ * Addresses here are documentation shapes: the placeholder `100.64.0.1` for
+ * NetBird's on the mesh (`an-address-that-was-not-an-example`), RFC 5737's and
+ * RFC 3849's for everything else.
  */
 
 import { describe, it, expect, afterAll } from 'vitest';
@@ -118,23 +162,75 @@ afterAll(() => {
   for (const d of tempDirs) rmSync(d, { recursive: true, force: true });
 });
 
-/** NetBird's proxy on the mesh: the first field of every line that came through the public name. */
-const NETBIRD = '100.64.0.7';
+/** NetBird's proxy on the mesh, the repository's placeholder: the first field of every line that came through the public name. */
+const NETBIRD = '100.64.0.1';
 const VISITOR_A = '198.51.100.23';
 const VISITOR_B = '203.0.113.45';
 const VISITOR_C = '2001:db8::5';
+const VISITOR_D = '198.51.100.61';
+const VISITOR_E = '203.0.113.77';
+const VISITOR_F = '2001:db8::f00d';
 /** Where the deploy's own check on loopback comes from: Docker's gateway, in a documentation shape. */
 const GATEWAY = '192.0.2.1';
 /** The address in nginx's error line, which `docker logs` hands back on stderr. */
 const IN_ERROR_LOG = '203.0.113.99';
 /** Where the status page's probe leaves the machine, as NetBird sees it. */
 const OWN_FRONT = '198.51.100.200';
-const ADDRESSES = [NETBIRD, VISITOR_A, VISITOR_B, VISITOR_C, GATEWAY, IN_ERROR_LOG, OWN_FRONT, '127.0.0.1'];
+/** A home server and a mesh peer a visitor followed a link from: a Referer whose host is an address. */
+const REFERRER_V4 = '192.0.2.5';
+const REFERRER_V6 = '2001:db8::77';
+const ADDRESSES = [
+  NETBIRD,
+  VISITOR_A,
+  VISITOR_B,
+  VISITOR_C,
+  VISITOR_D,
+  VISITOR_E,
+  VISITOR_F,
+  GATEWAY,
+  IN_ERROR_LOG,
+  OWN_FRONT,
+  REFERRER_V4,
+  REFERRER_V6,
+  '127.0.0.1',
+];
+/**
+ * What a link, a path, a Referer or a browser string in the recorded log says
+ * about a person, or a query string at all: none of it may reach GoAccess, its
+ * report, or anything the script prints.
+ */
+const PERSONAL = [
+  'jan.devries',
+  'example.nl',
+  'marie',
+  'tester-0042',
+  'klaas.vermeer',
+  'henk.jansen',
+  'my-notes',
+  'newsletter',
+  'someone',
+  'secret',
+  'inbox',
+  'utm_',
+  '?',
+  'contact',
+];
 
 const FIREFOX = 'Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0';
 const IPHONE =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
+/** Every version cut to its digits and dots: `Mobile/15E148` is `Mobile/15`. */
+const IPHONE_GIVEN =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15 Safari/604.1';
 const GOOGLEBOT = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
+/** Its URL cut after `http:/`; GoAccess still knows it by `Googlebot`, and by `; +http`. */
+const GOOGLEBOT_GIVEN = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http:/)';
+/** Text joined to a version, which GoAccess's browser panel would keep up to the next `;`, `)` or space. */
+const FIREFOX_SIGNED = 'Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0-jan.devries@example.nl';
+const FIREFOX_SIGNED_GIVEN = 'Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0';
+/** An address as a word of its own: the word is left out whole, not cut at its `@`, which would keep `jan.devries`. */
+const FIREFOX_WITH_ADDRESS = 'Mozilla/5.0 (X11; Linux x86_64; jan.devries@example.nl) Gecko/20100101 Firefox/131.0';
+const FIREFOX_WITH_ADDRESS_GIVEN = 'Mozilla/5.0 (X11; Linux x86_64; ) Gecko/20100101 Firefox/131.0';
 
 /** A recorded output of live's site container, in `ownpace_site` (www-nginx.conf). */
 const LOG = [
@@ -149,39 +245,99 @@ const LOG = [
   // The status page's Website row (gatus.yaml), asking through the public name every 60 seconds.
   `${NETBIRD} - - [07/Oct/2026:12:01:00 +0000] "GET / HTTP/1.1" 200 5120 "-" "Gatus/1.0" "${OWN_FRONT}"`,
   `${NETBIRD} - - [07/Oct/2026:12:02:00 +0000] "GET / HTTP/1.1" 200 5120 "-" "Gatus/1.0" "${OWN_FRONT}"`,
+  // Somebody else's newsletter, which put its recipient into the link.
+  `${NETBIRD} - - [08/Oct/2026:08:00:00 +0000] "GET /?utm_source=newsletter&utm_campaign=invite&utm_content=jan.devries%40example.nl&utm_term=marie&utm_id=tester-0042 HTTP/1.1" 200 5120 "-" "${FIREFOX}" "${VISITOR_D}"`,
+  // A mistyped personal link: no page of ours, and nginx answers 404 to any path.
+  `${NETBIRD} - - [08/Oct/2026:08:01:00 +0000] "GET /invite/klaas.vermeer@example.nl HTTP/1.1" 404 512 "-" "${FIREFOX}" "${VISITOR_D}"`,
+  // A page of ours, asked for through a path that names somebody: nginx answers 200.
+  `${NETBIRD} - - [08/Oct/2026:08:02:00 +0000] "GET /henk.jansen/../prices.html HTTP/1.1" 200 4096 "-" "${FIREFOX}" "${VISITOR_D}"`,
+  // Text joined to a browser's version.
+  `${NETBIRD} - - [08/Oct/2026:09:00:00 +0000] "GET /nl/ HTTP/1.1" 200 5300 "-" "${FIREFOX_SIGNED}" "${VISITOR_E}"`,
+  // The site a visitor came from, when it is an address.
+  `${NETBIRD} - - [08/Oct/2026:09:01:00 +0000] "GET /prices.html HTTP/1.1" 200 4096 "http://${REFERRER_V4}:8080/my-notes" "${FIREFOX}" "${VISITOR_E}"`,
+  `${NETBIRD} - - [08/Oct/2026:09:02:00 +0000] "GET /estimate.html HTTP/1.1" 200 4096 "http://[${REFERRER_V6}]/" "${FIREFOX}" "${VISITOR_E}"`,
+  // An email address as a word of its own in the browser string.
+  `${NETBIRD} - - [08/Oct/2026:09:03:00 +0000] "GET / HTTP/1.1" 200 5120 "-" "${FIREFOX_WITH_ADDRESS}" "${VISITOR_E}"`,
+  // A method the site does not answer, and a request line that is not one.
+  `${NETBIRD} - - [08/Oct/2026:10:00:00 +0000] "POST /contact?name=marie HTTP/1.1" 405 157 "-" "${FIREFOX}" "${VISITOR_F}"`,
+  `${NETBIRD} - - [08/Oct/2026:10:01:00 +0000] "GET /hello marie HTTP/1.1" 400 157 "-" "-" "${VISITOR_F}"`,
   '',
 ].join('\n');
 
 /** What GoAccess must be given for that log: the public name's requests, numbered, cut. */
 const GIVEN = [
-  `v1 - - [07/Oct/2026:09:01:02 +0000] "GET /?utm_source=linkedin&utm_campaign=alpha HTTP/1.1" 200 5120 "https://www.linkedin.com" "${FIREFOX}"`,
+  `v1 - - [07/Oct/2026:09:01:02 +0000] "GET / HTTP/1.1" 200 5120 "https://www.linkedin.com" "${FIREFOX}"`,
   `v1 - - [07/Oct/2026:09:01:09 +0000] "GET /prices.html HTTP/1.1" 200 4096 "https://www.ownpace.eu" "${FIREFOX}"`,
-  `v2 - - [07/Oct/2026:10:15:00 +0000] "GET /nl/ HTTP/1.1" 200 5300 "https://mail.example.net" "${IPHONE}"`,
-  `v3 - - [07/Oct/2026:11:00:00 +0000] "GET /robots.txt HTTP/1.1" 200 60 "-" "${GOOGLEBOT}"`,
-  `v2 - - [07/Oct/2026:11:30:00 +0000] "GET /wp-login.php HTTP/1.1" 404 512 "-" "curl/8.5.0"`,
+  `v2 - - [07/Oct/2026:10:15:00 +0000] "GET /nl/ HTTP/1.1" 200 5300 "https://mail.example.net" "${IPHONE_GIVEN}"`,
+  `v3 - - [07/Oct/2026:11:00:00 +0000] "GET /robots.txt HTTP/1.1" 200 60 "-" "${GOOGLEBOT_GIVEN}"`,
+  `v2 - - [07/Oct/2026:11:30:00 +0000] "GET /(not shown) HTTP/1.1" 404 512 "-" "curl/8.5.0"`,
+  `v4 - - [08/Oct/2026:08:00:00 +0000] "GET / HTTP/1.1" 200 5120 "-" "${FIREFOX}"`,
+  `v4 - - [08/Oct/2026:08:01:00 +0000] "GET /(not shown) HTTP/1.1" 404 512 "-" "${FIREFOX}"`,
+  `v4 - - [08/Oct/2026:08:02:00 +0000] "GET /(not shown) HTTP/1.1" 200 4096 "-" "${FIREFOX}"`,
+  `v5 - - [08/Oct/2026:09:00:00 +0000] "GET /nl/ HTTP/1.1" 200 5300 "-" "${FIREFOX_SIGNED_GIVEN}"`,
+  `v5 - - [08/Oct/2026:09:01:00 +0000] "GET /prices.html HTTP/1.1" 200 4096 "http://(an address)" "${FIREFOX}"`,
+  `v5 - - [08/Oct/2026:09:02:00 +0000] "GET /estimate.html HTTP/1.1" 200 4096 "http://(an address)" "${FIREFOX}"`,
+  `v5 - - [08/Oct/2026:09:03:00 +0000] "GET / HTTP/1.1" 200 5120 "-" "${FIREFOX_WITH_ADDRESS_GIVEN}"`,
+  `v6 - - [08/Oct/2026:10:00:00 +0000] "POST /(not shown) HTTP/1.1" 405 157 "-" "${FIREFOX}"`,
+  `v6 - - [08/Oct/2026:10:01:00 +0000] "/(not shown)" 400 157 "-" "-"`,
 ];
 
 const ID_FIRST = '3f1c2b9a8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a';
 const ID_SECOND = '9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a3f1c2b9a8d7e6f5a4b3c2d1e0f';
 
+/**
+ * Live's `.env`. Its binds are not NetBird's placeholder: `own_address_redact`
+ * masks every value a `*_BIND` holds, and a bind equal to NetBird's address
+ * would hide a leak of it on the paths that print through that filter.
+ */
 const LIVE_ENV = [
   'COMPOSE_PROJECT_NAME=ownpace-live',
   'STACK_KIND=production',
-  'WEB_BIND=100.64.0.1',
+  'WEB_BIND=192.0.2.80',
   'WWW_LIVE=true',
   'WWW_PORT=3135',
-  'WWW_BIND=100.64.0.1',
+  'WWW_BIND=192.0.2.80',
   '',
 ].join('\n');
 const OTA_ENV = LIVE_ENV.split('\n')
   .filter((l) => !/^(COMPOSE_PROJECT_NAME|STACK_KIND)=/.test(l))
   .join('\n');
 
+/** The owner's sentence and purpose (2026-10-05), as privacy 1.2 on 0139's branch publishes them. */
+const SENTENCE_EN =
+  'From these logs we also count visits to this website (pages, the site you came from, the kind of\nbrowser), as totals only, which identify nobody.';
+const PURPOSE_EN =
+  '| Server logs, for the app and this website | Keeping the service secure and working, and counting visits in totals | Legitimate interests (Art. 6(1)(f)) |';
+const SENTENCE_NL =
+  "Uit deze logs tellen we ook bezoeken aan deze website (pagina's, de site waar u vandaan kwam, het\nsoort browser), alleen als totalen, die niemand identificeren.";
+const PURPOSE_NL =
+  '| Serverlogs, van de app en van deze website | De dienst veilig en werkend houden, en bezoeken in totalen tellen | Gerechtvaardigd belang (art. 6 lid 1 sub f) |';
+
+function privacyText(sentence: string, purpose: string, opts: { sentence?: 'shown' | 'absent' | 'commented' } = {}): string {
+  const where = opts.sentence ?? 'shown';
+  return [
+    '# Privacy',
+    '',
+    '<!-- A note for the people who edit this text. -->',
+    '',
+    where === 'shown' ? sentence : where === 'commented' ? `<!-- ${sentence} -->` : 'Server logs are kept until the part that wrote them is replaced.',
+    '',
+    '| What | Why | Basis |',
+    '|---|---|---|',
+    purpose,
+    '',
+  ].join('\n');
+}
+
 /**
  * `docker`, as the script uses it. Its GoAccess (`docker run`) is the worst
  * one possible: everything it is given goes into its report, and on failure
- * it says all of it on stderr. `docker logs` says nginx's error line, with an
- * address, on stderr, as the real one does.
+ * it quotes every line of it, as GoAccess's format errors quote a token. And
+ * it refuses an `-o`, as the image's GoAccess 1.12 does as 65534 on a
+ * read-only disk ("No write permission for directory: .", run on 2026-10-06).
+ * `docker logs` says nginx's error line, with an address, on stderr, as the
+ * real one does. When GoAccess starts it notes every file under HOME, beside
+ * a report, that holds a request: a copy of the log.
  */
 const DOCKER_STUB = [
   '#!/usr/bin/env bash',
@@ -204,8 +360,17 @@ const DOCKER_STUB = [
   '  run)',
   '    shift',
   '    printf "%s\\n" "$@" >"$STUB_DIR/run.argv"',
+  '    find "$HOME" -type f ! -name "*.html" -exec grep -l "HTTP/1" {} + >"$STUB_DIR/copies" 2>/dev/null',
   '    cat >"$STUB_DIR/given"',
-  '    if [ -n "${STUB_GOACCESS_FAIL:-}" ]; then cat "$STUB_DIR/given" >&2; echo "goaccess: it failed" >&2; exit 1; fi',
+  '    if [ -n "${STUB_DOCKER_RUN_FAIL:-}" ]; then echo "docker: Error response from daemon: pull access denied for allinurl/goaccess" >&2; exit 125; fi',
+  '    for a in "$@"; do',
+  '      case "$a" in -o|-o*|--output|--output=*) echo "No write permission for directory: ." >&2; echo "Invalid or unwritable path." >&2; exit 1 ;; esac',
+  '    done',
+  '    if [ -n "${STUB_GOACCESS_FAIL:-}" ]; then',
+  "      while IFS= read -r l; do echo \"==1== Token '$l' doesn't match specifier '%h'\" >&2; done <\"$STUB_DIR/given\"",
+  '      echo "==1== Format Errors - Verify your log/date/time format" >&2',
+  '      exit 1',
+  '    fi',
   '    if [ -n "${STUB_GOACCESS_EMPTY:-}" ]; then exit 0; fi',
   '    printf "<!DOCTYPE html>\\n<html><body><pre>\\n"',
   '    cat "$STUB_DIR/given"',
@@ -217,24 +382,32 @@ const DOCKER_STUB = [
 
 interface Stage {
   root: string;
+  checkout: string;
   compose: string;
   home: string;
   stub: string;
   bin: string;
 }
 
-/** Live's checkout: the script, what it sources, managed.yml, a `.env`, and `docker` on PATH. */
-function stage(dotEnv: string = LIVE_ENV): Stage {
+/** Live's checkout: the script, what it sources, managed.yml, a `.env`, the privacy texts, and `docker` on PATH. */
+function stage(dotEnv: string = LIVE_ENV, privacy: { en?: string | null; nl?: string | null } = {}): Stage {
   if (!existsSync(join(ROOT, SCRIPT_REL))) throw new Error(`${SCRIPT_REL} does not exist`);
   const root = mkdtempSync(join(tmpdir(), 'site-visits-'));
   tempDirs.push(root);
-  const compose = join(root, 'checkout', 'deploy', 'compose');
+  const checkout = join(root, 'checkout');
+  const compose = join(checkout, 'deploy', 'compose');
   mkdirSync(compose, { recursive: true });
   for (const f of ['site-visits.sh', 'env-read.sh', 'stack-kind.sh', 'own-addresses.sh', 'www-live.sh', 'managed.yml']) {
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
   }
   chmodSync(join(compose, 'site-visits.sh'), 0o755);
   writeFileSync(join(compose, '.env'), dotEnv);
+  const legal = join(checkout, 'site', 'legal');
+  mkdirSync(legal, { recursive: true });
+  const en = privacy.en === undefined ? privacyText(SENTENCE_EN, PURPOSE_EN) : privacy.en;
+  const nl = privacy.nl === undefined ? privacyText(SENTENCE_NL, PURPOSE_NL) : privacy.nl;
+  if (en !== null) writeFileSync(join(legal, 'privacy.md'), en);
+  if (nl !== null) writeFileSync(join(legal, 'privacy.nl.md'), nl);
   const home = join(root, 'home');
   mkdirSync(home);
   const stub = join(root, 'stub');
@@ -244,8 +417,9 @@ function stage(dotEnv: string = LIVE_ENV): Stage {
   mkdirSync(bin);
   writeFileSync(join(bin, 'docker'), `${DOCKER_STUB}\n`);
   chmodSync(join(bin, 'docker'), 0o755);
-  container({ root, compose, home, stub, bin }, ID_FIRST, '2026-10-07T03:12:45.123456789Z', LOG);
-  return { root, compose, home, stub, bin };
+  const s = { root, checkout, compose, home, stub, bin };
+  container(s, ID_FIRST, '2026-10-07T03:12:45.123456789Z', LOG);
+  return s;
 }
 
 /** A container of the site's project, as `docker inspect` and `docker logs` answer for it. */
@@ -271,6 +445,7 @@ function run(s: Stage, extra: NodeJS.ProcessEnv = {}, args: string[] = []) {
   const asked = readFileSync(join(s.stub, 'asked'), 'utf8').split('\n').filter(Boolean);
   const argvFile = join(s.stub, 'run.argv');
   const givenFile = join(s.stub, 'given');
+  const copiesFile = join(s.stub, 'copies');
   return {
     status: r.status ?? -1,
     stdout: r.stdout ?? '',
@@ -279,6 +454,7 @@ function run(s: Stage, extra: NodeJS.ProcessEnv = {}, args: string[] = []) {
     asked,
     argv: existsSync(argvFile) ? readFileSync(argvFile, 'utf8').split('\n').filter(Boolean) : [],
     given: existsSync(givenFile) ? readFileSync(givenFile, 'utf8') : null,
+    copies: existsSync(copiesFile) ? readFileSync(copiesFile, 'utf8').split('\n').filter(Boolean) : null,
   };
 }
 
@@ -299,46 +475,84 @@ function filesUnder(dir: string): Array<{ path: string; text: string }> {
   return out;
 }
 
-/** No recorded address in anything the run printed, wrote under HOME, or gave GoAccess. */
-function expectNoAddress(s: Stage, r: ReturnType<typeof run>): void {
+/**
+ * No recorded address, and nothing the log said about a person, in anything
+ * the run printed, wrote under HOME, or gave GoAccess. The query string's `?`
+ * is looked for in what GoAccess was given and in the reports, where a
+ * request would stand.
+ */
+function expectNobody(s: Stage, r: ReturnType<typeof run>): void {
   const places = [
-    { where: 'stdout', text: r.stdout },
-    { where: 'stderr', text: r.stderr },
-    { where: 'what GoAccess was given', text: r.given ?? '' },
-    ...filesUnder(s.home).map((f) => ({ where: `~/${f.path}`, text: f.text })),
+    { where: 'stdout', text: r.stdout, kept: false },
+    { where: 'stderr', text: r.stderr, kept: false },
+    { where: 'what GoAccess was given', text: r.given ?? '', kept: true },
+    ...filesUnder(s.home).map((f) => ({ where: `~/${f.path}`, text: f.text, kept: true })),
   ];
-  for (const { where, text } of places) {
+  for (const { where, text, kept } of places) {
     for (const a of ADDRESSES) expect(text.includes(a), `${where} holds ${a}`).toBe(false);
     expect(text, `${where} holds an address in the mesh's range`).not.toMatch(/\b100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+\b/);
+    for (const p of PERSONAL) {
+      if (p === '?' && !kept) continue;
+      expect(text.includes(p), `${where} holds ${JSON.stringify(p)}`).toBe(false);
+    }
   }
 }
 
-describe('site-visits.sh gives GoAccess the visits, and no visitor', () => {
-  it('hands on exactly the requests that came through the public name: a number for each visitor, no address, the referrer cut to its site', () => {
+describe('site-visits.sh gives GoAccess the visits, and nobody', () => {
+  it('hands on exactly the requests that came through the public name: a number for each visitor, no address, no query string, no path that found no page, the referrer cut to its site, the browser cut to its versions', () => {
     const s = stage();
     const r = run(s);
     expect(r.status, r.out).toBe(0);
     expect(r.given?.split('\n').filter(Boolean)).toEqual(GIVEN);
-    expect(r.out).toMatch(/5 request\(s\) came through the public name/);
+    expect(r.out).toMatch(/14 request\(s\) came through the public name, from 6 address\(es\)/);
     expect(r.out).toMatch(/2 did not \(the healthcheck, the deploy's own checks\)/);
     expect(r.out, "the status page's probe is ours, not a visit").toMatch(/2 were the status page's probe/);
-    expectNoAddress(s, r);
+    expectNobody(s, r);
   });
 
-  it('prints and writes no address: on success, when GoAccess fails and says what it was given, and when docker logs fails', () => {
+  it('prints and writes nothing about anybody: on success, when GoAccess fails and quotes what it was given, and when docker logs fails', () => {
     const ok = stage();
-    expectNoAddress(ok, run(ok));
+    expectNobody(ok, run(ok));
     const goaccess = stage();
     const g = run(goaccess, { STUB_GOACCESS_FAIL: '1' });
     expect(g.status, g.out).toBe(1);
-    expect(g.out, "GoAccess's own words are shown").toContain('goaccess: it failed');
-    expectNoAddress(goaccess, g);
+    expectNobody(goaccess, g);
     const logs = stage();
     const l = run(logs, { STUB_LOGS_FAIL: '1' });
     expect(l.status, l.out).toBe(1);
     expect(l.out).toMatch(/docker logs .* failed/);
-    expect(l.given, 'GoAccess ran on a log docker could not give').toBeNull();
-    expectNoAddress(logs, l);
+    expect(filesUnder(visitsDir(logs)), 'a report of a log docker could not give').toEqual([]);
+    expectNobody(logs, l);
+  });
+
+  it("shows GoAccess's words that quote nothing, and none that quote a line of the log", () => {
+    const s = stage();
+    const r = run(s, { STUB_GOACCESS_FAIL: '1' });
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toMatch(/GoAccess failed/);
+    expect(r.out, "GoAccess's own words are shown").toContain('Format Errors - Verify your log/date/time format');
+    expect(r.out, 'a line GoAccess quoted is shown').not.toContain("Token '");
+    expect(r.out, 'a request GoAccess quoted is shown').not.toMatch(/HTTP\/1\.1/);
+    expect(r.out).toMatch(/14 of GoAccess's lines quote the log, and are not shown/);
+  });
+
+  it("shows docker's own words when docker could not run GoAccess at all (exit 125)", () => {
+    const s = stage();
+    const r = run(s, { STUB_DOCKER_RUN_FAIL: '1' });
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toContain('pull access denied for allinurl/goaccess');
+    expect(r.out).toMatch(/docker could not run GoAccess/);
+    expectNobody(s, r);
+  });
+
+  it('keeps no copy of the log while GoAccess reads it, so a run killed outright leaves none behind', () => {
+    const s = stage();
+    const r = run(s);
+    expect(r.status, r.out).toBe(0);
+    expect(r.copies, 'GoAccess was not run').not.toBeNull();
+    expect(r.copies, 'a file under HOME held requests while GoAccess ran').toEqual([]);
+    const left = filesUnder(s.home).filter((f) => !f.path.endsWith('.html'));
+    expect(left, 'something beside the reports was left').toEqual([]);
   });
 
   it('reads the site container of live’s project only, through Docker, and never with a timestamp cursor of its own', () => {
@@ -377,23 +591,26 @@ describe('GoAccess keeps totals: the flags, the image and what it may touch', ()
     ['--ignore-panel=ASN', "a visitor's network, the same"],
     ['--ignore-panel=REFERRERS', 'the whole address of the page a visitor came from; "the site you came from" is REFERRING_SITES'],
     ['--ignore-panel=REMOTE_USER', 'a user name, which the site never has'],
+    ['--ignore-panel=UTM_CAMPAIGNS', "campaigns: the value of nine utm_ parameters, word for word, which the sentence does not name"],
     ['--anonymize-ip', 'masks the HOSTS panel if a later edit draws it'],
     ['--anonymize-level=3', 'at its widest: a /8 or a /32'],
-    ['--no-query-string', 'pages without their parameters; the UTM panel still counts campaigns'],
+    ['--no-query-string', 'pages without their parameters, if a later edit hands them on'],
     ['--ignore-crawlers', 'visits, not robots'],
     ['--log-format=COMBINED', 'the shape the filter hands on'],
     ['--no-ip-validation', 'a host is a number for the run, never an address'],
-    ['--no-global-config', "nothing from a configuration file in the image"],
+    ['--no-global-config', 'nothing from a configuration file in the image'],
+    ['--no-progress', 'no progress lines on stderr'],
   ])('passes %s (%s)', (flag) => {
     const { goaccess } = ran();
     expect(goaccess, goaccess.join(' ')).toContain(flag);
   });
 
-  it('writes its HTML on its output, and reads the log from its input', () => {
+  it('writes its HTML on its output with no -o, which GoAccess 1.12 refuses as the image’s user on a read-only disk, and reads the log from its input', () => {
     const { goaccess } = ran();
-    const o = goaccess.indexOf('-o');
-    expect(o, goaccess.join(' ')).toBeGreaterThan(-1);
-    expect(goaccess[o + 1]).toBe('html');
+    expect(
+      goaccess.filter((a) => /^(-o|--output)/.test(a)),
+      'GoAccess 1.12 checks that the directory of an -o path is writable, even `-o html`’s `.` (util.c, is_writable_path)',
+    ).toEqual([]);
     expect(goaccess[goaccess.length - 1]).toBe('-');
   });
 
@@ -407,15 +624,19 @@ describe('GoAccess keeps totals: the flags, the image and what it may touch', ()
     expect(kept, 'privacy §4.5: totals only. --persist keeps a fingerprint per visitor and per day').toEqual([]);
   });
 
-  it('is pinned by digest, and runs with no network, no port, no mount and nothing to write', () => {
+  it('is pinned by digest, and runs with no network, no port, nothing of ours mounted, nothing to write, no root and no capability', () => {
     const { r, image, docker } = ran();
     expect(r.argv[image]).toMatch(/^allinurl\/goaccess:[0-9][0-9.]*@sha256:[0-9a-f]{64}$/);
+    const line = docker.join(' ');
     expect(docker).toContain('--rm');
     expect(docker).toContain('-i');
-    expect(docker.join(' ')).toMatch(/(^| )--network none( |$)/);
+    expect(line).toMatch(/(^| )--network none( |$)/);
     expect(docker).toContain('--read-only');
-    const reach = docker.filter((a) => /^(-p|-P|--publish|--publish-all|-v|--volume|--mount|--network=(?!none$)|--net\b|--add-host)/.test(a));
-    expect(reach, docker.join(' ')).toEqual([]);
+    expect(line, 'the image sets no USER: without this GoAccess runs as root').toMatch(/(^| )--user 65534:65534( |$)/);
+    expect(line).toMatch(/(^| )--cap-drop ALL( |$)/);
+    expect(line).toMatch(/(^| )--security-opt no-new-privileges( |$)/);
+    const reach = docker.filter((a) => /^(-p|-P|--publish|--publish-all|-v|--volume|--mount|--tmpfs|--network=(?!none$)|--net\b|--add-host)/.test(a));
+    expect(reach, line).toEqual([]);
   });
 });
 
@@ -436,7 +657,7 @@ describe('one report per container of the site, kept under live’s persistent d
     const s = stage();
     expect(run(s).status).toBe(0);
     const first = filesUnder(visitsDir(s));
-    container(s, ID_SECOND, '2026-10-21T08:00:01.5Z', LOG.replace(/07\/Oct\/2026/g, '21/Oct/2026'));
+    container(s, ID_SECOND, '2026-10-21T08:00:01.5Z', LOG.replace(/0([78])\/Oct\/2026/g, '2$1/Oct/2026'));
     const r = run(s, { STUB_IDS: ID_SECOND });
     expect(r.status, r.out).toBe(0);
     const both = filesUnder(visitsDir(s));
@@ -510,6 +731,46 @@ describe('it refuses what is not live’s, and reads nothing while the site is o
   });
 });
 
+describe('it counts only once the privacy text the site publishes says so (§4.5 and §5)', () => {
+  it.each([
+    ['privacy.md without §4.5’s sentence', { en: privacyText(SENTENCE_EN, PURPOSE_EN, { sentence: 'absent' }) }, 'privacy.md'],
+    ['privacy.md with the sentence only in a comment', { en: privacyText(SENTENCE_EN, PURPOSE_EN, { sentence: 'commented' }) }, 'privacy.md'],
+    ['privacy.md without §5’s purpose', { en: privacyText(SENTENCE_EN, PURPOSE_EN.replace(', and counting visits in totals', '')) }, 'privacy.md'],
+    ['privacy.nl.md without §4.5’s sentence', { nl: privacyText(SENTENCE_NL, PURPOSE_NL, { sentence: 'absent' }) }, 'privacy.nl.md'],
+    ['privacy.nl.md without §5’s purpose', { nl: privacyText(SENTENCE_NL, PURPOSE_NL.replace(', en bezoeken in totalen tellen', '')) }, 'privacy.nl.md'],
+    ['no privacy.md', { en: null }, 'privacy.md'],
+    ['no privacy.nl.md', { nl: null }, 'privacy.nl.md'],
+  ] as const)('%s: refused before asking docker anything, naming the file', (_l, privacy, file) => {
+    const s = stage(LIVE_ENV, privacy);
+    const r = run(s);
+    expect(r.status, r.out).toBe(2);
+    expect(r.out).toContain(`site/legal/${file}`);
+    expect(r.out).toMatch(/does not say/);
+    expect(r.asked).toEqual([]);
+    expect(existsSync(join(s.home, '.persistent')), 'it made a directory for a count it refused').toBe(false);
+  });
+
+  it('with WWW_LIVE false the text is not asked for: nothing is counted either way', () => {
+    const s = stage(LIVE_ENV.replace('WWW_LIVE=true', 'WWW_LIVE=false'), { en: null, nl: null });
+    const r = run(s);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toMatch(/WWW_LIVE is not true/);
+  });
+
+  it("looks for the owner's own words, in both languages", () => {
+    const text = readFileSync(join(ROOT, SCRIPT_REL), 'utf8');
+    for (const words of [
+      'From these logs we also count visits to this website',
+      'counting visits in totals',
+      'Uit deze logs tellen we ook bezoeken aan deze website',
+      'bezoeken in totalen tellen',
+    ]) {
+      expect(text, words).toContain(`'${words}'`);
+      expect(`${SENTENCE_EN} ${PURPOSE_EN} ${SENTENCE_NL} ${PURPOSE_NL}`.replace(/\s+/g, ' '), words).toContain(words);
+    }
+  });
+});
+
 describe('a failure is a failure, and an earlier report stays', () => {
   it('no container of the site: exit 1, naming the project', () => {
     const s = stage();
@@ -527,6 +788,7 @@ describe('a failure is a failure, and an earlier report stays', () => {
 
   it.each([
     ['docker logs fails', { STUB_LOGS_FAIL: '1' }, /docker logs .* failed/],
+    ['docker cannot run GoAccess', { STUB_DOCKER_RUN_FAIL: '1' }, /docker could not run GoAccess/],
     ['GoAccess fails', { STUB_GOACCESS_FAIL: '1' }, /GoAccess failed/],
     ['GoAccess writes no HTML', { STUB_GOACCESS_EMPTY: '1' }, /not an HTML report/],
   ] as const)('%s: exit 1, and the report from the run before is kept as it was', (_l, extra, why) => {
@@ -539,13 +801,13 @@ describe('a failure is a failure, and an earlier report stays', () => {
     expect(filesUnder(visitsDir(s))).toEqual(before);
   });
 
-  it('no request through the public name yet: GoAccess is not run, no report, exit 0', () => {
+  it('no request through the public name yet: GoAccess reads nothing, no report, exit 0', () => {
     const s = stage();
     container(s, ID_FIRST, '2026-10-07T03:12:45Z', LOG.split('\n').filter((l) => !l.includes(NETBIRD)).join('\n'));
     const r = run(s);
     expect(r.status, r.out).toBe(0);
     expect(r.out).toMatch(/0 request\(s\) came through the public name/);
-    expect(r.given).toBeNull();
+    expect(r.given ?? '', 'GoAccess was given a line').toBe('');
     expect(filesUnder(visitsDir(s))).toEqual([]);
   });
 });
@@ -573,5 +835,15 @@ describe('the script is written the way the others are', () => {
     expect(code, 'MANAGED_ENV_PERSIST_DIR is the gate’s, and a shell could point it at the OTA stack').not.toMatch(
       /MANAGED_ENV_PERSIST_DIR/,
     );
+  });
+});
+
+describe('the reports go when the website goes (privacy §9)', () => {
+  it("the site's take-down in managed-bring-up.md deletes them", () => {
+    const doc = readFileSync(join(ROOT, 'docs/managed-bring-up.md'), 'utf8');
+    const takeDown = /\*\*Taking it down for good\*\*[\s\S]*?\n\n/.exec(doc)?.[0] ?? '';
+    expect(takeDown, 'managed-bring-up.md has no **Taking it down for good** paragraph').not.toBe('');
+    expect(takeDown).toContain('docker compose -p ownpace-live-www');
+    expect(takeDown).toContain('rm -rf ~/.persistent/ownpace-live/site-visits');
   });
 });

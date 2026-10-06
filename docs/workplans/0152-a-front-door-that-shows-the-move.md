@@ -2,10 +2,96 @@
 
 > **In one line:** The public site explains a move at a glance: old account and new home in one picture, the destinations named, the alpha said, a shorter menu, a calculator that ends in a button, monthly and yearly prices (a year costs six months), and a page per provider a person leaves.
 
-## Status — 2026-10-05 (update this block at the end of every session)
+## Status — 2026-10-06 (update this block at the end of every session)
+
+**2026-10-06: the visit count, after its review: nothing a visitor or a link chose reaches the
+report, and nothing is counted before the policy says so.** Same branch, a second commit. The
+owner's words stand, verbatim: *"go with GoAccess on the logs and the sentence. id and status we
+skip for now, no netbird api tokens..."* Still nothing on `id.` or `status.ownpace.eu`, and no
+NetBird API token. This entry replaces the 2026-10-05 one below where they differ.
+- **Text GoAccess copies word for word.** Each case was run through the first version and
+  GoAccess 1.12, and stood in the report:
+  - the UTM_CAMPAIGNS panel (an email address in `utm_content`, a name in `utm_term`);
+  - NOT_FOUND and REQUESTS (a mistyped personal link; `/<a name>/../prices.html`, answered 200);
+  - BROWSERS and OS (`Firefox/128.0-` and an email address);
+  - REFERRING_SITES (a Referer on a bare address).
+
+  The filter now hands on no query string, the path only of a request answered 2xx or 3xx that is
+  a plain path of the site (`/(not shown)` for every other), a referring site that is an address as
+  `(an address)`, and a User-Agent with every version cut to its digits and dots and every word
+  that holds a character no browser's own string holds (an `@`, a `%`) left out whole.
+  `--ignore-panel=UTM_CAMPAIGNS` besides.
+  **No campaigns are counted**: the sentence names none. Should the owner want them, see the
+  comment beside §4.5 on 0139's branch: only `utm_source`, `utm_medium` and `utm_campaign`, from a
+  short list of our own names, and the sentence then names them.
+- **What it cannot stop:** a word a visitor writes into their own browser's User-Agent, joined to
+  a browser's or a system's name, shows as they wrote it.
+- **`-o html` would have failed every run on the machine.** GoAccess 1.12 checks that the
+  directory of an `-o` path is writable (`util.c`, `is_writable_path`), `-o html`'s `.` too, and
+  refuses as 65534 on a read-only disk. Found by running the pinned amd64 image's own
+  `/usr/bin/goaccess`, taken from its layers, as 65534 under `setpriv --no-new-privs`, on its own
+  root file system mounted read-only, with no network. With no `-o`, and its output not a
+  terminal, GoAccess writes the HTML there. The same run took every flag, accepted every line of
+  the guard's log, left the crawler out, and wrote a report whose panels hold no address, no
+  query string and no personal word.
+- **No copy of the log.** The filter streams from `docker logs` into `docker run`, so a run killed
+  outright leaves nothing behind. What the filter and Docker say is held in memory. Of GoAccess's
+  words, only its lines that quote nothing are shown; a format error quotes the line.
+  Docker's own words on exit 125 are shown.
+- **Only once the policy says so: privacy 1.2 merges first.** The script refuses (exit 2, nothing
+  read) while the checkout's `site/legal/privacy.md` or `privacy.nl.md` lacks §4.5's sentence
+  (*"From these logs we also count visits to this website"* / *"Uit deze logs tellen we ook
+  bezoeken aan deze website"*) or §5's purpose (*"counting visits in totals"* / *"bezoeken in
+  totalen tellen"*) outside a comment. Live's duty runs from the tag live serves, so the counting
+  starts with that text and not before. On this branch, which has neither, the duty `visits`
+  would fail on live. Merge 0139's privacy 1.2 first, then this.
+- **The reports go when the website goes.** `docs/managed-bring-up.md` has *Taking it down for
+  good*: take the site down and `rm -rf ~/.persistent/ownpace-live/site-visits`. That is privacy
+  §9's *"as long as we run this website"* on 0139's branch.
+- **The image is verified, not pulled.** A HEAD of `allinurl/goaccess:1.12` on Docker Hub returns
+  `sha256:9e6dfd4a…`, the pinned digest: the tag's index, for amd64 `sha256:ce8fc587…` and arm64
+  `sha256:faedaedb…`, built 2026-09-16. Its config sets no `USER`, so `--user 65534:65534` is what
+  drops root. It declares `VOLUME /var/www/goaccess` and `EXPOSE 7890`. Docker gives each run an
+  empty anonymous volume, which only root may write to and which `--rm` removes. `EXPOSE`
+  publishes nothing without `-p`. The image has no `/etc/goaccess` configuration.
+- **Guards:**
+  - `scripts/a-visit-count-that-kept-the-visitor.unit.test.ts`, extended first. Its `docker` stub
+    refuses `-o` as the image does, notes any file holding requests while GoAccess runs, and
+    quotes every line it was given when it fails. The log adds the review's cases. The guard also
+    checks:
+    - the privacy refusals;
+    - `--ignore-panel=UTM_CAMPAIGNS`, `--no-progress`, `--user 65534:65534`, `--cap-drop ALL`
+      and `--security-opt no-new-privileges`;
+    - docker's words on exit 125;
+    - the take-down paragraph.
+
+    NetBird's address is the placeholder `100.64.0.1`, and the `.env`'s binds moved off it. The
+    first version used another mesh address, so `an-address-that-was-not-an-example` failed on it.
+    Red: 25 of 53 against the first version (24 once the take-down paragraph was written). A
+    case added later, an email address as a word of its own in the User-Agent, was red (4 of 53)
+    against an interim version that cut the string at the `@` and so kept the address's first
+    half. Green: 53 of 53.
+  - `an-address-that-was-not-an-example`: green again (5 of 5).
+- **Mutations, each caught by the guard (18 of 18; failing tests of 53 in brackets):**
+  - the raw request line handed on (4), or its query string (2);
+  - the path of a 404 handed on (4);
+  - the 2xx path check without its `..` test (4);
+  - the User-Agent's word check (4), or the cut of its versions (2);
+  - a referring site's address kept (4);
+  - `--ignore-panel=UTM_CAMPAIGNS` dropped (1), or `-o html` back (14);
+  - `--user 65534:65534` dropped (1);
+  - the privacy refusal taken out (7), or the check that ignores comments (1);
+  - GoAccess's quoted lines shown (1);
+  - a copy of the filtered log written beside the reports (11);
+  - re-run from the first round: `--anonymize-ip` (1) or `--ignore-panel=HOSTS` (1) dropped,
+    the OTA `.env` refusal (2) or the `WWW_LIVE` no-op (3) taken out.
+- **Not done:** `deploy-live.sh` still does not run the count right before it recreates the site.
+  A deploy should not wait on, or fail on, a count. The docs ask for a run by hand first, and
+  the daily duty bounds the loss.
 
 **2026-10-05, later: visits to `www.ownpace.eu` are counted from its own log, by GoAccess, as
-totals.** The owner, 2026-10-05, verbatim: *"go with GoAccess on the logs and the sentence. id and
+totals.** (In part replaced by 2026-10-06, above: no campaigns, no `-o html`, no working copy,
+and the image verified.) The owner, 2026-10-05, verbatim: *"go with GoAccess on the logs and the sentence. id and
 status we skip for now, no netbird api tokens..."* It answers the recommendation to measure live's
 copy of the site with GoAccess reading the access log its nginx already writes
 (`deploy/compose/www-nginx.conf`, format `ownpace_site`): no script, cookie or banner on the page,

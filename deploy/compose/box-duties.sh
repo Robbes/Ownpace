@@ -77,8 +77,11 @@
 #                  a report under ~/.persistent/<project>/site-visits, one per
 #                  container of the site. Daily, because a deploy replaces the
 #                  container and its log, and what nobody counted before then is
-#                  never counted. GoAccess is given no address and keeps no
-#                  database. With WWW_LIVE not true it reads nothing and passes.
+#                  never counted. GoAccess is given no address and no text a
+#                  visitor or a link chose, and keeps no database. With
+#                  WWW_LIVE not true it reads nothing and passes; while the
+#                  checkout's privacy text does not say visits are counted
+#                  (privacy 1.2, §4.5 and §5) it refuses, and the duty fails.
 #
 # EACH DUTY RUNS WHATEVER THE ONE BEFORE IT DID. The token goes first, so the
 # count asks with a token that is alive. A duty that fails, is missing from the

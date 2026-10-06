@@ -2544,6 +2544,7 @@ reading a file drops off its entry by itself.
 
 - [a-search-kept-past-its-year](../scripts/a-search-kept-past-its-year.unit.test.ts) — A SEARCH KEPT PAST ITS YEAR (privacy §4.5 and §9; the owner's privacy-search-records (a), 2026-09-28: 12 months).
 - [a-version-the-tester-accepted](../scripts/a-version-the-tester-accepted.unit.test.ts) — A VERSION THE TESTER ACCEPTED (workplan 0139 T3).
+- [a-visit-count-that-kept-the-visitor](../scripts/a-visit-count-that-kept-the-visitor.unit.test.ts) — A VISIT COUNT THAT KEPT THE VISITOR (the owner, 2026-10-05: *"go with GoAccess on the logs and the sentence. id and status we skip for now, no netbird api tokens..."*; privacy §4.5, §5 and §9).
 - [an-account-nobody-let-in](../scripts/an-account-nobody-let-in.unit.test.ts) — AN ACCOUNT NOBODY LET IN (workplan 0135 T8).
 - [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
@@ -2552,6 +2553,7 @@ reading a file drops off its entry by itself.
 
 - [a-search-kept-past-its-year](../scripts/a-search-kept-past-its-year.unit.test.ts) — A SEARCH KEPT PAST ITS YEAR (privacy §4.5 and §9; the owner's privacy-search-records (a), 2026-09-28: 12 months).
 - [a-version-the-tester-accepted](../scripts/a-version-the-tester-accepted.unit.test.ts) — A VERSION THE TESTER ACCEPTED (workplan 0139 T3).
+- [a-visit-count-that-kept-the-visitor](../scripts/a-visit-count-that-kept-the-visitor.unit.test.ts) — A VISIT COUNT THAT KEPT THE VISITOR (the owner, 2026-10-05: *"go with GoAccess on the logs and the sentence. id and status we skip for now, no netbird api tokens..."*; privacy §4.5, §5 and §9).
 - [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 
@@ -4484,6 +4486,8 @@ Reads:
 - `deploy/compose/www-live.sh`
 - `deploy/compose/www-nginx.conf`
 - `docs/managed-bring-up.md`
+- `site/legal/privacy.md`
+- `site/legal/privacy.nl.md`
 
 ### [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts)
 

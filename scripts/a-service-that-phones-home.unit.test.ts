@@ -506,8 +506,10 @@ const NEXTCLOUD = 'nextcloud:34-apache';
 const STALWART = 'stalwartlabs/stalwart:v0.16.10';
 /**
  * The site's visit count, outside every compose file (`site-visits.sh`); read
- * at the tag `v1.12` (`ef3c4f3c`). The digest is Docker Hub's for the tag `1.12`, read
- * from its listing on 2026-10-05, not pulled here.
+ * at the tag `v1.12` (`ef3c4f3c`). The digest is Docker Hub's index for the tag
+ * `1.12` (amd64 and arm64), read from its listing on 2026-10-05 and read back
+ * from the registry on 2026-10-06 (a HEAD of the tag returns it); not pulled
+ * through Docker here.
  */
 const GOACCESS =
   'allinurl/goaccess:1.12@sha256:9e6dfd4abce94bd7c2907c1840b7b35f666587d56b24ffbb930b4782a87ea172';
