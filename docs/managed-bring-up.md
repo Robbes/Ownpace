@@ -1407,6 +1407,15 @@ exits 1 while its report names something to do; the outside-EU rate is
 optional, so its refusal is printed and does not count. The token is in no line
 it prints. Half a set also gets a warning when the API starts.
 
+What is invoiced, and from when, is a second switch: `OWNPACE_BILLING_FROM`, the
+first month invoiced, written `YYYY-MM`. Empty, nobody is invoiced. Set, the
+hourly `managed-month-invoices` task makes each organisation's invoice for a
+month in advance, as a draft: on its first day at the tier it starts on, and
+after a move up for the difference (workplan 0111, slice 4). It never invoices
+while `OWNPACE_STAGE` is `alpha`. Only the tasks read it, so
+`./deploy/compose/set-task-env.sh` must run after it changes;
+[ending-the-alpha.md](./ending-the-alpha.md) is when to set it.
+
 **Verify** — the queue answers, and answers only for them:
 
 ```bash

@@ -77,6 +77,13 @@
 #                        it is DELETED from the store, like the allow list, so
 #                        the alpha's end takes effect in the next run rather
 #                        than leave the tasks believing it still runs.
+#   OWNPACE_BILLING_FROM — the first month the month task invoices, YYYY-MM
+#                        (workplan 0111, decision 7), set at the switch that
+#                        ends the alpha (docs/ending-the-alpha.md). Empty is
+#                        off: nobody is invoiced, whatever runs. Uploaded when
+#                        set; when empty it is DELETED from the store, like the
+#                        stage, so emptying it stops the next run's invoices
+#                        rather than leave the old month switched on.
 #
 # NOT THE DATABASE OWNER, UNDER ANY NAME (workplan 0138 T3). Trigger.dev stores
 # variables per environment, not per task, so what this uploads every run of
@@ -352,6 +359,7 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   LOG_LEVEL="${LOG_LEVEL:-}" \
   OWNPACE_REACHABLE_HOSTS="${OWNPACE_REACHABLE_HOSTS:-}" \
   OWNPACE_STAGE="${OWNPACE_STAGE:-}" \
+  OWNPACE_BILLING_FROM="${OWNPACE_BILLING_FROM:-}" \
   FORCE_REWRITE="${SET_TASK_ENV_FORCE_REWRITE:-0}" \
   FORGET_OWNER_NAMES="$FORGET_OWNER_NAMES" \
   node -e '
@@ -448,6 +456,9 @@ const { envvars } = require("@trigger.dev/sdk");
     // The stage (0131 T1): during the alpha the sync pass holds nothing at
     // the data ceiling (0109 T6). Emptied, it is deleted below as well.
     "OWNPACE_STAGE",
+    // The first month invoiced (0111, decision 7). Emptied, it is deleted
+    // below as well: empty is nobody invoiced.
+    "OWNPACE_BILLING_FROM",
   ]) {
     const value = process.env[name];
     if (value) variables[name] = value;
@@ -468,6 +479,16 @@ const { envvars } = require("@trigger.dev/sdk");
     try {
       await envvars.del(ref, slug, "OWNPACE_STAGE");
       console.log("[set-task-env] deleted OWNPACE_STAGE: no stage is set, so the hold at the data ceiling is on");
+    } catch (e) {
+      // Absent is the desired state.
+    }
+  }
+  // And an emptied switch takes effect: a month left in the store would keep
+  // the month task invoicing after the operator had switched it off.
+  if (!process.env.OWNPACE_BILLING_FROM) {
+    try {
+      await envvars.del(ref, slug, "OWNPACE_BILLING_FROM");
+      console.log("[set-task-env] deleted OWNPACE_BILLING_FROM: it is empty, so nobody is invoiced");
     } catch (e) {
       // Absent is the desired state.
     }

@@ -264,9 +264,10 @@ function taskFiles(): Array<{ file: string; code: string }> {
 describe('every task', () => {
   const tasks = taskFiles();
 
-  it('is found, all fifteen of them', () => {
+  it('is found, all sixteen of them', () => {
     // The fifteenth, managed-cadence-email.ts: the morning's slower cadences (0157 T7).
-    expect(tasks.map((t) => t.file).sort()).toHaveLength(15);
+    // The sixteenth, managed-month-invoices.ts: each month invoiced in advance (0111, slice 4).
+    expect(tasks.map((t) => t.file).sort()).toHaveLength(16);
   });
 
   it.each(tasks.map((t) => [t.file, t.code] as const))('%s runs inside leavesAReference, under its own id', (_file, code) => {
@@ -296,8 +297,8 @@ describe('every task', () => {
     // Until it opens them, the log page has no sink in a fresh process, and a
     // refusal thrown first (run-rollback's notify check) left a reference that
     // named no event. And ended anywhere but in afterwards, a failure's event
-    // lost its pool (0138 T1 step 2's review). The three jobs split in two
-    // open theirs in their run too (0138 T2): a daily job holds no pool
+    // lost its pool (0138 T1 step 2's review). The jobs split in two
+    // open theirs in their run too (0138 T2): a daily or hourly job holds no pool
     // between runs, and its first act, the list of organisations, can fail.
     const perRun = tasks.filter(({ code }) => /\n {2}run: [\s\S]*\bopenTaskPools\(\)/.test(code));
     expect(perRun.map((t) => t.file).sort()).toEqual([
@@ -305,6 +306,7 @@ describe('every task', () => {
       'managed-digest.ts',
       'managed-drift-detect.ts',
       'managed-group-discovery.ts',
+      'managed-month-invoices.ts',
       'run-cutover.ts',
       'run-rollback.ts',
     ]);

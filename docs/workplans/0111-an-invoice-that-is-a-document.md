@@ -2,7 +2,41 @@
 
 > **In one line:** The invoice as a legal document, numbered and rendered by Moneybird: `billing_party` buyer data, VIES checks in `vat_consultation`, VAT treatment and OSS, the Moneybird adapter and mirror, an immutability trigger, credit notes and VAT-inclusive prices.
 
-## Status — 2026-10-05 (update this block at the end of every session)
+## Status — 2026-10-06 (update this block at the end of every session)
+
+**2026-10-06: slice 4b — each month invoiced in advance.** `managed-month-invoices`, hourly at
+:23, keeps each active organisation's month in step with what it bills (`readBilledNow`, the
+rule the Billing page reads): on the month's first day a draft for the tier it starts on, and
+after a move up a draft for the difference, each under `ownpace-{organisation}-m-{YYYY-MM}-{tier}`
+(`month-invoice.ts`). It trues the month's peak up first, since the invoice is the moment that
+prices; it prices a tier at the latest yes or pick naming it, else at the list's price; Free
+makes no row, a second run none, and a voided step is never made again. Each draft carries the
+evidence its line quotes and the line in the organisation's language (`month-invoice-words.ts`,
+decision 8): *Ownpace Medium, oktober 2026: 12 migraties tegelijk op 3 oktober*. It is a split
+job (0138 T2): the list of active organisations on the system role, everything else in each
+organisation's scope as `app_user`, so no grant changes. It is off while `OWNPACE_BILLING_FROM`
+is empty (decision 7), during the Alpha, and before that month; `set-task-env.sh` uploads the
+switch and deletes it when empty ([ending-the-alpha.md](../ending-the-alpha.md) says when to
+set it). Two cases decision 8 has no words for are written and put to the owner: the month
+billing the tier agreed to while what was used went past it, and a difference step. Nothing
+numbers or sends a draft yet: slice 5.
+
+- **Guards:** `a-month-invoiced-in-advance.unit.test.ts` (the rule, the price, the reference; on
+  PGlite as `app_user`: Free makes nothing; the first day's draft carries its evidence and Dutch
+  line; a second run makes nothing; a move up makes the difference, adding up to Medium; the next
+  month opens whole; a standing fleet's peak is trued up, proved by removing the true-up, which
+  takes the day off the line and turns the case red; a pick says the pick, at its price; and
+  another organisation's month is neither read nor written); `month-invoice-words.unit.test.ts` (both languages; an amount never printed
+  on or under the ceiling below); `billing-from.unit.test.ts`;
+  `a-month-invoiced-in-its-own-words.unit.test.ts` (the switch before anything about anybody;
+  the organisation's language, English where it names none). The job is on the split-job guard
+  (`a-pass-that-opened-the-owners-pool`, five jobs), the task count
+  (`a-run-that-kept-a-testers-words`, sixteen), the upload guard
+  (`a-knob-the-tasks-can-never-see`) and the runbook's switch table
+  (`the-end-of-the-alpha-names-every-switch`).
+- **Not yet, and said:** a move up in the hour before a close is not invoiced, since a closed
+  organisation is no longer visited (in the customer's favour; decision 13). Decision 6's alert
+  for a month two days behind belongs with slice 5, which knows what is issued.
 
 **2026-10-05, late: slice 4a — the retired generator goes.** Slice 4 is split in two. This half
 removes what the month's invoice replaces: the metered generator (`invoice-generation.ts`), the
@@ -626,7 +660,8 @@ slice 5. The annual credit is not in this chain (decision 6).
    month starts on, after a move up a draft for the difference, each under its own reference;
    Free makes no row; a second run makes no second row. Retention's clamp reads only months that
    are over. The metered generator, its route and its trip-wire go (**done 2026-10-05**, slice
-   4a, with managed 0046 and the retention clamp). Switched on by 7, in the words of 8.
+   4a, with managed 0046 and the retention clamp). Switched on by 7, in the words of 8. **The
+   month task built 2026-10-06** (slice 4b, Status): hourly, so a month opens in its first hour.
 5. **Moneybird numbers it.** A daily task pushes each draft, one writer by construction, a lease
    on the row, paced under the 150-requests-per-5-minutes limit, then reads the state back
    (`paid`, `late`). The Billing page shows the legal number and date; Pay shows only where an
