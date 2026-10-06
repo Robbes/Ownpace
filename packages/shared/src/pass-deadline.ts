@@ -220,9 +220,10 @@ export interface PassClock {
    * fails the pass: a question that could not be answered is not a "go on"
    * (hard rule 9).
    *
-   * Absent means nothing can tell this pass to stop, which is the standalone
-   * CLI's case: it reads its migration once, from a file, and no Pause reaches
-   * it. The loop then reads no clock for it and asks nothing.
+   * Absent means nothing can tell this pass to stop: every edition hands it
+   * in, the standalone CLI too since 2026-10-05, so absent is the case of the
+   * tests that script the loop's clock. The loop then reads no clock for it
+   * and asks nothing.
    */
   readonly whyItStops?: () => Promise<PassStopReason | null>;
   /**

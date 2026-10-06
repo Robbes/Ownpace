@@ -213,6 +213,33 @@ describe('the lane runs, in both editions and by one authority', () => {
     expect(runOne).toContain('const startsAs = await authority(domain);');
   });
 
+  it('the standalone worker asks the same reader on every firing, and refuses when it cannot', () => {
+    // A third caller of `runAllDomains`, not deployed by either edition but
+    // shipped (apps/worker/README.md). It read `mailbox_mapping.status` once,
+    // when the process started, assumed `active` when it could not, and so
+    // never heard a cutover, a Pause, or a data type cut over on its own
+    // (2026-10-05). Now each firing — `--once` and every cron tick — reads
+    // the phases the appliance reads, hands the pass the reader and the
+    // question it stops by, and a phase it cannot read is a firing refused,
+    // never a guess.
+    const cli = source('apps/worker/src/index.ts');
+    expect(cli, 'the CLI reads the migration status alone again').not.toMatch(/mailboxMapping\.status/);
+    expect(cli, "the CLI assumes a phase it did not read").not.toMatch(/'active'/);
+    const firing = cli.slice(cli.indexOf('const fire = async'), cli.indexOf('if (once) {'));
+    expect(firing, 'no firing reads the phases for itself').toContain('const phases = await phasesNow();');
+    expect(firing, 'a migration with no row is run anyway').toMatch(/if \(phases === null\) \{\s*throw new Error\(/);
+    const call = firing.slice(firing.indexOf('runAllDomains('));
+    expect(call.slice(0, call.indexOf(');'))).toMatch(
+      /statusStore,\s*phases\.phaseOf,\s*phasesNow,\s*ledgerOptions,\s*\(domain\) => pathRunsNow\(phases\.phaseOf\(domain\)\),\s*\(domain\) => phasesNow\(\)\.then\(\(current\) => stopReasonOf\(stepFrom\(current, domain\)\)\),/,
+    );
+    expect(cli).toMatch(
+      /const phasesNow = \(\) =>\s*withTenant\(pools\.tenant, config\.tenantId, \(tx\) => readPathPhases\(tx, config\.tenantId, config\.mappingId\)\);/,
+    );
+    // Both ways of firing go through it, and nothing else runs a pass.
+    expect(cli.match(/await fire\(\)/g)?.length, 'a firing that does not read the phases').toBe(2);
+    expect(cli.match(/runAllDomains\(/g)?.length).toBe(1);
+  });
+
   it('the refusal stops telling somebody a post-cutover mapping never syncs', () => {
     // It said: "A mapping in cutover or done no longer syncs." True until
     // 2026-09-10, and false the moment a third post-cutover state copies.

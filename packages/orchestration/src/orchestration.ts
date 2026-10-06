@@ -410,9 +410,9 @@ export async function recordSwitchedOff(
  * `pathRunsNow` of the same phases, so its pass moves on past a data type that
  * no longer runs while the others do (its own cutover past its grace period, or
  * ended), as the managed pass does (`passStepBefore`, worker). The standalone
- * worker hands nothing, and runs every data type its configuration enables, as
- * it always has: it has never refused a pass for the migration's state, and
- * gains no refusal here.
+ * worker hands the same since 2026-10-05, read on every firing; until then it
+ * read its migration once, when it started, and ran every data type its
+ * configuration enabled. Absent, every data type runs.
  *
  * `whyItStops` is the migration's answer asked AGAIN, per data type, once the
  * firing is under way (2026-09-29): null to go on, or why this data type must
@@ -423,8 +423,9 @@ export async function recordSwitchedOff(
  * `passStepBefore`, which it never had — and handed to each data type's pass,
  * which asks it from inside at most once every `PASS_REREAD_EVERY_MS`. The
  * appliance hands `stopReasonOf(stepFrom(readPathPhases(…), domain))`, the
- * decision the managed pass makes. The standalone worker hands nothing: it
- * reads its migration once, from a file, and no Pause reaches it.
+ * decision the managed pass makes, and so does the standalone worker since
+ * 2026-10-05. Absent, nothing can tell the pass to stop: the tests that
+ * script the loop's clock.
  */
 export async function runAllDomains(
   config: MappingConfig,
@@ -743,7 +744,7 @@ export async function runAllDomains(
           // item, so a stop set during the last large upload is one it never
           // hears. Only when there is an apply to withhold, so a mapping that
           // never opted in pays nothing for it, and only when somebody handed
-          // the question in, as the standalone worker does not.
+          // the question in.
           if (config.autoApplyRelocations === true) {
             const toldToStop = haltPause?.reason ?? (whyItStops ? await whyItStops('file') : null);
             if (toldToStop === null) {

@@ -636,6 +636,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/worker/src/index.ts`
 
+- [a-lane-one-edition-runs-and-the-other-does-not](../scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts) — A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner decisions D6 and D4).
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
 
@@ -3402,6 +3403,7 @@ A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner 
 Reads:
 
 - `apps/selfhost/src/index.ts`
+- `apps/worker/src/index.ts`
 - `apps/worker/src/jobs/managed-sync-tick.ts`
 - `packages/core/src/a-lane-that-runs-with-the-detector-present.unit.test.ts`
 - `packages/orchestration/src/build-deps-from-mapping.ts`

@@ -260,9 +260,9 @@ const THREE = (): Listing => ({
 
 describe('a pass nobody can tell to stop', () => {
   it('runs to the end, and reads its clock exactly once', async () => {
-    // The standalone CLI's case, and every test in this repository that
-    // scripts the clock gate by gate: a question that was not handed in must
-    // cost nothing, not even a clock reading, or the scripted readings of
+    // The case of every test in this repository that scripts the clock gate
+    // by gate: a question that was not handed in must cost nothing, not even
+    // a clock reading, or the scripted readings of
     // `a-pass-that-stops-halfway-keeps-its-cursor` would shift under it.
     const clock = handClock();
     const w = world(THREE(), { cursors: true });

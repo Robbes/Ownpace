@@ -1455,8 +1455,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
    * share the one in flight instead.
    *
    * Never asked again once it said stop, and never asked at all, with no
-   * clock read, when nobody handed it in — the standalone CLI's case, and
-   * every test that scripts this loop's clock gate by gate.
+   * clock read, when nobody handed it in — every test that scripts this
+   * loop's clock gate by gate.
    *
    * NOT caught. A question that could not be answered is not "go on": that
    * would be the swallowed error hard rule 9 forbids, on the one read that

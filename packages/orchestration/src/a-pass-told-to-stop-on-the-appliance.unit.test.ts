@@ -277,7 +277,7 @@ describe("the appliance's pass, handed the question", () => {
     expect(calls.completed).toEqual(['contact']);
   });
 
-  it('runs every data type as before when nobody hands it a question, as the standalone worker does not', async () => {
+  it('runs every data type as before when nobody hands it a question', async () => {
     const { store, calls } = recordingStore();
     await runAllDomains(mapping(), store, phasesOfTheMigration('active'), ACTIVE_NOW, { ledgerDb });
 
@@ -361,7 +361,7 @@ describe('relocation auto-apply after a file pass on the appliance', () => {
     expect(recorder.applied).toBe(0);
   });
 
-  it('runs as before when nobody hands it a question, as the standalone worker does not', async () => {
+  it('runs as before when nobody hands it a question', async () => {
     const { store } = recordingStore();
     await runAllDomains(fileMapping(true), store, phasesOfTheMigration('active'), ACTIVE_NOW, { ledgerDb });
 

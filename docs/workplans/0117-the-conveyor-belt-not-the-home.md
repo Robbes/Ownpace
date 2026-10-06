@@ -49,6 +49,16 @@ the switch on after cutover applies none of the old moves. Guards:
 `packages/orchestration/src/a-pass-told-to-stop-on-the-appliance.unit.test.ts`, the managed
 half in `apps/worker/src/jobs/a-move-applied-after-cutover.unit.test.ts`. ADR-0031 amended.
 
+**Built (fix 3): the standalone worker reads the phases on every firing.** The dev tool
+(`apps/worker/src/index.ts`, shipped, deployed by neither edition) read
+`mailbox_mapping.status` once, when the process started, and assumed `active` when it could
+not: a process left in scheduled mode kept its deletion detectors through a cutover, and
+ignored a data type cut over on its own. Now each firing, `--once` and every cron tick, reads
+`readPathPhases` itself, hands `runAllDomains` the reader, `pathRunsNow` and the stop question
+the appliance hands (`stopReasonOf(stepFrom(…))`), and refuses the firing when the phases
+cannot be read: a database that does not answer throws, a mapping with no row is refused by
+name. Guard: the CLI case in `scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts`.
+
 **2026-09-10, later still again: THE TWO HALVES DID NOT FIT, and finding that out
 found a shipped bug.** Building slice 4 began by connecting the pass to the store, and
 they would not connect — which is how both of these surfaced.
