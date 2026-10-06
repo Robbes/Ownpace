@@ -59,6 +59,25 @@ the appliance hands (`stopReasonOf(stepFrom(…))`), and refuses the firing when
 cannot be read: a database that does not answer throws, a mapping with no row is refused by
 name. Guard: the CLI case in `scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts`.
 
+**Guarded (fix 4): a mail pass that starts after cutover.** No behaviour changed; the rule
+held, and nothing would have said so if it stopped. The per-producer guard calls
+`runDomainSync` directly, so a mail wrapper (`runShadowPass`) that lost the answer on its
+way down, a literal `true` where `reconcile.ts` passes `deps.sourceIsAuthorityOnExistence`,
+left every unit test green. `packages/core/src/mail-after-cutover.unit.test.ts` runs the
+leaver through the mail wrapper: a message thrown in the bin and another deleted outright
+(Graph's `@removed`) after the switch. Trash is never listed, no removal is resolved, the
+Deletions queue stays empty, the bin's scan cursor stays where the last pass before the
+cutover left it, and the pass still copies what is new; the same leaver before the cutover
+is heard, so the fixture can produce both signals. Proven to bite on main's sync code:
+with that literal `true` it fails on Trash being listed. On this branch fix 2's question is a
+second wall behind the first, so the same mutation is caught by the assertion that a pass
+which started after cutover never asks it (and, with both pass-throughs mutated, by every
+behavioural assertion). Beside it, `scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts`
+read `mailbox_mapping.status`'s legal values from migration 0001's CHECK, which migration
+0044 replaced to add `continuous`: the one status that keeps copying after cutover was never
+classified there, and `isAfterCutover` could drop it with that guard green. It now reads the
+last migration that defines the CHECK.
+
 **2026-09-10, later still again: THE TWO HALVES DID NOT FIT, and finding that out
 found a shipped bug.** Building slice 4 began by connecting the pass to the store, and
 they would not connect — which is how both of these surfaced.
