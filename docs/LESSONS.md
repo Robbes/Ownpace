@@ -220,10 +220,6 @@ reading a file drops off its entry by itself.
 - [half-the-array-was-a-recomputation](../scripts/half-the-array-was-a-recomputation.unit.test.ts) — `GET /api/billing/usage/history` returned one array whose two halves meant different things by `cost` (workplan 0121 T4 follow-up; 0109 T5's neighbour).
 - [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
 
-### `apps/api/src/routes/billing/no-bill-we-do-not-sell.ts`
-
-- [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
-
 ### `apps/api/src/routes/connections.ts`
 
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
@@ -365,12 +361,6 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/services/billing-service.ts`
 
 - [a-rate-that-must-not-spread](../scripts/a-rate-that-must-not-spread.unit.test.ts) — VAT_RATE may not gain a single new caller (ADR-0044; workplan 0111 T3).
-
-### `apps/api/src/services/invoice-generation.ts`
-
-- [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts) — A month of passes must not be billed as the last one — and the freeze that lets the rows it is derived from be deleted must stay.
-- [a-rate-that-must-not-spread](../scripts/a-rate-that-must-not-spread.unit.test.ts) — VAT_RATE may not gain a single new caller (ADR-0044; workplan 0111 T3).
-- [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
 
 ### `apps/api/src/services/report-channel.ts`
 
@@ -3510,7 +3500,6 @@ A month of passes must not be billed as the last one — and the freeze that let
 
 Reads:
 
-- `apps/api/src/services/invoice-generation.ts`
 - `apps/worker/src/jobs/run-delta-sync.ts`
 - `packages/ledger/src/retention.ts`
 - `packages/managed/src/usage-metering.integration.test.ts`
@@ -3850,7 +3839,6 @@ VAT_RATE may not gain a single new caller (ADR-0044; workplan 0111 T3).
 Reads:
 
 - `apps/api/src/services/billing-service.ts`
-- `apps/api/src/services/invoice-generation.ts`
 - `packages/managed/src/pricing.ts`
 - `packages/managed/src/pricing.unit.test.ts`
 
@@ -4100,8 +4088,6 @@ The customer's usage screen quoted a price list nothing would bill them at, in a
 Reads:
 
 - `apps/api/src/routes/billing/index.ts`
-- `apps/api/src/routes/billing/no-bill-we-do-not-sell.ts`
-- `apps/api/src/services/invoice-generation.ts`
 - `apps/api/src/services/usage-history.ts`
 - `apps/web/src/i18n/strings.ts`
 - `apps/web/src/pages/Billing.tsx`

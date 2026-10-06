@@ -4,6 +4,22 @@
 
 ## Status — 2026-10-05 (update this block at the end of every session)
 
+**2026-10-05, late: slice 4a — the retired generator goes.** Slice 4 is split in two. This half
+removes what the month's invoice replaces: the metered generator (`invoice-generation.ts`), the
+`POST /invoices/generate` route that refused with a 409 since 0109 T0, the refusal's module and
+its trip-wire, and the route's OpenAPI entry. Managed 0046 drops the (tenant_id, period_start)
+key, so a month invoiced in advance can carry one invoice per step up, kept apart by their
+references (0045). Managed retention now clamps each organisation to its newest issued invoice
+for a month that is OVER, since an invoice made in advance names a month still running. The
+guards that read the generator's text (`a-month-billed-as-one-pass`,
+`a-screen-that-quoted-a-retired-price`, `a-rate-that-must-not-spread`) lose the cases about it.
+Slice 4b is the month task itself.
+
+- **Guards:** `invoice-refusal-under-rls.unit.test.ts` (a month with two invoices under two
+  references, proved by running it without 0046: a duplicate key on the old constraint);
+  the integration tests (the old door is no route, three calls write nothing, and a paid invoice
+  on the books is untouched; an admin passes the role guard on the pay route).
+
 **2026-10-05, night: slice 3 is built — the mirror and its refusal** (managed 0045). The invoice
 row gains our reference (unique), its kind and the invoice a credit note corrects, the evidence
 its line quotes, the treatment, rate and lines the push writes while it is a draft, and Moneybird's
@@ -609,8 +625,8 @@ slice 5. The annual credit is not in this chain (decision 6).
    daily task keeps each month's invoices equal to it: on the first day a draft for the tier the
    month starts on, after a move up a draft for the difference, each under its own reference;
    Free makes no row; a second run makes no second row. Retention's clamp reads only months that
-   are over. The metered generator, its route and its trip-wire go. Switched on by 7, in the words
-   of 8.
+   are over. The metered generator, its route and its trip-wire go (**done 2026-10-05**, slice
+   4a, with managed 0046 and the retention clamp). Switched on by 7, in the words of 8.
 5. **Moneybird numbers it.** A daily task pushes each draft, one writer by construction, a lease
    on the row, paced under the 150-requests-per-5-minutes limit, then reads the state back
    (`paid`, `late`). The Billing page shows the legal number and date; Pay shows only where an
