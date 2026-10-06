@@ -16,7 +16,7 @@
  * back into the code, one step removed, and breaks the day a government
  * changes it. The honest shape: the person who owns the administration picks
  * each rate in Moneybird's own UI and hands this deployment the ids
- * (`MONEYBIRD_TAX_RATE_ID_*`, wired where T4 consumes them — this module
+ * (`MONEYBIRD_TAX_RATE_ID_*`, read by `moneybird-config.ts` — this module
  * takes them as parameters and reads no environment). `resolveTaxRateId`
  * then refuses, by name, anything the administration does not actually hold:
  * an id that does not exist, one that is inactive, one that is not a sales
@@ -32,6 +32,7 @@
  * and a placeholder mapping today would be a wrong number tomorrow.
  */
 
+import { moneybirdRead, type MoneybirdAccess, type SlowDown } from './moneybird-http.ts';
 import type { VatTreatment } from './vat-treatment.ts';
 
 export interface MoneybirdTaxRate {
@@ -46,7 +47,8 @@ export interface MoneybirdTaxRate {
 
 export type FetchTaxRatesOutcome =
   | { readonly kind: 'ok'; readonly rates: readonly MoneybirdTaxRate[] }
-  | { readonly kind: 'unavailable'; readonly reason: string };
+  | { readonly kind: 'unavailable'; readonly reason: string }
+  | SlowDown;
 
 /**
  * The administration's sales tax rates, from Moneybird's own API.
@@ -54,39 +56,16 @@ export type FetchTaxRatesOutcome =
  * must not be a test of Moneybird.
  */
 export async function fetchSalesTaxRates(
-  config: { readonly administrationId: string; readonly apiToken: string },
+  config: MoneybirdAccess,
   fetchImpl: typeof fetch = fetch,
 ): Promise<FetchTaxRatesOutcome> {
-  const url =
-    `https://moneybird.com/api/v2/${encodeURIComponent(config.administrationId)}` +
-    `/tax_rates.json?filter=${encodeURIComponent('tax_rate_type:sales_invoice')}`;
-  let response: Response;
-  try {
-    response = await fetchImpl(url, {
-      headers: { Authorization: `Bearer ${config.apiToken}` },
-      signal: AbortSignal.timeout(10_000),
-    });
-  } catch (error) {
-    return {
-      kind: 'unavailable',
-      reason: `Moneybird could not be reached: ${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
-  if (response.status === 401 || response.status === 403) {
-    return {
-      kind: 'unavailable',
-      reason: `Moneybird refused the token (HTTP ${response.status}) — check MONEYBIRD_API_TOKEN and the administration id.`,
-    };
-  }
-  if (!response.ok) {
-    return { kind: 'unavailable', reason: `Moneybird answered HTTP ${response.status}.` };
-  }
-  let body: unknown;
-  try {
-    body = await response.json();
-  } catch {
-    return { kind: 'unavailable', reason: 'Moneybird answered something that is not JSON.' };
-  }
+  const read = await moneybirdRead(
+    config,
+    `tax_rates.json?filter=${encodeURIComponent('tax_rate_type:sales_invoice')}`,
+    fetchImpl,
+  );
+  if (read.kind !== 'ok') return read;
+  const body = read.body;
   if (!Array.isArray(body)) {
     return { kind: 'unavailable', reason: 'Moneybird answered a shape this client does not recognise.' };
   }

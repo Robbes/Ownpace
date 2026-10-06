@@ -28,6 +28,7 @@ reading the stage fails that guard until it has a line here.
 | The first-copy email: `apps/worker/src/jobs/the-first-copy-email.ts` | `holdsAtCeiling(process.env.OWNPACE_STAGE)`, in the **task environment**, as the sync tasks read it | Says that everything has arrived and is kept in step, and nothing of a pace. | On Free it adds that keeping in step is one pass a day, and that a higher tier looks as often as every 15 minutes (workplan 0157 T5). |
 | The slower-cadence email: `apps/worker/src/jobs/the-slower-cadence-email.ts` | `holdsAtCeiling(process.env.OWNPACE_STAGE)`, in the **task environment**, as the sync tasks read it | Each slower step of a migration on *Automatic* is said by the morning mail, on every tier: every 6 hours after 14 days in step, once a day after 30 (workplan 0157 T7). | On Free nothing is said, and a step said before is no longer in force: a migration there runs one pass a day whatever its cadence. A paid tier as during the alpha. |
 | The sync tick: `apps/worker/src/jobs/managed-sync-tick.ts` | `holdsAtCeiling(process.env.OWNPACE_STAGE)`, in the **task environment**, as the sync tasks read it | Every tier runs at a paid tier's pace: the first copy back to back, then the migration's schedule. | A migration on Free runs one pass a day, 24 hours after its last pass started, its first copy included, and a Free organisation's files-only migrations take its later turns (workplan 0157 T2, T3). |
+| The month's invoices: `apps/worker/src/jobs/managed-month-invoices.ts` | `holdsAtCeiling(process.env.OWNPACE_STAGE)`, in the **task environment**, as the sync tasks read it, beside `OWNPACE_BILLING_FROM` | Nobody is invoiced, whatever `OWNPACE_BILLING_FROM` says. The hourly run says so and reads nothing about any organisation. | From the month `OWNPACE_BILLING_FROM` names, and never while it is empty: each organisation's month is invoiced in advance, on its first day at the tier it starts on, and after a move up for the difference (workplan 0111, slice 4). Free is never invoiced. |
 | The API's alpha rule: `apps/api/src/access-notify.ts` | `alphaFrom(env)`, read by `conditions-not-accepted.ts`, `config-guards.ts` and the access-granted mail | Every member is asked to accept the Alpha conditions, the privacy policy and the terms before any access is stored, once no text is a draft (0139 T3). The access-granted mail says it is the alpha. A blank `BACKUP_RETENTION_DAYS` stops the API from starting. | Nobody is asked to accept anything. The mail does not mention the alpha. A blank `BACKUP_RETENTION_DAYS` is a warning in production (`stand-up-live.sh` still refuses one on live). |
 | The sync tasks: `apps/worker/src/jobs/run-delta-sync.ts` | `process.env.OWNPACE_STAGE`, in the **task environment**, never compose's | Nothing waits at the data ceiling. Every first copy is marked as the alpha's (`bytes_moved.alpha_bytes`, managed 0040) and never counts. | New first copies wait at the ceiling until a yes (0109 T6). First copies count from here. |
 | The web bundle: `apps/web/src/components/AlphaNote.tsx` | `import.meta.env.VITE_OWNPACE_STAGE`, **baked in at build** through the build arg in `apps/web/Dockerfile` | The Alpha note on every page, the sign-in page and the request page. A visitor without a session reads a line about the Alpha in the guides instead (workplan 0152 T1 (a)). The acceptance screen on load. The tester-guide link. The Billing page's alpha line, and its invoice-details card saying none are needed. | None of these. The invoice-details card asks for the details unless the tier is Free. |
@@ -55,10 +56,12 @@ the owner's job.
    a restore procedure if the service moves host (0134 T5), the new host in the privacy texts
    (0139 T5), the run-row retention rule (0143 T6), and the Google test-user entries kept.
 2. **The invoice.** After the switch a yes is taken and recorded with its price, and the Billing
-   page names what the month bills. Nothing turns that into an invoice yet. The invoice line
-   (workplan 0109 T5) and the bookkeeping (workplan 0111, Moneybird) wait on their build, and on
-   nothing of the owner's: the bookkeeping's test passed on 2026-10-05, in a Moneybird sandbox.
-   Switching before them takes consent to prices that nobody invoices.
+   page names what the month bills. The month task makes each month's invoice in advance, as a
+   draft, from the month `OWNPACE_BILLING_FROM` names (workplan 0111, slice 4,
+   `managed-month-invoices`). Moneybird numbering and sending it (slice 5) is still to build, and
+   waits on nothing of the owner's: the bookkeeping's test passed on 2026-10-05, in a Moneybird
+   sandbox. Switching before slice 5 takes consent to prices whose invoices stay drafts, so leave
+   `OWNPACE_BILLING_FROM` empty until it is built.
 3. **Tell the testers, with their numbers.** No yes could be taken during the alpha, so every
    organisation is on Free at the switch: one migration at a time (each kind of data counts as
    one), and 250 GB, counted from the switch. Everything moved during the alpha never counts
@@ -92,6 +95,14 @@ release tag, with `deploy-live.sh`* in [managed-bring-up.md](./managed-bring-up.
    ```bash
    ./deploy/compose/env-upsert.sh ~/.persistent/ownpace-live/.env OWNPACE_STAGE=
    grep -n '^OWNPACE_STAGE' ~/.persistent/ownpace-live/.env    # OWNPACE_STAGE=
+   ```
+
+   **And name the first month invoiced**, the month the switch happens in, once the invoice can
+   be sent (*Before*, step 2). Empty, nobody is invoiced (workplan 0111, decision 7):
+
+   ```bash
+   ./deploy/compose/env-upsert.sh ~/.persistent/ownpace-live/.env OWNPACE_BILLING_FROM=2026-11   # the month of the switch
+   grep -n '^OWNPACE_BILLING_FROM' ~/.persistent/ownpace-live/.env
    ```
 
 4. **Ask whether the deploy can be undone, then deploy.** Use the tag that runs now or a newer
@@ -152,6 +163,11 @@ After lifting the hold, once passes have copied new items:
    ```
 
    `counting` stays 0 while passes copy new items only when the tasks still hold the alpha.
+
+7. **The month task invoices**, when `OWNPACE_BILLING_FROM` is set: its next run, at :23 past the
+   hour, logs `[month-invoices] { invoicing: true, month: '…', … }`, and not `nobody is invoiced`.
+   An organisation on a paid tier has a draft for the month under
+   `ownpace-{organisation}-m-{YYYY-MM}-{tier}`; one on Free has none.
 
 ## If a check fails
 
