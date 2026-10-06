@@ -388,6 +388,15 @@ Four things send email on managed, all through the operator's own SMTP relay con
   brings back the hour and deletes the row, and the page says once what it ended. Nothing is
   said on Free outside the alpha, where a migration runs one pass a day whatever its cadence.
   The run logs `{ tenants, free_pace, none, sent, no_channel, no_recipients, failed }`.
+- **`managed-month-invoices`** (workplan 0111, slice 4) — a scheduled task, hourly at **:23**.
+  Not an e-mail: it keeps each active organisation's month invoiced in advance. On a month's
+  first day it makes a draft for the tier the month starts on, and after a move up a draft for
+  the difference, each under `ownpace-{organisation}-m-{YYYY-MM}-{tier}`, in the
+  organisation's language. Free makes none. While `OWNPACE_BILLING_FROM` is empty, during the
+  alpha, and before that month, the run says `nobody is invoiced` and reads nothing about any
+  organisation. Otherwise it logs `{ invoicing, month, tenants, made, made_elsewhere, in_step,
+  free, nothing_to_add, failed }`, and one line per draft it made. Nothing numbers or sends a
+  draft yet: that is slice 5.
 
 Two behaviours worth knowing before you go looking for a missing email:
 

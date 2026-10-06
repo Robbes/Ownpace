@@ -14,6 +14,7 @@
     "operator:links": "node src/scripts/operator.ts links",
     "operator:list": "node src/scripts/operator.ts list",
     "operator:memberships": "node src/scripts/operator.ts memberships",
+    "operator:moneybird": "node src/scripts/operator.ts moneybird",
     "operator:remove": "node src/scripts/operator.ts remove",
     "operator:secrets": "node src/scripts/operator.ts secrets",
     "seed:managed": "node src/scripts/seed-managed.ts",

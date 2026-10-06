@@ -220,10 +220,6 @@ reading a file drops off its entry by itself.
 - [half-the-array-was-a-recomputation](../scripts/half-the-array-was-a-recomputation.unit.test.ts) — `GET /api/billing/usage/history` returned one array whose two halves meant different things by `cost` (workplan 0121 T4 follow-up; 0109 T5's neighbour).
 - [the-alpha-by-its-name](../scripts/the-alpha-by-its-name.unit.test.ts) — THE ALPHA BY ITS NAME (the owner, 2026-10-04, on #1439: *"akkoord, Alpha"*; workplan 0131 T1, 0144 T1).
 
-### `apps/api/src/routes/billing/no-bill-we-do-not-sell.ts`
-
-- [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
-
 ### `apps/api/src/routes/connections.ts`
 
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
@@ -365,12 +361,6 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/services/billing-service.ts`
 
 - [a-rate-that-must-not-spread](../scripts/a-rate-that-must-not-spread.unit.test.ts) — VAT_RATE may not gain a single new caller (ADR-0044; workplan 0111 T3).
-
-### `apps/api/src/services/invoice-generation.ts`
-
-- [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts) — A month of passes must not be billed as the last one — and the freeze that lets the rows it is derived from be deleted must stay.
-- [a-rate-that-must-not-spread](../scripts/a-rate-that-must-not-spread.unit.test.ts) — VAT_RATE may not gain a single new caller (ADR-0044; workplan 0111 T3).
-- [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
 
 ### `apps/api/src/services/report-channel.ts`
 
@@ -662,6 +652,10 @@ reading a file drops off its entry by itself.
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
 - [a-microsoft-source-found-by-its-faces](../scripts/a-microsoft-source-found-by-its-faces.unit.test.ts) — A MICROSOFT SOURCE FOUND BY ITS FACES (workplan 0141 T11).
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
+
+### `apps/worker/src/jobs/managed-month-invoices.ts`
+
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 
 ### `apps/worker/src/jobs/managed-purge-closed.ts`
@@ -1902,6 +1896,10 @@ reading a file drops off its entry by itself.
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
 
+### `packages/managed/src/moneybird-workflows.ts`
+
+- [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+
 ### `packages/managed/src/occupancy-peak.ts`
 
 - [a-month-that-moved-with-the-servers-timezone](../scripts/a-month-that-moved-with-the-servers-timezone.unit.test.ts) — FOUR PLACES DECIDED WHICH MONTH A MOMENT BELONGED TO, AND THREE OF THEM ASKED THE SERVER WHERE IT WAS STANDING (found 2026-09-09).
@@ -2772,6 +2770,7 @@ Reads:
 - `packages/engines/src/webdav-target-writer.ts`
 - `packages/managed/src/moneybird-sales-invoices.ts`
 - `packages/managed/src/moneybird-tax-rates.ts`
+- `packages/managed/src/moneybird-workflows.ts`
 - `packages/managed/src/vies.ts`
 - `packages/orchestration/src/account-qualification.ts`
 - `packages/orchestration/src/microsoft-account-test.ts`
@@ -3505,7 +3504,6 @@ A month of passes must not be billed as the last one — and the freeze that let
 
 Reads:
 
-- `apps/api/src/services/invoice-generation.ts`
 - `apps/worker/src/jobs/run-delta-sync.ts`
 - `packages/ledger/src/retention.ts`
 - `packages/managed/src/usage-metering.integration.test.ts`
@@ -3596,6 +3594,7 @@ Reads:
 - `apps/worker/src/jobs/managed-digest.ts`
 - `apps/worker/src/jobs/managed-drift-detect.ts`
 - `apps/worker/src/jobs/managed-group-discovery.ts`
+- `apps/worker/src/jobs/managed-month-invoices.ts`
 - `apps/worker/src/jobs/managed-purge-closed.ts`
 - `apps/worker/src/jobs/managed-retention.ts`
 - `apps/worker/src/jobs/managed-sync-tick.ts`
@@ -3845,7 +3844,6 @@ VAT_RATE may not gain a single new caller (ADR-0044; workplan 0111 T3).
 Reads:
 
 - `apps/api/src/services/billing-service.ts`
-- `apps/api/src/services/invoice-generation.ts`
 - `packages/managed/src/pricing.ts`
 - `packages/managed/src/pricing.unit.test.ts`
 
@@ -4095,8 +4093,6 @@ The customer's usage screen quoted a price list nothing would bill them at, in a
 Reads:
 
 - `apps/api/src/routes/billing/index.ts`
-- `apps/api/src/routes/billing/no-bill-we-do-not-sell.ts`
-- `apps/api/src/services/invoice-generation.ts`
 - `apps/api/src/services/usage-history.ts`
 - `apps/web/src/i18n/strings.ts`
 - `apps/web/src/pages/Billing.tsx`
