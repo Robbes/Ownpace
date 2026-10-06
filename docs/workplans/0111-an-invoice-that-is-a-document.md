@@ -2,7 +2,35 @@
 
 > **In one line:** The invoice as a legal document, numbered and rendered by Moneybird: `billing_party` buyer data, VIES checks in `vat_consultation`, VAT treatment and OSS, the Moneybird adapter and mirror, an immutability trigger, credit notes and VAT-inclusive prices.
 
-## Status — 2026-10-06 (update this block at the end of every session)
+## Status — 2026-10-10 (update this block at the end of every session)
+
+**2026-10-10: slice 5e — an invoice address, and invoice details before a paid tier** (decisions
+11 and 14). Managed 0048 adds `billing_party.invoice_email`, checked loosely by the column and by
+the route alike (one `@` with something on either side: whether the mailbox exists is the
+delivery's to find out), and purged with the rest of the row. The Invoice details card asks for it
+as *Invoice e-mail address* / *E-mailadres voor facturen*, required, prefilled with the address
+the person signed in with until details are saved, and says it may be the bookkeeping's. The push
+hands it to Moneybird's contact when Moneybird is to e-mail the invoice, and only then: under
+`Manual`, on the sandbox and the OTA stack, a tester's address stays out of the books. The three
+doors a paid tier is agreed through (the yes at the data ceiling, the yes at *Start*, a pick of a
+paid tier) refuse with 409 `invoice_details_first` while there are no invoice details, inside the
+yes's own lock and before anything is recorded; a pick of Free charges nothing and is not asked,
+and the Alpha's refusal still comes first. Each door says so in the page's language, with *Add
+your invoice details* linking to `/billing#invoice-details`. The card brings itself into view
+and focus to its heading, from another page and from the Billing page alike, once every read on
+the page has answered, since the cards above it load after it is drawn and would push it back
+down. The OpenAPI spec says the field and the refusal.
+
+- **Guards:** `a-yes-that-asks-for-invoice-details-first.unit.test.ts` (on PGlite with every
+  migration: each door refuses and records nothing; Free is not asked; an address that is not one
+  is refused by the route and by the column's check; the details and the address are stored and
+  served back, the pick is then taken, and empty clears the address); the three yes tests seed
+  invoice details; `a-draft-numbered-by-the-books.unit.test.ts` (the address handed over for
+  e-mail delivery, kept out under `Manual`); `Billing.unit.test.tsx` (prefilled with the
+  signed-in address and sent; a stored address seeds the field; opened at the anchor, nothing
+  moves while a read above is held open, then the card is scrolled to once and its heading has
+  focus; without the anchor nothing moves); `TierPick.unit.test.tsx` (the refusal in English and
+  Dutch, with its link).
 
 **2026-10-06, later: slice 5a — each draft numbered by Moneybird.** `managed-invoice-push`, hourly
 at :41, takes each active organisation's drafts to the books and writes back what Moneybird made
@@ -35,7 +63,7 @@ with a draft still a draft two days after it was made is said as an error, by re
   runbook's switch table a row for the push.
 - **Not yet:** the Billing page showing the legal number and paying only an issued invoice (5b);
   reading back `paid` and `late`; the invoice e-mail address and invoice details before leaving
-  Free (decisions 11 and 14); `operator.sh moneybird proof` and the nightly sandbox invoice
+  Free (decisions 11 and 14: slice 5e, above); `operator.sh moneybird proof` and the nightly sandbox invoice
   (decision 12).
 
 **2026-10-06: slice 4b — each month invoiced in advance.** `managed-month-invoices`, hourly at
@@ -701,7 +729,8 @@ slice 5. The annual credit is not in this chain (decision 6).
    (`paid`, `late`). **The push built 2026-10-06** (slice 5a, managed 0047, hourly, Status). The Billing page shows the legal number and date; Pay shows only where an
    invoice can be paid. `operator.sh moneybird proof` makes one invoice in the sandbox, by hand,
    never by e-mail, and running it again answers that it exists; the nightly managed run makes one
-   with a payment registered (12). Invoice details first (14).
+   with a payment registered (12). Invoice details first (14): **built 2026-10-10** (slice 5e,
+   managed 0048, Status).
 6. **Moneybird's PDF in the app** (T6). The app streams Moneybird's own document and keeps no
    copy; a draft has none. Delivery as decided in 11.
 7. **Credit notes, and the withdrawal button** (T7, 0152 T6 (f)). A credit note is our row first,

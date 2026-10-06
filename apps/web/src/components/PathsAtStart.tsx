@@ -27,6 +27,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { billingApi } from '../services/billing-service.ts';
 import { serverMessage } from '../services/api.ts';
+import InvoiceDetailsFirst, { isInvoiceDetailsFirst } from './InvoiceDetailsFirst.tsx';
 import { isSelfHost } from '../services/edition.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
@@ -101,11 +102,14 @@ export const PathsAtStart: React.FC<PathsAtStartProps> = ({ mappingIds, disabled
   return (
     <section data-paths-at-start className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 space-y-3">
       <p>{sentence}</p>
-      {yes.isError && (
-        <p className="text-red-800" role="alert">
-          <span className="font-medium">{t('billing.ceiling.yesFailed')}</span> {serverMessage(yes.error)}
-        </p>
-      )}
+      {yes.isError &&
+        (isInvoiceDetailsFirst(yes.error) ? (
+          <InvoiceDetailsFirst />
+        ) : (
+          <p className="text-red-800" role="alert">
+            <span className="font-medium">{t('billing.ceiling.yesFailed')}</span> {serverMessage(yes.error)}
+          </p>
+        ))}
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-lg border border-amber-200 bg-white p-3 space-y-2 text-gray-900">
           {needs ? (

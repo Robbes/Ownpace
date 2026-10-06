@@ -141,6 +141,8 @@ export const BillingPartySchema = z.object({
   city: z.string(),
   countryCode: z.string(),
   vatNumber: z.string().nullish(),
+  /** Where Moneybird e-mails the invoice (0111 decision 11). */
+  invoiceEmail: z.string().nullish(),
   createdAt: z.string(),
   updatedAt: z.string().nullish(),
 });
@@ -299,6 +301,7 @@ export interface BillingPartyInput {
   city: string;
   countryCode: string;
   vatNumber?: string;
+  invoiceEmail?: string;
 }
 
 export const billingApi = {

@@ -53,6 +53,7 @@ const party = (over: Partial<NonNullable<BuyerStanding['party']>> = {}): NonNull
   city: 'Ons Dorp',
   countryCode: 'NL',
   vatNumber: null,
+  invoiceEmail: null,
   createdAt: new Date('2026-09-01T00:00:00Z'),
   updatedAt: new Date('2026-09-01T00:00:00Z'),
   ...over,
@@ -84,6 +85,18 @@ describe('what is pushed, decided before Moneybird is asked anything', () => {
   it('refuses e-mail delivery while there is no invoice address to send it to', () => {
     const plan = planPush('org', DRAFT, { party: party(), vatConsultation: null }, { ...CONTEXT, delivery: 'email' });
     expect(plan).toMatchObject({ kind: 'refused', reason: expect.stringContaining('no invoice e-mail address') });
+  });
+
+  it('hands Moneybird the invoice address the card asked for, to e-mail it there (decision 11)', () => {
+    const withAddress = party({ invoiceEmail: 'invoices@example.invalid' });
+    const plan = planPush('org', DRAFT, { party: withAddress, vatConsultation: null }, { ...CONTEXT, delivery: 'email' });
+    expect(plan).toMatchObject({ kind: 'push', invoice: { buyer: { email: 'invoices@example.invalid' } } });
+  });
+
+  it('keeps the invoice address out of the books when nothing is e-mailed (Manual, decision 11)', () => {
+    const withAddress = party({ invoiceEmail: 'invoices@example.invalid' });
+    const plan = planPush('org', DRAFT, { party: withAddress, vatConsultation: null }, { ...CONTEXT, delivery: 'manual' });
+    expect(plan).toMatchObject({ kind: 'push', invoice: { buyer: { email: null } } });
   });
 
   it('addresses a consumer by their full name, with domestic VAT and the line as made', () => {

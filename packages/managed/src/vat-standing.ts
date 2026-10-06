@@ -32,6 +32,7 @@ export const billingPartyColumns = {
   city: schema.billingParty.city,
   countryCode: schema.billingParty.countryCode,
   vatNumber: schema.billingParty.vatNumber,
+  invoiceEmail: schema.billingParty.invoiceEmail,
   createdAt: schema.billingParty.createdAt,
   updatedAt: schema.billingParty.updatedAt,
 } as const;
