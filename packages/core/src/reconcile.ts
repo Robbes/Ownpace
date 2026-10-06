@@ -67,9 +67,9 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     ledger,
     cursors,
     concurrency,
-    // The pass's phase, carried down verbatim from the mapping's lifecycle
-    // (0117 D4). `runDomainSync` reads it to decide whether the deletion
-    // detectors exist at all.
+    // The pass's phase: its data type's own (`readPathPhases`; 0117 D4),
+    // carried down verbatim. `runDomainSync` reads it to decide whether the
+    // deletion detectors exist at all.
     sourceIsAuthorityOnExistence: deps.sourceIsAuthorityOnExistence,
     // And how to ask it again before the pass concludes anything (2026-10-05).
     stillTheAuthority: deps.stillTheAuthority,
@@ -105,7 +105,12 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     // `listSince` above) had nothing to land on. Graph's `id` / IMAP's
     // folder:uid; `findBySourceRef` is the way back.
     sourceRef: (item) => (item as MailItem).sourceRef,
-    // WHAT THE OWNER THREW AWAY — the mail domain's only deletion signal.
+    // WHAT THE OWNER THREW AWAY — the mail domain's only deletion signal over
+    // IMAP (Graph also reports its own removals, through `listSince` above).
+    // Read only while the old system decides what exists (0117 D4): after
+    // cutover `runDomainSync` drops this closure before the pass begins
+    // (`withSides`), and a pass the cutover overtook does not call it either
+    // (`stillTheAuthority`).
     //
     // IMAP has no removal report of the kind CalDAV's `sync-collection` gives,
     // and a mailbox cannot be enumerated cheaply enough to run absence-counting

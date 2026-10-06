@@ -137,9 +137,9 @@ export async function runCalendarSync(deps: CalendarSyncDeps): Promise<DomainSyn
     contentHash: (raw) => calendarContentHash((raw as RawCalendarEvent).icalendar),
     ensureCollection: (folder) => target.ensureCalendar(folder),
     ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
-    // The pass's phase, carried down verbatim from the mapping's lifecycle
-    // (0117 D4). `runDomainSync` reads it to decide whether the deletion
-    // detectors exist at all.
+    // The pass's phase: its data type's own (`readPathPhases`; 0117 D4),
+    // carried down verbatim. `runDomainSync` reads it to decide whether the
+    // deletion detectors exist at all.
     sourceIsAuthorityOnExistence: deps.sourceIsAuthorityOnExistence,
     // And how to ask it again before the pass concludes anything (2026-10-05).
     stillTheAuthority: deps.stillTheAuthority,
@@ -238,9 +238,9 @@ export async function runTaskSync(deps: TaskSyncDeps): Promise<DomainSyncResult>
     contentHash: (raw) => calendarContentHash((raw as RawCalendarEvent).icalendar),
     ensureCollection: (folder) => target.ensureCalendar(folder),
     ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
-    // The pass's phase, carried down verbatim from the mapping's lifecycle
-    // (0117 D4). `runDomainSync` reads it to decide whether the deletion
-    // detectors exist at all.
+    // The pass's phase: its data type's own (`readPathPhases`; 0117 D4),
+    // carried down verbatim. `runDomainSync` reads it to decide whether the
+    // deletion detectors exist at all.
     sourceIsAuthorityOnExistence: deps.sourceIsAuthorityOnExistence,
     // And how to ask it again before the pass concludes anything (2026-10-05).
     stillTheAuthority: deps.stillTheAuthority,
@@ -316,9 +316,9 @@ export async function runContactSync(deps: ContactSyncDeps): Promise<DomainSyncR
     contentHash: (raw) => contactContentHash((raw as RawContact).vcard),
     ensureCollection: (folder) => target.ensureContactFolder(folder),
     ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
-    // The pass's phase, carried down verbatim from the mapping's lifecycle
-    // (0117 D4). `runDomainSync` reads it to decide whether the deletion
-    // detectors exist at all.
+    // The pass's phase: its data type's own (`readPathPhases`; 0117 D4),
+    // carried down verbatim. `runDomainSync` reads it to decide whether the
+    // deletion detectors exist at all.
     sourceIsAuthorityOnExistence: deps.sourceIsAuthorityOnExistence,
     // And how to ask it again before the pass concludes anything (2026-10-05).
     stillTheAuthority: deps.stillTheAuthority,
@@ -529,9 +529,9 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
           : folder,
       ),
     ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
-    // The pass's phase, carried down verbatim from the mapping's lifecycle
-    // (0117 D4). `runDomainSync` reads it to decide whether the deletion
-    // detectors exist at all.
+    // The pass's phase: its data type's own (`readPathPhases`; 0117 D4),
+    // carried down verbatim. `runDomainSync` reads it to decide whether the
+    // deletion detectors exist at all.
     sourceIsAuthorityOnExistence: deps.sourceIsAuthorityOnExistence,
     // And how to ask it again before the pass concludes anything (2026-10-05).
     stillTheAuthority: deps.stillTheAuthority,

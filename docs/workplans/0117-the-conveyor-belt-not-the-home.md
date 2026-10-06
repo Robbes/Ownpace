@@ -78,6 +78,19 @@ read `mailbox_mapping.status`'s legal values from migration 0001's CHECK, which 
 classified there, and `isAfterCutover` could drop it with that guard green. It now reads the
 last migration that defines the CHECK.
 
+**Corrected (fix 5): comments that said more than the code does.** No behaviour changed.
+`runDomainSync`'s docblock said moves stop after cutover; only path-keyed moves do (§7b's
+consequence stands). A folder move of mail, calendar, contacts or tasks is still recorded by the
+loop and listed in the Moves queue after cutover, and nothing can act on it: it records no
+arrival, so `relocationCheck` refuses it (`not_relocated`) and auto-apply never selects it.
+ADR-0031's 2026-10-05 amendment now says the same. The Graph mail source's header said
+`@removed` entries are skipped; they are returned by id, and the pass collects them only while
+the old system decides what exists. The Google Tasks header, the bin comment in `reconcile.ts`
+(the bin is mail's only deletion evidence over IMAP, not over Graph), the pass-through comments
+in `reconcile.ts` and `dav-sync.ts`, `SourceAuthority`'s docblock and `build-deps.ts` now name
+each data type's own phase (`readPathPhases`) instead of the migration's status, and no longer
+claim that every data type of a firing shares one reading.
+
 **2026-09-10, later still again: THE TWO HALVES DID NOT FIT, and finding that out
 found a shipped bug.** Building slice 4 began by connecting the pass to the store, and
 they would not connect — which is how both of these surfaced.

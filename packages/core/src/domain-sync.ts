@@ -821,16 +821,18 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    * within this pass:
    *
    *  1. **the reported stream** — a source announcing its own removals
-   *     (OneDrive's delta). The hrefs are not even collected, so
-   *     `resolveReportedRemovals` has nothing to resolve.
+   *     (OneDrive's delta, Graph mail's `@removed`, a DAV `sync-collection`,
+   *     Google Tasks' `deleted`). The sources still return them; the hrefs
+   *     are not collected here, so `resolveReportedRemovals` has nothing to
+   *     resolve.
    *  2. **the owner's bin** — `listDiscardedKeys`, positive evidence that a
-   *     person deleted something, and the mail domain's ONLY deletion
-   *     evidence. Stripped from the deps in `withSides`, so the closure is
+   *     person deleted something, and the only deletion evidence mail has
+   *     over IMAP. Stripped from the deps in `withSides`, so the closure is
    *     not present to be called.
    *  3. **absence-counting** — `detectPathKeyedMoves`, where a file's
    *     deletions come from. Not called.
    *
-   * `moves` and the path-keyed `drift` count go with the third, because they
+   * The path-keyed `moves` and `drift` go with the third, because they
    * are the same correlation: a move is a disappearance matched to an
    * arrival, and the disappearance half is the deletion signal. The visible
    * consequence, said out loud rather than discovered: **after cutover, a
@@ -839,10 +841,19 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    * of this trade; the alternative is `applyRelocation` removing a target
    * copy because the old system was reorganised.
    *
+   * NOT the folder moves the loop itself writes down (`classifyKnownItem`'s
+   * `'moved'`). Mail, calendar, contacts and tasks keep their key when an
+   * item changes folder, so the loop sees the same item somewhere else and
+   * records it, after cutover as before it, and it still reaches the Moves
+   * queue. That concludes nothing about what exists, and nothing can act on
+   * it: it records no arrival, so `relocationCheck` refuses it
+   * (`not_relocated`) and `autoApplyRelocations` never selects it.
+   *
    * REQUIRED, with no default, so that adding a caller is a decision rather
    * than an omission. Every `runDomainSync` in this repository is inside
    * `packages/core`, and each one's wrapper carries the same field up to the
-   * dep builders, which read it from the mapping's own lifecycle row.
+   * dep builders, which read it from the data type's own phase
+   * (`readPathPhases`).
    */
   readonly sourceIsAuthorityOnExistence: boolean;
   /**
@@ -2765,12 +2776,14 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
 
   // The path-keyed half, which can only run once every folder has been listed.
   //
-  // The third deletion producer, and the one that also yields `moves` and the
-  // path-keyed `drift`. All three go together after cutover, because they are
+  // The third deletion producer, and the one that also yields the path-keyed
+  // `moves` and `drift`. All three go together after cutover, because they are
   // one correlation: a move is a disappearance matched to an arrival, and the
-  // disappearance is the deletion signal. See `sourceIsAuthorityOnExistence`
-  // for the consequence that leaves behind. `stillDecides`, not the answer
-  // from the start: see above.
+  // disappearance is the deletion signal. A folder move the loop recorded
+  // above is not one of them: it keeps being listed after cutover, and cannot
+  // be applied. See `sourceIsAuthorityOnExistence` for both, and for the
+  // consequence this leaves behind. `stillDecides`, not the answer from the
+  // start: see above.
   if (domain === 'file' && fullyEnumerated && stillDecides) {
     if (unfinishedCollections.size > 0) {
       log.info(

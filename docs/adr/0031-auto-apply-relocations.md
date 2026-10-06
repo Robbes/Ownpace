@@ -119,14 +119,15 @@ four gates above are the measured difference between those two sentences.
 
 ## Amendment, 2026-10-05: after cutover nothing is auto-applied
 
-A pass after cutover correlates no moves (workplan 0117 D4: the detector does not run), but a
-move recorded before the cutover stayed open: nothing closed open moves at cutover, and the last
-pass before it always leaves its own moves for one more pass (gate 2). The first file pass after
-cutover then removed the old copy on the new system, signed `system:auto-apply`, on a mapping
-with both switches on, in both editions: neither dispatcher nor `autoApplyRelocations` asked the
-phase. That is the operation D4 forbids under another name. The owner, 2026-10-05: *"after cross
-over the bin reading and deleting on target should stop, because perhaps source-leavers clean up
-ALL after the cross over."*
+A pass after cutover correlates no path-keyed moves (workplan 0117 D4: the detector does not run;
+a folder move of mail, calendar, contacts or tasks is still listed, and records no arrival, so it
+cannot be applied: `not_relocated`), but a move recorded before the cutover stayed open: nothing
+closed open moves at cutover, and the last pass before it always leaves its own moves for one
+more pass (gate 2). The first file pass after cutover then removed the old copy on the new
+system, signed `system:auto-apply`, on a mapping with both switches on, in both editions: neither
+dispatcher nor `autoApplyRelocations` asked the phase. That is the operation D4 forbids under
+another name. The owner, 2026-10-05: *"after cross over the bin reading and deleting on target
+should stop, because perhaps source-leavers clean up ALL after the cross over."*
 
 So `autoApplyRelocations` takes a REQUIRED `stillTheAuthority`, the file deps' own question
 (`readPathPhases` through `sourceStillDecides`, read afresh each time it is asked), asks it after

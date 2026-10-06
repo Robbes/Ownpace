@@ -216,8 +216,9 @@ export const PASS_RUNNING_STATES: readonly string[] = ['active', 'continuous'];
  *
  * The value is always `!isAfterCutover(phase)`, where the phase is the data
  * type's own (`readPathPhases`, ledger; workplan 0128 T5), read from the
- * database by whoever builds the deps. Until a data type can have a phase of
- * its own, it is the migration's `mailbox_mapping.status`. Nothing derives it
+ * database by whoever builds the deps: the migration's `mailbox_mapping.status`
+ * for a data type with no path row of its own, and for every data type when
+ * their rows do not add up to it (`phasesOfThePaths`). Nothing derives it
  * from a config file or a caller's opinion: the lifecycle is in the database,
  * and that is the only place that knows whether cutover has happened.
  */

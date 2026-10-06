@@ -354,7 +354,7 @@ describe('a cutover executed while a pass runs: the pass concludes nothing about
   });
 });
 
-describe('the mail pass, whose only deletion evidence is the bin', () => {
+describe('the mail pass over IMAP, whose only deletion evidence is the bin', () => {
   function mailbox() {
     const source = new MemorySource();
     source.add({ folderPath: 'INBOX', messageId: '<a@dev.local>', rfc822: 'Subject: a\r\n\r\nbody' });
