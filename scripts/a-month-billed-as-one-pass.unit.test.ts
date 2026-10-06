@@ -28,12 +28,12 @@
  * Derivation alone would have made them load-bearing for ever and quietly
  * removed that choice.
  *
- * `invoice-generation.ts` freezing the measured quantities is what prevents
- * that: the number stops depending on the rows, ADR-0044 and migration 0014
- * make it immutable, and retention on `run` goes back to being a storage
- * decision. A future reader would see a `measured` object beside
- * `costByDriver` and reasonably call it redundant. It is not, and this fails
- * if it goes.
+ * The retired generator (`invoice-generation.ts`) prevented that by freezing
+ * the measured quantities onto the invoice, and this file held it to that.
+ * It is gone (0111 slice 4a), and with it that half of this guard: billing no
+ * longer reads the run ledger at all. A month bills a tier, from the recorded
+ * peak and the first-copy meter (ADR-0014), so retention on `run` is a
+ * storage decision by construction.
  *
  * ## Why read as text
  *
@@ -66,7 +66,6 @@ const read = (rel: string): string => code(readFileSync(join(REPO_ROOT, rel), 'u
 
 const METERING = 'packages/managed/src/usage-metering.ts';
 const DISPATCHER = 'apps/worker/src/jobs/run-delta-sync.ts';
-const INVOICE = 'apps/api/src/services/invoice-generation.ts';
 
 describe('compute is derived, and derived from the passes that ran', () => {
   const source = read(METERING);
@@ -119,22 +118,5 @@ describe('the dispatcher records where the time went, and writes no billing row'
   it('carries the per-domain seconds into the run row it already closes', () => {
     expect(source).toMatch(/domainSeconds\[domain\]\s*=/);
     expect(source).toMatch(/finishRun\(runId, outcome, \{[^}]*domainSeconds[^}]*\}\)/);
-  });
-});
-
-describe('the invoice freezes what was measured, not only what was charged', () => {
-  const source = read(INVOICE);
-
-  it('writes the measured quantities onto the invoice', () => {
-    // Without this the run rows ARE the invoice's basis and can never be
-    // deleted. See this file's header.
-    expect(source).toMatch(/const measured = \{/);
-    for (const field of ['computeHours', 'syncCount', 'storageBytes', 'egressBytes']) {
-      expect(source, `measured drops ${field}`).toMatch(new RegExp(`${field}:\\s*usage\\.`));
-    }
-  });
-
-  it('puts them in the metadata the invoice actually stores', () => {
-    expect(source).toMatch(/const metadata = \{[^}]*measured[^}]*\}/);
   });
 });

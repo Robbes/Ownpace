@@ -1100,6 +1100,23 @@ services:
       # outside the seller country are told their invoices will carry.
       OWNPACE_SELLER_COUNTRY: ${OWNPACE_SELLER_COUNTRY:-NL}
       VAT_OSS_ACTIVE: ${VAT_OSS_ACTIVE:-false}
+      # The books (workplan 0111): the Moneybird administration invoices are
+      # numbered in, and what it holds that an invoice needs. All five of the
+      # first group together, or none: none is Moneybird off, and half a set
+      # is refused by key name, never guessed (moneybird-config.ts). Optional
+      # here, never `:?`, so a stack without books starts. Ids are Moneybird's
+      # long numbers, kept as text. The outside-EU rate may stay empty (a
+      # buyer outside the EU is then refused by name), and the delivery is
+      # `manual` unless it says `email`, which it says only on live.
+      # `./deploy/compose/operator.sh moneybird check` reads the
+      # administration and says what each of these resolves to.
+      MONEYBIRD_API_TOKEN: ${MONEYBIRD_API_TOKEN:-}
+      MONEYBIRD_ADMINISTRATION_ID: ${MONEYBIRD_ADMINISTRATION_ID:-}
+      MONEYBIRD_WORKFLOW_ID: ${MONEYBIRD_WORKFLOW_ID:-}
+      MONEYBIRD_TAX_RATE_ID_DOMESTIC: ${MONEYBIRD_TAX_RATE_ID_DOMESTIC:-}
+      MONEYBIRD_TAX_RATE_ID_REVERSE_CHARGE: ${MONEYBIRD_TAX_RATE_ID_REVERSE_CHARGE:-}
+      MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU: ${MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU:-}
+      MONEYBIRD_DELIVERY: ${MONEYBIRD_DELIVERY:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3123}
       WEB_URL: ${WEB_URL:-http://localhost:3123}
       # Which scope class this deployment's own Google application carries

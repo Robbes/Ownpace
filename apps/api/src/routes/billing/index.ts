@@ -55,7 +55,6 @@ import { run as runTable } from '@openmig/ledger/schema-pg';
 // (`holdsASlot`, wrapped by `slotsHeld`) rather than a second list here.
 import { PgPathLifecycleStore } from '@openmig/ledger';
 import { log, type TenantId } from '@openmig/shared';
-import { NO_TIER_BILLING_CODE, NO_TIER_BILLING_REASON } from './no-bill-we-do-not-sell.ts';
 import { readPathsForecast } from './paths-at-start.ts';
 import {
   billingPartyColumns,
@@ -63,7 +62,7 @@ import {
   vatConsultationColumns,
 } from '../../services/vat-standing.ts';
 
-/** Decimal GB, as `invoice-generation.ts` uses — a price list is not binary. */
+/** Decimal GB, as the tier table uses — a price list is not binary. */
 const BYTES_PER_GB = 1_000_000_000;
 
 /** The authenticated tenant id in the ledger's branded type, said once. */
@@ -227,7 +226,7 @@ router.get('/usage', authenticate, requireBillingRead, async (req: Authenticated
     );
 
     // DECIMAL GB, like every other reader of these bytes: `usage/history`
-    // below, `invoice-generation.ts`, and the tier table's own data axis
+    // below, and the tier table's own data axis
     // ("1 TB = 1000 GB, the site's convention" — ADR-0014, tier-calculator).
     //
     // These two lines divided by 1024³ until 2026-09-09 — with BYTES_PER_GB
@@ -1020,46 +1019,6 @@ router.post('/party/check-vat', authenticate, requireBillingWrite, async (req: A
 });
 
 /**
- * POST /api/billing/invoices/generate
- *
- * Generate (or refresh) the invoice for a billing period from metered usage.
- * Body: { period?: "YYYY-MM" } — defaults to the current month. Idempotent; a
- * paid/void invoice is returned unchanged. Intended to be called by a
- * managed-mode scheduled job at period close (self-host never loads billing).
- */
-router.post('/invoices/generate', authenticate, requireBillingWrite, (req: AuthenticatedRequest, res: Response) => {
-  // REFUSED, and the body that used to be here is GONE rather than left
-  // unreachable behind the refusal (workplan 0109 T0, the owner's decision of
-  // 2026-08-27). Dead code under a `return` is code nobody maintains and
-  // everybody assumes still works; git has the old body, and 0109 T5 writes
-  // the real one against tiers.
-  //
-  // What it did, so the next reader need not dig: it read metered usage for a
-  // period and called `generateInvoiceForPeriod`. That service still exists and
-  // is now unreachable from the API — and, stated plainly because the opposite
-  // would be more comfortable, it is no longer covered by a test: its only
-  // coverage was through this route. Re-pinning its arithmetic was considered
-  // and rejected, because the doc comment in `no-bill-we-do-not-sell.ts` names
-  // three faults in exactly that arithmetic; a test asserting the old total
-  // would be asserting a number this same change calls wrong. 0109 T5 replaces
-  // the service, and `no-bill-we-do-not-sell.unit.test.ts` goes red the moment
-  // it does.
-  //
-  // What is refused is MINTING A BILL, which is the one operation that turns a
-  // retired model into a number somebody could be asked to pay. Every other
-  // billing route is untouched.
-  //
-  // 409 rather than 501: the request is well-formed and this caller is
-  // entitled to make it; the deployment cannot honour it. No tenant scoping
-  // and no database work happens first, so a refused call leaves nothing
-  // behind — not even a draft.
-  if (!req.tenantId) {
-    return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
-  }
-  res.status(409).json({ error: NO_TIER_BILLING_CODE, reason: NO_TIER_BILLING_REASON });
-});
-
-/**
  * GET /api/billing/invoices
  *
  * List all invoices for the tenant
@@ -1229,6 +1188,19 @@ router.post('/invoices/:invoiceId/pay', authenticate, requireBillingWrite, async
       });
       return;
     }
+    // Nor a draft (workplan 0111 T5, managed 0045). This route used to set a
+    // draft `sent` while asking Mollie for money, which issued an invoice
+    // Moneybird never numbered. An invoice is issued when Moneybird numbers
+    // it; until then there is nothing to pay, and the database now refuses
+    // draft -> sent without the number anyway, after Mollie would have been
+    // asked. So the refusal comes first.
+    if (invoice.status === 'draft') {
+      res.status(409).json({
+        error: 'Conflict',
+        message: 'This invoice has not been issued yet, so there is nothing to pay.',
+      });
+      return;
+    }
 
     // Get Mollie service
     const mollieService = getMollieService();
@@ -1249,13 +1221,14 @@ router.post('/invoices/:invoiceId/pay', authenticate, requireBillingWrite, async
       metadata: { invoiceId },
     });
 
-    // Update invoice status in database
+    // Record the payment on the invoice. Its status stays what it is (sent
+    // or overdue): the webhook moves it to paid. The metadata is added to,
+    // never replaced: whatever else it holds stays.
     await withTenantDb(tenantId, getSharedPool(), async (db) => {
       await db.update(schema.invoice)
         .set({
-          status: 'sent',
           paymentId: payment.id,
-          metadata: { mollieInvoiceId: payment.id },
+          metadata: sql`${schema.invoice.metadata} || ${JSON.stringify({ mollieInvoiceId: payment.id })}::jsonb`,
           updatedAt: new Date(),
         })
         .where(

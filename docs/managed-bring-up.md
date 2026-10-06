@@ -321,7 +321,27 @@ site's `WWW_BIND` and the demo's `STALWART_BIND`, separated by commas with no
 space (`EXPOSURE_ALLOW=192.0.2.10,100.64.0.1`; a bare space is a line bash
 cannot source, and the bring-up refuses it). Each stack's `.env` carries the
 same list. It names the container and the port, never the address, so what it
-prints can go into a public log. `deploy-live.sh` (workplan 0132 T6) runs it
+prints can go into a public log.
+
+**Containers on the machine that are not Ownpace's.** The machine also runs
+services of the owner's that have nothing to do with Ownpace, and some of them
+publish on every interface. The owner, 2026-10-05: *"leave the host services
+alone and continue. I just want to be able to bring the live up. The box is
+airgapd behind netbird, so no issue there."* So `EXPOSURE_NOT_OURS` in the same
+`.env` lists those containers by the names `docker ps` prints, matched exactly,
+separated by commas with no space (`EXPOSURE_NOT_OURS=someones-app,notes-db`),
+and each stack's `.env` carries the same list. For a container named there, a
+port on every interface or on an address `EXPOSURE_ALLOW` does not list is a
+note (*"note: someones-app publishes 5555/tcp on every interface; not Ownpace's,
+accepted in EXPOSURE_NOT_OURS"*), not a failure, and the closing `ok:` line
+counts them. So the check no longer holds every publish on the machine to
+loopback and `EXPOSURE_ALLOW`: those containers' are the owner's to judge. **An
+Ownpace container can never be accepted this way:** a name beginning with
+`ownpace` (every container Ownpace starts here is named so), or a running
+container whose Compose project is Ownpace's (`ownpace…`, or `compose`, which
+`dev.yml` gets without a name of its own), stops the check (exit 2), and so
+does an entry that is not a container name. A listed name that is not running
+is a note. `deploy-live.sh` (workplan 0132 T6) runs it
 after each deploy of live, and a deploy it fails did not take; T7 will run it
 daily. Until live stands it is run by hand (T0 step 5). The same question from
 outside is the dispatch-only workflow *Exposure probe*
@@ -1368,6 +1388,33 @@ transaction.
 why it is a question worth asking; `operator-housekeeping.integration.test.ts`
 runs all of them against a real database, because SQL nobody has executed is SQL
 nobody has checked.
+
+**The books** (workplan 0111). Invoices are numbered in a Moneybird
+administration that the `MONEYBIRD_*` keys in `.env` name (`managed.env.example`
+lists them: all five of the first group, or none). With none set, Moneybird is
+off and nothing is asked of it. To see what a set resolves to:
+
+```bash
+./deploy/compose/operator.sh moneybird check
+```
+
+It makes two reads, the administration's sales tax rates and its workflows, and
+prints each with its id, what each VAT treatment resolves to, and the workflow
+invoices would go through, with whether its prices include VAT. It makes no
+contact, no invoice and no e-mail. With only `MONEYBIRD_API_TOKEN` and
+`MONEYBIRD_ADMINISTRATION_ID` set it lists the ids to pick the rest from. It
+exits 1 while its report names something to do; the outside-EU rate is
+optional, so its refusal is printed and does not count. The token is in no line
+it prints. Half a set also gets a warning when the API starts.
+
+What is invoiced, and from when, is a second switch: `OWNPACE_BILLING_FROM`, the
+first month invoiced, written `YYYY-MM`. Empty, nobody is invoiced. Set, the
+hourly `managed-month-invoices` task makes each organisation's invoice for a
+month in advance, as a draft: on its first day at the tier it starts on, and
+after a move up for the difference (workplan 0111, slice 4). It never invoices
+while `OWNPACE_STAGE` is `alpha`. Only the tasks read it, so
+`./deploy/compose/set-task-env.sh` must run after it changes;
+[ending-the-alpha.md](./ending-the-alpha.md) is when to set it.
 
 **Verify** — the queue answers, and answers only for them:
 
@@ -3248,7 +3295,7 @@ No script can do these. The script checks each one before it changes anything.
      TRIGGER_LOGIN_ORIGIN=https://localhost:<TRIGGER_TLS_PORT> \
      TRIGGER_CLI_PROFILE=ownpace-live \
      WEB_BIND=<front-address> ZITADEL_BIND=<front-address> STATUS_BIND=<front-address> \
-     EXPOSURE_ALLOW=<address,address> \
+     EXPOSURE_ALLOW=<address,address> EXPOSURE_NOT_OURS=<name,name> \
      WEB_URL=https://app.ownpace.eu CORS_ORIGIN=https://app.ownpace.eu \
      ZITADEL_EXTERNALDOMAIN=id.ownpace.eu ZITADEL_EXTERNALPORT=443 \
      ZITADEL_EXTERNALSECURE=true ZITADEL_TLS_MODE=external \
@@ -3267,7 +3314,10 @@ No script can do these. The script checks each one before it changes anything.
    and no loopback address, which never needs listing. The script hands the
    list to `exposure-check.sh` itself, the check its last step and the daily
    duties run, so it takes the lists that check takes and refuses the ones it
-   refuses. Leave `POSTGRES_BIND`, `API_BIND`, `TRIGGER_BIND`, `TRIGGER_ACCESS_TOKEN` and
+   refuses. `EXPOSURE_NOT_OURS` is the OTA stack's, copied: the containers on
+   the machine that are not Ownpace's, by name (*Containers on the machine that
+   are not Ownpace's*, under *Which address a port answers on*); leave it empty
+   when there are none. The same check refuses an Ownpace container in it. Leave `POSTGRES_BIND`, `API_BIND`, `TRIGGER_BIND`, `TRIGGER_ACCESS_TOKEN` and
    `OWNPACE_REACHABLE_HOSTS` empty, and keep `APP_DB_USER=app_user`. Write
    every line `KEY=value` at its start: Compose also reads a key indented, with
    a space before `=`, or with `:`, the script's checks do not, and it refuses

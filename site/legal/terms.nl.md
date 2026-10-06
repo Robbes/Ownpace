@@ -154,20 +154,21 @@ gelden.
 
 Herroepen doet u met *Overeenkomst herroepen* in de app, of met een ondubbelzinnige verklaring
 aan **support@ownpace.eu**, binnen de 14 dagen. U mag het modelformulier uit §15 gebruiken, maar
-dat hoeft niet. Wij bevestigen de ontvangst onverwijld per e-mail. Hebt u al betaald, dan betalen
-we alles boven het evenredige bedrag binnen 14 dagen terug, via het betaalmiddel dat u
-gebruikte; is er nog niets betaald — er wordt achteraf gefactureerd — dan factureren we het
-evenredige bedrag en niets anders.
+dat hoeft niet. Wij bevestigen de ontvangst onverwijld per e-mail. U betaalt alleen het
+evenredige bedrag: wat daarboven is gefactureerd, crediteren we, en wat u daarboven hebt betaald,
+betalen we binnen 14 dagen terug, via het betaalmiddel dat u gebruikte.
 
 Bent u zakelijke klant, dan geldt dit hoofdstuk niet voor u.
 
 ## 8. Facturatie, verlenging, en niet betalen voor vergeten
 
-Er wordt **maandelijks achteraf** gefactureerd, via de betaalwijze die u hebt vastgelegd, door
-onze betaaldienstverlener Mollie. Op Free wordt niets gefactureerd, dus er valt niets vast te
-leggen. Kiest u ervoor **een jaar vooruit te betalen**, dan wordt dat bij aanvang
-gefactureerd, tegen de prijs van zes maanden, en geldt het als tegoed: elke maand van het jaar
-krijgt haar eigen pakket, tegen de helft van de maandprijs van dat pakket.
+Er wordt **maandelijks vooraf** gefactureerd: een maand op haar eerste dag, voor het pakket
+waarmee ze begint, via de betaalwijze die u hebt vastgelegd, door onze betaaldienstverlener
+Mollie. Gaat de maand naar een hoger pakket, dan wordt het verschil voor die maand gefactureerd
+wanneer dat gebeurt. Op Free wordt niets gefactureerd, dus er valt niets vast te leggen. Kiest u
+ervoor **een jaar vooruit te betalen**, dan wordt dat bij aanvang gefactureerd, tegen de prijs
+van zes maanden, en geldt het als tegoed: elke maand van het jaar krijgt haar eigen pakket,
+tegen de helft van de maandprijs van dat pakket.
 
 **Een maandabonnement kunt u op elk moment opzeggen**, per het einde van de lopende maand. Geen
 minimumduur, geen opzegtermijn, geen opzegkosten.

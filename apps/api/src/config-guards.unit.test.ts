@@ -5,7 +5,11 @@
  * boot — with billing live — or warn, in words that name the consequence.
  */
 import { describe, it, expect } from 'vitest';
-import { describeUrlConfigProblems, assertProductionUrlConfig } from './config-guards.ts';
+import {
+  assertProductionUrlConfig,
+  describeMoneybirdConfigProblem,
+  describeUrlConfigProblems,
+} from './config-guards.ts';
 
 const prodBilling = {
   NODE_ENV: 'production',
@@ -98,5 +102,31 @@ describe('assertProductionUrlConfig', () => {
     } finally {
       process.env = oldEnv;
     }
+  });
+});
+
+describe('describeMoneybirdConfigProblem (workplan 0111)', () => {
+  const token = 'not-a-real-token-and-never-printed';
+
+  it('says nothing when Moneybird is off or whole', () => {
+    expect(describeMoneybirdConfigProblem({})).toEqual([]);
+    expect(
+      describeMoneybirdConfigProblem({
+        MONEYBIRD_API_TOKEN: token,
+        MONEYBIRD_ADMINISTRATION_ID: '123456789012345678',
+        MONEYBIRD_WORKFLOW_ID: '123456789012345601',
+        MONEYBIRD_TAX_RATE_ID_DOMESTIC: '123456789012345611',
+        MONEYBIRD_TAX_RATE_ID_REVERSE_CHARGE: '123456789012345622',
+      }),
+    ).toEqual([]);
+  });
+
+  it('warns, never fatally, on half a set, naming the keys and not the token', () => {
+    const problems = describeMoneybirdConfigProblem({ MONEYBIRD_API_TOKEN: token });
+    expect(problems).toHaveLength(1);
+    expect(problems[0]!.fatal).toBe(false);
+    expect(problems[0]!.message).toContain('MONEYBIRD_ADMINISTRATION_ID');
+    expect(problems[0]!.message).toContain('operator.sh moneybird check');
+    expect(problems[0]!.message).not.toContain(token);
   });
 });

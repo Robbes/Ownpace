@@ -415,6 +415,20 @@
       lawyer, before the first paid tier (terms-paid-tier-lawyer-checks (a)):
       does a chosen tier need its own order button (precondition C), and may
       a month that used less still bill the chosen tier?
+  29. §7 and §8: billing in advance (2026-10-05; workplan 0111, decision
+      6). The owner: "no, please invoice in advance of the month". What a
+      month costs does not change; when it is invoiced does. §8 said
+      "monthly in arrears", and now says: a month is invoiced on its first
+      day, at the tier it starts on, and if it moves up to a higher tier,
+      the difference for that month is invoiced when it does. §7 said "if
+      nothing has been paid yet — billing is in arrears — we invoice the
+      proportionate amount and nothing else", and now says the customer
+      pays only the proportionate amount: what was invoiced above it is
+      credited, what was paid above it refunded within 14 days. Left for
+      the lawyer, before the first paid tier (terms-paid-tier-lawyer-checks
+      (a)): may a month that moves up on its last day bill the higher tier's
+      whole difference, and does invoicing in advance change what §7's
+      proportionate amount is measured against?
 
   The questions of v1.1 and v1.2, with where each stands now:
 
@@ -619,19 +633,20 @@ throughout.
 
 To withdraw, use *Withdraw from contract* in the app, or send an unambiguous statement to
 **support@ownpace.eu**, within the 14 days. You may use the model form in §15, but you do not
-have to. We confirm receipt by email without delay. If you have already paid, we refund
-everything above the proportionate amount within 14 days, by the means of payment you used; if
-nothing has been paid yet — billing is in arrears — we invoice the proportionate amount and
-nothing else.
+have to. We confirm receipt by email without delay. You pay only the proportionate amount:
+whatever was invoiced above it we credit, and whatever you paid above it we refund within 14
+days, by the means of payment you used.
 
 If you are a business customer, this section does not apply to you.
 
 ## 8. Billing, renewal, and not billing you for forgetting
 
-Billing is **monthly in arrears**, by the payment method you registered, through our payment
-provider Mollie. On Free nothing is billed, so there is nothing to register. If you choose to
-**pay a year ahead**, it is billed at its start, at six months' price, and it is credit: each
-month of the year takes its own tier, at half that tier's monthly price.
+Billing is **monthly in advance**: a month is invoiced on its first day, at the tier it starts
+on, by the payment method you registered, through our payment provider Mollie. If the month
+moves up to a higher tier, the difference for that month is invoiced when it does. On Free
+nothing is billed, so there is nothing to register. If you choose to **pay a year ahead**, it is
+billed at its start, at six months' price, and it is credit: each month of the year takes its
+own tier, at half that tier's monthly price.
 
 **You can cancel a monthly subscription at any time**, effective at the end of the current
 month. There is no minimum term, no notice period and no cancellation fee.

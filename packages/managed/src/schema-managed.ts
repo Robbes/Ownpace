@@ -104,11 +104,32 @@ export const invoice = pgTable(
     metadata: jsonb('metadata').notNull().default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    // The mirror (workplan 0111 T5, managed 0045). Ours when the row is made:
+    // the reference a push is idempotent on (NULL only on the retired
+    // generator's rows, which are never pushed), the kind, the invoice a
+    // credit note corrects, and the evidence its line quotes.
+    reference: text('reference'),
+    kind: text('kind', { enum: ['invoice', 'credit_note'] }).notNull().default('invoice'),
+    creditedInvoiceId: uuid('credited_invoice_id'),
+    evidence: jsonb('evidence').notNull().default({}),
+    // Written by the push while the row is a draft: what the document carries.
+    vatTreatment: text('vat_treatment', {
+      enum: ['domestic_standard', 'reverse_charge', 'destination_oss', 'outside_eu'],
+    }),
+    taxRateId: text('tax_rate_id'),
+    lines: jsonb('lines').notNull().default([]),
+    // Moneybird's, written once, at issue (draft -> sent); the database
+    // refuses a step out of draft without the number and the id.
+    moneybirdAdministrationId: text('moneybird_administration_id'),
+    moneybirdId: text('moneybird_id'),
+    invoiceNumber: text('invoice_number'),
+    invoiceDate: text('invoice_date'),
   },
   (t) => [
     index('ix_invoice_tenant').on(t.tenantId, t.periodStart),
     index('ix_invoice_status').on(t.status, t.periodStart),
-    uniqueIndex('uk_invoice_tenant_period').on(t.tenantId, t.periodStart),
+    // No (tenant_id, period_start) key since managed 0046: invoiced in
+    // advance, a month has one invoice per step up. The reference is the key.
   ],
 );
 

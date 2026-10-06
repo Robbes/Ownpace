@@ -1,8 +1,8 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * The Moneybird adapter's core: a reference, never a number (workplan 0111
- * T4, first seam).
+ * The Moneybird adapter: a reference, never a number (workplan 0111 T4; the
+ * first seam on 2026-08-29, completed as slice 2 of §"The build, sliced").
  *
  * ADR-0044 in function signatures: Moneybird assigns the invoice number,
  * renders the document and files it; Ownpace is upstream of the record. What
@@ -18,8 +18,9 @@
  * invoice is immutable (ADR-0044); if the caller's idea of the lines differs
  * from what exists under the reference, that is a DISCREPANCY to surface,
  * not a PATCH to apply — the correction instrument is a credit note (T7).
- * The `exists` outcome hands back Moneybird's row so the caller can compare
- * and say so.
+ * One existing invoice is refused outright: one under our reference but for
+ * another contact. A reference is ours and names one buyer's month; an
+ * invoice for somebody else under it is not ours to adopt.
  *
  * ## The double-invoice hole this refuses to have
  *
@@ -29,7 +30,24 @@
  * one period. Here only an explicit 404 opens the create path; every other
  * lookup failure is `unavailable`, try later, nothing created.
  *
- * ## Contacts, by our key
+ * ## The workflow and its VAT, stated on every invoice
+ *
+ * A Moneybird workflow says whether line prices include VAT, and an invoice
+ * created without saying takes the workflow's setting. On the sandbox the
+ * owner set prices including VAT (2026-10-05); a line priced for the other
+ * setting gains or loses 21% without any error. So `workflowId` and
+ * `pricesAreInclTax` are required on every create, never defaulted, and the
+ * caller (`moneybird-push.ts`) checks the draft's total before it is sent.
+ *
+ * ## Sending: only a draft, never by default
+ *
+ * `sendSalesInvoice` takes the invoice as read and sends it only while it is a
+ * `draft`, so a retry after a send whose answer was lost finds an `open`
+ * invoice and sends nothing, and mails nobody twice. The delivery method has
+ * no default: `Manual` numbers the invoice and e-mails nothing; `Email` is for
+ * live, where the buyer gave an invoice address.
+ *
+ * ## Contacts, by our key, kept in step
  *
  * A sales invoice needs a Moneybird `contact_id`. `ensureContact` finds the
  * contact by OUR stable key — Moneybird's `customer_id` field, which is the
@@ -39,76 +57,51 @@
  * not enforce uniqueness on that field, a lost race can in principle leave
  * two contacts with one key. That costs nothing an invoice cares about
  * (both are the same buyer) and is preferred over pretending the API gives
- * an atomicity it does not.
+ * an atomicity it does not. A contact that exists but says something else
+ * (an address moved, a VAT number added) is brought in step before the
+ * invoice is made: the mirror keeps no buyer address, Moneybird's contact
+ * does, and a reverse-charge invoice without the buyer's VAT number is not
+ * one.
  *
  * ## What is deliberately NOT here
  *
  * No tax arithmetic (a line carries a `tax_rate_id` from
- * `moneybird-tax-rates.ts` and nothing else), no PDF download or credit
- * notes (T6/T7), no environment reads (config is parameters; wiring is the
- * caller's, and lands when the trial administration exists), and no retry
- * loop — idempotency is what makes the CALLER's retry safe, which is better
- * than owning one.
+ * `moneybird-tax-rates.ts` and a price from `line-price.ts`), no PDF download
+ * or credit notes (T6/T7), no environment reads (configuration is parameters,
+ * `moneybird-config.ts` reads it), and no retry loop — idempotency is what
+ * makes the CALLER's retry safe, which is better than owning one. A 429 is
+ * its own outcome, `slow_down`, so the caller paces itself.
  *
  * Injectable fetch throughout, same as `vies.ts` and
  * `moneybird-tax-rates.ts`: a test of this module must not be a test of
- * Moneybird — and the live shapes still need proving against the trial
- * administration before anything real flows (the German-19% gating test).
+ * Moneybird.
  */
 
-export interface MoneybirdConfig {
-  readonly administrationId: string;
-  /** Rides the vault/env, never git, never the appliance image (ADR-0044). */
-  readonly apiToken: string;
-}
-
-const BASE = 'https://moneybird.com/api/v2';
-
-/** One shared request shape: Bearer token, JSON, a 10s cap, no retries. */
-async function moneybirdRequest(
-  config: MoneybirdConfig,
-  method: 'GET' | 'POST' | 'PATCH',
-  path: string,
-  body: unknown,
-  fetchImpl: typeof fetch,
-): Promise<
-  | { readonly kind: 'response'; readonly status: number; readonly body: unknown }
-  | { readonly kind: 'unreachable'; readonly reason: string }
-> {
-  let response: Response;
-  try {
-    response = await fetchImpl(`${BASE}/${encodeURIComponent(config.administrationId)}${path}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${config.apiToken}`,
-        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      signal: AbortSignal.timeout(10_000),
-    });
-  } catch (error) {
-    return {
-      kind: 'unreachable',
-      reason: `Moneybird could not be reached: ${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
-  let parsed: unknown = null;
-  try {
-    parsed = await response.json();
-  } catch {
-    // Some answers (204s, HTML error pages) carry no JSON; the status decides.
-  }
-  return { kind: 'response', status: response.status, body: parsed };
-}
-
-function refusedToken(status: number): string {
-  return `Moneybird refused the token (HTTP ${status}) — check MONEYBIRD_API_TOKEN and the administration id.`;
-}
+import { centsFromDecimal } from './line-price.ts';
+import {
+  moneybirdRequest,
+  tokenRefusal,
+  type MoneybirdAccess,
+  type MoneybirdResponse,
+  type SlowDown,
+} from './moneybird-http.ts';
 
 /** A few hundred bytes of Moneybird's own words, for a refusal a person reads. */
 function bodyText(body: unknown): string {
   const text = typeof body === 'string' ? body : JSON.stringify(body ?? '');
   return text.length > 400 ? `${text.slice(0, 400)}…` : text;
+}
+
+/** What every outcome does with no answer, a 429, and a refused token. */
+function failed(
+  answer: MoneybirdResponse,
+): SlowDown | { readonly kind: 'unavailable'; readonly reason: string } | null {
+  if (answer.kind === 'unreachable') return { kind: 'unavailable', reason: answer.reason };
+  if (answer.kind === 'slow_down') return answer;
+  if (answer.status === 401 || answer.status === 403) {
+    return { kind: 'unavailable', reason: tokenRefusal(answer.status) };
+  }
+  return null;
 }
 
 // ------------------------------------------------------------------ contacts
@@ -129,7 +122,7 @@ export interface MoneybirdContactInput {
   readonly country: string;
   /** As stated (and, for reverse charge, VIES-validated by T2). */
   readonly taxNumber?: string | null;
-  /** Where Moneybird sends the document (T6's delivery path). */
+  /** Where Moneybird sends the document, with delivery `Email` (decision 11). */
   readonly email?: string | null;
 }
 
@@ -140,9 +133,11 @@ export interface MoneybirdContact {
 
 export type EnsureContactOutcome =
   | { readonly kind: 'exists'; readonly contact: MoneybirdContact }
+  | { readonly kind: 'updated'; readonly contact: MoneybirdContact }
   | { readonly kind: 'created'; readonly contact: MoneybirdContact }
   | { readonly kind: 'refused'; readonly reason: string }
-  | { readonly kind: 'unavailable'; readonly reason: string };
+  | { readonly kind: 'unavailable'; readonly reason: string }
+  | SlowDown;
 
 function parseContact(entry: unknown): MoneybirdContact | null {
   if (typeof entry !== 'object' || entry === null) return null;
@@ -154,72 +149,120 @@ function parseContact(entry: unknown): MoneybirdContact | null {
   };
 }
 
+/** The fields this module sets on a contact, in Moneybird's names; empty is absent. */
+function contactFields(input: MoneybirdContactInput): Record<string, string> {
+  const fields: Record<string, string | null | undefined> = {
+    company_name: input.companyName,
+    firstname: input.firstname,
+    lastname: input.lastname,
+    address1: input.address1,
+    address2: input.address2,
+    zipcode: input.zipcode,
+    city: input.city,
+    country: input.country,
+    tax_number: input.taxNumber,
+    send_invoices_to_email: input.email,
+  };
+  return Object.fromEntries(
+    Object.entries(fields).filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1] !== ''),
+  );
+}
+
 /**
- * Find the contact carrying our key, or create it. Look-then-create, with
- * the same rule as invoices: only a clean "no match" opens the create path.
+ * The fields to change on an existing contact so it says what the buyer
+ * said: each field we set that differs, and each we no longer set that it
+ * still holds (sent as empty). Empty when it already agrees.
+ */
+function contactChanges(existing: Record<string, unknown>, wanted: Record<string, string>): Record<string, string> {
+  const changes: Record<string, string> = {};
+  for (const key of [
+    'company_name',
+    'firstname',
+    'lastname',
+    'address1',
+    'address2',
+    'zipcode',
+    'city',
+    'country',
+    'tax_number',
+    'send_invoices_to_email',
+  ]) {
+    const has = typeof existing[key] === 'string' ? (existing[key] as string) : '';
+    const want = wanted[key] ?? '';
+    if (has !== want) changes[key] = want;
+  }
+  return changes;
+}
+
+/**
+ * Find the contact carrying our key, bring it in step, or create it.
+ * Look-then-create, with the same rule as invoices: only a clean "no match"
+ * opens the create path.
  */
 export async function ensureContact(
-  config: MoneybirdConfig,
+  access: MoneybirdAccess,
   input: MoneybirdContactInput,
   fetchImpl: typeof fetch = fetch,
 ): Promise<EnsureContactOutcome> {
   const search = await moneybirdRequest(
-    config,
+    access,
     'GET',
     `/contacts.json?query=${encodeURIComponent(input.customerId)}`,
     undefined,
     fetchImpl,
   );
-  if (search.kind === 'unreachable') return { kind: 'unavailable', reason: search.reason };
-  if (search.status === 401 || search.status === 403) {
-    return { kind: 'unavailable', reason: refusedToken(search.status) };
+  const searchFailed = failed(search);
+  if (searchFailed) return searchFailed;
+  if (search.kind !== 'response' || search.status !== 200 || !Array.isArray(search.body)) {
+    const status = search.kind === 'response' ? search.status : 0;
+    return { kind: 'unavailable', reason: `Moneybird answered HTTP ${status} to the contact search.` };
   }
-  if (search.status !== 200 || !Array.isArray(search.body)) {
-    return { kind: 'unavailable', reason: `Moneybird answered HTTP ${search.status} to the contact search.` };
-  }
+  const wanted = contactFields(input);
   // The search is fuzzy; the MATCH is exact. A contact whose customer_id
   // merely contains our key is somebody else.
   for (const entry of search.body) {
     const contact = parseContact(entry);
-    if (contact && contact.customerId === input.customerId) {
-      return { kind: 'exists', contact };
+    if (!contact || contact.customerId !== input.customerId) continue;
+    const changes = contactChanges(entry as Record<string, unknown>, wanted);
+    if (Object.keys(changes).length === 0) return { kind: 'exists', contact };
+    const patched = await moneybirdRequest(
+      access,
+      'PATCH',
+      `/contacts/${encodeURIComponent(contact.id)}.json`,
+      { contact: changes },
+      fetchImpl,
+    );
+    const patchFailed = failed(patched);
+    if (patchFailed) return patchFailed;
+    if (patched.kind === 'response' && patched.status === 422) {
+      return { kind: 'refused', reason: `Moneybird refused the contact's new details: ${bodyText(patched.body)}` };
     }
+    if (patched.kind !== 'response' || patched.status !== 200) {
+      const status = patched.kind === 'response' ? patched.status : 0;
+      return { kind: 'unavailable', reason: `Moneybird answered HTTP ${status} to the contact update.` };
+    }
+    return { kind: 'updated', contact };
   }
 
   const created = await moneybirdRequest(
-    config,
+    access,
     'POST',
     '/contacts.json',
-    {
-      contact: {
-        customer_id: input.customerId,
-        ...(input.companyName ? { company_name: input.companyName } : {}),
-        ...(input.firstname ? { firstname: input.firstname } : {}),
-        ...(input.lastname ? { lastname: input.lastname } : {}),
-        address1: input.address1,
-        ...(input.address2 ? { address2: input.address2 } : {}),
-        zipcode: input.zipcode,
-        city: input.city,
-        country: input.country,
-        ...(input.taxNumber ? { tax_number: input.taxNumber } : {}),
-        ...(input.email ? { send_invoices_to_email: input.email } : {}),
-      },
-    },
+    { contact: { customer_id: input.customerId, ...wanted } },
     fetchImpl,
   );
-  if (created.kind === 'unreachable') return { kind: 'unavailable', reason: created.reason };
-  if (created.status === 401 || created.status === 403) {
-    return { kind: 'unavailable', reason: refusedToken(created.status) };
+  const createFailed = failed(created);
+  if (createFailed) return createFailed;
+  if (created.kind === 'response' && created.status === 422) {
+    return { kind: 'refused', reason: `Moneybird refused the contact as invalid: ${bodyText(created.body)}` };
   }
-  if (created.status === 422) {
-    return {
-      kind: 'refused',
-      reason: `Moneybird refused the contact as invalid: ${bodyText(created.body)}`,
-    };
-  }
-  const contact = created.status === 201 || created.status === 200 ? parseContact(created.body) : null;
+  const contact =
+    created.kind === 'response' && (created.status === 201 || created.status === 200)
+      ? parseContact(created.body)
+      : null;
   if (!contact) {
-    return { kind: 'unavailable', reason: `Moneybird answered HTTP ${created.status} to the contact create.` };
+    const status = created.kind === 'response' ? created.status : 0;
+    return { kind: 'unavailable', reason: `Moneybird answered HTTP ${status} to the contact create.` };
   }
   return { kind: 'created', contact };
 }
@@ -228,9 +271,8 @@ export async function ensureContact(
 
 export interface MoneybirdInvoiceLine {
   readonly description: string;
-  /** Euro amount as a string, Moneybird's own convention — e.g. "9.99". */
+  /** Euro amount as Moneybird writes it, from `decimalFromCents` — e.g. "9.92". */
   readonly price: string;
-  readonly amount?: string | null;
   /** From `moneybird-tax-rates.ts` — the ONLY tax field a line may carry. */
   readonly taxRateId: string;
 }
@@ -243,15 +285,29 @@ export interface MoneybirdSalesInvoice {
    */
   readonly invoiceNumber: string | null;
   readonly reference: string | null;
+  /** `draft`, `open`, `late`, `paid`, … as Moneybird names them. */
   readonly state: string | null;
   readonly contactId: string | null;
+  /** The legal date, Moneybird's, set when it is sent: `YYYY-MM-DD`. */
+  readonly invoiceDate: string | null;
+  readonly dueDate: string | null;
+  /** Whether its line prices include VAT; null when Moneybird did not say. */
+  readonly pricesAreInclTax: boolean | null;
+  /** Whole cents, or null when Moneybird's figure is not one this client can read exactly. */
+  readonly totalInclTaxCents: number | null;
+  readonly totalExclTaxCents: number | null;
+  readonly totalUnpaidCents: number | null;
 }
 
 export type EnsureInvoiceOutcome =
   | { readonly kind: 'exists'; readonly invoice: MoneybirdSalesInvoice }
   | { readonly kind: 'created'; readonly invoice: MoneybirdSalesInvoice }
   | { readonly kind: 'refused'; readonly reason: string }
-  | { readonly kind: 'unavailable'; readonly reason: string };
+  | { readonly kind: 'unavailable'; readonly reason: string }
+  | SlowDown;
+
+const dateOf = (value: unknown): string | null =>
+  typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
 
 function parseInvoice(entry: unknown): MoneybirdSalesInvoice | null {
   if (typeof entry !== 'object' || entry === null) return null;
@@ -263,6 +319,12 @@ function parseInvoice(entry: unknown): MoneybirdSalesInvoice | null {
     reference: typeof raw.reference === 'string' ? raw.reference : null,
     state: typeof raw.state === 'string' ? raw.state : null,
     contactId: typeof raw.contact_id === 'string' ? raw.contact_id : null,
+    invoiceDate: dateOf(raw.invoice_date),
+    dueDate: dateOf(raw.due_date),
+    pricesAreInclTax: typeof raw.prices_are_incl_tax === 'boolean' ? raw.prices_are_incl_tax : null,
+    totalInclTaxCents: centsFromDecimal(raw.total_price_incl_tax),
+    totalExclTaxCents: centsFromDecimal(raw.total_price_excl_tax),
+    totalUnpaidCents: centsFromDecimal(raw.total_unpaid),
   };
 }
 
@@ -271,114 +333,158 @@ function parseInvoice(entry: unknown): MoneybirdSalesInvoice | null {
  * an explicit 404 — and nothing else — opens the create path.
  */
 export async function ensureSalesInvoiceByReference(
-  config: MoneybirdConfig,
+  access: MoneybirdAccess,
   input: {
     readonly contactId: string;
-    /** Period-derived and OURS — e.g. `tenant-…-2026-09`. The idempotency key. */
+    /** Ours, fixed once used: `ownpace-{organisation}-m-{YYYY-MM}-{tier}`. The idempotency key. */
     readonly reference: string;
+    /** The invoice workflow (`MONEYBIRD_WORKFLOW_ID`), never Moneybird's default. */
+    readonly workflowId: string;
+    /** Whether the line prices include VAT, stated, never taken from the workflow. */
+    readonly pricesAreInclTax: boolean;
     readonly lines: readonly MoneybirdInvoiceLine[];
   },
   fetchImpl: typeof fetch = fetch,
 ): Promise<EnsureInvoiceOutcome> {
   const found = await moneybirdRequest(
-    config,
+    access,
     'GET',
     `/sales_invoices/find_by_reference/${encodeURIComponent(input.reference)}.json`,
     undefined,
     fetchImpl,
   );
-  if (found.kind === 'unreachable') return { kind: 'unavailable', reason: found.reason };
-  if (found.status === 401 || found.status === 403) {
-    return { kind: 'unavailable', reason: refusedToken(found.status) };
-  }
-  if (found.status === 200) {
+  const lookupFailed = failed(found);
+  if (lookupFailed) return lookupFailed;
+  if (found.kind === 'response' && found.status === 200) {
     const invoice = parseInvoice(found.body);
     if (!invoice) {
       return { kind: 'unavailable', reason: 'Moneybird answered a shape this client does not recognise.' };
+    }
+    if (invoice.contactId !== input.contactId) {
+      return {
+        kind: 'refused',
+        reason:
+          `Moneybird already holds invoice ${invoice.id} under reference ${input.reference}, for another ` +
+          'contact. A reference names one buyer; nothing is adopted, created or sent under it.',
+      };
     }
     // As it stands — never patched. A difference from what the caller meant
     // is a discrepancy to surface; the correction instrument is a credit
     // note (T7), not an UPDATE.
     return { kind: 'exists', invoice };
   }
-  if (found.status !== 404) {
+  if (found.kind !== 'response' || found.status !== 404) {
     // THE rule: an uncertain lookup never falls through to create. That
     // fall-through is how a flaky afternoon double-invoices a customer.
+    const status = found.kind === 'response' ? found.status : 0;
     return {
       kind: 'unavailable',
-      reason: `Moneybird answered HTTP ${found.status} to the reference lookup — not creating anything while the answer is uncertain.`,
+      reason: `Moneybird answered HTTP ${status} to the reference lookup — not creating anything while the answer is uncertain.`,
     };
   }
 
   const created = await moneybirdRequest(
-    config,
+    access,
     'POST',
     '/sales_invoices.json',
     {
       sales_invoice: {
         contact_id: input.contactId,
         reference: input.reference,
+        workflow_id: input.workflowId,
+        prices_are_incl_tax: input.pricesAreInclTax,
         details_attributes: input.lines.map((line) => ({
           description: line.description,
           price: line.price,
-          ...(line.amount ? { amount: line.amount } : {}),
           tax_rate_id: line.taxRateId,
         })),
       },
     },
     fetchImpl,
   );
-  if (created.kind === 'unreachable') return { kind: 'unavailable', reason: created.reason };
-  if (created.status === 401 || created.status === 403) {
-    return { kind: 'unavailable', reason: refusedToken(created.status) };
+  const createFailed = failed(created);
+  if (createFailed) return createFailed;
+  if (created.kind === 'response' && created.status === 422) {
+    return { kind: 'refused', reason: `Moneybird refused the invoice as invalid: ${bodyText(created.body)}` };
   }
-  if (created.status === 422) {
-    return {
-      kind: 'refused',
-      reason: `Moneybird refused the invoice as invalid: ${bodyText(created.body)}`,
-    };
-  }
-  const invoice = created.status === 201 || created.status === 200 ? parseInvoice(created.body) : null;
+  const invoice =
+    created.kind === 'response' && (created.status === 201 || created.status === 200)
+      ? parseInvoice(created.body)
+      : null;
   if (!invoice) {
-    return { kind: 'unavailable', reason: `Moneybird answered HTTP ${created.status} to the invoice create.` };
+    const status = created.kind === 'response' ? created.status : 0;
+    return { kind: 'unavailable', reason: `Moneybird answered HTTP ${status} to the invoice create.` };
   }
   return { kind: 'created', invoice };
+}
+
+// ------------------------------------------------------------------- reading
+
+export type ReadInvoiceOutcome =
+  | { readonly kind: 'ok'; readonly invoice: MoneybirdSalesInvoice }
+  | { readonly kind: 'unavailable'; readonly reason: string }
+  | SlowDown;
+
+/** The invoice as Moneybird holds it now: its number, date, state and totals. */
+export async function readSalesInvoice(
+  access: MoneybirdAccess,
+  invoiceId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<ReadInvoiceOutcome> {
+  const answer = await moneybirdRequest(
+    access,
+    'GET',
+    `/sales_invoices/${encodeURIComponent(invoiceId)}.json`,
+    undefined,
+    fetchImpl,
+  );
+  const readFailed = failed(answer);
+  if (readFailed) return readFailed;
+  const invoice = answer.kind === 'response' && answer.status === 200 ? parseInvoice(answer.body) : null;
+  if (!invoice) {
+    const status = answer.kind === 'response' ? answer.status : 0;
+    return { kind: 'unavailable', reason: `Moneybird answered HTTP ${status} to reading invoice ${invoiceId}.` };
+  }
+  return { kind: 'ok', invoice };
 }
 
 // ------------------------------------------------------------------- sending
 
 export type SendInvoiceOutcome =
   | { readonly kind: 'sent'; readonly invoice: MoneybirdSalesInvoice | null }
+  | { readonly kind: 'not_draft'; readonly invoice: MoneybirdSalesInvoice }
   | { readonly kind: 'refused'; readonly reason: string }
-  | { readonly kind: 'unavailable'; readonly reason: string };
+  | { readonly kind: 'unavailable'; readonly reason: string }
+  | SlowDown;
 
 /**
- * Ask Moneybird to send (or mark manually delivered) an invoice. THIS is the
- * moment Moneybird assigns the legal number to a draft — which is exactly
- * why sending belongs to the system that owns numbering.
+ * Send a draft (or mark it manually delivered): THIS is the moment Moneybird
+ * assigns the legal number, which is exactly why sending belongs to the
+ * system that owns numbering. Anything but a draft is `not_draft`, with no
+ * request made: it was sent before, and sending again would mail again.
  */
 export async function sendSalesInvoice(
-  config: MoneybirdConfig,
-  invoiceId: string,
-  deliveryMethod: 'Email' | 'Manual' = 'Email',
+  access: MoneybirdAccess,
+  invoice: MoneybirdSalesInvoice,
+  deliveryMethod: 'Email' | 'Manual',
   fetchImpl: typeof fetch = fetch,
 ): Promise<SendInvoiceOutcome> {
+  if (invoice.state !== 'draft') return { kind: 'not_draft', invoice };
   const sent = await moneybirdRequest(
-    config,
+    access,
     'PATCH',
-    `/sales_invoices/${encodeURIComponent(invoiceId)}/send_invoice.json`,
+    `/sales_invoices/${encodeURIComponent(invoice.id)}/send_invoice.json`,
     { sales_invoice_sending: { delivery_method: deliveryMethod } },
     fetchImpl,
   );
-  if (sent.kind === 'unreachable') return { kind: 'unavailable', reason: sent.reason };
-  if (sent.status === 401 || sent.status === 403) {
-    return { kind: 'unavailable', reason: refusedToken(sent.status) };
-  }
-  if (sent.status === 422) {
+  const sendFailed = failed(sent);
+  if (sendFailed) return sendFailed;
+  if (sent.kind === 'response' && sent.status === 422) {
     return { kind: 'refused', reason: `Moneybird refused to send: ${bodyText(sent.body)}` };
   }
-  if (sent.status === 200 || sent.status === 204) {
+  if (sent.kind === 'response' && (sent.status === 200 || sent.status === 204)) {
     return { kind: 'sent', invoice: parseInvoice(sent.body) };
   }
-  return { kind: 'unavailable', reason: `Moneybird answered HTTP ${sent.status} to the send.` };
+  const status = sent.kind === 'response' ? sent.status : 0;
+  return { kind: 'unavailable', reason: `Moneybird answered HTTP ${status} to the send.` };
 }

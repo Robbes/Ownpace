@@ -77,6 +77,7 @@ import { log } from '@openmig/shared';
 import { describeStanding, parseLinksCommand, runLinksCommand } from './operator-links.ts';
 import { describeClosed, parseCloseCommand, runCloseCommand } from './operator-close.ts';
 import { getTriggerClient } from '@openmig/scheduler';
+import { checkMoneybird } from '@openmig/managed';
 import {
   checkByKind,
   HOUSEKEEPING_CHECKS,
@@ -106,6 +107,7 @@ const USAGE = `Usage:
   operator:secrets
   operator:links <tenant-id> [<n> [--until YYYY-MM-DD] [note] | --tier]
   operator:close <tenant-id> <window-days> --by <your-subject> --reference <the tester's request>
+  operator:moneybird check
 
 DATABASE_URL must be the OWNER connection — app_user cannot write this table,
 which is the point of it.`;
@@ -1019,6 +1021,19 @@ async function main(): Promise<void> {
           `\n${doable.length} cleaned. This is not written to audit_log — there is no tenant\n` +
             'to attribute it to; what you are reading is the record.',
         );
+        break;
+      }
+
+      case 'moneybird': {
+        // The books, not the database: this reads the administration that
+        // MONEYBIRD_* names (workplan 0111, moneybird-check.ts holds the logic
+        // and its tests) and never queries the pool. Two reads, no invoice,
+        // no e-mail; exit 1 when the report names something to do.
+        const [subcommand] = rest;
+        if (subcommand !== 'check') throw new Error(`moneybird needs a command: check.\n\n${USAGE}`);
+        const report = await checkMoneybird(process.env);
+        for (const line of report.lines) log.info(line);
+        if (!report.ok) process.exitCode = 1;
         break;
       }
 

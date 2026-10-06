@@ -9,8 +9,9 @@
  * `run-confirmation`, `run-apply-deletion`, `run-apply-relocation`,
  * `run-cutover`, `run-rollback`), the standalone worker (`src/index.ts`) and,
  * since T2, the jobs split in two (`managed-digest`, `managed-drift-detect`,
- * `managed-group-discovery`, and since 0157 T7 `managed-cadence-email`) call
- * `openTaskPools` and build none of their own.
+ * `managed-group-discovery`, since 0157 T7 `managed-cadence-email`, and since
+ * 0111 slice 4 `managed-month-invoices`) call `openTaskPools` and build none
+ * of their own.
  *
  * THE SPLIT JOBS' ONE QUESTION ACROSS ORGANISATIONS (T2, open question 3
  * answered 2026-09-28, "split them"). The digest, the drift detector and group

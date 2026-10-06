@@ -15,11 +15,13 @@
  *    deploy proxies /api same-origin through the web image's nginx, so CORS
  *    never fires — but a direct-to-API setup would break, so it is named.
  *
- * And one that is not about a URL (workplan 0134 T1): a blank
- * BACKUP_RETENTION_DAYS, which makes the erasure sentence name backups kept
- * for the default 7 days whether or not anything backs the database up.
+ * And two that are not about a URL. A blank BACKUP_RETENTION_DAYS (workplan
+ * 0134 T1), which makes the erasure sentence name backups kept for the
+ * default 7 days whether or not anything backs the database up. And half a
+ * set of MONEYBIRD_* keys (workplan 0111), said at start by name.
  */
 
+import { moneybirdFromEnv } from '@openmig/managed';
 import {
   DEFAULT_BACKUP_RETENTION_DAYS,
   backupRetentionIsBlank,
@@ -188,4 +190,29 @@ export const assertBackupRetentionConfig = (
   warn: (message: string) => void = (m) => log.warn(m),
 ): void => {
   enforce(describeBackupRetentionProblem(process.env), warn);
+};
+
+/**
+ * Half a set of books (workplan 0111, slice 1): `MONEYBIRD_*` keys that are
+ * neither all there nor all empty, named at start, where the operator is
+ * looking. A warning, never fatal: nothing a customer does needs Moneybird,
+ * and whatever invoices refuses on its own (`moneybirdFromEnv`). Off and a
+ * whole set say nothing. The sentence names keys, never values.
+ */
+export const describeMoneybirdConfigProblem = (
+  env: Readonly<Record<string, string | undefined>>,
+): ConfigProblem[] => {
+  const outcome = moneybirdFromEnv(env);
+  if (outcome.kind !== 'refused') return [];
+  return [
+    {
+      fatal: false,
+      message: `${outcome.reason} ./deploy/compose/operator.sh moneybird check lists what the administration holds.`,
+    },
+  ];
+};
+
+/** Boot-time: warns when the Moneybird keys are half set. */
+export const assertMoneybirdConfig = (warn: (message: string) => void = (m) => log.warn(m)): void => {
+  enforce(describeMoneybirdConfigProblem(process.env), warn);
 };

@@ -2,12 +2,13 @@
 
 /**
  * Integration tests for workplan 0011 T5 — invoice generation + Mollie webhook,
- * amended by 0109 T0 (2026-08-27) when generation was retired.
+ * amended by 0109 T0 (2026-08-27) when generation was retired, and by 0111
+ * slice 4a when the retired generator and its route were removed.
  *
- * Proves: `POST /invoices/generate` refuses and writes NOTHING, even for a
- * tenant whose usage would have been billed and even over an invoice already
- * on the books; the Mollie webhook still drives an invoice to `paid` and double
- * delivery is a no-op.
+ * Proves: `POST /invoices/generate` is no route and writes NOTHING, even for a
+ * tenant whose usage the metered model would have billed and even over an
+ * invoice already on the books; the Mollie webhook still drives an invoice to
+ * `paid` and double delivery is a no-op.
  *
  * Tenant isolation is no longer proved HERE — the cross-tenant case was a
  * generate call, and there is nothing left to isolate once the route writes
@@ -16,12 +17,12 @@
  *
  * WHAT WENT, AND WHY IT IS NOT MOURNED. Until 0109 T0 this file proved that
  * usage reconciled to the cent under the metered model. That proof left with
- * the route, deliberately: `no-bill-we-do-not-sell.ts` documents three faults
- * in exactly that arithmetic — every byte priced twice, items that moved
- * nothing billed, a per-driver breakdown the ADR-0014 amendment forbids — so a
- * test asserting the old total "reconciles" would have been pinning a number
- * this same change calls wrong. The refusal is a decision at the DOOR, not a
- * broken calculator, and that is what is proved below.
+ * the route, deliberately: the retired model priced every byte twice, billed
+ * items that moved nothing, and put a per-driver breakdown on the invoice that
+ * the ADR-0014 amendment forbids, so a test asserting the old total
+ * "reconciles" would have been pinning a wrong number. A month's invoice is
+ * now made by the month task, invoiced in advance (0111 decision 6), and
+ * nothing at this door makes one.
  *
  * UUID Family: 5f2b0000-e29b-41d4-a716-44665544xxxx
  *
@@ -121,12 +122,11 @@ describe('T5 — invoice generation + Mollie webhook', () => {
     await superuserPool.query(`DELETE FROM usage_metric WHERE tenant_id IN ($1,$2)`, [TENANT_A, TENANT_B]);
   });
 
-  describe('POST /api/billing/invoices/generate — retired (0109 T0)', () => {
-    // The count that matters. A refusal that returns 409 and still writes a
-    // draft would pass every status-code assertion in the unit file and be
-    // exactly the bug this repository has now been bitten by three times: a
-    // decision computed correctly and dropped on the floor by the route. So
-    // these read the table, not the response.
+  describe('POST /api/billing/invoices/generate — gone (0111 slice 4a)', () => {
+    // Refused with a 409 from 0109 T0 (2026-08-27) and removed with the
+    // generator itself. The door does not exist, and still writes nothing.
+    // These read the table, not only the response: a route that answered and
+    // still wrote a draft is the bug this repository has been bitten by.
     const invoiceCount = async (tenantId: string): Promise<number> => {
       const { rows } = await superuserPool.query(
         `SELECT COUNT(*)::int AS n FROM invoice WHERE tenant_id = $1`,
@@ -135,32 +135,16 @@ describe('T5 — invoice generation + Mollie webhook', () => {
       return rows[0].n;
     };
 
-    it('refuses the owner, with usage on the books that WOULD have been billed', async () => {
+    it('is no route, and leaves nothing behind however many times it is called', async () => {
       // 2 compute hours: under the retired model this minted a 1221-cent draft.
       await seedUsage(TENANT_A, 'compute', 'sync', 2);
-
-      const res = await request
-        .post('/api/billing/invoices/generate')
-        .set('Authorization', `Bearer ${token(TENANT_A)}`)
-        .send({ period: PERIOD });
-
-      expect(res.status).toBe(409);
-      // The literal wire string, on purpose: the unit tests compare against the
-      // imported constant, so renaming its VALUE would go unnoticed there while
-      // silently breaking every client branching on it.
-      expect(res.body.error).toBe('billing_model_retired');
-      expect(await invoiceCount(TENANT_A)).toBe(0);
-    });
-
-    it('leaves nothing behind however many times it is called', async () => {
-      await seedUsage(TENANT_A, 'compute', 'sync', 1);
 
       for (let i = 0; i < 3; i++) {
         const res = await request
           .post('/api/billing/invoices/generate')
           .set('Authorization', `Bearer ${token(TENANT_A)}`)
           .send({ period: PERIOD });
-        expect(res.status, `call ${i + 1}`).toBe(409);
+        expect(res.status, `call ${i + 1}`).toBe(404);
       }
 
       expect(await invoiceCount(TENANT_A)).toBe(0);
@@ -168,9 +152,8 @@ describe('T5 — invoice generation + Mollie webhook', () => {
 
     it('never touches an invoice already on the books (finding #1, kept)', async () => {
       // The original test proved a PAID invoice survived a regenerate, because
-      // an earlier build had overwritten one. The refusal makes that stronger —
-      // nothing runs at all — but the guard is worth keeping through the change
-      // rather than deleted along with the behaviour it was written against.
+      // an earlier build had overwritten one. Kept through both changes rather
+      // than deleted with the behaviour it was written against.
       const invoiceId = randomUUID();
       await superuserPool.query(
         `INSERT INTO invoice (id, tenant_id, period_start, period_end, status, subtotal, tax_rate, tax_amount, total, currency, metadata)
@@ -185,7 +168,7 @@ describe('T5 — invoice generation + Mollie webhook', () => {
         .set('Authorization', `Bearer ${token(TENANT_A)}`)
         .send({ period: PERIOD });
 
-      expect(res.status).toBe(409);
+      expect(res.status).toBe(404);
 
       const { rows } = await superuserPool.query(
         `SELECT status, subtotal, tax_amount, total FROM invoice WHERE tenant_id = $1`,
