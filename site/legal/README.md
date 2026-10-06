@@ -620,16 +620,25 @@ commit.
   sentence. id and status we skip for now, no netbird api tokens..."*). Only
   `www.ownpace.eu`, from the access log its nginx writes (`deploy/compose/www-nginx.conf`,
   format `ownpace_site`), on our machine; nothing on `app.`, `id.` or `status.ownpace.eu`, no
-  script, cookie or banner on the page, nothing sent anywhere, and NetBird's own log not read.
+  script, cookie or banner on the page, nothing sent to anyone (the owner reads the report of
+  totals on the machine, or on his own device over the mesh), and NetBird's own log not read.
   The sentence is true only of a GoAccess run that keeps its report of totals and **no database
   of its own**: `--persist` keeps, per day, a fingerprint of each visitor (a hash of the full IP
   address and the browser) and which pages each one asked for, and `--anonymize-ip` masks the
   address only in the report. So no `--persist` or `--restore`; `--ignore-panel` for `HOSTS`,
-  `GEO_LOCATION`, `ASN`, `REFERRERS` and `REMOTE_USER`; and no copy of the log left behind,
-  so §9's *Server logs* row holds. The comment beside privacy §4.5 cites GoAccess's source for
-  each. Unlike the claims around it, this one has no code behind it yet: until the run exists,
-  nothing is counted, which is less than the text says, never more; the run must meet this
-  bullet when it is built.
+  `GEO_LOCATION`, `ASN`, `REFERRERS` and `REMOTE_USER`; and no copy of the log left behind, a
+  killed run's included, so §9's *Server logs* row holds. **And nothing but totals reaches the
+  report**, because GoAccess copies text a visitor or a link chose into it word for word: no
+  campaigns (`--ignore-panel=UTM_CAMPAIGNS`, or the query cut before GoAccess reads it: it keeps
+  nine `utm_` values as the link carried them, a name or an email address among them, and the
+  sentence names no campaigns); a request answered with a 4xx or 5xx status counted under a
+  fixed name, not its path; a browser and a system by name and a version of digits and dots;
+  and a referring site by its name, never an IP address. The reports are deleted when the
+  website is taken down for good (§9's *"As long as we run this website"*), and the run counts
+  on live only once the site publishes the sentence and §5's purpose. The comment beside privacy
+  §4.5 cites GoAccess's source (the tag v1.12, `ef3c4f3c`) for each. Unlike the claims around
+  it, this one has no code behind it yet: until the run exists, nothing is counted, which is
+  less than the text says, never more; the run must meet this bullet when it is built.
 - **We are controller for the account; for migration content it depends on the customer**
   (privacy §3): processor for an organisation (ADR-0035 §17), and — draft position, lawyer to
   confirm — controller for a household migration, because Art. 2(2)(c) leaves the migrating
