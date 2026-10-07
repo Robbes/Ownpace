@@ -47,7 +47,7 @@ import type { NextFunction, Request, Response } from 'express';
 import type { Pool } from 'pg';
 import type { LedgerDriver } from '@openmig/ledger';
 import { log, newAppEvent, newReference, recordAppEvent } from '@openmig/shared';
-import { authenticate, getDbPool } from '../middleware/auth.ts';
+import { authenticate, authenticateSubject, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { createKnockLimiter, type KnockLimiter } from '../knock-limit.ts';
 import {
@@ -183,8 +183,19 @@ export function problemReportRoutes(deps: ProblemReportDeps = {}): Router {
   /** What the checks before the body decided, for the handler after it. */
   const accepted = new WeakMap<Request, { readonly channel: ReportChannel; readonly email: string }>();
 
-  /** Whether to offer the form at all: a form that can send nowhere is not shown. */
-  router.get('/available', authenticate, (_req: AuthenticatedRequest, res: Response) => {
+  /**
+   * Whether to offer the form at all: a form that can send nowhere is not shown.
+   *
+   * `authenticateSubject`, not `authenticate`: this answers one question about
+   * the SERVICE, and the answer does not depend on which organisation the
+   * caller acts on. `authenticate` resolves a tenant first, and an operator —
+   * who belongs to no organisation on purpose — has zero memberships, so the
+   * resolution refuses 403 before the answer is read. The layout asks this on
+   * every signed-in page, so that refusal is a console error on every screen
+   * an operator opens. The sibling routes (`/preview`, the POST) carry tenant
+   * facts and keep `authenticate`.
+   */
+  router.get('/available', authenticateSubject, (_req: AuthenticatedRequest, res: Response) => {
     res.json({ available: reportChannel(deps.env) !== undefined });
   });
 
