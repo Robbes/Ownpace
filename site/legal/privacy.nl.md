@@ -16,7 +16,7 @@
 
 **Geldt voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`, en deze website.
 **Versie:** 1.2
-**Laatst bijgewerkt:** 2026-10-05
+**Laatst bijgewerkt:** 2026-10-07
 
 > **Draait u Ownpace zelf**, dan geldt deze verklaring niet voor u en valt er voor ons niets
 > te verklaren: de software draait op uw eigen infrastructuur, uw gegevens bereiken ons nooit,

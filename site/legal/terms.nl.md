@@ -17,7 +17,7 @@
 
 **Gelden voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`.
 **Versie:** 1.3
-**Laatst bijgewerkt:** 2026-10-05
+**Laatst bijgewerkt:** 2026-10-07
 
 > **Deze voorwaarden gelden niet voor de software.** Ownpace is open source onder de Apache
 > License 2.0, en het zelf draaien valt onder die licentie en niet onder deze voorwaarden. Deze

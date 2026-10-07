@@ -205,7 +205,7 @@
 
 **Apply to:** the Alpha of the Ownpace **managed service** at `ownpace.eu`.
 **Version:** 1.0
-**Last updated:** 2026-10-05
+**Last updated:** 2026-10-07
 
 ---
 

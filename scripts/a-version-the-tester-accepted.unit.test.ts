@@ -87,13 +87,19 @@ const ACCEPTED_WORDS: Readonly<Record<string, string>> = {
   // in that pull request: §8's "change or remove an owner or an invitation as owner" and §10's
   // closing said as the code does it. Both times privacy and terms were still drafts, so the API
   // asked nobody and nobody can have accepted 1.0.
-  'alpha.md@1.0': '86287b8b4fe342b3a7fb58a93035c2065148f6aa12721f68b2f8e4511c74303e',
-  'alpha.nl.md@1.0': '9ce4bdb0b8e8ee6935a63d4da9fb8a22118b104bae181663d5fa0d536128c59f',
+  //
+  // Pinned a third time on 2026-10-07, in this pull request, the day it merges: the Last updated
+  // line moved to the merge day (the files' own briefing), and merging main's #1537 — billing in
+  // advance, §7 and §8 — changed the terms' words under 1.3. All six are pinned together, as the
+  // header's note requires. No tester has accepted any of these numbers: privacy and terms carried
+  // their draft markers until this pull request, and the API asks nobody while any text is a draft.
+  'alpha.md@1.0': '241b73f563475774af1d539fb64d9f13876146dce3a1dda49e3dc3cb2631b257',
+  'alpha.nl.md@1.0': '1d3cfaa24fbdf051f78a14936ef9a855d3f7a59585d66cf6a7c71deed070102f',
   // Final on 2026-10-05, in the same pull request, which set LEGAL_DRAFTS to match.
-  'privacy.md@1.2': '2fc8a4223a0d912f21ff048383716324d0d1569ddc39193521d6bdb72dfd250b',
-  'privacy.nl.md@1.2': 'ec68179c9b2fa6e34a8fc6b8d5abbd1f07dec565ca8fe90af57fe508f3e57326',
-  'terms.md@1.3': 'df177c2fafbf7e9b962e21ca4a5a6d5fd9924b9164719b41a0286af80cf19787',
-  'terms.nl.md@1.3': '115a30f271d0b66bd99f117fd74131d78a7af629b2a5b3e4a2928570da650f6c',
+  'privacy.md@1.2': 'a6b517ec8f8aeddd0b4ad709508ce6b1551cd1e595e5fadc85ac979329cf2a22',
+  'privacy.nl.md@1.2': '8b942baf4b22770b98353ffedc08d6d7ccbb562eede37d0146d858f1b20ad329',
+  'terms.md@1.3': 'e1d2f884198bc419089594bc29fad33e2d22c10c56bd2a23a832f093704004d1',
+  'terms.nl.md@1.3': '842e61fa4ea93c52094bc5fa02cb746fb742a7d730df9e161cfcacc6449c47f0',
 };
 
 /** The digest `ACCEPTED_WORDS` pins: the text outside HTML comments, white space collapsed. */

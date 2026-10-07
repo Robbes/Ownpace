@@ -501,7 +501,7 @@
 
 **Applies to:** the Ownpace **managed service** at `ownpace.eu`.
 **Version:** 1.3
-**Last updated:** 2026-10-05
+**Last updated:** 2026-10-07
 
 > **These terms do not govern the software.** Ownpace is open source under the Apache
 > License 2.0, and running it yourself is governed by that licence and nothing here. These

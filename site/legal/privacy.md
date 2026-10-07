@@ -482,7 +482,7 @@
 
 **Applies to:** the Ownpace **managed service** at `ownpace.eu`, and this website.
 **Version:** 1.2
-**Last updated:** 2026-10-05
+**Last updated:** 2026-10-07
 
 > **If you run Ownpace yourself**, this policy does not apply to you and there is nothing for
 > us to state: the software runs on your infrastructure, your data never reaches us, and we

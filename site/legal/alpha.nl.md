@@ -17,7 +17,7 @@
 
 **Gelden voor:** de Alpha van de **beheerde Ownpace-dienst** op `ownpace.eu`.
 **Versie:** 1.0
-**Laatst bijgewerkt:** 2026-10-05
+**Laatst bijgewerkt:** 2026-10-07
 
 ---
 
