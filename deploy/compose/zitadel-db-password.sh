@@ -55,6 +55,18 @@
 # boot until the readiness timeout expires several minutes later, and then
 # reported as an authentication failure for a password nobody changed.
 #
+# WHY A MISSING ROLE LOOKS LIKE A WRONG PASSWORD, AND HOW THIS TELLS THEM APART.
+# Postgres answers a NONEXISTENT role with the same `password authentication
+# failed` (28P01) it gives a wrong password — it will not say "role does not
+# exist" to a connection that has not proven who it is. So the network check
+# below, which is the right check for a password, CANNOT distinguish a first
+# bring-up (no role yet — Zitadel creates it, and the header's exit-0 promise)
+# from a real mismatch (exit 1). On 2026-10-07 a fresh live stack landed in
+# exactly this: the check said REFUSED, the operator ran `--sync`, and the
+# `ALTER ROLE` died on `role "zitadel" does not exist`. The remedy is a second
+# question, asked over the ADMIN connection, which HAS proven itself and is
+# told the truth: the role is there, or it is not.
+#
 # BEFORE YOU --sync: if a second `.env` exists on this box (the nightly gate
 # keeps one under ~/.persistent/<project>/), the role may be matching
 # THAT one, and pointing it at this file breaks the other consumer instead.
@@ -176,6 +188,33 @@ ask_pg() { # ask_pg <user> <password> <database> — prints psql's output, retur
     psql -h "$DB_ADDR" -p "$DB_PORT" -U "$1" -d "$3" -tAc 'SELECT 1' 2>&1
 }
 
+# Does the role exist? Asked over the ADMIN connection, not the role's own.
+#
+# The network check above is the right question for a PASSWORD, and the wrong
+# one for a ROLE: Postgres answers a nonexistent role with the same
+# `password authentication failed` it gives a wrong password, so a first
+# bring-up and a real mismatch arrive at the same text. The admin connection has
+# already proven who it is, so Postgres answers it truthfully — the role is
+# there, or it is not.
+#
+# Same channel as everything here (`-h`, the container's real address): the
+# socket would answer with `trust` and prove nothing, exactly as
+# scripts/the-check-postgres-never-made.unit.test.ts insists.
+role_exists_over_admin() { # 0 exists, 1 absent, 2 cannot tell
+  local out
+  out="$(PGPASSWORD="$ADMIN_PASS" docker exec -e PGPASSWORD "$CONTAINER" \
+    psql -h "$DB_ADDR" -p "$DB_PORT" -U "$ADMIN_USER" -d postgres -tAc \
+    "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${ZITADEL_USER//\'/\'\'}')" 2>&1)" || {
+    printf '%s\n' "$out" >&2
+    return 2
+  }
+  case "$out" in
+    *t*) return 0 ;;
+    *f*) return 1 ;;
+    *) printf '%s\n' "$out" >&2; return 2 ;;
+  esac
+}
+
 # --------------------------------------------------------------------- check --
 
 # The SAME question the container asks at start-up, asked over the same kind of
@@ -192,7 +231,21 @@ case "$out" in
     say "no ${ZITADEL_USER} role or ${ZITADEL_DB} database yet."
     say "Zitadel creates both on first start, using the POSTGRES_* admin credentials."
     exit 0 ;;
-  *"password authentication failed"*) : ;;
+  *"password authentication failed"*)
+    # Postgres will not say WHICH of the two this is, so ask the admin, which
+    # will. A role that is not there is the first bring-up the header promises
+    # exit 0 for — not a refusal, and never an ALTER away.
+    if role_exists_over_admin; then
+      : # the role IS there, and it refused: a real mismatch, the case below.
+    else
+      rc=$?
+      [ "$rc" -eq 1 ] || cannot_tell "the ${ZITADEL_USER} role refused the password, and the
+    admin connection could not say whether the role exists at all, so nothing is
+    established about which of the two this is (see the header)."
+      say "no ${ZITADEL_USER} role yet — this is the first bring-up, not a mismatch."
+      say "Zitadel creates the role and the database on first start, using the POSTGRES_* admin credentials."
+      exit 0
+    fi ;;
   *)
     # Not "assume it is the password": an unreachable database, a wrong
     # container, a Postgres still starting up all land here, and calling any of
