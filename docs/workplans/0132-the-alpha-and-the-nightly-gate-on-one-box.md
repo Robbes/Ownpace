@@ -2,7 +2,36 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-10-05 (update this block at the end of every session)
+## Status — 2026-10-07 (update this block at the end of every session)
+
+**2026-10-07, T1b (live bring-up): a missing `zitadel` role is a first bring-up, not a refused
+password**, on branch `fix/zitadel-role-first-run-not-refused`, PR open. The owner ran
+`stand-up-live.sh` on live and the `trigger` phase refused: `the zitadel role does NOT accept the
+password in .env`, with the remedy `zitadel-db-password.sh --sync`. The operator ran it and got
+`ERROR: role "zitadel" does not exist` — live's Postgres had no `zitadel` role and no `zitadel`
+database at all, because live's identity provider had never initialised against this volume. The
+check's `*"does not exist"*` branch, which the header relies on for the first-run exit 0, is
+**unreachable over the network**: Postgres answers a nonexistent role with the same
+`password authentication failed` (28P01) it gives a wrong password, so a first bring-up and a real
+mismatch arrive at the same text. The check therefore said REFUSED, and `--sync` ran `ALTER ROLE`
+against a role with no name.
+
+- **The fix.** After the network check refuses, the script asks a second question over the **admin**
+  connection, which has proven itself and is told the truth: `SELECT EXISTS (SELECT 1 FROM pg_roles
+  WHERE rolname = …)`. Absent → the first bring-up, exit 0, as the header promises. Present → a real
+  mismatch, exit 1, unchanged. Cannot tell → exit 2, because hard rule 9 refuses naming a cause the
+  check did not establish. The probe goes over `-h "$DB_ADDR"`, the same channel as every other
+  question here; the socket would answer with `trust` and prove nothing.
+- **The guard, and that the old one passed.** `scripts/the-role-that-was-not-there.unit.test.ts`,
+  8 cases, run against a `docker` stub that answers the two questions the way Postgres does —
+  `password authentication failed` for the role's own connection, `t`/`f` for the admin's. First
+  bring-up passes (check and `--sync`), a real mismatch still refuses, an admin that cannot answer
+  says NOT ESTABLISHED. The existing text guard for this script
+  (`the-stack-knew-and-did-not-say`) asserted the `*"does not exist"*` branch existed. It did, and
+  it never fired — which is exactly why the bug survived a guard. This one runs the script.
+- **Not done here.** `stand-up-live.sh`'s `trigger` phase still refuses before Zitadel's first start
+  on a brand-new volume; the fix makes the refusal say *first bring-up, start Zitadel* rather than
+  *change the password*. Making the phase start Zitadel itself is a later slice.
 
 **2026-10-05, T3 (b): the exposure check accepts, by name, the owner's containers that are not
 Ownpace's (`EXPOSURE_NOT_OURS`)**, on branch
