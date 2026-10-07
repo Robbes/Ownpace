@@ -589,6 +589,7 @@ describe('the relay is spoken to over TLS, and the provider follows .env (workpl
     const args = (pw: string) => [
       '-nc',
       '--arg', 'from', 'noreply@ownpace.test',
+      '--arg', 'name', 'Ownpace',
       '--arg', 'host', 'relay.test:587',
       '--argjson', 'tls', 'true',
       '--arg', 'user', 'mailer',

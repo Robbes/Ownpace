@@ -1202,6 +1202,7 @@ reading a file drops off its entry by itself.
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
 - [the-login-page-nobody-chose](../scripts/the-login-page-nobody-chose.unit.test.ts) — THE LOGIN PAGE NOBODY CHOSE.
 - [the-mail-the-issuer-could-not-send](../scripts/the-mail-the-issuer-could-not-send.unit.test.ts) — THE MAIL THE ISSUER COULD NOT SEND.
+- [the-name-the-relay-would-not-accept](../scripts/the-name-the-relay-would-not-accept.unit.test.ts) — THE NAME THE RELAY WOULD NOT ACCEPT.
 - [the-volume-a-recipe-forgot-to-prepare](../scripts/the-volume-a-recipe-forgot-to-prepare.unit.test.ts) — A RECIPE THAT DELETES WHAT ONLY ONE PHASE KNOWS HOW TO RESTORE.
 - [two-readings-of-one-env-file](../scripts/two-readings-of-one-env-file.unit.test.ts) — ONE .env, READ THREE DIFFERENT WAYS, AND THE THIRD WAS NOBODY'S JOB.
 
@@ -5355,6 +5356,14 @@ Reads:
 
 - `deploy/compose/seed-demo-dav-content.sh`
 - `deploy/compose/smoke-managed.sh`
+
+### [the-name-the-relay-would-not-accept](../scripts/the-name-the-relay-would-not-accept.unit.test.ts)
+
+THE NAME THE RELAY WOULD NOT ACCEPT.
+
+Reads:
+
+- `deploy/compose/setup-zitadel.sh`
 
 ### [the-role-that-was-not-there](../scripts/the-role-that-was-not-there.unit.test.ts)
 
