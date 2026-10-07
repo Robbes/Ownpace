@@ -33,8 +33,8 @@
  * anybody receives.
  */
 
-import { describe, it, expect } from 'vitest';
-import { readFileSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { describe, it, expect, afterAll } from 'vitest';
+import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -55,6 +55,7 @@ function splitter(): string {
 
 function split(from: string): { addr: string; name: string } {
   const dir = mkdtempSync(join(tmpdir(), 'split-from-'));
+  DIRS.push(dir);
   const file = join(dir, 'split.sh');
   writeFileSync(file, `${splitter()}\nsplit_from_line "$1"\nprintf '%s\\n%s' "$SMTP_SENDER_ADDR" "$SMTP_SENDER_NAME"\n`);
   const r = spawnSync('bash', [file, from], { encoding: 'utf8' });
@@ -62,6 +63,11 @@ function split(from: string): { addr: string; name: string } {
   const [addr, name] = r.stdout.split('\n');
   return { addr: addr ?? '', name: name ?? '' };
 }
+
+const DIRS: string[] = [];
+afterAll(() => {
+  for (const d of DIRS) rmSync(d, { recursive: true, force: true });
+});
 
 describe('the From line is split for a provider with two fields', () => {
   it('puts the bare address in the envelope, whatever the From line looks like', () => {
