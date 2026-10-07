@@ -2129,9 +2129,11 @@ While any text is a draft (`LEGAL_DRAFTS` in
 and nothing is recorded, as with the setting off: a draft's number is the one
 its final text will carry, so an acceptance of the draft would be recorded as
 one of the final text. On 2026-09-29 the privacy policy 1.2 and the terms 1.3
-are drafts, so deploying this to live asks nobody yet; it starts asking with
-the release that carries the owner's final texts. The API's start log says
-which (`[api] OWNPACE_STAGE=alpha, but … are drafts: nobody is asked …`). The
+were drafts, so deploying that to live asked nobody; asking starts with the
+release that carries the owner's final texts (workplan 0139, 2026-10-05: the
+final-text pull request, merged after v0.2.0-alpha.1 and released in alpha.2).
+The API's start log says which (`[api] OWNPACE_STAGE=alpha, but … are drafts:
+nobody is asked …`). The
 links point at the site `VITE_LEGAL_SITE_URL` names, so the texts must be
 served there before the first invitation (0139 T10). Who accepted what is under
 *Acceptance* in the
@@ -2359,10 +2361,11 @@ not. A `--public` build with unfilled legal placeholders is refused too — the
 output used to claim "every placeholder must be filled" and then publish
 anyway. So is one while a legal page it renders says on its *Version* line
 that it is a draft or not yet published, naming the file (workplan 0139 T2).
-Today every one of them does, until the owner's final text replaces it.
-`--public --check` refuses it as well: it prints how many legal pages are
-marked draft and exits 1, so a check run before a deploy stops what the build
-would stop. Its last line is still the placeholder count.
+Since the owner's final-text pull request (2026-10-05) none of them does, and
+`--public --check` prints `0 legal page(s) marked draft` and exits 0; until then
+all four did. `--public --check` refuses a draft as well: it prints how many
+legal pages are marked draft and exits 1, so a check run before a deploy stops
+what the build would stop. Its last line is still the placeholder count.
 
 **`OWNPACE_APP_URL` has no default and the build refuses without it.** It is
 where every *Request access* button points, and the environment is a domain

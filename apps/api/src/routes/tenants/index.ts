@@ -441,9 +441,9 @@ export function deleteTenantRefusal(): {
       'Deleting a tenant outright is no longer available: it destroyed invoices that must be ' +
       'kept for tax purposes, and left no window in which to undo a mistake. Close the ' +
       'account instead — POST /api/tenants/:tenantId/close with windowDays of 0, 7, 30 or 90. ' +
-      'Closing stops syncs and billing immediately, and nothing uses the access you gave from ' +
-      'then on; the erasure runs when the window is up, ' +
-      'and can be undone until then.',
+      'Closing stops billing immediately, and from then on no new work starts with the access ' +
+      'you gave: work already running finishes what it is doing, and then stops. The erasure ' +
+      'runs when the window is up, and can be undone until then.',
     // The other half of the answer, and the half nobody thinks to ask for
     // (0085 T6). Somebody calling DELETE is trying to end the relationship, and
     // the refusal above tells them how — but not what it will do to the two

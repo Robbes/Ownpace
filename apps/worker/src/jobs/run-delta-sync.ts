@@ -485,7 +485,7 @@ export const runDeltaSync = schemaTask({
           const halt = step.halt;
           const line =
             halt === 'organisation_closed'
-              ? `pass stopped before ${domain}: this organisation was closed — nothing failed, and nothing uses the access it gave; if it is reopened, the next pass continues from the cursors`
+              ? `pass stopped before ${domain}: this organisation was closed — nothing failed, and no new work starts with the access it gave; if it is reopened, the next pass continues from the cursors`
               : halt === 'grant_withdrawn'
                 ? `pass stopped before ${domain}: the person being migrated withdrew their permission — nothing failed, and nothing reads their account until they grant it again`
                 : `pass stopped before ${domain}: this migration no longer runs passes (paused, finished, or past its cutover's grace period) — nothing failed, the next pass continues from the cursors when it runs again`;

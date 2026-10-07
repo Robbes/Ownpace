@@ -8,8 +8,12 @@
  * uses the access the organisation gave: the tick, a pass already under way,
  * the builders of every reader, and every door that would do one of those.
  * Reading, export, the reopen and the erasure stay open. The alpha conditions
- * promise it: "If you close your account, nothing uses it from then on"
- * (`site/legal/alpha.md` §10).
+ * say it: "If you close your account, no new work starts with any of it from
+ * then on" (`site/legal/alpha.md` §10; terms §11 and privacy §9 the same).
+ * Work already running finishes what it is doing and then stops, as those
+ * texts go on to say, so this sentence promises no more than that: nothing
+ * NEW starts (review of 2026-10-05; it said "nothing uses the access it gave"
+ * until then, which the texts no longer say).
  *
  * This is the one sentence all of them say, in both languages, beside each
  * other (`docs/i18n-prose-boundary.md`, class 4). A door knows both days and
@@ -48,13 +52,13 @@ export function organisationClosedRefusal(closure: OrganisationClosure, now: Dat
   const reopenable = purgeAfter !== null && purgeAfter.getTime() > now.getTime();
   const en = [
     closedAt ? `This organisation was closed on ${day(closedAt)}.` : 'This organisation was closed.',
-    'Nothing is started, and nothing uses the access it gave.',
+    'No new work starts with the access it gave.',
     ...(purgeAfter ? [`Its data is removed from the service on ${day(purgeAfter)}.`] : []),
     ...(reopenable ? ['Until then, its owner can reopen it.'] : []),
   ];
   const nl = [
     closedAt ? `Deze organisatie is op ${day(closedAt)} gesloten.` : 'Deze organisatie is gesloten.',
-    'Er wordt niets gestart, en niets gebruikt de toegang die zij gaf.',
+    'Er begint geen nieuw werk meer met de toegang die zij gaf.',
     ...(purgeAfter ? [`De gegevens worden op ${day(purgeAfter)} uit de dienst verwijderd.`] : []),
     ...(reopenable ? ['Tot dan kan de eigenaar haar heropenen.'] : []),
   ];

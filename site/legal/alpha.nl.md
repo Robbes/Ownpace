@@ -4,7 +4,9 @@
      when either changes. Unlike the privacy policy and the terms, this is the
      text testers read first (workplan 0139 D2). Version 1.0, edited in place
      with the owner's answers of 2026-09-28 until the first tester accepts it
-     (alpha-version-number (a)). The briefing for the reviewing lawyer,
+     (alpha-version-number (a)), and once more on 2026-10-05, §8 and §10, in
+     the owner's final-text pull request, before anybody could accept it
+     (alpha.md's briefing says how we know). The briefing for the reviewing lawyer,
      including which language governs and which answer changed which section,
      is the comment at the top of alpha.md — it applies to both files.
      Rendered by the site build since 0139 T3 (outside the site's nav), whose
@@ -15,7 +17,7 @@
 
 **Gelden voor:** de Alpha van de **beheerde Ownpace-dienst** op `ownpace.eu`.
 **Versie:** 1.0
-**Laatst bijgewerkt:** 2026-09-29
+**Laatst bijgewerkt:** 2026-10-07
 
 ---
 
@@ -117,10 +119,11 @@ Uw account is alleen voor u. Deel uw inloggegevens met niemand.
 
 Nodig tijdens de Alpha niemand anders uit in uw organisatie. Wil iemand een migratie volgen,
 stuur die persoon dan de voortgangslink van die migratie: die toont aantallen en statussen,
-nooit de inhoud. Nodigt u toch iemand uit, geef die persoon dan de rol beheerder, en weet dat een
-beheerder alles kan wat u kunt, behalve de organisatie sluiten of heropenen, het toepassen van
-verwijderingen of het automatisch toepassen van verplaatsingen aan- of uitzetten, en iemand
-eigenaar maken. Tijdens de Alpha kan iemand alleen eigenaar of beheerder zijn. U bent zelf
+nooit de inhoud. Nodigt u toch iemand uit, geef die persoon dan de rol beheerder, en weet dat
+een beheerder alles kan wat u kunt, behalve de organisatie sluiten of heropenen, het toepassen
+van verwijderingen of het automatisch toepassen van verplaatsingen aan- of uitzetten, iemand
+eigenaar maken, en een eigenaar of een uitnodiging als eigenaar een andere rol geven of
+verwijderen. Tijdens de Alpha kan iemand alleen eigenaar of beheerder zijn. U bent zelf
 verantwoordelijk voor wie u uitnodigt.
 
 ## 9. Google vraagt opnieuw
@@ -147,9 +150,14 @@ toestemming bij Microsoft of Dropbox, trekt u daar zelf in. Wij zeggen u welke.
 Een afgeronde migratie houdt de toegang die u ons gaf, zodat u haar kunt hervatten. Wij bewaren
 die toegang tot u de koppeling verwijdert; de app staat dat toe zodra geen migratie haar meer
 gebruikt. Toegang die een gezinslid via een toegangslink gaf, verdwijnt wanneer u de migratie
-verwijdert, of wanneer die persoon haar op de eigen voortgangspagina intrekt. Sluit u uw account,
-dan gebruikt niets die toegang meer, en wordt alles vernietigd wanneer uw gegevens worden gewist,
-aan het eind van de termijn die u koos.
+verwijdert, of wanneer die persoon haar op de eigen voortgangspagina intrekt. Sluit u uw
+account, dan begint er geen nieuw werk meer met die toegang. Werk dat al loopt, maakt af waar
+het op dat moment mee bezig is, en stopt dan. Een ronde van een migratie kan na de sluiting nog
+ongeveer vijftien seconden doorgaan, en maakt daarna af wat ze begon. Hebt u een hele Microsoft
+365-organisatie gekoppeld, dan kan een dagelijkse controle die al was begonnen, nog één keer de
+lijst van haar mailboxen lezen, en die van haar distributielijsten en groepen met de adressen
+van hun leden. Alles wordt vernietigd wanneer uw gegevens worden gewist, aan het eind van de
+termijn die u koos.
 
 Worden uw gegevens gewist, dan verwijderen wij ook uw Ownpace-inlogaccount, halen wij uw
 Google-adres en dat van een gezinslid van de lijst van testgebruikers (§9), en wissen wij uw

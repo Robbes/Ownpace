@@ -81,8 +81,10 @@ export const LEGAL_VERSIONS: LegalVersions = {
  */
 export const LEGAL_DRAFTS: Readonly<Record<LegalDocument, boolean>> = {
   alpha: false,
-  privacy: true,
-  terms: true,
+  // Final since the owner's final-text pull request (workplan 0139, 2026-10-05):
+  // privacy 1.2 and terms 1.3 lost their draft words, so the alpha asks.
+  privacy: false,
+  terms: false,
 };
 
 /** The texts that are still drafts, in the order the screen lists them; none once all are final. */

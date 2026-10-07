@@ -486,6 +486,49 @@ describe('gate 5 — whether the pass may conclude that something is gone', () =
     expect(w.cursorsSet).toEqual([]);
     expect((await w.ledger.find(TENANT, MAPPING, 'file', 'f1/x'))?.deletionReportedAt).toBeUndefined();
   });
+
+  it('asks once more, past the clock, before it reads the bin, and a stop heard there leaves the bin unread', async () => {
+    // FOUND IN REVIEW (2026-10-05). The bin is the one read of the source
+    // after the pass's last gate, and that gate is before the last item. An
+    // organisation closed while the last item was copying, or in the seconds
+    // after the last asking, was heard by nothing, and the pass began a new
+    // listing of the account after the close, however long after. Terms §11
+    // says a pass carries on for about fifteen seconds and then finishes what
+    // it began. The clock here never moves, so no gate inside the loop asks
+    // again: only an asking that ignores the clock can hear this one.
+    const w = world({ f1: [{ key: 'f1/a', body: 'A' }, { key: 'f1/b', body: 'B' }] }, { cursors: true });
+    const emptyBin = async (): Promise<DiscardedListing> => ({ keys: [], unnameable: 0 });
+
+    for (const reason of EVERY_REASON) {
+      const q = question(reason);
+      const result = await w.run({
+        bin: emptyBin,
+        now: () => 0,
+        whyItStops: q.whyItStops,
+        // After the last item's gate: on the passes after the first the items
+        // are unchanged and never fetched, but their keys are still read.
+        onScan: (item) => {
+          if (item.key === 'f1/b') q.press();
+        },
+      });
+
+      expect(w.seen.binReads, reason).toBe(0);
+      // Twice: the first gate, and once more before the bin.
+      expect(q.asked(), reason).toBe(2);
+      // Not a halt: every collection was reached, and its cursor moved. The
+      // bin waits, as it waits for a pass that stopped early, and the caller's
+      // next read hears the stop itself.
+      expect(result.haltPause, reason).toBeUndefined();
+      expect(result.failed, reason).toBe(0);
+      expect(w.cursorsSet, reason).toEqual(['f1']);
+    }
+
+    // And with nobody saying stop, the same asking lets the bin be read.
+    const q = question();
+    await w.run({ bin: emptyBin, now: () => 0, whyItStops: q.whyItStops });
+    expect(w.seen.binReads).toBe(1);
+    expect(q.asked()).toBe(2);
+  });
 });
 
 describe('the question is cheap', () => {

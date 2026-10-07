@@ -2608,11 +2608,35 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   // taken back or an organisation closed, reading the account at all is what
   // the stop forbids. `a-pass-told-to-stop.unit.test.ts` (gate 1) and
   // `a-pass-that-did-not-look.unit.test.ts` hold it.
+  //
+  // AND ASKED ONCE MORE RIGHT BEFORE, PAST THE CLOCK (review, 2026-10-05). The
+  // bin is the one read of the source after the pass's last gate, and that gate
+  // is before the last item. A stop nothing heard since (an organisation closed
+  // while the last large message was copying, or in the seconds after the last
+  // asking) had this pass begin a new listing of the account after the stop,
+  // however long after. Terms §11 says a pass carries on for about fifteen
+  // seconds after a close and then finishes what it began. So the question is
+  // asked here whatever the clock says, as `run-delta-sync.ts` asks it before
+  // the one write that follows a file pass. A stop heard here is not a halt of
+  // the pass: every collection was reached and its cursor moved, so the pass
+  // reports what it did, the bin waits for the next pass that reaches every
+  // collection, and the caller's next read hears the stop itself. Not caught,
+  // for the reason `stopIfToldTo` gives. `a-pass-told-to-stop.unit.test.ts`
+  // (gate 5) holds it.
+  const toldToStopBeforeTheBin =
+    listDiscardedKeys && reachedEveryCollection && whyItStops !== undefined ? await whyItStops() : null;
   if (listDiscardedKeys && !reachedEveryCollection) {
     log.info(
       `[sync] ${domain}: ${whatItDidNotReach}, so the owner's bin is not read for deletions ` +
         'this pass: a message in it may still be alive in a collection this pass did not look ' +
         'through. The next pass that reaches every collection reads it.',
+    );
+  } else if (listDiscardedKeys && toldToStopBeforeTheBin !== null) {
+    log.info(
+      `[sync] ${domain}: this pass was told to stop after its last item, because ` +
+        `${HALT_IN_WORDS[toldToStopBeforeTheBin]}, so the owner's bin is not read for deletions ` +
+        'this pass: reading the account is work too. Nothing failed, and the next pass that ' +
+        'reaches every collection reads it.',
     );
   } else if (listDiscardedKeys) {
     let discarded: DiscardedListing | undefined;
