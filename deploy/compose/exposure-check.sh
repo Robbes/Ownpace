@@ -46,26 +46,37 @@
 # NAMES, matched exactly. For a container named there, a publish this would
 # fail (every interface, or an address EXPOSURE_ALLOW does not list) is printed
 # as a note instead, and does not fail the run; one it cannot read still
-# fails. A listed name that is not running is a note too. An Ownpace container
-# can never be accepted this way, and naming one stops the check (exit 2):
+# fails. A listed name that is not running is a note too, naming the entry by
+# its place, never repeating it. Naming an Ownpace container this check
+# recognises stops the check (exit 2):
 #
-#   by its name         every container Ownpace starts on this machine is
-#                       named ownpace…: managed.yml and www.yml build each
-#                       `container_name` from the project, every Ownpace
-#                       project is named ownpace… (the OTA stack's, live's,
-#                       both sites', the appliance's and the upgrade
-#                       drill's), and the fixed
+#   by its name         ownpace…, in any case, whether it runs or not:
+#                       managed.yml and www.yml build each `container_name`
+#                       from the project, every Ownpace project is named
+#                       ownpace… (the OTA stack's, live's, both sites', the
+#                       appliance's and the upgrade drill's), and the fixed
 #                       names (the dev and demo Stalwarts, the dev Nextcloud,
-#                       the appliance's) are ownpace… too. Refused whether it
-#                       runs or not, in any case.
-#   by its project      Docker's own label, com.docker.compose.project, the
-#                       fourth field of the listing: ownpace…, or `compose`,
-#                       the project dev.yml gets without a `name:` of its own
-#                       (the appliance nightly's dev stack, and the dev
-#                       Postgres by hand). Refused when such a container runs.
+#                       the appliance's) are ownpace… too. Not dev.yml's
+#                       Postgres, which Compose names after its project.
+#   by its Compose      Docker's own labels, the fourth and fifth fields of the
+#   labels              listing, when such a container runs: a project named
+#                       ownpace…, or files under deploy/compose/ or
+#                       deploy/selfhost/, whatever the project (config_files),
+#                       or a project named `compose` whose files are not said.
+#                       `compose` is what dev.yml's stack runs as, with no
+#                       `name:` of its own (the appliance nightly's dev stack,
+#                       the dev Postgres by hand), and what any compose file
+#                       kept in a directory called compose runs as, the
+#                       owner's own among them; config_files tells them apart.
 #
-# An entry that is not a container name (an address among them) is refused
-# without being repeated.
+# NOT EVERY OWNPACE CONTAINER IS RECOGNISED. One started without Compose and
+# without an ownpace… name, by hand or by tests, is not: a `docker run` of an
+# Ownpace image, the Postgres scripts/squash-migrations.sh starts, the
+# testcontainers of the CI jobs that run on this machine, Trigger.dev's task
+# runs. Their names change from run to run, and they stay off the list; a 2- or
+# 3-field --from listing carries no labels at all, so there only the name is
+# read. An entry that is not a container name (an address among them) is
+# refused without being repeated.
 #
 # IT NAMES THE CONTAINER AND THE PORT, NEVER THE ADDRESS. T6 runs it after
 # every deploy of live and T7 daily, and what they print may reach a public
@@ -81,8 +92,8 @@
 #                       only loopback passes)
 #   --from <file>|-     read recorded lines instead of asking Docker, in the
 #                       format this asks for:
-#                       docker ps --format '{{.Names}}\t{{.Ports}}\t{{.Networks}}\t{{.Label "com.docker.compose.project"}}'
-#                       (the third and fourth fields may be left out)
+#                       docker ps --format '{{.Names}}\t{{.Ports}}\t{{.Networks}}\t{{.Label "com.docker.compose.project"}}\t{{.Label "com.docker.compose.project.config_files"}}'
+#                       (the third to fifth fields may be left out)
 #
 # Exit: 0 every publish on loopback, an allowed address, or of a container
 # EXPOSURE_NOT_OURS accepts; 1 findings; 2 usage, a bad EXPOSURE_ALLOW or
@@ -149,7 +160,7 @@ without_addresses() {
 
 # The whole daemon on purpose: no --filter, no compose project
 # (two-stacks-on-one-box exempts this one listing).
-PS_FORMAT='{{.Names}}\t{{.Ports}}\t{{.Networks}}\t{{.Label "com.docker.compose.project"}}'
+PS_FORMAT='{{.Names}}\t{{.Ports}}\t{{.Networks}}\t{{.Label "com.docker.compose.project"}}\t{{.Label "com.docker.compose.project.config_files"}}'
 if [ -z "$FROM" ]; then
   err_file="$(mktemp)"
   trap 'rm -f "$err_file"' EXIT
@@ -225,20 +236,21 @@ done
 
 # ---- Containers that are not Ownpace's ------------------------------------------
 
-# Every Ownpace container's name, and every Ownpace Compose project but dev.yml's
-# default one, begins with ownpace (above).
+# What this recognises as Ownpace's (above). A container's files are never
+# printed: they are paths on this machine.
 is_ownpace_name() { [[ "${1,,}" == ownpace* ]]; }
-is_ownpace_project() {
-  case "${1,,}" in
-    ownpace* | compose) return 0 ;;
-  esac
-  return 1
+# is_ownpace_compose <project> <config_files>
+is_ownpace_compose() {
+  case "${1,,}" in ownpace*) return 0 ;; esac
+  case "$2" in *deploy/compose/* | *deploy/selfhost/*) return 0 ;; esac
+  [ "${1,,}" = compose ] && [ -z "$2" ]
 }
 
 CONTAINER_NAME='^[A-Za-z0-9][A-Za-z0-9_.-]+$'
 HAS_IPV4='[0-9]{1,3}(\.[0-9]{1,3}){3}'
 declare -A NOT_OURS=()
 NOT_OURS_LISTED=()
+NOT_OURS_PLACE=()
 not_ours_raw="$(env_value "$ENV_FILE" EXPOSURE_NOT_OURS)"
 case "$not_ours_raw" in '"'*'"') not_ours_raw="${not_ours_raw#\"}"; not_ours_raw="${not_ours_raw%\"}" ;; esac
 IFS=$', \t' read -r -a not_ours_entries <<<"$not_ours_raw"
@@ -255,6 +267,7 @@ for entry in ${not_ours_entries[@]+"${not_ours_entries[@]}"}; do
   if [ -z "${NOT_OURS[$entry]+set}" ]; then
     NOT_OURS[$entry]=''
     NOT_OURS_LISTED+=("$entry")
+    NOT_OURS_PLACE+=("$n")
   fi
 done
 
@@ -297,20 +310,28 @@ while IFS= read -r line || [ -n "$line" ]; do
   ports="${rest%%$'\t'*}"
   networks=""
   project=""
+  files=""
   [ "$rest" = "$ports" ] || networks="${rest#*$'\t'}"
   case "$networks" in
     *$'\t'*)
       project="${networks#*$'\t'}"
-      project="${project%%$'\t'*}"
       networks="${networks%%$'\t'*}"
+      case "$project" in
+        *$'\t'*)
+          files="${project#*$'\t'}"
+          files="${files%%$'\t'*}"
+          project="${project%%$'\t'*}"
+          ;;
+      esac
       ;;
   esac
   containers=$((containers + 1))
 
   not_ours=''
-  if [ -n "${NOT_OURS[$name]+set}" ]; then
-    if is_ownpace_project "$project"; then
-      usage_error "EXPOSURE_NOT_OURS in ${ENV_FILE} names ${name}, a container of the Compose project ${project}, which is Ownpace's own: an Ownpace container can never be accepted as not Ownpace's. Take it out of the list."
+  # Docker never prints an empty name, a recorded listing may: no list entry.
+  if [ -n "$name" ] && [ -n "${NOT_OURS[$name]+set}" ]; then
+    if is_ownpace_compose "$project" "$files"; then
+      usage_error "EXPOSURE_NOT_OURS in ${ENV_FILE} names ${name}, a container Docker labels as Ownpace's own Compose stack (its project is ownpace…, its files are under deploy/compose/ or deploy/selfhost/, or its project is compose, dev.yml's, with no files said): an Ownpace container can never be accepted as not Ownpace's. Take it out of the list."
     fi
     NOT_OURS[$name]=running
     not_ours=1
@@ -376,8 +397,9 @@ done <<<"$listing"
 for a in ${ACCEPTED[@]+"${ACCEPTED[@]}"}; do
   say "note: ${a}; not Ownpace's, accepted in EXPOSURE_NOT_OURS"
 done
-for entry in ${NOT_OURS_LISTED[@]+"${NOT_OURS_LISTED[@]}"}; do
-  [ -n "${NOT_OURS[$entry]}" ] || say "note: ${entry}, in EXPOSURE_NOT_OURS, is not running"
+# By its place: an entry Docker did not print may be a mistyped host name.
+for i in ${NOT_OURS_LISTED[@]+"${!NOT_OURS_LISTED[@]}"}; do
+  [ -n "${NOT_OURS[${NOT_OURS_LISTED[$i]}]}" ] || say "note: entry ${NOT_OURS_PLACE[$i]} of EXPOSURE_NOT_OURS names no running container"
 done
 for f in ${FINDINGS[@]+"${FINDINGS[@]}"}; do
   say "$f"
