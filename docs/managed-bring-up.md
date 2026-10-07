@@ -335,15 +335,25 @@ port on every interface or on an address `EXPOSURE_ALLOW` does not list is a
 note (*"note: someones-app publishes 5555/tcp on every interface; not Ownpace's,
 accepted in EXPOSURE_NOT_OURS"*), not a failure, and the closing `ok:` line
 counts them. So the check no longer holds every publish on the machine to
-loopback and `EXPOSURE_ALLOW`: those containers' are the owner's to judge. **An
-Ownpace container can never be accepted this way:** a name beginning with
-`ownpace` (every container Ownpace starts here is named so), or a running
-container whose Compose project is Ownpace's (`ownpace…`, or `compose`, which
-`dev.yml` gets without a name of its own), stops the check (exit 2), and so
-does an entry that is not a container name. A listed name that is not running
-is a note. `deploy-live.sh` (workplan 0132 T6) runs it
-after each deploy of live, and a deploy it fails did not take; T7 will run it
-daily. Until live stands it is run by hand (T0 step 5). The same question from
+loopback and `EXPOSURE_ALLOW`: those containers' are the owner's to judge. **The
+check refuses an Ownpace container it recognises** (exit 2): a name beginning
+with `ownpace` (every container Ownpace starts here but `dev.yml`'s Postgres is
+named so), or a running container Docker labels as Ownpace's Compose stack: its
+project `ownpace…`, its files under `deploy/compose/` or `deploy/selfhost/`
+whatever the project, or its project `compose` with no files said. `compose` is
+what `dev.yml`'s stack runs as without a `name:` of its own, and what any
+compose file in a directory called `compose` runs as, so one of the owner's own
+there is told apart by its files. An entry that is not a container name is
+refused too. **Not every Ownpace container is recognised:** one started without
+Compose and without an `ownpace` name, by hand or by tests (a `docker run` of an
+Ownpace image, the Postgres `scripts/squash-migrations.sh` starts, the CI jobs'
+testcontainers, Trigger.dev's task runs), is not, so list only the owner's own
+services. A listed name that is not running is a note naming the entry by its
+place in the list, never repeating it. Live's `.env` needs the key too, and a
+tag cut before it was added runs a check that ignores it.
+
+`deploy-live.sh` (workplan 0132 T6) runs `exposure-check.sh` after each deploy
+of live, and a deploy it fails did not take; T7 will run it daily. Until live stands it is run by hand (T0 step 5). The same question from
 outside is the dispatch-only workflow *Exposure probe*
 (`.github/workflows/exposure-probe.yml`), on a GitHub-hosted runner. It needs
 the repository variable `EXPOSURE_PROBE_LIVE_PORTS`, live's `*_PORT` values, and
@@ -3582,7 +3592,7 @@ seven duties, each one whatever the one before it did:
 |---|---|---|
 | `token` | `setup-zitadel.sh --token-only` | The token's clock and nothing else: no secrets generated, the provider not started or reconfigured. It writes `ZITADEL_PAT_EXPIRY`, as every run does. |
 | `copies` | `copy-before-update.sh expire` | The backstop of the copy made before an update (workplan 0139), in `~/.persistent/ownpace-live/copy-before-update`: deleted once it is older than six days less an hour, whether or not its update was proven, so it is never kept past day 7, even when this run starts late; a dump made there by hand goes by its own age. The run before the one that deletes it keeps it and fails the duty, saying to roll back from it today or to delete it (the operator runbook's *The copy before an update*). It reads no database. The copy is **secret-bearing** (testers' data, the provider's password hashes); the scripts make it readable by this account only. |
-| `exposure` | `exposure-check.sh` | Every port any container on the machine publishes, both stacks (0132 T3). Needs `EXPOSURE_ALLOW` in live's `.env`. |
+| `exposure` | `exposure-check.sh` | Every port any container on the machine publishes, both stacks (0132 T3). Needs `EXPOSURE_ALLOW` in live's `.env`, and `EXPOSURE_NOT_OURS` where the machine runs containers that are not Ownpace's. |
 | `organisations` | `setup-zitadel.sh --count-organisations` | 0135 T3's count on live's identity provider, read-only. A count that is not one fails the duty. |
 | `site` | `www-live.sh check` | Read-only (0139 T10). Fails when a container of live's project has the compose service `www`, where a `www.yml` command without `-p` puts the site; and, when live's `.env` says `WWW_LIVE=true`, when `ownpace-live-www` is not running and healthy (*`www.ownpace.eu`: live's copy*). |
 | `strays` | `idp-strays.sh --remove --at-most 20` | Removes the sign-in accounts nobody let in, older than 30 days, and those of members removed from an organisation 7 or more days ago, as privacy §9 says (0135 T8 and open question 13; the runbook's *Sign-in accounts nobody let in*). A removed member's account stays while the removal is younger than 7 days, or while they are a member again, an operator, or hold an open request or invitation; so does an account of another organisation at the provider or with a role there. More than 20 at once removes none and fails the duty: run `./deploy/compose/idp-strays.sh` from `~/ownpace-live` to see them, then `--remove` by hand if they are right. A database with no operator row (*Become the operator*, above) removes none and fails the duty too. One that has its operator row back and not its members, after a reset or restore that kept the provider's accounts, is not seen: turn the duties off before such a reset and on again once the members are back (the runbook says how). Its lines name an account's id, never its address. |
@@ -3874,9 +3884,14 @@ does not move either.
 on `main` since #1271, and it reads the whole machine: set `EXPOSURE_ALLOW` in
 live's `.env` to every address any container on it is published on on purpose
 (*Checking every publish on the machine at once*, under *Which address a port
-answers on*), or it fails for each of them. And the tag must be cut from a
-commit that has `deploy/compose/exposure-check.sh`; the script runs the tag's
-own copy, and refuses a tag without one before anything moves.
+answers on*), or it fails for each of them; where the machine runs containers
+that are not Ownpace's and publish beyond loopback, set `EXPOSURE_NOT_OURS` to
+their names too (*Containers on the machine that are not Ownpace's*, same
+section). And the tag must be cut from a commit that has
+`deploy/compose/exposure-check.sh`; the script runs the tag's own copy, and
+refuses a tag without one before anything moves. With `EXPOSURE_NOT_OURS` set,
+that copy must be one that reads it (workplan 0132's Status of 2026-10-05): an
+older one ignores the key and fails for each of those containers.
 
 **`--dry-run`** runs everything up to the checkout (every refusal above, the tag
 fetch, one-way or reversible, by the same comparison, and `copy-before-update.sh
