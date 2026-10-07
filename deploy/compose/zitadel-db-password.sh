@@ -208,9 +208,11 @@ role_exists_over_admin() { # 0 exists, 1 absent, 2 cannot tell
     printf '%s\n' "$out" >&2
     return 2
   }
+  # `psql -tA` prints `t`/`f` for a boolean; a stub that answers the same
+  # question with `1`/`0` is the same answer. Anything else is not an answer.
   case "$out" in
-    *t*) return 0 ;;
-    *f*) return 1 ;;
+    *t*|*1*) return 0 ;;
+    *f*|*0*) return 1 ;;
     *) printf '%s\n' "$out" >&2; return 2 ;;
   esac
 }
