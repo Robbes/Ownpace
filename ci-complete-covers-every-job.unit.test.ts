@@ -32,7 +32,8 @@ const AGGREGATOR = 'ci-complete';
 interface Job {
   readonly needs?: string | string[];
   readonly if?: unknown;
-  readonly steps?: ReadonlyArray<{ if?: unknown; name?: string }>;
+  readonly 'continue-on-error'?: unknown;
+  readonly steps?: ReadonlyArray<{ if?: unknown; name?: string; 'continue-on-error'?: unknown }>;
 }
 
 const workflow = parse(readFileSync(CI_PATH, 'utf8')) as { jobs: Record<string, Job> };
@@ -91,13 +92,49 @@ describe('ci-complete is a truthful aggregate of every CI gate', () => {
     ).toContain('always()');
   });
 
-  it('fails the run when an upstream gate failed', () => {
-    // `if: always()` alone would make this job green no matter what happened.
-    // Something in it has to inspect the results and exit non-zero.
-    const conditions = (aggregator.steps ?? []).map((s) => String(s.if ?? ''));
+  it('has no step its own `if:` can skip', () => {
+    // `if: always()` alone would make this job green no matter what happened,
+    // so a step in it inspects the results and exits non-zero.
+    //
+    // This test used to assert the opposite of what it asserts now: that some
+    // step's `if:` named `needs.*.result` and `failure`. On 2026-10-05 that
+    // step — `if: contains(needs.*.result, 'failure') || contains(needs.*.result,
+    // 'cancelled')` — was SKIPPED over four runs whose gates never got a
+    // runner, because GitHub reported those as `abandoned`, and the job went
+    // green. A step that decides must not be one GitHub can skip; it runs
+    // every time and decides inside. Whether it decides RIGHTLY is held by
+    // scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts, which
+    // runs this job's steps against the recorded runs.
+    const conditional = (aggregator.steps ?? [])
+      .filter((s) => s.if !== undefined && !/^\s*(\$\{\{\s*)?always\(\)(\s*\}\})?\s*$/.test(String(s.if)))
+      .map((s) => `${s.name ?? '(unnamed step)'}: if: ${String(s.if)}`);
     expect(
-      conditions.some((c) => c.includes("needs.*.result") && c.includes('failure')),
-      'no step fails on an upstream failure — ci-complete would report green for a red run',
-    ).toBe(true);
+      conditional,
+      'these ci-complete steps run only when their `if:` holds, so a result their `if:` did ' +
+        'not foresee skips them and the job reports green. Drop the `if:` and decide inside ' +
+        'the step.',
+    ).toEqual([]);
+  });
+
+  it('lets nothing turn a failing step into a passing check', () => {
+    // `continue-on-error` on the deciding step makes its `exit 1` the job's
+    // success — and in expression form (`${{ github.event_name ==
+    // 'pull_request' }}`) actionlint is content with it and, until the review
+    // of 2026-10-05, so was the guard that runs this job. Nothing legitimate
+    // needs it on the job whose only purpose is to fail, so it is refused on
+    // the job and on every step, in any form, `false` included.
+    const swallowing = [
+      ...(aggregator['continue-on-error'] === undefined
+        ? []
+        : [`the job itself: continue-on-error: ${String(aggregator['continue-on-error'])}`]),
+      ...(aggregator.steps ?? [])
+        .filter((s) => s['continue-on-error'] !== undefined)
+        .map((s) => `${s.name ?? '(unnamed step)'}: continue-on-error: ${String(s['continue-on-error'])}`),
+    ];
+    expect(
+      swallowing,
+      'ci-complete carries continue-on-error, so a gate that did not pass can still report ' +
+        'green on the one check branch protection requires. Remove it.',
+    ).toEqual([]);
   });
 });
