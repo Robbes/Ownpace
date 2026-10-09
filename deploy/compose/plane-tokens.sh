@@ -190,7 +190,7 @@ done <<<"$rows"
 
 # Rows the database does not have at all.
 for id in $IDS; do
-  printf '%s\n' "$SEEN_IDS" | grep -qxF "$id" && continue
+  grep -qxF "$id" <<<"$SEEN_IDS" && continue
   RELEASE="${RELEASE}${id}
 "
   say "released ${id}: the run row is gone from the database"
