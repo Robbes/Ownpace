@@ -2261,6 +2261,59 @@ sync_and_wait() { # sync_and_wait <tenant> <mapping> <token> <label>
   esac
 }
 
+# THE CONDITIONS, ACCEPTED. On an alpha stack (`OWNPACE_STAGE=alpha`, which
+# live sets and this stack runs with) every door that stores a credential
+# answers 409 `conditions_not_accepted` until the person pressing it has
+# accepted the current version of each text (workplan 0139 T3). The app's
+# screen asks; this gate is not a browser, so it records the acceptance the
+# way the screen does — `POST /api/me/acceptance` with the versions the API
+# itself names as current. Both demo people do it, because both press doors:
+# the apply half creates migrations, and the Nextcloud door and the export
+# archive create connections.
+#
+# DERIVED, NOT HARD-CODED. The versions come off `GET /api/me`'s own
+# `acceptance.documents`, so when a text goes final and its number moves, this
+# follows the API and the gate does not rot. A stack that asks nobody answers
+# `acceptance_not_asked` (409) — that is the healthy answer off-alpha, and
+# said, not failed.
+note "the conditions, accepted (0139 T3)"
+accept_conditions() { # accept_conditions <label> <token> — accept what the API asks of this person
+  local label="$1" tok="$2" r code body
+  r="$(http GET "$API/api/me" "$tok")"
+  code="${r%% *}"; body="${r#* }"
+  if [ "$code" != "200" ]; then
+    echo "$label: GET /api/me answered HTTP $code — the acceptance step cannot read what to accept."
+    fail_at
+    return
+  fi
+  local versions
+  versions="$(jq -c '.acceptance.documents // empty | map({(.document): .version}) | add // empty' <<<"$body" 2>/dev/null)"
+  if [ -z "$versions" ] || [ "$versions" = "null" ]; then
+    echo "$label: this stack asks nobody to accept the texts (no acceptance on /api/me) — nothing to record."
+    return
+  fi
+  r="$(http POST "$API/api/me/acceptance" "$tok" "{\"versions\": $versions, \"language\": \"en\"}")"
+  code="${r%% *}"; body="${r#* }"
+  case "$code" in
+    200)
+      echo "$label: accepted $(jq -r '.acceptance.documents[] | .document + \" \" + .version' <<<"$body" 2>/dev/null | paste -sd, -) (written: $(jq -r '.written' <<<"$body" 2>/dev/null))" ;;
+    409)
+      case "$body" in
+        *acceptance_not_asked*) echo "$label: the stack stopped asking mid-run (acceptance_not_asked) — nothing to record." ;;
+        *version_not_current*)
+          echo "$label: the versions /api/me named are no longer current — ${body:0:200}"
+          fail_at ;;
+        *) echo "$label: acceptance refused — HTTP 409 ${body:0:200}"
+          fail_at ;;
+      esac ;;
+    *)
+      echo "$label: POST /api/me/acceptance answered HTTP $code — ${body:0:200}"
+      fail_at ;;
+  esac
+}
+accept_conditions "verify owner" "$VERIFY_TOKEN"
+accept_conditions "apply owner" "$APPLY_TOKEN"
+
 note "SYNC before VERIFY — measure the target after a pass, never before one"
 sync_and_wait "$VERIFY_TENANT" "$VERIFY_MAPPING" "$VERIFY_TOKEN" mail
 sync_and_wait "$APPLY_TENANT" "$APPLY_MAPPING" "$APPLY_TOKEN" dav
