@@ -147,7 +147,7 @@ describe('what a digest says', () => {
     const msg = renderDigest([{ ...quiet, deletionsWaiting: 2 }], 'nl', 'daily');
     expect(msg?.subject).toContain('aandacht');
     expect(msg?.body).toContain('verwijderingen om te bevestigen');
-    expect(msg?.body).toContain('Er gebeurt niets totdat u antwoordt');
+    expect(msg?.body).toContain('Deze zaken wachten op uw beslissing.');
   });
 });
 
@@ -264,7 +264,7 @@ describe('everything has arrived — the first copy, once per person (0154 T7)',
     expect(en.subject).toBe('Ownpace — everything has arrived');
     expect(en.body).toContain('Person: Anna Jansen');
     expect(en.body).toContain('Everything has arrived: email, calendar and contacts.');
-    expect(en.body).toContain('It is kept in step until you switch. Nothing is needed from you.');
+    expect(en.body).toContain('It is kept in step until you switch. Nothing need your attention urgently.');
     const nl = renderEvent(anna, 'nl');
     expect(nl.subject).toBe('Ownpace — alles is aangekomen');
     expect(nl.body).toContain('Persoon: Anna Jansen');
@@ -276,10 +276,10 @@ describe('everything has arrived — the first copy, once per person (0154 T7)',
     // On Free, outside the alpha (workplan 0157 T5): what keeping in step means.
     const free = { ...anna, onePassADay: true } as const;
     expect(renderEvent(free, 'en').body).toContain(
-      'On Free that is one pass a day. A higher tier looks for changes as often as every 15 minutes: see Billing in the app.',
+      'On Free that is one pass a day. A higher tier looks for changes as often as every 15 minutes: check tiers in the Billing section in the app.',
     );
     expect(renderEvent(free, 'nl').body).toContain(
-      'Op Free is dat één ronde per dag. Een hoger pakket kijkt zo vaak als elke 15 minuten naar wijzigingen: zie Facturering in de app.',
+      'Op Free is dat één ronde per dag. Een hoger pakket kijken we tot maximaal iedere 15 minuten naar wijzigingen: pas het pakket aan via Facturering in de app.',
     );
     expect(renderEvent(anna, 'en').body).not.toContain('On Free');
     const msg = renderEvent({ kind: 'first_copy_complete', domains: ['file'] }, 'en');
@@ -325,13 +325,13 @@ describe('everything is in step, so we look less often (0157 T7)', () => {
         'Migration: Shared files',
         '  - Now once a day',
         '',
-        'Choose more often any time, under How often to look for changes on each migration in the app. ' +
+        'Choose more often any time, under \'How often to look for changes\' on each migration in the app. ' +
           'Open a migration and we look every hour again, for 14 days.',
       ].join('\n'),
     );
     const nl = renderEvent(two, 'nl');
-    expect(nl.subject).toBe('Ownpace — alles is bijgewerkt, dus we kijken minder vaak');
-    expect(nl.body).toContain('Alles is bijgewerkt, dus we kijken nu minder vaak naar wijzigingen:');
+    expect(nl.subject).toBe('Ownpace — alles is bijgewerkt, dus we doen het wat rustiger aan');
+    expect(nl.body).toContain('Alles is bijgewerkt, dus we doen het nu wat rustiger aan:');
     expect(nl.body).toContain('Migratie: Anna mail\n  - Persoon: Anna Jansen\n  - Nu elke 6 uur');
     expect(nl.body).toContain('Migratie: Shared files\n  - Nu eens per dag');
     expect(nl.body).toContain('Opent u een migratie, dan kijken we weer 14 dagen elk uur.');
@@ -383,7 +383,7 @@ describe('access requested — the knock, addressed to the operator (0093 T3)', 
     // The operator is being told to LOOK, not that a decision was made. A
     // subject line somebody skims at 23:00 must not read like a completed act.
     expect(renderEvent(full, 'en').body).toMatch(/[Nn]othing has been granted/);
-    expect(renderEvent(full, 'nl').body).toMatch(/nog niets toegekend/);
+    expect(renderEvent(full, 'nl').body).toContain('Iemand vraagt toegang.');
   });
 
   it('omits the optional fields rather than printing them empty', () => {
@@ -494,8 +494,7 @@ describe('access declined — saying no is a courtesy too (0095 T5)', () => {
     // one here would put a second, staler address into circulation.
     for (const locale of ['en', 'nl'] as const) {
       const { body } = renderEvent(event, locale);
-      expect(body).toMatch(/person|mens/i);
-      expect(body).toMatch(/reply|beantwoord/i);
+      expect(body).toMatch(/reply|contact op/i);
     }
   });
 
@@ -568,7 +567,7 @@ describe('auto-applied removals are narrated (ADR-0031, workplan 0048)', () => {
     expect(digest?.body).toContain('3 old copies of moved or renamed files removed automatically');
     // And each is recorded — the sentence says so, because an owner reading
     // this must know there is an audit row per removal, not a bulk note.
-    expect(digest?.body).toContain('each is recorded');
+    expect(digest?.body).toContain('removed automatically (auto-apply)');
   });
 
   it('says it in Dutch too, and stays silent at zero', () => {
@@ -585,6 +584,6 @@ describe('open sharing-checklist rows are narrated (ADR-0032, workplan 0052 T6a)
     const en = renderDigest([m], 'en', 'daily');
     expect(en?.body).toContain('4 rows open on the sharing checklist');
     const nl = renderDigest([m], 'nl', 'weekly');
-    expect(nl?.body).toContain('4 regels open op de deel-checklist');
+    expect(nl?.body).toContain('4 regels open op de Delen-checklist');
   });
 });

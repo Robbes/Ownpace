@@ -65,7 +65,7 @@ describe('the invitation mail', () => {
   });
 
   /** The note's welcome, which opens the alpha paragraph (the owner, 2026-10-04). */
-  const WELCOME = { en: 'Welcome to the Alpha! ', nl: 'Welkom bij de Alpha! ' } as const;
+  const WELCOME = { en: 'Welcome to the Alpha! ', nl: 'Welkom bij Ownpace in de Alpha fase! ' } as const;
   const opensWithTheWelcome = (body: string, locale: (typeof LOCALES)[number]) =>
     body.split('\n').some((l) => l.startsWith(WELCOME[locale]));
 
@@ -83,10 +83,10 @@ describe('the invitation mail', () => {
     },
   } as const;
   const SAYS = {
-    en: { conditions: 'Read the Alpha conditions here:', guide: 'Read the guide to the Alpha before you start:' },
+    en: { conditions: 'Read the Alpha conditions:', guide: 'Read the guide before you start:' },
     nl: {
-      conditions: 'Lees hier de voorwaarden voor de Alpha:',
-      guide: 'Lees de handleiding voor de Alpha voordat u begint:',
+      conditions: 'Lees de voorwaarden:',
+      guide: 'Lees de handleiding:',
     },
   } as const;
 
@@ -109,6 +109,6 @@ describe('the invitation mail', () => {
 
   it('has its own subject in both languages', () => {
     expect(renderEvent(INVITED, 'en').subject).toBe('Ownpace — you are invited to join an organisation');
-    expect(renderEvent(INVITED, 'nl').subject).toBe('Ownpace — u bent uitgenodigd voor een organisatie');
+    expect(renderEvent(INVITED, 'nl').subject).toBe('Ownpace — u bent uitgenodigd deel te nemen');
   });
 });
