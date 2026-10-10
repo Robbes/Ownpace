@@ -506,7 +506,7 @@ const en = {
   // Connections page have no grant link to reopen. A consent sentence, kept
   // whole (0118 §2), not a `.hint`.
   'wizard.google.inAppBrowser':
-    'If this page opened inside another app, such as a chat or mail app, use that app\'s \'Open in browser\' option or copy the link into your favorite browser, then sign in to Ownpace there.',
+    'If this page opened inside another app, such as a chat or mail app, use that app\'s \'Open in browser\' option or copy the link into your favorite browser, such as Safari or Chrome, then sign in to Ownpace there.',
   // Connect with Dropbox (2026-09-02): the same button, Dropbox's words.
   'wizard.dropbox.connect': 'Connect with Dropbox',
   'wizard.dropbox.connect.hint': 'Opens Dropbox’s consent screen and fills in the refresh token.',
@@ -1349,7 +1349,7 @@ const en = {
   // in that app's own browser, where Google is reported to refuse the consent.
   // Opening the link again elsewhere spends nothing (grant.ts), so it says so.
   'grant.inAppBrowser':
-    'If this page opened inside another app, such as a chat or mail app, use that app\'s \'Open in browser\' option or copy the link into your favorite browser. The link still works.',
+    'If this page opened inside another app, such as a chat or mail app, use that app\'s \'Open in browser\' option or copy the link into your favorite browser, such as Safari or Chrome. The link still works.',
   'grant.connect': 'Continue with Google',
   // A person's link (ADR-0035, amended 2026-09-29; workplan 0153 T5 (b)): one
   // card per Google account, each asked once.
@@ -2075,7 +2075,7 @@ const en = {
   'support.hold': 'Hold new passes',
   // Since 0132 T6 (b) the message is also every refused button's answer, and
   // a refused press is not remembered, so the fold says what it should say.
-  'support.hold.hint': 'Stops new passes; the ones already running finish.',
+  'support.hold.hint': 'Stops new passes, buttons included; the ones already running finish.',
   'support.hold.hint.why':
     'This is the drain: the sync tick stops enqueueing within a minute, and whatever is mid-pass finishes normally. Every signed-in customer sees a notice with your message on it, or a default sentence when left empty. Your message is also shown to every button-press that would start work while the hold is on (\'Trigger sync\', \'Start migration\', a check), and a refused press is not remembered. So say when copying resumes and ask them to try again after that, for example: \'We are updating the platform and copying resumes around 15:00. Nothing starts until then. Please try again after that.\' Lifting the hold starts the scheduled passes again on the next tick.',
   'support.hold.on': 'Held since {since}. No new passes are starting.',
@@ -2300,10 +2300,10 @@ const en = {
   // "overstappen" is not the cutover. Two keys, because the first sentence is
   // the bold lead. Until then the note said what the Alpha
   // means; those facts are now in both mails (`grantedAlpha` in
-  // @openmig/shared's notifications.ts), after this same welcome, and in the
-  // Alpha conditions and the tester guide. `an-alpha-said-out-loud.unit.test.tsx`
-  // holds that split: the note is the welcome and its links, and both mails
-  // open with the note's words.
+  // @openmig/shared's notifications.ts), after the mails' own welcome (the
+  // owner's text review, 2026-10-10), and in the Alpha conditions and the
+  // tester guide. `an-alpha-said-out-loud.unit.test.tsx` holds that split: the
+  // note is the welcome and its links, and the facts are the mails'.
   'alpha.note.lead': 'Welcome to the Alpha!',
   'alpha.note.welcome':
     'Try Ownpace at your own pace, and move to European alternatives step by step.',
@@ -3305,9 +3305,9 @@ const nl: Record<keyof typeof en, string> = {
   'support.noMigrations': 'Geen migraties.',
   'support.noInvoices': 'Geen facturen.',
   'support.hold': 'Nieuwe migratierondes pauzeren',
-  'support.hold.hint': 'Stopt nieuwe rondes, wat al liep wordt afgerond.',
+  'support.hold.hint': 'Stopt nieuwe rondes, ook via een knop; wat al liep wordt afgerond.',
   'support.hold.hint.why':
-    'Dit is de drain: de synchronisatietick stopt binnen een minuut met inplannen, en wat liep wordt normaal afgerond. Elke ingelogde klant ziet een melding met uw tekst, of een standaardzin bij leeg laten van het veld. Uw tekst wordt ook weergegeven bij elke knop waarop een klant klikt terwijl de pauze aanstaat (\'Synchroniseer nu\', \'Start migratie\', een controle). Wat zo wordt geweigerd, wordt niet opgeslagen. Beschrijf dus wanneer de migraties hervatten en vraag de klant daarna opnieuw te proberen. Bijvoorbeeld: \'We werken het platform bij en migreren rond 15:00 weer verder. Tot die tijd start er niets. Probeer het daarna opnieuw.\' Zodra u de pauze opheft, starten uw migraties weer.',
+    'Dit is de drain: de synchronisatietick stopt binnen een minuut met inplannen, en wat liep wordt normaal afgerond. Elke ingelogde klant ziet een melding met uw tekst, of een standaardzin bij leeg laten van het veld. Uw tekst wordt ook weergegeven bij elke knop die werk zou starten waarop een klant klikt terwijl de pauze aanstaat (\'Synchroniseer nu\', \'Start migratie\', een controle). Wat zo wordt geweigerd, wordt niet opgeslagen. Beschrijf dus wanneer de migraties hervatten en vraag de klant daarna opnieuw te proberen. Bijvoorbeeld: \'We werken het platform bij en migreren rond 15:00 weer verder. Tot die tijd start er niets. Probeer het daarna opnieuw.\' Zodra u de pauze opheft, starten uw migraties weer.',
   'support.hold.on': 'Gepauzeerd sinds {since}. Er starten geen nieuwe migratierondes.',
   'support.hold.off': 'Niet gepauzeerd. Nieuwe migratierondes starten volgens schema.',
   'support.hold.start': 'Nieuwe migratierondes pauzeren',
@@ -3674,7 +3674,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.google.readsOnly':
     'Voor e-mail, agenda’s en contacten beschrijft Google een ruimere toestemming dan Ownpace gebruikt. Ownpace leest alleen; het wijzigt en verwijdert niets in dit account.',
   'wizard.google.inAppBrowser':
-    'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar uw favoriete browser en meld u in die browser aan bij Ownpace.',
+    'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar uw favoriete browser, zoals Safari of Chrome, en meld u in die browser aan bij Ownpace.',
   'wizard.dropbox.connect': 'Verbinden met Dropbox',
   'wizard.dropbox.connect.hint':
     'Opent het toestemmingsscherm van Dropbox en vult het refreshtoken in.',
@@ -4335,7 +4335,7 @@ const nl: Record<keyof typeof en, string> = {
   'grant.until': 'Deze link werkt tot {date}.',
   'grant.signInAs': 'Log in als {account}. Google deelt uw adres ter controle; andere accounts worden geweigerd.',
   'grant.inAppBrowser':
-    'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar uw favoriete browser. De link blijft werken.',
+    'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar uw favoriete browser, zoals Safari of Chrome. De link blijft werken.',
   'grant.connect': 'Doorgaan met Google',
   'grant.person.asking':
     '{organisation} migreert uw accounts naar een nieuwe provider en heeft uw toestemming nodig om te lezen wat erin zit. Elk account hieronder vraagt het één keer.',

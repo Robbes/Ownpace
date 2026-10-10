@@ -372,9 +372,10 @@ describe('the hold’s hint says what the sentence also answers (0132 T6 (b))', 
       ask: "So say when copying resumes and ask them to try again after that, for example: 'We are updating the platform and copying resumes around 15:00. Nothing starts until then. Please try again after that.'",
     },
     nl: {
-      hint: 'Stopt nieuwe rondes, ook via een knop; wat al loopt wordt afgerond.',
+      hint: 'Stopt nieuwe rondes, ook via een knop; wat al liep wordt afgerond.',
+      // The owner's words of the text review (2026-10-10), with "die werk zou starten" kept.
       answers:
-        "Uw tekst is ook, woord voor woord, het antwoord op elke knop die werk zou starten terwijl de pauze aanstaat ('Synchroniseer nu', 'Start migratie', een controle), en wat zo geweigerd wordt, onthoudt het platform niet.",
+        "Uw tekst wordt ook weergegeven bij elke knop die werk zou starten waarop een klant klikt terwijl de pauze aanstaat ('Synchroniseer nu', 'Start migratie', een controle). Wat zo wordt geweigerd, wordt niet opgeslagen.",
       // 0132 T6 step 2's example, in the owner's words of the text review (2026-10-10).
       ask: "Beschrijf dus wanneer de migraties hervatten en vraag de klant daarna opnieuw te proberen. Bijvoorbeeld: 'We werken het platform bij en migreren rond 15:00 weer verder. Tot die tijd start er niets. Probeer het daarna opnieuw.'",
     },

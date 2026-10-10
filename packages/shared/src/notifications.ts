@@ -1156,10 +1156,10 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     grantedNoLink:
       'There is no link or code in this email: it is safe to forward, it grants ' +
       'nobody anything.',
-    // The Alpha paragraph (workplan 0131 T1). In English it opens with the
-    // note's welcome, word for word what the app's pages say (`alpha.note.*`
-    // in apps/web's strings.ts); in Dutch with the owner's own mail welcome
-    // of 2026-10-10, "Welkom bij Ownpace in de Alpha-fase!". Then the facts, word for word as the note said them until the
+    // The Alpha paragraph (workplan 0131 T1). It opened with the note's
+    // welcome, word for word, until the owner's text review of 2026-10-10
+    // gave the mails a welcome of their own (it asks the reader to help
+    // others); `an-alpha-said-out-loud.unit.test.tsx` holds the paragraph. Then the facts, word for word as the note said them until the
     // owner's welcome replaced it (0131 D4's amendment, 2026-10-04: "Welcome,
     // then the facts"). The copy before an update is the Alpha conditions §6
     // and privacy §9 (0139 T4, ops-app-sentences (a)). One line, so the
@@ -1253,7 +1253,7 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'Deze e-mail bevat geen link of code: u kunt hem gerust doorsturen, het geeft niemand toegang.',
     grantedAlpha:
       'Welkom bij Ownpace in de Alpha-fase! Probeer Ownpace rustig uit op uw eigen tempo, en help anderen makkelijker over te ' +
-      'stappen naar Europese alternatieven. Gedurende de Alpha-fase zijn alle tiers gratis. ' +
+      'stappen naar Europese alternatieven. Gedurende de Alpha-fase zijn alle pakketten gratis: er wordt niets in rekening gebracht. ' +
       'Er worden geen back-ups gemaakt, op één kopie vlak voor elke update na, die hoogstens 7 dagen ' +
       'wordt bewaard. Controleer dus goed of alles is aangekomen op de nieuwe bestemming voordat u ' +
       'iets verwijdert uit uw oude systeem.',
