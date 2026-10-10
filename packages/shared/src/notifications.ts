@@ -409,7 +409,7 @@ const LINE: Record<NotificationLocale, DigestLines> = {
       'grace period ended without a decision, so migration ended (on the Finish page: end each or keep it active):',
     couldNotRead: 'COULD NOT BE READ — this summary is incomplete:',
     footer:
-      'You are receiving this because you configured te receive a summary. ' +
+      'You are receiving this because you configured to receive a summary. ' +
       'Open the app to act on any of the above.',
   },
   nl: {
@@ -1167,7 +1167,7 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     grantedAlpha:
       'Welcome to the Alpha! Try Ownpace at your own pace, and help others move to European ' +
       'alternatives. Nothing is charged during the Alpha. There are no backups, ' +
-      'so doe keep your old account until you checked what arrived at your new destination.',
+      'so do keep your old account until you have checked what arrived at your new destination.',
     // Under the alpha paragraph, with the conditions' address after it (0139
     // T4, with 0131 T1). The texts' own title, as the acceptance screen and
     // the site name them.
@@ -1179,9 +1179,9 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     // now" is what is true; dressing it as "not yet" would be a promise nobody
     // made, and listing criteria would invite an argument about them.
     declinedIntro:
-      'Thank you for you request to join Ownpace, but currently we run aninvite-only Alpha phase.' +
-      ' We will inform you when the alpha ended and Ownpace is open for everyone to join.' +
-      ' If you can not wait, check out the open source repo: you can run this yourself.',
+      'Thank you for your request to join Ownpace, but currently we run an invite-only Alpha.' +
+      ' We will inform you when the Alpha has ended and Ownpace is open for everyone to join.' +
+      ' If you cannot wait, check out the open source repo: you can run this yourself.',
     declinedReply:
       'If you think we have misunderstood what you need, reply to this email with your request.',
     // The invitation (0156 T3). Who asked comes first: the reader never
@@ -1207,7 +1207,7 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     // arrived" is true of both.
     person: 'Person',
     arrived: 'Everything has arrived:',
-    arrivedKept: 'It is kept in step until you switch. Nothing need your attention urgently.',
+    arrivedKept: 'It is kept in step until you switch. Nothing needs your attention urgently.',
     // Free's pace (workplan 0157 T5): what keeping in step means on Free.
     arrivedOnFree:
       'On Free that is one pass a day. A higher tier looks for changes as often as every 15 minutes: check tiers in the Billing section in the app.',
@@ -1226,7 +1226,7 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
   nl: {
     migration: 'Migratie',
     decisionIntro: 'Er is iets veranderd wat uw aandacht vraagt:',
-    failingIntro: 'Deze migratie klaar',
+    failingIntro: 'Deze migratie is',
     failingTail: 'keer achter elkaar mislukt. De laatste fout was:',
     verifyPassed: 'De controle is geslaagd: het nieuwe systeem komt overeen met het oude.',
     verifyFailed: 'De controle is NIET geslaagd. Open de app om te zien wat afwijkt.',
@@ -1249,15 +1249,15 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'Heeft u nog geen account, maak er daar dan een aan met dit adres en bevestig de ' +
       'bevestigingsmail. Uw organisatie verschijnt zodra u zich voor het eerst aanmeldt.',
     grantedNoLink:
-      'Deze e-mail bevat geen link of code: u kunt hem gerust doorsturen, het geeft niemand toegang. ',
+      'Deze e-mail bevat geen link of code: u kunt hem gerust doorsturen, het geeft niemand toegang.',
     grantedAlpha:
-      'Welkom bij Ownpace in de Alpha fase! Probeer Ownpace rustig uit op uw eigen tempo, en help anderen makkelijker over te ' +
-      'stappen naar Europese alternatieven. Gedurende de Alpha fase zijn alle tiers gratis, ' +
-      'maar er worden ook geen backups gemaakt: controleer goed of alles is aangekomen op de nieuwe bestemming voordat u iets verwijderd uit uw oude systeem.',
+      'Welkom bij Ownpace in de Alpha-fase! Probeer Ownpace rustig uit op uw eigen tempo, en help anderen makkelijker over te ' +
+      'stappen naar Europese alternatieven. Gedurende de Alpha-fase zijn alle tiers gratis, ' +
+      'maar er worden ook geen backups gemaakt: controleer goed of alles is aangekomen op de nieuwe bestemming voordat u iets verwijdert uit uw oude systeem.',
     grantedConditions: 'Lees de voorwaarden:',
     grantedGuide: 'Lees de handleiding:',
     declinedIntro:
-      'Bedankt voor uw interesse in Ownpace. Momenteel draaien we een besloten Aplha en kunnen wij u geen plek aanbieden. Maar als u niet kunt wachten, kunt u altijd al aan de slag met Ownpace, het is open source.',
+      'Bedankt voor uw interesse in Ownpace. Momenteel draaien we een besloten Alpha en kunnen wij u geen plek aanbieden. Maar als u niet kunt wachten, kunt u altijd al aan de slag met Ownpace, het is open source.',
     declinedReply:
       'Neem even contact op als u denkt dat dit een onjuiste beslissing was.',
     invitedIntro: 'U bent uitgenodigd om deel te nemen in een organisatie bij Ownpace.',
@@ -1266,7 +1266,7 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'Gebruik dit e-mailadres:',
     invitedVerify:
       'Heeft u nog geen account, maak er daar dan een aan met dit e-mailadres en bevestig de ' +
-      'bevestigingsmail. Daarna wordt u gevraagd of u wilt deelnemen aan organisatie of de ' +
+      'bevestigingsmail. Daarna wordt u gevraagd of u wilt deelnemen aan de organisatie of de ' +
       'uitnodiging afwijst.',
     invitedIgnore:
       'Verwachtte u deze uitnodiging niet, dan kunt u deze e-mail negeren: er gebeurt niets tenzij u zich ' +
@@ -1280,7 +1280,7 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     arrived: 'Alles is aangekomen:',
     arrivedKept: 'Het wordt bijgehouden tot u overstapt. U hoeft niets te doen.',
     arrivedOnFree:
-      'Op Free is dat één ronde per dag. Een hoger pakket kijken we tot maximaal iedere 15 minuten naar wijzigingen: pas het pakket aan via Facturering in de app.',
+      'Op Free is dat één ronde per dag. Bij een hoger pakket kijken we tot maximaal iedere 15 minuten naar wijzigingen: pas het pakket aan via Facturering in de app.',
     lessOften: 'Alles is bijgewerkt, dus we doen het nu wat rustiger aan:',
     nowSixHourly: 'Nu elke 6 uur',
     nowDaily: 'Nu eens per dag',

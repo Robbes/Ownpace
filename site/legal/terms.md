@@ -500,12 +500,12 @@
 # Terms of service
 
 **Applies to:** the Ownpace **managed service** at `ownpace.eu`.
-**Version:** 1.3
-**Last updated:** 2026-10-07
+**Version:** 1.4
+**Last updated:** 2026-10-10
 
 > **These terms do not govern the software.** Ownpace is open source under the Apache
-> License 2.0, and running it yourself is governed by that licence and nothing here. These
-> terms govern the *service* we operate for you. The distinction is real: the licence gives you
+> License 2.0, and running it yourself is governed by that licence, not by these terms. These
+> terms govern the *service* we operate for you. The two differ: the licence gives you
 > the right to run, modify and distribute the software; these terms are a contract about a
 > service we run. Neither one limits the other.
 
@@ -521,38 +521,42 @@ Archico B.V., trading as Ownpace, registered under KvK number 73922706, VAT numb
 NL8597.110.06.B01. We correspond by email: **support@ownpace.eu**.
 
 These terms, together with the commitments the privacy policy makes to you and any additional
-conditions we show you with them, are the contract between you and us for the service. During
-the Alpha, the Alpha conditions also apply; where they differ from these terms, they prevail.
+conditions we show you with them, are the contract between you and us. During the Alpha phase,
+the Alpha conditions also apply. Where those conditions differ from these terms, those
+conditions prevail.
 
-When you create your account, the app shows you these texts, each with its version number, and
+When you create your account, the app shows you these terms, each with its version number, and
 asks you to accept them. The app records which version of each text you accepted, and when. You
 can save or print them from this site at any time.
 
 Someone who only follows a progress link, or who grants access through a link a customer sent
 them, does not become a party to these terms. If you accept on behalf of an organisation, you
-confirm you may bind it.
+thereby accept the terms for everyone in your organisation.
 
 ## 2. What the service does
 
-Ownpace copies your mail, contacts, calendars and files from a source account you control to a
-target account you control, keeps the copy in step until you decide to switch over, and gives
-you a record of what moved.
+Ownpace can migrate your mail, contacts, calendars, tasks and files from a source account under
+your control to a target account, also under your control. It keeps track of what has been
+migrated until you decide to switch over. It also gives you insight into, and an overview of,
+what has been migrated.
 
-**What it will not do, stated here rather than discovered:**
+**What it will not do:**
 
-- **It never deletes anything at your source.** At your target, nothing is deleted unless you
+- **It never deletes anything at your source.** At your target, nothing is deleted either, unless you
   switch on *applying deletions* and approve each deletion. If you also switch on
   *auto-applying relocations*, the old copy of a file that moved at your source is removed at
-  your target after strict checks, without asking you each time. Both are off until you turn
-  them on.
-- **It does not sync back.** Data flows source → target. Your source remains your fallback for
-  as long as you keep it.
-- **It cannot promise a perfect copy of everything.** Formats differ between providers, and
-  some things do not survive the crossing. What we cannot move is **reported to you, item by
-  item, with the reason** — never silently dropped.
-- **It is not a backup service.** Copying is meant to end: once you have switched over, you
-  finish the migration, and it stops copying. If you let a migration keep copying after the
-  switch-over, it still counts as a running migration.
+  your target after strict checks, without asking you each time. Both are off by default,
+  until you explicitly turn these features on.
+- **It does not sync back.** Data flows from source to target, never the other way. Your source
+  remains your fallback for as long as you keep it.
+- **It cannot promise a perfect copy of everything.** File formats differ between providers, and
+  some data cannot be migrated, for any of a number of reasons. What we cannot migrate is
+  **reported to you, item by item, with the reason** — we keep you informed!
+- **It is not a backup service.** Migrating is meant to end some day, but it need not be a
+  one-off migration: you can carry on working in your source and switch over to your target
+  account at a moment you choose. Once you have switched over, you finish the migration, and we
+  stop migrating. But if you let a migration carry on after the switch-over, we keep syncing,
+  and it counts as an active migration.
 
 ## 3. Your account
 
@@ -565,21 +569,21 @@ responsibility.
 You must have the right to access the accounts you connect. **Do not connect an account that
 is not yours or that you are not authorised to migrate.** For an organisation's accounts, that
 means authorisation from the organisation. For another person's private account — a family
-member's, say — it means that person's permission.
+member's, for example — it means that person's permission.
 
-You must be 18 or older to open an account.
+You must be 18 or older to open an account and use Ownpace.
 
-## 4. Your data, and what we may do with it
+## 4. Your data, and what we do with it
 
 Your data stays yours. We process it only to run the migrations you configure. The
-[privacy policy](./privacy.html) explains how; the commitments it makes to you are part of this
+[privacy policy](./privacy.html) explains how; the commitments in it are part of this
 contract. Business customers are additionally covered by our data-processing agreement — until
 it is published here, it is **available on request** at support@ownpace.eu.
 
-**We do not read your mail, files, contacts or calendars**, other than in the narrow cases §4.5
-and §6 of the privacy policy describe: your own request for specific items (for example a
-screenshot or text you send us with a problem report), what security or the law requires, and
-aggregated figures identifying nobody. We do not use your data to train any AI model.
+**We do not read your mail, files, contacts, tasks or calendars**, other than in the narrow
+cases §4.5 and §6 of the privacy policy describe: your own request for specific items (for
+example a screenshot or text you send us when you report a problem), what security or the law
+requires, and aggregated figures that cannot be traced to a person. We do not sell your data.
 
 ## 5. Acceptable use
 
@@ -588,34 +592,35 @@ no right to, or to attack the service or the providers it connects to. Do not re
 service as your own without a written agreement — an MSP tier exists for that and we would
 rather talk.
 
-We may suspend an account that is doing one of those things. Except where the law or an
-ongoing attack makes it impossible, **we will tell you why first and give you a chance to
+We may suspend an account that is doing one of those things. Except where the law or the
+situation makes it impossible, **we will tell you why first and give you a chance to
 respond.**
 
 ## 6. Prices, and what you are paying for
 
-Prices are published in full on [the pricing page](./pricing.html). You never need to ask for a
-quote, and there is no price you only learn after speaking to somebody.
+Prices are published in full on [the pricing page](./pricing.html).
 
 - Your tier is **derived from what you use** — how many migrations run at the same time, and
-  how much data you have moved. You may choose a higher tier, for example for its pace; that
-  tier is then the least you pay.
+  how much data you have migrated. You may choose a higher tier, for example for a higher
+  frequency or more data to migrate.
 - **Finishing migrations lowers your bill automatically**, without you asking. The amount of
-  data you have moved sets a floor.
+  data you have migrated sets a floor.
 - **Free is free**: six migrations at the same time, up to 150 GB, at one pass a day, with no
-  monthly charge and no invoice. You register no payment method for it. Growing past it — more
-  data, or more migrations at the same time — moves you to a paid tier, and we ask you before it
-  does; nothing is billed for a month you did not agree to leave Free.
+  monthly charge and no invoice. What you get on Free may change, for example when Free is used
+  disproportionately. The frequency and/or the amount of data may then be reduced, as a change
+  under §12. You register no payment method for Free. If you grow out of Free, for example
+  because you want to migrate more data or run more migrations at the same time, you move to a
+  paid tier. You are asked to choose that; nothing is billed for a month you did not agree to
+  leave Free.
 - There is **no setup fee** on any tier. A year paid ahead costs six months' price.
 - **Prices include VAT.** What you see is what you pay. Invoices to business customers state
   the VAT treatment that applies to them — Dutch VAT, intra-EU reverse charge on a validated
   VAT number, or supply outside the EU.
 
-**Costs include our work**: the price pays for what it takes to run and build the service —
-the servers, the support, and the time spent building and improving the software. That is a
-statement of intent about how prices are set, not a promise that any particular price will
-never change. A change of price for a subscription you already have is a change under §12: we
-tell you at least 30 days ahead, and you may cancel before it applies. We move you to a paid
+**Costs include our work**: the price pays us for what it takes to run, build and maintain the
+service. The servers and hosting, the support, and the time spent building and improving the
+software. A change of price for a subscription you already have is a change under §12: we tell
+you at least 30 days ahead, and you may cancel before a new price applies. We move you to a paid
 tier only after you confirm it, with a button that says plainly that you are ordering with an
 obligation to pay.
 
@@ -624,8 +629,7 @@ obligation to pay.
 If you are a **consumer**, you may withdraw from this contract within **14 days** of
 concluding it, without giving a reason.
 
-The service starts during those 14 days — that is the point of it. Before your first migration
-starts, the app asks you to confirm that you want us to begin before the 14 days are over, and
+Before your first migration starts, the app asks you to confirm that you want us to begin before the 14 days are over, and
 that if you then withdraw, you pay for the part of the service already provided, **in
 proportion to the agreed price**, and no more. We confirm that choice to you by email.
 Withdrawing does not touch your data at your source or your target; the promises of §2 hold
@@ -641,8 +645,8 @@ If you are a business customer, this section does not apply to you.
 
 ## 8. Billing, renewal, and not billing you for forgetting
 
-Billing is **monthly in advance**: a month is invoiced on its first day, at the tier it starts
-on, by the payment method you registered, through our payment provider Mollie. If the month
+Billing is **monthly in advance**: on the first day, for your tier, by the payment method you
+registered, carried out by our payment provider Mollie. If the month
 moves up to a higher tier, the difference for that month is invoiced when it does. On Free
 nothing is billed, so there is nothing to register. If you choose to **pay a year ahead**, it is
 billed at its start, at six months' price, and it is credit: each month of the year takes its
@@ -651,21 +655,22 @@ own tier, at half that tier's monthly price.
 **You can cancel a monthly subscription at any time**, effective at the end of the current
 month. There is no minimum term, no notice period and no cancellation fee.
 
-**A year paid ahead is not refunded**, in whole or in part, because the discount is the price
+**A year paid ahead is not refunded**, in whole or in part, because the discount was the price
 of paying ahead; your right of withdrawal (§7) is not affected. What is left of it when the
 year ends **pays for the months after it**, each at its tier's monthly price, until it runs
 out. If you cancel while credit is left, it still pays for the months you use until it runs
-out, and nothing is billed after it. Otherwise, once it has run out, a subscription **continues
-month to month**, and you cancel it like any monthly subscription: at any time, effective at
-the end of the current month — for consumers that is the law, and we apply it to everyone. A
-year never renews as another year without you choosing it again.
+out; after that nothing is billed and the service ends. Otherwise, once it has run out, a
+subscription **continues month to month**, and you cancel it like any monthly subscription: at
+any time, effective at the end of the current month. A year never renews as another year
+without you choosing it again.
 
-Two commitments that constrain us rather than you:
+Two commitments:
 
 - **We do not bill you for inattention.** If a migration is running with nothing to do, we ask
-  you periodically whether to keep it or finish it, in one click.
-- **We do not bill beyond twelve months without your explicit confirmation.** A migration that
-  has been running a year needs you to say so again — a year paid ahead counts as that
+  you periodically whether you want to keep this migration or finish it; you answer in one
+  click.
+- **We do not bill beyond twelve months without your explicit confirmation.** When a migration
+  has been running a year, we ask you to confirm it again. A year paid ahead counts as that
   confirmation for its own twelve months, not for the credit left after them.
 
 If a payment fails we will tell you and try again before anything is suspended. We will not
@@ -674,17 +679,17 @@ delete your migration data because of a failed payment without warning you first
 ## 9. Availability
 
 We aim to keep the service running, and we tell you in advance about planned maintenance that
-interrupts your migrations. **We do not offer a contractual uptime guarantee at these prices**,
-and saying so plainly is better than a number nobody intends to honour. This does not limit
-your statutory rights if the service does not conform to the contract.
+interrupts your migrations. **We do not, however, offer a contractual uptime guarantee.** This
+does not limit your statutory rights if the service does not conform to the contract.
 
 A migration is designed to survive interruption: it resumes rather than restarting, and a
-re-run converges instead of duplicating. Outage costs you time, not correctness.
+second pass neatly straightens out whatever got out of step. Outage costs you time, not
+correctness.
 
-**How fast a migration runs is not entirely ours to promise.** The providers on either side set
-the pace — their rate limits and throttling are a ceiling we work under, not around — so we
-promise convergence, not a completion date. Duration is a choice you make when you switch over,
-not a prediction we sell.
+**How fast a migration runs is largely beyond our control.** The providers on either side set
+the pace — their rate limits and throttling are a ceiling we work under — so we promise to keep
+migrating, step by step, but no speed or completion date. Duration is a choice you make when you
+switch over and end our service.
 
 ## 10. If we get it wrong
 
@@ -698,20 +703,20 @@ cause.
 
 **If you are a business customer**, our total liability to you for any claim is limited to
 **the amount you paid us in the twelve months before the claim**. This limit also applies to
-claims about data protection between you and us. We are then not liable for indirect or
+claims about data protection between you and us. We are not liable for indirect or
 consequential loss, or for loss of data at your source or target that we did not cause.
 
 **No limit in this section applies** to loss caused by intent or deliberate recklessness on our
 part or our management's, to death or personal injury, to the rights the GDPR gives the people
 whose personal data it is, or to any other liability the law does not allow us to limit.
 
-**Keep your source account until you have checked your target.** The product is built so you
-can — that is what switching over on your own schedule means — and it is the best way to make
+**Keep your source account until you have checked your target.** The product is designed so
+that you decide when you switch over from source to target — and it is the best way to make
 sure you never need this section.
 
 ## 11. Ending it
 
-<!-- "From the moment your account is closed, no new work starts with the access you gave us."
+<!-- "From the moment your account is closed, no new passes start with the access you gave us."
      and the three sentences after it: SAID AS THE CODE DOES IT (the owner, 2026-10-05,
      asked about this sentence: "Reword to match the code"; briefing, precondition B). Read
      in the code on main c25534b4, after #1320, #1377 and #1405:
@@ -760,18 +765,21 @@ sure you never need this section.
      - No background task runs longer than an hour (maxDuration: 3600,
        apps/worker/trigger.config.ts:65). The text promises no period.
      Changed under 1.3 in the owner's final-text pull request (2026-10-05), before anybody
-     could accept 1.3: the API asked nobody while 1.3 was a draft (LEGAL_DRAFTS). -->
+     could accept 1.3: the API asked nobody while 1.3 was a draft (LEGAL_DRAFTS). Reworded in
+     1.4 (2026-10-10) in the owner's own style, still as the code does it: no new pass starts
+     (the sync tick, the queued pass and the retry above), and a pass already running finishes
+     what it is busy with. -->
 
 **You** may close your account at any time: write to support@ownpace.eu. You choose when its
 data is erased: at once, or after 7, 30 or 90 days. We confirm the closing, and the date on
-which your data will be erased. From the moment your account is closed, no new work starts with
-the access you gave us. Work that is already running finishes what it is doing at that moment,
-and then stops. A pass of a migration can carry on for about fifteen seconds after the close,
-and then finishes what it began. If you connected a whole Microsoft 365 organisation, a daily
+which your data will be erased. From the moment your account is closed, no new migration passes
+start with the access you gave us. A pass that was already running finishes what it is busy
+with, and then stops. A pass of a migration can carry on for about fifteen seconds after the
+close, and then finishes what it began. If you connected a whole Microsoft 365 organisation, a daily
 check that had already started can still read, once, the list of its mailboxes, and the list of
 its distribution lists and groups with their members' addresses. When your data is erased, we
 destroy your credentials, revoke the access where the provider allows it, and delete your
-migration ledger, as §9 of the privacy policy describes. Invoices are kept as long as tax law
+migration ledger, as §9 of the privacy policy describes. Invoices are kept as long as the law
 requires.
 
 **We** may end these terms with 30 days' notice, or immediately for a serious breach of §5,
@@ -783,9 +791,9 @@ what could not be, and why. The software is Apache-2.0, so you can keep running 
 ## 12. Changes to these terms
 
 We change these terms only for a good reason: a change in the law or in what a provider
-requires of us, a new feature, a change in our costs, security, or to make them clearer. We
-tell you by email at least **30 days** before a material change takes effect. We say what
-changes and why, and link the new text.
+requires of us, new features, a change in our costs, security, or to make the terms clearer. We
+tell you by email at least **30 days** before a material change takes effect. With it, we say
+what changes and why.
 
 If you do not accept the change, you may end the contract before it takes effect, without
 paying anything for ending it; your data is then erased as the privacy policy describes. If you
@@ -802,9 +810,10 @@ effect sooner.
 These terms are governed by **Dutch law**. If you are a consumer, this does not deprive you of
 the protection of the mandatory law of your country of residence. Disputes then go to the court
 the law makes competent, and you keep your right to bring proceedings before the courts of your
-own country. If you are a business customer, disputes go to the competent court in Overijssel.
+own country. If you are a business customer, disputes go to the competent court in Overijssel,
+the Netherlands.
 
-**Complaints first.** Tell us what went wrong at support@ownpace.eu — we respond within 14
+**A complaint? Let us know.** Tell us what went wrong at support@ownpace.eu — we respond within 14
 days. If we cannot resolve it together, we tell you by email which dispute-resolution body could
 deal with it, and whether we will take part. If you are a consumer, ConsuWijzer
 (consuwijzer.nl) explains your options in the Netherlands, and the **European Consumer Centres
@@ -815,13 +824,13 @@ go to court (see above).
 differ, the **English version** governs, except where mandatory consumer law provides
 otherwise.
 
-## 14. The rest
+## 14. The validity of these terms
 
-If a provision is unenforceable, the rest stands. Not enforcing something once does not waive
-it. You may not transfer these terms without our consent. We may transfer them to a successor
-of the business. A transfer does not reduce your rights under these terms, we tell you in
-advance, and if you are a consumer you may end the contract free of charge before it takes
-effect.
+If a provision is unenforceable, the rest stands. Not enforcing something once does not mean it
+is waived. You may not transfer these terms without our consent. We may transfer them to a
+successor of the business. A transfer does not reduce your rights under these terms, and we tell
+you in advance if it happens. If you are a consumer, you may end the contract free of charge
+before it takes effect.
 
 ## 15. Annex — model withdrawal form
 
@@ -831,9 +840,9 @@ Complete and return this form only if you wish to withdraw from the contract.
      trader's geographic address, and it returns here before the first paid tier. During the
      Alpha this section does not apply (Alpha conditions §2). -->
 
-- To: Archico B.V., email: support@ownpace.eu
+- To: Ownpace (Archico B.V.), email: support@ownpace.eu
 - I/we hereby give notice that I/we withdraw from my/our contract for the provision of the
-  following service: the Ownpace managed service, for the account on this email address: …
+  following service: the Ownpace service, for the account on this email address: …
 - Ordered on: …
 - Name of consumer(s): …
 - Address of consumer(s): …
