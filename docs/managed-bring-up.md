@@ -1433,6 +1433,15 @@ before asking Moneybird anything on a stack that runs `NODE_ENV=production`, as
 live does, or names no `NODE_ENV`, and unless `MONEYBIRD_DELIVERY` is `manual`:
 live's books are real, and the sandbox allows ten e-mails a month.
 
+The managed nightly gate proves the books every night with the same keys:
+`smoke-managed.sh` runs `./deploy/compose/operator.sh moneybird nightly`, which
+makes the night's invoice (`ownpace-nightly-{YYYY-MM-DD}`), sends it by hand,
+registers a payment for it and reads it back as paid. It counts the month's
+invoices first and, from 40 of the sandbox's 50, makes none and says so. With no
+`MONEYBIRD_*` key in the nightly stack's `.env` it makes nothing, and the verdict
+lists the books as not proven; give that stack the sandbox's keys, with
+`MONEYBIRD_DELIVERY=manual`, for the gate to prove them.
+
 What is invoiced, and from when, is a second switch: `OWNPACE_BILLING_FROM`, the
 first month invoiced, written `YYYY-MM`. Empty, nobody is invoiced. Set, the
 hourly `managed-month-invoices` task makes each organisation's invoice for a

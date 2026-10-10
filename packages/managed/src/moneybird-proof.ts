@@ -70,8 +70,11 @@ export function proofInvoice(now: Date): InvoiceToPush {
   };
 }
 
-/** Why this stack may not make a proof, before Moneybird is asked anything; null when it may. */
-function refusalOf(env: Readonly<Record<string, string | undefined>>): string | null {
+/**
+ * Why this stack may not make a proof invoice, before Moneybird is asked
+ * anything; null when it may. The proof and the nightly ask it alike.
+ */
+export function proofStackRefusal(env: Readonly<Record<string, string | undefined>>): string | null {
   const nodeEnv = env.NODE_ENV?.trim() ?? '';
   if (nodeEnv === '') {
     return (
@@ -95,7 +98,7 @@ export async function proveMoneybird(
   now: Date,
   fetchImpl?: typeof fetch,
 ): Promise<MoneybirdProof> {
-  const refused = refusalOf(env);
+  const refused = proofStackRefusal(env);
   if (refused) return { ok: false, lines: [`No proof was made. ${refused}`] };
 
   const outcome = moneybirdFromEnv(env);
