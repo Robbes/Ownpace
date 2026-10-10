@@ -40,14 +40,14 @@ const en = {
   // with it, said before anything is sent.
   'nav.reportProblem': 'Report a problem',
   'report.title': 'Report a problem',
-  'report.lead': 'Tell us what happened. We read every report and reply by email.',
+  'report.lead': 'Tell us what happened, we read every report and will contact you by email.',
   'report.description': 'What happened?',
   'report.descriptionHint': 'What you were doing, what you expected, and what you saw instead.',
   'report.screenshot': 'Screenshot (optional)',
   'report.screenshotHint':
     'PNG or JPEG, up to 5 MB: choose one, drop it here, or paste it anywhere on this page. ' +
     'It shows your screen: check it first.',
-  'report.screenshotTooBig': 'That picture is larger than 5 MB.',
+  'report.screenshotTooBig': 'Picture is larger than 5 MB.',
   'report.screenshotType': 'Choose a PNG or a JPEG.',
   // How to make one, a closed fold under the field (the owner, 2026-09-28):
   // one line for each kind of device, from each vendor's own help page, and
@@ -68,8 +68,7 @@ const en = {
     'Android: press power and volume down at the same time, on most phones. Then choose the picture from your photos.',
   'report.screenshotHelp.chromebook': 'Chromebook: press Ctrl+Show windows, then paste it here with Ctrl+V.',
   'report.screenshotHelp.check':
-    'Before you send it, look at it: the picture shows everything that was on your screen, so check that ' +
-    'nothing on it is something you would rather not send.',
+    'Please check the picture before sending it over, so i does not contain anything you would rather not send.',
   // What is attached, however it came: chosen, pasted or dropped.
   'report.screenshotAttached': 'Attached: {name} ({size}).',
   'report.screenshotRemove': 'Remove the screenshot',
@@ -79,10 +78,10 @@ const en = {
     'There is no picture on the clipboard. Make a screenshot first, then press Paste screenshot again.',
   'report.screenshotPasteFailed':
     'This browser could not read the clipboard. Paste with Ctrl+V instead, or with Command+V on a Mac.',
-  'report.tooLarge': 'The screenshot is too large to send: choose a smaller one and send the report again.',
+  'report.tooLarge': 'The screenshot file is too large: choose a smaller one or resize and send the report again.',
   'report.timedOut':
     'No answer came within {minutes} minutes, so this page cannot tell whether your report arrived. ' +
-    'What you wrote is still here. If you send it again, a smaller screenshot goes faster.',
+    'What you wrote is still here. You could send it again.',
   // Where a report goes and what goes with it (workplan 0130 T6). The lines in
   // the fold are the server's own, shown as they are sent, in English; these
   // are the words around them. `report.facts.more` stands above those lines
@@ -93,7 +92,7 @@ const en = {
   'report.goesTo.helpdesk': "Goes to the Ownpace support team's helpdesk.",
   'report.facts': 'What we send with this',
   'report.facts.more':
-    'What you write, and your screenshot if you add one. With them go these lines, exactly as our support team reads them, in English:',
+    'What you write, and your screenshot if you add one. With them go these lines, exactly as our support team reads them:',
   'report.facts.known': 'What you write, and your screenshot if you add one. With them go:',
   'report.facts.reading': 'Looking up the rest…',
   'report.facts.unshown':
@@ -112,7 +111,7 @@ const en = {
   'report.browser.language': 'the language of this screen: English',
   'report.browser.timeZone': 'your time zone: {timeZone}',
   'report.browser.width': 'the width of this window: {width} pixels',
-  'report.browser.appBuild': "this page's version, {build}, if the service runs another",
+  'report.browser.appBuild': "this page's/app version, {build}, if the service runs another",
   'report.browser.dataType': 'the data type of the failure you came from: {dataType}',
   'report.browser.side.source': 'that it happened on the source side',
   'report.browser.side.target': 'that it happened on the destination side',
@@ -206,7 +205,7 @@ const en = {
   // the other. What both readers need is identical — pick a format that
   // carries these, or decide to leave them.
   'discovery.refusedNative.post':
-    "with this migration's export format. Choose one that covers them, or accept leaving them.",
+    "with this migration's export format. Choose one that covers them, or accept leaving them behind.",
   // The tick-box beside that sentence. Named counts, never "some files": a
   // person who reads "3 items" goes hunting through their Drive.
   'confirm.refusedAck': 'I understand that {kinds} ({n} files) will not be copied.',
@@ -244,7 +243,7 @@ const en = {
   'scope.doesNotMigrate': 'Does not migrate',
   'scope.title': 'What migrates, and what does not',
   'login.title': 'Sign in to Ownpace',
-  'login.tagline': 'Sovereign data migration for families and SMBs',
+  'login.tagline': 'Sovereign data migrations for families and SMBs',
   'login.tokenLabel': 'Access token',
   'login.invalidToken':
     'That does not look like a valid access token (need sub, email, tenantId, role).',
@@ -263,7 +262,7 @@ const en = {
   // ---- Signing in with the configured issuer (ADR-0042) ----
   'login.withProvider': 'Sign in',
   'login.redirecting': 'Taking you to sign in…',
-  'login.verifying': 'Checking that token…',
+  'login.verifying': 'Checking token…',
   'login.pasteToggle': 'Sign in with a token instead',
   // Not "you should not need this", which was true and too gentle. Once an
   // issuer is configured the API is in managed mode and verifies against the
@@ -281,7 +280,7 @@ const en = {
   // for somebody who has no account yet. The mirror of `access.backToSignIn`.
   'login.requestAccess': 'No account yet? Request access.',
   // ---- Asking the API what it accepts, before offering it (workplan 0102 T1) ----
-  'login.checking': 'Checking how this deployment signs people in…',
+  'login.checking': 'Checking how to sign in…',
   // Not a fallback to the paste box: on a managed stack that box is refused
   // anyway, so offering it after a failed check would be inventing a way in
   // that does not exist.
@@ -317,9 +316,9 @@ const en = {
   'login.noOrganisation.signedInAs': 'You signed in as {email}.',
   'login.noOrganisation.ask': 'Ask for access',
   'login.noOrganisation.already':
-    'Already asked? Then it is waiting for an answer and you will hear by email.',
+    'Already asked? Then you will have to wait for an owner or operator to grant access.',
   'login.noOrganisation.already.why':
-    'Asking again does no harm: a second request while the first is open is not recorded twice.',
+    'Asking again doesn\'t help: a second request while the first is open is not recorded twice.',
   // ---- The access QUEUE, which an operator reads (workplan 0093 T7). The
   // `access.*` keys further down are the PUBLIC page somebody asks on (T3);
   // these are the screen where somebody answers, hence a separate prefix.
@@ -348,7 +347,7 @@ const en = {
     'Set it first: registering a guess produces a mismatch later, at the provider’s screen.',
   // ---- Answering an invitation (workplan 0099). ----
   'invite.title': 'You have been invited',
-  'invite.subtitle': 'Joining is your choice. Nothing happens until you make it.',
+  'invite.subtitle': 'Join if you want to migrate.',
   'invite.none': 'Nothing is waiting for you.',
   'invite.asRole': 'as {role}',
   'invite.accept': 'Join',
@@ -356,7 +355,7 @@ const en = {
   'invite.decline': 'Decline',
   'invite.skip': 'Not now',
   'invite.skipHelp': 'Not now changes nothing; we ask again next time you sign in.',
-  'invite.skipHelp.why': 'Declining is recorded, and only the organisation can invite you again.',
+  'invite.skipHelp.why': 'Declining is recorded, and only the organisation owner can invite you again.',
   'invite.confirmDecline':
     'Decline the invitation from {name}? Only they can invite you again.',
   // The texts, accepted before anything else (workplan 0139 T3): the Alpha
@@ -375,7 +374,7 @@ const en = {
   'acceptance.newTab': '(opens in a new tab)',
   'acceptance.changed': 'One or more texts have changed since you last accepted them.',
   'acceptance.record': 'We record which version of each text you accepted, in which language, and when.',
-  'acceptance.accept': 'Accept all three',
+  'acceptance.accept': 'Accept all three to proceed',
   'acceptance.accepting': 'Recording…',
   'acceptance.notNow': 'Not now, sign out',
   'acceptance.notCurrent':
@@ -385,15 +384,15 @@ const en = {
   'acceptance.retry': 'Try again',
   // The failures this screen can meet, in the reader's language; the
   // reference a fault carries is kept ('failure.reference').
-  'acceptance.fault.read': 'The fault is on our side, not yours.',
-  'acceptance.fault.record': 'Your acceptance was not recorded: the fault is on our side, not yours. Try again.',
+  'acceptance.fault.read': 'We ran into some error on our side.',
+  'acceptance.fault.record': 'Your acceptance was not recorded, please try again.',
   'acceptance.unreachable': 'The service could not be reached. Check your connection and try again.',
   'acceptance.forbidden':
     'This account has no access to this organisation. Sign out, and sign in with the account you were invited with.',
   // A door that stores access, refused because the texts were not accepted
   // yet (409 conditions_not_accepted). Read after accepting as well as before.
   'acceptance.refused':
-    'Nothing was stored: the Alpha conditions, the privacy policy and the terms had not been accepted yet. Once you have accepted them, try again.',
+    'Nothing was stored: the conditions, privacy policy and terms had not been accepted yet. Try again after you accepted them.',
   'queue.title': 'Access requests',
   'queue.subtitle': 'People who asked to be let in.',
   'queue.empty': 'Nobody is waiting.',
@@ -403,7 +402,7 @@ const en = {
   'queue.tab.declined': 'Declined',
   'queue.asked': 'Asked',
   'queue.orgLabel': 'Organisation name',
-  'queue.orgHelp': 'What this organisation will be called. Defaults to what they told us.',
+  'queue.orgHelp': 'What this organisation will be called.',
   'queue.noteLabel': 'Note (for you, not for them)',
   'queue.grant': 'Grant access',
   'queue.decline': 'Decline',
@@ -411,9 +410,9 @@ const en = {
   'queue.granted': 'Granted. They become the owner the first time they sign in.',
   'queue.declined': 'Declined. The request stays on the record.',
   'queue.decidedBy': 'Decided by',
-  'queue.confirmDecline': 'Decline this request and email them? It stays on the record either way.',
+  'queue.confirmDecline': 'Decline this request and email them?',
   'queue.confirmDeclineQuiet':
-    'Decline this request without emailing them? It stays on the record either way.',
+    'Decline this request without emailing them?',
   // The default is ON: staying silent should be something somebody chose, not
   // something they forgot. The help text says what the email does NOT contain,
   // because the field right above it is labelled "not for them" and an operator
@@ -422,7 +421,7 @@ const en = {
   'queue.tellThemHelp':
     'A short refusal in their language, without reason or your note; untick for junk.',
   'queue.tellThemHelp.why':
-    'This form is public, so a made-up address belongs to a stranger. Granting always emails them; that is how they learn they can sign in.',
+    'This form is public, so anyone can register made-up addressess. Granting always emails them.',
   // THE OVERRIDE (owner decision 2026-08-31). Granting a person who already
   // owns an organisation creates a SECOND one with them as owner of both, and
   // `/api/me` then has two tenants for somebody who asked once and pressed
@@ -497,7 +496,7 @@ const en = {
   // line; `googleConsentAllowsChanges` in shared decides. §3's two sentences,
   // whole: a consent sentence, which 0118 §2 keeps verbatim, not a `.hint`.
   'wizard.google.readsOnly':
-    'For mail, calendars and contacts, Google describes a broader permission than Ownpace uses. Ownpace only reads; it changes and deletes nothing in this account.',
+    'For mail, calendars and contacts, Google describes a broader permission than Ownpace uses. Ownpace only reads: it changes and deletes nothing in this account.',
   // Beside Connect with Google, always (workplan 0140 T3 (a)): Google is
   // reported to refuse its consent inside another app's built-in browser, and
   // nothing said what to do. The grant page's twin ends "The link still
@@ -505,7 +504,7 @@ const en = {
   // Connections page have no grant link to reopen. A consent sentence, kept
   // whole (0118 §2), not a `.hint`.
   'wizard.google.inAppBrowser':
-    'If this page opened inside another app, such as a chat or mail app, use that app\'s \'Open in browser\' option or copy the link into Safari or Chrome, then sign in to Ownpace there.',
+    'If this page opened inside another app, such as a chat or mail app, use that app\'s \'Open in browser\' option or copy the link into your favorite browser, then sign in to Ownpace there.',
   // Connect with Dropbox (2026-09-02): the same button, Dropbox's words.
   'wizard.dropbox.connect': 'Connect with Dropbox',
   'wizard.dropbox.connect.hint': 'Opens Dropbox’s consent screen and fills in the refresh token.',
@@ -559,7 +558,7 @@ const en = {
     'One Apple Account: mail, calendars, contacts and reminders, whichever you tick.',
   'wizard.appleAppPassword': 'App-specific password',
   'wizard.appleAppPassword.hint':
-    'Not your Apple Account password: an app-specific password from account.apple.com.',
+    'Not your Apple Account password: an app-specific password you generate at account.apple.com.',
   'wizard.appleAppPassword.why':
     'Apple refuses the account password here by design. Make one at account.apple.com → Sign-In and Security → App-Specific Passwords and paste it. It reaches your mail, calendars, contacts and reminders, and you can revoke it there whenever you like.',
   // THE EXPORT ARCHIVE (workplan 0116 T1; a migration source since T5/T6).
@@ -573,11 +572,11 @@ const en = {
   // place a landed reader is answered by hand; `an-export-we-cannot-read-yet`
   // fails until it is. "download" rather than "export you downloaded" keeps
   // it inside the twelve words a hint may spend.
-  'wizard.proto.archive.hint': 'A Google Takeout or Apple (to be tested) download: photos and files.',
+  'wizard.proto.archive.hint': 'A Google Takeout or Apple download: photos and files.',
   'wizard.archiveProvider': 'Which export',
   'wizard.archiveProvider.hint': 'Which company made the archive; the wrong choice finds nothing.',
   'wizard.archiveProvider.why':
-    'It decides how we read the export, and the files themselves do not say. Google exports are requested at takeout.google.com, Apple exports at privacy.apple.com.',
+    'It decides how we read the export; the files themselves do not say. Google exports are requested at takeout.google.com, Apple exports at privacy.apple.com.',
   // An export no reader opens yet (0148 T3, D7): the tag inside the option's
   // name, and the line under the field while it is chosen, keyed per export
   // because it names the company. Both leave the form when a reader lands.
@@ -593,17 +592,17 @@ const en = {
   // is shown, disabled, with the line under it (the owner: "'Only on a
   // self-hosted appliance': ok").
   'wizard.archiveWhere': 'Where the export is',
-  'wizard.archiveWhere.target': "In a folder of your destination's files (Nextcloud or WebDAV)",
+  'wizard.archiveWhere.target': "In a folder on your destination (Nextcloud or WebDAV)",
   'wizard.archiveWhere.disk': "On this appliance's disk",
   'wizard.archiveWhere.disk.onlyAppliance': 'Only on a self-hosted appliance',
-  'wizard.archivePath.target': "Folder in your destination's files",
+  'wizard.archivePath.target': "Folder in your destination for files",
   'wizard.archivePath.target.hint': 'The folder as your files show it, from the top.',
   'wizard.archivePath.target.why':
     'For example Exports/takeout-20260904, or one .zip in that folder: we read the other parts beside it too. Upload the .zip parts of the export into one folder of the files this migration writes to, and name that folder here. The parts stay there after the migration and take up space; delete them once you have checked the result.',
   // The ACCOUNT card. Four faces, and the sentence says why that is more than
   // Google offers rather than leaving it looking like an oversight there.
   'wizard.proto.microsoft.hint':
-    'One Microsoft 365 account, one sign-in: mail, calendars, contacts and OneDrive.',
+    'One Microsoft 365 account, one sign-in: mail, calendars, tasks, contacts and files.',
   // The two Microsoft 365 connection methods (0107 T1): the family heading
   // says WHO, the card says HOW — "OAuth2" as a card name said neither.
   'wizard.group.provider': 'Your provider',
@@ -613,7 +612,7 @@ const en = {
   // reads it as part of the card's name (0145 T2); the why folds beside it.
   'frontDoor.experimental': 'Experimental',
   'frontDoor.experimental.why':
-    'Built, not yet run against a real account of this kind. Keep your old account and check what arrives.',
+    'Built, but needs more testing against a real account of this kind. Keep your old account and check what arrives.',
   'frontDoor.experimental.wholeDomain.why':
     'Domain-wide delegation is built and has not yet run against a real Workspace. Keep your old account and check what arrives.',
   'wizard.m365.viaImap': 'Via IMAP',
@@ -640,7 +639,7 @@ const en = {
   'wizard.gmailAppPassword': 'App password',
   'wizard.gmailAppPassword.hint': 'Personal Google accounts only; leave empty to use OAuth.',
   'wizard.gmailAppPassword.why':
-    'Google recommends against it, and so do we: an app password opens the whole mailbox, where a consented token opens one thing. It needs 2-step verification on the account, does not exist on a Workspace account, and is withdrawn in the account’s own app-password list without touching Ownpace, which is the one real advantage it has.',
+    'Google recommends against it, and so do we: an app password opens the whole mailbox read and write, while a consented token opens only parts. It needs 2-step verification on the account, does not exist on a Workspace account, and is withdrawn in the account’s own app-password list without touching Ownpace, which is the one real advantage it has.',
   'wizard.refreshToken': 'Refresh token',
   'wizard.refreshToken.hint': 'The account’s delegated token; treat it as a password.',
   'wizard.rootFolderId': 'Root folder ID',
@@ -650,12 +649,12 @@ const en = {
   'wizard.serviceAccountKey.width':
     'This key can read every user in the domain; revoke it at cutover.',
   'wizard.serviceAccountKey.why':
-    'Domain-wide delegation can read any Workspace user, though each migration still names one account. Authorise only the scopes you need in the Admin console, and revoke the delegation at cutover.',
+    'Domain-wide delegation can read any Workspace\' user, though each migration still names one account. Authorise only the scopes you need in the Admin console, and revoke the delegation at cutover.',
   'wizard.nativePolicy': 'Google Docs, Sheets, Slides and Drawings',
   'wizard.nativePolicy.hint':
-    'They have no file to copy, only a rendering Google makes.',
+    'They have no fileformat to copy, only a rendering Google generates and shows.',
   'wizard.nativePolicy.hint.why':
-    'A Google Doc lives in Google, not in a file: there is nothing to copy across. Drive can render one as a document or a PDF, and that rendering is what would arrive. Leaving them behind is the alternative, and the default.',
+    'A Google Doc lives in Google, not in a file: there is nothing to migrate. Drive can (automatically) render one as a document or a PDF, and we can migrate that rendering for you. The alternative (and default) is leaving them behind.',
   // ONE SELECT PER KIND (0042 T9; the owner, 2026-09-23: "a per kind choice
   // makes more sense for the fileformats. Split that up."). Each select offers
   // the formats that carry that kind, so nothing on the list leaves its kind
@@ -674,29 +673,29 @@ const en = {
   // where it is made. Read off the same tables the selects are built from.
   'wizard.nativePolicy.leftBehind': '{kinds} stay behind in Google, each reported by name.',
   'wizard.nativePolicy.leftBehind.why':
-    'Nothing is copied for them and nothing is lost: each one appears on the Failures screen with its name, and you accept or retry them one at a time or all at once. Forms, My Maps, Sites and Apps Scripts always stay behind: Google can export those in no format at all.',
-  'wizard.nativePolicy.notEditable': '{kinds} arrive as PDF, which nobody can edit afterwards.',
+    'Not copied, not lost: each one appears on the Failures screen, and you accept or retry them one at a time or all at once. Forms, My Maps, Sites and Apps Scripts always stay behind: Google can not export those in a fileformat...',
+  'wizard.nativePolicy.notEditable': '{kinds} arrive as PDF.',
   'wizard.nativePolicy.notEditable.why':
-    'A PDF is a copy of how the document looks: nobody gets a Google Doc back out of it, and fine formatting can shift. Choose it for a kind you want copied but do not need to edit.',
+    'A PDF is a copy of how the document can looks; formatting can shift. Choose it for a kind you want copied but do not need to edit anymore.',
   'wizard.nativePolicy.allEditable': 'All four kinds arrive as files you can edit.',
   'wizard.nativePolicy.allEditable.why':
-    'Each arrives as a rendering Google makes, not the original: fine formatting can shift, and drawings arrive as .svg images because Drive offers no editable drawing format. You can change a format later; files already copied keep the format they arrived in.',
+    'Each arrives as a rendering Google makes, not the original: fine formatting can shift, and drawings arrive as .svg images because Drive offers no editable drawing export fileformat. You can change a format later; files already copied keep the format they arrived in.',
   // THE SAME QUESTION FOR DROPBOX PAPER DOCS (workplan 0150 T3 (d)). One
   // select, since Paper is the one kind a Dropbox migration chooses a format
   // for (D7). The wizard suggests Markdown (D1): Nextcloud's Text app opens it.
   'wizard.paperFormat': 'Dropbox Paper docs',
   'wizard.paperFormat.hint': 'They have no file to copy, only an export Dropbox makes.',
   'wizard.paperFormat.hint.why':
-    'A Paper doc lives in Dropbox, not in a file: there is nothing to download. Dropbox can export one as Markdown or HTML, and that export is what would arrive, under the doc’s own name with the format’s suffix added: Notes.paper arrives as Notes.paper.md. Paper templates follow the same choice. Leaving them behind is the alternative.',
+    'A Paper doc lives in Dropbox without a fileformat: there is nothing to download. Dropbox can export one as Markdown or HTML, and that export is what we can migrate for you, like under the doc’s own name with the format’s suffix added: Notes.paper arrives as Notes.paper.md. Paper templates follow the same choice. The alternative is to leaving them behind.',
   'wizard.paperFormat.leave': 'Leave behind, and report each one',
-  'wizard.paperFormat.as.markdown': 'Markdown (.md), opens in Nextcloud Text',
+  'wizard.paperFormat.as.markdown': 'Markdown (.md), for example opens in Nextcloud Text',
   'wizard.paperFormat.as.html': 'HTML (.html), opens in a web browser',
   'wizard.paperFormat.leftBehind': 'Paper docs stay behind in Dropbox, each reported by name.',
   'wizard.paperFormat.leftBehind.why':
-    'Nothing is copied for them and nothing is lost: each one appears on the Failures screen with its name, and you can choose a format for them later, or leave them behind.',
-  'wizard.paperFormat.arrives': 'Each Paper doc arrives as a {ext} file you can edit.',
+    'Not copied, not lost: each one appears on the Failures screen, and you can choose a format for them later, or leave them behind.',
+  'wizard.paperFormat.arrives': 'Each Paper doc arrives as a file you can edit.',
   'wizard.paperFormat.arrives.why':
-    'An export is a rendering Dropbox makes, not the Paper doc itself: fine formatting can shift, and nothing you change on the new system goes back to Dropbox. You can change the format later; docs already copied keep the format they arrived in.',
+    'An export is a rendering Dropbox makes, not the Paper doc itself: fine formatting can shift. You can change the format later; docs already copied keep the format they arrived in.',
   // THE SETTINGS PANEL ON A RUNNING MIGRATION (0125 T3) — the screen behind the
   // remedy `policy_refused` prints per item: *"set an export policy on the
   // mapping"*. It named an action the product did not have; these are the words
@@ -716,19 +715,19 @@ const en = {
   'settings.exportPolicy.consequence':
     'Changed kinds are copied under their new names. Old copies stay, listed as earlier exports.',
   'settings.exportPolicy.consequence.why':
-    'A Google document has no file name of its own: its format gives it one (Report.docx, Report.odt), and the name is how a migration recognises a file. So under a new format the next pass copies each document under its new name. Nothing on the new system is rewritten or removed: a copy made in the old format stays where it is, and the Deletions screen lists it as an earlier export, never as deleted in Google. Keep it, or remove it yourself on the new system. Where a new format gives a document the same name, each copy records which format it was made under, so a later pass reads the change as a format change and never as an edit.',
+    'A Google document has no file name of its own: its format gives it one (Report.docx, Report.odt), and the name is how a migration recognises a file. So under a new format the next pass copies each document under its new name. A copy made in the old format stays where it is, and the Deletions screen lists it as an earlier export, never as deleted in Google. Keep it, or remove it yourself on the new system. Where a new format gives a document the same name, each copy records which format it was made under, so a later pass reads the change as a format change and never as an edit.',
   // WHAT HAPPENS TO THE FILES THE OLD FORMAT REFUSED (0125 T5, and since 0042
   // T8 (b) the pass does it). A Google file's name comes from its format, so
   // under a new one it is a new name: the next pass tries it, and closes the
   // refusal it left under the old name. The save itself changes no row.
   'settings.exportPolicy.refusedBefore':
-    'The next pass tries Google files the old format refused again, in this format.',
+    'The next pass tries Google files again and will close a previous refusal of old format.',
   // The same sentence with the count, used only when the count is KNOWN and
   // above zero: a queue we could not read must not read as a queue of none.
   'settings.exportPolicy.refusedBefore.count':
-    'The next pass tries {count} Google file(s) the old format refused again, in this format.',
+    'The next pass tries {count} Google file(s) with the new format that where refused under the old format.',
   'settings.exportPolicy.refusedBefore.why':
-    'A Google file’s name comes from its format (Report.docx, Report.odt), and the name is how a migration recognises a file, so under a new format each one is new to it. The next pass tries each under its new name, and the refusal recorded under the old name closes by itself, because the file is no longer listed by it. If the new format cannot carry a file either, it stays on the Failures screen once, under its new name. Saving changes nothing by itself: the pass does it. A file you chose to leave behind stays left behind.',
+    'A Google file’s name comes from its format (Report.docx, Report.odt), and the name is how a migration recognises a file, so under a new format each one is new to it. The next pass tries each under its new name. The refusal recorded under the old name closes by itself, because the file is no longer listed by it. If the new format cannot carry a file either, it stays on the Failures screen, under its new name. Saving changes nothing by itself: the pass does. A file you chose to leave behind stays left behind.',
   'settings.exportPolicy.toFailures': 'See them on the Failures screen',
   'settings.exportPolicy.refused': 'This could not be changed:',
   'settings.exportPolicy.failed': 'That did not save:',
@@ -739,14 +738,14 @@ const en = {
   'settings.exportPolicy.paper.consequence':
     'Paper docs are copied again under their new names. Old copies stay, listed as earlier exports.',
   'settings.exportPolicy.paper.consequence.why':
-    'A Paper doc has no file name of its own: its format adds one to its name (Notes.paper.md, Notes.paper.html), and the name is how a migration recognises a file. So under a new format the next pass copies each Paper doc under its new name. Nothing on the new system is rewritten or removed: a copy in the old format stays where it is, and the Deletions screen lists it as an earlier export, never as deleted in Dropbox. Keep it, or remove it yourself on the new system.',
+    'A Paper doc has no file name of its own: its format adds one to its name (Notes.paper.md, Notes.paper.html), and the name is how a migration recognises a file. So under a new format, the next pass copies each Paper doc under its new name. A copy in the old format stays where it is, and the Deletions screen lists them as an earlier export, never as deleted in Dropbox. Keep it, or remove it yourself on the new system.',
   'settings.exportPolicy.paper.refusedBefore':
-    'The next pass tries the Paper docs left behind so far again, in this format.',
+    'The next pass tries the Paper docs again that wehre left behind.',
   // With the count, only when it is KNOWN and above zero, as Drive's.
   'settings.exportPolicy.paper.refusedBefore.count':
-    'The next pass tries {count} Paper doc(s) left behind so far again, in this format.',
+    'The next pass tries {count} Paper doc(s) in this format again that were left behind.',
   'settings.exportPolicy.paper.refusedBefore.why':
-    'Under a format a Paper doc arrives under a new name (Notes.paper.md), so it is new to the migration. The next pass copies each one, and the line recorded under its old name closes by itself, because the doc is no longer listed by it. A doc Dropbox does not offer in this format stays on the Failures screen once, saying so. Saving changes nothing by itself: the pass does it. Other documents Dropbox keeps in a format of its own stay behind.',
+    'Under a format a Paper doc arrives under a new name (Notes.paper.md), so it is new to the migration. The next pass copies each one, and the line recorded under its old name closes by itself, because the doc is no longer listed by it. A doc Dropbox does not offer in this format stays on the Failures screen. Saving changes nothing by itself: the pass does. Other documents Dropbox keeps in a format of its own stay behind.',
   // HOW OFTEN A MIGRATION SYNCS, changed on its own page (the owner,
   // 2026-09-28). The four cadences are the wizard's own words.
   'settings.schedule': 'How often to look for changes',
@@ -757,7 +756,7 @@ const en = {
   // copied for 50 minutes a day, which was true and was the defect.
   'settings.schedule.hint': 'Passes run back to back until the first copy is done.',
   'settings.schedule.hint.why':
-    'A pass runs at most 50 minutes. Until every data type has been copied once in full, the next pass starts as soon as the last one ends, and no sooner than 15 minutes after it started, whatever this schedule says. A daily download limit at the source is waited out first. After that, passes follow this schedule and copy only what is new or changed. Items that could not be copied do not keep passes coming: they wait on the Failures screen. On Automatic the days count from when everything was copied, or from the last time somebody opened this migration or pressed Trigger sync, whichever is later.',
+    'A pass runs at most 50 minutes. Until every data type has been copied once in full, the next pass starts as soon as the last one ends, and no sooner than 15 minutes after it started, following the selected schedule. A daily download limit at the source is waited out first. After that, passes follow this schedule and migrate only what is new or has changed. Items that could not be migrated wait for you on the Failures screen. On Automatic the days count from when everything was migrated, or from the last time someone opened this migration or pressed Trigger sync, whichever is later.',
   // The pace, said where a migration is read (workplan 0157 T5): on Free,
   // outside the alpha, one pass a day of at most 50 minutes, the next pass's
   // time on the migration's own page, and the way to more.
@@ -765,21 +764,21 @@ const en = {
   'pace.free.oneMigration': 'one pass a day, up to 50 minutes.',
   'pace.free.eachMigration': 'one pass a day for each migration, up to 50 minutes.',
   'pace.free.next': 'Next pass: {time}.',
-  'pace.free.higher': 'A higher tier copies pass after pass.',
+  'pace.free.higher': 'A higher tier migrates pass after pass.',
   // A slower step a visit ended (workplan 0157 T7): the morning mail said
   // *"Everything is in step, so we now look for changes less often"*, and
   // opening the migration brought back the hour. Said once, on that visit.
   'cadence.broughtBack.sixHourly':
-    'Everything was in step, so we looked every 6 hours. Opening this migration brought back every hour, for 14 days.',
+    'Everything was in step, so we switched to sync every 6 hours. Opening this migration brought back every hour, for the next 14 days.',
   'cadence.broughtBack.daily':
-    'Everything was in step, so we looked once a day. Opening this migration brought back every hour, for 14 days.',
+    'Everything was in step, so we switched to sync once a day. Opening this migration brought back every hour, for 14 days.',
   'cadence.broughtBack.keep': 'To keep it hourly, choose Hourly under How often to look for changes.',
   // Free's pace (workplan 0157 T4): one pass a day outside the alpha, whatever
   // the schedule; the faster cadences are not offered, and this says why, with
   // the link after it as the way to a higher tier. Also what a schedule the
   // route refused at the pace says (`free_pace_schedule`).
   'settings.schedule.freePace':
-    'On Free a migration looks for changes once a day, whatever the schedule. A higher tier looks as often as every 15 minutes.',
+    'On Free a migration looks for changes once a day. A higher tier syncs as often as every 15 minutes.',
   'settings.schedule.freePace.link': 'See the tiers on the Billing page.',
   'settings.schedule.save': 'Save this schedule',
   'settings.schedule.saving': 'Saving…',
@@ -796,7 +795,7 @@ const en = {
   'settings.kinds.consequence':
     'An added data type is copied from the next pass. Nothing already copied changes.',
   'settings.kinds.consequence.why':
-    'The new data type is copied in full from the next pass on, the way every data type is copied the first time: pass after pass, whatever the schedule, until it has been copied once. The ones this migration already copies carry on where they were. A data type cannot be taken off again here: what it had copied would stay on the new system with nothing keeping it up to date.',
+    'The new data type is copied in full from the next pass on, the way every data type is copied the first time: pass after pass, until it has been copied once. The ones this migration already migrated carry on where they were. A data type cannot be taken off again here: what it had migrated would stay on the new system with nothing keeping it up to date.',
   'settings.kinds.failed': 'That was not added:',
   // STOP AND RESUME ONE DATA TYPE (workplan 0128 T4, slice 3c). Offered where
   // the stop door accepts the press; what a stop does is said before it.
@@ -805,14 +804,14 @@ const en = {
   'settings.kinds.stopping': 'Stopping…',
   'settings.kinds.resuming': 'Resuming…',
   'settings.kinds.stoppedByYou': 'stopped by you',
-  'settings.kinds.stopped': '{kind} is stopped. Its copies stay; resume it to continue where it stopped.',
-  'settings.kinds.resumed': '{kind} is resumed. The next pass continues where it stopped.',
+  'settings.kinds.stopped': '{kind} is stopped. What was migrated stays; resume to continue.',
+  'settings.kinds.resumed': '{kind} is resumed. The next pass continues where we left off.',
   'settings.kinds.stop.consequence':
-    'A stopped data type keeps what it copied, but no longer follows the source. Resuming it continues where it stopped.',
+    'A stopped data type keeps what it migrated, but no longer follows the source. Resuming it continues where it stopped.',
   'settings.kinds.stop.consequence.why':
-    'For an account that closes before the others: stop the mail on the day the old mailbox closes, while calendars and contacts keep copying. Nothing is removed on either side. The last data type still copying cannot be stopped; to stop everything, end the migration.',
+    'For an account that closes before the others: stop the mail on the day the old mailbox closes, while such as calendars, contacts, files keep migrating. Nothing is removed on either side. The last data type still migrating cannot be stopped; to stop everything, end the migration.',
   'settings.kinds.held.lastOne':
-    'The last data type still copying. To stop it, end the migration instead.',
+    'The last data type is still active. To stop it, end the migration instead.',
   'settings.kinds.held.notRunning': 'This can be resumed once the migration runs again.',
   'settings.kinds.stop.failed': 'That did not change:',
   'wizard.proto.jmap.hint': 'Modern email protocol',
@@ -874,7 +873,7 @@ const en = {
   'wizard.schedule.hourly': 'Hourly',
   'wizard.schedule.hourly.hint': 'Every hour',
   'wizard.schedule.daily': 'Daily',
-  'wizard.schedule.daily.hint': 'Every day at 2 AM',
+  'wizard.schedule.daily.hint': 'Every day',
   'wizard.schedule.sixHourly': 'Every 6 hours',
   'wizard.schedule.sixHourly.hint': 'Four times a day',
   'wizard.schedule.quarterHourly': 'Every 15 minutes',
@@ -910,7 +909,7 @@ const en = {
   'billing.tierBeyond.paths':
     'More migrations ran at the same time than {tier} runs, so this month bills {tier}. Nothing more starts until fewer run or you move up.',
   'billing.tierBeyond.data':
-    'More was moved than {tier} covers, so this month bills {tier}. New items wait until you choose a way on.',
+    'More was moved than {tier} covers, so this month bills {tier}. New items wait until you choose.',
   'billing.tierPerYear': 'for a year',
   'billing.tierPerMonth': 'per month',
   'billing.tierFree': 'Free: nothing is invoiced on this tier',
@@ -920,7 +919,7 @@ const en = {
   'billing.tierPeakPaths': 'Most migrations at once',
   'billing.tierDataMoved': 'Data moved, in total',
   'billing.tierBeyondTable':
-    'Past the published table — talk to us and we will price it properly.',
+    'Past the highest tier — contact us.',
   'billing.noUsage': 'No usage data available yet',
   // The data ceiling and the yes that moves it (workplan 0109 T6, ADR-0014's
   // amendment of 2026-10-03): both ways on from 80%, with the break-even.
@@ -929,21 +928,21 @@ const en = {
   'billing.ceiling.bands': 'That includes {count} extra band(s) bought.',
   'billing.ceiling.alphaMoved': 'Another {moved} was moved during the Alpha, which never counts toward your ceiling.',
   'billing.ceiling.under':
-    'From 80% of the ceiling, this card offers the two ways on: moving up, or another band once.',
+    'From 80% of the ceiling, this card offers you a choice: moving up a tier, or another band once.',
   'billing.ceiling.near':
-    'You have moved {share} of your data ceiling. At the ceiling, new items wait until you choose a way on; changes to what is already copied carry on.',
+    'You have moved {share} of your data ceiling. At the ceiling, new items wait until you choose; changes to what is already copied carry on.',
   'billing.ceiling.reached':
-    'Your data ceiling is reached. New items wait until you choose a way on; changes to what is already copied carry on.',
+    'Your data ceiling is reached. New items wait until you choose; changes to what is already copied carry on.',
   'billing.ceiling.alpha':
-    'During the Alpha nothing waits at the ceiling and nothing is charged, so there is nothing to agree to yet. The prices below are what the ways on cost after the Alpha.',
+    'During the Alpha there are no limits and nothing is charged, so there is nothing to agree to yet. The prices below are an indication of pricing after the Alpha.',
   'billing.ceiling.moveUp':
     'Move up to {tier}: {monthly} a month. Your ceiling becomes {ceiling}, and {paths} migrations can run at once.',
   'billing.ceiling.moveUp.button': 'Move up to {tier}',
-  'billing.ceiling.talkToUs': 'There is no tier past {tier}. Talk to us and we will price it properly.',
+  'billing.ceiling.talkToUs': 'There is no tier past {tier}. Contact us.',
   'billing.ceiling.topUp':
     'Or buy another {band} once, for {price}. Your ceiling becomes {ceiling}, and your monthly price stays the same.',
   'billing.ceiling.topUp.button': 'Buy another {band}',
-  'billing.ceiling.noTopUp': '{tier} has no top-up: the way on is moving up.',
+  'billing.ceiling.noTopUp': '{tier} has no top-up: move up a tier.',
   'billing.ceiling.breakEven':
     'Topping up costs {extra} more once and saves {saved} a month, so it pays back in about {days} day(s).',
   'billing.ceiling.breakEven.cheaper': 'Topping up costs no more once, and saves {saved} a month.',
@@ -965,7 +964,7 @@ const en = {
   'billing.tierPicked': 'Picked by you: each month bills at least {tier}.',
   'billing.pick.title': 'Pick a tier',
   'billing.pick.lead':
-    'Your tier follows what you use. You may pick a higher one, for its pace or its room: each month then bills at least that tier, until you lower it.',
+    'Your tier follows what you use. You may pick a higher one for its sync pace or its data room: each month then bills at least that tier, until you lower it.',
   'billing.pick.standing': 'You picked {tier}. Each month bills at least {tier}, until you lower it.',
   'billing.pick.standingThisMonth': 'You picked {tier}: this month bills at least {tier}.',
   'billing.pick.lowered': 'From {date}, each month bills at least {tier}.',
@@ -975,7 +974,7 @@ const en = {
   'billing.pick.monthly': '{monthly} a month',
   'billing.pick.room': '{paths} migrations at the same time, up to {data}.',
   'billing.pick.pace':
-    'Every tier here copies pass after pass until the first copy is done, then looks for changes every hour, or as often as every 15 minutes if you choose.',
+    'Every tier here copies pass after pass until the first migration is done, then looks for changes every hour, or as often as every 15 minutes if you choose.',
   'billing.pick.button': 'Pick {tier}',
   'billing.pick.keep': 'Keep {tier}',
   'billing.pick.top': '{tier} is the highest tier. For more, talk to us.',
@@ -985,7 +984,7 @@ const en = {
   // The words of article 8(2) of the Consumer Rights Directive.
   'billing.pick.order': 'Order with obligation to pay',
   'billing.pick.notNow': 'Not now',
-  'billing.pick.done': "Done: {tier}'s pace and room are yours now, and each month bills at least {tier}.",
+  'billing.pick.done': "Done: {tier}'s pace and data room are yours now, and each month bills at least {tier}.",
   'billing.pick.lowerTo': 'Lower to {tier}',
   'billing.pick.drop': 'Drop the pick',
   'billing.pick.lower.confirm': 'From {date}, each month bills at least {tier}. Until then, at least {now}.',
@@ -1040,7 +1039,7 @@ const en = {
   'timeLeft.label': 'How long:',
   'timeLeft.gmailDays': 'About {low} to {high} days, because Google lets a mailbox download {ceiling} GB a day.',
   'timeLeft.gmailWithinADay':
-    'Within a day, because this mailbox holds less than the {ceiling} GB a day Google lets one download.',
+    'Within a day, because this mailbox holds less than the {ceiling} GB a day Google lets one download a day.',
   'timeLeft.notKnownYet': 'Depends on the provider; we will know after the first hour.',
   'timeLeft.filesLater': 'The files: we will know after the first hour.',
   'timeLeft.copying.days': 'About {low} to {high} days more, from the last {n} passes.',
@@ -1054,14 +1053,14 @@ const en = {
   'migrationReport.lead': 'What was found, what arrived, what could not come and why, and what the check compared.',
   'migrationReport.loadFailed': 'Could not read this report.',
   'migrationReport.verdict.complete': 'Complete: everything has arrived, and nothing waits on a decision.',
-  'migrationReport.verdict.decisionsPending': 'Everything has arrived, but some items still wait on a decision.',
+  'migrationReport.verdict.decisionsPending': 'Everything has arrived, but some items still wait on you decision.',
   'migrationReport.verdict.inProgress': 'Still under way: this is where it stands, not a closing report.',
   'migrationReport.arrived.heading': 'What arrived',
   'migrationReport.col.type': 'Type',
   'migrationReport.col.found': 'Found',
   'migrationReport.col.arrived': 'Arrived',
   'migrationReport.col.leftAsIs': 'Left as it was',
-  'migrationReport.col.couldNotCome': 'Could not come',
+  'migrationReport.col.couldNotCome': 'Could not migrate',
   'migrationReport.notCounted': 'not counted',
   'migrationReport.why': 'Why:',
   'migrationReport.seeWhich': 'See which, and why',
@@ -1080,14 +1079,14 @@ const en = {
   'migrationReport.check.col.contents': 'Contents compared',
   'migrationReport.check.compared': '{matched} of {sampled} the same',
   'migrationReport.access.heading': 'Access you granted, which only you can withdraw',
-  'migrationReport.access.lead': 'It still works after this migration, until you remove it. We cannot do this for you.',
+  'migrationReport.access.lead': 'It still works after this migration, until you remove it.',
   'migrationReport.asOf': 'As it stood on {when}.',
   'migrationReport.download': 'Download the report',
   'migrationReport.toConfirmed': 'What is confirmed, item by item',
   'migrationReport.open': 'The report',
   'confirmed.toReport': 'What happened: the report',
   'mappings.action.pause.why':
-    'No new passes are started. A pass already running stops starting new items within about fifteen seconds, and finishes the ones it has begun; a very large file can take longer. Nothing is lost: Review and start continues from where it stopped.',
+    'No new passes are started. A pass already running stops migrating new items within about fifteen seconds, and finishes the ones it has begun; a very large file can take longer. Review and start continues from where it stopped.',
   'mappings.action.startSync': 'Start sync',
   // 0037 T2: a paused mapping's row leads to the confirm screen — the Play
   // button it used to render could only earn a 409.
@@ -1111,7 +1110,7 @@ const en = {
   'mappings.delete.explain':
     'Removes the migration’s settings and record; nothing at your source or destination is touched.',
   'mappings.delete.more':
-    'No mail, calendars, contacts or files are deleted anywhere. Set the same migration up again later and it recognises what is already there and copies only what is new. What it finds already there is no longer updated when it changes at the source, and anything you deleted or moved on the new side comes back. To keep changes flowing, pause the migration instead.',
+    'No mail, calendars, tasks, contacts or files are deleted anywhere. Set the same migration up again later and it recognises what is already there and migrates only what is new. What it finds already there is no longer updated when it changes at the source, and anything you deleted or moved on the new side comes back. To keep changes flowing, pause the migration instead.',
   'mappings.delete.confirm': 'Delete migration',
   'mappings.delete.cancel': 'Cancel',
   'mappings.delete.failed': 'The migration was not deleted.',
@@ -1148,20 +1147,20 @@ const en = {
   'hub.deletions.blurb': 'Deleted on the old system, still on the new; your call, per item.',
   'hub.moves.name': 'Moves',
   'hub.moves.blurb':
-    'Items the old system reorganised since they were copied. An old copy goes only when you remove it, or by automatic removal if you turned that on.',
+    'Items the old system reorganised since they were copied. An old copy goes only when you remove it, or by automatic removal (if you turned that on).',
   'hub.failures.name': 'Failures',
   'hub.failures.blurb':
-    'Items that could not be copied and now wait on a person. These block finishing.',
+    'Items that could not be migrated and now wait for you to decide. These block finishing.',
   'hub.sharing.name': 'Sharing',
   'hub.sharing.blurb':
-    'Who could reach what on the old system; a checklist worked after finishing.',
+    'Who could reach shared content on the old system; a checklist worked after finishing.',
   'sharing.title': 'Sharing checklist',
-  'sharing.intro': 'Everything somebody else could reach on the old system, one row per grant.',
+  'sharing.intro': 'Everything someone else could reach on the old system, one row per grant.',
   'sharing.intro.more':
-    'Settle each row: apply the share on the new system, tick it off as done by hand, or skip it on purpose. Done and Skip both settle a row and they record different things — Done means this access was re-established by hand, Skip means it is deliberately not carried across. After a cutover those are different answers to "why can this person no longer open it". Every settled row keeps who decided, and when.',
+    'Settle each row: apply the share on the new system, tick it as done by hand, or skip on purpose. Done and Skip both settle a row and they record: Done means this access was re-established by hand, Skip means it is deliberately not carried across. After a cutover those are different answers to "why can this person no longer open what was shared?". Every settled row keeps who decided, and when.',
   'sharing.progressSettled': 'settled',
   'sharing.openManualNote':
-    'row(s) marked manual: your steps on the new system; tick them off here when done.',
+    'row(s) marked manual: your steps on the new system; tick them here when done.',
   'sharing.rescan': 'Refresh from the source…',
   'sharing.blindSpots': 'Could not be inventoried — capture these by hand:',
   'sharing.empty': 'No shares on the list yet. Refresh from the source to scan.',
@@ -1202,9 +1201,9 @@ const en = {
   // confirmed before it is offered at all (ADR-0032 §6, at folder scale).
   'sharing.group.applyFolder': 'Share this folder on the new system',
   'sharing.group.applyFolderArmed': 'Press again to invite them all',
-  'sharing.group.confirmFirst': 'Check each address before one press invites them all.',
+  'sharing.group.confirmFirst': 'First check each address: one press invites them all.',
   'sharing.group.confirmFirst.why':
-    'The new system sends the invitation itself, the moment the share is created — so a press over a whole folder is a wave of real mail to real people, and it cannot be unsent. That is why each address is shown here and each one is confirmed on its own: the tool proposes the address the old system recorded, and a person decides whether that is still where this person should be invited. An address you confirm here is remembered for that person\u2019s other rows in this migration, so nobody retypes the same correction twice.',
+    'The new system sends the invitation itself, the moment the share is created — so a press over a whole folders is a wave of real mail, and it cannot be unsent. That is why each address is shown here and each one is confirmed on its own. Ownpace proposes the address the old system recorded, and you decide whether that is still the correct address / person to share with. An address you confirm here is remembered for that person\u2019s other rows in this migration, to make it more easy.',
   'sharing.group.addressLabel': 'send to',
   'sharing.group.confirmOne': 'Confirm',
   'sharing.group.confirmed': 'confirmed',
@@ -1218,13 +1217,13 @@ const en = {
     'Found before this tool could group by folder. Refresh from the source to fold them.',
   'hub.check.name': 'Check',
   'hub.check.blurb':
-    'Compare the two systems and sample the contents, behind one button.',
+    'Compare the two systems and sample the content.',
   'hub.confirmed.name': 'Confirmed',
   'hub.confirmed.blurb':
     'What is in the new home, item by item, and what was compared.',
   'hub.finish.name': 'Finish',
   'hub.finish.blurb':
-    'The cutover checklist. Ends the migration — in order, with the one attested step.',
+    'The cutover checklist, to end the migration.',
   'runs.title': 'Run history',
   'runs.blurb':
     'Every sync pass this migration has made, newest first, with what each one said.',
@@ -1239,9 +1238,9 @@ const en = {
   'runs.events': 'Log',
   'grantLink.title': 'Grant links',
   'grantLink.blurb':
-    'The person being migrated grants access themselves, without sending you a password.',
+    'The person being migrated grants access themselves, without sending you credentials.',
   'grantLink.why':
-    'They need no Ownpace account. You send the link to them yourself; Ownpace never does, and never learns who they are.',
+    'They need no Ownpace account. You send the link to them yourself.',
   'grantLink.expiryLabel': 'The link works for',
   'grantLink.expiry.1': '1 day',
   'grantLink.expiry.7': '7 days',
@@ -1283,9 +1282,9 @@ const en = {
   // its own words — the credential list's ("this link is spent") would be
   // wrong about a link that grants nothing and is never spent.
   'viewLink.title': 'Progress links',
-  'viewLink.blurb': 'A page where they can watch their own migration, with no account.',
+  'viewLink.blurb': 'A page where they can watch their own migration; no account needed.',
   'viewLink.why':
-    'It carries counts and states only — never a folder, a file or a subject line — which is what makes a longer expiry safe. You send it yourself, and you can revoke it at any moment. A source that is not Google can have one too: it shows progress, it does not ask for a password.',
+    'It carries counts and states only — never a folder or file name or a subject line — which is what makes a longer expiry safe. You send it yourself, and you can revoke it at any moment. A source that is not Google can have one too: it shows progress, it does not ask for credentials.',
   'viewLink.issue': 'Create progress link',
   'viewLink.issued.urlLabel': 'The progress link',
   'viewLink.empty': 'No progress links yet for this migration.',
@@ -1303,13 +1302,13 @@ const en = {
   'migrationLinks.sent.view': 'Progress links sent before',
   'migrationLinks.sent.blurb': 'They work until they expire. Revoke one here if it should stop sooner.',
   'migrationLinks.sent.why':
-    'Links are made per person now. One this migration was given before keeps working until it expires, so whoever holds it is not left with a link that fails.',
+    'Links are made per person.',
   // The migrator's page. Written for somebody with no account and no reason to
   // trust us, so: second person, no jargon, and nothing they have to look up.
   'grant.title': 'Connect your account',
   'grant.loading': 'One moment…',
-  'grant.asking': '{organisation} is moving your account to a new provider, and needs your permission to read what is in it.',
-  'grant.reads': 'You are about to give access to {reads}.',
+  'grant.asking': '{organisation} is migrating your account and/or content to a new provider, and needs your permission to read what you currently store.',
+  'grant.reads': 'You are about to give (read) access to {reads}.',
   // What each data type reads, in the words a person would use about their
   // own account, joined into `grant.reads` as the page's language joins a list
   // (workplan 0145 T6). The server names the data types; the words are ours.
@@ -1327,15 +1326,15 @@ const en = {
   'grant.from': 'From',
   'grant.to': 'To',
   'grant.toWhere': '{provider} at {host}',
-  'grant.check': 'Do you know who asked? Is the destination yours or your organisation’s? Only then continue.',
+  'grant.check': 'Only continue if you know who asked and the destination is yours or your organisation’s.',
   'grant.readOnly':
-    'Read-only. Nothing is ever deleted or changed in your account, and nobody — not the organisation, not Ownpace — ever sees your password. You sign in to Google yourself, on Google’s own page.',
+    'Read-only. Nothing is ever deleted or changed in your account, and nobody — not the organisation, not Ownpace — ever sees your credentials. You sign in to Google yourself, on Google’s own page.',
   // "Read-only" only where Google enforces it (workplan 0144 T3 (c)): the box
   // above says it for Drive and Tasks, whose scopes Google holds to reading.
   // Every other grant gets this one, because Google's screen, one click later,
   // describes mail, calendars and contacts as allowing changes and deletion.
   'grant.readsOnly':
-    'Ownpace only reads. Ownpace never deletes or changes anything in your account, and nobody — not the organisation, not Ownpace — ever sees your password. You sign in to Google yourself, on Google’s own page. Google may describe the permission more broadly: for mail, calendars and contacts, the permission Ownpace asks for also allows changes. Ownpace makes none.',
+    'Ownpace only reads. Ownpace never deletes or changes anything in your account, and nobody — not the organisation, not Ownpace — sees your credentials. You sign in to Google yourself, on Google’s own page. Google may describe the permission more broadly: for mail, calendars and contacts, the permission Ownpace asks for might also allows changes. Ownpace makes none.',
   'grant.scopeIntro': 'Google will record this permission as:',
   'grant.until': 'This link works until {date}.',
   // The account is a condition (0108 T8 (b)): what to sign in with, and why
@@ -1345,32 +1344,32 @@ const en = {
   // in that app's own browser, where Google is reported to refuse the consent.
   // Opening the link again elsewhere spends nothing (grant.ts), so it says so.
   'grant.inAppBrowser':
-    'If this page opened inside another app, such as a chat or mail app, use that app\'s \'Open in browser\' option or copy the link into Safari or Chrome. The link still works.',
+    'If this page opened inside another app, such as a chat or mail app, use that app\'s \'Open in browser\' option or copy the link into you favorite browser. The link still works.',
   'grant.connect': 'Continue with Google',
   // A person's link (ADR-0035, amended 2026-09-29; workplan 0153 T5 (b)): one
   // card per Google account, each asked once.
   'grant.person.asking':
-    '{organisation} is moving your accounts to a new provider, and needs your permission to read what is in them. Each account below asks once.',
+    '{organisation} is moving your accounts and/or content to a new provider, and needs your permission to read what you currently hold. Each account below asks once.',
   'grant.person.migration': 'To {where}: {reads}.',
   'grant.person.where': '{account}, {place}',
   'grant.person.connect': 'Continue with Google as {account}',
   'grant.person.connected': 'Connected. Nothing more is needed for this account.',
   'grant.person.again':
-    'This account was connected before. Whoever sent this link asks you to connect it again, for instance because the connection stopped working.',
+    'This account was connected before. Whoever sent this link asks you to connect again, for instance because the connection stopped working.',
   'grant.person.connectAgain': 'Connect again with Google as {account}',
   'grant.connecting': 'Opening Google…',
   'grant.disclosure': 'By continuing you accept how your data is handled:',
   'grant.privacy': 'Privacy policy',
   'grant.terms': 'Terms',
   'grant.withdraw':
-    'You can withdraw this access at any time: on the progress page you get once you have granted it, or in your Google account’s security settings, under the apps that have access.',
+    'You can withdraw this access at any time using the progress page (send after granted), or in your Google account’s security settings, under the apps that have access.',
   // A failure on the grant or progress page that the server wrote no sentence
   // for (workplan 0145 T6, review): the page's own words, in its language,
   // rather than the transport's English or a parser's JSON. The server's own
   // refusals come in pairs from `@openmig/shared` and are not these.
   'link.unreachable': 'This page could not reach the server. Check your connection and try again.',
   'link.unreadable':
-    'Something went wrong on this page. Try again later; if it keeps happening, please tell the person who sent you the link.',
+    'Something went wrong on this page. Try again later; if it keeps happening, please tell the person who sent you the link to contact support.',
   // An answer the page's schema refused, on a signed-in page (reported
   // 2026-09-29): `serverMessage` says this where it used to show zod's JSON,
   // most likely after the API and the web app were updated apart. {reference}
@@ -1383,7 +1382,7 @@ const en = {
   // most likely a deploy while the tab stayed open. The page never reloads by
   // itself, so the sentence says what a reload costs.
   'reload.newer':
-    'A newer version of this page is available. Reload the page to use it; anything you have not saved yet is lost.',
+    'A newer version of this page is available: reload the page to continue; anything you have not saved yet is lost.',
   'reload.button': 'Reload the page',
   // The progress page (workplan 0122). The SAME reader as the grant page above
   // — no account, no jargon, second person — asking a different question:
@@ -1391,22 +1390,22 @@ const en = {
   // operator's chips, and every count says what it counts.
   'view.title': 'Your migration',
   'view.loading': 'One moment…',
-  'view.who': '{organisation} is moving your account to a new provider.',
-  'view.state.active': 'Your things are being copied across now.',
+  'view.who': '{organisation} is migrating your account / content to a new provider.',
+  'view.state.active': 'Your things are being migrated across now.',
   'view.state.paused': 'Copying is on hold at the moment.',
   'view.state.cutover': 'Your new account is now the one in use.',
   'view.state.done': 'Your migration is finished.',
-  'view.state.continuous': 'Anything new is still copied across for you.',
+  'view.state.continuous': 'Anything new is still still kept in sync for you.',
   'view.notStarted': 'Nothing has been copied yet.',
   'view.notStarted.why':
-    'Copying has not started, so there is nothing to count here yet. That is normal for the first day or two: a migration begins once everything it needs is connected, and this page fills in on its own once it does. Nothing is missing and nothing has gone wrong.',
-  'view.copied.one': '{count} copied',
-  'view.copied.many': '{count} copied',
+    'Migration has not started, so there is nothing to count here yet. That is normal for the first day or two: a migration begins once everything it needs is connected.',
+  'view.copied.one': '{count} migrated',
+  'view.copied.many': '{count} migrated',
   'view.upToDate': 'Up to date as of {date}.',
-  'view.lastWorked': 'Still copying; last worked on {date}.',
+  'view.lastWorked': 'Still migrating; last worked on {date}.',
   'view.notYet': 'Not started yet.',
-  'view.attention.one': '{count} item needs someone to look at it.',
-  'view.attention.many': '{count} items need someone to look at them.',
+  'view.attention.one': '{count} item need your attention.',
+  'view.attention.many': '{count} items need you attention.',
   'view.retrying.one': '{count} item is being tried again.',
   'view.retrying.many': '{count} items are being tried again.',
   'view.moved': '{bytes} moved so far.',
@@ -1414,29 +1413,29 @@ const en = {
   // — see i18n/view-failure-key.ts. Never the provider's own prose: that
   // names files, and it does not cross (workplan 0122 §3).
   'view.failure.authExpired': 'The connection to your account needs renewing. Whoever set this up can do it.',
-  'view.failure.rateLimited': 'Your provider asked us to slow down. This carries on by itself.',
-  'view.failure.quotaExceeded': 'A daily limit was reached. Copying resumes tomorrow on its own.',
+  'view.failure.rateLimited': 'Your provider automatically asked us to slow down. This carries on by itself.',
+  'view.failure.quotaExceeded': 'A daily limit was reached. Migration resumes tomorrow on its own.',
   'view.failure.policyRefused':
     'Some items were left out by this migration\u2019s own settings, not by either account.',
   'view.failure.tooLarge':
-    'Some files were left out: they are larger than this service copies during the Alpha.',
+    'Some files were left out: they are larger than this service migrates during the Alpha.',
   'view.failure.sourceRefused':
     'Your old account would not release some items. Nothing was sent to your new account.',
   'view.failure.targetRefused': 'Your new account would not accept some items.',
   'view.failure.formatRefused':
     'Your new account refuses some file types. Whoever set this up can change that.',
   'view.failure.network': 'A server could not be reached. This is usually brief and retries itself.',
-  'view.failure.unknown': 'Something we could not put a name to. The person running this can see more.',
+  'view.failure.unknown': 'We ran into some unknnow failure. Contact support for more info.',
   'view.failure.side.source': 'It was your old account.',
   'view.failure.side.target': 'It was your new account.',
   'view.until': 'This page works until {date}.',
   'view.readOnly': 'This page only shows numbers; it holds nothing from your account.',
   // Taking the access back (workplan 0108 T8 (c)). The same reader and the same
   // words as the grant page: "access", given and withdrawn, second person.
-  'view.state.withdrawn': 'Copying has stopped: on {date} you withdrew the access you gave.',
+  'view.state.withdrawn': 'Migrating stopped: on {date} you withdrew the access you gave.',
   'view.grant.title': 'The access you gave',
   'view.grant.body': '{organisation} reads your Google account for this migration because you allowed it.',
-  'view.grant.whatHappens': 'Withdrawing stops the copying. What was already copied stays where it was copied to.',
+  'view.grant.whatHappens': 'Withdrawing stops the migrating. What was already copied over stays where it was copied to.',
   'view.grant.wholeApp': 'Google withdraws it for the whole app, so any other migration you allowed stops too.',
   'view.grant.withdraw': 'Withdraw access',
   'view.grant.confirm': 'Withdraw it now? Continuing later needs a new link from whoever sent this one.',
@@ -1446,7 +1445,7 @@ const en = {
   'view.withdrawn.revoked': 'Done. Google confirmed the access is withdrawn, and it is deleted here as well.',
   'view.withdrawn.notConfirmed': 'Deleted here, so this migration cannot use it. Google did not confirm withdrawing it.',
   'view.withdrawn.removeYourself': 'To be sure, remove the app yourself from the apps with access:',
-  'view.withdrawn.since': 'Nothing more is read from your account. To continue later, ask for a new link.',
+  'view.withdrawn.since': 'Nothing more is read from your account. To resume later, ask for a new link.',
   'view.withdrawn.check': 'Your Google account lists the apps that still have access:',
   // A PERSON'S progress page (ADR-0035, amended 2026-09-29; 0153 T5 (b), slice 3).
   'view.person.title': 'Your migrations',
@@ -1465,17 +1464,17 @@ const en = {
   'linkReport.intro': 'Your report goes to the Ownpace team, not to {organisation}.',
   'linkReport.description': 'What makes you doubt this link?',
   'linkReport.replyTo': 'Your email address (optional)',
-  'linkReport.replyTo.hint': 'Only if you want an answer; we use it for nothing else.',
+  'linkReport.replyTo.hint': 'Only for us to answer your report.',
   'linkReport.sentWith':
-    'Sent with it, from our records: which link this is; the organisation and the migration it belongs to, with the state of the migration; the address of whoever made the link; the account the migration copies from and the account it copies to; and whether you have given access.',
+    'Sent with it, from our records: which link this is; the organisation and the migration it belongs to, the state of the migration; the address of whoever made the link; the account the migration copies from and the account it copies to; and whether you have given access.',
   'linkReport.send': 'Send the report',
   'linkReport.sending': 'Sending…',
   'linkReport.sent': 'Sent. Your report is number {ticket}, and we will reply to {email}.',
-  'linkReport.sent.anonymous': 'Sent. Your report is number {ticket}. Without an address, we cannot answer you.',
+  'linkReport.sent.anonymous': 'Sent. Your report is number {ticket}. Without an email address, we cannot answer you.',
   'linkReport.sent.mail': 'Sent to our support team, with report reference {reference}. We will reply by email to {email}.',
   'linkReport.sent.mail.anonymous':
-    'Sent to our support team, with report reference {reference}. Without an address, we cannot answer you.',
-  'linkReport.next.grant': 'You need not continue: nothing is read unless you allow it at Google.',
+    'Sent to our support team, with report reference {reference}. Without an email address, we cannot answer you.',
+  'linkReport.next.grant': 'Nothing is read unless you allow it at Google.',
   'linkReport.next.withdraw': 'To stop the copying now, withdraw the access above.',
   'state.lifecycle.active': 'Active',
   'state.lifecycle.paused': 'Paused',
@@ -1509,7 +1508,7 @@ const en = {
   'queue.alreadyDecided': 'Already decided',
   'moves.title': 'Moved on the old system',
   'moves.intro':
-    'Items the owner filed elsewhere since the copy; nothing has changed on either side.',
+    'Items the owner filed elsewhere since the migration; nothing has changed on either side.',
   'moves.intro.more': 'The new system still has them where we put them; each row is your call.',
   'moves.empty.open': 'Nothing has moved.',
   'moves.empty.acknowledged': 'Nothing has been decided yet.',
@@ -1535,7 +1534,7 @@ const en = {
   'failures.group.title': 'Decide a whole group at once',
   'failures.group.hint': 'A connector fixed since these parked will not unpark them by itself.',
   'failures.group.hint.why':
-    'Being parked is a stored count of attempts, so deploying a fix does not lower it — the items sit there while the migration reports itself complete. Pick a kind, or type part of the error the items share, and this decides all of them in one go: a retry also clears this migration’s sync cursors once, which is what puts the items back in front of the next pass. The wording is matched literally, so a % or an _ in what you type means a % or an _.',
+    'Being parked is a stored count of attempts, so deploying a fix does not lower it — the items sit there while the migration reports itself complete. Pick a kind, or type part of the error the items share, and this allows you to decide on all of them in one go: a retry also clears this migration’s sync cursors once, which is what puts the items back in front of the next pass. The wording is matched literally, so a % or an _ in what you type means a % or an _.',
   // THE GROUPS, READ OFF THE ROWS (the owner, 2026-09-17: *"why now detail
   // groups that share sumilarities and offer those to pick from to do bulk
   // actions?"*). Typing a substring describes a group somebody has already
@@ -1547,7 +1546,7 @@ const en = {
   'failures.group.stillTrying.many': '{count} still trying',
   'failures.group.noCategory': 'No kind of failure recorded',
   'failures.group.noCategory.why':
-    'These items failed before this deployment stored a failure kind on each one. The next attempt on them records it, and they join a group. Until then they can be decided one at a time, or by the error text below.',
+    'These items failed before Ownpace supported this type of failure. The next attempt on them records it, and makes them join a group. Until then they can be decided one at a time, or by the error text below.',
   'failures.group.manual': 'Match on the error text instead',
   'failures.group.domain': 'Kind',
   'failures.group.domain.any': 'Any kind',
@@ -1579,7 +1578,7 @@ const en = {
   // on this screen, and never called a deletion.
   'deletions.earlierExports': 'Earlier exports',
   'deletions.earlierExports.intro':
-    'Copies an earlier export format left. The documents were not deleted in Google.',
+    'Migrates earlier export format across. The documents were not deleted in Google.',
   'deletions.earlierExport.badge': 'earlier export',
   'deletions.earlierExport.badgeTitle': 'Exported again under its new name; this is the old copy.',
   'common.loading': 'Loading…',
@@ -1595,7 +1594,7 @@ const en = {
   // operator material the guides stopped carrying is in the repository. The
   // plan's wording, one word shorter to fit 0118's fifteen-word line.
   'docs.operatorDocs':
-    'Running your own appliance? Settings and commands are in the operator documents in the repository.',
+    'Running your own appliance? Settings and commands are in the operator documents in the Ownpace repository.',
   // Workplan 0148 T2 (c): the fold over a guide's own-app section, closed
   // where this service carries the provider's app.
   'docs.ownAppFold': 'Only if you want to use your own app',
@@ -1638,7 +1637,7 @@ const en = {
   'people.addTo.submit': 'Add',
   'people.addTo.failed': 'The migration was not added.',
   'people.notAdded': 'The migration was made, but not added to the person.',
-  'people.notAdded.where': 'Migrations lists it under Not with a person yet, where one press adds it.',
+  'people.notAdded.where': 'Migrations lists it under Not with a person yet, press to add.',
   'people.new.title': 'Add a person',
   'people.new.name': 'Name',
   'people.new.email': 'Email address, for a grant link (optional)',
@@ -1653,10 +1652,10 @@ const en = {
   'start.who.myself': 'I do',
   'start.who.someoneElse': 'They do, with a link',
   'start.who.someoneElse.line':
-    'They connect a Google account themselves, so you never hold that password. Other providers you sign in to together.',
+    'They connect a Google account themselves, so you never hold those credentials. Other providers that can not grant, you sign in together.',
   'start.who.needName': 'Type a name first.',
   'start.who.peopleFailed': 'The people you migrate for could not be read. A new name still works.',
-  'start.from.heading': 'Which account are you leaving?',
+  'start.from.heading': 'Which account are you leaving or moving?',
   'start.from.hint': 'Tick each one you are leaving.',
   'start.from.otherMail': 'Another mail provider',
   'start.from.otherMail.inSentence': 'another mail provider',
@@ -1707,9 +1706,9 @@ const en = {
   'start.connect.together': 'No link reaches {provider}: sign in together with {person}.',
   'start.connect.byLink': '{person} connects it themselves, with a link you make on the last screen.',
   'start.connect.byLinkFor': 'By link: {account}',
-  'start.connect.theirAddress': 'Their address at {provider}',
-  'start.connect.saveAddress': 'Save the address',
-  'start.connect.addressNeeded': 'Type their address first.',
+  'start.connect.theirAddress': 'Their email address at {provider}',
+  'start.connect.saveAddress': 'Save the email address',
+  'start.connect.addressNeeded': 'Type their email address first.',
   'start.connect.exportNoSignIn': 'Photos need no sign-in: they come from the Takeout export.',
   'start.connect.folder.id': 'Which folder: its link or ID',
   'start.connect.folder.path': 'Which folder: its path',
@@ -1757,7 +1756,7 @@ const en = {
   'start.check.waitsFor':
     'Waiting for {person} to connect. Make a link below and send it yourself: it is shown once. The count appears here once they have connected.',
   'start.check.waitsForLink': 'Its count appears here once {person} has connected through the link above.',
-  'start.check.startsWhenGranted': 'Once you have started the others, it starts by itself when {person} connects.',
+  'start.check.startsWhenGranted': 'Once you have started, it starts by itself when {person} connects.',
   'start.check.waitsForACount': 'You can start once {person} has connected and a count is in.',
   // AN EXPORT'S MIGRATION, SET UP AND WAITING (0153 open question 5, item 2).
   'start.check.export.waits': 'Set up, and waiting for the Takeout export:',
@@ -1908,7 +1907,7 @@ const en = {
   'confirm.note.done': 'Finished. This migration no longer syncs.',
   'confirm.note.continuous': 'Continuous. Cutover has happened; this keeps copying instead of ending.',
   'confirm.introStarted':
-    'Migrations here have started. Live progress is per migration; the scan stays as a snapshot.',
+    'Migrations have started. Live progress is per migration; the scan stays as a snapshot.',
   // Every failure category (workplan 0110 T3). Each is a SENTENCE with a
   // remedy, not a label: the owner's reframing made the customer the primary
   // reader, and nobody can act on the words "auth expired". The raw provider
@@ -1962,7 +1961,7 @@ const en = {
   // that was never sent the file. The first shortening dropped it and the
   // Failures page test caught it.
   'failure.sourceRefused':
-    'Not migrated: the old account would not hand this over, so nothing was sent to the new one \u2014 there is nothing to check there. Try again if that has changed, or leave these items behind.',
+    'Not migrated: the old account would not hand this over, so nothing was migrated to the new one \u2014 there is nothing to check there. Try again if that has changed, or leave these items behind.',
   // The last clause was added on 2026-09-17, when two contacts were refused
   // with a bare `TypeError` five times over and the only readable account of
   // WHY was in the customer's own Nextcloud log. Nothing on this screen pointed
@@ -2011,9 +2010,9 @@ const en = {
   // ---------------------------------------------------------------------
   'support.heading': 'Support',
   'support.recorded':
-    'Every screen you open here is logged against your name, and customers can see that.',
+    'Every screen you open here is logged against your name, and customers can view that.',
   'support.recorded.why':
-    'The support read log records the organisation and the time with each screen, and customers can be shown that record.',
+    'The support read log records the organisation and time with each screen, and customers can view that record.',
   'support.metadataOnly':
     'Names, states, counts and timings only; no message, event, contact or file is shown here.',
   'support.metadataOnly.why':
@@ -2071,7 +2070,7 @@ const en = {
   // a refused press is not remembered, so the fold says what it should say.
   'support.hold.hint': 'Stops new passes, buttons included; the ones already running finish.',
   'support.hold.hint.why':
-    'This is the drain: the sync tick stops enqueueing within a minute, and whatever is mid-pass finishes normally. Every signed-in customer sees a notice with your message on it, or a default sentence when you leave the box empty. Your message is also the answer, word for word, to every button that would start work while the hold is on (\'Trigger sync\', \'Start migration\', a check), and a refused press is not remembered. So say when copying resumes and ask them to try again after that, for example: \'We are updating the platform and copying resumes around 15:00. Nothing starts until then. Please try again after that.\' Lifting the hold starts the scheduled passes again on the next tick.',
+    'This is the drain: the sync tick stops enqueueing within a minute, and whatever is mid-pass finishes normally. Every signed-in customer sees a notice with your message on it, or a default sentence when left empty. Your message is also shown to every button-press that would start work while the hold is on (\'Trigger sync\', \'Start migration\', a check), and a refused press is not remembered. So say when copying resumes and ask them to try again after that, for example: \'We are updating the platform and copying resumes around 15:00. Nothing starts until then. Please try again after that.\' Lifting the hold starts the scheduled passes again on the next tick.',
   'support.hold.on': 'Held since {since}. No new passes are starting.',
   'support.hold.off': 'Not held. New passes start on the usual schedule.',
   'support.hold.start': 'Hold new passes',
@@ -2093,7 +2092,7 @@ const en = {
   'support.noDomains': 'Nothing has run yet.',
   'support.waiting.none': 'Nothing is waiting on them.',
   'support.waiting.some':
-    'Decisions are waiting on this customer; their own screen says which, this one only counts.',
+    'Decisions are waiting on this customer; their own screen says which, here you see only counts.',
   'support.noFourthLevel':
     'There is no screen below this one; items would be subject lines, where support stops.',
   'support.col.organisation': 'Organisation',
@@ -2117,7 +2116,7 @@ const en = {
   // customer-facing word `access.tier` uses — the operator reads what the
   // customer would recognise.
   'support.usage': 'Usage and package this month',
-  'support.usage.beyondTable': 'Beyond the published table — a talk-to-us size.',
+  'support.usage.beyondTable': 'Beyond the tiers — a talk-to-us size.',
   'support.usage.perMonth': 'per month',
   'support.usage.free': 'free',
   'support.usage.decidedBy.paths':
@@ -2143,7 +2142,7 @@ const en = {
     'belong to no tenant, so no organisation page can show them. This is where they ' +
     'are. The reference is a one-way hash of the erased id, shown so that invoices ' +
     'from the same erasure can be seen to belong together; it does not lead back to ' +
-    'anybody.',
+    'anyone.',
   'support.retained.none': 'No invoices have been kept — nothing has been erased yet.',
   'support.retained.noName': 'not recorded',
   'support.retained.notPurged': 'not yet erased',
@@ -2224,7 +2223,7 @@ const en = {
   // where it lived only in a tooltip; the longer reassurance stays there.
   'confirm.progress.leftAsIs': '{count} left as they are: already on the new system, or changed there since',
   'confirm.progress.leftAsIs.why':
-    'These were already on the new system, or have been changed there since, so they were left exactly as they are. Nothing was copied over them and nothing was lost: this tool never overwrites what it did not write. They are counted here rather than among the copies because nothing happened to them — which is the point.',
+    'These were already on the new system, or have been changed there since, so they were left as they are. Nothing was copied over them and nothing was lost: this tool never overwrites what it did not write. They are counted here rather than among the copies because nothing happened to them.',
   // When a pass last touched this data type — NOT when it last finished.
   // A first copy that runs for two days used to show no time at all, because
   // every time on these screens came from a completion. A migration that is
@@ -2234,7 +2233,7 @@ const en = {
   // is what was wrong: its copies stopped following the source without a word.
   'confirm.progress.stopped': 'Switched off: these copies stay, but no longer follow the source.',
   'confirm.progress.stopped.why':
-    'Nothing was removed. The copies and their record stay where they are, as they were when it stopped. Switching it back on continues where it stopped: new items are copied, edits are picked up, and deletions at the source are reported.',
+    'Nothing was removed. What was migrated and their records stay where they are, as they were when it stopped. Switching it back on continues where it stopped: new items are copied, edits are picked up, and deletions at the source are reported.',
   // One its owner stopped (0128 T4): the same state, and Resume is the way back.
   'confirm.progress.stoppedByYou': 'Stopped by you: these copies stay, but no longer follow the source until resumed.',
   'confirm.progress.stoppedByYou.why':
@@ -2243,13 +2242,13 @@ const en = {
   // wherever it appears; the sentence under it says which of the three.
   'pause.label': 'Paused',
   'pause.ceiling':
-    '{provider} reached its daily download limit. Copying continues after {resets}.',
+    '{provider} reached its daily download limit. Migration continues after {resets}.',
   // Same fact, no window to name: the meter reported no running window, and
   // inventing a time would be worse than saying "when it resets".
   'pause.ceiling.unknown':
-    '{provider} reached its daily download limit. Copying continues when that resets.',
+    '{provider} reached its daily download limit. Migration continues when that resets.',
   'pause.ceiling.why':
-    'The limit belongs to your old provider, not to us. Passing it can lock you out of your own live mailbox for about a day, so copying stops before that happens. Nothing has failed and nothing is lost — the next pass carries on from exactly where this one stopped.',
+    'The limit belongs to your old provider, not our. Moving past it can lock you out of your own live mailbox for about a day, so copying stops before that happens. Nothing has failed and nothing is lost — the next pass carries on where this one stopped.',
   // The data ceiling (workplan 0109 T6): new first copies wait for the
   // customer's yes; updates carry on. Said with both prices (ADR-0014).
   // The ceiling said at Start (workplan 0109 T6): the preflight's measure and
@@ -2257,7 +2256,7 @@ const en = {
   'ceiling.atStart':
     'What these migrations hold, about {size}, and the {moved} already moved pass your data ceiling of {ceiling}.',
   'ceiling.atStart.holds':
-    'At the ceiling, new items wait until you choose a way on; changes to what is already copied carry on.',
+    'At the ceiling, new items wait until you choose; changes to what is already migrates continue to sync.',
   'ceiling.atStart.choose': 'Choose now, or start anyway and choose when they wait:',
   'ceiling.atStart.billing': 'your data ceiling on the Billing page',
   // The question at Start (workplan 0109 T6, the path axis; the owner,
@@ -2268,7 +2267,7 @@ const en = {
   'paths.atStart.moveUp': 'Move up to {tier}',
   'paths.atStart.moveUp.what': '{paths} at the same time, for {monthly} a month. Everything here starts.',
   'paths.atStart.moveUp.button': 'Move up to {tier} and start',
-  'paths.atStart.talkToUs': 'No tier runs that many at the same time. Talk to us, and we will price it properly.',
+  'paths.atStart.talkToUs': 'No tier runs that many at the same time. Contact us.',
   'paths.atStart.fits': 'Start what fits now',
   'paths.atStart.fits.what': '{count} of {total} start now, on {tier}. The rest stay set up, to start when fewer run.',
   'paths.atStart.fits.button': 'Start {count} of {total}',
@@ -2280,7 +2279,7 @@ const en = {
   'pause.dataCeiling.moveUp': 'Move up to {tier}: €{monthly} a month.',
   'pause.dataCeiling.topUp': 'Or buy another {band} once, for €{price}.',
   'pause.dataCeiling.why':
-    'Every step up is your choice: nothing moves your tier or adds room without your yes. Choose on the Billing page, and copying carries on from where it stopped.',
+    'Every step up is your choice: nothing moves your tier or adds data room without your yes. Choose on the Billing page, and copying carries on from where it stopped.',
   'pause.hold.heading': 'Copying is paused',
   // The DEFAULT sentence: always present, so a hold is never wordless when
   // nobody typed one. An operator's own words replace it, verbatim.
@@ -2290,7 +2289,7 @@ const en = {
   // pressed during the hold is refused with the operator's sentence and not
   // remembered, so nothing restarts it.
   'pause.hold.why':
-    'Nothing is wrong with your migration and nothing is lost. Migrations already running finish normally, and scheduled copying starts again by itself once the update is done, from exactly where it stopped. Any copying you tried to start during the pause did not start: start it again after the update.',
+    'Nothing is wrong with your migration and nothing is lost. Migrations already running finish normally, and scheduled copying picks up again by itself once the update is done. Any migrations you tried to start during the pause did not start: start it again after the update.',
   // The alpha note (workplan 0131 T1): the owner's welcome (0131 D4's
   // amendment, 2026-10-04), and then its two links. The owner wrote it in
   // Dutch; this is its translation. It says "move", not "switch": the welcome's
@@ -2329,11 +2328,11 @@ const en = {
   // stands (`SupportLine.tsx`); without it neither is shown. `help.line` goes
   // on the pages before sign-in. `help.sidebar` goes in the sidebar, where
   // *Report a problem* would be, while the report form is off.
-  'help.line': 'Stuck? Mail {address} and name the page you are on. Never send a password.',
+  'help.line': 'Stuck? Mail {address} and name the page you are on.',
   'help.sidebar': 'Help: {address}',
   'confirm.snapshot.heading': 'Pre-start scan (snapshot)',
   'confirm.snapshot.more':
-    'Counted once, before the start, to show what would migrate. The source keeps changing afterwards and these numbers do not update; live progress above is the ledger speaking.',
+    'Counted once before the start, to show what would migrate. The source keeps changing afterwards and these numbers do not update; live progress above is the ledger speaking.',
   'confirm.state.pending': 'Pending',
   'confirm.state.in_progress': 'Syncing',
   'confirm.state.completed': 'Completed',
@@ -2344,10 +2343,10 @@ const en = {
   'confirm.starting': 'Starting…',
   'verify.title': 'Check the migration',
   'verify.intro':
-    'Compares old against new and samples contents; read-only, it never writes to either side.',
+    'Compares old against new and samples contents; read-only.',
   'verify.run': 'Run the check',
   'verify.runAgain': 'Check again',
-  'verify.durationHint': 'Reads the whole destination — on a large mailbox this takes minutes.',
+  'verify.durationHint': 'Reads the whole destination — on large content this takes minutes.',
   'verify.applianceScope':
     'On this appliance the check always covers every configured migration.',
   'verify.runningSince': 'Running since',
@@ -2428,7 +2427,7 @@ const en = {
   'confirmed.truncated.a': 'Showing the first',
   'confirmed.truncated.b': 'rows. The download has every one of them.',
   'confirmed.noKey': 'name not recorded',
-  'confirmed.noKey.hover': 'Recorded only since 12 September 2026; a later pass fills this in.',
+  'confirmed.noKey.hover': 'Recorded only since ...; a later pass fills this in.',
   'confirmed.col.domain': 'Type',
   'confirmed.col.collection': 'Where',
   'confirmed.col.item': 'Item',
@@ -2462,21 +2461,21 @@ const en = {
   'confirmed.claim.containerParts': "by the document's parts",
   'confirmed.claim.none': 'not compared',
   'finish.title': 'Finish a migration',
-  'finish.intro': 'Finishing stops the copying and the reporting; work the steps in order.',
+  'finish.intro': 'Finishing stops the migration and the reporting; work the steps in order.',
   'finish.unknown.pre': 'No migration with id',
   'finish.unknown.post':
-    'answered. Check the address; this is not a migration with nothing to finish.',
+    'answered. Check the address; this is not a migration, nothing to finish.',
   'finish.readError.one': 'Could not read the migration.',
   'finish.readError.many': 'Could not read the migrations.',
   'finish.note.paused':
     'Never started, so there is nothing to finish. Remove the migration to retire it.',
   'finish.note.active':
-    'Syncing on a schedule. Items still arriving on the old system are being copied across.',
-  'finish.note.cutover': 'In cutover. If it was running, it copies until the grace period ends.',
+    'Syncing on a schedule. Items still arriving on the old system are being migrated across.',
+  'finish.note.cutover': 'In cutover. If it was running, it migrates until the grace period ends.',
   'finish.note.done':
     'Finished. This mapping no longer syncs and nothing is being reported for it.',
   'finish.note.continuous':
-    'Continuous. It keeps copying after cutover. Ending each data type stops it; copies already made stay.',
+    'Continuous. It keeps syncing after cutover. Ending each data type stops it; copies already made stay.',
   'finish.step1.title': 'Check the copy is complete',
   'finish.step1.pre': 'Compare the two systems and sample the contents.',
   'finish.step1.link': 'Run the check',
@@ -2506,7 +2505,7 @@ const en = {
     'the same as a migration that has not finished. Deletions at the old provider stop ' +
     'being mirrored — anything you remove there stays in your new home. We will not bill ' +
     'past twelve months without asking you again.',
-  'lane.confirm': 'Keep copying, and keep the tier',
+  'lane.confirm': 'Keep migrating in sync, and keep the tier',
   'lane.cancel': 'Not now',
   // The lane on the appliance (0128 D4): the same choice, and no tier to keep.
   'lane.selfhost.why':
@@ -2542,39 +2541,39 @@ const en = {
   'finish.step3.stoppedUnread': 'Could not read whether a data type is stopped:',
   'finish.step4.title': 'Move delivery to the new system',
   'finish.step4.body':
-    'Change MX/DNS and reconfigure clients so new mail arrives on the new system.',
+    'Change MX/DNS and reconfigure clients so new email arrives on your new system.',
   'finish.step4.more':
-    'This happens outside this tool, so it is the one step here nobody can check for you.',
+    'This happens outside Ownpace\' reach, so it is the one step here nobody can check for you.',
   'finish.step4.warn.pre': 'If you finish before this is done',
   'finish.step4.warn.post':
-    ', anything that arrives on the old system afterwards will not be copied, and nothing will report it — the tool has stopped watching.',
+    ', anything that arrives on the old system afterwards will not be migrated, and nothing will report it — Ownpace stopped watching.',
   'finish.step4.checkbox': 'Delivery now goes to the new system.',
   'finish.step5.title': 'End or keep copying each data type',
   'finish.step5.nothingChanges.pre': 'Nothing is added to or removed from either system.',
   'finish.step5.nothingChanges.post':
-    ' What is on the new system stays exactly as it is — this only stops the tool watching the old one.',
+    ' What is on the new system stays exactly as it is — this only stops Ownpace watching the old one.',
   'finish.button.disabledTitle':
     'Confirm step 4 first — finishing before delivery has moved loses anything that arrives afterwards.',
   // Each data type ended or kept copying on its own (workplan 0128 T3, T5
   // slice 7b; the owner's D3 and D8). The phase is the data type's own, as
   // the ending door believes it.
   'finish.each.title': 'Each data type',
-  'finish.ending.phase.active': 'Copying; not cut over yet',
+  'finish.ending.phase.active': 'Migrating; not cut over yet',
   'finish.ending.phase.cutover': 'In its cutover',
   'finish.ending.phase.done': 'Ended',
-  'finish.ending.phase.continuous': 'Keeps copying after its cutover',
+  'finish.ending.phase.continuous': 'Keeps migrating after its cutover',
   'finish.ending.end': 'End {kind}',
-  'finish.ending.keep': 'Keep copying {kind}',
+  'finish.ending.keep': 'Keep migrating {kind}',
   'finish.ending.forceButton': 'End {kind} anyway, leaving them behind',
   'finish.ending.stopped':
-    'You stopped {kind}. End it, or resume it on the migration\'s page to keep copying it.',
+    'You stopped {kind}. End it, or resume it on the migration\'s page to keep migrating it.',
   'finish.ending.failed': 'That did not go through:',
   // The grace period's end, when nobody chose (0128 D7, slice 7c).
   'finish.ending.graceEnded':
-    'The grace period of {kind} ended on {date}, and nobody chose, so it no longer copies. End it, or keep it copying.',
+    'The grace period of {kind} ended on {date}, and nobody chose, so it no longer migrates. End it, or keep migrating.',
   'tenants.title': 'Team & organization',
   'tenants.intro':
-    'Who can sign in to this organization and what they may do; changes apply immediately.',
+    'Who can sign in to this organization and what they may do.',
   'tenants.noTenant': 'No organization in this session.',
   'tenants.selfDemotionArmed':
     'This lowers your own role; you may not be able to change it back yourself.',
@@ -2615,7 +2614,7 @@ const en = {
   // inviter a different thing to do, so each says it.
   'tenants.invite.mail.sent': 'Invitation emailed to {email}.',
   'tenants.invite.mail.off':
-    'Invitation saved for {email}, but this installation sends no email: tell them yourself.',
+    'Invitation saved for {email}, but this deplyoment sends no email: tell them yourself.',
   'tenants.invite.mail.failed':
     'Invitation saved for {email}, but its email could not be sent. Send it again, or tell them yourself.',
   'tenants.invite.mail.limited':
@@ -2635,7 +2634,7 @@ const en = {
   'tenants.ownerOrAdminOnly': 'During the Alpha, a person can only be an owner or an admin.',
   'tenants.notify.heading': 'Email summaries',
   'tenants.notify.intro':
-    'How often a summary of waiting decisions is emailed; an empty one is never sent.',
+    'How often a summary is emailed; an empty one is never sent.',
   'tenants.notify.intro.more': 'Silence means nothing is waiting.',
   'tenants.notify.cadence': 'Summary',
   'tenants.notify.daily': 'Daily',
@@ -2643,7 +2642,7 @@ const en = {
   'tenants.notify.off': 'No summary',
   'tenants.notify.locale': 'Language',
   'tenants.notify.recipients':
-    'Sent to every owner and admin below; urgent events are emailed as they happen regardless.',
+    'Sent to every owner and admin below; urgent events are emailed as they happen.',
   'tenants.notify.save': 'Save',
   'tenants.notify.saved': 'Saved.',
   'tenants.notify.readError':
@@ -2675,11 +2674,11 @@ const en = {
   'attention.sharingOpen': 'rows open on the sharing checklist',
   'attention.couldNotRead': 'One queue could not be read, so these numbers may be low.',
   'attention.couldNotRead.why':
-    'The count shown is what we managed to read, not what is there — a queue that refused to answer is reported as unreadable rather than as empty, because "I found nothing" and "I could not look" are not the same sentence and only one of them means you are finished. The reason each one gave is listed beneath it, in the words the server used.',
-  'attention.failed': 'This list could not be loaded, so nothing here is reliable.',
+    'The count shown is what we where able to read, not what is there — a queue system we could not read is reported as unreadable rather than as empty. The reason one gave is listed beneath it, in the words the server used.',
+  'attention.failed': 'This list could not be loaded... try refreshing the page.',
   'decisions.presets.heading': 'Standing answers',
   'decisions.presets.intro':
-    'Categories set to answer themselves are still recorded here, but nobody is interrupted about them.',
+    'Categories set to answer themselves are still recorded here, but they require no action on your part.',
   'decisions.presets.intro.more': 'You can see what was noticed and what closed it.',
   'decisions.presets.newMailbox': 'When a mailbox appears that nothing migrates',
   'decisions.presets.ask': 'Ask me',
@@ -2693,11 +2692,11 @@ const en = {
   'permissions.body':
     'Sharing rights do not move with the mail; work the list before delivery moves.',
   'permissions.body.more':
-    'Who could see whose calendar, who had access to which shared files: none of that moves. Get the list, work through it on the new system, and do it before delivery moves; rights added afterwards were missing for however long that took. The list names what it could not read, at the top.',
+    'Who could see whose calendar, who had access to which shared files: none of that migrated. Get the list, work through it on the new system, and do it before delivery moves; rights added afterwards were missing for however long that took. The list starts with naming what it could not read.',
   'permissions.blindSpot':
     'Two blind spots: mailbox FullAccess or Send-As, and OneDrive and SharePoint sharing.',
   'permissions.blindSpot.more':
-    'Who had full access to a mailbox or could send as it: Microsoft does not expose that to us at all, so you have to read it out of Exchange yourself. Sharing on the two file platforms is only included when this installation was given that extra permission. The document says which of the two it actually read, and how to cover the rest.',
+    'Who had full access to someone else\'s a mailbox or could send as it: Microsoft does not expose that to us to migrate, so you would have to add that account seperate. Sharing on the two file platforms is only included when this installation was given that extra permission. The document says which of the two it actually read, and how to cover the rest.',
   // The same line for a Google source: Drive sharing IS read, so the two
   // blind spots are the mailbox's and the calendar's.
   'permissions.blindSpot.google':
@@ -2804,7 +2803,7 @@ const en = {
   'connections.standing.whichSide':
     'Signs in with this and one other connection; Test this one to find out which.',
   // And when the pass could tell (second slice): no guessing left to do.
-  'connections.standing.thisSide': 'It failed on this account.',
+  'connections.standing.thisSide': 'Failed on this account.',
   // What a probe FOUND, rendered from its outcome code (workplan 0080).
   // Ours, so translated; the provider's own refusal is never in here — it
   // renders verbatim, because that string is what you paste into their
@@ -2821,7 +2820,7 @@ const en = {
   'probe.targetStatus.refused': 'It is reachable and refused the credentials.',
   'probe.targetStatus.check': 'Check the target host and port.',
   'probe.noProbe':
-    'No check exists for a {kind} connection yet; that is our gap, not your credentials.',
+    'No check exists for a {kind} connection yet... sorry!',
   // The deadline (2026-09-02): unknown, not refused, and the connection is
   // kept so it can be tested again.
   'probe.timedOut':
@@ -2845,9 +2844,9 @@ const en = {
   'probe.said.answeredOtherNoStatus':
     '{who} answered with something that is not a DAV, JMAP or IMAP error.',
   'probe.said.unreachable':
-    'Nothing answered at that address: the name did not resolve, the connection was refused, or no answer came in time. Check the host name and the port.',
+    'Nothing answered at that address: name did not resolve, connection was refused, or a timeout. Check the host name and the port.',
   'probe.said.certificate':
-    'The server\'s certificate did not verify for that name, or it has expired, so the test stopped before signing in.',
+    'The server\'s certificate did not verify for that name, or has expired, so the test stopped before signing in.',
   'probe.said.insideOurNetwork':
     'That address is inside this service\'s own network, or the server sent the test on to one that is, so we did not connect to it. Give the address the server has on the internet.',
   'probe.said.unknown':
@@ -2858,7 +2857,7 @@ const en = {
   // The limit on tests (0136 T3): sixty an hour per member, across the doors
   // that connect to an address somebody typed.
   'probe.tooManyTests':
-    'You have tested a lot of connections in the last hour. Wait a little, then test again.',
+    'You have tested too many connections in the last hour. Wait a little, then test again.',
   'probe.measuring': 'Still measuring what this account can carry — refresh in a minute.',
   // A listing that stopped at its cap saw AT LEAST this many. It used to say
   // so in the headline; the headline no longer carries a count, so it says so
@@ -2918,7 +2917,7 @@ const en = {
   'connections.removed.revoked': 'Its access at the provider has been revoked.',
   'connections.removed.failed':
     'Our copy is deleted, but the provider still has its access: withdraw it yourself.',
-  'connections.removed.unsupported': 'We deleted our copy; this provider has no revocation we can call.',
+  'connections.removed.unsupported': 'We deleted our copy; this provider has no revocation we can trigger.',
   'connections.removed.none': 'No credential was stored for it.',
   // Filled in, but not usable — distinct from "still needed" (0072).
   'connections.invalidValues.lead': 'These values cannot be used as they are:',
@@ -2931,8 +2930,8 @@ const en = {
   'setup.settled': 'settled',
   'setup.stillOpen': 'still to do',
   'setup.waitingOnOthers': 'waiting on an administrator',
-  'setup.allDone': 'Everything is settled; you can connect the account now.',
-  'setup.nothingToDo': 'Nothing to set up in advance; you can connect the account straight away.',
+  'setup.allDone': 'Everything is settled, you can connect the account now.',
+  'setup.nothingToDo': 'Nothing to set up in advance, you can connect the account straight away.',
   // Every step was about one's own app, and this service has its own (0148 T2 (b)).
   'setup.deploymentApp':
     'Nothing to create: this service has its own {provider} app. Press Connect with {provider}.',
@@ -2942,7 +2941,7 @@ const en = {
     'Each system has its own short list to arrange before a migration can start.',
   'setup.choose.sources': 'Migrating from',
   'setup.choose.targets': 'Migrating to',
-  'setup.admin.question': 'Do you administer this system for your organisation?',
+  'setup.admin.question': 'Do you manage this system for your organisation?',
   'setup.admin.yes': 'Yes, I am an administrator',
   'setup.admin.no': 'No, someone else is',
   'setup.admin.unsure': 'Show me everything',
@@ -2950,17 +2949,17 @@ const en = {
   'setup.yours': 'What you can do yourself',
   'setup.forYourAdmin': 'What your administrator has to do',
   'setup.forYourAdmin.hint':
-    'Send these to whoever administers the system; tick them off once confirmed.',
+    'Send these to you admin, tick them once confirmed.',
   'setup.yields': 'You get:',
   'setup.tick': 'Mark this step done',
-  'setup.untick': 'Mark this step not done',
+  'setup.untick': 'Mark this step to do',
   'setup.skip': 'Skip',
   'setup.unskip': 'Un-skip',
   'setup.state.done': 'Done',
   'setup.state.skipped': 'Skipped — deliberately not needed',
   'setup.needsAnotherPerson': 'needs an administrator',
   'setup.needsAnotherPerson.hint':
-    'Needs admin rights; usually the step you wait on.',
+    'Needs admin rights.',
   'setup.box.create_app.title': 'Create a Box platform app',
   'setup.box.create_app.detail':
     'Box Developer Console → Create Platform App → Custom App, and choose Client Credentials Grant (Server Authentication).',
@@ -2987,7 +2986,7 @@ const en = {
   // each line is true with or without the button (0148 T2 (b)).
   'setup.dropbox.redirect_uri.title': 'Using the button? Register its redirect address',
   'setup.dropbox.redirect_uri.detail':
-    'Only for Connect with Dropbox with your own app: under the button the form shows an address. Add that exact address in the Dropbox App Console under OAuth 2 → Redirect URIs, then press the button again. Without the button, skip this step.',
+    'Only for Connect with Dropbox with your own app: under the button the form shows an redirect address. Add that exact address in the Dropbox App Console under OAuth 2 → Redirect URIs, then press the button again. Without the button, skip this step.',
   'setup.dropbox.consent.title': 'Have the account owner consent once',
   'setup.dropbox.consent.detail':
     'Connect with Dropbox does this step and the next when the account owner presses it. Without the button, send the person whose Dropbox is being migrated through the authorisation URL for this app, with token_access_type=offline so Dropbox returns a refresh token.',
@@ -3073,7 +3072,7 @@ const en = {
   'setup.apple.app_password.yields': 'an app-specific password, such as abcd-efgh-ijkl-mnop.',
   'setup.nextcloud.account_exists.title': 'Make sure the Nextcloud account exists',
   'setup.nextcloud.account_exists.detail':
-    'The account must exist on the Nextcloud already, with enough room for what is coming. This service creates no accounts.',
+    'The account must exist on the Nextcloud already, with enough storage for what is coming. This service creates no accounts.',
   'setup.nextcloud.app_password.title': 'Create an app password',
   'setup.nextcloud.app_password.detail':
     'In Nextcloud: Settings → Security → Devices & sessions. Type a name under App name, such as Migration, press Create new app password and copy the password. Use it rather than the account’s own password: it can be revoked without changing yours.',
@@ -3101,7 +3100,7 @@ const en = {
   'access.organisation': 'Organisation',
   'access.optional': 'optional',
   'access.note': 'What are you moving?',
-  'access.noteHint': 'Roughly how many mailboxes, and from where; one sentence is plenty.',
+  'access.noteHint': 'Roughly how many mailboxes, file accounts, GB/TB, and from where; one sentence is plenty.',
   // The site's estimate and Leaving… pages hand their answers along (workplan
   // 0152 T7 (a)): the note arrives as one sentence built from them, which the
   // person reads and edits like anything else they type here.
@@ -3133,7 +3132,7 @@ const en = {
   // open, declined, granted. The links to the policy and, during the alpha,
   // the conditions follow it under the form.
   'access.privacy':
-    'We keep what you type to decide on your request and to answer you; asking creates no account. ' +
+    'We keep what you fill in to decide on your request and to answer you; asking creates no account. ' +
     'We keep it while your request is open. If we decline it, we delete it 30 days after our decision. ' +
     'If we grant it, it stays with your account and is erased with it.',
   'access.backToSignIn': 'Already have an account? Sign in',
@@ -3149,10 +3148,10 @@ const nl: Record<keyof typeof en, string> = {
   'fold.how': 'Hoe?',
   // Het woord op een uitklapbaar deel (workplan 0118) — zie het Engelse blok.
   'fold.why': 'Waarom?',
-  'status.link': 'Storingsstatus',
-  'notFound.heading': 'Hier staat niets.',
+  'status.link': 'Service status',
+  'notFound.heading': 'Hier staat niets... we migreren rustig aan verder.',
   'notFound.lede':
-    'Geen scherm heeft dit adres; hernoemd of nooit bestaan, uw migraties zijn ongemoeid.',
+    'Geen pagina heeft dit adres (meer), uw migraties zijn ongemoeid.',
   'notFound.back': 'Terug naar het begin',
   'nav.mappings': 'Migraties',
   'nav.back': 'Terug',
@@ -3169,31 +3168,30 @@ const nl: Record<keyof typeof en, string> = {
   'nav.signOut': 'Uitloggen',
   'nav.reportProblem': 'Een probleem melden',
   'report.title': 'Een probleem melden',
-  'report.lead': 'Vertel ons wat er gebeurde. We lezen elke melding en antwoorden per e-mail.',
+  'report.lead': 'Wat is aan de hand? U krijgt zsm. antwoord per e-mail.',
   'report.description': 'Wat gebeurde er?',
   'report.descriptionHint': 'Wat u deed, wat u verwachtte, en wat u in plaats daarvan zag.',
   'report.screenshot': 'Schermafbeelding (optioneel)',
   'report.screenshotHint':
     'PNG of JPEG, tot 5 MB: kies er een, sleep hem hierheen of plak hem ergens op deze pagina. ' +
-    'Hij toont uw scherm: bekijk hem eerst.',
-  'report.screenshotTooBig': 'Die afbeelding is groter dan 5 MB.',
+    'Hij toont uw scherm, dus controleer even of wat u opstuurd klopt.',
+  'report.screenshotTooBig': 'Afbeelding is groter dan 5 MB.',
   'report.screenshotType': 'Kies een PNG of een JPEG.',
   'report.screenshotHelp': 'Hoe maak ik een schermafbeelding?',
   'report.screenshotHelp.windows':
-    'Windows: druk op Windows+Shift+S, kies het deel van het scherm en plak hem hier met Ctrl+V. ' +
-    'Of druk op Print Screen (in Windows 11 krijgt u dan dezelfde keuze) en plak hem daarna.',
+    'Windows: druk op Windows+Shift+S, kies het deel van het scherm en plak hier met Ctrl+V. ' +
+    'Of druk op Print Screen (in Windows 11 krijgt u dan dezelfde keuze) en plak hier.',
   'report.screenshotHelp.mac':
-    'Mac: druk op Shift+Command+4, sleep over het deel dat u wilt en kies de afbeelding daarna op uw bureaublad. ' +
+    'Mac: druk op Shift+Command+4, selecteer het deel dat u wilt en kies de afbeelding daarna via uw bureaublad. ' +
     'Of druk op Control+Shift+Command+4 om hem te kopiëren, en plak hem hier met Command+V.',
   'report.screenshotHelp.iphone':
     'iPhone of iPad: druk tegelijk op de zij- of bovenknop en volume omhoog (op een model met een ' +
     "thuisknop: de zij- of bovenknop en de thuisknop). Kies de afbeelding daarna in Foto's.",
   'report.screenshotHelp.android':
-    "Android: druk tegelijk op de aan/uit-knop en volume omlaag, op de meeste telefoons. Kies de afbeelding daarna uit uw foto's.",
+    "Android: druk tegelijk op de aan/uit-knop en volume omlaag, op de meeste telefoons. Sommige andere door te swipen met 2 of 3 vingers. Kies de afbeelding daarna uit uw foto's.",
   'report.screenshotHelp.chromebook': 'Chromebook: druk op Ctrl+Vensters weergeven en plak hem hier met Ctrl+V.',
   'report.screenshotHelp.check':
-    'Bekijk hem voordat u hem verstuurt: de afbeelding toont alles wat er op uw scherm stond, dus kijk of ' +
-    'er niets op staat wat u liever niet meestuurt.',
+    'Controleer de afbeelding voordat u deze verstuurt.',
   'report.screenshotAttached': 'Bijgevoegd: {name} ({size}).',
   'report.screenshotRemove': 'Schermafbeelding verwijderen',
   'report.screenshotPaste': 'Schermafbeelding plakken',
@@ -3204,13 +3202,13 @@ const nl: Record<keyof typeof en, string> = {
   'report.tooLarge': 'De schermafbeelding is te groot om te versturen: kies een kleinere en verstuur de melding opnieuw.',
   'report.timedOut':
     'Binnen {minutes} minuten kwam er geen antwoord, dus deze pagina weet niet of uw melding is aangekomen. ' +
-    'Wat u schreef staat er nog. Verstuurt u de melding opnieuw, dan gaat een kleinere schermafbeelding sneller.',
-  'report.goesTo': 'Gaat naar het supportteam van Ownpace.',
-  'report.goesTo.mail': 'Gaat naar het supportteam van Ownpace, per e-mail naar {address}.',
-  'report.goesTo.helpdesk': 'Gaat naar de helpdesk van het supportteam van Ownpace.',
+    'Wat u schreef staat er nog. Verstuurt de melding opnieuw.',
+  'report.goesTo': 'Aan het Ownpace-supportteam.',
+  'report.goesTo.mail': 'Gaat naar het Ownpace-supportteam: {address}.',
+  'report.goesTo.helpdesk': 'Gaat naar de helpdesk van het Ownpace-supportteam.',
   'report.facts': 'Wat we meesturen',
   'report.facts.more':
-    'Wat u schrijft, en uw schermafbeelding als u die toevoegt. Daarbij gaan deze regels mee, precies zoals ons supportteam ze leest, in het Engels:',
+    'Wat u schrijft, en uw schermafbeelding als u die toevoegt. Daarbij gaat deze informatie mee:',
   'report.facts.known': 'Wat u schrijft, en uw schermafbeelding als u die toevoegt. Daarbij gaan mee:',
   'report.facts.reading': 'De rest zoeken we op…',
   'report.facts.unshown':
@@ -3232,49 +3230,49 @@ const nl: Record<keyof typeof en, string> = {
   'report.send': 'Melding versturen',
   'report.sending': 'Versturen…',
   'report.sent': 'Verstuurd. Uw melding heeft nummer {ticket}, en we antwoorden naar {email}.',
-  'report.sent.mail': 'Verstuurd naar ons supportteam, met meldingskenmerk {reference}. We antwoorden per e-mail naar {email}.',
+  'report.sent.mail': 'Verstuurd naar ons supportteam met meldingskenmerk {reference}. We antwoorden naar {email}.',
   'report.unavailable': 'Een probleem melden is op deze dienst niet ingesteld.',
   'language.label': 'Taal',
   'common.requestFailed': 'Het verzoek is niet voltooid.',
   'asof.updated': 'Bijgewerkt',
   'asof.refresh': 'Vernieuwen',
   'failure.authExpired':
-    'De verbinding met dit account is verlopen. Druk op de pagina Accounts op Opnieuw verbinden of Inloggegevens vervangen, welke van de twee er bij dit account staat; daarna gaat dit verder waar het gestopt is \u2014 er gaat niets verloren.',
+    'De verbinding met dit account is verlopen. Druk op de pagina Accounts op Opnieuw verbinden of Inloggegevens vervangen; daarna wordt verder gegaan waar gestopt was \u2014 er gaat niets verloren.',
   'failure.rateLimited':
-    'De provider vroeg ons om rustiger aan te doen. Er is niets mis: dit pauzeert en hervat vanzelf.',
+    'De provider vroeg ons (geautomatiseerd) om rustiger aan te doen. Er is niets mis: dit pauzeert en hervat vanzelf.',
   'failure.quotaExceeded':
-    'Dit account heeft bereikt wat de provider per dag toestaat. Het hervat morgen vanzelf \u2014 u hoeft niets te doen.',
+    'Dit account heeft de limiet bereikt wat de provider per dag toestaat. Het hervat morgen vanzelf \u2014 u hoeft niets te doen.',
   'failure.policyRefused':
-    'Nog niet gemigreerd: Google-bestanden in een formaat dat het nieuwe account niet kan ontvangen. Kies er een dat beide kanten aankunnen onder Exportformaat voor Google-bestanden en klik op Probeer opnieuw \u2014 of laat deze items achter.',
+    'Nog niet gemigreerd: Google-bestanden in een formaat dat het nieuwe account niet kan ontvangen. Kies een formaat dat beide kanten aan kan onder Exportformaat voor Google-bestanden, en klik op Probeer opnieuw \u2014 of laat deze items achter.',
   'failure.policyRefused.dropbox':
-    'Nog niet gemigreerd: Dropbox Paper-documenten, die Dropbox alleen als export afgeeft. Kies een formaat onder Exportformaat voor Paper-documenten en klik op Probeer opnieuw \u2014 of laat deze items achter. Andere documenten die Dropbox in een eigen formaat bewaart, worden hier niet geëxporteerd: exporteer ze zelf vanuit Dropbox, of laat ze achter.',
+    'Nog niet gemigreerd: Dropbox Paper-documenten, die Dropbox alleen als export kan laten ophalen. Kies een bestandsformaat onder Exportformaat voor Paper-documenten, en klik op Probeer opnieuw \u2014 of laat deze items achter. Andere documenten die Dropbox in een eigen (intern)formaat bewaart, worden niet geëxporteerd: exporteer ze zelf vanuit Dropbox, of laat ze achter.',
   'failure.tooLarge':
-    'Niet gemigreerd: groter dan deze dienst tijdens de Alpha kopieert. Kopieer deze bestanden met de hand, of laat ze achter.',
+    'Niet gemigreerd: bestandsomvang groter dan Ownpace tijdens de Alpha aan kan. Kopieer deze bestanden met de hand, of laat ze achter.',
   'failure.sourceRefused':
-    'Niet gemigreerd: het oude account wilde dit niet afgeven, dus er is niets naar het nieuwe gestuurd \u2014 daar valt niets te controleren. Probeer opnieuw als dat veranderd is, of laat deze items achter.',
+    'Niet gemigreerd: het oude account wilde dit niet laten lezen, dus er is niets naar het nieuwe gestuurd \u2014 daar valt niets te controleren. Probeer opnieuw als dat veranderd is, of laat deze items achter.',
   'failure.targetRefused':
-    'De bestemming weigerde dit te accepteren. Veelvoorkomende oorzaken: geen ruimte meer, een grens aan de grootte van één upload, een alleen-lezen map, of ontbrekende rechten op het doelaccount. Antwoordde de bestemming met een interne fout, dan staat de reden in het logboek van de bestemming zelf en niet in het antwoord dat wij terugkregen.',
+    'De bestemming weigerde dit te accepteren. Veelvoorkomende oorzaken: geen vrije ruimte meer, een grens aan de grootte van één geupload bestand, een alleen-lezen map, of ontbrekende rechten op het doelaccount. Als de doelserver antwoord gaf met een interne fout, dan kan die terug worden gelezen in het logboek van de bestemming zelf, niet in het antwoord dat wij terugkregen.',
   'failure.formatRefused':
     'De bestemming accepteert dit SOORT bestand niet. Met het account zelf is niets mis \u2014 het is de indeling of de naam van dit bestand die daar niet is toegestaan. Geef het in het oude account een andere naam, wijzig het exportformaat op de koppeling, of laat deze items achter.',
   'failure.network':
-    'We konden de server niet bereiken. Dit duurt meestal kort en wordt vanzelf opnieuw geprobeerd.',
+    'We konden de server niet bereiken. Dit is meestal tijdelijk, en er wordt vanzelf opnieuw geprobeerd.',
   'failure.unknown':
-    'We konden dit niet classificeren. De melding van de provider zelf staat hieronder \u2014 helpt die niet, stuur hem ons dan en we kijken mee.',
-  'failure.sendItToUs': 'Stuur het ons',
+    'We konden dit niet classificeren. De melding van de provider zelf staat hieronder \u2014 biedt dat geen duidelijkheid, stuur hem ons dan en we kijken mee.',
+  'failure.sendItToUs': 'Stuur naar ons',
   'failure.reference': 'Referentie: {reference}',
-  'failure.side.source': 'Het gebeurde aan de bronkant.',
-  'failure.side.target': 'Het gebeurde aan de doelkant.',
+  'failure.side.source': 'Trad op aan de bronkant.',
+  'failure.side.target': 'Trad op aan de doelkant.',
   // De supportschermen van de beheerder (werkplan 0110 T4). Gericht aan de
   // BEHEERDER, niet aan een klant.
   'support.heading': 'Support',
   'support.recorded':
     'Elk scherm dat u hier opent wordt op uw naam vastgelegd; klanten kunnen dat zien.',
   'support.recorded.why':
-    'Het supportleeslogboek legt bij elk scherm de organisatie en het tijdstip vast, en klanten kunnen dat logboek te zien krijgen.',
+    'Het supportleeslogboek legt bij elk scherm de organisatie en het tijdstip vast, en klanten kunnen dat logboek inzien.',
   'support.metadataOnly':
-    'Alleen namen, statussen, aantallen en tijden; geen bericht, afspraak, contact of bestand wordt hier getoond.',
+    'Alleen namen, statussen, aantallen en tijden; hier wordt geen inhoud getoond.',
   'support.metadataOnly.why':
-    'Dat kan ook niet: de database levert dit scherm een vaste lijst kolommen.',
+    'Dat kan ook niet: de database levert dit scherm een beperkt aantal vaste kolommen.',
   'support.noOrganisations': 'Geen organisaties om te tonen.',
   'support.notFound': 'Hier is niets te tonen.',
   'support.back': 'Alle organisaties',
@@ -3292,7 +3290,7 @@ const nl: Record<keyof typeof en, string> = {
   'support.noPeople': 'Niemand hoort bij deze organisatie.',
   'support.col.email': 'E-mailadres',
   'support.notArrivedYet':
-    'Heeft zich nog niet aangemeld; dit wordt een link zodra de uitnodiging is aangenomen.',
+    'Nog niet eerder aangemeld; dit wordt een link zodra de uitnodiging is aangenomen.',
   'support.seededDemoAccount':
     'Een demovoorbeeld uit het seed-script; er is geen identiteitsprovider-account, en dat komt er niet.',
   'support.openAtProvider': 'Dit account openen bij de identiteitsprovider',
@@ -3303,13 +3301,13 @@ const nl: Record<keyof typeof en, string> = {
   'support.noConnections': 'Geen verbindingen.',
   'support.noMigrations': 'Geen migraties.',
   'support.noInvoices': 'Geen facturen.',
-  'support.hold': 'Nieuwe rondes pauzeren',
-  'support.hold.hint': 'Stopt nieuwe rondes, ook via een knop; wat al loopt wordt afgerond.',
+  'support.hold': 'Nieuwe migratie rondes pauzeren',
+  'support.hold.hint': 'Stopt nieuwe rondes, wat al liep wordt afgerond.',
   'support.hold.hint.why':
-    'Dit is de drain: de synchronisatietick stopt binnen een minuut met inplannen, en wat al loopt wordt normaal afgerond. Elke ingelogde klant ziet een melding met uw tekst, of een standaardzin als u het veld leeg laat. Uw tekst is ook, woord voor woord, het antwoord op elke knop die werk zou starten terwijl de pauze aanstaat (\'Synchroniseer nu\', \'Start migratie\', een controle), en wat zo geweigerd wordt, onthoudt het platform niet. Zeg dus wanneer het kopiëren weer begint en vraag de klant het daarna opnieuw te proberen, bijvoorbeeld: \'We werken het platform bij en kopiëren rond 15:00 weer. Tot die tijd start er niets. Probeer het daarna opnieuw.\' Zodra u de pauze opheft, starten de geplande rondes bij de volgende tick weer.',
-  'support.hold.on': 'Gepauzeerd sinds {since}. Er starten geen nieuwe rondes.',
-  'support.hold.off': 'Niet gepauzeerd. Nieuwe rondes starten volgens schema.',
-  'support.hold.start': 'Nieuwe rondes pauzeren',
+    'Dit is de drain: de synchronisatietick stopt binnen een minuut met inplannen, en wat liep wordt normaal afgerond. Elke ingelogde klant ziet een melding met uw tekst, of een standaardzin bij leeg laten van het veld. Uw tekst wordt ook weergegeven bij elke knop waarop een klant klikt terwijl de pauze aanstaat (\'Synchroniseer nu\', \'Start migratie\', een controle). Wat zo wordt geweigerd, wordt niet opgeslagen. Beschrijf dus wanneer de migraties hervatten en vraag de klant daarna opnieuw te proberen. Bijvoorbeeld: \'We werken het platform bij en migreren rond 15:00 weer verder. Tot die tijd start er niets. Probeer het daarna opnieuw.\' Zodra u de pauze opheft, starten uw migraties weer.',
+  'support.hold.on': 'Gepauzeerd sinds {since}. Er starten geen nieuwe migratie-rondes.',
+  'support.hold.off': 'Niet gepauzeerd. Nieuwe migratie-rondes starten volgens schema.',
+  'support.hold.start': 'Nieuwe migratie-rondes pauzeren',
   'support.hold.end': 'Pauze opheffen',
   'support.hold.message': 'Wat klanten te lezen krijgen',
   'support.hold.message.placeholder': 'Over ongeveer een uur weer terug.',
@@ -3322,15 +3320,15 @@ const nl: Record<keyof typeof en, string> = {
   'support.platform.state.unchecked': 'nog niet gecontroleerd',
   'support.platform.page.off': 'Deze installatie heeft geen statuspagina.',
   'support.platform.page.unreachable':
-    'De statuspagina antwoordde niet; op een omgeving die er een heeft is dat nieuws.',
+    'De statuspagina antwoordde niet....',
   'support.platform.unread': 'De platformstatus kon niet worden gelezen.',
   'support.platform.checked': 'Gecontroleerd {when}.',
   'support.noDomains': 'Er is nog niets gedraaid.',
-  'support.waiting.none': 'Er wacht niets op hen.',
+  'support.waiting.none': 'Er wacht niets.',
   'support.waiting.some':
-    'Er wachten beslissingen op deze klant; hun eigen scherm zegt welke, dit telt ze alleen.',
+    'Er wachten beslissingen op deze klant; hun eigen scherm zegt welke.',
   'support.noFourthLevel':
-    'Er is geen scherm onder dit scherm; items zouden onderwerpregels zijn, waar support ophoudt.',
+    'Er is geen scherm met dieper inzicht.',
   'support.col.organisation': 'Organisatie',
   'support.col.status': 'Status',
   'support.col.joined': 'Klant sinds',
@@ -3351,45 +3349,44 @@ const nl: Record<keyof typeof en, string> = {
   // Het staffelbewijs (0109 T4 zichtbaar gemaakt). "Pakket", hetzelfde woord
   // dat `access.tier` richting de klant gebruikt.
   'support.usage': 'Gebruik en pakket deze maand',
-  'support.usage.beyondTable': 'Voorbij de gepubliceerde tabel — een maat om over te praten.',
+  'support.usage.beyondTable': 'Voorbij de tier — neem contact op.',
   'support.usage.perMonth': 'per maand',
   'support.usage.free': 'gratis',
   'support.usage.decidedBy.paths':
-    'Bepaald door de paden-as — hoeveel er tegelijk lopen.',
+    'Bepaald door het aantal gelijktijdige migraties — hoeveel er tegelijk lopen.',
   'support.usage.decidedBy.data':
-    'Bepaald door de data-as — wat verplaatst is, zet de ondergrens.',
+    'Bepaald door de hoeveelheid data — wat verplaatst is, zet de ondergrens.',
   'support.usage.decidedBy.both': 'Beide assen komen op hetzelfde pakket uit.',
   'support.usage.peak': 'Vastgelegde piek deze maand',
   'support.usage.noPeak': 'nog niets vastgelegd',
   'support.usage.now': 'Houdt nu een plek vast',
-  'support.usage.data': 'Verplaatste data (eerste kopieën, zonder de Alpha)',
+  'support.usage.data': 'Verplaatste data',
   'support.usage.note':
-    'De hoogste as bepaalt; een toekomstige factuur gebruikt dezelfde afleiding, en kijken verandert niets.',
+    'De hoogste bepaalt; een toekomstige factuur gebruikt dezelfde afleiding.',
   'support.usage.why':
-    'Paden die tegelijk lopen, of data die sinds het begin is verplaatst: alleen eerste kopieën, en een gepauzeerd pad houdt zijn plek.',
+    'Migraties die gelijktijdig lopen, of data die sinds het begin is verplaatst: alleen de al verplaatste hoeveelheid, en een gepauzeerd migratiepad houdt zijn plek.',
   // Wat na een wissing bewaard is gebleven.
   'support.retained.link': 'Facturen bewaard na een wissing',
   'support.retained.heading': 'Facturen bewaard na een wissing',
   'support.retained.why':
-    'Wanneer een organisatie wordt gewist, blijven de facturen bewust bewaard — de ' +
-    'fiscale bewaarplicht duurt langer dan de klantrelatie — en worden ze losgekoppeld ' +
-    'van de organisatie. Ze horen bij geen enkele klant meer, dus geen enkele ' +
+    'Wanneer een organisatie wordt gewist, blijven de facturen bewaard vanwege fiscale bewaarplicht ' +
+    'Vanaf dan horen ze bij geen enkele (operationele) klant meer, dus geen enkele ' +
     'organisatiepagina kan ze tonen. Hier staan ze. De referentie is een eenrichtings- ' +
-    'hash van het gewiste id, getoond zodat facturen uit dezelfde wissing bij elkaar ' +
-    'te zien zijn; hij leidt niet terug naar iemand.',
+    'hash van het gewiste id, getoond zodat facturen uit dezelfde opschoning bij elkaar ' +
+    'te zien zijn, zonder terug te leiden naar iemand in het systeem.',
   'support.retained.none': 'Er zijn geen facturen bewaard — er is nog niets gewist.',
   'support.retained.noName': 'niet vastgelegd',
   'support.retained.notPurged': 'nog niet gewist',
   'support.retained.col.billedTo': 'Gefactureerd aan',
-  'support.retained.col.erased': 'Gewist',
-  'support.retained.col.erasure': 'Wissing',
+  'support.retained.col.erased': 'Opgeschoond',
+  'support.retained.col.erasure': 'Opschoning',
   'support.log.link': 'Het logboek: auditgebeurtenissen, fouten en waarschuwingen',
   'support.log.heading': 'Logboek',
   'support.log.lead': 'Het auditlog en de fouten en waarschuwingen van de applicatie, nieuwste eerst. Alleen metadata.',
   'support.log.lead.why':
-    'Wat een auditgebeurtenis veranderde staat hier niet: dat blijft in de database, om bij een onderzoek op te vragen. De tekst van een fout blijft in de uitvoer van de server, op de regel met dezelfde referentie. Elke pagina van dit logboek die je opent wordt vastgelegd, met de filters.',
+    'Wat een auditgebeurtenis veranderde staat hier niet: dat blijft in de database, opvraagbaar. De tekst van een fout blijft in de uitvoer van de server, op de regel met dezelfde referentie. Iedere handeling in dit scherm wordt vastgelegd, inclusief zoekfilters.',
   'log.lead.why':
-    'Wat een auditgebeurtenis veranderde staat hier niet: dat blijft in de database, om bij een onderzoek op te vragen. De tekst van een fout blijft in de uitvoer van de appliance, op de regel met dezelfde referentie.',
+    'Wat een auditgebeurtenis veranderde staat hier niet: dat blijft in de database, opvraagbaar. De tekst van een fout blijft in de uitvoer van de appliance, op de regel met dezelfde referentie.',
   'support.log.level': 'Niveau',
   'support.log.level.any': 'Alle',
   'support.log.level.error': 'Fout',
@@ -3399,15 +3396,15 @@ const nl: Record<keyof typeof en, string> = {
   'support.log.category': 'Foutcategorie',
   'support.log.category.any': 'Alle',
   'support.log.reference': 'Referentie',
-  'support.log.from': 'Vanaf (UTC)',
-  'support.log.to': 'Tot en met (UTC)',
+  'support.log.from': 'Vanaf',
+  'support.log.to': 'Tot en met',
   'support.log.search': 'Zoeken',
   'support.log.organisation': 'Organisatie: {name}',
   'support.log.migration': 'Migratie: {name}',
-  'support.log.remove': 'Dit filter weghalen',
+  'support.log.remove': 'Filter weghalen',
   'support.log.none': 'Niets in het logboek komt overeen.',
   'support.log.older': 'Ouder',
-  'support.log.newest': 'Terug naar het nieuwste',
+  'support.log.newest': 'Terug naar nieuwste',
   'support.log.byTheService': 'de dienst',
   'support.log.col.time': 'Tijd',
   'support.log.col.level': 'Niveau',
@@ -3422,7 +3419,7 @@ const nl: Record<keyof typeof en, string> = {
   'support.export.heading': 'Auditexport',
   'support.export.lead': 'Elke auditgebeurtenis als JSON-regel, oudste eerst, voor je eigen logopslag.',
   'support.export.lead.why':
-    'Dezelfde regels die de API afdrukt wanneer een gebeurtenis wordt vastgelegd, teruggelezen uit het auditlog: een adres of een bestandsnaam staat erin als pseudoniem. Laat het veld leeg om bij de eerste gebeurtenis te beginnen, of vul de cursor van de vorige download in om daar verder te gaan. Gebeurtenissen van de laatste vijf minuten komen mee met de volgende download. Elke opgehaalde pagina wordt vastgelegd als één inzage van alle klanten.',
+    'Dezelfde regels die de API geeft wanneer een gebeurtenis wordt vastgelegd, teruggelezen uit het auditlog: een adres of een bestandsnaam staat erin als pseudoniem. Laat het veld leeg om bij de eerste gebeurtenis te beginnen, of vul de cursor van de vorige download in om daar verder te gaan. Gebeurtenissen van de laatste vijf minuten komen mee met de volgende download. Elke opgehaalde pagina wordt vastgelegd als één inzage van alle klanten.',
   'support.export.after': 'Beginnen na (optioneel)',
   'support.export.download': 'Downloaden',
   'support.export.busy': 'Bezig met downloaden… regels tot nu toe: {count}',
@@ -3436,11 +3433,11 @@ const nl: Record<keyof typeof en, string> = {
   'queue.loadFailed': 'Deze wachtrij kon niet worden geladen.',
   'queue.noMappings': 'Geen migraties geconfigureerd.',
   'discovery.scanning': 'Uw bron wordt gescand (alleen-lezen)…',
-  'discovery.stillCounting': 'Nog aan het tellen: {domains}. Deze pagina werkt zichzelf bij.',
+  'discovery.stillCounting': 'Nog aan het inventariseren: {domains}. Deze pagina werkt zichzelf bij.',
   'discovery.stillCounting.slow':
-    'Nog aan het tellen: {domains}. Dit duurt langer dan normaal; herlaad om te kijken.',
+    'Nog aan het inventariseren: {domains}. Dit duurt langer dan normaal; herlaad de pagaina om bij te werken.',
   'discovery.countedEarlier':
-    'Cijfers voor {domains} komen van een eerdere controle; de laatste poging mislukte.',
+    'Cijfers voor {domains} komen van een eerdere inventarisatie, de laatste poging mislukte.',
   'discovery.th.type': 'Type',
   'discovery.th.collections': 'Collecties',
   'discovery.th.items': 'Items',
@@ -3461,15 +3458,15 @@ const nl: Record<keyof typeof en, string> = {
   'discovery.unlisted.post': '— er verandert niets op uw oude server.',
   'discovery.errorWithheld.cell': 'Gestopt op een fout',
   'discovery.errorWithheld':
-    'De melding van de aanbieder bij een telling die stopte wordt niet getoond: de persoon heeft dit account zelf gekoppeld, en de melding kan hun bestanden noemen.',
+    'De melding van de aanbieder bij een inventarisatie die stopte, wordt niet getoond: de persoon heeft dit account zelf gekoppeld, en de melding kan hun bestanden vermelden.',
   'failure.withheld':
-    'De eigen melding van de aanbieder wordt niet getoond: de persoon heeft dit account zelf gekoppeld, en de melding kan hun bestanden noemen. Support kan haar lezen via de referentie.',
+    'De eigen melding van de aanbieder wordt niet getoond: de persoon heeft dit account zelf gekoppeld, en die melding kan hun bestanden vermelden. Support kan de melding lezen via de referentie.',
   'failures.withheld':
-    'Namen van items en de meldingen van de aanbieder worden niet getoond: de persoon heeft dit account zelf gekoppeld, en ze kunnen hun bestanden noemen. Elke fout zegt nog steeds wat voor fout het is en wat u kunt doen.',
+    'Namen van items en de meldingen van de aanbieder worden niet getoond: de persoon heeft dit account zelf gekoppeld, en deze kunnen hun bestanden vermelden. Elke fout zegt nog steeds welke fout het is en wat u zelf kunt doen.',
   'discovery.colliding.pre.one': 'item dat al op uw bestemming staat, komt overeen met iets in uw bron. We',
   'discovery.colliding.pre.many': 'items die al op uw bestemming staan, komen overeen met iets in uw bron. We',
   'discovery.colliding.strong': 'behouden de kopie op de bestemming',
-  'discovery.colliding.post': 'en overschrijven die niet. Al het andere dat er al staat, blijft onaangeroerd.',
+  'discovery.colliding.post': 'en overschrijven die niet. Al het andere dat er al staat, blijft ongemoeid.',
   'discovery.refusedNative.kind.document': 'Google Documenten',
   'discovery.refusedNative.kind.spreadsheet': 'Google Spreadsheets',
   'discovery.refusedNative.kind.presentation': 'Google Presentaties',
@@ -3478,29 +3475,29 @@ const nl: Record<keyof typeof en, string> = {
   'discovery.refusedNative.kind.other': 'Google-bestanden',
   'discovery.refusedNative.strong': 'worden niet gekopieerd',
   'discovery.refusedNative.post':
-    'met dit exportformaat. Kies er een die ze wel omvat, of laat ze achter.',
+    'met dit exportformaat. Kies er een die wel zou passen, of laat ze achter.',
   'confirm.refusedAck': 'Ik begrijp dat {kinds} ({n} bestanden) niet worden gekopieerd.',
-  'applyFlag.readFailed': 'Kon niet lezen of handmatig verwijderen aan staat:',
+  'applyFlag.readFailed': 'Kon niet lezen of Handmatig verwijderen aan staat:',
   'applyFlag.on': 'Handmatig verwijderen staat AAN voor deze migratie.',
   'applyFlag.off': 'Handmatig verwijderen staat UIT voor deze migratie (de standaard).',
   'applyFlag.onMeans': 'Er wordt niets verwijderd totdat u bij een item op een verwijderknop drukt.',
   'applyFlag.turnOff': 'Uitschakelen',
   'applyFlag.refusesUntilOn':
-    'De server weigert elke verwijderknop op dit scherm totdat dit is ingeschakeld.',
+    'De server weigert verwijderingen op dit scherm, totdat dit is ingeschakeld.',
   'applyFlag.config.pre': 'Op deze appliance staat de waarde in het configuratiebestand van de mapping',
-  'applyFlag.config.post': '; bewerk het bestand en herstart om dit te wijzigen. Geen API past dit aan.',
+  'applyFlag.config.post': '; bewerk het bestand en herstart om dit te wijzigen.',
   'applyFlag.turnOn': 'Handmatig verwijderen inschakelen',
   'applyFlag.turnOnArmed': 'Bevestig: handmatig verwijderen inschakelen',
   'autoApply.on':
-    'Automatisch verwijderen van oude kopieën van verplaatste bestanden staat AAN voor deze migratie.',
+    'Automatisch verwijderen van oude kopieën van inmiddels verplaatste bestanden staat AAN voor deze migratie.',
   'autoApply.off':
-    'Automatisch verwijderen van oude kopieën van verplaatste bestanden staat UIT voor deze migratie (de standaard).',
+    'Automatisch verwijderen van oude kopieën van inmiddels verplaatste bestanden staat UIT voor deze migratie (de standaard).',
   'autoApply.onButWaiting':
-    'Automatisch verwijderen van oude kopieën van verplaatste bestanden staat AAN, en doet niets zolang handmatig verwijderen uit staat.',
+    'Automatisch verwijderen van oude kopieën van inmiddels verplaatste bestanden staat AAN, en doet niets zolang handmatig verwijderen uit staat.',
   'autoApply.hint':
-    'Werkt zonder u: alleen oude kopieën van verplaatste bestanden, nooit verwijderingen.',
+    'Werkt automatisch zonder uw tussenkomst: alleen oude kopieën van inmiddels verplaatste bestanden, nooit uw eigen verwijderingen.',
   'autoApply.why':
-    'Alleen wanneer dezelfde bytes aantoonbaar onder de nieuwe naam aanwezig zijn, de koppeling uniek is, de melding een volledige ronde heeft doorstaan en er geen massale gebeurtenis wordt vermoed. Alles wat wordt geweigerd blijft op het scherm Verplaatsingen voor u staan. Verwijderingen worden nooit automatisch verwijderd.',
+    'Alleen wanneer dezelfde bytes aantoonbaar onder de nieuwe naam aanwezig zijn, de koppeling uniek is, de melding een volledige ronde heeft doorstaan en er geen onevenredige bulk gebeurtenis optreed. Alles wat wordt geweigerd, blijft op het scherm Verplaatsingen staan, voor u om te beoordelen. Verwijderingen in de bron, worden nooit automatisch verwijderd in waar u heen gaat.',
   'autoApply.turnOn': 'Automatisch verwijderen inschakelen',
   'autoApply.turnOnArmed': 'Bevestig: oude kopieën onbeheerd verwijderen',
   'autoApply.turnOff': 'Automatisch verwijderen uitschakelen',
@@ -3537,13 +3534,13 @@ const nl: Record<keyof typeof en, string> = {
   'login.callback.failed': 'Die aanmelding is niet voltooid.',
   'login.callback.again': 'Opnieuw proberen',
   // ---- Het doodlopende eind van een GESLAAGDE aanmelding — zie het Engelse blok. ----
-  'login.noOrganisation': 'Uw account hoort nog niet bij een organisatie.',
+  'login.noOrganisation': 'Uw account hoort nog niet bij een organisatie (gezin/team/etc.).',
   'login.noOrganisation.signedInAs': 'U bent aangemeld als {email}.',
   'login.noOrganisation.ask': 'Toegang aanvragen',
   'login.noOrganisation.already':
     'Al aangevraagd? Dan wacht het op een antwoord en hoort u het per e-mail.',
   'login.noOrganisation.already.why':
-    'Nogmaals aanvragen kan geen kwaad: een tweede aanvraag terwijl de eerste openstaat wordt niet twee keer vastgelegd.',
+    'Nogmaals aanvragen kan geen kwaad: een tweede aanvraag terwijl de eerste openstaat wordt echter niet dubbel vastgelegd.',
   // ---- The access QUEUE (workplan 0093 T7) — see the English block. ----
   'nav.accessRequests': 'Toegangsverzoeken',
   'nav.support': 'Support',
@@ -3556,7 +3553,7 @@ const nl: Record<keyof typeof en, string> = {
     'Ze worden opgebouwd uit de instellingen van deze omgeving, dus wat hier staat is wat er daadwerkelijk wordt gevraagd; elk adres moet in de console van die dienst worden geregistreerd.',
   'redirects.loading': 'Instellingen van deze omgeving lezen\u2026',
   'redirects.failed':
-    'Kon ze niet lezen. De lijst wordt door de API opgebouwd; controleer of die draait.',
+    'Kon niet lezen. De lijst wordt door de API opgebouwd; controleer of deze draait.',
   'redirects.group.migration': 'Migratiebronnen \u2014 in de eigen OAuth-client van de aanbieder',
   'redirects.group.signIn': 'Aanmelden \u2014 in uw identiteitsprovider',
   'redirects.group.socialSignIn': 'Sociaal aanmelden \u2014 bij elke bovenliggende aanbieder',
@@ -3564,17 +3561,17 @@ const nl: Record<keyof typeof en, string> = {
   'redirects.unconfigured':
     'Deze omgeving kent haar eigen adres nog niet, dus hier valt nog niets te tonen.',
   'redirects.unconfigured.why':
-    'Stel dat eerst in: een gok registreren levert later een mismatch op, op het scherm van de aanbieder.',
+    'Stel dat eerst in: een gok registreren levert later een mismatch op...',
   // ---- Een uitnodiging beantwoorden (workplan 0099) — zie het Engelse blok. ----
   'invite.title': 'U bent uitgenodigd',
-  'invite.subtitle': 'Meedoen is uw keuze. Er gebeurt niets tot u die maakt.',
+  'invite.subtitle': 'Wilt u migreren?',
   'invite.none': 'Er wacht niets op u.',
   'invite.asRole': 'als {role}',
   'invite.accept': 'Meedoen',
-  'invite.joining': 'Bezig met meedoen…',
+  'invite.joining': 'Bezig toe te treden…',
   'invite.decline': 'Afwijzen',
   'invite.skip': 'Nu niet',
-  'invite.skipHelp': 'Nu niet verandert niets; wij vragen het opnieuw bij uw volgende aanmelding.',
+  'invite.skipHelp': 'Nu geen keuze is geen afstel, wij vragen het opnieuw bij uw volgende aanmelding.',
   'invite.skipHelp.why':
     'Afwijzen wordt vastgelegd, en alleen de organisatie kan u opnieuw uitnodigen.',
   'invite.confirmDecline':
@@ -3583,7 +3580,7 @@ const nl: Record<keyof typeof en, string> = {
   // §4.4), and "uitloggen", the nav's (review of 2026-09-29).
   'acceptance.title': 'Voordat u begint',
   'acceptance.changedTitle': 'De teksten zijn gewijzigd',
-  'acceptance.lead': 'Lees deze drie teksten. Ze zeggen wat we met uw accounts en uw gegevens doen.',
+  'acceptance.lead': 'Lees deze teksten. Ze zeggen wat we met uw accounts en uw gegevens doen.',
   'acceptance.list': 'De teksten om te aanvaarden',
   'acceptance.doc.alpha': 'Voorwaarden voor de Alpha',
   'acceptance.doc.privacy': 'Privacyverklaring',
@@ -3593,7 +3590,7 @@ const nl: Record<keyof typeof en, string> = {
   'acceptance.newTab': '(opent in een nieuw tabblad)',
   'acceptance.changed': 'Een of meer teksten zijn gewijzigd sinds u ze voor het laatst aanvaardde.',
   'acceptance.record': 'We leggen vast welke versie van elke tekst u hebt aanvaard, in welke taal, en wanneer.',
-  'acceptance.accept': 'Alle drie aanvaarden',
+  'acceptance.accept': 'Allemaal aanvaarden',
   'acceptance.accepting': 'Bezig met vastleggen…',
   'acceptance.notNow': 'Nu niet, uitloggen',
   'acceptance.notCurrent':
@@ -3601,89 +3598,89 @@ const nl: Record<keyof typeof en, string> = {
   'acceptance.checking': 'Uw account wordt gecontroleerd…',
   'acceptance.readFailed': 'Uw account kon niet worden gelezen.',
   'acceptance.retry': 'Opnieuw proberen',
-  'acceptance.fault.read': 'De fout ligt bij ons, niet bij u.',
-  'acceptance.fault.record': 'Uw aanvaarding is niet vastgelegd: de fout ligt bij ons, niet bij u. Probeer het opnieuw.',
+  'acceptance.fault.read': 'Er ging iets fout bij ons,... probeer later nog eens of neem contact op met support.',
+  'acceptance.fault.record': 'Uw aanvaarding is niet vastgelegd: iets ging fout bij ons, probeer het opnieuw.',
   'acceptance.unreachable': 'De dienst was niet bereikbaar. Controleer uw verbinding en probeer het opnieuw.',
   'acceptance.forbidden':
     'Dit account heeft geen toegang tot deze organisatie. Log uit en log in met het account waarmee u bent uitgenodigd.',
   'acceptance.refused':
-    'Er is niets opgeslagen: de voorwaarden voor de Alpha, de privacyverklaring en de servicevoorwaarden waren nog niet aanvaard. Probeer het opnieuw zodra u ze hebt aanvaard.',
+    'Er is niets opgeslagen: de voorwaarden waren nog niet aanvaard. Probeer het opnieuw zodra u ze hebt aanvaard.',
   'queue.title': 'Toegangsverzoeken',
-  'queue.subtitle': 'Mensen die om toegang hebben gevraagd.',
+  'queue.subtitle': 'Mensen die toegang wensen.',
   'queue.empty': 'Er wacht niemand.',
-  'queue.emptyDecided': 'Er is nog niets besloten.',
+  'queue.emptyDecided': 'Nog niets besloten.',
   'queue.tab.open': 'Wachtend',
-  'queue.tab.granted': 'Toegekend',
+  'queue.tab.granted': 'Toegelaten',
   'queue.tab.declined': 'Afgewezen',
   'queue.asked': 'Gevraagd',
   'queue.orgLabel': 'Naam van de organisatie',
-  'queue.orgHelp': 'Hoe deze organisatie gaat heten. Standaard wat zij hebben opgegeven.',
-  'queue.noteLabel': 'Notitie (voor u, niet voor hen)',
+  'queue.orgHelp': 'Hoe deze organisatie gaat heten.',
+  'queue.noteLabel': 'Notitie (intern)',
   'queue.grant': 'Toegang geven',
   'queue.decline': 'Afwijzen',
   'queue.granting': 'Organisatie wordt aangemaakt…',
   'queue.granted': 'Toegekend. Zij worden eigenaar zodra zij zich voor het eerst aanmelden.',
   'queue.declined': 'Afgewezen. Het verzoek blijft vastgelegd.',
   'queue.decidedBy': 'Besloten door',
-  'queue.confirmDecline': 'Dit verzoek afwijzen en hen mailen? Het blijft hoe dan ook vastgelegd.',
+  'queue.confirmDecline': 'Dit verzoek afwijzen en mailen?',
   'queue.confirmDeclineQuiet':
-    'Dit verzoek afwijzen zonder hen te mailen? Het blijft hoe dan ook vastgelegd.',
+    'Dit verzoek afwijzen zonder hen te mailen?',
   'queue.tellThem': 'Mail hen als u afwijst',
   'queue.tellThemHelp':
-    'Een korte afwijzing in hun taal, zonder reden of uw notitie; uitvinken bij rommel.',
+    'Een korte afwijzing in eigen taal, zonder reden of uw notitie; uitvinken bij spam.',
   'queue.tellThemHelp.why':
-    'Dit formulier is openbaar, dus een verzonnen adres is van een onbekende. Bij toekennen mailen wij altijd; zo weten zij dat zij zich kunnen aanmelden.',
+    'Dit formulier is openbaar, dus men kan ook email adressen verzinnen. Bij toekennen mailen wij altijd en dient men een emailadres te valideren.',
   'queue.alreadyOwnsHeading': 'Dit adres is al eigenaar van een organisatie',
   'queue.alreadyOwnsHelp':
-    'Nogmaals toekennen maakt nóg een organisatie, met hen als eigenaar van beide; meestal dubbel gedrukt.',
+    'Nogmaals toekennen maakt nóg een organisatie, met hen als eigenaar van beide; is dat de bedoeling?',
   'queue.alreadyOwnsHelp.why':
-    'De app moet hen dan bij elke aanmelding vragen welke zij bedoelen. Gaat het echt om een tweede organisatie, geef dat hieronder aan.',
+    'Diegene moet bij iedere aanmelding kiezen namens welke organisatie men wil inloggen. Gaat het echt om een tweede organisatie, geef dat dan hieronder aan.',
   'queue.grantAnyway': 'Tweede organisatie aanmaken',
   'queue.grantAnywayCancel': 'Laat het zoals het is',
   'queue.mailSent': 'Wij hebben {email} gemaild.',
   'queue.mailOff':
-    'Er is niemand gemaild — deze installatie verstuurt geen e-mail. Laat het {email} zelf weten.',
+    'Er is niemand gemaild — deze deplyoment verstuurt geen e-mail. Laat het {email} zelf weten.',
   'queue.mailFailed':
     'De e-mail aan {email} is niet verstuurd; laat het hen zelf weten, controleer de e-mailinstellingen.',
-  'queue.mailSkipped': 'Er is niemand gemaild, zoals u vroeg.',
+  'queue.mailSkipped': 'Er is niemand gemaild.',
   'wizard.proto.imap.hint': 'Standaard e-mailprotocol',
   'wizard.google.connect': 'Verbinden met Google',
   'connections.googleFaces': 'Wat dit account gaat leveren',
   'wizard.google.connect.hint':
-    'Opent het toestemmingsscherm van Google en vult het vernieuwingstoken in.',
+    'Opent het toestemmingsscherm van Google en vult het refreshtoken in.',
   'wizard.google.connect.why': 'Een token plakken dat u al heeft, blijft gewoon werken.',
   'wizard.google.connect.needsDomains':
     'Vink eerst aan wat u wilt migreren; de toestemming vraagt alleen daarom.',
-  'wizard.google.connect.needsClient': 'Vul eerst de Client-ID en het clientgeheim in.',
+  'wizard.google.connect.needsClient': 'Vul eerst de Client-ID en het clientsecret in.',
   'wizard.consent.received': 'Toestemming ontvangen — de verbinding wordt opgeslagen en getest.',
   'wizard.consent.noProvider':
-    'Deze installatie heeft geen toestemmingsknop voor dit type; plak in plaats daarvan een vernieuwingstoken.',
+    'Deze installatie heeft geen toestemmingsknop voor dit type; plak in plaats daarvan een refreshstoken.',
   'wizard.consent.needsAccount': 'Vul eerst het accountadres in.',
   'wizard.consent.windowBlocked':
     'Uw browser heeft de pagina van {provider} niet geopend. Open die met deze link:',
   'wizard.consent.windowExpired': 'De link naar de pagina van {provider} is verlopen. Druk opnieuw op {button}.',
   'wizard.consent.legal': 'Wat we met uw gegevens doen, en onder welke voorwaarden:',
   'wizard.google.deploymentClient':
-    'Deze installatie heeft een eigen Google-client; vul beide in om uw eigen te gebruiken.',
+    'Deze installatie heeft een eigen Google-oauth-client; vul beide in om uw eigen te gebruiken.',
   'wizard.google.connect.halfClient':
-    'Vul zowel de Client-ID als het clientgeheim in, of geen van beide.',
+    'Vul zowel de Client-ID als het clientsecret in, of geen van beide.',
   'wizard.google.ownClient': 'Uw eigen Google-client gebruiken',
   // Zie het Engelse blok.
   'wizard.google.redirectUri':
-    'Registreer dit exacte adres in uw Google-client onder Geautoriseerde omleidings-URI’s:',
+    'Registreer dit exacte adres in uw Google-client onder Geautoriseerde redirect/callbacks-URI’s:',
   'wizard.google.readsOnly':
     'Voor e-mail, agenda’s en contacten beschrijft Google een ruimere toestemming dan Ownpace gebruikt. Ownpace leest alleen; het wijzigt en verwijdert niets in dit account.',
   'wizard.google.inAppBrowser':
-    'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar Safari of Chrome, en meld u in die browser aan bij Ownpace.',
+    'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar uw favoriete browser en meld u in die browser aan bij Ownpace.',
   'wizard.dropbox.connect': 'Verbinden met Dropbox',
   'wizard.dropbox.connect.hint':
-    'Opent het toestemmingsscherm van Dropbox en vult het vernieuwingstoken in.',
+    'Opent het toestemmingsscherm van Dropbox en vult het refreshtoken in.',
   'wizard.dropbox.connect.why': 'Een token plakken dat u al heeft, blijft gewoon werken.',
   'wizard.dropbox.connect.needsClient': 'Vul eerst de App key en het App secret in.',
   'wizard.dropbox.connect.halfClient':
     'Vul zowel de App key als het App secret in, of geen van beide.',
   'wizard.dropbox.deploymentClient':
-    'Deze installatie heeft een eigen Dropbox-app; vul beide in om uw eigen te gebruiken.',
+    'Deze installatie heeft een eigen Dropbox-oauth-app; vul beide in om uw eigen te gebruiken.',
   'wizard.dropbox.ownClient': 'Uw eigen Dropbox-app gebruiken',
   'wizard.dropbox.redirectUri':
     'Registreer dit exacte adres in uw Dropbox-app onder OAuth 2 → Redirect URIs:',
@@ -3693,34 +3690,34 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.microsoft.connect.why':
     'Het vraagt u welk account, zodat een migratie niet stilletjes de verkeerde postbus leest. Een token plakken dat u al heeft, blijft gewoon werken.',
   'wizard.microsoft.connect.needsClient':
-    'Vul eerst de toepassings-id (client) en het clientgeheim in.',
+    'Vul eerst de toepassings-id (client) en het clientsecret in.',
   'wizard.microsoft.connect.halfClient':
-    'Vul zowel de toepassings-id (client) als het clientgeheim in, of geen van beide.',
+    'Vul zowel de toepassings-id (client) als het clientsercet in, of geen van beide.',
   'wizard.microsoft.deploymentClient':
     'Deze installatie heeft een eigen Microsoft-appregistratie; vul beide in om uw eigen te gebruiken.',
   'wizard.microsoft.ownClient': 'Uw eigen appregistratie gebruiken',
   'wizard.microsoft.redirectUri':
-    'Registreer dit exacte adres in uw appregistratie onder Verificatie → Omleidings-URI’s:',
+    'Registreer dit exacte adres in uw appregistratie onder Verificatie → redirect/callback-URI’s:',
   'wizard.microsoft.orgApproval':
-    'Voor een werk- of schoolaccount kan eerst goedkeuring van de beheerder van uw organisatie nodig zijn. Voor een persoonlijk Microsoft-account niet.',
-  'wizard.microsoft.tenantId.hint': 'Laat leeg tenzij uw appregistratie voor één tenant is.',
+    'Voor een werk- of schoolaccount kan eerst goedkeuring nodig zijn van uw beheerder. Voor een persoonlijk Microsoft-account is dat niet nodig.',
+  'wizard.microsoft.tenantId.hint': 'Laat leeg tenzij uw appregistratie voor één specifieke tenant is.',
   'wizard.microsoft.tenantId.why':
-    'Leeg betekent de mapinstelling van deze installatie, die elk werk-, school- of persoonlijk Microsoft-account accepteert. Een registratie voor één tenant die naar de verkeerde map wordt gestuurd, mislukt met een melding dat de toepassing niet is gevonden, wat op een typefout lijkt en het niet is.',
+    'Leeg betekent de instelling van deze installatie, die elk werk-, school- of persoonlijk Microsoft-account accepteert. Een registratie voor één specifieke tenant die naar de verkeerde wordt gestuurd, mislukt met een melding dat de toepassing niet is gevonden, wat op een typefout lijkt, maar het niet is.',
   'wizard.proto.apple.hint':
     'Eén Apple-account: e-mail, agenda’s, contacten en herinneringen, wat u aanvinkt.',
   'wizard.appleAppPassword': 'App-specifiek wachtwoord',
   'wizard.appleAppPassword.hint':
     'Niet uw Apple-accountwachtwoord: een app-specifiek wachtwoord van account.apple.com.',
   'wizard.appleAppPassword.why':
-    'Apple weigert het accountwachtwoord hier met opzet. Maak er een aan op account.apple.com → Aanmelden en beveiliging → App-specifieke wachtwoorden en plak het hier. Het bereikt uw e-mail, agenda’s, contacten en herinneringen, en u kunt het daar altijd weer intrekken.',
+    'Apple weigert het accountwachtwoord hier met opzet. Maak een App-specifieke aan op account.apple.com → Aanmelden en beveiliging → App-specifieke wachtwoorden en plak het hier. Het bereikt uw e-mail, agenda’s, contacten en herinneringen, en u kunt het daar altijd weer intrekken.',
   'wizard.proto.archive.hint':
     'Een gedownloade Google Takeout- of Apple-export (nog te testen): foto’s en bestanden.',
   'wizard.archiveProvider': 'Welke export',
   'wizard.archiveProvider.hint':
     'Welk bedrijf het archief maakte; bij de verkeerde keuze vinden we niets.',
   'wizard.archiveProvider.why':
-    'Dat bepaalt hoe wij de export lezen, en aan de bestanden zelf is het niet te zien. Google-exports vraagt u aan op takeout.google.com, Apple-exports op privacy.apple.com.',
-  'wizard.archiveProvider.untested': 'Nog te testen',
+    'Dat bepaalt hoe wij de export lezen; aan de bestanden zelf is dit niet te zien. Google-exports vraagt u aan op takeout.google.com, Apple-exports op privacy.apple.com.',
+  'wizard.archiveProvider.untested': 'Te testen',
   'wizard.archiveProvider.noReader.apple-privacy':
     'Een Apple-export kunnen we nog niet lezen. Vraag die alleen aan voor uw eigen archief.',
   'wizard.archivePath': 'Waar het archief staat',
@@ -3729,20 +3726,20 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.archivePath.why':
     'Bestaat de export uit meerdere delen, zet die dan in één map en wijs er een willekeurig deel van aan: wij lezen ze allemaal, en zeggen het als er een ontbreekt. Of pak ze eerst allemaal uit in dezelfde map. Er wordt niets naar geschreven: wij lezen alleen.',
   'wizard.archiveWhere': 'Waar de export staat',
-  'wizard.archiveWhere.target': 'In een map in de bestanden van uw bestemming (Nextcloud of WebDAV)',
+  'wizard.archiveWhere.target': 'In een map in uw bestemming (Nextcloud of WebDAV)',
   'wizard.archiveWhere.disk': 'Op de schijf van deze appliance',
   'wizard.archiveWhere.disk.onlyAppliance': 'Alleen op een eigen appliance',
   'wizard.archivePath.target': 'Map in de bestanden van uw bestemming',
   'wizard.archivePath.target.hint': 'De map zoals u die in uw bestanden ziet, vanaf de hoofdmap.',
   'wizard.archivePath.target.why':
-    'Bijvoorbeeld Exports/takeout-20260904, of één .zip in die map: de andere delen ernaast lezen wij ook. Zet de .zip-delen van de export in één map in de bestanden waar deze migratie naartoe schrijft, en vul die map hier in. De delen blijven daar na de migratie staan en nemen ruimte in; verwijder ze zodra u het resultaat hebt gecontroleerd.',
+    'Bijvoorbeeld Exports/takeout-20260904, of één .zip in die map: de andere delen ernaast lezen wij ook. Zet de .zip-bestanden in één map in waar deze migratie naartoe schrijft, en vul die map hier in. De delen blijven daar na de migratie staan en nemen ruimte in; verwijder ze zodra u het resultaat hebt gecontroleerd.',
   'wizard.proto.microsoft.hint':
     'Eén Microsoft 365-account, één aanmelding: e-mail, agenda’s, contacten en OneDrive.',
   'wizard.group.provider': 'Uw aanbieder',
   'wizard.group.protocol': 'Elke server, via protocol',
   'frontDoor.experimental': 'Experimenteel',
   'frontDoor.experimental.why':
-    'Gebouwd, maar nog niet gebruikt met een echt account van deze soort. Houd uw oude account aan en controleer wat er aankomt.',
+    'Gebouwd, maar moet nog meer vlieguren maken qua tests. Houd uw oude account aan en controleer wat er aankomt.',
   'frontDoor.experimental.wholeDomain.why':
     'Domeinbrede delegatie is gebouwd, maar nog niet gebruikt met een echte Workspace. Houd uw oude account aan en controleer wat er aankomt.',
   'wizard.m365.viaImap': 'Via IMAP',
@@ -3767,7 +3764,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.gmailAppPassword.hint':
     'Alleen voor persoonlijke Google-accounts; laat leeg om OAuth te gebruiken.',
   'wizard.gmailAppPassword.why':
-    'Google raadt het af, en wij ook: een app-wachtwoord opent de hele mailbox, terwijl een token met toestemming één ding opent. Het vereist tweestapsverificatie op het account, bestaat niet op een Workspace-account en wordt ingetrokken in de app-wachtwoordenlijst van het account zelf, zonder Ownpace aan te raken, wat het enige echte voordeel ervan is.',
+    'Raad Google af (wij ook): een app-wachtwoord opent de hele mailbox, terwijl een token met gerichte toestemming één ding opent. Het vereist tweestapsverificatie op het account, bestaat niet op een Workspace-account en wordt ingetrokken in de app-wachtwoordenlijst van het account zelf, zonder dat u iets hoeft met Ownpace.',
   'wizard.refreshToken': 'Refresh-token',
   'wizard.refreshToken.hint':
     'Het gedelegeerde token van het account; behandel het als een wachtwoord.',
@@ -3780,44 +3777,44 @@ const nl: Record<keyof typeof en, string> = {
   'settings.exportPolicy.consequence':
     'Gewijzigde soorten worden onder hun nieuwe namen gekopieerd. Oude kopieën blijven, vermeld als eerdere exports.',
   'settings.exportPolicy.consequence.why':
-    'Een Google-document heeft geen eigen bestandsnaam: het formaat geeft het er een (Rapport.docx, Rapport.odt), en aan de naam herkent een migratie een bestand. Onder een nieuw formaat kopieert de volgende ronde dus elk document onder de nieuwe naam. Op het nieuwe systeem wordt niets herschreven of verwijderd: een kopie in het oude formaat blijft staan, en het scherm Verwijderingen vermeldt die als eerdere export, nooit als verwijderd in Google. Behoud hem, of verwijder hem zelf op het nieuwe systeem. Geeft een nieuw formaat een document dezelfde naam, dan staat bij elke kopie onder welk formaat die is gemaakt, dus een latere ronde leest de wijziging als een formaatwijziging en nooit als een bewerking.',
+    'Een Google-document heeft geen eigen bestandsformaat: het gekozen exportformaat geeft het er een (Rapport.docx, Rapport.odt), en aan de naam herkent een migratie een bestand. Onder een nieuw formaat kopieert de volgende ronde dus elk document onder die nieuwe naam. Op het nieuwe systeem wordt niets overschreven of verwijderd: een kopie in het oude formaat blijft staan, en het scherm Verwijderingen vermeldt die als eerder geexporteert, nooit als verwijderd in Google. Behoud, of verwijder hem zelf op het nieuwe systeem. Geeft een nieuw formaat een document dezelfde naam, dan staat bij elke kopie onder welk formaat die was gemaakt, dus een latere ronde leest de wijziging als een formaatwijziging en niet als een bewerking.',
   'settings.exportPolicy.refusedBefore':
-    'De volgende ronde probeert Google-bestanden die het oude formaat weigerde opnieuw, in dit formaat.',
+    'De volgende ronde probeert Google-bestanden die het oude formaat weigerde opnieuw, maar dan in dit formaat.',
   'settings.exportPolicy.refusedBefore.why':
-    'De naam van een Google-bestand komt van het formaat (Rapport.docx, Rapport.odt), en aan de naam herkent een migratie een bestand, dus onder een nieuw formaat is elk bestand nieuw voor de migratie. De volgende ronde probeert elk bestand onder de nieuwe naam, en de weigering die onder de oude naam is vastgelegd, sluit vanzelf, omdat het bestand niet meer onder die naam voorkomt. Kan het nieuwe formaat een bestand ook niet meenemen, dan staat het één keer bij Mislukkingen, onder de nieuwe naam. Opslaan verandert zelf niets: de ronde doet het. Een bestand dat u hebt laten liggen, blijft liggen.',
+    'De naam van een Google-bestand komt van het bestandsformaat (Rapport.docx, Rapport.odt), en aan de naam herkent een migratie een bestand, dus onder een nieuw formaat is elk bestand nieuw voor de migratie. De volgende ronde probeert elk bestand onder de nieuwe naam, en de weigering die onder de oude naam is vastgelegd, wordt daarmee vanzelf opgelost. Past het nieuwe formaat ook niet, dan komt dat opnieuw te staan bij Mislukkingen, onder de nieuwe naam. Opslaan verandert zelf niets: de ronde moet dit tegenkomen. Een bestand waar u niets voor kiest, blijft achter.',
   'settings.exportPolicy.toFailures': 'Bekijk ze bij Mislukkingen',
   'settings.exportPolicy.refusedBefore.count':
-    'De volgende ronde probeert {count} Google-bestand(en) die het oude formaat weigerde opnieuw, in dit formaat.',
+    'De volgende ronde probeert {count} Google-bestand(en) opnieuw die met het oude formaat werden geweigert.',
   'settings.exportPolicy.refused': 'Dit kon niet worden gewijzigd:',
   'settings.exportPolicy.failed': 'Dat is niet opgeslagen:',
   'settings.exportPolicy.paper': 'Exportformaat voor Paper-documenten',
   'settings.exportPolicy.paper.consequence':
     'Paper-documenten worden opnieuw gekopieerd onder hun nieuwe namen. Oude kopieën blijven, vermeld als eerdere exports.',
   'settings.exportPolicy.paper.consequence.why':
-    'Een Paper-document heeft geen eigen bestandsnaam: het formaat voegt er een toe aan de naam (Notities.paper.md, Notities.paper.html), en aan de naam herkent een migratie een bestand. Onder een nieuw formaat kopieert de volgende ronde dus elk Paper-document onder de nieuwe naam. Op het nieuwe systeem wordt niets herschreven of verwijderd: een kopie in het oude formaat blijft staan, en het scherm Verwijderingen vermeldt die als eerdere export, nooit als verwijderd in Dropbox. Behoud hem, of verwijder hem zelf op het nieuwe systeem.',
+    'Een Paper-document heeft geen eigen bestandsformaat: het formaat voegt een extentie toe aan de naam (Notities.paper.md, Notities.paper.html), en aan de naam herkent een migratie een bestand. Onder een nieuw formaat kopieert de volgende ronde dus elk Paper-document onder de nieuwe naam. Op het nieuwe systeem wordt niets overschreven of verwijderd: een kopie in het oude formaat blijft staan, en het scherm Verwijderingen vermeldt deze als eerdere export. Behoud, of verwijder zelf op het nieuwe systeem.',
   'settings.exportPolicy.paper.refusedBefore':
     'De volgende ronde probeert de Paper-documenten die tot nu toe bleven staan opnieuw, in dit formaat.',
   'settings.exportPolicy.paper.refusedBefore.count':
     'De volgende ronde probeert {count} Paper-document(en) die tot nu toe bleven staan opnieuw, in dit formaat.',
   'settings.exportPolicy.paper.refusedBefore.why':
-    'Onder een formaat komt een Paper-document aan onder een nieuwe naam (Notities.paper.md), dus het is nieuw voor de migratie. De volgende ronde kopieert elk document, en de regel die onder de oude naam is vastgelegd, sluit vanzelf, omdat het document niet meer onder die naam voorkomt. Een document dat Dropbox niet in dit formaat aanbiedt, staat één keer bij Mislukkingen, met die reden. Opslaan verandert zelf niets: de ronde doet het. Andere documenten die Dropbox in een eigen formaat bewaart, blijven staan.',
-  'settings.schedule': 'Hoe vaak naar wijzigingen kijken',
+    'Onder een bestandsformaat komt een Paper-document aan met een nieuwe naam (Notities.paper.md), dus het is nieuw voor de migratie. De volgende ronde migreert elk document, en de regel die onder de oude naam is vastgelegd zorgt er voor dat dit vanzelf wordt opgelost. Een document dat Dropbox niet in dit formaat aanbiedt, komt bij Mislukkingen te staan met die reden. Opslaan verandert zelf niets: de migratie-ronde moet dit tegenkomen. Andere documenten die Dropbox in een eigen formaat bewaart, blijven achter.',
+  'settings.schedule': 'Frequentie om naar wijzigingen te kijken',
   'settings.schedule.own': 'Nu: {schedule}, buiten deze pagina ingesteld.',
-  'settings.schedule.hint': 'Rondes lopen direct na elkaar tot de eerste kopie klaar is.',
+  'settings.schedule.hint': 'Rondes lopen direct na elkaar tot de eerste volledige migratie klaar is.',
   'settings.schedule.hint.why':
-    'Een ronde duurt hoogstens 50 minuten. Tot elk gegevenstype één keer volledig is gekopieerd, start de volgende ronde zodra de vorige klaar is, en niet eerder dan 15 minuten na de start ervan, wat dit schema ook zegt. Een daglimiet voor downloaden bij de bron wordt eerst afgewacht. Daarna volgen de rondes dit schema en kopiëren ze alleen wat nieuw of gewijzigd is. Items die niet gekopieerd konden worden, houden de rondes niet aan de gang: ze wachten bij Mislukkingen. Bij Automatisch tellen de dagen vanaf het moment dat alles is gekopieerd, of vanaf de laatste keer dat iemand deze migratie opende of op Synchroniseer nu drukte, wat het laatst was.',
+    'Een ronde duurt maximaal 50 minuten. Totdat elk gegevenstype één keer volledig is gemigreerd, start de volgende ronde na de vorige, en niet eerder dan 15 minuten na de start. Er wordt rekening gehouden met (dag)limieten, zoals voor downloaden bij een bron. Daarna volgen de rondes dit schema en migreert alleen wat nieuw of gewijzigd is. Items die niet gekopieerd konden worden, worden geparkeerd bij Mislukkingen. Bij Automatisch tellen de dagen vanaf het moment dat alles was gemigreerd, of vanaf de laatste keer dat iemand deze migratie opende of op Synchroniseer nu drukte.',
   'pace.free.label': 'Free:',
-  'pace.free.oneMigration': 'één ronde per dag, van hoogstens 50 minuten.',
-  'pace.free.eachMigration': 'één ronde per dag voor elke migratie, van hoogstens 50 minuten.',
+  'pace.free.oneMigration': 'één ronde per dag, van maximaal 50 minuten.',
+  'pace.free.eachMigration': 'één ronde per dag voor elke migratie, van maximaal 50 minuten.',
   'pace.free.next': 'Volgende ronde: {time}.',
-  'pace.free.higher': 'Een hoger pakket kopieert ronde na ronde.',
+  'pace.free.higher': 'Een hoger pakket / tier migreert ronde na ronde.',
   'cadence.broughtBack.sixHourly':
-    'Alles was bijgewerkt, dus we keken elke 6 uur. Nu u deze migratie hebt geopend, kijken we 14 dagen lang weer elk uur.',
+    'Alles was bijgewerkt, dus we gingen het iets rustiger aan doen en keken nog slechts iedere 6 uur naar nieuwe items en wijzigingen. Nu u deze migratie hebt geopend, kijken we 14 dagen lang weer elk uur.',
   'cadence.broughtBack.daily':
-    'Alles was bijgewerkt, dus we keken eens per dag. Nu u deze migratie hebt geopend, kijken we 14 dagen lang weer elk uur.',
-  'cadence.broughtBack.keep': 'Wilt u dat het elk uur blijft, kies dan Elk uur onder Hoe vaak naar wijzigingen kijken.',
+    'Alles was bijgewerkt, dus we gingen het iets rustiger aan doen en keken nog eenmaal per dag naar nieuwe items en wijzigigen. Nu u deze migratie hebt geopend, kijken we 14 dagen lang weer elk uur.',
+  'cadence.broughtBack.keep': 'Wilt u dat het elk uur blijft, kies dan Elk uur onder Frquentie om naar wijzigingen te kijken.',
   'settings.schedule.freePace':
-    'Op Free kijkt een migratie eens per dag naar wijzigingen, welk schema er ook staat. Een hoger pakket kijkt zo vaak als elke 15 minuten.',
+    'Bij Free wordt er eenmaal per dag naar wijzigingen gekeken. Een hoger pakket (tier) kijkt tot maximaal elke 15 minuten.',
   'settings.schedule.freePace.link': 'Bekijk de pakketten op de pagina Facturering.',
   'settings.schedule.save': 'Dit schema opslaan',
   'settings.schedule.saving': 'Opslaan…',
@@ -3827,38 +3824,38 @@ const nl: Record<keyof typeof en, string> = {
   'settings.kinds': 'Gegevenstypen die deze migratie kopieert',
   'settings.kinds.add': '{kind} toevoegen',
   'settings.kinds.adding': 'Toevoegen…',
-  'settings.kinds.added': '{kind} toegevoegd. De volgende ronde kopieert het.',
+  'settings.kinds.added': '{kind} toegevoegd. De volgende ronde start migreren.',
   'settings.kinds.consequence':
-    'Een toegevoegd gegevenstype wordt vanaf de volgende ronde gekopieerd. Wat al gekopieerd is, verandert niet.',
+    'Een toegevoegd gegevenstype wordt vanaf de volgende ronde gemigreerd. Wat al gemigreerd was, verandert niet.',
   'settings.kinds.consequence.why':
-    'Het nieuwe gegevenstype wordt vanaf de volgende ronde volledig gekopieerd, zoals elk gegevenstype de eerste keer: ronde na ronde, wat het schema ook zegt, tot het één keer is gekopieerd. De gegevenstypen die deze migratie al kopieert, gaan verder waar ze waren. Een gegevenstype kan hier niet meer worden weggehaald: wat het al had gekopieerd, zou op het nieuwe systeem blijven staan zonder dat iets het nog bijwerkt.',
+    'Het nieuwe gegevenstype wordt vanaf de volgende ronde volledig gemigreerd, zoals elk gegevenstype de eerste keer: ronde na ronde, wat het schema ook zegt, tot het één keer volledig is gemigreerd. De gegevenstypen die deze migratie al bevat, gaan verder waar zij waren. Een gegevenstype kan hier niet meer worden weggehaald: wat het al had gekopieerd, zou op het nieuwe systeem blijven staan zonder dat iets het nog bijwerkt.',
   'settings.kinds.failed': 'Dat is niet toegevoegd:',
   'settings.kinds.stop': '{kind} stoppen',
   'settings.kinds.resume': '{kind} hervatten',
   'settings.kinds.stopping': 'Stoppen…',
   'settings.kinds.resuming': 'Hervatten…',
   'settings.kinds.stoppedByYou': 'door u gestopt',
-  'settings.kinds.stopped': '{kind} is gestopt. De kopieën blijven; hervat het om verder te gaan waar het stopte.',
-  'settings.kinds.resumed': '{kind} is hervat. De volgende ronde gaat verder waar het stopte.',
+  'settings.kinds.stopped': '{kind} is gestopt; hervat het om verder te gaan.',
+  'settings.kinds.resumed': '{kind} is hervat. De volgende ronde gaat straks verder.',
   'settings.kinds.stop.consequence':
-    'Een gestopt gegevenstype houdt wat het gekopieerd heeft, maar volgt de bron niet meer. Hervatten gaat verder waar het stopte.',
+    'Een gestopt gegevenstype onthoudt wat al was gemigreerd, maar volgt de bron niet meer. Hervatten gaat verder waar het stopte.',
   'settings.kinds.stop.consequence.why':
-    'Voor een account dat eerder sluit dan de andere: stop de e-mail op de dag dat het oude postvak sluit, terwijl agenda en contacten blijven kopiëren. Aan geen van beide kanten wordt iets verwijderd. Het laatste gegevenstype dat nog kopieert, kan niet worden gestopt; wilt u alles stoppen, beëindig dan de migratie.',
+    'Voor een account dat eerder moet stoppen met migreren: stop de e-mail migratie op de dag dat het oude postvak sluit, terwijl bijvoorbeeld agenda, contacten en bestanden blijven migreren. Aan geen van beide kanten wordt iets verwijderd. Het laatste gegevenstype waarvoor nog een migratie actief is kan niet worden gestopt: wilt u alles stoppen, beëindig dan de migratie.',
   'settings.kinds.held.lastOne':
-    'Het laatste gegevenstype dat nog kopieert. Wilt u het stoppen, beëindig dan de migratie.',
-  'settings.kinds.held.notRunning': 'Dit kan worden hervat zodra de migratie weer loopt.',
+    'Het laatste gegevenstype dat nog wordt gemigreerd. Wilt u het stoppen, beëindig dan de migratie.',
+  'settings.kinds.held.notRunning': 'Dit kan worden hervat zodra de migratie weer actief is.',
   'settings.kinds.stop.failed': 'Dat is niet gewijzigd:',
   'wizard.serviceAccountKey': 'Serviceaccount-sleutel',
   'wizard.serviceAccountKey.placeholder': 'Plak het volledige JSON-sleutelbestand',
   'wizard.serviceAccountKey.width':
     'Deze sleutel kan elke gebruiker in het domein lezen; trek hem bij de overstap in.',
   'wizard.serviceAccountKey.why':
-    'Domeinbrede delegatie kan elke Workspace-gebruiker lezen, al benoemt elke migratie nog steeds één account. Autoriseer alleen de benodigde scopes in de Admin-console en trek de delegatie bij de overstap weer in.',
+    'Domeinbrede delegatie kan veel van elke Workspace-gebruiker lezen, al benoemt elke migratie nog steeds één account. Autoriseer alleen de benodigde scopes in de Admin-console en trek de delegatie bij de overstap weer in.',
   'wizard.nativePolicy': 'Google Documenten, Spreadsheets, Presentaties en Tekeningen',
   'wizard.nativePolicy.hint':
     'Hiervan is geen bestand te kopiëren, alleen een weergave van Google.',
   'wizard.nativePolicy.hint.why':
-    'Een Google-document staat bij Google, niet in een bestand: er is niets om over te zetten. Drive kan er een document of een PDF van maken, en díe weergave zou aankomen. Ze laten staan is het alternatief, en de standaard.',
+    'Een Google-document is geen bestand: er is niets om over te zetten. Drive kan er een document of een PDF export van maken, en dat bestand kan worden gemigreerd. Het alternatief is deze achterlaten in de bron (de standaard).',
   'wizard.nativePolicy.leave': 'Laten staan, en elk bestand melden',
   'wizard.nativePolicy.as.odf': 'OpenDocument ({ext})',
   'wizard.nativePolicy.as.office': 'Microsoft Office ({ext})',
@@ -3868,26 +3865,26 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.nativePolicy.editable': 'Kies voor elke soort een bewerkbaar formaat',
   'wizard.nativePolicy.leftBehind': '{kinds} blijven staan in Google, elk met naam gemeld.',
   'wizard.nativePolicy.leftBehind.why':
-    'Er wordt niets van gekopieerd en niets gaat verloren: elk bestand verschijnt met naam op het scherm Mislukkingen, en u accepteert of probeert ze per stuk of in één keer. Formulieren, My Maps, Sites en Apps Scripts blijven altijd staan: die kan Google in geen enkel formaat exporteren.',
-  'wizard.nativePolicy.notEditable': '{kinds} komen aan als PDF, die achteraf niet te bewerken is.',
+    'Hier wordt niets van gemigreerd of verwijderd: elk bestand verschijnt met naam op het scherm Mislukkingen. U beslist per item of deze achter moet blijven of mee moet in export-bestandsformaat. Formulieren, My Maps, Sites en Apps Scripts blijven altijd achter, omdat Google daar geen exportformaat voor heeft.',
+  'wizard.nativePolicy.notEditable': '{kinds} komen aan als PDF.',
   'wizard.nativePolicy.notEditable.why':
-    'Een PDF legt vast hoe het document eruitziet: er komt nooit weer een Google-document uit, en fijne opmaak kan verschuiven. Kies het voor een soort die u gekopieerd wilt hebben, maar niet hoeft te bewerken.',
+    'Een PDF legt vast hoe het document eruitziet, maar bij export kan fijnere opmaak verloren gaan. Kies deze weergave als u dit bestand nooit meer hoeft te bewerken.',
   'wizard.nativePolicy.allEditable': 'Alle vier de soorten komen aan als bestanden die u kunt bewerken.',
   'wizard.nativePolicy.allEditable.why':
-    'Elk bestand komt aan als weergave van Google, niet als origineel: fijne opmaak kan verschuiven, en tekeningen komen aan als .svg-afbeelding omdat Drive geen bewerkbaar formaat voor tekeningen aanbiedt. U kunt een formaat later wijzigen; al gekopieerde bestanden houden het formaat waarin ze aankwamen.',
+    'Elk bestand komt aan in door Google gegenereerd export-bestandsformaat, niet als origineel: fijnere opmaak kan verschuiven, en tekeningen komen als .svg-afbeelding omdat Drive geen bewerkbaar formaat voor tekeningen aanbiedt. U kunt een formaat later wijzigen, maar de al gemigreerde bestanden houden het formaat waarin ze aankwamen.',
   'wizard.paperFormat': 'Dropbox Paper-documenten',
-  'wizard.paperFormat.hint': 'Ze hebben geen bestand om te kopiëren, alleen een export van Dropbox.',
+  'wizard.paperFormat.hint': 'Geen te migreren bestandsformaat, kan alleen via Dropbox-export-bestandsformaat.',
   'wizard.paperFormat.hint.why':
-    'Een Paper-document staat in Dropbox, niet in een bestand: er valt niets te downloaden. Dropbox kan het exporteren als Markdown of HTML, en die export komt aan, onder de eigen naam van het document met de extensie van het formaat erachter: Notities.paper komt aan als Notities.paper.md. Paper-sjablonen volgen dezelfde keuze. Laten staan is het alternatief.',
+    'Een Paper-document is geen bestand: er is niets om over te zetten. Dropbox kan er een Markdown of HTML export van maken, en dat bestand kan worden gemigreerd. Het krijgt dan aanvullend aan de naam een andere bestandsextensie: Notities.paper komt over als Notities.paper.md. Het alternatief is deze bestanden achter laten in de bron.',
   'wizard.paperFormat.leave': 'Laten staan, en elk document melden',
   'wizard.paperFormat.as.markdown': 'Markdown (.md), opent in Nextcloud Text',
   'wizard.paperFormat.as.html': 'HTML (.html), opent in een webbrowser',
   'wizard.paperFormat.leftBehind': 'Paper-documenten blijven staan in Dropbox, elk met naam gemeld.',
   'wizard.paperFormat.leftBehind.why':
-    'Er wordt niets voor gekopieerd en er gaat niets verloren: elk document staat met zijn naam bij Mislukkingen, en u kunt er later een formaat voor kiezen, of ze laten staan.',
+    'Wordt niet gemigreerd, maar is ook niet verloren: elk document staat in de lijst bij Mislukkingen, en u kunt voor alle items nog een export-bestandsformaat kiezen, of deze bestanden achterlaten.',
   'wizard.paperFormat.arrives': 'Elk Paper-document komt aan als {ext}-bestand dat u kunt bewerken.',
   'wizard.paperFormat.arrives.why':
-    'Een export is een weergave die Dropbox maakt, niet het Paper-document zelf: fijne opmaak kan verschuiven, en wat u op het nieuwe systeem wijzigt, gaat niet terug naar Dropbox. U kunt het formaat later wijzigen; al gekopieerde documenten houden het formaat waarin ze aankwamen.',
+    'Een export is een weergave die Dropbox maakt in een ander bestandsformaat, niet het Paper-document zelf: fijne opmaak kan verschuiven, en wat u op het nieuwe systeem wijzigt, gaat niet terug naar Dropbox. U kunt het bestandsformaat later nog wijzigen, maar de al gemigreerde documenten houden het formaat waarin deze al waren gemigreerd.',
   'wizard.proto.jmap.hint': 'Modern e-mailprotocol',
   'wizard.proto.caldav.hint': 'Agendaprotocol',
   'wizard.proto.carddav.hint': 'Contactenprotocol',
@@ -3902,14 +3899,14 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.nextcloudDavUrl.hint':
     'Het adres waarop u Nextcloud opent, met /remote.php/dav erachter.',
   'wizard.nextcloudDavUrl.why':
-    'Nextcloud biedt agenda’s, contacten en bestanden aan onder /remote.php/dav en niet op de root van de site, dus een host en poort kunnen niet zeggen waar het staat. Plak het adres uit de adresbalk — https://cloud.example.com — en zet er /remote.php/dav achter.',
+    'Nextcloud biedt agenda’s, contacten, taken en bestanden aan onder /remote.php/dav en niet op de root van de site, dus een host en poort kunnen niet zeggen waar het staat. Plak het adres uit de adresbalk — https://cloud.example.com — en zet er /remote.php/dav achter.',
   'wizard.soverinMailHost': 'Mailserver',
   'wizard.soverinMailHost.hint': 'Alleen nodig als dit account ook e-mail gaat ontvangen.',
   'wizard.soverinMailHost.why':
-    'Agenda’s en contacten hebben geen mailserver nodig. Test meet de host die u invult; er wordt niets aangenomen op basis van de naam van de aanbieder.',
+    'Agenda’s, taken en contacten hebben geen mailserver nodig. Test meet wat de host die u invult daadwerkelijk kan ondersteunen.',
   'wizard.soverinMailPort': 'Mailpoort',
   'wizard.providerDefaults.note':
-    'Vooraf ingevuld met de gepubliceerde instellingen van {provider}, gelezen op {seen}. Test controleert ze.',
+    'Vooraf ingevuld met de gepubliceerde instellingen van {provider}, gelezen op {seen}. Test controleert deze.',
   'wizard.credentials': 'Inloggegevens',
   'form.requiredLegend': 'Velden met * zijn verplicht.',
   'wizard.sourceUsername': 'Gebruikersnaam',
@@ -3921,7 +3918,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.schedule.hourly': 'Elk uur',
   'wizard.schedule.hourly.hint': 'Ieder uur',
   'wizard.schedule.daily': 'Dagelijks',
-  'wizard.schedule.daily.hint': 'Elke dag om 02:00',
+  'wizard.schedule.daily.hint': 'Elke dag',
   'wizard.schedule.sixHourly': 'Elke 6 uur',
   'wizard.schedule.sixHourly.hint': 'Vier keer per dag',
   'wizard.schedule.quarterHourly': 'Elk kwartier',
@@ -3931,7 +3928,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.missing.lead': 'Nog invullen om verder te gaan:',
   'wizard.tenantId': 'Tenant-ID',
   'wizard.clientId': 'Client-ID (applicatie-ID)',
-  'wizard.sourceClientSecret': 'Clientgeheim',
+  'wizard.sourceClientSecret': 'Clientsecret',
   'billing.title': 'Facturering',
   'billing.subtitle': 'Beheer uw abonnement, verbruik en betalingen',
   'billing.currentUsage': 'Huidig verbruik',
@@ -3945,92 +3942,92 @@ const nl: Record<keyof typeof en, string> = {
   'billing.monthBills': 'Wat deze maand kost',
   'billing.tierDataOf': '{moved} van {ceiling}',
   'billing.tierAlphaMoved': 'Verplaatst tijdens de Alpha, telt niet mee',
-  'billing.tierBeyond.bands': 'Daar zit(ten) {count} bijgekocht(e) blok(ken) bij, dus {tier} dekt het nog.',
+  'billing.tierBeyond.bands': 'Daar zit(ten) {count} bijgekocht(e) blok(ken) bij, dus valt binnen {tier}.',
   'billing.tierBeyond.paths':
-    'Er liepen meer migraties tegelijk dan {tier} laat lopen, dus deze maand kost {tier}. Er start niets meer tot er minder lopen of u naar een groter pakket gaat.',
+    'Er liepen meer migraties tegelijk dan past binnen {tier}, dus deze maand kost {tier}. Er kunnen geen nieuwe aanvangen tot er migraties worden gestopt of u naar een groter pakket gaat.',
   'billing.tierBeyond.data':
-    'Er is meer verplaatst dan {tier} dekt, dus deze maand kost {tier}. Nieuwe items wachten tot u een weg verder kiest.',
+    'Er is meer verplaatst dan past binnen {tier}, dus deze maand kost {tier}. Nieuwe items wachten op uw keuze: verhoging van het pakket of aanvullende data.',
   'billing.tierPerYear': 'voor een jaar',
   'billing.tierPerMonth': 'per maand',
-  'billing.tierFree': 'Gratis: op dit pakket wordt niets gefactureerd',
-  'billing.tierDecidedByPaths': 'Bepaald door hoeveel migraties tegelijk liepen.',
-  'billing.tierDecidedByData': 'Bepaald door hoeveel gegevens er verplaatst zijn.',
+  'billing.tierFree': 'Gratis, geen gefactureerd',
+  'billing.tierDecidedByPaths': 'Bepaald door aantal gelijktijdige migraties.',
+  'billing.tierDecidedByData': 'Bepaald door hoeveelheid verplaatste gegevens.',
   'billing.tierDecidedByBoth':
-    'Bepaald door zowel wat er tegelijk liep als hoeveel er verplaatst is.',
-  'billing.tierPeakPaths': 'Meeste migraties tegelijk',
-  'billing.tierDataMoved': 'Verplaatst, in totaal',
+    'Bepaald door zowel wat er gelijktijdig migreerde als de hoeveelheid verplaatste data.',
+  'billing.tierPeakPaths': 'Hoogst aantal gelijktijdige migraties',
+  'billing.tierDataMoved': 'Data verplaatst, in totaal',
   'billing.tierBeyondTable':
-    'Voorbij de gepubliceerde tabel — neem contact op, dan prijzen we het goed.',
+    'Voorbij de tier / het pakket — neem contact op met ons.',
   'billing.noUsage': 'Nog geen verbruiksgegevens beschikbaar',
   'billing.ceiling.title': 'Uw datalimiet',
   'billing.ceiling.moved': '{moved} van {ceiling} verplaatst, op {tier}.',
-  'billing.ceiling.bands': 'Inclusief {count} extra blok(ken) bijgekocht.',
-  'billing.ceiling.alphaMoved': 'Daarnaast is {moved} verplaatst tijdens de Alpha; dat telt nooit mee voor uw limiet.',
+  'billing.ceiling.bands': 'Inclusief {count} extra blok(ken) data bijgekocht.',
+  'billing.ceiling.alphaMoved': 'Daarnaast is {moved} verplaatst tijdens de Alpha; dit telt niet mee voor uw limiet.',
   'billing.ceiling.under':
-    'Vanaf 80% van de limiet biedt deze kaart de twee wegen verder: naar een groter pakket, of eenmalig een extra blok.',
+    'Vanaf 80% van de limiet kunt u hier kiezen: naar een groter pakket, of eenmalig extra data.',
   'billing.ceiling.near':
-    'U hebt {share} van uw datalimiet verplaatst. Bij de limiet wachten nieuwe items tot u een weg verder kiest; wijzigingen aan wat al gekopieerd is gaan door.',
+    'U hebt {share} van uw datalimiet verbruikt. Bij de limiet stopt migratie van nieuwe items, totdat u een keuze maakt; synchronisatie van wijzigingen gaat wel door.',
   'billing.ceiling.reached':
-    'Uw datalimiet is bereikt. Nieuwe items wachten tot u een weg verder kiest; wijzigingen aan wat al gekopieerd is gaan door.',
+    'Uw datalimiet is bereikt. Nieuwe items worden niet gemigreerd, totdat u een keuze maakt; synchronisatie van wijzigingen gaat wel door.',
   'billing.ceiling.alpha':
-    'Tijdens de Alpha wacht er niets bij de limiet en wordt niets in rekening gebracht, dus er is nog niets om mee in te stemmen. De prijzen hieronder zijn wat de wegen verder na de Alpha kosten.',
+    'Tijdens de Alpha loopt alles gewoon door en wordt er niets in rekening gebracht. De prijzen hieronder zijn indicatief voor de fase daarna.',
   'billing.ceiling.moveUp':
     'Ga naar {tier}: {monthly} per maand. Uw limiet wordt {ceiling}, en er kunnen {paths} migraties tegelijk lopen.',
   'billing.ceiling.moveUp.button': 'Ga naar {tier}',
-  'billing.ceiling.talkToUs': 'Er is geen pakket boven {tier}. Neem contact op, dan prijzen we het goed.',
+  'billing.ceiling.talkToUs': 'Er is geen pakket boven {tier}. Neem contact op als u meer wenst.',
   'billing.ceiling.topUp':
-    'Of koop eenmalig nog {band} erbij, voor {price}. Uw limiet wordt {ceiling}, en uw maandprijs blijft gelijk.',
-  'billing.ceiling.topUp.button': 'Nog {band} erbij kopen',
-  'billing.ceiling.noTopUp': '{tier} kent geen bijkoop: de weg verder is een groter pakket.',
+    'Of koop eenmalig nog {band} data erbij, voor {price}. Uw limiet wordt {ceiling}, en uw maandprijs blijft gelijk.',
+  'billing.ceiling.topUp.button': 'Koop {band} erbij',
+  'billing.ceiling.noTopUp': '{tier} biedt geen optie tot extra data: stap over naar een groter pakkeet.',
   'billing.ceiling.breakEven':
-    'Bijkopen kost eenmalig {extra} meer en bespaart {saved} per maand, dus het is in ongeveer {days} dag(en) terugverdiend.',
+    'Bijkopen kost eenmalig {extra} meer en bespaart {saved} per maand, dus u hebt dat in ongeveer {days} dag(en) terugverdiend.',
   'billing.ceiling.breakEven.cheaper': 'Bijkopen kost eenmalig niet meer, en bespaart {saved} per maand.',
   'billing.ceiling.betterBuy':
-    'Een groter pakket is de betere koop als er meer migraties tegelijk moeten lopen: {next} draait er {nextPaths} tegelijk, {tier} {paths}.',
+    'Een groter pakket wordt aangeraden als u meer migraties gelijktijdig wenst te draaien: {next} draait er {nextPaths} tegelijk, {tier} {paths}.',
   'billing.ceiling.confirm.moveUp': 'U gaat akkoord met {monthly} per maand voor {tier}.',
-  'billing.ceiling.confirm.topUp': 'U gaat akkoord met eenmalig {price} voor nog {band} erbij.',
+  'billing.ceiling.confirm.topUp': 'U gaat akkoord met eenmalig {price} voor nog {band} data erbij.',
   'billing.ceiling.confirm.yes': 'Ja, akkoord',
   'billing.ceiling.confirm.no': 'Nu niet',
   'billing.ceiling.done': 'Gedaan: uw datalimiet is nu {ceiling}.',
   'billing.ceiling.offerChanged':
-    'Het aanbod is veranderd sinds deze pagina werd getoond, dus er is nergens mee ingestemd. Dit is het aanbod nu.',
+    'Het aanbod is veranderd sinds deze pagina werd getoond; ververs de webpagina.',
   'billing.ceiling.loadFailed': 'Uw datalimiet kon niet worden gelezen',
   'billing.ceiling.yesFailed': 'Uw akkoord is niet vastgelegd:',
   'billing.tierPicked': 'Door u gekozen: u betaalt elke maand minstens {tier}.',
   'billing.pick.title': 'Kies een pakket',
   'billing.pick.lead':
-    'Uw pakket volgt wat u gebruikt. U mag een hoger pakket kiezen, voor het tempo of de ruimte: u betaalt dan elke maand minstens dat pakket, tot u het verlaagt.',
-  'billing.pick.standing': 'U koos {tier}. U betaalt elke maand minstens {tier}, tot u het verlaagt.',
-  'billing.pick.standingThisMonth': 'U koos {tier}: deze maand betaalt u minstens {tier}.',
-  'billing.pick.lowered': 'Vanaf {date} betaalt u elke maand minstens {tier}.',
-  'billing.pick.loweredToNone': 'Vanaf {date} bepaalt wat u gebruikt weer uw pakket.',
+    'Betaal wat bij uw situatie past. U mag een hoger pakket kiezen, zoals voor een hogere synchronisatie frequentie (tot iedere 15 minuten) of voor meer te migrateren data.',
+  'billing.pick.standing': 'U koos {tier}. U betaalt elke maand {tier}.',
+  'billing.pick.standingThisMonth': 'U koos {tier}: deze maand betaalt u {tier}.',
+  'billing.pick.lowered': 'Vanaf {date} betaalt u elke maand {tier}.',
+  'billing.pick.loweredToNone': 'Vanaf {date} bepaalt uw gebruik weer uw pakket.',
   'billing.pick.alpha':
-    'Tijdens de Alpha is elk pakket gratis, tempo en ruimte inbegrepen, dus er valt niets te kiezen. Kiezen kan zodra de Alpha voorbij is.',
+    'Tijdens de Alpha is elk pakket gratis, ongeacht frequentie, gelijktijdigheid en data, is valt dus nu niets te kiezen.',
   'billing.pick.monthly': '{monthly} per maand',
-  'billing.pick.room': '{paths} migraties tegelijk, tot {data}.',
+  'billing.pick.room': '{paths} migraties gelijktijdig, tot {data}.',
   'billing.pick.pace':
-    'Elk pakket hier kopieert ronde na ronde tot de eerste kopie klaar is, en kijkt daarna elk uur naar wijzigingen, of zo vaak als elke 15 minuten als u dat kiest.',
+    'Elk pakket hier migreert ronde na ronde, tot de eerste migratie klaar is. Daarna wordt elk uur (tot iedere 15 minuten mogelijk) gecontroleerd of er nieuwe of gewijzigde items zijn.',
   'billing.pick.button': 'Kies {tier}',
   'billing.pick.keep': '{tier} houden',
   'billing.pick.top': '{tier} is het hoogste pakket. Wilt u meer, neem dan contact op.',
   'billing.pick.confirm':
-    'Vanaf vandaag betaalt u elke maand minstens {tier}, {monthly} per maand, tot u het verlaagt. Verlagen telt vanaf de volgende maand.',
-  'billing.pick.confirm.keep': 'U blijft elke maand minstens {tier} betalen, {monthly} per maand, tot u het verlaagt.',
+    'Vanaf vandaag betaalt u elke maand minstens {tier}, {monthly} per maand. Verlagen telt vanaf de volgende maand.',
+  'billing.pick.confirm.keep': 'U betaalt elke maand {tier}, {monthly} per maand.',
   // De woorden van artikel 6:230v lid 3 BW.
   'billing.pick.order': 'Bestelling met betalingsverplichting',
   'billing.pick.notNow': 'Nu niet',
-  'billing.pick.done': 'Klaar: u heeft nu het tempo en de ruimte van {tier}, en betaalt elke maand minstens {tier}.',
+  'billing.pick.done': 'Klaar: u migraties hebben nu de frequentie en datalimit van {tier}; u betaalt elke maand {tier}.',
   'billing.pick.lowerTo': 'Verlagen naar {tier}',
   'billing.pick.drop': 'Keuze laten vervallen',
-  'billing.pick.lower.confirm': 'Vanaf {date} betaalt u elke maand minstens {tier}. Tot dan minstens {now}.',
+  'billing.pick.lower.confirm': 'Vanaf {date} betaalt u elke maand {tier}. Tot die datum {now}.',
   'billing.pick.lower.confirmNone':
-    'Vanaf {date} bepaalt wat u gebruikt weer uw pakket. Tot dan betaalt u elke maand minstens {now}.',
+    'Vanaf {date} bepaalt uw gebruikt weer uw pakket. Tot die datum betaalt u elke maand {now}.',
   'billing.pick.lower.yes': 'Keuze verlagen',
   'billing.pick.lowerDone': 'Klaar: uw keuze verandert op {date}.',
   'billing.pick.offerChanged':
-    'Wat u kunt kiezen is veranderd sinds deze pagina werd getoond. Bekijk de pakketten opnieuw voordat u kiest.',
+    'Wat u kon kiezen is veranderd sinds deze pagina werd getoond. Bekijk de pakketten opnieuw voordat u kiest.',
   'billing.pick.failed': 'Uw keuze is niet vastgelegd:',
-  'billing.pick.loadFailed': 'De pakketten die u kunt kiezen konden niet worden gelezen',
+  'billing.pick.loadFailed': 'De pakketten die u kunt kiezen konden niet worden opgehaald',
   'billing.invoices': 'Facturen',
   'billing.noInvoices': 'Nog geen facturen',
   'billing.invoice': 'Factuur',
@@ -4044,7 +4041,7 @@ const nl: Record<keyof typeof en, string> = {
   'mappings.subtitle': 'Beheer uw datamigratieconfiguraties',
   'mappings.new': 'Migratie starten',
   'mappings.empty.title': 'Nog geen migraties',
-  'mappings.empty.hint': 'Start er een: voor wie, van waar, wat en waarheen.',
+  'mappings.empty.hint': 'Start er een: voor wie gaan we wat migreren?',
   'mappings.empty.cta': 'Migratie starten',
   'mappings.th.name': 'Naam',
   'mappings.th.sourceTarget': 'Bron → Doel',
@@ -4053,38 +4050,38 @@ const nl: Record<keyof typeof en, string> = {
   'mappings.th.actions': 'Acties',
   'mappings.action.triggerSync': 'Synchroniseer nu',
   'mappings.sync.freePace':
-    'Op Free loopt een migratie één ronde per dag. De volgende ronde begint op {time}. Een hoger pakket kijkt zo vaak als elke 15 minuten naar wijzigingen.',
+    'Free omvat één migratie-ronde per dag. De volgende ronde begint op {time}. Een hoger pakket kijkt zo vaak als tot elke 15 minuten naar wijzigingen en migreert deze.',
   'mappings.action.pause': 'Pauzeren',
   'hub.connections': 'Van {source} naar {target}',
-  'hub.lands.folder': 'De kopieën komen in de map {folder} van de bestemming.',
-  'hub.lands.merged': 'De kopieën komen in de eigen mappen van de bestemming.',
-  'hub.filesFrom.all': 'De bestanden worden uit heel {place} gelezen.',
+  'hub.lands.folder': 'De bestanden komen in de map {folder} van de bestemming.',
+  'hub.lands.merged': 'De bestanden komen in de eigen mappen van de bestemming.',
+  'hub.filesFrom.all': 'De bestanden worden uit {place} gelezen.',
   'hub.filesFrom.path': 'De bestanden worden alleen uit {folder} gelezen.',
   'hub.filesFrom.id': 'De bestanden worden alleen uit één map gelezen: {folder}.',
   'hub.details': 'Details',
   'hub.migrationId': 'Migratie-ID:',
   'timeLeft.label': 'Hoe lang:',
-  'timeLeft.gmailDays': 'Ongeveer {low} tot {high} dagen, omdat Google een mailbox {ceiling} GB per dag laat downloaden.',
+  'timeLeft.gmailDays': 'Ongeveer {low} tot {high} dagen, omdat Google een limit hanteert per mailbox van {ceiling} GB per dag.',
   'timeLeft.gmailWithinADay':
-    'Binnen een dag, omdat deze mailbox minder bevat dan de {ceiling} GB per dag die Google laat downloaden.',
+    'Binnen een dag, omdat deze mailbox minder bevat dan de limit van {ceiling} GB per dag die Google hanteerd.',
   'timeLeft.notKnownYet': 'Hangt af van de aanbieder; na het eerste uur weten we het.',
-  'timeLeft.filesLater': 'De bestanden: na het eerste uur weten we het.',
+  'timeLeft.filesLater': 'Bestanden: na het eerste uur weten we het.',
   'timeLeft.copying.days': 'Ongeveer nog {low} tot {high} dagen, volgens de laatste {n} rondes.',
   'timeLeft.copying.hours': 'Ongeveer nog {low} tot {high} uur, volgens de laatste {n} rondes.',
   'timeLeft.copying.upToDays': 'Hoogstens nog {high} dagen, volgens de laatste {n} rondes.',
   'timeLeft.copying.upToHours': 'Hoogstens nog {high} uur, volgens de laatste {n} rondes.',
   'timeLeft.slowedBy': 'Vertraagd door {provider}.',
-  'timeLeft.afterThreePasses': 'Na drie rondes weten we het; {n} tot nu toe.',
+  'timeLeft.afterThreePasses': 'Na drie rondes weten we meer; {n} tot nu toe.',
   'migrationReport.title': 'Rapport',
   'migrationReport.person.title': 'Rapport: {name}',
-  'migrationReport.lead': 'Wat er is gevonden, wat er is aangekomen, wat niet mee kon en waarom, en wat de verificatie heeft vergeleken.',
+  'migrationReport.lead': 'Wat is aangetroffen, gemigreerd en gecontroleerd? Wat kwam niet mee en waarom?',
   'migrationReport.loadFailed': 'Dit rapport kon niet worden gelezen.',
-  'migrationReport.verdict.complete': 'Compleet: alles is aangekomen en niets wacht op een beslissing.',
-  'migrationReport.verdict.decisionsPending': 'Alles is aangekomen, maar sommige items wachten nog op een beslissing.',
-  'migrationReport.verdict.inProgress': 'Nog bezig: zo staat het nu, dit is geen afsluitend rapport.',
+  'migrationReport.verdict.complete': 'Compleet: alles is aangekomen en niets wacht op uw beslissing.',
+  'migrationReport.verdict.decisionsPending': 'Alles is aangekomen, maar sommige items wachten nog op uw beslissing.',
+  'migrationReport.verdict.inProgress': 'Nog bezig: dit is de tussenstand.',
   'migrationReport.arrived.heading': 'Wat er is aangekomen',
   'migrationReport.col.type': 'Type',
-  'migrationReport.col.found': 'Gevonden',
+  'migrationReport.col.found': 'Aangetroffen',
   'migrationReport.col.arrived': 'Aangekomen',
   'migrationReport.col.leftAsIs': 'Ongemoeid gelaten',
   'migrationReport.col.couldNotCome': 'Kon niet mee',
@@ -4092,36 +4089,36 @@ const nl: Record<keyof typeof en, string> = {
   'migrationReport.why': 'Waarom:',
   'migrationReport.seeWhich': 'Bekijk welke, en waarom',
   'migrationReport.notPart': 'Geen onderdeel van deze migratie: {types}.',
-  'migrationReport.decisions.heading': 'Wat op een beslissing wacht',
-  'migrationReport.decisions.none': 'Niets wacht op een beslissing.',
-  'migrationReport.removed.heading': 'Wat er is verwijderd, en op wiens beslissing',
+  'migrationReport.decisions.heading': 'Wat op uw beslissing wacht',
+  'migrationReport.decisions.none': 'Niets wacht op uew beslissing.',
+  'migrationReport.removed.heading': 'Wat er is verwijderd, en na wiens beslissing',
   'migrationReport.removed.counts':
-    '{deletions} verwijderd na een beslissing, {relocations} oude kopieën van verplaatste items verwijderd, {refused} geweigerd door een beveiliging.',
-  'migrationReport.removed.inTheLog': 'Elke verwijdering staat in het logboek en gebeurde alleen na een beslissing.',
-  'migrationReport.sharing.heading': 'Meegenomen toegang',
+    '{deletions} verwijderd na een beslissing, {relocations} oude kopieën van verplaatste items verwijderd, {refused} geweigerd door een beveiligingsregel.',
+  'migrationReport.removed.inTheLog': 'Elke verwijdering staat in het logboek, en werd genomen vanuit een beslissing.',
+  'migrationReport.sharing.heading': 'Meegenomen Share-toegang',
   'migrationReport.sharing.counts': '{applied} opnieuw gemaakt, {manual} met de hand gedaan, {skipped} niet meegenomen, {open} nog open.',
   'migrationReport.check.heading': 'Wat de verificatie heeft vergeleken',
   'migrationReport.check.col.old': 'Op het oude systeem',
   'migrationReport.check.col.new': 'Op het nieuwe',
   'migrationReport.check.col.contents': 'Inhoud vergeleken',
   'migrationReport.check.compared': '{matched} van {sampled} gelijk',
-  'migrationReport.access.heading': 'Toegang die u gaf en die alleen u kunt intrekken',
-  'migrationReport.access.lead': 'Die werkt na deze migratie nog, tot u hem verwijdert. Dat kunnen wij niet voor u doen.',
+  'migrationReport.access.heading': 'Toegang die u gaf en u kunt intrekken',
+  'migrationReport.access.lead': 'Werkt na deze migratie nog, tot u hem verwijdert.',
   'migrationReport.asOf': 'Stand van {when}.',
   'migrationReport.download': 'Download het rapport',
   'migrationReport.toConfirmed': 'Wat is bevestigd, item voor item',
   'migrationReport.open': 'Het rapport',
   'confirmed.toReport': 'Wat er is gebeurd: het rapport',
   'mappings.action.pause.why':
-    'Er worden geen nieuwe rondes gestart. Een ronde die al loopt, begint binnen ongeveer vijftien seconden niets nieuws meer en maakt af waar ze al aan begonnen was; een heel groot bestand kan langer duren. Er gaat niets verloren: Controleren en starten gaat verder waar het gebleven was.',
+    'Er worden geen nieuwe rondes gestart. Een ronde die nog loopt gaat niets nieuws aanvangen en rond af wat nog liep; een heel groot bestand wat al onderweg was, kan nog even duren. Er gaat niets verloren: Controleren en starten gaat verder waar het gebleven was.',
   'mappings.action.startSync': 'Start synchronisatie',
-  'mappings.action.reviewAndStart': 'Controleren en starten',
+  'mappings.action.reviewAndStart': 'Controleer en Start',
   'mappings.action.open': 'Openen',
   'mappings.action.delete': 'Verwijderen',
   'mappings.delete.explain':
-    'Verwijdert instellingen en registratie van de migratie; bij uw bron of bestemming wordt niets aangeraakt.',
+    'Verwijdert enkel instellingen en registratie van uw migratie in Ownpace, niets bij uw bron of bestemming.',
   'mappings.delete.more':
-    'Er wordt nergens e-mail, agenda, contact of bestand verwijderd. Stelt u later dezelfde migratie opnieuw in, dan herkent die wat er al staat en kopieert alleen wat nieuw is. Wat er al stond, wordt niet meer bijgewerkt als het bij de bron verandert, en wat u aan de nieuwe kant hebt verwijderd of verplaatst, komt terug. Wilt u wijzigingen blijven meenemen, pauzeer dan de migratie in plaats van die te verwijderen.',
+    'Er worden nergens e-mail, agenda, taken, contacten of bestanden verwijderd. Stelt u later dezelfde migratie opnieuw in, dan wordt herkent wat u al in uw doel systeem had staan, en migreert alleen wat nieuw is. Let op: wat er al stond, wordt niet meer bijgewerkt vanuit wijzigingen in uw bron. Wilt u wijzigingen blijven meenemen, pauzeer dan de migratie in plaats van die te verwijderen.',
   'mappings.delete.confirm': 'Migratie verwijderen',
   'mappings.delete.cancel': 'Annuleren',
   'mappings.delete.failed': 'De migratie is niet verwijderd.',
@@ -4130,49 +4127,49 @@ const nl: Record<keyof typeof en, string> = {
   'domain.contact': 'Contacten',
   'domain.file': 'Bestanden',
   'domain.task': 'Taken',
-  'evidence.reported.title': 'De bron zelf meldde het object als weg.',
-  'evidence.trashed.title': 'Gevonden in Verwijderde items van de eigenaar.',
-  'evidence.inferred.title': 'Ontbreekt in volledige scans: een vermoeden, nooit toegepast.',
+  'evidence.reported.title': 'De bron zelf meldde het object als verwijderd.',
+  'evidence.trashed.title': 'Gevonden in Verwijderde items van de bron.',
+  'evidence.inferred.title': 'Ontbreekt in volledige scans: een vermoeden, geen basis om geautomatiseerd op te handelen.',
   'guidance.summary': 'Wat dit betekent en wat u kunt doen',
   'receipt.queued':
     'Verwijdering in de wachtrij; de taak controleert elk controlepunt opnieuw voordat iets wordt aangeraakt.',
   'receipt.applied.binned':
     'Verwijderd; nu in de prullenbak van het doel, mogelijk daar nog terug te halen.',
-  'receipt.applied.deleted': 'Verwijderd — weg, zonder herstelmogelijkheid vanaf hier.',
+  'receipt.applied.deleted': 'Verwijderd — weg, zonder herstelmogelijkheid.',
   'receipt.applied.unknown':
-    'Verwijderd. Hoe definitief de verwijdering was, staat niet op het ontvangstbewijs.',
+    'Verwijderd. Hoe definitief de verwijdering was, is (hier) onbekend.',
   'receipt.failedPrefix': 'De verwijdertaak is mislukt:',
   'lifecycle.paused':
-    'Deze migratie is niet gestart, dus er is niets gekopieerd en niets kan zijn afgeweken.',
+    'Deze migratie is niet gestart (pauze).',
   'hub.rename': 'Naam wijzigen',
   'hub.rename.label': 'Naam van deze migratie',
   'hub.rename.save': 'Opslaan',
   'hub.rename.saving': 'Opslaan…',
   'hub.rename.failed': 'Niet hernoemd:',
   'hub.fallbackTitle': 'Migratie',
-  'hub.orderIntro': 'Werk ze van boven af, in deze volgorde.',
+  'hub.orderIntro': 'Vul stap voor stap in.',
   'hub.noId': 'Geen mapping-id in het adres.',
   'hub.detailError':
-    'De details van deze migratie konden niet worden gelezen — de schermen hieronder werken nog.',
-  'hub.grantWithdrawn': 'Op {date} trok degene die gemigreerd wordt de toegang in. Er wordt niets meer gelezen.',
+    'De details van deze migratie konden niet worden gelezen.',
+  'hub.grantWithdrawn': 'Op {date} trok degene die gemigreerd wordt de toegang in. Er wordt niets meer gelezen of gemigreerd.',
   'hub.grantWithdrawn.next':
     'Is die persoon akkoord om verder te gaan, stuur dan een nieuwe toegangslink. Links worden per persoon gemaakt: zie Links hieronder.',
   'hub.deletions.name': 'Verwijderingen',
   'hub.deletions.blurb':
-    'Verwijderd op het oude systeem, nog op het nieuwe; uw beslissing, per item.',
+    'Verwijderd op het oude systeem, nog op het nieuwe; beslis per item.',
   'hub.moves.name': 'Verplaatsingen',
   'hub.moves.blurb':
-    'Items die het oude systeem heeft herschikt sinds ze zijn gekopieerd. Een oude kopie gaat pas als u die verwijdert, of door automatisch verwijderen als u dat hebt aangezet.',
+    'Items die het oude systeem heeft herschikt sinds de migratie. Een bestand in uw doelsysteem dat had moeten mee-verplaatsen, kunt u handmatig verwijderen, of automatisch als u dat hebt aangezet.',
   'hub.failures.name': 'Mislukkingen',
   'hub.failures.blurb':
-    'Items die niet gekopieerd konden worden en op een persoon wachten; ze blokkeren het afronden.',
+    'Items die niet gekopieerd konden worden en op uw beslissing wachten; ze blokkeren het afronden.',
   'hub.sharing.name': 'Delen',
   'hub.sharing.blurb':
     'Wie wat kon bereiken op het oude systeem; een checklist voor na het afronden.',
   'sharing.title': 'Deel-checklist',
-  'sharing.intro': 'Alles wat iemand anders kon bereiken op het oude systeem, één regel per recht.',
+  'sharing.intro': 'Alles wat met iemand was gedeeld op uw oude systeem, één regel per Share-recht.',
   'sharing.intro.more':
-    'Werk elke regel af: pas het delen toe op het nieuwe systeem, vink af als handmatig gedaan, of sla bewust over. Afvinken en Overslaan werken allebei een regel af en leggen iets anders vast — Afvinken betekent dat dit recht handmatig opnieuw is ingericht, Overslaan dat het bewust niet meegaat. Na de omschakeling zijn dat verschillende antwoorden op "waarom kan deze persoon er niet meer bij". Elke afgewerkte regel onthoudt wie besliste, en wanneer.',
+    'Werk elke regel af: pas het delen toe op het nieuwe systeem, vink af als handmatig gedaan, of sla bewust over. Afvinken betekent dat dit Share-recht handmatig opnieuw is ingericht, Overslaan dat het bewust niet meegaat. Van elke beslissing wordt onthouden wie deze wanneer nam.',
   'sharing.progressSettled': 'afgewerkt',
   'sharing.openManualNote':
     'regel(s) op handmatig: uw stappen op het nieuwe systeem; vink ze hier af zodra gedaan.',
@@ -4180,7 +4177,7 @@ const nl: Record<keyof typeof en, string> = {
   'sharing.blindSpots': 'Kon niet worden geïnventariseerd — leg deze handmatig vast:',
   'sharing.empty': 'Nog geen gedeelde rechten. Lees opnieuw in van de bron om te scannen.',
   'sharing.apply': 'Delen toepassen op het nieuwe systeem',
-  'sharing.applyArmed': 'Klik nogmaals — dit deelt ÉN nodigt uit',
+  'sharing.applyArmed': 'Klik nogmaals — dit stelt delen in én nodigt betreffende persoon uit',
   'sharing.done': 'Afvinken',
   'sharing.done.why': 'Dit recht is handmatig opnieuw ingericht op het nieuwe systeem.',
   'sharing.skip': 'Overslaan',
@@ -4189,7 +4186,7 @@ const nl: Record<keyof typeof en, string> = {
   'sharing.manualBadge': 'handmatig',
   'sharing.granteeLabel': 'delen met',
   'sharing.inviteNote':
-    'Toepassen maakt het delen aan; het nieuwe systeem nodigt dit adres uit, controleer het eerst.',
+    'Toepassen maakt het Delen aan; het nieuwe systeem nodigt de persoon uit, controleer het eerst.',
   'sharing.state.applied': 'gedeeld op het nieuwe systeem',
   'sharing.state.doneManual': 'handmatig gedaan',
   'sharing.state.skipped': 'overgeslagen',
@@ -4199,14 +4196,14 @@ const nl: Record<keyof typeof en, string> = {
   'sharing.group.holds': 'bevat',
   'sharing.group.sharedWith': 'Gedeeld met',
   'sharing.grant.link': 'iedereen met de link',
-  'sharing.group.doneAll': 'Alles op gedaan zetten',
+  'sharing.group.doneAll': 'Alles op Gedaan zetten',
   'sharing.group.skipAll': 'Alles overslaan',
   'sharing.group.applyInside': 'Open de map om items op het nieuwe systeem te delen.',
   'sharing.group.applyFolder': 'Deze map delen op het nieuwe systeem',
-  'sharing.group.applyFolderArmed': 'Druk nogmaals om ze allemaal uit te nodigen',
-  'sharing.group.confirmFirst': 'Controleer elk adres voordat \u00e9\u00e9n druk ze allemaal uitnodigt.',
+  'sharing.group.applyFolderArmed': 'Bevestig nogmaals om iedereen uit te nodigen',
+  'sharing.group.confirmFirst': 'Controleer elk adres voordat \u00e9\u00e9n u ze allemaal uitnodigt.',
   'sharing.group.confirmFirst.why':
-    'Het nieuwe systeem stuurt de uitnodiging zelf, zodra het delen is aangemaakt \u2014 een click voor een gehele map is dus een golf aan mails naar mensen, en dat is niet terug te draaien. Daarom staat elk adres hier apart en bevestigt u ze stuk voor stuk: de tool stelt het adres voor dat het oude systeem vastlegde, en u beslist of deze persoon nog uitgenodigd moet worden. Een adres dat u hier bevestigt, onthouden we voor de andere regels van die persoon in deze migratie, zodat u niet dezelfde correctie twee keer hoeft te doen.',
+    'Het nieuwe systeem stuurt de uitnodiging-emails zelf, zodra het delen is aangemaakt \u2014 een muisklik voor een gehele map is dus een golf aan mails naar mensen. Daarom staat elk adres hier apart en bevestigt u deze stuk voor stuk: de tool stelt het adres voor dat het oude systeem vastlegde, en u beslist of deze persoon nog uitgenodigd moet worden. Migreert de andere persoon ook naar een nieuw mailadres? Pas dan het voorgestelde emailadres aan. Een adres dat u hier bevestigt, onthouden we voor de andere regels van die persoon in deze migratie, zodat u niet dezelfde correctie twee keer hoeft te doen.',
   'sharing.group.addressLabel': 'sturen naar',
   'sharing.group.confirmOne': 'Bevestigen',
   'sharing.group.confirmed': 'bevestigd',
@@ -4217,19 +4214,19 @@ const nl: Record<keyof typeof en, string> = {
   'sharing.alone.extra': 'extra:',
   'sharing.alone.missing': 'ontbreekt:',
   'sharing.notPlacedYet':
-    'Gevonden voordat groeperen per map bestond. Ververs vanaf de bron om te vouwen.',
+    'Gevonden voordat groeperen per map bestond. Ververs vanaf de bron om samen te beoordelen.',
   'hub.check.name': 'Verificatie',
   'hub.check.blurb':
-    'Vergelijk de twee systemen en controleer steekproeven van de inhoud, achter één knop.',
+    'Vergelijk de twee systemen en controleer steekproeven van de inhoud.',
   'hub.confirmed.name': 'Bevestigd',
   'hub.confirmed.blurb':
-    'Wat er in het nieuwe huis staat, item voor item, en wat is vergeleken.',
+    'Wat er in het nieuwe systeem staat, item voor item, en wat is vergeleken.',
   'hub.finish.name': 'Afronden',
   'hub.finish.blurb':
-    'De cutover-checklist; beëindigt de migratie in volgorde, met de ene stap die u zelf bevestigt.',
+    'De cutover-checklist; beëindigt de migratie in enkele stappen.',
   'runs.title': 'Uitvoeringsgeschiedenis',
   'runs.blurb':
-    'Elke synchronisatieronde van deze migratie, nieuwste eerst, met wat elke ronde meldde.',
+    'Iedere synchronisatieronde van deze migratie, nieuwste eerst, met wat elke ronde meldde.',
   'runs.empty': 'Er zijn nog geen rondes uitgevoerd. Geschiedenis verschijnt na de eerste synchronisatie.',
   'runs.truncated': 'Alleen de nieuwste rondes worden getoond — oudere bestaan, maar staan niet in de lijst.',
   'runs.eventsTruncated': 'Alleen de nieuwste logregels — eerdere worden niet getoond.',
@@ -4241,9 +4238,9 @@ const nl: Record<keyof typeof en, string> = {
   'runs.events': 'Logboek',
   'grantLink.title': 'Toegangslinks',
   'grantLink.blurb':
-    'Degene die gemigreerd wordt geeft zelf toegang, zonder u een wachtwoord te sturen.',
+    'Degene die gemigreerd wordt geeft zelf toegang, zonder een wachtwoord met u te delen.',
   'grantLink.why':
-    'Een Ownpace-account is niet nodig. U stuurt de link zelf; Ownpace doet dat nooit en weet ook niet om wie het gaat.',
+    'Een Ownpace-account is niet nodig. Deel de link zelf met de ontvanger.',
   'grantLink.expiryLabel': 'De link werkt',
   'grantLink.expiry.1': '1 dag',
   'grantLink.expiry.7': '7 dagen',
@@ -4252,9 +4249,9 @@ const nl: Record<keyof typeof en, string> = {
   'grantLink.expiry.180': '180 dagen',
   'grantLink.issue': 'Toegangslink maken',
   'grantLink.issuing': 'Bezig met maken…',
-  'grantLink.issued.once': 'Hier is hij — dit is het enige moment waarop hij getoond kan worden.',
+  'grantLink.issued.once': 'Stel deze link veilig, omdat hij maar één keer wordt getoond.',
   'grantLink.issued.urlLabel': 'De toegangslink',
-  'grantLink.issued.until': 'Hij werkt tot {date}.',
+  'grantLink.issued.until': 'Werkt tot {date}.',
   'grantLink.issued.youSend':
     'Stuur hem zelf; niet opnieuw te tonen, dus bij verlies intrekken en opnieuw maken.',
   'grantLink.copy': 'Kopiëren',
@@ -4262,29 +4259,29 @@ const nl: Record<keyof typeof en, string> = {
   'grantLink.empty': 'Nog geen links voor deze migratie.',
   'personLink.title': 'Eén toegangslink voor alles',
   'personLink.blurb':
-    'Eén link voor alle Google-accounts van deze persoon: bij elk account één keer aanmelden, en elke migratie die het leest is verbonden.',
+    'Eén link voor alle Google-accounts van deze persoon: bij elk account één keer aanmelden, en de migratie kan verder.',
   'personLink.empty': 'Nog geen link voor deze persoon.',
   'personLink.asksAgain':
-    'Elk Google-account van deze persoon is verbonden, dus deze link vraagt om elk account opnieuw te verbinden. Stuur hem als een verbinding niet meer werkt.',
+    'Elk Google-account van deze persoon is verbonden; deze link vraagt om elk account opnieuw te verbinden. Stuur hem als een verbinding niet meer werkt.',
   'personLink.view.title': 'Eén voortgangslink voor alles',
   'personLink.view.blurb':
-    'Eén pagina waarop deze persoon alle eigen migraties volgt, zonder account, en gegeven toegang kan intrekken.',
+    'Eén pagina waarop deze persoon alle eigen migraties kan volgen en toegang kan intrekken.',
   'personLink.view.empty': 'Nog geen voortgangslink voor deze persoon.',
   'grantLink.loadError': 'Kon de links van deze migratie niet lezen.',
   'grantLink.issuedBy': 'Gemaakt op {date} door {who}',
   'grantLink.issuedByGrant': 'Gemaakt op {date}, toen zij toegang gaven',
   'grantLink.worksUntil': 'Werkt tot {date}.',
-  'grantLink.grantedOn': 'Op {date} is toegang gegeven. Deze link is verbruikt.',
+  'grantLink.grantedOn': 'Op {date} is toegang gegeven. Deze link is in gebruik.',
   'grantLink.revokedOn': 'U hebt hem ingetrokken op {date}.',
-  'grantLink.expiredOn': 'Op {date} verlopen zonder gebruikt te zijn.',
+  'grantLink.expiredOn': 'Op {date} verlopen zonder te zijn gebruikt.',
   'grantLink.expiredNudge':
     'Niemand heeft toegang gegeven. Maak een nieuwe link en stuur die opnieuw.',
   'grantLink.revoke': 'Intrekken',
   'grantLink.revokeArmed': 'Bevestig intrekken',
   'viewLink.title': 'Voortgangslinks',
-  'viewLink.blurb': 'Een pagina waarop zij hun eigen migratie volgen, zonder account.',
+  'viewLink.blurb': 'Een pagina waarop een ieder hun eigen migratie kan volgen, zonder in te loggen.',
   'viewLink.why':
-    'Er staan alleen aantallen en statussen op — nooit een map, een bestand of een onderwerpregel — en juist daardoor is een langere geldigheid veilig. U stuurt hem zelf, en u kunt hem op elk moment intrekken. Ook een bron die geen Google is kan er een hebben: hij toont voortgang, hij vraagt niet om een wachtwoord.',
+    'Hier heeft men zicht op enkel aantallen en status — nooit gevoelige of inhoudelijke informatie — daardoor is een langere geldigheid veilig. U stuurt de link zelf, en u kunt hem op elk moment intrekken. Ook een bron die geen Google is kan er een hebben: deze toont enkel voortgang.',
   'viewLink.issue': 'Voortgangslink maken',
   'viewLink.issued.urlLabel': 'De voortgangslink',
   'viewLink.empty': 'Nog geen voortgangslinks voor deze migratie.',
@@ -4300,72 +4297,72 @@ const nl: Record<keyof typeof en, string> = {
   'migrationLinks.peopleFailed': 'Kon niet lezen voor wie deze migratie is.',
   'migrationLinks.sent.grant': 'Eerder verstuurde toegangslinks',
   'migrationLinks.sent.view': 'Eerder verstuurde voortgangslinks',
-  'migrationLinks.sent.blurb': 'Ze werken tot ze verlopen. Trek een link hier in als die eerder moet stoppen.',
+  'migrationLinks.sent.blurb': 'Werken tot deze verlopen. Trek een link in als die eerder moet stoppen.',
   'migrationLinks.sent.why':
-    'Links worden nu per persoon gemaakt. Een link die deze migratie eerder kreeg, blijft werken tot die verloopt, zodat wie hem heeft geen link krijgt die niet meer werkt.',
+    'Links worden per persoon gemaakt.',
   'grant.title': 'Verbind uw account',
   'grant.loading': 'Een moment…',
-  'grant.asking': '{organisation} migreert uw account naar een nieuwe provider en heeft uw toestemming nodig om te lezen wat erin zit.',
+  'grant.asking': '{organisation} migreert uw account naar een nieuwe provider en heeft uw toestemming nodig om te lezen wat voor u moet worden gemigreerd.',
   'grant.reads': 'U staat op het punt toegang te geven tot {reads}.',
   'grant.reads.email': 'uw e-mail: berichten, mappen en labels',
-  'grant.reads.calendar': 'uw agenda’s en de afspraken erin',
+  'grant.reads.calendar': 'uw agenda’s en de afspraken daarin',
   'grant.reads.contact': 'uw contactpersonen',
   'grant.reads.file': 'uw bestanden in Google Drive',
   'grant.reads.task': 'uw taken',
   'grant.company': 'Bedrijf',
-  'grant.companyChecked': 'Gecontroleerd in het EU-btw-register (VIES).',
+  'grant.companyChecked': 'Gecontroleerd in EU-btw-register (VIES).',
   'grant.askedBy': 'Gevraagd door',
   'grant.phone': 'Telefoon',
   'grant.from': 'Van',
   'grant.to': 'Naar',
   'grant.toWhere': '{provider} op {host}',
-  'grant.check': 'Kent u de vrager? Is de bestemming van u of uw organisatie? Alleen dan doorgaan.',
+  'grant.check': 'Ga alleen verder als u u de aanvrager kent en de bestemming van u of uw organisatie is.',
   'grant.readOnly':
-    'Alleen lezen. Er wordt nooit iets verwijderd of gewijzigd in uw account, en niemand — niet de organisatie, niet Ownpace — ziet ooit uw wachtwoord. U logt zelf in bij Google, op de pagina van Google zelf.',
+    'Alleen lezen. Er wordt nooit iets verwijderd of gewijzigd in uw account, en niemand — niet de organisatie, niet Ownpace — ziet uw wachtwoord. U logt zelf in bij Google, op de pagina van Google zelf.',
   'grant.readsOnly':
-    'Ownpace leest alleen. Ownpace verwijdert of wijzigt nooit iets in uw account, en niemand — niet de organisatie, niet Ownpace — ziet ooit uw wachtwoord. U logt zelf in bij Google, op de pagina van Google zelf. Google kan de toestemming ruimer omschrijven: voor e-mail, agenda’s en contacten staat de toestemming die Ownpace vraagt ook wijzigingen toe. Ownpace brengt er geen aan.',
+    'Ownpace leest alleen. Ownpace verwijdert of wijzigt nooit iets in uw account, en niemand — niet de organisatie, niet Ownpace — ziet uw wachtwoord. U logt zelf in bij Google, op de pagina van Google zelf. Google kan de toestemming ruimer omschrijven: voor e-mail, agenda’s en contacten staat de toestemming die Ownpace vraagt ook wijzigingen toe. Ownpace brengt er geen aan.',
   'grant.scopeIntro': 'Google legt deze toestemming vast als:',
   'grant.until': 'Deze link werkt tot {date}.',
   'grant.signInAs': 'Log in als {account}. Google deelt uw adres ter controle; andere accounts worden geweigerd.',
   'grant.inAppBrowser':
-    'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar Safari of Chrome. De link blijft werken.',
+    'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar uw favoriete browser. De link blijft werken.',
   'grant.connect': 'Doorgaan met Google',
   'grant.person.asking':
     '{organisation} migreert uw accounts naar een nieuwe provider en heeft uw toestemming nodig om te lezen wat erin zit. Elk account hieronder vraagt het één keer.',
   'grant.person.migration': 'Naar {where}: {reads}.',
   'grant.person.where': '{account}, {place}',
   'grant.person.connect': 'Doorgaan met Google als {account}',
-  'grant.person.connected': 'Verbonden. Voor dit account is niets meer nodig.',
+  'grant.person.connected': 'Verbonden. Dit account is klaar om te gebruiken in een migratie.',
   'grant.person.again':
-    'Dit account was al verbonden. Wie u deze link stuurde, vraagt u het opnieuw te verbinden, bijvoorbeeld omdat de verbinding niet meer werkt.',
+    'Dit account was al verbonden. Wie u deze link stuurde, vraagt u opnieuw te verbinden, bijvoorbeeld omdat de verbinding niet meer werkt.',
   'grant.person.connectAgain': 'Opnieuw verbinden met Google als {account}',
   'grant.connecting': 'Google wordt geopend…',
-  'grant.disclosure': 'Door door te gaan gaat u akkoord met hoe uw gegevens worden behandeld:',
+  'grant.disclosure': 'Door door te gaan gaat u akkoord met hoe uw gegevens worden verwerkt:',
   'grant.privacy': 'Privacybeleid',
   'grant.terms': 'Voorwaarden',
   'grant.withdraw':
     'U kunt deze toegang op elk moment intrekken: op de voortgangspagina die u krijgt zodra u toegang hebt gegeven, of via de beveiligingsinstellingen van uw Google-account, bij de apps die toegang hebben.',
   'link.unreachable': 'Deze pagina kon de server niet bereiken. Controleer uw verbinding en probeer het opnieuw.',
   'link.unreadable':
-    'Er ging iets mis op deze pagina. Probeer het later opnieuw; blijft het misgaan, laat het dan de persoon weten die u de link stuurde.',
+    'Er ging iets mis op deze pagina. Probeer het later opnieuw; blijft het misgaan, laat dit dan weten aan dan de persoon die u de link stuurde.',
   'answer.unreadable':
-    'De server antwoordde in een vorm die deze pagina niet kent. Laad de pagina opnieuw; blijft het zo, meld het en geef daarbij het volgende door: referentie {reference}.',
+    'De server antwoordde in een vorm die deze pagina niet kent. Laad de pagina opnieuw; blijft het zo, meld dit en geef daarbij het volgende door: referentie {reference}.',
   'reload.newer':
-    'Er is een nieuwere versie van deze pagina. Laad de pagina opnieuw om die te gebruiken; wat u nog niet hebt opgeslagen, gaat daarbij verloren.',
+    'Er is een nieuwere versie van deze pagina. Laad de pagina opnieuw; wat u niet had opgeslagen, gaat daarbij verloren.',
   'reload.button': 'Pagina opnieuw laden',
   'view.title': 'Uw migratie',
   'view.loading': 'Een moment…',
   'view.who': '{organisation} migreert uw account naar een nieuwe provider.',
-  'view.state.active': 'Uw spullen worden nu overgezet.',
+  'view.state.active': 'De migratie is actief.',
   'view.state.paused': 'Het kopiëren ligt op dit moment stil.',
-  'view.state.cutover': 'Uw nieuwe account is nu het account in gebruik.',
+  'view.state.cutover': 'U bent overgestapt naar uw nieuwe omgeving.',
   'view.state.done': 'Uw migratie is klaar.',
-  'view.state.continuous': 'Wat nieuw binnenkomt, wordt nog steeds overgezet.',
-  'view.notStarted': 'Er is nog niets gekopieerd.',
+  'view.state.continuous': 'Wat nieuw binnenkomt op uw oude omgeving, wordt nog steeds in sync gehouden.',
+  'view.notStarted': 'Er is nog niets gemigreerd.',
   'view.notStarted.why':
-    'Het kopiëren is nog niet begonnen, dus er valt hier nog niets te tellen. Dat is normaal in de eerste dag of twee: een migratie start zodra alles wat ervoor nodig is gekoppeld is, en deze pagina vult zich dan vanzelf. Er ontbreekt niets en er is niets misgegaan.',
-  'view.copied.one': '{count} gekopieerd',
-  'view.copied.many': '{count} gekopieerd',
+    'Het migreren is nog niet aangevangen. Een migratie start zodra alles wat daarvoor nodig is, binnen is. Deze pagina vult zich verder vanzelf. Er ontbreekt niets en er is niets misgegaan.',
+  'view.copied.one': '{count} gemigreerd',
+  'view.copied.many': '{count} gemigreerd',
   'view.upToDate': 'Bijgewerkt tot {date}.',
   'view.lastWorked': 'Nog bezig; laatst gewerkt op {date}.',
   'view.notYet': 'Nog niet begonnen.',
@@ -4374,20 +4371,20 @@ const nl: Record<keyof typeof en, string> = {
   'view.retrying.one': '{count} item wordt opnieuw geprobeerd.',
   'view.retrying.many': '{count} items worden opnieuw geprobeerd.',
   'view.moved': 'Tot nu toe {bytes} overgezet.',
-  'view.failure.authExpired': 'De koppeling met uw account moet vernieuwd worden. Wie dit heeft ingesteld kan dat.',
-  'view.failure.rateLimited': 'Uw provider vroeg ons rustiger aan te doen. Dit gaat vanzelf verder.',
-  'view.failure.quotaExceeded': 'Een daglimiet is bereikt. Morgen gaat het kopiëren vanzelf verder.',
+  'view.failure.authExpired': 'De koppeling met uw account moet worden vernieuwd. Wie dit heeft ingesteld kan dat.',
+  'view.failure.rateLimited': 'Uw provider vroeg ons (geautomatiseerd) rustiger aan te doen. Dit gaat vanzelf verder.',
+  'view.failure.quotaExceeded': 'Een daglimiet is bereikt. Morgen gaat het migreren vanzelf verder.',
   'view.failure.policyRefused':
-    'Sommige items bleven liggen door de instellingen van deze migratie, niet door uw accounts.',
+    'Sommige items konden niet worden gemigreerd door de instellingen van deze migratie, niet door uw accounts.',
   'view.failure.tooLarge':
-    'Sommige bestanden bleven liggen: ze zijn groter dan deze dienst tijdens de Alpha kopieert.',
+    'Sommige bestanden konden niet worden gemigreerd: ze zijn groter dan deze dienst tijdens de Alpha aan kan.',
   'view.failure.sourceRefused':
-    'Uw oude account gaf sommige items niet vrij. Er ging niets naar uw nieuwe account.',
-  'view.failure.targetRefused': 'Uw nieuwe account wilde sommige items niet aannemen.',
+    'Uw oude omgeving gaf sommige items niet vrij. Deze gingen niet naar uw nieuwe omgeving.',
+  'view.failure.targetRefused': 'Uw nieuwe account kon sommige items in ontvangst nemen.',
   'view.failure.formatRefused':
-    'Uw nieuwe account accepteert sommige soorten bestanden niet. Wie dit uitvoert kan de indeling aanpassen.',
-  'view.failure.network': 'Een server was niet bereikbaar. Dat is meestal kort en wordt opnieuw geprobeerd.',
-  'view.failure.unknown': 'Iets wat we niet konden benoemen. Wie dit uitvoert kan er meer over zien.',
+    'Uw nieuwe omgeving accepteert bepaalde bestandstypen niet. Wie dit uitvoert kan de indeling mogelijk aanpassen.',
+  'view.failure.network': 'Een server was niet bereikbaar. Dat is meestal van korte duur, er wordt opnieuw geprobeerd.',
+  'view.failure.unknown': 'Iets ging mis wat het systeem nog niet kent. Wie dit uitvoert kan er mogelijk meer over zien.',
   'view.failure.side.source': 'Het ging om uw oude account.',
   'view.failure.side.target': 'Het ging om uw nieuwe account.',
   'view.until': 'Deze pagina werkt tot {date}.',
@@ -4395,16 +4392,16 @@ const nl: Record<keyof typeof en, string> = {
   'view.state.withdrawn': 'Het kopiëren is gestopt: op {date} trok u de gegeven toegang in.',
   'view.grant.title': 'De toegang die u gaf',
   'view.grant.body': '{organisation} leest voor deze migratie uw Google-account, omdat u dat toestond.',
-  'view.grant.whatHappens': 'Intrekken stopt het kopiëren. Wat al gekopieerd is, blijft waar het nu staat.',
-  'view.grant.wholeApp': 'Google trekt het in voor de hele app; andere migraties die u toestond, stoppen ook.',
+  'view.grant.whatHappens': 'Intrekken stopt de migratie. Wat al gemigreerd was, blijft waar het nu staat.',
+  'view.grant.wholeApp': 'Google trekt de gehele toestemming in; andere migraties die u toestond, stoppen ook.',
   'view.grant.withdraw': 'Toegang intrekken',
   'view.grant.confirm': 'Nu intrekken? Later verder gaan kan alleen met een nieuwe link van de afzender.',
   'view.grant.confirmYes': 'Ja, intrekken',
   'view.grant.keep': 'Niet intrekken',
   'view.grant.withdrawing': 'Bezig met intrekken…',
-  'view.withdrawn.revoked': 'Klaar. Google bevestigde dat de toegang is ingetrokken, en hier is die verwijderd.',
+  'view.withdrawn.revoked': 'Klaar. Google bevestigde dat de toegang is ingetrokken.',
   'view.withdrawn.notConfirmed': 'Hier verwijderd, dus deze migratie kan die niet gebruiken. Google bevestigde het intrekken niet.',
-  'view.withdrawn.removeYourself': 'Verwijder voor de zekerheid zelf de app bij de apps met toegang:',
+  'view.withdrawn.removeYourself': 'Verwijder voor de zekerheid zelf de Ownpace-oauth-app in de lijst van apps met toegang bij Google:',
   'view.withdrawn.since': 'Er wordt niets meer uit uw account gelezen. Later verder? Vraag om een nieuwe link.',
   'view.withdrawn.check': 'Uw Google-account toont welke apps nog toegang hebben:',
   // De voortgangspagina van een PERSOON (ADR-0035, gewijzigd 2026-09-29; 0153 T5 (b), deel 3).
@@ -4419,29 +4416,29 @@ const nl: Record<keyof typeof en, string> = {
   'view.person.withdrawn.notConfirmed':
     'Hier verwijderd, dus deze migraties kunnen die niet gebruiken. Google bevestigde het intrekken niet.',
   'linkReport.open': 'Deze link melden',
-  'linkReport.intro': 'Uw melding gaat naar het team van Ownpace, niet naar {organisation}.',
+  'linkReport.intro': 'Uw melding gaat naar het Ownpace-supportteam, niet naar {organisation}.',
   'linkReport.description': 'Waarom twijfelt u aan deze link?',
   'linkReport.replyTo': 'Uw e-mailadres (niet verplicht)',
-  'linkReport.replyTo.hint': 'Alleen als u antwoord wilt; we gebruiken het nergens anders voor.',
+  'linkReport.replyTo.hint': 'Alleen als u een reactie van ons wenst te ontvangen; we gebruiken het nergens anders voor.',
   'linkReport.sentWith':
     'Meegestuurd, uit onze gegevens: welke link dit is; de organisatie en de migratie waar hij bij hoort, met de stand van de migratie; het adres van wie de link heeft gemaakt; het account waaruit de migratie kopieert en het account waarnaar; en of u toegang hebt gegeven.',
   'linkReport.send': 'Melding versturen',
   'linkReport.sending': 'Versturen…',
   'linkReport.sent': 'Verstuurd. Uw melding heeft nummer {ticket}, en we antwoorden naar {email}.',
-  'linkReport.sent.anonymous': 'Verstuurd. Uw melding heeft nummer {ticket}. Zonder adres kunnen we u niet antwoorden.',
+  'linkReport.sent.anonymous': 'Verstuurd. Uw melding heeft nummer {ticket}. Zonder mailadres kunnen we u niet antwoorden.',
   'linkReport.sent.mail': 'Verstuurd naar ons supportteam, met meldingskenmerk {reference}. We antwoorden per e-mail naar {email}.',
   'linkReport.sent.mail.anonymous':
-    'Verstuurd naar ons supportteam, met meldingskenmerk {reference}. Zonder adres kunnen we u niet antwoorden.',
+    'Verstuurd naar ons supportteam, met meldingskenmerk {reference}. Zonder mailadres kunnen we u niet antwoorden.',
   'linkReport.next.grant': 'U hoeft niet door te gaan: er wordt niets gelezen zonder uw toestemming bij Google.',
-  'linkReport.next.withdraw': 'Wilt u het kopiëren nu stoppen? Trek dan hierboven de toegang in.',
+  'linkReport.next.withdraw': 'Wilt u de migratie stoppen? Trek dan hierboven de toegang in.',
   'state.lifecycle.active': 'Actief',
   'state.lifecycle.paused': 'Gepauzeerd',
-  'state.lifecycle.cutover': 'In cutover',
+  'state.lifecycle.cutover': 'Overgestapt',
   'state.lifecycle.done': 'Afgerond',
   'state.lifecycle.continuous': 'Doorlopend',
   'state.stage.not_started': 'Nog niet gestart',
   'state.stage.paused': 'Gepauzeerd',
-  'state.stage.copying': 'Wordt gekopieerd',
+  'state.stage.copying': 'Wordt gemigreerd',
   'state.stage.kept_in_step': 'Wordt bijgehouden',
   'state.stage.ready_to_switch': 'Klaar om over te stappen',
   'state.stage.switching': 'Bezig met overstappen',
@@ -4461,24 +4458,24 @@ const nl: Record<keyof typeof en, string> = {
   'runs.status.failed': 'Mislukt',
   'runs.status.cancelled': 'Geannuleerd',
   'queue.waitingOnYou': 'Wacht op u',
-  'queue.alreadyDecided': 'Al beslist',
+  'queue.alreadyDecided': 'Al besloten',
   'moves.title': 'Verplaatst op het oude systeem',
   'moves.intro':
-    'Items die de eigenaar elders onderbracht; aan geen van beide kanten is iets veranderd.',
+    'Items die de eigenaar had verplaatst; aan geen van beide kanten is iets veranderd.',
   'moves.intro.more':
-    'Het nieuwe systeem heeft ze nog waar wij ze plaatsten; elke regel is uw beslissing.',
+    'Het nieuwe systeem heeft deze nog, waar zij ze hadden geplaatst; beslis over elke regel.',
   'moves.empty.open': 'Er is niets verplaatst.',
-  'moves.empty.acknowledged': 'Er is nog niets beslist.',
-  'moves.keep': 'Laat het waar het staat',
+  'moves.empty.acknowledged': 'Er is nog niets besloten.',
+  'moves.keep': 'Laat staan',
   'moves.apply': 'Verwijder de oude kopie',
   'moves.applyArmed': 'Bevestig verwijdering',
   'moves.renamedTo': 'hernoemd',
-  'failures.title': 'Kon niet worden gekopieerd',
+  'failures.title': 'Kon niet worden gemigreerd',
   'failures.intro':
-    'Items die niet zijn overgekomen, wat er misging, en hoe vaak we het hebben geprobeerd.',
+    'Items die niet zijn overgekomen, wat er misging, en hoe vaak is geprobeerd.',
   'failures.empty.needsDecision': 'Er wacht niets op een beslissing.',
   'failures.acceptedLeave':
-    'Geaccepteerde items verdwijnen hier; de migratie gaat zonder ze verder, niet als mislukt geteld.',
+    'Geaccepteerde items worden hier verwijderd; de migratie gaat verder, en de verwijderde items worden niet als mislukt geteld.',
   'failures.seeRuns': 'Bekijk de mislukte ronde (uitvoeringsgeschiedenis)',
   'failures.stillTrying': 'Wordt nog geprobeerd',
   'failures.empty.retrying': 'Er wordt niets opnieuw geprobeerd.',
@@ -4486,14 +4483,14 @@ const nl: Record<keyof typeof en, string> = {
   'failures.retryCost':
     'Opnieuw proberen doorloopt alles opnieuw tot dit item, dus de volgende ronde duurt langer.',
   'failures.retryCost.why':
-    'Het wist de synchronisatiecursors van deze migratie, zodat de hele bron opnieuw wordt doorlopen; er wordt niets dubbel gekopieerd.',
+    'Het wist de synchronisatiecursors (waar we waren gebleven) van deze migratie, zodat de hele bron opnieuw wordt doorlopen; er wordt niets dubbel gemigreerd.',
   'failures.accept': 'Migreer zonder dit item',
-  'failures.acceptAll': 'Migreer zonder al deze items ({count})',
+  'failures.acceptAll': 'Migreer zonder deze items ({count})',
   'failures.group.title': 'Beslis over een hele groep',
   'failures.group.hint':
     'Een sindsdien opgeloste storing haalt deze items er niet zelf weer uit.',
   'failures.group.hint.why':
-    'Geparkeerd zijn is een opgeslagen aantal pogingen, dus een oplossing uitrollen verlaagt dat niet — de items blijven staan terwijl de migratie zich voltooid noemt. Kies een soort, of typ een deel van de fout die de items delen, en dit beslist ze in één keer: opnieuw proberen wist ook eenmalig de synchronisatiecursors van deze migratie, en dat is wat de items weer vóór de volgende ronde zet. De tekst wordt letterlijk vergeleken, dus een % of een _ die je typt betekent een % of een _.',
+    'Deze items staan geparkeerd nadat een paar keer opnieuw was geprobeerd. Systeem aanpassingen hebben hier geen effect op — items blijven wachten op uw beslissing. Kies een soort, of typ een deel van de fout om ze als groep te behandelen: opnieuw proberen wist ook eenmalig de synchronisatiecursors van deze migratie, om te zorgen dat de items weer opnieuw geprobeerd worden. De tekst wordt letterlijk vergeleken, dus wildcards werken niet als wildcards.',
   'failures.group.found': 'Groepen in deze wachtrij',
   'failures.group.items.one': '1 item',
   'failures.group.items.many': '{count} items',
@@ -4501,7 +4498,7 @@ const nl: Record<keyof typeof en, string> = {
   'failures.group.stillTrying.many': '{count} worden nog geprobeerd',
   'failures.group.noCategory': 'Geen soort fout vastgelegd',
   'failures.group.noCategory.why':
-    'Deze items mislukten voordat deze installatie per item een soort fout vastlegde. De volgende poging legt die vast en dan horen ze bij een groep. Tot dan kunt u ze \u00E9\u00E9n voor \u00E9\u00E9n beslissen, of via de fouttekst hieronder.',
+    'Deze items mislukten voordat Ownpace dit als type fout kon herkennen. De volgende poging kan wat fout ging anders intepreteren en behandelen, zodat ze bij een groep gaan behoren. Tot dan kunt u ze \u00E9\u00E9n voor \u00E9\u00E9n beslissen, of via de fouttekst hieronder.',
   'failures.group.manual': 'Zoek in plaats daarvan op de fouttekst',
   'failures.group.domain': 'Soort',
   'failures.group.domain.any': 'Elke soort',
@@ -4516,12 +4513,12 @@ const nl: Record<keyof typeof en, string> = {
   'failures.parked': 'wacht op u',
   'deletions.title': 'Verwijderd op het oude systeem',
   'deletions.intro':
-    'Items die de eigenaar bij de bron verwijderde; het nieuwe systeem heeft ze nog, onaangeroerd.',
+    'Items die de eigenaar bij de bron verwijderde; het nieuwe systeem heeft deze nog.',
   'deletions.empty.confirmed': 'Er wacht niets op een beslissing.',
   'deletions.watching': 'Wordt in de gaten gehouden',
   'deletions.empty.watching': 'Er wordt niets in de gaten gehouden.',
-  'deletions.empty.acknowledged': 'Er is nog niets beslist.',
-  'deletions.keep': 'Behoud onze kopie',
+  'deletions.empty.acknowledged': 'Er is nog niets besloten.',
+  'deletions.keep': 'Behoud de kopie',
   'deletions.apply': 'Verwijder het hier ook',
   'deletions.applyArmed': 'Bevestig verwijderen',
   'deletions.earlierExports': 'Eerdere exports',
@@ -4532,13 +4529,13 @@ const nl: Record<keyof typeof en, string> = {
   'common.loading': 'Laden…',
   'common.cancel': 'Annuleren',
   'common.close': 'Sluiten',
-  'docs.title': 'Instelhandleidingen',
-  'docs.all': '← Alle instelhandleidingen',
+  'docs.title': 'Handleidingen',
+  'docs.all': '← Alle handleidingen',
   'docs.notFound': 'Er is geen handleiding met die naam; deze horen bij deze versie:',
-  'docs.otherLanguage': 'Deze handleiding is er nog niet in het Nederlands; hieronder staat de Engelse versie.',
+  'docs.otherLanguage': 'Deze handleiding is nog niet beschikbaar in het Nederlands; hieronder staat de Engelse versie.',
   'docs.operatorDocs':
     "Draait u een eigen appliance? Instellingen en commando's staan in de beheerdersdocumenten in de repository.",
-  'docs.ownAppFold': 'Alleen als u een eigen app wilt gebruiken',
+  'docs.ownAppFold': 'Alleen als u een eigen oauth-app wilt gebruiken',
   'mappings.lastSync': 'Laatste synchronisatie:',
   'mappings.never': 'Nooit',
   'mappings.filtered.lead': 'Alleen zichtbaar:',
@@ -4581,9 +4578,9 @@ const nl: Record<keyof typeof en, string> = {
   'start.who.someoneNew': 'Iemand anders',
   'start.who.whose': 'Wie meldt zich aan bij de accounts?',
   'start.who.myself': 'Ik',
-  'start.who.someoneElse': 'Zij zelf, met een link',
+  'start.who.someoneElse': 'Anderen, met een link',
   'start.who.someoneElse.line':
-    'Een Google-account verbinden zij zelf, zodat u dat wachtwoord nooit in handen krijgt. Bij andere aanbieders meldt u zich samen aan.',
+    'Een Google-account verbindt iemand anders zelf, zodat u dat wachtwoord nooit in handen krijgt. Bij andere aanbieders meldt u zich samen aan.',
   'start.who.needName': 'Typ eerst een naam.',
   'start.who.peopleFailed': 'De lijst van mensen die u wenst te migreren kon niet worden gelezen. Een nieuwe naam werkt wel.',
   'start.from.heading': 'Welk account verlaat u?',
@@ -4599,12 +4596,12 @@ const nl: Record<keyof typeof en, string> = {
   'start.what.hint': 'Elke aanmelding vraagt alleen om wat u hier aanvinkt.',
   'start.what.from': 'Van {provider}',
   'start.what.notFrom': 'Niet van {provider}: {types}.',
-  'start.what.notFrom.apple.why': 'Apple biedt niemand buiten Apple een weg naar iCloud Drive.',
+  'start.what.notFrom.apple.why': 'Apple biedt applicaties (buiten Apple) geen toegang tot iCloud Drive.',
   'start.what.notFrom.imap.why':
-    'Via IMAP wordt alleen e-mail gelezen: voor de agenda en contacten van een mailaanbieder is hier nog geen weg.',
+    'Via IMAP wordt alleen e-mail gelezen: dit werkt (nog niet voor agenda, taken en contacten van een mailaanbieder.',
   'start.what.needOne': 'Vink minstens één ding aan om te migreren.',
   'start.what.files.legend': 'Welke bestanden',
-  'start.what.files.all': 'Heel {place}',
+  'start.what.files.all': 'Alles {place}',
   'start.what.files.one': 'Alleen één map',
   'start.what.files.one.line': 'Die kiest u zodra het account verbonden is.',
   'start.place.myDrive': 'Mijn Drive',
@@ -4614,8 +4611,8 @@ const nl: Record<keyof typeof en, string> = {
   'start.what.export.google-takeout.line':
     'U vraagt de export zelf aan bij Google en zet hem in uw nieuwe bestanden zodra hij binnen is.',
   'start.what.export.google-takeout.why':
-    "Google laat andere apps alleen de foto's lezen die ze zelf hebben geüpload, dus de export is de enige weg naar een hele bibliotheek.",
-  'start.what.export.askNow': 'Het klaarzetten kan een paar dagen duren, dus vraag hem nu aan:',
+    "Google laat andere apps alleen de foto's lezen die via die app waren geüpload, dus de Takeout export is de enige manier om alles te migrereren.",
+  'start.what.export.askNow': 'Het klaarzetten kan een paar dagen duren, dus vraag het alvast aan:',
   'start.connect.heading': 'Uw accounts verbinden',
   'start.connect.googleApart': 'Google vraagt op deze dienst apart om e-mail en bestanden, dus dit zijn {n} aanmeldingen.',
   'start.connect.asks': 'Eén aanmelding: {types}',
@@ -4632,12 +4629,12 @@ const nl: Record<keyof typeof en, string> = {
   'start.connect.theirAddress': 'Hun adres bij {provider}',
   'start.connect.saveAddress': 'Adres bewaren',
   'start.connect.addressNeeded': 'Typ eerst hun adres.',
-  'start.connect.exportNoSignIn': "Foto's hebben geen aanmelding nodig: ze komen uit de Takeout-export.",
+  'start.connect.exportNoSignIn': "Foto's hebben geen aanmelding nodig: deze komen via de Takeout-export.",
   'start.connect.folder.id': 'Welke map: de link of het ID',
   'start.connect.folder.path': 'Welke map: het pad',
   'start.connect.folder.google.hint': 'Open de map in Google Drive en kopieer het adres.',
   'start.connect.folder.box.hint': 'Open de map in Box en kopieer het adres.',
-  'start.connect.folder.dropbox.hint': 'Zoals Dropbox het toont, vanaf de bovenste map: /Vakantie/2019.',
+  'start.connect.folder.dropbox.hint': 'Zoals Dropbox het toont, vanaf de bovenste map, zoals: /Vakantie/2019.',
   'start.connect.folder.browse.google': 'Gedeelde drives en gedeelde mappen tonen',
   'start.connect.folder.browse.dropbox': 'Gedeelde mappen tonen',
   'start.connect.folder.found': 'Gedeeld met dit account',
@@ -4681,8 +4678,8 @@ const nl: Record<keyof typeof en, string> = {
   'start.check.export.waits': 'Klaargezet, en wacht op de Takeout-export:',
   'start.check.export.ask': "Vraag aan bij Google, met alleen Google Foto's aangevinkt:",
   'start.check.export.put':
-    'Zet de .zip-bestanden zodra ze binnen zijn, zoals Google ze stuurt, in de map {folder} van {destination}.',
-  'start.check.export.start': 'Start de migratie daarna, met Controleren en starten: eerst wordt de export geteld.',
+    'Zet de .zip-bestanden zoals bij Google gedownload in de map {folder} van {destination}.',
+  'start.check.export.start': 'Start daarna de migratie, met Controleren en starten: eerst wordt de export geteld.',
   'start.check.export.guide': 'Een Takeout aanvragen, stap voor stap',
   'start.check.done': 'Klaar',
   'start.check.later':
@@ -4725,8 +4722,8 @@ const nl: Record<keyof typeof en, string> = {
   'person.step.linkUnread': '{name} (kon niet worden gelezen)',
   'person.step.deletions': '{n} om te beslissen',
   'person.step.moves': '{n} gemeld',
-  'person.step.failures.one': '1 kon niet worden gekopieerd',
-  'person.step.failures.many': '{n} konden niet worden gekopieerd',
+  'person.step.failures.one': '1 kon niet worden gemigreerd',
+  'person.step.failures.many': '{n} konden niet worden gemigreerd',
   'person.step.sharing': '{n} om door te lopen',
   'person.step.check.passed': 'Geslaagd',
   'person.step.check.partly': 'Geslaagd voor {n} van {total}',
@@ -4749,7 +4746,7 @@ const nl: Record<keyof typeof en, string> = {
   'billing.paymentMethodsLoadFailed': 'De betaalmethoden konden niet worden geladen.',
   'billing.default': 'Standaard',
   'billing.adminOnly':
-    'Facturering is alleen voor eigenaren en beheerders; vraag een van hen naar gebruiks- of factuurgegevens.',
+    'Facturering is alleen voor eigenaren en beheerders; vraag hen naar gebruiks- of factuurgegevens.',
   'billing.invoicesLoadFailed': 'De facturen konden niet worden geladen.',
   'billing.party.title': 'Factuurgegevens',
   'billing.party.intro': 'Aan wie facturen worden gericht.',
@@ -4777,7 +4774,7 @@ const nl: Record<keyof typeof en, string> = {
   'billing.party.vat.registeredTo': 'Geregistreerd op naam van: {name}',
   'billing.party.vat.consultationNumber': 'Consultatienummer: {number}',
   'billing.party.vat.unqualified':
-    'Geen consultatienummer — de controle liep zonder geconfigureerd btw-nummer van de verkoper.',
+    'Geen consultatienummer — de controle werd gedaan zonder geconfigureerd btw-nummer van de verkoper.',
   'billing.party.vat.checkFailed': 'De controle is niet uitgevoerd.',
   'billing.party.vat.treatmentLabel': 'Btw op uw facturen:',
   'billing.party.vat.treatment.domestic': 'Facturen bevatten btw tegen het standaardtarief.',
@@ -4786,10 +4783,10 @@ const nl: Record<keyof typeof en, string> = {
   'billing.party.vat.treatment.oss':
     'Facturen bevatten het btw-tarief van uw eigen land (One Stop Shop).',
   'billing.party.vat.treatment.outsideEu':
-    'Buiten het btw-gebied van de EU; de belasting van facturen wordt vóór de eerste bepaald.',
-  'confirm.nextSteps': 'Hierna, in cutover-volgorde:',
+    'Buiten het btw-gebied van de EU; de belasting van facturen wordt vóór de eerste betaling bepaald.',
+  'confirm.nextSteps': 'Hierna, in volgorde nodig voor de overstap:',
   'confirm.title': 'Controleer en bevestig uw migratie',
-  'confirm.intro': 'Er is nog niets gekopieerd. Controleer wat er migreert en start het daarna.',
+  'confirm.intro': 'Er is nog niets gemigreerd. Controleer wat er migreert en start het daarna.',
   'confirm.readError': 'De migraties konden niet worden gelezen.',
   'confirm.noMappings': 'Geen migraties geconfigureerd.',
   'confirm.noMappings.how':
@@ -4799,11 +4796,11 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.start': 'Start migratie',
   'confirm.startError': 'Kon niet starten:',
   'confirm.startErrorFallback': 'het verzoek is mislukt',
-  'confirm.countError': 'Het tellen is niet gestart:',
-  'confirm.countAgain': 'Dit scherm telt vanzelf opnieuw zodra het kopiëren weer begint.',
-  'confirm.startWaits': 'U kunt starten zodra de telling binnen is, of uiterlijk na 15 minuten.',
+  'confirm.countError': 'Het inventariseren is niet gestart:',
+  'confirm.countAgain': 'Dit scherm gaat vanzelf verder zodra het een migratie weer begint.',
+  'confirm.startWaits': 'U kunt starten zodra de inventarisatie binnen is, of uiterlijk na 15 minuten.',
   'confirm.countUnfinished':
-    'De telling was na 15 minuten niet klaar. U kunt toch starten: wat niet gekopieerd kan worden, staat op de pagina van de migratie zodra het gevonden is.',
+    'De inventarisatie was na 15 minuten niet klaar. U kunt toch starten: wat niet gekopieerd kan worden, staat op de pagina van de migratie zodra het gevonden is.',
   'confirm.manifestError': 'De lijst van wat er migreert kon niet worden gelezen:',
   'confirm.openConsole': 'Open de migratieconsole',
   'confirm.whatMigrates': 'Wat migreert er',
@@ -4822,50 +4819,50 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.progress.retrying': 'in nieuwe poging',
   'confirm.progress.leftAsIs': '{count} ongemoeid gelaten: deze stonden al op het nieuwe systeem, of waren sindsdien gewijzigd',
   'confirm.progress.leftAsIs.why':
-    'Deze stonden al op het nieuwe systeem, of waren sindsdien gewijzigd, en zijn daarom met rust gelaten. Ze zijn niet overschreven en er is niets verloren gegaan. Ze staan hier apart van de kopieën omdat er niets met ze is gebeurd.',
+    'Deze stonden al op het nieuwe systeem, of waren sindsdien gewijzigd, en zijn daarom met rust gelaten. Ze zijn niet overschreven en er is niets verloren gegaan.',
   'confirm.progress.lastActive': 'laatst actief',
   'confirm.progress.stopped': 'Uitgeschakeld: deze kopieën blijven, maar blijven niet langer in sync met de bron.',
   'confirm.progress.stopped.why':
-    'Er is niets verwijderd. De kopieën en hun administratie blijven zoals toen het stopte. Weer inschakelen zet het weer aan: nieuwe items worden gekopieerd, wijzigingen worden opgepakt en verwijderingen in de bron worden gemeld.',
+    'Er is niets verwijderd. De kopieën en hun migratie-administratie blijven zoals toen het stopte. Bij inschakelen worden nieuwe items weer gemigreerd, wijzigingen opgepakt en verwijderingen in de brom gemeld.',
   'confirm.progress.stoppedByYou': 'Door u gestopt: deze kopieën blijven, maar volgen de bron pas weer na hervatten.',
   'confirm.progress.stoppedByYou.why':
-    'Er is niets verwijderd. De kopieën en hun administratie blijven zoals ze waren toen u het stopte. Hervatten, op de pagina van de migratie, gaat verder waar het stopte: nieuwe items worden gekopieerd, wijzigingen worden opgepakt en verwijderingen in de bron worden gemeld.',
+    'Er is niets verwijderd. De kopieën en hun migratie-administratie blijven zoals ze waren toen u het stopte. Hervatten, op de pagina van de migratie, gaat verder waar het stopte: nieuwe items worden gekopieerd, wijzigingen opgepakt en verwijderingen in de bron gemeld.',
   'pause.label': 'Gepauzeerd',
   'pause.ceiling':
     '{provider} heeft de daglimiet voor downloaden bereikt. Kopiëren gaat verder na {resets}.',
   'pause.ceiling.unknown':
     '{provider} heeft de daglimiet voor downloaden bereikt. Kopiëren gaat verder zodra die reset.',
   'pause.ceiling.why':
-    'De limiet is van uw bron / oude provider, niet van ons. Overschrijden kan u ongeveer een dag buitensluiten uit uw eigen live mailbox, dus stoppen wij het kopiëren daarvóór al. Er is niets misgegaan en er gaat niets verloren — de volgende ronde gaan we weer rustig verder.',
+    'Deze limiet is van uw bron / oude provider, niet van ons. Als wij daar overheen gaan, kan dat u ongeveer een dag buitensluiten uit uw eigen live mailbox, dus is de migratie voordien al gestopt. Er is niets misgegaan en er gaat niets verloren — de volgende ronde gaan we weer rustig verder.',
   'ceiling.atStart':
     'Wat deze migraties bevatten, ongeveer {size}, en de {moved} die al verplaatst is, gaan samen over uw datalimiet van {ceiling}.',
   'ceiling.atStart.holds':
     'Bij de limiet wachten nieuwe items op uw keuze; wijzigingen aan wat al gekopieerd is gaan door.',
-  'ceiling.atStart.choose': 'Kies nu, of start toch en kies wanneer we tegen de limiet lopen:',
+  'ceiling.atStart.choose': 'Kies nu, of start toch en kies wanneer u tegen de limiet loopt:',
   'ceiling.atStart.billing': 'uw datalimiet op de pagina Facturering',
   'paths.atStart':
-    'Nu starten laat {after} migraties tegelijk lopen (elke soort gegevens telt als één), en uw pakket, {tier}, laat er {paths} lopen.',
+    'Nu starten laat {after} migraties gelijktijdig lopen (elke soort gegevens telt als één), en uw pakket, {tier}, laat er {paths} lopen.',
   'paths.atStart.moveUp': 'Ga naar {tier}',
   'paths.atStart.moveUp.what': '{paths} tegelijk, voor {monthly} per maand. Alles hier start.',
   'paths.atStart.moveUp.button': 'Ga naar {tier} en start',
-  'paths.atStart.talkToUs': 'Geen pakket laat er zoveel tegelijk lopen. Neem contact op voor een quote.',
+  'paths.atStart.talkToUs': 'Geen pakket laat er zoveel gelijktijdig lopen. Neem contact op met ons.',
   'paths.atStart.fits': 'Start wat nu past',
   'paths.atStart.fits.what': '{count} van {total} starten nu, op {tier}. De rest blijft klaarstaan, om te starten als er minder lopen.',
   'paths.atStart.fits.button': 'Start {count} van {total}',
   'paths.atStart.fits.none':
-    'Geen hiervan past naast wat nu loopt. Een migratie geeft haar plek terug als ze klaar is; een gepauzeerde houdt die vast.',
-  'paths.atStart.alpha': 'Tijdens de Alpha wacht er niets op een akkoord en wordt niets in rekening gebracht, dus alles start.',
+    'Geen hiervan past naast wat al actief is. Een migratie afronden geeft een slot vrij; een gepauzeerde houdt die vast.',
+  'paths.atStart.alpha': 'Tijdens de Alpha is er geen limiet en kost het niets: alles start gewoon.',
   'pause.dataCeiling':
-    'Nieuwe items wachten bij uw datalimiet van {ceiling}: {held} nog niet gekopieerd. Wijzigingen aan wat al gekopieerd is gaan door.',
+    'Nieuwe items wachten bij uw datalimiet van {ceiling}: {held} nog niet gemigreerd. Wijzigingen in items die al gemigreerd waren worden nog wel geemigreerd.',
   'pause.dataCeiling.moveUp': 'Ga naar {tier}: €{monthly} per maand.',
   'pause.dataCeiling.topUp': 'Of koop eenmalig nog {band} erbij, voor €{price}.',
   'pause.dataCeiling.why':
-    'Kies zonodig voor een stap omhoog via pagina Facturering, en het kopiëren gaat verder waar het stopte.',
+    'Kies zonodig voor een stap omhoog via pagina Facturering, en het migreren gaat verder waar het stopte.',
   'pause.hold.heading': 'Migreren is gepauzeerd',
   'pause.hold.default': 'We hebben het migreren gepauzeerd terwijl we het platform bijwerken.',
   'pause.hold.since': 'Gepauzeerd sinds',
   'pause.hold.why':
-    'Er is niets mis met uw migratie, niets gaat verloren. Een migraties run die al liep wordt normaal afgerond, en geplande migratie runs starten vanzelf weer zodra de update klaar is. Migraties die u tijdens de pauze probeerde te starten, zijn niet gestart: start het na de update opnieuw.',
+    'Er is niets mis met uw migratie, niets gaat verloren. Een migraties run die al liep wordt normaal afgerond, en geplande migratie runs starten vanzelf weer zodra de update klaar is. Migraties die u tijdens de pauze probeerde te starten, zijn niet gestart: probeer het na de update opnieuw.',
   'alpha.note.lead': 'Welkom bij de Alpha!',
   'alpha.note.welcome':
     'Probeer Ownpace rustig uit, op uw eigen tempo en stap geleidelijk aan over op Europese alternatieven.',
@@ -4879,7 +4876,7 @@ const nl: Record<keyof typeof en, string> = {
   'help.sidebar': 'Hulp: {address}',
   'confirm.snapshot.heading': 'Scan van voor de start (momentopname)',
   'confirm.snapshot.more':
-    'Een eenmalige telling maakt, vóór u start, helder wat gaat migreren. U kunt gewoon blijven werken in de bron. Deze aantallen wijzigen verder niet en de echte live voortgang hierboven komt uit de migratie-administratie.',
+    'Een eenmalige inventarisatie, vóór u start, zodat helder is wat we gaan migreren. U kunt gewoon blijven werken in de bron. Deze aantallen wijzigen verder niet en de echte live voortgang hierboven komt uit de migratie-administratie.',
   'confirm.state.pending': 'In afwachting',
   'confirm.state.in_progress': 'Synchroniseert',
   'confirm.state.completed': 'Voltooid',
@@ -4900,7 +4897,7 @@ const nl: Record<keyof typeof en, string> = {
   'verify.runningSince': 'Bezig sinds',
   'verify.didNotComplete': 'De verificatie is niet voltooid.',
   'verify.notAResult':
-    'Dit is mogelijk niet volledig; dit is geen resultaat.',
+    'Dit is mogelijk onvolledig, zie het niet als een resultaat.',
   'verify.restarted': 'De appliance is herstart terwijl de verificatie liep. Voer hem opnieuw uit.',
   'verify.didNotStart': 'De verificatie is niet gestart.',
   'verify.ready': 'Deze migratie is klaar voor overstap.',
@@ -4910,9 +4907,9 @@ const nl: Record<keyof typeof en, string> = {
   'verify.evidence.checked': 'inhoud gecontroleerd',
   'verify.evidence.partial': 'inhoud deels gecontroleerd',
   'verify.evidence.none': 'alleen aantallen',
-  'verify.evidence.help.checked': 'Van elk item is op inhoud met het origineel vergeleken.',
+  'verify.evidence.help.checked': 'Elk item is op inhoud met het origineel vergeleken.',
   'verify.evidence.help.partial': 'Sommige items zijn vergeleken; andere konden niet gelezen worden.',
-  'verify.evidence.help.none': 'Van geen enkel item is de inhoud vergeleken. Alleen aantallen en groottes.',
+  'verify.evidence.help.none': 'Van geen enkel item is de inhoud vergeleken. Alleen aantallen en omvang.',
   'verify.th.type': 'Type',
   'verify.th.result': 'Resultaat',
   'verify.th.source': 'Op het oude systeem',
@@ -4937,7 +4934,7 @@ const nl: Record<keyof typeof en, string> = {
   'verify.help.NOT_VERIFIABLE':
     'Ingeschakeld, maar de controle kon niet worden uitgevoerd (kon niet lezen); blokkeert de overstap.',
   // Zie de Engelse blok-opmerking: de toestandswoorden zijn geen schaal.
-  'confirmed.title': 'Wat er bevestigd is in uw bestemming',
+  'confirmed.title': 'Wat kan u bestemming bevestigen?',
   'confirmed.intro':
     'Leest elk item terug op de bestemming en zegt wat er precies is vergeleken.',
   'confirmed.check': 'Controleer de bestemming',
@@ -4983,14 +4980,14 @@ const nl: Record<keyof typeof en, string> = {
   'confirmed.state.removed': 'Verwijderd',
   'confirmed.state.unchecked': 'Niet gecontroleerd',
   'confirmed.help.verified':
-    'Teruggelezen van de bestemming en het kwam overeen met wat wij al opgeslagen hadden.',
+    'Teruggelezen van de bestemming en kwam overeen met wat wij al opgeslagen hadden.',
   'confirmed.help.differs':
-    'Teruggelezen van de bestemming en het kwam niet overeen. Bekijk dit.',
+    'Teruggelezen van de bestemming en kwam niet overeen. Bekijk dit.',
   'confirmed.help.present':
-    'Het staat er, maar er viel niets vergelijkbaars te berekenen. Geen fout.',
-  'confirmed.help.yours': 'Uw eigen kopie stond er al, dus wij schreven deze bytes nooit.',
+    'Aangetroffen, maar er viel niets vergelijkbaars te berekenen. Geen fout.',
+  'confirmed.help.yours': 'Uw eigen kopie was aangetroffen, niet door Onwpace via deze migratie geplaatst.',
   'confirmed.help.missing':
-    'Wat wij gemigreerd hadden, blijkt bij teruglezen niet gevonden te zijn / is weg. Bewaar uw origineel!',
+    'Wat wij gemigreerd hadden, blijkt bij teruglezen niet aangetroffen te zijn / is weg. Bewaar uw origineel!',
   'confirmed.help.neverPlaced':
     'Het is nooit gemigreerd — overgeslagen, mislukt, of bewust achtergelaten.',
   'confirmed.help.removed':
@@ -4999,7 +4996,7 @@ const nl: Record<keyof typeof en, string> = {
     'De bestemming kon niet worden bevraagd. Er is niets over bekend.',
   'confirmed.claim.byteHash': 'via hash',
   'confirmed.claim.fingerprint': 'via digitale vingerafdruk',
-  'confirmed.claim.containerParts': 'via de stukjes van het document',
+  'confirmed.claim.containerParts': 'via stukjes van het document',
   'confirmed.claim.none': 'niet vergeleken',
   'finish.title': 'Rond een migratie af',
   'finish.intro':
@@ -5012,12 +5009,12 @@ const nl: Record<keyof typeof en, string> = {
   'finish.note.paused':
     'Nooit gestart, dus niets af te ronden. Verwijder de migratie om op te ruimen.',
   'finish.note.active':
-    'Synchroniseert volgens schema. Items die nog op het oude systeem binnenkomen, worden gekopieerd.',
-  'finish.note.cutover': 'In overstap. Liep de migratie, dan kopieert die tot een onderhanden migratie run afloopt.',
+    'Synchroniseert volgens schema. Items die nog op het oude systeem binnenkomen, worden gemigreerd naar het nieuwe.',
+  'finish.note.cutover': 'In overstap. Liep een migratie-run nog, dan wordt die nog afgerond.',
   'finish.note.done':
     'Afgerond. Deze migratie synchroniseert niet meer en er wordt niets meer over gerapporteerd.',
   'finish.note.continuous':
-    'Doorlopend. Blijft kopiëren na de overstap. Elke beëindiging van een gegevenstype stopt dat; kopieën blijven staan.',
+    'Doorlopend. Blijft migreren na de overstap. Elke beëindiging van een gegevenstype stopt dat; kopieën blijven staan.',
   'finish.step1.title': 'Controleer of de kopie volledig is',
   'finish.step1.pre': 'Vergelijk de twee systemen en controleer steekproefsgewijs de inhoud.',
   'finish.step1.link': 'Voer de controle uit',
@@ -5032,18 +5029,17 @@ const nl: Record<keyof typeof en, string> = {
   'finish.step2.readFailed': 'Een wachtrij kon niet worden gelezen:',
   'finish.step2.notSameAsClear': '— niet hetzelfde als leeg.',
   'finish.step3.failedFramed':
-    'Het verzoek is mislukt; mogelijk loopt er nog een ronde, controleer de wachtrijen straks opnieuw.',
+    'Het verzoek is mislukt; mogelijk loopt er nog een migratie-ronde, controleer de wachtrijen straks opnieuw.',
   'lane.intro': 'Het oude account blijft het nieuwe voeden en er wordt niets verwijderd.',
   'lane.why':
-    'Uw tarief daalt niet zolang dit loopt: het pad houdt zijn plek tot u het beëindigt, ' +
-    'net als een migratie die nog niet klaar is. Verwijderen in uw oude bron ' +
-    'worden niet gesynchroniseerd — wat u daar weghaalt blijft op uw nieuwe bestemming staan. ' +
-    'We factureren geen periode langer dan 1 jaar, en niet zonder het opnieuw te vragen.',
-  'lane.confirm': 'Blijven migreren, tarief blijft',
+    'De migatie blijft actief tussen oud en nieuw. Iets verwijderen in uw oude bron ' +
+    'leidt niet tot synchronisatie — wat u daar weghaalt blijft op uw nieuwe bestemming staan waar het stond. ' +
+    'We factureren geen periode langer dan 1 jaar, en niet zonder u opnieuw te vragen.',
+  'lane.confirm': 'Blijven synchroniseren',
   'lane.cancel': 'Nu niet',
   'lane.selfhost.why':
     'Verwijderen in uw oude bron worden niet meer gesynchroniseerd — wat u daar weghaalt ' +
-    'blijft in uw nieuwe bestemming staan. Het loopt op dit apparaat door tot u het beëindigt.',
+    'blijft in uw nieuwe bestemming staan. Dat komt omdat veelal mensen oude omgevingen opschonen/verwijderen, en het risico te groot is dat dit leidt tot verwijding in uw nieuwe systeem. Synchronisatie loopt op dit apparaat door tot u het beëindigt.',
   'lane.selfhost.confirm': 'Blijven kopiëren',
   'finish.aftermath.title': 'Wat beschikbaar blijft',
   'finish.aftermath.verify': 'Verificatierapport',
@@ -5063,29 +5059,29 @@ const nl: Record<keyof typeof en, string> = {
   'finish.step3.finished': 'De ronde is uitgevoerd en voltooid.',
   'finish.step3.queued':
     'In de wachtrij als taak; het komt in de uitvoeringsgeschiedenis, controleer de wachtrijen straks opnieuw.',
-  'finish.step3.stopped.one': '{kind} is gestopt en niet in deze ronde: de ene kopie blijft zoals die was.',
-  'finish.step3.stopped.many': '{kind} is gestopt en niet in deze ronde: de {count} kopieën blijven zoals ze waren.',
+  'finish.step3.stopped.one': '{kind} is gestopt, en is geen onderdeel van deze ronde: de ene kopie blijft zoals die was.',
+  'finish.step3.stopped.many': '{kind} is gestopt en zijn geen onderdeel van deze ronde: de {count} kopieën blijven zoals ze waren.',
   'finish.step3.stopped.why':
-    'Het is uitgeschakeld nadat er gemigreerd was. De kopieën blijven op het nieuwe systeem, maar wat sindsdien op het oude veranderde, heeft het nieuwe niet bereikt. Moeten ze actueel blijven, schakel dan weer in zodat een nieuwe ronde start.',
+    'Het is uitgeschakeld nadat er gemigreerd was. De gemigreerde bestanden blijven op het nieuwe systeem, maar wat sindsdien op het oude veranderde, is nog niet gemigreerd naar het nieuwe. Moeten ze actueel blijven, schakel dan de migratie weer inen een nieuwe ronde neemt ze mee.',
   'finish.step3.stoppedByYou.why':
-    'U hebt het gestopt. De kopieën blijven op het nieuwe systeem, maar wat sindsdien op het oude veranderde, heeft het nieuwe niet bereikt. Moeten ze actueel blijven, hervat het dan op de pagina van de migratie en laat een ronde lopen voordat u afrondt.',
+    'U hebt deze migratie gestopt. Wat al gemigreerd was blijft in het nieuwe systeem, maar wat sindsdien op het oude veranderde, is nog niet gemigreerd. Moeten ze actueel blijven, hervat de migratie.',
   'finish.step3.stoppedUnread': 'Kon niet lezen of een gegevenstype gestopt is:',
   'finish.step4.title': 'Zet de e-mailbezorging om naar het nieuwe systeem',
   'finish.step4.body':
     'Wijzig MX/DNS en configureer de clients opnieuw, zodat nieuwe e-mail op het nieuwe systeem aankomt.',
   'finish.step4.more':
-    'Dit gebeurt buiten Ownpace, dus dit kan niet gecontroleerd worden voor u.',
+    'Dit gebeurt buiten Ownpace; Ownpace kan dit niet controleren.',
   'finish.step4.warn.pre': 'Als u afrondt voordat dit is gedaan',
   'finish.step4.warn.post':
-    ', wordt alles wat daarna op het oude systeem binnenkomt niet meer gemigreerd — Ownpace kijkt niet meer mee.',
+    ', stopt de migratie en zet Ownpace niets meer over van oud naar nieuw — Ownpace kijkt niet meer mee.',
   'finish.step4.checkbox': 'Nieuwe e-mail komt nu aan op het nieuwe systeem.',
-  'finish.step5.title': 'Beëindig of blijf kopiëren, per gegevenstype',
+  'finish.step5.title': 'Beëindig of blijf migreren per gegevenstype',
   'finish.step5.nothingChanges.pre':
     'Er wordt aan geen van beide systemen iets toegevoegd of verwijderd.',
   'finish.step5.nothingChanges.post':
     ' Wat op het nieuwe systeem staat, blijft precies zoals het is — dit stopt alleen het meekijken met het oude.',
   'finish.button.disabledTitle':
-    'Bevestig eerst stap 4; afronden voordat de bezorging is omgezet, de bron verliest alles wat daarna binnenkomt op het nieuwe systeem.',
+    'Bevestig eerst stap 4; afronden voordat de bezorging is omgezet, de bron ontvangt dan niets meer, maar uw nieuwe systeem wel.',
   'finish.each.title': 'Per gegevenstype',
   'finish.ending.phase.active': 'Migreert; nog niet overgestapt',
   'finish.ending.phase.cutover': 'Bezig met overstap',
@@ -5098,10 +5094,10 @@ const nl: Record<keyof typeof en, string> = {
     'U hebt {kind} gestopt. Beëindig deze, of hervat het op de pagina van de migratie om het te blijven migreren.',
   'finish.ending.failed': 'Niet gelukt:',
   'finish.ending.graceEnded':
-    'De overgangsperiode van {kind} liep af op {date} en er is niets gekozen, dus er wordt niet langer gemigreert. Beëindig, of hervat de migratie.',
+    'De overgangsperiode van {kind} liep af op {date} en er is niets gekozen, dus er wordt niet langer gemigreerd. Beëindig, of hervat de migratie.',
   'tenants.title': 'Team & organisatie',
   'tenants.intro':
-    'Wie zich bij deze organisatie kan aanmelden en wat zij mogen doen; wijzigingen gelden direct.',
+    'Wie zich bij deze organisatie kan aanmelden en wat zij mogen.',
   'tenants.noTenant': 'Geen organisatie in deze sessie.',
   'tenants.selfDemotionArmed':
     'Hiermee verlaagt u uw eigen rol; u kunt dit mogelijk niet zelf terugdraaien.',
@@ -5113,7 +5109,7 @@ const nl: Record<keyof typeof en, string> = {
   'tenants.org.phone.saved': 'Opgeslagen.',
   'tenants.org.phone.none': 'Niet opgegeven.',
   'tenants.org.readError':
-    'De gegevens van de organisatie konden niet worden gelezen — de ledenlijst hieronder werkt nog.',
+    'De gegevens van de organisatie konden niet worden gelezen.',
   'tenants.org.rename': 'Naam wijzigen',
   'tenants.org.renameSave': 'Naam opslaan',
   'tenants.org.renameCancel': 'Annuleren',
@@ -5132,7 +5128,7 @@ const nl: Record<keyof typeof en, string> = {
   'tenants.readOnly': 'Uw rol hier is alleen-lezen. Een eigenaar of beheerder beheert de leden.',
   'tenants.invite.heading': 'Iemand uitnodigen',
   'tenants.invite.hint':
-    'We mailen waar zji zich aanmelden en worden hieronder opgenomen als uitgenodigd.',
+    'We mailen hoe zij zich kunnen aanmelden en worden hieronder opgenomen als uitgenodigd.',
   'tenants.invite.mail.sent': 'Uitnodiging gemaild naar {email}.',
   'tenants.invite.mail.off':
     'Uitnodiging voor {email} opgeslagen, maar deze installatie verstuurt geen e-mail: vertel het hen zelf.',
@@ -5147,8 +5143,8 @@ const nl: Record<keyof typeof en, string> = {
   'tenants.ownerOrAdminOnly': 'Tijdens de Alpha kan iemand alleen eigenaar of beheerder zijn.',
   'tenants.notify.heading': 'E-mailsamenvattingen',
   'tenants.notify.intro':
-    'Hoe vaak u een samenvatting van wat op u wacht krijgt gemaild.',
-  'tenants.notify.intro.more': 'Stilte betekent dat er niets op u wacht.',
+    'Hoe vaak u een samenvatting krijgt toegestuurd.',
+  'tenants.notify.intro.more': 'Stilte betekent dat er geen beslissingen op u wachten.',
   'tenants.notify.cadence': 'Samenvatting',
   'tenants.notify.daily': 'Dagelijks',
   'tenants.notify.weekly': 'Wekelijks',
@@ -5159,7 +5155,7 @@ const nl: Record<keyof typeof en, string> = {
   'tenants.notify.save': 'Opslaan',
   'tenants.notify.saved': 'Opgeslagen.',
   'tenants.notify.readError':
-    'De instelling is niet gelezen; opslaan zou iets onbekends overschrijven, dus de knoppen staan uit.',
+    'De instelling kon niet worden gelezen, probeer het later opnieuw.',
   'tenants.invite.submit': 'Uitnodigen',
   'role.owner': 'Eigenaar',
   'role.admin': 'Beheerder',
@@ -5174,23 +5170,23 @@ const nl: Record<keyof typeof en, string> = {
   'attention.title': 'Per migratie',
   'attention.intro': 'Eén regel per migratie, met een link naar alles wat wacht.',
   'attention.empty': 'Er wacht niets. Elke migratie loopt rustig door.',
-  'attention.emptyNoneRunning': 'Er wacht niets en er loopt geen migratie.',
+  'attention.emptyNoneRunning': 'Er wacht niets op u en er loopt geen migratie.',
   'attention.organisation': 'Uw organisatie',
   'attention.quiet': '{count} lopen rustig door, er wacht niets op u.',
   'attention.decisions': 'wijzigingen die een beslissing vragen',
   'attention.deletions': 'verwijderingen om te bevestigen',
   'attention.moves': 'verplaatsingen om te bevestigen',
-  'attention.failures': 'items die niet gemigreert konden worden',
+  'attention.failures': 'items die niet gemigreerd konden worden',
   'attention.readyForCutover': 'gecontroleerd en klaar om af te ronden',
-  'attention.graceEnded': 'overgangsperiode voorbij en niets gekozen, migreert niet meer: {kinds}',
+  'attention.graceEnded': 'overgangsperiode voorbij en niets gekozen, migraties die uit staan: {kinds}',
   'attention.sharingOpen': 'regels open op de deel-checklist',
   'attention.couldNotRead': 'Eén wachtrij kon niet gelezen worden; deze aantallen kunnen te laag zijn.',
   'attention.couldNotRead.why':
-    'Het getoonde aantal is wat we konden lezen, niet per se wat compleet — wat niet nu niet was te raadplegen wordt als onleesbaar geregistreerd, niet als leeg. We weten nog niet of u klaar bent met migreren. De redenen voor het niet kunnen lezen staat eronder per item, met wat de server aangaf.',
+    'Het getoonde aantal is wat we konden lezen, en niet perse compleet — wat niet te raadplegen was, wordt als onleesbaar geregistreerd, niet als afwezig. We weten nog niet of u klaar bent met migreren. De redenen voor het niet kunnen lezen staat per item aangegeven, met daarbij wat de server aangaf.',
   'attention.failed': 'Deze lijst kon niet geladen worden.',
   'decisions.presets.heading': 'Vaste antwoorden',
   'decisions.presets.intro':
-    'Categorieën die zichzelf beantwoorden worden hier nog vastgelegd.',
+    'Categorieën die vanzelf worden opgelost via uw eerdere beslissingen, worden hier nog vastgelegd.',
   'decisions.presets.intro.more': 'U ziet wat is opgemerkt en waardoor het is afgesloten.',
   'decisions.presets.newMailbox': 'Als er een postvak verschijnt waarvoor niets migreert',
   'decisions.presets.ask': 'Vraag het mij',
@@ -5201,17 +5197,17 @@ const nl: Record<keyof typeof en, string> = {
   'decisions.presets.readOnly': 'Een eigenaar of beheerder stelt dit in.',
   'permissions.heading': 'Zet de rechten over voordat u de e-mailbezorging omzet',
   'permissions.body':
-    'Deelrechten gaan niet mee met de mail; werk de lijst door vóór het omzetten.',
+    'Deelrechten worden niet gemigreerd met email; werk de lijst door vóór het omzetten.',
   'permissions.body.more':
-    'Wie wiens agenda kon zien, wie toegang had tot welke gedeelde bestanden: dat gaat niet mee. Haal de lijst op, werk hem door op het nieuwe systeem, en doe dat vóór het omzetten van de bezorging; rechten die daarna worden toegevoegd, ontbraken zolang dat duurde. Bovenaan de lijst staat wat er niet gelezen kon worden.',
+    'Wie wiens agenda kon zien, wie toegang had tot welke gedeelde bestanden: dat gaat niet mee. Haal de lijst op, werk hem door op het nieuwe systeem, en doe dat vóór het omzetten van de bezorging; rechten die daarna worden toegevoegd ontbreken. De lijst heeft bovenaan staan wat niet kon worden geraadpleegd.',
   'permissions.blindSpot':
     'Twee blinde vlekken: FullAccess of Send-As op een postvak, en delen op OneDrive en SharePoint.',
   'permissions.blindSpot.more':
-    'Wie volledige toegang tot een postvak had of eruit kon verzenden: Microsoft geeft ons dat helemaal niet, dat moet u zelf uit Exchange halen. Delen op de twee bestandsplatforms komt alleen mee als deze installatie die extra machtiging heeft gekregen. Het document zegt welke van de twee het werkelijk gelezen heeft, en hoe u de rest afdekt.',
+    'Wie volledige toegang tot een (ander) postvak had of uit die naam kon verzenden: Microsoft geeft deze info niet aan Ownpace, dat moet u deze zelf overzetten. Delen op de bestandsplatforms komt alleen mee als deze installatie die extra machtiging had gekregen. Het document zegt welke wel te lezen waren, en hoe u de rest overzet.',
   'permissions.blindSpot.google':
     'Twee blinde vlekken: Gmail-gemachtigden en verzenden-als, en delen in Google Agenda.',
   'permissions.blindSpot.google.more':
-    'Wie iemands Gmail kon lezen of eruit kon verzenden, en wie wiens agenda kon zien: dit hulpmiddel leest geen van beide nog bij Google uit, dus noteer ze zelf in de instellingen van Gmail en Google Agenda. Delen op Google Drive wordt wel gelezen en staat in de lijst.',
+    'Wie iemand anders Gmail kon lezen of uit die mailbox kon verzenden, en wie wiens agenda kon zien: dit hulpmiddel leest geen van beide uit bij Google, dus noteer zelf deze instellingen en zet die over. Delen op Google Drive wordt wel gelezen en staan in de lijst.',
   'permissions.download': 'Haal de rechtenlijst op',
   'permissions.failed': 'De rechtenlijst kon niet worden opgehaald.',
   'sharedAddresses.heading': 'Gevonden gedeelde adressen',
@@ -5234,12 +5230,12 @@ const nl: Record<keyof typeof en, string> = {
   'decisions.intro':
     'Veranderingen die de synchronisatie opmerkte en waarover alleen u beslist; niets gebeurt tot u antwoordt.',
   'decisions.readError': 'De beslissingswachtrij kon niet worden gelezen.',
-  'decisions.dismiss': 'Terzijde leggen',
+  'decisions.dismiss': 'Overslaan',
   'decisions.sharedAddress.shared_s': 'Eén gedeeld postvak',
   'decisions.sharedAddress.distribution_d': 'Een distributielijst',
   'decisions.empty.noDetectors':
-    'Niets wacht; detectoren draaien eenmaal per dag en melden een onleesbare bron als blinde vlek.',
-  'decisions.empty.answered': 'Er is nog niets beslist.',
+    'Niets wacht; detectie wordt eenmaal per dag uitgevoerd en melden een onleesbare bron als blinde vlek.',
+  'decisions.empty.answered': 'Er is nog niets besloten.',
   'decisionCategory.new_mailbox': 'Nieuw postvak',
   'decisionCategory.deleted_mailbox': 'Verwijderd postvak',
   'decisionCategory.quota': 'Quotum',
@@ -5253,9 +5249,9 @@ const nl: Record<keyof typeof en, string> = {
   'decisions.answeredBy': 'door',
   'decisions.answer': 'Antwoord:',
   'decisions.detailToggle': 'Details',
-  'decisionStatus.resolved': 'Beslist',
-  'decisionStatus.auto_resolved': 'Beslist door vast antwoord',
-  'decisionStatus.dismissed': 'Terzijde gelegd',
+  'decisionStatus.resolved': 'Besloten',
+  'decisionStatus.auto_resolved': 'Besloten via automatische regel',
+  'decisionStatus.dismissed': 'Overgeslagen',
   'nav.connections': 'Accounts',
   'nav.setup': 'Instelchecklist',
   'nav.docs': 'Handleidingen',
@@ -5266,9 +5262,9 @@ const nl: Record<keyof typeof en, string> = {
   'connections.rotate': 'Inloggegevens vervangen',
   'connections.reconnect': 'Opnieuw verbinden',
   'connections.rotate.hint':
-    'Plak de nieuwe waarden; ze worden gecontroleerd vóór ze de oude vervangen.',
+    'Plak de nieuwe waarden; ze worden gecontroleerd op werking vóórdat ze oude overschrijven.',
   'connections.rotate.why':
-    'Mislukt de controle, dan verandert er niets en houden uw migraties wat werkte.',
+    'Mislukt de controle, dan verandert er niets en blijft behouden wat werkte.',
   'connections.rotate.save': 'Controleren en vervangen',
   'connections.add': 'Account toevoegen',
   'connections.addAndTest': 'Toevoegen en testen',
@@ -5278,7 +5274,7 @@ const nl: Record<keyof typeof en, string> = {
   'connections.name': 'Naam voor dit account',
   'connections.title': 'Accounts',
   'connections.intro':
-    'De accounts waarmee uw migraties inloggen. Test controleert ze alleen-lezen.',
+    'De accounts waarmee uw migraties inloggen. Test controleert met alleen-lezen.',
   'connections.none': 'Nog geen accounts. Bij het starten van uw eerste migratie worden ze toegevoegd.',
   'connections.sources': 'Bronnen',
   'connections.targets': 'Doelen',
@@ -5288,7 +5284,7 @@ const nl: Record<keyof typeof en, string> = {
   'connections.usedBy.other': 'Gebruikt door {count} migraties',
   'connections.usedBy.none': 'Nog door geen enkele migratie gebruikt',
   'connections.addedWhen': 'Toegevoegd {when}',
-  'connections.setupSteps': 'Instelstappen',
+  'connections.setupSteps': 'Instellen',
   'connections.standing.migration': 'Migratie',
   'connections.standing.stopped': 'is {when} gestopt ({domains}):',
   'connections.standing.whichSide':
@@ -5297,14 +5293,14 @@ const nl: Record<keyof typeof en, string> = {
   'probe.connected': 'Verbonden.',
   'probe.connectedSession': 'Verbonden. Het JMAP-sessiedocument antwoordde.',
   'probe.targetStatus': 'De server op {url} antwoordde {status}.',
-  'probe.targetStatus.refused': 'Hij is bereikbaar en weigerde de inloggegevens.',
+  'probe.targetStatus.refused': 'Is bereikbaar en weigerde de inloggegevens.',
   'probe.targetStatus.check': 'Controleer de host en poort van het doel.',
   'probe.noProbe':
-    'Er is nog geen controle voor een {kind}-verbinding; dat is ons gat, niet uw inloggegevens.',
+    'Er is nog geen controle voor een {kind}-verbinding; dit is een Todo voor Ownpace.',
   'probe.timedOut':
-    'Geen antwoord binnen {seconds} seconden; toch bewaard, dus test later opnieuw of verklein de hoofdmap.',
+    'Geen antwoord binnen {seconds} seconden; toch bewaard, dus test later opnieuw.',
   'probe.countedAtPreflight':
-    'Deze export staat in het bestandsdoel van de migratie en wordt bij de preflight geteld.',
+    'Deze export staat in het bestandsdoel van de migratie en wordt bij de preflight geinventariseerd.',
   'probe.said.server': 'De server',
   'probe.said.mailServer': 'De mailserver',
   'probe.said.answeredWords': '{who} antwoordde {status}: {words}',
@@ -5314,18 +5310,18 @@ const nl: Record<keyof typeof en, string> = {
   'probe.said.answeredOtherNoStatus':
     '{who} antwoordde met iets dat geen DAV-, JMAP- of IMAP-foutmelding is.',
   'probe.said.unreachable':
-    'Op dat adres antwoordde niets: de naam werd niet gevonden, de verbinding werd geweigerd, of er kwam niet op tijd antwoord. Controleer de hostnaam en de poort.',
+    'Op dat adres antwoordde niets: de naam werd niet gevonden, de verbinding werd geweigerd, of er kwam een timeout. Controleer de hostnaam en de poort.',
   'probe.said.certificate':
-    'Het certificaat van de server klopte niet voor die naam, of het is verlopen, dus de test stopte voordat er werd ingelogd.',
+    'Het certificaat van de server kwam niet overeen of is verlopen, waardoor de test stopte voordat er werd ingelogd.',
   'probe.said.insideOurNetwork':
-    'Dat adres ligt binnen het eigen netwerk van deze dienst, of de server stuurde de test door naar een adres dat daar ligt, dus we hebben er geen verbinding mee gemaakt. Geef het adres dat de server op internet heeft.',
+    'Dat adres ligt binnen het eigen netwerk van deze dienst, of de server stuurde de test door naar een adres dat daar ligt: geen verbinding gemaakt. Gebruik het adres dat de server op internet heeft.',
   'probe.said.unknown':
-    'De test mislukte, en wat terugkwam wordt hier niet getoond. Controleer het adres en de poort.',
+    'De test mislukte door onbekende reden. Controleer het adres en de poort.',
   'probe.said.reference': 'Referentie {reference}.',
   'probe.said.unmeasured': 'Niet gemeten — {sentence}',
   'probe.tooManyTests':
-    'U hebt het afgelopen uur veel verbindingen getest. Wacht even en test dan opnieuw.',
-  'probe.measuring': 'Er wordt nog gemeten wat dit account kan dragen — ververs over een minuut.',
+    'U hebt het afgelopen uur (te) veel verbindingen getest. Wacht even en test dan opnieuw.',
+  'probe.measuring': 'Er wordt nog gemeten wat dit account kan omvat — ververs over een minuut.',
   'probe.measured.atLeast': 'ten minste {count} {unit}',
   'probe.unit.folder.one': 'map',
   'probe.unit.folder.many': 'mappen',
@@ -5357,18 +5353,18 @@ const nl: Record<keyof typeof en, string> = {
   'connections.inUse.lead': 'Nog in gebruik door',
   'connections.inUse.unnamed': 'een migratie zonder naam',
   'connections.inUse.reason':
-    'Verwijderen wist ook wat die migraties vastlegden; verwijder ze eerst onder Migraties.',
+    'Verwijderen verwijderd wat we over die migraties hadden vastgelegd; verwijder ze eerst onder Migraties.',
   'connections.removed.done': 'verwijderd.',
   'connections.removed.revoked': 'De toegang bij de aanbieder is ingetrokken.',
   'connections.removed.failed':
-    'Onze kopie is verwijderd, maar de aanbieder heeft de toegang nog: trek die zelf in.',
-  'connections.removed.unsupported': 'Wij hebben onze kopie verwijderd; deze aanbieder biedt geen intrekking die wij kunnen aanroepen.',
-  'connections.removed.none': 'Er waren geen inloggegevens voor opgeslagen.',
+    'Onze kopie is verwijderd, maar de aanbieder verleent de toegang nog: trek die zelf in.',
+  'connections.removed.unsupported': 'Wij hebben de gegevens verwijderd; deze aanbieder biedt geen manier om intrekking door ons te forcere.',
+  'connections.removed.none': 'Er waren geen inloggegevens opgeslagen.',
   'connections.invalidValues.lead': 'Deze waarden kunnen zo niet worden gebruikt:',
   // ---- Provider setup checklist (workplan 0061) ----
   'setup.title': 'Aanbieder instellen',
   'setup.intro':
-    'Stappen in de console van de aanbieder; vinkjes worden voor uw hele organisatie bewaard.',
+    'Stappen om door te lopen bij uw oude aanbieder; vinkjes worden voor uw hele organisatie bewaard.',
   'setup.backToConnections': '← Terug naar accounts',
   'setup.fullGuide': 'Lees de volledige handleiding',
   'setup.settled': 'afgehandeld',
@@ -5377,11 +5373,11 @@ const nl: Record<keyof typeof en, string> = {
   'setup.allDone': 'Alles is afgehandeld; u kunt het account nu verbinden.',
   'setup.nothingToDo': 'Vooraf niets in te stellen; u kunt het account meteen verbinden.',
   'setup.deploymentApp':
-    'Niets aan te maken: deze dienst heeft een eigen {provider}-app. Druk op Verbinden met {provider}.',
+    'Niets om aan te maken: deze dienst heeft een eigen {provider}-app. Druk op Verbinden met {provider}.',
   // ---- Aanbieder kiezen en de lijst afstemmen op wie u bent (workplan 0068) ----
   'setup.choose.title': 'Wat wilt u instellen?',
   'setup.choose.intro':
-    'Elk systeem heeft een eigen korte lijst die u regelt voordat een migratie kan starten.',
+    'Elk systeem heeft een eigen korte lijst die u doorloopt voordat een migratie kan starten.',
   'setup.choose.sources': 'Migreren vanaf',
   'setup.choose.targets': 'Migreren naar',
   'setup.admin.question': 'Beheert u dit systeem voor uw organisatie?',
@@ -5402,10 +5398,10 @@ const nl: Record<keyof typeof en, string> = {
   'setup.needsAnotherPerson': 'beheerder nodig',
   'setup.needsAnotherPerson.hint':
     'Vereist beheerdersrechten, dus op deze stap wacht u het vaakst.',
-  'setup.box.create_app.title': 'Maak een Box-platform-app',
+  'setup.box.create_app.title': 'Maak een Box-platform-OAuth-app',
   'setup.box.create_app.detail':
     'Box Developer Console → Create Platform App → Custom App, en kies Client Credentials Grant (Server Authentication).',
-  'setup.box.create_app.yields': 'een Client-ID en een Client-geheim.',
+  'setup.box.create_app.yields': 'een Client-ID en een Client-secret.',
   'setup.box.configure_access.title': 'Geef de app alleen-leestoegang',
   'setup.box.configure_access.detail':
     'Op het tabblad Configuration: zet App Access Level op "App + Enterprise Access", vink alleen de leesrechten voor bestanden en mappen aan en zet "Generate user access tokens" aan.',
@@ -5415,20 +5411,20 @@ const nl: Record<keyof typeof en, string> = {
   'setup.box.subject_user_id.title': 'Zoek het numerieke gebruikers-id op',
   'setup.box.subject_user_id.detail':
     'Admin Console → Users & Groups → het account dat u migreert. Box wil het nummer, niet het e-mailadres.',
-  'setup.box.subject_user_id.yields': 'het Box-gebruikers-id (een nummer).',
+  'setup.box.subject_user_id.yields': 'het Box-gebruikers-id (nummer).',
   'setup.dropbox.create_app.title': 'Maak een Dropbox-app',
   'setup.dropbox.create_app.detail':
     'Dropbox App Console → Create app → Scoped access → Full Dropbox (of App folder als de migratie maar één map mag zien).',
-  'setup.dropbox.create_app.yields': 'een App-sleutel en een App-geheim.',
+  'setup.dropbox.create_app.yields': 'een App-sleutel en een App-secret.',
   'setup.dropbox.scopes.title': 'Geef de app alleen-leesrechten',
   'setup.dropbox.scopes.detail':
-    'Zet op het tabblad Permissions files.metadata.read en files.content.read aan, en niets dat schrijft. Voeg sharing.read toe als u hier gedeelde mappen wilt kunnen bekijken.',
+    'Zet op het tabblad Permissions files.metadata.read en files.content.read aan; niets dat schrijft. Voeg sharing.read toe als u gedeelde mappen wilt kunnen migreren.',
   'setup.dropbox.redirect_uri.title': 'Gebruikt u de knop? Registreer dan het redirect-adres',
   'setup.dropbox.redirect_uri.detail':
-    'Alleen voor Verbinden met Dropbox met uw eigen app: onder de knop toont het formulier een adres. Voeg precies dat adres toe in de Dropbox App Console onder OAuth 2 → Redirect URIs en druk daarna opnieuw op de knop. Zonder de knop slaat u deze stap over.',
+    'Alleen voor Verbinden met Dropbox met uw eigen oauth-app: onder de knop toont het formulier een adres. Voeg precies dat adres toe in de Dropbox App Console onder OAuth 2 → Redirect URIs en druk daarna opnieuw op de knop. Zonder de knop slaat u deze stap over.',
   'setup.dropbox.consent.title': 'Laat de accounthouder eenmalig toestemming geven',
   'setup.dropbox.consent.detail':
-    'Verbinden met Dropbox doet deze stap en de volgende als de accounthouder erop drukt. Zonder de knop stuurt u de persoon van wie de Dropbox gemigreerd wordt door de autorisatie-URL van deze app, met token_access_type=offline zodat Dropbox een refresh-token teruggeeft.',
+    'Verbinden met Dropbox heeft deze stap nodig en de volgende om het te laten werken voor accounthouders. Zonder de knop stuurt u de persoon van wie de Dropbox gemigreerd wordt de autorisatie-URL van deze app door, met token_access_type=offline, zodat Dropbox een refresh-token teruggeeft.',
   'setup.dropbox.exchange_code.title': 'Wissel de code in voor een refresh-token',
   'setup.dropbox.exchange_code.detail':
     'Wissel de code uit de vorige stap eenmalig in bij het token-eindpunt van Dropbox. Toegangstokens worden per run aangemaakt; verder wordt niets langlevends bewaard.',
@@ -5436,32 +5432,32 @@ const nl: Record<keyof typeof en, string> = {
   'setup.google.create_oauth_client.title': 'Maak een Google OAuth-client',
   'setup.google.create_oauth_client.detail':
     'Google Cloud console → APIs & Services → Credentials → Create credentials → OAuth client ID, als Web-toepassing.',
-  'setup.google.create_oauth_client.yields': 'een Client-ID en een Client-geheim.',
+  'setup.google.create_oauth_client.yields': 'een Client-ID en een Client-secret.',
   'setup.google.enable_api.title': 'Zet de API van het product aan',
   'setup.google.enable_api.detail':
     'Zet in hetzelfde project de API aan die past bij de gekozen bron — Google Drive API, Gmail API, CalDAV API, Google Contacts CardDAV API of Google Tasks API. Zonder dat mislukt de eerste aanroep.',
   'setup.google.consent_scope.title': 'Laat een refresh-token voor dat product toestemmen',
   'setup.google.consent_scope.detail':
-    'Laat de accounthouder toestemmen met de scope van dat product; een token voor het ene Google-product werkt niet voor het andere. Of gebruik een service-account met domain-wide delegation, dat een beheerder eenmalig voor het hele domein autoriseert.',
+    'Laat de accounthouder instemmen met de scope-grants van dat product; een token voor het ene Google-product werkt niet voor het andere. Of gebruik een service-account met domain-wide delegation, dat een beheerder eenmalig voor het hele domein autoriseert.',
   'setup.google.consent_scope.yields': 'een refresh-token (of een service-account-sleutelbestand).',
   'setup.graph.app_registration.title': 'Registreer een app in Microsoft Entra',
   'setup.graph.app_registration.detail':
-    'Entra-beheercentrum → Identity → Applications → App registrations → New registration, in de tenant waarvan u de postvakken migreert. Kies Accounts in this organizational directory only en laat het omleidingsadres leeg. De pagina Overview toont daarna de Application (client) ID en de Directory (tenant) ID.',
+    'Entra-beheercentrum → Identity → Applications → App registrations → New registration, in de tenant waarvan u de postvakken migreert. Kies Accounts in this organizational directory only en laat het redirectadres leeg. De pagina Overview toont daarna de Application (client) ID en de Directory (tenant) ID.',
   'setup.graph.app_registration.yields': 'een Tenant-ID en een Client-ID.',
   'setup.graph.api_permissions.title': 'Voeg Mail.Read toe en laat een beheerder toestemmen',
   'setup.graph.api_permissions.detail':
     'API permissions → Add a permission → Microsoft Graph → Application permissions → Mail.Read. Verder niets: deze kaart leest de mail van één postvak. Daarna drukt een beheerder op Grant admin consent for uw organisatie. Als toepassingsrecht kan Mail.Read elk postvak in de organisatie lezen; deze dienst leest alleen het postvak dat de verbinding noemt.',
-  'setup.graph.client_secret.title': 'Maak een clientgeheim',
+  'setup.graph.client_secret.title': 'Maak een client-secret',
   'setup.graph.client_secret.detail':
     'Certificates & secrets → New client secret. Kopieer de waarde meteen — Entra toont deze één keer.',
-  'setup.graph.client_secret.yields': 'een Client-geheim.',
+  'setup.graph.client_secret.yields': 'een Client-secret.',
   'setup.exchange.permission.title': 'Voeg IMAP.AccessAsApp toe en laat een beheerder toestemmen',
   'setup.exchange.permission.detail':
     'API permissions → Add a permission → APIs my organization uses → Office 365 Exchange Online → Application permissions → IMAP.AccessAsApp. Geen Microsoft Graph-recht: deze kaart meldt zich aan bij de IMAP-server van Exchange Online, en zo’n token omvat alleen rechten die Exchange Online geeft. Daarna drukt een beheerder op Grant admin consent for uw organisatie.',
   'setup.exchange.service_principal.title': 'Registreer de toepassing in Exchange Online',
   'setup.exchange.service_principal.detail':
     'Een Exchange-beheerder voert New-ServicePrincipal uit in Exchange Online PowerShell, met de Application (client) ID en de Object ID die onder Enterprise applications staat. Niet de Object ID onder App registrations: daarmee mislukt de aanmelding van de kaart. De handleiding geeft de opdrachten.',
-  'setup.exchange.mailbox_permission.title': 'Geef de toepassing het postvak',
+  'setup.exchange.mailbox_permission.title': 'Geef rechten tot de data',
   'setup.exchange.mailbox_permission.detail':
     'De Exchange-beheerder voert Add-MailboxPermission uit met -AccessRights FullAccess, één keer voor elk postvak dat de kaart leest. Met FullAccess zou een toepassing het postvak ook kunnen wijzigen. Deze dienst leest het alleen, en Microsoft dwingt dat voor deze kaart niet af.',
   'setup.imap.server_address.title': 'Zoek het IMAP-serveradres op',
@@ -5499,11 +5495,11 @@ const nl: Record<keyof typeof en, string> = {
   'setup.davbasic.app_password.yields': 'een gebruikersnaam en een app-wachtwoord.',
   'setup.apple.app_password.title': 'Maak een app-specifiek wachtwoord',
   'setup.apple.app_password.detail':
-    'Meld u aan op account.apple.com → Aanmelden en beveiliging → App-specifieke wachtwoorden en maak er een. Apple toont het één keer, dus kopieer het meteen. Niet het wachtwoord van uw Apple-account: dat weigert Apple hier met opzet.',
+    'Meld u aan op account.apple.com → Aanmelden en beveiliging → App-specifieke wachtwoorden en maak er een. Apple toont het één keer, dus kopieer het meteen. Gebruikt niet het wachtwoord van uw Apple-account.',
   'setup.apple.app_password.yields': 'een app-specifiek wachtwoord, zoals abcd-efgh-ijkl-mnop.',
   'setup.nextcloud.account_exists.title': 'Zorg dat het Nextcloud-account bestaat',
   'setup.nextcloud.account_exists.detail':
-    'Het account moet al bestaan op de Nextcloud, met genoeg ruimte voor wat eraan komt. Deze dienst maakt zelf geen accounts aan.',
+    'Het account moet al bestaan op uw Nextcloud, met genoeg ruimte voor wat eraan komt. Deze dienst maakt zelf geen accounts aan.',
   'setup.nextcloud.app_password.title': 'Maak een app-wachtwoord',
   'setup.nextcloud.app_password.detail':
     'In Nextcloud: Instellingen → Beveiliging → Apparaten & sessies. Typ bij App naam een naam, zoals Migratie, druk op Creëer een nieuw app wachtwoord en kopieer het wachtwoord. Gebruik dat in plaats van het accountwachtwoord zelf: het kan ingetrokken worden zonder uw eigen wachtwoord te wijzigen.',
@@ -5517,7 +5513,7 @@ const nl: Record<keyof typeof en, string> = {
     'Het Soverin-account moet al bestaan, met ruimte voor wat eraan komt. Deze dienst maakt zelf geen accounts aan.',
   'setup.soverin.password.title': 'Houd het accountwachtwoord bij de hand',
   'setup.soverin.password.detail':
-    'Deze dienst meldt zich aan met het Soverin-e-mailadres en het wachtwoord van dat account. Biedt Soverin u een app-wachtwoord, dan kan dat in hetzelfde vak Wachtwoord. Of één app-wachtwoord voor mail én voor agenda’s en contacten werkt, staat niet vast; de test zegt het per deel.',
+    'Deze dienst meldt zich aan met het Soverin-e-mailadres en het wachtwoord van dat account. Biedt Soverin u een app-wachtwoord, dan kan dat in hetzelfde vak Wachtwoord. Of één app-wachtwoord voor mail én voor agenda’s en contacten werkt, staat niet vast; de test gaat aangeven wat werkt.',
   'setup.soverin.password.yields': 'het e-mailadres, en het wachtwoord of een app-wachtwoord.',
   'setup.soverin.mail_server.title': 'Gaat er mail mee? Laat de mailserver staan',
   'setup.soverin.mail_server.detail':
@@ -5525,14 +5521,14 @@ const nl: Record<keyof typeof en, string> = {
   // ---- Asking for access (workplan 0093) ----
   'access.title': 'Toegang aanvragen',
   'access.intro':
-    'Voorlopig op uitnodiging: vertel ons wat u wilt migreren, dan komen we per e-mail terug.',
+    'Voorlopig op uitnodiging.',
   'access.email': 'E-mailadres',
-  'access.emailHint': 'Hier antwoorden wij. Er gaat verder niets naartoe.',
+  'access.emailHint': 'Waar moet ons antwoord naartoe?',
   'access.name': 'Uw naam',
   'access.organisation': 'Organisatie',
   'access.optional': 'optioneel',
   'access.note': 'Wat wilt u migreren?',
-  'access.noteHint': 'Ongeveer hoeveel postbussen, en waarvandaan; één zin is genoeg.',
+  'access.noteHint': 'Ongeveer hoeveel mailboxes en bestnaden, welke omvang, en waarvandaan; één zin is genoeg.',
   'access.answers.from': 'Weg bij {name}',
   'access.answers.noFrom': 'Migreren',
   'access.answers.provider.google': 'Google',
@@ -5545,19 +5541,19 @@ const nl: Record<keyof typeof en, string> = {
   'access.answers.who.individual': 'voor één persoon',
   'access.answers.who.family': 'voor een huishouden',
   'access.answers.who.sme': 'voor een bedrijf',
-  'access.tier': 'Welk pakket lijkt te passen?',
+  'access.tier': 'Welk pakket zou passen?',
   'access.tierHint':
-    'Een inschatting volstaat; het pakket volgt wat werkelijk draait, dus dit is niet bindend.',
+    'Een inschatting volstaat; het pakket volgt u werkelijk wilt, dus dit is niet bindend.',
   'access.tierUnsure': 'Nog niet zeker',
   'access.submit': 'Aanvraag versturen',
   'access.sending': 'Versturen…',
-  'access.sent': 'Dank u — wij hebben uw aanvraag.',
+  'access.sent': 'Dank u — wij hebben uw aanvraag ontvangen.',
   'access.sentDetail': 'U hoort per e-mail van ons.',
-  'access.failed': 'Wij konden dat niet versturen:',
+  'access.failed': 'Versturen is niet gelukt:',
   'access.failedFallback': 'de aanvraag is niet voltooid.',
   'access.privacy':
-    'Wij bewaren wat u invult om over uw aanvraag te beslissen en u te antwoorden; een aanvraag maakt geen account aan. ' +
-    'Wij bewaren het zolang uw aanvraag openstaat. Wijzen wij die af, dan verwijderen wij het 30 dagen na ons besluit. ' +
+    'Wij bewaren wat u opstuurd om uw aanvraag te beoordelen; een aanvraag maakt geen account aan. ' +
+    'Wij bewaren dit zolang uw aanvraag openstaat. Wijzen wij die af, dan verwijderen wij na 30 dagen uw gegevens. ' +
     'Kennen wij die toe, dan blijft het bij uw account en wordt het daarmee gewist.',
   'access.backToSignIn': 'Heeft u al een account? Aanmelden',
   'access.trap': 'Laat dit veld leeg',

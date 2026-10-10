@@ -123,7 +123,7 @@ export const NOT_READY_BECAUSE = {
   },
   no_named_account: {
     en: 'it does not name the Google account it reads',
-    nl: 'die noemt niet welk Google-account ze leest',
+    nl: 'die noemt niet welk Google-account leest',
   },
   no_target: { en: 'it has no destination to copy to', nl: 'die heeft geen bestemming om naartoe te kopiëren' },
   nothing_to_ask: { en: 'it has nothing to copy at the moment', nl: 'die heeft op dit moment niets om te kopiëren' },

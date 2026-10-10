@@ -113,12 +113,10 @@ export function acceptanceAtStart(
 // Said where the door was pressed, which may be long after the screen was
 // shown, and read after the texts are accepted as well as before.
 const REFUSAL_EN =
-  'Nothing was stored: accept the Alpha conditions, the privacy policy and the terms first. The app shows ' +
-  'them now; if it does not, reload the page. Then try again.';
+  'Please accept the Alpha conditions, privacy policy and terms.';
 const REFUSAL_NL =
-  'Er is niets opgeslagen: aanvaard eerst de voorwaarden voor de Alpha, de privacyverklaring en de ' +
-  'servicevoorwaarden. De app toont ze nu; gebeurt dat niet, laad de pagina dan opnieuw. Probeer het daarna ' +
-  'nog eens.';
+  'U dient de voorwaarden gedurende de Alpha fase, de privacyverklaring en de ' +
+  'servicevoorwaarden te accepteren.';
 
 /** What a door answers while the current texts are not accepted. */
 export interface ConditionsNotAcceptedAnswer {
