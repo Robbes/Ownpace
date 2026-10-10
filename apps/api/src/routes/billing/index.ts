@@ -47,6 +47,8 @@ import {
   type ManagedTier,
   type PathsForecast,
   type ViesRequester,
+  downloadInvoicePdf,
+  moneybirdFromEnv,
 } from '@openmig/managed';
 import * as schema from '@openmig/managed/schema-managed';
 // The run ledger lives in @openmig/ledger (ADR-0036): compute derives from it.
@@ -1177,6 +1179,70 @@ router.get('/invoices/:invoiceId', authenticate, requireBillingRead, async (req:
     res.json({ invoice: invoices[0] });
   } catch (error) {
     serverFault(res, 'invoice_failed', 'reading this invoice', error);
+  }
+});
+
+/**
+ * GET /api/billing/invoices/:invoiceId/pdf
+ *
+ * The invoice's document, Moneybird's own PDF (workplan 0111, T6): streamed
+ * from the books to the person who asks, and kept nowhere here. Only an
+ * invoice Moneybird has numbered has one; a draft is refused by name. Read in
+ * the organisation's own scope, so an invoice of another organisation is not
+ * found. The file is named by the invoice's legal number.
+ */
+router.get('/invoices/:invoiceId/pdf', authenticate, requireBillingRead, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const invoiceId = req.params.invoiceId;
+    if (!invoiceId || Array.isArray(invoiceId)) {
+      return void res.status(400).json({ error: 'Bad Request', message: 'Invoice ID required' });
+    }
+    const tenantId = req.tenantId;
+    if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
+
+    const rows = await withTenantDb(tenantId, getSharedPool(), async (db) =>
+      db
+        .select({
+          status: schema.invoice.status,
+          moneybirdId: schema.invoice.moneybirdId,
+          moneybirdAdministrationId: schema.invoice.moneybirdAdministrationId,
+          invoiceNumber: schema.invoice.invoiceNumber,
+        })
+        .from(schema.invoice)
+        .where(and(eq(schema.invoice.id, invoiceId), eq(schema.invoice.tenantId, tenantId))),
+    );
+    const invoice = rows[0];
+    if (!invoice) return void res.status(404).json({ error: 'Not found', message: 'Invoice not found' });
+    if (!invoice.moneybirdId || !invoice.invoiceNumber || invoice.status === 'draft') {
+      const reason = 'This invoice is being prepared and has no document yet: it has one once it is numbered.';
+      return void res.status(409).json({ error: 'no_document_yet', message: reason, reason });
+    }
+
+    const books = moneybirdFromEnv(process.env);
+    if (books.kind !== 'on' || books.config.administrationId !== invoice.moneybirdAdministrationId) {
+      // Moneybird off, half set, or set to other books than the ones that
+      // numbered this invoice: nothing here can fetch its document.
+      log.warn('[billing] invoice pdf: the books that numbered it are not the ones configured', {
+        invoiceId,
+        configured: books.kind,
+      });
+      const reason = "The invoice's document cannot be fetched right now. Ask us for it, and name the invoice number.";
+      return void res.status(503).json({ error: 'document_unavailable', message: reason, reason });
+    }
+
+    const fetched = await downloadInvoicePdf(books.config, invoice.moneybirdId);
+    if (fetched.kind !== 'pdf') {
+      log.warn('[billing] invoice pdf: not fetched', { invoiceId, kind: fetched.kind, reason: fetched.reason });
+      const reason = "The invoice's document cannot be fetched right now. Try again in a minute.";
+      return void res.status(503).json({ error: 'document_unavailable', message: reason, reason });
+    }
+    const filename = `Ownpace-invoice-${invoice.invoiceNumber.replace(/[^A-Za-z0-9._-]/g, '_')}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.send(Buffer.from(fetched.bytes));
+  } catch (error) {
+    serverFault(res, 'invoice_pdf_failed', "fetching the invoice's document", error);
   }
 });
 

@@ -8,6 +8,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
+import { AxiosError, type AxiosResponse } from 'axios';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Billing, { itemsMovedByKind } from './Billing.tsx';
 import { billingApi, type Invoice } from '../services/billing-service.ts';
@@ -29,6 +30,7 @@ vi.mock('../services/billing-service', async (importOriginal) => ({
     listInvoices: vi.fn(),
     getPaymentMethods: vi.fn(),
     createPayment: vi.fn(),
+    downloadInvoicePdf: vi.fn(),
     getBillingParty: vi.fn(),
     putBillingParty: vi.fn(),
     checkVat: vi.fn(),
@@ -53,6 +55,7 @@ const usageMock = vi.mocked(billingApi.getCurrentUsage);
 const invoicesMock = vi.mocked(billingApi.listInvoices);
 const methodsMock = vi.mocked(billingApi.getPaymentMethods);
 const payMock = vi.mocked(billingApi.createPayment);
+const downloadMock = vi.mocked(billingApi.downloadInvoicePdf);
 const partyMock = vi.mocked(billingApi.getBillingParty);
 const putPartyMock = vi.mocked(billingApi.putBillingParty);
 const checkVatMock = vi.mocked(billingApi.checkVat);
@@ -193,6 +196,7 @@ const renderBilling = (at = '/billing') => {
 beforeEach(() => {
   usageMock.mockReset();
   invoicesMock.mockReset();
+  downloadMock.mockReset();
   methodsMock.mockReset();
   payMock.mockReset();
   partyMock.mockReset();
@@ -716,6 +720,60 @@ describe('the number the books gave it (0111 slice 5)', () => {
     expect(screen.queryByText(/inv-draf/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Invoice date/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Pay' })).not.toBeInTheDocument();
+    // Nor a document: Moneybird makes it when it numbers the invoice (0111 T6).
+    expect(screen.queryByRole('button', { name: 'Download the invoice' })).not.toBeInTheDocument();
+  });
+
+  it("hands the browser an issued invoice's document, under the name the server gave it (0111 T6)", async () => {
+    invoicesMock.mockResolvedValue({
+      invoices: [invoiceFixture({ id: 'inv-issued', status: 'sent', invoiceNumber: '2026-0001', invoiceDate: '2026-10-01' })],
+    });
+    const blob = new Blob(['%PDF-1.7'], { type: 'application/pdf' });
+    downloadMock.mockResolvedValue({ blob, filename: 'Ownpace-invoice-2026-0001.pdf' });
+    const createObjectURL = vi.fn(() => 'blob:the-invoice');
+    const revokeObjectURL = vi.fn();
+    const urlBefore = { createObjectURL: URL.createObjectURL, revokeObjectURL: URL.revokeObjectURL };
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
+    const saved: string[] = [];
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        saved.push(`${this.download} <- ${this.href}`);
+      });
+    try {
+      renderBilling();
+      fireEvent.click(await screen.findByRole('button', { name: 'Download the invoice' }));
+
+      await waitFor(() => expect(saved).toEqual(['Ownpace-invoice-2026-0001.pdf <- blob:the-invoice']));
+      expect(downloadMock).toHaveBeenCalledWith('inv-issued');
+      expect(createObjectURL).toHaveBeenCalledWith(blob);
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:the-invoice');
+    } finally {
+      click.mockRestore();
+      Object.assign(URL, urlBefore);
+    }
+  });
+
+  it("says why beside the button when the document cannot be fetched, in the server's words", async () => {
+    invoicesMock.mockResolvedValue({
+      invoices: [invoiceFixture({ id: 'inv-issued', status: 'sent', invoiceNumber: '2026-0001', invoiceDate: '2026-10-01' })],
+    });
+    const reason = "The invoice's document cannot be fetched right now. Try again in a minute.";
+    downloadMock.mockRejectedValue(
+      new AxiosError('Request failed with status code 503', 'ERR_BAD_RESPONSE', undefined, undefined, {
+        status: 503,
+        statusText: 'Service Unavailable',
+        headers: {},
+        config: {},
+        data: { error: 'document_unavailable', reason },
+      } as AxiosResponse),
+    );
+
+    renderBilling();
+    fireEvent.click(await screen.findByRole('button', { name: 'Download the invoice' }));
+
+    expect(await screen.findByText(reason)).toBeInTheDocument();
+    expect(screen.getByText('The invoice could not be downloaded.')).toBeInTheDocument();
   });
 });
 

@@ -32,6 +32,7 @@ import StateChip from '../components/StateChip.tsx';
 import { isAlpha } from '../components/AlphaNote.tsx';
 import DataCeiling from '../components/DataCeiling.tsx';
 import TierPick from '../components/TierPick.tsx';
+import InvoiceDownload from '../components/InvoiceDownload.tsx';
 import { INVOICE_DETAILS_ANCHOR, useBroughtIntoView } from '../components/InvoiceDetailsFirst.tsx';
 import { DataTypeIcon, ICON_OF_DOMAIN } from '../components/icons/data-type-icons.tsx';
 import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
@@ -884,6 +885,8 @@ const Billing: React.FC = () => {
                           {invoice.dueDate && ` · ${t('billing.invoiceDue', { date: day(invoice.dueDate) })}`}
                         </p>
                       )}
+                      {/* Its document, once Moneybird has numbered it (0111 T6). */}
+                      {invoice.invoiceNumber && invoice.status !== 'draft' && <InvoiceDownload invoiceId={invoice.id} />}
                     </div>
                     <div className="flex items-center space-x-4">
                       <StateChip entity="invoice" state={invoice.status} />

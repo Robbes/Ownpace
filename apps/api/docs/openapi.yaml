@@ -6253,6 +6253,41 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /api/billing/invoices/{invoiceId}/pdf:
+    parameters:
+      - name: invoiceId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Billing]
+      summary: The invoice's document, Moneybird's own PDF
+      description: |
+        Streamed from the books to the person who asks and kept nowhere here
+        (workplan 0111, T6), named `Ownpace-invoice-{number}.pdf` after the
+        invoice's legal number. Only an invoice Moneybird has numbered has one.
+      responses:
+        '200':
+          description: The PDF.
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: '`no_document_yet`: the invoice is a draft, which has no document.'
+          content:
+            application/json:
+              schema: { type: object }
+        '503':
+          description: |
+            `document_unavailable`: the books cannot be asked for it now (Moneybird
+            not answering, or not the books that numbered the invoice).
+          content:
+            application/json:
+              schema: { type: object }
+
   /api/billing/invoices/{invoiceId}/pay:
     parameters:
       - name: invoiceId
