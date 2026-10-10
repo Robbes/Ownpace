@@ -32,6 +32,8 @@ import StateChip from '../components/StateChip.tsx';
 import { isAlpha } from '../components/AlphaNote.tsx';
 import DataCeiling from '../components/DataCeiling.tsx';
 import TierPick from '../components/TierPick.tsx';
+import InvoiceDownload from '../components/InvoiceDownload.tsx';
+import { INVOICE_DETAILS_ANCHOR, useBroughtIntoView } from '../components/InvoiceDetailsFirst.tsx';
 import { DataTypeIcon, ICON_OF_DOMAIN } from '../components/icons/data-type-icons.tsx';
 import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
 import { fetchProgress } from '../services/progress-service.ts';
@@ -92,6 +94,11 @@ const InvoiceDetailsCard: React.FC<{ free: boolean }> = ({ free }) => {
   const { locale } = useLocale();
   const { dateTime } = useFormatters();
   const queryClient = useQueryClient();
+  const signedInEmail = useAuthStore((s) => s.user?.email ?? '');
+  // Opened at from a refused yes (0111 decision 14): `/billing#invoice-details`.
+  const cardRef = React.useRef<HTMLDivElement>(null);
+  const headingRef = React.useRef<HTMLHeadingElement>(null);
+  useBroughtIntoView(cardRef, headingRef);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['billing-party'],
@@ -126,6 +133,9 @@ const InvoiceDetailsCard: React.FC<{ free: boolean }> = ({ free }) => {
     city: '',
     countryCode: 'NL',
     vatNumber: '',
+    // Where the invoice is e-mailed (0111 decision 11). Until details are
+    // saved it starts as the signed-in address, the likeliest answer.
+    invoiceEmail: signedInEmail,
   });
   const [saved, setSaved] = React.useState(false);
 
@@ -143,6 +153,7 @@ const InvoiceDetailsCard: React.FC<{ free: boolean }> = ({ free }) => {
       city: party.city,
       countryCode: party.countryCode,
       vatNumber: party.vatNumber ?? '',
+      invoiceEmail: party.invoiceEmail ?? '',
     });
   }, [party]);
 
@@ -209,13 +220,17 @@ const InvoiceDetailsCard: React.FC<{ free: boolean }> = ({ free }) => {
       countryCode: form.countryCode,
       vatNumber:
         form.kind === 'business' && form.vatNumber?.trim() ? form.vatNumber.trim() : undefined,
+      invoiceEmail: form.invoiceEmail?.trim() || undefined,
     });
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200">
+    // The anchor a refused yes links to (InvoiceDetailsFirst, 0111 decision 14).
+    <div ref={cardRef} id={INVOICE_DETAILS_ANCHOR} className="bg-white rounded-lg border border-gray-200 scroll-mt-4">
       <div className="px-6 py-4 border-b border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900">{t('billing.party.title')}</h2>
+        <h2 ref={headingRef} tabIndex={-1} className="text-lg font-semibold text-gray-900">
+          {t('billing.party.title')}
+        </h2>
         <p className="text-sm text-gray-500 mt-1">{t('billing.party.intro')}</p>
       </div>
       <div className="p-6">
@@ -330,6 +345,21 @@ const InvoiceDetailsCard: React.FC<{ free: boolean }> = ({ free }) => {
                   ))}
                 </select>
               </div>
+            </div>
+
+            <div>
+              <label className={labelClass} htmlFor="party-invoice-email">{t('billing.party.invoiceEmail')}</label>
+              <input
+                id="party-invoice-email"
+                type="email"
+                className={inputClass}
+                value={form.invoiceEmail ?? ''}
+                onChange={(e) => set('invoiceEmail', e.target.value)}
+                required
+                maxLength={254}
+                autoComplete="email"
+              />
+              <p className="mt-1 text-xs text-gray-500">{t('billing.party.invoiceEmailHint')}</p>
             </div>
 
             {form.kind === 'business' && (
@@ -855,6 +885,8 @@ const Billing: React.FC = () => {
                           {invoice.dueDate && ` · ${t('billing.invoiceDue', { date: day(invoice.dueDate) })}`}
                         </p>
                       )}
+                      {/* Its document, once Moneybird has numbered it (0111 T6). */}
+                      {invoice.invoiceNumber && invoice.status !== 'draft' && <InvoiceDownload invoiceId={invoice.id} />}
                     </div>
                     <div className="flex items-center space-x-4">
                       <StateChip entity="invoice" state={invoice.status} />

@@ -6008,6 +6008,30 @@ else
   fail_at "the sync tick has not completed a run in five minutes (${tick_beat:-no beat at all}): it connects as ownpace_system since 0138 T3 step 2, so read its runs on the plane for a refusal naming a table or SYSTEM_DATABASE_URL"
 fi
 
+# ---------- the books: one sandbox invoice a night (0111, decision 12) ----------
+#
+# The owner's widening of decision 12: "can we do some kind of smoke test in
+# the nightly, like adding an invoice, paying it, but not sending out the
+# invoice". `operator.sh moneybird nightly` makes the night's invoice in the
+# Moneybird administration this stack's .env names, as the hourly push makes
+# them, sends it by hand, registers a payment for it and reads it back as
+# paid, after counting the month's invoices (from 40 of the sandbox's 50 the
+# night makes none, and says so). It refuses live and e-mail delivery itself
+# (moneybird-nightly.ts, with its tests). With no MONEYBIRD_* key in .env
+# there are no books to prove: said beside the verdict, not failed, until the
+# owner gives this stack the sandbox's keys.
+note "the books: one sandbox invoice a night (0111, decision 12)"
+books_out="$("${SCRIPT_DIR}/operator.sh" moneybird nightly 2>&1)"
+books_rc=$?
+printf '%s\n' "$books_out" | grep -v '^\[operator\]'
+if [ "$books_rc" != "0" ]; then
+  fail_at "operator.sh moneybird nightly exited $books_rc: the night's sandbox invoice was not made, paid and read back (its lines are above)"
+elif grep -q '^Skipped: Moneybird is off' <<<"$books_out"; then
+  not_proven "the books: Moneybird is off on this stack, so no sandbox invoice was made, paid and read back"
+elif ! grep -q '^Read back as paid\.$\|^Skipped: this month already has' <<<"$books_out"; then
+  fail_at "operator.sh moneybird nightly exited 0 without saying the invoice read back as paid or why it skipped"
+fi
+
 # ---------- verdict ----------
 note "verdict"
 api_restart_check "$API_STARTED_AT"

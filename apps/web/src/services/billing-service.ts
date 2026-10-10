@@ -16,6 +16,7 @@
  * per the 0026 T2 dead-surface precedent.
  */
 
+import axios from 'axios';
 import { z } from 'zod';
 import apiClient from './api.ts';
 
@@ -144,6 +145,8 @@ export const BillingPartySchema = z.object({
   city: z.string(),
   countryCode: z.string(),
   vatNumber: z.string().nullish(),
+  /** Where Moneybird e-mails the invoice (0111 decision 11). */
+  invoiceEmail: z.string().nullish(),
   createdAt: z.string(),
   updatedAt: z.string().nullish(),
 });
@@ -302,6 +305,7 @@ export interface BillingPartyInput {
   city: string;
   countryCode: string;
   vatNumber?: string;
+  invoiceEmail?: string;
 }
 
 export const billingApi = {
@@ -327,6 +331,29 @@ export const billingApi = {
   getInvoice: async (invoiceId: string): Promise<{ invoice: Invoice }> => {
     const response = await apiClient.get(`/billing/invoices/${invoiceId}`);
     return { invoice: InvoiceSchema.parse(response.data.invoice) };
+  },
+
+  /**
+   * The invoice's document, Moneybird's own PDF (0111 T6), as bytes with the
+   * name the server gives it. Fetched through the client, since a plain link
+   * carries no `Authorization` header. A refusal arrives as a Blob as well, so
+   * its JSON is read back: the sentence is what the page shows (rule 9).
+   */
+  downloadInvoicePdf: async (invoiceId: string): Promise<{ blob: Blob; filename: string }> => {
+    try {
+      const response = await apiClient.get<Blob>(`/billing/invoices/${invoiceId}/pdf`, { responseType: 'blob' });
+      const named = /filename="([^"]+)"/.exec(String(response.headers['content-disposition'] ?? ''))?.[1];
+      return { blob: response.data, filename: named ?? `Ownpace-invoice-${invoiceId}.pdf` };
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.data instanceof Blob) {
+        try {
+          err.response.data = JSON.parse(await err.response.data.text());
+        } catch {
+          // Not JSON: the status says what there is to say.
+        }
+      }
+      throw err;
+    }
   },
 
   /** Create a Mollie payment for an invoice; the caller follows `paymentUrl`.

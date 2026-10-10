@@ -7,6 +7,8 @@
  */
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
+import { AxiosError, type AxiosResponse } from 'axios';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Billing, { itemsMovedByKind } from './Billing.tsx';
 import { billingApi, type Invoice } from '../services/billing-service.ts';
@@ -28,6 +30,7 @@ vi.mock('../services/billing-service', async (importOriginal) => ({
     listInvoices: vi.fn(),
     getPaymentMethods: vi.fn(),
     createPayment: vi.fn(),
+    downloadInvoicePdf: vi.fn(),
     getBillingParty: vi.fn(),
     putBillingParty: vi.fn(),
     checkVat: vi.fn(),
@@ -52,6 +55,7 @@ const usageMock = vi.mocked(billingApi.getCurrentUsage);
 const invoicesMock = vi.mocked(billingApi.listInvoices);
 const methodsMock = vi.mocked(billingApi.getPaymentMethods);
 const payMock = vi.mocked(billingApi.createPayment);
+const downloadMock = vi.mocked(billingApi.downloadInvoicePdf);
 const partyMock = vi.mocked(billingApi.getBillingParty);
 const putPartyMock = vi.mocked(billingApi.putBillingParty);
 const checkVatMock = vi.mocked(billingApi.checkVat);
@@ -94,6 +98,7 @@ const businessPartyFixture = {
   city: 'Elders',
   countryCode: 'DE',
   vatNumber: 'DE123456789',
+  invoiceEmail: 'books@acme.test',
   createdAt: '2026-08-29T00:00:00.000Z',
   updatedAt: null,
 };
@@ -174,13 +179,16 @@ const NOTHING_TO_PICK = {
   lower: [],
 };
 
-const renderBilling = () => {
+/** The page as the app draws it: inside the router, at an address of its own. */
+const renderBilling = (at = '/billing') => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <Billing />
+      <MemoryRouter initialEntries={[at]}>
+        <Billing />
+      </MemoryRouter>
     </QueryClientProvider>
   );
 };
@@ -188,6 +196,7 @@ const renderBilling = () => {
 beforeEach(() => {
   usageMock.mockReset();
   invoicesMock.mockReset();
+  downloadMock.mockReset();
   methodsMock.mockReset();
   payMock.mockReset();
   partyMock.mockReset();
@@ -255,7 +264,7 @@ describe('the buyer, as data (0111 T1)', () => {
     expect(screen.getByLabelText('VAT number (optional)')).toBeInTheDocument();
   });
 
-  it('saves through the PUT — trimmed, consumer by default — and says Saved', async () => {
+  it('saves through the PUT — trimmed, consumer by default, invoiced to the signed-in address — and says Saved', async () => {
     putPartyMock.mockResolvedValue({
       tenantId: 't1',
       kind: 'consumer',
@@ -266,6 +275,7 @@ describe('the buyer, as data (0111 T1)', () => {
       city: 'Ons Dorp',
       countryCode: 'NL',
       vatNumber: null,
+      invoiceEmail: 'r@acme.test',
       createdAt: '2026-08-29T00:00:00.000Z',
       updatedAt: null,
     });
@@ -279,6 +289,9 @@ describe('the buyer, as data (0111 T1)', () => {
     fireEvent.change(screen.getByLabelText('Address'), { target: { value: 'Dorpsstraat 1' } });
     fireEvent.change(screen.getByLabelText('Postal code'), { target: { value: '1234 AB' } });
     fireEvent.change(screen.getByLabelText('City'), { target: { value: 'Ons Dorp' } });
+    // Where the invoice is e-mailed (0111 decision 11): the likeliest answer
+    // until one is saved is the address the person signed in with.
+    expect(screen.getByLabelText('Invoice e-mail address')).toHaveValue('r@acme.test');
     fireEvent.click(screen.getByText('Save'));
 
     await waitFor(() =>
@@ -291,6 +304,7 @@ describe('the buyer, as data (0111 T1)', () => {
         city: 'Ons Dorp',
         countryCode: 'NL',
         vatNumber: undefined,
+        invoiceEmail: 'r@acme.test',
       }),
     );
     expect(await screen.findByText('Saved.')).toBeInTheDocument();
@@ -304,7 +318,52 @@ describe('the buyer, as data (0111 T1)', () => {
     expect(await screen.findByDisplayValue('Acme BV')).toBeInTheDocument();
     expect(screen.getByLabelText('Business')).toBeChecked();
     expect(screen.getByLabelText('VAT number (optional)')).toHaveValue('DE123456789');
+    // The stored invoice address, not the signed-in one.
+    expect(screen.getByLabelText('Invoice e-mail address')).toHaveValue('books@acme.test');
     expect(screen.queryByText(/Not provided yet/)).not.toBeInTheDocument();
+  });
+
+  it('opened at the card from a refused yes, brings it into view and focus to its heading, once the reads are in', async () => {
+    // jsdom does not scroll; the call, and on what, is the observable part.
+    const scrolled = vi.fn();
+    const scrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrolled;
+    // A card above it still loading: the data ceiling's read, held open.
+    let answerCeiling!: (ceiling: Awaited<ReturnType<typeof billingApi.getCeiling>>) => void;
+    vi.mocked(billingApi.getCeiling).mockReturnValue(new Promise((resolve) => (answerCeiling = resolve)));
+    try {
+      renderBilling('/billing#invoice-details');
+
+      const heading = await screen.findByRole('heading', { name: 'Invoice details' });
+      await screen.findByText('Not provided yet. Invoices cannot be issued until this is filled in.');
+      // Not yet: the card above would push it back down when it is drawn.
+      expect(scrolled).not.toHaveBeenCalled();
+      expect(heading).not.toHaveFocus();
+
+      answerCeiling(UNDER_THE_CEILING);
+      await waitFor(() => expect(heading).toHaveFocus());
+      expect(scrolled).toHaveBeenCalledTimes(1);
+      expect(scrolled).toHaveBeenCalledWith({ block: 'start' });
+      expect(scrolled.mock.contexts[0]).toBe(document.getElementById('invoice-details'));
+    } finally {
+      Element.prototype.scrollIntoView = scrollIntoView;
+    }
+  });
+
+  it('opened without the anchor, leaves the scroll and the focus alone', async () => {
+    const scrolled = vi.fn();
+    const scrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrolled;
+    try {
+      renderBilling();
+
+      const heading = await screen.findByRole('heading', { name: 'Invoice details' });
+      await screen.findByText('Not provided yet. Invoices cannot be issued until this is filled in.');
+      expect(heading).not.toHaveFocus();
+      expect(scrolled).not.toHaveBeenCalled();
+    } finally {
+      Element.prototype.scrollIntoView = scrollIntoView;
+    }
   });
 
   it('a failed party read renders the failure, not a blank form (hard rule 9)', async () => {
@@ -661,6 +720,60 @@ describe('the number the books gave it (0111 slice 5)', () => {
     expect(screen.queryByText(/inv-draf/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Invoice date/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Pay' })).not.toBeInTheDocument();
+    // Nor a document: Moneybird makes it when it numbers the invoice (0111 T6).
+    expect(screen.queryByRole('button', { name: 'Download the invoice' })).not.toBeInTheDocument();
+  });
+
+  it("hands the browser an issued invoice's document, under the name the server gave it (0111 T6)", async () => {
+    invoicesMock.mockResolvedValue({
+      invoices: [invoiceFixture({ id: 'inv-issued', status: 'sent', invoiceNumber: '2026-0001', invoiceDate: '2026-10-01' })],
+    });
+    const blob = new Blob(['%PDF-1.7'], { type: 'application/pdf' });
+    downloadMock.mockResolvedValue({ blob, filename: 'Ownpace-invoice-2026-0001.pdf' });
+    const createObjectURL = vi.fn(() => 'blob:the-invoice');
+    const revokeObjectURL = vi.fn();
+    const urlBefore = { createObjectURL: URL.createObjectURL, revokeObjectURL: URL.revokeObjectURL };
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
+    const saved: string[] = [];
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        saved.push(`${this.download} <- ${this.href}`);
+      });
+    try {
+      renderBilling();
+      fireEvent.click(await screen.findByRole('button', { name: 'Download the invoice' }));
+
+      await waitFor(() => expect(saved).toEqual(['Ownpace-invoice-2026-0001.pdf <- blob:the-invoice']));
+      expect(downloadMock).toHaveBeenCalledWith('inv-issued');
+      expect(createObjectURL).toHaveBeenCalledWith(blob);
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:the-invoice');
+    } finally {
+      click.mockRestore();
+      Object.assign(URL, urlBefore);
+    }
+  });
+
+  it("says why beside the button when the document cannot be fetched, in the server's words", async () => {
+    invoicesMock.mockResolvedValue({
+      invoices: [invoiceFixture({ id: 'inv-issued', status: 'sent', invoiceNumber: '2026-0001', invoiceDate: '2026-10-01' })],
+    });
+    const reason = "The invoice's document cannot be fetched right now. Try again in a minute.";
+    downloadMock.mockRejectedValue(
+      new AxiosError('Request failed with status code 503', 'ERR_BAD_RESPONSE', undefined, undefined, {
+        status: 503,
+        statusText: 'Service Unavailable',
+        headers: {},
+        config: {},
+        data: { error: 'document_unavailable', reason },
+      } as AxiosResponse),
+    );
+
+    renderBilling();
+    fireEvent.click(await screen.findByRole('button', { name: 'Download the invoice' }));
+
+    expect(await screen.findByText(reason)).toBeInTheDocument();
+    expect(screen.getByText('The invoice could not be downloaded.')).toBeInTheDocument();
   });
 });
 

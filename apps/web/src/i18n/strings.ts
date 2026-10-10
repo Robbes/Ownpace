@@ -1005,6 +1005,9 @@ const en = {
   // Moneybird's dates, once it numbered the invoice (0111 slice 5).
   'billing.invoiceDate': 'Invoice date: {date}',
   'billing.invoiceDue': 'due date: {date}',
+  // Moneybird's PDF of a numbered invoice (0111 T6); the format is in the file's name.
+  'billing.invoice.download': 'Download the invoice',
+  'billing.invoice.downloadFailed': 'The invoice could not be downloaded.',
   'billing.paymentMethods': 'Payment Methods',
   // The channel's state, shown only when it is OFF (0043 T3). "On" is not worth
   // a banner; "off" is the state somebody has to act on, and until now it was
@@ -1836,6 +1839,9 @@ const en = {
   'person.step.finish.done': 'Finished',
   'billing.usageLoadFailed': 'Could not load the usage numbers.',
   'billing.pay': 'Pay',
+  // A yes or a pick refused for want of invoice details (0111 decision 14).
+  'billing.detailsFirst': 'Your invoice details come first: the name and address an invoice is made out to.',
+  'billing.detailsFirst.link': 'Add your invoice details',
   'billing.payFailed': 'The payment could not be started.',
   'billing.usagePeriod': 'Usage for',
   'billing.asOf': 'as of',
@@ -1858,6 +1864,9 @@ const en = {
   'billing.party.postalCode': 'Postal code',
   'billing.party.city': 'City',
   'billing.party.country': 'Country',
+  // Where Moneybird e-mails the invoice (0111 decision 11).
+  'billing.party.invoiceEmail': 'Invoice e-mail address',
+  'billing.party.invoiceEmailHint': 'The invoice is sent here. It may be your bookkeeping’s address.',
   'billing.party.vatNumber': 'VAT number (optional)',
   'billing.party.save': 'Save',
   'billing.party.saved': 'Saved.',
@@ -4041,6 +4050,8 @@ const nl: Record<keyof typeof en, string> = {
   'billing.period': 'Periode:',
   'billing.invoiceDate': 'Factuurdatum: {date}',
   'billing.invoiceDue': 'vervaldatum: {date}',
+  'billing.invoice.download': 'Factuur downloaden',
+  'billing.invoice.downloadFailed': 'De factuur kon niet worden gedownload.',
   'billing.paymentMethods': 'Betaalmethoden',
   'notifications.off': 'E-mailmeldingen staan uit',
   'notifications.offHint':
@@ -4753,6 +4764,8 @@ const nl: Record<keyof typeof en, string> = {
   'person.step.finish.done': 'Afgerond',
   'billing.usageLoadFailed': 'De verbruikscijfers konden niet worden geladen.',
   'billing.pay': 'Betalen',
+  'billing.detailsFirst': 'Eerst uw factuurgegevens: de naam en het adres waarop een factuur komt te staan.',
+  'billing.detailsFirst.link': 'Vul uw factuurgegevens in',
   'billing.payFailed': 'De betaling kon niet worden gestart.',
   'billing.usagePeriod': 'Verbruik voor',
   'billing.asOf': 'per',
@@ -4775,6 +4788,8 @@ const nl: Record<keyof typeof en, string> = {
   'billing.party.postalCode': 'Postcode',
   'billing.party.city': 'Plaats',
   'billing.party.country': 'Land',
+  'billing.party.invoiceEmail': 'E-mailadres voor facturen',
+  'billing.party.invoiceEmailHint': 'Hierheen wordt de factuur gestuurd. Dat mag het adres van uw boekhouding zijn.',
   'billing.party.vatNumber': 'Btw-nummer (optioneel)',
   'billing.party.save': 'Opslaan',
   'billing.party.saved': 'Opgeslagen.',

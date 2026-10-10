@@ -5875,8 +5875,10 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '409':
           description: |
-            Not taken: `offer_changed` (with the offer as it stands now),
-            `no_top_up_on_free`, `talk_to_us`, or `nothing_charged_during_the_alpha`.
+            Not taken: `invoice_details_first` (no invoice details yet: an
+            invoice is made out to somebody, 0111 decision 14), `offer_changed`
+            (with the offer as it stands now), `no_top_up_on_free`, `talk_to_us`,
+            or `nothing_charged_during_the_alpha`.
           content:
             application/json:
               schema: { type: object }
@@ -5952,7 +5954,9 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '409':
           description: |
-            Not taken: `not_a_step_up`, `offer_changed`, or `nothing_charged_during_the_alpha`.
+            Not taken: `invoice_details_first` (no invoice details yet, 0111
+            decision 14), `not_a_step_up`, `offer_changed`, or
+            `nothing_charged_during_the_alpha`.
           content:
             application/json:
               schema: { type: object }
@@ -6023,8 +6027,10 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '409':
           description: |
-            Not taken: `offer_changed` (with what is offered now, as `pick`), or
-            `nothing_charged_during_the_alpha`.
+            Not taken: `invoice_details_first` (a paid tier picked with no
+            invoice details yet, 0111 decision 14; a pick of Free charges
+            nothing and is not asked), `offer_changed` (with what is offered
+            now, as `pick`), or `nothing_charged_during_the_alpha`.
           content:
             application/json:
               schema: { type: object }
@@ -6136,6 +6142,15 @@ paths:
                   type: string
                   maxLength: 32
                   description: Business kind only — refused on a consumer.
+                invoiceEmail:
+                  type: string
+                  maxLength: 254
+                  description: |
+                    Where the invoice is e-mailed (0111 decision 11, managed 0048).
+                    One `@` with something on either side, as the column's check;
+                    empty or absent stores none, and e-mail delivery is then
+                    refused for this organisation by name.
+                  examples: [invoices@example.com]
       responses:
         '200':
           description: The stored details, as they now stand.
@@ -6237,6 +6252,41 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/billing/invoices/{invoiceId}/pdf:
+    parameters:
+      - name: invoiceId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Billing]
+      summary: The invoice's document, Moneybird's own PDF
+      description: |
+        Streamed from the books to the person who asks and kept nowhere here
+        (workplan 0111, T6), named `Ownpace-invoice-{number}.pdf` after the
+        invoice's legal number. Only an invoice Moneybird has numbered has one.
+      responses:
+        '200':
+          description: The PDF.
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: '`no_document_yet`: the invoice is a draft, which has no document.'
+          content:
+            application/json:
+              schema: { type: object }
+        '503':
+          description: |
+            `document_unavailable`: the books cannot be asked for it now (Moneybird
+            not answering, or not the books that numbered the invoice).
+          content:
+            application/json:
+              schema: { type: object }
 
   /api/billing/invoices/{invoiceId}/pay:
     parameters:
@@ -8412,6 +8462,9 @@ components:
         city: { type: string }
         countryCode: { type: string, description: 'ISO 3166-1 alpha-2, uppercase.', examples: [NL] }
         vatNumber: { type: [string, 'null'] }
+        invoiceEmail:
+          type: [string, 'null']
+          description: Where the invoice is e-mailed (0111 decision 11); null until given.
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
       required: [tenantId, kind, name, addressLine1, postalCode, city, countryCode]

@@ -77,8 +77,9 @@
  * Moneybird.
  */
 
-import { centsFromDecimal } from './line-price.ts';
+import { centsFromDecimal, decimalFromCents } from './line-price.ts';
 import {
+  moneybirdRead,
   moneybirdRequest,
   tokenRefusal,
   type MoneybirdAccess,
@@ -487,4 +488,84 @@ export async function sendSalesInvoice(
   }
   const status = sent.kind === 'response' ? sent.status : 0;
   return { kind: 'unavailable', reason: `Moneybird answered HTTP ${status} to the send.` };
+}
+
+// ------------------------------------------------------------------ payments
+
+export type RegisterPaymentOutcome =
+  | { readonly kind: 'registered' }
+  | { readonly kind: 'refused'; readonly reason: string }
+  | { readonly kind: 'unavailable'; readonly reason: string }
+  | SlowDown;
+
+/**
+ * Register a payment on a sent invoice (`POST sales_invoices/{id}/payments`,
+ * which replaced `register_payment`): the nightly's sandbox proof that an
+ * invoice reads back as `paid` (workplan 0111, decision 12). A customer's
+ * invoice is paid through Mollie, never here. Not idempotent on its own: the
+ * caller registers only on an invoice that reads back as not yet paid.
+ */
+export async function registerPayment(
+  access: MoneybirdAccess,
+  invoiceId: string,
+  payment: { readonly paymentDate: string; readonly cents: number },
+  fetchImpl: typeof fetch = fetch,
+): Promise<RegisterPaymentOutcome> {
+  const answer = await moneybirdRequest(
+    access,
+    'POST',
+    `/sales_invoices/${encodeURIComponent(invoiceId)}/payments.json`,
+    { payment: { payment_date: payment.paymentDate, price: decimalFromCents(payment.cents) } },
+    fetchImpl,
+  );
+  const paymentFailed = failed(answer);
+  if (paymentFailed) return paymentFailed;
+  if (answer.kind === 'response' && answer.status === 422) {
+    return { kind: 'refused', reason: `Moneybird refused the payment: ${bodyText(answer.body)}` };
+  }
+  if (answer.kind === 'response' && (answer.status === 200 || answer.status === 201)) return { kind: 'registered' };
+  const status = answer.kind === 'response' ? answer.status : 0;
+  return { kind: 'unavailable', reason: `Moneybird answered HTTP ${status} to the payment.` };
+}
+
+// ------------------------------------------------------------- the month's count
+
+export type CountInvoicesOutcome =
+  | {
+      readonly kind: 'counted';
+      /** Up to `upTo`: past it, counting stops. */
+      readonly count: number;
+    }
+  | { readonly kind: 'unavailable'; readonly reason: string }
+  | SlowDown;
+
+/** Moneybird's page size at most, so a month of a sandbox's 50 is one page. */
+const COUNT_PAGE = 100;
+
+/**
+ * How many invoices Moneybird lists for this month (`filter=period:this_month,
+ * state:all`), counted a page of 100 at a time and no further than `upTo`:
+ * the nightly asks whether the sandbox's 50 a month has room before it makes
+ * one (decision 12). Moneybird gives no total, so the pages are counted.
+ */
+export async function countSalesInvoicesThisMonth(
+  access: MoneybirdAccess,
+  upTo: number,
+  fetchImpl: typeof fetch = fetch,
+): Promise<CountInvoicesOutcome> {
+  let count = 0;
+  for (let page = 1; count < upTo; page += 1) {
+    const read = await moneybirdRead(
+      access,
+      `sales_invoices.json?filter=${encodeURIComponent('period:this_month,state:all')}&per_page=${COUNT_PAGE}&page=${page}`,
+      fetchImpl,
+    );
+    if (read.kind !== 'ok') return read;
+    if (!Array.isArray(read.body)) {
+      return { kind: 'unavailable', reason: "Moneybird's list of this month's invoices was not a list." };
+    }
+    count += read.body.length;
+    if (read.body.length < COUNT_PAGE) break;
+  }
+  return { kind: 'counted', count: Math.min(count, upTo) };
 }

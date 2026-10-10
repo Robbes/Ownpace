@@ -1417,6 +1417,31 @@ exits 1 while its report names something to do; the outside-EU rate is
 optional, so its refusal is printed and does not count. The token is in no line
 it prints. Half a set also gets a warning when the API starts.
 
+To prove that an invoice goes through, on a test stack against a sandbox
+administration:
+
+```bash
+./deploy/compose/operator.sh moneybird proof
+```
+
+It makes one invoice the way the hourly push does, under the reference
+`ownpace-proof-{YYYY-MM}`, to Ownpace's own proof contact (no e-mail address),
+sent by hand, and prints the number, date and total Moneybird gave it. Run again
+in the same month, it answers that the invoice exists and makes nothing, so a
+repeated command spends nothing of the sandbox's 50 invoices a month. It refuses
+before asking Moneybird anything on a stack that runs `NODE_ENV=production`, as
+live does, or names no `NODE_ENV`, and unless `MONEYBIRD_DELIVERY` is `manual`:
+live's books are real, and the sandbox allows ten e-mails a month.
+
+The managed nightly gate proves the books every night with the same keys:
+`smoke-managed.sh` runs `./deploy/compose/operator.sh moneybird nightly`, which
+makes the night's invoice (`ownpace-nightly-{YYYY-MM-DD}`), sends it by hand,
+registers a payment for it and reads it back as paid. It counts the month's
+invoices first and, from 40 of the sandbox's 50, makes none and says so. With no
+`MONEYBIRD_*` key in the nightly stack's `.env` it makes nothing, and the verdict
+lists the books as not proven; give that stack the sandbox's keys, with
+`MONEYBIRD_DELIVERY=manual`, for the gate to prove them.
+
 What is invoiced, and from when, is a second switch: `OWNPACE_BILLING_FROM`, the
 first month invoiced, written `YYYY-MM`. Empty, nobody is invoiced. Set, the
 hourly `managed-month-invoices` task makes each organisation's invoice for a

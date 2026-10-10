@@ -47,13 +47,15 @@ import {
   type ManagedTier,
   type PathsForecast,
   type ViesRequester,
+  downloadInvoicePdf,
+  moneybirdFromEnv,
 } from '@openmig/managed';
 import * as schema from '@openmig/managed/schema-managed';
 // The run ledger lives in @openmig/ledger (ADR-0036): compute derives from it.
 import { run as runTable } from '@openmig/ledger/schema-pg';
 // The live slot count, through the ONE authority on which states hold a slot
 // (`holdsASlot`, wrapped by `slotsHeld`) rather than a second list here.
-import { PgPathLifecycleStore } from '@openmig/ledger';
+import { PgPathLifecycleStore, type PgDatabase } from '@openmig/ledger';
 import { log, type TenantId } from '@openmig/shared';
 import { readPathsForecast } from './paths-at-start.ts';
 import {
@@ -137,6 +139,15 @@ const BillingPartySchema = z
       .toUpperCase()
       .regex(/^[A-Z]{2}$/, 'countryCode must be a two-letter ISO 3166-1 code'),
     vatNumber: z.string().trim().max(32).optional(),
+    // Where Moneybird e-mails the invoice (0111 decision 11, managed 0048).
+    // Optional; empty is none. One `@` with something either side, as the
+    // column's check: whether the mailbox exists is the delivery's to find out.
+    invoiceEmail: z
+      .string()
+      .trim()
+      .max(254)
+      .regex(/^([^@\s]+@[^@\s]+)?$/, 'invoiceEmail must be an e-mail address, or empty')
+      .optional(),
   })
   .superRefine((body, ctx) => {
     if (body.kind !== 'business' && body.vatNumber) {
@@ -377,6 +388,29 @@ const YesSchema = z.object({
 });
 
 /**
+ * INVOICE DETAILS COME FIRST (workplan 0111, decision 14, the owner,
+ * 2026-10-05: "ok"; "a yes or a pick that leaves Free asks for them
+ * first"). Every yes and every pick of a paid tier is something an invoice
+ * will charge, and an invoice is made out to somebody: the name and address
+ * under Invoice details. Without them the invoice could be made and never
+ * sent (invoice-push.ts refuses it by name), so the yes is refused instead,
+ * before anything is recorded, and the page shows the way to the card.
+ * Asked inside the yes's own transaction, after its lock.
+ */
+const INVOICE_DETAILS_FIRST =
+  'Your invoice details come first: the name and address an invoice is made out to. ' +
+  'Add them under Invoice details, then say yes again.';
+
+async function hasInvoiceDetails(db: PgDatabase, tenantId: string): Promise<boolean> {
+  const rows = await db
+    .select({ tenantId: schema.billingParty.tenantId })
+    .from(schema.billingParty)
+    .where(eq(schema.billingParty.tenantId, tenantId))
+    .limit(1);
+  return rows.length === 1;
+}
+
+/**
  * POST /api/billing/ceiling/yes
  *
  * The customer's yes to the offer they were shown: a move up, or a top-up.
@@ -402,6 +436,7 @@ router.post('/ceiling/yes', authenticate, requireBillingWrite, async (req: Authe
       // One yes at a time per organisation: two presses of the same offer
       // must not buy two bands. Released with the transaction.
       await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'data_allowance:' + tenantId}))`);
+      if (!(await hasInvoiceDetails(db, tenantId))) return { detailsFirst: true } as const;
       const before = await readCeiling(db, asTenantId(tenantId));
       const alphaGb = await alphaGbOf(db, tenantId);
       const decision = decideYes(before, parsed.data);
@@ -409,6 +444,11 @@ router.post('/ceiling/yes', authenticate, requireBillingWrite, async (req: Authe
       await new PgDataAllowanceStore(db).record(asTenantId(tenantId), decision.grant, req.userId ?? 'unknown');
       return { ceiling: await readCeiling(db, asTenantId(tenantId)), alphaGb } as const;
     });
+    if ('detailsFirst' in outcome) {
+      return void res
+        .status(409)
+        .json({ error: 'invoice_details_first', message: INVOICE_DETAILS_FIRST, reason: INVOICE_DETAILS_FIRST });
+    }
     const holds = holdsAtCeiling(process.env.OWNPACE_STAGE);
     if ('refused' in outcome) {
       const reason =
@@ -516,12 +556,18 @@ router.post('/paths/yes', authenticate, requireBillingWrite, async (req: Authent
       // The data ceiling's lock: one yes at a time per organisation, on either
       // axis, so two presses of the same offer move up once.
       await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'data_allowance:' + tenantId}))`);
+      if (!(await hasInvoiceDetails(db, tenantId))) return { detailsFirst: true } as const;
       const store = new PgDataAllowanceStore(db);
       const decision = decidePathsYes(allowanceOf(await store.grants(asTenantId(tenantId))), parsed.data);
       if (!decision.ok) return { refused: decision.reason } as const;
       await store.record(asTenantId(tenantId), decision.grant, req.userId ?? 'unknown', 'paths');
       return { tier: allowanceOf(await store.grants(asTenantId(tenantId))).tier } as const;
     });
+    if ('detailsFirst' in outcome) {
+      return void res
+        .status(409)
+        .json({ error: 'invoice_details_first', message: INVOICE_DETAILS_FIRST, reason: INVOICE_DETAILS_FIRST });
+    }
     if ('refused' in outcome) {
       const reason =
         outcome.refused === 'offer_changed'
@@ -625,6 +671,8 @@ router.post('/pick', authenticate, requireBillingWrite, async (req: Authenticate
       // The yeses' lock: one pick or yes at a time per organisation, so two
       // presses pick once, and a pick and a yes at the ceiling do not cross.
       await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'data_allowance:' + tenantId}))`);
+      // A paid tier is invoiced; Free, the lower pick of none, is not.
+      if (parsed.data.tierId !== 'free' && !(await hasInvoiceDetails(db, tenantId))) return { detailsFirst: true } as const;
       // One moment for the decision and the row, so the month the pick counts
       // in is the one the decision read.
       const now = new Date();
@@ -636,6 +684,11 @@ router.post('/pick', authenticate, requireBillingWrite, async (req: Authenticate
       if (decision.yes) await new PgDataAllowanceStore(db).record(asTenantId(tenantId), decision.yes, by, 'pick');
       return { from: decision.from, state: await readBilledNow(db, asTenantId(tenantId), now) } as const;
     });
+    if ('detailsFirst' in outcome) {
+      return void res
+        .status(409)
+        .json({ error: 'invoice_details_first', message: INVOICE_DETAILS_FIRST, reason: INVOICE_DETAILS_FIRST });
+    }
     const holds = holdsAtCeiling(process.env.OWNPACE_STAGE);
     if ('refused' in outcome) {
       const reason = 'What may be picked has changed since the page was shown. Look at the tiers again before picking.';
@@ -901,6 +954,7 @@ router.put('/party', authenticate, requireBillingWrite, async (req: Authenticate
       city: body.city,
       countryCode: body.countryCode,
       vatNumber: body.kind === 'business' && body.vatNumber ? body.vatNumber : null,
+      invoiceEmail: body.invoiceEmail || null,
     };
 
     const [party] = await withTenantDb(tenantId, getSharedPool(), async (db) =>
@@ -1125,6 +1179,70 @@ router.get('/invoices/:invoiceId', authenticate, requireBillingRead, async (req:
     res.json({ invoice: invoices[0] });
   } catch (error) {
     serverFault(res, 'invoice_failed', 'reading this invoice', error);
+  }
+});
+
+/**
+ * GET /api/billing/invoices/:invoiceId/pdf
+ *
+ * The invoice's document, Moneybird's own PDF (workplan 0111, T6): streamed
+ * from the books to the person who asks, and kept nowhere here. Only an
+ * invoice Moneybird has numbered has one; a draft is refused by name. Read in
+ * the organisation's own scope, so an invoice of another organisation is not
+ * found. The file is named by the invoice's legal number.
+ */
+router.get('/invoices/:invoiceId/pdf', authenticate, requireBillingRead, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const invoiceId = req.params.invoiceId;
+    if (!invoiceId || Array.isArray(invoiceId)) {
+      return void res.status(400).json({ error: 'Bad Request', message: 'Invoice ID required' });
+    }
+    const tenantId = req.tenantId;
+    if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
+
+    const rows = await withTenantDb(tenantId, getSharedPool(), async (db) =>
+      db
+        .select({
+          status: schema.invoice.status,
+          moneybirdId: schema.invoice.moneybirdId,
+          moneybirdAdministrationId: schema.invoice.moneybirdAdministrationId,
+          invoiceNumber: schema.invoice.invoiceNumber,
+        })
+        .from(schema.invoice)
+        .where(and(eq(schema.invoice.id, invoiceId), eq(schema.invoice.tenantId, tenantId))),
+    );
+    const invoice = rows[0];
+    if (!invoice) return void res.status(404).json({ error: 'Not found', message: 'Invoice not found' });
+    if (!invoice.moneybirdId || !invoice.invoiceNumber || invoice.status === 'draft') {
+      const reason = 'This invoice is being prepared and has no document yet: it has one once it is numbered.';
+      return void res.status(409).json({ error: 'no_document_yet', message: reason, reason });
+    }
+
+    const books = moneybirdFromEnv(process.env);
+    if (books.kind !== 'on' || books.config.administrationId !== invoice.moneybirdAdministrationId) {
+      // Moneybird off, half set, or set to other books than the ones that
+      // numbered this invoice: nothing here can fetch its document.
+      log.warn('[billing] invoice pdf: the books that numbered it are not the ones configured', {
+        invoiceId,
+        configured: books.kind,
+      });
+      const reason = "The invoice's document cannot be fetched right now. Ask us for it, and name the invoice number.";
+      return void res.status(503).json({ error: 'document_unavailable', message: reason, reason });
+    }
+
+    const fetched = await downloadInvoicePdf(books.config, invoice.moneybirdId);
+    if (fetched.kind !== 'pdf') {
+      log.warn('[billing] invoice pdf: not fetched', { invoiceId, kind: fetched.kind, reason: fetched.reason });
+      const reason = "The invoice's document cannot be fetched right now. Try again in a minute.";
+      return void res.status(503).json({ error: 'document_unavailable', message: reason, reason });
+    }
+    const filename = `Ownpace-invoice-${invoice.invoiceNumber.replace(/[^A-Za-z0-9._-]/g, '_')}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.send(Buffer.from(fetched.bytes));
+  } catch (error) {
+    serverFault(res, 'invoice_pdf_failed', "fetching the invoice's document", error);
   }
 });
 

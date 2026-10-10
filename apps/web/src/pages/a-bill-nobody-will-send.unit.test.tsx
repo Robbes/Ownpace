@@ -217,13 +217,15 @@ const client = () =>
 
 const inLocale = (locale: Locale) => window.localStorage.setItem('ownpace.locale', locale);
 
-/** The Billing page as the app mounts it, inside the real LocaleProvider. */
+/** The Billing page as the app mounts it, inside the real LocaleProvider and the router. */
 async function billingPage(locale: Locale): Promise<void> {
   inLocale(locale);
   render(
     <QueryClientProvider client={client()}>
       <LocaleProvider>
-        <Billing />
+        <MemoryRouter initialEntries={['/billing']}>
+          <Billing />
+        </MemoryRouter>
       </LocaleProvider>
     </QueryClientProvider>,
   );

@@ -26,6 +26,7 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 import { billingApi, CeilingSchema, type Ceiling, type CeilingYes } from '../services/billing-service.ts';
 import { serverMessage } from '../services/api.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
+import InvoiceDetailsFirst from './InvoiceDetailsFirst.tsx';
 
 const QUERY_KEY = ['billing-ceiling'] as const;
 
@@ -162,17 +163,20 @@ const CeilingBody: React.FC<{
       {offered && !holds && <p className="text-gray-600">{t('billing.ceiling.alpha')}</p>}
 
       {done && <p className="text-green-800">{t('billing.ceiling.done', { ceiling: size(ceiling.ceilingGb) })}</p>}
-      {refusal != null && (
-        <p className="text-red-800">
-          {refusedCode === 'offer_changed' ? (
-            t('billing.ceiling.offerChanged')
-          ) : (
-            <>
-              <span className="font-medium">{t('billing.ceiling.yesFailed')}</span> {serverMessage(refusal)}
-            </>
-          )}
-        </p>
-      )}
+      {refusal != null &&
+        (refusedCode === 'invoice_details_first' ? (
+          <InvoiceDetailsFirst />
+        ) : (
+          <p className="text-red-800">
+            {refusedCode === 'offer_changed' ? (
+              t('billing.ceiling.offerChanged')
+            ) : (
+              <>
+                <span className="font-medium">{t('billing.ceiling.yesFailed')}</span> {serverMessage(refusal)}
+              </>
+            )}
+          </p>
+        ))}
 
       {offered && (
         <div className="space-y-3 pt-2 border-t">

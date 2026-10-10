@@ -4,6 +4,98 @@
 
 ## Status — 2026-10-10 (update this block at the end of every session)
 
+**2026-10-10: slice 6 — Moneybird's PDF in the app** (T6). An invoice Moneybird has numbered
+offers *Download the invoice* / *Factuur downloaden* on the Billing page, and the file is the
+books' own document, named `Ownpace-invoice-{number}.pdf`: `GET
+/api/billing/invoices/:id/pdf` reads the row in the organisation's own scope, asks Moneybird for
+its PDF by the invoice's Moneybird id, and hands it on with `Cache-Control: private, no-store`,
+keeping no copy (`moneybird-documents.ts`). `download_pdf` answers with a redirect to a link that
+lives about thirty seconds; the redirect is read and the link fetched bare, over HTTPS only, so the
+token goes to Moneybird's API and nowhere else. What is not a PDF, or is over 10 MB, is not handed
+on. A draft has no document and is refused by name (`no_document_yet`), as is an invoice whose
+books are not the ones configured, or one Moneybird does not hand over (`document_unavailable`,
+with a sentence to act on); a failed download says why beside the button, in the server's words,
+which arrive as bytes and are read back. The redirect's shape was read from Moneybird's API as
+mirrored; the first download on the OTA stack is its check.
+
+- **Guards:** `moneybird-documents.unit.test.ts` (the redirect read and the link fetched without
+  the token; a document served straight away; plain HTTP, not a PDF and over 10 MB refused; 404,
+  401, 500 and 429 each said); `an-invoice-document-from-the-books.unit.test.ts` (on PGlite with
+  every migration: the PDF handed on under its number, uncached; a draft refused and Moneybird asked
+  nothing; another organisation's invoice not found; Moneybird off, or other books, said in a
+  sentence; a document not handed over is a sentence, never a broken file); `Billing.unit.test.tsx`
+  (the file saved under the server's name; the failure beside the button; no button on a draft);
+  `billing-service.unit.test.ts` (a refusal that arrived as bytes read back to its sentence). The
+  spec says the route; the fetch guard counts the new client.
+
+**2026-10-10: slice 5d — the nightly's sandbox invoice** (decision 12, the nightly's half).
+`operator.sh moneybird nightly`, run by the managed nightly gate (`smoke-managed.sh`, before the
+verdict), makes one invoice a night the whole way round (`moneybird-nightly.ts`): under
+`ownpace-nightly-{YYYY-MM-DD}`, to the proof contact without an e-mail address, sent by hand, paid
+by a registered payment for what is still to pay (`registerPayment`, `POST
+sales_invoices/{id}/payments`, which replaced `register_payment`), and read back as `paid`. It
+counts the month's invoices first, a page of 100 at a time since Moneybird gives no total
+(`countSalesInvoicesThisMonth`, `filter=period:this_month,state:all`), and from 40 of the
+sandbox's 50 it makes none and says so. A second run the same night finds the invoice and pays
+nothing twice. It refuses live and e-mail delivery as the proof does; with Moneybird off it skips,
+and the gate lists the books as not proven rather than failing, until the owner gives the nightly
+stack the sandbox's keys. The payment and list endpoints were read from Moneybird's API as
+mirrored, not from its own pages, which this environment could not reach: the first night with
+keys is their check.
+
+- **Guards:** `moneybird-nightly.unit.test.ts` (with a sandbox of its own: live and e-mail delivery
+  refuse before a request; off skips and passes; from 40 the night makes none, after one list
+  request; the count goes page by page and stops where asked; the night's invoice is made to a
+  contact without an e-mail address, sent `Manual`, paid `1.00` on the night's date and read back
+  as paid; a second run writes nothing; a refused payment and an invoice that stays `open` fail the
+  night; the token in no line). The fetch guard counts the adapter's two new requests.
+
+**2026-10-10: slice 5c — `operator.sh moneybird proof`** (decision 12, the operator's half). One
+invoice a month, made by hand to prove the books: it goes through `pushInvoice` the way the hourly
+push does, under the reference `ownpace-proof-{YYYY-MM}`, to Ownpace's own proof contact
+(`customer_id` `ownpace-proof`, which no organisation's `ownpace-{uuid}` can take, and no e-mail
+address), at €1.00 with domestic VAT, sent by hand, and prints the number, date and total
+Moneybird gave it (`moneybird-proof.ts`). Run again that month, it answers that the invoice exists
+and asks Moneybird to write nothing, so a repeated command spends nothing of the sandbox's 50 a
+month. Before asking Moneybird anything it refuses a stack that runs `NODE_ENV=production`, as
+live does, one that names no `NODE_ENV`, e-mail delivery, and Moneybird off or half set. The
+bring-up guide says when to run it.
+
+- **Guards:** `moneybird-proof.unit.test.ts` (with a sandbox of its own: each refusal asks
+  nothing; the month's proof is made to a contact without an e-mail address, sent `Manual`, and
+  says its number; again that month it exists and nothing is written; the next month is a new
+  proof; a draft that does not add up is said and not sent; a 429 stops it; the token in no line).
+- **Not yet:** the nightly sandbox invoice (5d, above); reading back `paid` and `late` for the
+  organisations' own invoices (5f).
+
+**2026-10-10: slice 5e — an invoice address, and invoice details before a paid tier** (decisions
+11 and 14). Managed 0048 adds `billing_party.invoice_email`, checked loosely by the column and by
+the route alike (one `@` with something on either side: whether the mailbox exists is the
+delivery's to find out), and purged with the rest of the row. The Invoice details card asks for it
+as *Invoice e-mail address* / *E-mailadres voor facturen*, required, prefilled with the address
+the person signed in with until details are saved, and says it may be the bookkeeping's. The push
+hands it to Moneybird's contact when Moneybird is to e-mail the invoice, and only then: under
+`Manual`, on the sandbox and the OTA stack, a tester's address stays out of the books. The three
+doors a paid tier is agreed through (the yes at the data ceiling, the yes at *Start*, a pick of a
+paid tier) refuse with 409 `invoice_details_first` while there are no invoice details, inside the
+yes's own lock and before anything is recorded; a pick of Free charges nothing and is not asked,
+and the Alpha's refusal still comes first. Each door says so in the page's language, with *Add
+your invoice details* linking to `/billing#invoice-details`. The card brings itself into view
+and focus to its heading, from another page and from the Billing page alike, once every read on
+the page has answered, since the cards above it load after it is drawn and would push it back
+down. The OpenAPI spec says the field and the refusal.
+
+- **Guards:** `a-yes-that-asks-for-invoice-details-first.unit.test.ts` (on PGlite with every
+  migration: each door refuses and records nothing; Free is not asked; an address that is not one
+  is refused by the route and by the column's check; the details and the address are stored and
+  served back, the pick is then taken, and empty clears the address); the three yes tests seed
+  invoice details; `a-draft-numbered-by-the-books.unit.test.ts` (the address handed over for
+  e-mail delivery, kept out under `Manual`); `Billing.unit.test.tsx` (prefilled with the
+  signed-in address and sent; a stored address seeds the field; opened at the anchor, nothing
+  moves while a read above is held open, then the card is scrolled to once and its heading has
+  focus; without the anchor nothing moves); `TierPick.unit.test.tsx` (the refusal in English and
+  Dutch, with its link).
+
 **2026-10-10: slice 5b — the Billing page names an invoice by its number.** Once Moneybird has
 numbered it, an invoice is *Invoice 2026-0001*, with *Invoice date: October 1, 2026 · due date:
 October 15, 2026* under its period (`GET /api/billing/invoices` serves the number and the date; the
@@ -46,7 +138,7 @@ with a draft still a draft two days after it was made is said as an error, by re
   runbook's switch table a row for the push.
 - **Not yet:** the Billing page showing the legal number and paying only an issued invoice (5b, above);
   reading back `paid` and `late`; the invoice e-mail address and invoice details before leaving
-  Free (decisions 11 and 14); `operator.sh moneybird proof` and the nightly sandbox invoice
+  Free (decisions 11 and 14: slice 5e, above); `operator.sh moneybird proof` and the nightly sandbox invoice
   (decision 12).
 
 **2026-10-06: slice 4b — each month invoiced in advance.** `managed-month-invoices`, hourly at
@@ -287,7 +379,7 @@ alone** — see §"Who is the controller" and the cross-reference to 0086 T5.
 | T3 VAT treatment: decided, recorded, never a constant | ✅ **Built 2026-08-29** | `vat-treatment.ts`: the decision as a pure, total function — domestic buyers domestic; EU B2B **reverse charge only with a valid VIES consultation** (without one, charged like a consumer *on purpose*: over-charging is the buyer's money and a credit note fixes it, under-charging is the seller's liability); EU consumers at the seller rate until `VAT_OSS_ACTIVE` flips (owner's threshold decision); non-EU an export — GB stays outside even with an XI number (services, not goods). `moneybird-tax-rates.ts`: treatment → the administration's own `tax_rate_id`, **operator-configured and validated against the real list** (a deleted/archived/purchase rate refuses by name) — no percentage is ever consulted for selection. `GET /api/billing/party` serves the decision; the billing card says it in both languages. The legacy constant survives ONLY for the usage-screen estimate, pinned by `scripts/a-rate-that-must-not-spread.unit.test.ts` (a new caller fails CI). Remaining for T4/T8: point the resolver at the real administration and rewire the estimate/price page. |
 | T4 The Moneybird adapter | ✅ **Core seam built 2026-08-29** — wiring + live proof against a sandbox administration, no longer gated on the owner (2026-10-05); **configuration and its check built 2026-10-05** (slice 1), **the adapter completed and one push function built 2026-10-05** (slice 2) | `moneybird-sales-invoices.ts`: `ensureContact` (found by OUR `customer_id` key, matched exactly against the fuzzy search), `ensureSalesInvoiceByReference` (look-then-create; an existing invoice is returned **as it stands, never patched** — the correction instrument is T7's credit note), and `sendSalesInvoice` (the moment Moneybird assigns the legal number). The sharpest pin: **an uncertain lookup never falls through to create** — a 500 on `find_by_reference` is `unavailable` with zero POSTs, because "could not look" read as "not found" is how a flaky afternoon double-invoices a customer. Lines carry `tax_rate_id` and nothing else (a test asserts the wire body never contains "percentage"). Injectable fetch throughout; config is parameters, no env reads. **The owner's gate cleared 2026-10-05**: a sandbox administration on the OTA stack with its rate ids, and the German-19% test passed (Status). **Remaining**: stamping the T2 consultation number onto the document, and the route/worker wiring against 0109's tiers. |
 | T5 The mirror, and the number that is not ours | 🟡 **The mirror BUILT 2026-10-05** (managed 0045, slice 3); the push that fills it is slice 5 — **immutability BUILT 2026-08-30** (migration 0014, ahead of the reshape) | `invoice` becomes a MIRROR carrying the legal number. Moneybird owns `invoice_sequence_id`; the schema must make it impossible to drift into numbering a document we do not own. The refusal is already installed on the current table — T5's migration only extends 0014's column lists when the mirror columns arrive (§"The refusal, designed"). |
-| T6 Delivery: the email and the download | 📋 Planned (needs T5) | `GET /sales_invoices/{id}/download_pdf`. Serves **their** PDF, never one we render. Two documents for one sale is the failure this task exists to prevent. |
+| T6 Delivery: the email and the download | ✅ **The download built 2026-10-10** (slice 6; the e-mail is Moneybird's, decision 11) | `GET /sales_invoices/{id}/download_pdf`. Serves **their** PDF, never one we render. Two documents for one sale is the failure this task exists to prevent. |
 | T7 Credit notes | 📋 Planned (needs T5) — **database refusal BUILT 2026-08-30** | `PATCH /sales_invoices/{id}/duplicate_creditinvoice`. The database half is done ahead of schedule: migration 0014 installs the state-machine trigger + narrowed grants (§"The refusal, designed"), the generation upsert regenerates drafts only, the webhook path passes by construction, and a failed payment no longer voids the document. What remains here is the credit note itself — the Moneybird call and the product surface that issues it. |
 | T8 The price page stops promising 21% | ✅ **First slice built 2026-08-29** — per-country display waits on OSS | The row's own premise corrected by the build: the site never computed VAT — it showed bare `€n` with **no statement at all**, and toward consumers a displayed price legally IS the final, VAT-inclusive price. The slice says it out loud ("All prices include VAT." / "Alle prijzen zijn inclusief btw.") on the landing, pricing and calculator pages, with a structural guard: any page rendering tier prices without the label goes red. Deliberately **no rate in the copy** — which country's VAT sits inside the price is T3's per-invoice decision, so nothing drifts when OSS activates or a rate changes. Remaining for full T8: per-country inclusive display once `VAT_OSS_ACTIVE` flips, and reconciling the retired server model's ex-VAT arithmetic in 0109's tier rebuild. |
 | T9 Billing frequency, decided rather than defaulted | ✅ **Decided 2026-08-29: monthly AND annual, annual discounted** | The owner's framing decides it: the service is not a one-shot move but *"an operational exit strategy waiting for the cutover"*, sometimes used serially to move a family one person at a time — so a subscription is honest, and the discounted annual is the fee-efficient path (one charge ≈0.3% vs ≈3.4% monthly, §below) offered rather than imposed. T4's invoice shape: recurring, both cadences. **Invoiced in advance (2026-10-05, decision 6):** a month on its first day, at the tier it starts on, and a move up within a day, for the difference. |
@@ -711,10 +803,11 @@ slice 5. The annual credit is not in this chain (decision 6).
    on the row, paced under the 150-requests-per-5-minutes limit, then reads the state back
    (`paid`, `late`). **The push built 2026-10-06** (slice 5a, managed 0047, hourly, Status). The Billing page shows the legal number and date; Pay shows only where an
    invoice can be paid: **built 2026-10-10** (slice 5b, Status). `operator.sh moneybird proof` makes one invoice in the sandbox, by hand,
-   never by e-mail, and running it again answers that it exists; the nightly managed run makes one
-   with a payment registered (12). Invoice details first (14).
+   never by e-mail, and running it again answers that it exists (**built 2026-10-10**, slice 5c); the nightly managed run makes one
+   with a payment registered (12; **built 2026-10-10**, slice 5d). Invoice details first (14): **built
+   2026-10-10** (slice 5e, managed 0048, Status).
 6. **Moneybird's PDF in the app** (T6). The app streams Moneybird's own document and keeps no
-   copy; a draft has none. Delivery as decided in 11.
+   copy; a draft has none. Delivery as decided in 11. **Built 2026-10-10** (slice 6, Status).
 7. **Credit notes, and the withdrawal button** (T7, 0152 T6 (f)). A credit note is our row first,
    then Moneybird's draft under its own reference, so a retry adopts the draft instead of making a
    second. The withdrawal is recorded append-only and read where the tier is read, as decided

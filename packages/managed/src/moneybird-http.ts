@@ -56,10 +56,11 @@ export type MoneybirdReadOutcome =
   | { readonly kind: 'unavailable'; readonly reason: string }
   | SlowDown;
 
-const API = 'https://moneybird.com/api/v2';
+/** Moneybird's API, every administration under it. */
+export const MONEYBIRD_API = 'https://moneybird.com/api/v2';
 
 /** Seconds from a `Retry-After` header: a number of seconds, or an HTTP date. */
-function retryAfterSecondsOf(header: string | null, now: number): number | undefined {
+export function retryAfterSecondsOf(header: string | null, now: number): number | undefined {
   if (header === null) return undefined;
   const trimmed = header.trim();
   if (/^[0-9]+$/.test(trimmed)) return Number(trimmed);
@@ -86,7 +87,7 @@ export async function moneybirdRequest(
 ): Promise<MoneybirdResponse> {
   let response: Response;
   try {
-    response = await fetchImpl(`${API}/${encodeURIComponent(access.administrationId)}${path}`, {
+    response = await fetchImpl(`${MONEYBIRD_API}/${encodeURIComponent(access.administrationId)}${path}`, {
       method,
       headers: {
         Authorization: `Bearer ${access.apiToken}`,

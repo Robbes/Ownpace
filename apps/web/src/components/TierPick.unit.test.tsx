@@ -13,6 +13,7 @@
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AxiosError, type AxiosResponse } from 'axios';
+import { MemoryRouter } from 'react-router';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import TierPick from './TierPick.tsx';
 import { billingApi, type PickOffer, type PickTier } from '../services/billing-service.ts';
@@ -67,9 +68,11 @@ function renderCard(locale: 'en' | 'nl' = 'en') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <LocaleProvider>
-        <TierPick />
-      </LocaleProvider>
+      <MemoryRouter initialEntries={['/billing']}>
+        <LocaleProvider>
+          <TierPick />
+        </LocaleProvider>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -170,6 +173,28 @@ describe('a pick', () => {
     expect(screen.queryByRole('button', { name: 'Pick Small' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Pick Medium' })).toBeVisible();
   });
+
+  it.each(['en', 'nl'] as const)(
+    'refused for want of invoice details, says so in the page’s language and links to them (0111 decision 14): %s',
+    async (locale) => {
+      const words = STRINGS[locale];
+      getPick.mockResolvedValue(ON_FREE);
+      pickTier.mockRejectedValue(
+        refused({ error: 'invoice_details_first', reason: 'Your invoice details come first: …' }),
+      );
+      renderCard(locale);
+      fireEvent.click(
+        await screen.findByRole('button', { name: words['billing.pick.button'].replace('{tier}', 'Small') }),
+      );
+      fireEvent.click(screen.getByRole('button', { name: words['billing.pick.order'] }));
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent(words['billing.detailsFirst']);
+      expect(within(alert).getByRole('link', { name: words['billing.detailsFirst.link'] })).toHaveAttribute(
+        'href',
+        '/billing#invoice-details',
+      );
+    },
+  );
 });
 
 describe('lowering the pick', () => {

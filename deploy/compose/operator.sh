@@ -44,6 +44,8 @@
 #   ./deploy/compose/operator.sh clean <kind> [--confirm]
 #   ./deploy/compose/operator.sh secrets
 #   ./deploy/compose/operator.sh moneybird check
+#   ./deploy/compose/operator.sh moneybird proof
+#   ./deploy/compose/operator.sh moneybird nightly
 #
 # `<subject>` is the OIDC `sub`, never an email: sign in once, call
 # `GET /api/me`, and read `userId` back. operator.ts's header says why.
@@ -90,6 +92,22 @@
 # the rest from. See moneybird-check.ts. It queries no table; Postgres must be
 # up only because this wrapper composes the owner connection before any verb.
 # It exits 1 while its report names something to do.
+#
+# `moneybird proof` writes, once a month: it makes one invoice the way the
+# hourly push does, under the reference `ownpace-proof-{YYYY-MM}`, to Ownpace's
+# own proof contact, sent by hand, and says the number Moneybird gave it.
+# Running it again that month answers that it exists and makes nothing. It
+# refuses before asking Moneybird anything on a stack that runs
+# NODE_ENV=production, as live does, or names none, and unless
+# MONEYBIRD_DELIVERY is manual: the sandbox allows ten e-mails a month and a
+# proof needs none. See moneybird-proof.ts.
+#
+# `moneybird nightly` is the managed nightly gate's (smoke-managed.sh): one
+# sandbox invoice a night, `ownpace-nightly-{YYYY-MM-DD}`, made, paid by a
+# registered payment and read back as paid, after counting the month's
+# invoices (from 40 of the sandbox's 50 it makes none). Refused as the proof
+# is; with Moneybird off it says it skipped and exits 0. See
+# moneybird-nightly.ts.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -111,6 +129,8 @@ if [ "$#" -eq 0 ]; then
   echo "  ./deploy/compose/operator.sh links <tenant-id> [<n> [--until YYYY-MM-DD] [note] | --tier]" >&2
   echo "  ./deploy/compose/operator.sh close <tenant-id> <window-days> --by <your-subject> --reference <the tester's request>" >&2
   echo "  ./deploy/compose/operator.sh moneybird check" >&2
+  echo "  ./deploy/compose/operator.sh moneybird proof" >&2
+  echo "  ./deploy/compose/operator.sh moneybird nightly" >&2
   exit 1
 fi
 
