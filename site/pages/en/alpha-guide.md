@@ -45,8 +45,8 @@ personally. The Alpha lasts a few weeks.
   account, Ownpace does not carry that change over. If a message is already in another folder at
   your new provider, it may arrive twice.
 - **Is your destination not empty?** Then choose a target folder. Your mail then goes under that
-  folder. You do not do this through step 5 below, but under *Migrations* with *Add one
-  migration by hand*. Fill in *Target folder (optional)* there. For files, a target folder only
+  folder. You do this in step 5 below, on *Where does it go?*: under *Where the copies land*, open
+  *Put it in a folder of its own*, and fill in *Folder* there. For files, a target folder only
   works with the destination *WebDAV* or *Nextcloud*. Unsure? Ask us first.
 - **Open links in a browser** such as Safari or Chrome, not in a chat or mail app. If a link opens
   in such an app anyway, choose *Open in browser* there.
@@ -67,7 +67,7 @@ personally. The Alpha lasts a few weeks.
 3. Go to the address after *Sign in here* in that email. Sign in there with the same email
    address. No account yet? Create one, and confirm the confirmation email.
 4. Accept the Alpha conditions, the [privacy policy](./privacy.html) and the
-   [terms of service](./terms.html), with *Accept all three*.
+   [terms of service](./terms.html), with *Accept all three to proceed*.
 5. Under *Migrations*, choose *Start a migration*. The app asks step by step what goes and where,
    and connects your accounts. Connecting a Google account? Only do that once we have told you
    your address is on the list.

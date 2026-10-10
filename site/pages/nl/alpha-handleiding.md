@@ -46,7 +46,7 @@ voorwaarden.
 
 ## Wat de Alpha is {#wat-de-alpha-is}
 
-Ownpace kopieert uw e-mail, agenda, contacten en bestanden van uw oude naar uw nieuwe
+Ownpace migreert uw e-mail, agenda, contacten en bestanden van uw oude naar uw nieuwe
 aanbieder. In de app heet dat een migratie. Wij draaien de dienst voor u.
 
 De Alpha is een proef met die dienst. Een kleine groep doet mee, en iedereen is persoonlijk
@@ -76,15 +76,15 @@ uitgenodigd. De Alpha duurt enkele weken.
   account, dan neemt Ownpace dat niet mee. Staat een e-mail bij uw nieuwe aanbieder al in een
   andere map, dan kan hij dubbel binnenkomen.
 - **Is uw bestemming niet leeg?** Kies dan een doelmap. Uw e-mail komt dan onder die map. Dat
-  doet u niet via stap 5 hieronder, maar bij *Migraties* met *Eén migratie handmatig toevoegen*.
-  Vul daar *Doelmap (optioneel)* in. Voor bestanden werkt een doelmap alleen bij de bestemming
-  *WebDAV* of *Nextcloud*. Twijfelt u? Vraag het ons eerst.
+  doet u in stap 5 hieronder, bij *Waar gaat het naartoe?*: open onder *Waar de kopieën komen*
+  de keuze *In een eigen map zetten*, en vul daar *Map* in. Voor bestanden werkt een doelmap
+  alleen bij de bestemming *WebDAV* of *Nextcloud*. Twijfelt u? Vraag het ons eerst.
 - **Open links in een browser** zoals Safari of Chrome, niet in een chat- of mailapp. Opent een
   link toch in zo'n app? Kies daar dan *Openen in browser*.
 - **Verwijderingen staan uit.** Verwijdert u iets in uw oude account? Dan blijft de kopie bij uw
   nieuwe aanbieder staan. Wilt u dat die kopie ook verdwijnt? Open dan bij de migratie de pagina
   *Verwijderingen*. Kies *Handmatig verwijderen inschakelen*, en bevestig. Daarna kiest u per
-  verwijdering: *Verwijder het hier ook* of *Behoud onze kopie*. Ownpace verwijdert alleen een
+  verwijdering: *Verwijder het hier ook* of *Behoud de kopie*. Ownpace verwijdert alleen een
   kopie die het zelf schreef. Is een bestand, agenda-item of contact bij uw nieuwe aanbieder
   gewijzigd? Dan verwijdert het dat niet. Bij e-mail controleert het dat niet. Staat handmatig
   verwijderen aan, dan ziet u een tweede knop, ook standaard uit: *Automatisch verwijderen
@@ -99,13 +99,13 @@ uitgenodigd. De Alpha duurt enkele weken.
 3. Ga naar het adres achter *Meld u hier aan* in die e-mail. Meld u daar aan met hetzelfde
    e-mailadres. Hebt u nog geen account? Maak er dan een aan, en bevestig de bevestigingsmail.
 4. Aanvaard de Voorwaarden voor de Alpha, de [privacyverklaring](./privacy.html) en de
-   [servicevoorwaarden](./voorwaarden.html), met *Alle drie aanvaarden*.
+   [servicevoorwaarden](./voorwaarden.html), met *Allemaal aanvaarden*.
 5. Kies bij *Migraties* voor *Migratie starten*. De app vraagt stap voor stap wat er mee moet en
    waarheen, en verbindt uw accounts. Koppelt u een Google-account? Doe dat pas als wij hebben
    gemeld dat uw adres op de lijst staat.
-6. Lees het laatste scherm, *Controleren, dan starten*. Er wordt niets gekopieerd voordat u op
+6. Lees het laatste scherm, *Controleren, dan starten*. Er wordt niets gemigreerd voordat u op
    *Starten* drukt.
-7. Is alles een eerste keer gekopieerd? Kies dan bij de migratie *Verificatie*, en dan *Voer de
+7. Is alles een eerste keer gemigreerd? Kies dan bij de migratie *Verificatie*, en dan *Voer de
    verificatie uit*. Die vergelijkt oud met nieuw, en verandert aan geen van beide iets.
 
 ### Als u Google koppelt {#google-koppelen}

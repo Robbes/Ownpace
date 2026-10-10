@@ -1288,7 +1288,7 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     nowSixHourly: 'Nu elke 6 uur',
     nowDaily: 'Nu eens per dag',
     moreOften:
-      'Kies hoe vaak moet worden gecontroleerd op wijzigingen via \'Hoe vaak naar wijzigingen kijken\' per migratie in de app. ' +
+      'Kies hoe vaak moet worden gecontroleerd op wijzigingen via \'Frequentie om naar wijzigingen te kijken\' per migratie in de app. ' +
       'Opent u een migratie, dan kijken we weer 14 dagen elk uur.',
     and: 'en',
     domain: { email: 'e-mail', calendar: 'agenda', contact: 'contacten', file: 'bestanden', task: 'taken' },
