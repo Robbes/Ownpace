@@ -48,7 +48,7 @@ const SAID = {
     'what arrived at your new destination.',
   nl:
     'Welkom bij Ownpace in de Alpha-fase! Probeer Ownpace rustig uit op uw eigen tempo, en help anderen makkelijker over te ' +
-    'stappen naar Europese alternatieven. Gedurende de Alpha-fase zijn alle tiers gratis. ' +
+    'stappen naar Europese alternatieven. Gedurende de Alpha-fase zijn alle pakketten gratis: er wordt niets in rekening gebracht. ' +
     'Er worden geen back-ups gemaakt, op één kopie vlak voor elke update na, die hoogstens 7 dagen ' +
     'wordt bewaard. Controleer dus goed of alles is aangekomen op de nieuwe bestemming voordat u ' +
     'iets verwijdert uit uw oude systeem.',
