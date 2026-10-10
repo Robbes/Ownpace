@@ -3824,7 +3824,7 @@ const nl: Record<keyof typeof en, string> = {
   'settings.schedule.saved': 'Opgeslagen. De volgende ronde volgt het.',
   'settings.schedule.refused': 'Dit kon niet worden gewijzigd:',
   'settings.schedule.failed': 'Dat is niet opgeslagen:',
-  'settings.kinds': 'Gegevenstypen die deze migratie migreert',
+  'settings.kinds': 'Gegevenstypen in deze migratie',
   'settings.kinds.add': '{kind} toevoegen',
   'settings.kinds.adding': 'Toevoegen…',
   'settings.kinds.added': '{kind} toegevoegd. De volgende ronde start migreren.',
@@ -3996,7 +3996,7 @@ const nl: Record<keyof typeof en, string> = {
     'Het aanbod is veranderd sinds deze pagina werd getoond, u heeft nog nergens mee ingestemd. Hieronder staat het aanbod zoals het nu is.',
   'billing.ceiling.loadFailed': 'Uw datalimiet kon niet worden gelezen',
   'billing.ceiling.yesFailed': 'Uw akkoord is niet vastgelegd:',
-  'billing.tierPicked': 'Door u gekozen: u betaalt elke maand minstens {tier}.',
+  'billing.tierPicked': 'Door u gekozen: als basis betaalt u elke maand {tier}.',
   'billing.pick.title': 'Kies een pakket',
   'billing.pick.lead':
     'Uw pakket volgt uw gebruik. U mag een hoger pakket kiezen, zoals voor een hogere synchronisatiefrequentie (tot iedere 15 minuten) of voor meer te migreren data: dat betaalt u dan als basis elke maand, tot u het verlaagt.',
@@ -4026,7 +4026,7 @@ const nl: Record<keyof typeof en, string> = {
   'billing.pick.lowerTo': 'Verlagen naar {tier}',
   'billing.pick.drop': 'Keuze laten vervallen',
   'billing.pick.lower.confirm':
-    'Vanaf {date} betaalt u als basis elke maand {tier}. Tot die datum als basis {now}.',
+    'Vanaf {date} betaalt u als basis elke maand {tier}. Tot die datum betaalt u als basis {now}.',
   'billing.pick.lower.confirmNone':
     'Vanaf {date} bepaalt uw gebruik weer uw pakket. Tot die datum betaalt u als basis elke maand {now}.',
   'billing.pick.lower.yes': 'Keuze verlagen',

@@ -449,7 +449,7 @@ export const COPY = {
     skip: 'Naar de inhoud',
     alphaVisitor: {
       line: 'Ownpace is gedurende de Alpha-fase enkel op uitnodiging.',
-      nothingCharged: 'Tijdens de Alpha wordt niets in rekening gebracht.',
+      nothingCharged: 'Tijdens de Alpha-fase wordt niets in rekening gebracht.',
     },
     footerTag: 'neem uw gegevens mee, in uw eigen tempo.',
     footerOss:
