@@ -193,10 +193,10 @@ describe('what is offered', () => {
     expect(EN['wizard.schedule.automatic.hint']).toBe('Hourly for 14 days, then every 6 hours, daily from day 30.');
     expect(NL['wizard.schedule.automatic.hint']).toBe('14 dagen elk uur, daarna elke 6 uur, vanaf dag 30 dagelijks.');
     expect(EN['settings.schedule.hint.why']).toContain(
-      'On Automatic the days count from when everything was copied, or from the last time somebody opened this migration or pressed Trigger sync, whichever is later.',
+      'On Automatic the days count from when everything was migrated, or from the last time someone opened this migration or pressed Trigger sync, whichever is later.',
     );
     expect(NL['settings.schedule.hint.why']).toContain(
-      'Bij Automatisch tellen de dagen vanaf het moment dat alles is gekopieerd, of vanaf de laatste keer dat iemand deze migratie opende of op Synchroniseer nu drukte, wat het laatst was.',
+      'Bij Automatisch tellen de dagen vanaf het moment dat alles was gemigreerd, of vanaf de laatste keer dat iemand deze migratie opende of op Synchroniseer nu drukte, wat het laatst was.',
     );
     expect(EN['settings.schedule.hint.why']).toContain(EN['mappings.action.triggerSync']);
     expect(NL['settings.schedule.hint.why']).toContain(NL['mappings.action.triggerSync']);
@@ -209,7 +209,7 @@ describe('what is offered', () => {
     renderPanel('0 2 * * *');
     expect(screen.getByText(EN['settings.schedule.hint'])).toBeInTheDocument();
     expect(EN['settings.schedule.hint']).toBe('Passes run back to back until the first copy is done.');
-    expect(NL['settings.schedule.hint']).toBe('Rondes lopen direct na elkaar tot de eerste kopie klaar is.');
+    expect(NL['settings.schedule.hint']).toBe('Rondes lopen direct na elkaar tot de eerste volledige migratie klaar is.');
     for (const [locale, why] of [
       ['en', EN['settings.schedule.hint.why']],
       ['nl', NL['settings.schedule.hint.why']],
@@ -235,7 +235,7 @@ describe('the fold, in a family’s words (0153 T6 (b))', () => {
     expect(fold()).not.toBeNull();
     expect(fold()).not.toHaveAttribute('open');
     expect(EN['settings.schedule']).toBe('How often to look for changes');
-    expect(NL['settings.schedule']).toBe('Hoe vaak naar wijzigingen kijken');
+    expect(NL['settings.schedule']).toBe('Frequentie om naar wijzigingen te kijken');
     // The chooser and its save sit inside it.
     expect(fold()!.contains(save())).toBe(true);
   });
@@ -337,7 +337,7 @@ describe("at Free's pace (0157 T4)", () => {
 
   it('in both languages', () => {
     expect(NL['settings.schedule.freePace']).toBe(
-      'Op Free kijkt een migratie eens per dag naar wijzigingen, welk schema er ook staat. Een hoger pakket kijkt zo vaak als elke 15 minuten.',
+      'Bij Free wordt er eenmaal per dag naar wijzigingen gekeken. Een hoger pakket kijkt tot maximaal elke 15 minuten.',
     );
     expect(NL['settings.schedule.freePace.link']).toBe('Bekijk de pakketten op de pagina Facturering.');
     expect(NL['settings.schedule.freePace.link']).toContain(NL['nav.billing']);

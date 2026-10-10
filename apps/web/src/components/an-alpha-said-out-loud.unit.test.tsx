@@ -15,11 +15,12 @@
  * receives the grant mail, so that screen is where they first meet the
  * service. And `/request-access` keeps the note after the request is sent.
  *
- * WHAT IT SAYS IS THE OWNER'S WELCOME (0131 D4's amendment, 2026-10-04): *"Welkom
- * bij de Alpha! Probeer Ownpace rustig aan uit, en help anderen makkelijker over
- * te stappen naar Europese alternatieven."*, and its English translation
- * *"Welcome to the Alpha! Try Ownpace at your own pace, and help others move to
- * European alternatives more easily."* Then its two links, and nothing else (the
+ * WHAT IT SAYS IS THE OWNER'S WELCOME (0131 D4's amendment, 2026-10-04; the
+ * owner's text review, 2026-10-10): *"Welkom bij de Alpha! Probeer Ownpace
+ * rustig uit, op uw eigen tempo en stap geleidelijk aan over op Europese
+ * alternatieven."*, and its English translation *"Welcome to the Alpha! Try
+ * Ownpace at your own pace, and move to European alternatives step by step."*
+ * Then its two links, and nothing else (the
  * owner: *"Welcome only"*). Until then the note said what the Alpha means:
  * nothing charged, it can end, no backups apart from one copy, keep the old
  * account. Those facts are no longer in the note. Both mails carry them, word
@@ -134,14 +135,14 @@ const SAID = {
   en: {
     lead: 'Welcome to the Alpha!',
     welcome:
-      'Welcome to the Alpha! Try Ownpace at your own pace, and help others move to European ' +
-      'alternatives more easily.',
+      'Welcome to the Alpha! Try Ownpace at your own pace, and move to European alternatives ' +
+      'step by step.',
   },
   nl: {
     lead: 'Welkom bij de Alpha!',
     welcome:
-      'Welkom bij de Alpha! Probeer Ownpace rustig aan uit, en help anderen makkelijker over te ' +
-      'stappen naar Europese alternatieven.',
+      'Welkom bij de Alpha! Probeer Ownpace rustig uit, op uw eigen tempo en stap geleidelijk aan ' +
+      'over op Europese alternatieven.',
   },
 } as const;
 
@@ -337,7 +338,7 @@ describe('with the alpha setting on', () => {
     // asks the API what it accepts, the request form's first field, the way
     // back to sign-in once the request has gone, and the invitation screen's
     // closing line.
-    ['login', 2, () => screen.getByText(/checking how this deployment/i)],
+    ['login', 2, () => screen.getByText(/checking how to sign in/i)],
     ['requestAccess', 2, () => screen.getByLabelText(/email address/i)],
     ['requestAccessSent', 2, () => screen.getByRole('link', { name: /sign in/i })],
     ['invitations', 1, () => screen.getByText(/not now changes nothing/i)],

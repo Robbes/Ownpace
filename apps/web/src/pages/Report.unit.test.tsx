@@ -88,7 +88,7 @@ describe('a migration’s report, as a page', () => {
   it('says the verdict, and per data type what was found, arrived, left as it was and could not come', async () => {
     renderAt();
     expect(await screen.findByRole('heading', { level: 1, name: 'Anna — Gmail to Soverin' })).toBeInTheDocument();
-    expect(screen.getByText('Everything has arrived, but some items still wait on a decision.')).toBeInTheDocument();
+    expect(screen.getByText('Everything has arrived, but some items still wait on your decision.')).toBeInTheDocument();
     const mail = within(line('email'));
     // The state rides with the type's name, so a phone keeps it without a column of its own.
     expect(within(mail.getByText('Email').closest('td')!).getByText('Completed')).toBeInTheDocument();
@@ -191,7 +191,7 @@ describe('a migration’s report, as a page', () => {
     window.localStorage.setItem('ownpace.locale', 'nl');
     renderAt();
     expect(
-      await screen.findByText('Alles is aangekomen, maar sommige items wachten nog op een beslissing.'),
+      await screen.findByText('Alles is aangekomen, maar sommige items wachten nog op uw beslissing.'),
     ).toBeInTheDocument();
     expect(within(line('email')).getByText('18.300')).toBeInTheDocument();
     expect(within(line('contact')).getByText('niet geteld')).toBeInTheDocument();

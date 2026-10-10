@@ -264,7 +264,7 @@ describe('everything has arrived — the first copy, once per person (0154 T7)',
     expect(en.subject).toBe('Ownpace — everything has arrived');
     expect(en.body).toContain('Person: Anna Jansen');
     expect(en.body).toContain('Everything has arrived: email, calendar and contacts.');
-    expect(en.body).toContain('It is kept in step until you switch. Nothing need your attention urgently.');
+    expect(en.body).toContain('It is kept in step until you switch. Nothing needs your attention urgently.');
     const nl = renderEvent(anna, 'nl');
     expect(nl.subject).toBe('Ownpace — alles is aangekomen');
     expect(nl.body).toContain('Persoon: Anna Jansen');
@@ -279,7 +279,7 @@ describe('everything has arrived — the first copy, once per person (0154 T7)',
       'On Free that is one pass a day. A higher tier looks for changes as often as every 15 minutes: check tiers in the Billing section in the app.',
     );
     expect(renderEvent(free, 'nl').body).toContain(
-      'Op Free is dat één ronde per dag. Een hoger pakket kijken we tot maximaal iedere 15 minuten naar wijzigingen: pas het pakket aan via Facturering in de app.',
+      'Op Free is dat één ronde per dag. Bij een hoger pakket kijken we tot maximaal iedere 15 minuten naar wijzigingen: pas het pakket aan via Facturering in de app.',
     );
     expect(renderEvent(anna, 'en').body).not.toContain('On Free');
     const msg = renderEvent({ kind: 'first_copy_complete', domains: ['file'] }, 'en');

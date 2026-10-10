@@ -112,7 +112,7 @@ describe('Report a problem, sent by mail', () => {
     window.localStorage.setItem('ownpace.locale', 'nl');
     const said = await sendReport(BY_MAIL);
     expect(said).toBe(
-      `Verstuurd naar ons supportteam, met meldingskenmerk ${REFERENCE}. We antwoorden per e-mail naar someone@example.invalid.`,
+      `Verstuurd naar ons supportteam met meldingskenmerk ${REFERENCE}. We antwoorden naar someone@example.invalid.`,
     );
     expect(said).toBe(
       fill(STRINGS.nl['report.sent.mail'], { reference: REFERENCE, email: 'someone@example.invalid' }),
@@ -153,7 +153,7 @@ describe('Report this link, sent by mail', () => {
   it('says nobody can answer when no address was left', async () => {
     const said = await sendLinkReport(BY_MAIL, '');
     expect(said).toBe(
-      `Sent to our support team, with report reference ${REFERENCE}. Without an address, we cannot answer you.`,
+      `Sent to our support team, with report reference ${REFERENCE}. Without an email address, we cannot answer you.`,
     );
   });
 
@@ -168,7 +168,7 @@ describe('Report this link, sent by mail', () => {
     window.localStorage.setItem('ownpace.locale', 'nl');
     const said = await sendLinkReport(BY_MAIL, '');
     expect(said).toBe(
-      `Verstuurd naar ons supportteam, met meldingskenmerk ${REFERENCE}. Zonder adres kunnen we u niet antwoorden.`,
+      `Verstuurd naar ons supportteam, met meldingskenmerk ${REFERENCE}. Zonder mailadres kunnen we u niet antwoorden.`,
     );
     expect(said).not.toMatch(/ticket|nummer|referentie/i);
   });

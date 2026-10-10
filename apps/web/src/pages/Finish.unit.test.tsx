@@ -11,7 +11,7 @@
  * a checklist.
  *
  * Since 0128 T5 slice 7b the last step lists the migration's data types, each
- * with its own End and Keep copying (the owner's D3 and D8), and step 4 asks
+ * with its own End and Keep migrating (the owner's D3 and D8), and step 4 asks
  * for mail only: only mail's buttons wait for it.
  */
 
@@ -185,7 +185,7 @@ describe('the cutover order', () => {
 
     const button = await screen.findByRole('button', { name: END_MAIL });
     expect(button).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Keep copying Email' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Keep migrating Email' })).toBeDisabled();
 
     fireEvent.click(button);
     expect(endOrKeepDataType).not.toHaveBeenCalled();
@@ -196,7 +196,7 @@ describe('the cutover order', () => {
     renderScreen();
 
     expect(
-      await screen.findByText(/will not be copied, and nothing will report it/),
+      await screen.findByText(/will not be migrated, and nothing will report it/),
     ).toBeInTheDocument();
   });
 
@@ -265,7 +265,7 @@ describe('the cutover order', () => {
     endOrKeepDataType.mockResolvedValue({ changed: true });
     renderScreen();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Keep copying Calendar' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Keep migrating Calendar' }));
     expect(endOrKeepDataType).not.toHaveBeenCalled();
     expect(screen.getByText(STRINGS.en['lane.intro'])).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: STRINGS.en['lane.confirm'] }));
@@ -282,7 +282,7 @@ describe('the cutover order', () => {
     renderScreen();
 
     expect(await screen.findByRole('button', { name: 'End Calendar' })).toBeEnabled();
-    expect(screen.queryByRole('button', { name: 'Keep copying Calendar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Keep migrating Calendar' })).not.toBeInTheDocument();
     expect(screen.getByText(/You stopped Calendar\. End it, or resume it/)).toBeInTheDocument();
   });
 
@@ -315,7 +315,7 @@ describe('a grace period that ended while nobody chose (0128 D7)', () => {
 
     expect(
       await screen.findByText(
-        /^The grace period of Email ended on .+, and nobody chose, so it no longer copies\. End it, or keep it copying\.$/,
+        /^The grace period of Email ended on .+, and nobody chose, so it no longer migrates\. End it, or keep migrating\.$/,
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/The grace period of Calendar/)).not.toBeInTheDocument();
@@ -370,7 +370,7 @@ describe('a migration that cannot be finished', () => {
 
     expect(await screen.findByText(/Never started, so there is nothing to finish/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: END_MAIL })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Keep copying/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Keep migrating/ })).not.toBeInTheDocument();
   });
 
   it('shows a finished one as finished, with no checklist, and each data type it can keep copying', async () => {
@@ -381,7 +381,7 @@ describe('a migration that cannot be finished', () => {
     expect(screen.queryByText(/Run the check/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: END_MAIL })).not.toBeInTheDocument();
     expect(screen.getByText(STRINGS.en['finish.each.title'])).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Keep copying Email' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Keep migrating Email' })).toBeEnabled();
   });
 });
 

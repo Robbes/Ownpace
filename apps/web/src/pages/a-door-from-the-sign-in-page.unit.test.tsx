@@ -209,7 +209,7 @@ describe('only where the sign-in button is', () => {
     vi.mocked(fetchAuthMode).mockReturnValue(new Promise(() => {}));
     renderAt('/login', 'en');
 
-    expect(await screen.findByText(/checking how this deployment/i)).toBeInTheDocument();
+    expect(await screen.findByText(/checking how to sign in/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: SAID.en.signIn })).toBeNull();
     expect(doorsToTheRequestPage(), 'no button yet, so no link under it').toEqual([]);
   });

@@ -42,11 +42,11 @@ describe('a grace period nobody chose at, in the digest', () => {
     const en = renderDigest([m], 'en', 'daily')!.body;
     expect(en).toContain('Migration: Acme');
     expect(en).toContain(
-      '  - grace period over and nobody chose, so no longer copying (end each, or keep it copying, on the Finish page): Email, Calendar',
+      '  - grace period ended without a decision, so migration ended (on the Finish page: end each or keep it active): Email, Calendar',
     );
     const nl = renderDigest([m], 'nl', 'daily')!.body;
     expect(nl).toContain(
-      '  - overgangsperiode voorbij en niets gekozen, dus kopieert niet meer (beëindig elk, of laat het blijven kopiëren, op de afrondpagina): E-mail, Agenda',
+      '  - overgangsperiode voorbij en geen keuze gemaakt, dus het migreren staat uit (Op de afrondingspagina: beëindig alles, of laat de migratie actief): E-mail, Agenda',
     );
   });
 });

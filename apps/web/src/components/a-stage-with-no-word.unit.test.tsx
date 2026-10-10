@@ -21,7 +21,7 @@ const WORDS = {
   nl: [
     'Nog niet gestart',
     'Gepauzeerd',
-    'Wordt gekopieerd',
+    'Wordt gemigreerd',
     'Wordt bijgehouden',
     'Klaar om over te stappen',
     'Bezig met overstappen',

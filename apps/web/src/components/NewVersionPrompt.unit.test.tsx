@@ -26,11 +26,11 @@ vi.mock('../services/build-identity.ts', async (importOriginal) => ({
 }));
 
 const EN = {
-  said: 'A newer version of this page is available. Reload the page to use it; anything you have not saved yet is lost.',
+  said: 'A newer version of this page is available: reload the page to continue; anything you have not saved yet is lost.',
   button: 'Reload the page',
 };
 const NL = {
-  said: 'Er is een nieuwere versie van deze pagina. Laad de pagina opnieuw om die te gebruiken; wat u nog niet hebt opgeslagen, gaat daarbij verloren.',
+  said: 'Er is een nieuwere versie van deze pagina. Laad de pagina opnieuw; wat u niet had opgeslagen, gaat daarbij verloren.',
   button: 'Pagina opnieuw laden',
 };
 

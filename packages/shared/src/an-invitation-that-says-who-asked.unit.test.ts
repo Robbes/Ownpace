@@ -10,8 +10,9 @@
  * in with, never a token, and it does not tell them to open an app they have
  * no account for.
  *
- * During the alpha it opens a paragraph with the note's welcome and then the
- * facts (the owner, 2026-10-04, 0131 D4's amendment), and, as the
+ * During the alpha it opens a paragraph with a welcome (in English the note's,
+ * in Dutch the owner's own mail welcome of 2026-10-10) and then the facts
+ * (the owner, 2026-10-04, 0131 D4's amendment), and, as the
  * access-granted mail does, links the Alpha conditions and the tester guide
  * after them, in its own language (0131 T1 (b), 2026-10-04). The privacy line
  * stays last. Those cases failed on cd318823: the paragraph ended with no
@@ -64,8 +65,11 @@ describe('the invitation mail', () => {
     expect(body).toMatch(locale === 'en' ? /You are invited to join this organisation/ : /U bent uitgenodigd/);
   });
 
-  /** The note's welcome, which opens the alpha paragraph (the owner, 2026-10-04). */
-  const WELCOME = { en: 'Welcome to the Alpha! ', nl: 'Welkom bij Ownpace in de Alpha fase! ' } as const;
+  /**
+   * The welcome that opens the alpha paragraph: in English the note's (the
+   * owner, 2026-10-04), in Dutch the owner's own mail welcome (2026-10-10).
+   */
+  const WELCOME = { en: 'Welcome to the Alpha! ', nl: 'Welkom bij Ownpace in de Alpha-fase! ' } as const;
   const opensWithTheWelcome = (body: string, locale: (typeof LOCALES)[number]) =>
     body.split('\n').some((l) => l.startsWith(WELCOME[locale]));
 

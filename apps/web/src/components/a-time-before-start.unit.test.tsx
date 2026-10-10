@@ -89,7 +89,7 @@ describe('how long, under the count', () => {
     });
     renderScreen();
     expect(
-      await screen.findByText('Ongeveer 4 tot 5 dagen, omdat Google een mailbox 2,5 GB per dag laat downloaden.'),
+      await screen.findByText('Ongeveer 4 tot 5 dagen, omdat Google een limiet hanteert per mailbox van 2,5 GB per dag.'),
     ).toBeInTheDocument();
     expect(screen.getByText('Hoe lang:')).toBeInTheDocument();
   });
@@ -104,7 +104,7 @@ describe('how long, under the count', () => {
     renderScreen();
     const line = await screen.findByText(/Within a day/);
     expect(line.closest('p')?.textContent).toBe(
-      'How long: Within a day, because this mailbox holds less than the 2.5 GB a day Google lets one download. The files: we will know after the first hour.',
+      'How long: Within a day, because this mailbox holds less than the 2.5 GB Google lets one download a day. The files: we will know after the first hour.',
     );
   });
 

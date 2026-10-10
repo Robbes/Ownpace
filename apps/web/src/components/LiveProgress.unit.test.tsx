@@ -237,11 +237,14 @@ describe('a stopped data type keeps its line', () => {
 
   it('says the three things the owner named, in both languages', () => {
     // The copies stay, they no longer follow the source, and switching it back
-    // on continues where it stopped (0125 T7).
+    // on continues where it stopped (0125 T7). The Dutch says the third as what
+    // switching on does: new items migrated again, edits picked up.
     expect(STRINGS.en['confirm.progress.stopped']).toMatch(/copies stay, but no longer follow the source/);
     expect(STRINGS.en['confirm.progress.stopped.why']).toMatch(/continues where it stopped/);
-    expect(STRINGS.nl['confirm.progress.stopped']).toMatch(/kopieën blijven, maar volgen de bron niet meer/);
-    expect(STRINGS.nl['confirm.progress.stopped.why']).toMatch(/gaat verder waar het stopte/);
+    expect(STRINGS.nl['confirm.progress.stopped']).toMatch(/kopieën blijven, maar blijven niet langer in sync met de bron/);
+    expect(STRINGS.nl['confirm.progress.stopped.why']).toMatch(
+      /Bij inschakelen worden nieuwe items weer gemigreerd, wijzigingen opgepakt/,
+    );
   });
 
   it('a skipped one still has no line: the migration never had it', () => {
@@ -292,7 +295,7 @@ describe('of about how many', () => {
     );
     expect(screen.getByText('18.234 van ~19.000 · 3,1 van ~3,4 GB')).toBeTruthy();
     expect(
-      screen.getByText(/12 ongemoeid gelaten: stonden al op het nieuwe systeem, of zijn daar sindsdien gewijzigd/),
+      screen.getByText(/12 ongemoeid gelaten: deze stonden al op het nieuwe systeem, of waren sindsdien gewijzigd/),
     ).toBeTruthy();
   });
 

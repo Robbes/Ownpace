@@ -300,7 +300,7 @@ describe('a grant the person took back (0108 T8 (c))', () => {
     renderHub();
 
     expect(await screen.findByText(/the person being migrated withdrew their access/)).toBeInTheDocument();
-    expect(screen.getByText(/Nothing reads their account now/)).toBeInTheDocument();
+    expect(screen.getByText(/Nothing reads or migrates their account now/)).toBeInTheDocument();
     expect(screen.getByText(/send them a new grant link\. Links are made per person: see Links below/)).toBeInTheDocument();
   });
 
@@ -587,7 +587,9 @@ describe('where its files start (0153 open question 5, item 4)', () => {
   it('says all of the account where no folder was chosen, as a person names it', async () => {
     mappingApiGet.mockResolvedValue(files('google_drive', {}));
     renderHub();
-    expect(await screen.findByText('Its files are read from all of My Drive.')).toBeInTheDocument();
+    // The whole of My Drive, named as the person names it; the lines for one
+    // folder say "only" (the owner's text review of 2026-10-10 dropped "all of").
+    expect(await screen.findByText('Its files are read from My Drive.')).toBeInTheDocument();
   });
 
   it('says nothing for a migration with no files, or from a source with no folder to start from', async () => {
@@ -1065,7 +1067,7 @@ describe('how long, before the first pass reports (0154 T3 (a))', () => {
     fetchAllDiscoveryMock.mockResolvedValue({ 'acme-mail': [counted(1.2e9)], other: [counted(99e9)] });
     renderHub();
     expect(
-      await screen.findByText('Within a day, because this mailbox holds less than the 2.5 GB a day Google lets one download.'),
+      await screen.findByText('Within a day, because this mailbox holds less than the 2.5 GB Google lets one download a day.'),
     ).toBeInTheDocument();
   });
 });

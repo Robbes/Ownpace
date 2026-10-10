@@ -13,8 +13,9 @@
  *
  *  - the four pages carry one line, in the reader's language, with the
  *    address as a `mailto:` link: EN *"Stuck? Mail {address} and name the page
- *    you are on. Never send a password."*, NL *"Komt u er niet uit? Mail naar
- *    {address} en noem de pagina waarop u bent. Stuur nooit een wachtwoord."*
+ *    you are on. Never send a password or other sensitive data."*, NL *"Komt u
+ *    er niet uit? Mail naar {address} en noem de pagina waarop u bent. Stuur
+ *    nooit een wachtwoord of andere gevoelige gegevens mee."*
  *    On `/auth/callback` that is both the no-organisation state and the failed
  *    one; on `/request-access`, the form and the page after it was sent; on
  *    `/login`, also when the API cannot be asked, which is when it is needed;
@@ -119,16 +120,18 @@ import { LocaleProvider } from '../i18n/index.tsx';
 /** An example, never the owner's address (0144 T0: it goes in `.env`). */
 const ADDRESS = 'support@example.test';
 
-/** 0144 §3 T6's words, with the address filled in. */
+/** 0144 §3 T6's words, as the owner's text review left them, with the address filled in. */
 const SAID = {
   en: {
-    line: `Stuck? Mail ${ADDRESS} and name the page you are on. Never send a password.`,
+    line:
+      `Stuck? Mail ${ADDRESS} and name the page you are on. ` +
+      'Never send a password or other sensitive data.',
     sidebar: `Help: ${ADDRESS}`,
   },
   nl: {
     line:
       `Komt u er niet uit? Mail naar ${ADDRESS} en noem de pagina waarop u bent. ` +
-      'Stuur nooit een wachtwoord.',
+      'Stuur nooit een wachtwoord of andere gevoelige gegevens mee.',
     sidebar: `Hulp: ${ADDRESS}`,
   },
 } as const;
@@ -157,14 +160,14 @@ const BEFORE_SIGN_IN = {
   /** While the page asks the API what it accepts. */
   login: async () => {
     mount('/login', <Login />);
-    await screen.findByText(/checking how this deployment|controleren hoe deze/i);
+    await screen.findByText(/checking how to sign in|controleren hoe men zich/i);
   },
   /** Once the API has answered, as a tester on the hosted service sees it. */
   loginAnswered: async () => {
     authMode.answer = () => Promise.resolve({ mode: 'managed', acceptsSeedToken: false });
     mount('/login', <Login />);
     await waitFor(() =>
-      expect(document.body.textContent).not.toMatch(/checking how this deployment|controleren hoe deze/i),
+      expect(document.body.textContent).not.toMatch(/checking how to sign in|controleren hoe men zich/i),
     );
   },
   /** When the API cannot be asked: nobody can sign in, so a person is what is left. */

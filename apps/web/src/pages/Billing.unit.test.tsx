@@ -534,7 +534,7 @@ describe('the price on the screen is the published price (0121 T4)', () => {
     renderBilling();
 
     expect(
-      await screen.findByText(/Past the published table/),
+      await screen.findByText(/Past the highest tier — contact us/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Could not load/)).not.toBeInTheDocument();
   });
