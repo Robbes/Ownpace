@@ -86,6 +86,13 @@ vi.mock('./middleware/auth.ts', async (importOriginal) => {
       req.tenantId = TENANT;
       next();
     },
+    // The subject-only door, for the routes that ask about the service and not
+    // about an organisation: signed in, and deliberately NO tenant.
+    authenticateSubject: (req: Record<string, unknown> & { headers: Record<string, string> }, _res: unknown, next: () => void) => {
+      req.userId = req.headers['x-test-user'] ?? 'user-1';
+      req.userEmail = 'someone@example.invalid';
+      next();
+    },
   };
 });
 

@@ -936,9 +936,10 @@ it. Without the setting nobody is asked and nothing is refused.
 **While any text is a draft, nobody is asked either** (`LEGAL_DRAFTS` in
 `packages/managed/src/legal-versions.ts`). A draft's number is the one its final
 text will carry, so an acceptance of it would be recorded as the final's. On
-2026-09-29 the privacy policy 1.2 and the terms 1.3 are drafts, so live asks
-nobody until the owner's final-text pull request drops the draft words and sets
-`LEGAL_DRAFTS` to match. The API says which at start, in its log:
+2026-09-29 the privacy policy 1.2 and the terms 1.3 were drafts. The owner's
+final-text pull request (workplan 0139, 2026-10-05) drops the draft words and
+sets `LEGAL_DRAFTS` to match; live asks from the release that carries it. The
+API says which at start, in its log:
 
 ```bash
 docker compose -f deploy/compose/managed.yml logs api | grep -F '[api] ' | grep -iE 'accept|draft'

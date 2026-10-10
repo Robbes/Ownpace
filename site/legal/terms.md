@@ -1,9 +1,23 @@
 <!-- Copyright 2026 The Ownpace authors (Apache-2.0) -->
 <!--
-  DRAFT — v1.3, 2026-09-28, for the owner's review first (this briefing began
-  with v1.1, 2026-08-30). This comment never renders (the site generator strips
-  HTML comments); it is the briefing for the reviewing lawyer. terms.nl.md
-  mirrors this file section for section.
+  FINAL — v1.3, 2026-10-05 (the date on the Last updated line moves to the
+  day the owner's final-text pull request merges). Drafted 2026-09-28 for the
+  owner's review first (this briefing began with v1.1, 2026-08-30). This
+  comment never renders (the site generator strips HTML comments); it is the
+  briefing for the reviewing lawyer. terms.nl.md mirrors this file section
+  for section.
+
+  The owner's final-text pull request (0139 Status, 2026-10-05) took the
+  draft words off the Version line, set LEGAL_DRAFTS to false, and pinned
+  the words in ACCEPTED_WORDS (scripts/a-version-the-tester-accepted.unit.test.ts).
+  From then on every change gets a new number. It also changed, under 1.3:
+  §11's closing sentence, said as the code does it (precondition B, below;
+  the owner: "Reword to match the code"). §13 is unchanged; the note above
+  the Dutch page now carries its exception (question 15; the owner:
+  "English governs, with the exception"). The lawyer: "Lawyer is fine, we
+  move forward. Finalize what is left." (the owner, 2026-10-05), read as the
+  Alpha on the owner's own approval, with the lawyer's pass before the first
+  paid tier; the questions below stay the lawyer's brief.
 
   Where things stand on 2026-09-28:
 
@@ -49,28 +63,34 @@
      giving one a new key, creating a migration) until the current versions
      are accepted. The site build renders the Alpha conditions since then.
      Still to do: the texts must be served (live's WWW_LIVE is false).
-  B. Not fully done: §11's "From the moment your account is closed, nothing
-     uses the access you gave us.", which the Alpha conditions §10, privacy
-     §9 and the DPA's Annex A promise too. Since #1320 (d7868276, 0085 T2,
-     2026-09-28), merged into this branch in c1413b53, nothing new starts:
-     the sync tick starts no pass for a closed organisation, a pass already
-     queued halts before it builds any credentials, the credential builders
-     refuse, and every door that would start work or use the access answers
-     409 account_closed. Work already running when the account closes is not
-     all stopped. The close asks the orchestrator to cancel only the runs
-     whose row names the orchestrator's run, which only a sync pass records,
-     and a request that fails is only logged (apps/api/src/close-account.ts).
-     A sync pass stops starting new items within about fifteen seconds and
-     finishes the ones it has begun (2026-09-29: it hears the close from
-     inside a data type too); a discovery stops at the latest before its next data
-     type, so it reads to the end of the one it is on. A verification or a
-     confirmation already running reads the accounts to its end, with the
-     readers it built before the close (run-verification.ts,
-     run-confirmation-pass.ts). To make the sentence true: the close stops
-     those too (their runs record the orchestrator's reference and the close
-     cancels them, or they check the close between steps), or the owner
-     rewords the sentence to what the code does. The comment beside §11 says
-     so in both languages.
+  B. DONE BY REWORDING (2026-10-05; the owner, asked to reword it or build the rest first: "Reword
+     to match the code"). §11, the Alpha conditions §10 and privacy §9 now say what the code does:
+     no new work starts, work already running finishes what it is doing and stops, a pass can carry
+     on for about fifteen seconds and then finishes what it began, and a daily check already under
+     way can read, once, a whole Microsoft 365 organisation's list of mailboxes, and the list of its
+     distribution lists and groups with their members' addresses (said so in review the same day;
+     the first wording named only the lists, not the members). Since the same review the app's own
+     refusal for a closed organisation, and the API's answer to DELETE /api/tenants/:id, say that
+     no new work starts too, where they said that nothing uses the access. The comment beside §11
+     has the code, with file and line. The DPA's Annex A, unpublished,
+     still says the old sentence and is corrected with the DPA's one pass before the first business
+     customer. What it said before, kept for the record: Not fully done: §11's "From the moment your
+     account is closed, nothing uses the access you gave us.", which the Alpha conditions §10,
+     privacy §9 and the DPA's Annex A promise too. Since #1320 (d7868276, 0085 T2, 2026-09-28),
+     merged into this branch in c1413b53, nothing new starts: the sync tick starts no pass for a
+     closed organisation, a pass already queued halts before it builds any credentials, the
+     credential builders refuse, and every door that would start work or use the access answers 409
+     account_closed. Work already running when the account closes is not all stopped. The close asks
+     the orchestrator to cancel only the runs whose row names the orchestrator's run, which only a
+     sync pass records, and a request that fails is only logged (apps/api/src/close-account.ts). A
+     sync pass stops starting new items within about fifteen seconds and finishes the ones it has
+     begun (2026-09-29: it hears the close from inside a data type too); a discovery stops at the
+     latest before its next data type, so it reads to the end of the one it is on. A verification or
+     a confirmation already running reads the accounts to its end, with the readers it built before
+     the close (run-verification.ts, run-confirmation-pass.ts). To make the sentence true: the close
+     stops those too (their runs record the orchestrator's reference and the close cancels them, or
+     they check the close between steps), or the owner rewords the sentence to what the code does.
+     The comment beside §11 says so in both languages.
   C. Settled (terms-unbuilt-paid-steps (a)): §6 and §7 keep the order button,
      the confirmation before the first migration, the confirming email and
      "Withdraw from contract" in the app, though none of them is built. They
@@ -246,7 +266,12 @@
       lawyer: the reviewer reads the old clause as void against consumers
       (black list, forum clauses); confirm that, and the wording for business
       customers (was question 9).
-  15. §13: language. The text keeps v1.2's rule: the English governs, except
+  15. §13: language. ANSWERED 2026-10-05: "English governs, with the
+      exception". §13 is unchanged, and translationNote in site/copy.mjs now
+      ends ", behalve waar dwingend consumentenrecht anders bepaalt", so the
+      note says what §13 says. Left for the lawyer: whether that can stand
+      for a Dutch-first Alpha, below. What the question said: The text keeps
+      v1.2's rule: the English governs, except
       where mandatory consumer law provides otherwise. The note above the
       Dutch privacy and terms pages says the first half only (the mismatch at
       the end of this question). Can that stand for a Dutch-first Alpha
@@ -475,8 +500,8 @@
 # Terms of service
 
 **Applies to:** the Ownpace **managed service** at `ownpace.eu`.
-**Version:** 1.3 (draft — not yet published)
-**Last updated:** 2026-09-28
+**Version:** 1.3
+**Last updated:** 2026-10-07
 
 > **These terms do not govern the software.** Ownpace is open source under the Apache
 > License 2.0, and running it yourself is governed by that licence and nothing here. These
@@ -686,28 +711,68 @@ sure you never need this section.
 
 ## 11. Ending it
 
-<!-- "From the moment your account is closed, nothing uses the access you gave us." NOT YET
-     FULLY TRUE (briefing, precondition B, not fully done). Since #1320 (d7868276, 0085 T2,
-     2026-09-28), merged into this branch in c1413b53, nothing new starts: the sync tick
-     (ACTIVE_MAPPINGS_SQL in apps/worker/src/jobs/managed-sync-tick.ts,
-     AN_OPEN_ORGANISATION_WHERE) starts no pass for a closed organisation, a pass already queued
-     halts before it builds any credentials (organisation_closed, stopping-a-pass.ts), the
-     credential builders refuse (refuseAClosedOrganisation), and every door that would start work
-     or use the access answers 409 account_closed (apps/api/src/closed-organisation.ts). Work
-     already running is not all stopped: the close cancels only the runs whose row names the
-     orchestrator's run (a sync pass), best effort (apps/api/src/close-account.ts); a sync pass
-     the cancel did not stop stops starting new items within about fifteen seconds and finishes
-     the ones it has begun (whyThisDataTypeStops, 2026-09-29); a discovery reads to the end of
-     the data type it is on; a verification or a confirmation already running reads to its end
-     with the stored access.
-     True once the close stops those too, or once the sentence says what the code does. -->
+<!-- "From the moment your account is closed, no new work starts with the access you gave us."
+     and the three sentences after it: SAID AS THE CODE DOES IT (the owner, 2026-10-05,
+     asked about this sentence: "Reword to match the code"; briefing, precondition B). Read
+     in the code on main c25534b4, after #1320, #1377 and #1405:
+     - Nothing new starts. The sync tick starts no pass for a closed organisation
+       (AN_OPEN_ORGANISATION_WHERE, apps/worker/src/jobs/managed-sync-tick.ts:415); a pass
+       already queued, or a retry, halts before any credential is built
+       (apps/worker/src/jobs/stopping-a-pass.ts:96, :114); the credential builders refuse
+       (refuseAClosedOrganisation, packages/orchestration/src/build-deps-from-mapping.ts:300,
+       :574); every door that would start work or use the access answers 409 account_closed
+       (apps/api/src/closed-organisation.ts).
+     - Work already running finishes what it is doing, and then stops. The close asks the
+       orchestrator to cancel the runs whose row names one (a sync pass), best effort
+       (apps/api/src/close-account.ts:147-162). A verification asks before each listing of a
+       target and each sample (packages/core/src/verification.ts:190-215), a confirmation
+       before each item it reads (packages/core/src/confirmation-run.ts:302), a discovery
+       before each collection (packages/core/src/discovery.ts:157): the listing, sample or
+       item in flight finishes, with all its pages, and no other begins. A discovery of a
+       file source walks its whole folder tree first, a request per folder
+       (packages/connectors/src/google-drive-source.ts:405-416), and asks only after it, so
+       a walk in flight runs to its end (discovery.ts:68-73). A request a member made in the
+       app just before the close (a sharing rescan, the permission report, a connection
+       test) asked once, when it began, and is answered in full
+       (apps/api/src/routes/migrations/operating-routes.ts:613-614).
+     - A pass the cancel did not stop asks at most once every 15 seconds (PASS_REREAD_EVERY_MS,
+       packages/shared/src/pass-deadline.ts:138), at its gates before the folder list, before each
+       folder and before each item (packages/core/src/domain-sync.ts:1505, :1517, :1688). So for
+       about fifteen seconds after the close it can begin further items or a further folder's
+       listing, and then it finishes what it began: the items in flight (up to its concurrency), and
+       a folder listing or a folder walk with all its pages. The one read of the account after the
+       last item's gate, the mail pass's listing of the owner's bin (Deleted Items), asks once more
+       right before it, whatever the clock says, and is skipped on a stop (toldToStopBeforeTheBin,
+       packages/core/src/domain-sync.ts; review of 2026-10-05: until then it asked nothing, and
+       could begin after the close, later than fifteen seconds when the last item took long).
+     - The daily shared-address discovery (06:30 UTC) and drift check (07:00 UTC) read the
+       list of open organisations once, when they start (activeOrganisations,
+       apps/worker/src/jobs/task-pools.ts:212, :249; managed-group-discovery.ts:218, :230,
+       managed-drift-detect.ts:234, :246), and do not ask again. An organisation closed while one
+       runs is still visited in that run. Only an o365 source, a whole Microsoft 365
+       organisation connected with application permissions, is read there
+       (packages/connectors/src/directory-availability.ts:72-75). The discovery reads its
+       mail-enabled groups (distribution lists, Microsoft 365 groups and mail-enabled security
+       groups) and, for each, its members' addresses (listMailEnabledGroups and listGroupMembers,
+       packages/connectors/src/graph-groups.ts:89, :144, :174). The drift check reads its list
+       of mailboxes (/users, packages/connectors/src/graph-directory.ts:76). Any other source is
+       answered without a request.
+     - No background task runs longer than an hour (maxDuration: 3600,
+       apps/worker/trigger.config.ts:65). The text promises no period.
+     Changed under 1.3 in the owner's final-text pull request (2026-10-05), before anybody
+     could accept 1.3: the API asked nobody while 1.3 was a draft (LEGAL_DRAFTS). -->
 
 **You** may close your account at any time: write to support@ownpace.eu. You choose when its
 data is erased: at once, or after 7, 30 or 90 days. We confirm the closing, and the date on
-which your data will be erased. From the moment your account is closed, nothing uses the access
-you gave us. When your data is erased, we destroy your credentials, revoke the access where the
-provider allows it, and delete your migration ledger, as §9 of the privacy policy describes.
-Invoices are kept as long as tax law requires.
+which your data will be erased. From the moment your account is closed, no new work starts with
+the access you gave us. Work that is already running finishes what it is doing at that moment,
+and then stops. A pass of a migration can carry on for about fifteen seconds after the close,
+and then finishes what it began. If you connected a whole Microsoft 365 organisation, a daily
+check that had already started can still read, once, the list of its mailboxes, and the list of
+its distribution lists and groups with their members' addresses. When your data is erased, we
+destroy your credentials, revoke the access where the provider allows it, and delete your
+migration ledger, as §9 of the privacy policy describes. Invoices are kept as long as tax law
+requires.
 
 **We** may end these terms with 30 days' notice, or immediately for a serious breach of §5,
 after telling you why as §5 describes. If we end them during a period you have already paid

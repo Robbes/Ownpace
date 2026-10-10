@@ -2,7 +2,9 @@
 <!--
   VERSION 1.0, 2026-09-28: the owner's text for the Alpha. It stays 1.0 while
   it is edited, until the first tester accepts it; every change after that
-  gets a new number (alpha-version-number (a), 2026-09-28). The lawyer's pass
+  gets a new number (alpha-version-number (a), 2026-09-28). Edited in place
+  once more on 2026-10-05, in the owner's final-text pull request, before
+  anybody could accept 1.0 (below): §8 and §10. The lawyer's pass
   (0139 T1) is deferred. This comment never renders (the site generator
   strips HTML comments); it is the briefing for the reviewing lawyer, beside
   the ones at the top of privacy.md and terms.md. alpha.nl.md mirrors this
@@ -13,14 +15,43 @@
   build since 0139 T3 (outside the site's nav), whose acceptance screen links
   it; published once live serves the site (0139 T10).
 
-  These conditions sit beside the terms 1.3 and the privacy policy 1.2, both
-  drafts in the same pull request. On 2026-09-28 the owner answered all 71
+  These conditions sit beside the terms 1.3 and the privacy policy 1.2, final
+  since the owner's final-text pull request (2026-10-05); until then both
+  were drafts. On 2026-09-28 the owner answered all 71
   questions on the answer page. This revision applies every answer that
   names the Alpha conditions, in both languages. Each is named by its id and
   the option chosen, for example rec-alpha-10 (a). ANSWERED marks the owner's
   answer; what follows "Left for the lawyer" is still open.
 
-  What the answers changed in the text, in both languages:
+  What changed on 2026-10-05, under 1.0, in both languages (the owner's
+  final-text pull request; 0139 Status, 2026-10-05):
+
+  - §8: an admin can do everything an owner can except, as before, close or
+    reopen the organisation, turn applying deletions or auto-applying
+    relocations on or off and make somebody an owner, and now also "change or
+    remove an owner or an invitation as owner" / "een eigenaar of een
+    uitnodiging als eigenaar een andere rol geven of verwijderen". The code
+    refuses that to an admin since #1484 (7126b8e3, 0137 T3): only an owner
+    may demote or remove an owner, as only an owner may make one, and an
+    invitation as owner counts as an owner row there whatever its status
+    (changesOwnerWithoutPermission, apps/api/src/routes/tenants/member-guards.ts).
+    The clause said less than the code did; it now says the same. "or an
+    invitation as owner" was added in review the same day: without it, read
+    beside the code's own rule that only an active owner is an owner, the
+    clause let an admin withdraw an invitation as owner.
+  - §10: "If you close your account, nothing uses any of it from then on"
+    is said as the code does it (the owner, 2026-10-05: "Reword to match the
+    code"). The comment beside terms §11 has what the code does, with file
+    and line.
+  - Why under 1.0: no acceptance of 1.0 can have been recorded. The only
+    writer of legal_acceptance is POST /api/me/acceptance
+    (apps/api/src/routes/me.ts), which answers 409 acceptance_not_asked
+    unless acceptanceAsked() (apps/api/src/conditions-not-accepted.ts),
+    which needs every text final. LEGAL_DRAFTS has had privacy and terms
+    true since it was written, in the one commit that also made the table
+    and the route (#1360, 2d3e113a), until this pull request.
+
+  What the answers of 2026-09-28 changed in the text, in both languages:
 
   - §2: when the account is created, the app shows these conditions, the
     terms and the privacy policy, each with its version number, asks for
@@ -115,23 +146,18 @@
     the day, as §11 says. The site build renders these conditions since
     0139 T3; the texts must still be served (0139 T10). Left for the
     lawyer: terms question 12.
-  - Credentials after a finished migration (§10). ANSWERED: 0139 open
-    question 3 (a), "keep until deleted or closes", and rec-alpha-10 (a),
-    2026-09-28, which makes §10 say what the code does. A connection's
-    access goes when the connection is deleted, which the app allows only
-    once no migration uses it. Deleting a migration removes only access a
-    family member gave through a grant link, which they can also withdraw on
-    their progress page. Privacy §9's Credentials row says the same. Nothing
-    uses the access after closing: NOT YET FULLY TRUE. Since #1320
-    (d7868276, 0085 T2), merged into this branch in c1413b53, nothing new
-    starts once the account is closed. Work already running is not all
-    stopped: a sync pass stops starting new items within about fifteen
-    seconds and finishes the ones it has begun (2026-09-29), a discovery
-    stops before its next data type, and a verification or a confirmation
-    already running reads to its end with
-    the stored access (terms briefing, precondition B, not fully done). The
-    access is destroyed at erasure, at the end of the window the tester
-    chose, as terms §11 now says.
+  - Credentials after a finished migration (§10). ANSWERED: 0139 open question 3 (a), "keep until
+    deleted or closes", and rec-alpha-10 (a), 2026-09-28, which makes §10 say what the code does. A
+    connection's access goes when the connection is deleted, which the app allows only once no
+    migration uses it. Deleting a migration removes only access a family member gave through a grant
+    link, which they can also withdraw on their progress page. Privacy §9's Credentials row says the
+    same. After closing: said as the code does it since 2026-10-05 (the owner: "Reword to match the
+    code"; terms briefing, precondition B): no new work starts, work already running finishes what
+    it is doing and stops, a pass can carry on for about fifteen seconds and then finishes what it
+    began, and a daily check already under way can read, once, a whole Microsoft 365 organisation's
+    list of mailboxes, and the list of its distribution lists and groups with their members'
+    addresses. The comment beside terms §11 has the code, with file and line. The access is
+    destroyed at erasure, at the end of the window the tester chose, as terms §11 says.
   - The end of the Alpha (§11). ANSWERED: alpha-s11-erasure-window (b),
     2026-09-28. A tester who has not accepted the new conditions by the day
     they take effect is closed that day, and their data does not move along.
@@ -179,7 +205,7 @@
 
 **Apply to:** the Alpha of the Ownpace **managed service** at `ownpace.eu`.
 **Version:** 1.0
-**Last updated:** 2026-09-28
+**Last updated:** 2026-10-07
 
 ---
 
@@ -281,8 +307,9 @@ During the Alpha, do not invite anyone else into your organisation. If somebody 
 a migration, send them that migration's progress link: it shows counts and states, never
 content. If you do invite someone, invite them as an admin, and know that an admin can do
 everything you can except close or reopen the organisation, turn applying deletions or
-auto-applying relocations on or off, and make somebody an owner. During the Alpha, a person can
-only be an owner or an admin. You are responsible for whom you invite.
+auto-applying relocations on or off, make somebody an owner, and change or remove an owner or an
+invitation as owner. During the Alpha, a person can only be an owner or an admin. You are
+responsible for whom you invite.
 
 ## 9. Google asks again
 
@@ -306,8 +333,13 @@ Microsoft or Dropbox, you withdraw there yourself. We tell you which.
 A finished migration keeps the access you gave us, so that you can resume it. We keep that
 access until you delete the connection, which the app allows once no migration uses it. Access a
 family member gave through a grant link goes when you delete the migration, or when they
-withdraw it on their progress page. If you close your account, nothing uses any of it from then
-on, and all of it is destroyed when your data is erased, at the end of the period you chose.
+withdraw it on their progress page. If you close your account, no new work starts with any of it
+from then on. Work that is already running finishes what it is doing at that moment, and then
+stops. A pass of a migration can carry on for about fifteen seconds after the close, and then
+finishes what it began. If you connected a whole Microsoft 365 organisation, a daily check that
+had already started can still read, once, the list of its mailboxes, and the list of its
+distribution lists and groups with their members' addresses. All of it is destroyed when your
+data is erased, at the end of the period you chose.
 
 When your data is erased, we also delete your Ownpace sign-in account, take your Google address
 and any family member's off the list of test users (§9), and erase your request for access. We
