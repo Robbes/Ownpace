@@ -4,6 +4,24 @@
 
 ## Status — 2026-10-10 (update this block at the end of every session)
 
+**2026-10-10: slice 5c — `operator.sh moneybird proof`** (decision 12, the operator's half). One
+invoice a month, made by hand to prove the books: it goes through `pushInvoice` the way the hourly
+push does, under the reference `ownpace-proof-{YYYY-MM}`, to Ownpace's own proof contact
+(`customer_id` `ownpace-proof`, which no organisation's `ownpace-{uuid}` can take, and no e-mail
+address), at €1.00 with domestic VAT, sent by hand, and prints the number, date and total
+Moneybird gave it (`moneybird-proof.ts`). Run again that month, it answers that the invoice exists
+and asks Moneybird to write nothing, so a repeated command spends nothing of the sandbox's 50 a
+month. Before asking Moneybird anything it refuses a stack that runs `NODE_ENV=production`, as
+live does, one that names no `NODE_ENV`, e-mail delivery, and Moneybird off or half set. The
+bring-up guide says when to run it.
+
+- **Guards:** `moneybird-proof.unit.test.ts` (with a sandbox of its own: each refusal asks
+  nothing; the month's proof is made to a contact without an e-mail address, sent `Manual`, and
+  says its number; again that month it exists and nothing is written; the next month is a new
+  proof; a draft that does not add up is said and not sent; a 429 stops it; the token in no line).
+- **Not yet:** the nightly sandbox invoice (the rest of decision 12), which makes one with a
+  payment registered and reads it back as `paid`; reading back `paid` and `late` (5f).
+
 **2026-10-10: slice 5e — an invoice address, and invoice details before a paid tier** (decisions
 11 and 14). Managed 0048 adds `billing_party.invoice_email`, checked loosely by the column and by
 the route alike (one `@` with something on either side: whether the mailbox exists is the
@@ -739,7 +757,7 @@ slice 5. The annual credit is not in this chain (decision 6).
    on the row, paced under the 150-requests-per-5-minutes limit, then reads the state back
    (`paid`, `late`). **The push built 2026-10-06** (slice 5a, managed 0047, hourly, Status). The Billing page shows the legal number and date; Pay shows only where an
    invoice can be paid: **built 2026-10-10** (slice 5b, Status). `operator.sh moneybird proof` makes one invoice in the sandbox, by hand,
-   never by e-mail, and running it again answers that it exists; the nightly managed run makes one
+   never by e-mail, and running it again answers that it exists (**built 2026-10-10**, slice 5c); the nightly managed run makes one
    with a payment registered (12). Invoice details first (14): **built 2026-10-10** (slice 5e,
    managed 0048, Status).
 6. **Moneybird's PDF in the app** (T6). The app streams Moneybird's own document and keeps no
