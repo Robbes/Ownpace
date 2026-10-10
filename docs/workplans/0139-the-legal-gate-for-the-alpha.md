@@ -2,7 +2,16 @@
 
 > **In one line:** Legal gate for the alpha: `site/legal` placeholders filled and published, a lawyer's pass, alpha conditions, acceptance recorded at first sign-in, notices where data is collected, sub-processors, retention, account closure, breach procedure, `SECURITY.md`.
 
-## Status — 2026-10-05 (update this block at the end of every session)
+## Status — 2026-10-10 (update this block at the end of every session)
+
+**2026-10-10: terms 1.4, the owner's own review.** The owner rewrote the Dutch terms (and the
+app's texts) on their branch `fix/updating-the-texts`; the English is conformed to the Dutch,
+and the points that change meaning were put to the owner and answered the same day (terms.md's
+briefing, "v1.4"). 1.3 had been final since #1532 merged on 2026-10-07, so the words take a new
+number: both files say 1.4, `LEGAL_VERSIONS.terms` is `'1.4'`, `ACCEPTED_WORDS` pins the new
+words and keeps 1.3's. Proved: `scripts/a-version-the-tester-accepted.unit.test.ts` green on the
+new pins. Alpha conditions 1.0 and privacy 1.2 are unchanged. Still owed before the first paid
+tier: the *Withdraw from contract* button §7 names (0111 T7, 0152 T6 (f)).
 
 **2026-10-05: the final texts testers accept (the owner's checklist of 2026-10-05, L2 to L4).
 A DRAFT pull request.** On branch
