@@ -18,6 +18,8 @@
  * secret; the key and what it holds are both said.
  */
 
+import { holdsAtCeiling } from './data-ceiling.ts';
+
 /** The switch, as read: off, on from a month, or refused. */
 export type BillingFrom =
   | { readonly kind: 'off' }
@@ -50,4 +52,38 @@ export function monthOf(at: Date): string {
 /** Whether the month `at` falls in is invoiced under the switch: on, and not before its month. */
 export function monthIsInvoiced(billing: BillingFrom, at: Date): boolean {
   return billing.kind === 'on' && monthOf(at) >= billing.from;
+}
+
+/** Why a run invoices nobody, and what it says; null when it invoices. */
+export type NobodyInvoiced = {
+  readonly reason: 'billing_from_empty' | 'alpha' | 'before_billing_from';
+  readonly said: string;
+} | null;
+
+/**
+ * The switch and the stage, as a run reads them before it reads anything about
+ * anybody: off while `OWNPACE_BILLING_FROM` is empty, during the Alpha, and
+ * before its month. A value that is not a month is refused, every run, by
+ * what it read. The month task and the push ask it alike, so nothing makes
+ * or sends an invoice while the other would not.
+ */
+export function whyNobodyIsInvoiced(billingFrom: string | undefined, stage: string | undefined, now: Date): NobodyInvoiced {
+  const billing = readBillingFrom(billingFrom);
+  if (billing.kind === 'refused') throw new Error(billing.reason);
+  if (billing.kind === 'off') {
+    return {
+      reason: 'billing_from_empty',
+      said: 'nobody is invoiced: OWNPACE_BILLING_FROM is empty (workplan 0111, decision 7).',
+    };
+  }
+  if (!holdsAtCeiling(stage)) {
+    return { reason: 'alpha', said: 'nobody is invoiced: OWNPACE_STAGE=alpha, and nothing is charged during the Alpha.' };
+  }
+  if (!monthIsInvoiced(billing, now)) {
+    return {
+      reason: 'before_billing_from',
+      said: `nobody is invoiced yet: ${monthOf(now)} is before OWNPACE_BILLING_FROM, ${billing.from}.`,
+    };
+  }
+  return null;
 }

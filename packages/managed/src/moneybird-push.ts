@@ -61,7 +61,11 @@ export type PushOutcome =
       /** True when the invoice existed already: a retry, or a run that died after the send. */
       readonly adopted: boolean;
       readonly taxRateId: string;
+      /** The rate's percentage as Moneybird holds it; null for a rate without one (reverse charge). */
+      readonly taxPercentage: string | null;
       readonly pricesAreInclTax: boolean;
+      /** Each line as it went on the invoice: its words, and its price in the setting it was made in, in cents. */
+      readonly lines: readonly { readonly description: string; readonly cents: number }[];
     }
   | { readonly kind: 'refused'; readonly reason: string }
   | { readonly kind: 'unavailable'; readonly reason: string }
@@ -165,5 +169,13 @@ export async function pushInvoice(
         `(state ${read.invoice.state ?? 'not given'}); the next run reads it again and sends nothing twice.`,
     };
   }
-  return { kind: 'issued', invoice: read.invoice, adopted, taxRateId: rate.taxRateId, pricesAreInclTax };
+  return {
+    kind: 'issued',
+    invoice: read.invoice,
+    adopted,
+    taxRateId: rate.taxRateId,
+    taxPercentage: rate.percentage,
+    pricesAreInclTax,
+    lines: priced,
+  };
 }

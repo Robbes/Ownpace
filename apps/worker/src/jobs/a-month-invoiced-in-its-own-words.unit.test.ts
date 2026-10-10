@@ -2,11 +2,9 @@
 
 /**
  * A MONTH INVOICED IN ITS OWN WORDS (workplan 0111, slice 4): the wiring half
- * of `managed-month-invoices`.
+ * of `managed-month-invoices`. The switch it reads first is
+ * `whyNobodyIsInvoiced`'s (billing-from.unit.test.ts).
  *
- *  - the switch, read before anything about anybody: nobody is invoiced while
- *    `OWNPACE_BILLING_FROM` is empty, during the Alpha, or before its month,
- *    and a value that is not a month is refused by what it read;
  *  - one organisation's month, in its own scope, as the hourly run asks it
  *    (`monthOfOrganisation`): the line in the language its notification
  *    settings name, English where they name none, and a second run makes no
@@ -20,38 +18,9 @@ import type { Pool } from 'pg';
 import { sql } from 'drizzle-orm';
 import { pgliteDriver, runMigrations, withTenant, type LedgerDriver } from '@openmig/ledger';
 import { PgDataAllowanceStore, runManagedMigrations } from '@openmig/managed';
-import { monthOfOrganisation, whyNobodyIsInvoiced } from './managed-month-invoices.ts';
+import { monthOfOrganisation } from './managed-month-invoices.ts';
 
 const OCT_1 = new Date('2026-10-01T00:23:00Z');
-
-describe('the switch, read before anything about anybody', () => {
-  it('invoices nobody while OWNPACE_BILLING_FROM is empty, whatever the stage', () => {
-    for (const from of [undefined, '', '  ']) {
-      expect(whyNobodyIsInvoiced(from, undefined, OCT_1)?.reason).toBe('billing_from_empty');
-      expect(whyNobodyIsInvoiced(from, 'alpha', OCT_1)?.reason).toBe('billing_from_empty');
-    }
-  });
-
-  it('invoices nobody during the Alpha, even when it is switched on', () => {
-    expect(whyNobodyIsInvoiced('2026-10', 'alpha', OCT_1)).toEqual({
-      reason: 'alpha',
-      said: 'nobody is invoiced: OWNPACE_STAGE=alpha, and nothing is charged during the Alpha.',
-    });
-  });
-
-  it('invoices nobody before the month it names, and from that month on', () => {
-    expect(whyNobodyIsInvoiced('2026-11', undefined, OCT_1)?.said).toBe(
-      'nobody is invoiced yet: 2026-10 is before OWNPACE_BILLING_FROM, 2026-11.',
-    );
-    expect(whyNobodyIsInvoiced('2026-10', undefined, OCT_1)).toBeNull();
-    expect(whyNobodyIsInvoiced('2026-10', '', new Date('2027-03-01T00:23:00Z'))).toBeNull();
-  });
-
-  it('refuses a value that is not a month, saying what it read', () => {
-    expect(() => whyNobodyIsInvoiced('2026-1', undefined, OCT_1)).toThrow(/OWNPACE_BILLING_FROM is "2026-1"/);
-    expect(() => whyNobodyIsInvoiced('2026-1', 'alpha', OCT_1)).toThrow(/not a month written YYYY-MM/);
-  });
-});
 
 // UUID family 0111c000-…, unused elsewhere in the repo.
 const IN_DUTCH = '0111c000-e29b-41d4-a716-446655440001';

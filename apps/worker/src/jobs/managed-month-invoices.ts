@@ -50,51 +50,11 @@ import type { Pool } from 'pg';
 import { sql } from 'drizzle-orm';
 import { withTenant } from '@openmig/ledger';
 import { log, readTenantNotificationPrefs, type TenantId } from '@openmig/shared';
-import {
-  holdsAtCeiling,
-  monthIsInvoiced,
-  monthOf,
-  openTheMonth,
-  readBillingFrom,
-  type MonthOutcome,
-} from '@openmig/managed';
+import { monthOf, openTheMonth, whyNobodyIsInvoiced, type MonthOutcome } from '@openmig/managed';
 import { leavesAReference } from './what-a-run-leaves.ts';
 import { activeOrganisations, openTaskPools } from './task-pools.ts';
 
 const rowsOf = <R>(result: unknown): R[] => (result as { rows: R[] }).rows;
-
-/** Why a run invoices nobody, and what it says; null when it invoices. */
-export type NobodyInvoiced = {
-  readonly reason: 'billing_from_empty' | 'alpha' | 'before_billing_from';
-  readonly said: string;
-} | null;
-
-/**
- * The switch and the stage, as a run reads them before it reads anything about
- * anybody: off while `OWNPACE_BILLING_FROM` is empty, during the Alpha, and
- * before its month. A value that is not a month is refused, every hour, by
- * what it read.
- */
-export function whyNobodyIsInvoiced(billingFrom: string | undefined, stage: string | undefined, now: Date): NobodyInvoiced {
-  const billing = readBillingFrom(billingFrom);
-  if (billing.kind === 'refused') throw new Error(`[month-invoices] ${billing.reason}`);
-  if (billing.kind === 'off') {
-    return {
-      reason: 'billing_from_empty',
-      said: 'nobody is invoiced: OWNPACE_BILLING_FROM is empty (workplan 0111, decision 7).',
-    };
-  }
-  if (!holdsAtCeiling(stage)) {
-    return { reason: 'alpha', said: 'nobody is invoiced: OWNPACE_STAGE=alpha, and nothing is charged during the Alpha.' };
-  }
-  if (!monthIsInvoiced(billing, now)) {
-    return {
-      reason: 'before_billing_from',
-      said: `nobody is invoiced yet: ${monthOf(now)} is before OWNPACE_BILLING_FROM, ${billing.from}.`,
-    };
-  }
-  return null;
-}
 
 /**
  * One organisation's month, in its own scope: its language, then the step its

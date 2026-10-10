@@ -4,6 +4,40 @@
 
 ## Status — 2026-10-06 (update this block at the end of every session)
 
+**2026-10-06, later: slice 5a — each draft numbered by Moneybird.** `managed-invoice-push`, hourly
+at :41, takes each active organisation's drafts to the books and writes back what Moneybird made
+of them (`invoice-push.ts`). A push claims its draft first, for one attempt, in an update only one
+claim can win (managed 0047, `push_lease_until`), so one writer talks to Moneybird about a draft at
+a time. What is sent is decided before Moneybird is asked anything: no invoice details is refused
+by name, and so is e-mail delivery while there is no invoice address (decision 11); the treatment
+comes from the buyer's details and the latest VIES answer for the number as stored
+(`vat-standing.ts`, moved from the API so the task reads it too); a consumer is addressed by their
+full name, a business by its name and VAT number, and a reverse-charge line ends with *Btw verlegd
+/ VAT reverse charged. VIES {number}, {date}* (decision 10). In the update that issues it, the row
+takes Moneybird's number, date, due date and ids, the treatment, the rate (a fraction, as the
+column has held it), the lines as invoiced and the totals (in cents, as every invoice row holds
+them: the pay route asks Mollie for `total` in cents), and gives its lease back. At most 60 a run, one every 25 seconds, under
+Moneybird's 150 requests in 5 minutes; a 429 stops the run. Off as the month task is, and while no
+`MONEYBIRD_*` key reaches the tasks; `set-task-env.sh` uploads them, and `OWNPACE_SELLER_COUNTRY`
+and `VAT_OSS_ACTIVE`, and deletes each one emptied. Decision 6's alert is here: an organisation
+with a draft still a draft two days after it was made is said as an error, by reference, every run.
+
+- **Guards:** `a-draft-numbered-by-the-books.unit.test.ts` (the plan: refusals, consumer and
+  business, VIES's evidence with and without a consultation number, an invalid number charged like
+  a consumer; on PGlite as `app_user`: claimed once while the lease holds, proved by taking the
+  lease out of the claim, which turns that case red, and again after it runs out; never once
+  issued, never from another organisation's scope; the write-back once; a draft behind after two
+  days); `a-draft-pushed-once.unit.test.ts` (the run's half with a Moneybird of
+  its own: a consumer's draft numbered and written back, the next run asking Moneybird nothing; a
+  reverse-charge draft at €9,92 with its evidence; no details asks nothing and is said, with the
+  alert; a 429 stops the run). The column pin knows `push_lease_until` (lifecycle) and the grant
+  pin the two columns 0047 grants. The split-job guard has six, the task count seventeen, and the
+  runbook's switch table a row for the push.
+- **Not yet:** the Billing page showing the legal number and paying only an issued invoice (5b);
+  reading back `paid` and `late`; the invoice e-mail address and invoice details before leaving
+  Free (decisions 11 and 14); `operator.sh moneybird proof` and the nightly sandbox invoice
+  (decision 12).
+
 **2026-10-06: slice 4b — each month invoiced in advance.** `managed-month-invoices`, hourly at
 :23, keeps each active organisation's month in step with what it bills (`readBilledNow`, the
 rule the Billing page reads): on the month's first day a draft for the tier it starts on, and
@@ -664,7 +698,7 @@ slice 5. The annual credit is not in this chain (decision 6).
    month task built 2026-10-06** (slice 4b, Status): hourly, so a month opens in its first hour.
 5. **Moneybird numbers it.** A daily task pushes each draft, one writer by construction, a lease
    on the row, paced under the 150-requests-per-5-minutes limit, then reads the state back
-   (`paid`, `late`). The Billing page shows the legal number and date; Pay shows only where an
+   (`paid`, `late`). **The push built 2026-10-06** (slice 5a, managed 0047, hourly, Status). The Billing page shows the legal number and date; Pay shows only where an
    invoice can be paid. `operator.sh moneybird proof` makes one invoice in the sandbox, by hand,
    never by e-mail, and running it again answers that it exists; the nightly managed run makes one
    with a payment registered (12). Invoice details first (14).

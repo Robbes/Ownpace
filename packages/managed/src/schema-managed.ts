@@ -124,6 +124,9 @@ export const invoice = pgTable(
     moneybirdId: text('moneybird_id'),
     invoiceNumber: text('invoice_number'),
     invoiceDate: text('invoice_date'),
+    // Until when a push holds the draft (managed 0047): one writer talks to
+    // Moneybird about it at a time. Cleared at issue.
+    pushLeaseUntil: timestamp('push_lease_until', { withTimezone: true }),
   },
   (t) => [
     index('ix_invoice_tenant').on(t.tenantId, t.periodStart),
