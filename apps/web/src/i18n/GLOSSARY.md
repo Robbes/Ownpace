@@ -78,7 +78,7 @@ Two kinds of words render; only the first belongs to this glossary:
 | Domain pass | Pending / Syncing / Completed / Failed / Skipped | NL pending = **In afwachting** |
 | Run | Pending / Running / Succeeded / Failed / Cancelled | `success` keeps "Succeeded"; NL pending = **In afwachting** (the *wachtrij* words are reserved for **queued**) |
 | Decision | Decided / Decided by preset / Set aside | dismissed is gray, not green |
-| Invoice | Draft / Sent / Paid / Overdue / Void | NL: Concept / Verzonden / Betaald / Achterstallig / Vervallen |
+| Invoice | Being prepared / Sent / Paid / Overdue / Void | NL: Wordt opgemaakt / Verzonden / Betaald / Achterstallig / Vervallen. A draft is an invoice Moneybird has not numbered yet (0111 slice 5), so the customer reads what is happening to it, not a bookkeeping word. |
 
 Different entities MAY keep different words for near ideas (Succeeded vs
 Completed is deliberate — a run finishes, a domain's copy is complete). What

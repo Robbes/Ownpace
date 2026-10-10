@@ -1050,6 +1050,10 @@ router.get('/invoices', authenticate, requireBillingRead, async (req: Authentica
         metadata: schema.invoice.metadata,
         createdAt: schema.invoice.createdAt,
         updatedAt: schema.invoice.updatedAt,
+        // Moneybird's legal number and its date, once it numbered the
+        // invoice (0111 slice 5): what the customer's own books will quote.
+        invoiceNumber: schema.invoice.invoiceNumber,
+        invoiceDate: schema.invoice.invoiceDate,
       })
       .from(schema.invoice)
       .where(eq(schema.invoice.tenantId, tenantId))

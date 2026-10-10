@@ -84,6 +84,15 @@
 #                        set; when empty it is DELETED from the store, like the
 #                        stage, so emptying it stops the next run's invoices
 #                        rather than leave the old month switched on.
+#   MONEYBIRD_*        — the books (workplan 0111): the token, the
+#                        administration, the workflow, the tax rate ids and the
+#                        delivery, which the hourly push reads to have each
+#                        draft numbered (slice 5). And OWNPACE_SELLER_COUNTRY and
+#                        VAT_OSS_ACTIVE, which decide each invoice's VAT
+#                        treatment there as they do in the api. Uploaded when
+#                        set; when empty each is DELETED from the store, so
+#                        Moneybird switched off is off in the next run, and a
+#                        removed key never lingers beside a new token.
 #
 # NOT THE DATABASE OWNER, UNDER ANY NAME (workplan 0138 T3). Trigger.dev stores
 # variables per environment, not per task, so what this uploads every run of
@@ -360,6 +369,15 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   OWNPACE_REACHABLE_HOSTS="${OWNPACE_REACHABLE_HOSTS:-}" \
   OWNPACE_STAGE="${OWNPACE_STAGE:-}" \
   OWNPACE_BILLING_FROM="${OWNPACE_BILLING_FROM:-}" \
+  MONEYBIRD_API_TOKEN="${MONEYBIRD_API_TOKEN:-}" \
+  MONEYBIRD_ADMINISTRATION_ID="${MONEYBIRD_ADMINISTRATION_ID:-}" \
+  MONEYBIRD_WORKFLOW_ID="${MONEYBIRD_WORKFLOW_ID:-}" \
+  MONEYBIRD_TAX_RATE_ID_DOMESTIC="${MONEYBIRD_TAX_RATE_ID_DOMESTIC:-}" \
+  MONEYBIRD_TAX_RATE_ID_REVERSE_CHARGE="${MONEYBIRD_TAX_RATE_ID_REVERSE_CHARGE:-}" \
+  MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU="${MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU:-}" \
+  MONEYBIRD_DELIVERY="${MONEYBIRD_DELIVERY:-}" \
+  OWNPACE_SELLER_COUNTRY="${OWNPACE_SELLER_COUNTRY:-}" \
+  VAT_OSS_ACTIVE="${VAT_OSS_ACTIVE:-}" \
   FORCE_REWRITE="${SET_TASK_ENV_FORCE_REWRITE:-0}" \
   FORGET_OWNER_NAMES="$FORGET_OWNER_NAMES" \
   node -e '
@@ -459,6 +477,12 @@ const { envvars } = require("@trigger.dev/sdk");
     // The first month invoiced (0111, decision 7). Emptied, it is deleted
     // below as well: empty is nobody invoiced.
     "OWNPACE_BILLING_FROM",
+    // The books and the VAT treatment, for the hourly push (0111 slice 5).
+    // Each emptied one is deleted below as well.
+    "MONEYBIRD_API_TOKEN", "MONEYBIRD_ADMINISTRATION_ID", "MONEYBIRD_WORKFLOW_ID",
+    "MONEYBIRD_TAX_RATE_ID_DOMESTIC", "MONEYBIRD_TAX_RATE_ID_REVERSE_CHARGE",
+    "MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU", "MONEYBIRD_DELIVERY",
+    "OWNPACE_SELLER_COUNTRY", "VAT_OSS_ACTIVE",
   ]) {
     const value = process.env[name];
     if (value) variables[name] = value;
@@ -479,6 +503,29 @@ const { envvars } = require("@trigger.dev/sdk");
     try {
       await envvars.del(ref, slug, "OWNPACE_STAGE");
       console.log("[set-task-env] deleted OWNPACE_STAGE: no stage is set, so the hold at the data ceiling is on");
+    } catch (e) {
+      // Absent is the desired state.
+    }
+  }
+  // And the books switched off are off: a token left in the store would keep
+  // the push sending after the operator had emptied it, and a removed rate id
+  // would linger beside the ids of a new administration. Each is read by its
+  // name: the optional loop above is the one place a name is read from a list.
+  for (const [name, value] of Object.entries({
+    MONEYBIRD_API_TOKEN: process.env.MONEYBIRD_API_TOKEN,
+    MONEYBIRD_ADMINISTRATION_ID: process.env.MONEYBIRD_ADMINISTRATION_ID,
+    MONEYBIRD_WORKFLOW_ID: process.env.MONEYBIRD_WORKFLOW_ID,
+    MONEYBIRD_TAX_RATE_ID_DOMESTIC: process.env.MONEYBIRD_TAX_RATE_ID_DOMESTIC,
+    MONEYBIRD_TAX_RATE_ID_REVERSE_CHARGE: process.env.MONEYBIRD_TAX_RATE_ID_REVERSE_CHARGE,
+    MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU: process.env.MONEYBIRD_TAX_RATE_ID_OUTSIDE_EU,
+    MONEYBIRD_DELIVERY: process.env.MONEYBIRD_DELIVERY,
+    OWNPACE_SELLER_COUNTRY: process.env.OWNPACE_SELLER_COUNTRY,
+    VAT_OSS_ACTIVE: process.env.VAT_OSS_ACTIVE,
+  })) {
+    if (value) continue;
+    try {
+      await envvars.del(ref, slug, name);
+      console.log("[set-task-env] deleted", name + ": it is empty");
     } catch (e) {
       // Absent is the desired state.
     }

@@ -654,6 +654,10 @@ reading a file drops off its entry by itself.
 - [a-microsoft-source-found-by-its-faces](../scripts/a-microsoft-source-found-by-its-faces.unit.test.ts) — A MICROSOFT SOURCE FOUND BY ITS FACES (workplan 0141 T11).
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 
+### `apps/worker/src/jobs/managed-invoice-push.ts`
+
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
+
 ### `apps/worker/src/jobs/managed-month-invoices.ts`
 
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
@@ -743,6 +747,7 @@ reading a file drops off its entry by itself.
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
 - [a-plane-a-little-above-the-cap](../scripts/a-plane-a-little-above-the-cap.unit.test.ts) — A PLANE A LITTLE ABOVE THE CAP (workplan 0143 T1 step 3's plane half; open question 9, answered 2026-09-29: "Yes").
+- [a-plane-token-the-dead-worker-left](../scripts/a-plane-token-the-dead-worker-left.unit.test.ts) — THE PLANE'S TOKENS (workplan 0143 T1 step 3's plane half, the half plane-limit.sh cannot fix).
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
@@ -823,6 +828,7 @@ reading a file drops off its entry by itself.
 - [a-bundle-built-from-a-stale-install](../scripts/a-bundle-built-from-a-stale-install.unit.test.ts) — A BUNDLE BUILT FROM A STALE INSTALL (workplan 0150 T8; the owner, 2026-09-28: *"yes, make deploy-tasks.sh run pnpm install"*).
 - [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
 - [a-plane-a-little-above-the-cap](../scripts/a-plane-a-little-above-the-cap.unit.test.ts) — A PLANE A LITTLE ABOVE THE CAP (workplan 0143 T1 step 3's plane half; open question 9, answered 2026-09-29: "Yes").
+- [a-plane-token-the-dead-worker-left](../scripts/a-plane-token-the-dead-worker-left.unit.test.ts) — THE PLANE'S TOKENS (workplan 0143 T1 step 3's plane half, the half plane-limit.sh cannot fix).
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
@@ -1095,6 +1101,11 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/plane-limit.sh`
 
 - [a-plane-a-little-above-the-cap](../scripts/a-plane-a-little-above-the-cap.unit.test.ts) — A PLANE A LITTLE ABOVE THE CAP (workplan 0143 T1 step 3's plane half; open question 9, answered 2026-09-29: "Yes").
+- [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
+
+### `deploy/compose/plane-tokens.sh`
+
+- [a-plane-token-the-dead-worker-left](../scripts/a-plane-token-the-dead-worker-left.unit.test.ts) — THE PLANE'S TOKENS (workplan 0143 T1 step 3's plane half, the half plane-limit.sh cannot fix).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 
 ### `deploy/compose/redact-evidence.sh`
@@ -3598,6 +3609,7 @@ Reads:
 - `apps/worker/src/jobs/managed-digest.ts`
 - `apps/worker/src/jobs/managed-drift-detect.ts`
 - `apps/worker/src/jobs/managed-group-discovery.ts`
+- `apps/worker/src/jobs/managed-invoice-push.ts`
 - `apps/worker/src/jobs/managed-month-invoices.ts`
 - `apps/worker/src/jobs/managed-purge-closed.ts`
 - `apps/worker/src/jobs/managed-retention.ts`
@@ -3707,6 +3719,16 @@ Reads:
 - `deploy/compose/bootstrap-managed.sh`
 - `deploy/compose/deploy-tasks.sh`
 - `deploy/compose/plane-limit.sh`
+
+### [a-plane-token-the-dead-worker-left](../scripts/a-plane-token-the-dead-worker-left.unit.test.ts)
+
+THE PLANE'S TOKENS (workplan 0143 T1 step 3's plane half, the half plane-limit.sh cannot fix).
+
+Reads:
+
+- `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/deploy-tasks.sh`
+- `deploy/compose/plane-tokens.sh`
 
 ### [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts)
 
@@ -4309,6 +4331,7 @@ Reads:
 - `deploy/compose/managed.yml`
 - `deploy/compose/own-addresses.sh`
 - `deploy/compose/plane-limit.sh`
+- `deploy/compose/plane-tokens.sh`
 - `deploy/compose/set-task-env.sh`
 - `deploy/compose/stack-kind.sh`
 - `deploy/compose/stand-up-live.sh`
