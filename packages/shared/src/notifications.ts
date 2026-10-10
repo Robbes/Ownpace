@@ -1149,25 +1149,26 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'If you do not have an account yet, create one with this address and confirm the ' +
       'confirmation email. Your organisation appears the first time you sign in.',
     // Said out loud so nobody waits for a link that is never coming, and so the
-    // next person to touch this knows the absence is deliberate. The password's
-    // sentence is privacy §4.4's: the sign-in service is ours, on the same
-    // machine, and keeps a hash of it (0139 T4, ops-app-sentences (a); it said
-    // "never with us" until then). `what-the-mails-say.unit.test.ts`.
+    // next person to touch this knows the absence is deliberate. It said once
+    // "never with us" of the password, which privacy §4.4 contradicts, and then
+    // that only a hash is kept (0139 T4); the owner's text review of 2026-10-10
+    // took the password sentence out. `what-the-mails-say.unit.test.ts`.
     grantedNoLink:
       'There is no link or code in this email: it is safe to forward, it grants ' +
       'nobody anything.',
-    // The Alpha paragraph (workplan 0131 T1). It opens with the note's welcome,
-    // word for word what the app's pages say (`alpha.note.*` in apps/web's
-    // strings.ts; `an-alpha-said-out-loud.unit.test.tsx` holds the two
-    // together). Then the facts, word for word as the note said them until the
+    // The Alpha paragraph (workplan 0131 T1). In English it opens with the
+    // note's welcome, word for word what the app's pages say (`alpha.note.*`
+    // in apps/web's strings.ts); in Dutch with the owner's own mail welcome
+    // of 2026-10-10, "Welkom bij Ownpace in de Alpha-fase!". Then the facts, word for word as the note said them until the
     // owner's welcome replaced it (0131 D4's amendment, 2026-10-04: "Welcome,
     // then the facts"). The copy before an update is the Alpha conditions §6
     // and privacy §9 (0139 T4, ops-app-sentences (a)). One line, so the
     // conditions' and the guide's lines follow it in the same paragraph.
     grantedAlpha:
       'Welcome to the Alpha! Try Ownpace at your own pace, and help others move to European ' +
-      'alternatives. Nothing is charged during the Alpha. There are no backups, ' +
-      'so do keep your old account until you have checked what arrived at your new destination.',
+      'alternatives. Nothing is charged during the Alpha. There are no backups, apart from one copy ' +
+      'before each update, kept up to 7 days. So do keep your old account until you have checked ' +
+      'what arrived at your new destination.',
     // Under the alpha paragraph, with the conditions' address after it (0139
     // T4, with 0131 T1). The texts' own title, as the acceptance screen and
     // the site name them.
@@ -1252,8 +1253,10 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'Deze e-mail bevat geen link of code: u kunt hem gerust doorsturen, het geeft niemand toegang.',
     grantedAlpha:
       'Welkom bij Ownpace in de Alpha-fase! Probeer Ownpace rustig uit op uw eigen tempo, en help anderen makkelijker over te ' +
-      'stappen naar Europese alternatieven. Gedurende de Alpha-fase zijn alle tiers gratis, ' +
-      'maar er worden ook geen backups gemaakt: controleer goed of alles is aangekomen op de nieuwe bestemming voordat u iets verwijdert uit uw oude systeem.',
+      'stappen naar Europese alternatieven. Gedurende de Alpha-fase zijn alle tiers gratis. ' +
+      'Er worden geen back-ups gemaakt, op één kopie vlak voor elke update na, die hoogstens 7 dagen ' +
+      'wordt bewaard. Controleer dus goed of alles is aangekomen op de nieuwe bestemming voordat u ' +
+      'iets verwijdert uit uw oude systeem.',
     grantedConditions: 'Lees de voorwaarden:',
     grantedGuide: 'Lees de handleiding:',
     declinedIntro:

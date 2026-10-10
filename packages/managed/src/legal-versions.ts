@@ -70,7 +70,7 @@ export type LegalVersions = Readonly<Record<LegalDocument, string>>;
 export const LEGAL_VERSIONS: LegalVersions = {
   alpha: '1.0',
   privacy: '1.2',
-  terms: '1.3',
+  terms: '1.4',
 };
 
 /**

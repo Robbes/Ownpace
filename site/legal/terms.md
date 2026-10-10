@@ -19,6 +19,20 @@
   Alpha on the owner's own approval, with the lawyer's pass before the first
   paid tier; the questions below stay the lawyer's brief.
 
+  v1.4, 2026-10-10: the owner's own text review, made in the Dutch and
+  conformed into this file. Plainer words throughout, tasks named among what
+  is migrated, and these changes in substance, each the owner's: §1 someone
+  accepting for an organisation accepts for everyone in it (no longer "you
+  confirm you may bind it"); §4 "we do not sell your data" in place of the
+  general AI-training sentence (privacy keeps the narrower one Google requires, for
+  Google user data); §5 the exception to
+  telling first is "the law or the situation"; §6 Free keeps its numbers and
+  may change, as a change under §12; §8 the twelve-month confirmation and
+  "a year never renews as another year" kept (the owner's answers of that
+  day); §11 said as the code does it, in the owner's words; §15 addressed to
+  "Ownpace (Archico B.V.)", the signature line kept. 1.3 had been final since
+  2026-10-07, so the words take a new number.
+
   Where things stand on 2026-09-28:
 
   - The lawyer's pass (workplan 0139 T1) is deferred by the owner: "legal:

@@ -224,7 +224,9 @@ describe('a grace period nobody chose at (0128 D7)', () => {
     const d = deps({ listMoves: async () => [], graceEndedWithoutAChoice: async () => ['email', 'file'] });
     await runDigest(d);
     expect(d.sent).toHaveLength(1);
-    expect(d.sent[0]!.message.body).toContain('so no longer copying (end each, or keep it copying, on the Finish page): Email, Files');
+    expect(d.sent[0]!.message.body).toContain(
+      'so migration ended (on the Finish page: end each or keep it active): Email, Files',
+    );
   });
 
   it('turns an unreadable one into a blind spot, not a quiet morning', async () => {

@@ -165,7 +165,7 @@ export const COPY = {
       anyProvider: (protocol) => `any ${protocol} provider`,
       or: 'or',
       experimental: 'Experimental',
-      experimentalWhy: 'Built, not yet run against a real account of this kind. Keep your old account and check what arrives.',
+      experimentalWhy: 'Built, but needs more testing against a real account of this kind. Keep your old account and check what arrives.',
       staysBehind: 'Stays behind:',
       staysBehindItems: {
         'Google Keep': 'Google Keep',
@@ -448,7 +448,7 @@ export const COPY = {
     files: { home: 'index.html', how: 'hoe-het-werkt.html', pricing: 'prijzen.html', calculator: 'schatting.html', privacy: 'privacy.html', terms: 'voorwaarden.html', alpha: 'alpha.html', guide: 'alpha-handleiding.html', 'leaving-google': 'weg-bij-google.html', 'leaving-microsoft': 'weg-bij-microsoft-365.html', 'leaving-apple': 'weg-bij-icloud.html', 'leaving-dropbox': 'weg-bij-dropbox.html', 'leaving-box': 'weg-bij-box.html', 'leaving-mail': 'weg-bij-een-andere-mailaanbieder.html' },
     skip: 'Naar de inhoud',
     alphaVisitor: {
-      line: 'Ownpace is in de Alpha, op uitnodiging.',
+      line: 'Ownpace is gedurende de Alpha-fase enkel op uitnodiging.',
       nothingCharged: 'Tijdens de Alpha wordt niets in rekening gebracht.',
     },
     footerTag: 'neem uw gegevens mee, in uw eigen tempo.',
@@ -533,7 +533,7 @@ export const COPY = {
       or: 'of',
       experimental: 'Experimenteel',
       experimentalWhy:
-        'Gebouwd, maar nog niet gebruikt met een echt account van deze soort. Houd uw oude account aan en controleer wat er aankomt.',
+        'Gebouwd, maar moet nog meer vlieguren maken qua tests. Houd uw oude account aan en controleer wat er aankomt.',
       staysBehind: 'Blijft achter:',
       staysBehindItems: {
         'Google Keep': 'Google Keep',

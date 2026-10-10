@@ -115,7 +115,7 @@ export function acceptanceAtStart(
 const REFUSAL_EN =
   'Please accept the Alpha conditions, privacy policy and terms.';
 const REFUSAL_NL =
-  'U dient de voorwaarden gedurende de Alpha fase, de privacyverklaring en de ' +
+  'U dient de voorwaarden gedurende de Alpha-fase, de privacyverklaring en de ' +
   'servicevoorwaarden te accepteren.';
 
 /** What a door answers while the current texts are not accepted. */
