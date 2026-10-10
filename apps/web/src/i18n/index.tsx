@@ -10,7 +10,7 @@
 
 import React from 'react';
 import { STRINGS, type Locale, type StringKey } from './strings.ts';
-import { formatRelativeToNow, formatDateTime, formatNumber, formatCurrency, formatList } from './datetime.ts';
+import { formatRelativeToNow, formatDateTime, formatDay, formatNumber, formatCurrency, formatList } from './datetime.ts';
 import { publishLocale } from './active-locale.ts';
 import { fill, type TemplateVars } from './fill.ts';
 
@@ -128,6 +128,7 @@ export function useT(): (key: StringKey, vars?: TemplateVars) => string {
 export function useFormatters(): {
   relativeToNow: (when: string | Date) => string;
   dateTime: (when: string | Date) => string;
+  day: (day: string) => string;
   number: (n: number) => string;
   currency: (cents: number, currency: string) => string;
   list: (items: ReadonlyArray<string>) => string;
@@ -137,6 +138,7 @@ export function useFormatters(): {
     () => ({
       relativeToNow: (when: string | Date) => formatRelativeToNow(when, locale),
       dateTime: (when: string | Date) => formatDateTime(when, locale),
+      day: (day: string) => formatDay(day, locale),
       number: (n: number) => formatNumber(n, locale),
       currency: (cents: number, currency: string) => formatCurrency(cents, currency, locale),
       list: (items: ReadonlyArray<string>) => formatList(items, locale),

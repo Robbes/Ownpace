@@ -698,7 +698,7 @@ const TierPanel: React.FC<{ usage: UsageResponse }> = ({ usage }) => {
 
 const Billing: React.FC = () => {
   const t = useT();
-  const { currency, dateTime } = useFormatters();
+  const { currency, dateTime, day } = useFormatters();
   const { user } = useAuthStore();
   // Mirrors the server's requireRole('owner','admin') — which since the
   // 2026-08-10 owner decision guards the billing READS as well as the
@@ -859,8 +859,17 @@ const Billing: React.FC = () => {
                 <div key={invoice.id} className="p-4 bg-gray-50 rounded-lg">
                   <div className="flex items-center justify-between">
                     <div>
+                      {/* Moneybird's legal number once it numbered the
+                          invoice (0111 slice 5): the number the customer's
+                          own books quote. A draft has none yet, and says so
+                          in its chip; an invoice from before the books has
+                          only its id. */}
                       <p className="font-medium text-gray-900">
-                        {t('billing.invoice')} {invoice.id.slice(0, 8)}
+                        {invoice.invoiceNumber
+                          ? `${t('billing.invoice')} ${invoice.invoiceNumber}`
+                          : invoice.status === 'draft'
+                            ? t('billing.invoice')
+                            : `${t('billing.invoice')} ${invoice.id.slice(0, 8)}`}
                       </p>
                       {/* The period the server actually serves —
                           periodStart/periodEnd. The old field ("period")
@@ -869,13 +878,21 @@ const Billing: React.FC = () => {
                       <p className="text-sm text-gray-500">
                         {t('billing.period')} {invoice.periodStart} – {invoice.periodEnd}
                       </p>
+                      {invoice.invoiceDate && (
+                        <p className="text-sm text-gray-500">
+                          {t('billing.invoiceDate', { date: day(invoice.invoiceDate) })}
+                          {invoice.dueDate && ` · ${t('billing.invoiceDue', { date: day(invoice.dueDate) })}`}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center space-x-4">
                       <StateChip entity="invoice" state={invoice.status} />
                       <span className="font-medium text-gray-900">
                         {currency(invoice.total, invoice.currency)}
                       </span>
-                      {canManage && (invoice.status === 'draft' || invoice.status === 'sent' || invoice.status === 'overdue') && (
+                      {/* Only an issued invoice is paid: the API refuses a
+                          draft (0111 slice 3), so the page does not offer it. */}
+                      {canManage && (invoice.status === 'sent' || invoice.status === 'overdue') && (
                         <button
                           onClick={() => {
                             setPayError(null);

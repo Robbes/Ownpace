@@ -106,6 +106,9 @@ export const InvoiceSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).nullish(),
   createdAt: z.string(),
   updatedAt: z.string().nullish(),
+  /** Moneybird's legal number and its date (`YYYY-MM-DD`), once it numbered the invoice (0111 slice 5). */
+  invoiceNumber: z.string().nullish(),
+  invoiceDate: z.string().nullish(),
 });
 
 export const PaymentMethodSchema = z.object({

@@ -1001,6 +1001,9 @@ const en = {
   'billing.noInvoices': 'No invoices yet',
   'billing.invoice': 'Invoice',
   'billing.period': 'Period:',
+  // Moneybird's dates, once it numbered the invoice (0111 slice 5).
+  'billing.invoiceDate': 'Invoice date: {date}',
+  'billing.invoiceDue': 'due date: {date}',
   'billing.paymentMethods': 'Payment Methods',
   // The channel's state, shown only when it is OFF (0043 T3). "On" is not worth
   // a banner; "off" is the state somebody has to act on, and until now it was
@@ -1491,7 +1494,7 @@ const en = {
   'state.stage.ready_to_switch': 'Ready to switch',
   'state.stage.switching': 'Switching',
   'state.stage.done': 'Done',
-  'state.invoice.draft': 'Draft',
+  'state.invoice.draft': 'Being prepared',
   'state.invoice.sent': 'Sent',
   'state.invoice.paid': 'Paid',
   'state.invoice.overdue': 'Overdue',
@@ -4041,6 +4044,8 @@ const nl: Record<keyof typeof en, string> = {
   'billing.noInvoices': 'Nog geen facturen',
   'billing.invoice': 'Factuur',
   'billing.period': 'Periode:',
+  'billing.invoiceDate': 'Factuurdatum: {date}',
+  'billing.invoiceDue': 'vervaldatum: {date}',
   'billing.paymentMethods': 'Betaalmethoden',
   'notifications.off': 'E-mailmeldingen staan uit',
   'notifications.offHint':
@@ -4452,7 +4457,7 @@ const nl: Record<keyof typeof en, string> = {
   'state.stage.ready_to_switch': 'Klaar om over te stappen',
   'state.stage.switching': 'Bezig met overstappen',
   'state.stage.done': 'Afgerond',
-  'state.invoice.draft': 'Concept',
+  'state.invoice.draft': 'Wordt opgemaakt',
   'state.invoice.sent': 'Verzonden',
   'state.invoice.paid': 'Betaald',
   'state.invoice.overdue': 'Achterstallig',
