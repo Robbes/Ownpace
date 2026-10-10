@@ -2244,6 +2244,12 @@ phase_tasks() {
   # cap plus two, set before the deploy, because the deploy is what carries
   # it into the run queue. Read back, and said.
   "${SCRIPT_DIR}/plane-limit.sh"
+  # THE PLANE'S TOKENS (the same step, the half plane-limit.sh cannot fix):
+  # a worker that died mid-run leaves its id in the queue's concurrency set
+  # forever, and when the leaks equal the limit nothing dequeues. Released
+  # before the deploy, so a bring-up that lowers the limit never inherits a
+  # queue jammed by runs from months ago (E2E managed #247/#248).
+  "${SCRIPT_DIR}/plane-tokens.sh"
   "${SCRIPT_DIR}/deploy-tasks.sh"
   # The names the database owner went up under (DATABASE_URL until 0138 T3
   # step 2, DIRECT_DATABASE_URL until step 1), deleted from the store only now,
